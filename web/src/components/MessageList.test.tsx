@@ -117,6 +117,22 @@ describe('MessageList', () => {
     expect(bubble?.className).toContain('sm:max-w-[66.666667%]');
   });
 
+  // v2.10.1 [M2] mobile: text bubbles widen to ~86% of the full-screen
+  // conversation on a narrow viewport, narrowing to 75% at the desktop column
+  // breakpoint (mockup v2.10.1-mobile .msg max-width:86%).
+  it('text bubbles are ~86% wide on mobile and 75% at md (v2.10.1 M2)', () => {
+    // own message (default sample sender is the viewer) → blue bubble.
+    const { rerender } = render(<MessageList messages={[sample('M1', 'hi')]} />);
+    let bubble = screen.getByTestId('message-row').querySelector('.bg-chatuserbubble');
+    expect(bubble?.className).toContain('max-w-[86%]');
+    expect(bubble?.className).toContain('md:max-w-[75%]');
+    // received message (other sender) carries the same width policy.
+    rerender(<MessageList messages={[{ ...sample('M2', 'yo'), sender_identity_id: 'agent:arch1' }]} />);
+    bubble = screen.getByTestId('message-row').querySelector('[data-surface="channel"]');
+    expect(bubble?.className).toContain('max-w-[86%]');
+    expect(bubble?.className).toContain('md:max-w-[75%]');
+  });
+
   it('snaps initial scroll to bottom when there are messages', () => {
     const { container } = render(<MessageList messages={[sample('M1', 'a'), sample('M2', 'b')]} />);
     const list = screen.getByTestId('message-list');
@@ -359,5 +375,36 @@ describe('MessageList deleted/unresolved sender (#192 F1)', () => {
     renderFresh(<MessageList messages={[deletedMsg]} />);
     const row = screen.getByTestId('message-row');
     expect(row.textContent).not.toContain('agent:agent-8d1126f6');
+  });
+});
+
+// v2.10.0 [T75] — system/scheduler-authored messages (plan dispatch "your task
+// is ready" notifications; backend PlanDispatchAdapter posts SenderIdentityID
+// "system" with content_kind=text) must render an explicit "System" author, NOT
+// the "(deleted)" branch (the bare "system" ref is not an org member, so before
+// this it missed the resolver and fell through to "(deleted)"). The members
+// list is empty here — proving the fix is a sender special-case, not member data.
+describe('MessageList system sender (v2.10.0 [T75])', () => {
+  afterEach(() => cleanup());
+
+  function renderFresh(ui: React.ReactElement) {
+    const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return rtlRender(<QueryClientProvider client={c}>{ui}</QueryClientProvider>);
+  }
+
+  const sysMsg: Message = {
+    ...sample('M1', 'your task "App Shell" is ready — all upstream dependencies are done.'),
+    sender_identity_id: 'system',
+  };
+
+  it('renders the "system" sender as "System" (resolved), never "(deleted)"', () => {
+    renderFresh(<MessageList messages={[sysMsg]} />);
+    const btn = screen.getByTestId('message-sender-button');
+    expect(btn.textContent).toBe('System');
+    expect(btn.textContent).not.toContain('(deleted)');
+    // treated as a RESOLVED author (stable name + avatar), not the deleted branch.
+    expect(btn).toHaveAttribute('data-sender-resolved', 'true');
+    // the message body still renders (it's a normal text @mention, not collapsed).
+    expect(screen.getByTestId('message-row').textContent).toContain('is ready');
   });
 });

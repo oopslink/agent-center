@@ -10,6 +10,7 @@ import {
   useAddDependency,
   useRemoveDependency,
   useRemoveTaskFromPlan,
+  useResumePausedNode,
   usePatchPlan,
   useDeletePlan,
   useArchivePlan,
@@ -35,7 +36,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
 import { StatusChip, idHandle } from '@/components/workItemDisplay';
-import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel } from '@/components/planDisplay';
+import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
@@ -186,6 +187,8 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   return (
     <header className="space-y-2 border-b border-border-base p-4" data-testid="plan-detail-header">
       <div className="flex flex-wrap items-center gap-2">
+        {/* v2.10.1 [T99]: the human Plan id (P123). */}
+        <PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="plan-detail-ref" />
         <h1 className="font-heading text-xl font-semibold text-text-primary" title={plan.id}>
           {plan.name}
         </h1>
@@ -739,6 +742,21 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
       </svg>
     ),
   },
+  // T53: the agent paused its work item — the node is set aside, not actively
+  // running. Stone (muted warm-gray) reads as "halted/waiting", distinct from the
+  // amber `running`, so the DAG tells the truth instead of a phantom-running node.
+  paused: {
+    label: 'paused',
+    cls: 'bg-status-stone-bg text-status-stone-fg',
+    border: 'border-status-stone-border',
+    // pause (⏸)
+    icon: (
+      <svg viewBox="0 0 24 24" className={ICON_CLS} fill="currentColor" aria-hidden="true">
+        <rect x="6" y="5" width="4" height="14" rx="1" />
+        <rect x="14" y="5" width="4" height="14" rx="1" />
+      </svg>
+    ),
+  },
   done: {
     label: 'done',
     cls: 'bg-status-emerald-bg text-status-emerald-fg',
@@ -763,7 +781,7 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
 };
 
-const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'done', 'failed'];
+const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'paused', 'done', 'failed'];
 
 function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactElement {
   const s = NODE_STATE[status] ?? NODE_STATE.blocked;
@@ -1001,6 +1019,84 @@ function SyntheticAnchorMarker({
   );
 }
 
+// ── PlanStepper (mobile <md) ─────────────────────────────────────────────────
+// v2.10.1 [M4] On mobile the left→right SVG DAG (PlanDag) becomes a VERTICAL
+// stepper / timeline (mockup `docs/design/v2.10.1/v2.10.1-mobile` — Plan frame).
+// It fixes the 375px-critical③: the wide absolute-positioned graph had touch
+// targets too small + dead vertical height. The stepper renders the same nodes
+// in topological order (by DAG level) as big, tappable cards with a
+// status-colored timeline dot — display-only (in-graph dependency EDITING stays
+// desktop-only). The same node tokens/components (NODE_STATE / NodeStateChip /
+// TaskIdTag / TaskTitleLink / AssigneeTag) are reused so the two views stay in
+// sync.
+function PlanStepper({
+  positioned,
+  projectId,
+  orgRefOf,
+}: {
+  positioned: Positioned[];
+  projectId: string;
+  orgRefOf: (taskId: string) => string | undefined;
+}): React.ReactElement {
+  // Topological-ish order: DAG level, then stable vertical position within it.
+  const ordered = useMemo(
+    () => [...positioned].sort((a, b) => a.level - b.level || a.y - b.y || a.x - b.x),
+    [positioned],
+  );
+  return (
+    <ol className="relative mt-1 md:hidden" data-testid="plan-stepper">
+      {ordered.map((p, i) => {
+        const s = NODE_STATE[p.node.node_status] ?? NODE_STATE.blocked;
+        const taskId = p.node.task_id;
+        const last = i === ordered.length - 1;
+        return (
+          <li
+            key={taskId}
+            className="relative pb-3 pl-6"
+            data-testid="plan-stepper-node"
+            data-task-id={taskId}
+            data-node-status={p.node.node_status}
+            data-level={p.level}
+          >
+            {/* Timeline rail (omit after the last node). */}
+            {!last && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 left-[5px] top-5 w-px bg-border-base"
+              />
+            )}
+            {/* Status-colored timeline dot (reuses the node state tokens). */}
+            <span
+              aria-hidden="true"
+              data-testid="plan-stepper-dot"
+              className={`absolute left-0 top-3.5 h-3 w-3 rounded-full border ${s.border} ${s.cls}`}
+            />
+            <div className={`rounded-lg border bg-bg-elevated p-2.5 shadow-1 ${s.border}`}>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <TaskIdTag taskId={taskId} orgRef={orgRefOf(taskId)} testId="plan-stepper-taskid" />
+                <span className="inline-flex items-center gap-1">
+                  <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
+                  <NodeStateChip status={p.node.node_status} />
+                </span>
+              </div>
+              {/* Big tappable title (≥44px touch target), opens the task. */}
+              <TaskTitleLink
+                projectId={projectId}
+                taskId={taskId}
+                title={p.node.title || `#${idHandle(taskId)}`}
+                className="min-h-[44px] py-1 text-sm font-semibold"
+              />
+              <div className="mt-0.5 text-xs">
+                <AssigneeTag assigneeRef={p.node.assignee_ref} />
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
@@ -1147,8 +1243,11 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
         </p>
       ) : (
         <>
+        {/* v2.10.1 [M4] Mobile (<md): the left→right SVG DAG becomes a vertical
+            stepper. The desktop graph + its controls are md:-only. */}
+        <PlanStepper positioned={positioned} projectId={projectId} orgRefOf={orgRefOf} />
         {/* v2.9.1 point 2: compact (zoom-to-fit) toggle for long/wide DAGs. */}
-        <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="mb-2 hidden items-center justify-between gap-2 md:flex">
           {/* Connect-mode banner (point 3, draft-only): shown while a connection
               is in progress. Tells the user to pick a highlighted target and
               offers a visible Cancel affordance (Escape also exits). */}
@@ -1186,7 +1285,7 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
           </button>
         </div>
         <div
-          className="relative overflow-auto rounded-lg border border-border-base bg-bg-subtle"
+          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle md:block"
           data-testid="plan-dag-canvas"
           data-compact={compact ? 'true' : 'false'}
           style={{ maxHeight: 480 }}
@@ -1547,6 +1646,8 @@ function PlanTaskRow({
   members: MemberResult[];
 }): React.ReactElement {
   const remove = useRemoveTaskFromPlan(projectId, planId);
+  // T53: operator resume of a paused node (its agent set the work item aside).
+  const resume = useResumePausedNode(projectId, planId);
   // T41 inline 分派: reassigning is NOT draft-gated (allowed regardless of plan
   // status). assign("") would set an empty assignee; the dedicated unassign
   // endpoint is the established "clear assignee" path, so route "" → unassign.
@@ -1617,7 +1718,31 @@ function PlanTaskRow({
           {/* Stage B (#283): archive badge is ORTHOGONAL — coexists with the
               node-status chip when the plan (and thus the task) is archived. */}
           <TaskArchivedBadge archived={node.archived} taskId={node.task_id} />
+          {/* T53: a paused node (agent set its work item aside) gets an operator
+              Resume action that resumes the node + wakes its agent. */}
+          {node.node_status === 'paused' && (
+            <button
+              type="button"
+              className="rounded border border-status-stone-border bg-status-stone-bg px-2 py-0.5 text-[0.6875rem] font-semibold text-status-stone-fg hover:opacity-80 disabled:opacity-50"
+              disabled={resume.isPending}
+              aria-label={`Resume ${title}`}
+              title="Resume this paused node (wake its agent)"
+              data-testid={`plan-node-resume-${node.task_id}`}
+              onClick={() => resume.mutate(node.task_id)}
+            >
+              {resume.isPending ? 'Resuming…' : 'Resume'}
+            </button>
+          )}
         </span>
+        {resume.isError && (
+          <span
+            className="mt-0.5 block text-[0.6875rem] font-normal text-danger"
+            role="alert"
+            data-testid={`plan-node-resume-error-${node.task_id}`}
+          >
+            Couldn't resume this node. Please try again.
+          </span>
+        )}
       </td>
       {canRemove && (
         <td className="py-1.5 pl-3 text-right">

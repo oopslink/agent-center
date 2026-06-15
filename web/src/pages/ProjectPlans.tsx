@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
+import { useBoardTouchDrag } from './useBoardTouchDrag';
+import { decideDrop, type DropTarget } from './boardDrop';
 import { useProject } from '@/api/projects';
 import {
   usePlans,
@@ -20,8 +22,74 @@ import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
-import { StatusChip } from '@/components/workItemDisplay';
+import { StatusChip, idHandle } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel } from '@/components/planDisplay';
+
+// v2.10.1 [M5] — touch long-press drag plumbing. The board's cards pick up the
+// `startLongPress` handler from this context so a touch drag can be started from
+// any card type without prop-drilling through three column components. null on
+// desktop-only renders (the cards then rely on native HTML5 drag for mouse).
+type StartLongPress = (
+  e: React.PointerEvent,
+  taskId: string,
+  fromPlanId: string | null,
+  title: string,
+) => void;
+const BoardTouchDragContext = createContext<StartLongPress | null>(null);
+
+// v2.10.1 [M5] — owner ask: the Work Board is naturally wide, so on a phone in
+// PORTRAIT we nudge "↻ rotate to landscape" (mockup workboard-mobile: landscape
+// fits 3–4 columns + smoother drag). Mobile-only + dismissible for the session.
+const ROTATE_HINT_KEY = 'ac.workboard.rotateHintDismissed';
+function rotateHintDismissed(): boolean {
+  try {
+    return (
+      typeof sessionStorage !== 'undefined' &&
+      typeof sessionStorage.getItem === 'function' &&
+      sessionStorage.getItem(ROTATE_HINT_KEY) === '1'
+    );
+  } catch {
+    return false;
+  }
+}
+function RotateForBoardHint(): React.ReactElement | null {
+  const [portrait, setPortrait] = useState(false);
+  const [dismissed, setDismissed] = useState(rotateHintDismissed);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(max-width: 767px) and (orientation: portrait)');
+    const update = (): void => setPortrait(mq.matches);
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
+  if (dismissed || !portrait) return null;
+  return (
+    <div
+      className="flex items-center justify-between gap-2 rounded-lg border border-status-blue-border bg-status-blue-bg px-3 py-2 text-xs text-status-blue-fg md:hidden"
+      role="status"
+      data-testid="workboard-rotate-hint"
+    >
+      <span>↻ Rotate to landscape for a better Work Board view.</span>
+      <button
+        type="button"
+        aria-label="Dismiss rotate hint"
+        data-testid="workboard-rotate-dismiss"
+        className="-mr-1 shrink-0 rounded px-1.5 py-0.5 font-semibold hover:bg-status-blue-border/40"
+        onClick={() => {
+          setDismissed(true);
+          try {
+            sessionStorage.setItem(ROTATE_HINT_KEY, '1');
+          } catch {
+            // ignore — best-effort session persistence
+          }
+        }}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
 
 // ProjectPlans (/projects/:id/plans) — v2.9 #291 WORK BOARD (the headline
 // Plan-Orchestration PLANNING view). A horizontal kanban: a first Backlog
@@ -58,7 +126,13 @@ export default function ProjectPlans(): React.ReactElement {
       />
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base pb-3">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">Work Board</h1>
+          {/* v2.10.0 [T5]: header carries the project name (mockup
+              docs/design/v2.10.0/workboard.html — "<project> · Work Board"); the
+              col② project sub-nav already provides the in-project navigation. */}
+          <h1 className="font-heading text-2xl font-semibold text-text-primary">
+            <span data-testid="workboard-project-name">{projectName}</span>
+            <span className="text-text-muted"> · Work Board</span>
+          </h1>
           <p className="mt-0.5 text-xs text-text-muted">
             Three segments · Backlog (unscheduled) · Assignment Pool (claimable) · structured Plans.
           </p>
@@ -75,6 +149,9 @@ export default function ProjectPlans(): React.ReactElement {
 
       {createOpen && <PlanCreateModal projectId={id} onClose={() => setCreateOpen(false)} />}
 
+      {/* Mobile portrait nudge → landscape (owner ask). */}
+      <RotateForBoardHint />
+
       <Board
         projectId={id}
         plans={plans}
@@ -83,6 +160,17 @@ export default function ProjectPlans(): React.ReactElement {
         setDragSource={setDragSource}
         onNewPlan={() => setCreateOpen(true)}
       />
+
+      {/* Mobile FAB → New Plan (sits above the bottom tab bar + safe area). */}
+      <button
+        type="button"
+        onClick={() => setCreateOpen(true)}
+        aria-label="New plan"
+        data-testid="workboard-fab"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-2 hover:bg-brand-hover md:hidden"
+      >
+        <span aria-hidden="true" className="text-3xl font-light leading-none">+</span>
+      </button>
     </section>
   );
 }
@@ -155,6 +243,33 @@ function Board({
   setDragSource: (s: DragSource | null) => void;
   onNewPlan: () => void;
 }): React.ReactElement {
+  // v2.10.1 [M5] touch drag: the any-plan mutations let a touch drop run the same
+  // SELECT / MOVE / REMOVE the HTML5 handlers do, decided by the pure decideDrop.
+  // dragSource is set on pickup so the columns' data-droppable validity (and thus
+  // the hit-test) matches mouse DnD exactly. Hooks run before the early returns.
+  const addAny = useAddTaskToAnyPlan(projectId);
+  const removeAny = useRemoveTaskFromAnyPlan(projectId);
+  const onTouchDrop = (taskId: string, fromPlanId: string | null, target: DropTarget): void => {
+    const d = decideDrop(fromPlanId, target);
+    if (d.op === 'remove') {
+      removeAny.mutate({ planId: d.fromPlanId, taskId });
+    } else if (d.op === 'select') {
+      addAny.mutate({ planId: d.toPlanId, taskId });
+    } else if (d.op === 'move') {
+      removeAny
+        .mutateAsync({ planId: d.fromPlanId, taskId })
+        .then(() => addAny.mutate({ planId: d.toPlanId, taskId }))
+        .catch(() => {
+          /* surfaced by the board re-fetch */
+        });
+    }
+  };
+  const { preview, startLongPress } = useBoardTouchDrag({
+    onStart: (taskId, fromPlanId) => setDragSource({ taskId, fromPlanId }),
+    onEnd: () => setDragSource(null),
+    onDrop: onTouchDrop,
+  });
+
   // A board-level load is only "failed" if the Plans list (the columns) fails —
   // surface the #218 friendly ErrorState. The Backlog has its own inline state.
   if (plans.isError) {
@@ -171,7 +286,11 @@ function Board({
       </div>
     );
   }
-  const planList = plans.data ?? [];
+  // task-1099941e: the Work Board excludes ARCHIVED plans (mirrors project/channel
+  // archive — archived work leaves the active board). The backend list already
+  // default-excludes them (ListPlanSummaries); this FE filter is the belt-and-
+  // braces guard so a degraded/stale payload never leaks an archived plan column.
+  const planList = (plans.data ?? []).filter((p) => p.status !== 'archived');
 
   // ADR-0047 partition: the BUILT-IN assignment pool (exactly one is_builtin
   // plan) is its own segment; every other plan is a STRUCTURED plan column.
@@ -184,38 +303,53 @@ function Board({
   const draftPlans = structuredPlans.filter((p) => p.status === 'draft');
 
   return (
-    <div
-      className="flex items-start gap-3 overflow-x-auto pb-2"
-      data-testid="work-board"
-      role="list"
-      aria-label="Work board"
-    >
-      <BacklogColumn
-        projectId={projectId}
-        backlog={backlog}
-        draftPlans={draftPlans}
-        builtinPool={builtinPool}
-        dragSource={dragSource}
-        setDragSource={setDragSource}
-      />
-      {builtinPool && (
-        <BuiltinPoolColumn
+    <BoardTouchDragContext.Provider value={startLongPress}>
+      {/* Portrait scroll-snap (mobile): one-handed column browsing; snap off ≥md. */}
+      <div
+        className="flex snap-x snap-mandatory items-start gap-3 overflow-x-auto pb-2 md:snap-none"
+        data-testid="work-board"
+        role="list"
+        aria-label="Work board"
+      >
+        <BacklogColumn
           projectId={projectId}
-          plan={builtinPool}
-          dragSource={dragSource}
-        />
-      )}
-      {structuredPlans.map((plan) => (
-        <PlanColumn
-          key={plan.id}
-          projectId={projectId}
-          plan={plan}
+          backlog={backlog}
+          draftPlans={draftPlans}
+          builtinPool={builtinPool}
           dragSource={dragSource}
           setDragSource={setDragSource}
         />
-      ))}
-      <NewPlanColumn onClick={onNewPlan} />
-    </div>
+        {builtinPool && (
+          <BuiltinPoolColumn
+            projectId={projectId}
+            plan={builtinPool}
+            dragSource={dragSource}
+          />
+        )}
+        {structuredPlans.map((plan) => (
+          <PlanColumn
+            key={plan.id}
+            projectId={projectId}
+            plan={plan}
+            dragSource={dragSource}
+            setDragSource={setDragSource}
+          />
+        ))}
+        <NewPlanColumn onClick={onNewPlan} />
+      </div>
+
+      {/* Floating drag preview that follows the finger during a touch drag.
+          pointer-events-none so the column hit-test (elementFromPoint) sees through it. */}
+      {preview && (
+        <div
+          className="pointer-events-none fixed z-50 max-w-[12rem] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-accent bg-bg-elevated px-2 py-1.5 text-xs font-semibold text-text-primary shadow-2"
+          style={{ left: preview.x, top: preview.y }}
+          data-testid="board-drag-preview"
+        >
+          <span className="line-clamp-2">{preview.title}</span>
+        </div>
+      )}
+    </BoardTouchDragContext.Provider>
   );
 }
 
@@ -231,7 +365,7 @@ function isLiveTaskStatus(status: string | undefined): boolean {
 // SOLID theme tokens only (bg-bg-subtle / border-border-base) — no alpha-tint,
 // AA in both modes.
 const columnBase =
-  'flex w-[14.75rem] shrink-0 flex-col rounded-lg border p-2.5';
+  'flex w-[14.75rem] shrink-0 snap-start flex-col rounded-lg border p-2.5';
 
 // BacklogColumn — first column (distinct .col.backlog bg). Lists the project's
 // UNPLANNED tasks; each card has the keyboard-accessible "Add to plan" menu and
@@ -359,12 +493,15 @@ function BacklogCard({
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const [menuOpen, setMenuOpen] = useState(false);
+  // v2.10.1 [M5]: touch long-press starts a drag (mouse keeps native HTML5 DnD).
+  const startLongPress = useContext(BoardTouchDragContext);
   return (
     <div
       className="mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1"
       data-testid="backlog-card"
       data-task-id={task.id}
       draggable
+      onPointerDown={(e) => startLongPress?.(e, task.id, null, task.title)}
       onDragStart={(e) => {
         // A7: from the Backlog → fromPlanId null (SELECT into a draft plan).
         setDragSource({ taskId: task.id, fromPlanId: null });
@@ -614,9 +751,12 @@ function BuiltinPoolColumn({
           No claimable tasks yet.
         </p>
       ) : (
-        shown.map((node) => (
-          <PoolTaskCard key={node.task_id} projectId={projectId} node={node} />
-        ))
+        // task-0543ece9: all live pool nodes in a bounded scroll area (no cap).
+        <div className="max-h-[26rem] space-y-0 overflow-y-auto" data-testid={`pool-cards-${plan.id}`}>
+          {shown.map((node) => (
+            <PoolTaskCard key={node.task_id} projectId={projectId} node={node} />
+          ))}
+        </div>
       )}
       {overflow > 0 && (
         <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`pool-overflow-${plan.id}`}>
@@ -643,6 +783,9 @@ function PoolTaskCard({
       data-testid="pool-task-card"
       data-task-id={node.task_id}
     >
+      <div className="mb-1 flex items-center gap-1">
+        <TaskIdTag taskId={node.task_id} orgRef={node.org_ref} />
+      </div>
       <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">
         <TaskTitleLink projectId={projectId} taskId={node.task_id} title={node.title} />
       </div>
@@ -655,6 +798,25 @@ function PoolTaskCard({
         </span>
       </div>
     </div>
+  );
+}
+
+// TaskIdTag — a small monospace pill showing the human Task id (org_ref "T123"),
+// falling back to "#"+id-tail when the node has no org_ref (pre-allocator rows,
+// #192 id-as-content). v2.9.2 (task-0543ece9): the board card now shows the
+// T-number directly from `node.org_ref` (the node DTO carries it — no resolver).
+// Mirrors PlanDetail's TaskIdTag: solid theme tokens (both-mode AA, no alpha-tint),
+// full task_id on hover.
+function TaskIdTag({ taskId, orgRef }: { taskId: string; orgRef?: string }): React.ReactElement {
+  const label = orgRef || `#${idHandle(taskId)}`;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
+      data-testid={`plan-card-taskid-${taskId}`}
+      title={taskId}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -782,22 +944,31 @@ function PlanColumn({
           No tasks yet.
         </p>
       ) : (
-        shown.map((node) => (
-          <PlanTaskCard
-            key={node.task_id}
-            projectId={projectId}
-            planId={plan.id}
-            node={node}
-            // §9.4: removing a task from a Plan is a PLANNING action — only a
-            // DRAFT Plan exposes the remove affordance (mirrors add-to-plan /
-            // the A1 edge editor). running/done columns render NO remove control.
-            // A7: canRemove (= isDraft) ALSO gates drag — only draft-plan cards
-            // are draggable (the source must be draft so MOVE/REMOVE is allowed).
-            canRemove={isDraft}
-            setDragSource={setDragSource}
-          />
-        ))
+        // task-0543ece9: render EVERY node (backend no longer caps the preview) in
+        // a bounded, scrollable area so a large plan (12+ tasks) shows all cards
+        // without a silent "…and N more" truncation AND without an unbounded-tall
+        // column. The scroll keeps the board row height sane.
+        <div className="max-h-[26rem] space-y-0 overflow-y-auto" data-testid={`plan-cards-${plan.id}`}>
+          {shown.map((node) => (
+            <PlanTaskCard
+              key={node.task_id}
+              projectId={projectId}
+              planId={plan.id}
+              node={node}
+              // §9.4: removing a task from a Plan is a PLANNING action — only a
+              // DRAFT Plan exposes the remove affordance (mirrors add-to-plan /
+              // the A1 edge editor). running/done columns render NO remove control.
+              // A7: canRemove (= isDraft) ALSO gates drag — only draft-plan cards
+              // are draggable (the source must be draft so MOVE/REMOVE is allowed).
+              canRemove={isDraft}
+              setDragSource={setDragSource}
+            />
+          ))}
+        </div>
       )}
+      {/* Overflow hint is now a belt-and-braces safety net only: with the cap
+          removed node_count == shown.length so this stays hidden, but a degraded
+          partial payload (fewer preview nodes than node_count) still surfaces it. */}
       {overflow > 0 && (
         <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`plan-overflow-${plan.id}`}>
           …and {overflow} more
@@ -831,6 +1002,8 @@ function PlanTaskCard({
   // isDraft) — moving it out runs RemoveTaskFromPlan on the source, which the
   // backend allows only for a draft plan (§9.4). running/done cards: no drag.
   const draggable = canRemove;
+  // v2.10.1 [M5]: touch long-press drag (draft cards only; mouse keeps HTML5 DnD).
+  const startLongPress = useContext(BoardTouchDragContext);
   return (
     <div
       className="mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1"
@@ -838,6 +1011,9 @@ function PlanTaskCard({
       data-task-id={node.task_id}
       data-draggable={draggable ? 'true' : 'false'}
       draggable={draggable}
+      onPointerDown={
+        draggable ? (e) => startLongPress?.(e, node.task_id, planId, node.title) : undefined
+      }
       onDragStart={
         draggable
           ? (e) => {
@@ -857,6 +1033,9 @@ function PlanTaskCard({
       }
       onDragEnd={draggable ? () => setDragSource(null) : undefined}
     >
+      <div className="mb-1 flex items-center gap-1">
+        <TaskIdTag taskId={node.task_id} orgRef={node.org_ref} />
+      </div>
       <div className="flex items-start justify-between gap-1.5">
         <div className="min-w-0 flex-1 text-xs font-semibold leading-tight text-text-primary">
           <TaskTitleLink projectId={projectId} taskId={node.task_id} title={node.title} />
@@ -906,7 +1085,7 @@ function NewPlanColumn({ onClick }: { onClick: () => void }): React.ReactElement
   return (
     <button
       type="button"
-      className="flex w-[9.375rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-border-strong bg-bg-base px-2 py-3.5 text-xs font-medium text-accent hover:border-accent"
+      className="flex w-[9.375rem] shrink-0 snap-start flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-border-strong bg-bg-base px-2 py-3.5 text-xs font-medium text-accent hover:border-accent"
       onClick={onClick}
       data-testid="new-plan-column"
       role="listitem"

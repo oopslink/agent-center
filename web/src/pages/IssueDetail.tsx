@@ -8,6 +8,7 @@ import { IssueEditModal } from '@/components/IssueEditModal';
 import { MarkdownMessage } from '@/components/MarkdownMessage';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { IssueDetailSidebar } from '@/components/IssueDetailSidebar';
+import { IssueAttachments } from '@/components/AttachmentsSection';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
@@ -103,6 +104,11 @@ export default function IssueDetail(): React.ReactElement {
           ) : (
             <p className="mt-4 text-sm italic text-text-muted">No description.</p>
           )}
+
+          {/* v2.10.0 [T73]: issue-scoped attachments (list + upload + download). */}
+          <div className="mt-4 border-t border-border-base pt-3">
+            <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
+          </div>
 
           <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
         </div>

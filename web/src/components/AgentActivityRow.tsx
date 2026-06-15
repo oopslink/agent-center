@@ -337,9 +337,13 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   );
 }
 
-// "2026-05-24T01:00:00Z" → "01:00" (stable, locale-independent).
+// The checking-group range uses the same local wall-clock as the per-event
+// rows (formatTime). Slicing the raw ISO printed UTC (e.g. "09:48") next to
+// local-time siblings ("17:48") — convert to the viewer's timezone instead.
 function timeOf(iso: string): string {
-  return iso.length >= 16 ? iso.slice(11, 16) : iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 // v2.8 #274: a folded run of consecutive "Checking" events — "Checking messages

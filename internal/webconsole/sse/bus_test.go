@@ -122,7 +122,12 @@ func TestServeHTTP_StreamsEventAndHeartbeat(t *testing.T) {
 		}
 		defer resp.Close()
 		buf := make([]byte, 4096)
-		// First read picks up the first heartbeat or event.
+		// v2.10.1 [T104]: the stream now opens with a ~2KB priming COMMENT
+		// (`:` line, ignored per the EventSource spec). Keep reading past it —
+		// like a real client — until a real `data:` frame (heartbeat or event)
+		// arrives; returning on the first read would surface only the padding
+		// and disconnect before the test publishes.
+		var acc strings.Builder
 		for {
 			n, rerr := resp.Read(buf)
 			if rerr != nil {
@@ -130,8 +135,11 @@ func TestServeHTTP_StreamsEventAndHeartbeat(t *testing.T) {
 				return
 			}
 			if n > 0 {
-				ch <- frame{body: string(buf[:n])}
-				return
+				acc.Write(buf[:n])
+				if strings.Contains(acc.String(), "data:") {
+					ch <- frame{body: acc.String()}
+					return
+				}
 			}
 		}
 	}()
@@ -165,6 +173,62 @@ func TestServeHTTP_StreamsEventAndHeartbeat(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for SSE event")
 	}
+}
+
+// v2.10.1 [T104]: behind a buffering proxy/CDN (Cloudflare, observed) the
+// EventSource never fired onopen — the proxy held the response head. The fix
+// primes the stream with a ~2KB ignored SSE comment (flushed immediately) +
+// `no-transform` so the head is released and the proxy won't compress/buffer.
+func TestServeHTTP_T104_PrimesStreamForBufferingProxy(t *testing.T) {
+	b := NewBus()
+	srv := httptest.NewServer(b)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"?user_id=u1", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// no-transform tells Cloudflare et al. NOT to compress/transform the stream
+	// (compression buffers SSE); X-Accel-Buffering covers nginx.
+	if cc := resp.Header.Get("Cache-Control"); !strings.Contains(cc, "no-transform") {
+		t.Errorf("Cache-Control = %q, want it to contain no-transform", cc)
+	}
+	if got := resp.Header.Get("X-Accel-Buffering"); got != "no" {
+		t.Errorf("X-Accel-Buffering = %q, want no", got)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Errorf("Content-Type = %q, want text/event-stream", ct)
+	}
+
+	// The stream opens with the ~2KB priming COMMENT (a ':' line) BEFORE any data
+	// frame, so a buffering proxy releases the head immediately.
+	buf := make([]byte, 4096)
+	n, rerr := resp.Body.Read(buf)
+	if rerr != nil {
+		t.Fatalf("read: %v", rerr)
+	}
+	first := string(buf[:n])
+	if !strings.HasPrefix(first, ":") {
+		t.Errorf("first chunk must start with the priming comment ':' (got %d bytes, prefix %q)", n, safePrefix(first, 40))
+	}
+	if strings.Contains(first, "data:") {
+		t.Errorf("priming comment must precede any data frame (got prefix %q)", safePrefix(first, 80))
+	}
+	if n < 2000 {
+		t.Errorf("priming padding too small (%d bytes), want ~2KB", n)
+	}
+}
+
+func safePrefix(s string, n int) string {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
 }
 
 func TestServeHTTP_RequiresUserID(t *testing.T) {

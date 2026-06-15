@@ -1,6 +1,8 @@
 import type React from 'react';
 import { useSystemVersion } from '@/api/system';
 import { formatLocalTime } from '@/utils/time';
+import { SegmentedNav } from '@/shell/SegmentedNav';
+import { SYSTEM_SEGMENTS } from './systemSegments';
 
 // Settings page. First panel (@oopslink): the server's build/version identity
 // (version = ${branch}-${git-hash}). More settings land in a later ST.
@@ -8,6 +10,9 @@ export default function Settings(): React.ReactElement {
   const version = useSystemVersion();
   return (
     <section className="space-y-4" data-testid="page-Settings">
+      {/* v2.10.1 [M7] Mobile (<md): System module 二级段控 (Environment |
+          Settings) — desktop keeps the col② nav. */}
+      <SegmentedNav items={SYSTEM_SEGMENTS} ariaLabel="System sections" />
       <h1 className="text-xl font-semibold">Settings</h1>
 
       <div

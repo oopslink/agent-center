@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>v2.10.1 · 移动端 mockup</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .phones{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+  .frm{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .frm .cap{font-size:11.5px;color:var(--ts);max-width:266px;text-align:center} .frm .cap b{color:var(--tp)} .frm .cap .t{display:inline-block;font-size:9px;font-weight:800;border-radius:4px;padding:1px 5px;margin-right:4px;vertical-align:middle;background:var(--blue-bg);color:var(--blue-fg)}
+  .phone{width:266px;height:560px;background:var(--bg-base);border:9px solid #11161d;border-radius:32px;overflow:hidden;position:relative;box-shadow:var(--sh2);display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:110px;height:19px;background:#11161d;border-radius:0 0 13px 13px;z-index:9}
+  .mtop{padding:23px 12px 8px;background:var(--bg-elev);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .mtop .ic{color:var(--tm);font-size:16px} .mtop h3{margin:0;font-size:15px;flex:1;letter-spacing:-.01em} .mtop .bk{color:var(--ts);font-size:17px}
+  .mbody{flex:1;overflow:hidden;position:relative;background:var(--bg-base)}
+  .mtab{display:flex;border-top:1px solid var(--border);background:var(--bg-elev)}
+  .mtab div{flex:1;text-align:center;padding:6px 0 7px;font-size:9px;color:var(--tm)} .mtab div .i{font-size:18px;display:block;line-height:1.1} .mtab div.on{color:var(--brand);font-weight:700}
+  .mseg{display:flex;gap:5px;padding:9px 12px 4px} .mseg span{font-size:11px;padding:4px 11px;border-radius:999px;color:var(--ts);background:var(--bg-subtle)} .mseg span.on{background:var(--brand);color:#fff;font-weight:600}
+  .row{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);align-items:center}
+  .row .av{width:34px;height:34px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px}
+  .row .mid{flex:1;min-width:0} .row .nm{font-weight:600;font-size:13px;display:flex;gap:6px;align-items:center} .row .pv{font-size:12px;color:var(--tm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .meta{text-align:right;flex:none} .row .ts{font-size:10px;color:var(--tm);font-family:var(--mono)} .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);margin-left:auto}
+  .ch{background:#0ea5e9}.dm{background:#8b5cf6;border-radius:50%}.wk{background:#0f766e}.ag{background:#4f46e5;border-radius:50%}
+  .chip{font-size:9px;font-weight:700;border-radius:4px;padding:1px 5px}.c-task{background:var(--emerald-bg);color:var(--emerald-fg)}.c-plan{background:var(--violet-bg);color:var(--violet-fg)}.c-issue{background:var(--amber-bg);color:var(--amber-fg)}
+  .stat{font-size:10px;font-weight:700;border-radius:5px;padding:1px 7px;background:var(--blue-bg);color:var(--blue-fg)}.stat.open{background:var(--amber-bg);color:var(--amber-fg)}.stat.done{background:var(--emerald-bg);color:var(--emerald-fg)}.stat.block{background:var(--rose-bg);color:var(--rose-fg)}
+  .card{margin:10px 12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:11px;padding:11px 12px;box-shadow:var(--sh1)} .card .top{display:flex;justify-content:space-between;align-items:center;gap:8px} .card .id{font-family:var(--mono);font-size:10px;color:var(--tm)} .card h5{margin:6px 0 8px;font-size:13px;font-weight:600} .card .ft{display:flex;gap:7px;align-items:center;font-size:11px;color:var(--ts)} .miniav{width:18px;height:18px;border-radius:50%;background:#0f766e;color:#fff;font-size:8px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+  .bub{display:flex;flex-direction:column;gap:10px;padding:12px;height:100%;overflow:hidden}
+  .msg{max-width:86%} .msg .b{background:var(--bg-elev);border:1px solid var(--border);border-radius:4px 12px 12px 12px;padding:8px 11px;font-size:12.5px;box-shadow:var(--sh1)} .msg .w{font-size:10.5px;font-weight:700;color:var(--brand);margin-bottom:2px} .msg.me{align-self:flex-end} .msg.me .b{background:var(--own);color:var(--own-fg);border:none;border-radius:12px 4px 12px 12px}
+  .att{margin-top:6px;display:flex;align-items:center;gap:8px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:6px 8px;width:180px} .att .ic{width:26px;height:30px;border-radius:5px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;font-family:var(--mono)} .att .nm{font-size:11.5px;font-weight:600} .att .sz{font-size:9.5px;color:var(--tm);font-family:var(--mono)}
+  .mcomp{border-top:1px solid var(--border);background:var(--bg-elev);padding:8px 10px;display:flex;align-items:center;gap:8px} .mcomp .plus{width:40px;height:40px;border-radius:50%;background:var(--bg-subtle);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:21px;flex:none} .mcomp .f{flex:1;background:var(--bg-subtle);border:1px solid var(--border);border-radius:20px;padding:10px 13px;color:var(--tm);font-size:12px} .mcomp .go{width:40px;height:40px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+  .scrim{position:absolute;inset:0;background:rgba(15,23,42,.32);z-index:6} .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg-elev);border-top:1px solid var(--border-strong);border-radius:18px 18px 0 0;box-shadow:0 -8px 24px rgba(15,23,42,.18);padding:12px 15px 16px;z-index:7} .sheet .grab{width:36px;height:4px;border-radius:3px;background:var(--border-strong);margin:0 auto 11px} .sheet h4{margin:0 0 9px;font-size:13px} .kv{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}.kv .k{color:var(--tm)}.kv .v{font-weight:600}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 12px;background:var(--bg-elev)} .tabs .tb{padding:8px 11px;font-size:12px;color:var(--tm);border-bottom:2px solid transparent;margin-bottom:-1px} .tabs .tb.on{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+  .step{position:relative;margin:8px 14px 0;padding:0 0 0 22px} .step:before{content:"";position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--border)} .node{position:relative;background:var(--bg-elev);border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin:8px 0;box-shadow:var(--sh1)} .node:before{content:"";position:absolute;left:-19px;top:12px;width:11px;height:11px;border-radius:50%;background:var(--bg-elev);border:3px solid var(--border-strong)} .node.run:before{border-color:var(--accent)}.node.done:before{background:var(--success);border-color:var(--success)} .node .nt{font-size:12px;font-weight:600} .node .nm2{font-size:10px;color:var(--tm);margin-top:2px}
+  .kb{display:flex;gap:10px;padding:11px 12px;overflow-x:auto} .kcol{width:150px;flex:none;background:var(--bg-subtle);border:1px solid var(--border);border-radius:9px;padding:8px} .kcol h6{margin:0 0 7px;font-size:11px;color:var(--ts);display:flex;justify-content:space-between} .kc{background:var(--bg-elev);border:1px solid var(--border);border-radius:7px;padding:7px 8px;margin-bottom:7px;box-shadow:var(--sh1)} .kc .id{font-family:var(--mono);font-size:9px;color:var(--tm)} .kc .tt{font-size:11.5px;font-weight:600;margin:2px 0 5px}
+  .stats{display:flex;gap:9px;padding:11px 12px} .sc{flex:1;border:1px solid var(--border);border-radius:9px;padding:9px 10px;background:var(--bg-elev)} .sc .n{font-size:19px;font-weight:800}.sc .l{font-size:10px;color:var(--tm)}
+  .tbar{padding:8px 12px 0}
+  .fab{position:absolute;right:13px;bottom:64px;width:46px;height:46px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:23px;box-shadow:var(--sh2);z-index:5}
+  .sectit{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--tm);margin:30px 0 12px;font-weight:700;border-top:1px solid #d7dde5;padding-top:18px}
+</style></head>
+<body><div class="page">
+  <h1>agent-center · v2.10.1 — 移动端 mockup <span style="font-weight:400;color:var(--tm);font-size:15px">· 三栏 IA 响应式适配</span></h1>
+  <p class="sub">把 v2.10.0 三栏桌面适配到移动(&lt;768)。**导航 A 底部 Tab**(= col① 四顶层 Workspace/Conversations/Members/System)→ 进 tab 显 col② 整屏列表 → 点开 col③ 整屏详情 → col④ 上下文走底部 sheet。复用同组件 + 真 token,≥768 维持三栏。修早前 375px critical:宽表→卡片、右栏→sheet、Plan DAG→纵向 stepper、触控 ≥44px、composer 触控。</p>
+
+  <div class="sectit">导航壳 + Conversations(高频先)</div>
+  <div class="phones">
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop"><h3>Conversations</h3><span class="ic">🔍</span><span class="ic">✎</span></div>
+      <div class="mbody">
+        <div class="mseg"><span class="on">Channels</span><span>DMs</span></div>
+        <div class="row"><div class="av ch">#</div><div class="mid"><div class="nm">agent-center-dev</div><div class="pv">IntDev: v2.10.0 合齐 @aeb935c</div></div><div class="meta"><div class="ts">09:11</div><span class="chip" style="background:var(--brand);color:#fff">3</span></div></div>
+        <div class="row"><div class="av ch" style="background:#0ea5e9">#</div><div class="mid"><div class="nm">general</div><div class="pv">welcome 👋</div></div><div class="meta"><div class="ts">周三</div></div></div>
+        <div class="row"><div class="av dm">O</div><div class="mid"><div class="nm">oopslink</div><div class="pv">v2.10.1 出 mockup</div></div><div class="meta"><div class="ts">09:02</div><span class="dot"></span></div></div>
+      </div>
+      <div class="mtab"><div><span class="i">▦</span>Workspace</div><div class="on"><span class="i">#</span>Conv</div><div><span class="i">◎</span>Members</div><div><span class="i">⚙</span>System</div></div>
+    </div><div class="cap"><span class="t">①+②</span><b>底 Tab + 会话列表</b> · Conv tab → Channels/DMs 段控整屏列表。</div></div>
+
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop" style="gap:7px"><span class="bk">‹</span><h3 style="font-size:14px"># agent-center-dev</h3><span class="ic">ⓘ</span></div>
+      <div class="mbody"><div class="bub">
+        <div class="msg"><div class="w">IntegrationDev</div><div class="b">v2.10.0 12 模块全合 @aeb935c<div class="att"><div class="ic">LOG</div><div><div class="nm">integrate.log</div><div class="sz">42 KB</div></div></div></div></div>
+        <div class="msg me"><div class="b">§-1 全绿,走验收。点 <span style="color:var(--brand);text-decoration:underline">T72</span> 看门</div></div>
+      </div></div>
+      <div class="mcomp"><div class="plus">＋</div><div class="f">消息…</div><div class="go">➤</div></div>
+    </div><div class="cap"><span class="t">③</span><b>会话整屏 + 触控 composer</b> · 气泡 86%,＋/发送 ≥44px,linkify 点 T72 跳。</div></div>
+
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop" style="gap:7px"><span class="bk">‹</span><h3 style="font-size:14px"># agent-center-dev</h3><span class="ic">ⓘ</span></div>
+      <div class="mbody">
+        <div class="bub" style="filter:blur(.4px);opacity:.7"><div class="msg"><div class="b">…</div></div></div>
+        <div class="scrim"></div>
+        <div class="sheet"><div class="grab"></div><h4>参与者 · 关于 · 文件</h4>
+          <div style="font-size:11px;color:var(--tm);margin-bottom:6px">参与者 · 3</div>
+          <div style="display:flex;gap:7px;margin-bottom:10px"><div class="av wk" style="width:30px;height:30px">T2</div><div class="av wk" style="width:30px;height:30px;background:#b45309">IN</div><div class="av" style="width:30px;height:30px;background:#1e40af">PD</div></div>
+          <div class="kv"><span class="k">类型</span><span class="v">Channel</span></div>
+          <div class="kv"><span class="k">共享文件</span><span class="v">4</span></div>
+        </div>
+      </div>
+    </div><div class="cap"><span class="t">④</span><b>上下文 = 底部 sheet</b> · 点 ⓘ 出参与者/文件,不挤正文(修右栏挤压)。</div></div>
+  </div>
+
+  <div class="sectit">Workspace(Tasks 卡片化 / Plan 详情 / Work Board)</div>
+  <div class="phones">
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop"><h3>Workspace</h3><span class="ic">🔍</span></div>
+      <div class="mbody">
+        <div class="mseg" style="flex-wrap:wrap"><span class="on">Tasks</span><span>Issues</span><span>Projects</span><span>Plan</span></div>
+        <div class="card"><div class="top"><span class="id">task-f975f2</span><span class="stat">running</span></div><h5>Thread 验收 run-real</h5><div class="ft"><span class="miniav">T2</span>tester2 · <span class="chip c-plan">f1f04</span></div></div>
+        <div class="card"><div class="top"><span class="id">task-5f983b</span><span class="stat open">open</span></div><h5>移动端适配 T81</h5><div class="ft"><span class="miniav" style="background:#8b5cf6">D2</span>dev2</div></div>
+      </div>
+      <div class="mtab"><div class="on"><span class="i">▦</span>Workspace</div><div><span class="i">#</span>Conv</div><div><span class="i">◎</span>Members</div><div><span class="i">⚙</span>System</div></div>
+    </div><div class="cap"><span class="t">②③</span><b>Tasks/Issues → 卡片流</b> · 修 critical①(宽表不横滚);段控切 Projects/Plan。</div></div>
+
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop" style="gap:7px"><span class="bk">‹</span><h3 style="font-size:13.5px">v2.10.0 收尾 <span class="chip c-plan" style="vertical-align:middle">PLAN</span></h3></div>
+      <div class="tabs"><span class="tb">Chat</span><span class="tb on">DAG</span><span class="tb">Tasks·5</span></div>
+      <div class="mbody">
+        <div style="font-size:10px;color:var(--tm);margin:8px 14px 0">进度 3/5 · 纵向时间线</div>
+        <div class="step">
+          <div class="node done"><div class="nt">基线 run-real</div><div class="nm2">done</div></div>
+          <div class="node done"><div class="nt">composer 打磨</div><div class="nm2">done</div></div>
+          <div class="node run"><div class="nt">class-guard</div><div class="nm2">running</div></div>
+          <div class="node"><div class="nt">合并</div><div class="nm2">waiting</div></div>
+        </div>
+      </div>
+    </div><div class="cap"><span class="t">③</span><b>Plan 详情 Chat/DAG/Task</b> · DAG → 纵向 stepper(修 critical③ 触控/死高)。</div></div>
+
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop" style="gap:7px"><span class="bk">‹</span><h3 style="font-size:13.5px">agent-center2 · Work Board</h3></div>
+      <div class="mbody">
+        <div class="kb">
+          <div class="kcol"><h6>Backlog <span>2</span></h6><div class="kc"><div class="id">task-8291</div><div class="tt">linkify</div><span class="stat open">open</span></div></div>
+          <div class="kcol"><h6>v2.10.1 <span>3</span></h6><div class="kc"><div class="id">task-1c23</div><div class="tt">移动 nav</div><span class="stat">running</span></div><div class="kc"><div class="id">task-7a60</div><div class="tt">composer</div><span class="stat block">blocked</span></div></div>
+          <div class="kcol"><h6>done</h6><div class="kc"><div class="id">task-f63d</div><div class="tt">骨架</div><span class="stat done">done</span></div></div>
+        </div>
+      </div>
+      <div class="fab">＋</div>
+    </div><div class="cap"><span class="t">③</span><b>Work Board</b> · 列横向滑(snap),卡可长按拖;右下 FAB 新建。</div></div>
+  </div>
+
+  <div class="sectit">Members · System</div>
+  <div class="phones">
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop"><h3>Members</h3><span class="ic">🔍</span></div>
+      <div class="mbody">
+        <div class="mseg"><span>Humans</span><span class="on">Agents</span></div>
+        <div class="row"><div class="av ag">T2</div><div class="mid"><div class="nm">tester2 <span class="dot" style="background:var(--success);margin:0"></span></div><div class="pv">Tester · running</div></div><span class="stat done">online</span></div>
+        <div class="row"><div class="av ag" style="background:#8b5cf6">D2</div><div class="mid"><div class="nm">dev2 <span class="dot" style="background:var(--border-strong);margin:0"></span></div><div class="pv">Developer · idle</div></div></div>
+      </div>
+      <div class="mtab"><div><span class="i">▦</span>Workspace</div><div><span class="i">#</span>Conv</div><div class="on"><span class="i">◎</span>Members</div><div><span class="i">⚙</span>System</div></div>
+    </div><div class="cap"><span class="t">②</span><b>Members</b> · Humans/Agents 段控 + 在线点;点头像可开 DM。</div></div>
+
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop" style="gap:7px"><span class="bk">‹</span><h3 style="font-size:14px">tester2</h3></div>
+      <div class="tabs"><span class="tb on">Profile</span><span class="tb">Activity</span><span class="tb">Work items</span></div>
+      <div class="mbody">
+        <div style="padding:11px 14px"><div class="kv"><span class="k">Provider</span><span class="v">claude-code</span></div><div class="kv"><span class="k">Role</span><span class="v">Tester</span></div><div class="kv"><span class="k">Lifecycle</span><span class="v">running</span></div></div>
+        <div style="margin:4px 12px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:var(--bg-elev)"><div style="font-weight:600;font-size:12px">当前:Thread 验收</div><div style="font-size:10.5px;color:var(--tm)">running · task-f975f2</div></div>
+        <div style="display:flex;gap:8px;padding:11px 12px"><span class="stat" style="background:var(--bg-subtle);color:var(--ts)">Stop</span><span class="stat" style="background:var(--bg-subtle);color:var(--ts)">Restart</span><span class="stat" style="background:var(--brand);color:#fff">Send message</span></div>
+      </div>
+    </div><div class="cap"><span class="t">③</span><b>Agent 详情</b> · 四 tab + 生命周期(触控钮 ≥44px)。</div></div>
+
+    <div class="frm"><div class="phone">
+      <div class="notch"></div>
+      <div class="mtop"><h3>System</h3></div>
+      <div class="mbody">
+        <div class="mseg"><span class="on">Environment</span><span>Settings</span></div>
+        <div class="stats"><div class="sc"><div class="n">3</div><div class="l">Active</div></div><div class="sc"><div class="n">4</div><div class="l">Agents</div></div><div class="sc"><div class="n">1</div><div class="l">Workers</div></div></div>
+        <div class="tbar"><div class="tabs" style="padding:0"><span class="tb on">Work items</span><span class="tb">Issues</span><span class="tb">Transfers</span></div></div>
+        <div class="card" style="margin-top:8px"><div class="top"><span class="id">Thread 验收</span><span class="stat">running</span></div><div class="ft"><span class="miniav">T2</span>tester2 · edb09</div></div>
+      </div>
+      <div class="mtab"><div><span class="i">▦</span>Workspace</div><div><span class="i">#</span>Conv</div><div><span class="i">◎</span>Members</div><div class="on"><span class="i">⚙</span>System</div></div>
+    </div><div class="cap"><span class="t">②③</span><b>System</b> · Environment(stats+三段)/ Settings 段控。</div></div>
+  </div>
+
+  <p class="note" style="margin-top:26px;font-size:12px;color:var(--tm)">静态 mockup,演示 v2.10.1 移动 IA(导航 A 底 Tab + 三栏响应式重排)。配色/字体/own-bubble/状态 chip 取现有 <code>web/src/index.css</code> 真 token,与 v2.10.0 桌面同源。你过版式,我据此拆 per-module task 串 v2.10.1 plan(v2.10.0 tag 后启)。</p>
+</div></body></html>

@@ -3,6 +3,7 @@ import { OrgLink } from '@/OrgContext';
 import type { Task } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
 import { EntityRef } from '@/components/EntityRef';
+import { useSenderSidebar } from '@/components/SenderSidebarContext';
 import { StatusBlock } from '@/components/IssueTaskSidebar';
 import { idHandle } from '@/components/workItemDisplay';
 import { tagColorFor } from '@/components/tagColors';
@@ -48,6 +49,13 @@ interface Props {
   projectName?: string;
   /** resolved assignee display name ("" / ref-echo when unresolved). */
   assigneeName?: string;
+  /**
+   * T106: the owning plan (id + display name) when the task is in a STRUCTURED
+   * plan — renders a clickable "Plan" row linking to the plan detail. The page
+   * resolves it (via usePlan) and omits it for a backlog task OR the built-in
+   * assignment pool (the pool is not a user-facing plan).
+   */
+  plan?: { id: string; name: string };
   /** opens the existing TaskEditModal — the single edit path. */
   onEdit: () => void;
   /** whether the task is editable (non-terminal). Terminal → no Edit button. */
@@ -58,12 +66,22 @@ export function TaskDetailSidebar({
   task,
   projectName,
   assigneeName,
+  plan,
   onEdit,
   editable,
 }: Props): React.ReactElement {
   const tk = task;
+  // Hoist to a const so the truthy-narrowing below survives into the
+  // openSender closure (T102) — TS re-widens a mutable property (tk.assignee)
+  // inside a callback, but preserves narrowing of a const local.
+  const assignee = tk.assignee;
   const tags = tk.tags ?? [];
   const duration = formatStatusDuration(tk.status_changed_at);
+  // T102: clicking the assignee opens that identity's activity sidebar (the
+  // shared SenderDetailSidebar — agent info + activity feed), reusing the same
+  // openSender path as @mentions / message senders. Null-safe: when rendered
+  // without a SenderSidebarProvider the name stays plain (no-op).
+  const openSender = useSenderSidebar();
 
   return (
     <aside
@@ -111,15 +129,32 @@ export function TaskDetailSidebar({
         <div data-testid="task-sidebar-assignee">
           <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Assignee</p>
           <div className="flex flex-wrap items-center gap-2">
-            {tk.assignee ? (
-              <span className="inline-flex items-center gap-2">
-                <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : tk.assignee} size="sm" />
-                <EntityRef
-                  id={tk.assignee}
-                  name={assigneeName && assigneeName !== tk.assignee ? assigneeName : undefined}
-                  testId="task-assignee"
-                />
-              </span>
+            {assignee ? (
+              openSender ? (
+                <button
+                  type="button"
+                  onClick={() => openSender(assignee)}
+                  data-testid="task-assignee-open"
+                  title={`Open ${assigneeName && assigneeName !== assignee ? assigneeName : assignee}'s activity`}
+                  className="inline-flex items-center gap-2 rounded hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : assignee} size="sm" />
+                  <EntityRef
+                    id={assignee}
+                    name={assigneeName && assigneeName !== assignee ? assigneeName : undefined}
+                    testId="task-assignee"
+                  />
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : assignee} size="sm" />
+                  <EntityRef
+                    id={assignee}
+                    name={assigneeName && assigneeName !== assignee ? assigneeName : undefined}
+                    testId="task-assignee"
+                  />
+                </span>
+              )
             ) : (
               <span className="text-text-muted" data-testid="task-assignee-empty">
                 Unassigned
@@ -167,6 +202,23 @@ export function TaskDetailSidebar({
               data-testid="task-project-link"
             >
               {projectName || tk.project_id}
+            </OrgLink>
+          </div>
+        )}
+
+        {/* T106: owning plan (when the task is in a structured plan) → click to
+            the plan detail. Hidden for a backlog task / the built-in pool (the
+            page passes no `plan` then). */}
+        {plan && (
+          <div data-testid="task-sidebar-plan">
+            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Plan</p>
+            <OrgLink
+              to={`/projects/${encodeURIComponent(tk.project_id)}/plans/${encodeURIComponent(plan.id)}`}
+              className="text-accent hover:underline"
+              data-testid="task-plan-link"
+              data-plan-id={plan.id}
+            >
+              {plan.name}
             </OrgLink>
           </div>
         )}

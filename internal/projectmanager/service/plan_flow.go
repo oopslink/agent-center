@@ -57,10 +57,18 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 		if perr != nil {
 			return perr
 		}
+		// v2.10.1 [T99]: allocate the per-org P<n> number in this tx (race-safe).
+		// Its OWN 'plan' entity_type sequence, independent of tasks/issues. nil
+		// orgSeq ⇒ 0 (org_ref omitted). The builtin pool is created elsewhere
+		// (appservices) and intentionally never allocates a P number.
+		orgNumber, aerr := s.allocOrgNumber(txCtx, proj.OrganizationID(), "plan")
+		if aerr != nil {
+			return aerr
+		}
 		p, nerr := pm.NewPlan(pm.NewPlanInput{
 			ID: planID, ProjectID: cmd.ProjectID, Name: cmd.Name,
 			Description: cmd.Description, CreatorRef: cmd.CreatedBy,
-			TargetDate: cmd.TargetDate, CreatedAt: now,
+			TargetDate: cmd.TargetDate, OrgNumber: orgNumber, CreatedAt: now,
 		})
 		if nerr != nil {
 			return nerr

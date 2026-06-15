@@ -3,7 +3,14 @@ import { Children } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
-import { MentionText, useMentionResolver } from './MentionText';
+import {
+  MentionText,
+  useMentionResolver,
+  useTaskRefResolver,
+  usePlanRefResolver,
+  type ResolvedTaskRef,
+  type ResolvedPlanRef,
+} from './MentionText';
 import { useSenderSidebar } from './SenderSidebarContext';
 
 // v2.8 #276 — render message content as markdown (@oopslink chose A = full
@@ -41,12 +48,36 @@ function linkifyMentions(
   onMention: ((ref: string) => void) | null,
   resolve: (handle: string) => string | null,
   linkClass: string,
+  resolveTask: (taskId: string) => ResolvedTaskRef | null,
+  resolvePlan: (planRef: string) => ResolvedPlanRef | null,
 ): React.ReactNode {
   if (!onMention) return children;
   return Children.map(children, (child) => {
     if (typeof child === 'string') {
-      if (!child.includes('@')) return child;
-      return <MentionText text={child} onMention={onMention} resolve={resolve} linkClass={linkClass} />;
+      // Tokenize only strings that could carry a token (@mention, task-<id>,
+      // T<number>, plan-<id>, or P<number>) — a plain prose run with none is
+      // passed through untouched. The cheap `T\d`/`P\d` tests are pre-filters
+      // only; MentionText's boundary-guarded TOKEN_RE + resolver gating decide
+      // actual linkification.
+      if (
+        !child.includes('@') &&
+        !child.includes('task-') &&
+        !child.includes('plan-') &&
+        !/T\d/.test(child) &&
+        !/P\d/.test(child)
+      ) {
+        return child;
+      }
+      return (
+        <MentionText
+          text={child}
+          onMention={onMention}
+          resolve={resolve}
+          linkClass={linkClass}
+          resolveTask={resolveTask}
+          resolvePlan={resolvePlan}
+        />
+      );
     }
     return child;
   });
@@ -100,7 +131,12 @@ function MentionAwareMarkdown({
   onMention: (ref: string) => void;
 }): React.ReactElement {
   const resolve = useMentionResolver();
-  const linkify = (children: React.ReactNode) => linkifyMentions(children, onMention, resolve, linkClass);
+  // v2.9.2 (task-82915d7c): resolve `task-<id>` references → task-detail links.
+  const resolveTask = useTaskRefResolver();
+  // v2.10.1 [T99]: resolve `plan-<id>` / `P<number>` references → plan-detail links.
+  const resolvePlan = usePlanRefResolver();
+  const linkify = (children: React.ReactNode) =>
+    linkifyMentions(children, onMention, resolve, linkClass, resolveTask, resolvePlan);
   return <MarkdownBody content={content} textClass={textClass} linkClass={linkClass} linkify={linkify} />;
 }
 

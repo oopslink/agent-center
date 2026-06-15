@@ -21,6 +21,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/files"
 )
 
 // Server is the Web Console HTTP server.
@@ -192,6 +194,8 @@ func (s *Server) routes() {
 	// Workspace > Issues/Tasks). Org via requireOrgMember ({slug} path).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/issues", s.pmListOrgIssuesHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/tasks", s.pmListOrgTasksHandler)
+	// v2.10.0 [T6]: org-scoped cross-project Plan list (global Workspace > Plan).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/plans", s.pmListOrgPlansHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}", s.pmGetProjectHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}", s.pmUpdateProjectHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}", s.pmArchiveProjectHandler)
@@ -251,6 +255,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/start", s.pmStartPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/stop", s.pmStopPlanHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/advance", s.pmAdvancePlanHandler)
+	// T53: operator resume of a paused plan node (un-stick a set-aside node).
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/nodes/{task_id}/resume", s.pmResumePausedNodeHandler)
 
 	// Agents (read-only; admin verbs go through CLI).
 	// v2.7 C3 Agent BC (ADR-0049). Org-scoped; replaces the legacy
@@ -291,6 +297,16 @@ func (s *Server) routes() {
 	// Registered before /files/{ulid} so the literal `transfers` wins the match.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/files/transfers", s.listTransfersHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/files/{ulid}", s.downloadHandler)
+
+	// v2.10.0 [T73]: task/issue-scoped file attachments (Task/Issue detail pages).
+	// List + create-upload + complete, project-member-gated; blob PUT reuses the
+	// generic transfer route above and download reuses GET /files/{ulid}.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{pid}/tasks/{tid}/files", s.scopeFilesListHandler(files.ScopeTask, "tid"))
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{pid}/tasks/{tid}/files", s.scopeFilesCreateHandler(files.ScopeTask, "tid"))
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{pid}/tasks/{tid}/files/transfer/{transfer_id}/complete", s.scopeFilesCompleteHandler(files.ScopeTask, "tid"))
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{pid}/issues/{iid}/files", s.scopeFilesListHandler(files.ScopeIssue, "iid"))
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{pid}/issues/{iid}/files", s.scopeFilesCreateHandler(files.ScopeIssue, "iid"))
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{pid}/issues/{iid}/files/transfer/{transfer_id}/complete", s.scopeFilesCompleteHandler(files.ScopeIssue, "iid"))
 
 	// SSE — single user-level long connection per Q5=B. EXEMPT (user-level, not
 	// org-scoped): subscribe/connect key on user_id + conversation_id.

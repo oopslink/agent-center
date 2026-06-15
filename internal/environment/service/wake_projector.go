@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
@@ -170,6 +171,23 @@ type messageAddedPayload struct {
 	// RootMessageID (v2.9.1 Thread F4) is the thread root of the triggering message
 	// (empty if top-level); carried through to the agent so its reply lands in-thread.
 	RootMessageID string `json:"root_message_id,omitempty"`
+	// AttachmentCount (v2.10.0 [T74]) — how many attachments the message carries.
+	AttachmentCount int `json:"attachment_count,omitempty"`
+	// Attachments (v2.10.1 [T103]) — the inbound attachments' file_uri + metadata,
+	// rendered INLINE into the woken agent's brief so it can download_file directly
+	// (the push wake also advances the read cursor → a later get_my_unread is empty,
+	// so the uri MUST ride the push). Mirrors the producer JSON keys (BC boundary:
+	// env mirrors the keys, it does not import the conversation struct).
+	Attachments []wakeAttachment `json:"attachments,omitempty"`
+}
+
+// wakeAttachment mirrors the conversation MessageAttachment JSON (uri/filename/
+// mime_type/size) carried on the message-added event (v2.10.1 [T103]).
+type wakeAttachment struct {
+	URI      string `json:"uri"`
+	Filename string `json:"filename"`
+	MimeType string `json:"mime_type"`
+	Size     int64  `json:"size"`
 }
 
 // wakeCommandPayload is the agent.wake command payload the daemon AgentController
@@ -207,6 +225,8 @@ type converseCommandPayload struct {
 	MessageText    string `json:"message_text"`
 	// RootMessageID (F4): thread root of the triggering message → agent replies in-thread.
 	RootMessageID string `json:"root_message_id,omitempty"`
+	// AttachmentCount (v2.10.0 [T74]) → the brief tells the agent about file(s).
+	AttachmentCount int `json:"attachment_count,omitempty"`
 }
 
 // awaitingInputPayload mirrors the JSON keys the request_input admin handler
@@ -351,8 +371,10 @@ func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem
 		TaskRef:        taskRef,
 		ConversationID: pl.ConversationID, // D2-e-ii backfill: cursor advance after inject.
 		MessageID:      pl.MessageID,
-		MessageText:    pl.Text,
-		RootMessageID:  pl.RootMessageID, // F4: carry thread root → agent replies in-thread
+		// T103: append the inbound attachment file_uri(s) inline so the woken agent
+		// can download_file directly (the wake advances the read cursor).
+		MessageText:   pl.Text + renderInboundAttachments(pl.Attachments),
+		RootMessageID: pl.RootMessageID, // F4: carry thread root → agent replies in-thread
 	})
 	if err != nil {
 		return err
@@ -619,8 +641,11 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		SenderRef:      pl.Sender,
 		SenderDisplay:  senderDisplay,
 		MessageID:      pl.MessageID,
-		MessageText:    pl.Text,
-		RootMessageID:  pl.RootMessageID, // F4: carry thread root → agent replies in-thread
+		// T103: append the inbound attachment file_uri(s) inline so the agent can
+		// download_file directly (the converse inject advances the read cursor).
+		MessageText:     pl.Text + renderInboundAttachments(pl.Attachments),
+		RootMessageID:   pl.RootMessageID,   // F4: carry thread root → agent replies in-thread
+		AttachmentCount: pl.AttachmentCount, // T74: carry attachment count → brief hints at file(s)
 	})
 	if err != nil {
 		return err
@@ -975,8 +1000,56 @@ func mergeMessages(msgs []*conversation.Message) string {
 		b.WriteString(string(m.SenderIdentityID()))
 		b.WriteString("] ")
 		b.WriteString(m.Content())
+		// v2.10.1 [T103]: inline the attachment file_uri(s) so the woken agent can
+		// download_file directly (the batch flush advances the cursor → get_my_unread
+		// won't surface them afterwards).
+		b.WriteString(renderInboundAttachments(toWakeAttachments(m.Attachments())))
 	}
 	return b.String()
+}
+
+// renderInboundAttachments renders inbound attachment file_uris + metadata as
+// plain-text lines appended to a woken agent's brief (v2.10.1 [T103]), so the
+// agent can download_file the file(s) directly. Empty input → "". Each line:
+//
+//	[attachment: <uri> <filename> (<mime>, <n> bytes)]
+//
+// Authorization is fail-closed at fetch time: the uri only reaches the
+// conversation's own participant agents (the wake recipients), and download_file
+// independently re-checks conversation membership (a non-participant gets 403).
+func renderInboundAttachments(atts []wakeAttachment) string {
+	if len(atts) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, a := range atts {
+		b.WriteString("\n[attachment: ")
+		b.WriteString(a.URI)
+		if strings.TrimSpace(a.Filename) != "" {
+			b.WriteByte(' ')
+			b.WriteString(a.Filename)
+		}
+		b.WriteString(" (")
+		b.WriteString(a.MimeType)
+		b.WriteString(", ")
+		b.WriteString(strconv.FormatInt(a.Size, 10))
+		b.WriteString(" bytes)]")
+	}
+	return b.String()
+}
+
+// toWakeAttachments adapts conversation MessageAttachments (the batch-flush path
+// has real Message objects) to the wakeAttachment shape renderInboundAttachments
+// consumes.
+func toWakeAttachments(atts []conversation.MessageAttachment) []wakeAttachment {
+	if len(atts) == 0 {
+		return nil
+	}
+	out := make([]wakeAttachment, len(atts))
+	for i, a := range atts {
+		out[i] = wakeAttachment{URI: a.URI, Filename: a.Filename, MimeType: a.MimeType, Size: a.Size}
+	}
+	return out
 }
 
 // ReconcileOnce is the poll-fallback sweep (D2-e-iii): for every waiting_input

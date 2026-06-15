@@ -39,6 +39,7 @@ export type PlanNodeStatus =
   | 'ready'
   | 'dispatched'
   | 'running'
+  | 'paused' // T53: running task whose agent paused its work item (set aside)
   | 'done'
   | 'failed';
 
@@ -52,6 +53,11 @@ export interface PlanNode {
   node_status: PlanNodeStatus;
   depends_on: string[];
   dispatched_at?: string | null;
+  // v2.9.2 (task-0543ece9): the human Task id ("T123", org_ref) now rides on the
+  // node DTO so the Work Board card + agent-facing list show the T-number WITHOUT
+  // a second task-list resolver. Omitted when unallocated (pre-allocator rows) —
+  // the card falls back to the #id-tail handle, the established #192 pattern.
+  org_ref?: string;
   // v2.9 Stage B (#283): the plan task DTO (pmTaskMap) now carries an `archived`
   // flag (+ audit fields) set when the plan is archived. ORTHOGONAL to task_status
   // / node_status — the archive badge reads `archived` and coexists with the
@@ -79,9 +85,12 @@ export interface PlanEdge {
 // helper, so a node is byte-identical between them — verified vs merged PR #272
 // → v2.9 trunk 654d30e):
 //   • detail (GET /{id})  → `nodes`: the FULL DAG (every PlanNode).
-//   • list   (GET /)      → `nodes_preview`: the first 4 PlanNodes (capped),
-//                            plus `node_count` (the TOTAL node count) for the
-//                            "…and M more" overflow on the Work Board card.
+//   • list   (GET /)      → `nodes_preview`: EVERY PlanNode (v2.9.2 task-0543ece9
+//                            removed the old 4-node cap — the board card no longer
+//                            silently truncates), plus `node_count` (== the node
+//                            count). `node_count` is kept so a degraded/partial
+//                            payload that sends fewer preview nodes still drives an
+//                            "…and M more" overflow hint (belt-and-braces).
 // Both are optional on the type so either response is assignable; the Work Board
 // (#291) reads the list pair (nodes_preview / node_count) and the Plan detail
 // (#287) reads `nodes`. Field names match the real DTO EXACTLY.
@@ -93,6 +102,10 @@ export interface Plan {
   status: PlanStatus;
   creator_ref: string;
   conversation_id: string;
+  // v2.10.1 [T99]: the human Plan id ("P123", org-scoped org_ref). Optional —
+  // omitted for the builtin pool + rows predating the allocator (UI falls back
+  // to the #id-tail handle).
+  org_ref?: string;
   target_date?: string | null;
   has_failed: boolean;
   progress: { done: number; total: number };
@@ -132,6 +145,48 @@ export function usePlans(projectId: string | undefined) {
       return resp.plans;
     },
     enabled: !!projectId,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// v2.10.0 [T6] — global (org-scoped, cross-project) Plan list.
+// GET /api/orgs/{slug}/plans → { items: OrgPlanItem[], total }. Mirrors the
+// org-scoped Issues/Tasks aggregation: the /orgs/{slug} segment is auto-injected
+// by the api client, so the hook just calls /plans. Each row is a plan summary
+// (progress/has_failed/node_count) PLUS project{id,name} + updated_at for the
+// cross-project list + the detail link. Excludes the builtin assignment pool.
+// ---------------------------------------------------------------------------
+
+// An org Plan list row = the plan summary enriched with its project context and
+// updated_at (the base Plan DTO omits updated_at; the org list needs it for the
+// "Updated" column + the updated_at-DESC order).
+export interface OrgPlanItem extends Plan {
+  project: { id: string; name: string };
+  updated_at: string;
+}
+
+export interface OrgPlanFilters {
+  /** project ids (multi) — narrow the aggregation to specific projects. */
+  project?: string[];
+  /** status values (multi). Omitted = backend default (excludes archived). */
+  status?: string[];
+}
+
+function buildOrgPlanQuery(f?: OrgPlanFilters): string {
+  if (!f) return '';
+  const p = new URLSearchParams();
+  for (const id of f.project ?? []) p.append('project', id);
+  for (const s of f.status ?? []) p.append('status', s);
+  const s = p.toString();
+  return s ? `?${s}` : '';
+}
+
+export function useOrgPlans(slug: string | undefined, filters?: OrgPlanFilters) {
+  return useQuery({
+    queryKey: qk.orgPlans({ slug, filters }),
+    // org_slug auto-injected by the client; slug only scopes the cache key + gate.
+    queryFn: () => api.get<{ items: OrgPlanItem[]; total: number }>(`/plans${buildOrgPlanQuery(filters)}`),
+    enabled: !!slug,
   });
 }
 
@@ -314,6 +369,17 @@ export function useStopPlan(projectId: string, planId: string) {
 export function useAdvancePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/advance`),
+  );
+}
+
+// T53: operator recovery — resume a `paused` plan node (its agent set the work
+// item aside and went idle). Resumes the node's work item + wakes the agent;
+// returns the refreshed plan so the DAG reflects the node leaving `paused`.
+export function useResumePausedNode(projectId: string, planId: string) {
+  return usePlanWrite<string, Plan>(projectId, planId, (taskId) =>
+    api.post<Plan>(
+      `${plansBase(projectId)}/${planId}/nodes/${encodeURIComponent(taskId)}/resume`,
+    ),
   );
 }
 

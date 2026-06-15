@@ -1,15 +1,27 @@
-// v2.5.x #63 — Sidebar collapsible groups + Channels/DMs sub-lists.
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+// v2.10.0 [T1] — col② secondary nav: per-module collapsible group +
+// Channels/DMs/Projects sub-lists (carried over from the v2.5.x #63 single
+// sidebar, now scoped to the active module the rail selects).
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useAppStore } from '@/store/app';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
+
+// This suite verifies the SHELL DEFAULT col② (the built-in NavGroup + channel/DM/
+// project expandable sub-lists). v2.10.0 [T64] registered a per-module override
+// for Conversations (ConversationsSecondaryNav), which would otherwise replace
+// the default for the /channels routes used here. We mock the registry empty so
+// this suite keeps exercising the default-fallback path generically (mirrors the
+// registry-mock in secondaryNav.test.tsx); the registered Conversations col② is
+// covered by shell/nav/ConversationsSecondaryNav.test.tsx.
+vi.mock('@/shell/secondaryNav', () => ({ SECONDARY_NAV_REGISTRY: {} }));
+
 import AppLayout from './AppLayout';
 
-// Polyfill localStorage so the per-group / per-subitem persist effects
-// work in the test env (matches AppLayout.p6.test.tsx setup).
+// Polyfill localStorage so the per-group / per-subitem persist effects work.
 beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
   const store: Record<string, string> = {};
@@ -32,7 +44,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   localStorage.clear();
-  // Three channels + two DMs to seed the sub-lists.
+  // Three channels + two DMs to seed the Conversations sub-lists.
   server.use(
     http.get('/api/conversations', ({ request }) => {
       const url = new URL(request.url);
@@ -65,7 +77,7 @@ beforeEach(() => {
       return HttpResponse.json([]);
     }),
   );
-  // v2.5.x #67 — Projects sub-list under Workspace group.
+  // Projects sub-list under the Workspace module.
   server.use(
     http.get('/api/projects', () =>
       HttpResponse.json({
@@ -108,6 +120,7 @@ function renderShell(initial = '/channels') {
             <Route path="/channels" element={<div data-testid="page-Channels">x</div>} />
             <Route path="/dms" element={<div data-testid="page-DMs">x</div>} />
             <Route path="/dms/:id" element={<div data-testid="page-DMDetail">x</div>} />
+            <Route path="/projects" element={<div data-testid="page-Projects">x</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -115,30 +128,30 @@ function renderShell(initial = '/channels') {
   );
 }
 
-describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
+describe('col② secondary nav — active-module group + sub-lists', () => {
   afterEach(() => cleanup());
 
-  it('renders each group as a collapsible button + items expanded by default', () => {
-    renderShell();
+  it('renders the active module as a collapsible group with its items expanded by default', () => {
+    renderShell('/channels');
+    // Conversations module active.
     expect(screen.getByTestId('sidebar-group-toggle-Conversations')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-group-toggle-System')).toBeInTheDocument();
-    // Conversations expanded by default → Channels + DMs links visible.
+    // Other modules' groups are NOT in col② (only the rail switches to them).
+    expect(screen.queryByTestId('sidebar-group-toggle-System')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /channels/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /dms/i })).toBeInTheDocument();
   });
 
-  it('clicking a group toggle collapses its items', () => {
-    renderShell();
+  it('clicking the group toggle collapses its items', () => {
+    renderShell('/channels');
     const toggle = screen.getByTestId('sidebar-group-toggle-Conversations');
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    // Channels/DMs links should be hidden now.
     expect(screen.queryByRole('link', { name: /channels/i })).not.toBeInTheDocument();
   });
 
   it('persists group state in localStorage', () => {
-    renderShell();
+    renderShell('/channels');
     fireEvent.click(screen.getByTestId('sidebar-group-toggle-Conversations'));
     const stored = localStorage.getItem('ac.sidebar.groups');
     expect(stored).toBeTruthy();
@@ -147,7 +160,7 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
   });
 
   it('Channels item exposes a sub-list of channel names when expanded', async () => {
-    renderShell();
+    renderShell('/channels');
     await waitFor(() => {
       const list = screen.getByTestId('sidebar-subitem-list-/channels');
       expect(list.textContent).toContain('# all');
@@ -158,10 +171,9 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
   });
 
   it('DMs item exposes a sub-list of DM peers when expanded', async () => {
-    renderShell();
+    renderShell('/channels');
     await waitFor(() => {
       const list = screen.getByTestId('sidebar-subitem-list-/dms');
-      // v2.7.1 #215: DM sidebar labels are the backend-resolved peer as @name.
       expect(list.textContent).toContain('@Sam');
       expect(list.textContent).toContain('@Other');
     });
@@ -195,7 +207,7 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
         return HttpResponse.json([]);
       }),
     );
-    renderShell();
+    renderShell('/channels');
     const list = await screen.findByTestId('sidebar-subitem-list-/dms');
     await waitFor(() => expect(list.textContent).toContain('(deleted)'));
     expect(screen.getByText('@Live')).toBeInTheDocument();
@@ -238,7 +250,7 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
   });
 
   it('clicking the sub-item toggle collapses the channel sub-list', async () => {
-    renderShell();
+    renderShell('/channels');
     await waitFor(() => {
       expect(screen.getByTestId('sidebar-subitem-list-/channels')).toBeInTheDocument();
     });
@@ -249,44 +261,16 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
     expect(screen.queryByTestId('sidebar-subitem-list-/channels')).not.toBeInTheDocument();
   });
 
-  // v2.5.x #67 — Projects mirrors the Channels/DMs sub-list pattern
-  // under the Workspace group so the operator can see each project by
-  // name without first navigating to /projects.
-  it('Projects item exposes a sub-list of project names when expanded', async () => {
-    renderShell();
-    await waitFor(() => {
-      const list = screen.getByTestId('sidebar-subitem-list-/projects');
-      expect(list.textContent).toContain('agent-center');
-    });
-    const list = screen.getByTestId('sidebar-subitem-list-/projects');
-    expect(list.textContent).toContain('sandbox');
-    // Each sub-link routes to /projects/<id>.
-    const links = list.querySelectorAll('a[data-testid="sidebar-subitem-link"]');
-    const hrefs = Array.from(links).map((a) => a.getAttribute('href'));
-    expect(hrefs).toContain('/projects/proj-abc');
-    expect(hrefs).toContain('/projects/proj-def');
-  });
-
-  it('Projects sub-list toggle collapses + persists like Channels/DMs', async () => {
-    renderShell();
-    await waitFor(() =>
-      expect(screen.getByTestId('sidebar-subitem-toggle-/projects')).toBeInTheDocument(),
-    );
-    const subToggle = screen.getByTestId('sidebar-subitem-toggle-/projects');
-    expect(subToggle).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.click(subToggle);
-    expect(subToggle).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByTestId('sidebar-subitem-list-/projects')).not.toBeInTheDocument();
-    await waitFor(() => {
-      const stored = localStorage.getItem('ac.sidebar.subitems');
-      expect(stored).toBeTruthy();
-      const parsed = JSON.parse(stored as string);
-      expect(parsed['/projects']).toBe(false);
-    });
-  });
+  // v2.10.0 [T4]: the Workspace col② is now the route-aware custom nav
+  // (shell/nav/WorkspaceSecondaryNav — Projects/Issues/Tasks/Plan ↔ project
+  // sub-nav), per projects.html. The old "Projects expands to all project
+  // names" sub-list is gone (the Projects LIST page covers that). The
+  // Channels/DMs expansion (Conversations, the shell default) is unchanged and
+  // still covered above; Workspace nav behavior is covered in
+  // WorkspaceSecondaryNav.test.tsx.
 
   it('sub-item state persists to localStorage', async () => {
-    renderShell();
+    renderShell('/channels');
     await waitFor(() =>
       expect(screen.getByTestId('sidebar-subitem-toggle-/channels')).toBeInTheDocument(),
     );
@@ -299,70 +283,96 @@ describe('AppLayout sidebar — collapsible groups (v2.5.x #63)', () => {
     });
   });
 
-  // v2.8.1 #278: "Topbar→sidebar" chrome — org switcher + ⌘K search live in
-  // the sidebar top; CAPS section labels + right-aligned real-count badges;
-  // bottom area = live + segmented theme + user + Sign out.
-  it('hosts the org switcher + ⌘K search trigger inside the sidebar', () => {
-    renderShell();
+  it('hosts the org switcher (rail) + ⌘K search trigger', () => {
+    renderShell('/channels');
     expect(screen.getByTestId('org-switcher')).toBeInTheDocument();
     const search = screen.getByTestId('open-palette');
     expect(search).toHaveAttribute('aria-label', expect.stringMatching(/search/i));
   });
 
-  it('renders CAPS section labels as headings', () => {
-    renderShell();
-    const labels = screen.getAllByTestId('section-label').map((n) => n.textContent);
-    expect(labels).toContain('Workspace');
-    expect(labels).toContain('Conversations');
-    expect(labels).toContain('System');
+  it('col② header shows the active module label as a heading', () => {
+    renderShell('/channels');
+    expect(screen.getAllByTestId('section-label').map((n) => n.textContent)).toContain(
+      'Conversations',
+    );
+    cleanup();
+    renderShell('/projects');
+    expect(screen.getAllByTestId('section-label').map((n) => n.textContent)).toContain('Workspace');
   });
 
   it('count badges reflect real hook counts with accessible labels', async () => {
-    renderShell();
-    // 3 channels + 2 DMs + 2 projects seeded in beforeEach.
+    renderShell('/channels');
+    // 3 channels + 2 DMs seeded; both are Conversations-module items.
     await waitFor(() => {
       expect(screen.getByTestId('count-badge-Channels')).toHaveTextContent('3');
     });
     expect(screen.getByTestId('count-badge-Channels')).toHaveAttribute('aria-label', '3 channels');
     expect(screen.getByTestId('count-badge-DMs')).toHaveAttribute('aria-label', '2 dms');
-    expect(screen.getByTestId('count-badge-Projects')).toHaveAttribute('aria-label', '2 projects');
+    // (Projects no longer carries a count badge — the Workspace col② is the
+    // custom route-aware nav now; see WorkspaceSecondaryNav.test.tsx.)
   });
 
-  it('renders the bottom area: live + segmented theme + user + sign out', () => {
-    renderShell();
-    expect(screen.getByTestId('sidebar-live')).toBeInTheDocument();
-    expect(screen.getByTestId('theme-segment-light')).toBeInTheDocument();
-    expect(screen.getByTestId('theme-segment-dark')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-signout')).toBeInTheDocument();
+  it('rail shows connection status (bottom) + a user panel with theme + sign out (T105)', () => {
+    renderShell('/channels');
+    // Connection status pinned to the col① rail bottom (above the user avatar).
+    expect(screen.getByTestId('rail-connection')).toBeInTheDocument();
+    // Theme + sign out now live in the rail user popout (closed by default).
+    expect(screen.queryByTestId('rail-user-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-signout')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('sidebar-user'));
+    const panel = screen.getByTestId('rail-user-panel');
+    expect(within(panel).getByTestId('theme-segment-light')).toBeInTheDocument();
+    expect(within(panel).getByTestId('theme-segment-dark')).toBeInTheDocument();
+    expect(within(panel).getByTestId('sidebar-signout')).toBeInTheDocument();
+    expect(within(panel).getByTestId('rail-account-link')).toHaveAttribute('href', '/me');
   });
 
-  // v2.8 #264 P1 / #176: channel/DM sidebar sub-items badge off the per-row
-  // unread_count/mention_count embedded in GET /conversations (no N /unread).
+  it('connection status dot + tooltip reflect the live SSE status (T105)', () => {
+    renderShell('/channels');
+    const node = screen.getByTestId('rail-connection');
+    act(() => useAppStore.setState({ sseStatus: 'open' }));
+    expect(node).toHaveAttribute('data-status', 'open');
+    expect(node).toHaveAttribute('title', 'Connected');
+    expect(node.querySelector('.bg-success')).not.toBeNull();
+    act(() => useAppStore.setState({ sseStatus: 'reconnecting' }));
+    expect(node).toHaveAttribute('data-status', 'reconnecting');
+    expect(node).toHaveAttribute('title', 'Reconnecting…');
+    expect(node.querySelector('.bg-warning')).not.toBeNull();
+    act(() => useAppStore.setState({ sseStatus: 'closed' }));
+    expect(node).toHaveAttribute('title', 'Disconnected');
+    expect(node.querySelector('.bg-danger')).not.toBeNull();
+    act(() => useAppStore.setState({ sseStatus: 'idle' })); // reset shared store
+  });
+
+  it('rail user panel opens on the avatar and closes on Escape (T105)', () => {
+    renderShell('/channels');
+    fireEvent.click(screen.getByTestId('sidebar-user'));
+    const panel = screen.getByTestId('rail-user-panel');
+    expect(panel).toBeInTheDocument();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(screen.queryByTestId('rail-user-panel')).not.toBeInTheDocument();
+  });
+
   it('renders unread/mention badges in the channel sub-list from row counts', async () => {
     server.use(
       http.get('/api/conversations', ({ request }) => {
         const kind = new URL(request.url).searchParams.get('kind');
         if (kind === 'channel') {
           return HttpResponse.json([
-            // mention → red number badge
             { id: 'C1', kind: 'channel', name: 'alerts', status: 'active', unread_count: 9, mention_count: 2 },
-            // unread-only → neutral dot
             { id: 'C2', kind: 'channel', name: 'general', status: 'active', unread_count: 4, mention_count: 0 },
-            // caught up → no badge
             { id: 'C3', kind: 'channel', name: 'quiet', status: 'active', unread_count: 0, mention_count: 0 },
           ]);
         }
         return HttpResponse.json([]);
       }),
     );
-    renderShell();
+    renderShell('/channels');
     const list = await screen.findByTestId('sidebar-subitem-list-/channels');
     await waitFor(() => expect(list.textContent).toContain('# alerts'));
-    // mention badge shows the precise mention number, SR announces both counts.
     const mention = screen.getByTestId('conversation-mention-badge');
     expect(mention).toHaveTextContent('2');
     expect(mention).toHaveAttribute('aria-label', '9 unread, 2 mentions');
-    // exactly one unread-only dot (the unread-but-no-mention channel).
     const dots = screen.getAllByTestId('conversation-unread-dot');
     expect(dots).toHaveLength(1);
     expect(dots[0]).toHaveAttribute('aria-label', '4 unread');

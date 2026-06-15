@@ -57,3 +57,6 @@ sites/.vitepress/cache/
 
 # UI/UX Pro Max skill — Python bytecode cache
 .claude/skills/*/scripts/__pycache__/
+
+# local agent worktrees (per-session, never part of the repo)
+.claude/worktrees/

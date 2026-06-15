@@ -7,6 +7,11 @@ import { CheckingGroup } from './AgentActivityRow';
 const ev = (id: string, event_type: string, time = '01:00'): AgentActivityEvent =>
   ({ id, agent_id: 'A1', event_type, payload: '{}', occurred_at: `2026-05-24T${time}:00Z` }) as AgentActivityEvent;
 
+// The group range renders local wall-clock (toLocaleTimeString), so derive the
+// expected text the same way — keeps the assertion timezone-independent.
+const localHM = (time: string): string =>
+  new Date(`2026-05-24T${time}:00Z`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
 describe('groupActivity (#274 Checking fold)', () => {
   it('folds consecutive checking events into a group; keeps non-checking separate', () => {
     const items = groupActivity([
@@ -51,8 +56,10 @@ describe('CheckingGroup (#274)', () => {
     expect(toggle).toHaveTextContent('Checking messages × 3');
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(toggle).toHaveAttribute('aria-label', 'Checking messages, 3 events, collapsed');
-    // earliest–latest time range.
-    expect(screen.getByTestId('agent-activity-checking-group')).toHaveTextContent('01:00–03:00');
+    // earliest–latest time range, rendered in the viewer's local timezone.
+    expect(screen.getByTestId('agent-activity-checking-group')).toHaveTextContent(
+      `${localHM('01:00')}–${localHM('03:00')}`,
+    );
     // collapsed → raw events hidden.
     expect(screen.queryByTestId('agent-activity-checking-expanded')).toBeNull();
     // expand → all 3 raw events, aria-controls points to the expanded region id.

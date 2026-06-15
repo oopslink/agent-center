@@ -1,4 +1,4 @@
--- 0060_v210_plan_findings.up.sql — v2.10 Plan Shared Findings (ADR-0053).
+-- 0061_v210_plan_findings.up.sql — v2.10 Plan Shared Findings (ADR-0053).
 --
 -- DeLM "shared verified context" minimal slice: a plan-scoped, immutable knowledge
 -- gist an agent records back to its Plan, bound to the SOURCE task that produced it

@@ -116,6 +116,20 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
 	}, makeFailWork(cfg))
 
+	// T83: claim an OPEN assignment-pool task. Pool tasks have no work item (pull,
+	// no-wake), so start_work does not apply — claim_task is how you pick one up.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "claim_task",
+		Description: "Claim an OPEN assignment-pool task (a task_id from list_assignment_pool, not a work_item_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap. Once claimed it appears in get_my_work.",
+	}, makeClaimTask(cfg))
+
+	// T83: discovery surface for the assignment pool — separate from get_my_work
+	// (which is YOUR work). Browse the open pool, pick one, claim_task it.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_assignment_pool",
+		Description: "List the OPEN, unassigned assignment-pool tasks you are eligible to claim (across the projects you are a member of). This is a read-only marketplace of available work — NOT your own queue (use get_my_work for that). Pick a suitable task and claim_task it; once claimed it moves to get_my_work.",
+	}, makeListAssignmentPool(cfg))
+
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
 	// optionally resume it later.
 	mcp.AddTool(srv, &mcp.Tool{
@@ -155,7 +169,7 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_message",
-		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, attach it with attach_file (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
+		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))
 
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
@@ -237,9 +251,19 @@ func NewServer(cfg Config) *mcp.Server {
 	}, makeRerunFailedNode(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "resume_paused_node",
+		Description: "Resume a plan node whose agent paused its work item and went idle (the node shows `paused`): resumes the node's work item and wakes its agent so it continues. Use this to un-stick a paused node; use rerun_failed_node instead for a failed/undispatched node.",
+	}, makeResumePausedNode(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "complete_task",
 		Description: "Optionally post a summary and move the task to completed.",
 	}, makeCompleteTask(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "discard_task",
+		Description: "Terminally DISCARD a non-terminal task (open/running → discarded) — the right way to retire a superseded or mis-created task. Optionally posts a reason first. Unlike complete_task it does not mark the work done (shows Discarded, not Completed); unlike block_task it won't leave a pool task to be re-dispatched. A terminal task (completed/discarded) is rejected.",
+	}, makeDiscardTask(cfg))
 
 	// --- plan tools (v2.9 P3 Stage C, #285) ----------------------------------
 	// A PM-agent programmatically builds and runs plans: create a draft plan,
@@ -419,6 +443,16 @@ func makePostTaskMessage(cfg Config) mcp.ToolHandlerFor[postTaskMessageArgs, any
 	}
 }
 
+// postMessageAttachment is one already-uploaded file attached to a post_message
+// (T44). uri is the ac://files/{ulid} returned by upload_file; the rest is
+// display metadata rendered in the UI's attachment card.
+type postMessageAttachment struct {
+	URI      string `json:"uri" jsonschema:"the ac://files/{ulid} returned by upload_file"`
+	Filename string `json:"filename" jsonschema:"display filename"`
+	MimeType string `json:"mime_type" jsonschema:"the file's MIME type (drives image-preview vs file-chip rendering)"`
+	Size     int64  `json:"size" jsonschema:"file size in bytes"`
+}
+
 // postMessageArgs is the typed input for post_message (v2.7 #185). Like
 // post_task_message there is NO agent_id field — it is process-fixed and
 // injected by the handler so the model cannot spoof which agent posts.
@@ -428,6 +462,9 @@ type postMessageArgs struct {
 	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
 	// root message id the wake brief gave you. Omit for a normal top-level message.
 	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
+	// Attachments (T44): files to share in the conversation, rendered as preview
+	// cards. Upload each via upload_file first, then pass the returned file_uri here.
+	Attachments []postMessageAttachment `json:"attachments,omitempty" jsonschema:"optional files to attach (upload each via upload_file first, then pass the returned file_uri as uri); the UI renders them as preview cards"`
 }
 
 // makePostMessage returns the post_message handler bound to cfg. agent_id is
@@ -441,6 +478,18 @@ func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 		}
 		if args.ParentMessageID != "" {
 			body["parent_message_id"] = args.ParentMessageID
+		}
+		if len(args.Attachments) > 0 {
+			atts := make([]map[string]any, len(args.Attachments))
+			for i, att := range args.Attachments {
+				atts[i] = map[string]any{
+					"uri":       att.URI,
+					"filename":  att.Filename,
+					"mime_type": att.MimeType,
+					"size":      att.Size,
+				}
+			}
+			body["attachments"] = atts
 		}
 		return callAdmin(ctx, cfg, "post_message", body)
 	}

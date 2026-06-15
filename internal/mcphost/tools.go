@@ -14,6 +14,7 @@
 //   - request_input               : {task_id, question}
 //   - block_task                  : {task_id, reason}
 //   - complete_task               : {task_id, summary?}
+//   - discard_task                : {task_id, reason?}
 //   - create_task                 : {project_id, title, description?, derived_from_issue?}
 //   - get_task                    : {task_id}
 //   - get_issue                   : {issue_id}
@@ -196,6 +197,30 @@ func makeFailWork(cfg Config) mcp.ToolHandlerFor[failWorkArgs, any] {
 	}
 }
 
+// --- claim_task (T83: open-claim of a built-in assignment-pool task) ---------
+
+type claimTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the id of an OPEN assignment-pool task (from get_my_work claimable_tasks) to claim now — atomically assigns it to you and starts it (open→running)"`
+}
+
+func makeClaimTask(cfg Config) mcp.ToolHandlerFor[claimTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args claimTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "claim_task", body)
+	}
+}
+
+type listAssignmentPoolArgs struct{}
+
+func makeListAssignmentPool(cfg Config) mcp.ToolHandlerFor[listAssignmentPoolArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ listAssignmentPoolArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "list_assignment_pool", map[string]any{"agent_id": cfg.AgentID})
+	}
+}
+
 // --- pause_work / resume_paused_work (v2.8.1 #278 D PR4 scheduling) -----------
 
 type pauseWorkArgs struct {
@@ -324,6 +349,26 @@ func makeRerunFailedNode(cfg Config) mcp.ToolHandlerFor[rerunFailedNodeArgs, any
 	}
 }
 
+type resumePausedNodeArgs struct {
+	PlanID string `json:"plan_id" jsonschema:"the plan the node belongs to"`
+	TaskID string `json:"task_id" jsonschema:"the paused plan node's task to resume"`
+}
+
+// makeResumePausedNode resumes a plan node whose agent PAUSED its work item and
+// went idle (the node shows `paused`): it resumes the node's work item and wakes
+// the agent so it continues. Operator recovery — distinct from rerun_failed_node
+// (which is for a FAILED/undispatched node).
+func makeResumePausedNode(cfg Config) mcp.ToolHandlerFor[resumePausedNodeArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args resumePausedNodeArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"plan_id":  args.PlanID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "resume_paused_node", body)
+	}
+}
+
 // --- complete_task -----------------------------------------------------------
 
 type completeTaskArgs struct {
@@ -339,6 +384,28 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 			"summary":  args.Summary,
 		}
 		return callAdmin(ctx, cfg, "complete_task", body)
+	}
+}
+
+// --- discard_task (T119) -----------------------------------------------------
+
+type discardTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the task to discard (terminal)"`
+	Reason string `json:"reason,omitempty" jsonschema:"optional reason posted to the task before discarding"`
+}
+
+// makeDiscardTask terminally discards a NON-terminal task (open/running →
+// discarded) — the correct way to retire a superseded or mis-created task. Unlike
+// complete_task it does not mark the work done (status shows Discarded, not
+// Completed), and unlike block_task it does not leave a pool task to be re-dispatched.
+func makeDiscardTask(cfg Config) mcp.ToolHandlerFor[discardTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args discardTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+			"reason":   args.Reason,
+		}
+		return callAdmin(ctx, cfg, "discard_task", body)
 	}
 }
 

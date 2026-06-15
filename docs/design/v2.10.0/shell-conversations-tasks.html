@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>桌面 · 三栏式布局</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .desk3{display:grid;grid-template-columns:66px 250px 1fr;height:520px;position:relative}
+  .desk4{display:grid;grid-template-columns:66px 250px 1fr 256px;height:520px;position:relative}
+  /* col1 icon rail */
+  .rail{background:#1e1b34;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+  .rail .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:10px;font-size:15px}
+  .ri{width:46px;height:44px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c7c3e0;font-size:18px;gap:2px}
+  .ri small{font-size:8px;letter-spacing:.02em}
+  .ri.active{background:rgba(255,255,255,.16);color:#fff}
+  .rail .sp{flex:1}
+  /* col2 second-level */
+  .c2{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+  .c2h{padding:12px 14px 10px;border-bottom:1px solid var(--border)} .c2h h2{margin:0;font-size:15px} .c2h .s{margin-top:9px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:6px 9px;color:var(--tm);font-size:12px}
+  .c2sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--tm);font-weight:700;padding:11px 14px 4px;display:flex;justify-content:space-between}
+  .c2it{display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:13px;color:var(--ts);position:relative}
+  .c2it.sel{background:var(--bg-subtle);color:var(--tp);font-weight:600} .c2it.sel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .c2it .ic{width:16px;text-align:center;color:var(--tm)} .c2it .lab{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .c2it .pv{font-size:11.5px;color:var(--tm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c2it .badge{font-size:9.5px;font-weight:700;background:var(--brand);color:#fff;border-radius:9px;padding:0 6px}
+  .c2it .av{width:30px;height:30px;border-radius:8px}
+  .colbadge{position:absolute;z-index:6;font-size:10px;font-weight:800;color:#fff;background:var(--danger);border-radius:5px;padding:1px 6px;box-shadow:0 0 0 2px #fff}
+  /* stream */
+  .stream{flex:1;padding:14px;display:flex;flex-direction:column;gap:11px;overflow:hidden}
+  .msg{display:flex;gap:9px;max-width:80%} .msg .bub{background:var(--bg-elev);border:1px solid var(--border);border-radius:4px 12px 12px 12px;padding:8px 11px;font-size:12.5px;box-shadow:var(--sh1)} .msg .who{font-size:11px;font-weight:700;color:var(--brand);margin-bottom:2px}
+  .msg.me{align-self:flex-end;flex-direction:row-reverse} .msg.me .bub{background:var(--own);color:var(--own-fg);border:none;border-radius:12px 4px 12px 12px}
+  .composer{border-top:1px solid var(--border);background:var(--bg-elev);padding:9px 13px 11px} .drop{border:1.4px dashed var(--border-strong);border-radius:10px;padding:8px 10px;background:var(--bg-base);display:flex;align-items:center;gap:10px}
+  .filt{display:flex;gap:7px;padding:10px 16px 0;flex-wrap:wrap} .filt .f{font-size:11.5px;border:1px solid var(--border);border-radius:7px;padding:4px 9px;color:var(--ts);background:var(--bg-elev)} .filt .f .ct{color:var(--tm)}
+</style></head>
+<body><div class="page">
+  <h1>桌面 · 三栏式(按需四栏)<span class="modtag">现有 IA</span></h1>
+  <p class="sub">按你说的:<b>① 最左 = 顶层模块(图标栏)② 第二栏 = 该模块第二级 ③ 第三栏 = 具体内容 ④ 按需第四栏(上下文)</b>。点 ① 的图标切顶层,② 随之换成那个模块的第二级,③ 显示选中项内容,④ 仅在该视图需要时出现(参与者/元数据/计划会话)。结构仍是现有 IA。</p>
+
+  <div class="sech">例 1 · Conversations — 四栏(① 图标 + ② Channels/DMs + ③ 消息 + ④ 参与者)</div>
+  <div class="frame"><div class="desk4">
+    <span class="colbadge" style="left:8px;top:8px">①</span>
+    <span class="colbadge" style="left:74px;top:8px">②</span>
+    <span class="colbadge" style="left:320px;top:8px">③</span>
+    <span class="colbadge" style="right:8px;top:8px">④</span>
+    <div class="rail">
+      <div class="logo">A</div>
+      <div class="ri"><span>▦</span><small>Work</small></div>
+      <div class="ri active"><span>💬</span><small>Conv</small></div>
+      <div class="ri"><span>◎</span><small>Mbr</small></div>
+      <div class="ri"><span>⚙</span><small>Sys</small></div>
+      <div class="sp"></div>
+      <div class="ri"><span>🔍</span></div>
+      <div class="ri" style="color:#fff"><span>🧑</span></div>
+    </div>
+    <div class="c2">
+      <div class="c2h"><h2>Conversations</h2><div class="s">🔍 搜索会话…</div></div>
+      <div class="c2sub">Channels <span>+</span></div>
+      <div class="c2it sel"><span class="ic">#</span><span class="lab">agent-center-dev</span><span class="badge">3</span></div>
+      <div class="c2it"><span class="ic">#</span><span class="lab">general</span></div>
+      <div class="c2sub">Direct messages <span>+</span></div>
+      <div class="c2it"><span class="ic" style="color:#8b5cf6">●</span><span class="lab">oopslink</span><span class="badge">1</span></div>
+      <div class="c2it"><span class="ic" style="color:#8b5cf6">●</span><span class="lab">tester2</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><div><h3># agent-center-dev</h3><div style="font-size:11.5px;color:var(--tm);margin-top:2px">v2.9.2 集成与协作</div></div><button class="btn">Follow</button></div>
+      <div class="stream">
+        <div class="msg"><div class="av wk" style="width:30px;height:30px">IN</div><div><div class="bub"><div class="who">IntegrationDev</div>4 笔已合入 v2.9.2,HEAD bc4211b。</div></div></div>
+        <div class="msg me"><div><div class="bub">§-1 PASS,@tester1/2 跑 release 门。</div></div></div>
+      </div>
+      <div class="composer"><div class="drop"><span style="color:var(--tm);font-size:16px">📎</span><span style="flex:1;color:var(--tm);font-size:12.5px">写点什么…(拖拽 / 粘贴上传)</span><span class="btn pri">发送 ↵</span></div></div>
+    </div>
+    <div class="ctx">
+      <h4>参与者 · 3</h4>
+      <div class="blk" style="padding-top:2px"><div class="kv"><span class="v">tester2</span><span class="k">agent</span></div><div class="kv"><span class="v">IntegrationDev</span><span class="k">agent</span></div><div class="kv"><span class="v">PD</span><span class="k">agent</span></div></div>
+      <h4>共享文件 · 4</h4>
+      <div class="gal"><span></span><span></span><span></span></div>
+    </div>
+  </div></div>
+
+  <div class="sech">例 2 · Workspace → Tasks — 四栏(② = Projects/Issues/Tasks,④ = 选中 Task 元数据)</div>
+  <div class="frame"><div class="desk4">
+    <div class="rail">
+      <div class="logo">A</div>
+      <div class="ri active"><span>▦</span><small>Work</small></div>
+      <div class="ri"><span>💬</span><small>Conv</small></div>
+      <div class="ri"><span>◎</span><small>Mbr</small></div>
+      <div class="ri"><span>⚙</span><small>Sys</small></div>
+      <div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div>
+    </div>
+    <div class="c2">
+      <div class="c2h"><h2>Workspace</h2><div class="s">🔍 搜索…</div></div>
+      <div class="c2sub">导航</div>
+      <div class="c2it"><span class="ic">▦</span><span class="lab">Projects</span><span class="badge" style="background:var(--bg-subtle);color:var(--tm)">2</span></div>
+      <div class="c2it"><span class="ic">◷</span><span class="lab">Issues</span></div>
+      <div class="c2it sel"><span class="ic">✓</span><span class="lab">Tasks</span></div>
+      <div class="c2sub">Projects</div>
+      <div class="c2it"><span class="ic">▸</span><span class="lab">agent-center2</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><h3>Tasks</h3><button class="btn pri">+ Add Work Item</button></div>
+      <div class="filt"><span class="f"><span class="ct">状态</span> Running ▾</span><span class="f"><span class="ct">项目</span> 全部 ▾</span><span class="f"><span class="ct">负责</span> 任意 ▾</span></div>
+      <div class="body" style="padding-top:8px;overflow:hidden">
+        <table class="tbl">
+          <thead><tr><th>ID</th><th>标题</th><th>状态</th><th>负责</th><th>更新</th></tr></thead>
+          <tbody>
+            <tr style="background:var(--bg-subtle)"><td class="id">task-f975f2</td><td class="tt">Thread 验收 run-real</td><td><span class="stat">running</span></td><td><span class="miniav">T2</span>tester2</td><td class="id">09:24</td></tr>
+            <tr><td class="id">task-1c231a</td><td class="tt">data/API class-guard</td><td><span class="stat">running</span></td><td><span class="miniav">T1</span>tester1</td><td class="id">07:40</td></tr>
+            <tr><td class="id">task-7a60dd</td><td class="tt">IntegrationDev 合并</td><td><span class="stat block">blocked</span></td><td><span class="miniav" style="background:#b45309">IN</span>IntDev</td><td class="id">昨天</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ctx">
+      <h4>Task · 元数据 <span style="color:var(--brand)">✎</span></h4>
+      <div class="blk"><div class="kv"><span class="k">状态</span><span class="stat">running</span></div><div class="kv"><span class="k">负责</span><span class="v">tester2</span></div><div class="kv"><span class="k">用时</span><span class="v">2h 13m</span></div></div>
+      <div class="blk"><div class="kv"><span class="k">项目</span><span class="v">agent-center2</span></div><div class="kv"><span class="k">ID</span><span class="v" style="font-family:var(--mono);font-size:11px">task-f975f2</span></div></div>
+      <h4>会话</h4><div class="blk" style="padding-top:4px"><div style="font-size:11.5px;color:var(--ts)">↗ 进会话讨论</div></div>
+    </div>
+  </div></div>
+
+  <div class="sech">例 3 · System → Settings — 三栏(此视图无需第四栏)</div>
+  <div class="frame"><div class="desk3" style="height:300px">
+    <div class="rail">
+      <div class="logo">A</div>
+      <div class="ri"><span>▦</span><small>Work</small></div>
+      <div class="ri"><span>💬</span><small>Conv</small></div>
+      <div class="ri"><span>◎</span><small>Mbr</small></div>
+      <div class="ri active"><span>⚙</span><small>Sys</small></div>
+      <div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div>
+    </div>
+    <div class="c2">
+      <div class="c2h"><h2>System</h2></div>
+      <div class="c2sub">导航</div>
+      <div class="c2it"><span class="ic">▤</span><span class="lab">Environment</span></div>
+      <div class="c2it sel"><span class="ic">⚙</span><span class="lab">Settings</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><h3>Settings</h3></div>
+      <div class="body">
+        <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg-elev);max-width:420px">
+          <div style="padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">版本</div>
+          <div style="padding:6px 14px 12px"><div class="kv"><span class="k">Version</span><span class="v">v2.9.2-dev</span></div><div class="kv"><span class="k">Branch</span><span class="v" style="font-family:var(--mono);font-size:11px">v2.9.2</span></div><div class="kv"><span class="k">Commit</span><span class="v" style="font-family:var(--mono);font-size:11px">bc4211b</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  <p class="note">① 图标栏顶层 = Workspace / Conversations / Members / System;② 第二级随之切换(Conv→Channels·DMs;Work→Projects·Issues·Tasks;Members→Humans·Agents;Sys→Environment·Settings);③ 内容;④ 按需(会话→参与者、Task/Issue→元数据、Plan→计划会话;Settings 等不需要就只三栏)。确认这个骨架后,我把每个 section 的具体视图都按它重画。配色/字体取自现有 <code>web/src/index.css</code>。</p>
+</div></body></html>

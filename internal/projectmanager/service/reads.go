@@ -162,6 +162,12 @@ func (s *Service) TaskClaimableByID(ctx context.Context, taskID pm.TaskID) (bool
 			break
 		}
 	}
+	// T83 §3.2/§5: a built-in pool task is OPEN-claim (no assignee requirement),
+	// so get_task.claimable matches what ClaimPoolTask will actually accept. A
+	// structured-plan node stays assignee-gated.
+	if p.IsBuiltin() {
+		return pm.ClaimableInPool(t.IsArchived(), t.Status(), planID, ns), nil
+	}
 	return pm.TaskClaimable(t, ns), nil
 }
 
@@ -223,7 +229,40 @@ func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, erro
 	if err != nil {
 		return nil, err
 	}
-	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.ComputePlanView(tasks, edges, records)}, nil
+	paused, err := s.pausedSet(ctx, tasks)
+	if err != nil {
+		return nil, err
+	}
+	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.ComputePlanView(tasks, edges, records, paused)}, nil
+}
+
+// pausedSet queries the optional PausedTaskPort (T53) for the given tasks' ids,
+// returning the TaskID→true map the plan view overlays as `paused` nodes. nil-safe:
+// no port wired or no tasks ⇒ nil (no overlay, running stays running). A port error
+// is PROPAGATED so the read fails loudly rather than silently dropping the overlay
+// (a stuck node mis-shown as running is exactly the bug being fixed).
+func (s *Service) pausedSet(ctx context.Context, tasks []*pm.Task) (map[pm.TaskID]bool, error) {
+	if s.pausedTasks == nil || len(tasks) == 0 {
+		return nil, nil
+	}
+	ids := make([]string, 0, len(tasks))
+	for _, t := range tasks {
+		ids = append(ids, string(t.ID()))
+	}
+	pausedIDs, err := s.pausedTasks.PausedTasks(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	if len(pausedIDs) == 0 {
+		return nil, nil
+	}
+	out := make(map[pm.TaskID]bool, len(pausedIDs))
+	for id, p := range pausedIDs {
+		if p {
+			out[pm.TaskID(id)] = true
+		}
+	}
+	return out, nil
 }
 
 // ListPlanSummaries returns one PlanDetail per Plan in the project (the same
@@ -244,12 +283,42 @@ func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, erro
 // each plan's grouped task slice — and therefore its derived node order — matches
 // what GetPlanDetail produces. §9.2: node status stays DERIVED, never stored.
 func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID) ([]*PlanDetail, error) {
+	return s.planSummaries(ctx, projectID, false)
+}
+
+// ListPlanSummariesIncludingArchived is the archived-aware variant (T124/T98): it
+// returns ALL plans incl. archived, so a caller that applies its OWN status
+// filter (the org Plan list's statusPasses — which default-excludes archived but
+// surfaces them on `?status=archived`/`all`) can actually see archived plans. The
+// default ListPlanSummaries still excludes archived (Work Board / agent-tools).
+func (s *Service) ListPlanSummariesIncludingArchived(ctx context.Context, projectID pm.ProjectID) ([]*PlanDetail, error) {
+	return s.planSummaries(ctx, projectID, true)
+}
+
+func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, includeArchived bool) ([]*PlanDetail, error) {
 	if s.plans == nil {
 		return nil, ErrPlansUnavailable
 	}
 	plans, err := s.plans.ListByProject(ctx, projectID)
 	if err != nil {
 		return nil, err
+	}
+	// v2.9.2 (task-1099941e): the Work Board EXCLUDES archived plans by default —
+	// an archived plan leaves the active board, mirroring project (#310) / channel
+	// archive semantics. Filtered here (the single shared read both list mirrors —
+	// web + agent-tools — go through), so neither surface leaks an archived plan,
+	// and an archived plan's tasks/edges/records aren't even derived below. T124:
+	// includeArchived keeps them (the org list's own statusPasses then filters). A
+	// dedicated archived-plans view, if added, would use a separate read path.
+	if !includeArchived {
+		active := plans[:0]
+		for _, p := range plans {
+			if p.Status() == pm.PlanArchived {
+				continue
+			}
+			active = append(active, p)
+		}
+		plans = active
 	}
 	if len(plans) == 0 {
 		return []*PlanDetail{}, nil
@@ -295,11 +364,19 @@ func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID)
 		recordsByPlan[rec.PlanID] = append(recordsByPlan[rec.PlanID], rec)
 	}
 
+	// 1 query (T53): which of ALL project tasks have a paused work item — one map
+	// reused across every plan's pure derivation, so the N+1-free guarantee holds
+	// (a single extra port call regardless of plan count). nil when no port wired.
+	paused, err := s.pausedSet(ctx, allTasks)
+	if err != nil {
+		return nil, err
+	}
+
 	// Per-plan view derivation is pure in-memory (no query).
 	out := make([]*PlanDetail, 0, len(plans))
 	for _, p := range plans {
 		tasks := tasksByPlan[p.ID()]
-		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()])
+		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], paused)
 		out = append(out, &PlanDetail{Plan: p, Tasks: tasks, View: view})
 	}
 	return out, nil

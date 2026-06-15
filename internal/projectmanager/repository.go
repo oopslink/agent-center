@@ -54,6 +54,12 @@ type IssueRepository interface {
 type TaskRepository interface {
 	Save(ctx context.Context, t *Task) error
 	Update(ctx context.Context, t *Task) error
+	// ClaimIfUnassigned persists a claimed task (assignee set + status running)
+	// ONLY if the stored row is still `open` AND unassigned — the atomic
+	// open-claim CAS (T83 §3.3). Returns true when this call won the claim, false
+	// when a concurrent claim already took it (no row updated). The passed Task
+	// must already carry the post-claim state.
+	ClaimIfUnassigned(ctx context.Context, t *Task) (bool, error)
 	FindByID(ctx context.Context, id TaskID) (*Task, error)
 	ListByProject(ctx context.Context, projectID ProjectID) ([]*Task, error)
 	ListByAssignee(ctx context.Context, assignee IdentityRef) ([]*Task, error)

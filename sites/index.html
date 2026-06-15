@@ -86,8 +86,8 @@
     <a class="brand" href="index.html">agent-center<span class="dot">·</span></a>
     <nav class="hd-nav">
       <a href="product/index.html">产品介绍</a>
-      <a href="manual/v2.8/index.html">用户手册</a>
-      <a href="dev/v2.8/index.html">开发指引</a>
+      <a href="manual/v2.10.0/index.html">用户手册</a>
+      <a href="dev/v2.10.0/index.html">开发指引</a>
       <a href="roadmap/index.html">路线图</a>
       <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
     </nav>
@@ -141,13 +141,25 @@
 
     <div class="cta">
       <a class="btn primary" href="product/index.html">了解 agent-center →</a>
-      <a class="btn ghost" href="manual/v2.8/index.html">快速上手</a>
+      <a class="btn ghost" href="manual/v2.10.0/index.html">快速上手</a>
       <a class="btn ghost" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
 </section>
 
 <main class="wrap wide">
+
+  <div class="section-title">v2.10.1 新特性 · 移动端体验 + 开放认领 + 桌面增强</div>
+  <div class="desc" style="max-width:880px;margin:0 0 18px">v2.10.0 三栏桌面骨架适配到 <b>&lt;768 移动布局</b>：<b>底部 Tab 导航</b>（Workspace / Conversations / Members / System）驱动 整屏列表 → 整屏详情 → 底部 sheet 的层级流；Plan 的 DAG 转为<b>纵向 stepper</b>，Work Board 竖屏横滑 / 横屏铺开，Members / System 一并适配。<b>Claimability（ADR-0047）</b>：backlog 仍不可领，<b>Assignment Pool 开放认领</b> —— 任意项目成员可领（fail-closed 授权、对非成员 opaque）、<b>每 agent 持有上限 N=3</b>、原子 CAS（无双 assignee）。<b>桌面增强</b>：Thread / 参与者侧栏<b>拖拽调宽</b>（共用 <code>ResizablePanel</code>、持久化）、Channel 侧栏 <b>Chat / Threads / Files</b> 三 tab、全局 Plan 列表查看 <b>Archived（只读）</b>、col① 侧栏整合连接状态 / 搜索 / 主题切换 / Sign out。外加：<b>Plan <code>P&lt;number&gt;</code> 序列号</b> + <code>plan-id</code> / <code>P123</code> 消息 linkify（与 <code>T&lt;number&gt;</code> 对称）、列表 <code>org_ref</code>（<code>T&lt;n&gt;</code>）取代 <code>#短哈希</code>、Task / Issue 侧栏 agent 名点击弹出活动侧栏、Task → 关联 Plan 跳转、<b>入站附件 agent 可见</b>（wake 透传 <code>file_uri</code>、fail-closed）、SSE 连接更稳（<code>no-transform</code>）、<code>discard_task</code> agent 工具。</div>
+
+  <div class="section-title">v2.10.0 新特性 · 三栏式桌面 UI/UX</div>
+  <div class="desc" style="max-width:880px;margin:0 0 18px">Web Console 重构为<b>四区骨架</b>：顶层模块<b>图标栏</b>（Workspace / Conversations / Members / System）→ 每模块<b>二级列表</b>（col②）→<b>内容</b>区（col③）→<b>按需上下文</b>面板（col④），落在现有 IA 上（移除 Overview）。col② 由<b>二级导航注册表</b>驱动 —— 模块加自己的 nav + 一行注册即接入，不动 app layout。各模块全部在此骨架上重建（Conversations / Projects / Tasks / Issues / 全局 Plan / Work Board / Members / System）。外加：<b>task & issue 附件</b>（上传 / 下载，项目成员鉴权 fail-closed）、<b>消息引用 linkify</b>（<code>task-&lt;id&gt;</code> 与 <code>T&lt;number&gt;</code> 都成任务链接）、<b>入站消息附件</b>透出给 agent、system 消息作者显示 <b>System</b>。</div>
+  <div class="grid two" style="margin-bottom:8px">
+    <figure style="margin:0"><img src="assets/v2.10.0/appshell.png" alt="三栏式 App Shell：图标栏 + 二级列表 + 内容 + 上下文面板" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">三栏式 App Shell：图标栏（顶层模块）+ col② 二级列表 + col③ 内容 + col④ 按需上下文</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.10.0/plan-dag.png" alt="全局 Plan 详情 DAG tab" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">全局跨项目 Plan 详情：Chat / DAG / Task 列表三 tab，DAG 派生节点状态</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.10.0/attachments.png" alt="消息附件渲染" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">消息附件：上传 / 渲染 / 下载（项目成员鉴权，非成员 fail-closed）</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.10.0/projects-counts.png" alt="Projects 列表卡片计数" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Projects 列表卡片显示 task / issue / plan / repo 计数</figcaption></figure>
+  </div>
 
   <div class="section-title">v2.9.1 新特性 · Message Threads</div>
   <div class="desc" style="max-width:880px;margin:0 0 18px">从任一消息<b>派生出 thread</b>、在弹出侧边栏里回复（Slack 式单层），Participants 侧栏有 thread 列表 +「有无新活动」标记；<b>在 thread 内 @提及项目 agent 会唤醒它、且回复落在该 thread 内</b> —— 适用所有会话类型。外加任务模型/看板收尾：<b>claimable + 每项目内置指派池</b>（指派≠领取；三段 Work Board = Backlog · 内置池 · 结构化 Plan）、更简的<b>任务状态机</b>（5 态，<code>blocked</code> 改为可恢复注解、删 <code>verified</code>）、<b>频道归档</b>、<code>list_tasks</code> MCP 工具、任务恢复工具与自动重派。</div>
@@ -176,14 +188,14 @@
       <div class="desc">agent-center 是什么、解决什么问题、核心能力与整体架构概览。第一次了解项目从这里开始。</div>
       <div class="tags"><span class="tag">是什么</span><span class="tag">核心能力</span><span class="tag">架构概览</span></div>
     </a>
-    <a class="card" href="manual/v2.8/index.html">
+    <a class="card" href="manual/v2.10.0/index.html">
       <span class="idx">02</span>
       <div class="ico">📖</div>
       <h3>用户手册</h3>
       <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具、Web Console 使用与约定。<strong>按版本归档</strong>。</div>
       <div class="tags"><span class="tag">安装部署</span><span class="tag">CLI</span><span class="tag">MCP 工具</span><span class="tag">Web Console</span></div>
     </a>
-    <a class="card" href="dev/v2.8/index.html">
+    <a class="card" href="dev/v2.10.0/index.html">
       <span class="idx">03</span>
       <div class="ico">🏗️</div>
       <h3>开发指引</h3>
@@ -194,18 +206,24 @@
       <span class="idx">04</span>
       <div class="ico">🧭</div>
       <h3>路线图</h3>
-      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.9.1 已发布</b>（Message Threads + claimable 内置指派池 + 任务状态机简化 + 频道归档），承接 <b>v2.9</b>（Plan Orchestration + 显式 org 路由 + 归档语义）、v2.8.1（Web Console UX / 单活竞态根治），v3 推迟项与边界。</div>
+      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.10.1 已发布</b>（移动端体验 + 开放认领 claimability + 桌面/Plan UI 增强：侧栏拖拽、Channel 三 tab、Plan archived 只读、col① rail、Plan P 号 + linkify、org_ref 取代短哈希、入站附件 wake 透传、SSE no-transform、discard_task），承接 <b>v2.10.0</b>（三栏式桌面 UI/UX 重构 + 二级导航注册表 + task/issue 附件 + 消息引用 linkify + System 作者）、<b>v2.9.1</b>（Message Threads + claimable 内置指派池 + 任务状态机简化 + 频道归档）、<b>v2.9</b>（Plan Orchestration + 显式 org 路由 + 归档语义），v3 推迟项与边界。</div>
       <div class="tags"><span class="tag">已完成</span><span class="tag">backlog</span><span class="tag">v3 推迟</span></div>
     </a>
   </div>
 
   <div class="section-title">开发指引 · 设计版本</div>
   <div class="grid two">
-    <a class="card" href="dev/v2.8/index.html">
+    <a class="card" href="dev/v2.10.0/index.html">
       <span class="badge current">当前</span>
-      <span class="ver">v2.8（当前发布 v2.8.1）</span>
-      <div class="desc">当前架构视图：以现行代码 <code>internal/*</code> + <code>web/*</code> 为准的限界上下文地图与战术设计。相对 v2.7.1 主要演进：会话页面 4-surface 统一架构（ConversationView）+ 未读 badge / 关注 toggle / agent 归档（soft archive）+ Worker 详情页 4-tab + Agent Activity 翻页+折叠+tool 富渲染 + 完整 markdown 渲染（XSS strict escape）+ #/@ picker。<b>v2.8.1</b> 在此架构上做 Web Console UX 大改版（Task/Issue 详情统一编辑面板 / Channels & Agents 列表增强 / @提及·头像弹详情侧栏）+ 根治 agent 派发单活竞态（pull model + UNIQUE 部分索引）。</div>
-      <div class="tags"><span class="tag">项目管理</span><span class="tag">智能体</span><span class="tag">环境</span><span class="tag">会话</span><span class="tag">可观测性</span><span class="tag">身份</span><span class="tag">前端 UX</span></div>
+      <span class="ver">v2.10.0</span>
+      <div class="desc">当前架构视图：以现行代码 <code>internal/*</code> + <code>web/*</code> 为准的限界上下文地图与战术设计。相对 v2.8 主要演进：Plan 编排（任务 DAG + 派生节点状态 + 自动推进 projector，v2.9）+ 显式 org 路由 <code>/organizations/{slug}/*</code>（v2.9）+ Message Threads（v2.9.1）+ 任务模型/看板（claimable≠assigned、内置指派池、三段 Work Board、5 态状态机，v2.9.1）+ 三栏式 App Shell（图标栏 → 二级导航注册表 → 内容 → 上下文面板，v2.10.0）+ task/issue 附件、消息引用 linkify、System 作者（v2.10.0）。</div>
+      <div class="tags"><span class="tag">Plan 编排</span><span class="tag">三栏式 Shell</span><span class="tag">org 路由</span><span class="tag">线程</span><span class="tag">附件</span><span class="tag">DDD</span></div>
+    </a>
+    <a class="card" href="dev/v2.8/index.html">
+      <span class="badge hist">历史</span>
+      <span class="ver">v2.8（发布 v2.8.1）</span>
+      <div class="desc">历史架构快照：会话页面 4-surface 统一架构（ConversationView）+ 未读 badge / 关注 toggle / agent 归档 + Worker 详情页 + Agent Activity 翻页折叠 + 完整 markdown 渲染（XSS strict escape）+ #/@ picker；<b>v2.8.1</b> Web Console UX 大改版 + 根治 agent 派发单活竞态。</div>
+      <div class="tags"><span class="tag">会话统一</span><span class="tag">前端 UX</span><span class="tag">单活竞态</span></div>
     </a>
     <a class="card" href="dev/v2.7.1/index.html">
       <span class="badge hist">历史</span>

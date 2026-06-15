@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>桌面 · 参与者侧栏可拖拽缩放</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .desk4{display:grid;grid-template-columns:66px 250px 1fr 320px;height:540px;position:relative}
+  .rail{background:#1e1b34;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+  .rail .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:10px;font-size:15px}
+  .ri{width:46px;height:44px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c7c3e0;font-size:18px;gap:2px} .ri small{font-size:8px} .ri.active{background:rgba(255,255,255,.16);color:#fff} .rail .sp{flex:1}
+  .c2{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+  .c2h{padding:12px 14px 10px;border-bottom:1px solid var(--border)} .c2h h2{margin:0;font-size:15px} .c2h .s{margin-top:9px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:6px 9px;color:var(--tm);font-size:12px}
+  .c2sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--tm);font-weight:700;padding:11px 14px 4px;display:flex;justify-content:space-between}
+  .c2it{display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:13px;color:var(--ts);position:relative}
+  .c2it.sel{background:var(--bg-subtle);color:var(--tp);font-weight:600} .c2it.sel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .c2it .ic{width:16px;text-align:center;color:var(--tm)} .c2it .lab{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .c2it .badge{font-size:9.5px;font-weight:700;background:var(--brand);color:#fff;border-radius:9px;padding:0 6px}
+  .colbadge{position:absolute;z-index:6;font-size:10px;font-weight:800;color:#fff;background:var(--danger);border-radius:5px;padding:1px 6px;box-shadow:0 0 0 2px #fff}
+  .stream{flex:1;padding:14px;display:flex;flex-direction:column;gap:11px;overflow:hidden}
+  .msg{display:flex;gap:9px;max-width:80%} .msg .bub{background:var(--bg-elev);border:1px solid var(--border);border-radius:4px 12px 12px 12px;padding:8px 11px;font-size:12.5px;box-shadow:var(--sh1)} .msg .who{font-size:11px;font-weight:700;color:var(--brand);margin-bottom:2px}
+  .msg.me{align-self:flex-end;flex-direction:row-reverse} .msg.me .bub{background:var(--own);color:var(--own-fg);border:none;border-radius:12px 4px 12px 12px}
+  .composer{border-top:1px solid var(--border);background:var(--bg-elev);padding:9px 13px 11px} .drop{border:1.4px dashed var(--border-strong);border-radius:10px;padding:8px 10px;background:var(--bg-base);display:flex;align-items:center;gap:10px}
+
+  /* ===== Participants/Members sidebar (col④) — SAME resize component as Thread panel ===== */
+  .members{background:var(--bg-elev);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;position:relative}
+  .members h4{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--tm);margin:0;padding:12px 15px 6px;font-weight:700}
+  .members .mbody{flex:1;overflow:hidden;padding:2px 9px}
+  .mitem{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:8px}
+  .mitem .nm{flex:1;min-width:0} .mitem .nm b{font-size:12.5px;font-weight:600;display:block} .mitem .nm span{font-size:10.5px;color:var(--tm)}
+  .mitem .role{font-size:9.5px;font-weight:700;border-radius:5px;padding:1px 6px;background:var(--violet-bg);color:var(--violet-fg)}
+  .mitem .role.h{background:var(--blue-bg);color:var(--blue-fg)}
+
+  /* === shared resize grip — identical to desk-thread-resize.html === */
+  .grip{position:absolute;left:-3px;top:0;bottom:0;width:7px;cursor:col-resize;z-index:7;display:flex;align-items:center;justify-content:center}
+  .grip:before{content:"";position:absolute;left:3px;top:0;bottom:0;width:1px;background:var(--border-strong)}
+  .grip:hover:before{background:var(--accent);width:2px}
+  .grip .knob{position:relative;width:5px;height:34px;border-radius:4px;background:var(--border-strong);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:var(--sh1)}
+  .grip:hover .knob{background:var(--accent)}
+  .grip .knob i{width:1.5px;height:1.5px;border-radius:50%;background:#fff;display:block}
+
+  .maxguide{position:absolute;top:0;bottom:0;width:0;border-left:1.5px dashed var(--accent);opacity:.35;z-index:5;pointer-events:none}
+  .maxguide .lab{position:absolute;top:8px;left:6px;font-size:9.5px;font-weight:700;color:var(--accent);background:var(--bg-elev);border:1px solid var(--border);border-radius:5px;padding:1px 6px;white-space:nowrap;box-shadow:var(--sh1)}
+
+  .cap{margin-top:10px;font-size:12px;color:var(--ts)} .cap b{color:var(--tp)} .cap code{font-family:var(--mono);font-size:11px;background:var(--bg-subtle);border-radius:4px;padding:1px 5px}
+</style></head>
+<body><div class="page">
+  <h1>桌面 · 参与者侧栏可拖拽缩放<span class="modtag">v2.10.1</span></h1>
+  <p class="sub">会话视图 + <b>参与者 / Members 侧栏(④)</b>。与 mockup #1 <b>完全相同</b>的拖拽缩放:左缘 grip、<code>cursor:col-resize</code>、min 320 / max 75vw、宽度按用户持久化。</p>
+
+  <div class="sech">Conversations · # agent-center-dev — 参与者侧栏 + 左缘拖拽手柄</div>
+  <div class="frame"><div class="desk4">
+    <span class="colbadge" style="left:8px;top:8px">①</span><span class="colbadge" style="left:74px;top:8px">②</span><span class="colbadge" style="left:320px;top:8px">③</span><span class="colbadge" style="right:8px;top:8px">④ 参与者</span>
+    <div class="maxguide" style="left:320px"><div class="lab">MAX 75vw · 拖到此处为上限</div></div>
+
+    <div class="rail">
+      <div class="logo">A</div>
+      <div class="ri"><span>▦</span><small>Work</small></div>
+      <div class="ri active"><span>💬</span><small>Conv</small></div>
+      <div class="ri"><span>◎</span><small>Mbr</small></div>
+      <div class="ri"><span>⚙</span><small>Sys</small></div>
+      <div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div>
+    </div>
+    <div class="c2">
+      <div class="c2h"><h2>Conversations</h2><div class="s">🔍 搜索会话…</div></div>
+      <div class="c2sub">Channels <span>+</span></div>
+      <div class="c2it sel"><span class="ic">#</span><span class="lab">agent-center-dev</span><span class="badge">3</span></div>
+      <div class="c2it"><span class="ic">#</span><span class="lab">general</span></div>
+      <div class="c2sub">Direct messages <span>+</span></div>
+      <div class="c2it"><span class="ic" style="color:#8b5cf6">●</span><span class="lab">oopslink</span><span class="badge">1</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><div><h3># agent-center-dev</h3><div style="font-size:11.5px;color:var(--tm);margin-top:2px">主内容随 ④ 变宽而压缩</div></div><button class="btn">Follow</button></div>
+      <div class="stream">
+        <div class="msg"><div class="av wk" style="width:30px;height:30px">IN</div><div><div class="bub"><div class="who">IntegrationDev</div>参与者栏也能像 Thread 栏那样拖宽。</div></div></div>
+        <div class="msg me"><div><div class="bub">复用同一个 resize 组件即可。</div></div></div>
+      </div>
+      <div class="composer"><div class="drop"><span style="color:var(--tm);font-size:16px">📎</span><span style="flex:1;color:var(--tm);font-size:12.5px">写点什么…</span><span class="btn pri">发送 ↵</span></div></div>
+    </div>
+
+    <div class="members">
+      <div class="grip" title="拖拽以缩放 · col-resize"><div class="knob"><i></i><i></i><i></i></div></div>
+      <h4>参与者 · 5</h4>
+      <div class="mbody">
+        <div class="mitem"><div class="av wk" style="width:30px;height:30px">IN</div><div class="nm"><b>IntegrationDev</b><span>● online</span></div><span class="role">agent</span></div>
+        <div class="mitem"><div class="av ag" style="width:30px;height:30px">T2</div><div class="nm"><b>tester2</b><span>● running</span></div><span class="role">agent</span></div>
+        <div class="mitem"><div class="av ag" style="width:30px;height:30px">T1</div><div class="nm"><b>tester1</b><span>● running</span></div><span class="role">agent</span></div>
+        <div class="mitem"><div class="av ag" style="width:30px;height:30px">PD</div><div class="nm"><b>PD</b><span>● online</span></div><span class="role">agent</span></div>
+        <div class="mitem"><div class="av dm" style="width:30px;height:30px">OP</div><div class="nm"><b>oopslink</b><span>owner</span></div><span class="role h">human</span></div>
+      </div>
+    </div>
+  </div></div>
+
+  <p class="cap"><b>复用同一个 resize 组件(同 <code>desk-thread-resize</code>)。</b> 左缘竖向 grip → 悬停 <code>cursor:col-resize</code> 并 accent 高亮;拖动 clamp <b>min 320px ~ max 75vw</b>;松手宽度写入 <code>localStorage</code> 按用户持久化。建议抽成单一 <code>&lt;ResizablePanel&gt;</code>,Thread 与 参与者栏共用。</p>
+</div></body></html>

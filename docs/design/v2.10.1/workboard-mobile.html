@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>移动 Work Board · 竖屏 vs 横屏</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .wrap{display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap}
+  .frm{display:flex;flex-direction:column;gap:9px} .frm .cap{font-size:12px;color:var(--ts);max-width:560px} .frm .cap b{color:var(--tp)}
+  /* portrait phone */
+  .pp{width:266px;height:500px;background:var(--bg-base);border:9px solid #11161d;border-radius:32px;overflow:hidden;position:relative;box-shadow:var(--sh2);display:flex;flex-direction:column}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:108px;height:18px;background:#11161d;border-radius:0 0 13px 13px;z-index:9}
+  /* landscape phone */
+  .lp{width:600px;height:300px;background:var(--bg-base);border:9px solid #11161d;border-radius:30px;overflow:hidden;position:relative;box-shadow:var(--sh2);display:flex;flex-direction:column}
+  .lnotch{position:absolute;left:0;top:50%;transform:translateY(-50%);height:96px;width:17px;background:#11161d;border-radius:0 12px 12px 0;z-index:9}
+  .mtop{padding:8px 14px;background:var(--bg-elev);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px} .pp .mtop{padding-top:23px} .mtop .bk{color:var(--ts);font-size:17px} .mtop h3{margin:0;font-size:13.5px;flex:1}
+  .mbody{flex:1;overflow:hidden;position:relative;background:var(--bg-base)}
+  .kb{display:flex;gap:10px;padding:11px;height:100%;overflow-x:auto}
+  .kcol{width:150px;flex:none;background:var(--bg-subtle);border:1px solid var(--border);border-radius:9px;padding:8px;display:flex;flex-direction:column} .lp .kcol{width:172px}
+  .kcol h6{margin:0 0 7px;font-size:11px;color:var(--ts);display:flex;justify-content:space-between} .kcol h6 .c{color:var(--tm)}
+  .kc{background:var(--bg-elev);border:1px solid var(--border);border-radius:7px;padding:7px 8px;margin-bottom:7px;box-shadow:var(--sh1)} .kc .id{font-family:var(--mono);font-size:9px;color:var(--tm)} .kc .tt{font-size:11.5px;font-weight:600;margin:2px 0 5px}
+  .stat{font-size:9.5px;font-weight:700;border-radius:5px;padding:1px 6px;background:var(--blue-bg);color:var(--blue-fg)}.stat.open{background:var(--amber-bg);color:var(--amber-fg)}.stat.done{background:var(--emerald-bg);color:var(--emerald-fg)}.stat.block{background:var(--rose-bg);color:var(--rose-fg)}
+  .newc{background:transparent;border:1.4px dashed var(--border-strong);color:var(--tm);display:flex;align-items:center;justify-content:center;font-size:11.5px;min-width:120px}
+  .miniav{width:16px;height:16px;border-radius:50%;background:#0f766e;color:#fff;font-size:7.5px;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+  .scrollhint{position:absolute;right:8px;bottom:8px;font-size:9px;color:var(--tm);background:var(--bg-elev);border:1px solid var(--border);border-radius:8px;padding:2px 7px}
+  .rotpill{display:inline-block;font-size:11px;background:var(--blue-bg);color:var(--blue-fg);border-radius:6px;padding:2px 8px;font-weight:600}
+</style></head>
+<body><div class="page">
+  <h1>移动 Work Board — 竖屏 vs 横屏</h1>
+  <p class="sub">看板天然要宽。竖屏我现在是「列横向滑」(单手能浏览,但一次看到的列少);**横屏(landscape)铺满后总览 + 拖拽编排明显更顺**。建议:Work Board 这一个视图**鼓励/支持横屏**,竖屏保留横滑作 fallback。</p>
+  <div class="wrap">
+    <div class="frm">
+      <div class="pp">
+        <div class="notch"></div>
+        <div class="mtop" style="gap:7px"><span class="bk">‹</span><h3>agent-center2 · Work Board</h3></div>
+        <div class="mbody">
+          <div class="kb">
+            <div class="kcol"><h6>Backlog <span class="c">2</span></h6><div class="kc"><div class="id">task-8291</div><div class="tt">linkify</div><span class="stat open">open</span></div><div class="kc"><div class="id">task-0543</div><div class="tt">看板可观测</div><span class="stat open">open</span></div></div>
+            <div class="kcol"><h6>v2.10.1 <span class="c">3</span></h6><div class="kc"><div class="id">task-1c23</div><div class="tt">移动 nav</div><span class="stat">running</span></div><div class="kc"><div class="id">task-7a60</div><div class="tt">composer</div><span class="stat block">blocked</span></div></div>
+          </div>
+          <span class="scrollhint">← 列横滑 →</span>
+        </div>
+      </div>
+      <div class="cap"><b>竖屏(现 mockup)</b> · 列横向滑,单手浏览;一屏约 1.5 列,拖拽跨列稍挤。</div>
+    </div>
+    <div class="frm">
+      <div class="lp">
+        <div class="lnotch"></div>
+        <div class="mtop"><span class="bk">‹</span><h3>agent-center2 · Work Board</h3><span class="rotpill">↻ 横屏</span></div>
+        <div class="mbody">
+          <div class="kb">
+            <div class="kcol"><h6>Backlog <span class="c">2</span></h6><div class="kc"><div class="id">task-8291</div><div class="tt">linkify</div><span class="stat open">open</span></div><div class="kc"><div class="id">task-0543</div><div class="tt">看板可观测</div><span class="stat open">open</span></div></div>
+            <div class="kcol"><h6>v2.10.1 <span class="c">3</span></h6><div class="kc"><div class="id">task-1c23</div><div class="tt">移动 nav</div><div style="display:flex;justify-content:space-between"><span class="stat">running</span><span class="miniav">D2</span></div></div><div class="kc"><div class="id">task-7a60</div><div class="tt">composer</div><span class="stat block">blocked</span></div></div>
+            <div class="kcol"><h6>聊天框附件 <span class="c">1</span></h6><div class="kc"><div class="id">task-f63d</div><div class="tt">骨架</div><span class="stat done">done</span></div></div>
+            <div class="kcol newc">+ New Plan</div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>横屏(建议)</b> · 一屏 3–4 列总览,拖拽编排更顺;进 Work Board 提示「↻ 横屏更佳」。竖屏仍可用(fallback)。</div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:22px;font-size:12px;color:var(--tm)">其余移动视图(列表/详情/sheet)竖屏即最佳,无需横屏;**只有 Work Board 这种天然宽的看板,横屏收益明显**。配色字体取现有 token。你认可就把「Work Board 横屏支持」写进 v2.10.1 task。</p>
+</div></body></html>

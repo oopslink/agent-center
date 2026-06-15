@@ -3,6 +3,7 @@ import { OrgLink } from '@/OrgContext';
 import { StatusChip, idHandle, shortDate, statusSolidClass, statusDotClass } from '@/components/workItemDisplay';
 import { useProjects } from '@/api/projects';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
+import { ContextPanel } from '@/shell/contextPanel';
 import type { OrgWorkItem } from '@/api/types';
 
 // OrgWorkItemsView (v2.8 #258) — the shared table body for the org-scoped
@@ -123,6 +124,8 @@ export function OrgWorkItemsView({
   dateRange,
   onDateRangeChange,
   onCreate,
+  selectedId,
+  onSelect,
 }: {
   kind: 'issue' | 'task';
   query: QueryShape;
@@ -143,10 +146,16 @@ export function OrgWorkItemsView({
   onDateRangeChange: (d: DateRange) => void;
   // opens the cross-project create modal.
   onCreate: () => void;
+  // v2.10.0 [T3]: the selected row id (drives the col④ metadata panel), or null.
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
 }): React.ReactElement {
   const title = kind === 'issue' ? 'Issues' : 'Tasks';
   const seg = kind === 'issue' ? 'issues' : 'tasks';
   const items = query.data?.items ?? [];
+  // v2.10.0 [T3]: the selected item (if still present in the current result set)
+  // feeds the read-only col④ metadata panel.
+  const selectedItem = selectedId ? items.find((it) => it.id === selectedId) ?? null : null;
   // Project picker source (multi-select) — each Project has id + name.
   const projects = useProjects();
   const projectList = projects.data ?? [];
@@ -333,8 +342,11 @@ export function OrgWorkItemsView({
         </p>
       )}
 
+      {/* v2.10.1 [M3] desktop (≥md): the 7-column table. On mobile it would
+          h-scroll at 375px (critical①), so it is md:-only and a card flow
+          (below) replaces it. */}
       {query.data && items.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left text-xs" data-testid="org-workitems-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
@@ -348,8 +360,23 @@ export function OrgWorkItemsView({
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
-              {items.map((it) => (
-                <tr key={it.id} data-testid="org-workitem-row" data-id={it.id} data-status={it.status} data-kind={kind}>
+              {items.map((it) => {
+                const isSelected = it.id === selectedId;
+                return (
+                <tr
+                  key={it.id}
+                  data-testid="org-workitem-row"
+                  data-id={it.id}
+                  data-status={it.status}
+                  data-kind={kind}
+                  data-selected={isSelected}
+                  aria-selected={isSelected}
+                  // v2.10.0 [T3]: clicking a row selects it → opens the col④
+                  // read-only metadata panel (toggles off when re-clicked). Links
+                  // inside the row stopPropagation so they navigate, not select.
+                  onClick={() => onSelect(isSelected ? null : it.id)}
+                  className={`cursor-pointer ${isSelected ? 'bg-bg-subtle' : 'hover:bg-bg-subtle/60'}`}
+                >
                   <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="org-workitem-id" title={it.id}>
                     {/* org_ref (I12/T34) when present; else id-tail handle (#192 id-as-content). */}
                     {it.org_ref || `#${idHandle(it.id)}`}
@@ -359,6 +386,7 @@ export function OrgWorkItemsView({
                       to={`/projects/${encodeURIComponent(it.project.id)}`}
                       className="text-text-secondary hover:text-accent"
                       title={it.project.id}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {it.project.name}
                     </OrgLink>
@@ -368,6 +396,7 @@ export function OrgWorkItemsView({
                       to={`/projects/${encodeURIComponent(it.project.id)}/${seg}/${encodeURIComponent(it.id)}`}
                       className="text-text-primary hover:text-accent"
                       data-testid="org-workitem-title"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {it.title || it.id}
                     </OrgLink>
@@ -402,11 +431,180 @@ export function OrgWorkItemsView({
                     {shortDate(it.updated_at)}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* v2.10.1 [M3] mobile (<md) card flow — mirrors the table rows without a
+          horizontal scroll (critical①). Tapping a card selects it (→ the col④
+          metadata, which the M1 shell reflows to a bottom sheet); the title and
+          project links navigate (stopPropagation so they don't also select). */}
+      {query.data && items.length > 0 && (
+        <ul className="space-y-2 md:hidden" data-testid="org-workitems-cards">
+          {items.map((it) => {
+            const isSelected = it.id === selectedId;
+            return (
+              <li key={it.id}>
+                <div
+                  data-testid="org-workitem-card"
+                  data-id={it.id}
+                  data-status={it.status}
+                  data-kind={kind}
+                  data-selected={isSelected}
+                  aria-selected={isSelected}
+                  onClick={() => onSelect(isSelected ? null : it.id)}
+                  className={`min-h-[44px] cursor-pointer rounded-xl border border-border-base bg-bg-elevated p-3 shadow-1 ${
+                    isSelected ? 'ring-2 ring-accent' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className="font-mono text-[0.6875rem] text-text-muted"
+                      data-testid="org-workitem-card-id"
+                      title={it.id}
+                    >
+                      {/* org_ref (I12/T34) when present; else id-tail handle (#192). */}
+                      {it.org_ref || `#${idHandle(it.id)}`}
+                    </span>
+                    <StatusChip status={it.status} />
+                  </div>
+                  <OrgLink
+                    to={`/projects/${encodeURIComponent(it.project.id)}/${seg}/${encodeURIComponent(it.id)}`}
+                    className="mt-1 block text-sm font-semibold text-text-primary hover:text-accent"
+                    data-testid="org-workitem-card-title"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="line-clamp-2">{it.title || it.id}</span>
+                  </OrgLink>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                    <OrgLink
+                      to={`/projects/${encodeURIComponent(it.project.id)}`}
+                      className="truncate text-text-secondary hover:text-accent"
+                      title={it.project.id}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {it.project.name}
+                    </OrgLink>
+                    {it.assignee && (
+                      <span className="truncate" title={it.assignee.member_id}>
+                        {it.assignee.display_name}
+                        {it.assignee.assignee_lifecycle === 'archived' && (
+                          <span className="ml-1 italic text-text-muted">(archived)</span>
+                        )}
+                      </span>
+                    )}
+                    <span className="ml-auto tabular-nums" title={it.updated_at}>
+                      {shortDate(it.updated_at)}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* col④ — read-only metadata for the selected row (v2.10.0 [T3]). Mounting
+          <ContextPanel> reveals the fourth column; clearing the selection (or
+          navigating away) unmounts it → back to three columns. */}
+      {selectedItem && (
+        <ContextPanel>
+          <WorkItemMetaPanel
+            item={selectedItem}
+            kind={kind}
+            seg={seg}
+            onClose={() => onSelect(null)}
+          />
+        </ContextPanel>
+      )}
     </section>
+  );
+}
+
+// A single key/value row in the metadata panel.
+function MetaKV({ k, children }: { k: string; children: React.ReactNode }): React.ReactElement {
+  return (
+    <div className="flex items-center justify-between gap-3 py-0.5 text-xs">
+      <span className="text-text-muted">{k}</span>
+      <span className="min-w-0 truncate text-right font-medium text-text-primary">{children}</span>
+    </div>
+  );
+}
+
+// WorkItemMetaPanel — the col④ read-only metadata bar for a selected Issue/Task
+// (mockup example 2). Status / assignee / project / id / timestamps, plus a link
+// into the item's full detail (its conversation). Read-only by design (T3).
+function WorkItemMetaPanel({
+  item,
+  kind,
+  seg,
+  onClose,
+}: {
+  item: OrgWorkItem;
+  kind: 'issue' | 'task';
+  seg: string;
+  onClose: () => void;
+}): React.ReactElement {
+  const label = kind === 'issue' ? 'Issue' : 'Task';
+  return (
+    <div className="flex flex-col" data-testid="org-workitem-meta-panel" data-id={item.id}>
+      <div className="flex items-center justify-between px-4 pb-1 pt-3.5">
+        <h2 className="text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">
+          {label} · metadata
+        </h2>
+        <button
+          type="button"
+          onClick={onClose}
+          data-testid="org-workitem-meta-close"
+          aria-label="Close metadata panel"
+          title="Close"
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <div className="border-b border-border-base px-4 pb-2.5">
+        <MetaKV k="Status"><StatusChip status={item.status} /></MetaKV>
+        <MetaKV k="Assignee">
+          {item.assignee ? (
+            <span title={item.assignee.member_id}>
+              {item.assignee.display_name}
+              {item.assignee.assignee_lifecycle === 'archived' && (
+                <span className="ml-1 italic text-text-muted">(archived)</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-text-muted">—</span>
+          )}
+        </MetaKV>
+        <MetaKV k="Project">{item.project.name}</MetaKV>
+      </div>
+
+      <div className="border-b border-border-base px-4 pb-2.5 pt-1.5">
+        <MetaKV k="ID">
+          <span className="font-mono text-[0.6875rem]">{item.org_ref || `#${idHandle(item.id)}`}</span>
+        </MetaKV>
+        <MetaKV k="Created"><span className="tabular-nums">{shortDate(item.created_at)}</span></MetaKV>
+        <MetaKV k="Updated"><span className="tabular-nums">{shortDate(item.updated_at)}</span></MetaKV>
+      </div>
+
+      <h2 className="px-4 pb-1 pt-3 text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">
+        Conversation
+      </h2>
+      <div className="px-4 pb-3">
+        <OrgLink
+          to={`/projects/${encodeURIComponent(item.project.id)}/${seg}/${encodeURIComponent(item.id)}`}
+          data-testid="org-workitem-meta-open"
+          className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+        >
+          <span aria-hidden="true">↗</span>
+          Open {label} discussion
+        </OrgLink>
+      </div>
+    </div>
   );
 }

@@ -1,8 +1,14 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { uploadMessageAttachment, useSendMessage } from '@/api/conversations';
+import type { MessageAttachment } from '@/api/types';
 import { useMentionAutocomplete } from './useMentionAutocomplete';
 import { MentionPicker } from './MentionPicker';
+import {
+  formatBytes,
+  isPreviewableImage,
+  validateAttachmentFile,
+} from './attachmentValidation';
 
 interface Props {
   conversationId: string;
@@ -12,14 +18,39 @@ interface Props {
   parentMessageId?: string;
 }
 
+// One staged attachment, from selection through upload. `status` drives the
+// chip UI: ready (queued) → uploading (progress bar) → uploaded (has result) or
+// error (retry button). `uploaded` is cached so a retry of a sibling never
+// re-uploads an already-finished file.
+interface StagedAttachment {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+  status: 'ready' | 'uploading' | 'uploaded' | 'error';
+  progress: number; // 0..100
+  errorMsg?: string;
+  uploaded?: MessageAttachment;
+}
+
 // MessageComposer — single-line textarea + Send button. Per F6 oversight
 // #3: Enter sends; Shift+Enter inserts a newline; submit is disabled
 // while the mutation is pending; clears on success.
 //
-// Owns its own draft state (component-local — not server, not Zustand).
+// v2.9.2 polish: drag-and-drop + clipboard-image paste add attachments;
+// per-file upload progress + retry; client-side size validation with inline
+// rejection notices. Owns its own draft + attachment state (component-local —
+// not server, not Zustand).
 export function MessageComposer({ conversationId, parentMessageId }: Props): React.ReactElement {
   const [draft, setDraft] = useState('');
-  const [files, setFiles] = useState<Array<{ file: File; previewUrl: string | null }>>([]);
+  const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
+  // Files rejected by the client-side gate (oversize/empty) from the most
+  // recent add — shown until the next add or a successful send replaces them.
+  const [rejections, setRejections] = useState<Array<{ name: string; reason: string }>>([]);
+  const [dragActive, setDragActive] = useState(false);
+  // dragenter/dragleave fire for every child element; a depth counter keeps the
+  // drop overlay stable instead of flickering as the cursor crosses children.
+  const dragDepth = useRef(0);
+  const idSeq = useRef(0);
   // v2.7.1 #222: track IME composition so Enter that confirms a composition
   // (e.g. Chinese/Japanese input) doesn't fire send.
   const composingRef = useRef(false);
@@ -27,44 +58,135 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
   const send = useSendMessage();
   // v2.8 #275: #/@ mention picker wired to the textarea.
   const mention = useMentionAutocomplete({ setValue: setDraft, textareaRef });
-  const disabled = (!draft.trim() && files.length === 0) || send.isPending;
+
+  const uploading = attachments.some((a) => a.status === 'uploading');
+  const disabled =
+    (!draft.trim() && attachments.length === 0) || send.isPending || uploading;
 
   // Revoke any outstanding object URLs only on unmount. Per-item revokes happen
-  // explicitly on Remove and after submit; a [files]-deps effect would instead
-  // revoke still-displayed previews every time the list changes. A ref tracks
-  // the latest list so the unmount cleanup sees current URLs without re-running.
-  const filesRef = useRef(files);
-  filesRef.current = files;
+  // explicitly on Remove and after submit; an [attachments]-deps effect would
+  // instead revoke still-displayed previews every time the list changes. A ref
+  // tracks the latest list so the unmount cleanup sees current URLs without
+  // re-running.
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
   useEffect(() => {
     return () => {
-      for (const f of filesRef.current) {
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      for (const a of attachmentsRef.current) {
+        if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
       }
     };
   }, []);
 
+  // patchAttachment — immutable update of one staged item by id.
+  const patchAttachment = (id: string, patch: Partial<StagedAttachment>) => {
+    setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+  };
+
+  // addFiles validates each picked/dropped/pasted file: oversize/empty ones go
+  // to the rejection notice; the rest are staged with an image preview when
+  // applicable. Replaces the rejection list with this batch's rejects.
+  const addFiles = (fileList: FileList | File[] | null) => {
+    const picked = Array.from(fileList ?? []);
+    if (picked.length === 0) return;
+    const staged: StagedAttachment[] = [];
+    const rejected: Array<{ name: string; reason: string }> = [];
+    for (const file of picked) {
+      const reason = validateAttachmentFile(file);
+      if (reason) {
+        rejected.push({ name: file.name, reason });
+        continue;
+      }
+      staged.push({
+        id: `att-${idSeq.current++}`,
+        file,
+        previewUrl: isPreviewableImage(file.type) ? URL.createObjectURL(file) : null,
+        status: 'ready',
+        progress: 0,
+      });
+    }
+    if (staged.length > 0) setAttachments((prev) => [...prev, ...staged]);
+    setRejections(rejected);
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => {
+      const item = prev.find((a) => a.id === id);
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((a) => a.id !== id);
+    });
+  };
+
+  const clearAttachments = () => {
+    setAttachments((prev) => {
+      for (const a of prev) {
+        if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
+      }
+      return [];
+    });
+    setRejections([]);
+  };
+
+  // uploadOne runs (or retries) the upload for a single staged item, streaming
+  // progress into its chip. Returns the uploaded attachment, or null on failure
+  // (the item is left in `error` so the user can retry).
+  const uploadOne = async (item: StagedAttachment): Promise<MessageAttachment | null> => {
+    patchAttachment(item.id, { status: 'uploading', progress: 0, errorMsg: undefined });
+    try {
+      const result = await uploadMessageAttachment(item.file, {
+        onProgress: ({ loaded, total }) =>
+          patchAttachment(item.id, {
+            progress: total > 0 ? Math.round((loaded / total) * 100) : 0,
+          }),
+      });
+      patchAttachment(item.id, { status: 'uploaded', progress: 100, uploaded: result });
+      return result;
+    } catch (err) {
+      patchAttachment(item.id, {
+        status: 'error',
+        errorMsg: err instanceof Error ? err.message : 'upload failed',
+      });
+      return null;
+    }
+  };
+
   const submit = async () => {
     if (disabled) return;
     const content = draft.trim();
+    const snapshot = attachmentsRef.current;
+    // Upload everything not already finished (covers first send + retry).
+    const pending = snapshot.filter((a) => a.status !== 'uploaded');
+    const results = await Promise.all(pending.map(uploadOne));
+    if (results.some((r) => r === null)) return; // a file failed — leave for retry
+
+    // Reassemble the final list in original order: cached results for already-
+    // uploaded items, fresh results for the ones we just uploaded.
+    const byId = new Map<string, MessageAttachment>();
+    snapshot.forEach((a) => {
+      if (a.status === 'uploaded' && a.uploaded) byId.set(a.id, a.uploaded);
+    });
+    pending.forEach((a, i) => {
+      const r = results[i];
+      if (r) byId.set(a.id, r);
+    });
+    const finalAttachments = snapshot
+      .map((a) => byId.get(a.id))
+      .filter((a): a is MessageAttachment => a != null);
+
     try {
-      const attachments = await Promise.all(files.map(({ file }) => uploadMessageAttachment(file)));
       await send.mutateAsync({
         conversationId,
         content,
-        attachments,
+        attachments: finalAttachments,
         // Only attach parent_message_id when this is a thread composer — a
         // top-level composer leaves it undefined (omitted from the POST body).
         ...(parentMessageId ? { parent_message_id: parentMessageId } : {}),
       });
       setDraft('');
-      setFiles((prev) => {
-        for (const f of prev) {
-          if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-        }
-        return [];
-      });
+      clearAttachments();
     } catch {
-      // Error surfaces in send.error; leave draft intact so user can retry.
+      // Error surfaces in send.error; leave draft + (now-uploaded) attachments
+      // intact so the user can retry the send without re-uploading.
     }
   };
 
@@ -80,15 +202,69 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
     }
   };
 
+  // v2.9.2: paste clipboard files (e.g. a screenshot) straight into the
+  // attachment list. Only consume the event when files are present so normal
+  // text paste is untouched.
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = e.clipboardData?.files;
+    if (files && files.length > 0) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  };
+
+  // v2.9.2: drag-and-drop onto the composer. dragenter/leave use a depth
+  // counter (children re-fire the events); dragover must preventDefault to mark
+  // the form a valid drop target.
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragActive(true);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (dragDepth.current === 0) return;
+    e.preventDefault();
+    dragDepth.current -= 1;
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0;
+      setDragActive(false);
+    }
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragActive(false);
+    addFiles(e.dataTransfer.files);
+  };
+
   return (
     <form
-      className="flex items-center gap-2 border-t border-border-base bg-bg-elevated p-3"
+      className="relative flex items-center gap-2 border-t border-border-base bg-bg-elevated p-3"
       data-testid="message-composer"
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
       }}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
+      {dragActive && (
+        <div
+          className="pointer-events-none absolute inset-1 z-20 flex items-center justify-center rounded border-2 border-dashed border-accent bg-bg-subtle/90 text-sm font-medium text-text-primary"
+          data-testid="composer-dropzone"
+        >
+          Drop files to attach
+        </div>
+      )}
       <div className="relative flex-1">
         {mention.open && (
           <div className="absolute bottom-full left-0 z-10 mb-1 w-72" data-testid="mention-popup">
@@ -120,6 +296,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           onKeyDown={handleKey}
           onKeyUp={() => mention.sync()}
           onClick={() => mention.sync()}
+          onPaste={handlePaste}
           onCompositionStart={() => {
             composingRef.current = true;
           }}
@@ -131,7 +308,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         />
       </div>
       <label
-        className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle"
+        className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle md:h-10 md:w-10"
         title="Attach file"
         aria-label="Attach file"
         data-testid="composer-attach"
@@ -139,17 +316,11 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         <PaperclipIcon />
         <input
           type="file"
+          multiple
           className="sr-only"
           data-testid="composer-file"
           onChange={(e) => {
-            const picked = Array.from(e.currentTarget.files ?? []);
-            setFiles((prev) => [
-              ...prev,
-              ...picked.map((file) => ({
-                file,
-                previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-              })),
-            ]);
+            addFiles(e.currentTarget.files);
             e.currentTarget.value = '';
           }}
           disabled={send.isPending}
@@ -158,11 +329,11 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
       <button
         type="submit"
         disabled={disabled}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted md:h-10 md:w-10"
         data-testid="composer-send"
         title="Send (Enter)"
         aria-label="Send"
-        aria-busy={send.isPending}
+        aria-busy={send.isPending || uploading}
       >
         <SendIcon />
       </button>
@@ -171,36 +342,74 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           {(send.error as Error).message}
         </span>
       )}
-      {files.length > 0 && (
+      {rejections.length > 0 && (
+        <ul className="basis-full text-xs text-danger" data-testid="composer-rejections">
+          {rejections.map((r, i) => (
+            <li key={`${r.name}-${i}`} data-testid="composer-rejection">
+              {r.name} — {r.reason}
+            </li>
+          ))}
+        </ul>
+      )}
+      {attachments.length > 0 && (
         <ul className="flex max-w-xs flex-wrap gap-2" data-testid="composer-attachments">
-          {files.map(({ file, previewUrl }, idx) => (
+          {attachments.map((a) => (
             <li
-              key={`${file.name}-${idx}`}
-              className="flex items-center gap-2 rounded border border-border-base px-2 py-1 text-xs"
+              key={a.id}
+              className="flex w-44 flex-col gap-1 rounded border border-border-base px-2 py-1 text-xs"
+              data-testid="composer-attachment"
             >
-              {previewUrl && (
-                <img
-                  src={previewUrl}
-                  alt={file.name}
-                  className="h-8 w-8 rounded object-cover"
-                  data-testid="composer-attachment-preview"
-                />
+              <div className="flex items-center gap-2">
+                {a.previewUrl && (
+                  <img
+                    src={a.previewUrl}
+                    alt={a.file.name}
+                    className="h-8 w-8 shrink-0 rounded object-cover"
+                    data-testid="composer-attachment-preview"
+                  />
+                )}
+                <span className="min-w-0 flex-1 truncate" title={a.file.name}>
+                  {a.file.name}
+                </span>
+                <span className="shrink-0 text-text-muted">{formatBytes(a.file.size)}</span>
+                <button
+                  type="button"
+                  className="shrink-0 text-text-muted hover:text-text-primary disabled:opacity-50"
+                  aria-label={`Remove ${a.file.name}`}
+                  disabled={a.status === 'uploading'}
+                  onClick={() => removeAttachment(a.id)}
+                >
+                  Remove
+                </button>
+              </div>
+              {a.status === 'uploading' && (
+                <div
+                  className="h-1 w-full overflow-hidden rounded bg-bg-subtle"
+                  role="progressbar"
+                  aria-valuenow={a.progress}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`Uploading ${a.file.name}`}
+                  data-testid="composer-attachment-progress"
+                >
+                  <div className="h-full bg-accent" style={{ width: `${a.progress}%` }} />
+                </div>
               )}
-              <span className="max-w-32 truncate">{file.name}</span>
-              <button
-                type="button"
-                className="text-text-muted hover:text-text-primary"
-                aria-label={`Remove ${file.name}`}
-                onClick={() => {
-                  setFiles((prev) => {
-                    const item = prev[idx];
-                    if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
-                    return prev.filter((_, i) => i !== idx);
-                  });
-                }}
-              >
-                Remove
-              </button>
+              {a.status === 'error' && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-danger" data-testid="composer-attachment-error">
+                    {a.errorMsg}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-accent hover:underline"
+                    data-testid="composer-attachment-retry"
+                    onClick={() => void uploadOne(a)}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

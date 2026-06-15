@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -12,13 +12,13 @@ beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
 });
 
-function wrap(ui: React.ReactElement) {
+function wrap(ui: React.ReactElement, path?: string) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={path ? [path] : undefined}>{ui}</MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -192,6 +192,25 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     expect(row).toHaveAttribute('data-scope', 'project');
     expect(row).toHaveTextContent('upload');
     expect(row).toHaveTextContent('project/p-1');
+    // v2.10.1 [M7] the mobile card list reflows the same transfers (md:hidden;
+    // present in jsdom). Same content, different layout.
+    const cards = screen.getByTestId('transfers-cards');
+    const card = within(cards).getByTestId('transfer-card');
+    expect(card).toHaveAttribute('data-scope', 'project');
+    expect(card).toHaveTextContent('project/p-1');
+  });
+
+  // v2.10.1 [M7] the System module mobile 二级段控 (Environment | Settings).
+  it('renders the mobile System segmented nav (Environment active)', async () => {
+    server.use(
+      http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([]))),
+      http.get('/api/agents', () => HttpResponse.json({ agents: [] })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />, '/environment');
+    const nav = await screen.findByTestId('segmented-nav');
+    expect(within(nav).getByTestId('system-seg-environment')).toHaveAttribute('data-active', 'true');
+    expect(within(nav).getByTestId('system-seg-settings')).toHaveAttribute('data-active', 'false');
   });
 
   // v2.8.1 #281: stats strip — four big-number cells derived from the snapshots.

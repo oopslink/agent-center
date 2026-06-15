@@ -8,7 +8,9 @@
 // and reusing the per-project read methods (no new repo/migration).
 //
 // Filters (query params): status (repeated or comma-separated; default = "all
-// open" = exclude terminal states), project (repeated/comma; default all),
+// open" = exclude terminal states; the sentinel `status=all` surfaces EVERY
+// status incl. terminal — used by the message task-ref / T-number linkify
+// resolver, T62/T76), project (repeated/comma; default all),
 // assignee (member-id or ref; tasks only — issues are never assignable), and
 // time-range (v2.8.1): created_after / created_before / updated_after /
 // updated_before, all optional RFC3339 instants. The FE sends ABSOLUTE instants
@@ -40,6 +42,12 @@ var issueTerminalStatus = map[string]bool{"resolved": true, "closed": true, "wit
 // discarded, so the old map both named dead states AND missed `discarded` — a
 // discarded task wrongly survived the default filter.)
 var taskTerminalStatus = map[string]bool{"completed": true, "discarded": true}
+
+// planTerminalStatus is the terminal Plan set the default ("all open") global
+// Plan list (v2.10.0 [T6]) excludes. Plan statuses are {draft, running, done,
+// archived}; only `archived` is the dead/hidden state (done plans still show in
+// the list, like the mockup). Mirrors the issue/task default-exclude semantics.
+var planTerminalStatus = map[string]bool{"archived": true}
 
 func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -159,6 +167,82 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
 }
 
+// pmListOrgPlansHandler (v2.10.0 [T6]) — GET /api/orgs/{slug}/plans returns,
+// for the caller's org, every structured Plan across ALL the org's projects:
+// the data behind the global Workspace > Plan list. Mirrors the Issues/Tasks
+// aggregation (iterate the org's non-archived projects, reuse the per-project
+// ListPlanSummaries, no new repo/migration). Each row is the per-project plan
+// summary (id, name, status, progress{done,total}, has_failed, node_count,
+// timestamps) PLUS project{id,name} for the cross-project list + detail link.
+//
+// Excludes the per-project builtin assignment pool (ADR-0047 is_builtin) — it
+// is not a user-authored plan and has its own Work Board column, not the list.
+// Filters: status (default = all non-archived), project, time-range. Sorted
+// updated_at DESC.
+func (s *Server) pmListOrgPlansHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.PM == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	projects, err := d.PM.ListProjects(r.Context(), orgID)
+	if err != nil {
+		mapPMError(w, err)
+		return
+	}
+	statusFilter := parseSetParam(r, "status")
+	projectFilter := parseSetParam(r, "project")
+	tf, terr := parseTimeFilter(r)
+	if terr != nil {
+		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
+		return
+	}
+
+	items := make([]map[string]any, 0)
+	for _, p := range projects {
+		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
+			continue
+		}
+		// Hide plans of an ARCHIVED project by default unless explicitly filtered
+		// (mirrors the issues/tasks archived-project default-exclude).
+		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
+			continue
+		}
+		// T124/T98: include archived plans so the status filter below can surface
+		// them on `?status=archived`/`all` (statusPasses default-excludes archived).
+		// The Work Board / agent-tools plan lists still use the archived-excluding
+		// ListPlanSummaries.
+		summaries, lerr := d.PM.ListPlanSummariesIncludingArchived(r.Context(), p.ID())
+		if lerr != nil {
+			mapPlanError(w, lerr)
+			return
+		}
+		for _, detail := range summaries {
+			pl := detail.Plan
+			// The builtin assignment pool is not a user plan — it lives on the
+			// project Work Board, not the global Plan list.
+			if pl.IsBuiltin() {
+				continue
+			}
+			if !statusPasses(string(pl.Status()), statusFilter, planTerminalStatus) {
+				continue
+			}
+			if !tf.passes(pl.CreatedAt(), pl.UpdatedAt()) {
+				continue
+			}
+			row := pmPlanSummaryMap(detail)
+			row["project"] = map[string]any{"id": string(p.ID()), "name": p.Name()}
+			items = append(items, row)
+		}
+	}
+	sortItemsUpdatedDesc(items)
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
+}
+
 // orgIssueRow builds the DTO row for an issue. assignee is always null — issues
 // are not assignable in the domain (only tasks have an assignee).
 func orgIssueRow(i *pm.Issue, p *pm.Project) map[string]any {
@@ -244,10 +328,20 @@ func parseSetParam(r *http.Request, name string) map[string]bool {
 	return set
 }
 
-// statusPasses reports whether a status string passes the filter: when the
-// explicit set is non-empty, membership in it; otherwise the "all open"
-// default = not a terminal status.
+// statusPasses reports whether a status string passes the filter:
+//   - ?status=all (T62/task-336335c5): the escape hatch — EVERY status passes,
+//     terminal included. The message task-ref / T-number linkify resolver uses
+//     this so a reference to a completed/discarded task (the common agent case)
+//     resolves instead of silently staying plain text. `all` is not a real pm
+//     status, so it can never collide with a concrete value and dominates when
+//     combined.
+//   - explicit non-empty: membership in the requested set (a terminal status
+//     surfaces only when explicitly asked for).
+//   - otherwise the "all open" default = not a terminal status.
 func statusPasses(status string, explicit, terminal map[string]bool) bool {
+	if explicit["all"] {
+		return true
+	}
 	if len(explicit) > 0 {
 		return explicit[status]
 	}

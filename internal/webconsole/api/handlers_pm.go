@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -111,6 +112,11 @@ func pmTaskMap(t *pm.Task) map[string]any {
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
 	}
+	// T106: the task's plan association (empty for a backlog task) so the Task
+	// detail sidebar can show + link to the owning plan. Omitted when empty.
+	if pid := string(t.PlanID()); pid != "" {
+		m["plan_id"] = pid
+	}
 	return m
 }
 
@@ -216,9 +222,66 @@ func (s *Server) pmListProjectsHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		out = append(out, pmProjectMap(p))
+		m := pmProjectMap(p)
+		// v2.10.0 #T81 (§3.4.1, finding D1): the Projects list cards show
+		// per-project counts (tasks/issues/plans/repos) — the mockup's
+		// "12 tasks · 3 issues · 4 plans · 2 repos" meta line. The single-project
+		// GET (pmGetProjectHandler) stays count-free; only the LIST carries them.
+		// N is bounded by an org's project count and each read is an indexed
+		// project_id scan, so the per-project fan-out is acceptable here.
+		counts, err := pmProjectCounts(r.Context(), d, p.ID())
+		if err != nil {
+			mapPMError(w, err)
+			return
+		}
+		m["task_count"] = counts.tasks
+		m["issue_count"] = counts.issues
+		m["plan_count"] = counts.plans
+		m["repo_count"] = counts.repos
+		out = append(out, m)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"projects": out})
+}
+
+// pmProjectCountsResult carries the per-project list-card counts (§3.4.1).
+type pmProjectCountsResult struct{ tasks, issues, plans, repos int }
+
+// pmProjectCounts returns the task/issue/plan/repo counts for one project,
+// reusing the existing PM list reads (len of each). Any read error is returned
+// so the list handler fails loudly rather than reporting a silently-wrong 0.
+func pmProjectCounts(ctx context.Context, d HandlerDeps, id pm.ProjectID) (pmProjectCountsResult, error) {
+	tasks, err := d.PM.ListTasks(ctx, id)
+	if err != nil {
+		return pmProjectCountsResult{}, err
+	}
+	issues, err := d.PM.ListIssues(ctx, id)
+	if err != nil {
+		return pmProjectCountsResult{}, err
+	}
+	// Plan orchestration is OPTIONAL (v2.9 #284): a deployment with no
+	// PlanRepository wired returns ErrPlansUnavailable. That is a "feature not
+	// wired" sentinel, not a data error — degrade the plan count to 0 rather
+	// than failing the whole projects list. Production always wires it (app.go).
+	var planCount int
+	plans, err := d.PM.ListPlans(ctx, id)
+	switch {
+	case err == nil:
+		planCount = len(plans)
+	case errors.Is(err, pmservice.ErrPlansUnavailable):
+		planCount = 0
+	default:
+		return pmProjectCountsResult{}, err
+	}
+	repos, err := d.PM.ListCodeRepos(ctx, id)
+	if err != nil {
+		return pmProjectCountsResult{}, err
+	}
+	return pmProjectCountsResult{
+		tasks:  len(tasks),
+		issues: len(issues),
+		plans:  planCount,
+		repos:  len(repos),
+	}, nil
 }
 
 func (s *Server) pmCreateProjectHandler(w http.ResponseWriter, r *http.Request) {

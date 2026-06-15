@@ -252,3 +252,50 @@ func TestResumeWork_SingleActiveGated(t *testing.T) {
 		t.Fatalf("after resume wi-1: active=%d want 1", got)
 	}
 }
+
+// T53: ResumeWorkByOperator resumes a paused item WITHOUT the agent-ownership guard
+// (the operator is authorized upstream), keeps single-active, and returns the
+// owning agent id (for the wake).
+func TestResumeWorkByOperator(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+	f.seedQueuedWI(t, id, "wi-1")
+	f.seedQueuedWI(t, id, "wi-2")
+
+	// Operator resume of a NON-paused (queued) item is illegal (Resume needs paused).
+	if _, err := f.svc.ResumeWorkByOperator(ctx, "wi-1"); !errors.Is(err, agent.ErrWorkItemIllegalMove) {
+		t.Fatalf("operator-resume of queued item err=%v want ErrWorkItemIllegalMove", err)
+	}
+
+	// Pause wi-1, then operator-resume it (idle agent) → active + returns the agent.
+	if err := f.svc.StartWork(ctx, id, "wi-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.PauseWork(ctx, id, "wi-1", ""); err != nil {
+		t.Fatal(err)
+	}
+	gotAgent, err := f.svc.ResumeWorkByOperator(ctx, "wi-1")
+	if err != nil {
+		t.Fatalf("operator-resume paused wi-1: %v", err)
+	}
+	if gotAgent != id {
+		t.Fatalf("returned agent=%q want %q", gotAgent, id)
+	}
+	if got := f.countActive(t, id); got != 1 {
+		t.Fatalf("after operator-resume: active=%d want 1", got)
+	}
+
+	// Single-active still enforced: pause wi-1, start wi-2, then operator-resume wi-1
+	// must be gated (agent busy on wi-2).
+	if err := f.svc.PauseWork(ctx, id, "wi-1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.StartWork(ctx, id, "wi-2"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.ResumeWorkByOperator(ctx, "wi-1"); !errors.Is(err, agent.ErrAgentHasActiveWork) {
+		t.Fatalf("operator-resume while busy err=%v want ErrAgentHasActiveWork", err)
+	}
+}

@@ -113,6 +113,17 @@ var (
 	// belongs to a DIFFERENT Plan (Task ↔ Plan = 0..1, design §2). Re-selecting
 	// into the SAME plan is a no-op (not an error).
 	ErrTaskInOtherPlan = errors.New("projectmanager: task already belongs to another plan")
+	// T83 claimability (open-claim of built-in pool tasks):
+	// ErrTaskNotClaimable — the task is not an open, dispatched built-in-pool task
+	// (backlog / structured-plan node / wrong status / not dispatched). Claim is
+	// rejected; for a structured-plan node the assigned agent uses normal dispatch.
+	ErrTaskNotClaimable = errors.New("projectmanager: task is not claimable from the assignment pool")
+	// ErrTaskAlreadyClaimed — a concurrent claim won the race (the task already has
+	// an assignee). Idempotent-readable, not a hard failure (T83 §3.3).
+	ErrTaskAlreadyClaimed = errors.New("projectmanager: task already claimed by another agent")
+	// ErrPoolClaimLimitReached — the agent already holds the max concurrent claimed
+	// pool tasks (T83 §3.6, default N=3). Does not affect structured-plan nodes.
+	ErrPoolClaimLimitReached = errors.New("projectmanager: pool claim limit reached")
 	// ErrPlanProjectMismatch rejects selecting a task whose project differs from
 	// the Plan's project (a Plan selects only its own project's backlog, §2/§9.6d).
 	ErrPlanProjectMismatch = errors.New("projectmanager: task and plan belong to different projects")

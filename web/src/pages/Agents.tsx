@@ -99,26 +99,36 @@ export default function Agents(): React.ReactElement {
         />
       )}
       {agents.isSuccess && agents.data.length > 0 && (
-        <table
-          className="w-full table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-text-primary"
-          data-testid="agents-table"
-        >
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
-              <th className="w-1/6 border-b border-border-base px-3 py-2">Name</th>
-              <th className="w-1/6 border-b border-border-base px-3 py-2">Provider</th>
-              <th className="w-1/12 border-b border-border-base px-3 py-2">Lifecycle</th>
-              <th className="w-1/12 border-b border-border-base px-3 py-2">Availability</th>
-              {/* dev2/v281 canonical-fold: Role + Status folded from the retired
-                  /members/agents page so the merge loses no information. */}
-              <th className="w-1/12 border-b border-border-base px-3 py-2">Role</th>
-              <th className="w-1/12 border-b border-border-base px-3 py-2">Status</th>
-              <th className="border-b border-border-base px-3 py-2">Last activity</th>
-              <th className="w-1/6 border-b border-border-base px-3 py-2">Worker</th>
-              <th className="border-b border-border-base px-3 py-2 text-right" />
-            </tr>
-          </thead>
-          <tbody>
+        // T80 (Tester2 §3.7 finding): this 9-column table lives in the narrow
+        // col③ of the three-column desktop shell. The old `w-1/12` columns were
+        // too narrow for their single-word uppercase headers ("AVAILABILITY",
+        // "LIFECYCLE"), so the header text overflowed the cell and overlapped the
+        // next one (rendered "AVAILABILITROLE"). Fix = make the table horizontally
+        // scrollable with a min-width so columns never collapse below their header
+        // width, rebalance the per-column widths so each header fits, and pin the
+        // headers to a single line. At a wide col③ the table fits without scroll;
+        // in a cramped column it scrolls instead of overlapping.
+        <div className="overflow-x-auto">
+          <table
+            className="w-full min-w-[60rem] table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-text-primary"
+            data-testid="agents-table"
+          >
+            <thead>
+              <tr className="whitespace-nowrap text-left text-xs uppercase tracking-wide text-text-muted">
+                <th className="w-[14%] border-b border-border-base px-3 py-2">Name</th>
+                <th className="w-[13%] border-b border-border-base px-3 py-2">Provider</th>
+                <th className="w-[11%] border-b border-border-base px-3 py-2">Lifecycle</th>
+                <th className="w-[13%] border-b border-border-base px-3 py-2">Availability</th>
+                {/* dev2/v281 canonical-fold: Role + Status folded from the retired
+                    /members/agents page so the merge loses no information. */}
+                <th className="w-[8%] border-b border-border-base px-3 py-2">Role</th>
+                <th className="w-[9%] border-b border-border-base px-3 py-2">Status</th>
+                <th className="w-[13%] border-b border-border-base px-3 py-2">Last activity</th>
+                <th className="w-[12%] border-b border-border-base px-3 py-2">Worker</th>
+                <th className="w-[7%] border-b border-border-base px-3 py-2 text-right" />
+              </tr>
+            </thead>
+            <tbody>
             {agents.data.map((a) => (
               <tr
                 key={a.id}
@@ -204,8 +214,9 @@ export default function Agents(): React.ReactElement {
                 </td>
               </tr>
             ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       )}
 
       {del.isError && (

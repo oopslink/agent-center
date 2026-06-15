@@ -368,6 +368,12 @@ func (s *Server) routes() {
 	// fail_work (report the in-flight item failed → frees the slot to drain).
 	s.mux.HandleFunc("POST /admin/agent-tools/start_work", s.startWorkHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/fail_work", s.failWorkHandler)
+	// T83: claim an open built-in assignment-pool task (pool tasks have no
+	// WorkItem, so start_work does not apply) — atomic assign+run, fail-closed.
+	s.mux.HandleFunc("POST /admin/agent-tools/claim_task", s.claimTaskHandler)
+	// T83: read-only discovery of the open (unassigned) pool tasks the agent may
+	// claim across its member projects (separate from get_my_work).
+	s.mux.HandleFunc("POST /admin/agent-tools/list_assignment_pool", s.listAssignmentPoolHandler)
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the active item (→paused, release
 	// slot) + resume a paused item (→active, re-acquire slot, single-active-gated).
 	s.mux.HandleFunc("POST /admin/agent-tools/pause_work", s.pauseWorkHandler)
@@ -393,7 +399,10 @@ func (s *Server) routes() {
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
 	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/rerun_failed_node", s.rerunFailedNodeHandler)
+	// T53: operator resume of a paused plan node (un-stick a set-aside node).
+	s.mux.HandleFunc("POST /admin/agent-tools/resume_paused_node", s.resumePausedNodeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/discard_task", s.discardTaskHandler) // T119
 	// v2.7 D2 b2/d-ii-B — passthrough tools: thin wrappers over the pm
 	// AppServices (writes use actor=agent; the AppService's requireProjectMember
 	// is the write-gate) + per-agent-scoped reads (get_task own-work, get_issue

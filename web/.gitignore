@@ -5,3 +5,6 @@ coverage/
 .DS_Store
 *.log
 *.tsbuildinfo
+
+# repo uses pnpm; ignore stray npm lockfile
+package-lock.json

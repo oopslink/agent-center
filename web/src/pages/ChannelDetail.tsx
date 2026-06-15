@@ -6,7 +6,8 @@ import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
-import { ParticipantsPanel } from '@/components/ParticipantsPanel';
+import { ChannelSidebarTabs } from '@/components/ChannelSidebarTabs';
+import { ContextPanel } from '@/shell/contextPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { Avatar } from '@/components/Avatar';
 import { useDisplayNameResolver } from '@/api/members';
@@ -93,13 +94,17 @@ export default function ChannelDetail(): React.ReactElement {
       </header>
 
       {/* #264 P1: message body + read-cursor + SSE live updates all flow
-          through the surface-agnostic shell; the channel ParticipantsPanel
-          is injected as the side panel. */}
-      <ConversationView
-        surface="channel"
-        conversationId={ch.id}
-        sidePanel={<ParticipantsPanel conversationId={ch.id} participants={participants} />}
-      />
+          through the surface-agnostic shell (col③). */}
+      <ConversationView surface="channel" conversationId={ch.id} />
+      {/* v2.10.0 [T64] col④ renders into the shell's on-demand fourth column via
+          <ContextPanel> (portals in; collapses when this page unmounts). Outside
+          the shell (no provider) ContextPanel is a no-op, so the page still
+          renders standalone.
+          v2.10.1 [T96]: the col④ content is now a segmented 3-tab panel
+          (Chat = participants / Threads / Files), one at a time. */}
+      <ContextPanel>
+        <ChannelSidebarTabs conversationId={ch.id} participants={participants} />
+      </ContextPanel>
     </section>
     </SenderSidebarProvider>
   );

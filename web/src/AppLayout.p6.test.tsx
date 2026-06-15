@@ -52,6 +52,8 @@ describe('AppLayout v3 — P6 (theme + collapse + palette + shortcuts)', () => {
   it('segmented theme control flips html.dark + persists + sets aria-checked', () => {
     renderShell();
     expect(document.documentElement.classList.contains('dark')).toBe(false);
+    // v2.10.1 [T105]: the theme toggle now lives in the rail user popout panel.
+    fireEvent.click(screen.getByTestId('sidebar-user'));
     const light = screen.getByTestId('theme-segment-light');
     const dark = screen.getByTestId('theme-segment-dark');
     expect(light).toHaveAttribute('aria-checked', 'true');
@@ -69,6 +71,7 @@ describe('AppLayout v3 — P6 (theme + collapse + palette + shortcuts)', () => {
 
   it('segmented theme control switches via arrow keys (keyboard a11y)', () => {
     renderShell();
+    fireEvent.click(screen.getByTestId('sidebar-user'));
     const group = screen.getByTestId('theme-toggle');
     expect(group).toHaveAttribute('role', 'radiogroup');
     fireEvent.keyDown(group, { key: 'ArrowRight' });

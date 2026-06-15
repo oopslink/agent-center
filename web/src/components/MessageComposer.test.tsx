@@ -34,6 +34,20 @@ describe('MessageComposer', () => {
     expect(screen.getByTestId('composer-send')).toBeDisabled();
   });
 
+  // v2.10.1 [M2] mobile: the attach (+) and send buttons meet the ≥44px touch
+  // target on a narrow viewport (h-11 w-11 = 44px), shrinking to 40px at the
+  // desktop breakpoint (md:h-10 md:w-10).
+  it('attach + send buttons are ≥44px touch targets on mobile (v2.10.1 M2)', () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    for (const id of ['composer-attach', 'composer-send']) {
+      const cls = screen.getByTestId(id).className;
+      expect(cls).toContain('h-11');
+      expect(cls).toContain('w-11');
+      expect(cls).toContain('md:h-10');
+      expect(cls).toContain('md:w-10');
+    }
+  });
+
   it('sends on Enter and clears the textarea', async () => {
     wrap(<MessageComposer conversationId="C1" />);
     const ta = screen.getByTestId('composer-textarea') as HTMLTextAreaElement;

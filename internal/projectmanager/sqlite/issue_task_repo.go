@@ -207,6 +207,26 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 	return nil
 }
 
+// ClaimIfUnassigned is the atomic open-claim CAS (T83 §3.3): it writes the
+// claimed state ONLY while the stored row is still `open` AND unassigned, so two
+// concurrent claims can never both win — the second finds the row already
+// assigned (WHERE matches nothing → 0 rows) and gets false. assignee/status are
+// the gate (not version), so it is robust to the multiple in-memory version bumps
+// of Assign()+Start().
+func (r *TaskRepo) ClaimIfUnassigned(ctx context.Context, t *pm.Task) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx,
+		`UPDATE pm_tasks SET status=?, assignee=?, updated_at=?, version=?, status_changed_at=?
+		 WHERE id=? AND status='open' AND (assignee IS NULL OR assignee='')`,
+		string(t.Status()), nullString(string(t.Assignee())),
+		ts(t.UpdatedAt()), t.Version(), ts(t.StatusChangedAt()), string(t.ID()))
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 func (r *TaskRepo) FindByID(ctx context.Context, id pm.TaskID) (*pm.Task, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, taskSelect+` WHERE id = ?`, string(id))
