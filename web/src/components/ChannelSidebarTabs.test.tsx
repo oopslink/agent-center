@@ -43,13 +43,15 @@ function wrap() {
 describe('ChannelSidebarTabs (v2.10.1 [T96] channel col④ 3-tab)', () => {
   afterEach(() => cleanup());
 
-  it('renders Chat / Threads / Files tabs with Chat active by default (= participants)', async () => {
+  it('renders Participants / Threads / Files tabs with Participants active by default', async () => {
     mockApi({});
     wrap();
-    expect(screen.getByTestId('channel-tab-chat')).toHaveAttribute('data-active', 'true');
+    // v2.10.2 [T128]: the default tab is now labeled "Participants" (was "Chat").
+    expect(screen.getByTestId('channel-tab-participants')).toHaveTextContent('Participants');
+    expect(screen.getByTestId('channel-tab-participants')).toHaveAttribute('data-active', 'true');
     expect(screen.getByTestId('channel-tab-threads')).toHaveAttribute('data-active', 'false');
     expect(screen.getByTestId('channel-tab-files')).toHaveAttribute('data-active', 'false');
-    // Chat tab shows the participants panel (with invite/remove); not the others.
+    // Participants tab shows the participants panel (with invite/remove); not the others.
     expect(await screen.findByTestId('participants-panel')).toBeInTheDocument();
     expect(screen.getByTestId('channel-panel-threads')).toHaveAttribute('hidden');
     expect(screen.queryByTestId('thread-list')).not.toBeInTheDocument();
