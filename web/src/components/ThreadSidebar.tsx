@@ -6,6 +6,17 @@ import { useMarkSeen } from '@/api/readState';
 import { useModalA11y } from './useModalA11y';
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
+import { ResizeHandle } from './ResizeHandle';
+import { useResizablePanel } from './useResizablePanel';
+
+// Desktop width bounds (task-97c7600a): default = the prior sm:w-[28rem] (448px),
+// floor 320px (the prior w-80 base), ceiling = 3/4 of the viewport (75vw). The cap
+// is a function so it re-clamps when the window shrinks.
+const THREAD_WIDTH_KEY = 'ac.thread.panel.width';
+const THREAD_DEFAULT_WIDTH = 448;
+const THREAD_MIN_WIDTH = 320;
+const threadMaxWidth = (): number =>
+  (typeof window === 'undefined' ? 1024 : window.innerWidth) * 0.75;
 
 // ThreadSidebar (v2.9.1 Threads P1) — a right slide-in panel that opens a single
 // message's thread: the root message + all its replies + a thread composer that
@@ -31,6 +42,14 @@ interface Props {
 
 export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.ReactElement | null {
   const containerRef = useModalA11y({ open, onClose });
+  // Desktop: a draggable left-edge handle resizes the panel (persisted, capped 75vw).
+  const { width, resizing, handleProps } = useResizablePanel({
+    storageKey: THREAD_WIDTH_KEY,
+    defaultWidth: THREAD_DEFAULT_WIDTH,
+    minWidth: THREAD_MIN_WIDTH,
+    maxWidth: threadMaxWidth,
+    edge: 'left',
+  });
   const conversationId = rootMessage?.conversation_id;
   // Gated on open + a root id so a closed sidebar fires no request.
   const replies = useThreadReplies(
@@ -73,8 +92,18 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
         aria-modal="true"
         aria-label="Message thread"
         data-testid="thread-sidebar"
-        className="fixed inset-y-0 right-0 z-40 flex h-full w-80 translate-x-0 transform flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none sm:w-[28rem]"
+        style={{ width }}
+        className="fixed inset-y-0 right-0 z-40 flex h-full max-w-[75vw] translate-x-0 transform flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none"
       >
+        {/* Left-edge resize grip (desktop): drag to set the panel width. */}
+        <ResizeHandle
+          edge="left"
+          handleProps={handleProps}
+          resizing={resizing}
+          ariaLabel="Resize thread panel"
+          testId="thread-sidebar-resize"
+        />
+
         {/* Header: title + reply count + close. */}
         <div className="flex items-center justify-between gap-3 border-b border-border-base p-4">
           <div className="min-w-0">
