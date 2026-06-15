@@ -18,6 +18,10 @@ interface Props {
   parentMessageId?: string;
 }
 
+// v2.10.2 [T148]: the textarea auto-grows with its content up to this many rows;
+// past it the field scrolls internally instead of growing further.
+const MAX_COMPOSER_ROWS = 4;
+
 // One staged attachment, from selection through upload. `status` drives the
 // chip UI: ready (queued) → uploading (progress bar) → uploaded (has result) or
 // error (retry button). `uploaded` is cached so a retry of a sibling never
@@ -77,6 +81,25 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
       }
     };
   }, []);
+
+  // v2.10.2 [T148]: auto-grow the textarea with its content, capped at
+  // MAX_COMPOSER_ROWS lines — beyond that it scrolls internally instead of pushing
+  // the composer taller. Recomputes on every draft change (incl. the clear-on-send,
+  // which collapses it back to one line). Measures the live line-height/padding/
+  // border so it stays correct if the type scale changes.
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    const cs = window.getComputedStyle(ta);
+    const line = parseFloat(cs.lineHeight) || 20;
+    const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    const maxH = line * MAX_COMPOSER_ROWS + padY + borderY;
+    const full = ta.scrollHeight + borderY; // border-box: scrollHeight omits the border
+    ta.style.height = `${Math.min(full, maxH)}px`;
+    ta.style.overflowY = full > maxH ? 'auto' : 'hidden';
+  }, [draft]);
 
   // patchAttachment — immutable update of one staged item by id.
   const patchAttachment = (id: string, patch: Partial<StagedAttachment>) => {
@@ -246,7 +269,9 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
 
   return (
     <form
-      className="relative flex items-center gap-2 border-t border-border-base bg-bg-elevated p-3"
+      // v2.10.2 [T148]: a vertical stack — the (auto-growing) textarea on top, the
+      // action buttons in a bar at the BOTTOM (was a single inline row).
+      className="relative flex flex-col gap-2 border-t border-border-base bg-bg-elevated p-3"
       data-testid="message-composer"
       onSubmit={(e) => {
         e.preventDefault();
@@ -265,7 +290,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           Drop files to attach
         </div>
       )}
-      <div className="relative flex-1">
+      <div className="relative">
         {mention.open && (
           <div className="absolute bottom-full left-0 z-10 mb-1 w-72" data-testid="mention-popup">
             <MentionPicker
@@ -279,7 +304,11 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         )}
         <textarea
           ref={textareaRef}
-          className="h-10 w-full resize-none rounded border border-border-strong bg-bg-elevated px-3 py-0 text-sm leading-10 text-text-primary placeholder:text-text-muted focus:border-accent"
+          // v2.10.2 [T148]: leading-5 + py-1.5 give a 1-line start; the auto-grow
+          // effect sets the height (capped at MAX_COMPOSER_ROWS) and toggles
+          // overflow-y, so a long draft scrolls internally instead of growing past
+          // 4 lines.
+          className="block w-full resize-none rounded border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm leading-5 text-text-primary placeholder:text-text-muted focus:border-accent"
           rows={1}
           aria-label="Message"
           role="combobox"
@@ -307,36 +336,6 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           disabled={send.isPending}
         />
       </div>
-      <label
-        className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle md:h-10 md:w-10"
-        title="Attach file"
-        aria-label="Attach file"
-        data-testid="composer-attach"
-      >
-        <PaperclipIcon />
-        <input
-          type="file"
-          multiple
-          className="sr-only"
-          data-testid="composer-file"
-          onChange={(e) => {
-            addFiles(e.currentTarget.files);
-            e.currentTarget.value = '';
-          }}
-          disabled={send.isPending}
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={disabled}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted md:h-10 md:w-10"
-        data-testid="composer-send"
-        title="Send (Enter)"
-        aria-label="Send"
-        aria-busy={send.isPending || uploading}
-      >
-        <SendIcon />
-      </button>
       {send.isError && (
         <span className="text-xs text-danger" data-testid="composer-error">
           {(send.error as Error).message}
@@ -414,6 +413,42 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           ))}
         </ul>
       )}
+      {/* v2.10.2 [T148]: action bar at the BOTTOM of the composer — attach on the
+          left, send on the right — one size smaller than the prior inline buttons
+          (h-8 w-8, was h-11/md:h-10). Owner-directed (T148); supersedes the M2 44px
+          touch sizing for these two icon controls. */}
+      <div className="flex items-center justify-between gap-2">
+        <label
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle"
+          title="Attach file"
+          aria-label="Attach file"
+          data-testid="composer-attach"
+        >
+          <PaperclipIcon />
+          <input
+            type="file"
+            multiple
+            className="sr-only"
+            data-testid="composer-file"
+            onChange={(e) => {
+              addFiles(e.currentTarget.files);
+              e.currentTarget.value = '';
+            }}
+            disabled={send.isPending}
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={disabled}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+          data-testid="composer-send"
+          title="Send (Enter)"
+          aria-label="Send"
+          aria-busy={send.isPending || uploading}
+        >
+          <SendIcon />
+        </button>
+      </div>
     </form>
   );
 }
@@ -421,7 +456,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
 // v2.7.1 #222: inline icons (no-emoji UX rule — single-stroke 20×20 SVGs).
 function PaperclipIcon(): React.ReactElement {
   return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path
         d="M14.5 9.5l-4.8 4.8a3 3 0 0 1-4.2-4.2l5.5-5.5a2 2 0 0 1 2.8 2.8L8.3 12.7a1 1 0 0 1-1.4-1.4l4.6-4.6"
         strokeLinecap="round"
@@ -433,7 +468,7 @@ function PaperclipIcon(): React.ReactElement {
 
 function SendIcon(): React.ReactElement {
   return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M3 10l14-6-6 14-2.5-5.5L3 10z" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
