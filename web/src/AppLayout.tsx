@@ -145,8 +145,9 @@ function buildModules(base: string): ReadonlyArray<ModuleDef> {
         // v2.8 #258: org-scope cross-project aggregation, Project 同级.
         { to: p('issues'), label: 'Issues', Icon: IssueIcon },
         { to: p('tasks'), label: 'Tasks', Icon: TaskIcon },
-        // v2.10.0 [T6]: global cross-project Plan list, Tasks 平级.
-        { to: p('plans'), label: 'Plan', Icon: PlanIcon },
+        // v2.10.0 [T6]: global cross-project Plan list, Tasks 平级. v2.10.2 [T142]:
+        // label pluralized to "Plans" for consistency with Projects/Issues/Tasks.
+        { to: p('plans'), label: 'Plans', Icon: PlanIcon },
       ],
     },
     {

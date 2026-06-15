@@ -69,6 +69,9 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     );
     wrap();
     await waitFor(() => expect(screen.getByTestId('org-plan-row')).toBeInTheDocument());
+    // v2.10.2 [T142]: the page title is "Plans" (plural), matching the Workspace
+    // nav + the Projects/Issues/Tasks list-page convention.
+    expect(screen.getByRole('heading', { name: 'Plans' })).toBeInTheDocument();
     // default view → no status/project params.
     expect(gotQuery).toBe('');
     const row = screen.getByTestId('org-plan-row');
