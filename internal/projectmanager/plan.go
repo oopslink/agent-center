@@ -75,7 +75,12 @@ type Plan struct {
 	// per project, auto-created + always-started, FLAT (no dependency edges), a
 	// "pull, no-wake" dispatch pool. It cannot be stopped / archived / deleted on its
 	// own (it is archived WITH its project).
-	builtin   bool
+	builtin bool
+	// orgNumber is the per-org monotonic display/reference number (v2.10.1 [T99],
+	// rendered "P<n>"). Allocated at create by the org sequence (entity_type
+	// "plan", INDEPENDENT of tasks/issues); 0 for the builtin pool + rows
+	// predating the allocator / not yet backfilled (DTO omits org_ref then).
+	orgNumber int
 	createdAt time.Time
 	updatedAt time.Time
 	version   int
@@ -90,7 +95,10 @@ type NewPlanInput struct {
 	CreatorRef  IdentityRef
 	TargetDate  *time.Time
 	Builtin     bool // ADR-0047: the per-project default assignment pool
-	CreatedAt   time.Time
+	// OrgNumber is the allocated per-org plan number (v2.10.1 [T99]), supplied by
+	// the service from the org sequence within the create tx. 0 ⇒ no org_ref.
+	OrgNumber int
+	CreatedAt time.Time
 }
 
 // NewPlan constructs a fresh draft Plan. A Plan must belong to a Project.
@@ -120,6 +128,7 @@ func NewPlan(in NewPlanInput) (*Plan, error) {
 		creatorRef:  in.CreatorRef,
 		targetDate:  normalizeTargetDate(in.TargetDate),
 		builtin:     in.Builtin,
+		orgNumber:   in.OrgNumber,
 		createdAt:   at,
 		updatedAt:   at,
 		version:     1,
@@ -137,6 +146,7 @@ type RehydratePlanInput struct {
 	ConversationID string
 	TargetDate     *time.Time
 	Builtin        bool
+	OrgNumber      int
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	Version        int
@@ -160,6 +170,7 @@ func RehydratePlan(in RehydratePlanInput) (*Plan, error) {
 		conversationID: in.ConversationID,
 		targetDate:     normalizeTargetDate(in.TargetDate),
 		builtin:        in.Builtin,
+		orgNumber:      in.OrgNumber,
 		createdAt:      in.CreatedAt.UTC(),
 		updatedAt:      in.UpdatedAt.UTC(),
 		version:        in.Version,
@@ -188,6 +199,7 @@ func (p *Plan) CreatedAt() time.Time    { return p.createdAt }
 func (p *Plan) UpdatedAt() time.Time    { return p.updatedAt }
 func (p *Plan) Version() int            { return p.version }
 func (p *Plan) IsBuiltin() bool         { return p.builtin }
+func (p *Plan) OrgNumber() int          { return p.orgNumber }
 
 // Rename updates the display name.
 func (p *Plan) Rename(name string, at time.Time) error {
