@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { OrgLink, orgPath, useOptionalOrgContext } from '@/OrgContext';
 import { useProject } from '@/api/projects';
+import { ApiError } from '@/api/client';
 import {
   usePlan,
   useStartPlan,
@@ -1626,6 +1627,28 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
   );
 }
 
+// resumeNodeErrorMessage (T101) — turn the resume failure into an ACCURATE operator
+// hint instead of a generic "try again". A node shows `paused` because its agent set
+// the work item aside (pause_work) — and the agent typically did so to switch to
+// ANOTHER task, so it is now active on that one. Operator resume then hits the
+// single-active invariant (ResumeWorkByOperator → 409 agent_busy): the right answer
+// is to explain WHY, not retry blindly. Maps the backend error CODE (ApiError.code);
+// any unmapped error keeps the original generic copy.
+function resumeNodeErrorMessage(error: unknown): string {
+  const code = error instanceof ApiError ? error.code : '';
+  switch (code) {
+    case 'agent_busy':
+      // The agent paused this item to work another; it can't be double-activated.
+      return "Its agent is busy on another work item — it'll resume this one when that finishes, or the agent can resume it from its side.";
+    case 'node_not_paused':
+      return 'Nothing to resume — this node has no paused work item (it may have already resumed).';
+    case 'plan_not_running':
+      return "The plan isn't running, so its nodes can't be resumed.";
+    default:
+      return "Couldn't resume this node. Please try again.";
+  }
+}
+
 // PlanTaskRow — one task-list row. When the plan is draft, the trailing cell
 // holds a "Remove" button → useRemoveTaskFromPlan(task_id) (task returns to the
 // Backlog on success via query invalidation). #218: a remove failure surfaces a
@@ -1740,7 +1763,7 @@ function PlanTaskRow({
             role="alert"
             data-testid={`plan-node-resume-error-${node.task_id}`}
           >
-            Couldn't resume this node. Please try again.
+            {resumeNodeErrorMessage(resume.error)}
           </span>
         )}
       </td>
