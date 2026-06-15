@@ -70,13 +70,13 @@ func TestFollowState_CrossVersionUpgrade_NonEmptyDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// UPGRADE across the 0050 boundary on the NON-EMPTY DB (full Up → latest 57:
-	// v2.9.1 Thread P1 added 0057_v291_message_thread_refs, so this drift-guard now expects 58).
+	// UPGRADE across the 0050 boundary on the NON-EMPTY DB (full Up → latest;
+	// bumped per migration: v2.9.1 added 0057–0059, v2.10.1 T99 added 0060).
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("upgrade to latest: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 59 {
-		t.Fatalf("post-upgrade version=%d want 59", v)
+	if v, _ := mig.Version(ctx); v != 60 {
+		t.Fatalf("post-upgrade version=%d want 60", v)
 	}
 	if !tableExists(t, db, "user_conversation_follow_state") {
 		t.Fatal("follow-state table must exist after upgrade")
