@@ -234,3 +234,29 @@ v2.7.1 多轮并行验收用的协议，固化下来：
 > 教训来源（v2.10.2，两度误报）：PD 首版凭"模块节点 completed"报"全绿"漏掉 M4 Open-DM fail；二版验收 PDF 用了 before 图被 owner 当场 catch。根因＝**凭节点状态推断 + 拿不到真实 AFTER 证据**。修正即上面第 2–3 步：证据 commit 进仓库 + PD 核真实 verdict。
 
 **§ 11 自检：** 验收项是否逐任务（数量=任务数）？每项有 AFTER 效果图且已 commit 仓库？报告是核真实 verdict 还是凭节点状态？ship 五步（README+sites / 打包 / 合 main / tag / 清分支）是否 PD 独立跑完、没拉 IntegrationDev？
+
+---
+
+## § 12. Doc 目录归档（doc archiving）—— owner 2026-06-16 固化
+
+所有 doc / 设计 / 验收产物统一落 **`docs/design/<version>/`**，按类型分子目录，**禁止往扁平根目录（如旧 `report/`）堆**：
+
+```
+docs/design/<version>/
+├── mockups/        # 设计稿 html + png
+├── evidence/       # 验收 AFTER 截图（§ 4 verify-in-tree、§ 11 第 2 步的落点）
+├── acceptance/     # 验收报告（只留 -final）
+└── ACCEPTANCE.md   # 逐任务验收清单
+docs/_scripts/      # 报告 / 截图生成脚本（gen_*.py 等）
+docs/_inbox/        # bug 复现 / 未定版临时截图，修复合并后即清空
+```
+
+**三条铁律：**
+
+1. **版本目录化**：文件必带版本前缀或落到对应 `docs/design/<version>/`，不在仓库根或单一扁平目录混堆跨版本/跨类型文件。
+2. **只留 final**：同一验收报告的草稿 / `-v2` 等被取代版本，**ship 后删除**，仅保留 `-final`（+ `ACCEPTANCE.md` 清单）。与 § 11 第 5 步「清开发分支」同属 ship 收尾。
+3. **临时件进 _inbox**：bug 复现图 / 未定版调整截图先进 `docs/_inbox/`，对应修复合并后**即清空**，不长期留存；确属某版本证据的，归该版本 `evidence/`。
+
+> 背景（2026-06-16）：旧 `report/` 扁平堆 70+ 文件、跨 5 个版本、混 mockup / 截图 / 报告，单 v2.10.0 一版存 3 套重复报告 PDF——无法检索且占空间。本节把「证据 commit 进 `docs/design/<ver>/`」（§ 4 / § 11 第 2 步）从「验收证据」扩到**全部 doc 产物的归档规范**。
+
+**§ 12 自检：** 文件是否落在 `docs/design/<version>/` 对应子目录、没在根目录扁平堆？验收报告是否只留 -final、草稿已删？`docs/_inbox/` 是否在修复合并后清空了？
