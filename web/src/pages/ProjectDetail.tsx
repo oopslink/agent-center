@@ -13,6 +13,8 @@ import {
 import { useIssues } from '@/api/issues';
 import { formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
+import { buildWorkItemFilters } from '@/api/orgWorkItems';
+import { WorkItemFilterBar, EMPTY_DATE_RANGE, type DateRange } from '@/components/WorkItemFilterBar';
 import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
 import { ApiError } from '@/api/client';
 import { useAppStore } from '@/store/app';
@@ -535,8 +537,19 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
   );
 }
 
+// T131: the project Issue list reuses the global FilterBar (project dimension
+// fixed/hidden) and sends the same filter params to the project-scoped endpoint.
 function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const issues = useIssues(projectId);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [assignee, setAssignee] = useState<string>('');
+  const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
+  const filters = buildWorkItemFilters({
+    selectedStatuses,
+    selectedProjects: [],
+    assignee,
+    dateRange,
+  });
+  const issues = useIssues(projectId, filters);
   const [createOpen, setCreateOpen] = useState(false);
   const data = issues.data ?? [];
   return (
@@ -555,6 +568,20 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
           + Open Issue
         </button>
       </div>
+      <div className="mb-3">
+        <WorkItemFilterBar
+          kind="issue"
+          hideProject
+          selectedStatuses={selectedStatuses}
+          onStatusesChange={setSelectedStatuses}
+          selectedProjects={[]}
+          onProjectsChange={() => {}}
+          assignee={assignee}
+          onAssigneeChange={setAssignee}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+        />
+      </div>
       {createOpen && (
         <IssueCreateModal projectId={projectId} onClose={() => setCreateOpen(false)} />
       )}
@@ -568,7 +595,9 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
           {(issues.error as Error).message}
         </p>
       ) : data.length === 0 ? (
-        <p className="py-4 text-center text-xs text-text-muted">No issues yet</p>
+        <p className="py-4 text-center text-xs text-text-muted">
+          {filters ? 'No matching issues' : 'No issues yet'}
+        </p>
       ) : (
         // v2.7.1 #242: table layout (ID / Title / Status / Updated). ID-first so
         // issues are easy to reference; ULID-tail handle (#126) + full id hover.
@@ -613,8 +642,19 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
   );
 }
 
+// T131: the project Task list reuses the global FilterBar (project dimension
+// fixed/hidden) and sends the same filter params to the project-scoped endpoint.
 function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const tasks = useTasksList(projectId);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [assignee, setAssignee] = useState<string>('');
+  const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
+  const filters = buildWorkItemFilters({
+    selectedStatuses,
+    selectedProjects: [],
+    assignee,
+    dateRange,
+  });
+  const tasks = useTasksList(projectId, filters);
   const [createOpen, setCreateOpen] = useState(false);
   // v2.7.1 #242: resolve the assignee ref → display name (raw ref on hover, #192).
   const resolveName = useDisplayNameResolver();
@@ -635,6 +675,20 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
           + New Task
         </button>
       </div>
+      <div className="mb-3">
+        <WorkItemFilterBar
+          kind="task"
+          hideProject
+          selectedStatuses={selectedStatuses}
+          onStatusesChange={setSelectedStatuses}
+          selectedProjects={[]}
+          onProjectsChange={() => {}}
+          assignee={assignee}
+          onAssigneeChange={setAssignee}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+        />
+      </div>
       {createOpen && (
         <TaskCreateModal projectId={projectId} onClose={() => setCreateOpen(false)} />
       )}
@@ -648,7 +702,9 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
           {(tasks.error as Error).message}
         </p>
       ) : data.length === 0 ? (
-        <p className="py-4 text-center text-xs text-text-muted">No tasks yet</p>
+        <p className="py-4 text-center text-xs text-text-muted">
+          {filters ? 'No matching tasks' : 'No tasks yet'}
+        </p>
       ) : (
         // v2.7.1 #242: table (ID / Title / Status / Assigned to / Priority / Updated).
         // Priority has no schema yet → "—" fallback (v2.8 #231).

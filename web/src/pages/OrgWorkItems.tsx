@@ -1,10 +1,10 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useOrgWorkItems, type OrgWorkItemFilters, type OrgWorkItemKind } from '@/api/orgWorkItems';
-import { OrgWorkItemsView, type DateRange } from '@/components/OrgWorkItemsView';
+import { useOrgWorkItems, buildWorkItemFilters, type OrgWorkItemKind } from '@/api/orgWorkItems';
+import { OrgWorkItemsView } from '@/components/OrgWorkItemsView';
+import { type DateRange } from '@/components/WorkItemFilterBar';
 import { OrgWorkItemCreateModal } from '@/components/OrgWorkItemCreateModal';
-import { localDateToRFC3339 } from '@/utils/time';
 
 // OrgWorkItems (v2.8 #258) — org-scoped cross-project Issues / Tasks aggregation
 // page (/organizations/:slug/issues|tasks). One component, two routes via the
@@ -32,25 +32,10 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
   // v2.10.0 [T3]: the selected row → drives the col④ read-only metadata panel.
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Build filters. empty status selection = omit status (backend default excludes
-  // terminal states). Each date param is converted local→RFC3339-offset (start =
-  // 00:00:00, end/"before" = 23:59:59) and omitted when its picker is empty.
-  const filters: OrgWorkItemFilters = {};
-  if (selectedStatuses.length > 0) filters.status = selectedStatuses;
-  // project = multi (repeated `project=<id>`, OR semantics backend-side);
-  // assignee = single (prefixed identity ref). Omitted when unset.
-  if (selectedProjects.length > 0) filters.project = selectedProjects;
-  if (assignee) filters.assignee = assignee;
-  const createdAfter = localDateToRFC3339(dateRange.created_after, 'start');
-  const createdBefore = localDateToRFC3339(dateRange.created_before, 'end');
-  const updatedAfter = localDateToRFC3339(dateRange.updated_after, 'start');
-  const updatedBefore = localDateToRFC3339(dateRange.updated_before, 'end');
-  if (createdAfter) filters.created_after = createdAfter;
-  if (createdBefore) filters.created_before = createdBefore;
-  if (updatedAfter) filters.updated_after = updatedAfter;
-  if (updatedBefore) filters.updated_before = updatedBefore;
-  const hasFilters = Object.keys(filters).length > 0;
-  const query = useOrgWorkItems(kind, slug, hasFilters ? filters : undefined);
+  // Build the wire filters from the FilterBar state (shared helper — the
+  // local-date→RFC3339-offset 命门 lives there). undefined when nothing is set.
+  const filters = buildWorkItemFilters({ selectedStatuses, selectedProjects, assignee, dateRange });
+  const query = useOrgWorkItems(kind, slug, filters);
 
   return (
     <>

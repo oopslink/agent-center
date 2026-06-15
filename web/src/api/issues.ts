@@ -1,18 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
+import { buildWorkItemQuery, type OrgWorkItemFilters } from './orgWorkItems';
 import type { Issue, IssueStatus } from './types';
 
 // Issues (v2.7 ProjectManager BC). Project-scoped: every read/write is
 // nested under /projects/{project_id}/issues. Responses are wrapped
 // ({ issues: [...] }) for the list; single endpoints return IssueMap.
 
-export function useIssues(projectId: string | undefined) {
+// T131: the project Issue list accepts the SAME filters as the org list (status /
+// created_*/updated_*; issues are not assignable). Filters become a query-key
+// SUFFIX (per-filter cache) while `qk.issuesByProject(projectId)` stays a PREFIX so
+// the existing create/update invalidations still refresh every filtered variant.
+export function useIssues(projectId: string | undefined, filters?: OrgWorkItemFilters) {
   return useQuery({
-    queryKey: qk.issuesByProject(projectId ?? ''),
+    queryKey: [...qk.issuesByProject(projectId ?? ''), filters ?? null],
     queryFn: async () => {
       const resp = await api.get<{ issues: Issue[] }>(
-        `/projects/${projectId}/issues`,
+        `/projects/${projectId}/issues${buildWorkItemQuery(filters)}`,
       );
       return resp.issues;
     },

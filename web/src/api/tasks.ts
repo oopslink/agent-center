@@ -1,18 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
+import { buildWorkItemQuery, type OrgWorkItemFilters } from './orgWorkItems';
 import type { Task, TaskStatus } from './types';
 
 // Tasks (v2.7 ProjectManager BC). Project-scoped: every read/write is
 // nested under /projects/{project_id}/tasks. The list response is
 // wrapped ({ tasks: [...] }); single + action endpoints return TaskMap.
 
-export function useTasksList(projectId: string | undefined) {
+// T131: the project Task list accepts the SAME filters as the org list (status /
+// assignee / created_*/updated_*) — the project dimension is fixed by the path,
+// so `filters.project` is unused here. The filters become a query-key SUFFIX so
+// each filtered view caches separately, while `qk.tasksByProject(projectId)` stays
+// a PREFIX — the existing create/update invalidations still refresh every variant.
+export function useTasksList(projectId: string | undefined, filters?: OrgWorkItemFilters) {
   return useQuery({
-    queryKey: qk.tasksByProject(projectId ?? ''),
+    queryKey: [...qk.tasksByProject(projectId ?? ''), filters ?? null],
     queryFn: async () => {
       const resp = await api.get<{ tasks: Task[] }>(
-        `/projects/${projectId}/tasks`,
+        `/projects/${projectId}/tasks${buildWorkItemQuery(filters)}`,
       );
       return resp.tasks;
     },
