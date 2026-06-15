@@ -52,7 +52,8 @@ function TopLevelWorkspaceNav({ orgBase }: { orgBase: string }): React.ReactElem
     { to: `${orgBase}/projects`, label: 'Projects', Icon: ProjectsIcon },
     { to: `${orgBase}/issues`, label: 'Issues', Icon: IssueIcon },
     { to: `${orgBase}/tasks`, label: 'Tasks', Icon: TaskIcon },
-    { to: `${orgBase}/plans`, label: 'Plan', Icon: PlanIcon },
+    // v2.10.2 [T142]: "Plan" → "Plans" (plural, consistent with the siblings).
+    { to: `${orgBase}/plans`, label: 'Plans', Icon: PlanIcon },
   ];
   return (
     <div data-testid="workspace-nav-toplevel">

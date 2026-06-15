@@ -76,7 +76,9 @@ export default function OrgPlansPage(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-OrgPlans">
       <header className="space-y-2 border-b border-border-base pb-3">
-        <h1 className="text-xl font-semibold text-text-primary">Plan</h1>
+        {/* v2.10.2 [T142]: "Plans" (plural) — matches the Workspace nav + the
+            Projects/Issues/Tasks list-page title convention. */}
+        <h1 className="text-xl font-semibold text-text-primary">Plans</h1>
         <div
           className="space-y-2 rounded-md border border-border-base bg-bg-subtle/40 p-2.5"
           data-testid="org-plans-filterbar"
