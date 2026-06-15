@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -663,4 +664,73 @@ func (f *planAPIFixture) seedSelectedTask(t *testing.T, sess testSession, pid pm
 	}
 	f.drain(t)
 	return tid
+}
+
+// fakeNodeResumerWC is a webconsole-test NodeResumer: it returns a configured error
+// so the handler's error→HTTP mapping can be exercised in isolation (T101).
+type fakeNodeResumerWC struct{ err error }
+
+func (f fakeNodeResumerWC) ResumePausedNode(_ context.Context, _ string) error { return f.err }
+
+// T101: the operator resume endpoint maps the resume preconditions to ACCURATE,
+// SPECIFIC error codes so the Plan UI shows a real reason (not a generic retry).
+// The two an operator actually hits: plan_not_running and agent_busy (the agent
+// paused this item to switch to another, so it can't be double-activated).
+func TestPMResumePausedNode_ErrorMapping(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans", `{"name":"v3"}`, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("create plan status=%d", resp.StatusCode)
+	}
+	planID := decodeBody(t, resp)["id"].(string)
+	fx.drain(t)
+	tid := fx.seedSelectedTask(t, sess, pid, pm.PlanID(planID), "node", "user:"+sess.IdentityID)
+
+	// Resume requires a wired NodeResumer (composition-root in prod; a fake here).
+	fx.deps.PM.SetNodeResumer(fakeNodeResumerWC{})
+	resumeURL := s.URL + "/api/projects/" + string(pid) + "/plans/" + planID + "/nodes/" + string(tid) + "/resume"
+
+	// (1) Draft plan → ErrPlanNotRunning → 409 plan_not_running (the T101 mapping,
+	// parity with the agent-tools path; previously the generic plan_conflict).
+	resp = orgScopedPost(t, resumeURL, `{}`, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("draft resume status=%d want 409", resp.StatusCode)
+	}
+	if code := decodeBody(t, resp)["error"]; code != "plan_not_running" {
+		t.Fatalf("draft resume error=%v want plan_not_running", code)
+	}
+
+	// Start the plan so the running guard passes and the resumer's error surfaces.
+	resp = orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+planID+"/start", `{}`, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("start status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+
+	// (2) Agent busy on another item → 409 agent_busy.
+	fx.deps.PM.SetNodeResumer(fakeNodeResumerWC{err: agent.ErrAgentHasActiveWork})
+	resp = orgScopedPost(t, resumeURL, `{}`, sess)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("busy resume status=%d want 409", resp.StatusCode)
+	}
+	if code := decodeBody(t, resp)["error"]; code != "agent_busy" {
+		t.Fatalf("busy resume error=%v want agent_busy", code)
+	}
+
+	// (3) Nothing paused → 409 node_not_paused.
+	fx.deps.PM.SetNodeResumer(fakeNodeResumerWC{err: pmservice.ErrNodeNotPaused})
+	resp = orgScopedPost(t, resumeURL, `{}`, sess)
+	if code := decodeBody(t, resp)["error"]; code != "node_not_paused" {
+		t.Fatalf("not-paused resume error=%v want node_not_paused", code)
+	}
 }

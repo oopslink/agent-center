@@ -136,6 +136,54 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(resumedTask).toBe('np'));
   });
 
+  // T101: when the node is paused because its agent set the item aside to switch
+  // to ANOTHER task, the agent is now busy → the backend refuses (409 agent_busy).
+  // The operator must see WHY (accurate hint), not a generic "try again".
+  it('shows an accurate hint (not the generic error) when resume fails agent_busy (T101)', async () => {
+    mockPlan({
+      nodes: [
+        { task_id: 'np', title: 'paused node', assignee_ref: 'agent:dev', task_status: 'running', node_status: 'paused', depends_on: [] },
+      ],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/nodes/:taskId/resume', () =>
+        HttpResponse.json(
+          { error: 'agent_busy', message: "the node's agent is busy on another work item; try again after it settles" },
+          { status: 409 },
+        ),
+      ),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await waitFor(() => expect(screen.getByTestId('plan-task-list')).toBeInTheDocument());
+    await act(async () => fireEvent.click(screen.getByTestId('plan-node-resume-np')));
+    const err = await screen.findByTestId('plan-node-resume-error-np');
+    expect(err).toHaveTextContent(/busy on another/i);
+    expect(err.textContent ?? '').not.toMatch(/Please try again/i);
+  });
+
+  it('shows a "nothing to resume" hint when resume fails node_not_paused (T101)', async () => {
+    mockPlan({
+      nodes: [
+        { task_id: 'np', title: 'paused node', assignee_ref: 'agent:dev', task_status: 'running', node_status: 'paused', depends_on: [] },
+      ],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/nodes/:taskId/resume', () =>
+        HttpResponse.json(
+          { error: 'node_not_paused', message: 'the plan node has no paused work item to resume' },
+          { status: 409 },
+        ),
+      ),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    await waitFor(() => expect(screen.getByTestId('plan-task-list')).toBeInTheDocument());
+    await act(async () => fireEvent.click(screen.getByTestId('plan-node-resume-np')));
+    const err = await screen.findByTestId('plan-node-resume-error-np');
+    expect(err).toHaveTextContent(/no paused work item|already resumed/i);
+  });
+
   it('shows Start when draft (not Stop) and calls useStartPlan', async () => {
     let started = false;
     mockPlan({ status: 'draft', has_failed: false });

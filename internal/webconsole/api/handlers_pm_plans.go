@@ -445,6 +445,11 @@ func (s *Server) pmResumePausedNodeHandler(w http.ResponseWriter, r *http.Reques
 			writeError(w, http.StatusConflict, "agent_busy", "the node's agent is busy on another work item; try again after it settles")
 		case errors.Is(err, pmservice.ErrTaskNotInPlan):
 			writeError(w, http.StatusNotFound, "not_found", "the task is not a node of this plan")
+		// T101: parity with the agent-tools (MCP) path — give a SPECIFIC plan_not_running
+		// code/message instead of the generic plan_conflict from mapPlanError, so the
+		// operator UI can render an accurate hint.
+		case errors.Is(err, pm.ErrPlanNotRunning):
+			writeError(w, http.StatusConflict, "plan_not_running", "the plan is not running, so its nodes can't be resumed")
 		case errors.Is(err, pmservice.ErrNodeResumerUnavailable):
 			writeError(w, http.StatusNotImplemented, "pm_not_wired", "paused-node resume is not available")
 		default:
