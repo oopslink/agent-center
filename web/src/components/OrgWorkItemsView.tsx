@@ -1,6 +1,6 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
-import { StatusChip, idHandle, shortDate, statusSolidClass, statusDotClass } from '@/components/workItemDisplay';
+import { StatusChip, refLabel, shortDate, statusSolidClass, statusDotClass } from '@/components/workItemDisplay';
 import { useProjects } from '@/api/projects';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
 import { ContextPanel } from '@/shell/contextPanel';
@@ -379,7 +379,7 @@ export function OrgWorkItemsView({
                 >
                   <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="org-workitem-id" title={it.id}>
                     {/* org_ref (I12/T34) when present; else id-tail handle (#192 id-as-content). */}
-                    {it.org_ref || `#${idHandle(it.id)}`}
+                    {refLabel(it.org_ref, it.id)}
                   </td>
                   <td className="py-1.5 pr-3" data-testid="org-workitem-project">
                     <OrgLink
@@ -467,7 +467,7 @@ export function OrgWorkItemsView({
                       title={it.id}
                     >
                       {/* org_ref (I12/T34) when present; else id-tail handle (#192). */}
-                      {it.org_ref || `#${idHandle(it.id)}`}
+                      {refLabel(it.org_ref, it.id)}
                     </span>
                     <StatusChip status={it.status} />
                   </div>
@@ -586,7 +586,7 @@ function WorkItemMetaPanel({
 
       <div className="border-b border-border-base px-4 pb-2.5 pt-1.5">
         <MetaKV k="ID">
-          <span className="font-mono text-[0.6875rem]">{item.org_ref || `#${idHandle(item.id)}`}</span>
+          <span className="font-mono text-[0.6875rem]">{refLabel(item.org_ref, item.id)}</span>
         </MetaKV>
         <MetaKV k="Created"><span className="tabular-nums">{shortDate(item.created_at)}</span></MetaKV>
         <MetaKV k="Updated"><span className="tabular-nums">{shortDate(item.updated_at)}</span></MetaKV>

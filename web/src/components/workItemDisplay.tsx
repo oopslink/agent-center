@@ -62,11 +62,18 @@ export function StatusChip({ status }: { status: string }): React.ReactElement {
   );
 }
 
-// idHandle — short, distinguishable handle for an entity id used as id-as-content
-// (#126/#192): the ULID TAIL (the head is a shared-window timestamp). Full id
-// belongs on hover (`title`).
-export function idHandle(id: string): string {
-  return id.slice(-6);
+// refLabel — the human identity label for a work item / plan node / plan: its
+// org_ref ("T123" / "I7" / "P12") when present, else the FULL entity id shown
+// verbatim as id-as-content (the full id also belongs on hover, `title`).
+//
+// T126: the retired short-hash id-tail encoding is NEVER produced — a missing
+// org_ref degrades to the FULL id, not a 6-char hash (e.g. 4e2e71). This is the
+// single fallback every "id-as-content" surface uses, replacing the old
+// org_ref-or-hash pattern. A grep guard (scripts/lint/no-idtail-hash.sh)
+// backstops it so the id-tail-hash form cannot return.
+export function refLabel(orgRef: string | undefined | null, id: string): string {
+  const ref = (orgRef ?? '').trim();
+  return ref !== '' ? ref : id;
 }
 
 // shortDate — today → time, yesterday → "Yesterday", else locale date.

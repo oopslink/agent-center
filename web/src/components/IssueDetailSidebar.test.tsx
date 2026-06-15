@@ -93,9 +93,10 @@ describe('IssueDetailSidebar (v2.8.1 sidebar-align)', () => {
     expect(screen.getByTestId('issue-status-duration')).toBeInTheDocument();
   });
 
-  it('falls back to the id handle (tail) when org_ref is absent', () => {
+  it('falls back to the FULL id (never a #id-tail hash) when org_ref is absent (T126)', () => {
     renderSidebar(<IssueDetailSidebar issue={makeIssue({ org_ref: undefined })} onEdit={() => {}} editable />);
-    // idHandle = last 6 chars of "issue-01KT8DABCDEF".
-    expect(screen.getByTestId('issue-id-pill')).toHaveTextContent('ABCDEF');
+    // T126: no org_ref → the full id is shown verbatim, NOT a 6-char hash.
+    expect(screen.getByTestId('issue-id-pill')).toHaveTextContent('issue-01KT8DABCDEF');
+    expect(screen.getByTestId('issue-id-pill')).not.toHaveTextContent('#');
   });
 });

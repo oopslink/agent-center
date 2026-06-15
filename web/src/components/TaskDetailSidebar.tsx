@@ -5,14 +5,14 @@ import { Avatar } from '@/components/Avatar';
 import { EntityRef } from '@/components/EntityRef';
 import { useSenderSidebar } from '@/components/SenderSidebarContext';
 import { StatusBlock } from '@/components/IssueTaskSidebar';
-import { idHandle } from '@/components/workItemDisplay';
+import { refLabel } from '@/components/workItemDisplay';
 import { tagColorFor } from '@/components/tagColors';
 import { formatLocalTime, formatStatusDuration } from '@/utils/time';
 
 // TaskDetailSidebar — the @oopslink mockup's TWO-SECTION Task detail sidebar.
 // It is TaskDetail-specific (the editable/read-only split + the live status
 // duration + tag chips are not shared with IssueDetail), so it is built from
-// the shared primitives (StatusBlock, Avatar, EntityRef, idHandle) rather than
+// the shared primitives (StatusBlock, Avatar, EntityRef, refLabel) rather than
 // bending the shared IssueTaskSidebar — IssueDetail keeps using IssueTaskSidebar
 // untouched.
 //
@@ -231,7 +231,7 @@ export function TaskDetailSidebar({
             data-testid="task-id-pill"
             title={tk.id}
           >
-            {tk.org_ref || idHandle(tk.id)}
+            {refLabel(tk.org_ref, tk.id)}
           </span>
         </div>
 

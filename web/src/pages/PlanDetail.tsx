@@ -22,7 +22,7 @@ import {
   type PatchPlanInput,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
-import { useTasksList, useAssignTask, useUnassignTask } from '@/api/tasks';
+import { useAssignTask, useUnassignTask } from '@/api/tasks';
 import {
   useDisplayNameResolver,
   useMembers,
@@ -36,7 +36,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
-import { StatusChip, idHandle } from '@/components/workItemDisplay';
+import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
@@ -795,24 +795,11 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
   );
 }
 
-// v2.9.1 UX point 1: the human Task id (org_ref, e.g. "T123") is on the Task DTO,
-// not the PlanNode. Resolve it FE-side via the project's task list (one cached
-// query) → a task_id → org_ref map. Returns a resolver; absent/not-yet-loaded →
-// undefined (callers fall back to the #id-tail handle, the established pattern).
-function useTaskOrgRefResolver(projectId: string): (taskId: string) => string | undefined {
-  const tasks = useTasksList(projectId);
-  return useMemo(() => {
-    const map = new Map<string, string>();
-    for (const t of tasks.data ?? []) {
-      if (t.org_ref) map.set(t.id, t.org_ref);
-    }
-    return (taskId: string) => map.get(taskId);
-  }, [tasks.data]);
-}
-
 // TaskIdTag — a small monospace pill showing the human Task id (org_ref "T123"),
-// falling back to "#"+id-tail when there's no org_ref (#192 id-as-content). Solid
-// theme tokens (both-mode AA, no alpha-tint). Full task_id on hover.
+// taken DIRECTLY from the PlanNode's own org_ref (api/plans PlanNode.org_ref —
+// list_plans/detail already return it; T126 removed the old FE task-list re-
+// resolver that missed completed tasks → #id-tail). Falls back to the FULL
+// task_id (never a #id-tail hash) when org_ref is absent. Full task_id on hover.
 function TaskIdTag({
   taskId,
   orgRef,
@@ -822,7 +809,7 @@ function TaskIdTag({
   orgRef?: string;
   testId: string;
 }): React.ReactElement {
-  const label = orgRef || `#${idHandle(taskId)}`;
+  const label = refLabel(orgRef, taskId);
   return (
     <span
       className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
@@ -1030,11 +1017,9 @@ function SyntheticAnchorMarker({
 function PlanStepper({
   positioned,
   projectId,
-  orgRefOf,
 }: {
   positioned: Positioned[];
   projectId: string;
-  orgRefOf: (taskId: string) => string | undefined;
 }): React.ReactElement {
   // Topological-ish order: DAG level, then stable vertical position within it.
   const ordered = useMemo(
@@ -1071,7 +1056,7 @@ function PlanStepper({
             />
             <div className={`rounded-lg border bg-bg-elevated p-2.5 shadow-1 ${s.border}`}>
               <div className="mb-1 flex items-center justify-between gap-2">
-                <TaskIdTag taskId={taskId} orgRef={orgRefOf(taskId)} testId="plan-stepper-taskid" />
+                <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-stepper-taskid" />
                 <span className="inline-flex items-center gap-1">
                   <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
                   <NodeStateChip status={p.node.node_status} />
@@ -1081,7 +1066,7 @@ function PlanStepper({
               <TaskTitleLink
                 projectId={projectId}
                 taskId={taskId}
-                title={p.node.title || `#${idHandle(taskId)}`}
+                title={p.node.title || refLabel(p.node.org_ref, taskId)}
                 className="min-h-[44px] py-1 text-sm font-semibold"
               />
               <div className="mt-0.5 text-xs">
@@ -1098,7 +1083,6 @@ function PlanStepper({
 function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
-  const orgRefOf = useTaskOrgRefResolver(projectId);
   // v2.9.1 UX point 2: a "Compact" toggle uniformly zooms the DAG down so a long
   // (many-level) / wide plan fits in view without endless horizontal scrolling.
   // CSS transform (content scales cleanly, no node-content overflow); the scroll
@@ -1121,7 +1105,7 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
   const titleOf = useCallback(
     (taskId: string) => {
       const n = nodes.find((m) => m.task_id === taskId);
-      return n?.title || `#${idHandle(taskId)}`;
+      return n?.title || refLabel(n?.org_ref, taskId);
     },
     [nodes],
   );
@@ -1243,7 +1227,7 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
         <>
         {/* v2.10.1 [M4] Mobile (<md): the left→right SVG DAG becomes a vertical
             stepper. The desktop graph + its controls are md:-only. */}
-        <PlanStepper positioned={positioned} projectId={projectId} orgRefOf={orgRefOf} />
+        <PlanStepper positioned={positioned} projectId={projectId} />
         {/* v2.9.1 point 2: compact (zoom-to-fit) toggle for long/wide DAGs. */}
         <div className="mb-2 hidden items-center justify-between gap-2 md:flex">
           {/* Connect-mode banner (point 3, draft-only): shown while a connection
@@ -1397,7 +1381,7 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                 >
                   {/* v2.9.1 UX point 1: human Task id (T-number) visible on the node. */}
                   <div className="mb-1 flex items-center justify-between gap-1">
-                    <TaskIdTag taskId={taskId} orgRef={orgRefOf(taskId)} testId="plan-node-taskid" />
+                    <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-node-taskid" />
                     {/* Draft connect control (point 3): a real keyboard-focusable
                         button. Activating enters connect mode with this node as
                         the source. Hidden once running/done (display-only). */}
@@ -1419,7 +1403,7 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                     <TaskTitleLink
                       projectId={projectId}
                       taskId={taskId}
-                      title={p.node.title || `#${idHandle(taskId)}`}
+                      title={p.node.title || refLabel(p.node.org_ref, taskId)}
                     />
                   </div>
                   <div className="flex items-center justify-between gap-1.5">
@@ -1546,22 +1530,22 @@ function memberRef(m: MemberResult): string {
 function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const canRemove = plan.status === 'draft';
-  const orgRefOf = useTaskOrgRefResolver(projectId);
   const members = useMembers();
   const [query, setQuery] = useState('');
 
   // Case-insensitive filter on title OR Task-id (org_ref) OR assignee handle.
-  // Empty box ⇒ ALL nodes (never capped). Matching keeps input order.
+  // Empty box ⇒ ALL nodes (never capped). Matching keeps input order. org_ref
+  // comes straight off the node (T126).
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return nodes;
     return nodes.filter((n) => {
-      const orgRef = orgRefOf(n.task_id) ?? '';
+      const orgRef = n.org_ref ?? '';
       const assignee = n.assignee_ref ? normalizeIdentityRef(n.assignee_ref) : '';
       const haystack = `${n.title ?? ''} ${orgRef} ${assignee}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [nodes, query, orgRefOf]);
+  }, [nodes, query]);
 
   return (
     <div data-testid="plan-task-list">
@@ -1609,7 +1593,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
                       projectId={projectId}
                       planId={plan.id}
                       node={n}
-                      orgRef={orgRefOf(n.task_id)}
+                      orgRef={n.org_ref}
                       canRemove={canRemove}
                       members={members.data ?? []}
                     />
@@ -1678,7 +1662,7 @@ function PlanTaskRow({
     if (next === '') unassign.mutate();
     else assign.mutate({ assignee: next });
   };
-  const title = node.title || `#${idHandle(node.task_id)}`;
+  const title = node.title || refLabel(node.org_ref, node.task_id);
   return (
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
       {/* v2.9.1 UX point 1: human Task id (T-number) column. */}
@@ -1770,7 +1754,7 @@ function PlanTaskRow({
             type="button"
             className="rounded border border-border-strong bg-bg-subtle px-2 py-0.5 text-[0.6875rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary disabled:opacity-50"
             disabled={remove.isPending}
-            aria-label={`Remove ${node.title || idHandle(node.task_id)} from plan`}
+            aria-label={`Remove ${node.title || refLabel(node.org_ref, node.task_id)} from plan`}
             title="Remove from plan (back to backlog)"
             data-testid={`plan-task-remove-${node.task_id}`}
             onClick={() => remove.mutate(node.task_id)}
