@@ -11,6 +11,7 @@ import { IssueDetailSidebar } from '@/components/IssueDetailSidebar';
 import { IssueAttachments } from '@/components/AttachmentsSection';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { MobileMetaSummary, MobileDetailsPanel, useIsMobile } from '@/components/WorkItemMobileMeta';
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
 // ProjectManager BC: the issue is project-scoped and driven entirely by
@@ -30,6 +31,8 @@ export default function IssueDetail(): React.ReactElement {
   // v2.7 #192: parent project shown by name (raw id on hover), not raw project id.
   const project = useProject(issue.data?.project_id);
   const [editOpen, setEditOpen] = useState(false);
+  // T145: drop the title from the breadcrumb leaf on mobile (the <h2> shows it).
+  const isMobile = useIsMobile();
 
   if (issue.isLoading) {
     return (
@@ -70,7 +73,13 @@ export default function IssueDetail(): React.ReactElement {
             { label: 'Projects', to: '/projects' },
             { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(iss.project_id)}` },
             { label: 'Issues' },
-            { label: iss.org_ref ? `${iss.org_ref} - ${iss.title || iss.id}` : iss.title || iss.id },
+            {
+              label: isMobile
+                ? iss.org_ref || 'Issue'
+                : iss.org_ref
+                  ? `${iss.org_ref} - ${iss.title || iss.id}`
+                  : iss.title || iss.id,
+            },
           ]}
         />
       </div>
@@ -80,13 +89,22 @@ export default function IssueDetail(): React.ReactElement {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="border-b border-border-base pb-3">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold">
+              {/* T145: clamp the title to 2 lines on mobile (full title on ≥md). */}
+              <h2 className="line-clamp-2 text-lg font-semibold md:line-clamp-none md:text-xl">
                 {iss.org_ref && <span className="text-text-muted" data-testid="issue-org-ref">{iss.org_ref} · </span>}
                 {iss.title || iss.id}
               </h2>
               <TypeChip kind="issue" />
             </div>
           </header>
+
+          {/* T145: mobile-only meta summary (status) ABOVE the description so the
+              key metadata is on the first screen (Issues have no assignee/plan). */}
+          <MobileMetaSummary
+            status={iss.status}
+            statusChangedAt={iss.status_changed_at}
+            projectId={iss.project_id}
+          />
 
           {iss.description ? (
             // @oopslink: markdown render + capped height so a long description
@@ -110,13 +128,29 @@ export default function IssueDetail(): React.ReactElement {
             <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
           </div>
 
+          {/* T145: mobile-only collapsible "Details" (compact rows + Edit), moved
+              down below the summary; desktop keeps the sidebar. */}
+          <MobileDetailsPanel
+            kind="issue"
+            projectId={iss.project_id}
+            projectName={project.data?.name}
+            itemId={iss.id}
+            orgRef={iss.org_ref}
+            createdAt={iss.created_at}
+            tags={iss.tags ?? []}
+            editable={!isTerminal}
+            onEdit={() => setEditOpen(true)}
+          />
+
           <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
         </div>
 
         {/* right sidebar — 2-section IssueDetail layout (read-only display top /
             read-only bottom), mirror of TaskDetailSidebar minus assignee. The
-            ONLY edit path is the Edit-Issue pencil → modal. */}
-        <div className="shrink-0 overflow-y-auto lg:w-72">
+            ONLY edit path is the Edit-Issue pencil → modal.
+            T145: hidden on mobile (<md) — the mobile meta summary + Details panel
+            above replace it so status isn't buried at the bottom. */}
+        <div className="hidden shrink-0 overflow-y-auto md:block lg:w-72">
           <IssueDetailSidebar
             issue={iss}
             projectName={project.data?.name}
