@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -78,7 +78,11 @@ describe('OrgWorkItems page (#258)', () => {
     const title = screen.getByTestId('org-workitem-title');
     expect(title.getAttribute('href')).toContain('/projects/proj-a/issues/issue-01KT8DABCDEF');
     // Status chip colored.
-    expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'in_progress');
+    // v2.10.1 [M3]: both table + mobile card render a StatusChip (dual-render),
+    // so scope to the table row to disambiguate the duplicate testid.
+    expect(
+      within(screen.getByTestId('org-workitem-row')).getByTestId('status-chip'),
+    ).toHaveAttribute('data-status', 'in_progress');
     // Issues are not assignable (pm domain) → "—".
     expect(screen.getByTestId('org-workitem-assignee')).toHaveTextContent('—');
   });
@@ -92,7 +96,9 @@ describe('OrgWorkItems page (#258)', () => {
     expect(screen.getByTestId('org-workitem-id')).toHaveTextContent('T34');
     const title = screen.getByTestId('org-workitem-title');
     expect(title.getAttribute('href')).toContain('/projects/proj-b/tasks/task-01KT8DXYZ789');
-    expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'running');
+    expect(
+      within(screen.getByTestId('org-workitem-row')).getByTestId('status-chip'),
+    ).toHaveAttribute('data-status', 'running');
     const assignee = screen.getByTestId('org-workitem-assignee');
     expect(assignee).toHaveTextContent('Bot Nine');
     expect(assignee.querySelector('[title="agent-bot9"]')).not.toBeNull();
@@ -531,5 +537,48 @@ describe('OrgWorkItems col④ metadata panel (v2.10.0 [T3])', () => {
     expect(screen.getByTestId('org-workitem-meta-open').getAttribute('href')).toContain(
       '/projects/proj-a/issues/issue-01KT8DABCDEF',
     );
+  });
+});
+
+// v2.10.1 [M3] mobile (<md): the wide table reflows to a card flow (md:hidden,
+// no horizontal scroll = critical①). jsdom renders both; these specs assert the
+// card list mirrors the rows and drives the same selection → col④.
+describe('OrgWorkItems mobile card flow (v2.10.1 [M3])', () => {
+  afterEach(() => cleanup());
+
+  it('renders a card per work item mirroring the row (id / title link / status)', async () => {
+    server.use(
+      http.get('/api/tasks', () =>
+        HttpResponse.json({ items: [taskRow(), taskRow({ id: 'task-2', org_ref: 'T35', title: 'second' })], total: 2 }),
+      ),
+    );
+    wrap('task', '/organizations/acme/tasks');
+    await waitFor(() => expect(screen.getByTestId('org-workitems-cards')).toBeInTheDocument());
+    const cards = screen.getAllByTestId('org-workitem-card');
+    expect(cards).toHaveLength(2);
+    // org_ref (T34) shown, full id on hover.
+    expect(within(cards[0]).getByTestId('org-workitem-card-id')).toHaveTextContent('T34');
+    expect(within(cards[0]).getByTestId('org-workitem-card-id')).toHaveAttribute('title', 'task-01KT8DXYZ789');
+    // title links into the task detail (cross-project path).
+    expect(within(cards[0]).getByTestId('org-workitem-card-title').getAttribute('href')).toContain(
+      '/projects/proj-b/tasks/task-01KT8DXYZ789',
+    );
+    // status chip + assignee surface on the card.
+    expect(within(cards[0]).getByTestId('status-chip')).toHaveAttribute('data-status', 'running');
+    expect(within(cards[0]).getByText('Bot Nine')).toBeInTheDocument();
+  });
+
+  it('tapping a card selects it → opens the col④ metadata (M1 reflows to a sheet)', async () => {
+    server.use(
+      http.get('/api/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })),
+    );
+    wrapShell('/organizations/acme/tasks');
+    const card = await screen.findByTestId('org-workitem-card');
+    expect(card).toHaveAttribute('aria-selected', 'false');
+    fireEvent.click(card);
+    const panel = await screen.findByTestId('org-workitem-meta-panel');
+    expect(panel).toHaveAttribute('data-id', 'task-01KT8DXYZ789');
+    expect(screen.getByTestId('org-workitem-card')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('ctx-col')).toHaveAttribute('data-open', 'true');
   });
 });
