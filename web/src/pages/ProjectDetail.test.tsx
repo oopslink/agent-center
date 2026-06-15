@@ -265,6 +265,59 @@ describe('ProjectDetail page', () => {
     expect(repoRow).toHaveTextContent('main repo');
   });
 
+  // T131: the per-project Task/Issue lists reuse the global FilterBar with the
+  // project dimension FIXED — the Project picker is hidden, every other filter is
+  // open, and the selections are sent as query params to the project-scoped list.
+  it('T131: project Tasks list reuses the FilterBar (no Project picker) + sends status/assignee params', async () => {
+    const taskUrls: string[] = [];
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/proj-a/tasks', ({ request }) => {
+        taskUrls.push(request.url);
+        return HttpResponse.json({ tasks: [] });
+      }),
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/projects', () => HttpResponse.json({ projects: [] })),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Project Alpha' })).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('project-tab-tasks'));
+
+    // The shared FilterBar renders with status chips + assignee, but the Project
+    // picker is hidden (the project is fixed by the page).
+    await waitFor(() => expect(screen.getByTestId('org-workitems-filterbar')).toBeInTheDocument());
+    expect(screen.getByTestId('org-filter-status-running')).toBeInTheDocument();
+    expect(screen.getByTestId('org-filter-assignee')).toBeInTheDocument();
+    expect(screen.queryByTestId('org-filter-project')).not.toBeInTheDocument();
+
+    // Selecting a status sends ?status=running to the PROJECT-scoped endpoint.
+    fireEvent.click(screen.getByTestId('org-filter-status-running'));
+    await waitFor(() => expect(taskUrls.some((u) => u.includes('status=running'))).toBe(true));
+  });
+
+  it('T131: project Issues list reuses the FilterBar (no Project picker) + sends status param', async () => {
+    const issueUrls: string[] = [];
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/issues', ({ request }) => {
+        issueUrls.push(request.url);
+        return HttpResponse.json({ issues: [] });
+      }),
+      http.get('/api/projects/proj-a/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/projects', () => HttpResponse.json({ projects: [] })),
+    );
+    wrap('/projects/proj-a');
+    // Issues is the default tab.
+    await waitFor(() => expect(screen.getByTestId('org-workitems-filterbar')).toBeInTheDocument());
+    expect(screen.getByTestId('org-filter-status-resolved')).toBeInTheDocument();
+    expect(screen.queryByTestId('org-filter-project')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('org-filter-status-resolved'));
+    await waitFor(() => expect(issueUrls.some((u) => u.includes('status=resolved'))).toBe(true));
+  });
+
   it('owner sees Add + can Remove a non-owner member (#207)', async () => {
     useAppStore.setState({ currentUserId: 'user:hayang' });
     let removed: string | null = null;
