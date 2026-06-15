@@ -1,0 +1,38 @@
+# v2.10.1 设计契约（mockup = contract，dev 照做）
+
+v2.10.1 = **移动端体验优化**（把 v2.10.0 三栏桌面适配到 <768 移动）+ **claimability 规则** + **4 条桌面/Plan UI 增强**。
+所有 mockup 复用 v2.10.0 设计系统 token（`mods.css`，与 v2.10.0 同源）。`≥md` 维持三栏，`<md` 切移动布局。
+
+## 任务 ↔ mockup 文件对照
+
+### 移动适配（导航 A = 底部 Tab，col①四模块；col②整屏列表 → col③整屏详情 → col④底部 sheet）
+| 节点 | 任务 | mockup |
+|------|------|--------|
+| M1 Mobile Shell | task-aab6eb82 | `v2.10.1-mobile.html`（导航壳/底 Tab 帧） |
+| M2 Conversations | task-4d5bcc79 | `v2.10.1-mobile.html`（Conversations 帧） |
+| M3 Workspace 列表 | task-8aecc929 | `v2.10.1-mobile.html`（Tasks/Issues 卡片流帧） |
+| M4 Plan（DAG→纵向 stepper） | task-fdff6e8b | `v2.10.1-mobile.html`（Plan Chat/DAG-stepper/Task 帧） |
+| M5 Work Board（竖滑+横屏 landscape） | task-f45880ad | `workboard-mobile.html`（竖屏横滑 vs 横屏对比） |
+| M6 Members | task-ef6fc35a | `v2.10.1-mobile.html`（Members 帧） |
+| M7 System | task-0b4b275e | `v2.10.1-mobile.html`（System 帧） |
+
+### claimability
+| 节点 | 任务 | 说明 |
+|------|------|------|
+| claimability | task-2c899f57 | backlog task 不可领；仅 Assignment Pool 或 ready plan 节点可领。后端 claimable 派生 + 类守护；无独立 mockup（规则/守护，前端在列表标"不可领"态）。 |
+
+### 桌面 / Plan UI 增强（仅 ≥md 桌面）
+| 节点 | 任务 | mockup | dev 要点 |
+|------|------|--------|----------|
+| T93 Thread 面板拖拽调宽 | task-97c7600a | `desk-thread-resize.html` | Thread 面板（col④）左缘 resize grip，`cursor:col-resize`；min ~320px / **max 75vw**；宽度 localStorage 持久化；主内容随之压缩。 |
+| T94 Channel 侧栏 Chat/Threads/Files Tab | task-67fff619 | `desk-channel-tabs.html` | 侧栏三 tab 分段头（Chat/Threads/Files）。**⚠️ IA 待 owner 定**：variant A(荐)=侧栏仅 Threads/Files、主聊天留 col③；variant B=三 tab 组织整块（owner 字面）。mockup 主画 B + 标注 A。 |
+| T95 参与者侧栏拖拽调宽 | task-412a6835 | `desk-participant-resize.html` | 参与者侧栏复用 **T93 同一个 ResizablePanel 组件**（grip/col-resize/min320/max75vw/持久化）。 |
+| T96 全局 Plan 列表查看 archived | task-4f903bf7 | `desk-plan-archived.html` | Plan 列表 header 加 Active/Archived 分段筛选；Archived 行灰显 + "Archived" 角标；点进去 = **只读详情**（DAG/节点/历史可看，不可改/不可 start）；**本轮不做 unarchive**（owner 拍：仅可查看）。 |
+
+## 集成 / 验收
+- INT task-5a501b96：IntegrationDev 合并各移动模块 + claimability + 4 条桌面增强进 v2.10.1（增量 --no-ff，dev done → PD §-1 绿 → 合）。
+- ACC task-b2dbbd40：验收门 = PD §-1（每模块+集成树）+ Tester1 claimability authz 硬门 + Tester2 run-real 逐模块对照本目录 mockup（移动 8 模块 + 4 条桌面，明暗双模、关键步骤截图）。
+
+## 注记
+- 桌面增强 mockup 的 shell chrome 内联样式沿用 v2.10.0 mockup 既有写法（`.desk4`/`.rail`/`.c2`/`.main`/`.ctx` 在各文件 `<style>` 内联），可复用 token 来自 `mods.css`。
+- T94 的 IA 取舍由 owner 定稿后，dev 以最终选择实现；未定前按 variant A（推荐）预备结构。

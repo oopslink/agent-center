@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>桌面 · Channel 三 Tab 侧栏(Chat / Threads / Files)</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .desk4{display:grid;grid-template-columns:66px 250px 1fr 320px;height:548px;position:relative}
+  .rail{background:#1e1b34;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+  .rail .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:10px;font-size:15px}
+  .ri{width:46px;height:44px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c7c3e0;font-size:18px;gap:2px} .ri small{font-size:8px} .ri.active{background:rgba(255,255,255,.16);color:#fff} .rail .sp{flex:1}
+  .c2{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+  .c2h{padding:12px 14px 10px;border-bottom:1px solid var(--border)} .c2h h2{margin:0;font-size:15px} .c2h .s{margin-top:9px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:6px 9px;color:var(--tm);font-size:12px}
+  .c2sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--tm);font-weight:700;padding:11px 14px 4px;display:flex;justify-content:space-between}
+  .c2it{display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:13px;color:var(--ts);position:relative}
+  .c2it.sel{background:var(--bg-subtle);color:var(--tp);font-weight:600} .c2it.sel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .c2it .ic{width:16px;text-align:center;color:var(--tm)} .c2it .lab{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .c2it .badge{font-size:9.5px;font-weight:700;background:var(--brand);color:#fff;border-radius:9px;padding:0 6px}
+  .colbadge{position:absolute;z-index:6;font-size:10px;font-weight:800;color:#fff;background:var(--danger);border-radius:5px;padding:1px 6px;box-shadow:0 0 0 2px #fff}
+  .stream{flex:1;padding:14px;display:flex;flex-direction:column;gap:11px;overflow:hidden}
+  .msg{display:flex;gap:9px;max-width:80%} .msg .bub{background:var(--bg-elev);border:1px solid var(--border);border-radius:4px 12px 12px 12px;padding:8px 11px;font-size:12.5px;box-shadow:var(--sh1)} .msg .who{font-size:11px;font-weight:700;color:var(--brand);margin-bottom:2px}
+  .msg.me{align-self:flex-end;flex-direction:row-reverse} .msg.me .bub{background:var(--own);color:var(--own-fg);border:none;border-radius:12px 4px 12px 12px}
+  .composer{border-top:1px solid var(--border);background:var(--bg-elev);padding:9px 13px 11px} .drop{border:1.4px dashed var(--border-strong);border-radius:10px;padding:8px 10px;background:var(--bg-base);display:flex;align-items:center;gap:10px}
+
+  /* ===== side panel (col④) with segmented TAB header ===== */
+  .panel{background:var(--bg-elev);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+  /* segmented control matches mods.css .seg pill family */
+  .ptabs{display:flex;gap:4px;padding:10px 12px;border-bottom:1px solid var(--border)}
+  .ptabs span{flex:1;text-align:center;font-size:11.5px;padding:5px 0;border-radius:999px;color:var(--ts);background:var(--bg-subtle);font-weight:600}
+  .ptabs span.on{background:var(--brand);color:#fff}
+  .pbody{flex:1;overflow:hidden;padding:10px 12px;display:flex;flex-direction:column;gap:9px}
+
+  /* thread-list row */
+  .trow{border:1px solid var(--border);border-radius:10px;padding:8px 11px;box-shadow:var(--sh1);background:var(--bg-elev)}
+  .trow .tt{font-size:12.5px;font-weight:600} .trow .tm{font-size:10.5px;color:var(--tm);margin-top:3px;display:flex;gap:8px;align-items:center} .trow .badge{font-size:9.5px;font-weight:700;background:var(--brand);color:#fff;border-radius:9px;padding:0 6px}
+
+  /* inactive-tab preview note */
+  .pnote{margin-top:auto;border-top:1px dashed var(--border-strong);padding-top:9px;font-size:11px;color:var(--tm)}
+  .pnote b{color:var(--ts)} .pnote .ln{display:flex;gap:7px;margin-top:5px;align-items:flex-start}
+  .pnote .tag{flex:none;font-size:9px;font-weight:700;border-radius:5px;padding:1px 6px;background:var(--bg-subtle);color:var(--ts)}
+
+  .legend{display:grid;grid-template-columns:repeat(2,1fr);gap:7px 24px;margin:13px 2px 0;font-size:12.5px;color:var(--ts)}
+  .legend div{display:flex;gap:9px;align-items:flex-start}
+  .legend .n{flex:none;background:var(--brand);color:#fff;font-size:10px;font-weight:700;width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:1px}
+  .cap{margin-top:10px;font-size:12px;color:var(--ts)} .cap b{color:var(--tp)} .cap code{font-family:var(--mono);font-size:11px;background:var(--bg-subtle);border-radius:4px;padding:1px 5px}
+</style></head>
+<body><div class="page">
+  <h1>桌面 · Channel 侧栏三 Tab(Chat / Threads / Files)<span class="modtag">v2.10.1</span></h1>
+  <p class="sub">Channel 视图。侧栏(④)顶部一条<b>分段 Tab 头</b>,三个 Tab:<b>Chat / Threads / Files</b>。下图渲染 <b>variant B(三 Tab 主视图)</b>——Threads tab 激活、显示 thread 列表;Chat / Files 给小预览说明。<b>开放 IA 问题见 legend</b>。</p>
+
+  <div class="sech">Variant B(主视图)· 侧栏三 Tab,Threads 激活</div>
+  <div class="frame"><div class="desk4">
+    <span class="colbadge" style="left:8px;top:8px">①</span><span class="colbadge" style="left:74px;top:8px">②</span><span class="colbadge" style="left:320px;top:8px">③</span><span class="colbadge" style="right:8px;top:8px">④ 三 Tab</span>
+    <div class="rail">
+      <div class="logo">A</div>
+      <div class="ri"><span>▦</span><small>Work</small></div>
+      <div class="ri active"><span>💬</span><small>Conv</small></div>
+      <div class="ri"><span>◎</span><small>Mbr</small></div>
+      <div class="ri"><span>⚙</span><small>Sys</small></div>
+      <div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div>
+    </div>
+    <div class="c2">
+      <div class="c2h"><h2>Conversations</h2><div class="s">🔍 搜索会话…</div></div>
+      <div class="c2sub">Channels <span>+</span></div>
+      <div class="c2it sel"><span class="ic">#</span><span class="lab">agent-center-dev</span><span class="badge">3</span></div>
+      <div class="c2it"><span class="ic">#</span><span class="lab">general</span></div>
+      <div class="c2sub">Direct messages <span>+</span></div>
+      <div class="c2it"><span class="ic" style="color:#8b5cf6">●</span><span class="lab">oopslink</span><span class="badge">1</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><div><h3># agent-center-dev</h3><div style="font-size:11.5px;color:var(--tm);margin-top:2px">主聊天保留在 ③</div></div><button class="btn">Follow</button></div>
+      <div class="stream">
+        <div class="msg"><div class="av wk" style="width:30px;height:30px">IN</div><div><div class="bub"><div class="who">IntegrationDev</div>侧栏切到 Threads 看本频道的所有 thread。</div></div></div>
+        <div class="msg me"><div><div class="bub">Files tab 看本频道的共享文件。</div></div></div>
+      </div>
+      <div class="composer"><div class="drop"><span style="color:var(--tm);font-size:16px">📎</span><span style="flex:1;color:var(--tm);font-size:12.5px">写点什么…</span><span class="btn pri">发送 ↵</span></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="ptabs"><span>Chat</span><span class="on">Threads · 4</span><span>Files · 7</span></div>
+      <div class="pbody">
+        <div class="trow"><div class="tt">缩放交互草图</div><div class="tm"><span>IntegrationDev</span>·<span>6 回复</span><span class="badge">2</span></div></div>
+        <div class="trow"><div class="tt">release 门 run-real 结果</div><div class="tm"><span>tester2</span>·<span>3 回复</span></div></div>
+        <div class="trow"><div class="tt">class-guard 越权用例</div><div class="tm"><span>tester1</span>·<span>5 回复</span></div></div>
+        <div class="trow"><div class="tt">v2.10.1 IA 讨论</div><div class="tm"><span>PD</span>·<span>9 回复</span></div></div>
+
+        <div class="pnote">
+          <b>非激活 Tab 预览:</b>
+          <div class="ln"><span class="tag">Chat</span><span>= 该频道的<b>消息列表</b>(等同 ③ 主流的镜像视图)。</span></div>
+          <div class="ln"><span class="tag">Files</span><span>= 该频道的<b>文件列表</b>(缩略图 / 文件名 / 大小)。</span></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="legend">
+    <div><span class="n">A</span><span><b>Variant A(推荐):</b>侧栏只放 <b>Threads / Files</b> 两 Tab,主聊天始终留在 ③。职责清晰、主流不被吞。</span></div>
+    <div><span class="n">B</span><span><b>Variant B(本图):</b>三 Tab(Chat/Threads/Files)<b>整体组织面板</b>,如 owner 字面所述。Chat tab 会与 ③ 重复。</span></div>
+  </div>
+
+  <p class="cap"><b>开发必做:</b> 侧栏(④)顶部<b>分段 Tab 头</b>三段(Chat / Threads / Files),复用 <code>.seg</code> 药丸样式;<b>Threads</b> 激活时渲染 thread 列表(标题 / 发起人 / 回复数 / 未读 badge)。<b>这是开放 IA 决策</b>:本图为 owner 字面的 variant B,caption 同时标出推荐的 variant A,待 owner 拍板。</p>
+</div></body></html>
