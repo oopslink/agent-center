@@ -9,7 +9,7 @@ import { withOrgSlug } from '@/api/client';
 import { useOptionalOrgContext, OrgLink } from '@/OrgContext';
 import type { Agent, FleetWorkerRow, TransferSession, WorkItemRow, FleetIssueRow } from '@/api/types';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
-import { idHandle } from '@/components/workItemDisplay';
+import { refLabel } from '@/components/workItemDisplay';
 import { LifecycleBadge } from '@/components/AgentBadges';
 import { AddWorkerModal } from '@/components/AddWorkerModal';
 import { InstallCommandModal } from '@/components/InstallCommandModal';
@@ -654,7 +654,7 @@ function useWorkItemAgentResolver(base: string): (memberID: string) => { name: s
   return (memberID: string) => {
     if (!memberID) return { name: '', href: null };
     const resolved = displayName(memberID);
-    const name = resolved === memberID ? `#${idHandle(memberID)}` : resolved;
+    const name = resolved === memberID ? memberID : resolved;
     const agentID = agentIDByMember.get(memberID);
     return { name, href: agentID ? `${base}/agents/${encodeURIComponent(agentID)}` : null };
   };
@@ -665,8 +665,8 @@ function useWorkItemAgentResolver(base: string): (memberID: string) => { name: s
 // v2.10.2 [T140]: render the work item as "T<n> + title" (org_ref + title) and
 // link to the CORRECT project-scoped task page — /projects/{project_id}/tasks/
 // {task_id} — instead of the raw "task-<id>" + the bare ${base}/tasks/{id} that
-// 404'd (tasks nest under their project). org_ref falls back to a clean #hash
-// (#245 / T126 id-as-content), never the raw id; the link needs project_id (the
+// 404'd (tasks nest under their project). refLabel shows org_ref when present,
+// else the FULL id — never a retired #<id-tail> hash (T126); the link needs project_id (the
 // route's required segment) — without it the row stays plain text, not a 404 link.
 // v2.10.2 [T141]: the agent shows its display NAME + links to the agent detail
 // page (resolved by the caller via useWorkItemAgentResolver), not the raw agent-id.
@@ -679,7 +679,7 @@ function WorkItemContent({
   wi: WorkItemRow;
   agent: { name: string; href: string | null };
 }): React.ReactElement {
-  const ref = wi.task_org_ref || (wi.task_id ? `#${idHandle(wi.task_id)}` : '');
+  const ref = refLabel(wi.task_org_ref, wi.task_id ?? '');
   const label = [ref, wi.task_title].filter(Boolean).join(' · ') || wi.work_item_id;
   const taskHref =
     wi.task_id && wi.project_id

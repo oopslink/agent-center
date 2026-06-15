@@ -177,10 +177,10 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     );
   });
 
-  // v2.10.2 [T140]: a work item whose org_ref / project can't be resolved falls
-  // back to a clean #hash handle (never the raw task-<id>) and, lacking a project
+  // v2.10.2 [T140 + T126]: a work item whose org_ref can't be resolved falls back
+  // to the FULL task id (T126 retired the #<id-tail> hash) and, lacking a project
   // segment, renders as PLAIN TEXT rather than a link that would 404.
-  it('falls back to #hash + no link when org_ref/project are unresolved (T140)', async () => {
+  it('falls back to full id + no link when org_ref/project are unresolved (T140+T126)', async () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json(
@@ -196,8 +196,8 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     );
     wrap(<Environment />);
     await waitFor(() => expect(screen.getByTestId('environment-activity-all-list')).toBeInTheDocument());
-    // Clean #hash (last-6 tail), not the raw "task-abcdef"; and NOT a link.
-    expect(screen.getByText('#abcdef')).toBeInTheDocument();
+    // Full id (T126 retired the #<id-tail> hash), and NOT a link.
+    expect(screen.getByText('task-abcdef')).toBeInTheDocument();
     expect(screen.queryByTestId('environment-workitem-task-link')).not.toBeInTheDocument();
   });
 
