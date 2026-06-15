@@ -8,6 +8,7 @@ import { withOrgSlug } from '@/api/client';
 import { useOptionalOrgContext, OrgLink } from '@/OrgContext';
 import type { Agent, FleetWorkerRow, TransferSession, WorkItemRow, FleetIssueRow } from '@/api/types';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
+import { idHandle } from '@/components/workItemDisplay';
 import { LifecycleBadge } from '@/components/AgentBadges';
 import { AddWorkerModal } from '@/components/AddWorkerModal';
 import { InstallCommandModal } from '@/components/InstallCommandModal';
@@ -613,19 +614,35 @@ function AllStream({
 
 // Shared row-content renderers (kept in sync between the All stream and the
 // dedicated tabs).
+// v2.10.2 [T140]: render the work item as "T<n> + title" (org_ref + title) and
+// link to the CORRECT project-scoped task page — /projects/{project_id}/tasks/
+// {task_id} — instead of the raw "task-<id>" + the bare ${base}/tasks/{id} that
+// 404'd (tasks nest under their project). org_ref falls back to a clean #hash
+// (#245 / T126 id-as-content), never the raw id; the link needs project_id (the
+// route's required segment) — without it the row stays plain text, not a 404 link.
 function WorkItemContent({ base, wi }: { base: string; wi: WorkItemRow }): React.ReactElement {
+  const ref = wi.task_org_ref || (wi.task_id ? `#${idHandle(wi.task_id)}` : '');
+  const label = [ref, wi.task_title].filter(Boolean).join(' · ') || wi.work_item_id;
+  const taskHref =
+    wi.task_id && wi.project_id
+      ? `${base}/projects/${encodeURIComponent(wi.project_id)}/tasks/${encodeURIComponent(wi.task_id)}`
+      : null;
   return (
     <span className="flex flex-1 items-center justify-between gap-2">
       <span>
-        {wi.task_id ? (
+        {taskHref ? (
           <Link
-            to={`${base}/tasks/${encodeURIComponent(wi.task_id)}`}
-            className="font-mono text-accent hover:underline"
+            to={taskHref}
+            className="text-accent hover:underline"
+            data-testid="environment-workitem-task-link"
+            title={wi.task_id}
           >
-            {wi.task_id}
+            {label}
           </Link>
         ) : (
-          <span className="font-mono text-text-muted">{wi.work_item_id}</span>
+          <span className="text-text-muted" title={wi.task_id}>
+            {label}
+          </span>
         )}{' '}
         <span className="text-text-muted">agent</span>{' '}
         <span className="font-mono">{wi.agent_id}</span>
@@ -640,14 +657,19 @@ function WorkItemContent({ base, wi }: { base: string; wi: WorkItemRow }): React
   );
 }
 
+// Issuecontent links to the project-scoped issue page (T140: same path fix as the
+// work item — /projects/{project_id}/issues/{id}, not the bare ${base}/issues/{id}
+// that 404'd).
 function IssueContent({ base, issue }: { base: string; issue: FleetIssueRow }): React.ReactElement {
-  return (
-    <Link
-      to={`${base}/issues/${encodeURIComponent(issue.issue_id)}`}
-      className="text-accent hover:underline"
-    >
+  const href = issue.project_id
+    ? `${base}/projects/${encodeURIComponent(issue.project_id)}/issues/${encodeURIComponent(issue.issue_id)}`
+    : null;
+  return href ? (
+    <Link to={href} className="text-accent hover:underline">
       {issue.title}
     </Link>
+  ) : (
+    <span className="text-text-muted">{issue.title}</span>
   );
 }
 
