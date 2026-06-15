@@ -36,6 +36,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
+import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
@@ -1666,6 +1667,23 @@ function PlanTaskRow({
     else assign.mutate({ assignee: next });
   };
   const title = node.title || refLabel(node.org_ref, node.task_id);
+  // T147: ONE assignee control. Build the dropdown options — "" = Unassigned
+  // (routes to the unassign endpoint), then each project member with an avatar
+  // leading so the (single) dropdown trigger shows the current assignee's
+  // avatar + name. Mirrors the old <option> list (memberRef + "name (kind)").
+  const assigneeOptions: EntityOption[] = useMemo(() => {
+    const opts: EntityOption[] = [{ value: '', label: 'Unassigned' }];
+    for (const m of members) {
+      const name = m.display_name ?? normalizeIdentityRef(m.identity_id);
+      opts.push({
+        value: memberRef(m),
+        label: name,
+        badge: m.kind,
+        leading: <Avatar name={name} kind={m.kind === 'agent' ? 'agent' : 'human'} size="sm" />,
+      });
+    }
+    return opts;
+  }, [members]);
   return (
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
       {/* v2.9.1 UX point 1: human Task id (T-number) column. */}
@@ -1689,23 +1707,22 @@ function PlanTaskRow({
         )}
       </td>
       <td className="py-1.5 pr-3 align-top">
-        {/* DISPLAY current assignee + an inline reassignment <select> (分派). */}
-        <AssigneeTag assigneeRef={node.assignee_ref} />
-        <select
-          value={node.assignee_ref ?? ''}
-          data-testid="plan-row-assign"
-          aria-label={`Reassign ${title}`}
-          disabled={assign.isPending || unassign.isPending}
-          onChange={(e) => onAssigneeChange(e.target.value)}
-          className="mt-1 block w-full max-w-[12rem] rounded border border-border-base bg-bg-elevated px-1 py-0.5 text-[0.6875rem] text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-        >
-          <option value="">Unassigned</option>
-          {members.map((m) => (
-            <option key={m.id} value={memberRef(m)}>
-              {m.display_name ?? m.identity_id} ({m.kind})
-            </option>
-          ))}
-        </select>
+        {/* T147: a SINGLE dropdown — its trigger shows the current assignee
+            (avatar + name), and opening it reassigns. Replaces the old redundant
+            pair (a read-only AssigneeTag stacked above a separate <select> that
+            showed the same value). "" routes to the unassign endpoint. */}
+        <div className="max-w-[12rem]">
+          <EntitySelect
+            testId="plan-row-assign"
+            options={assigneeOptions}
+            value={node.assignee_ref ?? ''}
+            onChange={onAssigneeChange}
+            ariaLabel={`Reassign ${title}`}
+            disabled={assign.isPending || unassign.isPending}
+            placeholder="Unassigned"
+            searchPlaceholder="Search members…"
+          />
+        </div>
         {assignError && (
           <span
             className="mt-0.5 block text-[0.6875rem] font-normal text-danger"

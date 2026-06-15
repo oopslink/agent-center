@@ -1544,11 +1544,11 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(6);
   });
 
-  it('T41: per-row assignee <select> fires the assign mutation with {assignee}', async () => {
+  it('T41/T147: the single per-row assignee dropdown fires the assign mutation with {assignee}', async () => {
     mockPlan({ nodes: bigNodes() });
     let assignedBody: { assignee?: string } | null = null;
     server.use(
-      // members feed the <option> list (mirror TaskEditModal: prefixed refs).
+      // members feed the dropdown options (mirror TaskEditModal: prefixed refs).
       http.get('/api/members', () =>
         HttpResponse.json([
           { id: 'mem-1', organization_id: 'org-test', identity_id: 'agent:dev', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Dev One' },
@@ -1564,17 +1564,24 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
     await screen.findByTestId('plan-task-list-table');
 
-    // the select must be populated from useMembers.
+    // T147: ONE control — the dropdown TRIGGER shows the current assignee (b1 →
+    // agent:dev2 → "Dev Two"); there is NO separate read-only assignee element.
     const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b1"]') as HTMLElement;
-    const select = within(row).getByTestId('plan-row-assign');
-    await waitFor(() => expect(within(select).getByText('Dev One (agent)')).toBeInTheDocument());
-    expect(select).toHaveAttribute('aria-label', 'Reassign task number 1');
+    const trigger = within(row).getByTestId('plan-row-assign-trigger');
+    await waitFor(() => expect(trigger).toHaveTextContent('Dev Two'));
+    expect(trigger).toHaveAttribute('aria-label', 'Reassign task number 1');
 
-    await act(async () => fireEvent.change(select, { target: { value: 'agent:dev' } }));
+    // open the dropdown + pick "Dev One" (agent:dev).
+    await act(async () => fireEvent.click(trigger));
+    const opt = within(row)
+      .getAllByTestId('plan-row-assign-option')
+      .find((o) => o.getAttribute('data-value') === 'agent:dev') as HTMLElement;
+    expect(opt).toHaveTextContent('Dev One');
+    await act(async () => fireEvent.click(opt));
     await waitFor(() => expect(assignedBody).toEqual({ assignee: 'agent:dev' }));
   });
 
-  it('T41: choosing Unassigned routes to the unassign endpoint', async () => {
+  it('T41/T147: choosing Unassigned routes to the unassign endpoint', async () => {
     mockPlan({ nodes: bigNodes() });
     let unassigned = false;
     server.use(
@@ -1587,8 +1594,11 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
     await screen.findByTestId('plan-task-list-table');
     const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b2"]') as HTMLElement;
-    const select = within(row).getByTestId('plan-row-assign');
-    await act(async () => fireEvent.change(select, { target: { value: '' } }));
+    await act(async () => fireEvent.click(within(row).getByTestId('plan-row-assign-trigger')));
+    const unassignOpt = within(row)
+      .getAllByTestId('plan-row-assign-option')
+      .find((o) => o.getAttribute('data-value') === '') as HTMLElement;
+    await act(async () => fireEvent.click(unassignOpt));
     await waitFor(() => expect(unassigned).toBe(true));
   });
 });
