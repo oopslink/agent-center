@@ -1017,6 +1017,84 @@ function SyntheticAnchorMarker({
   );
 }
 
+// ── PlanStepper (mobile <md) ─────────────────────────────────────────────────
+// v2.10.1 [M4] On mobile the left→right SVG DAG (PlanDag) becomes a VERTICAL
+// stepper / timeline (mockup `docs/design/v2.10.1/v2.10.1-mobile` — Plan frame).
+// It fixes the 375px-critical③: the wide absolute-positioned graph had touch
+// targets too small + dead vertical height. The stepper renders the same nodes
+// in topological order (by DAG level) as big, tappable cards with a
+// status-colored timeline dot — display-only (in-graph dependency EDITING stays
+// desktop-only). The same node tokens/components (NODE_STATE / NodeStateChip /
+// TaskIdTag / TaskTitleLink / AssigneeTag) are reused so the two views stay in
+// sync.
+function PlanStepper({
+  positioned,
+  projectId,
+  orgRefOf,
+}: {
+  positioned: Positioned[];
+  projectId: string;
+  orgRefOf: (taskId: string) => string | undefined;
+}): React.ReactElement {
+  // Topological-ish order: DAG level, then stable vertical position within it.
+  const ordered = useMemo(
+    () => [...positioned].sort((a, b) => a.level - b.level || a.y - b.y || a.x - b.x),
+    [positioned],
+  );
+  return (
+    <ol className="relative mt-1 md:hidden" data-testid="plan-stepper">
+      {ordered.map((p, i) => {
+        const s = NODE_STATE[p.node.node_status] ?? NODE_STATE.blocked;
+        const taskId = p.node.task_id;
+        const last = i === ordered.length - 1;
+        return (
+          <li
+            key={taskId}
+            className="relative pb-3 pl-6"
+            data-testid="plan-stepper-node"
+            data-task-id={taskId}
+            data-node-status={p.node.node_status}
+            data-level={p.level}
+          >
+            {/* Timeline rail (omit after the last node). */}
+            {!last && (
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 left-[5px] top-5 w-px bg-border-base"
+              />
+            )}
+            {/* Status-colored timeline dot (reuses the node state tokens). */}
+            <span
+              aria-hidden="true"
+              data-testid="plan-stepper-dot"
+              className={`absolute left-0 top-3.5 h-3 w-3 rounded-full border ${s.border} ${s.cls}`}
+            />
+            <div className={`rounded-lg border bg-bg-elevated p-2.5 shadow-1 ${s.border}`}>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <TaskIdTag taskId={taskId} orgRef={orgRefOf(taskId)} testId="plan-stepper-taskid" />
+                <span className="inline-flex items-center gap-1">
+                  <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
+                  <NodeStateChip status={p.node.node_status} />
+                </span>
+              </div>
+              {/* Big tappable title (≥44px touch target), opens the task. */}
+              <TaskTitleLink
+                projectId={projectId}
+                taskId={taskId}
+                title={p.node.title || `#${idHandle(taskId)}`}
+                className="min-h-[44px] py-1 text-sm font-semibold"
+              />
+              <div className="mt-0.5 text-xs">
+                <AssigneeTag assigneeRef={p.node.assignee_ref} />
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
@@ -1163,8 +1241,11 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
         </p>
       ) : (
         <>
+        {/* v2.10.1 [M4] Mobile (<md): the left→right SVG DAG becomes a vertical
+            stepper. The desktop graph + its controls are md:-only. */}
+        <PlanStepper positioned={positioned} projectId={projectId} orgRefOf={orgRefOf} />
         {/* v2.9.1 point 2: compact (zoom-to-fit) toggle for long/wide DAGs. */}
-        <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="mb-2 hidden items-center justify-between gap-2 md:flex">
           {/* Connect-mode banner (point 3, draft-only): shown while a connection
               is in progress. Tells the user to pick a highlighted target and
               offers a visible Cancel affordance (Escape also exits). */}
@@ -1202,7 +1283,7 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
           </button>
         </div>
         <div
-          className="relative overflow-auto rounded-lg border border-border-base bg-bg-subtle"
+          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle md:block"
           data-testid="plan-dag-canvas"
           data-compact={compact ? 'true' : 'false'}
           style={{ maxHeight: 480 }}
