@@ -45,7 +45,7 @@ owner 要「**Assignment Pool 内 task 开放认领**」。当前谓词要求 `a
 6. **持有上限（owner 2026-06-15 拍：要限）**：每 agent 同时最多持有 **N** 个**已领池任务**（= 状态 running 且 assignee 为该 agent、来自 built-in pool 的任务）。
    - 达上限时，该 agent 对**新池任务**的 `start_work`/认领被拒：`pool_claim_limit_reached`（不影响领取结构化 plan 指派给它的节点）。
    - 计数口径：仅统计 **pool 来源**、状态 **running** 的任务；任务 complete/fail/release 后腾出名额。
-   - **N 可配置**（org/系统级配置项，便于调参），**默认 N=3**（待 owner 最终拍数值）。
+   - **N 可配置**（org/系统级配置项，便于调参），**默认 N=3**（owner 2026-06-15 拍定）。
    - 仅约束**开放池认领**；不约束结构化 plan 节点的指派执行。
 
 ## 4. 验收（Tester1 authz 硬门，逐条带证据）

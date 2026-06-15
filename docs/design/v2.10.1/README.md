@@ -19,7 +19,7 @@ v2.10.1 = **移动端体验优化**（把 v2.10.0 三栏桌面适配到 <768 移
 ### claimability
 | 节点 | 任务 | 说明 |
 |------|------|------|
-| claimability (T83) | task-2c899f57 | **完整 spec 见 `T83-claimability-spec.md`**。backlog 不可领（现状已满足）；**Assignment Pool 开放认领**（去掉 pool 任务的 assignee 要求）；认领=start_work 原子 assignee+running+CAS；类守护 authz 硬门；**每 agent 持有池任务上限 N（默认 3，owner 定数值）**。 |
+| claimability (T83) | task-2c899f57 | **完整 spec 见 `T83-claimability-spec.md`**。backlog 不可领（现状已满足）；**Assignment Pool 开放认领**（去掉 pool 任务的 assignee 要求）；认领=start_work 原子 assignee+running+CAS；类守护 authz 硬门；**每 agent 持有池任务上限 N=3**（owner 拍定，可配置）。 |
 
 ### 桌面 / Plan UI 增强（仅 ≥md 桌面）
 | 节点 | 任务 | mockup | dev 要点 |
