@@ -215,6 +215,10 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-tab-chat')).toHaveTextContent('Chat');
     expect(screen.getByTestId('plan-tab-dag')).toHaveTextContent('DAG');
     expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('Task List');
+    // T134: the "← execution view (no backlog — planning is on the Board)" hint
+    // is removed from the tab bar.
+    expect(screen.queryByText(/execution view/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-tabs')).not.toHaveTextContent(/planning is on the Board/i);
     // default = chat: the chat panel + conversation are shown; DAG + task list are not
     expect(screen.getByTestId('plan-panel-chat')).toBeInTheDocument();
     expect(await screen.findByTestId('plan-conversation')).toBeInTheDocument();

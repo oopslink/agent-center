@@ -139,9 +139,6 @@ export default function PlanDetail(): React.ReactElement {
           <TabButton id="tasks" active={tab === 'tasks'} onSelect={setTab}>
             Task List
           </TabButton>
-          <span className="ml-2 self-center text-[0.6875rem] text-text-muted">
-            ← execution view (no backlog — planning is on the Board)
-          </span>
         </div>
 
         {/* Single tabbed content area (point 4: chat is now a tab, not a side
