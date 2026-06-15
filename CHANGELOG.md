@@ -13,7 +13,25 @@ ADR / phase plan landscape, see
 
 ## [Unreleased]
 
-_Nothing yet — released work is tracked in the per-version sections below._
+### Added
+
+- **Work Board: drag a task to change its owning plan (T121).** Task cards can now
+  be dragged across columns to re-home them — Backlog ↔ Assignment Pool ↔ draft
+  plans, in any direction. The **Assignment Pool** is a full drag participant: its
+  cards are draggable out (to the Backlog or a draft plan) and it accepts tasks
+  dragged in. Both the mouse (HTML5 DnD) and touch long-press paths are covered.
+
+### Changed
+
+- **The built-in Assignment Pool's task-set is now freely editable (T121).**
+  `RemoveTaskFromPlan` now exempts the always-running built-in pool from the
+  draft-only gate, mirroring the long-standing add-side exemption — so removing a
+  task from the pool (the remove-half of a Work Board move) no longer fails with
+  `plan_conflict`. Structured `running` / `done` / `archived` plans stay **locked**
+  at the service layer (add+remove both rejected, fail-closed) and the Work Board
+  now shows that lock explicitly: a padlock on locked plan columns + cards, a
+  reason tooltip, and a no-drop banner while dragging over a locked column.
+  See [ADR-0049](docs/design/decisions/0049-workboard-task-move-pool-symmetry.md).
 
 ## [v2.10.1] — 2026-06-15
 

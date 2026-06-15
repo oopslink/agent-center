@@ -284,6 +284,37 @@ func TestRemoveTaskFromPlan_RejectsNonDraft(t *testing.T) {
 	}
 }
 
+// TestRemoveTaskFromPlan_BuiltinPool_OK locks T121: the built-in assignment pool
+// is ALWAYS running, yet its task-set is freely editable (it is a flat claimable
+// bucket, not an executing DAG). SelectTaskIntoPlan already exempts the pool from
+// the draft-only gate; RemoveTaskFromPlan MUST mirror that exemption so a task can
+// leave the pool (back to backlog, or as the remove-half of a Work Board move).
+// Without it, dragging a pool task anywhere reports plan_conflict (the reported bug).
+func TestRemoveTaskFromPlan_BuiltinPool_OK(t *testing.T) {
+	svc, _, _, tasks, _, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	pool := svc.builtinPoolOf(ctx, pid)
+	if pool == nil {
+		t.Fatal("project should have a built-in pool")
+	}
+	if pool.Status() == pm.PlanDraft {
+		t.Fatalf("built-in pool should be always-running, got status %v", pool.Status())
+	}
+	taskA, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
+	// Selecting INTO the always-running pool is already allowed (the exemption).
+	if err := svc.SelectTaskIntoPlan(ctx, pool.ID(), taskA, "user:a"); err != nil {
+		t.Fatalf("SelectTaskIntoPlan(pool) = %v, want nil", err)
+	}
+	// Removing FROM the always-running pool must also succeed (the T121 symmetry).
+	if err := svc.RemoveTaskFromPlan(ctx, pool.ID(), taskA, "user:a"); err != nil {
+		t.Fatalf("RemoveTaskFromPlan(pool) = %v, want nil (pool task-set is editable)", err)
+	}
+	tk, _ := tasks.FindByID(ctx, taskA)
+	if tk.PlanID() != "" {
+		t.Fatalf("task plan after remove = %q, want empty (back to backlog)", tk.PlanID())
+	}
+}
+
 func TestSelectTaskIntoPlan_SamePlan_NoOp(t *testing.T) {
 	svc, _, _, tasks, relay, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})

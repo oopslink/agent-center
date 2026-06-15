@@ -324,6 +324,7 @@ function Board({
             projectId={projectId}
             plan={builtinPool}
             dragSource={dragSource}
+            setDragSource={setDragSource}
           />
         )}
         {structuredPlans.map((plan) => (
@@ -359,6 +360,24 @@ function Board({
 // exclude them; we also filter on the FE so a degraded payload never leaks them.
 function isLiveTaskStatus(status: string | undefined): boolean {
   return status !== 'completed' && status !== 'discarded';
+}
+
+// planLockReason — T121: the human reason a plan's task assignments are frozen, so
+// the Work Board can explain (tooltip + in-drag banner) why a running / terminal
+// plan can't be dragged out of or dropped into. Only a DRAFT plan's task-set is
+// editable; the always-running built-in pool is the deliberate exception and never
+// renders as a locked column. Archived plans are excluded from the board entirely.
+function planLockReason(status: string): string {
+  if (status === 'running') {
+    return "This plan is running — its tasks can't be moved to or from another plan. Stop the plan to re-plan.";
+  }
+  if (status === 'done') {
+    return 'This plan is completed — its task assignments are locked.';
+  }
+  if (status === 'archived') {
+    return 'This plan is archived — its task assignments are locked.';
+  }
+  return 'This plan’s task assignments are locked.';
 }
 
 // columnBase — the shared .col look (fixed ~236px, solid subtle bg, border).
@@ -670,20 +689,30 @@ function ClaimableChip({
 
 // BuiltinPoolColumn — ADR-0047 segment 2: the is_builtin assignment pool, a
 // DISTINCT segment (not a generic plan column). A FLAT list of its nodes (no
-// DAG / edge editing, no remove affordance, no drag-out — the pool is always
-// running, "pull, no-wake"). completed/discarded nodes are HIDDEN by default.
-// A claimable node shows the ClaimableChip. It IS a drop target for a backlog
-// task being dragged in (BE permits selecting a backlog task into the pool).
+// DAG / edge editing). completed/discarded nodes are HIDDEN by default. A
+// claimable node shows the ClaimableChip.
+// T121: the pool's task-set is FREELY editable (its tasks are not bound to an
+// executing DAG), so it is a full drag participant — it accepts a task dragged in
+// from the Backlog (SELECT) OR from another draft plan (MOVE-in), and its own
+// cards can be dragged out to the Backlog / another draft plan (the backend now
+// exempts the always-running pool from the draft-only remove gate, symmetric with
+// the add side). Only a drag of its OWN card onto itself is a no-op.
 function BuiltinPoolColumn({
   projectId,
   plan,
   dragSource,
+  setDragSource,
 }: {
   projectId: string;
   plan: Plan;
   dragSource: DragSource | null;
+  setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const add = useAddTaskToPlan(projectId, plan.id);
+  // T121: a MOVE-in (another draft plan → pool) removes from the source plan then
+  // adds to the pool; the source plan is only known at drop time → any-plan hooks.
+  const addAny = useAddTaskToAnyPlan(projectId);
+  const removeAny = useRemoveTaskFromAnyPlan(projectId);
   const [dropActive, setDropActive] = useState(false);
   // Defensive reads (mirror PlanColumn) — degrade to an empty pool, never crash.
   const preview = plan.nodes_preview ?? [];
@@ -693,21 +722,36 @@ function BuiltinPoolColumn({
   // Overflow uses the LIVE count when known; fall back to node_count − shown.
   const overflow = nodeCount - preview.length > 0 ? nodeCount - preview.length : 0;
 
-  // A backlog-origin drag (fromPlanId === null) can be dropped INTO the pool →
-  // SELECT. A plan/pool-origin drag is not a pool target (the pool is flat).
+  // T121: the pool accepts ANY in-flight task drag that is not its own card —
+  // a Backlog task (SELECT) or a task from another plan (MOVE-in). A drag of one
+  // of the pool's OWN cards back onto the pool is the no-op self case.
   const dragTaskId = dragSource?.taskId ?? null;
-  const canDrop = dragTaskId !== null && dragSource?.fromPlanId == null;
+  const canDrop = dragTaskId !== null && dragSource?.fromPlanId !== plan.id;
 
+  // Race-proof acceptance (mirror the Backlog): accept on the state-derived
+  // canDrop OR the dataTransfer plan-task marker (readable on every dragover
+  // before the React state commits). The self-pool case at worst briefly
+  // highlights; handleDrop's readDragSource resolves it to a no-op.
   const acceptsDrag = (e: React.DragEvent) =>
-    canDrop && !e.dataTransfer.types.includes(FROM_PLAN_MIME);
+    canDrop || e.dataTransfer.types.includes(FROM_PLAN_MIME);
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setDropActive(false);
     const src = readDragSource(e, dragSource);
-    if (!src || src.fromPlanId !== null) return; // only a backlog task selects in.
+    const taskId = src?.taskId ?? null;
+    if (!taskId) return;
+    const fromPlanId = src?.fromPlanId ?? null;
+    if (fromPlanId === plan.id) return; // dropped onto its own pool → no-op.
     try {
-      await add.mutateAsync({ task_id: src.taskId });
+      if (fromPlanId === null) {
+        // From the Backlog → SELECT into the pool (it becomes claimable).
+        await add.mutateAsync({ task_id: taskId });
+      } else {
+        // From another (draft) plan → MOVE-in: remove from source THEN add here.
+        await removeAny.mutateAsync({ planId: fromPlanId, taskId });
+        await addAny.mutateAsync({ planId: plan.id, taskId });
+      }
     } catch {
       // surfaced by the board re-fetch.
     }
@@ -754,7 +798,13 @@ function BuiltinPoolColumn({
         // task-0543ece9: all live pool nodes in a bounded scroll area (no cap).
         <div className="max-h-[26rem] space-y-0 overflow-y-auto" data-testid={`pool-cards-${plan.id}`}>
           {shown.map((node) => (
-            <PoolTaskCard key={node.task_id} projectId={projectId} node={node} />
+            <PoolTaskCard
+              key={node.task_id}
+              projectId={projectId}
+              planId={plan.id}
+              node={node}
+              setDragSource={setDragSource}
+            />
           ))}
         </div>
       )}
@@ -767,21 +817,43 @@ function BuiltinPoolColumn({
   );
 }
 
-// PoolTaskCard — a single built-in-pool task card (flat, no remove / drag-out /
-// DAG affordance). Shows the ClaimableChip when the node is claimable, alongside
-// the task status chip + archive badge.
+// PoolTaskCard — a single built-in-pool task card. Shows the ClaimableChip when
+// the node is claimable, alongside the task status chip + archive badge.
+// T121: the card is DRAGGABLE — the pool's task-set is freely editable, so a pool
+// task can be dragged out to the Backlog (REMOVE) or to another draft plan
+// (MOVE). It stamps its SOURCE plan (the pool id) into dataTransfer exactly like a
+// PlanTaskCard so the drop targets pick SELECT/MOVE/REMOVE correctly. The pool is
+// flat (no DAG), so there is no per-card remove button — drag is the affordance.
 function PoolTaskCard({
   projectId,
+  planId,
   node,
+  setDragSource,
 }: {
   projectId: string;
+  planId: string;
   node: PlanNode;
+  setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
+  // v2.10.1 [M5]: touch long-press drag (mouse keeps native HTML5 DnD).
+  const startLongPress = useContext(BoardTouchDragContext);
   return (
     <div
-      className="mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1"
+      className="mb-1.5 cursor-grab rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1 active:cursor-grabbing"
       data-testid="pool-task-card"
       data-task-id={node.task_id}
+      data-draggable="true"
+      draggable
+      onPointerDown={(e) => startLongPress?.(e, node.task_id, planId, node.title)}
+      onDragStart={(e) => {
+        // Carry the task AND its SOURCE plan (the pool id) so a drop can MOVE /
+        // REMOVE — same race-proof dataTransfer stamps a PlanTaskCard uses.
+        setDragSource({ taskId: node.task_id, fromPlanId: planId });
+        e.dataTransfer.setData('text/plain', node.task_id);
+        e.dataTransfer.setData(FROM_PLAN_MIME, planId);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => setDragSource(null)}
     >
       <div className="mb-1 flex items-center gap-1">
         <TaskIdTag taskId={node.task_id} orgRef={node.org_ref} />
@@ -863,8 +935,14 @@ function PlanColumn({
   const shown = preview;
   const overflow = nodeCount - shown.length > 0 ? nodeCount - shown.length : 0;
 
-  // A drop is valid only on a draft column while a Backlog task is being dragged.
+  // A drop is valid only on a draft column while a task is being dragged.
   const canDrop = isDraft && dragTaskId !== null;
+  // T121 locked state: a running / done (terminal) plan's task-set is frozen — its
+  // cards can't be dragged out and it can't be a drop target. `dropBlocked` is the
+  // in-drag feedback: a drag is in flight but THIS column rejects it (so we show a
+  // no-drop affordance + the reason instead of silently doing nothing).
+  const locked = !isDraft;
+  const dropBlocked = locked && dragTaskId !== null;
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -899,13 +977,21 @@ function PlanColumn({
 
   return (
     <div
-      className={`${columnBase} bg-bg-elevated ${
-        dropActive && canDrop ? 'border-accent ring-2 ring-accent' : 'border-border-base'
+      className={`${columnBase} ${
+        dropActive && canDrop
+          ? 'border-accent bg-bg-elevated ring-2 ring-accent'
+          : dropBlocked
+            ? 'cursor-no-drop border-dashed border-border-strong bg-bg-subtle'
+            : 'border-border-base bg-bg-elevated'
       }`}
       data-testid="plan-column"
       data-plan-id={plan.id}
       data-status={plan.status}
       data-droppable={isDraft ? 'true' : 'false'}
+      data-locked={locked ? 'true' : 'false'}
+      // T121: hovering a locked column (always) / dragging over it explains why it
+      // won't accept tasks — the reason tooltip the owner asked for.
+      title={locked ? planLockReason(plan.status) : undefined}
       role="listitem"
       onDragOver={(e) => {
         if (!canDrop) return; // don't allow drop on a running/done column.
@@ -916,12 +1002,36 @@ function PlanColumn({
       onDragLeave={() => setDropActive(false)}
       onDrop={handleDrop}
     >
+      {/* T121: while a drag is in flight, a locked column shows a clear "no-drop"
+          banner with the reason (not just a silent reject). */}
+      {dropBlocked && (
+        <p
+          className="mb-1.5 flex items-center gap-1 rounded border border-border-strong bg-bg-base px-1.5 py-1 text-[0.625rem] font-medium text-text-muted"
+          data-testid={`plan-drop-blocked-${plan.id}`}
+          role="status"
+        >
+          <LockIcon />
+          {planLockReason(plan.status)}
+        </p>
+      )}
       <div className="flex items-start justify-between gap-1.5 px-0.5">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm font-bold text-text-primary" title={plan.name}>
             {plan.name}
           </span>
           <PlanStatusChip status={plan.status} />
+          {/* T121: a persistent lock glyph marks a plan whose task assignments are
+              frozen (running / terminal) — reinforces the status chip. */}
+          {locked && (
+            <span
+              className="inline-flex items-center text-text-muted"
+              data-testid={`plan-locked-${plan.id}`}
+              title={planLockReason(plan.status)}
+              aria-label={planLockReason(plan.status)}
+            >
+              <LockIcon />
+            </span>
+          )}
         </span>
         <OrgLink
           to={`/projects/${encodeURIComponent(projectId)}/plans/${encodeURIComponent(plan.id)}`}
@@ -961,6 +1071,7 @@ function PlanColumn({
               // A7: canRemove (= isDraft) ALSO gates drag — only draft-plan cards
               // are draggable (the source must be draft so MOVE/REMOVE is allowed).
               canRemove={isDraft}
+              lockReason={locked ? planLockReason(plan.status) : undefined}
               setDragSource={setDragSource}
             />
           ))}
@@ -989,12 +1100,17 @@ function PlanTaskCard({
   planId,
   node,
   canRemove,
+  lockReason,
   setDragSource,
 }: {
   projectId: string;
   planId: string;
   node: PlanNode;
   canRemove: boolean;
+  // T121: when the plan is locked (running / terminal) this is the human reason its
+  // tasks can't be moved — shown as the card's locked-state tooltip. undefined ⟺
+  // a draft (editable) plan, where the card is draggable + shows the remove button.
+  lockReason?: string;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
   const remove = useRemoveTaskFromPlan(projectId, planId);
@@ -1006,10 +1122,14 @@ function PlanTaskCard({
   const startLongPress = useContext(BoardTouchDragContext);
   return (
     <div
-      className="mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1"
+      className={`mb-1.5 rounded-lg border border-border-base bg-bg-elevated p-2 shadow-1 ${
+        draggable ? 'cursor-grab active:cursor-grabbing' : ''
+      }`}
       data-testid="plan-task-card"
       data-task-id={node.task_id}
       data-draggable={draggable ? 'true' : 'false'}
+      // T121: a locked card carries the reason its plan can't be re-planned.
+      title={!draggable ? lockReason : undefined}
       draggable={draggable}
       onPointerDown={
         draggable ? (e) => startLongPress?.(e, node.task_id, planId, node.title) : undefined
@@ -1056,6 +1176,18 @@ function PlanTaskCard({
           >
             <RemoveIcon />
           </button>
+        )}
+        {/* T121: a locked (running / terminal) plan's card shows a padlock instead
+            of the remove button — a visible "can't re-plan" affordance. */}
+        {!canRemove && (
+          <span
+            className="-mr-0.5 -mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center text-text-muted"
+            data-testid={`plan-task-locked-${node.task_id}`}
+            title={lockReason}
+            aria-label={lockReason}
+          >
+            <LockIcon />
+          </span>
         )}
       </div>
       <div className="mt-1.5 flex items-center justify-between gap-1.5">
@@ -1169,6 +1301,18 @@ function RemoveIcon(): React.ReactElement {
   return (
     <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// LockIcon — T121: a small padlock glyph marking a plan whose task assignments are
+// frozen (running / terminal). aria-hidden — the accessible reason lives on the
+// wrapping element's title / aria-label.
+function LockIcon(): React.ReactElement {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="3.5" y="7" width="9" height="6.5" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }
