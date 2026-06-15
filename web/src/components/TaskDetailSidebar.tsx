@@ -3,6 +3,7 @@ import { OrgLink } from '@/OrgContext';
 import type { Task } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
 import { EntityRef } from '@/components/EntityRef';
+import { useSenderSidebar } from '@/components/SenderSidebarContext';
 import { StatusBlock } from '@/components/IssueTaskSidebar';
 import { idHandle } from '@/components/workItemDisplay';
 import { tagColorFor } from '@/components/tagColors';
@@ -64,6 +65,11 @@ export function TaskDetailSidebar({
   const tk = task;
   const tags = tk.tags ?? [];
   const duration = formatStatusDuration(tk.status_changed_at);
+  // T102: clicking the assignee opens that identity's activity sidebar (the
+  // shared SenderDetailSidebar — agent info + activity feed), reusing the same
+  // openSender path as @mentions / message senders. Null-safe: when rendered
+  // without a SenderSidebarProvider the name stays plain (no-op).
+  const openSender = useSenderSidebar();
 
   return (
     <aside
@@ -112,14 +118,31 @@ export function TaskDetailSidebar({
           <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Assignee</p>
           <div className="flex flex-wrap items-center gap-2">
             {tk.assignee ? (
-              <span className="inline-flex items-center gap-2">
-                <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : tk.assignee} size="sm" />
-                <EntityRef
-                  id={tk.assignee}
-                  name={assigneeName && assigneeName !== tk.assignee ? assigneeName : undefined}
-                  testId="task-assignee"
-                />
-              </span>
+              openSender ? (
+                <button
+                  type="button"
+                  onClick={() => openSender(tk.assignee)}
+                  data-testid="task-assignee-open"
+                  title={`Open ${assigneeName && assigneeName !== tk.assignee ? assigneeName : tk.assignee}'s activity`}
+                  className="inline-flex items-center gap-2 rounded hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : tk.assignee} size="sm" />
+                  <EntityRef
+                    id={tk.assignee}
+                    name={assigneeName && assigneeName !== tk.assignee ? assigneeName : undefined}
+                    testId="task-assignee"
+                  />
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : tk.assignee} size="sm" />
+                  <EntityRef
+                    id={tk.assignee}
+                    name={assigneeName && assigneeName !== tk.assignee ? assigneeName : undefined}
+                    testId="task-assignee"
+                  />
+                </span>
+              )
             ) : (
               <span className="text-text-muted" data-testid="task-assignee-empty">
                 Unassigned

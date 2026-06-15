@@ -10,6 +10,7 @@ import { useProject } from '@/api/projects';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
+import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskAttachments } from '@/components/AttachmentsSection';
 import { Breadcrumb } from '@/components/Breadcrumb';
 
@@ -66,6 +67,10 @@ export default function TaskDetail(): React.ReactElement {
   const resolvedAssigneeName = tk.assignee ? resolveName(tk.assignee) : '';
 
   return (
+    // T102: a page-level SenderSidebarProvider so the sidebar's clickable assignee
+    // opens the shared agent activity sidebar (the conversation has its own nested
+    // provider for @mentions; this serves the rest of the page).
+    <SenderSidebarProvider>
     <section className="flex h-full flex-col" data-testid="page-TaskDetail" data-task-id={tk.id}>
       <div className="mb-2">
         <Breadcrumb
@@ -145,5 +150,6 @@ export default function TaskDetail(): React.ReactElement {
         <TaskEditModal projectId={projectId} task={tk} onClose={() => setEditOpen(false)} />
       )}
     </section>
+    </SenderSidebarProvider>
   );
 }
