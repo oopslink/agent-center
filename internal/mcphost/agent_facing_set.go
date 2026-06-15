@@ -53,6 +53,7 @@ var AgentFacingToolNames = []string{
 	"reassign_task",
 	"remove_plan_dependency",
 	"claim_task",
+	"list_assignment_pool",
 	"remove_task_from_plan",
 	"request_input",
 	"resume_paused_work",

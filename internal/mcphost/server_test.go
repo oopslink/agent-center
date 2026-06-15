@@ -84,8 +84,8 @@ var wantTools = []string{
 	"get_my_work", "post_task_message",
 	// v2.8.1 #278 D pull model: agent drives its own work-item queue
 	"start_work", "fail_work",
-	// T83: claim an open assignment-pool task (pull, no work item)
-	"claim_task",
+	// T83: claim an open assignment-pool task (pull, no work item) + browse the pool
+	"claim_task", "list_assignment_pool",
 	// v2.8.1 #278 PR4 scheduling autonomy
 	"pause_work", "resume_paused_work",
 	// v2.8.1 #278 PR4 read tools (loop-boundary active + paused candidates)

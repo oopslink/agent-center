@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -115,15 +116,29 @@ func (s *Service) poolNodeStatus(ctx context.Context, p *pm.Plan, taskID pm.Task
 }
 
 // countHeldPoolTasks counts the actor's currently-held (running) built-in-pool
-// tasks (T83 §3.6 cap). Bounded by the actor's assigned-task count; built-in
-// lookups are memoized per plan. Structured-plan work does NOT count.
+// tasks (T83 §3.6 cap).
 func (s *Service) countHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) (int, error) {
-	tasks, err := s.tasks.ListByAssignee(ctx, actor)
+	held, err := s.ListHeldPoolTasks(ctx, actor)
 	if err != nil {
 		return 0, err
 	}
+	return len(held), nil
+}
+
+// ListHeldPoolTasks returns the actor's currently-held (assigned-to-it + running)
+// built-in-pool tasks — its in-flight CLAIMED pool work (T83). It backs both the
+// §3.6 holding-cap count and the get_my_work surface: a claimed pool task is
+// running with NO WorkItem (pull/no-wake), so without this it would be invisible
+// in get_my_work after claiming. Bounded by the actor's assigned-task count;
+// built-in lookups are memoized per plan. Structured-plan work is NOT included
+// (it has a WorkItem and already shows in get_my_work).
+func (s *Service) ListHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) ([]ClaimableTask, error) {
+	tasks, err := s.tasks.ListByAssignee(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
 	builtin := map[pm.PlanID]bool{}
-	held := 0
+	var held []ClaimableTask
 	for _, t := range tasks {
 		if t.Status() != pm.TaskRunning {
 			continue
@@ -136,14 +151,86 @@ func (s *Service) countHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) 
 		if !ok {
 			p, ferr := s.plans.FindByID(ctx, pid)
 			if ferr != nil {
-				return 0, ferr
+				return nil, ferr
 			}
 			isPool = p != nil && p.IsBuiltin()
 			builtin[pid] = isPool
 		}
 		if isPool {
-			held++
+			held = append(held, ClaimableTask{Task: t, NodeStatus: pm.NodeDispatched})
 		}
 	}
 	return held, nil
+}
+
+// ListClaimablePool returns the OPEN, unassigned, dispatched built-in-pool tasks
+// the agent `actor` may claim — across the projects in its org where it is a
+// member (T83 §3.5 discovery surface, exposed read-only as list_assignment_pool).
+// It is the DISCOVERY counterpart to ClaimPoolTask and deliberately EXCLUDES the
+// agent's own assigned work (that is get_my_work) — it lists only the shared,
+// not-yet-taken pool. Fail-closed: nil agentDir / non-agent actor / unresolvable
+// agent / non-member project → nothing.
+func (s *Service) ListClaimablePool(ctx context.Context, actor pm.IdentityRef) ([]ClaimableTask, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	if s.agentDir == nil || !strings.HasPrefix(string(actor), "agent:") {
+		return nil, nil // only agents claim from the pool; no directory ⇒ no scope
+	}
+	org, err := s.agentDir.OrgOfAgent(ctx, strings.TrimPrefix(string(actor), "agent:"))
+	if err != nil || org == "" {
+		return nil, nil // unresolvable agent ⇒ no claimable scope (fail-closed)
+	}
+	projects, err := s.projects.ListByOrg(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+	var out []ClaimableTask
+	for _, p := range projects {
+		// membership gate (fail-closed): only a project member sees its pool.
+		if _, merr := s.members.FindByProjectAndIdentity(ctx, p.ID(), actor); merr != nil {
+			continue
+		}
+		pool := s.builtinPoolOf(ctx, p.ID())
+		if pool == nil {
+			continue
+		}
+		detail, derr := s.planDetail(ctx, pool)
+		if derr != nil {
+			return nil, derr
+		}
+		nodeStatus := make(map[pm.TaskID]pm.NodeStatus, len(detail.View.Nodes))
+		for _, n := range detail.View.Nodes {
+			nodeStatus[n.TaskID] = n.NodeStatus
+		}
+		tasks, terr := s.tasks.ListByPlan(ctx, pool.ID())
+		if terr != nil {
+			return nil, terr
+		}
+		for _, t := range tasks {
+			if t.Assignee() != "" {
+				continue // already taken — not part of the available pool
+			}
+			ns := nodeStatus[t.ID()]
+			if pm.ClaimableInPool(t.IsArchived(), t.Status(), t.PlanID(), ns) {
+				out = append(out, ClaimableTask{Task: t, NodeStatus: ns})
+			}
+		}
+	}
+	return out, nil
+}
+
+// builtinPoolOf returns the project's built-in assignment-pool plan (ADR-0047),
+// or nil if none / on error (the caller skips).
+func (s *Service) builtinPoolOf(ctx context.Context, projectID pm.ProjectID) *pm.Plan {
+	plans, err := s.plans.ListByProject(ctx, projectID)
+	if err != nil {
+		return nil
+	}
+	for _, p := range plans {
+		if p.IsBuiltin() {
+			return p
+		}
+	}
+	return nil
 }

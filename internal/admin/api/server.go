@@ -371,6 +371,9 @@ func (s *Server) routes() {
 	// T83: claim an open built-in assignment-pool task (pool tasks have no
 	// WorkItem, so start_work does not apply) — atomic assign+run, fail-closed.
 	s.mux.HandleFunc("POST /admin/agent-tools/claim_task", s.claimTaskHandler)
+	// T83: read-only discovery of the open (unassigned) pool tasks the agent may
+	// claim across its member projects (separate from get_my_work).
+	s.mux.HandleFunc("POST /admin/agent-tools/list_assignment_pool", s.listAssignmentPoolHandler)
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the active item (→paused, release
 	// slot) + resume a paused item (→active, re-acquire slot, single-active-gated).
 	s.mux.HandleFunc("POST /admin/agent-tools/pause_work", s.pauseWorkHandler)

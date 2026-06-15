@@ -181,3 +181,57 @@ func TestClaimPoolTask_HoldingCap(t *testing.T) {
 		t.Fatalf("claim #4 after freeing a slot = %v, want nil", err)
 	}
 }
+
+// §3.5 discovery: ListClaimablePool returns a member's open (unassigned) pool
+// tasks; once claimed they leave the pool list and appear as held (in-flight).
+func TestListClaimablePool_DiscoveryAndHandoff(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, tid := dispatchedPoolTask(t, h, "org-1", "P")
+	addMember(t, h, pid, "agent:m1")
+
+	// open pool task is discoverable by the member.
+	pool, err := h.svc.ListClaimablePool(h.ctx, "agent:m1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pool) != 1 || pool[0].Task.ID() != tid {
+		t.Fatalf("pool=%v, want exactly the open task %s", pool, tid)
+	}
+	// not yet held.
+	if held, _ := h.svc.ListHeldPoolTasks(h.ctx, "agent:m1"); len(held) != 0 {
+		t.Fatalf("held before claim=%d, want 0", len(held))
+	}
+
+	// claim → leaves the pool list, becomes held (running, in get_my_work).
+	if err := h.svc.ClaimPoolTask(h.ctx, tid, "agent:m1"); err != nil {
+		t.Fatal(err)
+	}
+	if pool, _ := h.svc.ListClaimablePool(h.ctx, "agent:m1"); len(pool) != 0 {
+		t.Fatalf("pool after claim=%d, want 0 (now assigned)", len(pool))
+	}
+	held, _ := h.svc.ListHeldPoolTasks(h.ctx, "agent:m1")
+	if len(held) != 1 || held[0].Task.ID() != tid {
+		t.Fatalf("held after claim=%v, want the claimed task %s", held, tid)
+	}
+}
+
+// §3.4 discovery is membership-gated: a non-member sees nothing (no existence leak).
+func TestListClaimablePool_NonMemberSeesNothing(t *testing.T) {
+	h := planAdvanceSetup(t)
+	if _, err := dispatchedPoolTaskOnly(t, h); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := h.svc.ListClaimablePool(h.ctx, "agent:outsider")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pool) != 0 {
+		t.Fatalf("non-member pool=%d, want 0", len(pool))
+	}
+}
+
+func dispatchedPoolTaskOnly(t *testing.T, h *planAdvanceHarness) (pm.TaskID, error) {
+	t.Helper()
+	_, tid := dispatchedPoolTask(t, h, "org-1", "P")
+	return tid, nil
+}

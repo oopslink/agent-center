@@ -212,6 +212,14 @@ func makeClaimTask(cfg Config) mcp.ToolHandlerFor[claimTaskArgs, any] {
 	}
 }
 
+type listAssignmentPoolArgs struct{}
+
+func makeListAssignmentPool(cfg Config) mcp.ToolHandlerFor[listAssignmentPoolArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ listAssignmentPoolArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "list_assignment_pool", map[string]any{"agent_id": cfg.AgentID})
+	}
+}
+
 // --- pause_work / resume_paused_work (v2.8.1 #278 D PR4 scheduling) -----------
 
 type pauseWorkArgs struct {
