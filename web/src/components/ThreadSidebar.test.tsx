@@ -106,4 +106,27 @@ describe('ThreadSidebar', () => {
     await userEvent.click(screen.getByTestId('thread-sidebar-close'));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('renders a left-edge resize handle and a left-drag widens the panel (persisted)', () => {
+    // jsdom's localStorage has no methods; install a real Map-backed stub so the
+    // width persists. Unstubbed after the test so other tests keep the no-op store.
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (store.has(k) ? (store.get(k) as string) : null),
+      setItem: (k: string, v: string) => void store.set(k, String(v)),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => void store.clear(),
+    });
+    render(<ThreadSidebar open rootMessage={root} onClose={() => {}} />);
+    const panel = screen.getByTestId('thread-sidebar');
+    expect(panel).toHaveStyle({ width: '448px' }); // default
+    const handle = screen.getByTestId('thread-sidebar-resize');
+    expect(handle).toHaveAttribute('aria-orientation', 'vertical');
+    fireEvent.mouseDown(handle, { clientX: 800 });
+    fireEvent.mouseMove(window, { clientX: 750 }); // 50px left -> +50
+    fireEvent.mouseUp(window, { clientX: 750 });
+    expect(panel).toHaveStyle({ width: '498px' });
+    expect(localStorage.getItem('ac.thread.panel.width')).toBe('498');
+    vi.unstubAllGlobals();
+  });
 });

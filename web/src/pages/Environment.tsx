@@ -12,6 +12,8 @@ import { LifecycleBadge } from '@/components/AgentBadges';
 import { AddWorkerModal } from '@/components/AddWorkerModal';
 import { InstallCommandModal } from '@/components/InstallCommandModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { SegmentedNav } from '@/shell/SegmentedNav';
+import { SYSTEM_SEGMENTS } from './systemSegments';
 
 // Environment page (/environment). v2.7 #164: Fleet merged into Environment — this
 // is the single operational page for the organization's workers + agents + work
@@ -148,6 +150,9 @@ export default function Environment(): React.ReactElement {
 
   return (
     <section className="space-y-6" data-testid="page-Environment">
+      {/* v2.10.1 [M7] Mobile (<md): System module 二级段控 (Environment |
+          Settings) — desktop keeps the col② nav. */}
+      <SegmentedNav items={SYSTEM_SEGMENTS} ariaLabel="System sections" />
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Environment</h1>
@@ -711,9 +716,30 @@ function TransfersPanel({
           {(transfers.error as Error).message}
         </p>
       )}
+      {/* v2.10.1 [M7] Mobile (<md): the 4-column table crams at 375px, so it
+          reflows to a card list (reusing TransferContent). The table is
+          md:-only. */}
+      {transfers.isSuccess && transfers.data.length > 0 && (
+        <ul
+          className="space-y-2 md:hidden"
+          data-testid="transfers-cards"
+        >
+          {transfers.data.map((tr) => (
+            <li
+              key={tr.id}
+              data-testid="transfer-card"
+              data-transfer-id={tr.id}
+              data-scope={tr.scope}
+              className="rounded border border-border-base bg-bg-elevated p-3 text-xs"
+            >
+              <TransferContent tr={tr} />
+            </li>
+          ))}
+        </ul>
+      )}
       {transfers.isSuccess && transfers.data.length > 0 && (
         <table
-          className="w-full table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-text-primary"
+          className="hidden w-full table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-text-primary md:table"
           data-testid="transfers-table"
         >
           <thead>

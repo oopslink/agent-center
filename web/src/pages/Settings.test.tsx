@@ -1,15 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import Settings from './Settings';
 
-function wrap() {
+function wrap(path = '/settings') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <Settings />
+      <MemoryRouter initialEntries={[path]}>
+        <Settings />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -44,5 +47,18 @@ describe('Settings version panel', () => {
     );
     wrap();
     expect(await screen.findByTestId('version-error')).toBeInTheDocument();
+  });
+
+  // v2.10.1 [M7] the System module mobile 二级段控 (Environment | Settings).
+  it('renders the mobile System segmented nav with Settings active', async () => {
+    server.use(
+      http.get('/api/system/version', () =>
+        HttpResponse.json({ version: 'v', branch: 'b', commit: 'c', built_at: '2026-06-08T07:34:21Z' }),
+      ),
+    );
+    wrap('/settings');
+    const nav = await screen.findByTestId('segmented-nav');
+    expect(within(nav).getByTestId('system-seg-settings')).toHaveAttribute('data-active', 'true');
+    expect(within(nav).getByTestId('system-seg-environment')).toHaveAttribute('data-active', 'false');
   });
 });

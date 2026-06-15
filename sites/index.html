@@ -149,6 +149,9 @@
 
 <main class="wrap wide">
 
+  <div class="section-title">v2.10.1 新特性 · 移动端体验 + 开放认领 + 桌面增强</div>
+  <div class="desc" style="max-width:880px;margin:0 0 18px">v2.10.0 三栏桌面骨架适配到 <b>&lt;768 移动布局</b>：<b>底部 Tab 导航</b>（Workspace / Conversations / Members / System）驱动 整屏列表 → 整屏详情 → 底部 sheet 的层级流；Plan 的 DAG 转为<b>纵向 stepper</b>，Work Board 竖屏横滑 / 横屏铺开，Members / System 一并适配。<b>Claimability（ADR-0047）</b>：backlog 仍不可领，<b>Assignment Pool 开放认领</b> —— 任意项目成员可领（fail-closed 授权、对非成员 opaque）、<b>每 agent 持有上限 N=3</b>、原子 CAS（无双 assignee）。<b>桌面增强</b>：Thread / 参与者侧栏<b>拖拽调宽</b>（共用 <code>ResizablePanel</code>、持久化）、Channel 侧栏 <b>Chat / Threads / Files</b> 三 tab、全局 Plan 列表查看 <b>Archived（只读）</b>、col① 侧栏整合连接状态 / 搜索 / 主题切换 / Sign out。外加：<b>Plan <code>P&lt;number&gt;</code> 序列号</b> + <code>plan-id</code> / <code>P123</code> 消息 linkify（与 <code>T&lt;number&gt;</code> 对称）、列表 <code>org_ref</code>（<code>T&lt;n&gt;</code>）取代 <code>#短哈希</code>、Task / Issue 侧栏 agent 名点击弹出活动侧栏、Task → 关联 Plan 跳转、<b>入站附件 agent 可见</b>（wake 透传 <code>file_uri</code>、fail-closed）、SSE 连接更稳（<code>no-transform</code>）、<code>discard_task</code> agent 工具。</div>
+
   <div class="section-title">v2.10.0 新特性 · 三栏式桌面 UI/UX</div>
   <div class="desc" style="max-width:880px;margin:0 0 18px">Web Console 重构为<b>四区骨架</b>：顶层模块<b>图标栏</b>（Workspace / Conversations / Members / System）→ 每模块<b>二级列表</b>（col②）→<b>内容</b>区（col③）→<b>按需上下文</b>面板（col④），落在现有 IA 上（移除 Overview）。col② 由<b>二级导航注册表</b>驱动 —— 模块加自己的 nav + 一行注册即接入，不动 app layout。各模块全部在此骨架上重建（Conversations / Projects / Tasks / Issues / 全局 Plan / Work Board / Members / System）。外加：<b>task & issue 附件</b>（上传 / 下载，项目成员鉴权 fail-closed）、<b>消息引用 linkify</b>（<code>task-&lt;id&gt;</code> 与 <code>T&lt;number&gt;</code> 都成任务链接）、<b>入站消息附件</b>透出给 agent、system 消息作者显示 <b>System</b>。</div>
   <div class="grid two" style="margin-bottom:8px">
@@ -203,7 +206,7 @@
       <span class="idx">04</span>
       <div class="ico">🧭</div>
       <h3>路线图</h3>
-      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.10.0 已发布</b>（三栏式桌面 UI/UX 重构 + 二级导航注册表 + task/issue 附件 + 消息引用 linkify + System 作者），承接 <b>v2.9.1</b>（Message Threads + claimable 内置指派池 + 任务状态机简化 + 频道归档）、<b>v2.9</b>（Plan Orchestration + 显式 org 路由 + 归档语义）、v2.8.1（Web Console UX / 单活竞态根治），v3 推迟项与边界。</div>
+      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.10.1 已发布</b>（移动端体验 + 开放认领 claimability + 桌面/Plan UI 增强：侧栏拖拽、Channel 三 tab、Plan archived 只读、col① rail、Plan P 号 + linkify、org_ref 取代短哈希、入站附件 wake 透传、SSE no-transform、discard_task），承接 <b>v2.10.0</b>（三栏式桌面 UI/UX 重构 + 二级导航注册表 + task/issue 附件 + 消息引用 linkify + System 作者）、<b>v2.9.1</b>（Message Threads + claimable 内置指派池 + 任务状态机简化 + 频道归档）、<b>v2.9</b>（Plan Orchestration + 显式 org 路由 + 归档语义），v3 推迟项与边界。</div>
       <div class="tags"><span class="tag">已完成</span><span class="tag">backlog</span><span class="tag">v3 推迟</span></div>
     </a>
   </div>

@@ -220,6 +220,10 @@ export interface AgentWorkItem {
   task_id?: string;
   task_title?: string;
   project_id?: string;
+  // T100: the underlying task's org_ref ("T<n>") so the work-item list/card shows
+  // T84 instead of an id-tail (#b6eb82). Absent when the task has no org_number
+  // (UI falls back), mirroring the task/issue DTO contract.
+  org_ref?: string;
   status: WorkItemStatus;
   interactions: number;
   version: number;
@@ -459,6 +463,9 @@ export interface Task {
   // v2.7.1 #245: org-internal display/reference token ("T1234"); hash `id`
   // (task-xxx) stays the stable internal ref. Absent → UI falls back to handle.
   org_ref?: string;
+  // T106: the owning plan's id when the task is selected into a plan; absent for
+  // a backlog task. The Task detail sidebar shows + links to the plan.
+  plan_id?: string;
   version: number;
   created_at: string;
   updated_at: string;

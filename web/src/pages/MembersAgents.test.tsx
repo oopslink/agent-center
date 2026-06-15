@@ -89,7 +89,8 @@ describe('MembersAgents — agent member → AgentDetail nav (#157)', () => {
 
     wrap(<MembersAgents />);
 
-    await waitFor(() => expect(screen.getByText('agent-orphan')).toBeInTheDocument());
+    // v2.10.1 M6: name renders in both desktop table + mobile card (both in jsdom).
+    await waitFor(() => expect(screen.getAllByText('agent-orphan').length).toBeGreaterThan(0));
     expect(screen.queryByTestId('agent-member-link-agent-orphan')).toBeNull();
   });
 });

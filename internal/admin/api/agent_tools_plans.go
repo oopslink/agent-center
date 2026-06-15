@@ -582,3 +582,106 @@ func planSummaryMap(detail *pmservice.PlanDetail) map[string]any {
 	m["nodes_preview"] = preview
 	return m
 }
+
+// --- claim_task (T83: open-claim of a built-in assignment-pool task) ---------
+
+type claimTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// claimTaskHandler is the agent's claim entry point for the built-in assignment
+// pool (T83). The agent sees an open pool task in get_my_work and claims it here
+// (pool tasks have no WorkItem, so start_work does not apply). ClaimPoolTask
+// atomically assigns it to the caller + moves it open→running, fail-closed on
+// project membership, holding cap, and concurrency.
+func (s *Server) claimTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req claimTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.TaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	if err := d.PMService.ClaimPoolTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		writeClaimError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"task_id": req.TaskID,
+		"status":  string(pm.TaskRunning),
+		"claimed": true,
+	})
+}
+
+// writeClaimError maps ClaimPoolTask errors. Authz + existence errors collapse to
+// ONE opaque 404 (T83 §4.3 — never reveal whether a task exists or sits in a
+// project the agent can't see). Claimability / concurrency / cap are explicit 409s.
+func writeClaimError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, pmservice.ErrNotMember),
+		errors.Is(err, pm.ErrProjectNotFound),
+		errors.Is(err, pm.ErrTaskNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+	case errors.Is(err, pm.ErrTaskNotClaimable):
+		writeError(w, http.StatusConflict, "not_claimable", err.Error())
+	case errors.Is(err, pm.ErrTaskAlreadyClaimed):
+		writeError(w, http.StatusConflict, "already_claimed", err.Error())
+	case errors.Is(err, pm.ErrPoolClaimLimitReached):
+		writeError(w, http.StatusConflict, "pool_claim_limit_reached", err.Error())
+	default:
+		writeError(w, http.StatusInternalServerError, "claim_error", err.Error())
+	}
+}
+
+// --- list_assignment_pool (T83 §3.5: read-only discovery of claimable pool) --
+
+type listAssignmentPoolReq struct {
+	AgentID string `json:"agent_id"`
+}
+
+// listAssignmentPoolHandler lists the OPEN, unassigned pool tasks the calling
+// agent may claim across its member projects (T83 §3.5). It is a read-only
+// DISCOVERY surface — deliberately SEPARATE from get_my_work (which is the
+// agent's own work, not the shared grab-able pool). Claiming still goes through
+// the atomic claim_task path.
+func (s *Server) listAssignmentPoolHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listAssignmentPoolReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	pool, err := d.PMService.ListClaimablePool(r.Context(), pm.IdentityRef(agentActor(a)))
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	out := make([]map[string]any, len(pool))
+	for i, c := range pool {
+		m := agentTaskMap(c.Task)
+		m["node_status"] = string(c.NodeStatus)
+		m["claimable"] = true
+		out[i] = m
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pool_tasks": out})
+}

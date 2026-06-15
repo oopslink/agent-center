@@ -342,8 +342,11 @@ export function OrgWorkItemsView({
         </p>
       )}
 
+      {/* v2.10.1 [M3] desktop (≥md): the 7-column table. On mobile it would
+          h-scroll at 375px (critical①), so it is md:-only and a card flow
+          (below) replaces it. */}
       {query.data && items.length > 0 && (
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left text-xs" data-testid="org-workitems-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
@@ -433,6 +436,75 @@ export function OrgWorkItemsView({
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* v2.10.1 [M3] mobile (<md) card flow — mirrors the table rows without a
+          horizontal scroll (critical①). Tapping a card selects it (→ the col④
+          metadata, which the M1 shell reflows to a bottom sheet); the title and
+          project links navigate (stopPropagation so they don't also select). */}
+      {query.data && items.length > 0 && (
+        <ul className="space-y-2 md:hidden" data-testid="org-workitems-cards">
+          {items.map((it) => {
+            const isSelected = it.id === selectedId;
+            return (
+              <li key={it.id}>
+                <div
+                  data-testid="org-workitem-card"
+                  data-id={it.id}
+                  data-status={it.status}
+                  data-kind={kind}
+                  data-selected={isSelected}
+                  aria-selected={isSelected}
+                  onClick={() => onSelect(isSelected ? null : it.id)}
+                  className={`min-h-[44px] cursor-pointer rounded-xl border border-border-base bg-bg-elevated p-3 shadow-1 ${
+                    isSelected ? 'ring-2 ring-accent' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className="font-mono text-[0.6875rem] text-text-muted"
+                      data-testid="org-workitem-card-id"
+                      title={it.id}
+                    >
+                      {/* org_ref (I12/T34) when present; else id-tail handle (#192). */}
+                      {it.org_ref || `#${idHandle(it.id)}`}
+                    </span>
+                    <StatusChip status={it.status} />
+                  </div>
+                  <OrgLink
+                    to={`/projects/${encodeURIComponent(it.project.id)}/${seg}/${encodeURIComponent(it.id)}`}
+                    className="mt-1 block text-sm font-semibold text-text-primary hover:text-accent"
+                    data-testid="org-workitem-card-title"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="line-clamp-2">{it.title || it.id}</span>
+                  </OrgLink>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                    <OrgLink
+                      to={`/projects/${encodeURIComponent(it.project.id)}`}
+                      className="truncate text-text-secondary hover:text-accent"
+                      title={it.project.id}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {it.project.name}
+                    </OrgLink>
+                    {it.assignee && (
+                      <span className="truncate" title={it.assignee.member_id}>
+                        {it.assignee.display_name}
+                        {it.assignee.assignee_lifecycle === 'archived' && (
+                          <span className="ml-1 italic text-text-muted">(archived)</span>
+                        )}
+                      </span>
+                    )}
+                    <span className="ml-auto tabular-nums" title={it.updated_at}>
+                      {shortDate(it.updated_at)}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       {/* col④ — read-only metadata for the selected row (v2.10.0 [T3]). Mounting

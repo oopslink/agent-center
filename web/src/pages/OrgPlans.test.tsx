@@ -1,6 +1,6 @@
 import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -45,6 +45,7 @@ const planRow = (extra: Record<string, unknown> = {}) => ({
   name: 'v2.9.2 收尾',
   description: '',
   status: 'running',
+  org_ref: 'P7',
   creator_ref: 'user:alice',
   conversation_id: 'conv-1',
   has_failed: false,
@@ -73,6 +74,8 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     const row = screen.getByTestId('org-plan-row');
     expect(row).toHaveAttribute('data-status', 'running');
     expect(screen.getByTestId('org-plan-name')).toHaveTextContent('v2.9.2 收尾');
+    // v2.10.1 [T99]: the human Plan id (P7) shows next to the name.
+    expect(within(row).getByTestId('org-plan-ref')).toHaveTextContent('P7');
     // name links into the Plan detail (project-scoped route).
     expect(screen.getByTestId('org-plan-name').getAttribute('href')).toContain(
       '/projects/proj-a/plans/plan-01KT9ABCDEF',
@@ -95,6 +98,36 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     await waitFor(() => expect(screen.getByTestId('org-plan-row')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('org-plan-status-done'));
     await waitFor(() => expect(gotQuery).toContain('status=done'));
+  });
+
+  it('archived chip sends status=archived and renders archived plans (T98)', async () => {
+    let gotQuery = '';
+    server.use(
+      http.get('/api/plans', ({ request }) => {
+        gotQuery = new URL(request.url).search;
+        // Backend only returns archived plans once explicitly filtered.
+        const wantArchived = gotQuery.includes('status=archived');
+        return HttpResponse.json({
+          items: wantArchived
+            ? [planRow({ id: 'plan-arch', name: '已归档计划', status: 'archived' })]
+            : [planRow()],
+          total: 1,
+        });
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('org-plan-row')).toBeInTheDocument());
+    // default view excludes archived → no status param, running row shown.
+    expect(gotQuery).toBe('');
+    expect(screen.getByTestId('org-plan-row')).toHaveAttribute('data-status', 'running');
+    // the archived chip exists in the filter bar...
+    fireEvent.click(screen.getByTestId('org-plan-status-archived'));
+    await waitFor(() => expect(gotQuery).toContain('status=archived'));
+    // ...and the now-archived row surfaces.
+    await waitFor(() =>
+      expect(screen.getByTestId('org-plan-row')).toHaveAttribute('data-status', 'archived'),
+    );
+    expect(screen.getByTestId('org-plan-name')).toHaveTextContent('已归档计划');
   });
 
   it('client-side search narrows the list by name', async () => {
@@ -146,5 +179,36 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     wrap();
     await waitFor(() => expect(screen.getByTestId('org-plans-empty')).toBeInTheDocument());
     expect(screen.getByTestId('org-plans-empty')).toHaveTextContent(/No plans yet/i);
+  });
+
+  // v2.10.1 [M4] Mobile (<md): the wide table reflows to a card flow (md:hidden).
+  // jsdom renders both; these specs assert the card list mirrors the rows.
+  it('renders a mobile card per plan, with a name link to the plan detail', async () => {
+    server.use(
+      http.get('/api/plans', () =>
+        HttpResponse.json({ items: [planRow(), planRow({ id: 'plan-2', name: '聊天框附件增强' })], total: 2 }),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('org-plans-cards')).toBeInTheDocument());
+    const cards = screen.getAllByTestId('org-plan-card');
+    expect(cards).toHaveLength(2);
+    // name links into the plan detail (mirrors the table row link).
+    const name = within(cards[0]).getByTestId('org-plan-card-name');
+    expect(name.getAttribute('href')).toContain('/projects/proj-a/plans/plan-01KT9ABCDEF');
+    // status chip surfaces on the card.
+    expect(within(cards[0]).getByTestId('plan-status-chip')).toHaveTextContent('running');
+  });
+
+  it('tapping a mobile card selects it → opens the col④ summary (M1 reflows to a sheet)', async () => {
+    server.use(http.get('/api/plans', () => HttpResponse.json({ items: [planRow()], total: 1 })));
+    wrap();
+    const card = await screen.findByTestId('org-plan-card');
+    expect(card).toHaveAttribute('aria-selected', 'false');
+    fireEvent.click(card);
+    expect(screen.getByTestId('org-plan-card')).toHaveAttribute('aria-selected', 'true');
+    // the col④ ContextPanel summary mounts (becomes a bottom sheet on mobile).
+    expect(screen.getByTestId('org-plan-meta-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('ctx-col')).toHaveAttribute('data-open', 'true');
   });
 });

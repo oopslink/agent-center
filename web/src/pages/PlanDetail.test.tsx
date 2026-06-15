@@ -41,6 +41,7 @@ function planWith(overrides: Record<string, unknown> = {}) {
     name: 'v3.0 release plan',
     description: '',
     status: 'running',
+    org_ref: 'P9',
     creator_ref: 'user:owner',
     conversation_id: 'conv-plan-1',
     target_date: '2026-07-15T00:00:00Z',
@@ -89,6 +90,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
     const hd = screen.getByTestId('plan-detail-header');
     expect(within(hd).getByText('v3.0 release plan')).toBeInTheDocument();
+    // v2.10.1 [T99]: the human Plan id (P9) shows in the header.
+    expect(within(hd).getByTestId('plan-detail-ref')).toHaveTextContent('P9');
     expect(within(hd).getByTestId('plan-status-chip')).toHaveTextContent('running');
     expect(within(hd).getByTestId('plan-failed-indicator')).toBeInTheDocument();
     expect(screen.getByTestId('plan-progress')).toHaveTextContent('2/6');
@@ -231,11 +234,12 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
-    // DAG node carries the resolved T-number
-    const node1 = screen.getByTestId('plan-dag').querySelector('[data-task-id="n1"]') as HTMLElement;
+    // DAG node carries the resolved T-number (scope to the graph node; the
+    // v2.10.1 [M4] mobile stepper <li> also carries data-task-id)
+    const node1 = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n1"]') as HTMLElement;
     await waitFor(() => expect(within(node1).getByTestId('plan-node-taskid')).toHaveTextContent('T101'));
     // a node whose task has no org_ref falls back to the #id-tail handle
-    const node3 = screen.getByTestId('plan-dag').querySelector('[data-task-id="n3"]') as HTMLElement;
+    const node3 = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]') as HTMLElement;
     expect(within(node3).getByTestId('plan-node-taskid')).toHaveTextContent('#');
     // task-list rows show the same Task id
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
@@ -476,7 +480,11 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   //
   // Helpers to find the in-graph controls inside a specific node.
   function dagNode(taskId: string): HTMLElement {
-    return screen.getByTestId('plan-dag').querySelector(`[data-task-id="${taskId}"]`) as HTMLElement;
+    // Scope to the SVG-graph node (plan-dag-node) — v2.10.1 [M4] added a mobile
+    // stepper whose <li> also carries data-task-id.
+    return screen
+      .getByTestId('plan-dag')
+      .querySelector(`[data-testid="plan-dag-node"][data-task-id="${taskId}"]`) as HTMLElement;
   }
 
   it('draft plan shows in-graph affordances: a connect button per node + a delete control per edge', async () => {
@@ -1539,5 +1547,45 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     const select = within(row).getByTestId('plan-row-assign');
     await act(async () => fireEvent.change(select, { target: { value: '' } }));
     await waitFor(() => expect(unassigned).toBe(true));
+  });
+});
+
+// v2.10.1 [M4] On mobile the SVG DAG reflows to a vertical stepper (the SVG
+// graph + its controls are md:-only). jsdom has no CSS media queries, so BOTH
+// render in the DOM here; these specs assert the stepper's structure/order.
+describe('PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper', () => {
+  afterEach(() => cleanup());
+
+  it('renders a vertical stepper with one node per task (topological order) alongside the desktop graph', async () => {
+    mockPlan();
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    // Stepper exists with one node per task (same 7 as the graph).
+    const stepper = screen.getByTestId('plan-stepper');
+    const nodes = within(stepper).getAllByTestId('plan-stepper-node');
+    expect(nodes).toHaveLength(7);
+    // First stepper node is a DAG root (level 0).
+    expect(nodes[0]).toHaveAttribute('data-level', '0');
+    // Levels are non-decreasing down the timeline (topological order).
+    const levels = nodes.map((n) => Number(n.getAttribute('data-level')));
+    expect(levels).toEqual([...levels].sort((a, b) => a - b));
+    // The desktop SVG graph still renders (md:-only via CSS, present in jsdom).
+    expect(screen.getByTestId('plan-dag-canvas')).toBeInTheDocument();
+  });
+
+  it('each stepper node shows a status dot + state chip + a tappable title link to the task', async () => {
+    mockPlan();
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    const stepper = await screen.findByTestId('plan-stepper');
+    const first = within(stepper).getAllByTestId('plan-stepper-node')[0];
+    expect(within(first).getByTestId('plan-stepper-dot')).toBeInTheDocument();
+    expect(within(first).getByTestId('node-state-chip')).toBeInTheDocument();
+    // The title is the task-open link (≥44px touch target).
+    const taskId = first.getAttribute('data-task-id')!;
+    const link = within(first).getByTestId(`task-open-link-${taskId}`);
+    expect(link).toHaveAttribute('href', expect.stringContaining(`/tasks/${taskId}`));
+    expect(link.className).toContain('min-h-[44px]');
   });
 });

@@ -697,6 +697,100 @@ func TestCompleteTask_NoSummary_OK(t *testing.T) {
 	}
 }
 
+// --- discard_task (T119) -----------------------------------------------------
+
+func TestDiscardTask_RunningToDiscarded_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/discard_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "superseded by T120"})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskDiscarded {
+		t.Fatalf("task status = %s, want discarded", got)
+	}
+	// Optional reason is posted to the task conversation.
+	found := false
+	for _, m := range f.taskMessages(t, tid) {
+		if m.Content() == "superseded by T120" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("discard reason not posted to task conv")
+	}
+}
+
+func TestDiscardTask_NoReason_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	before := len(f.taskMessages(t, tid))
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/discard_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	// No reason → no new message.
+	if after := len(f.taskMessages(t, tid)); after != before {
+		t.Fatalf("message count changed %d → %d with no reason", before, after)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskDiscarded {
+		t.Fatalf("task status = %s, want discarded", got)
+	}
+}
+
+// A terminal task (completed/discarded) cannot be discarded — illegal transition.
+func TestDiscardTask_TerminalRejected(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	// Complete it first (terminal).
+	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid}); status != http.StatusOK {
+		t.Fatalf("precondition complete status = %d body=%v", status, body)
+	}
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/discard_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422; body = %v", status, body)
+	}
+	if body["error"] != "invalid_transition" {
+		t.Fatalf("error = %v, want invalid_transition", body["error"])
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
+		t.Fatalf("task status = %s, want completed (no write on reject)", got)
+	}
+}
+
+// Domain guardrail: a worker token operating an agent bound to ANOTHER worker → 403.
+func TestDiscardTask_CrossWorker_403(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/discard_task", "acat_w1",
+		map[string]any{"agent_id": atAgent2, "task_id": tid, "reason": "x"})
+	if status != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %v", status, body)
+	}
+	if body["error"] != "agent_not_bound_to_worker" {
+		t.Fatalf("error = %v, want agent_not_bound_to_worker", body["error"])
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("task status = %s, want running (no write on 403)", got)
+	}
+}
+
 // F4: post_task_message with parent_message_id threads the agent's reply IN the
 // thread (parent=root) instead of at conversation top-level. This is the center
 // half of the @agent-in-thread fix: the agent passes the thread root the wake brief

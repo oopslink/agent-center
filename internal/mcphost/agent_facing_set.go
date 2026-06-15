@@ -24,6 +24,7 @@ var AgentFacingToolNames = []string{
 	"attach_file",
 	"block_task",
 	"complete_task",
+	"discard_task", // T119: terminal-discard a superseded / mis-created task
 	"create_plan",
 	// v2.9.1 P0 recovery tools (deliberately agent-facing: owner/PD recover a
 	// task stuck blocked after a restart/stale-release).
@@ -52,6 +53,8 @@ var AgentFacingToolNames = []string{
 	"post_task_message",
 	"reassign_task",
 	"remove_plan_dependency",
+	"claim_task",
+	"list_assignment_pool",
 	"remove_task_from_plan",
 	"request_input",
 	"resume_paused_work",

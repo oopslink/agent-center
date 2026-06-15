@@ -157,7 +157,15 @@ type Service struct {
 	// ErrNodeResumerUnavailable. When wired, it resumes a paused node + wakes its
 	// agent (cross-BC effect behind the port).
 	nodeResumer NodeResumer
+	// poolClaimLimit caps the concurrent claimed built-in-pool tasks per agent
+	// (T83 §3.6, owner-set). 0 ⇒ DefaultPoolClaimLimit (3).
+	poolClaimLimit int
 }
+
+// DefaultPoolClaimLimit is the T83 §3.6 default cap on concurrently-claimed
+// built-in-pool tasks per agent (owner-set 2026-06-15). Overridable via
+// Deps.PoolClaimLimit.
+const DefaultPoolClaimLimit = 3
 
 // ErrDispatcherUnavailable is returned by AdvancePlan when no PlanDispatcher is
 // wired (s.planDispatcher == nil) — fail-loud, mirroring ErrPlansUnavailable.
@@ -207,6 +215,9 @@ type Deps struct {
 	// NodeResumer is OPTIONAL (T53): when set, ResumePausedNode can resume a paused
 	// node + wake its agent. nil ⇒ ResumePausedNode is unavailable.
 	NodeResumer NodeResumer
+	// PoolClaimLimit is OPTIONAL (T83 §3.6): max concurrent claimed built-in-pool
+	// tasks per agent. 0 ⇒ DefaultPoolClaimLimit (3).
+	PoolClaimLimit int
 }
 
 // New constructs the Service.
@@ -220,8 +231,17 @@ func New(d Deps) *Service {
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher,
-		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer,
+		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
 	}
+}
+
+// poolLimit resolves the configured per-agent pool-claim cap, defaulting to
+// DefaultPoolClaimLimit when unset (T83 §3.6).
+func (s *Service) poolLimit() int {
+	if s.poolClaimLimit > 0 {
+		return s.poolClaimLimit
+	}
+	return DefaultPoolClaimLimit
 }
 
 // SetPausedTaskProvider wires the optional T53 paused-task read-port AFTER

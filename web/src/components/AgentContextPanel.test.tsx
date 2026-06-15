@@ -80,6 +80,23 @@ describe('AgentContextPanel', () => {
     expect(card.textContent).toContain('#sk-xyz'); // tail handle of task-xyz (slice(-6))
   });
 
+  it('prefers the task org_ref (T<n>) over the id-tail handle (T100)', async () => {
+    server.use(
+      http.get('/api/agents/:id/work-items', () =>
+        HttpResponse.json({
+          work_items: [
+            wi({ id: 'wi-active', status: 'active', task_id: 'task-aab6eb82', task_ref: 'pm://tasks/task-aab6eb82', task_title: 'Mobile shell', project_id: 'proj-1', org_ref: 'T84', updated_at: '2026-06-10T00:00:00Z' }),
+          ],
+        }),
+      ),
+    );
+    renderPanel();
+    const card = await screen.findByTestId('agent-context-workitem');
+    // org_ref (T84) replaces the #b6eb82 id-tail handle the owner reported.
+    expect(card.textContent).toContain('T84');
+    expect(card.textContent).not.toContain('#b6eb82');
+  });
+
   it('resolves the owning plan by task membership and links to it', async () => {
     renderPanel();
     await waitFor(() => expect(screen.getByTestId('agent-context-plan-link')).toBeInTheDocument());

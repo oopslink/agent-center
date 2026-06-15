@@ -177,7 +177,12 @@ export default function AgentDetail(): React.ReactElement {
           <AvailabilityBadge availability={a.availability} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2" data-testid="agent-controls">
+        {/* v2.10.1 M6: lifecycle controls are ≥44px touch targets on mobile
+            (child-button variant); desktop keeps the compact icon buttons. */}
+        <div
+          className="flex flex-wrap items-center gap-2 [&>button]:min-h-[44px] [&>button]:min-w-[44px] [&>button]:justify-center md:[&>button]:min-h-0 md:[&>button]:min-w-0"
+          data-testid="agent-controls"
+        >
           {/* #270: archived agents are read-only — no message/lifecycle actions. */}
           {!isArchived && (
             <button
@@ -306,7 +311,7 @@ export default function AgentDetail(): React.ReactElement {
 
       {/* v2.7.1 #228: tab bar. */}
       <nav
-        className="flex gap-1 border-b border-border-base"
+        className="flex gap-1 border-b border-border-base [&>button]:min-h-[44px] md:[&>button]:min-h-0"
         role="tablist"
         aria-orientation="horizontal"
         ref={tablist.tablistRef}

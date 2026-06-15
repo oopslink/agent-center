@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useOrgPlans, type OrgPlanItem, type OrgPlanFilters } from '@/api/plans';
 import { useProjects } from '@/api/projects';
-import { PlanStatusChip, PlanFailedIndicator, planProgressLabel } from '@/components/planDisplay';
+import { PlanStatusChip, PlanFailedIndicator, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { shortDate } from '@/components/workItemDisplay';
 import { ContextPanel } from '@/shell/contextPanel';
 
@@ -18,9 +18,14 @@ import { ContextPanel } from '@/shell/contextPanel';
 // Plan creation is NOT here: plans are authored per-project on the project Work
 // Board (T5), so this global list is read+navigate (status filtering + search).
 
-// Status chips offered by the filter bar, in lifecycle order. `archived` is
-// excluded by the backend default; the chips drive the explicit status filter.
-const PLAN_STATUS_OPTIONS = ['draft', 'running', 'done'] as const;
+// Status chips offered by the filter bar, in lifecycle order. The chips drive
+// the explicit status filter (`?status=`). `archived` is terminal and EXCLUDED
+// from the backend default (no chip on) — it surfaces only when its chip is
+// toggled on (T98: let the global list view archived plans, which otherwise
+// disappear). Archived plans open as read-only detail (PlanDetail offers no
+// Start/Advance/Stop/destroy for a terminal plan); archive is irreversible by
+// domain design, so there is no unarchive action here.
+const PLAN_STATUS_OPTIONS = ['draft', 'running', 'done', 'archived'] as const;
 
 // A small done/total progress bar (mockup `.pgmini`). Tokens only.
 function ProgressMini({ done, total }: { done: number; total: number }): React.ReactElement {
@@ -155,7 +160,9 @@ export default function OrgPlansPage(): React.ReactElement {
       )}
 
       {query.data && items.length > 0 && (
-        <div className="overflow-x-auto">
+        // v2.10.1 [M4] Mobile (<md): the wide table would h-scroll at 375px, so
+        // it reflows to a card flow (below). The table is md:-only.
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left text-xs" data-testid="org-plans-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
@@ -179,15 +186,19 @@ export default function OrgPlansPage(): React.ReactElement {
                     onClick={() => setSelectedId(isSelected ? null : p.id)}
                     className={`cursor-pointer ${isSelected ? 'bg-bg-subtle' : 'hover:bg-bg-subtle/60'}`}
                   >
-                    <td className="max-w-[20rem] truncate py-1.5 pr-3">
-                      <OrgLink
-                        to={`/projects/${encodeURIComponent(p.project.id)}/plans/${encodeURIComponent(p.id)}`}
-                        className="font-medium text-text-primary hover:text-accent"
-                        data-testid="org-plan-name"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {p.name}
-                      </OrgLink>
+                    <td className="max-w-[20rem] py-1.5 pr-3">
+                      <span className="flex items-center gap-1.5">
+                        {/* v2.10.1 [T99]: the human Plan id (P123). */}
+                        <PlanRefTag planId={p.id} orgRef={p.org_ref} testId="org-plan-ref" />
+                        <OrgLink
+                          to={`/projects/${encodeURIComponent(p.project.id)}/plans/${encodeURIComponent(p.id)}`}
+                          className="min-w-0 truncate font-medium text-text-primary hover:text-accent"
+                          data-testid="org-plan-name"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {p.name}
+                        </OrgLink>
+                      </span>
                     </td>
                     <td className="py-1.5 pr-3">
                       <span className="inline-flex items-center gap-1.5">
@@ -219,7 +230,54 @@ export default function OrgPlansPage(): React.ReactElement {
         </div>
       )}
 
-      {/* col④ — read-only summary of the selected plan (mockup §1 col④). */}
+      {/* v2.10.1 [M4] Mobile (<md) card flow — mirrors the table rows (the wide
+          table h-scrolls at 375px). Tapping a card selects it (→ the col④ plan
+          summary, which the M1 shell reflows to a bottom sheet); the name links
+          into the Plan detail. */}
+      {query.data && items.length > 0 && (
+        <ul className="space-y-2 md:hidden" data-testid="org-plans-cards">
+          {items.map((p) => {
+            const isSelected = p.id === selectedId;
+            return (
+              <li key={p.id}>
+                <div
+                  data-testid="org-plan-card"
+                  data-id={p.id}
+                  data-status={p.status}
+                  aria-selected={isSelected}
+                  onClick={() => setSelectedId(isSelected ? null : p.id)}
+                  className={`min-h-[44px] cursor-pointer rounded-xl border border-border-base bg-bg-elevated p-3 shadow-1 ${
+                    isSelected ? 'ring-2 ring-accent' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <OrgLink
+                      to={`/projects/${encodeURIComponent(p.project.id)}/plans/${encodeURIComponent(p.id)}`}
+                      className="min-w-0 flex-1 text-sm font-semibold text-text-primary hover:text-accent"
+                      data-testid="org-plan-card-name"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="line-clamp-2">{p.name}</span>
+                    </OrgLink>
+                    <span className="inline-flex shrink-0 items-center gap-1.5">
+                      <PlanStatusChip status={p.status} />
+                      <PlanFailedIndicator hasFailed={p.has_failed} />
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
+                    <span className="truncate" data-testid="org-plan-card-project">{p.project.name}</span>
+                    <ProgressMini done={p.progress.done} total={p.progress.total} />
+                    <span className="ml-auto tabular-nums" title={p.updated_at}>{shortDate(p.updated_at)}</span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* col④ — read-only summary of the selected plan (mockup §1 col④). On
+          mobile the M1 shell reflows this ContextPanel into a bottom sheet. */}
       {selected && <PlanSummaryPanel plan={selected} onClose={() => setSelectedId(null)} />}
     </section>
   );
@@ -264,6 +322,7 @@ function PlanSummaryPanel({
         </div>
 
         <div className="border-b border-border-base px-4 pb-2.5">
+          <SummaryKV k="ID"><PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="org-plan-meta-ref" /></SummaryKV>
           <SummaryKV k="Name">{plan.name}</SummaryKV>
           <SummaryKV k="Status"><PlanStatusChip status={plan.status} /></SummaryKV>
           <SummaryKV k="Project">{plan.project.name}</SummaryKV>

@@ -15,6 +15,82 @@ ADR / phase plan landscape, see
 
 _Nothing yet — released work is tracked in the per-version sections below._
 
+## [v2.10.1] — 2026-06-15
+
+Mobile experience for the three-column shell + open claimability + desktop / Plan UI enhancements.
+
+### Added
+
+- **Mobile layout for every module (<768px).** The v2.10.0 three-column desktop
+  shell adapts below 768px to a mobile layout: a **bottom Tab bar** (Workspace /
+  Conversations / Members / System, col① top modules) drives a full-screen list
+  (col②) → full-screen detail (col③) → bottom-sheet context (col④) flow.
+  Conversations, the Workspace Tasks / Issues lists (table → **card flow**),
+  Members, and System all adapt; the breakpoint flips cleanly at 768 with no
+  horizontal overflow, and `≥md` keeps the v2.10.0 three columns.
+- **Plan DAG → vertical stepper (mobile).** On mobile the Plan detail keeps its
+  Chat / DAG / Task tabs, and the DAG renders as a **vertical stepper** (nodes +
+  dependency rail + status colors stacked, paused nodes shown).
+- **Work Board mobile.** Portrait scrolls the columns (Backlog / each Plan / New
+  Plan) **horizontally**; landscape fans the columns out — rotation switches with
+  no layout break.
+- **Open claimability (ADR-0047).** The per-project **Assignment Pool is now
+  openly claimable**: any project-member agent can see and claim an unassigned
+  pool task (claim = atomic `open→running` + stamp assignee via conditional CAS).
+  Backlog tasks (no plan) stay unclaimable; structured plan nodes remain
+  single-assignee. Authorization is enforced in the **service layer** and is
+  opaque to non-members (403 / 404, no existence disclosure). Each agent has a
+  **hold cap of N=3** claimed pool tasks (configurable via `Deps.PoolClaimLimit`);
+  the 4th claim is rejected with `pool_claim_limit_reached` and frees up as
+  in-hand tasks complete.
+- **Resizable Thread & Participants side panels (desktop).** The Thread panel
+  (col④) and the Participants sidebar share one `ResizablePanel` — a left-edge
+  resize grip (`cursor:col-resize`, keyboard-accessible), width clamped and
+  persisted in `localStorage`, main content compresses without overflow.
+- **Channel sidebar Chat / Threads / Files tabs (desktop).** The Channel sidebar
+  is organized as three segment-header tabs — Chat (message stream) / Threads
+  (thread list) / Files (file list) — showing one at a time.
+- **Archived plans in the global Plan list (desktop).** The Plan list header gains
+  an **Active / Archived** segmented filter; archived rows are greyed with an
+  "Archived" badge and open to a **read-only** detail (DAG / nodes / history
+  viewable; no edit, no start). Unarchive is intentionally out of scope this cycle.
+- **col① sidebar rail consolidation (desktop).** The rail now carries the
+  connection-status icon (WiFi + breathing dot + tooltip), the search entry, and a
+  bottom user panel with a Light / Dark theme toggle and Sign out.
+- **`discard_task` agent tool.** Agents can discard their own task (200 →
+  `discarded`); a terminal task re-discard returns `422 invalid_transition` (no
+  write), and a non-domain task returns `403 not_agents_task` (opaque).
+
+### Changed
+
+- **Plan `P<number>` sequence ids + message linkify.** Plans surface a
+  `P<number>` sequence id (list + detail), and messages linkify `plan-<id>` /
+  `P123` into clickable plan links — bidirectional (human- and agent-authored) and
+  symmetric with the existing `task-<id>` / `T<number>` linkify; refs inside code
+  spans / existing links are not converted.
+- **Lists show `org_ref` (`T<n>`) instead of `#short-hash`.** Work-item, task,
+  issue, board-card, and detail surfaces show the org sequence ref (`T<n>` /
+  `I<n>`) everywhere; the `#<id-tail>` short hash is eliminated across the audited
+  call sites (only work items with no `org_ref` fall back).
+- **Clickable agent names → activity sidebar.** Clicking an agent name in the Task
+  / Issue detail panels opens the `SenderDetailSidebar` activity sidebar.
+- **Task detail links to its related Plan.** The Task detail panel shows the
+  related plan (`P<number>` + name) and clicks through to the plan detail; backlog
+  tasks show no empty link.
+
+### Fixed
+
+- **Inbound attachments now reach agents (T103).** A T74 half-fix left wake
+  delivery stripping attachments and advancing the cursor, so an agent never saw
+  inbound files. The wake payload now carries `file_uri` (+ filename / mime /
+  size) inline, the agent can `download_file` it (200 when a participant; 403 /
+  404 fail-closed for non-participants), and the unread cursor advances without
+  dropping or re-waking.
+- **SSE connection no longer flips connecting ↔ reconnecting (T104).** The SSE
+  response (`bus.go`) now sets `Cache-Control: … no-transform` (plus
+  `X-Accel-Buffering: no`) so a buffering proxy (e.g. Cloudflare) can't chunk the
+  stream into watchdog-tripping silence; the connection stays stably open.
+
 ## [v2.10.0] — 2026-06-15
 
 Three-column desktop UI/UX refactor + attachments / message-ref / author fixes (38 commits).

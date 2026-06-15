@@ -29,6 +29,11 @@ func pmPlanMap(p *pm.Plan) map[string]any {
 		"version":    p.Version(),
 		"is_builtin": p.IsBuiltin(), // ADR-0047: the per-project assignment pool (vs a structured plan)
 	}
+	// v2.10.1 [T99]: the human Plan id (org_ref "P123"); omitted when org_number
+	// is 0 (builtin pool / pre-allocator rows) — the UI falls back to the hash handle.
+	if ref := orgRefToken("P", p.OrgNumber()); ref != "" {
+		m["org_ref"] = ref
+	}
 	if d := p.TargetDate(); d != nil {
 		m["target_date"] = d.Format(time.RFC3339Nano)
 	}

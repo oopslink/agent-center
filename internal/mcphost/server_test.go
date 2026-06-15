@@ -84,6 +84,8 @@ var wantTools = []string{
 	"get_my_work", "post_task_message",
 	// v2.8.1 #278 D pull model: agent drives its own work-item queue
 	"start_work", "fail_work",
+	// T83: claim an open assignment-pool task (pull, no work item) + browse the pool
+	"claim_task", "list_assignment_pool",
 	// v2.8.1 #278 PR4 scheduling autonomy
 	"pause_work", "resume_paused_work",
 	// v2.8.1 #278 PR4 read tools (loop-boundary active + paused candidates)
@@ -102,6 +104,7 @@ var wantTools = []string{
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe", "request_input",
 	"block_task", "complete_task",
+	"discard_task", // T119: terminal-discard a superseded / mis-created task
 	// v2.9.1 P0 recovery tools (deadlocked-blocked task recovery)
 	"unblock_task", "rerun_failed_node",
 	// T53: operator resume of a paused plan node

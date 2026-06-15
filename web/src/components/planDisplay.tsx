@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { PlanStatus } from '@/api/plans';
+import { idHandle } from '@/components/workItemDisplay';
 
 // Shared display helpers for v2.9 Plan orchestration (#286 list + #287 DAG).
 // Extracted so the Plan status palette + has_failed indicator stay identical
@@ -100,6 +101,31 @@ export function TaskArchivedBadge({
 }
 
 // planProgressLabel — "done/total" string for the progress column.
+// PlanRefTag (v2.10.1 [T99]) — a small monospace pill showing the human Plan id
+// (org_ref "P123"), falling back to "#"+id-tail when there's no org_ref (the
+// builtin pool / pre-allocator rows). Mirrors the task TaskIdTag pattern. Solid
+// theme tokens (both-mode AA). Full plan id on hover.
+export function PlanRefTag({
+  planId,
+  orgRef,
+  testId = 'plan-ref-tag',
+}: {
+  planId: string;
+  orgRef?: string;
+  testId?: string;
+}): React.ReactElement {
+  const label = orgRef || `#${idHandle(planId)}`;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
+      data-testid={testId}
+      title={planId}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function planProgressLabel(progress: { done: number; total: number }): string {
   return `${progress.done}/${progress.total}`;
 }

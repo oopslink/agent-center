@@ -162,6 +162,12 @@ func (s *Service) TaskClaimableByID(ctx context.Context, taskID pm.TaskID) (bool
 			break
 		}
 	}
+	// T83 §3.2/§5: a built-in pool task is OPEN-claim (no assignee requirement),
+	// so get_task.claimable matches what ClaimPoolTask will actually accept. A
+	// structured-plan node stays assignee-gated.
+	if p.IsBuiltin() {
+		return pm.ClaimableInPool(t.IsArchived(), t.Status(), planID, ns), nil
+	}
 	return pm.TaskClaimable(t, ns), nil
 }
 
@@ -277,6 +283,19 @@ func (s *Service) pausedSet(ctx context.Context, tasks []*pm.Task) (map[pm.TaskI
 // each plan's grouped task slice — and therefore its derived node order — matches
 // what GetPlanDetail produces. §9.2: node status stays DERIVED, never stored.
 func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID) ([]*PlanDetail, error) {
+	return s.planSummaries(ctx, projectID, false)
+}
+
+// ListPlanSummariesIncludingArchived is the archived-aware variant (T124/T98): it
+// returns ALL plans incl. archived, so a caller that applies its OWN status
+// filter (the org Plan list's statusPasses — which default-excludes archived but
+// surfaces them on `?status=archived`/`all`) can actually see archived plans. The
+// default ListPlanSummaries still excludes archived (Work Board / agent-tools).
+func (s *Service) ListPlanSummariesIncludingArchived(ctx context.Context, projectID pm.ProjectID) ([]*PlanDetail, error) {
+	return s.planSummaries(ctx, projectID, true)
+}
+
+func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, includeArchived bool) ([]*PlanDetail, error) {
 	if s.plans == nil {
 		return nil, ErrPlansUnavailable
 	}
@@ -288,16 +307,19 @@ func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID)
 	// an archived plan leaves the active board, mirroring project (#310) / channel
 	// archive semantics. Filtered here (the single shared read both list mirrors —
 	// web + agent-tools — go through), so neither surface leaks an archived plan,
-	// and an archived plan's tasks/edges/records aren't even derived below. A
+	// and an archived plan's tasks/edges/records aren't even derived below. T124:
+	// includeArchived keeps them (the org list's own statusPasses then filters). A
 	// dedicated archived-plans view, if added, would use a separate read path.
-	active := plans[:0]
-	for _, p := range plans {
-		if p.Status() == pm.PlanArchived {
-			continue
+	if !includeArchived {
+		active := plans[:0]
+		for _, p := range plans {
+			if p.Status() == pm.PlanArchived {
+				continue
+			}
+			active = append(active, p)
 		}
-		active = append(active, p)
+		plans = active
 	}
-	plans = active
 	if len(plans) == 0 {
 		return []*PlanDetail{}, nil
 	}

@@ -2,7 +2,8 @@
 // Channels/DMs/Projects sub-lists (carried over from the v2.5.x #63 single
 // sidebar, now scoped to the active module the rail selects).
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useAppStore } from '@/store/app';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -311,12 +312,45 @@ describe('col② secondary nav — active-module group + sub-lists', () => {
     // custom route-aware nav now; see WorkspaceSecondaryNav.test.tsx.)
   });
 
-  it('renders the col② bottom area: live + segmented theme + sign out', () => {
+  it('rail shows connection status (top) + a user panel with theme + sign out (T105)', () => {
     renderShell('/channels');
-    expect(screen.getByTestId('sidebar-live')).toBeInTheDocument();
-    expect(screen.getByTestId('theme-segment-light')).toBeInTheDocument();
-    expect(screen.getByTestId('theme-segment-dark')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar-signout')).toBeInTheDocument();
+    // Connection status moved to the col① rail top.
+    expect(screen.getByTestId('rail-connection')).toBeInTheDocument();
+    // Theme + sign out now live in the rail user popout (closed by default).
+    expect(screen.queryByTestId('rail-user-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-signout')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('sidebar-user'));
+    const panel = screen.getByTestId('rail-user-panel');
+    expect(within(panel).getByTestId('theme-segment-light')).toBeInTheDocument();
+    expect(within(panel).getByTestId('theme-segment-dark')).toBeInTheDocument();
+    expect(within(panel).getByTestId('sidebar-signout')).toBeInTheDocument();
+    expect(within(panel).getByTestId('rail-account-link')).toHaveAttribute('href', '/me');
+  });
+
+  it('connection status dot + tooltip reflect the live SSE status (T105)', () => {
+    renderShell('/channels');
+    const node = screen.getByTestId('rail-connection');
+    act(() => useAppStore.setState({ sseStatus: 'open' }));
+    expect(node).toHaveAttribute('data-status', 'open');
+    expect(node).toHaveAttribute('title', 'Connected');
+    expect(node.querySelector('.bg-success')).not.toBeNull();
+    act(() => useAppStore.setState({ sseStatus: 'reconnecting' }));
+    expect(node).toHaveAttribute('data-status', 'reconnecting');
+    expect(node).toHaveAttribute('title', 'Reconnecting…');
+    expect(node.querySelector('.bg-warning')).not.toBeNull();
+    act(() => useAppStore.setState({ sseStatus: 'closed' }));
+    expect(node).toHaveAttribute('title', 'Disconnected');
+    expect(node.querySelector('.bg-danger')).not.toBeNull();
+    act(() => useAppStore.setState({ sseStatus: 'idle' })); // reset shared store
+  });
+
+  it('rail user panel opens on the avatar and closes on Escape (T105)', () => {
+    renderShell('/channels');
+    fireEvent.click(screen.getByTestId('sidebar-user'));
+    const panel = screen.getByTestId('rail-user-panel');
+    expect(panel).toBeInTheDocument();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(screen.queryByTestId('rail-user-panel')).not.toBeInTheDocument();
   });
 
   it('renders unread/mention badges in the channel sub-list from row counts', async () => {

@@ -116,6 +116,20 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
 	}, makeFailWork(cfg))
 
+	// T83: claim an OPEN assignment-pool task. Pool tasks have no work item (pull,
+	// no-wake), so start_work does not apply — claim_task is how you pick one up.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "claim_task",
+		Description: "Claim an OPEN assignment-pool task (a task_id from list_assignment_pool, not a work_item_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap. Once claimed it appears in get_my_work.",
+	}, makeClaimTask(cfg))
+
+	// T83: discovery surface for the assignment pool — separate from get_my_work
+	// (which is YOUR work). Browse the open pool, pick one, claim_task it.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_assignment_pool",
+		Description: "List the OPEN, unassigned assignment-pool tasks you are eligible to claim (across the projects you are a member of). This is a read-only marketplace of available work — NOT your own queue (use get_my_work for that). Pick a suitable task and claim_task it; once claimed it moves to get_my_work.",
+	}, makeListAssignmentPool(cfg))
+
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
 	// optionally resume it later.
 	mcp.AddTool(srv, &mcp.Tool{
@@ -245,6 +259,11 @@ func NewServer(cfg Config) *mcp.Server {
 		Name:        "complete_task",
 		Description: "Optionally post a summary and move the task to completed.",
 	}, makeCompleteTask(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "discard_task",
+		Description: "Terminally DISCARD a non-terminal task (open/running → discarded) — the right way to retire a superseded or mis-created task. Optionally posts a reason first. Unlike complete_task it does not mark the work done (shows Discarded, not Completed); unlike block_task it won't leave a pool task to be re-dispatched. A terminal task (completed/discarded) is rejected.",
+	}, makeDiscardTask(cfg))
 
 	// --- plan tools (v2.9 P3 Stage C, #285) ----------------------------------
 	// A PM-agent programmatically builds and runs plans: create a draft plan,

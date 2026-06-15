@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>桌面 · Plan 列表 · Active/Archived 过滤</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .desk4{display:grid;grid-template-columns:66px 250px 1fr 248px;height:500px;position:relative}
+  .rail{background:#1e1b34;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+  .rail .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:10px;font-size:15px}
+  .ri{width:46px;height:44px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c7c3e0;font-size:18px;gap:2px} .ri small{font-size:8px} .ri.active{background:rgba(255,255,255,.16);color:#fff} .rail .sp{flex:1}
+  .c2{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+  .c2h{padding:12px 14px 10px;border-bottom:1px solid var(--border)} .c2h h2{margin:0;font-size:15px} .c2h .s{margin-top:9px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:6px 9px;color:var(--tm);font-size:12px}
+  .c2sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--tm);font-weight:700;padding:11px 14px 4px}
+  .c2it{display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:13px;color:var(--ts);position:relative}
+  .c2it.sel{background:var(--bg-subtle);color:var(--tp);font-weight:600} .c2it.sel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .c2it .ic{width:16px;text-align:center;color:var(--tm)} .c2it .lab{flex:1} .c2it .cnt{font-size:10px;color:var(--tm)}
+  .colbadge{position:absolute;z-index:6;font-size:10px;font-weight:800;color:#fff;background:var(--danger);border-radius:5px;padding:1px 6px;box-shadow:0 0 0 2px #fff}
+  .filt{display:flex;gap:7px;padding:10px 16px 0;flex-wrap:wrap;align-items:center} .filt .f{font-size:11.5px;border:1px solid var(--border);border-radius:7px;padding:4px 9px;color:var(--ts);background:var(--bg-elev)} .filt .f .ct{color:var(--tm)}
+  /* segmented Active/Archived control — reuse .seg pill family from mods.css */
+  .statusseg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-left:auto}
+  .statusseg span{font-size:11.5px;padding:5px 12px;color:var(--ts);background:var(--bg-elev);font-weight:600}
+  .statusseg span.on{background:var(--brand);color:#fff}
+  .statusseg span+span{border-left:1px solid var(--border)}
+  .pgmini{display:inline-flex;align-items:center;gap:6px} .pgmini .bar{width:54px;height:5px;border-radius:3px;background:var(--border);overflow:hidden} .pgmini .bar i{display:block;height:100%;background:var(--success)}
+  /* archived row de-emphasis */
+  .tbl tr.arch td{color:var(--tm)} .tbl tr.arch .tt{color:var(--ts);font-weight:600}
+  .tbl tr.arch .pgmini .bar i{background:var(--border-strong)}
+  .arbadge{font-size:9.5px;font-weight:700;border-radius:5px;padding:1px 7px;background:var(--bg-subtle);color:var(--tm);border:1px solid var(--border)}
+  .cap{margin-top:10px;font-size:12px;color:var(--ts)} .cap b{color:var(--tp)} .cap code{font-family:var(--mono);font-size:11px;background:var(--bg-subtle);border-radius:4px;padding:1px 5px}
+</style></head>
+<body><div class="page">
+  <h1>桌面 · Plan 列表 · Active / Archived 过滤<span class="modtag">v2.10.1</span></h1>
+  <p class="sub">全局 Plan 列表(同 <code>plan.html</code>)。列表头附近加一个<b>状态过滤分段控件</b>:<b>Active(默认)/ Archived</b>。下图选中 <b>Archived</b>,列出已归档 plan(整体置灰、各带 “Archived” 徽标)。</p>
+
+  <div class="sech">Plan — 全局列表,状态过滤 = Archived</div>
+  <div class="frame"><div class="desk4">
+    <span class="colbadge" style="left:8px;top:8px">①</span><span class="colbadge" style="left:74px;top:8px">②</span><span class="colbadge" style="left:320px;top:8px">③</span><span class="colbadge" style="right:8px;top:8px">④</span>
+    <div class="rail"><div class="logo">A</div><div class="ri active"><span>▦</span><small>Work</small></div><div class="ri"><span>💬</span><small>Conv</small></div><div class="ri"><span>◎</span><small>Mbr</small></div><div class="ri"><span>⚙</span><small>Sys</small></div><div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div></div>
+    <div class="c2">
+      <div class="c2h"><h2>Workspace</h2><div class="s">🔍 搜索…</div></div>
+      <div class="c2sub">导航</div>
+      <div class="c2it"><span class="ic">▦</span><span class="lab">Projects</span><span class="cnt">2</span></div>
+      <div class="c2it"><span class="ic">◷</span><span class="lab">Issues</span></div>
+      <div class="c2it"><span class="ic">✓</span><span class="lab">Tasks</span></div>
+      <div class="c2it sel"><span class="ic">◇</span><span class="lab">Plan</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><h3>Plan</h3><div class="acts"><button class="btn pri">+ New Plan</button></div></div>
+      <div class="filt">
+        <span class="f">🔍 搜索 plan…</span>
+        <span class="f"><span class="ct">项目</span> 全部 ▾</span>
+        <!-- status filter: Active (default) / Archived -->
+        <div class="statusseg"><span>Active</span><span class="on">Archived · 3</span></div>
+      </div>
+      <div class="body" style="padding-top:8px;overflow:hidden">
+        <table class="tbl">
+          <thead><tr><th>名称</th><th>状态</th><th>项目</th><th>进度</th><th>归档于</th></tr></thead>
+          <tbody>
+            <tr class="arch"><td class="tt">v2.8 多端打通 <span class="arbadge">Archived</span></td><td><span class="stat done">done</span></td><td>agent-center</td><td><span class="pgmini"><span class="bar"><i style="width:100%"></i></span>6/6</span></td><td class="id">04-12</td></tr>
+            <tr class="arch"><td class="tt">ADR-0042 权限重构 <span class="arbadge">Archived</span></td><td><span class="stat done">done</span></td><td>agent-center</td><td><span class="pgmini"><span class="bar"><i style="width:100%"></i></span>4/4</span></td><td class="id">03-28</td></tr>
+            <tr class="arch"><td class="tt">看板可观测性(废弃) <span class="arbadge">Archived</span></td><td><span class="stat idle">cancelled</span></td><td>agent-center2</td><td><span class="pgmini"><span class="bar"><i style="width:33%"></i></span>1/3</span></td><td class="id">02-19</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="ctx">
+      <h4>选中 Plan · 概要</h4>
+      <div class="blk"><div class="kv"><span class="k">状态</span><span class="arbadge">Archived</span></div><div class="kv"><span class="k">项目</span><span class="v">agent-center</span></div><div class="kv"><span class="k">节点</span><span class="v">6/6</span></div><div class="kv"><span class="k">归档于</span><span class="v">04-12</span></div></div>
+      <h4>操作</h4>
+      <div class="blk" style="display:flex;gap:7px;flex-wrap:wrap;padding-top:4px"><button class="btn">打开(只读)</button></div>
+      <div class="blk" style="padding-top:6px;border-bottom:none"><div style="font-size:11px;color:var(--tm)">已归档 → 只读。无 Start / Edit / Unarchive。</div></div>
+    </div>
+  </div></div>
+
+  <p class="cap"><b>开发必做:</b> 列表头加 <b>Active / Archived 分段过滤</b>(Active 为默认);Archived 视图下各行<b>整体置灰</b>(<code>--tm</code> 文本、进度条 <code>--border-strong</code>)并带 <b>“Archived” 徽标</b>。<b>打开已归档 Plan = 只读详情</b>:nodes / DAG / history 可看,<b>不能编辑或 Start</b>;本期<b>无 Unarchive</b>(view-only,owner 决定)。</p>
+</div></body></html>
