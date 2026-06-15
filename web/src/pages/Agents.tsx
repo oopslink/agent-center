@@ -139,7 +139,17 @@ export default function Agents(): React.ReactElement {
                 data-availability={a.availability}
               >
                 <td className="border-b border-border-base px-3 py-2 font-medium">
-                  <span className="block truncate">{a.name}</span>
+                  {/* T133: the agent NAME is the row's open affordance — click it to
+                      reach AgentDetail (replaces the separate "Open →" link). Styled
+                      clickable (accent + hover underline + pointer). */}
+                  <OrgLink
+                    to={`/agents/${encodeURIComponent(a.id)}`}
+                    className="block truncate text-accent hover:underline"
+                    data-testid="agent-name-link"
+                    title={a.name}
+                  >
+                    {a.name}
+                  </OrgLink>
                 </td>
                 <td className="border-b border-border-base px-3 py-2">
                   {/* v2.8.1 list-enrich: provider = CLI + model badges (text
@@ -189,13 +199,9 @@ export default function Agents(): React.ReactElement {
                   )}
                 </td>
                 <td className="border-b border-border-base px-3 py-2 text-right">
+                  {/* T133: the "Open →" link is gone — the agent NAME is now the
+                      open affordance. Only Delete remains in the actions cell. */}
                   <div className="flex items-center justify-end gap-3">
-                    <OrgLink
-                      to={`/agents/${encodeURIComponent(a.id)}`}
-                      className="text-xs text-accent hover:underline"
-                    >
-                      Open →
-                    </OrgLink>
                     <button
                       type="button"
                       data-testid="agent-delete-button"
