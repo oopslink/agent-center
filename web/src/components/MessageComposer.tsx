@@ -308,7 +308,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         />
       </div>
       <label
-        className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle"
+        className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle md:h-10 md:w-10"
         title="Attach file"
         aria-label="Attach file"
         data-testid="composer-attach"
@@ -329,7 +329,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
       <button
         type="submit"
         disabled={disabled}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted md:h-10 md:w-10"
         data-testid="composer-send"
         title="Send (Enter)"
         aria-label="Send"
