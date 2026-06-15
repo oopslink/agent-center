@@ -14,6 +14,7 @@ import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskAttachments } from '@/components/AttachmentsSection';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { MobileMetaSummary, MobileDetailsPanel, useIsMobile } from '@/components/WorkItemMobileMeta';
 
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
 // the task is project-scoped and driven entirely by its projection.
@@ -36,6 +37,9 @@ export default function TaskDetail(): React.ReactElement {
   // assignment pool is excluded below — it is not a user-facing plan.
   const plan = usePlan(projectId, task.data?.plan_id);
   const [editOpen, setEditOpen] = useState(false);
+  // T145: on mobile the title is the big <h2>; drop it from the breadcrumb leaf
+  // (show just the org_ref / "Task") so the title isn't rendered twice.
+  const isMobile = useIsMobile();
 
   if (task.isLoading) {
     return (
@@ -89,7 +93,13 @@ export default function TaskDetail(): React.ReactElement {
             { label: 'Projects', to: '/projects' },
             { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(tk.project_id)}` },
             { label: 'Tasks' },
-            { label: tk.org_ref ? `${tk.org_ref} - ${tk.title || tk.id}` : tk.title || tk.id },
+            {
+              label: isMobile
+                ? tk.org_ref || 'Task'
+                : tk.org_ref
+                  ? `${tk.org_ref} - ${tk.title || tk.id}`
+                  : tk.title || tk.id,
+            },
           ]}
         />
       </div>
@@ -98,13 +108,27 @@ export default function TaskDetail(): React.ReactElement {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="border-b border-border-base pb-3">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold">
+              {/* T145: clamp the title to 2 lines on mobile so it doesn't fill the
+                  whole first screen (full title on ≥md). */}
+              <h2 className="line-clamp-2 text-lg font-semibold md:line-clamp-none md:text-xl">
                 {tk.org_ref && <span className="text-text-muted" data-testid="task-org-ref">{tk.org_ref} · </span>}
                 {tk.title || tk.id}
               </h2>
               <TypeChip kind="task" />
             </div>
           </header>
+
+          {/* T145: mobile-only meta summary (status · assignee · plan) ABOVE the
+              description so the key metadata is on the first screen (the desktop
+              sidebar below is hidden <md). */}
+          <MobileMetaSummary
+            status={status}
+            statusChangedAt={tk.status_changed_at}
+            assignee={tk.assignee ?? null}
+            assigneeName={resolvedAssigneeName}
+            projectId={tk.project_id}
+            plan={planForSidebar}
+          />
 
           {tk.description ? (
             // @oopslink: render the description as markdown (reuse MarkdownMessage)
@@ -129,12 +153,28 @@ export default function TaskDetail(): React.ReactElement {
             <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
           </div>
 
+          {/* T145: mobile-only collapsible "Details" (compact single-line rows +
+              Edit), moved down below the summary; desktop keeps the sidebar. */}
+          <MobileDetailsPanel
+            kind="task"
+            projectId={tk.project_id}
+            projectName={project.data?.name}
+            itemId={tk.id}
+            orgRef={tk.org_ref}
+            createdAt={tk.created_at}
+            tags={tk.tags ?? []}
+            editable={!isTerminal}
+            onEdit={() => setEditOpen(true)}
+          />
+
           <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
         </div>
 
         {/* right sidebar — 2-section TaskDetail layout (read-only display top /
-            read-only bottom). The ONLY edit path is the Edit-Task modal. */}
-        <div className="shrink-0 overflow-y-auto lg:w-72">
+            read-only bottom). The ONLY edit path is the Edit-Task modal.
+            T145: hidden on mobile (<md) — the mobile meta summary + Details panel
+            above replace it so status/assignee/plan aren't buried at the bottom. */}
+        <div className="hidden shrink-0 overflow-y-auto md:block lg:w-72">
           <TaskDetailSidebar
             task={tk}
             projectName={project.data?.name}

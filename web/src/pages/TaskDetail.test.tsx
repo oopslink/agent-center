@@ -1,5 +1,5 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -46,7 +46,40 @@ const taskAt = (status: string, extra: Record<string, unknown> = {}) => ({
 });
 
 describe('TaskDetail page', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  // T145 (mobile): the meta summary (status/assignee/plan) is surfaced ABOVE the
+  // fold via a JS-gated mobile tree, and the title is dropped from the breadcrumb
+  // leaf (the <h2> carries it) so it isn't rendered twice.
+  it('mobile (<md): shows the meta summary + Details panel; breadcrumb leaf dedupes the title', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    }));
+    server.use(
+      http.get('/api/projects/proj-a/tasks/:id', () =>
+        HttpResponse.json(taskAt('running', { org_ref: 'T7', assignee: 'agent:builder' })),
+      ),
+    );
+    wrap('/projects/proj-a/tasks/TS-1');
+    await waitFor(() => expect(screen.getByTestId('wi-mobile-summary')).toBeInTheDocument());
+    // status surfaced in the mobile summary (first screen, not buried). Scope to
+    // the summary — the desktop sidebar (hidden via CSS) is still in the jsdom DOM.
+    const summary = screen.getByTestId('wi-mobile-summary');
+    expect(within(summary).getByTestId('status-block')).toHaveAttribute('data-status', 'running');
+    // the collapsible compact Details panel is present.
+    expect(screen.getByTestId('wi-mobile-details')).toBeInTheDocument();
+    // breadcrumb leaf = just the org_ref (title is NOT repeated there on mobile).
+    const crumb = screen.getByTestId('breadcrumb');
+    expect(crumb).toHaveTextContent('T7');
+    expect(crumb).not.toHaveTextContent('rebuild docs');
+    // the title still renders once, in the heading.
+    expect(screen.getByRole('heading', { name: /rebuild docs/ })).toBeInTheDocument();
+  });
 
   it('renders header + description from the Task projection', async () => {
     server.use(
