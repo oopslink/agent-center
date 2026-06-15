@@ -380,6 +380,57 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     expect(screen.getByTestId('environment-worker-status')).toHaveAttribute('data-status', 'online');
   });
 
+  // T143: the worker AGENTS list — name is the open affordance (no "Open →"),
+  // the rows share a grid so columns align, and missing CLI/model never shifts it.
+  it('T143: the agent NAME links to /agents/{id}; there is no "Open →" button', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(fleetSnapshot([fleetWorker('w-1', { status: 'online' })])),
+      ),
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [agent('bot-a', 'w-1', { cli: 'claude-code', model: 'claude-sonnet-4' })],
+        }),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getByTestId('environment-agent')).toBeInTheDocument());
+
+    const nameLink = screen.getByTestId('environment-agent-link');
+    expect(nameLink).toHaveAttribute('href', '/agents/bot-a');
+    expect(nameLink).toHaveTextContent('bot-a');
+    // The separate "Open →" link is gone.
+    expect(screen.queryByText(/Open/)).not.toBeInTheDocument();
+    // Rows share a grid container so columns line up across rows.
+    expect(screen.getByTestId('environment-worker-agents').className).toContain('grid');
+  });
+
+  it('T143: a missing CLI / model renders an aligned placeholder (no column shift)', async () => {
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json(fleetSnapshot([fleetWorker('w-1', { status: 'online' })])),
+      ),
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [
+            agent('with-meta', 'w-1', { cli: 'claude-code', model: 'claude-sonnet-4' }),
+            agent('bare', 'w-1', { cli: '', model: '' }),
+          ],
+        }),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+    await waitFor(() => expect(screen.getAllByTestId('environment-agent')).toHaveLength(2));
+    // The bare agent has no CLI/model badge but its row still renders (placeholder
+    // cells keep the grid columns aligned). Exactly one CLI + one model badge.
+    expect(screen.getAllByTestId('environment-agent-cli')).toHaveLength(1);
+    expect(screen.getAllByTestId('environment-agent-model')).toHaveLength(1);
+    // Both rows still expose a clickable name link.
+    expect(screen.getAllByTestId('environment-agent-link')).toHaveLength(2);
+  });
+
   // v2.8.1 #281: Activity empty state — clock icon + copy when the active tab's
   // stream is empty.
   it('shows the Activity empty state when every stream is empty', async () => {
