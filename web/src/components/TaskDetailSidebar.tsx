@@ -71,6 +71,10 @@ export function TaskDetailSidebar({
   editable,
 }: Props): React.ReactElement {
   const tk = task;
+  // Hoist to a const so the truthy-narrowing below survives into the
+  // openSender closure (T102) — TS re-widens a mutable property (tk.assignee)
+  // inside a callback, but preserves narrowing of a const local.
+  const assignee = tk.assignee;
   const tags = tk.tags ?? [];
   const duration = formatStatusDuration(tk.status_changed_at);
   // T102: clicking the assignee opens that identity's activity sidebar (the
@@ -125,28 +129,28 @@ export function TaskDetailSidebar({
         <div data-testid="task-sidebar-assignee">
           <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Assignee</p>
           <div className="flex flex-wrap items-center gap-2">
-            {tk.assignee ? (
+            {assignee ? (
               openSender ? (
                 <button
                   type="button"
-                  onClick={() => openSender(tk.assignee)}
+                  onClick={() => openSender(assignee)}
                   data-testid="task-assignee-open"
-                  title={`Open ${assigneeName && assigneeName !== tk.assignee ? assigneeName : tk.assignee}'s activity`}
+                  title={`Open ${assigneeName && assigneeName !== assignee ? assigneeName : assignee}'s activity`}
                   className="inline-flex items-center gap-2 rounded hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : tk.assignee} size="sm" />
+                  <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : assignee} size="sm" />
                   <EntityRef
-                    id={tk.assignee}
-                    name={assigneeName && assigneeName !== tk.assignee ? assigneeName : undefined}
+                    id={assignee}
+                    name={assigneeName && assigneeName !== assignee ? assigneeName : undefined}
                     testId="task-assignee"
                   />
                 </button>
               ) : (
                 <span className="inline-flex items-center gap-2">
-                  <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : tk.assignee} size="sm" />
+                  <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : assignee} size="sm" />
                   <EntityRef
-                    id={tk.assignee}
-                    name={assigneeName && assigneeName !== tk.assignee ? assigneeName : undefined}
+                    id={assignee}
+                    name={assigneeName && assigneeName !== assignee ? assigneeName : undefined}
                     testId="task-assignee"
                   />
                 </span>
