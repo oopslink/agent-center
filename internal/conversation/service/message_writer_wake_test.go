@@ -124,6 +124,41 @@ func TestAddMessage_TaskConversation_EmitsWakeOutbox(t *testing.T) {
 	}
 }
 
+// v2.10.1 [T103]: the wake-trigger event carries the inbound attachments'
+// file_uri + metadata (not just the T74 count), so the WakeProjector can inline
+// the uri into the woken agent's brief → the agent can download_file it (the push
+// wake advances the read cursor, so get_my_unread can't surface it afterwards).
+func TestAddMessage_T103_EmitsAttachmentsInWakeOutbox(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-task-att")
+	f.saveConv(t, convID, conversation.ConversationKindTask, conversation.NewTaskOwnerRef("T7"), "")
+
+	_, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID:   convID,
+		SenderIdentityID: conversation.IdentityRef("user:bob"),
+		ContentKind:      conversation.MessageContentText,
+		Content:          "see attached",
+		Direction:        conversation.DirectionInbound,
+		Attachments: []conversation.MessageAttachment{
+			{URI: "ac://files/abc", Filename: "shot.png", MimeType: "image/png", Size: 2048},
+		},
+		Actor: observability.Actor("user:bob"),
+	})
+	if err != nil {
+		t.Fatalf("AddMessage: %v", err)
+	}
+	evs := f.messageAddedEvents(t)
+	if len(evs) != 1 {
+		t.Fatalf("want 1 wake outbox event, got %d", len(evs))
+	}
+	p := evs[0].Payload
+	for _, want := range []string{`"attachments":`, `"uri":"ac://files/abc"`, `"filename":"shot.png"`, `"mime_type":"image/png"`} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("payload missing %s: %s", want, p)
+		}
+	}
+}
+
 // v2.9.1 Thread P2 (§5.1 verify-not-trust — confirm, don't trust): a thread REPLY
 // is an ordinary same-conversation message, so it MUST emit the wake-trigger outbox
 // event exactly like any message — i.e. @agent-in-thread wakes via the existing

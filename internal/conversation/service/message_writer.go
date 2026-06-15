@@ -361,6 +361,12 @@ type messageAddedOutboxPayload struct {
 	// human sent file(s) (e.g. a screenshot) and to call get_my_unread →
 	// download_file to view them. 0 (omitted) for a text-only message.
 	AttachmentCount int `json:"attachment_count,omitempty"`
+	// Attachments (v2.10.1 [T103]) — the inbound attachments' file_uri + metadata,
+	// so the WakeProjector renders them INLINE in the woken agent's brief and the
+	// agent can download_file directly. T74 carried only the count; the uri never
+	// reached the agent on the PUSH path (the wake also advances the read cursor,
+	// so a later get_my_unread came back empty). Omitted for a text-only message.
+	Attachments []conversation.MessageAttachment `json:"attachments,omitempty"`
 }
 
 // emitMessageAddedOutbox appends the wake-trigger event to the outbox inside the
@@ -374,6 +380,7 @@ func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conver
 		Text:            m.Content(),
 		RootMessageID:   string(m.RootMessageID()), // F4: thread root (empty if top-level)
 		AttachmentCount: len(m.Attachments()),       // T74: tell the brief about file(s)
+		Attachments:     m.Attachments(),            // T103: carry the file_uri(s) → woken agent can download_file
 	})
 	if err != nil {
 		return err
