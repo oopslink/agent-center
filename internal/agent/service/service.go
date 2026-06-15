@@ -46,6 +46,19 @@ var (
 	ErrResetNotConfirmed = errors.New("agent service: reset requires explicit confirmation")
 )
 
+// TaskRunGate authorizes a work item's task to enter running at start_work
+// (T130). Implemented by the projectmanager Service (which owns the plan/pool
+// knowledge: a task runs ONLY as a real-plan node or a DISPATCHED Assignment-Pool
+// member). Wired at the composition root via Service.SetTaskRunGate; the Agent BC
+// depends only on this PORT, never on projectmanager → no import cycle. A nil gate
+// (test fixtures / pre-T130 wiring) skips the check, preserving prior behavior.
+type TaskRunGate interface {
+	// EnsureWorkItemRunnable returns nil when the work item's task may enter
+	// running, or ErrWorkItemTaskNotRunnable when it is backlog. taskRef is the
+	// work item's "pm://tasks/{id}" owner ref.
+	EnsureWorkItemRunnable(ctx context.Context, taskRef string) error
+}
+
 // Service is the Agent-BC AppService facade.
 type Service struct {
 	db        *sql.DB
@@ -56,7 +69,16 @@ type Service struct {
 	outbox    outbox.Repository
 	idgen     idgen.Generator
 	clock     clock.Clock
+	// taskRunGate (T130) authorizes a work item's task to enter running at
+	// start_work; nil → the check is skipped (set at the composition root).
+	taskRunGate TaskRunGate
 }
+
+// SetTaskRunGate wires the T130 open→running authorization port (the pm Service
+// adapter). Called once at the composition root after both services exist
+// (mirrors pm Service.SetPausedTaskProvider). nil-safe: leaving it unset keeps
+// the pre-T130 behavior (no gate), which the test fixtures rely on.
+func (s *Service) SetTaskRunGate(g TaskRunGate) { s.taskRunGate = g }
 
 // Deps bundles the Service dependencies.
 type Deps struct {

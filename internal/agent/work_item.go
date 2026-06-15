@@ -105,6 +105,15 @@ var (
 	// agent handles it gracefully (prompt: "back to step A" — pull fresh). Surfaced
 	// as HTTP 409 work_item_reassigned (mirrors ErrAgentHasActiveWork → 409 agent_busy).
 	ErrWorkItemReassigned = errors.New("agent: work item reassigned (version conflict)")
+	// ErrWorkItemTaskNotRunnable (T130) rejects start_work on a work item whose task
+	// may NOT enter running: a backlog task — one that is neither a real (non-builtin)
+	// Plan node nor a DISPATCHED Assignment-Pool member. It is the open→running gate
+	// the T83 claim guard's sibling — closing the direct-assign→start_work path the
+	// claim guard alone did not cover. The agent must first add the task to a real
+	// plan (add_task_to_plan) or have it dispatched into the pool. Surfaced via the
+	// injected TaskRunGate port (the projectmanager Service owns the plan/pool
+	// knowledge; the Agent BC depends only on the port → no import cycle).
+	ErrWorkItemTaskNotRunnable = errors.New("agent: work item task is backlog — not a real-plan node or a dispatched pool member; it cannot be started")
 )
 
 // WorkItemTransition is a status change recorded on an AgentWorkItem at
