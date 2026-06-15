@@ -18,9 +18,14 @@ import { ContextPanel } from '@/shell/contextPanel';
 // Plan creation is NOT here: plans are authored per-project on the project Work
 // Board (T5), so this global list is read+navigate (status filtering + search).
 
-// Status chips offered by the filter bar, in lifecycle order. `archived` is
-// excluded by the backend default; the chips drive the explicit status filter.
-const PLAN_STATUS_OPTIONS = ['draft', 'running', 'done'] as const;
+// Status chips offered by the filter bar, in lifecycle order. The chips drive
+// the explicit status filter (`?status=`). `archived` is terminal and EXCLUDED
+// from the backend default (no chip on) — it surfaces only when its chip is
+// toggled on (T98: let the global list view archived plans, which otherwise
+// disappear). Archived plans open as read-only detail (PlanDetail offers no
+// Start/Advance/Stop/destroy for a terminal plan); archive is irreversible by
+// domain design, so there is no unarchive action here.
+const PLAN_STATUS_OPTIONS = ['draft', 'running', 'done', 'archived'] as const;
 
 // A small done/total progress bar (mockup `.pgmini`). Tokens only.
 function ProgressMini({ done, total }: { done: number; total: number }): React.ReactElement {
