@@ -1,7 +1,6 @@
 import type React from 'react';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
 import {
   conversationDeleteErrorMessage,
@@ -10,7 +9,8 @@ import {
 } from '@/api/conversations';
 import { useProjects } from '@/api/projects';
 import { identityRefOf } from '@/api/members';
-import { useAppStore } from '@/store/app';
+import { useAppStore, type SSEStatus } from '@/store/app';
+import { useModalA11y } from '@/components/useModalA11y';
 import { PageSkeleton } from '@/components/Skeleton';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -317,13 +317,16 @@ export default function AppLayout(): React.ReactElement {
           onOpenAccount={() => setAccountOpen(true)}
         />
 
-        {/* col① — the module rail (desktop). */}
+        {/* col① — the module rail (desktop). v2.10.1 [T105]: it now owns the
+            connection status (top) + the user panel (theme/sign-out, bottom). */}
         <ModuleRail
           modules={modules}
           activeModuleId={activeModule?.id}
           orgBase={orgBase}
           orgSwitcher={orgSwitcher}
           displayName={me.data?.display_name}
+          theme={theme}
+          onSetTheme={setTheme}
           onOpenPalette={() => setPaletteOpen(true)}
         />
 
@@ -331,8 +334,6 @@ export default function AppLayout(): React.ReactElement {
         <SecondaryNav
           module={activeModule}
           collapsed={collapsed}
-          theme={theme}
-          onSetTheme={setTheme}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
           orgBase={orgBase}
           onOpenPalette={() => setPaletteOpen(true)}
@@ -426,6 +427,8 @@ function ModuleRail({
   orgBase,
   orgSwitcher,
   displayName,
+  theme,
+  onSetTheme,
   onOpenPalette,
 }: {
   modules: ReadonlyArray<ModuleDef>;
@@ -433,6 +436,8 @@ function ModuleRail({
   orgBase: string;
   orgSwitcher: OrgSwitcherBinding;
   displayName?: string;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
   onOpenPalette: () => void;
 }): React.ReactElement {
   const orgName = orgSwitcher.currentOrg?.name ?? orgSwitcher.fallbackName ?? 'Organization';
@@ -441,6 +446,24 @@ function ModuleRail({
       aria-label="modules"
       className="hidden w-16 flex-shrink-0 flex-col items-center gap-1 bg-rail-bg py-2.5 md:flex"
     >
+      {/* v2.10.1 [T105]: connection status at the very top (was a floating
+          indicator in the content/col② footer). */}
+      <RailConnectionStatus />
+
+      {/* Search (⌘K) — top utility cluster. */}
+      <button
+        type="button"
+        onClick={onOpenPalette}
+        aria-label="Search (⌘K)"
+        title="Search (⌘K)"
+        data-testid="open-palette"
+        className="mb-1 inline-flex h-10 w-10 items-center justify-center rounded-xl text-rail-fg hover:bg-white/10 hover:text-rail-fg-active motion-safe:transition-colors"
+      >
+        <span aria-hidden="true" className="inline-flex h-5 w-5">
+          <SearchIcon />
+        </span>
+      </button>
+
       {/* Org logo = the org switcher trigger (opens the dropdown). */}
       <div className="relative mb-2">
         <button
@@ -494,33 +517,145 @@ function ModuleRail({
 
       <div className="flex-1" />
 
-      {/* Search (⌘K). */}
+      {/* Signed-in user (bottom) → right-popout panel (theme + sign out). */}
+      <RailUser displayName={displayName} orgBase={orgBase} theme={theme} onSetTheme={onSetTheme} />
+    </nav>
+  );
+}
+
+// ============================================================================
+// v2.10.1 [T105] RailConnectionStatus — the col① top connection indicator: a
+// WiFi glyph with a small status dot (top-right). Dot color tracks the Zustand
+// SSE status — green=connected(open), yellow=connecting/reconnecting, red=
+// disconnected(closed), muted=idle. The dot breathes (pulse) always; an abnormal
+// state adds a ping ripple for a subtle "nudge". The status text is a hover
+// tooltip (title) + accessible name — no always-on label (saves rail width).
+// ============================================================================
+const SSE_DOT: Record<SSEStatus, string> = {
+  idle: 'bg-text-muted',
+  connecting: 'bg-warning',
+  open: 'bg-success',
+  reconnecting: 'bg-warning',
+  closed: 'bg-danger',
+};
+const SSE_TEXT: Record<SSEStatus, string> = {
+  idle: 'Connecting…',
+  connecting: 'Connecting…',
+  open: 'Connected',
+  reconnecting: 'Reconnecting…',
+  closed: 'Disconnected',
+};
+
+function RailConnectionStatus(): React.ReactElement {
+  const status = useAppStore((s) => s.sseStatus);
+  const dot = SSE_DOT[status] ?? SSE_DOT.idle;
+  const text = SSE_TEXT[status] ?? status;
+  // connecting / reconnecting / closed get the extra attention ripple.
+  const abnormal = status === 'connecting' || status === 'reconnecting' || status === 'closed';
+  return (
+    <div
+      className="relative mb-1 inline-flex h-10 w-10 items-center justify-center rounded-xl text-rail-fg"
+      data-testid="rail-connection"
+      data-status={status}
+      role="status"
+      aria-label={`Connection: ${text}`}
+      title={text}
+    >
+      <span aria-hidden="true" className="inline-flex h-5 w-5">
+        <WifiIcon />
+      </span>
+      <span aria-hidden="true" className="absolute right-1.5 top-1.5 inline-flex h-2.5 w-2.5 items-center justify-center">
+        {abnormal && (
+          <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${dot} motion-safe:animate-ping`} />
+        )}
+        <span className={`relative inline-flex h-2 w-2 rounded-full ring-2 ring-rail-bg ${dot} motion-safe:animate-pulse`} />
+      </span>
+    </div>
+  );
+}
+
+// ============================================================================
+// v2.10.1 [T105] RailUser — the col① bottom avatar. Click → a right-popout panel
+// (anchored to the rail's bottom edge) with: Your account (→ /me), the Light/Dark
+// theme toggle, and Sign out — consolidating what used to live in the col② footer.
+// Esc / click-outside close + focus-trap via useModalA11y (mirrors the modals).
+// ============================================================================
+function RailUser({
+  displayName,
+  orgBase,
+  theme,
+  onSetTheme,
+}: {
+  displayName?: string;
+  orgBase: string;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+}): React.ReactElement | null {
+  const [open, setOpen] = useState(false);
+  const panelRef = useModalA11y({ open, onClose: () => setOpen(false) });
+  const signout = useSignout();
+  // Always render (fallback initial) so account/theme/sign-out stay reachable even
+  // before /api/auth/me resolves — mirrors the mobile top-bar account avatar.
+  const name = displayName ?? 'Account';
+  const initial = (displayName?.slice(0, 1) ?? 'A').toUpperCase();
+  return (
+    <div className="relative">
       <button
         type="button"
-        onClick={onOpenPalette}
-        aria-label="Search (⌘K)"
-        title="Search (⌘K)"
-        data-testid="open-palette"
-        className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-rail-fg hover:bg-white/10 hover:text-rail-fg-active motion-safe:transition-colors"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`${name} — account and settings`}
+        title={name}
+        data-testid="sidebar-user"
+        className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-xs font-semibold text-rail-fg-active hover:bg-white/25 focus-visible:ring-2 focus-visible:ring-white motion-safe:transition-colors"
       >
-        <span aria-hidden="true" className="inline-flex h-5 w-5">
-          <SearchIcon />
-        </span>
+        <span aria-hidden="true">{initial}</span>
       </button>
-
-      {/* Signed-in user → /me. */}
-      {displayName && (
-        <NavLink
-          to={`${orgBase}/me`}
-          title={displayName}
-          aria-label={`${displayName} — your account`}
-          data-testid="sidebar-user"
-          className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-xs font-semibold text-rail-fg-active hover:bg-white/25 motion-safe:transition-colors"
-        >
-          <span aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span>
-        </NavLink>
+      {open && (
+        <>
+          {/* transparent click-outside catcher */}
+          <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setOpen(false)} />
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Account and settings"
+            data-testid="rail-user-panel"
+            className="absolute bottom-0 left-full z-50 ml-2 w-56 rounded-xl border border-white/10 bg-rail-bg p-2 text-rail-fg shadow-3 backdrop-blur-md"
+          >
+            <div className="truncate px-2 pb-2 pt-1 text-sm font-semibold text-rail-fg-active">
+              {name}
+            </div>
+            <NavLink
+              to={`${orgBase}/me`}
+              onClick={() => setOpen(false)}
+              data-testid="rail-account-link"
+              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-rail-fg hover:bg-white/10 hover:text-rail-fg-active motion-safe:transition-colors"
+            >
+              <span aria-hidden="true" className="inline-flex h-4 w-4">
+                <UsersIcon />
+              </span>
+              <span>Your account</span>
+            </NavLink>
+            <div className="mt-2 px-1">
+              <ThemeSegmented theme={theme} onSetTheme={onSetTheme} />
+            </div>
+            <button
+              type="button"
+              onClick={() => signout.mutate()}
+              data-testid="sidebar-signout"
+              className="mt-2 flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-rail-fg hover:bg-white/10 hover:text-danger motion-safe:transition-colors"
+            >
+              <span aria-hidden="true" className="inline-flex h-4 w-4">
+                <SignoutIcon />
+              </span>
+              <span>Sign out</span>
+            </button>
+          </div>
+        </>
       )}
-    </nav>
+    </div>
   );
 }
 
@@ -532,16 +667,12 @@ function ModuleRail({
 function SecondaryNav({
   module,
   collapsed,
-  theme,
-  onSetTheme,
   onToggleCollapsed,
   orgBase,
   onOpenPalette,
 }: {
   module?: ModuleDef;
   collapsed: boolean;
-  theme: Theme;
-  onSetTheme: (t: Theme) => void;
   onToggleCollapsed: () => void;
   orgBase: string;
   onOpenPalette: () => void;
@@ -555,13 +686,7 @@ function SecondaryNav({
         collapsed ? 'hidden' : 'hidden md:flex',
       ].join(' ')}
     >
-      <SecondaryNavBody
-        module={module}
-        theme={theme}
-        onSetTheme={onSetTheme}
-        orgBase={orgBase}
-        onOpenPalette={onOpenPalette}
-      />
+      <SecondaryNavBody module={module} orgBase={orgBase} onOpenPalette={onOpenPalette} />
       {/* Collapse chevron embedded in the right edge (Slack/VSCode pattern). */}
       <button
         type="button"
@@ -582,18 +707,13 @@ function SecondaryNav({
 // the module header + the live nav tree + the footer.
 function SecondaryNavBody({
   module,
-  theme,
-  onSetTheme,
   orgBase,
   onOpenPalette,
 }: {
   module?: ModuleDef;
-  theme: Theme;
-  onSetTheme: (t: Theme) => void;
   orgBase: string;
   onOpenPalette: () => void;
 }): React.ReactElement {
-  const signout = useSignout();
   const location = useLocation();
   const navigate = useNavigate();
   const deleteConversation = useDeleteConversation();
@@ -725,8 +845,6 @@ function SecondaryNavBody({
           {conversationDeleteErrorMessage(deleteConversation.error)}
         </p>
       )}
-
-      <SecondaryNavFooter theme={theme} onSetTheme={onSetTheme} onSignout={() => signout.mutate()} />
 
       <ConfirmModal
         open={pendingDeleteDM !== null}
@@ -902,37 +1020,6 @@ function NavGroup({
           })}
         </ul>
       )}
-    </div>
-  );
-}
-
-// SecondaryNavFooter — pinned col② bottom: live (SSE) + Light/Dark + Sign out.
-function SecondaryNavFooter({
-  theme,
-  onSetTheme,
-  onSignout,
-}: {
-  theme: Theme;
-  onSetTheme: (t: Theme) => void;
-  onSignout: () => void;
-}): React.ReactElement {
-  return (
-    <div className="flex flex-col gap-1 border-t border-border-base p-2">
-      <div data-testid="sidebar-live" className="px-2 py-1">
-        <SSEIndicator />
-      </div>
-      <ThemeSegmented theme={theme} onSetTheme={onSetTheme} />
-      <button
-        type="button"
-        onClick={onSignout}
-        data-testid="sidebar-signout"
-        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-text-muted hover:bg-bg-subtle hover:text-danger motion-safe:transition-colors"
-      >
-        <span aria-hidden="true" className="inline-flex h-4 w-4">
-          <SignoutIcon />
-        </span>
-        <span>Sign out</span>
-      </button>
     </div>
   );
 }
@@ -1402,6 +1489,18 @@ function SearchIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <circle cx="8.5" cy="8.5" r="5" />
       <path d="M12.5 12.5 17 17" strokeLinecap="round" />
+    </svg>
+  );
+}
+// WifiIcon — three signal arcs + base dot (T105 connection status). The colored
+// status dot is drawn by RailConnectionStatus over the top-right corner.
+function WifiIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M2.5 7.5a11 11 0 0 1 15 0" strokeLinecap="round" />
+      <path d="M5 10.3a7 7 0 0 1 10 0" strokeLinecap="round" />
+      <path d="M7.5 13a3.2 3.2 0 0 1 5 0" strokeLinecap="round" />
+      <circle cx="10" cy="15.8" r="0.6" fill="currentColor" stroke="none" />
     </svg>
   );
 }

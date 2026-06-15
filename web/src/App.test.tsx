@@ -228,9 +228,11 @@ describe('App shell + route tree', () => {
     );
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
-    // The rail user entry is the real "me" nav pointer (renders once the
-    // /api/auth/me display_name resolves).
-    const userLink = await screen.findByTestId('sidebar-user');
+    // v2.10.1 [T105]: the rail user avatar opens a popout panel; "Your account"
+    // inside it is the real "me" nav pointer (renders once /api/auth/me resolves).
+    const userBtn = await screen.findByTestId('sidebar-user');
+    fireEvent.click(userBtn);
+    const userLink = await screen.findByTestId('rail-account-link');
     expect(userLink).toHaveAttribute('href', `${ORG_BASE}/me`);
     fireEvent.click(userLink);
     await waitFor(() => expect(screen.getByTestId('page-UserDetail')).toBeInTheDocument());
