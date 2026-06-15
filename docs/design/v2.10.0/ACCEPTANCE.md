@@ -206,10 +206,10 @@
 
 | 角色 | 范围 | 状态 | 日期 | 集成 hash |
 |---|---|---|---|---|
-|PD|§1 §-1 自动门 + 集成终验|⬜| | |
-|Tester1|§2 data/API + 授权硬门|⬜| | |
-|Tester2|§3 run-real 逐模块 + §4 细节 + §5 回归|⬜| | |
-|Owner|tag / promote 决策|⬜| | |
+|PD|§1 §-1 自动门 + 集成终验|✅ PASS|2026-06-15|`882d963`(build/lint/go test/vitest 991)|
+|Tester1|§2 data/API + 授权硬门|✅ GO 25/25(🚨红线 §2.1–2.3 过)|2026-06-15|`882d963` · s21–s25 · `tester/v2100-t78-s2-acceptance`|
+|Tester2|§3 run-real + §4 + §5(+ D1/D2 复签)|✅ GO 无遗留|2026-06-15|`882d963` · `v210-acceptance/`(41+4 图)|
+|Owner|tag / promote 决策|⬜ 待定| | |
 
 **流程**：T64+T73 合入 v2.10.0 → 集成终验 §-1（§1）→ Tester1（§2 授权硬门）+ Tester2（§3/§4/§5 逐条签）→ **全绿 + 授权硬门过** → PD 汇总 release-docs（本表签字 + 证据链接）→ **Owner 定 tag v2.10.0 + promote**。授权硬门未过不 promote。
 
