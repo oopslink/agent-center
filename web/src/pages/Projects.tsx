@@ -173,6 +173,11 @@ function ProjectRow({ project: p }: { project: Project }): React.ReactElement {
           />
           <ProjectStatusBadge status={p.status} />
         </div>
+        {/* v2.10.0 #T81 (§3.4.1): per-project count meta — the mockup's
+            "12 tasks · 3 issues · 4 plans · 2 repos" line. Counts come from the
+            /projects LIST response; each chip renders only when its count is
+            present (the single-project GET omits them). */}
+        <ProjectCounts project={p} />
         <div className="flex items-center justify-between gap-3">
           <span className="max-w-[60ch] truncate text-xs text-text-secondary">
             {p.description || <span className="italic text-text-muted">no description</span>}
@@ -183,6 +188,32 @@ function ProjectRow({ project: p }: { project: Project }): React.ReactElement {
         </div>
       </OrgLink>
     </li>
+  );
+}
+
+// ProjectCounts renders the per-project task/issue/plan/repo count meta line
+// (v2.10.0 #T81, §3.4.1) shown on the Projects list cards. Each count is
+// optional — present only on the LIST response — so a chip is rendered only
+// when its value is a number, and the whole row is omitted when none are.
+function ProjectCounts({ project: p }: { project: Project }): React.ReactElement | null {
+  const chips: Array<{ key: string; n: number; singular: string }> = [];
+  if (typeof p.task_count === 'number') chips.push({ key: 'tasks', n: p.task_count, singular: 'task' });
+  if (typeof p.issue_count === 'number') chips.push({ key: 'issues', n: p.issue_count, singular: 'issue' });
+  if (typeof p.plan_count === 'number') chips.push({ key: 'plans', n: p.plan_count, singular: 'plan' });
+  if (typeof p.repo_count === 'number') chips.push({ key: 'repos', n: p.repo_count, singular: 'repo' });
+  if (chips.length === 0) return null;
+  return (
+    <div
+      className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs tabular-nums text-text-muted"
+      data-testid="project-counts"
+    >
+      {chips.map((c) => (
+        <span key={c.key} data-testid={`project-count-${c.key}`}>
+          {c.n} {c.singular}
+          {c.n === 1 ? '' : 's'}
+        </span>
+      ))}
+    </div>
   );
 }
 

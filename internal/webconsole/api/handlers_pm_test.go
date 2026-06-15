@@ -441,3 +441,75 @@ func TestPM_Gating(t *testing.T) {
 		t.Fatalf("unknown project: status=%d, want 404", resp.StatusCode)
 	}
 }
+
+// TestPM_ListProjects_Counts is the v2.10.0 #T81 (§3.4.1, finding D1) guard:
+// the GET /api/projects list cards carry per-project task/issue/plan/repo
+// counts (the mockup's "12 tasks · 3 issues · …" meta). Create a project, seed
+// 2 tasks + 1 issue over the real HTTP handlers, and assert the list response
+// reports task_count=2 / issue_count=1 / plan_count=0 / repo_count=0. The
+// single-project GET stays count-free.
+func TestPM_ListProjects_Counts(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/projects", `{"name":"Counted"}`, sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("create project status=%d", resp.StatusCode)
+	}
+	var created map[string]any
+	json.NewDecoder(resp.Body).Decode(&created)
+	pid, _ := created["id"].(string)
+	if pid == "" {
+		t.Fatalf("no project id: %+v", created)
+	}
+
+	base := s.URL + "/api/projects/" + pid
+	for _, title := range []string{"t1", "t2"} {
+		if r := orgScopedPost(t, base+"/tasks", `{"title":"`+title+`"}`, sess); r.StatusCode != 200 {
+			t.Fatalf("create task %s status=%d", title, r.StatusCode)
+		}
+	}
+	if r := orgScopedPost(t, base+"/issues", `{"title":"i1"}`, sess); r.StatusCode != 200 {
+		t.Fatalf("create issue status=%d", r.StatusCode)
+	}
+
+	resp = orgScopedGet(t, s.URL+"/api/projects", sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("list status=%d", resp.StatusCode)
+	}
+	var listed struct {
+		Projects []map[string]any `json:"projects"`
+	}
+	json.NewDecoder(resp.Body).Decode(&listed)
+	var got map[string]any
+	for _, p := range listed.Projects {
+		if p["id"] == pid {
+			got = p
+			break
+		}
+	}
+	if got == nil {
+		t.Fatalf("project %s not in list: %+v", pid, listed.Projects)
+	}
+	// JSON numbers decode as float64.
+	want := map[string]float64{"task_count": 2, "issue_count": 1, "plan_count": 0, "repo_count": 0}
+	for k, v := range want {
+		gotV, ok := got[k].(float64)
+		if !ok {
+			t.Fatalf("list card missing %s (got %T %v): %+v", k, got[k], got[k], got)
+		}
+		if gotV != v {
+			t.Errorf("%s = %v, want %v", k, gotV, v)
+		}
+	}
+
+	// The single-project GET stays count-free (counts are a list-card concern).
+	resp = orgScopedGet(t, base, sess)
+	var single map[string]any
+	json.NewDecoder(resp.Body).Decode(&single)
+	if _, present := single["task_count"]; present {
+		t.Errorf("single project GET should not carry task_count: %+v", single)
+	}
+}
