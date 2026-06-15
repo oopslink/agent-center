@@ -1,6 +1,6 @@
 import type React from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageList } from './MessageList';
 import { useAppStore } from '@/store/app';
@@ -292,6 +292,46 @@ describe('MessageList attachments (#142)', () => {
   it('renders nothing extra for a plain message (no attachments)', () => {
     render(<MessageList messages={[sample('m2', 'plain')]} />);
     expect(screen.queryByTestId('message-attachments')).not.toBeInTheDocument();
+  });
+
+  // T149: a long attachment filename must NOT widen the chip past the viewport —
+  // the chip can shrink (min-w-0/max-w-full) and the filename truncates.
+  it('keeps a long attachment filename from overflowing (min-w-0 chip + truncated name)', () => {
+    render(
+      <MessageList
+        messages={[
+          withAtts('m3', [
+            {
+              uri: 'ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAV',
+              filename: 'IMG_20260615_a-very-very-long-attachment-filename-that-would-overflow.jpeg',
+              mime_type: 'image/jpeg',
+              size: 285000,
+            },
+          ]),
+        ]}
+      />,
+    );
+    const chip = screen.getByTestId('message-attachment');
+    expect(chip.className).toContain('min-w-0');
+    expect(chip.className).toContain('max-w-full');
+    const name = within(chip).getByText(/very-very-long-attachment-filename/);
+    expect(name.className).toContain('truncate');
+    expect(name).toHaveAttribute('title'); // full name on hover
+  });
+});
+
+// T149: the message stream never produces a horizontal PAGE scroll — the scroll
+// container clips horizontally (overflow-x-hidden) and can shrink (min-w-0), so
+// long content wraps / scrolls inside its own block instead of widening the page.
+describe('MessageList no-horizontal-overflow (T149)', () => {
+  afterEach(() => cleanup());
+
+  it('the message-list container clips horizontal overflow and can shrink', () => {
+    render(<MessageList messages={[sample('M1', 'hi')]} />);
+    const list = screen.getByTestId('message-list');
+    expect(list.className).toContain('overflow-x-hidden');
+    expect(list.className).toContain('overflow-y-auto');
+    expect(list.className).toContain('min-w-0');
   });
 });
 
