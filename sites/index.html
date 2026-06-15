@@ -149,6 +149,15 @@
 
 <main class="wrap wide">
 
+  <div class="section-title">v2.10.0 新特性 · 三栏式桌面 UI/UX</div>
+  <div class="desc" style="max-width:880px;margin:0 0 18px">Web Console 重构为<b>四区骨架</b>：顶层模块<b>图标栏</b>（Workspace / Conversations / Members / System）→ 每模块<b>二级列表</b>（col②）→<b>内容</b>区（col③）→<b>按需上下文</b>面板（col④），落在现有 IA 上（移除 Overview）。col② 由<b>二级导航注册表</b>驱动 —— 模块加自己的 nav + 一行注册即接入，不动 app layout。各模块全部在此骨架上重建（Conversations / Projects / Tasks / Issues / 全局 Plan / Work Board / Members / System）。外加：<b>task & issue 附件</b>（上传 / 下载，项目成员鉴权 fail-closed）、<b>消息引用 linkify</b>（<code>task-&lt;id&gt;</code> 与 <code>T&lt;number&gt;</code> 都成任务链接）、<b>入站消息附件</b>透出给 agent、system 消息作者显示 <b>System</b>。</div>
+  <div class="grid two" style="margin-bottom:8px">
+    <figure style="margin:0"><img src="assets/v2.10.0/appshell.png" alt="三栏式 App Shell：图标栏 + 二级列表 + 内容 + 上下文面板" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">三栏式 App Shell：图标栏（顶层模块）+ col② 二级列表 + col③ 内容 + col④ 按需上下文</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.10.0/plan-dag.png" alt="全局 Plan 详情 DAG tab" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">全局跨项目 Plan 详情：Chat / DAG / Task 列表三 tab，DAG 派生节点状态</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.10.0/attachments.png" alt="消息附件渲染" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">消息附件：上传 / 渲染 / 下载（项目成员鉴权，非成员 fail-closed）</figcaption></figure>
+    <figure style="margin:0"><img src="assets/v2.10.0/projects-counts.png" alt="Projects 列表卡片计数" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Projects 列表卡片显示 task / issue / plan / repo 计数</figcaption></figure>
+  </div>
+
   <div class="section-title">v2.9.1 新特性 · Message Threads</div>
   <div class="desc" style="max-width:880px;margin:0 0 18px">从任一消息<b>派生出 thread</b>、在弹出侧边栏里回复（Slack 式单层），Participants 侧栏有 thread 列表 +「有无新活动」标记；<b>在 thread 内 @提及项目 agent 会唤醒它、且回复落在该 thread 内</b> —— 适用所有会话类型。外加任务模型/看板收尾：<b>claimable + 每项目内置指派池</b>（指派≠领取；三段 Work Board = Backlog · 内置池 · 结构化 Plan）、更简的<b>任务状态机</b>（5 态，<code>blocked</code> 改为可恢复注解、删 <code>verified</code>）、<b>频道归档</b>、<code>list_tasks</code> MCP 工具、任务恢复工具与自动重派。</div>
   <div class="grid two" style="margin-bottom:8px">
@@ -194,7 +203,7 @@
       <span class="idx">04</span>
       <div class="ico">🧭</div>
       <h3>路线图</h3>
-      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.9.1 已发布</b>（Message Threads + claimable 内置指派池 + 任务状态机简化 + 频道归档），承接 <b>v2.9</b>（Plan Orchestration + 显式 org 路由 + 归档语义）、v2.8.1（Web Console UX / 单活竞态根治），v3 推迟项与边界。</div>
+      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.10.0 已发布</b>（三栏式桌面 UI/UX 重构 + 二级导航注册表 + task/issue 附件 + 消息引用 linkify + System 作者），承接 <b>v2.9.1</b>（Message Threads + claimable 内置指派池 + 任务状态机简化 + 频道归档）、<b>v2.9</b>（Plan Orchestration + 显式 org 路由 + 归档语义）、v2.8.1（Web Console UX / 单活竞态根治），v3 推迟项与边界。</div>
       <div class="tags"><span class="tag">已完成</span><span class="tag">backlog</span><span class="tag">v3 推迟</span></div>
     </a>
   </div>
