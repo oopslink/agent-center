@@ -21,16 +21,16 @@
 ## 1. §-1 自动门（PD）
 | # | 验收项 | 验收标准 | 证据 | 状态 |
 |---|---|---|---|---|
-|1.1|build|`make build`（go build ./... + 前端 vite build）exit 0，无 warning 当 error|日志|⬜|
-|1.2|tsc|`make lint` 内 `tsc -b` 0 error（含 React import gate）|日志|⬜|
-|1.3|eslint|`make lint` 内 eslint 0 error 0 warning|日志|⬜|
-|1.4|no-raw-colors|`lint-no-raw-colors-spa` clean（全走 token，无 #hex/rgb 硬编码；移动新样式同样过）|日志|⬜|
-|1.5|go vet|`make lint` 内 `go vet ./...` clean|日志|⬜|
-|1.6|scripts|`make lint` 内 scripts 校验 clean|日志|⬜|
-|1.7|go test|`make test`（go test ./...）全包 ok；**已知假阳**：workerdaemon `TestSupervisorSession_DetachSurvives`（supervisor socket / TMPDIR env）→ **clean-env rerun**（`export TMPDIR=/tmp/s` 后单跑该用例确认绿）|日志 + clean-env rerun|⬜|
-|1.8|vitest|`make test` 内 `npm test` 全 pass，0 fail，0 unhandled|汇总|⬜|
-|1.9|范围|**每模块分支各跑** + **集成树（含全部移动 M1–M7 + T83 + T95/T96/T97/T98 + 追加项）再跑一次**，记每个 hash|hash 列表|⬜|
-|1.10|覆盖|新增交互/组件均有单测（claimability 谓词 + CAS + 上限计数、ResizablePanel、Channel tabs、archived 筛选、mobile shell/底 Tab、P 号 linkify、org_ref label、wake file_uri 透传、SSE no-transform）|覆盖抽查|⬜|
+|1.1|build|`make build`（go build ./... + 前端 vite build）exit 0，无 warning 当 error|集成树 da6fde8 BUILD_RC=0（/tmp/s1-final + s1-t124 日志）|✅|
+|1.2|tsc|`make lint` 内 `tsc -b` 0 error（含 React import gate）|tsc -b 0 error（LINT_RC=0）|✅|
+|1.3|eslint|`make lint` 内 eslint 0 error 0 warning|eslint src 0 error/warning|✅|
+|1.4|no-raw-colors|`lint-no-raw-colors-spa` clean（全走 token，无 #hex/rgb 硬编码；移动新样式同样过）|no-raw-colors-spa: clean|✅|
+|1.5|go vet|`make lint` 内 `go vet ./...` clean|go vet clean|✅|
+|1.6|scripts|`make lint` 内 scripts 校验 clean|no-vendor/no-mock/doc-impl-drift 全 clean|✅|
+|1.7|go test|`make test`（go test ./...）全包 ok；**已知假阳**：workerdaemon `TestSupervisorSession_DetachSurvives`（supervisor socket / TMPDIR env）→ **clean-env rerun**（`export TMPDIR=/tmp/s` 后单跑该用例确认绿）|TEST_RC=0 **59 包零失败**；supervisor 假阳本轮 clean-env 已过|✅|
+|1.8|vitest|`make test` 内 `npm test` 全 pass，0 fail，0 unhandled|前端测试随 make test 全 pass|✅|
+|1.9|范围|**每模块分支各跑** + **集成树（含全部移动 M1–M7 + T83 + T95/T96/T97/T98 + 追加项）再跑一次**，记每个 hash|集成树逐增量验：df84b08→ae559fa(+discard_task)→da6fde8(+T124) 全 §-1 绿（/tmp/s1-final-v2101.log·s1-ae559fa.log·s1-t124.log）|✅|
+|1.10|覆盖|新增交互/组件均有单测（claimability 谓词 + CAS + 上限计数、ResizablePanel、Channel tabs、archived 筛选、mobile shell/底 Tab、P 号 linkify、org_ref label、wake file_uri 透传、SSE no-transform）|各项均有单测：claimability/CAS/cap、ResizablePanel、Channel tabs、plan_summaries_archived_test、P 号 linkify、org_ref、wake T103(3 测)、SSE no-transform、discard_task(5 测)|✅|
 
 ## 2. Tester1 — data/API + 授权（硬门）
 > 授权红线条目不过 **不 tag、不 promote**。每条附**请求/响应码** + 测试名/断言行；红线条目附截图或日志。
@@ -240,7 +240,8 @@
 
 | 角色 | 范围 | 状态 | 日期 | 集成 hash |
 |---|---|---|---|---|
-|PD|§1 §-1 自动门（每模块 + 集成树）+ 集成终验|⬜ 待验| | |
+|PD|§1 §-1 自动门（每模块 + 集成树）+ 集成终验|✅ **GO**：集成树 §-1 全绿（build/lint/test 59 包零失败），逐增量验 df84b08→ae559fa→da6fde8；集成终验 §1 在最终全合树 da6fde8 通过|2026-06-15|**da6fde8**|
+|**PD 汇总裁定**|全轮验收|✅ **GO for tag/promote**：**授权红线全过**（§2.1.1/2.1.3/2.1.4 + §2.2.3，Tester1 live HTTP 实证）；§1 PD✅ + §2 Tester1 GO + §3 Tester2 GO（移动 M1–M7 + 桌面增强 + 追加项 + §4/§5 全签，含 §3.11 经 T124 修复复签 ✅）；**0 阻塞 ❌**。**非阻塞观察（建议 v2.10.2 跟进）**：§3.1.1 底 Tab 文案 Work/Chat↔mockup Workspace/Conversations；§3.9 参与者 resize min200/max480（PD 接受，非缺陷）；§4.9 个别移动触控<44px（a11y nit）；§4.11 大列表未压测；§2.1.8 N runtime config；§5.4 paused-resume fixture。|2026-06-15|da6fde8|
 |Tester1|§2 data/API + 授权硬门（claimability T83 红线 + 入站附件 T103）+ 受派 §3.8-3.12 / §3.16-3.18 / §5 + discard_task T120|⚠️ **§2 GO（4 红线全过）/ §3.16-3.18 + §5 PASS / discard_task GO；但 §3.11 归档筛选 ❌FAIL（回 T98 dev）+ §3.9 边界⚠️ + §2.1.8/§5.4 观察**|2026-06-15|run-real df84b08(v2101s3) + 代码 ae559fa|
 |Tester2|§3 run-real 逐模块（移动 M1–M7 + 桌面增强 + 追加项）+ §4 + §5|✅ **GO**：移动 M1–M7(§3.1–3.7)+§3.13–3.15+§4 全 PASS；**§3.11 经 T124 复签 da6fde8 ✅**；3 处非阻塞观察(§3.1.1 Tab 文案 / §4.9 移动触控<44px / §4.11 大列表未压测)|2026-06-15|run-real **da6fde8**(v2101rs) + df84b08(v2101s3，前端与 da6fde8 字节一致)|
 |Owner|tag / promote 决策|⬜ 待定| | |
