@@ -111,7 +111,6 @@ export default function PlanDetail(): React.ReactElement {
   }
 
   const p = plan.data;
-  const nodes = p.nodes ?? [];
 
   return (
     <section className="space-y-4" data-testid="page-PlanDetail" data-plan-id={p.id}>
