@@ -1,6 +1,6 @@
 import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -45,6 +45,7 @@ const planRow = (extra: Record<string, unknown> = {}) => ({
   name: 'v2.9.2 收尾',
   description: '',
   status: 'running',
+  org_ref: 'P7',
   creator_ref: 'user:alice',
   conversation_id: 'conv-1',
   has_failed: false,
@@ -73,6 +74,8 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     const row = screen.getByTestId('org-plan-row');
     expect(row).toHaveAttribute('data-status', 'running');
     expect(screen.getByTestId('org-plan-name')).toHaveTextContent('v2.9.2 收尾');
+    // v2.10.1 [T99]: the human Plan id (P7) shows next to the name.
+    expect(within(row).getByTestId('org-plan-ref')).toHaveTextContent('P7');
     // name links into the Plan detail (project-scoped route).
     expect(screen.getByTestId('org-plan-name').getAttribute('href')).toContain(
       '/projects/proj-a/plans/plan-01KT9ABCDEF',

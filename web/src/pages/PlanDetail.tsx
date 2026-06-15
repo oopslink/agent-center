@@ -36,7 +36,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
 import { StatusChip, idHandle } from '@/components/workItemDisplay';
-import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel } from '@/components/planDisplay';
+import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
@@ -187,6 +187,8 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   return (
     <header className="space-y-2 border-b border-border-base p-4" data-testid="plan-detail-header">
       <div className="flex flex-wrap items-center gap-2">
+        {/* v2.10.1 [T99]: the human Plan id (P123). */}
+        <PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="plan-detail-ref" />
         <h1 className="font-heading text-xl font-semibold text-text-primary" title={plan.id}>
           {plan.name}
         </h1>

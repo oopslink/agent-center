@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useOrgPlans, type OrgPlanItem, type OrgPlanFilters } from '@/api/plans';
 import { useProjects } from '@/api/projects';
-import { PlanStatusChip, PlanFailedIndicator, planProgressLabel } from '@/components/planDisplay';
+import { PlanStatusChip, PlanFailedIndicator, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { shortDate } from '@/components/workItemDisplay';
 import { ContextPanel } from '@/shell/contextPanel';
 
@@ -179,15 +179,19 @@ export default function OrgPlansPage(): React.ReactElement {
                     onClick={() => setSelectedId(isSelected ? null : p.id)}
                     className={`cursor-pointer ${isSelected ? 'bg-bg-subtle' : 'hover:bg-bg-subtle/60'}`}
                   >
-                    <td className="max-w-[20rem] truncate py-1.5 pr-3">
-                      <OrgLink
-                        to={`/projects/${encodeURIComponent(p.project.id)}/plans/${encodeURIComponent(p.id)}`}
-                        className="font-medium text-text-primary hover:text-accent"
-                        data-testid="org-plan-name"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {p.name}
-                      </OrgLink>
+                    <td className="max-w-[20rem] py-1.5 pr-3">
+                      <span className="flex items-center gap-1.5">
+                        {/* v2.10.1 [T99]: the human Plan id (P123). */}
+                        <PlanRefTag planId={p.id} orgRef={p.org_ref} testId="org-plan-ref" />
+                        <OrgLink
+                          to={`/projects/${encodeURIComponent(p.project.id)}/plans/${encodeURIComponent(p.id)}`}
+                          className="min-w-0 truncate font-medium text-text-primary hover:text-accent"
+                          data-testid="org-plan-name"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {p.name}
+                        </OrgLink>
+                      </span>
                     </td>
                     <td className="py-1.5 pr-3">
                       <span className="inline-flex items-center gap-1.5">
@@ -264,6 +268,7 @@ function PlanSummaryPanel({
         </div>
 
         <div className="border-b border-border-base px-4 pb-2.5">
+          <SummaryKV k="ID"><PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="org-plan-meta-ref" /></SummaryKV>
           <SummaryKV k="Name">{plan.name}</SummaryKV>
           <SummaryKV k="Status"><PlanStatusChip status={plan.status} /></SummaryKV>
           <SummaryKV k="Project">{plan.project.name}</SummaryKV>

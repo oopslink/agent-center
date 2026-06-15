@@ -102,6 +102,10 @@ export interface Plan {
   status: PlanStatus;
   creator_ref: string;
   conversation_id: string;
+  // v2.10.1 [T99]: the human Plan id ("P123", org-scoped org_ref). Optional —
+  // omitted for the builtin pool + rows predating the allocator (UI falls back
+  // to the #id-tail handle).
+  org_ref?: string;
   target_date?: string | null;
   has_failed: boolean;
   progress: { done: number; total: number };

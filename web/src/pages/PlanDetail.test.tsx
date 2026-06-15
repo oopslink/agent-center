@@ -41,6 +41,7 @@ function planWith(overrides: Record<string, unknown> = {}) {
     name: 'v3.0 release plan',
     description: '',
     status: 'running',
+    org_ref: 'P9',
     creator_ref: 'user:owner',
     conversation_id: 'conv-plan-1',
     target_date: '2026-07-15T00:00:00Z',
@@ -89,6 +90,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
     const hd = screen.getByTestId('plan-detail-header');
     expect(within(hd).getByText('v3.0 release plan')).toBeInTheDocument();
+    // v2.10.1 [T99]: the human Plan id (P9) shows in the header.
+    expect(within(hd).getByTestId('plan-detail-ref')).toHaveTextContent('P9');
     expect(within(hd).getByTestId('plan-status-chip')).toHaveTextContent('running');
     expect(within(hd).getByTestId('plan-failed-indicator')).toBeInTheDocument();
     expect(screen.getByTestId('plan-progress')).toHaveTextContent('2/6');
