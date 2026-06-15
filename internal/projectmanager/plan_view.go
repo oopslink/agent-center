@@ -107,6 +107,19 @@ func TaskClaimable(t *Task, nodeStatus NodeStatus) bool {
 	return Claimable(t.IsArchived(), t.Status(), t.Assignee(), t.PlanID(), nodeStatus)
 }
 
+// ClaimableInPool is the OPEN-CLAIM predicate for the built-in assignment pool
+// (T83 §3.2): a pool task is claimable WITHOUT pre-assignment — any eligible
+// (project-member) agent may claim it. It drops the `assignee!=""` requirement of
+// Claimable (which still governs structured-plan nodes, where only the assigned
+// agent claims). Backlog (planID=="") stays not-claimable. The caller MUST have
+// already established that planID belongs to a built-in pool plan (IsBuiltin).
+func ClaimableInPool(archived bool, status TaskStatus, planID PlanID, nodeStatus NodeStatus) bool {
+	return !archived &&
+		status == TaskOpen &&
+		planID != "" &&
+		nodeStatus == NodeDispatched
+}
+
 // PlanNodeView is one node's DERIVED projection for the read model / DTO.
 type PlanNodeView struct {
 	TaskID            TaskID

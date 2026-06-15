@@ -134,6 +134,23 @@ func (s *Server) getMyWorkHandler(w http.ResponseWriter, r *http.Request) {
 			ct[i] = m
 		}
 		resp["claimable_tasks"] = ct
+
+		// T83: a CLAIMED pool task is running with NO WorkItem (pull/no-wake), so it
+		// would otherwise vanish from get_my_work after the agent claims it. Surface
+		// the agent's in-flight claimed pool work here so "my work" includes the pool
+		// tasks already assigned to it (and survives wake/restart).
+		held, herr := d.PMService.ListHeldPoolTasks(r.Context(), pm.IdentityRef(agentActor(a)))
+		if herr != nil {
+			mapDomainError(w, herr)
+			return
+		}
+		mp := make([]map[string]any, len(held))
+		for i, c := range held {
+			m := agentTaskMap(c.Task)
+			m["node_status"] = string(c.NodeStatus)
+			mp[i] = m
+		}
+		resp["my_pool_tasks"] = mp
 	}
 
 	writeJSON(w, http.StatusOK, resp)
