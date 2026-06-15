@@ -65,6 +65,9 @@ export const qk = {
   issue: (id: string) => o('issue', id),
   tasksByProject: (projectId: string) => o('tasksByProject', projectId),
   task: (id: string) => o('task', id),
+  // v2.10.0 [T73]: task/issue-scoped file attachments, keyed by the scope id.
+  taskFiles: (taskId: string) => o('taskFiles', taskId),
+  issueFiles: (issueId: string) => o('issueFiles', issueId),
   codeReposByProject: (projectId: string) => o('codeReposByProject', projectId),
   membersByProject: (projectId: string) => o('membersByProject', projectId),
   // Coarse no-arg list keys kept so derive.ts (deferred scope) keeps
@@ -74,6 +77,8 @@ export const qk = {
   // v2.8 #258: org-scope cross-project aggregation, keyed by the filter set.
   orgIssues: (filters?: unknown) => o('orgIssues', filters ?? null),
   orgTasks: (filters?: unknown) => o('orgTasks', filters ?? null),
+  // v2.10.0 [T6]: org-scoped cross-project Plan list (global Workspace > Plan).
+  orgPlans: (filters?: unknown) => o('orgPlans', filters ?? null),
   // v2.9 #286 Plan orchestration: Plans are per-project. The parallel list is
   // keyed by projectId; a single Plan (nodes + derived) keyed by plan id.
   plansByProject: (projectId: string) => o('plansByProject', projectId),

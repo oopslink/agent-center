@@ -56,41 +56,65 @@ export interface ResolvedTaskRef {
   href: string;
 }
 
-// useTaskRefResolver builds a task_id → { label, href } resolver from the ORG
-// task list (GET /api/orgs/{slug}/tasks, cached) so a `task-<id>` reference in a
-// message — even one pointing at ANOTHER project — linkifies to the task detail
-// page with its "T123" label. v2.9.2 (task-82915d7c). Returns a function that
-// yields null for an unknown / out-of-org task id, so the reference stays plain
-// text instead of dangling to a wrong/forbidden target (verify-not-trust).
-export function useTaskRefResolver(): (taskId: string) => ResolvedTaskRef | null {
+// useTaskRefResolver builds a reference → { label, href } resolver from the ORG
+// task list (GET /api/orgs/{slug}/tasks, cached) so a task reference in a message
+// — even one pointing at ANOTHER project — linkifies to the task detail page with
+// its "T123" label. v2.9.2 (task-82915d7c). Returns a function that yields null
+// for an unknown / out-of-org reference, so it stays plain text instead of
+// dangling to a wrong/forbidden target (verify-not-trust).
+//
+// The resolver accepts BOTH reference forms, keyed into one map:
+//   - the bare task id `task-<id>` (the entity ref), and
+//   - the human org_ref `T<number>` (e.g. "T123") — T76 (task-c780999a): chat
+//     messages reference tasks by their T-number, both received and sent.
+//
+// T62 (task-336335c5): the list is fetched with status=all, NOT the default
+// "all open" view. The default excludes terminal {completed, discarded}; agents
+// reference completed tasks constantly, so a ref to one would silently stay
+// plain text. status=all surfaces every status for reference resolution.
+export function useTaskRefResolver(): (ref: string) => ResolvedTaskRef | null {
   const ctx = useOptionalOrgContext();
   const slug = ctx?.slug;
-  const tasks = useOrgWorkItems('task', slug);
+  const tasks = useOrgWorkItems('task', slug, { status: ['all'] });
   return useMemo(() => {
-    const byId = new Map<string, { orgRef?: string; projectId: string }>();
+    const byRef = new Map<string, { label: string; projectId: string; taskId: string }>();
     for (const it of tasks.data?.items ?? []) {
-      byId.set(it.id, { orgRef: it.org_ref, projectId: it.project.id });
+      const entry = {
+        label: it.org_ref || `#${idHandle(it.id)}`,
+        projectId: it.project.id,
+        taskId: it.id,
+      };
+      byRef.set(it.id, entry); // task-<id> form
+      if (it.org_ref) byRef.set(it.org_ref, entry); // T76: T<number> org_ref form
     }
-    return (taskId: string): ResolvedTaskRef | null => {
-      const entry = byId.get(taskId);
+    return (ref: string): ResolvedTaskRef | null => {
+      const entry = byRef.get(ref);
       if (!entry) return null;
       return {
-        label: entry.orgRef || `#${idHandle(taskId)}`,
-        href: orgPath(taskDetailPath(entry.projectId, taskId), slug),
+        label: entry.label,
+        href: orgPath(taskDetailPath(entry.projectId, entry.taskId), slug),
       };
     };
   }, [tasks.data, slug]);
 }
 
-// TOKEN_RE matches EITHER an @handle token (group 1) OR a `task-<id>` reference
-// (group 2) in one ordered pass, so a string carrying both linkifies correctly.
+// TOKEN_RE matches an @handle (group 1), a `task-<id>` reference (group 2), OR a
+// `T<number>` org_ref (group 3) in one ordered pass, so a string carrying any mix
+// linkifies correctly.
 //   - @handle: @ + word/.-/_ chars. A leading boundary is enforced by the
 //     surrounding split so we don't match an email's local-part-ish "@" mid-word.
 //   - task-<id>: a NEGATIVE LOOKBEHIND `(?<![A-Za-z0-9])` guards the left
 //     boundary so "subtask-1" does NOT match (only a standalone `task-…` does).
 //     The id is [A-Za-z0-9]+ (hash tail / ULID), terminated by any other char
 //     (so "task-x." stops at the dot). v2.9.2 (task-82915d7c).
-const TOKEN_RE = /@([A-Za-z0-9][A-Za-z0-9._-]*)|(?<![A-Za-z0-9])(task-[A-Za-z0-9]+)/g;
+//   - T<number> org_ref (T76 / task-c780999a): "T" + digits, guarded by BOTH a
+//     negative lookbehind AND lookahead on [A-Za-z0-9] so it only matches a
+//     STANDALONE token (not "T1" inside "PART1", "ROUTE53", "T12ab", etc.).
+//     Resolution is still gated on a real org_ref (resolveTask returns null for
+//     an unknown T-number → stays plain text), so a bare "T1" that is not a task
+//     never becomes a (wrong) link.
+const TOKEN_RE =
+  /@([A-Za-z0-9][A-Za-z0-9._-]*)|(?<![A-Za-z0-9])(task-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(T\d+)(?![A-Za-z0-9])/g;
 
 interface MentionTextProps {
   text: string;
@@ -102,10 +126,11 @@ interface MentionTextProps {
    * theme) this must be a FIXED-dark color (e.g. text-chatbubble-link), NOT the text-accent
    * theme token (#3b82f6 → blue-on-blue <4.5 on #D1E3FF — the both-mode 命门). */
   linkClass?: string;
-  /** v2.9.2 (task-82915d7c): optional `task-<id>` → { label, href } resolver. When
-   * provided, a resolvable task reference becomes a link to the task detail page
-   * labelled with its "T123" org_ref; an unresolved reference stays plain text. */
-  resolveTask?: (taskId: string) => ResolvedTaskRef | null;
+  /** v2.9.2 (task-82915d7c) + T76 (task-c780999a): optional reference resolver.
+   * Accepts EITHER a `task-<id>` or a `T<number>` org_ref; when provided, a
+   * resolvable reference becomes a link to the task detail page labelled with its
+   * "T123" org_ref; an unresolved reference stays plain text. */
+  resolveTask?: (ref: string) => ResolvedTaskRef | null;
 }
 
 // MentionText tokenizes one plain-text string, turning each @handle that
@@ -125,7 +150,9 @@ export function MentionText({
   let key = 0;
   while ((match = TOKEN_RE.exec(text)) !== null) {
     const handle = match[1];
-    const taskId = match[2];
+    // A task reference in either form: the bare `task-<id>` (group 2) or the
+    // `T<number>` org_ref (group 3). Both resolve through the same resolveTask.
+    const taskRef = match[2] ?? match[3];
     let node: React.ReactNode = null;
     if (handle !== undefined) {
       const ref = resolve(handle);
@@ -153,8 +180,8 @@ export function MentionText({
           </button>
         );
       }
-    } else if (taskId !== undefined && resolveTask) {
-      const t = resolveTask(taskId);
+    } else if (taskRef !== undefined && resolveTask) {
+      const t = resolveTask(taskRef);
       if (t) {
         node = (
           <a
@@ -167,8 +194,8 @@ export function MentionText({
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             data-testid="task-ref-token"
-            data-task-id={taskId}
-            title={`Open ${taskId} in a new tab`}
+            data-task-id={taskRef}
+            title={`Open ${t.label} in a new tab`}
             // Same context-aware linkClass as mentions (both-mode AA on theme +
             // own-bubble surfaces); keyboard-accessible as a native anchor.
             className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}

@@ -118,6 +118,17 @@
   --color-codeblock-fg:     #f1f5f9; /* slate-100, code text on #003247 */
   --color-codeblock-muted:  #cbd5e1; /* slate-300, chrome text on #003247 */
   --color-codeblock-link:   #7dd3fc; /* sky-300, disclosure on #003247 */
+
+  /*
+   * v2.10.0 [T1] — the col① module rail is a FIXED dark chrome surface
+   * (Slack/VSCode-style activity bar) that does NOT flip per theme, so its
+   * tokens are identical in light and dark (same fixed-surface rationale as
+   * the chat bubble / code block above). Idle/active foregrounds are tuned
+   * for AA on #1e1b34 (rail-fg #c7c3e0 = 7.4:1; rail-fg-active #ffffff).
+   */
+  --color-rail-bg:        #1e1b34; /* deep indigo activity bar */
+  --color-rail-fg:        #c7c3e0; /* idle icon/label */
+  --color-rail-fg-active: #ffffff; /* active icon/label */
 }
 
 /*

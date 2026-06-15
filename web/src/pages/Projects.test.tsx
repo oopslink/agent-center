@@ -65,6 +65,56 @@ describe('Projects page', () => {
     expect(links.some((a) => a.getAttribute('href') === '/projects/proj-a')).toBe(true);
   });
 
+  // v2.10.0 #T81 (§3.4.1, finding D1): list cards show per-project counts
+  // (tasks/issues/plans/repos). Counts come from the LIST response; a card
+  // whose counts are absent renders no count row (single-1 pluralization too).
+  it('renders per-project task/issue/plan/repo counts', async () => {
+    server.use(
+      http.get('/api/projects', () =>
+        HttpResponse.json({
+          projects: [
+            {
+              id: 'proj-a',
+              organization_id: 'org-test',
+              name: 'Project Alpha',
+              description: 'first',
+              status: 'active',
+              created_by: 'user:hayang',
+              version: 1,
+              created_at: '2026-05-20T01:00:00Z',
+              updated_at: '2026-05-20T01:00:00Z',
+              task_count: 12,
+              issue_count: 1,
+              plan_count: 4,
+              repo_count: 0,
+            },
+            {
+              // No counts (e.g. an older payload) → no count row on this card.
+              id: 'proj-b',
+              organization_id: 'org-test',
+              name: 'Project Beta',
+              description: 'second',
+              status: 'active',
+              created_by: 'user:hayang',
+              version: 1,
+              created_at: '2026-05-21T01:00:00Z',
+              updated_at: '2026-05-21T01:00:00Z',
+            },
+          ],
+        }),
+      ),
+    );
+    wrap(<Projects />);
+    await waitFor(() => expect(screen.getAllByTestId('project-row')).toHaveLength(2));
+
+    // proj-a: all four counts, with singular/plural handling.
+    expect(screen.getAllByTestId('project-counts')).toHaveLength(1); // only proj-a
+    expect(screen.getByTestId('project-count-tasks')).toHaveTextContent('12 tasks');
+    expect(screen.getByTestId('project-count-issues')).toHaveTextContent('1 issue');
+    expect(screen.getByTestId('project-count-plans')).toHaveTextContent('4 plans');
+    expect(screen.getByTestId('project-count-repos')).toHaveTextContent('0 repos');
+  });
+
   it('shows the EmptyState when the list is empty', async () => {
     server.use(http.get('/api/projects', () => HttpResponse.json({ projects: [] })));
     wrap(<Projects />);

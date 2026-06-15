@@ -92,6 +92,61 @@ func (f *inboxFixture) seedMsg(t *testing.T, id conversation.MessageID, conv con
 	}
 }
 
+// seedMsgAtt seeds a message carrying attachments (v2.10.0 [T74]).
+func (f *inboxFixture) seedMsgAtt(t *testing.T, id conversation.MessageID, conv conversation.ConversationID, sender conversation.IdentityRef, content string, atts []conversation.MessageAttachment) {
+	t.Helper()
+	f.clock.Advance(time.Millisecond)
+	m, err := conversation.NewMessage(conversation.NewMessageInput{
+		ID: id, ConversationID: conv, SenderIdentityID: sender,
+		ContentKind: conversation.MessageContentText, Content: content,
+		Direction: conversation.DirectionInbound, PostedAt: f.clock.Now(),
+		Attachments: atts,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.msgRepo.Append(context.Background(), m); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// v2.10.0 [T74]: an inbound message's attachments (file_uri + metadata) surface
+// in the agent's inbox so a human can send a screenshot and the agent can
+// perceive + download_file it. A text-only message carries none.
+func TestAgentInbox_SurfacesAttachments_T74(t *testing.T) {
+	f := setupInbox(t)
+	ctx := context.Background()
+	const agent = conversation.IdentityRef("agent:bot-1")
+	f.seedConv(t, "dm-1", conversation.ConversationKindDM, "org-1", agent, "user:alice")
+	f.seedMsgAtt(t, "dm-1-m1", "dm-1", "user:alice", "what's wrong with this screenshot?",
+		[]conversation.MessageAttachment{{URI: "ac://files/01ABC", Filename: "shot.png", MimeType: "image/png", Size: 1234}})
+	f.seedMsg(t, "dm-1-m2", "dm-1", "user:alice", "text only, no file")
+
+	got, err := f.inbox.ListUnreadForIdentity(ctx, []conversation.IdentityRef{agent}, "org-1", "Bot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[conversation.MessageID]UnreadItem{}
+	for _, it := range got {
+		byID[it.MessageID] = it
+	}
+	withAtt, ok := byID["dm-1-m1"]
+	if !ok {
+		t.Fatalf("attachment message dm-1-m1 not surfaced (got %d items)", len(got))
+	}
+	if len(withAtt.Attachments) != 1 {
+		t.Fatalf("want 1 attachment, got %d", len(withAtt.Attachments))
+	}
+	a := withAtt.Attachments[0]
+	if a.URI != "ac://files/01ABC" || a.Filename != "shot.png" || a.MimeType != "image/png" || a.Size != 1234 {
+		t.Errorf("attachment metadata mismatch: %+v", a)
+	}
+	// text-only message → no attachments.
+	if textOnly, ok := byID["dm-1-m2"]; ok && len(textOnly.Attachments) != 0 {
+		t.Errorf("text-only message should carry no attachments, got %d", len(textOnly.Attachments))
+	}
+}
+
 func TestAgentInbox_ListUnreadForIdentity(t *testing.T) {
 	f := setupInbox(t)
 	ctx := context.Background()

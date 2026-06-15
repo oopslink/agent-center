@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import OrgWorkItemsPage from './OrgWorkItems';
+import { useContextPanelController } from '@/shell/contextPanel';
 import type { OrgWorkItemKind } from '@/api/orgWorkItems';
+import type React from 'react';
 
 function wrap(_kind: OrgWorkItemKind, path: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -428,5 +430,106 @@ describe('OrgWorkItems page (#258)', () => {
     await waitFor(() => expect(screen.getByTestId('org-workitems-empty')).toBeInTheDocument());
     expect(hit).toBe(true);
     expect(screen.getByTestId('org-workitems-empty')).toHaveTextContent(/No open tasks/i);
+  });
+});
+
+// v2.10.0 [T3] — col④ read-only metadata panel. Renders the page inside a
+// minimal shell harness that supplies the ContextPanel provider + host (the
+// real AppLayout role), so a selected row's <ContextPanel> portals into col④.
+function ShellHarness({ children }: { children: React.ReactNode }): React.ReactElement {
+  const { Provider, value, setHost, open } = useContextPanelController();
+  return (
+    <Provider value={value}>
+      {children}
+      <aside data-testid="ctx-col" data-open={open}>
+        <div ref={setHost} />
+      </aside>
+    </Provider>
+  );
+}
+
+function wrapShell(path: string) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[path]}>
+        <ShellHarness>
+          <Routes>
+            <Route path="/organizations/:slug/issues" element={<OrgWorkItemsPage kind="issue" />} />
+            <Route path="/organizations/:slug/tasks" element={<OrgWorkItemsPage kind="task" />} />
+          </Routes>
+        </ShellHarness>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+describe('OrgWorkItems col④ metadata panel (v2.10.0 [T3])', () => {
+  afterEach(() => cleanup());
+
+  it('selecting a task row opens the read-only metadata panel in col④', async () => {
+    server.use(
+      http.get('/api/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })),
+    );
+    wrapShell('/organizations/acme/tasks');
+    const row = await screen.findByTestId('org-workitem-row');
+    // No panel until a row is selected; col④ is closed.
+    expect(screen.queryByTestId('org-workitem-meta-panel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ctx-col')).toHaveAttribute('data-open', 'false');
+
+    fireEvent.click(row);
+    const panel = await screen.findByTestId('org-workitem-meta-panel');
+    expect(panel).toHaveAttribute('data-id', 'task-01KT8DXYZ789');
+    expect(screen.getByTestId('ctx-col')).toHaveAttribute('data-open', 'true');
+    expect(screen.getByTestId('org-workitem-row')).toHaveAttribute('aria-selected', 'true');
+    // Metadata: status / assignee / project / id + a discussion link.
+    expect(panel).toHaveTextContent('running');
+    expect(panel).toHaveTextContent('Bot Nine');
+    expect(panel).toHaveTextContent('Beacon');
+    expect(panel).toHaveTextContent('T34');
+    const open = screen.getByTestId('org-workitem-meta-open');
+    expect(open.getAttribute('href')).toContain('/projects/proj-b/tasks/task-01KT8DXYZ789');
+  });
+
+  it('the close button + re-clicking the row clear the selection (col④ collapses)', async () => {
+    server.use(
+      http.get('/api/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })),
+    );
+    wrapShell('/organizations/acme/tasks');
+    const row = await screen.findByTestId('org-workitem-row');
+    fireEvent.click(row);
+    await screen.findByTestId('org-workitem-meta-panel');
+
+    // Close button clears it.
+    fireEvent.click(screen.getByTestId('org-workitem-meta-close'));
+    await waitFor(() =>
+      expect(screen.queryByTestId('org-workitem-meta-panel')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId('ctx-col')).toHaveAttribute('data-open', 'false');
+
+    // Re-clicking the row opens it, clicking again toggles it back off.
+    fireEvent.click(screen.getByTestId('org-workitem-row'));
+    await screen.findByTestId('org-workitem-meta-panel');
+    fireEvent.click(screen.getByTestId('org-workitem-row'));
+    await waitFor(() =>
+      expect(screen.queryByTestId('org-workitem-meta-panel')).not.toBeInTheDocument(),
+    );
+  });
+
+  it('issues use the same panel (read-only, unassigned shows —)', async () => {
+    server.use(
+      http.get('/api/issues', () => HttpResponse.json({ items: [issueRow()], total: 1 })),
+    );
+    wrapShell('/organizations/acme/issues');
+    fireEvent.click(await screen.findByTestId('org-workitem-row'));
+    const panel = await screen.findByTestId('org-workitem-meta-panel');
+    expect(panel).toHaveTextContent('Issue · metadata');
+    expect(panel).toHaveTextContent('in progress');
+    expect(panel).toHaveTextContent('Apollo');
+    // issue.assignee is always null in the pm domain → em-dash.
+    expect(panel).toHaveTextContent('—');
+    expect(screen.getByTestId('org-workitem-meta-open').getAttribute('href')).toContain(
+      '/projects/proj-a/issues/issue-01KT8DABCDEF',
+    );
   });
 });

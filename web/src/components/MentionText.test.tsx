@@ -271,3 +271,76 @@ describe('MentionText task-ref linkify (task-82915d7c)', () => {
     expect(screen.queryByTestId('task-ref-token')).toBeNull();
   });
 });
+
+// T76 (task-c780999a): a `T<number>` org_ref (e.g. T123) in a message linkifies
+// to the SAME task detail page as the bare task-<id>, resolving through the org
+// task list (status=all, so terminal tasks resolve too — T62/task-336335c5).
+describe('MentionText T-number org_ref linkify (T76 / task-c780999a)', () => {
+  afterEach(() => cleanup());
+
+  it('linkifies a T<number> org_ref to its task detail page', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'please review T123 before merge'} />);
+    const link = await screen.findByTestId('task-ref-token');
+    expect(link.tagName).toBe('A');
+    expect(link).toHaveTextContent('T123');
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-abc');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('resolves a COMPLETED task by T-number (status=all) — and requests all statuses', async () => {
+    // T62 root cause: the resolver must ask the backend to include terminal tasks.
+    let requestedStatus: string[] = [];
+    server.use(
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/tasks', ({ request }) => {
+        requestedStatus = new URL(request.url).searchParams.getAll('status');
+        return HttpResponse.json({
+          items: [
+            {
+              id: 'task-done', org_ref: 'T99', project: { id: 'proj-x', name: 'X' },
+              title: 'finished', status: 'completed', assignee: null, updated_at: 'x', created_at: 'x',
+            },
+          ],
+          total: 1,
+        });
+      }),
+    );
+    renderInOrg(<MarkdownMessage content={'fixed in T99, see notes'} />);
+    const link = await screen.findByTestId('task-ref-token');
+    expect(link).toHaveTextContent('T99');
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-done');
+    expect(requestedStatus).toContain('all');
+  });
+
+  it('leaves an UNKNOWN / unresolvable T-number as plain text (no dangling link)', async () => {
+    mockOrgTasks(); // only T123 exists
+    renderInOrg(<MarkdownMessage content={'ticket T999 is not a real task'} />);
+    await waitFor(() =>
+      expect(screen.getByTestId('markdown-message')).toHaveTextContent('ticket T999 is not a real task'),
+    );
+    expect(screen.queryByTestId('task-ref-token')).toBeNull();
+  });
+
+  it('does NOT match a T-number embedded in a larger token (word boundary)', async () => {
+    mockOrgTasks();
+    // "PART123" (left-adjacent letters), "T12ab" (right-adjacent letters) — neither
+    // is a standalone T-number, so the boundary guards prevent a (wrong) match.
+    renderInOrg(<MarkdownMessage content={'PART123 and T12ab are not refs'} />);
+    await waitFor(() =>
+      expect(screen.getByTestId('markdown-message')).toHaveTextContent('PART123 and T12ab are not refs'),
+    );
+    expect(screen.queryByTestId('task-ref-token')).toBeNull();
+  });
+
+  it('linkifies BOTH a task-<id> and a T-number in the same line', async () => {
+    mockOrgTasks();
+    renderInOrg(<MarkdownMessage content={'see task-abc which is the same as T123'} />);
+    const links = await screen.findAllByTestId('task-ref-token');
+    expect(links).toHaveLength(2);
+    // both point at the same task detail page (task-abc / T123 are the same task).
+    expect(links[0]).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-abc');
+    expect(links[1]).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-abc');
+  });
+});

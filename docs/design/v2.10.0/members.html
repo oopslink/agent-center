@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>桌面 · Members(三栏)</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .desk3{display:grid;grid-template-columns:66px 250px 1fr;height:430px;position:relative}
+  .desk4{display:grid;grid-template-columns:66px 250px 1fr 248px;height:430px;position:relative}
+  .rail{background:#1e1b34;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+  .rail .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:10px;font-size:15px}
+  .ri{width:46px;height:44px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c7c3e0;font-size:18px;gap:2px} .ri small{font-size:8px} .ri.active{background:rgba(255,255,255,.16);color:#fff} .rail .sp{flex:1}
+  .c2{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+  .c2h{padding:12px 14px 10px;border-bottom:1px solid var(--border)} .c2h h2{margin:0;font-size:15px} .c2h .s{margin-top:9px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:6px 9px;color:var(--tm);font-size:12px}
+  .c2sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--tm);font-weight:700;padding:11px 14px 4px}
+  .c2it{display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:13px;color:var(--ts);position:relative}
+  .c2it.sel{background:var(--bg-subtle);color:var(--tp);font-weight:600} .c2it.sel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .c2it .ic{width:16px;text-align:center;color:var(--tm)} .c2it .lab{flex:1} .c2it.sub{padding-left:30px;font-size:12.5px}
+</style></head>
+<body><div class="page">
+  <h1>桌面 · Members(三栏)<span class="modtag">现有 IA</span></h1>
+  <p class="sub">Members 第二级 = Humans / Agents。Agents 展开为 agent 列表(同会话列表),点开 = Agent 详情(Profile/Activity/Workspace/Work items 四 tab + 生命周期)。Humans = 成员表。</p>
+
+  <div class="sech">① Members → Agent 详情(四 tab + 生命周期)</div>
+  <div class="frame"><div class="desk4">
+    <div class="rail"><div class="logo">A</div><div class="ri"><span>▦</span><small>Work</small></div><div class="ri"><span>💬</span><small>Conv</small></div><div class="ri active"><span>◎</span><small>Mbr</small></div><div class="ri"><span>⚙</span><small>Sys</small></div><div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div></div>
+    <div class="c2">
+      <div class="c2h"><h2>Members</h2><div class="s">🔍 搜索成员…</div></div>
+      <div class="c2sub">Humans</div>
+      <div class="c2it"><span class="ic">🧑</span><span class="lab">oopslink</span></div>
+      <div class="c2sub">Agents</div>
+      <div class="c2it sub sel"><span class="ic">◎</span><span class="lab">tester2</span></div>
+      <div class="c2it sub"><span class="ic">◎</span><span class="lab">dev2</span></div>
+      <div class="c2it sub"><span class="ic">◎</span><span class="lab">IntegrationDev</span></div>
+      <div class="c2it sub"><span class="ic">◎</span><span class="lab">dev1</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><div style="display:flex;align-items:center;gap:9px"><div class="av ag" style="width:30px;height:30px;background:#4f46e5;border-radius:50%">T2</div><h3>tester2</h3><span class="stat done">running</span><span class="stat idle">available</span></div><div class="acts"><button class="btn">Start</button><button class="btn">Stop</button><button class="btn">Restart</button><button class="btn pri">Send message</button></div></div>
+      <div class="tabs"><span class="tab on">Profile</span><span class="tab">Activity</span><span class="tab">Workspace</span><span class="tab">Work items</span></div>
+      <div class="body">
+        <h4 style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--tm);margin:0 0 7px">资料</h4>
+        <div class="kv"><span class="k">Provider</span><span class="v">claude-code</span></div>
+        <div class="kv"><span class="k">Worker</span><span class="v">worker-edb09</span></div>
+        <div class="kv"><span class="k">Role</span><span class="v">Tester</span></div>
+        <div class="kv"><span class="k">Lifecycle</span><span class="v">running</span></div>
+      </div>
+    </div>
+    <div class="ctx">
+      <h4>当前工作项</h4>
+      <div class="blk" style="padding-top:4px"><div style="border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:var(--bg-base)"><div style="font-weight:600;font-size:12.5px">Thread 验收 run-real</div><div style="font-size:11px;color:var(--tm);margin-top:3px">running · task-f975f2</div></div></div>
+      <h4>归属计划</h4>
+      <div class="blk"><div class="kv"><span class="v" style="font-size:12px">v2.9.2 收尾</span><span class="chip c-plan">PLAN</span></div></div>
+    </div>
+  </div></div>
+
+  <div class="sech">② Members → Humans(成员表)</div>
+  <div class="frame"><div class="desk3" style="height:300px">
+    <div class="rail"><div class="logo">A</div><div class="ri"><span>▦</span><small>Work</small></div><div class="ri"><span>💬</span><small>Conv</small></div><div class="ri active"><span>◎</span><small>Mbr</small></div><div class="ri"><span>⚙</span><small>Sys</small></div><div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div></div>
+    <div class="c2">
+      <div class="c2h"><h2>Members</h2><div class="s">🔍 搜索成员…</div></div>
+      <div class="c2sub">Humans</div>
+      <div class="c2it sel"><span class="ic">🧑</span><span class="lab">全部 Humans</span></div>
+      <div class="c2sub">Agents</div>
+      <div class="c2it"><span class="ic">◎</span><span class="lab">全部 Agents</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><h3>Humans</h3><div class="acts"><button class="btn pri">+ Add member</button></div></div>
+      <div class="body" style="overflow:hidden">
+        <table class="tbl">
+          <thead><tr><th>Name</th><th>Role</th><th>Invited</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><span class="miniav" style="background:#0f766e">H</span>oopslink</td><td>Owner</td><td class="id">周三</td><td><span class="stat done">Joined</span></td><td class="id">⋯</td></tr>
+            <tr><td><span class="miniav" style="background:#8b5cf6">G</span>guest</td><td>Member</td><td class="id">昨天</td><td><span class="stat idle">Disabled</span></td><td class="id">⋯</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div></div>
+  <p class="note">配色字体取自现有 <code>web/src/index.css</code>。Agent 四 tab、生命周期、Humans 表沿用现状字段。</p>
+</div></body></html>

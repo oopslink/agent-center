@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>桌面 · System(三栏)</title><link rel="stylesheet" href="mods.css"/>
+<style>
+  .desk3{display:grid;grid-template-columns:66px 250px 1fr;height:440px;position:relative}
+  .rail{background:#1e1b34;display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px}
+  .rail .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:10px;font-size:15px}
+  .ri{width:46px;height:44px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#c7c3e0;font-size:18px;gap:2px} .ri small{font-size:8px} .ri.active{background:rgba(255,255,255,.16);color:#fff} .rail .sp{flex:1}
+  .c2{background:var(--bg-elev);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+  .c2h{padding:12px 14px 10px;border-bottom:1px solid var(--border)} .c2h h2{margin:0;font-size:15px}
+  .c2sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--tm);font-weight:700;padding:11px 14px 4px}
+  .c2it{display:flex;align-items:center;gap:9px;padding:8px 13px;font-size:13px;color:var(--ts);position:relative}
+  .c2it.sel{background:var(--bg-subtle);color:var(--tp);font-weight:600} .c2it.sel:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand)}
+  .c2it .ic{width:16px;text-align:center;color:var(--tm)} .c2it .lab{flex:1}
+  .stats{display:flex;gap:12px;padding:14px 16px 6px} .scard{flex:1;border:1px solid var(--border);border-radius:10px;padding:11px 13px;background:var(--bg-elev)} .scard .n{font-size:22px;font-weight:800} .scard .l{font-size:11px;color:var(--tm);margin-top:2px}
+  .wcard{margin:6px 16px 0;border:1px solid var(--border);border-radius:10px;background:var(--bg-elev);overflow:hidden} .wch{padding:9px 13px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:600} .wcb{padding:9px 13px;font-size:11.5px;color:var(--ts);font-family:var(--mono)}
+</style></head>
+<body><div class="page">
+  <h1>桌面 · System(三栏)<span class="modtag">现有 IA</span></h1>
+  <p class="sub">System 第二级 = Environment / Settings。Environment:stats + worker 卡(CLI 安装)+ Work items/Issues/Transfers 三段;Settings:版本面板。此模块多为三栏(无需第四栏)。</p>
+
+  <div class="sech">① System → Environment</div>
+  <div class="frame"><div class="desk3">
+    <div class="rail"><div class="logo">A</div><div class="ri"><span>▦</span><small>Work</small></div><div class="ri"><span>💬</span><small>Conv</small></div><div class="ri"><span>◎</span><small>Mbr</small></div><div class="ri active"><span>⚙</span><small>Sys</small></div><div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div></div>
+    <div class="c2">
+      <div class="c2h"><h2>System</h2></div>
+      <div class="c2sub">导航</div>
+      <div class="c2it sel"><span class="ic">▤</span><span class="lab">Environment</span></div>
+      <div class="c2it"><span class="ic">⚙</span><span class="lab">Settings</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><h3>Environment</h3><div class="acts"><button class="btn">Install command</button><button class="btn pri">+ Add worker</button></div></div>
+      <div class="stats">
+        <div class="scard"><div class="n">3</div><div class="l">Active work items</div></div>
+        <div class="scard"><div class="n">4</div><div class="l">Agents running</div></div>
+        <div class="scard"><div class="n">1</div><div class="l">Workers online</div></div>
+      </div>
+      <div class="wcard"><div class="wch"><span>worker-edb09a0c <span class="dot" style="display:inline-block;margin-left:4px"></span></span><span style="font-weight:400;color:var(--tm)">4 agents</span></div><div class="wcb">$ curl -fsSL …/install.sh | sh   ⧉</div></div>
+      <div style="padding:12px 16px 0"><div class="tabs" style="padding:0"><span class="tab on">Work items</span><span class="tab">Issues</span><span class="tab">Transfers</span></div></div>
+      <div class="body" style="padding-top:8px;overflow:hidden">
+        <table class="tbl">
+          <thead><tr><th>Task</th><th>Status</th><th>Agent</th><th>Worker</th></tr></thead>
+          <tbody>
+            <tr><td class="tt">Thread 验收</td><td><span class="stat">running</span></td><td><span class="miniav">T2</span>tester2</td><td class="id">edb09</td></tr>
+            <tr><td class="tt">class-guard</td><td><span class="stat">running</span></td><td><span class="miniav">T1</span>tester1</td><td class="id">edb09</td></tr>
+            <tr><td class="tt">合并 v2.9.2</td><td><span class="stat block">blocked</span></td><td><span class="miniav" style="background:#b45309">IN</span>IntDev</td><td class="id">edb09</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="sech">② System → Settings(版本)</div>
+  <div class="frame"><div class="desk3" style="height:280px">
+    <div class="rail"><div class="logo">A</div><div class="ri"><span>▦</span><small>Work</small></div><div class="ri"><span>💬</span><small>Conv</small></div><div class="ri"><span>◎</span><small>Mbr</small></div><div class="ri active"><span>⚙</span><small>Sys</small></div><div class="sp"></div><div class="ri"><span>🔍</span></div><div class="ri" style="color:#fff"><span>🧑</span></div></div>
+    <div class="c2">
+      <div class="c2h"><h2>System</h2></div>
+      <div class="c2sub">导航</div>
+      <div class="c2it"><span class="ic">▤</span><span class="lab">Environment</span></div>
+      <div class="c2it sel"><span class="ic">⚙</span><span class="lab">Settings</span></div>
+    </div>
+    <div class="main">
+      <div class="mhead"><h3>Settings</h3></div>
+      <div class="body">
+        <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg-elev);max-width:420px">
+          <div style="padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">版本</div>
+          <div style="padding:6px 14px 12px"><div class="kv"><span class="k">Version</span><span class="v">v2.9.2-dev</span></div><div class="kv"><span class="k">Branch</span><span class="v" style="font-family:var(--mono);font-size:11px">v2.9.2</span></div><div class="kv"><span class="k">Commit</span><span class="v" style="font-family:var(--mono);font-size:11px">bc4211b</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <p class="note">配色字体取自现有 <code>web/src/index.css</code>。Environment 三段 tablist、worker 卡、Settings 版本面板沿用现状。</p>
+</div></body></html>

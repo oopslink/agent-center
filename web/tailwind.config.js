@@ -106,6 +106,11 @@ export default {
         'codeblock-fg':    'var(--color-codeblock-fg)',
         'codeblock-muted': 'var(--color-codeblock-muted)',
         'codeblock-link':  'var(--color-codeblock-link)',
+
+        // v2.10.0 [T1] col① module rail — FIXED dark chrome (light == dark).
+        'rail-bg':        'var(--color-rail-bg)',
+        'rail-fg':        'var(--color-rail-fg)',
+        'rail-fg-active': 'var(--color-rail-fg-active)',
       },
       fontFamily: {
         // @oopslink (locked): dropped the custom DM Sans + Space Grotesk pairing;

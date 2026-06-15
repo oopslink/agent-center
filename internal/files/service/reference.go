@@ -106,3 +106,11 @@ func (s *Service) Reachable(ctx context.Context, fileURI files.FileURI, callerSc
 func (s *Service) ListReferences(ctx context.Context, fileURI files.FileURI) ([]files.FileReference, error) {
 	return s.refs.FindByURI(ctx, fileURI)
 }
+
+// ListReferencesByScope returns all LIVE references placed in a {scope, scopeID}
+// (a FindByScope passthrough). Used to enumerate the files attached to a task /
+// issue / project. Authorization (who may see a scope's files) is the upper
+// layer's job (D3-d) — this is mechanism only.
+func (s *Service) ListReferencesByScope(ctx context.Context, scope files.FileScope, scopeID string) ([]files.FileReference, error) {
+	return s.refs.FindByScope(ctx, scope, scopeID)
+}

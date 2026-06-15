@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   useDeleteProject,
   useProject,
@@ -289,8 +289,27 @@ const editInputClass =
 // -----------------------------------------------------------------------------
 type WorkTab = 'issues' | 'tasks' | 'members' | 'repos';
 
+// v2.10.0 [T4]: the active work tab is URL-param-driven (?tab=) so the col②
+// project sub-nav (shell/nav/WorkspaceSecondaryNav) and the in-page tab bar
+// stay in sync — clicking either updates the same `?tab=` and both highlight
+// it. Defaults to 'issues' (unknown/absent param). Pre-T4 in-page state →
+// the same testids/panels, so existing tests are unaffected.
+function isWorkTab(v: string | null): v is WorkTab {
+  return v === 'issues' || v === 'tasks' || v === 'members' || v === 'repos';
+}
+
 function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactElement {
-  const [tab, setTab] = useState<WorkTab>('issues');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const raw = searchParams.get('tab');
+  const tab: WorkTab = isWorkTab(raw) ? raw : 'issues';
+  const setTab = (value: WorkTab) =>
+    setSearchParams(
+      (prev) => {
+        prev.set('tab', value);
+        return prev;
+      },
+      { replace: true },
+    );
   return (
     <div data-testid="project-work-tabs">
       <div className="flex gap-1" role="tablist" aria-label="project work">

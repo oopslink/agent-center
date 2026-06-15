@@ -144,6 +144,48 @@ export function usePlans(projectId: string | undefined) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// v2.10.0 [T6] — global (org-scoped, cross-project) Plan list.
+// GET /api/orgs/{slug}/plans → { items: OrgPlanItem[], total }. Mirrors the
+// org-scoped Issues/Tasks aggregation: the /orgs/{slug} segment is auto-injected
+// by the api client, so the hook just calls /plans. Each row is a plan summary
+// (progress/has_failed/node_count) PLUS project{id,name} + updated_at for the
+// cross-project list + the detail link. Excludes the builtin assignment pool.
+// ---------------------------------------------------------------------------
+
+// An org Plan list row = the plan summary enriched with its project context and
+// updated_at (the base Plan DTO omits updated_at; the org list needs it for the
+// "Updated" column + the updated_at-DESC order).
+export interface OrgPlanItem extends Plan {
+  project: { id: string; name: string };
+  updated_at: string;
+}
+
+export interface OrgPlanFilters {
+  /** project ids (multi) — narrow the aggregation to specific projects. */
+  project?: string[];
+  /** status values (multi). Omitted = backend default (excludes archived). */
+  status?: string[];
+}
+
+function buildOrgPlanQuery(f?: OrgPlanFilters): string {
+  if (!f) return '';
+  const p = new URLSearchParams();
+  for (const id of f.project ?? []) p.append('project', id);
+  for (const s of f.status ?? []) p.append('status', s);
+  const s = p.toString();
+  return s ? `?${s}` : '';
+}
+
+export function useOrgPlans(slug: string | undefined, filters?: OrgPlanFilters) {
+  return useQuery({
+    queryKey: qk.orgPlans({ slug, filters }),
+    // org_slug auto-injected by the client; slug only scopes the cache key + gate.
+    queryFn: () => api.get<{ items: OrgPlanItem[]; total: number }>(`/plans${buildOrgPlanQuery(filters)}`),
+    enabled: !!slug,
+  });
+}
+
 // GET /projects/{pid}/tasks?unplanned=1 — the Backlog column source (v2.9 #291
 // Work Board). Returns ONLY the project tasks with NO plan (plan_id null), org-
 // gated (Dev's endpoint). Same wrapped `{ tasks: Task[] }` shape as the full

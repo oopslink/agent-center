@@ -40,11 +40,15 @@ function renderAppAt(path: string) {
 }
 
 describe('App shell + route tree', () => {
-  it('renders Home / Overview at /organizations/test (v2.6 org-scoped routing)', async () => {
+  // v2.10.0 [T1]: Overview/Home is removed — the org index redirects into the
+  // Workspace module's default page (Projects).
+  it('redirects the org index to the Workspace module (Projects), no Overview/Home', async () => {
     await renderAt(`${ORG_BASE}`);
     await waitFor(() => {
-      expect(screen.getByTestId('page-Home')).toBeInTheDocument();
+      expect(screen.getByTestId('page-Projects')).toBeInTheDocument();
     });
+    expect(window.location.pathname).toBe(`${ORG_BASE}/projects`);
+    expect(screen.queryByTestId('page-Home')).not.toBeInTheDocument();
   });
 
   it('renders ChannelDetail for /organizations/test/channels/:name', async () => {
@@ -52,9 +56,6 @@ describe('App shell + route tree', () => {
     await waitFor(() => {
       expect(screen.getByTestId('page-ChannelDetail')).toBeInTheDocument();
     });
-    // Full-route-tree render is heavy; give headroom under full-suite runner load
-    // (passes well under default in isolation, but the saturated 97-file run can
-    // exceed the 5s default → explicit timeout keeps the full suite reliably green).
   }, 20000);
 
   it('renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Secrets / Fleet / Settings', async () => {
@@ -70,6 +71,8 @@ describe('App shell + route tree', () => {
       // v2.9 #286: Plan orchestration — parallel list + Plan detail.
       [`${ORG_BASE}/projects/proj-a/plans`, 'page-ProjectPlans'],
       [`${ORG_BASE}/projects/proj-a/plans/PL-1`, 'page-PlanDetail'],
+      // v2.10.0 [T6]: global cross-project Plan list.
+      [`${ORG_BASE}/plans`, 'page-OrgPlans'],
       [`${ORG_BASE}/secrets`, 'page-Secrets'],
       [`${ORG_BASE}/environment`, 'page-Environment'],
       // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
@@ -83,59 +86,83 @@ describe('App shell + route tree', () => {
       });
       unmount();
     }
-    // 14 sequential full-route-tree renders — heavy; explicit timeout for headroom
-    // under full-suite runner load (green in isolation; saturated run can exceed 5s).
   }, 20000);
 
-  // v2.9 #286 §4.2 reachability: Plans are reached via the project detail page
-  // (Plans link), then a Plan card reaches the Plan detail (DAG #287) — a real
-  // nav chain, NOT a direct-URL-only orphan route.
+  // v2.9 #286 §4.2 reachability: Plans are reached via the project detail page.
   it('reaches the Plan list + Plan detail via the project detail page (not direct-URL-only)', async () => {
     await renderAt(`${ORG_BASE}/projects/proj-a`);
-    // project detail → Plans entry link points at the per-project plans route.
     const plansLink = await screen.findByTestId('project-plans-link');
     expect(plansLink).toHaveAttribute('href', `${ORG_BASE}/projects/proj-a/plans`);
     fireEvent.click(plansLink);
-    // lands on the Work Board (the #291 refactored ProjectPlans board).
     await waitFor(() => expect(screen.getByTestId('page-ProjectPlans')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
-    // a Plan column's "Open ▸" → Plan detail (the #287 DAG view route).
     const open = screen.getByTestId('plan-open-PL-1');
     fireEvent.click(open);
     await waitFor(() => expect(screen.getByTestId('page-PlanDetail')).toBeInTheDocument());
     expect(window.location.pathname).toBe(`${ORG_BASE}/projects/proj-a/plans/PL-1`);
   });
 
-  // §4.2 reachability: the primary sidebar nav must point at the canonical
-  // org-scoped routes (not bare/legacy paths). These assert the LINK/href, not
-  // a direct-URL render — the whole point of the audit.
-  it('sidebar nav links point at the canonical org-scoped Workspace/Conversations/System routes', async () => {
+  // v2.10.0 [T1] reachability: the col① module rail links point at the
+  // canonical org-scoped default page for each module (Workspace/Conversations/
+  // Members/System). Asserts the LINK/href, not a direct-URL render.
+  it('rail module icons point at the canonical org-scoped module defaults', async () => {
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
-    const nav = screen.getByRole('navigation', { name: /primary/i });
-    const linkByLabel = (label: string) =>
-      within(nav)
-        .getAllByRole('link')
-        .find((a) => a.textContent?.trim().startsWith(label));
-    const expected: Array<[string, string]> = [
-      ['Projects', `${ORG_BASE}/projects`],
-      ['Issues', `${ORG_BASE}/issues`],
-      ['Tasks', `${ORG_BASE}/tasks`],
-      ['Channels', `${ORG_BASE}/channels`],
-      ['DMs', `${ORG_BASE}/dms`],
-      ['Humans', `${ORG_BASE}/members/humans`],
-      ['Environment', `${ORG_BASE}/environment`],
-      ['Settings', `${ORG_BASE}/settings`],
-    ];
-    for (const [label, href] of expected) {
-      const link = linkByLabel(label);
-      expect(link, `nav link for ${label}`).toBeDefined();
-      expect(link).toHaveAttribute('href', href);
-    }
+    expect(screen.getByTestId('rail-module-workspace')).toHaveAttribute('href', `${ORG_BASE}/projects`);
+    expect(screen.getByTestId('rail-module-conversations')).toHaveAttribute('href', `${ORG_BASE}/channels`);
+    expect(screen.getByTestId('rail-module-members')).toHaveAttribute('href', `${ORG_BASE}/members/humans`);
+    expect(screen.getByTestId('rail-module-system')).toHaveAttribute('href', `${ORG_BASE}/environment`);
   });
 
-  // §4.2 reachability: ProjectDetail is reached from the Projects list (a real
-  // row link), not direct-URL-only.
+  // v2.10.0 [T1] reachability: each module's col② shows ITS second-level nav,
+  // pointing at the canonical org-scoped routes. Rendered per module route.
+  it('each module col② links point at the canonical org-scoped routes', async () => {
+    const perModule: Array<[string, Array<[string, string]>]> = [
+      [`${ORG_BASE}/projects`, [
+        ['Projects', `${ORG_BASE}/projects`],
+        ['Issues', `${ORG_BASE}/issues`],
+        ['Tasks', `${ORG_BASE}/tasks`],
+        // v2.10.0 [T6]: global Plan list, Tasks 平级.
+        ['Plan', `${ORG_BASE}/plans`],
+      ]],
+      // v2.10.0 [T64]: Conversations owns a custom col② (ConversationsSecondaryNav)
+      // — Channels / Direct messages SECTIONS (not nav-item links), asserted
+      // separately below by their canonical create links.
+      // v2.10.0 [T7]: Members owns a custom col② (MembersSecondaryNav) — Humans
+      // / Agents sections each with an "All …" row to the list/table page.
+      [`${ORG_BASE}/members/humans`, [
+        ['All humans', `${ORG_BASE}/members/humans`],
+        ['All agents', `${ORG_BASE}/agents`],
+      ]],
+      [`${ORG_BASE}/environment`, [
+        ['Environment', `${ORG_BASE}/environment`],
+        ['Settings', `${ORG_BASE}/settings`],
+      ]],
+    ];
+    for (const [route, expected] of perModule) {
+      const { unmount } = renderAppAt(route);
+      const nav = await screen.findByRole('navigation', { name: /^primary$/ });
+      for (const [label, href] of expected) {
+        const link = within(nav)
+          .getAllByRole('link')
+          .find((a) => a.textContent?.trim().startsWith(label));
+        expect(link, `col② link for ${label} on ${route}`).toBeDefined();
+        expect(link).toHaveAttribute('href', href);
+      }
+      unmount();
+    }
+    // v2.10.0 [T64]: Conversations custom col② — the Channels / Direct messages
+    // sections carry create links to the canonical org-scoped index routes.
+    {
+      const { unmount } = renderAppAt(`${ORG_BASE}/channels`);
+      const nav = await screen.findByRole('navigation', { name: /^primary$/ });
+      expect(within(nav).getByTestId('conv-new-channel')).toHaveAttribute('href', `${ORG_BASE}/channels`);
+      expect(within(nav).getByTestId('conv-new-dm')).toHaveAttribute('href', `${ORG_BASE}/dms`);
+      unmount();
+    }
+  }, 20000);
+
+  // §4.2 reachability: ProjectDetail is reached from the Projects list row.
   it('reaches ProjectDetail via a Projects-list row link', async () => {
     await renderAt(`${ORG_BASE}/projects`);
     await waitFor(() => expect(screen.getByTestId('page-Projects')).toBeInTheDocument());
@@ -145,11 +172,33 @@ describe('App shell + route tree', () => {
     await waitFor(() => expect(screen.getByTestId('page-ProjectDetail')).toBeInTheDocument());
   });
 
-  // §4.2 reachability (A6 task→new-tab): the canonical TaskDetail route is
-  // reachable via the new-tab TaskTitleLink anchor on the Plan board cards —
-  // a real anchor with target=_blank pointing at the org-scoped task route, not
-  // a direct-URL-only orphan. (Asserts the href; new tabs can't be followed in
-  // jsdom, but the anchor IS the real reachability pointer.)
+  // v2.10.0 [T4]: inside a project, the Workspace col② becomes the project
+  // sub-nav (Issues/Tasks/Work Board/Members/Code repos + back to Projects),
+  // and a sub-nav tab navigates the project's ?tab= (synced with the in-page
+  // tab bar). The bare /projects list shows the top-level Workspace nav.
+  it('project detail shows the col② project sub-nav; a tab drives ?tab=', async () => {
+    await renderAt(`${ORG_BASE}/projects/proj-a`);
+    await waitFor(() => expect(screen.getByTestId('page-ProjectDetail')).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    // project sub-nav (not the top-level Projects/Issues/Tasks/Plan list).
+    expect(within(nav).getByTestId('workspace-nav-project')).toBeInTheDocument();
+    expect(within(nav).getByTestId('project-subnav-back')).toHaveAttribute('href', `${ORG_BASE}/projects`);
+    expect(within(nav).getByTestId('project-subnav-tasks')).toHaveAttribute(
+      'href',
+      `${ORG_BASE}/projects/proj-a?tab=tasks`,
+    );
+    expect(within(nav).getByTestId('project-subnav-workboard')).toHaveAttribute(
+      'href',
+      `${ORG_BASE}/projects/proj-a/plans`,
+    );
+    // clicking the Tasks sub-nav entry drives ?tab=tasks → the Tasks panel shows.
+    fireEvent.click(within(nav).getByTestId('project-subnav-tasks'));
+    await waitFor(() => expect(screen.getByTestId('project-tasks-panel')).toBeInTheDocument());
+    expect(window.location.search).toContain('tab=tasks');
+  });
+
+  // §4.2 reachability (A6 task→new-tab): canonical TaskDetail route reachable
+  // via the new-tab TaskTitleLink anchor on the Plan board cards.
   it('A6 TaskDetail is reachable via the new-tab TaskTitleLink anchor on the Plan board', async () => {
     await renderAt(`${ORG_BASE}/projects/proj-a/plans`);
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
@@ -163,13 +212,9 @@ describe('App shell + route tree', () => {
     );
   });
 
-  // §4.2 reachability (self change-password): the self Account tab (the
-  // change-password panel) must be reachable via a REAL entry — the sidebar
-  // user link → /me → UserDetail?tab=account — not just by typing the
-  // users/:id?tab=account URL. This was specifically flagged.
-  it('self change-password (Account tab) is reachable via the sidebar user link → /me redirect', async () => {
-    // UserDetail has no canonical mock handler (per-test server.use); register
-    // the self user so /me's redirect resolves the account tab.
+  // §4.2 reachability (self change-password): the self Account tab is reachable
+  // via the rail user link → /me redirect → UserDetail?tab=account.
+  it('self change-password (Account tab) is reachable via the rail user link → /me redirect', async () => {
     server.use(
       http.get('/api/users/user-test', () =>
         HttpResponse.json({
@@ -183,24 +228,19 @@ describe('App shell + route tree', () => {
     );
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
-    // The sidebar user entry is the real "me" nav pointer (renders once the
+    // The rail user entry is the real "me" nav pointer (renders once the
     // /api/auth/me display_name resolves).
     const userLink = await screen.findByTestId('sidebar-user');
     expect(userLink).toHaveAttribute('href', `${ORG_BASE}/me`);
     fireEvent.click(userLink);
-    // /me redirects (replace) to the self UserDetail with the Account tab.
     await waitFor(() => expect(screen.getByTestId('page-UserDetail')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId('account-panel')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /change password/i })).toBeInTheDocument();
     expect(window.location.pathname).toBe(`${ORG_BASE}/users/user-test`);
   });
 
-  // §4.2 reachability (orphan hunt): the legacy /members/new "Add Agent" page is
-  // an ORPHAN — its only inbound link lived on the retired /members/agents page,
-  // and the canonical /agents surface now creates agents via an inline modal. It
-  // must redirect to the canonical /agents page (matching the /members/agents and
-  // /fleet retirement precedent) so the stale URL lands on a reachable surface
-  // and there is no direct-URL-only orphan page.
+  // §4.2 reachability (orphan hunt): the legacy /members/new "Add Agent" page
+  // redirects to the canonical /agents page.
   it('redirects the orphaned /members/new URL to the canonical /agents page', async () => {
     await renderAt(`${ORG_BASE}/members/new?kind=agent`);
     await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
@@ -208,53 +248,48 @@ describe('App shell + route tree', () => {
     expect(window.location.pathname).toBe(`${ORG_BASE}/agents`);
   });
 
-  // dev2/v281: the enhanced /agents page is the single canonical agents
-  // surface. The old /members/agents URL must redirect there (no second
-  // reachable agents page) and the "Agents" nav click must reach the
-  // enhanced page, not the old one.
+  // dev2/v281: the old /members/agents URL redirects to the canonical /agents.
   it('redirects the retired /members/agents URL to the canonical /agents page', async () => {
     await renderAt(`${ORG_BASE}/members/agents`);
     await waitFor(() => {
-      // lands on the ENHANCED Agents page (Name/Provider/Lifecycle/…)
       expect(screen.getByTestId('page-Agents')).toBeInTheDocument();
     });
-    // the old MembersAgents page is NOT what rendered.
     expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
-    // URL landed on canonical /agents (replace — no /members/agents in history).
     expect(window.location.pathname).toBe(`${ORG_BASE}/agents`);
   });
 
-  it('"Agents" nav item points to the enhanced /agents route, not /members/agents', async () => {
-    await renderAt(`${ORG_BASE}/channels`);
-    await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
-    const nav = screen.getByRole('navigation', { name: /primary/i });
+  it('"Agents" col② nav item (Members module) points to the enhanced /agents route', async () => {
+    await renderAt(`${ORG_BASE}/members/humans`);
+    await waitFor(() => expect(screen.getByTestId('page-MembersHumans')).toBeInTheDocument());
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    // v2.10.0 [T7]: the Agents section's "All agents" row is the canonical link.
     const agentsLink = within(nav)
       .getAllByRole('link')
-      .find((a) => a.textContent?.trim().startsWith('Agents'));
+      .find((a) => a.textContent?.trim().startsWith('All agents'));
     expect(agentsLink).toBeDefined();
     expect(agentsLink).toHaveAttribute('href', `${ORG_BASE}/agents`);
     expect(agentsLink).not.toHaveAttribute('href', `${ORG_BASE}/members/agents`);
-    // Clicking it reaches the ENHANCED page.
     fireEvent.click(agentsLink!);
     await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
   });
 
-  it('⌘6 jumps to the enhanced /agents page (org-scoped), not /members/agents', async () => {
-    await renderAt(`${ORG_BASE}/channels`);
+  // v2.10.0 [T1]: ⌘1..4 jump to the four modules' default pages (org-scoped).
+  it('⌘1 / ⌘2 jump to the Workspace / Conversations module defaults (org-scoped)', async () => {
+    await renderAt(`${ORG_BASE}/environment`);
+    await waitFor(() => expect(screen.getByTestId('page-Environment')).toBeInTheDocument());
+    fireEvent.keyDown(window, { key: '1', metaKey: true });
+    await waitFor(() => expect(screen.getByTestId('page-Projects')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/projects`);
+    fireEvent.keyDown(window, { key: '2', metaKey: true });
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
-    fireEvent.keyDown(window, { key: '6', metaKey: true });
-    await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
-    expect(window.location.pathname).toBe(`${ORG_BASE}/agents`);
-    expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe(`${ORG_BASE}/channels`);
   });
 
   it('opens per-org settings as a modal from the switcher gear, no standalone entry (#186-6)', async () => {
-    await renderAt(`${ORG_BASE}`);
-    await waitFor(() => expect(screen.getByTestId('page-Home')).toBeInTheDocument());
+    await renderAt(`${ORG_BASE}/channels`);
+    await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('org-switcher'));
-    // The old single "Organization Settings" dropdown entry is gone.
     expect(screen.queryByTestId('org-dropdown-settings')).not.toBeInTheDocument();
-    // Each org row has its own gear → opens the per-org settings modal.
     const gear = await screen.findByTestId('org-settings-gear');
     expect(gear).toHaveAttribute('data-org-id', 'org-test');
     fireEvent.click(gear);
@@ -274,41 +309,24 @@ describe('App shell + route tree', () => {
     expect(home).toHaveAttribute('href', '/');
   });
 
-  it('renders the sidebar nav sections', async () => {
+  it('renders the four module rail icons + the active module col② items', async () => {
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => {
       expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
     });
-    const nav = screen.getByRole('navigation', { name: /primary/i });
-    for (const label of [
-      'Channels',
-      'DMs',
-      'Projects',
-      // v2.8 #258: org-scope cross-project Issues/Tasks aggregation nav (Workspace).
-      'Issues',
-      'Tasks',
-      'Agents',
-      'Settings',
-      // v2.7 #166: org people group is "Members" (Humans + single "Agents").
-      'Members',
-      'Humans',
-      // v2.7 #164: Fleet merged into Environment — single "Environment" entry.
-      'Environment',
-    ]) {
-      expect(nav).toHaveTextContent(label);
+    // col① — all four modules present on the rail.
+    for (const id of ['workspace', 'conversations', 'members', 'system']) {
+      expect(screen.getByTestId(`rail-module-${id}`)).toBeInTheDocument();
     }
-    // v2.7 #166-1: org group renamed Organization → Members.
-    expect(nav).not.toHaveTextContent('Organization');
-    // v2.7 #166-2: Organization Settings moved off the sidebar into the org switcher.
-    expect(nav).not.toHaveTextContent('Organization Settings');
-    expect(nav).not.toHaveTextContent('Org Settings');
-    expect(nav).not.toHaveTextContent('Agents (org)');
-    // v2.7 #164: Fleet entry removed (merged into Environment).
-    expect(nav).not.toHaveTextContent('Fleet');
-    // Input Requests nav entry removed (#131 PR-4).
-    expect(nav).not.toHaveTextContent('Input Requests');
-    // v2.8 #258: Issues / Tasks reintroduced as org-scope cross-project nav
-    // (asserted present in the loop above).
+    // col② — the active (Conversations) module's custom nav (T64): the Channels
+    // and Direct messages sections; other modules' items are NOT in the secondary
+    // nav (only the rail switches to them).
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    expect(nav).toHaveTextContent('Channels');
+    expect(nav).toHaveTextContent('Direct messages');
+    expect(within(nav).queryByRole('link', { name: /^settings$/i })).not.toBeInTheDocument();
+    // No Overview/Home anywhere.
+    expect(nav).not.toHaveTextContent('Overview');
   });
 });
 

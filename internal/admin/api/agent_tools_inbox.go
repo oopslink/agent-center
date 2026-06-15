@@ -56,7 +56,7 @@ func (s *Server) getMyUnreadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, len(items))
 	for i, it := range items {
-		out[i] = map[string]any{
+		m := map[string]any{
 			"conversation_id":   string(it.ConversationID),
 			"conversation_kind": string(it.ConversationKind),
 			"conversation_name": it.ConversationName,
@@ -65,6 +65,23 @@ func (s *Server) getMyUnreadHandler(w http.ResponseWriter, r *http.Request) {
 			"content":           it.Content,
 			"posted_at":         it.PostedAt.Format(time.RFC3339Nano),
 		}
+		// v2.10.0 [T74]: surface inbound attachments (file_uri + metadata) so the
+		// agent can perceive + download_file a screenshot a human sent. Present
+		// only when the message carries attachments. Each uri is from a
+		// conversation the agent participates in (download_file authz fail-closed).
+		if len(it.Attachments) > 0 {
+			atts := make([]map[string]any, len(it.Attachments))
+			for j, a := range it.Attachments {
+				atts[j] = map[string]any{
+					"uri":       a.URI,
+					"filename":  a.Filename,
+					"mime_type": a.MimeType,
+					"size":      a.Size,
+				}
+			}
+			m["attachments"] = atts
+		}
+		out[i] = m
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"unread": out})
 }

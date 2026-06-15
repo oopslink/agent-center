@@ -15,6 +15,47 @@ ADR / phase plan landscape, see
 
 _Nothing yet — released work is tracked in the per-version sections below._
 
+## [v2.10.0] — 2026-06-15
+
+Three-column desktop UI/UX refactor + attachments / message-ref / author fixes (38 commits).
+
+### Added
+
+- **Three-column desktop shell.** The Web Console is rebuilt as a four-region
+  layout — an **icon rail** of top modules (Workspace / Conversations / Members /
+  System) → a per-module **second-level list** (col②) → the **content** pane
+  (col③) → an **on-demand context** panel (col④) — on the existing IA (the
+  Overview page is removed). Routing is module-nested.
+- **Secondary-nav registry (extension contract).** col② is driven by a
+  per-module `SECONDARY_NAV_REGISTRY`: a module adds its own `*SecondaryNav` plus
+  one registration line, with no edits to the shared app layout (avoids
+  concurrent-edit conflicts).
+- **Every module rebuilt on the shell.** Conversations (col② channel / DM nav,
+  col④ participants + shared files), Workspace Projects + project detail (col②
+  project sub-nav, list cards show task / issue / plan / repo counts), Workspace
+  Tasks / Issues (col④ read-only metadata panel), **global cross-project Plan
+  list + detail** with Chat / DAG / Task-list tabs (Workspace › Plan), the
+  **Project Work Board**, Members (col② Humans / Agents, Agent col④ context
+  panel), System.
+- **Task & issue attachments.** Task and issue detail panes list / upload /
+  download attachments, **project-member-gated** — fail-closed (403 / 404) for
+  non-members.
+- **Inbound message attachments to agents.** Attachments on inbound messages are
+  surfaced to agents through `get_my_unread` and the wake brief.
+
+### Changed
+
+- **Message ref linkify.** Messages now linkify both `task-<id>` *and*
+  `T<number>` org-refs into clickable task links (sent and received); terminal /
+  done task refs resolve correctly (T62).
+
+### Fixed
+
+- **System author.** System / scheduler message author renders as **System**
+  instead of "(deleted)" (T75).
+- **Members → Agents header overlap.** Fixed the `AVAILABILITY` / `ROLE` table
+  header collision (T80).
+
 ## [v2.9.1] — 2026-06-14
 
 Message Threads + a task-model / board / archive cleanup wave.
