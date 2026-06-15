@@ -387,41 +387,62 @@ function WorkerCard({
             No agents bound to this worker.
           </p>
         ) : (
-          <ul className="space-y-1.5" data-testid="environment-worker-agents">
+          // T143: a SHARED grid so every row's columns line up (name / CLI /
+          // model / lifecycle). Each <li> is `display:contents` so its cells join
+          // the parent grid — the name column (minmax(0,max-content)) sizes to the
+          // widest name yet truncates on a narrow card, and the badge columns
+          // (max-content) align across rows. gap-x-4 gives the name → rest spacing
+          // the owner asked for. Every column renders a cell (a "—" placeholder
+          // when absent) so a missing CLI/model never shifts the alignment.
+          <ul
+            className="grid grid-cols-[minmax(0,max-content)_max-content_max-content_max-content] items-center gap-x-4 gap-y-1.5"
+            data-testid="environment-worker-agents"
+          >
             {agents.map((a) => (
               <li
                 key={a.id}
-                className="flex flex-wrap items-center gap-2 text-sm"
+                className="contents"
                 data-testid="environment-agent"
                 data-agent-id={a.id}
               >
-                <UserIcon className="h-4 w-4 shrink-0 text-text-muted" />
-                <span className="font-medium text-text-primary">{a.name}</span>
-                {a.cli && (
+                {/* Col 1: icon + clickable NAME → AgentDetail (replaces "Open →"). */}
+                <OrgLink
+                  to={`/agents/${encodeURIComponent(a.id)}`}
+                  className="flex min-w-0 items-center gap-2 text-sm font-medium text-accent hover:underline"
+                  data-testid="environment-agent-link"
+                  title={a.name}
+                >
+                  <UserIcon className="h-4 w-4 shrink-0 text-text-muted" />
+                  <span className="truncate">{a.name}</span>
+                </OrgLink>
+                {/* Col 2: CLI / provider */}
+                {a.cli ? (
                   <span
-                    className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-secondary"
+                    className="justify-self-start rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-secondary"
                     data-testid="environment-agent-cli"
                     data-cli={a.cli}
                   >
                     {a.cli}
                   </span>
+                ) : (
+                  <span className="text-[0.6875rem] text-text-muted">—</span>
                 )}
-                {a.model && (
+                {/* Col 3: model */}
+                {a.model ? (
                   <span
-                    className="rounded bg-accent/10 px-1.5 py-0.5 text-[0.6875rem] text-accent"
+                    className="justify-self-start rounded bg-accent/10 px-1.5 py-0.5 text-[0.6875rem] text-accent"
                     data-testid="environment-agent-model"
                     data-model={a.model}
                   >
                     {a.model}
                   </span>
+                ) : (
+                  <span className="text-[0.6875rem] text-text-muted">—</span>
                 )}
-                <LifecycleBadge lifecycle={a.lifecycle} />
-                <OrgLink
-                  to={`/agents/${encodeURIComponent(a.id)}`}
-                  className="text-xs text-accent hover:underline"
-                >
-                  Open →
-                </OrgLink>
+                {/* Col 4: lifecycle / status */}
+                <span className="justify-self-start">
+                  <LifecycleBadge lifecycle={a.lifecycle} />
+                </span>
               </li>
             ))}
           </ul>
