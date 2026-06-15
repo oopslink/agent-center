@@ -300,6 +300,19 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Archive a non-running plan and cascade-archive its tasks (irreversible). Stop the plan first if it is running. Returns the archived plan detail.",
 	}, makePlanID(cfg, "archive_plan"))
 
+	// --- plan shared findings (v2.10, ADR-0053 — DeLM shared context) --------
+	// Record a compact finding (gist) back to your plan so sibling/downstream
+	// agents build on it; read a plan's findings to see prior progress.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "record_finding",
+		Description: "Record a compact FINDING (gist) back to your plan's shared context so sibling and downstream agents can build on it instead of re-discovering it. Use it when you verify a fact, hit a dead end (failure — so others skip it), discover a binding constraint, or finish a change worth summarizing (patch_summary). You may only record a finding for a task you are/were assigned. Keep content short.",
+	}, makeRecordFinding(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_findings",
+		Description: "List the shared findings recorded in a plan so far (oldest-first): each has a kind (fact/failure/constraint/patch_summary), the source task, the author, and the gist. Read this before starting plan work to reuse what others already learned.",
+	}, makeListFindings(cfg))
+
 	// --- file tools ----------------------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "upload_file",

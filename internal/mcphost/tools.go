@@ -476,3 +476,45 @@ func makeListPlans(cfg Config) mcp.ToolHandlerFor[listPlansArgs, any] {
 		return callAdmin(ctx, cfg, "list_plans", body)
 	}
 }
+
+// --- Plan Shared Findings tools (v2.10, ADR-0053 — DeLM shared context) -------
+//
+// record_finding / list_findings mirror the admin handlers in
+// internal/admin/api/agent_tools_findings.go VERBATIM (tool name = route segment;
+// body keys = decode struct). agent_id is process-fixed (injected from cfg), so an
+// agent can only record findings AS itself — the admission gate (author == the
+// source task's assignee) is enforced server-side.
+
+type recordFindingArgs struct {
+	PlanID  string `json:"plan_id" jsonschema:"the plan to record the finding in (your task must belong to it)"`
+	TaskID  string `json:"task_id" jsonschema:"the source task you are/were assigned that produced this finding"`
+	Kind    string `json:"kind" jsonschema:"one of: fact (a verified discovery), failure (a dead end others should skip), constraint (a binding rule later work must respect), patch_summary (a compact summary of a completed change)"`
+	Content string `json:"content" jsonschema:"the compact gist (keep it short — a sentence or two; this is shared with sibling/downstream agents)"`
+}
+
+func makeRecordFinding(cfg Config) mcp.ToolHandlerFor[recordFindingArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args recordFindingArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"plan_id":  args.PlanID,
+			"task_id":  args.TaskID,
+			"kind":     args.Kind,
+			"content":  args.Content,
+		}
+		return callAdmin(ctx, cfg, "record_finding", body)
+	}
+}
+
+type listFindingsArgs struct {
+	PlanID string `json:"plan_id" jsonschema:"the plan whose shared findings to read"`
+}
+
+func makeListFindings(cfg Config) mcp.ToolHandlerFor[listFindingsArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listFindingsArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"plan_id":  args.PlanID,
+		}
+		return callAdmin(ctx, cfg, "list_findings", body)
+	}
+}

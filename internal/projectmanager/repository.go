@@ -130,6 +130,30 @@ type PlanRepository interface {
 	ClearDispatch(ctx context.Context, planID PlanID, taskID TaskID) error
 }
 
+// PlanFindingRepository persists PlanFinding ARs (v2.10, ADR-0053 — the DeLM
+// plan-scoped shared-findings store). Findings are IMMUTABLE: there is Save (once)
+// + reads + Delete (retract / cascade), but no Update. ListByPlan backs both the
+// dispatch injection and the list_findings tool; DeleteByPlan is the Plan-delete
+// cascade (a plan's findings die with the plan).
+type PlanFindingRepository interface {
+	Save(ctx context.Context, f *PlanFinding) error
+	FindByID(ctx context.Context, id PlanFindingID) (*PlanFinding, error)
+	// ListByPlan returns one Plan's findings, stable-ordered (created_at, id).
+	ListByPlan(ctx context.Context, planID PlanID) ([]*PlanFinding, error)
+	// CountByPlan returns the number of findings in a Plan (for the bounded
+	// dispatch read's "latest N of M" notice).
+	CountByPlan(ctx context.Context, planID PlanID) (int, error)
+	// ListLatestByPlan returns at most `limit` of a Plan's most-recent findings,
+	// re-ordered oldest-first for display. Backs the bounded dispatch injection so a
+	// plan with a large shared context does not load every row into the dispatch tx.
+	ListLatestByPlan(ctx context.Context, planID PlanID, limit int) ([]*PlanFinding, error)
+	// Delete removes one finding (retract). ErrPlanFindingNotFound if absent.
+	Delete(ctx context.Context, id PlanFindingID) error
+	// DeleteByPlan removes every finding of a Plan (the Plan-delete cascade).
+	// Deleting zero rows is NOT an error (a plan may have no findings).
+	DeleteByPlan(ctx context.Context, planID PlanID) error
+}
+
 // TaskSubscriberRepository persists manual Task subscriber records.
 type TaskSubscriberRepository interface {
 	Add(ctx context.Context, s *TaskSubscriber) error

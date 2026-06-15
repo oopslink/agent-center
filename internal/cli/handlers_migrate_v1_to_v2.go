@@ -103,8 +103,9 @@ func MigrateV1ToV2Command() *Command {
 // depth-1 thread refs); v2.9.1 ADR-0046 added 0058 (task state machine 7→5:
 // data-only blocked→running keep reason, verified→completed); v2.9.1 ADR-0047
 // added 0059 (pm_plans.is_builtin + per-project built-in claimable pool, with the
-// assigned-backlog-task backfill).
-const targetSchemaVersion = 59
+// assigned-backlog-task backfill); v2.10 ADR-0053 added 0060 (pm_plan_findings —
+// the DeLM plan-scoped shared-findings table).
+const targetSchemaVersion = 60
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -154,4 +154,28 @@ var (
 	// requires no running member task (maps to 409). Distinct from ErrPlanRunning
 	// (which guards the PLAN's own running status).
 	ErrPlanHasRunningTasks = errors.New("projectmanager: plan has running tasks — complete or stop them before archiving")
+	// Plan Shared Findings (v2.10, ADR-0053 — DeLM shared verified context).
+	ErrPlanFindingNotFound = errors.New("projectmanager: plan finding not found")
+	ErrPlanFindingNoPlan   = errors.New("projectmanager: plan finding requires a plan_id")
+	ErrPlanFindingNoTask   = errors.New("projectmanager: plan finding requires a source task_id")
+	ErrInvalidFindingKind  = errors.New("projectmanager: invalid finding kind (want fact|failure|constraint|patch_summary)")
+	ErrEmptyFindingContent = errors.New("projectmanager: finding content required")
+	// ErrFindingContentTooLong rejects a finding whose gist exceeds MaxFindingContentLen
+	// (findings stay COMPACT; large content belongs in the task trace, not a gist).
+	ErrFindingContentTooLong = errors.New("projectmanager: finding content too long (keep the gist compact)")
+	// ErrFindingTaskNotInPlan rejects recording a finding whose source task does not
+	// belong to the named plan (the finding must be grounded in a task IN this plan).
+	ErrFindingTaskNotInPlan = errors.New("projectmanager: source task does not belong to this plan")
+	// ErrFindingNotTaskAssignee is the v1 ADMISSION gate (ADR-0053 decision 2 —
+	// evidence attribution): only the source task's assignee may record a finding for
+	// it (you can only gist what you actually executed). Full LLM-verifier deferred.
+	ErrFindingNotTaskAssignee = errors.New("projectmanager: only the source task's assignee may record a finding for it")
+	// ErrFindingForbidden rejects retracting a finding by an actor who is neither its
+	// author nor a project owner.
+	ErrFindingForbidden = errors.New("projectmanager: only the finding author or a project owner may retract it")
+	// ErrPlanFindingExists rejects inserting a finding whose id already exists (a
+	// write CONFLICT, not a not-found). IDs are server-generated ULIDs so this is
+	// effectively unreachable, but the repo must not mislabel a unique violation as
+	// a 404 (review finding #5).
+	ErrPlanFindingExists = errors.New("projectmanager: plan finding already exists")
 )

@@ -324,7 +324,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
 		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
-		Plans:        pmsql.NewPlanRepo(db), // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
+		Plans:        pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
+		Findings:     pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
 		Outbox:       outboxsql.NewOutboxRepo(db),
 		IDGen:        gen,
 		Clock:        clk,

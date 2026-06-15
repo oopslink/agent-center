@@ -229,6 +229,28 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	}
 	view := pm.ComputePlanView(tasks, edges, records)
 
+	// v2.10 (ADR-0053): load the Plan's shared findings ONCE and format them into a
+	// compact block appended to every newly-dispatched node's @mention, so a
+	// downstream/sibling agent starts with the plan's accumulated verified progress
+	// (DeLM shared context) instead of only its own task title/description. nil-safe:
+	// pre-v2.10 constructions (no findings repo) skip injection entirely.
+	var findingsBlock string
+	if s.findings != nil {
+		// review #4: bounded read — count + the latest dispatchFindingsCap rows, not
+		// the whole history loaded into the dispatch tx.
+		total, cerr := s.findings.CountByPlan(txCtx, planID)
+		if cerr != nil {
+			return nil, cerr
+		}
+		if total > 0 {
+			latest, ferr := s.findings.ListLatestByPlan(txCtx, planID, dispatchFindingsCap)
+			if ferr != nil {
+				return nil, ferr
+			}
+			findingsBlock = formatFindingsForDispatch(latest, total)
+		}
+	}
+
 	// Index task → assignee for the @mention, and task → *Task for the
 	// work-delivery emit (v2.9 P2 #1 HEADLINE).
 	assigneeOf := make(map[pm.TaskID]pm.IdentityRef, len(tasks))
@@ -249,6 +271,11 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		// content is the BODY only — the dispatcher resolves assignee → display_name
 		// and prepends "@<display_name> " so the wake+mention path (#220) fires.
 		content := fmt.Sprintf("your task %q is ready — all upstream dependencies are done.", titleOf[taskID])
+		// v2.10 (ADR-0053): append the plan's shared findings so the agent builds on
+		// prior progress. Empty block (no findings) → content unchanged.
+		if findingsBlock != "" {
+			content += "\n\n" + findingsBlock
+		}
 		msgID, perr := s.planDispatcher.PostMention(txCtx, p.ConversationID(), string(assignee), content)
 		if perr != nil {
 			return nil, perr
@@ -412,6 +439,47 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 		}
 	}
 	return firstErr
+}
+
+// dispatchFindingsCap bounds how many findings ride a single node @mention so the
+// dispatch message stays bounded as the shared context grows (ADR-0053 — no silent
+// truncation: when capped, the block says so).
+const dispatchFindingsCap = 20
+
+// formatFindingsForDispatch renders a bounded window of a Plan's findings into the
+// compact block that dispatchReadyNodes appends to each newly-dispatched node's
+// @mention (DeLM shared context). `shown` is the already-bounded, oldest-first
+// window (the repo's ListLatestByPlan); `total` is the full count, so when
+// total > len(shown) the header says "latest N of M" (explicit truncation, §17).
+// Returns "" for no findings (caller appends nothing).
+func formatFindingsForDispatch(shown []*pm.PlanFinding, total int) string {
+	if total == 0 || len(shown) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	if total > len(shown) {
+		fmt.Fprintf(&b, "Shared context — latest %d of %d findings recorded in this plan:\n", len(shown), total)
+	} else {
+		fmt.Fprintf(&b, "Shared context — %d finding(s) recorded in this plan so far:\n", total)
+	}
+	for _, f := range shown {
+		fmt.Fprintf(&b, "- [%s] (%s) %s\n", f.Kind(), f.TaskID(), findingOneLine(f.Content()))
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// findingOneLine collapses a finding's gist to a single bounded line for the
+// dispatch bullet (whitespace runs → single space; long gists truncated with …).
+// Truncation is on a RUNE boundary (review #1): a byte slice would split a
+// multi-byte character (e.g. Chinese gists) and inject invalid UTF-8.
+func findingOneLine(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	const lineCap = 240 // runes
+	r := []rune(s)
+	if len(r) > lineCap {
+		return string(r[:lineCap]) + "…"
+	}
+	return s
 }
 
 // RerunFailedNode clears one node's dispatch record (§9.3 creator re-run) so the

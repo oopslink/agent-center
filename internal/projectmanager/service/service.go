@@ -80,6 +80,14 @@ const (
 	// failure transition, not a chat agent→agent reply loop. For a HUMAN creator NO
 	// event is emitted (the @mention in the conversation IS their notification).
 	EvtPlanCreatorFailureWake = "pm.plan.creator_failure_wake"
+	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared verified context).
+	// EvtPlanFindingRecorded is emitted (same tx) when an agent records a finding
+	// back to a Plan; EvtPlanFindingRetracted when one is retracted. Both are pure
+	// action events (no "why") so they carry no reason+message (§16). Observability
+	// only — no projector consumes them in v2.10 (the finding's effect is the
+	// dispatch injection + list_findings read, not a cross-BC projection).
+	EvtPlanFindingRecorded  = "pm.plan_finding.recorded"
+	EvtPlanFindingRetracted = "pm.plan_finding.retracted"
 )
 
 // AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,
@@ -119,6 +127,11 @@ type Service struct {
 	// ErrDispatcherUnavailable (fail-loud — a missing dispatcher must not silently
 	// no-op the @mention). Posts the node-ready @mention into the Plan conversation.
 	planDispatcher PlanDispatcher
+	// findings is OPTIONAL (nil-safe, v2.10 ADR-0053). nil ⇒ RecordFinding/
+	// ListPlanFindings/RetractFinding return ErrFindingsUnavailable AND dispatch
+	// injection is skipped (pre-v2.10 constructions keep working unchanged). The
+	// plan-scoped shared-findings store (DeLM shared verified context).
+	findings pm.PlanFindingRepository
 }
 
 // ErrDispatcherUnavailable is returned by AdvancePlan when no PlanDispatcher is
@@ -150,6 +163,9 @@ type Deps struct {
 	// PlanDispatcher is OPTIONAL (v2.9 #285): when set, AdvancePlan posts the
 	// node-ready @mention into the Plan conversation. nil ⇒ AdvancePlan unavailable.
 	PlanDispatcher PlanDispatcher
+	// Findings is OPTIONAL (v2.10 ADR-0053): when set, the PlanFinding AppServices
+	// are available and dispatch injects the plan's findings into node @mentions.
+	Findings pm.PlanFindingRepository
 }
 
 // New constructs the Service.
@@ -162,7 +178,7 @@ func New(d Deps) *Service {
 		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
-		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher,
+		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 	}
 }
 
