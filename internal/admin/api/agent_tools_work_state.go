@@ -242,6 +242,12 @@ func writeWorkStateError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "work_item_not_found", "")
 	case errors.Is(err, agent.ErrWorkItemIllegalMove):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
+	case errors.Is(err, agent.ErrWorkItemTaskNotRunnable):
+		// T130: a backlog task (no real plan / not dispatched into the pool) cannot
+		// be started. 409 — the work item stays queued; the remedy is to add the
+		// task to a real plan (add_task_to_plan) or dispatch it into the pool.
+		writeError(w, http.StatusConflict, "task_not_runnable",
+			"task is backlog — add it to a plan (add_task_to_plan) or dispatch it into the assignment pool before starting")
 	default:
 		mapDomainError(w, err)
 	}
