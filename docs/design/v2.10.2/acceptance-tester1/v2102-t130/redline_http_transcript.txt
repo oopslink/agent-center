@@ -1,0 +1,79 @@
+=== v2.10.2 T130 claimability/authz hard-gate — LIVE HTTP evidence ===
+instance: test-v2102acc   binary: agent-center v2.10.2-27184d7b (commit 27184d7b)
+admin API: https://127.0.0.1:57011   agent_id: 01KV5SAN4BCR4NV2T57YRH22HD   identity: agent:agent-4d821b1d
+captured (UTC): 2026-06-15T14:05:42Z
+
+----- setup: create_task (fresh backlog — no plan, no pool)
+POST /create_task
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "project_id": "project-2ee9e524", "title": "T130 redline backlog probe", "description": "acceptance probe \u2014 must never reach running"}
+resp: HTTP 200  {"task_id":"task-3cb44c5c"}
+
+     -> new backlog task_id = task-3cb44c5c
+
+----- setup: assign_task (DIRECT assign — mints a queued work item; this is the path T83 left open)
+POST /assign_task
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "task_id": "task-3cb44c5c", "assignee": "agent:agent-4d821b1d"}
+resp: HTTP 200  {"ok":true}
+
+----- resolved queued work_item_id for task-3cb44c5c: 01KV5SMF8EN5PWZBMDEVMXTWJP
+
+##### REQ 1 — a backlog task is NOT claimable from the assignment pool #####
+----- claim_task on the backlog task
+POST /claim_task
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "task_id": "task-3cb44c5c"}
+resp: HTTP 409  {"error":"not_claimable","message":"projectmanager: task is not claimable from the assignment pool"}
+
+##### REQ 2 — backlog cannot reach running via direct-assign -> start_work (the NEWLY closed path) #####
+----- start_work on the backlog work item
+POST /start_work
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "work_item_id": "01KV5SMF8EN5PWZBMDEVMXTWJP"}
+resp: HTTP 409  {"error":"task_not_runnable","message":"task is backlog — add it to a plan (add_task_to_plan) or dispatch it into the assignment pool before starting"}
+
+----- post-check (DB): task must still be OPEN, work item must still be QUEUED
+task     : task-3cb44c5c  status=open  plan=(none)
+work_item: 01KV5SMF8EN5PWZBMDEVMXTWJP  status=queued
+
+##### REQ 5 — unauthorized / illegal operations fail-closed #####
+----- 5a start_work with a FORGED agent_id (not on this worker)
+POST /start_work
+req : {"agent_id": "01KFORGEDAGENTIDXXXXXXXXXX", "work_item_id": "01KV5SMF8EN5PWZBMDEVMXTWJP"}
+resp: HTTP 404  {"error":"not_found","message":"agent: agent not found"}
+
+----- 5b claim_task on an UNKNOWN task (existence opacity, T83 §4.3)
+POST /claim_task
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "task_id": "task-doesnotexist0000"}
+resp: HTTP 404  {"error":"not_found","message":"not found"}
+
+----- 5c start_work with NO bearer token (unauthenticated)
+POST /start_work
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "work_item_id": "01KV5SMF8EN5PWZBMDEVMXTWJP"}
+resp: HTTP 401  {"error":"auth_missing","message":"missing Authorization bearer"}
+
+##### REQ 3 & 4 — builtin != real plan; real-plan/dispatched-pool task DOES run (no false positive) #####
+builtin-vs-real plans in this instance (predicate keys off is_builtin):
+plan-84a88fdb  is_builtin=1  [Built-in]
+  plan-a05f308b  is_builtin=0  SSE Stability Hardening
+  plan-5d4d2955  is_builtin=0  T130 acceptance real plan
+
+----- req4 step1: create_plan (REAL, non-builtin)
+POST /create_plan
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "project_id": "project-2ee9e524", "name": "T130 acceptance real plan B", "description": "req4 happy path"}
+resp: HTTP 200  {"plan_id":"plan-e49b3cec"}
+
+     -> real plan_id = plan-e49b3cec
+
+----- req4 step2: add_task_to_plan (backlog task -> REAL plan node)
+POST /add_task_to_plan
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "plan_id": "plan-e49b3cec", "task_id": "task-3cb44c5c"}
+resp: HTTP 200  {"ok":true}
+
+----- req4 step3: start_work the SAME work item — now a real-plan node => RUNNABLE
+POST /start_work
+req : {"agent_id": "01KV5SAN4BCR4NV2T57YRH22HD", "work_item_id": "01KV5SMF8EN5PWZBMDEVMXTWJP"}
+resp: HTTP 200  {"status":"active","work_item_id":"01KV5SMF8EN5PWZBMDEVMXTWJP"}
+
+----- post-check (DB): same task now left OPEN->running path (real-plan node); plan is non-builtin
+task : task-3cb44c5c  status=open  plan=plan-e49b3cec
+plan : plan-e49b3cec  is_builtin=0
+
+=== summary: REQ1 not_claimable | REQ2 task_not_runnable | REQ3 is_builtin gate | REQ4 same WI runs in real plan | REQ5 404/404/401 fail-closed ===
