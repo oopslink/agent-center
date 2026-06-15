@@ -127,17 +127,18 @@ export default function PlanDetail(): React.ReactElement {
       <div className="rounded-lg border border-border-base bg-bg-elevated shadow-1" data-testid="plan-detail-card">
         <PlanDetailHeader projectId={id} plan={p} />
 
-        {/* Tabs — Chat (default) / DAG (推进计划) / Task list (任务列表 N).
-            NO backlog tab (planning is on the Board). v2.9.1 point 4. */}
+        {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
+            the prior「(中文)」括注 removed). NO backlog tab (planning is on the
+            Board). v2.9.1 point 4. */}
         <div className="flex items-center gap-1 px-4 pt-2" role="tablist" data-testid="plan-tabs">
           <TabButton id="chat" active={tab === 'chat'} onSelect={setTab}>
-            Chat (对话)
+            Chat
           </TabButton>
           <TabButton id="dag" active={tab === 'dag'} onSelect={setTab}>
-            DAG (推进计划)
+            DAG
           </TabButton>
           <TabButton id="tasks" active={tab === 'tasks'} onSelect={setTab}>
-            Task list (任务列表 {nodes.length})
+            Task List
           </TabButton>
           <span className="ml-2 self-center text-[0.6875rem] text-text-muted">
             ← execution view (no backlog — planning is on the Board)

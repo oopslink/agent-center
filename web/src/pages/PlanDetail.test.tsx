@@ -211,8 +211,10 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-tab-chat')).toBeInTheDocument();
     expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument();
     expect(screen.getByTestId('plan-tab-tasks')).toBeInTheDocument();
-    // tab label carries the node count (7)
-    expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('7');
+    // T132: tabs are English-only, no「(中文)」括注 — exactly Chat / DAG / Task List.
+    expect(screen.getByTestId('plan-tab-chat')).toHaveTextContent('Chat');
+    expect(screen.getByTestId('plan-tab-dag')).toHaveTextContent('DAG');
+    expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('Task List');
     // default = chat: the chat panel + conversation are shown; DAG + task list are not
     expect(screen.getByTestId('plan-panel-chat')).toBeInTheDocument();
     expect(await screen.findByTestId('plan-conversation')).toBeInTheDocument();
@@ -1098,8 +1100,8 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // still exactly 7 real task nodes — the 2 anchors are excluded
     expect(screen.getAllByTestId('plan-dag-node')).toHaveLength(7);
-    // anchors are not in the task-list tab / its count either
-    expect(screen.getByTestId('plan-tab-tasks')).toHaveTextContent('7');
+    // anchors are not in the task-list tab either (T132: the tab label no longer
+    // carries a count — the count is verified directly by the task-row count below).
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     expect(within(screen.getByTestId('plan-task-list-table')).getAllByTestId('plan-task-row')).toHaveLength(7);
     expect(screen.queryByTestId('plan-dag-synthetic-start')).not.toBeInTheDocument();
