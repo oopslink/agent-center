@@ -14,6 +14,12 @@ import { useResizablePanel } from './useResizablePanel';
 interface Props {
   conversationId: string;
   participants: Participant[];
+  /**
+   * v2.10.1 [T96]: render the embedded thread list at the bottom. Default true
+   * (the standalone panel). The channel Chat tab passes false because Threads
+   * is now its own sibling tab.
+   */
+  showThreads?: boolean;
 }
 
 const COLLAPSE_KEY = 'ac.participants.collapsed';
@@ -43,6 +49,7 @@ function readCollapsed(): boolean {
 export function ParticipantsPanel({
   conversationId,
   participants,
+  showThreads = true,
 }: Props): React.ReactElement {
   const me = useAppStore((s) => s.currentUserId);
   const displayName = useDisplayNameResolver();
@@ -206,8 +213,10 @@ export function ParticipantsPanel({
       )}
 
       {/* v2.9.1 Threads P2: the conversation's thread list. Clicking a thread
-          opens the shared ThreadSidebar (mounted by ConversationView). */}
-      <ConversationThreadList conversationId={conversationId} />
+          opens the shared ThreadSidebar (mounted by ConversationView).
+          v2.10.1 [T96]: omitted when Threads is rendered as its own sibling tab
+          (the channel 3-tab sidebar). */}
+      {showThreads && <ConversationThreadList conversationId={conversationId} />}
     </aside>
   );
 }
