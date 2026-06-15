@@ -114,6 +114,8 @@ var wantTools = []string{
 	"add_plan_dependency", "remove_plan_dependency",
 	"start_plan", "stop_plan", "get_plan", "list_plans",
 	"delete_plan", "archive_plan",
+	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared context)
+	"record_finding", "list_findings",
 	// files
 	"upload_file", "download_file", "attach_file",
 }

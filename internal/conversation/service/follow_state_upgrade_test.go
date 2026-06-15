@@ -75,8 +75,8 @@ func TestFollowState_CrossVersionUpgrade_NonEmptyDB(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("upgrade to latest: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 60 {
-		t.Fatalf("post-upgrade version=%d want 60", v)
+	if v, _ := mig.Version(ctx); v != 61 {
+		t.Fatalf("post-upgrade version=%d want 61", v)
 	}
 	if !tableExists(t, db, "user_conversation_follow_state") {
 		t.Fatal("follow-state table must exist after upgrade")

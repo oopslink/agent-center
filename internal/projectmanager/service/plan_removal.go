@@ -71,6 +71,13 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 		if err := s.plans.DeletePlan(txCtx, planID); err != nil {
 			return err
 		}
+		// (b') v2.10 cascade-delete the plan's shared findings (ADR-0053): a plan's
+		// findings die with the plan. nil-safe (pre-v2.10 constructions skip it).
+		if s.findings != nil {
+			if err := s.findings.DeleteByPlan(txCtx, planID); err != nil {
+				return err
+			}
+		}
 		// (c) emit pm.plan.deleted → projector hard-deletes the plan conversation.
 		return s.emit(txCtx, EvtPlanDeleted,
 			refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),

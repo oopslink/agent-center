@@ -434,6 +434,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/archive_plan", s.archivePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_plan", s.getPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_plans", s.listPlansHandler)
+	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared verified context).
+	s.mux.HandleFunc("POST /admin/agent-tools/record_finding", s.recordFindingHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_findings", s.listFindingsHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/upload_file", s.uploadFileHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/attach_file", s.attachFileHandler)
 	s.mux.HandleFunc("PUT /admin/files/transfer/{transfer_id}", s.putAgentBlobHandler)
