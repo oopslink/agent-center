@@ -33,7 +33,9 @@ describe('MembersHumans page (#193 columns + link)', () => {
       ),
     );
     wrap();
-    await waitFor(() => expect(screen.getByText('Alice')).toBeInTheDocument());
+    // v2.10.1 M6: name renders in both the desktop table and the mobile card,
+    // so it appears twice in jsdom — assert ≥1 and scope columns via testids.
+    await waitFor(() => expect(screen.getAllByText('Alice').length).toBeGreaterThan(0));
     expect(screen.getByTestId('human-email')).toHaveTextContent('alice@example.com');
     expect(screen.getByTestId('human-created')).not.toHaveTextContent('—');
     expect(screen.getByTestId('human-last-session')).not.toHaveTextContent('—');
@@ -55,7 +57,7 @@ describe('MembersHumans page (#193 columns + link)', () => {
       ),
     );
     wrap();
-    await waitFor(() => expect(screen.getByText('Legacy')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('Legacy').length).toBeGreaterThan(0));
     expect(screen.getByTestId('human-email')).toHaveTextContent('—');
     expect(screen.getByTestId('human-last-session')).toHaveTextContent('—');
   });
