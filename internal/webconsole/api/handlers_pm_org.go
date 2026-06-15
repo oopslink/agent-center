@@ -212,7 +212,11 @@ func (s *Server) pmListOrgPlansHandler(w http.ResponseWriter, r *http.Request) {
 		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
 			continue
 		}
-		summaries, lerr := d.PM.ListPlanSummaries(r.Context(), p.ID())
+		// T124/T98: include archived plans so the status filter below can surface
+		// them on `?status=archived`/`all` (statusPasses default-excludes archived).
+		// The Work Board / agent-tools plan lists still use the archived-excluding
+		// ListPlanSummaries.
+		summaries, lerr := d.PM.ListPlanSummariesIncludingArchived(r.Context(), p.ID())
 		if lerr != nil {
 			mapPlanError(w, lerr)
 			return
