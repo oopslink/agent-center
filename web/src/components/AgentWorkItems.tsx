@@ -181,13 +181,14 @@ function WorkItemRow({ item: w }: { item: AgentWorkItem }): React.ReactElement {
 
   return (
     <tr className="align-top" data-testid="agent-workitem-row" data-workitem-id={w.id} data-status={w.status}>
-      {/* Work items have no human-facing number in v2.7.1; show a short handle
-          with the full id on hover (#192 — never the full raw id as chrome).
-          Use the id TAIL: ULIDs lead with a timestamp, so near-simultaneously
-          created items share a prefix — the trailing random segment is what
-          distinguishes rows (Tester/Tester2 #228 finding). */}
+      {/* T100: show the underlying task's org_ref (T84) when present. The work
+          item itself has no human-facing number, so absent an org_ref fall back
+          to a short id handle with the full id on hover (#192 — never the full
+          raw id as chrome). Use the id TAIL: ULIDs lead with a timestamp, so
+          near-simultaneously created items share a prefix — the trailing random
+          segment distinguishes rows (Tester/Tester2 #228 finding). */}
       <td className="py-2 pr-3 font-mono text-text-muted" data-testid="agent-workitem-id" title={w.id}>
-        #{w.id.slice(-6)}
+        {w.org_ref || `#${w.id.slice(-6)}`}
       </td>
       <td className="max-w-[18rem] truncate py-2 pr-3" title={w.task_ref}>
         {linkable ? (
