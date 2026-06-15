@@ -377,6 +377,13 @@ export interface Project {
   version: number;
   created_at: string;
   updated_at: string;
+  // v2.10.0 #T81 (§3.4.1): per-project counts for the Projects list cards
+  // ("12 tasks · 3 issues · 4 plans · 2 repos"). Present ONLY on the LIST
+  // response (GET /projects); the single-project GET omits them — hence optional.
+  task_count?: number;
+  issue_count?: number;
+  plan_count?: number;
+  repo_count?: number;
 }
 
 // Issue mirrors the v2.7 ProjectManager BC Issue projection. Issues are
