@@ -96,7 +96,8 @@ describe('App shell + route tree', () => {
     fireEvent.click(plansLink);
     await waitFor(() => expect(screen.getByTestId('page-ProjectPlans')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
-    const open = screen.getByTestId('plan-open-PL-1');
+    // T144: the plan NAME (not a separate "Open ▸") opens the Plan detail.
+    const open = screen.getByTestId('plan-name-link-PL-1');
     fireEvent.click(open);
     await waitFor(() => expect(screen.getByTestId('page-PlanDetail')).toBeInTheDocument());
     expect(window.location.pathname).toBe(`${ORG_BASE}/projects/proj-a/plans/PL-1`);

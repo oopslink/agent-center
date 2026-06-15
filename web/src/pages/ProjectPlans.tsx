@@ -1016,9 +1016,17 @@ function PlanColumn({
       )}
       <div className="flex items-start justify-between gap-1.5 px-0.5">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-sm font-bold text-text-primary" title={plan.name}>
+          {/* T144: the plan NAME is the open affordance — click it to reach the
+              Plan detail (replaces the separate "Open ▸" link, consistent with
+              the agent-list name-click in T133/T143). */}
+          <OrgLink
+            to={`/projects/${encodeURIComponent(projectId)}/plans/${encodeURIComponent(plan.id)}`}
+            className="truncate text-sm font-bold text-accent hover:underline"
+            title={plan.name}
+            data-testid={`plan-name-link-${plan.id}`}
+          >
             {plan.name}
-          </span>
+          </OrgLink>
           <PlanStatusChip status={plan.status} />
           {/* T121: a persistent lock glyph marks a plan whose task assignments are
               frozen (running / terminal) — reinforces the status chip. */}
@@ -1033,13 +1041,6 @@ function PlanColumn({
             </span>
           )}
         </span>
-        <OrgLink
-          to={`/projects/${encodeURIComponent(projectId)}/plans/${encodeURIComponent(plan.id)}`}
-          className="shrink-0 text-[0.6875rem] font-semibold text-accent hover:underline"
-          data-testid={`plan-open-${plan.id}`}
-        >
-          Open ▸
-        </OrgLink>
       </div>
       <div className="flex items-center gap-1.5 px-0.5 pb-2 pt-0.5">
         <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="plan-progress">

@@ -258,11 +258,15 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(draft).toHaveAttribute('data-droppable', 'true');
   });
 
-  it('"Open ▸" on a Plan column links to the Plan detail route (reachability)', async () => {
+  it('T144: the Plan NAME links to the Plan detail route (reachability); no separate "Open ▸"', async () => {
     server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
     wrap('/projects/proj-a/plans');
     await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
-    expect(screen.getByTestId('plan-open-PL-1')).toHaveAttribute('href', '/projects/proj-a/plans/PL-1');
+    // The plan name is now the open affordance (replaces the "Open ▸" link).
+    expect(screen.getByTestId('plan-name-link-PL-1')).toHaveAttribute('href', '/projects/proj-a/plans/PL-1');
+    expect(screen.getByTestId('plan-name-link-PL-1')).toHaveTextContent('Onboarding flow');
+    expect(screen.queryByTestId('plan-open-PL-1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Open ▸')).not.toBeInTheDocument();
   });
 
   it('"New Plan" creates a Plan via POST', async () => {
