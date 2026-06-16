@@ -362,6 +362,11 @@ func (s *Server) routes() {
 	// the worker routes above. The per-agent auth gate takes the worker from
 	// the TOKEN OWNER and verifies the target agent is bound to it (guardrail)
 	// before any tool runs. b1 ships one representative read tool.
+	// WS2 (#issue-e346e5ec): get_my_work is the SINGLE "what do I have to do?"
+	// query — it returns the agent's work partitioned into active / queued /
+	// paused / waiting_input plus claimable (incl. the open assignment pool) and
+	// claimed_pool. It replaces the former get_my_active_work / list_my_paused_work
+	// / list_assignment_pool tools (all removed, no compat).
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_work", s.getMyWorkHandler)
 	// v2.8.1 #278 D (pull model): the agent drives its own work-item queue —
 	// start_task (select a queued item → running, single-active-enforced) +
@@ -371,16 +376,10 @@ func (s *Server) routes() {
 	// T83: claim an open built-in assignment-pool task (pool tasks have no
 	// WorkItem, so start_task does not apply) — atomic assign+run, fail-closed.
 	s.mux.HandleFunc("POST /admin/agent-tools/claim_task", s.claimTaskHandler)
-	// T83: read-only discovery of the open (unassigned) pool tasks the agent may
-	// claim across its member projects (separate from get_my_work).
-	s.mux.HandleFunc("POST /admin/agent-tools/list_assignment_pool", s.listAssignmentPoolHandler)
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the active item (→paused, release
 	// slot) + resume a paused item (→active, re-acquire slot, single-active-gated).
 	s.mux.HandleFunc("POST /admin/agent-tools/pause_task", s.pauseWorkHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/resume_task", s.resumeWorkHandler)
-	// read tools: the agent's active item (loop-boundary check) + paused-resume candidates.
-	s.mux.HandleFunc("POST /admin/agent-tools/get_my_active_work", s.getMyActiveWorkHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/list_my_paused_work", s.listMyPausedWorkHandler)
 	// v2.8.1 #278 D PR4b dual-stream: the agent's unread messages (DM + @mention).
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_unread", s.getMyUnreadHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/mark_seen", s.markSeenHandler)

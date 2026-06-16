@@ -9,7 +9,7 @@ import (
 )
 
 // TestGetMyWork_SurfacesClaimablePoolTasks (ADR-0047) proves get_my_work surfaces
-// the agent's CLAIMABLE built-in-pool tasks under "claimable_tasks" — the pull pool
+// the agent's CLAIMABLE built-in-pool tasks under "claimable" — the pull pool
 // creates NO WorkItem (no wake), so the WorkItem-only surface would miss them. After
 // selecting an assigned task into the (running) built-in pool and sweeping the
 // reconcile loop (node_status ready→dispatched), get_my_work returns the task with
@@ -53,9 +53,9 @@ func TestGetMyWork_SurfacesClaimablePoolTasks(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status=%d body=%v", status, body)
 	}
-	claimable, _ := body["claimable_tasks"].([]any)
+	claimable, _ := body["claimable"].([]any)
 	if len(claimable) != 1 {
-		t.Fatalf("claimable_tasks len=%d, want 1; body=%v", len(claimable), body)
+		t.Fatalf("claimable len=%d, want 1; body=%v", len(claimable), body)
 	}
 	row, _ := claimable[0].(map[string]any)
 	if row["id"] != tid {
@@ -82,8 +82,8 @@ func TestGetMyWork_NoClaimableWhenBacklog(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status=%d body=%v", status, body)
 	}
-	claimable, _ := body["claimable_tasks"].([]any)
+	claimable, _ := body["claimable"].([]any)
 	if len(claimable) != 0 {
-		t.Fatalf("claimable_tasks len=%d, want 0 (backlog task not claimable); body=%v", len(claimable), body)
+		t.Fatalf("claimable len=%d, want 0 (backlog task not claimable); body=%v", len(claimable), body)
 	}
 }

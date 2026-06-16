@@ -108,49 +108,89 @@ func (s *Server) getMyWorkHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	out := make([]map[string]any, len(items))
-	for i, it := range items {
-		out[i] = workItemMap(it)
+	// WS2 (#issue-e346e5ec): get_my_work is the SINGLE "what do I have to do?"
+	// query — it partitions the agent's work items into the actionable buckets
+	// the loop needs (active / queued / paused / waiting_input), replacing the
+	// former get_my_active_work + list_my_paused_work tools. Terminal items
+	// (done/failed/canceled/superseded) are history and intentionally omitted.
+	active := make([]map[string]any, 0)
+	queued := make([]map[string]any, 0)
+	paused := make([]map[string]any, 0)
+	waiting := make([]map[string]any, 0)
+	for _, it := range items {
+		switch it.Status() {
+		case agent.WorkItemActive:
+			active = append(active, workItemMap(it))
+		case agent.WorkItemQueued:
+			queued = append(queued, workItemMap(it))
+		case agent.WorkItemPaused:
+			paused = append(paused, workItemMap(it))
+		case agent.WorkItemWaitingInput:
+			waiting = append(waiting, workItemMap(it))
+		}
 	}
-	resp := map[string]any{"work_items": out}
+	resp := map[string]any{
+		"active":        active,
+		"queued":        queued,
+		"paused":        paused,
+		"waiting_input": waiting,
+	}
 
 	// ADR-0047 PULL pool: the built-in "assignment pool" dispatches via pull — it
 	// creates NO WorkItem and posts NO wake. Its claimable tasks would therefore be
-	// invisible to the WorkItem-only surface above. So we ALSO query pm for the
-	// agent's CLAIMABLE tasks (open + assigned-to-it + in a plan + node dispatched)
-	// and surface them under "claimable_tasks". The agent pulls + claims these
-	// (open→running) rather than being woken. Nil-safe: only when PMService is wired.
+	// invisible to the WorkItem-only surface above. So we ALSO query pm for what the
+	// agent can claim and surface it under "claimable" (WS2 folds in the former
+	// list_assignment_pool tool). The agent pulls + claims these (open→running) via
+	// claim_task rather than being woken. Nil-safe: only when PMService is wired.
+	//
+	// Two disjoint sources, merged into one "claimable" bucket — each entry carries
+	// `assignee` so the agent can tell them apart:
+	//   - ListClaimableTasks  — tasks DISPATCHED to this agent (assigned + open + in
+	//     a plan), i.e. claimable work meant for it.
+	//   - ListClaimablePool   — the OPEN, UNASSIGNED shared pool the agent is eligible
+	//     to grab across its member projects (the former list_assignment_pool surface).
 	if d.PMService != nil {
-		claimable, cerr := d.PMService.ListClaimableTasks(r.Context(), pm.IdentityRef(agentActor(a)))
+		claimable := make([]map[string]any, 0)
+		assigned, cerr := d.PMService.ListClaimableTasks(r.Context(), pm.IdentityRef(agentActor(a)))
 		if cerr != nil {
 			mapDomainError(w, cerr)
 			return
 		}
-		ct := make([]map[string]any, len(claimable))
-		for i, c := range claimable {
+		for _, c := range assigned {
 			m := agentTaskMap(c.Task)
 			m["node_status"] = string(c.NodeStatus)
 			m["claimable"] = true
-			ct[i] = m
+			claimable = append(claimable, m)
 		}
-		resp["claimable_tasks"] = ct
+		pool, perr := d.PMService.ListClaimablePool(r.Context(), pm.IdentityRef(agentActor(a)))
+		if perr != nil {
+			mapDomainError(w, perr)
+			return
+		}
+		for _, c := range pool {
+			m := agentTaskMap(c.Task)
+			m["node_status"] = string(c.NodeStatus)
+			m["claimable"] = true
+			claimable = append(claimable, m)
+		}
+		resp["claimable"] = claimable
 
 		// T83: a CLAIMED pool task is running with NO WorkItem (pull/no-wake), so it
-		// would otherwise vanish from get_my_work after the agent claims it. Surface
-		// the agent's in-flight claimed pool work here so "my work" includes the pool
-		// tasks already assigned to it (and survives wake/restart).
+		// would otherwise vanish after the agent claims it. Surface the agent's
+		// in-flight claimed pool work under "claimed_pool" so "my work" includes the
+		// pool tasks already running on it (and survives wake/restart).
 		held, herr := d.PMService.ListHeldPoolTasks(r.Context(), pm.IdentityRef(agentActor(a)))
 		if herr != nil {
 			mapDomainError(w, herr)
 			return
 		}
-		mp := make([]map[string]any, len(held))
-		for i, c := range held {
+		mp := make([]map[string]any, 0, len(held))
+		for _, c := range held {
 			m := agentTaskMap(c.Task)
 			m["node_status"] = string(c.NodeStatus)
-			mp[i] = m
+			mp = append(mp, m)
 		}
-		resp["my_pool_tasks"] = mp
+		resp["claimed_pool"] = mp
 	}
 
 	writeJSON(w, http.StatusOK, resp)

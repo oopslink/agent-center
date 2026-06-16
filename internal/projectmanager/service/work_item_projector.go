@@ -294,7 +294,7 @@ func (p *WorkItemProjector) enqueueWork(ctx context.Context, wi *agent.AgentWork
 	}
 	// v2.8.1 #278 D PR6 CUTOVER: the old agent.work PUSH (auto-activate) is removed.
 	// The center now ONLY emits the per-agent wake (agent.work_available) — the agent
-	// pulls its queue (get_my_active_work / get_my_work / start_work) and is the SOLE
+	// pulls its queue (get_my_work / start_task) and is the SOLE
 	// path that marks a WorkItem active (single-active by construction, not by the old
 	// DB-UNIQUE gate on a racing push). Same tx + same lifecycle/binding guards above.
 	wakePayload, err := json.Marshal(workAvailablePayload{

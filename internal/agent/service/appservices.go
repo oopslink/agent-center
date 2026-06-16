@@ -618,43 +618,6 @@ func (s *Service) ListWorkItems(ctx context.Context, id agent.AgentID) ([]*agent
 	return s.workItems.ListByAgent(ctx, id)
 }
 
-// GetMyActiveWork returns the agent's currently-ACTIVE work items (status active)
-// — the loop-boundary "do I already have a task in progress?" query the agent
-// calls (get_my_active_work MCP) before pulling new work (resume-first, v2.8.1
-// #278 D PR4). Single-active means ≤1; returned as a slice. waiting_input (parked
-// for a human) is intentionally NOT included — it is not a resumable in-progress
-// task.
-func (s *Service) GetMyActiveWork(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
-	all, err := s.workItems.ListByAgent(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*agent.AgentWorkItem, 0, 1)
-	for _, wi := range all {
-		if wi.Status() == agent.WorkItemActive {
-			out = append(out, wi)
-		}
-	}
-	return out, nil
-}
-
-// ListMyPausedWork returns the agent's PAUSED work items — the resume candidates
-// the agent lists (list_my_paused_work MCP) to pick one for resume_paused_work
-// (v2.8.1 #278 D PR4 scheduling autonomy).
-func (s *Service) ListMyPausedWork(ctx context.Context, id agent.AgentID) ([]*agent.AgentWorkItem, error) {
-	all, err := s.workItems.ListByAgent(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*agent.AgentWorkItem, 0)
-	for _, wi := range all {
-		if wi.Status() == agent.WorkItemPaused {
-			out = append(out, wi)
-		}
-	}
-	return out, nil
-}
-
 // ListActivity returns an Agent's activity events newest-first (id DESC). v2.8
 // #274 cursor pagination: before="" = newest page, before=<event-id> = older
 // than that cursor; limit>0 caps, limit<=0 = unlimited. The handler resolves the

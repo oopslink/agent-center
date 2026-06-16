@@ -652,43 +652,6 @@ func writeClaimError(w http.ResponseWriter, err error) {
 	}
 }
 
-// --- list_assignment_pool (T83 §3.5: read-only discovery of claimable pool) --
-
-type listAssignmentPoolReq struct {
-	AgentID string `json:"agent_id"`
-}
-
-// listAssignmentPoolHandler lists the OPEN, unassigned pool tasks the calling
-// agent may claim across its member projects (T83 §3.5). It is a read-only
-// DISCOVERY surface — deliberately SEPARATE from get_my_work (which is the
-// agent's own work, not the shared grab-able pool). Claiming still goes through
-// the atomic claim_task path.
-func (s *Server) listAssignmentPoolHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req listAssignmentPoolReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.PMService == nil {
-		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
-		return
-	}
-	pool, err := d.PMService.ListClaimablePool(r.Context(), pm.IdentityRef(agentActor(a)))
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	out := make([]map[string]any, len(pool))
-	for i, c := range pool {
-		m := agentTaskMap(c.Task)
-		m["node_status"] = string(c.NodeStatus)
-		m["claimable"] = true
-		out[i] = m
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"pool_tasks": out})
-}
+// list_assignment_pool was removed in WS2 (#issue-e346e5ec): the OPEN, unassigned
+// claimable pool it surfaced is now folded into get_my_work's "claimable" bucket
+// (see getMyWorkHandler), so the agent gets its claimable work in one call.

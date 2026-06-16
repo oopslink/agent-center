@@ -84,12 +84,12 @@ var wantTools = []string{
 	"get_my_work", "post_task_message",
 	// v2.8.1 #278 D pull model: agent drives its own work-item queue
 	"start_task", "fail_task",
-	// T83: claim an open assignment-pool task (pull, no work item) + browse the pool
-	"claim_task", "list_assignment_pool",
+	// T83: claim an open assignment-pool task (pull, no work item)
+	"claim_task",
 	// v2.8.1 #278 PR4 scheduling autonomy
 	"pause_task", "resume_task",
-	// v2.8.1 #278 PR4 read tools (loop-boundary active + paused candidates)
-	"get_my_active_work", "list_my_paused_work",
+	// WS2: get_my_work (above) now also covers active / paused / claimable pool —
+	// the former get_my_active_work / list_my_paused_work / list_assignment_pool removed.
 	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention) + mark-seen
 	"get_my_unread", "mark_seen",
 	// v2.7 #185: DM/channel reply

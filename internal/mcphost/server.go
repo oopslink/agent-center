@@ -96,9 +96,12 @@ func NewServer(cfg Config) *mcp.Server {
 		Version: "0.1.0",
 	}, nil)
 
+	// WS2 (#issue-e346e5ec): the SINGLE "what do I have to do?" query — one call
+	// returns the agent's work partitioned into actionable buckets. Replaces the
+	// former get_my_active_work / list_my_paused_work / list_assignment_pool tools.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_my_work",
-		Description: "List the calling agent's own work items (its task queue + history).",
+		Description: "Your single \"what do I have to do?\" query. Returns your work partitioned into: active (work items in progress), queued (pull one and start it with start_task), paused (resume one with resume_task), waiting_input (parked for a human), claimable (open tasks you can claim with claim_task — includes the shared assignment pool), and claimed_pool (pool tasks already running on you, no work item). Call it at the start of your loop and after finishing a task.",
 	}, makeGetMyWork(cfg))
 
 	// v2.8.1 #278 D (pull model): the agent works its OWN queue one item at a
@@ -120,15 +123,8 @@ func NewServer(cfg Config) *mcp.Server {
 	// no-wake), so start_task does not apply — claim_task is how you pick one up.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "claim_task",
-		Description: "Claim an OPEN assignment-pool task (a task_id from list_assignment_pool, not a work_item_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap. Once claimed it appears in get_my_work.",
+		Description: "Claim an OPEN assignment-pool task (a task_id from get_my_work's claimable, not a work_item_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap. Once claimed it appears in get_my_work.",
 	}, makeClaimTask(cfg))
-
-	// T83: discovery surface for the assignment pool — separate from get_my_work
-	// (which is YOUR work). Browse the open pool, pick one, claim_task it.
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_assignment_pool",
-		Description: "List the OPEN, unassigned assignment-pool tasks you are eligible to claim (across the projects you are a member of). This is a read-only marketplace of available work — NOT your own queue (use get_my_work for that). Pick a suitable task and claim_task it; once claimed it moves to get_my_work.",
-	}, makeListAssignmentPool(cfg))
 
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
 	// optionally resume it later.
@@ -139,18 +135,8 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "resume_task",
-		Description: "Resume a previously paused work item (pick its id from list_my_paused_work) — marks it running again. Only ONE work item can be running at a time, so finish or pause your current one first (returns agent_busy otherwise).",
+		Description: "Resume a previously paused work item (pick its id from get_my_work's paused) — marks it running again. Only ONE work item can be running at a time, so finish or pause your current one first (returns agent_busy otherwise).",
 	}, makeResumeTask(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_my_active_work",
-		Description: "List your currently-RUNNING work item(s). Call this at the start of your loop (on wake / after finishing a task): if you have an active item, resume/continue it (do NOT start a new one); if empty, call get_my_work to pick the next queued item.",
-	}, makeGetMyActiveWork(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_my_paused_work",
-		Description: "List your paused work items — the candidates you can resume_task later.",
-	}, makeListMyPausedWork(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_my_unread",
