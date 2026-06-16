@@ -1,21 +1,25 @@
 package agent
 
-// Agent execution CLI allowlist (v2.7 #181 / FINDING-F).
+// Agent execution CLI allowlist (#181 / FINDING-F).
 //
-// codex/opencode are auto-discovered on workers (#147) and shown in the
-// Environment view (#176), but their agentadapter BuildCommand/ParseEvent are
-// ErrNotImplemented stubs — the runtime dispatch only ever builds a
-// claude-code (claudestream) command. So an agent bound to codex/opencode is
-// created+displayed but never actually runs that CLI; it silently falls back
-// to claude. To avoid that dishonest state, agent creation rejects any cli the
-// runtime cannot execute. Per-CLI dispatch (v2.8 #180) will extend this
-// allowlist as codex/opencode adapters become real.
+// Agent creation rejects any cli the runtime cannot actually execute end-to-end
+// (to avoid the dishonest state where an agent is created+displayed but silently
+// falls back to claude). A cli is in this allowlist only once its full runtime
+// path exists: a real agentadapter + a worker session starter the AgentController
+// selects on agent.cli.
 //
-// The identifier is the canonical agentadapter name ("claude-code", hyphen),
-// the same value workers report as a capability — so a future agent.cli maps
-// directly to a registered adapter.
+//   - claude-code: the claude supervisor session (claudestream).
+//   - codex: the CodexSession (one-shot `codex exec --json` + resume), selected
+//     by the AgentController when the reconcile payload carries cli=codex. The
+//     codex adapter's BuildCommand/ParseEvent are real (validated on codex-cli
+//     0.137.0). opencode remains a stub → still rejected.
+//
+// The identifier is the canonical agentadapter name (hyphenated "claude-code"),
+// the same value workers report as a capability — so agent.cli maps directly to a
+// registered adapter + the worker's per-cli session starter.
 var supportedExecutionCLIs = map[string]struct{}{
 	"claude-code": {},
+	"codex":       {},
 }
 
 // IsSupportedExecutionCLI reports whether cli is an agent CLI the runtime can
