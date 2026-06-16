@@ -140,6 +140,15 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
     });
   };
 
+  // openPreview — open a staged attachment in a new tab (images / PDF preview
+  // inline, other types download). Reuses the cached image previewUrl when
+  // present; for non-image files mints a short-lived object URL.
+  const openPreview = (item: StagedAttachment) => {
+    const url = item.previewUrl ?? URL.createObjectURL(item.file);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    if (!item.previewUrl) window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
   const clearAttachments = () => {
     setAttachments((prev) => {
       for (const a of prev) {
@@ -172,6 +181,17 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
       return null;
     }
   };
+
+  // Pre-upload: start uploading each file the moment it's staged, so it's already
+  // on the server by the time the user hits send (submit then just reuses the
+  // cached result). uploadOne flips the item to 'uploading' synchronously, so
+  // each 'ready' item is picked up exactly once.
+  useEffect(() => {
+    for (const a of attachments) {
+      if (a.status === 'ready') void uploadOne(a);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachments]);
 
   const submit = async () => {
     if (disabled) return;
@@ -359,26 +379,31 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
               data-testid="composer-attachment"
             >
               <div className="flex items-center gap-2">
-                {a.previewUrl && (
-                  <img
-                    src={a.previewUrl}
-                    alt={a.file.name}
-                    className="h-8 w-8 shrink-0 rounded object-cover"
-                    data-testid="composer-attachment-preview"
-                  />
-                )}
-                <span className="min-w-0 flex-1 truncate" title={a.file.name}>
-                  {a.file.name}
-                </span>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
+                  title={`Preview ${a.file.name}`}
+                  onClick={() => openPreview(a)}
+                  data-testid="composer-attachment-open"
+                >
+                  {a.previewUrl && (
+                    <img
+                      src={a.previewUrl}
+                      alt={a.file.name}
+                      className="h-8 w-8 shrink-0 rounded object-cover"
+                      data-testid="composer-attachment-preview"
+                    />
+                  )}
+                  <span className="min-w-0 flex-1 truncate">{a.file.name}</span>
+                </button>
                 <span className="shrink-0 text-text-muted">{formatBytes(a.file.size)}</span>
                 <button
                   type="button"
-                  className="shrink-0 text-text-muted hover:text-text-primary disabled:opacity-50"
+                  className="shrink-0 rounded px-1 text-base leading-none text-text-muted hover:text-text-primary"
                   aria-label={`Remove ${a.file.name}`}
-                  disabled={a.status === 'uploading'}
                   onClick={() => removeAttachment(a.id)}
                 >
-                  Remove
+                  ×
                 </button>
               </div>
               {a.status === 'uploading' && (
