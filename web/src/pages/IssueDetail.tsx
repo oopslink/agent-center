@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom';
 import { useIssue } from '@/api/issues';
 import { useProject } from '@/api/projects';
 import { IssueEditModal } from '@/components/IssueEditModal';
-import { MarkdownMessage } from '@/components/MarkdownMessage';
+import { CollapsibleDescription } from '@/components/CollapsibleDescription';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { IssueDetailSidebar } from '@/components/IssueDetailSidebar';
 import { IssueAttachments } from '@/components/AttachmentsSection';
@@ -107,18 +107,14 @@ export default function IssueDetail(): React.ReactElement {
           />
 
           {iss.description ? (
-            // @oopslink: markdown render + capped height so a long description
-            // scrolls internally rather than pushing the conversation off-screen.
-            // tabIndex keeps the scroll region keyboard-reachable (WCAG 2.1.1).
-            <div
-              className="mt-4 max-h-64 overflow-y-auto text-sm text-text-secondary"
-              data-testid="issue-description"
-              tabIndex={0}
-              role="region"
-              aria-label="Issue description"
-            >
-              <MarkdownMessage content={iss.description} />
-            </div>
+            // T179: long descriptions default-collapse (Show more) so they don't
+            // push the conversation off-screen on mobile; expanding reveals the
+            // full markdown in a height-capped, keyboard-scrollable region.
+            <CollapsibleDescription
+              content={iss.description}
+              testId="issue-description"
+              ariaLabel="Issue description"
+            />
           ) : (
             <p className="mt-4 text-sm italic text-text-muted">No description.</p>
           )}

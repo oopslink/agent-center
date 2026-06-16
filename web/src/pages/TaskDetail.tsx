@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useDisplayNameResolver } from '@/api/members';
-import { MarkdownMessage } from '@/components/MarkdownMessage';
+import { CollapsibleDescription } from '@/components/CollapsibleDescription';
 import { TypeChip } from '@/components/TypeChip';
 import { useTask } from '@/api/tasks';
 import { useProject } from '@/api/projects';
@@ -131,19 +131,14 @@ export default function TaskDetail(): React.ReactElement {
           />
 
           {tk.description ? (
-            // @oopslink: render the description as markdown (reuse MarkdownMessage)
-            // and cap its height so a long description scrolls internally instead
-            // of pushing the conversation off-screen. tabIndex makes the scroll
-            // region keyboard-reachable (WCAG 2.1.1), per Tester2's a11y flag.
-            <div
-              className="mt-4 max-h-64 overflow-y-auto text-sm text-text-secondary"
-              data-testid="task-description"
-              tabIndex={0}
-              role="region"
-              aria-label="Task description"
-            >
-              <MarkdownMessage content={tk.description} />
-            </div>
+            // T179: long descriptions default-collapse (Show more) so they don't
+            // push the conversation off-screen on mobile; expanding reveals the
+            // full markdown in a height-capped, keyboard-scrollable region.
+            <CollapsibleDescription
+              content={tk.description}
+              testId="task-description"
+              ariaLabel="Task description"
+            />
           ) : (
             <p className="mt-4 text-sm italic text-text-muted">No description.</p>
           )}
