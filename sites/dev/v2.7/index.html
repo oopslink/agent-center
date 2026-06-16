@@ -3,157 +3,446 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>开发指引 · v2.7（历史版本，归档） · agent-center</title>
-<meta name="description" content="agent-center 开发指引 v2.7 历史版本快照：v2.7 领域重构概述与架构快照。当前架构以 v2.8 为准；本页仅作归档，并附 v2.7 → v2.7.1 增量变化对照。">
-<link rel="stylesheet" href="../../assets/site.css">
-<script src="../../assets/site.js" defer></script>
+<title>DDD 架构浏览器 · v2.7 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.shell { display: grid; grid-template-columns: 248px 1fr; min-height: calc(100vh - 49px); }
+/* dark layer rail — product col① callback */
+.rail { background: var(--rail-bg); color: var(--rail-ink); padding: 20px 16px; border-right: 1px solid var(--rail-line); position: sticky; top: 49px; align-self: start; height: calc(100vh - 49px); }
+.rail h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #64748b; margin-bottom: 14px; }
+.layers { list-style: none; padding: 0; margin: 0; }
+.layers li { position: relative; padding: 11px 12px 11px 30px; border-radius: 9px; font-size: 13.5px; color: var(--rail-ink); cursor: pointer; transition: .15s; }
+.layers li::before { content:""; position: absolute; left: 13px; top: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translateY(-50%); background: var(--rail-line); }
+.layers li.done { color: var(--rail-ink-2); } .layers li.done::before { background: var(--essential); }
+.layers li.cur { color: #fff; background: rgba(37,99,235,.16); } .layers li.cur::before { background: var(--accent); box-shadow: 0 0 0 4px rgba(37,99,235,.2); }
+.layers li.lock { opacity: .4; } .layers li.lock::before { background: var(--rail-line); }
+.layers .sub { font-family: var(--font-mono); font-size: 10px; color: #475569; display: block; margin-top: 2px; }
+.rail .legend { margin-top: 26px; border-top: 1px solid var(--rail-line); padding-top: 16px; display: grid; gap: 9px; }
+.rail .legend div { font-size: 11.5px; display: flex; align-items: center; gap: 8px; color: #94a3b8; }
+.rail .legend i { width: 10px; height: 10px; border-radius: 3px; }
+
+.canvas { padding: 26px 34px 60px; position: relative; }
+.crumbs { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.crumbs a { cursor: pointer; } .crumbs b { color: var(--ink); }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 6px 0 22px; flex-wrap: wrap; }
+.head h1 { font-size: 28px; font-weight: 800; }
+.head p { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; max-width: 620px; }
+.toggle { display: inline-flex; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 11px; padding: 4px; gap: 2px; }
+.toggle button { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; border: 0; background: transparent; color: var(--ink-2); padding: 7px 14px; border-radius: 8px; cursor: pointer; }
+.toggle button.on { background: var(--bg-elevated); color: var(--brand); box-shadow: var(--shadow-1); }
+
+/* ---- context map (L0) ---- */
+.map { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.bc { position: relative; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 18px; cursor: pointer; transition: .2s; overflow: hidden; }
+.bc::before { content:""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--c); }
+.bc:hover { transform: translateY(-4px); box-shadow: var(--shadow-2); border-color: var(--c); }
+.bc .top { display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; }
+.bc h3 { font-size: 18px; font-weight: 700; }
+.bc .zh { font-size: 12px; color: var(--ink-3); font-weight: 500; font-family: var(--font-body); }
+.bc p { margin: 0 0 14px; font-size: 13px; color: var(--ink-2); }
+.bc .ents { display: flex; flex-wrap: wrap; gap: 5px; }
+.bc .ents span { font-family: var(--font-mono); font-size: 10.5px; padding: 2px 7px; border-radius: 6px; background: var(--bg-subtle); color: var(--ink-2); border: 1px solid var(--border); }
+.bc .drill { position: absolute; right: 16px; bottom: 14px; font-family: var(--font-mono); font-size: 11px; color: var(--c); font-weight: 700; opacity: 0; transition: .2s; }
+.bc:hover .drill { opacity: 1; }
+.maphint { text-align:center; color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; margin-top: 20px; }
+
+/* ---- context detail (L1) ---- */
+.aggs { display: grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap: 14px; }
+.agg { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; cursor: pointer; transition: .2s; }
+.agg:hover { border-color: var(--accent); box-shadow: var(--shadow-2); transform: translateY(-3px); }
+.agg .st { font-family: var(--font-mono); font-size: 10px; color: var(--accent); font-weight: 700; }
+.agg h4 { font-size: 16px; margin: 4px 0 6px; }
+.agg .meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.agg .open { margin-top: 12px; font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--accent); }
+
+/* ---- layered architecture (L1) ---- */
+.layered { display: grid; gap: 14px; }
+.band { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-elevated); padding: 14px 16px 16px; position: relative; }
+.band > .bl { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
+.band > .bl .tag { font-size: 9.5px; padding: 2px 7px; border-radius: 999px; font-weight: 600; }
+.band.app { background: linear-gradient(0deg,var(--bg-elevated),var(--core-bg) 240%); }
+.band.app .bl { color: var(--brand); } .band.app .bl .tag { background: var(--core-bg); color: var(--brand); }
+.band.dom .bl { color: var(--essential); } .band.dom .bl .tag { background: var(--essential-bg); color: var(--essential); }
+.band.infra { background: var(--bg-subtle); } .band.infra .bl { color: var(--ink-3); } .band.infra .bl .tag { background: var(--border); color: var(--ink-2); }
+.svcrow { display: flex; flex-wrap: wrap; gap: 9px; }
+.svc { background: var(--bg-elevated); border: 1px dashed var(--border-strong); border-radius: 9px; padding: 9px 12px; min-width: 150px; }
+.svc .ster { font-family: var(--font-mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
+.svc .nm { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--ink); display: block; }
+.svc .op { font-family: var(--font-mono); font-size: 10.5px; color: var(--essential); margin-top: 2px; }
+.svc.app2 { border-style: solid; border-color: var(--core-bd); } .svc.app2 .nm { color: var(--brand); }
+.dom .domwrap { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+.dom .aggcol .cl { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing:.08em; margin-bottom: 7px; }
+.dom .aggcol .aggs { grid-template-columns: 1fr 1fr; }
+.repochips { display: flex; flex-wrap: wrap; gap: 7px; }
+.repochips span { font-family: var(--font-mono); font-size: 10.5px; padding: 4px 9px; border-radius: 7px; background: var(--bg-elevated); border: 1px solid var(--border-strong); color: var(--ink-2); }
+.repochips span::before { content:"⛁ "; color: var(--ink-3); }
+.flowarrow { text-align: center; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; margin: -6px 0; }
+/* domain service box in class diagram */
+.cls.service { border-style: dashed; border-color: var(--essential); }
+.cls.service .ch { background: var(--essential); }
+
+/* ---- entity class diagram (L2) ---- */
+.diagram { position: relative; }
+#svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.classes { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 46px 60px; padding: 10px; }
+.cls { width: 248px; background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow-2); overflow: hidden; align-self: flex-start; }
+.cls .ch { padding: 9px 12px; background: var(--c,#2563eb); color: #fff; }
+.cls .ch .ster { font-family: var(--font-mono); font-size: 9.5px; opacity: .82; display:block; }
+.cls .ch .nm { font-family: var(--font-mono); font-weight: 700; font-size: 14px; }
+.cls .sect { padding: 8px 12px; border-top: 1px solid var(--border); }
+.cls .sect:first-of-type { border-top: 0; }
+.cls .row { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-2); padding: 1.5px 0; display: flex; justify-content: space-between; gap: 8px; }
+.cls .row .ty { color: var(--ink-3); }
+.cls .sect.state .row { color: var(--essential); }
+.cls .lab { font-family: var(--font-mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; }
+.relkey { display:flex; gap:18px; flex-wrap:wrap; margin: 22px 2px 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
+.relkey span b { color: var(--ink); }
+
+/* ---- sequence diagram ---- */
+.seq { position: relative; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 22px 10px 28px; overflow-x: auto; }
+.seq .lifelines { display: grid; gap: 0; position: relative; min-width: 720px; }
+.actorrow { display: grid; grid-template-columns: var(--cols); }
+.actor { text-align: center; }
+.actor .box { display: inline-block; font-family: var(--font-mono); font-size: 12px; font-weight: 700; background: var(--rail-bg); color: #fff; padding: 8px 12px; border-radius: 8px; }
+.actor .box.you { background: var(--brand); } .actor .box.agent { background: var(--essential); }
+.lanes { position: relative; min-width: 720px; margin-top: 8px; }
+.lane { position: absolute; top: 0; bottom: 0; width: 2px; background: repeating-linear-gradient(var(--border-strong) 0 6px, transparent 6px 12px); transform: translateX(-50%); }
+.msg { position: relative; height: 46px; }
+.msg .arrow { position: absolute; height: 2px; background: var(--accent); top: 20px; }
+.msg .arrow::after { content:""; position: absolute; right: -1px; top: -3px; border: 4px solid transparent; border-left-color: var(--accent); }
+.msg .arrow.rtl { background: var(--essential); }
+.msg .arrow.rtl::after { right: auto; left: -1px; border-left-color: transparent; border-right-color: var(--essential); }
+.msg .arrow.self { width: 26px !important; border-radius: 0 8px 8px 0; height: 22px; background: transparent; border: 2px solid var(--warning); border-left: 0; top: 8px; }
+.msg .arrow.self::after { border-left-color: var(--warning); right: -1px; top: 12px; }
+.msg .t { position: absolute; top: 2px; font-family: var(--font-mono); font-size: 11px; color: var(--ink); white-space: nowrap; transform: translateX(-50%); background: var(--bg-elevated); padding: 0 6px; }
+.msg .t small { color: var(--ink-3); }
+.seqnote { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); margin: 16px 0 0; text-align:center; }
+
+.backbtn { font-family: var(--font-mono); font-size: 12px; color: var(--accent); cursor: pointer; font-weight: 600; }
+.fade { animation: rise .4s ease forwards; }
+@keyframes rise { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+@media (max-width: 900px){ .shell{grid-template-columns:1fr} .rail{display:none} .map{grid-template-columns:1fr} }
+</style>
 </head>
 <body>
-
-<header class="site-hd"><div class="hd-inner">
-  <a class="brand" href="../../index.html">agent-center<span class="dot">·</span></a>
-  <nav class="hd-nav">
-    <a href="../../product/index.html">产品介绍</a>
-    <a href="../../manual/v2.8/index.html">用户手册</a>
-    <a class="active" href="../../dev/v2.8/index.html">开发指引</a>
-    <a href="../../roadmap/index.html">路线图</a>
-    <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
-  </nav>
-</div></header>
-
-<div class="crumb"><a href="../../index.html">首页</a> › <a href="../../dev/v2.8/index.html">开发指引</a> › v2.7（历史）</div>
-
-<section class="hero sm">
-  <div class="inner">
-    <span class="eyebrow">开发指引 · 历史版本（归档）</span>
-    <h1>开发指引 · v2.7（历史版本）</h1>
-    <p class="lede">这是 v2.7 的历史快照，仅作归档保留。v2.7 的领域模型与 v2.7.1 / v2.8 完全一致——领域模型在 v2.7→v2.7.1→v2.8 之间均未发生迁移，v2.7.1 / v2.8 仅叠加了增量特性与 UX 抛光（v2.8 在 v2.7.1 上又增了会话页 4-surface 统一、agent 软归档、Worker 详情页、markdown 渲染等）。完整、权威的架构视图请见 v2.8 当前版本页。</p>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a class="active" href="#">架构 / DDD</a><a href="../../manual/v2.10.0/index.html">手册</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
   </div>
-</section>
+</header>
 
-<main class="wrap wide">
-
-  <div class="callout warn">
-    <b>这是历史版本快照。</b>当前架构以 v2.8 为准 →
-    <a href="../../dev/v2.8/index.html">前往「开发指引 · v2.8（当前版本）」</a>。本页不重复完整的 DDD 设计，只保留 v2.7 概述、架构快照与 v2.7 → v2.7.1 变化对照（v2.7.1 → v2.8 演进见 v2.8 页 "v2.8 相对 v2.7.1 主要演进" 区块）。
-  </div>
-
-  <div class="verswitch"><a href="../../dev/v2.8/index.html">v2.8 当前</a><a href="../../dev/v2.7.1/index.html">v2.7.1 历史</a><a class="on" href="../../dev/v2.7/index.html">v2.7 历史</a></div>
-
-  <!-- ============================================================ -->
-  <!-- SECTION A — v2.7 概述 -->
-  <!-- ============================================================ -->
-  <div class="section-title">A · v2.7 概述</div>
-  <div class="prose">
-    <p>v2.7（发布于 2026-06-03）落地了一次<b>完整的领域重构</b>：退役旧的 <b>任务执行域（task-runtime）</b>与<b>讨论域（discussion）</b>以及陈旧的 tasks/issues/projects schema，改以一组清晰的限界上下文重新划分整个系统。这是一次<b>清库（clean-schema）发布</b>——v2.6 → v2.7 不支持原地升级，需全新安装；carve-out 中移除了约 26,000 行历史代码。</p>
-
-    <h3>重新划分的上下文</h3>
-    <ul>
-      <li><b>项目管理 ProjectManager</b>——Project / Issue / Task，工作真相源。</li>
-      <li><b>智能体 Agent</b>——Agent + 生命周期 + AgentWorkItem 控制流，真正执行任务的智能体端到端走专用工作项流。</li>
-      <li><b>环境 Environment</b>——Worker / Agent supervisor / 文件传输会话（含 files / blobstore）。</li>
-      <li><b>会话 Conversation</b>——统一的一套 URI 方案，贯穿 channel / DM / task / issue 四类会话。</li>
-      <li><b>可观测性 Observability</b>（支撑域 · 只读）与 <b>身份 Identity</b>（共享内核）。</li>
+<div class="shell">
+  <aside class="rail">
+    <h4>逐层探索 · v2.7</h4>
+    <ul class="layers" id="layers">
+      <li data-go="map"><b>① 限界上下文地图</b><span class="sub">7 BC · 战略层</span></li>
+      <li data-go="context" class="lock"><b>② 上下文 / 聚合</b><span class="sub" id="l2sub">选一个 BC 进入</span></li>
+      <li data-go="class" class="lock"><b>③ 实体类图</b><span class="sub" id="l3sub">选一个聚合进入</span></li>
     </ul>
-
-    <h3>v2.7 同时交付的主要能力</h3>
-    <ul>
-      <li><b>智能体跨 worker 守护进程重启存活</b>：每个智能体由 per-agent、detached 的 supervisor 托管；worker daemon 升级/重启不再打断运行中的智能体，断连后<b>重新附着（survive-reattach）</b>，输出持久缓冲、ack-offset 状态跨重启保留；claude 进程真死则回退 Mode-B（reap-then-relaunch + session resume）。</li>
-      <li><b>实时控制：stream-first，poll fallback</b>：start / stop / reset / work 控制命令走长连 SSE 控制流，喂同一条单调的 <code>WorkerControlEvent</code> 日志；断连/心跳超时回退到按 offset 游标轮询，无重复无丢失（ADR-0050）。</li>
-      <li><b>Worker 能力自动发现</b>：每次 <code>online</code> 探测本机已装的 agent CLI（claude-code / codex / opencode）并上报；<code>--capabilities</code> 标志移除。运行时仅 claude-code 真正派发，codex / opencode 为 discovery-only。</li>
-      <li><b>会话附件</b>：消息可端到端携带文件附件（经 files BC 上传、原子校验后 attach、按消息路由下载）；跨组织/不存在的 URI 在 attach 与 download 上返回字节级一致的 <code>403</code>，无存在性预言。</li>
-      <li><b>Web Console 重设计</b>与<b>可用的身份流</b>：侧栏信息架构调整、Fleet 合入 Environment、首屏路由修正（未初始化 → <code>/signup</code>）、每请求读取真实会话身份、消息发送者显示真实名称等。</li>
-    </ul>
-    <div class="callout info">
-      详细发布说明见仓库 <code>docs/release/v2.7.md</code>（含升级注意事项、macOS 26 安装修复、被移除的 CLI 命令、以及「What's not in v2.7」的 v2.8 延期清单）。
+    <div class="legend">
+      <div><i style="background:var(--core)"></i>Core 核心</div>
+      <div><i style="background:var(--essential)"></i>Supporting · Essential</div>
+      <div><i style="background:var(--peripheral)"></i>Supporting · Peripheral</div>
     </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- SECTION B — 架构快照 -->
-  <!-- ============================================================ -->
-  <div class="section-title">B · 架构快照</div>
-  <div class="prose">
-    <p>v2.7 的领域模型与 v2.7.1 / v2.8 视图<b>完全一致</b>：五大限界上下文、detached supervisor + survive-reattach、SSE 优先 / 轮询回退的控制流、Conversation BC 与文件附件模型，跨 v2.7→v2.7.1→v2.8 均<b>未变动</b>（v2.8 在 v2.7.1 上叠加的会话页 4-surface 统一 / agent 软归档 / Worker 详情页 / markdown 渲染等是 UX + 战术层增量, 领域模型不变）。因此本页<b>不重绘</b>完整的三 Tab 设计图（限界上下文地图 / 战术设计 / Event Storming）。</p>
-
-    <div class="callout info">
-      <b>权威架构视图请见当前页：</b>
-      <a href="../../dev/v2.8/index.html">开发指引 · v2.8（当前版本）</a> 中的
-      <b>C · DDD 设计（以现行代码校准）</b> 三 Tab 图，以及 <b>B · 主要机制设计</b>。这些视图同样适用于 v2.7——领域模型并未迁移。
+    <div class="legend" style="margin-top:14px">
+      <div style="color:#64748b;font-size:10px;letter-spacing:.1em">视图</div>
+      <div><i style="background:var(--accent)"></i>结构 drill-down</div>
+      <div><i style="background:var(--warning)"></i>序列图 sequence</div>
     </div>
+  </aside>
 
-    <h3>限界上下文一览</h3>
-    <ul>
-      <li><b>项目管理 ProjectManager</b>（核心域 · <code>internal/projectmanager</code>）——Project / Issue / Task / Member，订阅真相。</li>
-      <li><b>智能体 Agent</b>（核心域 · <code>internal/agent</code>）——Agent / AgentWorkItem / ActivityEvent，单活工作项不变式。</li>
-      <li><b>环境 Environment</b>（核心域 · environment + workforce + files + blobstore）——Worker / AgentInstance / BootstrapToken / FileTransferSession / BlobStore。</li>
-      <li><b>会话 Conversation</b>（核心域 · <code>internal/conversation</code>）——Conversation / Message（追加写），kind 恰 4 值：dm / channel / task / issue。</li>
-      <li><b>可观测性 Observability</b>（支撑域 · 只读 · + outbox）——Event 追加写 + 投影读模型，纯下游消费者（OHS）。</li>
-      <li><b>身份 Identity</b>（支撑域 · 真实 BC + 共享内核 · <code>internal/identity</code>）——Identity / Organization / Member / Invitation，另供 IdentityRef 共享词汇。</li>
-      <li><b>SecretManagement</b>（支撑域 · <code>internal/secretmgmt</code>）——UserSecret（每用户 API key）。</li>
-    </ul>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- SECTION C — v2.7 → v2.7.1 变化 -->
-  <!-- ============================================================ -->
-  <div class="section-title">C · v2.7 → v2.7.1 变化</div>
-  <div class="prose">
-    <div class="callout warn">
-      <b>架构 / 领域模型无变化。</b>v2.7 → v2.7.1 的 tag-to-tag 代码 diff 真实且不小（155 文件，+7,265 / −1,276），但<b>每一项都是叠加在 v2.7 架构之上的增量特性、可运维性与 UX 抛光</b>——没有任何限界上下文边界、聚合或核心机制被重画。文档层面 diff 极小：<code>docs/release/v2.7.md</code> 是 v2.7.0 文档、未为 v2.7.1 改动，CHANGELOG 也<b>没有独立的 <code>[v2.7.1]</code> 小节</b>（两版同处单一 <code>[Unreleased]</code> 块，唯一 CHANGELOG delta 是 #211 多 center 安装的一条 <code>Added</code>）。
+  <main class="canvas">
+    <div class="crumbs" id="crumbs"></div>
+    <div class="head">
+      <div><h1 id="title"></h1><p id="sub"></p></div>
+      <div class="toggle"><button id="mStruct" class="on" onclick="setMode('structure')">结构</button><button id="mSeq" onclick="setMode('sequence')">序列图</button></div>
     </div>
+    <div id="body"></div>
+  </main>
+</div>
 
-    <table>
-      <thead>
-        <tr><th>变化项</th><th>说明（均为增量 · 不改架构）</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><b>组织内序列号 <code>T&lt;n&gt;</code> / <code>I&lt;n&gt;</code></b><br><small>#245</small></td>
-          <td>新增 migration <code>0049_v271_pm_org_sequence</code>，按 <code>(org,type)</code> 的单调计数表（<code>pm_org_sequence</code>），竞态安全分配 + 回填，DTO 增 <code>org_ref</code>；让议题/任务有人类友好引用，取代 ULID 尾巴。</td>
-        </tr>
-        <tr>
-          <td><b>身份邮箱 + 最近会话</b></td>
-          <td>migration <code>0048_v271_identity_email_last_session</code>，为 identity 增 email / last-session 列。</td>
-        </tr>
-        <tr>
-          <td><b>MCP 智能体自我 / 组织发现工具</b><br><small>#239 / #241 / #246</small></td>
-          <td>新增 <code>get_my_profile</code>、<code>find_org_agent</code>（返回可直接使用的 <code>assignee_ref</code>）、<code>find_org_channel</code>；精确区分 404 not-found / 403 not-a-member。β 只读，不改授权。</td>
-        </tr>
-        <tr>
-          <td><b>worker 配置单一来源</b><br><small>#249 / #251</small></td>
-          <td><code>install worker</code> 把全部 enroll 字段写入 <code>config.yaml</code>（<code>0600</code>），<code>worker run</code> 收敛为单个 <code>--config=</code>；token 不再出现在 <code>ps</code> / launchd plist / systemd unit 中。新增 <code>WorkerConfig</code> 结构；旧 flag 仍作覆盖，升级时迁移改写旧配置/单元。</td>
-        </tr>
-        <tr>
-          <td><b>单机多 center</b><br><small>#211（CHANGELOG Added）</small></td>
-          <td><code>install center --instance &lt;name&gt;</code> → 独立前缀（<code>~/.agent-center.&lt;name&gt;</code>）+ 独立 launchd/systemd 标签 + 显式端口；新增 <code>list-local-centers</code> 与 <code>server.instance</code> 配置字段。仅全新安装。</td>
-        </tr>
-        <tr>
-          <td><b>升级比对 git commit 而非版本串 + <code>--force</code></b><br><small>#234</small></td>
-          <td>根因修复：同版本不同 commit 的重建也会重新安装。<code>cli.SetInstallBuildCommit(buildCommit)</code> 在 <code>main.go</code> 中贯通。</td>
-        </tr>
-        <tr>
-          <td><b>默认模型加固为 <code>claude-opus-4-8</code></b><br><small>#232 / #236</small></td>
-          <td>创建弹窗前端预填，后端创建处兜底强制（bulletproof floor）。</td>
-        </tr>
-        <tr>
-          <td><b>Web Console UX 抛光</b><br><small>#238 / #240 / #250 / #253 / #247 / #242 / #228（文件改动主体）</small></td>
-          <td>7 个详情页 <b>Breadcrumb</b> 导航 + 通用 <code>&lt;Breadcrumb&gt;</code> 组件；AgentDetail Stop/Restart/Reset 与 Message 按钮<b>图标化</b>（Reset 保留红色破坏性样式）；侧栏折叠图标简化为单笔 chevron（⌘B 不变）；频道 URL 改 hash id <code>/channels/:channelId</code>；表格化 ProjectDetail Issues/Tasks 与 AgentDetail WorkItems，Profile 模块 + Activity 时间线重做；在表格/详情/面包屑展示 <code>T&lt;n&gt;</code>/<code>I&lt;n&gt;</code> 引用。</td>
-        </tr>
-      </tbody>
-    </table>
+<script>
+/* ---------- v2.7 domain data (2026-06-03 clean-schema 重构：退役 task-runtime + discussion) ---------- */
+const BCS = {
+  projectmanager:{ name:"ProjectManager", zh:"项目管理 (Project/Issue/Task)", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"工作真相源 —— Project / Issue / Task / Member。v2.7 退役旧 task-runtime + discussion，重画为清晰 BC。",
+    aggs:["project","issue","task"],
+    app:["ProjectService · 项目生命周期","IssueService · 议题协商","TaskService · 任务生命周期"],
+    dom:[{n:"ConclusionService",o:"conclude(issue)→0/1/N Task"},{n:"MembershipService",o:"join() / leave()"}],
+    repo:["ProjectRepository","IssueRepository","TaskRepository","MemberRepository"] },
+  agent:       { name:"Agent", zh:"智能体", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"真正执行任务的智能体端到端走专用工作项流 —— Agent + 生命周期 + AgentWorkItem 单活不变式。",
+    aggs:["agent","agentworkitem"],
+    app:["AgentLifecycleService · 生命周期","AgentWorkService · 派工/执行"],
+    dom:[{n:"SingleActiveWorkItemService",o:"ensureSingleActive(agent)"},{n:"ActivityProjectionService",o:"project(ActivityEvent)"}],
+    repo:["AgentRepository","AgentWorkItemRepository","ActivityEventRepository"] },
+  environment: { name:"Environment", zh:"环境 (Worker/文件传输)", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"Worker / Agent supervisor / 文件传输会话（含 files + blobstore）。detached supervisor + survive-reattach，SSE 优先/轮询回退。",
+    aggs:["worker","agentinstance","filetransfersession"],
+    app:["WorkerEnrollService","WorkerControlService · stream-first","FileTransferService","CapabilityDiscoveryService"],
+    dom:[{n:"SupervisorReattachService",o:"reattach() / reap-relaunch()"},{n:"ControlStreamService",o:"emit(WorkerControlEvent)"},{n:"BlobStoreService",o:"put() / get()"}],
+    repo:["WorkerRepository","AgentInstanceRepository","BootstrapTokenRepository","FileTransferSessionRepository","BlobStoreRepository"] },
+  conversation:{ name:"Conversation", zh:"会话", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"统一 URI 方案贯穿 channel / DM / task / issue 四类会话；Message 追加写，对话即决策审计。",
+    aggs:["conversation"],
+    app:["SendMessage · 写入会话用例","AttachFileService · 消息附件"],
+    dom:[{n:"ConversationLifecycleService",o:"open() / archive()"}],
+    repo:["ConversationRepository","MessageRepository"] },
+  observability:{ name:"Observability", zh:"可观测性", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"Event 追加写 + 投影读模型，纯下游消费者 (OHS) + outbox；只读，降级可运行。",
+    aggs:["event"],
+    app:["ProjectionService · 读模型","TraceArchiveService · trace 归档"],
+    dom:[{n:"EventProjectionService",o:"project(event)→视图"}],
+    repo:["EventRepository","ProjectionRepository","OutboxRepository"] },
+  identity:    { name:"Identity", zh:"身份 (共享内核)", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"真实 BC + 共享内核 —— Identity / Organization / Member / Invitation，另供 IdentityRef 共享词汇。",
+    aggs:["identity","organization"],
+    app:["IdentityService · 真实会话身份","OrganizationService","InvitationService"],
+    dom:[{n:"MembershipResolutionService",o:"resolve(IdentityRef)"}],
+    repo:["IdentityRepository","OrganizationRepository","InvitationRepository"] },
+  secret:      { name:"SecretManagement", zh:"密钥管理", cls:"peripheral", clsLabel:"Supporting · Peripheral", c:"var(--peripheral)",
+    desc:"每用户 API key —— UserSecret 实体，secret:<name> 引用，降级可运行。",
+    aggs:["usersecret"],
+    app:["UserSecretService · CRUD"],
+    dom:[{n:"SecretResolutionService",o:"resolve(secret:<name>)"}],
+    repo:["UserSecretRepository"] },
+};
+/* aggregate clusters → entity class boxes */
+const AGGS = {
+  project: { bc:"projectmanager", root:"Project", title:"Project 聚合", meta:"工作真相源",
+    classes:[
+      { id:"Project", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["org_id","FK"],["name","string"],["slug","unique"]], state:["active","archived"], ops:["create()","archive()"] },
+      { id:"Member", ster:"«Entity»", c:"var(--accent)", fields:[["id","ULID"],["project_id","FK"],["identity_ref","IdentityRef"],["role","enum"]], state:[], ops:["join()","leave()"] },
+    ],
+    rels:[ ["Project","Member","1","N","订阅真相"] ],
+    svc:{ n:"MembershipService", ops:["join(project,identity)","leave()"], uses:"Project" } },
+  issue: { bc:"projectmanager", root:"Issue", title:"Issue 聚合", meta:"协商流 → conclude spawn",
+    classes:[
+      { id:"Issue", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["project_id","FK"],["conversation_id","1:1"],["opener","IdentityRef"]], state:["open","under_discussion","concluded","closed_no_action","closed_with_tasks","withdrawn"], ops:["open()","conclude()→0/1/N Task","withdraw()"] },
+      { id:"Task", ster:"«AR · spawned»", c:"var(--core)", fields:[["id","ULID"],["project_id","FK"]], state:["open","…"], ops:[] },
+      { id:"Conversation", ster:"«AR · Conversation BC»", c:"var(--core)", fields:[["id","ULID"],["kind","'issue'"]], state:[], ops:[] },
+    ],
+    rels:[ ["Issue","Conversation","1","1","议事承载"], ["Issue","Task","1","N","conclude spawn"] ],
+    svc:{ n:"ConclusionService", ops:["conclude(issue)→0/1/N Task"], uses:"Issue" } },
+  task: { bc:"projectmanager", root:"Task", title:"Task 聚合", meta:"工作真相 · 经 Agent BC 执行",
+    classes:[
+      { id:"Task", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["project_id","FK"],["conversation_id","1:1"],["assignee_ref","IdentityRef?"],["title","string"]], state:["open","in_progress","done","abandoned"], ops:["assign()","conclude()"] },
+      { id:"Conversation", ster:"«AR · Conversation BC»", c:"var(--core)", fields:[["id","ULID"],["kind","'task'"]], state:[], ops:[] },
+      { id:"AgentWorkItem", ster:"«AR · Agent BC»", c:"var(--core)", fields:[["agent_id","FK"],["task_ref","FK"]], state:["working","…"], ops:[] },
+    ],
+    rels:[ ["Task","Conversation","1","1","对话即审计"], ["Task","AgentWorkItem","1","N","派工执行"] ],
+    svc:{ n:"TaskService", ops:["assign(task→agent)","conclude()"], uses:"Task" } },
+  agent: { bc:"agent", root:"Agent", title:"Agent 聚合", meta:"智能体 + 生命周期",
+    classes:[
+      { id:"Agent", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["org_id","FK"],["name","'coder-mbp'"],["model","claude-opus-4-8"]], state:["idle","active","sleeping","archived"], ops:["activate()","sleep()","archive()"] },
+      { id:"ActivityEvent", ster:"«Entity»", c:"var(--accent)", fields:[["id","ULID"],["agent_id","FK"],["kind","thinking|tool|…"]], state:[], ops:[] },
+    ],
+    rels:[ ["Agent","ActivityEvent","1","N","活动时间线"] ],
+    svc:{ n:"AgentLifecycleService", ops:["activate() / sleep()","archive()"], uses:"Agent" } },
+  agentworkitem: { bc:"agent", root:"AgentWorkItem", title:"AgentWorkItem 聚合", meta:"单活工作项不变式",
+    classes:[
+      { id:"AgentWorkItem", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["agent_id","FK"],["task_ref","FK"],["worker_id","FK"]], state:["queued","working","input_required","completed","failed","killed"], ops:["start()","complete()","fail()"] },
+      { id:"Agent", ster:"«AR · 同 BC»", c:"var(--core)", fields:[["id","ULID"]], state:["active","…"], ops:[] },
+    ],
+    rels:[ ["Agent","AgentWorkItem","1","N","单活不变式"] ],
+    svc:{ n:"SingleActiveWorkItemService", ops:["ensureSingleActive(agent)"], uses:"AgentWorkItem" } },
+  worker: { bc:"environment", root:"Worker", title:"Worker 聚合", meta:"detached supervisor + survive-reattach",
+    classes:[
+      { id:"Worker", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["session_token","secret"],["capabilities","[]CLI"]], state:["online","offline","enrolling"], ops:["enroll()","online()"] },
+      { id:"BootstrapToken", ster:"«Entity»", c:"var(--accent)", fields:[["id","ULID"],["worker_id","FK"],["scope","enroll"]], state:["pending","used","revoked"], ops:["consume()"] },
+    ],
+    rels:[ ["Worker","BootstrapToken","1","N","入册凭证"] ],
+    svc:{ n:"SupervisorReattachService", ops:["reattach()","reap-relaunch()"], uses:"Worker" } },
+  agentinstance: { bc:"environment", root:"AgentInstance", title:"AgentInstance 聚合", meta:"per-agent detached supervisor",
+    classes:[
+      { id:"AgentInstance", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["agent_id","FK"],["worker_id","FK"],["ack_offset","cursor"]], state:["running","detached","reaped"], ops:["spawn()","reattach()"] },
+      { id:"Worker", ster:"«AR · 同 BC»", c:"var(--core)", fields:[["id","ULID"]], state:["online","…"], ops:[] },
+    ],
+    rels:[ ["Worker","AgentInstance","1","N","托管(detached)"] ] },
+  filetransfersession: { bc:"environment", root:"FileTransferSession", title:"FileTransferSession 聚合", meta:"files + blobstore · 附件",
+    classes:[
+      { id:"FileTransferSession", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["uri","org-scoped"],["checksum","sha256"]], state:["uploading","verified","attached"], ops:["upload()","attach()"] },
+      { id:"Blob", ster:"«Entity · blobstore»", c:"var(--accent)", fields:[["id","ULID"],["ref","path"]], state:[], ops:[] },
+    ],
+    rels:[ ["FileTransferSession","Blob","1","1","原子校验后落盘"] ],
+    svc:{ n:"BlobStoreService", ops:["put()","get()→403 一致"], uses:"FileTransferSession" } },
+  conversation: { bc:"conversation", root:"Conversation", title:"Conversation 聚合", meta:"统一 URI · kind 恰 4 值",
+    classes:[
+      { id:"Conversation", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["uri","unified"],["kind","dm|channel|task|issue"]], state:[], ops:["open()","send()"] },
+      { id:"Message", ster:"«Entity»", c:"var(--core)", fields:[["id","ULID"],["content_kind","enum"],["author","IdentityRef"],["attachment_uri","FK?"]], state:[], ops:[] },
+      { id:"IdentityRef", ster:"«Value Object · 共享内核»", c:"var(--essential)", fields:[["ref","user:|agent:|supervisor:"]], state:[], ops:[] },
+    ],
+    rels:[ ["Conversation","Message","1","N","append-only"], ["Message","IdentityRef","N","1","author"] ] },
+  event: { bc:"observability", root:"Event", title:"Event 聚合", meta:"append-only · OHS + outbox",
+    classes:[
+      { id:"Event", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","ULID"],["type","string"],["table","events"]], state:[], ops:["append()"] },
+      { id:"Projection", ster:"«Entity · 读模型»", c:"var(--accent)", fields:[["view","name"],["from","outbox"]], state:[], ops:[] },
+    ],
+    rels:[ ["Event","Projection","1","N","投影读模型"] ] },
+  identity: { bc:"identity", root:"Identity", title:"Identity 聚合", meta:"真实 BC + 共享内核",
+    classes:[
+      { id:"Identity", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","ULID"],["email","string?"],["last_session","ts?"]], state:["active","disabled"], ops:["authenticate()"] },
+      { id:"Invitation", ster:"«Entity»", c:"var(--accent)", fields:[["id","ULID"],["org_id","FK"],["email","string"]], state:["pending","accepted","expired"], ops:["accept()"] },
+      { id:"IdentityRef", ster:"«Value Object · 共享词汇»", c:"var(--peripheral)", fields:[["ref","user:|agent:|supervisor:"]], state:[], ops:[] },
+    ],
+    rels:[ ["Identity","Invitation","1","N","邀请入组织"], ["Identity","IdentityRef","1","1","共享词汇"] ] },
+  organization: { bc:"identity", root:"Organization", title:"Organization 聚合", meta:"组织边界 + 成员",
+    classes:[
+      { id:"Organization", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","ULID"],["name","string"],["slug","unique"]], state:["active","suspended"], ops:["create()"] },
+      { id:"Member", ster:"«Entity»", c:"var(--accent)", fields:[["id","ULID"],["org_id","FK"],["identity_ref","IdentityRef"],["role","enum"]], state:[], ops:["assignRole()"] },
+    ],
+    rels:[ ["Organization","Member","1","N","组织成员"] ] },
+  usersecret: { bc:"secret", root:"UserSecret", title:"UserSecret 聚合", meta:"每用户 API key",
+    classes:[
+      { id:"UserSecret", ster:"«Aggregate Root»", c:"var(--peripheral)", fields:[["name","unique"],["kind","mcp|cloud_cred"],["value","encrypted"]], state:["active","revoked"], ops:["revoke()"] },
+      { id:"SecretRef", ster:"«Value Object»", c:"var(--peripheral)", fields:[["syntax","secret:<name>"]], state:[], ops:[] },
+    ],
+    rels:[ ["UserSecret","SecretRef","1","N","引用 不存明文"] ],
+    svc:{ n:"SecretResolutionService", ops:["resolve(secret:<name>)→value"], uses:"UserSecret" } },
+};
 
-    <p>结论：v2.7.1 是 v2.7 的<b>纯增量演进</b>。要查看与两版均一致的完整 DDD 架构、机制设计与三 Tab 图，请以
-    <a href="../../dev/v2.8/index.html">v2.8（当前版本）</a> 页为准（v2.8 在 v2.7.1 基础上又演进了会话页 4-surface 统一、agent 软归档、Worker 详情页、markdown 渲染等，详见 v2.8 页演进 highlight 区块）。</p>
-  </div>
+let S = { view:"map", bc:null, agg:null, mode:"structure" };
+const $ = s => document.querySelector(s);
 
-</main>
+function setMode(m){ S.mode = m; $("#mStruct").classList.toggle("on", m==="structure"); $("#mSeq").classList.toggle("on", m==="sequence"); render(); }
+function go(view, bc, agg){ S.view=view; if(bc!==undefined)S.bc=bc; if(agg!==undefined)S.agg=agg; render(); }
 
-<footer class="foot">
-  agent-center · 多智能体编排平台 ·
-  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
-  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
-</footer>
+function render(){
+  if(S.mode==="sequence"){ renderSeq(); updateRail(); return; }
+  if(S.view==="map") renderMap();
+  else if(S.view==="context") renderContext();
+  else renderClass();
+  updateRail();
+}
+function updateRail(){
+  const items = document.querySelectorAll("#layers li");
+  const order = {map:0, context:1, class:2};
+  const cur = S.mode==="sequence" ? -1 : order[S.view];
+  items.forEach((li,i)=>{ li.className=""; if(i<cur)li.classList.add("done"); else if(i===cur)li.classList.add("cur"); else li.classList.add("lock"); li.onclick=()=>{ if(i===0)go("map"); else if(i===1&&S.bc)go("context"); else if(i===2&&S.agg)go("class"); }; });
+  $("#l2sub").textContent = S.bc ? BCS[S.bc].name : "选一个 BC 进入";
+  $("#l3sub").textContent = S.agg ? AGGS[S.agg].root : "选一个聚合进入";
+}
 
+function renderMap(){
+  $("#title").textContent="DDD 架构浏览器 · v2.7";
+  $("#sub").textContent="v2.7（2026-06-03 clean-schema 重构）从 7 个限界上下文开始，逐层点开到聚合与实体类图。绿点=已访问，蓝点=当前。";
+  $("#crumbs").innerHTML="<b>① 限界上下文地图 · v2.7</b>";
+  let h='<div class="map fade">';
+  for(const k in BCS){ const b=BCS[k];
+    h+=`<div class="bc" style="--c:${b.c}" onclick="go('context','${k}')">
+      <div class="top"><div><h3>${b.name}</h3><div class="zh">${b.zh}</div></div><span class="chip ${b.cls}">${b.clsLabel}</span></div>
+      <p>${b.desc}</p>
+      <div class="ents">${b.aggs.map(a=>`<span>${AGGS[a].root}</span>`).join("")}</div>
+      <span class="drill">进入 →</span></div>`; }
+  h+='</div><div class="maphint">点任意上下文卡片 → 进入其聚合 ②</div>';
+  $("#body").innerHTML=h;
+}
+function renderContext(){
+  const b=BCS[S.bc];
+  $("#title").innerHTML=`${b.name} <span style="font-size:15px;color:var(--ink-3);font-weight:500">${b.zh}</span>`;
+  $("#sub").textContent=b.desc+" 分层：应用层编排用例 → 领域层(聚合 + 领域服务) → 基础设施层仓储。";
+  $("#crumbs").innerHTML=`<a onclick="go('map')">① 地图</a> › <b>② ${b.name} · 分层</b>`;
+  const app = b.app.map(s=>`<div class="svc app2"><span class="ster">«Application Service»</span><span class="nm">${s}</span></div>`).join("");
+  const dom = b.dom.map(s=>`<div class="svc"><span class="ster">«Domain Service»</span><span class="nm">${s.n}</span><div class="op">+ ${s.o}</div></div>`).join("");
+  const aggs = b.aggs.map(a=>{ const g=AGGS[a];
+    return `<div class="agg" onclick="go('class',undefined,'${a}')"><div class="st">«Aggregate Root»</div><h4>${g.root}</h4><div class="meta">${g.classes.length} 实体 · ${g.meta}</div><div class="open">展开类图 →</div></div>`; }).join("");
+  const repo = b.repo.map(r=>`<span>${r}</span>`).join("");
+  $("#body").innerHTML=`
+   <div style="margin-bottom:14px"><span class="chip ${b.cls}">${b.clsLabel}</span></div>
+   <div class="layered fade">
+     <div class="band app"><div class="bl"><span class="tag">应用层</span>Application Services · 用例编排 / 事务边界</div><div class="svcrow">${app}</div></div>
+     <div class="flowarrow">↓ 调用</div>
+     <div class="band dom"><div class="bl"><span class="tag">领域层</span>Domain · 聚合 + 领域服务（业务规则的家）</div>
+       <div class="domwrap">
+         <div class="aggcol"><div class="cl">聚合根 / 实体 — 点开看类图</div><div class="aggs">${aggs}</div></div>
+         <div class="svccol"><div class="cl" style="font-family:var(--font-mono);font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px">领域服务 — 跨聚合的无状态规则</div><div class="svcrow" style="flex-direction:column">${dom}</div></div>
+       </div>
+     </div>
+     <div class="flowarrow">↓ 依赖倒置（端口）</div>
+     <div class="band infra"><div class="bl"><span class="tag">基础设施层</span>Repositories · 持久化端口</div><div class="repochips">${repo}</div></div>
+   </div>`;
+}
+function renderClass(){
+  const g=AGGS[S.agg]; const b=BCS[g.bc];
+  $("#title").textContent=g.title;
+  $("#sub").textContent=`${b.name} BC · ${g.meta}。方框=实体/VO，连线=关系与重数。`;
+  $("#crumbs").innerHTML=`<a onclick="go('map')">① 地图</a> › <a onclick="go('context','${g.bc}')">② ${b.name}</a> › <b>③ ${g.root} 类图</b>`;
+  let boxes='';
+  g.classes.forEach(c=>{
+    const fields=c.fields.map(f=>`<div class="row"><span>${f[0]}</span><span class="ty">${f[1]}</span></div>`).join("");
+    const state=c.state.length?`<div class="sect state"><div class="lab">state machine</div>${c.state.map(s=>`<div class="row">● ${s}</div>`).join("")}</div>`:"";
+    const ops=c.ops.length?`<div class="sect"><div class="lab">behavior</div>${c.ops.map(o=>`<div class="row">+ ${o}</div>`).join("")}</div>`:"";
+    boxes+=`<div class="cls" id="cls-${c.id}" style="--c:${c.c}"><div class="ch"><span class="ster">${c.ster}</span><span class="nm">${c.id}</span></div><div class="sect">${fields}</div>${state}${ops}</div>`;
+  });
+  let rels = g.rels.slice();
+  if(g.svc){
+    boxes+=`<div class="cls service" id="cls-${g.svc.n}" style="--c:var(--essential)"><div class="ch"><span class="ster">«Domain Service»</span><span class="nm">${g.svc.n}</span></div><div class="sect"><div class="lab">behavior</div>${g.svc.ops.map(o=>`<div class="row">+ ${o}</div>`).join("")}</div></div>`;
+    rels.push([g.svc.n, g.svc.uses, "", "", "uses"]);
+  }
+  const key=`<div class="relkey"><span><b>──</b> 关联</span><span><b>1 — N</b> 一对多</span><span style="color:var(--essential)"><b>┄ «uses»</b> 领域服务操作聚合</span><span>虚线=跨 BC</span></div>`;
+  $("#body").innerHTML=`<div class="diagram"><svg id="svg"></svg><div class="classes fade">${boxes}</div></div>${key}<p class="seqnote">应用层用例 → 调 领域服务 + 聚合（见上一层「分层」视图）· 切「序列图」看运行时协作 ↗</p>`;
+  requestAnimationFrame(()=>drawRels(rels));
+}
+function drawRels(rels){
+  const svg=$("#svg"), wrap=svg.parentElement, wb=wrap.getBoundingClientRect();
+  svg.setAttribute("viewBox",`0 0 ${wb.width} ${wb.height}`);
+  let p="";
+  rels.forEach(r=>{
+    const a=document.getElementById("cls-"+r[0]), b=document.getElementById("cls-"+r[1]); if(!a||!b)return;
+    const ar=a.getBoundingClientRect(), br=b.getBoundingClientRect();
+    const ax=ar.left-wb.left+ar.width/2, ay=ar.bottom-wb.top, bx=br.left-wb.left+br.width/2, by=br.top-wb.top;
+    const uses = r[4]==="uses";
+    const cross = r[1]==="Conversation" || r[2]==="0";
+    const my=(ay+by)/2;
+    const col = (uses||cross)? "var(--essential)" : "var(--accent)";
+    p+=`<path d="M ${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}" fill="none" stroke="${col}" stroke-width="2" ${(cross||uses)?'stroke-dasharray="6 5"':''}/>`;
+    p+=`<circle cx="${ax}" cy="${ay}" r="3.5" fill="${col}"/>`;
+    if(uses){ const mx=(ax+bx)/2; p+=`<rect x="${mx-26}" y="${my-9}" width="52" height="17" rx="5" fill="#fff" stroke="${col}"/><text x="${mx}" y="${my+3}" font-size="10" font-family="JetBrains Mono" text-anchor="middle" fill="${col}">«uses»</text>`; }
+    else {
+      p+=`<rect x="${ax-9}" y="${ay+4}" width="18" height="15" rx="4" fill="#fff" stroke="${col}"/><text x="${ax}" y="${ay+15}" font-size="10" font-family="JetBrains Mono" text-anchor="middle" fill="${col}">${r[2]}</text>`;
+      p+=`<rect x="${bx-9}" y="${by-19}" width="18" height="15" rx="4" fill="#fff" stroke="${col}"/><text x="${bx}" y="${by-8}" font-size="10" font-family="JetBrains Mono" text-anchor="middle" fill="${col}">${r[3]}</text>`;
+    }
+  });
+  svg.innerHTML=p;
+}
+window.addEventListener("resize",()=>{ if(S.view==="class"&&S.mode==="structure"){ const g=AGGS[S.agg]; requestAnimationFrame(()=>drawRels(g.rels)); } });
+
+/* ---------- sequence diagram ---------- */
+const ACTORS=[ {k:"you",n:"You · 监督者"},{k:"",n:"Center"},{k:"",n:"Worker"},{k:"agent",n:"Agent · WorkItem"} ];
+const MSGS=[
+  {f:0,t:1,l:"Open Issue",s:"开议题"},
+  {f:1,t:1,self:true,l:"Conclude → Spawn Task",s:"收敛拍板"},
+  {f:1,t:2,l:"Dispatch → AgentWorkItem",s:"派工"},
+  {f:2,t:3,l:"spawn CLI (detached supervisor)",s:"working"},
+  {f:3,t:1,rtl:true,l:"input_required (escalate)",s:"卡住请示"},
+  {f:1,t:0,rtl:true,l:"Escalate → Console 卡片",s:"升级到人"},
+  {f:0,t:1,l:"Adopt / Respond",s:"采纳答案"},
+  {f:1,t:3,l:"responded",s:"继续"},
+  {f:3,t:1,rtl:true,l:"WorkerControlEvent (SSE) + Artifact",s:"实时投影/轮询回退"},
+  {f:3,t:1,rtl:true,l:"completed → Task done",s:"终态"},
+];
+function renderSeq(){
+  $("#title").textContent="派工与执行 · 序列图 · v2.7";
+  $("#sub").textContent="一次「开议题 → 收敛 → 派工 → 执行 → 请示 → 完成」的端到端协作，跨 ProjectManager / Agent / Environment / Conversation；控制流 stream-first，poll fallback。";
+  $("#crumbs").innerHTML="<b>序列图 · dispatch & execute · v2.7</b>";
+  const N=ACTORS.length, cols=`repeat(${N},1fr)`;
+  const pct=i=>((i+0.5)/N*100);
+  let actors=`<div class="actorrow" style="--cols:${cols}">`+ACTORS.map(a=>`<div class="actor"><span class="box ${a.k}">${a.n}</span></div>`).join("")+`</div>`;
+  let lanes=`<div class="lanes" style="height:${MSGS.length*46+10}px">`;
+  for(let i=0;i<N;i++) lanes+=`<div class="lane" style="left:${pct(i)}%"></div>`;
+  MSGS.forEach((m,i)=>{
+    const x1=pct(m.f), x2=pct(m.t), top=i*46;
+    if(m.self){ lanes+=`<div class="msg" style="top:${top}px"><div class="arrow self" style="left:${x1}%"></div><div class="t" style="left:${x1+6}%;transform:none">${m.l} <small>${m.s}</small></div></div>`; }
+    else { const L=Math.min(x1,x2), W=Math.abs(x2-x1); const mid=(x1+x2)/2;
+      lanes+=`<div class="msg" style="top:${top}px"><div class="arrow ${m.rtl?'rtl':''}" style="left:${L}%;width:${W}%"></div><div class="t" style="left:${mid}%">${m.l} <small>${m.s}</small></div></div>`; }
+  });
+  lanes+=`</div>`;
+  $("#body").innerHTML=`<div class="seq fade">${actors}${lanes}</div><p class="seqnote">蓝色→ 下行命令 · 绿色← 上行回报/事件 · 橙框↻ 自调用 · 竖虚线=实体生命线</p>`;
+}
+
+render();
+</script>
 </body>
 </html>
