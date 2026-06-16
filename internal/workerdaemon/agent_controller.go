@@ -97,6 +97,26 @@ func startSupervisorSessionAdapter(ctx context.Context, cfg SupervisorSessionCon
 	return s, nil
 }
 
+// cliCodex is the canonical agent.cli value for the codex execution path (equals
+// codex.AdapterName / the worker's reported capability name). An agent whose
+// reconcile payload carries this cli is started via the CodexSession path instead
+// of the claude supervisor.
+const cliCodex = "codex"
+
+// codexSessionStarter is the cli=codex session factory (test seam; same contract
+// as sessionStarter). Production = startCodexSessionAdapter.
+type codexSessionStarter func(ctx context.Context, cfg CodexSessionConfig) (agentSession, error)
+
+// startCodexSessionAdapter is the PRODUCTION codex session starter. The explicit
+// nil-on-error return avoids the typed-nil-interface gotcha.
+func startCodexSessionAdapter(ctx context.Context, cfg CodexSessionConfig) (agentSession, error) {
+	s, err := StartCodexSession(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 // Command types (mirror the projector constants — kept local so the controller
 // does not import the Environment/PM service packages).
 const (
@@ -127,6 +147,9 @@ type reconcilePayload struct {
 	AgentID          string `json:"agent_id"`
 	DesiredLifecycle string `json:"desired_lifecycle"`
 	Model            string `json:"model,omitempty"`
+	// CLI selects the per-CLI session starter ("codex" → CodexSession; empty /
+	// "claude-code" → the claude supervisor path).
+	CLI              string `json:"cli,omitempty"`
 	Version          int    `json:"version"`
 	ResetScope       string `json:"reset_scope,omitempty"`
 }
@@ -213,6 +236,9 @@ type AgentControllerConfig struct {
 	BinaryPath string
 	// ClaudeBinary overrides the claude binary path (empty → "claude" on PATH).
 	ClaudeBinary string
+	// CodexBinary overrides the codex binary path (empty → "codex" on PATH). Used
+	// only for cli=codex agents (the CodexSession path).
+	CodexBinary string
 	// AgentHomeBase is the runtime home root. Per-agent home resolves to
 	// AgentHomeBase/workers/{worker_id}/agents/{agent_id}/ (C1 OQ7 layout).
 	// Required for start/reset (mcp-config + workspace live under it).
@@ -252,6 +278,9 @@ type AgentControllerConfig struct {
 	// without a real spawn while guaranteeing production wires only the real
 	// *SupervisorSession (grep-clean ownership).
 	starter sessionStarter
+	// codexStarter is the cli=codex session factory (test seam, same contract as
+	// starter). Production = startCodexSessionAdapter (real codex exec session).
+	codexStarter codexSessionStarter
 }
 
 // managedAgent tracks one live (or recently-live) agent session (backed by a
@@ -348,6 +377,11 @@ type managedAgent struct {
 	// crash via selfHealEntry.model and spawn the re-driven claude with the SAME model
 	// (else self-heal would silently fall back to claude's default). Guarded by mu.
 	model string
+
+	// cli is the agent's execution CLI ("codex" → CodexSession; empty / "claude-code"
+	// → claude supervisor). Read in onExit to route a codex agent away from the
+	// supervisor self-heal machinery (codex has no epoch/fork/reattach). Guarded by mu.
+	cli string
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -376,6 +410,9 @@ func NewAgentController(cfg AgentControllerConfig) (*AgentController, error) {
 	}
 	if cfg.starter == nil {
 		cfg.starter = startSupervisorSessionAdapter
+	}
+	if cfg.codexStarter == nil {
+		cfg.codexStarter = startCodexSessionAdapter
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = func(string) {}
@@ -512,7 +549,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 	// (lock released), so a plain resume of the same session-id is correct. Only the
 	// Mode-B crash-relaunch paths (bootReapRelaunch) fork (the killed claude's lock
 	// is still held).
-	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model); err != nil {
+	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model, pl.CLI); err != nil {
 		// Start failure IS retryable (transient FS / launch error) — return the
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
@@ -948,13 +985,20 @@ const workAvailableNudge = "📥 New work is available in your queue. When you r
 // OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
-func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model string) error {
+func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, cli string) error {
 	home, workspace, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(workspace, 0o700); err != nil {
 		return fmt.Errorf("agent_controller: mkdir workspace: %w", err)
+	}
+	// cli=codex: a fundamentally different execution model (one-shot `codex exec`
+	// + resume, NO persistent supervisor / epoch / session-id lock). Route to the
+	// self-contained CodexSession path before any of the claude/supervisor setup
+	// below. The claude path (cli empty / "claude-code") is untouched.
+	if cli == cliCodex {
+		return c.startCodexSession(ctx, agentID, version, home, workspace, model)
 	}
 	// v2.7 #182: claude runs with cwd=workspace and `--setting-sources user,project`,
 	// so its "project" settings source resolves to <workspace>/.claude. Create the
@@ -1075,6 +1119,77 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	c.mu.Unlock()
 	c.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, version, epochState.Epoch, generation, forkResume, resume, home)
 	return nil
+}
+
+// startCodexSession starts a cli=codex agent via the CodexSession path (one-shot
+// `codex exec` + resume; NO supervisor / epoch / mcp-config). It persists a cli
+// marker under home so boot-recovery routes this agent away from the claude
+// supervisor probe/relaunch (which would otherwise spawn claude for it).
+//
+// OWNERSHIP: this never execs claude. It starts a CodexSession (via the injected
+// codexStarter), whose per-turn `codex exec` process is owned by the session.
+func (c *AgentController) startCodexSession(ctx context.Context, agentID string, version int, home, workspace, model string) error {
+	if err := writeAgentCLIMarker(home, cliCodex); err != nil {
+		return fmt.Errorf("agent_controller: write codex cli marker: %w", err)
+	}
+	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit find their entry.
+	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model, cli: cliCodex}
+	c.mu.Lock()
+	c.agents[agentID] = ma
+	c.mu.Unlock()
+
+	sess, err := c.cfg.codexStarter(ctx, CodexSessionConfig{
+		AgentID:      agentID,
+		WorkspaceDir: workspace,
+		Binary:       c.cfg.CodexBinary,
+		Model:        model,
+		Logger:       c.cfg.Logger,
+		OnEvent: func(ev StreamEvent) {
+			c.onEvent(agentID, ev)
+		},
+		OnExit: func(exitErr error) {
+			c.onExit(agentID, exitErr)
+		},
+	})
+	if err != nil {
+		c.mu.Lock()
+		if c.agents[agentID] == ma {
+			delete(c.agents, agentID)
+		}
+		c.mu.Unlock()
+		return fmt.Errorf("agent_controller: start codex session: %w", err)
+	}
+	c.mu.Lock()
+	ma.session = sess
+	c.mu.Unlock()
+	c.log("started codex agent=%s version=%d home=%s", agentID, version, home)
+	return nil
+}
+
+// agentCLIMarkerFile is the per-agent-home file recording the agent's execution
+// cli, written at codex start so boot-recovery can route the agent to the right
+// path WITHOUT re-deriving the cli from the center (which does not carry it on the
+// boot resume-set). Absent → the claude/supervisor path (the default).
+const agentCLIMarkerFile = "agent.cli"
+
+func writeAgentCLIMarker(home, cli string) error {
+	if home == "" {
+		return errors.New("agent_controller: home required for cli marker")
+	}
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(home, agentCLIMarkerFile), []byte(cli), 0o600)
+}
+
+// readAgentCLIMarker returns the persisted cli for an agent home, or "" if no
+// marker exists (the claude/supervisor default).
+func readAgentCLIMarker(home string) string {
+	b, err := os.ReadFile(filepath.Join(home, agentCLIMarkerFile))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
 }
 
 // stopSession stops the live session for agentID (if any) — the EXPLICIT-terminate
@@ -1384,6 +1499,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	hadWork := ma.hadWork              // injected work → nudge on self-heal relaunch
 	workItemID := ma.currentWorkItemID // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
 	model := ma.model                  // agent's --model → carry across crash so self-heal re-drive uses the SAME model
+	cli := ma.cli                      // codex agents skip the supervisor self-heal machinery (no epoch/fork)
 	// Clear the entry: this daemon no longer tracks the session (on detach the
 	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)
@@ -1409,6 +1525,18 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 		msg = "process exited unexpectedly"
 	}
 	c.log("agent=%s crashed: %s", agentID, msg)
+	// cli=codex: the CodexSession has no supervisor / epoch / session-id lock, so the
+	// Mode-B supervisor self-heal (which would spawn a claude supervisor) does NOT
+	// apply. Report the crash lifecycle once and stop; v1 does not auto-relaunch a
+	// crashed codex agent (an operator stop→start re-runs it).
+	if cli == cliCodex {
+		ma.lifecycleOnce.Do(func() {
+			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "error", msg, time.Now()); err != nil {
+				c.log("agent=%s (codex) report error: %v", agentID, err)
+			}
+		})
+		return
+	}
 	// Mid-run crash self-heal (GATE-7 Mode-B, slice B): record the crash + schedule a
 	// backed-off relaunch (or circuit-break to terminal after the cap). This NEVER
 	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
