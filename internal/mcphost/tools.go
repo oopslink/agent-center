@@ -86,6 +86,142 @@ func makeGetIssue(cfg Config) mcp.ToolHandlerFor[getIssueArgs, any] {
 	}
 }
 
+// --- create_issue (v2.10.3 T170) ---------------------------------------------
+
+type createIssueArgs struct {
+	ProjectID   string   `json:"project_id" jsonschema:"the project to create the issue in (you must be a member)"`
+	Title       string   `json:"title" jsonschema:"the issue title"`
+	Description string   `json:"description,omitempty" jsonschema:"optional issue body/description"`
+	Tags        []string `json:"tags,omitempty" jsonschema:"optional labels (each 1..16 chars, up to 10)"`
+}
+
+func makeCreateIssue(cfg Config) mcp.ToolHandlerFor[createIssueArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args createIssueArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":    cfg.AgentID,
+			"project_id":  args.ProjectID,
+			"title":       args.Title,
+			"description": args.Description,
+		}
+		if len(args.Tags) > 0 {
+			body["tags"] = args.Tags
+		}
+		return callAdmin(ctx, cfg, "create_issue", body)
+	}
+}
+
+// --- update_issue (v2.10.3 T170) ---------------------------------------------
+
+// updateIssueArgs uses pointers so an OMITTED field is left unchanged — only the
+// fields you set are patched (title/description/status/tags), all-or-none.
+type updateIssueArgs struct {
+	IssueID     string    `json:"issue_id" jsonschema:"the issue to edit"`
+	Title       *string   `json:"title,omitempty" jsonschema:"new title (omit to leave unchanged)"`
+	Description *string   `json:"description,omitempty" jsonschema:"new description (omit to leave unchanged)"`
+	Status      *string   `json:"status,omitempty" jsonschema:"new status: open|in_progress|resolved|closed|discarded|reopened (omit to leave unchanged)"`
+	Tags        *[]string `json:"tags,omitempty" jsonschema:"replacement label set (omit to leave unchanged; pass [] to clear)"`
+}
+
+func makeUpdateIssue(cfg Config) mcp.ToolHandlerFor[updateIssueArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args updateIssueArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"issue_id": args.IssueID,
+		}
+		if args.Title != nil {
+			body["title"] = *args.Title
+		}
+		if args.Description != nil {
+			body["description"] = *args.Description
+		}
+		if args.Status != nil {
+			body["status"] = *args.Status
+		}
+		if args.Tags != nil {
+			body["tags"] = *args.Tags
+		}
+		return callAdmin(ctx, cfg, "update_issue", body)
+	}
+}
+
+// --- close_issue / reopen_issue (v2.10.3 T170) -------------------------------
+
+type issueIDArgs struct {
+	IssueID string `json:"issue_id" jsonschema:"the issue to act on"`
+}
+
+// makeIssueID backs the single-issue-id tools (close_issue, reopen_issue). The
+// tool string MUST equal the admin route segment, so it is supplied explicitly.
+func makeIssueID(cfg Config, tool string) mcp.ToolHandlerFor[issueIDArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args issueIDArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"issue_id": args.IssueID,
+		}
+		return callAdmin(ctx, cfg, tool, body)
+	}
+}
+
+// --- post_issue_message (v2.10.3 T170) ---------------------------------------
+
+type postIssueMessageArgs struct {
+	IssueID string `json:"issue_id" jsonschema:"the issue to comment on"`
+	Text    string `json:"text" jsonschema:"the comment text (@mention a participant by name to notify them)"`
+	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread; omit for a top-level comment.
+	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id; omit for a top-level comment"`
+}
+
+func makePostIssueMessage(cfg Config) mcp.ToolHandlerFor[postIssueMessageArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args postIssueMessageArgs) (*mcp.CallToolResult, any, error) {
+		// Model-facing arg is "text"; the admin endpoint reads "content".
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"issue_id": args.IssueID,
+			"content":  args.Text,
+		}
+		if args.ParentMessageID != "" {
+			body["parent_message_id"] = args.ParentMessageID
+		}
+		return callAdmin(ctx, cfg, "post_issue_message", body)
+	}
+}
+
+// --- list_issues (v2.10.3 T170) ----------------------------------------------
+
+type listIssuesArgs struct {
+	ProjectID string   `json:"project_id" jsonschema:"the project whose issues to list (required; you must be a member)"`
+	Status    []string `json:"status,omitempty" jsonschema:"optional issue statuses to include (e.g. open, in_progress, resolved); omit for all"`
+	Author    string   `json:"author,omitempty" jsonschema:"optional author identity ref to filter by (agent:<id> / user:<id>)"`
+}
+
+func makeListIssues(cfg Config) mcp.ToolHandlerFor[listIssuesArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listIssuesArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+		}
+		if len(args.Status) > 0 {
+			body["status"] = args.Status
+		}
+		if args.Author != "" {
+			body["author"] = args.Author
+		}
+		return callAdmin(ctx, cfg, "list_issues", body)
+	}
+}
+
+// --- list_tasks_of_issue (v2.10.3 T170) --------------------------------------
+
+func makeListTasksOfIssue(cfg Config) mcp.ToolHandlerFor[issueIDArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args issueIDArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"issue_id": args.IssueID,
+		}
+		return callAdmin(ctx, cfg, "list_tasks_of_issue", body)
+	}
+}
+
 // --- create_task -------------------------------------------------------------
 
 type createTaskArgs struct {

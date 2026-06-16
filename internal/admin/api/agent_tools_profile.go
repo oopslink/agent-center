@@ -32,6 +32,8 @@ import (
 var projectMemberCapabilities = []string{
 	"create_task", "assign_task", "post_task_message",
 	"subscribe", "block_task", "complete_task",
+	// v2.10.3 T170: full issue management for project members.
+	"create_issue", "update_issue", "close_issue", "reopen_issue", "post_issue_message",
 }
 
 // orgAgentCapabilities are the org-scoped actions available to any agent

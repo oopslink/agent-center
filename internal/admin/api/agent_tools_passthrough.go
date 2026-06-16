@@ -295,13 +295,14 @@ func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 
 // --- get_issue ---------------------------------------------------------------
 
-// getIssueHandler returns the issue projection — OWN-ASSOCIATED read scope (OQ4
-// strictly-own): the agent may read an issue ONLY if it holds a WorkItem for a
-// Task derived from this issue (task.DerivedFromIssue == issue_id), mirroring
-// get_task's own-work strictness. NOTE: #5a project membership is the OQ6 WRITE
-// gate, NOT a read widening — being a member does NOT grant reading arbitrary
-// project issues (that would be a deliberate OQ4 relaxation needing sign-off).
-// Else 403 not_in_issue_domain. Accepts GET or POST.
+// getIssueHandler returns the issue projection — PROJECT-MEMBER read scope
+// (v2.10.3 T170 relaxation, owner-approved): the agent may read ANY issue in a
+// project it is a member of (#5a project membership now gates issue reads too).
+// This REPLACES the prior OQ4 own-link scope (the agent had to hold a WorkItem
+// for a Task derived from the issue), which was too tight — a PD/agent could not
+// read sibling issues in its own project, and the "open an issue to discuss"
+// flow had no read path. A non-member gets ErrNotMember → 403; a missing issue
+// gets ErrIssueNotFound → 404. Accepts GET or POST.
 func (s *Server) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	agentID, issueID, ok := readAgentTool2(w, r, "issue_id")
@@ -316,34 +317,9 @@ func (s *Server) getIssueHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	i, err := d.PMService.GetIssue(r.Context(), pm.IssueID(issueID))
+	i, err := d.PMService.GetIssueForMember(r.Context(), pm.IssueID(issueID), pm.IdentityRef(agentActor(a)))
 	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	// Own-associated scope (OQ4): the agent may read the issue ONLY if it holds a
-	// WorkItem for a Task derived from it. Membership (#5a, the WRITE gate) does
-	// NOT widen reads to arbitrary project issues.
-	items, err := d.AgentWorkItemRepo.ListByAgent(r.Context(), a.ID())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", err.Error())
-		return
-	}
-	associated := false
-	for _, wi := range items {
-		taskID := strings.TrimPrefix(wi.TaskRef(), "pm://tasks/")
-		tk, terr := d.PMService.GetTask(r.Context(), pm.TaskID(taskID))
-		if terr != nil {
-			continue
-		}
-		if string(tk.DerivedFromIssue()) == issueID {
-			associated = true
-			break
-		}
-	}
-	if !associated {
-		writeError(w, http.StatusForbidden, "not_in_issue_domain",
-			"agent may only read an issue its own task derives from (OQ4 own-scope)")
+		mapDomainError(w, err) // ErrIssueNotFound → 404, ErrNotMember → 403
 		return
 	}
 	writeJSON(w, http.StatusOK, agentIssueMap(i))
@@ -398,9 +374,14 @@ func agentTaskMap(t *pm.Task) map[string]any {
 // agentIssueMap projects a pm.Issue to the wire shape used elsewhere (mirrors
 // webconsole's pmIssueMap).
 func agentIssueMap(i *pm.Issue) map[string]any {
+	tags := i.Tags()
+	if tags == nil {
+		tags = []string{} // always render a JSON array, never null
+	}
 	m := map[string]any{
 		"id": string(i.ID()), "project_id": string(i.ProjectID()), "title": i.Title(),
 		"description": i.Description(), "status": string(i.Status()), "created_by": string(i.CreatedBy()),
+		"tags":    tags, // v2.10.3 T170: surface the label set to agents
 		"version": i.Version(), "created_at": i.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": i.UpdatedAt().Format(time.RFC3339Nano),
 	}

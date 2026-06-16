@@ -100,6 +100,9 @@ var wantTools = []string{
 	"find_org_channel",
 	// reads
 	"get_task", "get_issue", "list_tasks",
+	// v2.10.3 T170: agent issue management
+	"create_issue", "update_issue", "close_issue", "reopen_issue",
+	"post_issue_message", "list_issues", "list_tasks_of_issue",
 	// pm writes / passthrough
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe", "request_input",

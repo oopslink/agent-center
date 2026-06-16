@@ -417,6 +417,17 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/list_tasks", s.listTasksHandler) // v2.9.1 #T38
 	s.mux.HandleFunc("POST /admin/agent-tools/get_issue", s.getIssueHandler)
 	s.mux.HandleFunc("GET /admin/agent-tools/get_issue", s.getIssueHandler)
+	// v2.10.3 T170 — agent issue-management tools (create/update/close/reopen/
+	// comment/list/link-task). Parity guards (TestAgentFacingToolParity +
+	// TestAgentFacingTool_HasAdminRoute) keep these in lockstep with the MCP
+	// registration in mcphost.
+	s.mux.HandleFunc("POST /admin/agent-tools/create_issue", s.createIssueHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/update_issue", s.updateIssueHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/close_issue", s.closeIssueHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/reopen_issue", s.reopenIssueHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/post_issue_message", s.postIssueMessageHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_issues", s.listIssuesHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_tasks_of_issue", s.listTasksOfIssueHandler)
 	// v2.7 post-D3 (task #104) — agent file MCP tools. Upload/download/attach with
 	// agent-domain reachability authz (the agent's OWN enumerable scopes). The
 	// byte mechanics mirror D3-d's human transport; only the authorization model

@@ -30,6 +30,62 @@ func (s *Service) GetIssue(ctx context.Context, id pm.IssueID) (*pm.Issue, error
 	return s.issues.FindByID(ctx, id)
 }
 
+// GetIssueForMember reads an Issue GUARDED by project membership (v2.10.3 T170):
+// the actor must be a member of the issue's project, else requireProjectMember's
+// error surfaces (ErrNotMember → 403, ErrIssueNotFound → 404 if the issue is
+// missing). This backs the RELAXED get_issue MCP tool — an agent that is a
+// member of the issue's project may read ANY issue in it (the prior OQ4 own-link
+// scope, which required holding a WorkItem for a task derived from the issue, was
+// too tight: a PD/agent could not read sibling issues in its own project). The
+// project-membership write-gate (#5a) now also gates issue reads, deliberately
+// (owner-approved T170 relaxation).
+func (s *Service) GetIssueForMember(ctx context.Context, id pm.IssueID, actor pm.IdentityRef) (*pm.Issue, error) {
+	i, err := s.issues.FindByID(ctx, id)
+	if err != nil {
+		return nil, err // pm.ErrIssueNotFound when missing
+	}
+	if err := s.requireProjectMember(ctx, i.ProjectID(), actor); err != nil {
+		return nil, err
+	}
+	return i, nil
+}
+
+// ListProjectIssuesForMember lists a project's issues, GUARDED by project
+// membership (v2.10.3 T170, the Issue analogue of ListProjectTasksForMember).
+// Backs the list_issues MCP tool; status/author filtering is applied by the caller.
+func (s *Service) ListProjectIssuesForMember(ctx context.Context, projectID pm.ProjectID, actor pm.IdentityRef) ([]*pm.Issue, error) {
+	if err := s.requireProjectMember(ctx, projectID, actor); err != nil {
+		return nil, err
+	}
+	return s.issues.ListByProject(ctx, projectID)
+}
+
+// ListTasksDerivedFromIssueForMember lists the tasks DERIVED from an issue
+// (task.DerivedFromIssue == issueID), GUARDED by membership of the issue's
+// project (v2.10.3 T170). Backs the list_tasks_of_issue MCP tool — the reverse
+// of create_task's derived_from_issue link, so an agent can see the executable
+// work an issue spawned. A missing issue yields ErrIssueNotFound (404).
+func (s *Service) ListTasksDerivedFromIssueForMember(ctx context.Context, issueID pm.IssueID, actor pm.IdentityRef) ([]*pm.Task, error) {
+	i, err := s.issues.FindByID(ctx, issueID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireProjectMember(ctx, i.ProjectID(), actor); err != nil {
+		return nil, err
+	}
+	all, err := s.tasks.ListByProject(ctx, i.ProjectID())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*pm.Task, 0, len(all))
+	for _, t := range all {
+		if t.DerivedFromIssue() == issueID {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 func (s *Service) ListTasks(ctx context.Context, projectID pm.ProjectID) ([]*pm.Task, error) {
 	return s.tasks.ListByProject(ctx, projectID)
 }
