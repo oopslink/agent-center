@@ -14,6 +14,13 @@ import (
 // use (e.g. agent directory) so a missing dependency never silently no-ops.
 var ErrPlansUnavailable = errors.New("projectmanager: plan repository unavailable — Plan operations are not wired")
 
+// ErrBuiltinPoolMissing is returned when a one-step create+dispatch (T199/WS3)
+// cannot find the project's built-in Assignment Pool plan. ADR-0047 guarantees
+// one pool per project (created in CreateProject's tx), so this is a server
+// invariant breach (data corruption / a project created before pools existed),
+// not a user error.
+var ErrBuiltinPoolMissing = errors.New("projectmanager: project has no built-in assignment pool (ADR-0047 invariant)")
+
 // CreatePlanCommand creates a Plan (v2.9 plan orchestration, design §2). A Plan
 // is project-scoped; the creator must be a project member and becomes the first
 // participant of the Plan's 1:1 Conversation (§9.5).

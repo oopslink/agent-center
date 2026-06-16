@@ -214,6 +214,100 @@ func TestCreateTask_CrossWorker_403(t *testing.T) {
 	}
 }
 
+// --- create_task one-step dispatch (T199/WS3) --------------------------------
+
+// dispatch=true (no assignee) → the created task lands in the project's built-in
+// pool and is immediately runnable (no separate add_task_to_plan).
+func TestCreateTask_Dispatch_NoAssignee_Runnable(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "title": "dispatched", "dispatch": true})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	f.drain(t)
+	tid, _ := body["task_id"].(string)
+	if tid == "" {
+		t.Fatalf("no task_id: %v", body)
+	}
+	// Runnable in one step (dispatched pool member).
+	if err := f.pmSvc.EnsureTaskRunnable(context.Background(), pm.TaskID(tid)); err != nil {
+		t.Fatalf("EnsureTaskRunnable = %v, want nil", err)
+	}
+}
+
+// dispatch=true + assignee → the task is assigned AND dispatched; it surfaces in
+// the assignee's get_my_work (run-real acceptance: "出现在 assignee 队列").
+func TestCreateTask_Dispatch_WithAssignee_ShowsInGetMyWork(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "title": "assigned+dispatched",
+			"assignee": "agent:" + atAgent1, "dispatch": true})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	f.drain(t)
+	tid, _ := body["task_id"].(string)
+
+	// get_my_work for the assignee must surface the task (claimable_tasks bucket).
+	st, work := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_w1",
+		map[string]any{"agent_id": atAgent1})
+	if st != http.StatusOK {
+		t.Fatalf("get_my_work status = %d, body = %v", st, work)
+	}
+	if !getMyWorkHasTask(work, tid) {
+		t.Fatalf("get_my_work missing dispatched+assigned task %s: %v", tid, work)
+	}
+	if err := f.pmSvc.EnsureTaskRunnable(context.Background(), pm.TaskID(tid)); err != nil {
+		t.Fatalf("EnsureTaskRunnable = %v, want nil", err)
+	}
+}
+
+// A malformed assignee ref is a clear 400 (not an opaque 500).
+func TestCreateTask_InvalidAssignee_400(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "title": "bad", "assignee": "bob"})
+	if status != http.StatusBadRequest || body["error"] != "invalid_assignee" {
+		t.Fatalf("status = %d err = %v, want 400 invalid_assignee", status, body["error"])
+	}
+}
+
+// getMyWorkHasTask reports whether the get_my_work response surfaces taskID in
+// any of its buckets (work_items / claimable_tasks / my_pool_tasks).
+func getMyWorkHasTask(resp map[string]any, taskID string) bool {
+	for _, key := range []string{"claimable_tasks", "my_pool_tasks"} {
+		raw, _ := resp[key].([]any)
+		for _, x := range raw {
+			if m, ok := x.(map[string]any); ok && m["id"] == taskID {
+				return true
+			}
+		}
+	}
+	// work_items carry the task ref as "pm://tasks/<id>".
+	wi, _ := resp["work_items"].([]any)
+	for _, x := range wi {
+		if m, ok := x.(map[string]any); ok {
+			if ref, _ := m["task_ref"].(string); ref == "pm://tasks/"+taskID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // --- assign_task / reassign_task ---------------------------------------------
 
 func TestAssignTask_AsMember_OK(t *testing.T) {
