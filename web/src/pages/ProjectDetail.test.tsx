@@ -265,6 +265,53 @@ describe('ProjectDetail page', () => {
     expect(repoRow).toHaveTextContent('main repo');
   });
 
+  it('member name links to its detail page (agent → AgentDetail, human → user page)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/projects/:pid/members', () =>
+        HttpResponse.json({
+          members: [
+            { id: 'M-1', project_id: 'proj-a', identity_id: 'user:hayang', role: 'owner', added_by: 'user:hayang', created_at: '2026-05-20T01:00:00Z' },
+            { id: 'M-2', project_id: 'proj-a', identity_id: 'agent:agent-xyz', role: 'member', added_by: 'user:hayang', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        }),
+      ),
+      // The execution Agent carries identity_member_id == the member identity_id;
+      // the AgentDetail link uses the Agent's own id (distinct here to prove the map).
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [{ id: 'agent-exec-1', identity_member_id: 'agent:agent-xyz', display_name: 'Builder', status: 'joined' }],
+        }),
+      ),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { identity_id: 'hayang', display_name: 'Ha Yang', kind: 'user', status: 'joined' },
+          { identity_id: 'agent-xyz', display_name: 'Builder', kind: 'agent', status: 'joined' },
+        ]),
+      ),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId('project-tab-members'));
+    await waitFor(() => expect(screen.getAllByTestId('member-row').length).toBe(2));
+    const rows = screen.getAllByTestId('member-row');
+    const human = rows.find((r) => r.getAttribute('data-member-id') === 'M-1');
+    const agent = rows.find((r) => r.getAttribute('data-member-id') === 'M-2');
+
+    // Human member → /users/<bare identity>.
+    const humanRef = within(human as HTMLElement).getByTestId('project-member-ref');
+    expect(humanRef.tagName).toBe('A');
+    expect(humanRef).toHaveAttribute('href', '/users/hayang');
+
+    // Agent member → /agents/<execution-agent id> (resolved via identity_member_id).
+    const agentRef = within(agent as HTMLElement).getByTestId('project-member-ref');
+    expect(agentRef.tagName).toBe('A');
+    expect(agentRef).toHaveAttribute('href', '/agents/agent-exec-1');
+  });
+
   // T131: the per-project Task/Issue lists reuse the global FilterBar with the
   // project dimension FIXED — the Project picker is hidden, every other filter is
   // open, and the selections are sent as query params to the project-scoped list.

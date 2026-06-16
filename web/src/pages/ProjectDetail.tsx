@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -11,6 +11,7 @@ import {
   type Project,
 } from '@/api/projects';
 import { useIssues } from '@/api/issues';
+import { useAgents } from '@/api/agents';
 import { formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
 import { buildWorkItemFilters } from '@/api/orgWorkItems';
@@ -373,6 +374,27 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
   const members = useProjectMembers(projectId);
   // v2.7 #192: show member display names (raw identity id on hover).
   const resolveName = useDisplayNameResolver();
+  // Click a member name → its detail page. Agent members link to their
+  // execution Agent (identity_member_id == member identity_id, the unified-create
+  // link; no match → no link for legacy identity-only rows). Human members link
+  // to the user page. Mirrors the canonical resolution in MembersAgents.
+  const agents = useAgents();
+  const agentIDByIdentity = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of agents.data ?? []) {
+      if (a.identity_member_id) map.set(a.identity_member_id, a.id);
+    }
+    return map;
+  }, [agents.data]);
+  // ProjectMember carries no `kind`, so resolve agent vs human from the
+  // identity_id prefix (same compat check MembersAgents uses).
+  const memberPath = (identityId: string): string | undefined => {
+    if (identityId.startsWith('agent:') || identityId.startsWith('agent-')) {
+      const aid = agentIDByIdentity.get(identityId);
+      return aid ? `/agents/${encodeURIComponent(aid)}` : undefined;
+    }
+    return `/users/${encodeURIComponent(normalizeIdentityRef(identityId))}`;
+  };
   // v2.7 #207: owner-gated add/remove.
   const me = useAppStore((s) => s.currentUserId);
   const remove = useRemoveProjectMember(projectId);
@@ -427,6 +449,7 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
                   id={m.identity_id}
                   name={resolveName(m.identity_id) === m.identity_id ? undefined : resolveName(m.identity_id)}
                   fallback={normalizeIdentityRef(m.identity_id)}
+                  to={memberPath(m.identity_id)}
                   testId="project-member-ref"
                   className="truncate text-sm text-text-primary"
                 />
