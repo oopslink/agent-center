@@ -21,12 +21,11 @@ const browserTz =
   typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
 
 interface Props {
-  slug: string | undefined;
   onClose: () => void;
 }
 
-export function ReminderCreateModal({ slug, onClose }: Props): React.ReactElement {
-  const create = useCreateReminder(slug);
+export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
+  const create = useCreateReminder();
   const [kind, setKind] = useState<ReminderScheduleKind>('cron');
   const [remindee, setRemindee] = useState('');
   const [content, setContent] = useState('');

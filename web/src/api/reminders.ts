@@ -114,7 +114,7 @@ export interface CreateReminderInput {
   end_condition?: ReminderEndCondition;
 }
 
-export function useCreateReminder(slug: string | undefined) {
+export function useCreateReminder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateReminderInput) => api.post<Reminder>('/reminders', input),
@@ -133,7 +133,7 @@ export interface UpdateReminderInput {
   content?: string; // edit only
 }
 
-export function useUpdateReminder(slug: string | undefined) {
+export function useUpdateReminder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: UpdateReminderInput) =>

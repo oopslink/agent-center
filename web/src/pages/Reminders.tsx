@@ -54,7 +54,7 @@ export default function Reminders(): React.ReactElement {
   const [createOpen, setCreateOpen] = useState(false);
   const { data: reminders, isLoading, isError } = useReminders(slug, { filter });
   const displayName = useDisplayNameResolver();
-  const update = useUpdateReminder(slug);
+  const update = useUpdateReminder();
 
   const stats = useMemo(() => {
     const list = reminders ?? [];
@@ -185,7 +185,7 @@ export default function Reminders(): React.ReactElement {
         )}
       </div>
 
-      {createOpen && <ReminderCreateModal slug={slug} onClose={() => setCreateOpen(false)} />}
+      {createOpen && <ReminderCreateModal onClose={() => setCreateOpen(false)} />}
     </div>
   );
 }
