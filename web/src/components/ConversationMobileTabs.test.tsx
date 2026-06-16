@@ -15,7 +15,9 @@ const participants: Participant[] = [
 function mockApi({ threads = [], messages = [] }: { threads?: unknown[]; messages?: unknown[] } = {}) {
   server.use(
     http.get('/api/conversations/:id/threads', () => HttpResponse.json(threads)),
+    http.get('/api/conversations/:id/messages/:rootId/replies', () => HttpResponse.json([])),
     http.get('/api/conversations/:id/messages', () => HttpResponse.json(messages)),
+    http.post('/api/conversations/:id/read-state', () => HttpResponse.json({ ok: true })),
     http.post('/api/sse/subscribe', () => HttpResponse.json({ subscribed: true })),
     http.post('/api/sse/unsubscribe', () => HttpResponse.json({ unsubscribed: true })),
   );
@@ -64,6 +66,27 @@ describe('ConversationMobileTabs (T184 mobile chat/threads/files)', () => {
     expect(await within(panel).findByTestId('thread-list')).toBeInTheDocument();
     // chat panel is still in the DOM (mounted) but hidden — SSE/scroll/draft survive.
     expect(screen.getByTestId('conversation-mpanel-chat')).toHaveAttribute('hidden');
+  });
+
+  it('opens the ThreadSidebar when a thread row in the Threads tab is clicked (regression: rows were inert without a provider)', async () => {
+    mockApi({
+      threads: [
+        {
+          root: { id: 'R1', conversation_id: 'C-1', sender_identity_id: 'user:x', content_kind: 'text', content: 'hi', direction: 'inbound', posted_at: '2026-05-24T01:00:00Z' },
+          reply_count: 1,
+          thread_last_activity_at: '2026-05-24T02:00:00Z',
+        },
+      ],
+    });
+    wrap();
+    fireEvent.click(screen.getByTestId('conversation-mtab-threads'));
+    const panel = screen.getByTestId('conversation-mpanel-threads');
+    const row = await within(panel).findByTestId('thread-list-row');
+    // before the click there is no sidebar.
+    expect(screen.queryByTestId('thread-sidebar')).not.toBeInTheDocument();
+    fireEvent.click(row);
+    // clicking the row must open the shared (overlay) ThreadSidebar.
+    expect(await screen.findByTestId('thread-sidebar')).toBeInTheDocument();
   });
 
   it('DM (showParticipants=false) shows chat / threads / files only — no Participants tab', () => {

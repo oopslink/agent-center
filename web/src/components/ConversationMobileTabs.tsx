@@ -5,6 +5,7 @@ import { useConversationThreads } from '@/api/conversations';
 import { ConversationView, type ConversationSurface } from './ConversationView';
 import { ParticipantsPanel } from './ParticipantsPanel';
 import { ConversationThreadList } from './ConversationThreadList';
+import { ThreadSidebarProvider } from './ThreadSidebarContext';
 import { SharedFilesPanel, useSharedFiles } from './SharedFilesPanel';
 
 // ============================================================================
@@ -123,7 +124,16 @@ export function ConversationMobileTabs({
           hidden={tab !== 'threads'}
           data-testid="conversation-mpanel-threads"
         >
-          {tab === 'threads' && <ConversationThreadList conversationId={conversationId} embedded />}
+          {/* The Threads tab lives OUTSIDE ConversationView, so it has no
+              ThreadSidebarProvider ancestor (ConversationView mounts its own for
+              the chat tab). Without a provider, useThreadSidebar() is null and
+              the thread rows are inert — clicking a thread did nothing. Wrap the
+              tab in its own provider so rows open the shared (overlay) ThreadSidebar. */}
+          {tab === 'threads' && (
+            <ThreadSidebarProvider>
+              <ConversationThreadList conversationId={conversationId} embedded />
+            </ThreadSidebarProvider>
+          )}
         </div>
         <div
           role="tabpanel"
