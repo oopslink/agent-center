@@ -70,4 +70,30 @@ func TestAPI_ListMessages_BeyondWindow_IncludesLatest(t *testing.T) {
 		t.Fatalf("expected ASC window m-0050..m-0249, got %s..%s",
 			msgs[0]["id"], msgs[len(msgs)-1]["id"])
 	}
+
+	// --- T189 phase 2: ?before=<id> loads the previous (older) page. ---
+	resp2 := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/messages?before=m-0050", sess)
+	var older []map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&older); err != nil {
+		t.Fatal(err)
+	}
+	// 50 older messages (m-0000..m-0049), ASC, cursor m-0050 excluded.
+	if len(older) != 50 {
+		t.Fatalf("expected 50 older messages, got %d", len(older))
+	}
+	if older[0]["id"].(string) != "m-0000" || older[len(older)-1]["id"].(string) != "m-0049" {
+		t.Fatalf("expected older window m-0000..m-0049, got %s..%s",
+			older[0]["id"], older[len(older)-1]["id"])
+	}
+	for _, m := range older {
+		if m["id"].(string) == "m-0050" {
+			t.Fatal("before-cursor row must be excluded from the older page")
+		}
+	}
+
+	// An invalid before cursor (not in this conversation) → 400.
+	resp3 := orgScopedGet(t, s.URL+"/api/conversations/"+cid+"/messages?before=ghost", sess)
+	if resp3.StatusCode != 400 {
+		t.Fatalf("invalid before cursor: got %d want 400", resp3.StatusCode)
+	}
 }

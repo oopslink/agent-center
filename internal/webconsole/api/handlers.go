@@ -865,6 +865,21 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	// top-level messages must still show the LATEST ones (incl. the user's own
 	// just-sent message), returned oldest→newest for display.
 	filter := conversation.MessageFilter{Tail: 200, TopLevelOnly: true}
+	// T189 phase 2: ?before=<messageId> loads the previous page (the newest 200
+	// top-level messages strictly older than that message) for scroll-up history.
+	// The cursor message must exist in THIS conversation; otherwise 400 (the FE only
+	// ever passes an id it already holds). The (posted_at, id) keyset matches the
+	// Tail ordering so pages never duplicate/skip at a same-instant boundary.
+	if before := r.URL.Query().Get("before"); before != "" {
+		cursor, err := d.MsgRepo.FindByID(r.Context(), conversation.MessageID(before))
+		if err != nil || cursor.ConversationID() != id {
+			writeError(w, http.StatusBadRequest, "bad_cursor", "invalid before cursor")
+			return
+		}
+		pa := cursor.PostedAt()
+		filter.BeforePostedAt = &pa
+		filter.BeforeID = before
+	}
 	msgs, err := d.MsgRepo.FindByConversationID(r.Context(), id, filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())

@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api, withOrgSlug } from './client';
 import { qk } from './queryKeys';
@@ -77,6 +78,114 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: () => api.get<Message[]>(`/conversations/${conversationId}/messages`),
     enabled: !!conversationId,
   });
+}
+
+// T189 phase 2 — the server returns the newest MESSAGE_PAGE_SIZE top-level
+// messages; a returned page SMALLER than this means there is no older history.
+export const MESSAGE_PAGE_SIZE = 200;
+
+// fetchMessagesBefore loads the previous page: the newest page of top-level
+// messages strictly OLDER than `beforeId` (keyset cursor on the server). Returned
+// oldest→newest, same shape as useMessages.
+export function fetchMessagesBefore(conversationId: string, beforeId: string): Promise<Message[]> {
+  return api.get<Message[]>(
+    `/conversations/${conversationId}/messages?before=${encodeURIComponent(beforeId)}`,
+  );
+}
+
+// mergeTimeline concatenates already-loaded OLDER pages (oldest→newest, all
+// strictly before `latest`) with the live `latest` window (oldest→newest) into one
+// chronological list, de-duped by id (a safety net for SSE/overlap — older pages
+// never overlap `latest` because the cursor row is excluded). Pure + exported so
+// the ordering/dedup contract is unit-tested directly.
+export function mergeTimeline(older: Message[], latest: Message[]): Message[] {
+  const seen = new Set<string>();
+  const out: Message[] = [];
+  for (const m of [...older, ...latest]) {
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
+    out.push(m);
+  }
+  return out;
+}
+
+export interface ConversationTimeline {
+  messages: Message[];
+  isLoading: boolean;
+  isError: boolean;
+  isSuccess: boolean;
+  error: unknown;
+  /** load the previous (older) page; no-op while one is in flight or none remain. */
+  loadOlder: () => void;
+  /** false once the server returns a short page (start of history reached). */
+  hasOlder: boolean;
+  isLoadingOlder: boolean;
+}
+
+// useConversationTimeline wraps useMessages (the live latest window, SSE-invalidated)
+// with a scroll-up history buffer (T189 phase 2). The latest window stays the source
+// of truth for new messages (so SSE + read-cursor keep working unchanged); older
+// pages are fetched on demand via the `before` keyset cursor and prepended. The two
+// are merged chronologically + de-duped. The buffer resets when the conversation
+// changes. SharedFilesPanel still uses useMessages (latest window) directly.
+export function useConversationTimeline(conversationId: string | undefined): ConversationTimeline {
+  const latest = useMessages(conversationId);
+  const [older, setOlder] = useState<Message[]>([]);
+  // moreOlder tracks whether the server might still have older pages. It only goes
+  // false once a fetched page comes back short; the derived `hasOlder` below also
+  // requires the FIRST window to be full (a short first window ⇒ no history at all,
+  // so no needless affordance/fetch on a normal short conversation).
+  const [moreOlder, setMoreOlder] = useState(true);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const loadingRef = useRef(false);
+
+  // Reset the history buffer whenever the conversation changes.
+  useEffect(() => {
+    setOlder([]);
+    setMoreOlder(true);
+    setIsLoadingOlder(false);
+    loadingRef.current = false;
+  }, [conversationId]);
+
+  const latestData = latest.data;
+  const messages = useMemo(() => mergeTimeline(older, latestData ?? []), [older, latestData]);
+  // Older history can exist only if the latest window came back full (== page size)
+  // or we've already pulled at least one older page; combined with moreOlder.
+  const firstWindowFull = (latestData?.length ?? 0) >= MESSAGE_PAGE_SIZE;
+  const hasOlder = moreOlder && (older.length > 0 || firstWindowFull);
+
+  const loadOlder = useCallback(() => {
+    if (!conversationId || loadingRef.current || !hasOlder) return;
+    // Oldest currently-shown message is the cursor for the next older page.
+    const oldestId = (older[0] ?? latestData?.[0])?.id;
+    if (!oldestId) return;
+    loadingRef.current = true;
+    setIsLoadingOlder(true);
+    fetchMessagesBefore(conversationId, oldestId)
+      .then((page) => {
+        if (page.length > 0) setOlder((prev) => [...page, ...prev]);
+        if (page.length < MESSAGE_PAGE_SIZE) setMoreOlder(false);
+      })
+      .catch(() => {
+        // Stop trying on error (e.g. a stale cursor); the latest window is unaffected.
+        setMoreOlder(false);
+      })
+      .finally(() => {
+        loadingRef.current = false;
+        setIsLoadingOlder(false);
+      });
+  }, [conversationId, hasOlder, older, latestData]);
+
+  return {
+    messages,
+    isLoading: latest.isLoading,
+    isError: latest.isError,
+    isSuccess: latest.isSuccess,
+    error: latest.error,
+    loadOlder,
+    hasOlder,
+    isLoadingOlder,
+  };
 }
 
 // v2.9.1 Threads: fetch the replies of one root (top-level) message. The root

@@ -63,6 +63,14 @@ type MessageFilter struct {
 	// thread side panel (v2.9.1 Thread P1). Opt-in; default false keeps every other
 	// caller's behavior unchanged.
 	TopLevelOnly bool
+	// Before is a keyset cursor for "load older history" pagination (T189 phase 2):
+	// when set, only rows strictly OLDER than this (posted_at, id) are returned —
+	// (posted_at < BeforePostedAt) OR (posted_at == BeforePostedAt AND id < BeforeID).
+	// Combined with Tail it yields the newest page of messages before the cursor.
+	// The (posted_at, id) double key matches the Tail ordering, so paging never
+	// duplicates or skips a row at a same-instant boundary. Zero value = no cursor.
+	BeforePostedAt *time.Time
+	BeforeID       string
 }
 
 // ThreadDigest is the per-root thread summary used to badge a top-level message

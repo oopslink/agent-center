@@ -186,6 +186,49 @@ func TestMessageRepo_Tail_BeyondLimit_IncludesLatest(t *testing.T) {
 	}
 }
 
+// TestMessageRepo_Tail_BeforeCursor is the T189 phase-2 keyset pagination test:
+// given the latest window (Tail) and a `before` cursor, the previous page returns
+// the rows strictly older than the cursor, oldest→newest, excluding the cursor.
+func TestMessageRepo_Tail_BeforeCursor(t *testing.T) {
+	convR, msgR := setupMsgDB(t)
+	_ = convR.Save(context.Background(), mkConv(t, "c-1", conversation.ConversationKindDM, ""))
+	now := time.Now().UTC()
+	const total = 250
+	for i := 0; i < total; i++ {
+		m, _ := conversation.NewMessage(conversation.NewMessageInput{
+			ID: conversation.MessageID(fmt.Sprintf("m-%04d", i)), ConversationID: "c-1",
+			SenderIdentityID: "user:h", ContentKind: conversation.MessageContentText,
+			Direction: conversation.DirectionInbound, PostedAt: now.Add(time.Duration(i) * time.Millisecond),
+		})
+		if err := msgR.Append(context.Background(), m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Latest window = m-0050..m-0249; cursor on its oldest (m-0050).
+	cursor, err := msgR.FindByID(context.Background(), "m-0050")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pa := cursor.PostedAt()
+	older, err := msgR.FindByConversationID(context.Background(), "c-1",
+		conversation.MessageFilter{Tail: 200, TopLevelOnly: true, BeforePostedAt: &pa, BeforeID: "m-0050"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 50 older rows (m-0000..m-0049), ASC, cursor excluded.
+	if len(older) != 50 {
+		t.Fatalf("expected 50 older, got %d", len(older))
+	}
+	if string(older[0].ID()) != "m-0000" || string(older[len(older)-1].ID()) != "m-0049" {
+		t.Fatalf("expected m-0000..m-0049, got %s..%s", older[0].ID(), older[len(older)-1].ID())
+	}
+	for _, m := range older {
+		if string(m.ID()) == "m-0050" {
+			t.Fatal("cursor row must be excluded")
+		}
+	}
+}
+
 func TestMessageRepo_FindRecent(t *testing.T) {
 	convR, msgR := setupMsgDB(t)
 	_ = convR.Save(context.Background(), mkConv(t, "c-1", conversation.ConversationKindDM, ""))
