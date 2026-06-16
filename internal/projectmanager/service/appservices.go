@@ -205,7 +205,11 @@ type CreateIssueCommand struct {
 	ProjectID   pm.ProjectID
 	Title       string
 	Description string
-	CreatedBy   pm.IdentityRef
+	// Tags is the optional initial label set (v2.10.3 T170 — agent create_issue
+	// may seed labels at creation, matching the editable-tags surface of
+	// BatchUpdateIssue). Validated by pm.NewIssue (1..16 chars each, deduped, <=10).
+	Tags      []string
+	CreatedBy pm.IdentityRef
 }
 
 // CreateIssue writes the Issue + outbox pm.issue.created (the projector creates
@@ -236,7 +240,7 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 		}
 		i, ierr := pm.NewIssue(pm.NewIssueInput{
 			ID: issueID, ProjectID: cmd.ProjectID, Title: cmd.Title,
-			Description: cmd.Description, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
+			Description: cmd.Description, Tags: cmd.Tags, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
 		})
 		if ierr != nil {
 			return ierr

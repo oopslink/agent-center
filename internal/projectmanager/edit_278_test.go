@@ -6,6 +6,32 @@ import (
 	"time"
 )
 
+// --- NewIssue initial tags (v2.10.3 T170) -----------------------------------
+
+func TestNewIssue_Tags_CleanedAndValidated(t *testing.T) {
+	// Trimmed + deduped at construction, same rules as SetTags.
+	i, err := NewIssue(NewIssueInput{
+		ID: "I1", ProjectID: "P1", Title: "x", CreatedBy: "user:a", CreatedAt: t0,
+		Tags: []string{" bug ", "p1", "bug"},
+	})
+	if err != nil {
+		t.Fatalf("NewIssue: %v", err)
+	}
+	if got := i.Tags(); len(got) != 2 || got[0] != "bug" || got[1] != "p1" {
+		t.Fatalf("tags = %v, want [bug p1]", got)
+	}
+}
+
+func TestNewIssue_Tags_TooLongRejected(t *testing.T) {
+	_, err := NewIssue(NewIssueInput{
+		ID: "I1", ProjectID: "P1", Title: "x", CreatedBy: "user:a", CreatedAt: t0,
+		Tags: []string{strings.Repeat("x", 17)},
+	})
+	if err == nil {
+		t.Fatal("want error for a 17-char tag, got nil")
+	}
+}
+
 // --- SetTags validation (v2.8.1 edit-task #278) -----------------------------
 
 func TestTask_SetTags_Valid(t *testing.T) {

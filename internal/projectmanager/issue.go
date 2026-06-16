@@ -83,9 +83,12 @@ type NewIssueInput struct {
 	ProjectID   ProjectID
 	Title       string
 	Description string
-	CreatedBy   IdentityRef
-	CreatedAt   time.Time
-	OrgNumber   int
+	// Tags is the optional initial label set (v2.10.3 T170). Validated/cleaned by
+	// cleanTags (same rules as SetTags: 1..16 chars each, deduped, <=10).
+	Tags      []string
+	CreatedBy IdentityRef
+	CreatedAt time.Time
+	OrgNumber int
 }
 
 // NewIssue constructs a fresh open Issue. An Issue must belong to a Project
@@ -106,6 +109,10 @@ func NewIssue(in NewIssueInput) (*Issue, error) {
 	if in.CreatedAt.IsZero() {
 		return nil, errors.New("projectmanager: created_at required")
 	}
+	cleanedTags, err := cleanTags(in.Tags)
+	if err != nil {
+		return nil, err
+	}
 	at := in.CreatedAt.UTC()
 	return &Issue{
 		id:              in.ID,
@@ -118,6 +125,7 @@ func NewIssue(in NewIssueInput) (*Issue, error) {
 		updatedAt:       at,
 		version:         1,
 		orgNumber:       in.OrgNumber,
+		tags:            cleanedTags,
 		statusChangedAt: at,
 	}, nil
 }

@@ -201,14 +201,54 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_issue",
-		Description: "Get an issue the calling agent's own task derives from (own-scope).",
+		Description: "Get an issue in a project you are a member of (returns title, description, status, tags, created_by, org_ref).",
 	}, makeGetIssue(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_issues",
+		Description: "List the issues in a project you are a member of (board overview), optionally filtered by status and/or author. Requires project_id.",
+	}, makeListIssues(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_tasks_of_issue",
+		Description: "List the tasks derived from an issue (the reverse of create_task's derived_from_issue link) — see the executable work an issue spawned. You must be a member of the issue's project.",
+	}, makeListTasksOfIssue(cfg))
 
 	// --- pm write/passthrough tools ------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_task",
 		Description: "Create a task in a project the calling agent belongs to.",
 	}, makeCreateTask(cfg))
+
+	// --- issue management (v2.10.3 T170) -------------------------------------
+	// The agent gets the full issue lifecycle a human has in the Web Console:
+	// open → discuss (@/thread) → edit/close/reopen → derive tasks. Use an issue
+	// (not a task) to carry a requirement/discussion; derive tasks from it with
+	// create_task's derived_from_issue, then see them via list_tasks_of_issue.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "create_issue",
+		Description: "Open a new issue in a project you belong to — a discussion/requirement item (NOT an executable task). Provide a title and optional description/tags. Derive executable tasks from it later with create_task's derived_from_issue.",
+	}, makeCreateIssue(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "update_issue",
+		Description: "Edit an issue — set any of title, description, status, tags (omitted fields are left unchanged, applied all-or-none). status is one of open|in_progress|resolved|closed|discarded|reopened. You must be a member of the issue's project.",
+	}, makeUpdateIssue(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "close_issue",
+		Description: "Close an issue (sets status=closed). Convenience wrapper over update_issue; reopen it later with reopen_issue.",
+	}, makeIssueID(cfg, "close_issue"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "reopen_issue",
+		Description: "Reopen a closed/resolved issue (sets status=open, the actionable state).",
+	}, makeIssueID(cfg, "reopen_issue"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "post_issue_message",
+		Description: "Post a comment into an issue's discussion (the issue analogue of post_task_message). @mention a participant by name to notify them; reply inside a thread with parent_message_id. You must be a member of the issue's project.",
+	}, makePostIssueMessage(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "assign_task",

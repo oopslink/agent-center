@@ -398,8 +398,9 @@ func TestGetTask_NotOwn_403(t *testing.T) {
 
 // --- get_issue ---------------------------------------------------------------
 
-// TestGetIssue_OwnDerivedTask_OK: an agent may read an issue ONLY via own-work
-// association — it holds a WorkItem for a Task derived from the issue.
+// TestGetIssue_OwnDerivedTask_OK: an agent that is a project member may read an
+// issue in its project. (v2.10.3 T170: scope relaxed from own-link to
+// project-member; a member holding a WorkItem for a derived task still reads OK.)
 func TestGetIssue_OwnDerivedTask_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
@@ -442,11 +443,11 @@ func TestGetIssue_OwnDerivedTask_OK(t *testing.T) {
 	}
 }
 
-// TestGetIssue_MemberButNoDerivedTask_403: membership (#5a, the WRITE gate) does
-// NOT grant reading arbitrary project issues — only own-associated reads (OQ4).
-// AG1 is a member of the project and the issue is in it, but AG1 has no task
-// derived from this issue → 403.
-func TestGetIssue_MemberButNoDerivedTask_403(t *testing.T) {
+// TestGetIssue_MemberNoDerivedTask_OK: v2.10.3 T170 relaxation — a project
+// member may now read ANY issue in its project, even one it has NO derived task
+// for. (Pre-T170 this was a 403 not_in_issue_domain; the own-link scope was too
+// tight for the "open an issue to discuss" flow. Owner-approved.)
+func TestGetIssue_MemberNoDerivedTask_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	pid, _ := f.seedMemberProject(t) // AG1 member + only a NON-derived WorkItem.
@@ -460,8 +461,32 @@ func TestGetIssue_MemberButNoDerivedTask_403(t *testing.T) {
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_issue", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "issue_id": string(iid)})
-	if status != http.StatusForbidden || body["error"] != "not_in_issue_domain" {
-		t.Fatalf("status = %d err=%v, want 403 not_in_issue_domain (membership != read)", status, body["error"])
+	if status != http.StatusOK || body["id"] != string(iid) {
+		t.Fatalf("status = %d body=%v, want 200 id=%s (member may read any project issue)", status, body, iid)
+	}
+}
+
+// TestGetIssue_NonMember_403: the relaxation does NOT cross the membership
+// boundary — an agent that is NOT a member of the issue's project still gets a
+// 403 (ErrNotMember → terminal). Org-isolation / β write-gate held as a read-gate.
+func TestGetIssue_NonMember_403(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	f.seedMemberProject(t) // AG1 resolves (member of SOME project)…
+	// …but the issue lives in a project AG1 is NOT a member of.
+	foreign := f.seedForeignProject(t)
+	iid, err := f.pmSvc.CreateIssue(context.Background(), pmservice.CreateIssueCommand{
+		ProjectID: foreign, Title: "secret", CreatedBy: pm.IdentityRef("user:other"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, _ := postBearer(t, srv.URL, "/admin/agent-tools/get_issue", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "issue_id": string(iid)})
+	if status != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 (non-member may not read a foreign project's issue)", status)
 	}
 }
 

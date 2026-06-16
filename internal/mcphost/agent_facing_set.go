@@ -32,6 +32,16 @@ var AgentFacingToolNames = []string{
 	"rerun_failed_node",
 	"resume_paused_node",
 	"create_task",
+	// v2.10.3 T170 — full agent issue management (create/update/close/reopen/
+	// comment/list/link-task). get_issue (relaxed to project-member scope) is
+	// already listed below.
+	"create_issue",
+	"update_issue",
+	"close_issue",
+	"reopen_issue",
+	"post_issue_message",
+	"list_issues",
+	"list_tasks_of_issue",
 	"delete_plan",
 	"download_file",
 	"fail_work",
