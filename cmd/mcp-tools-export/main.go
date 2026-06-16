@@ -61,6 +61,7 @@ var domainOrder = []struct{ key, title string }{
 	{"conversations", "会话 / 消息 · Conversations & Messaging"},
 	{"files", "文件 · Files"},
 	{"findings", "Findings"},
+	{"reminders", "提醒 · Reminders"},
 }
 
 // toolDomain maps each agent-facing tool to its docs domain. Curated on purpose
@@ -78,6 +79,8 @@ var toolDomain = map[string]string{
 	"get_issue": "tasks_issues", "list_issues": "tasks_issues", "create_issue": "tasks_issues",
 	"update_issue": "tasks_issues", "close_issue": "tasks_issues", "reopen_issue": "tasks_issues",
 	"list_tasks_of_issue": "tasks_issues",
+	// reminders (T206 Cognition)
+	"create_reminder": "reminders", "list_reminders": "reminders", "get_reminder": "reminders", "update_reminder": "reminders",
 	// plan / orchestration
 	"create_plan": "plan", "add_task_to_plan": "plan", "remove_task_from_plan": "plan",
 	"add_plan_dependency": "plan", "remove_plan_dependency": "plan", "start_plan": "plan",

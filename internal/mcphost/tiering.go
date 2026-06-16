@@ -36,6 +36,11 @@ var secondaryTools = []struct{ name, summary string }{
 	// task link / assignment admin
 	{"reassign_task", "reassign a task to a different identity"},
 	{"set_task_issue", "(re)set or clear a task's derived_from_issue link"},
+	// reminders (T206 Cognition)
+	{"create_reminder", "set a reminder that wakes an agent once or on a cron schedule"},
+	{"list_reminders", "list reminders by creator/remindee/status"},
+	{"get_reminder", "read one reminder"},
+	{"update_reminder", "pause/resume/cancel or edit a reminder"},
 	// subscriptions
 	{"subscribe", "subscribe to a conversation or entity"},
 	{"unsubscribe", "unsubscribe from a conversation or entity"},
@@ -84,7 +89,7 @@ type searchToolsArgs struct {
 // It is a mcphost-LOCAL tool (no admin route): it manipulates the live tool set.
 func registerSearchTools(srv *mcp.Server, cfg Config) {
 	mcp.AddTool(srv, &mcp.Tool{
-		Name: "search_tools",
+		Name:        "search_tools",
 		Description: "Find and load DEFERRED tools. Your default tool set is the high-frequency core; lower-frequency tools (plans, issues, findings, files, subscriptions, org discovery, node recovery) are loaded on demand. Call search_tools with keywords (e.g. \"plan\", \"issue\", \"file\") and the matching tools become callable immediately; an empty query loads ALL deferred tools. Replace semantics: each call loads exactly the tools matching your query (a later call changes the loaded set), so pass every group you need at once. Returns the loaded tool names + summaries.",
 	}, makeSearchTools(srv, cfg))
 }

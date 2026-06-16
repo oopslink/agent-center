@@ -79,6 +79,9 @@ export const qk = {
   orgTasks: (filters?: unknown) => o('orgTasks', filters ?? null),
   // v2.10.0 [T6]: org-scoped cross-project Plan list (global Workspace > Plan).
   orgPlans: (filters?: unknown) => o('orgPlans', filters ?? null),
+  // T207 reminders — org-scoped list (filter/status) + a single reminder detail.
+  reminders: (filters?: unknown) => o('reminders', filters ?? null),
+  reminder: (id: string) => o('reminder', id),
   // T181: the PREFIX keys matching EVERY filtered orgTasks(...) / orgPlans(...)
   // query (the filter object is the 4th tuple element; this 3-element prefix
   // partial-matches all of them — same trick as plansByProjectAll). SSE

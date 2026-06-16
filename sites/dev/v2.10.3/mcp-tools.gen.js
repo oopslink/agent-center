@@ -643,7 +643,7 @@ window.__MCP_TOOLS__ = {
         {
           "name": "get_my_unread",
           "summary": "List unread messages directed at you — every unread message in your DMs plus every unread @mention of you in channels you're in (excludes channel chatter you weren't mentioned in, and your own messages).",
-          "description": "List unread messages directed at you — every unread message in your DMs plus every unread @mention of you in channels you're in (excludes channel chatter you weren't mentioned in, and your own messages). Check this periodically and when you reach a stopping point. You MUST reply to each one (acknowledge + defer, handle now, or decline with a reason) — your reply IS your decision. After you handle a message, call mark_seen so it does not come back.",
+          "description": "List unread messages directed at you — every unread message in your DMs plus every unread @mention of you in channels you're in (excludes channel chatter you weren't mentioned in, and your own messages). Check this periodically and when you reach a stopping point. Each item carries actor_kind (human|agent|system) + reply_required: a HUMAN directed message you MUST answer (acknowledge + defer, handle now, or decline with a reason) — your reply IS your decision. An AGENT-authored mention is reply-optional (reply_required=false): judge by content — reply if it actually needs one, otherwise just mark_seen to silently acknowledge (no obligation to produce a message). Handle messages at a stopping point — they don't interrupt your current task. After you handle (or silently ack) a message, call mark_seen so it does not come back.",
           "params": [],
           "tier": "core"
         },
@@ -840,9 +840,99 @@ window.__MCP_TOOLS__ = {
           "tier": "secondary"
         }
       ]
+    },
+    {
+      "key": "reminders",
+      "title": "提醒 · Reminders",
+      "tools": [
+        {
+          "name": "create_reminder",
+          "summary": "Set a reminder that wakes a target agent at a time (once) or on a schedule (cron) and delivers a text.",
+          "description": "Set a reminder that wakes a target agent at a time (once) or on a schedule (cron) and delivers a text. remindee must be in your project (owner may cross projects). schedule is once{once_at RFC3339} or cron{cron_expr, timezone}. Optional end_condition (never|until|max_count) bounds a recurring reminder; skip_if_overlap (default true) drops a fire while the previous one is still being handled.",
+          "params": [
+            {
+              "name": "content",
+              "required": true
+            },
+            {
+              "name": "remindee_agent_id",
+              "required": true
+            },
+            {
+              "name": "schedule",
+              "required": true
+            },
+            {
+              "name": "end_condition",
+              "required": false
+            },
+            {
+              "name": "skip_if_overlap",
+              "required": false
+            }
+          ],
+          "tier": "secondary"
+        },
+        {
+          "name": "get_reminder",
+          "summary": "Read one reminder by id (you must be its creator, the remindee, or an owner).",
+          "description": "Read one reminder by id (you must be its creator, the remindee, or an owner).",
+          "params": [
+            {
+              "name": "reminder_id",
+              "required": true
+            }
+          ],
+          "tier": "secondary"
+        },
+        {
+          "name": "list_reminders",
+          "summary": "List reminders you created (default), or by remindee, optionally filtered by status (active|paused|completed|canceled).",
+          "description": "List reminders you created (default), or by remindee, optionally filtered by status (active|paused|completed|canceled). Shows next_run_at + fired_count.",
+          "params": [
+            {
+              "name": "creator_ref",
+              "required": false
+            },
+            {
+              "name": "remindee_agent_id",
+              "required": false
+            },
+            {
+              "name": "statuses",
+              "required": false
+            }
+          ],
+          "tier": "secondary"
+        },
+        {
+          "name": "update_reminder",
+          "summary": "Manage a reminder: action=pause | resume | cancel, or edit (pass a new schedule and/or content).",
+          "description": "Manage a reminder: action=pause | resume | cancel, or edit (pass a new schedule and/or content). Pausing stops it firing; resume recomputes the next run; cancel is terminal. Only the creator or an owner may update.",
+          "params": [
+            {
+              "name": "action",
+              "required": true
+            },
+            {
+              "name": "reminder_id",
+              "required": true
+            },
+            {
+              "name": "content",
+              "required": false
+            },
+            {
+              "name": "schedule",
+              "required": false
+            }
+          ],
+          "tier": "secondary"
+        }
+      ]
     }
   ],
   "note": "GENERATED by `make gen-mcp-docs` (cmd/mcp-tools-export) from internal/mcphost — do not edit by hand.",
-  "secondary_total": 32,
-  "total": 51
+  "secondary_total": 36,
+  "total": 55
 };

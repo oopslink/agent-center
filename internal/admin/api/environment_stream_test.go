@@ -230,7 +230,7 @@ func TestStream_LiveAfterCatchUp(t *testing.T) {
 		t.Fatalf("catch-up want offset 1, got %s", d)
 	}
 	// Now append LIVE (after the subscriber is connected) — must stream.
-	time.Sleep(50 * time.Millisecond) // let the server enter its live loop
+	time.Sleep(50 * time.Millisecond)     // let the server enter its live loop
 	f.append(t, "W1", "agent.work", "k2") // offset 2, published live
 	if d := nextCommandFrame(t, sc); !strings.Contains(d, `"offset":2`) {
 		t.Fatalf("live want offset 2, got %s", d)

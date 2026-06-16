@@ -12,6 +12,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
+	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment/controlstream"
@@ -126,6 +127,10 @@ type HandlerDeps struct {
 	// pm write-gate passes). These services runInTx internally, so they nest
 	// inside the agent-tools outer RunInTx for atomicity with AddMessage.
 	PMService *pmservice.Service
+	// ReminderSvc is the Cognition Reminder application service backing the
+	// create/list/get/update_reminder agent tools + the admin reminders API
+	// (T206). Nil until wired (handlers then return reminder_not_wired).
+	ReminderSvc *cogservice.ReminderAppService
 	// PMProjectRepo is the new-model (pm) project repo backing the
 	// operator/admin-token project find-* read endpoints. v2.7 #131 PR-3:
 	// repointed off the retired workforce.Project model. Operator-scoped —

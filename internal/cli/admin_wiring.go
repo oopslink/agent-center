@@ -279,6 +279,8 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 
 		// ProjectManager BC (v2.7 D2-b2) — block_task / complete_task.
 		PMService: a.PMService,
+		// Cognition reminders (T206) — create/list/get/update_reminder tools + API.
+		ReminderSvc: buildReminderService(a),
 		// pm (new-model) project repo for the operator/admin-token project
 		// find-* read endpoints. v2.7 #131 PR-3.
 		PMProjectRepo: a.PMProjectRepo,

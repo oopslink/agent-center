@@ -528,6 +528,101 @@ func makeSetTaskIssue(cfg Config) mcp.ToolHandlerFor[setTaskIssueArgs, any] {
 	}
 }
 
+// --- reminder tools (T206, Cognition BC) -------------------------------------
+
+type reminderScheduleArg struct {
+	Kind     string `json:"kind" jsonschema:"once or cron"`
+	OnceAt   string `json:"once_at,omitempty" jsonschema:"RFC3339 time for a one-shot (kind=once)"`
+	CronExpr string `json:"cron_expr,omitempty" jsonschema:"5-field cron expression (kind=cron)"`
+	Timezone string `json:"timezone,omitempty" jsonschema:"IANA timezone for the cron (e.g. Asia/Shanghai); default UTC"`
+}
+
+type reminderEndArg struct {
+	Kind     string `json:"kind,omitempty" jsonschema:"never (default) | until | max_count (recurring only)"`
+	Until    string `json:"until,omitempty" jsonschema:"RFC3339 cutoff (kind=until)"`
+	MaxCount int    `json:"max_count,omitempty" jsonschema:"max fire count (kind=max_count)"`
+}
+
+type createReminderArgs struct {
+	RemindeeAgentID string              `json:"remindee_agent_id" jsonschema:"the agent to remind (must be in your project; owner may cross projects)"`
+	Schedule        reminderScheduleArg `json:"schedule" jsonschema:"when to fire — once{once_at} or cron{cron_expr,timezone}"`
+	Content         string              `json:"content" jsonschema:"the reminder text injected to the remindee when it fires"`
+	SkipIfOverlap   *bool               `json:"skip_if_overlap,omitempty" jsonschema:"skip a fire if the previous one is still being handled (default true)"`
+	EndCondition    reminderEndArg      `json:"end_condition,omitempty" jsonschema:"when a recurring reminder stops (never|until|max_count)"`
+}
+
+func makeCreateReminder(cfg Config) mcp.ToolHandlerFor[createReminderArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args createReminderArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":          cfg.AgentID,
+			"remindee_agent_id": args.RemindeeAgentID,
+			"schedule":          args.Schedule,
+			"content":           args.Content,
+			"end_condition":     args.EndCondition,
+		}
+		if args.SkipIfOverlap != nil {
+			body["skip_if_overlap"] = *args.SkipIfOverlap
+		}
+		return callAdmin(ctx, cfg, "create_reminder", body)
+	}
+}
+
+type listRemindersArgs struct {
+	CreatorRef      string   `json:"creator_ref,omitempty" jsonschema:"filter by creator ref; default = reminders YOU created"`
+	RemindeeAgentID string   `json:"remindee_agent_id,omitempty" jsonschema:"filter by remindee agent instead of creator"`
+	Statuses        []string `json:"statuses,omitempty" jsonschema:"optional status filter: active|paused|completed|canceled"`
+}
+
+func makeListReminders(cfg Config) mcp.ToolHandlerFor[listRemindersArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listRemindersArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID}
+		if args.CreatorRef != "" {
+			body["creator_ref"] = args.CreatorRef
+		}
+		if args.RemindeeAgentID != "" {
+			body["remindee_agent_id"] = args.RemindeeAgentID
+		}
+		if len(args.Statuses) > 0 {
+			body["statuses"] = args.Statuses
+		}
+		return callAdmin(ctx, cfg, "list_reminders", body)
+	}
+}
+
+type getReminderArgs struct {
+	ReminderID string `json:"reminder_id" jsonschema:"the reminder to read"`
+}
+
+func makeGetReminder(cfg Config) mcp.ToolHandlerFor[getReminderArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getReminderArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "get_reminder", map[string]any{"agent_id": cfg.AgentID, "reminder_id": args.ReminderID})
+	}
+}
+
+type updateReminderArgs struct {
+	ReminderID string               `json:"reminder_id" jsonschema:"the reminder to update"`
+	Action     string               `json:"action" jsonschema:"pause | resume | cancel | edit"`
+	Schedule   *reminderScheduleArg `json:"schedule,omitempty" jsonschema:"new schedule (action=edit)"`
+	Content    string               `json:"content,omitempty" jsonschema:"new content (action=edit; empty leaves unchanged)"`
+}
+
+func makeUpdateReminder(cfg Config) mcp.ToolHandlerFor[updateReminderArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args updateReminderArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":    cfg.AgentID,
+			"reminder_id": args.ReminderID,
+			"action":      args.Action,
+		}
+		if args.Schedule != nil {
+			body["schedule"] = *args.Schedule
+		}
+		if args.Content != "" {
+			body["content"] = args.Content
+		}
+		return callAdmin(ctx, cfg, "update_reminder", body)
+	}
+}
+
 // --- Plan tools (v2.9 P3 Stage C, #285) --------------------------------------
 //
 // These mirror the admin Plan agent-tool handlers in

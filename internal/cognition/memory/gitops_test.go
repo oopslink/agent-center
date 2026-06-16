@@ -81,9 +81,9 @@ func TestGitOps_FakeRunner_AuthorEnvInjected(t *testing.T) {
 	// scripts for: add (ok), diff --cached --quiet (nonzero = needs commit),
 	// commit (ok)
 	r.script = []fakeResult{
-		{out: ""},                      // add
+		{out: ""},                       // add
 		{out: "", err: errExit("diff")}, // diff -> exit 1, needs commit
-		{out: ""},                      // commit
+		{out: ""},                       // commit
 	}
 	g := memory.NewGitOps(dir, r, "/tmp/fakehome")
 	if err := g.CommitFile(context.Background(), "CLAUDE.md", "supervisor", "supervisor@x.local", "init"); err != nil {

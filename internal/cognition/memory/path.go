@@ -43,13 +43,14 @@ type MemoryScope struct {
 // validation runs against the constructed components.
 //
 // Layout (cognition/02 § 1):
-//   global       → CLAUDE.md
-//   project:X    → projects/X/CLAUDE.md
-//   task:T (in X) → projects/X/tasks/T/CLAUDE.md
-//   issue:I (in X) → projects/X/issues/I/CLAUDE.md
-//   conversation:C → conversations/C/CLAUDE.md
-//   worker:W      → workers/W/CLAUDE.md
-//   supervisor    → supervisor.md
+//
+//	global       → CLAUDE.md
+//	project:X    → projects/X/CLAUDE.md
+//	task:T (in X) → projects/X/tasks/T/CLAUDE.md
+//	issue:I (in X) → projects/X/issues/I/CLAUDE.md
+//	conversation:C → conversations/C/CLAUDE.md
+//	worker:W      → workers/W/CLAUDE.md
+//	supervisor    → supervisor.md
 func ScopeToFSPath(scope MemoryScope) (string, error) {
 	if err := validateScopeComponents(scope); err != nil {
 		return "", err

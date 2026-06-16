@@ -24,6 +24,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/persistence"
+	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
@@ -99,6 +100,10 @@ type HandlerDeps struct {
 	// (work-management truth; ADR-0046). Optional — nil means the v2.7 PM
 	// endpoints are not wired (legacy/test deps).
 	PM *pmservice.Service
+
+	// Reminder is the Cognition Reminder app service (T207) backing the human
+	// /api/orgs/{slug}/reminders CRUD. Optional — nil → 501.
+	Reminder *cogservice.ReminderAppService
 
 	// v2.7 C3: the Agent BC AppService facade backs the org-scoped
 	// /api/agents + /api/agents/{id}/{start,stop,restart,reset} routes.
