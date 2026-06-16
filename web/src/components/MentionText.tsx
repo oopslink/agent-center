@@ -144,12 +144,60 @@ export function usePlanRefResolver(): (ref: string) => ResolvedPlanRef | null {
   }, [plans.data, slug]);
 }
 
+// ResolvedIssueRef — an `issue-<id>` / `I<number>` reference resolved to its
+// display label + the issue-detail href. Symmetric with ResolvedTaskRef /
+// ResolvedPlanRef.
+export interface ResolvedIssueRef {
+  label: string;
+  href: string;
+}
+
+// issueDetailPath — the issue detail route (mirrors taskDetailPath /
+// planDetailPath); org-prefixed by the caller via orgPath.
+function issueDetailPath(projectId: string, issueId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}/issues/${encodeURIComponent(issueId)}`;
+}
+
+// useIssueRefResolver builds a reference → { label, href } resolver from the ORG
+// issue list (GET /api/orgs/{slug}/issues, cached), symmetric with
+// useTaskRefResolver / usePlanRefResolver. Accepts BOTH the bare `issue-<id>` and
+// the human `I<number>` org_ref. status=['all'] so a ref to a closed issue still
+// resolves (mirrors T62's status=all for tasks). Yields null for an unknown /
+// out-of-org reference so it stays plain text (verify-not-trust).
+export function useIssueRefResolver(): (ref: string) => ResolvedIssueRef | null {
+  const ctx = useOptionalOrgContext();
+  const slug = ctx?.slug;
+  const issues = useOrgWorkItems('issue', slug, { status: ['all'] });
+  return useMemo(() => {
+    const byRef = new Map<string, { label: string; projectId: string; issueId: string }>();
+    for (const it of issues.data?.items ?? []) {
+      const entry = {
+        label: refLabel(it.org_ref, it.id),
+        projectId: it.project.id,
+        issueId: it.id,
+      };
+      byRef.set(it.id, entry); // issue-<id> form
+      if (it.org_ref) byRef.set(it.org_ref, entry); // I<number> org_ref form
+    }
+    return (ref: string): ResolvedIssueRef | null => {
+      const entry = byRef.get(ref);
+      if (!entry) return null;
+      return {
+        label: entry.label,
+        href: orgPath(issueDetailPath(entry.projectId, entry.issueId), slug),
+      };
+    };
+  }, [issues.data, slug]);
+}
+
 // TOKEN_RE matches an @handle (group 1), a `task-<id>` reference (group 2), a
-// `T<number>` org_ref (group 3), a `plan-<id>` reference (group 4), OR a
-// `P<number>` org_ref (group 5) in one ordered pass, so a string carrying any mix
-// linkifies correctly. The plan groups (T99) mirror the task groups exactly
-// (same boundary guards); `P\d+` is case-sensitive so lowercase "plan" never
-// matches it.
+// `T<number>` org_ref (group 3), a `plan-<id>` reference (group 4), a
+// `P<number>` org_ref (group 5), an `issue-<id>` reference (group 6), OR an
+// `I<number>` org_ref (group 7) in one ordered pass, so a string carrying any mix
+// linkifies correctly. The plan groups (T99) and issue groups mirror the task
+// groups exactly (same boundary guards); `P\d+` / `I\d+` are case-sensitive so
+// lowercase "plan" / "issue" never match them, and "I" must be followed by digits
+// (so the English pronoun "I" never matches).
 //   - @handle: @ + word/.-/_ chars. A leading boundary is enforced by the
 //     surrounding split so we don't match an email's local-part-ish "@" mid-word.
 //   - task-<id>: a NEGATIVE LOOKBEHIND `(?<![A-Za-z0-9])` guards the left
@@ -163,7 +211,7 @@ export function usePlanRefResolver(): (ref: string) => ResolvedPlanRef | null {
 //     an unknown T-number → stays plain text), so a bare "T1" that is not a task
 //     never becomes a (wrong) link.
 const TOKEN_RE =
-  /@([A-Za-z0-9][A-Za-z0-9._-]*)|(?<![A-Za-z0-9])(task-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(T\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(plan-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(P\d+)(?![A-Za-z0-9])/g;
+  /@([A-Za-z0-9][A-Za-z0-9._-]*)|(?<![A-Za-z0-9])(task-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(T\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(plan-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(P\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(issue-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(I\d+)(?![A-Za-z0-9])/g;
 
 interface MentionTextProps {
   text: string;
@@ -185,6 +233,11 @@ interface MentionTextProps {
    * to the plan detail page labelled with its "P123" org_ref; an unresolved
    * reference stays plain text. Symmetric with resolveTask. */
   resolvePlan?: (ref: string) => ResolvedPlanRef | null;
+  /** optional issue reference resolver. Accepts EITHER an `issue-<id>` or an
+   * `I<number>` org_ref; a resolvable reference becomes a link to the issue
+   * detail page labelled with its "I123" org_ref; an unresolved reference stays
+   * plain text. Symmetric with resolveTask / resolvePlan. */
+  resolveIssue?: (ref: string) => ResolvedIssueRef | null;
 }
 
 // MentionText tokenizes one plain-text string, turning each @handle that
@@ -197,6 +250,7 @@ export function MentionText({
   linkClass = 'text-accent',
   resolveTask,
   resolvePlan,
+  resolveIssue,
 }: MentionTextProps): React.ReactElement {
   const parts: React.ReactNode[] = [];
   let last = 0;
@@ -211,6 +265,9 @@ export function MentionText({
     // A plan reference in either form: the bare `plan-<id>` (group 4) or the
     // `P<number>` org_ref (group 5). Both resolve through resolvePlan (T99).
     const planRef = match[4] ?? match[5];
+    // An issue reference in either form: the bare `issue-<id>` (group 6) or the
+    // `I<number>` org_ref (group 7). Both resolve through resolveIssue.
+    const issueRef = match[6] ?? match[7];
     let node: React.ReactNode = null;
     if (handle !== undefined) {
       const ref = resolve(handle);
@@ -281,8 +338,27 @@ export function MentionText({
           </a>
         );
       }
+    } else if (issueRef !== undefined && resolveIssue) {
+      const is = resolveIssue(issueRef);
+      if (is) {
+        node = (
+          <a
+            key={key++}
+            href={is.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="issue-ref-token"
+            data-issue-id={issueRef}
+            title={`Open ${is.label} in a new tab`}
+            className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+          >
+            {is.label}
+          </a>
+        );
+      }
     }
-    // Unresolved (or task/plan linkify disabled) → leave the token as plain text: skip
+    // Unresolved (or task/plan/issue linkify disabled) → leave the token as plain text: skip
     // without advancing `last`, so the matched chars stay in the next text slice.
     if (node === null) continue;
     if (match.index > last) parts.push(<Fragment key={key++}>{text.slice(last, match.index)}</Fragment>);

@@ -181,6 +181,8 @@ function mockOrgTasks() {
     // T99: the plan-ref resolver also fetches the org plan list — default empty
     // so task-ref tests don't trip an unhandled request.
     http.get('/api/plans', () => HttpResponse.json({ items: [], total: 0 })),
+    // the issue-ref resolver also fetches the org issue list — default empty.
+    http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
     http.get('/api/tasks', () =>
       HttpResponse.json({
         items: [
@@ -256,6 +258,7 @@ describe('MentionText task-ref linkify (task-82915d7c)', () => {
         ]),
       ),
       http.get('/api/plans', () => HttpResponse.json({ items: [], total: 0 })),
+      http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
       http.get('/api/tasks', () =>
         HttpResponse.json({
           items: [{ id: 'task-abc', org_ref: 'T123', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
@@ -300,6 +303,7 @@ describe('MentionText T-number org_ref linkify (T76 / task-c780999a)', () => {
     server.use(
       http.get('/api/members', () => HttpResponse.json([])),
       http.get('/api/plans', () => HttpResponse.json({ items: [], total: 0 })),
+      http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
       http.get('/api/tasks', ({ request }) => {
         requestedStatus = new URL(request.url).searchParams.getAll('status');
         return HttpResponse.json({
@@ -360,6 +364,7 @@ function mockOrgPlans() {
   server.use(
     http.get('/api/members', () => HttpResponse.json([])),
     http.get('/api/tasks', () => HttpResponse.json({ items: [], total: 0 })),
+    http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
     http.get('/api/plans', () =>
       HttpResponse.json({
         items: [
@@ -442,6 +447,7 @@ describe('MentionText plan-ref linkify (T99)', () => {
   it('linkifies a task-ref AND a plan-ref in the same line', async () => {
     server.use(
       http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
       http.get('/api/tasks', () =>
         HttpResponse.json({
           items: [{ id: 'task-abc', org_ref: 'T123', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
@@ -458,5 +464,123 @@ describe('MentionText plan-ref linkify (T99)', () => {
     renderInOrg(<MarkdownMessage content={'T123 lands under P42'} />);
     expect(await screen.findByTestId('task-ref-token')).toHaveTextContent('T123');
     expect(await screen.findByTestId('plan-ref-token')).toHaveTextContent('P42');
+  });
+});
+
+// an `issue-<id>` or `I<number>` reference in a message linkifies to the issue
+// detail page, labelled with the human Issue id ("I123", org_ref) — symmetric
+// with the task-ref / plan-ref linkify above. Resolves through the org issue list
+// (status=all so closed issues resolve too); an unknown / out-of-org reference
+// stays plain text. Code spans are excluded by the same pipeline.
+function mockOrgIssues() {
+  server.use(
+    http.get('/api/members', () => HttpResponse.json([])),
+    http.get('/api/tasks', () => HttpResponse.json({ items: [], total: 0 })),
+    http.get('/api/plans', () => HttpResponse.json({ items: [], total: 0 })),
+    http.get('/api/issues', () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: 'issue-abc', org_ref: 'I7', project: { id: 'proj-x', name: 'Project X' },
+            title: 'A nasty bug', status: 'open', assignee: null,
+            updated_at: 'x', created_at: 'x',
+          },
+          {
+            // an issue WITHOUT an org_ref → label falls back to the FULL id (T126).
+            id: 'issue-noref', project: { id: 'proj-x', name: 'Project X' },
+            title: 'No ref issue', status: 'open', assignee: null,
+            updated_at: 'x', created_at: 'x',
+          },
+        ],
+        total: 2,
+      }),
+    ),
+  );
+}
+
+describe('MentionText issue-ref linkify (issue-<id> / I<number>)', () => {
+  afterEach(() => cleanup());
+
+  it('renders a known issue-<id> as an I7 link to the issue detail page (new tab)', async () => {
+    mockOrgIssues();
+    renderInOrg(<MarkdownMessage content={'see issue-abc for the repro'} />);
+    const link = await screen.findByTestId('issue-ref-token');
+    expect(link.tagName).toBe('A');
+    expect(link).toHaveTextContent('I7');
+    expect(link).not.toHaveTextContent('issue-abc');
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/issues/issue-abc');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(link).toHaveAttribute('data-issue-id', 'issue-abc');
+  });
+
+  it('linkifies an I<number> org_ref to its issue detail page', async () => {
+    mockOrgIssues();
+    renderInOrg(<MarkdownMessage content={'fixed in I7, see notes'} />);
+    const link = await screen.findByTestId('issue-ref-token');
+    expect(link).toHaveTextContent('I7');
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/issues/issue-abc');
+  });
+
+  it('falls back to the FULL id (never a #id-tail hash) when the issue has no org_ref (T126)', async () => {
+    mockOrgIssues();
+    renderInOrg(<MarkdownMessage content={'blocked on issue-noref now'} />);
+    const link = await screen.findByTestId('issue-ref-token');
+    expect(link).toHaveTextContent('issue-noref');
+    expect(link).not.toHaveTextContent('#');
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/issues/issue-noref');
+  });
+
+  it('leaves an UNKNOWN issue-<id> / I-number as plain text (no dangling link)', async () => {
+    mockOrgIssues();
+    renderInOrg(<MarkdownMessage content={'ref issue-zzz and I999 do not exist'} />);
+    await waitFor(() =>
+      expect(screen.getByTestId('markdown-message')).toHaveTextContent('ref issue-zzz and I999 do not exist'),
+    );
+    expect(screen.queryByTestId('issue-ref-token')).toBeNull();
+  });
+
+  it('does NOT match issue- mid-word, an I-number mid-token, nor the bare pronoun "I"', async () => {
+    mockOrgIssues();
+    renderInOrg(<MarkdownMessage content={'a reissue-abc and PART7 and I7x and I think these are not refs'} />);
+    await waitFor(() =>
+      expect(screen.getByTestId('markdown-message')).toHaveTextContent('a reissue-abc and PART7 and I7x and I think these are not refs'),
+    );
+    expect(screen.queryByTestId('issue-ref-token')).toBeNull();
+  });
+
+  it('does NOT linkify an issue-ref inside a fenced code block', async () => {
+    mockOrgIssues();
+    renderInOrg(<MarkdownMessage content={'```\nclose issue-abc here\n```'} />);
+    await waitFor(() => expect(screen.getByTestId('markdown-message')).toBeInTheDocument());
+    expect(screen.queryByTestId('issue-ref-token')).toBeNull();
+  });
+
+  it('linkifies a task-ref, a plan-ref AND an issue-ref in the same line', async () => {
+    server.use(
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [{ id: 'task-abc', org_ref: 'T123', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
+          total: 1,
+        }),
+      ),
+      http.get('/api/plans', () =>
+        HttpResponse.json({
+          items: [{ id: 'plan-abc', org_ref: 'P42', project: { id: 'proj-x', name: 'X' }, name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x' }],
+          total: 1,
+        }),
+      ),
+      http.get('/api/issues', () =>
+        HttpResponse.json({
+          items: [{ id: 'issue-abc', org_ref: 'I7', project: { id: 'proj-x', name: 'X' }, title: 'i', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
+          total: 1,
+        }),
+      ),
+    );
+    renderInOrg(<MarkdownMessage content={'T123 under P42 tracks I7'} />);
+    expect(await screen.findByTestId('task-ref-token')).toHaveTextContent('T123');
+    expect(await screen.findByTestId('plan-ref-token')).toHaveTextContent('P42');
+    expect(await screen.findByTestId('issue-ref-token')).toHaveTextContent('I7');
   });
 });

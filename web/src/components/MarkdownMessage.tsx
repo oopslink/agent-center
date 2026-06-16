@@ -8,8 +8,10 @@ import {
   useMentionResolver,
   useTaskRefResolver,
   usePlanRefResolver,
+  useIssueRefResolver,
   type ResolvedTaskRef,
   type ResolvedPlanRef,
+  type ResolvedIssueRef,
 } from './MentionText';
 import { useSenderSidebar } from './SenderSidebarContext';
 
@@ -50,6 +52,7 @@ function linkifyMentions(
   linkClass: string,
   resolveTask: (taskId: string) => ResolvedTaskRef | null,
   resolvePlan: (planRef: string) => ResolvedPlanRef | null,
+  resolveIssue: (issueRef: string) => ResolvedIssueRef | null,
 ): React.ReactNode {
   if (!onMention) return children;
   return Children.map(children, (child) => {
@@ -63,8 +66,10 @@ function linkifyMentions(
         !child.includes('@') &&
         !child.includes('task-') &&
         !child.includes('plan-') &&
+        !child.includes('issue-') &&
         !/T\d/.test(child) &&
-        !/P\d/.test(child)
+        !/P\d/.test(child) &&
+        !/I\d/.test(child)
       ) {
         return child;
       }
@@ -76,6 +81,7 @@ function linkifyMentions(
           linkClass={linkClass}
           resolveTask={resolveTask}
           resolvePlan={resolvePlan}
+          resolveIssue={resolveIssue}
         />
       );
     }
@@ -135,8 +141,10 @@ function MentionAwareMarkdown({
   const resolveTask = useTaskRefResolver();
   // v2.10.1 [T99]: resolve `plan-<id>` / `P<number>` references → plan-detail links.
   const resolvePlan = usePlanRefResolver();
+  // resolve `issue-<id>` / `I<number>` references → issue-detail links.
+  const resolveIssue = useIssueRefResolver();
   const linkify = (children: React.ReactNode) =>
-    linkifyMentions(children, onMention, resolve, linkClass, resolveTask, resolvePlan);
+    linkifyMentions(children, onMention, resolve, linkClass, resolveTask, resolvePlan, resolveIssue);
   return <MarkdownBody content={content} textClass={textClass} linkClass={linkClass} linkify={linkify} />;
 }
 
