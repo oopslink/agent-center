@@ -1,8 +1,10 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import type { Issue } from '@/api/types';
+import { useTasksOfIssue } from '@/api/tasks';
 import { StatusBlock } from '@/components/IssueTaskSidebar';
-import { refLabel } from '@/components/workItemDisplay';
+import { StatusChip, refLabel } from '@/components/workItemDisplay';
+import { taskDetailPath } from '@/components/TaskTitleLink';
 import { tagColorFor } from '@/components/tagColors';
 import { formatLocalTime, formatStatusDuration } from '@/utils/time';
 
@@ -167,6 +169,64 @@ export function IssueDetailSidebar({
           </span>
         </div>
       </section>
+    </aside>
+  );
+}
+
+// DerivedTasksBlock — the issue's DERIVED tasks (tasks created with
+// derived_from_issue == this issue), rendered as its own card below the
+// IssueDetailSidebar. Each row: org_ref (T-number) + title + status chip,
+// linking to the task detail page (T133-style name-as-link). Read-only; an
+// empty list shows a placeholder. Kept SEPARATE from the pure prop-driven
+// IssueDetailSidebar so the sidebar stays data-free (and its tests untouched).
+export function DerivedTasksBlock({
+  projectId,
+  issueId,
+}: {
+  projectId: string;
+  issueId: string;
+}): React.ReactElement {
+  const tasks = useTasksOfIssue(projectId, issueId);
+  return (
+    <aside
+      className="mt-4 space-y-2 rounded border border-border-base bg-bg-elevated p-3 text-sm"
+      data-testid="issue-derived-tasks"
+      aria-label="Derived tasks"
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Derived Tasks</p>
+      {tasks.isLoading ? (
+        <p className="text-xs text-text-muted" data-testid="derived-tasks-loading">
+          Loading…
+        </p>
+      ) : tasks.isError ? (
+        <p className="text-xs text-danger" data-testid="derived-tasks-error">
+          {(tasks.error as Error).message}
+        </p>
+      ) : tasks.data.length === 0 ? (
+        <p className="text-xs text-text-muted" data-testid="derived-tasks-empty">
+          No tasks derived from this issue.
+        </p>
+      ) : (
+        <ul className="space-y-1" data-testid="derived-tasks-list">
+          {tasks.data.map((t) => (
+            <li key={t.id}>
+              <OrgLink
+                to={taskDetailPath(t.project_id, t.id)}
+                className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-bg-subtle"
+                data-testid="derived-task-item"
+                data-task-id={t.id}
+                title={t.title}
+              >
+                <span className="shrink-0 font-mono text-xs text-accent">{refLabel(t.org_ref, t.id)}</span>
+                <span className="min-w-0 flex-1 truncate text-text-primary">{t.title}</span>
+                <span className="shrink-0">
+                  <StatusChip status={t.status} />
+                </span>
+              </OrgLink>
+            </li>
+          ))}
+        </ul>
+      )}
     </aside>
   );
 }

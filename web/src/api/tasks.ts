@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
@@ -24,6 +25,21 @@ export function useTasksList(projectId: string | undefined, filters?: OrgWorkIte
     },
     enabled: !!projectId,
   });
+}
+
+// useTasksOfIssue — the tasks DERIVED from an issue (reverse-lookup by
+// derived_from_issue), for the issue detail sidebar's "Derived Tasks" block.
+// Reuses the project task list (status=['all'] so terminal derived tasks still
+// surface) and filters client-side by derived_from_issue — mirrors the agent
+// `list_tasks_of_issue` reverse-lookup without a new endpoint, so it shares the
+// project-tasks cache and refreshes on the same task mutations. Read-only.
+export function useTasksOfIssue(projectId: string | undefined, issueId: string | undefined) {
+  const q = useTasksList(projectId, { status: ['all'] });
+  const data = useMemo(
+    () => (issueId ? (q.data ?? []).filter((t) => t.derived_from_issue === issueId) : []),
+    [q.data, issueId],
+  );
+  return { ...q, data };
 }
 
 export function useTask(projectId: string | undefined, taskId: string | undefined) {
