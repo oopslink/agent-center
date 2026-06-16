@@ -7,6 +7,8 @@ import { useAgent } from '@/api/agents';
 import { useAppStore } from '@/store/app';
 import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
+import { ConversationMobileTabs } from '@/components/ConversationMobileTabs';
+import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { ContextPanel } from '@/shell/contextPanel';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
@@ -44,6 +46,8 @@ function DMDetailInner(): React.ReactElement {
   // avatar/@name is clicked. Provided by the wrapping SenderSidebarProvider.
   const openSender = useSenderSidebar();
   const conv = useConversation(id);
+  // T184: mobile collapses the col③/col④ split into one chat/threads/files tab bar.
+  const isMobile = useIsMobile();
   // v2.7.1 #238 fix: the DM detail GET doesn't enrich peer_display_name (only the
   // list does), so resolve the peer from participants − self for direct loads.
   const me = useAppStore((s) => s.currentUserId);
@@ -251,14 +255,22 @@ function DMDetailInner(): React.ReactElement {
       </header>
 
       {/* ── Message + composer zone ─────────────────────────────────────────
-          #264 P1: message body + read-cursor + SSE live updates flow through
-          the surface-agnostic shell. Owned by another dev — kept verbatim. */}
-      <ConversationView surface="dm" conversationId={conv.data.id} />
-      {/* T184: DMs get the shared col④ sidebar too, but WITHOUT the Participants
-          tab — a DM is a fixed 1:1 (nothing to invite/remove). Threads / Files only. */}
-      <ContextPanel>
-        <ConversationSidebar conversationId={conv.data.id} showParticipants={false} />
-      </ContextPanel>
+          T184: mobile → one tab bar chat / threads / files (DM has no Participants).
+          Desktop → message stream (col③) + the shared col④ sidebar (Threads/Files). */}
+      {isMobile ? (
+        <ConversationMobileTabs surface="dm" conversationId={conv.data.id} showParticipants={false} />
+      ) : (
+        <>
+          {/* #264 P1: message body + read-cursor + SSE live updates flow through
+              the surface-agnostic shell. */}
+          <ConversationView surface="dm" conversationId={conv.data.id} />
+          {/* T184: DMs get the shared col④ sidebar too, but WITHOUT the Participants
+              tab — a DM is a fixed 1:1 (nothing to invite/remove). Threads / Files only. */}
+          <ContextPanel>
+            <ConversationSidebar conversationId={conv.data.id} showParticipants={false} />
+          </ContextPanel>
+        </>
+      )}
     </section>
   );
 }

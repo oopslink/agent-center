@@ -7,6 +7,8 @@ import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
+import { ConversationMobileTabs } from '@/components/ConversationMobileTabs';
+import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { ContextPanel } from '@/shell/contextPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { Avatar } from '@/components/Avatar';
@@ -22,6 +24,8 @@ export default function ChannelDetail(): React.ReactElement {
   const { channelId = '' } = useParams<{ channelId: string }>();
   const conv = useConversation(channelId);
   const displayName = useDisplayNameResolver();
+  // T184: mobile collapses the col③/col④ split into one chat/threads/files tab bar.
+  const isMobile = useIsMobile();
 
   if (conv.isLoading) {
     return (
@@ -93,19 +97,23 @@ export default function ChannelDetail(): React.ReactElement {
         </div>
       </header>
 
-      {/* #264 P1: message body + read-cursor + SSE live updates all flow
-          through the surface-agnostic shell (col③). */}
-      <ConversationView surface="channel" conversationId={ch.id} />
-      {/* v2.10.0 [T64] col④ renders into the shell's on-demand fourth column via
-          <ContextPanel> (portals in; collapses when this page unmounts). Outside
-          the shell (no provider) ContextPanel is a no-op, so the page still
-          renders standalone.
-          v2.10.1 [T96]: the col④ content is a segmented 3-tab panel
-          (Participants / Threads / Files), one at a time. T184: now the SHARED
-          ConversationSidebar used by every conversation type. */}
-      <ContextPanel>
-        <ConversationSidebar conversationId={ch.id} participants={participants} />
-      </ContextPanel>
+      {/* T184: on mobile (<768px) the conversation becomes a single tab bar
+          chat / participants / threads / files — no separate col③/col④ split.
+          On desktop, the message stream (col③) + the shared col④ sidebar. */}
+      {isMobile ? (
+        <ConversationMobileTabs surface="channel" conversationId={ch.id} participants={participants} />
+      ) : (
+        <>
+          {/* #264 P1: message body + read-cursor + SSE live updates all flow
+              through the surface-agnostic shell (col③). */}
+          <ConversationView surface="channel" conversationId={ch.id} />
+          {/* col④ via <ContextPanel> (portals into the shell's fourth column;
+              collapses when this page unmounts). T184: the SHARED ConversationSidebar. */}
+          <ContextPanel>
+            <ConversationSidebar conversationId={ch.id} participants={participants} />
+          </ContextPanel>
+        </>
+      )}
     </section>
     </SenderSidebarProvider>
   );
