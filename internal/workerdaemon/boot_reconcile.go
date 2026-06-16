@@ -356,6 +356,27 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 	}
 	defer release()
 
+	// cli=codex: this agent has NO persistent supervisor to probe / reattach (the
+	// codex process is one-shot per turn). Route it away from the entire supervisor
+	// boot path: if the center still wants it running, start a FRESH CodexSession;
+	// otherwise leave it stopped (nothing to reap). v1 does not resume a codex
+	// agent's mid-turn work across a daemon restart.
+	if readAgentCLIMarker(home) == cliCodex {
+		if rec != nil && rec.DesiredLifecycle == "running" {
+			_, workspace, werr := c.agentPaths(agentID)
+			if werr != nil {
+				c.log("boot-reconcile agent=%s (codex) resolve workspace: %v — skip", agentID, werr)
+				return
+			}
+			if serr := c.startCodexSession(ctx, agentID, version, home, workspace, rec.Model); serr != nil {
+				c.log("boot-reconcile agent=%s (codex) relaunch: %v", agentID, serr)
+			}
+			return
+		}
+		c.log("boot-reconcile agent=%s (codex) desired=%s — leave stopped (no supervisor to reap)", agentID, desiredOf(rec))
+		return
+	}
+
 	pr, perr := supervisormanager.ProbeAgent(ctx, home)
 	if perr != nil {
 		c.log("boot-reconcile agent=%s probe: %v — skip", agentID, perr)
@@ -454,7 +475,7 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	// prior conversation. An IDLE relaunch (nudge==false) starts FRESH on the new id
 	// (no --resume), avoiding the no-completed-turn `--resume` →
 	// error_during_execution crash-loop.
-	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, nudge /*resume*/, model); err != nil {
+	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, nudge /*resume*/, model, "" /*cli: boot relaunch is claude-supervisor only; codex is guarded earlier*/); err != nil {
 		c.log("boot-reconcile agent=%s relaunch: %v — skip", agentID, err)
 		return err
 	}
