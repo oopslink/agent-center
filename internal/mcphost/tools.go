@@ -15,7 +15,7 @@
 //   - block_task                  : {task_id, reason}
 //   - complete_task               : {task_id, summary?}
 //   - discard_task                : {task_id, reason?}
-//   - create_task                 : {project_id, title, description?, derived_from_issue?}
+//   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?}
 //   - get_task                    : {task_id}
 //   - get_issue                   : {issue_id}
 //   - verify_task                 : {task_id}
@@ -229,6 +229,10 @@ type createTaskArgs struct {
 	Title            string `json:"title" jsonschema:"the task title"`
 	Description      string `json:"description,omitempty" jsonschema:"optional task description"`
 	DerivedFromIssue string `json:"derived_from_issue,omitempty" jsonschema:"optional id of the issue this task derives from"`
+	// T199/WS3: one-step create→dispatch. Omit both to leave the task in the
+	// backlog (the pre-T199 default).
+	Assignee string `json:"assignee,omitempty" jsonschema:"optional identity ref to assign on create (e.g. agent:X or user:Y); emits the work item + wakes an agent assignee"`
+	Dispatch bool   `json:"dispatch,omitempty" jsonschema:"when true, also dispatch the task into the project's assignment pool so it is immediately claimable (unassigned) / runnable (assigned) — no separate add_task_to_plan needed"`
 }
 
 func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
@@ -239,6 +243,8 @@ func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
 			"title":              args.Title,
 			"description":        args.Description,
 			"derived_from_issue": args.DerivedFromIssue,
+			"assignee":           args.Assignee,
+			"dispatch":           args.Dispatch,
 		}
 		return callAdmin(ctx, cfg, "create_task", body)
 	}

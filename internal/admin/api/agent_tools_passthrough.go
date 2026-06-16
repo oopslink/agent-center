@@ -42,6 +42,10 @@ type createTaskReq struct {
 	Title            string `json:"title"`
 	Description      string `json:"description"`
 	DerivedFromIssue string `json:"derived_from_issue"`
+	// T199/WS3: optional one-step create→dispatch. Both omitted ⇒ backlog (the
+	// pre-T199 default).
+	Assignee string `json:"assignee"`
+	Dispatch bool   `json:"dispatch"`
 }
 
 // createTaskHandler creates a Task via pm.CreateTask with actor=agent. The pm
@@ -70,14 +74,37 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_title", "")
 		return
 	}
+	// T199/WS3: validate the optional assignee ref shape HERE so a malformed ref is
+	// a clear 400 (not an opaque domain 500). Empty = unassigned (no-op).
+	assignee := strings.TrimSpace(req.Assignee)
+	if assignee != "" {
+		if err := pm.IdentityRef(assignee).Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_assignee", err.Error())
+			return
+		}
+	}
 	taskID, err := d.PMService.CreateTask(r.Context(), pmservice.CreateTaskCommand{
 		ProjectID:        pm.ProjectID(req.ProjectID),
 		Title:            req.Title,
 		Description:      req.Description,
 		DerivedFromIssue: pm.IssueID(req.DerivedFromIssue),
 		CreatedBy:        pm.IdentityRef(agentActor(a)),
+		Assignee:         pm.IdentityRef(assignee),
+		Dispatch:         req.Dispatch,
 	})
 	if err != nil {
+		// T199/WS3 dispatch/assign error paths — clear codes (acceptance: "错误路径
+		// 有明确报错(非同项目等)"). A cross-org agent assignee is a 422 (not the
+		// default opaque 500); the built-in pool being absent is a server invariant
+		// breach surfaced as 501 (pm_not_wired class), not a user error.
+		switch {
+		case errors.Is(err, pm.ErrCrossOrgAssignee):
+			writeError(w, http.StatusUnprocessableEntity, "cross_org_assignee", err.Error())
+			return
+		case errors.Is(err, pmservice.ErrBuiltinPoolMissing):
+			writeError(w, http.StatusNotImplemented, "builtin_pool_missing", err.Error())
+			return
+		}
 		// v2.7.1 #239: precise, distinct messages — a missing project is "not
 		// found" (with the agent's available projects as a hint), NOT the
 		// misleading "not a member" (@oopslink screenshot pain). The domain now

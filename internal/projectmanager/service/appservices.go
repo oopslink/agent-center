@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -264,12 +265,26 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 }
 
 // CreateTaskCommand creates a Task (independent or derived from an Issue).
+//
+// T199/WS3: the optional Assignee + Dispatch fields collapse the former hidden
+// 3-step (create_task + assign_task + add_task_to_plan) into ONE atomic call.
+// Both default to the zero value, preserving the pre-T199 backlog behavior:
+//   - Assignee set        → assign on create (emits pm.task.assigned → the
+//     WorkItemProjector mints the queued WorkItem + wake). An AGENT assignee is
+//     granted project membership (cross-org guarded), exactly like AssignTask.
+//   - Dispatch == true    → select the task into the project's built-in
+//     Assignment Pool and record the dispatch in the SAME tx, so it is
+//     immediately claimable (unassigned) / runnable (assigned) — no reconcile
+//     wait. Without Dispatch the task stays in the backlog (assignment alone is
+//     decoupled from runnability, T130).
 type CreateTaskCommand struct {
 	ProjectID        pm.ProjectID
 	Title            string
 	Description      string
 	DerivedFromIssue pm.IssueID
 	CreatedBy        pm.IdentityRef
+	Assignee         pm.IdentityRef // optional one-step assign (T199/WS3)
+	Dispatch         bool           // optional one-step dispatch into the built-in pool (T199/WS3)
 }
 
 // CreateTask writes the Task + outbox pm.task.created. The projector (B2-b)
@@ -310,19 +325,104 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 		if err := s.tasks.Save(txCtx, t); err != nil {
 			return err
 		}
-		return s.emit(txCtx, EvtTaskCreated,
+		if err := s.emit(txCtx, EvtTaskCreated,
 			refsJSON(map[string]string{"task_id": string(t.ID()), "project_id": string(cmd.ProjectID)}),
 			taskEventPayload{
 				TaskID: string(t.ID()), ProjectID: string(cmd.ProjectID),
 				OrganizationID: proj.OrganizationID(),
 				OwnerRef:       "pm://tasks/" + string(t.ID()), Status: string(t.Status()),
 				EffectiveSubscribers: EffectiveTaskSubscribers(t, nil),
-			})
+			}); err != nil {
+			return err
+		}
+		// T199/WS3 one-step dispatch+assign — same tx (atomic with the create, so a
+		// rejected assignee/missing pool rolls back the whole operation, no orphan
+		// task). Dispatch first (sets plan_id) so the subsequent assign can additively
+		// join the assignee to the pool conversation.
+		if cmd.Dispatch {
+			if err := s.dispatchIntoBuiltinPool(txCtx, t, now); err != nil {
+				return err
+			}
+		}
+		if strings.TrimSpace(string(cmd.Assignee)) != "" {
+			if err := s.assignOnCreate(txCtx, t, cmd.Assignee, now); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return "", err
 	}
 	return taskID, nil
+}
+
+// dispatchIntoBuiltinPool selects t into its project's built-in Assignment Pool
+// and records the (pull) dispatch in the caller's tx, so the task becomes a
+// NodeDispatched pool member — immediately claimable (ListClaimablePool) and
+// runnable (EnsureTaskRunnable) without waiting for the reconcile loop. Mirrors
+// SelectTaskIntoPlan(pool) + dispatchBuiltinPool's RecordDispatch, fused for the
+// one-step create+dispatch path (T199/WS3). RecordDispatch is INSERT-OR-IGNORE on
+// the PK, so a later reconcile sweep is a harmless no-op.
+func (s *Service) dispatchIntoBuiltinPool(ctx context.Context, t *pm.Task, now time.Time) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	pool, err := s.requireBuiltinPool(ctx, t.ProjectID())
+	if err != nil {
+		return err
+	}
+	if err := t.SetPlan(pool.ID(), now); err != nil {
+		return err
+	}
+	if err := s.tasks.Update(ctx, t); err != nil {
+		return err
+	}
+	// PULL dispatch: record-only (no @mention, no work-item, no wake) — exactly
+	// what dispatchBuiltinPool does for a ready pool node.
+	return s.plans.RecordDispatch(ctx, pool.ID(), t.ID(), now, "")
+}
+
+// assignOnCreate assigns t to assignee in the caller's tx — the create-time
+// equivalent of AssignTask: it grants an AGENT assignee project membership
+// (cross-org guarded, idempotent), persists, emits pm.task.assigned (the
+// WorkItemProjector mints the queued WorkItem + wake), and — if t is already in a
+// plan (dispatched above) — additively joins the assignee to the plan
+// conversation. T199/WS3.
+func (s *Service) assignOnCreate(ctx context.Context, t *pm.Task, assignee pm.IdentityRef, now time.Time) error {
+	if err := assignee.Validate(); err != nil {
+		return err
+	}
+	if err := t.Assign(assignee, now); err != nil {
+		return err
+	}
+	if err := s.grantAgentProjectMembership(ctx, t, assignee, now); err != nil {
+		return err
+	}
+	if err := s.tasks.Update(ctx, t); err != nil {
+		return err
+	}
+	if err := s.emitTaskAssignEvent(ctx, t, EvtTaskAssigned, ""); err != nil {
+		return err
+	}
+	return s.syncPlanParticipantOnAssign(ctx, t, assignee)
+}
+
+// requireBuiltinPool returns the project's built-in Assignment Pool plan, or
+// ErrBuiltinPoolMissing when none exists (ADR-0047 invariant breach). Unlike
+// builtinPoolOf it surfaces the underlying repo error instead of swallowing it
+// (§17), since the one-step dispatch path must fail loud.
+func (s *Service) requireBuiltinPool(ctx context.Context, projectID pm.ProjectID) (*pm.Plan, error) {
+	plans, err := s.plans.ListByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range plans {
+		if p.IsBuiltin() {
+			return p, nil
+		}
+	}
+	return nil, ErrBuiltinPoolMissing
 }
 
 // allocOrgNumber returns the next per-org T<n>/I<n> number for entityType
