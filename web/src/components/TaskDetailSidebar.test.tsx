@@ -108,4 +108,34 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
     );
     expect(screen.queryByTestId('task-sidebar-plan')).not.toBeInTheDocument();
   });
+
+  // T193: the "Related Issue" row (derived_from_issue → issue ref + title, click).
+  it('shows the Related Issue row (ref + title) linking to the issue when derivedIssue is passed', () => {
+    render(
+      <MemoryRouter>
+        <TaskDetailSidebar
+          task={makeTask({ derived_from_issue: 'issue-abc' })}
+          projectName="Project A"
+          derivedIssue={{ id: 'issue-abc', org_ref: 'I42', title: 'Login is broken' }}
+          onEdit={() => {}}
+          editable
+        />
+      </MemoryRouter>,
+    );
+    const row = screen.getByTestId('task-sidebar-derived-issue');
+    expect(row).toHaveTextContent('Login is broken');
+    expect(row).toHaveTextContent('I42');
+    const link = screen.getByTestId('task-derived-issue-link');
+    expect(link).toHaveAttribute('data-issue-id', 'issue-abc');
+    expect(link.getAttribute('href')).toContain('/projects/proj-a/issues/issue-abc');
+  });
+
+  it('hides the Related Issue row when the task has no derived issue', () => {
+    render(
+      <MemoryRouter>
+        <TaskDetailSidebar task={makeTask()} projectName="Project A" onEdit={() => {}} editable />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId('task-sidebar-derived-issue')).not.toBeInTheDocument();
+  });
 });

@@ -56,6 +56,13 @@ interface Props {
    * assignment pool (the pool is not a user-facing plan).
    */
   plan?: { id: string; name: string };
+  /**
+   * T193: the issue this task was DERIVED FROM (task.derived_from_issue), resolved
+   * to {ref, title} by the page so the sidebar shows a clickable "Related Issue"
+   * row (the symmetric reverse of T191's issue→derived-tasks list). Omitted when
+   * the task has no derived_from_issue or the issue hasn't resolved yet.
+   */
+  derivedIssue?: { id: string; org_ref?: string; title: string };
   /** opens the existing TaskEditModal — the single edit path. */
   onEdit: () => void;
   /** whether the task is editable (non-terminal). Terminal → no Edit button. */
@@ -67,6 +74,7 @@ export function TaskDetailSidebar({
   projectName,
   assigneeName,
   plan,
+  derivedIssue,
   onEdit,
   editable,
 }: Props): React.ReactElement {
@@ -219,6 +227,26 @@ export function TaskDetailSidebar({
               data-plan-id={plan.id}
             >
               {plan.name}
+            </OrgLink>
+          </div>
+        )}
+
+        {/* T193: the issue this task was derived from (provenance), grouped with
+            Project/Plan. Clickable → the issue detail. Reuses the OrgLink + accent
+            link style and refLabel (org_ref → "I123", id-handle fallback). Only
+            shown when the page resolved the derived issue. */}
+        {derivedIssue && (
+          <div data-testid="task-sidebar-derived-issue">
+            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Related Issue</p>
+            <OrgLink
+              to={`/projects/${encodeURIComponent(tk.project_id)}/issues/${encodeURIComponent(derivedIssue.id)}`}
+              className="text-accent hover:underline"
+              data-testid="task-derived-issue-link"
+              data-issue-id={derivedIssue.id}
+              title={derivedIssue.title}
+            >
+              <span className="font-mono text-xs">{refLabel(derivedIssue.org_ref, derivedIssue.id)}</span>{' '}
+              {derivedIssue.title}
             </OrgLink>
           </div>
         )}
