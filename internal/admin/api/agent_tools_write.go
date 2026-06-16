@@ -136,6 +136,84 @@ func (s *Server) requireOwnTask(w http.ResponseWriter, r *http.Request, d Handle
 	return true
 }
 
+// requireTaskAccess is the RELAXED task gate (T183) for the tools an agent may use
+// on a task it can SEE but is not actively WORKING — post_task_message and
+// discard_task. The agent is authorized when ANY of:
+//
+//	(a) it holds a WorkItem for pm://tasks/{taskID}  (own-work scope), OR
+//	(b) it CREATED the task                          (creator), OR
+//	(c) it is a MEMBER of the task's project         (project membership).
+//
+// This closes the gap (PD-reported) where an agent that create_task'd a task could
+// neither post to nor discard it without first self-assigning to mint a WorkItem
+// (the hacky assign_task workaround) — both tools previously went through
+// requireOwnTask and 403'd not_agents_task. Authz keys on the agent's identity-
+// member ref (agentActor), exactly like the pm requireProjectMember + the
+// get_my_profile membership scan. Fail-closed: a non-member of another
+// project/org still gets 403, and existence is NOT disclosed (a missing/unseeable
+// task is the same 403 as no-access). taskID-missing is 400; an unwired PMService
+// degrades to the work-item-only scope (stricter, never looser).
+//
+// For discard_task the pm service ALSO enforces requireProjectMember, so this gate
+// only widens the early check to match; for post_task_message there is no further
+// service-side gate (MessageWriter.AddMessage does not check participation), so
+// this IS the authorization boundary — hence the strict creator/member fail-close.
+func (s *Server) requireTaskAccess(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, taskID string) bool {
+	if strings.TrimSpace(taskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return false
+	}
+	if d.AgentWorkItemRepo == nil {
+		writeError(w, http.StatusNotImplemented, "work_item_repo_not_wired", "")
+		return false
+	}
+	ctx := r.Context()
+	// (a) own-work scope — the agent holds a WorkItem for the task.
+	own, err := s.findOwnWorkItems(ctx, d.AgentWorkItemRepo, a, taskID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		return false
+	}
+	if len(own) > 0 {
+		return true
+	}
+	const denyMsg = "agent is neither working this task nor the creator/a member of its project"
+	// (b)+(c) creator or project member — needs the task (creator + project) and
+	// its members. Without a wired PMService we can only honor the work-item scope.
+	if d.PMService == nil {
+		writeError(w, http.StatusForbidden, "not_agents_task", denyMsg)
+		return false
+	}
+	task, err := d.PMService.GetTask(ctx, pm.TaskID(taskID))
+	if err != nil {
+		if errors.Is(err, pm.ErrTaskNotFound) {
+			// Non-disclosure: a missing/unseeable task is the same 403 as no-access.
+			writeError(w, http.StatusForbidden, "not_agents_task", denyMsg)
+			return false
+		}
+		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		return false
+	}
+	self := agentActor(a)
+	// (b) creator.
+	if string(task.CreatedBy()) == self {
+		return true
+	}
+	// (c) project member.
+	members, err := d.PMService.ListMembers(ctx, task.ProjectID())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		return false
+	}
+	for _, m := range members {
+		if string(m.IdentityID()) == self {
+			return true
+		}
+	}
+	writeError(w, http.StatusForbidden, "not_agents_task", denyMsg)
+	return false
+}
+
 // --- post_task_message -------------------------------------------------------
 
 type postTaskMessageReq struct {
@@ -168,7 +246,9 @@ func (s *Server) postTaskMessageHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "missing_content", "")
 		return
 	}
-	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
+	// T183: relaxed gate — the creator / a project member may post even without a
+	// WorkItem (this is the authorization boundary; AddMessage does not re-check).
+	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
 		return
 	}
 	msgID, err := s.postAgentMessage(r.Context(), d, a, req.TaskID, req.Content, conversation.MessageID(req.ParentMessageID))
@@ -850,7 +930,10 @@ func (s *Server) discardTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
 		return
 	}
-	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
+	// T183: relaxed gate — the creator / a project member may discard even without
+	// a WorkItem. pm.DiscardTask ALSO enforces requireProjectMember, so this early
+	// gate just widens to match (and gives a clean 403 + non-disclosure).
+	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
 		return
 	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {

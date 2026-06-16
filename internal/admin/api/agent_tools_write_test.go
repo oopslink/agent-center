@@ -389,6 +389,48 @@ func TestPostTaskMessage_NoWorkItem_403(t *testing.T) {
 	}
 }
 
+// T183: an agent that is a MEMBER of the task's project — but holds NO WorkItem
+// (e.g. it create_task'd the task) — can post to the task conversation WITHOUT
+// first self-assigning. Previously requireOwnTask 403'd not_agents_task; the
+// relaxed requireTaskAccess gate admits the project member.
+func TestPostTaskMessage_ProjectMemberNoWorkItem_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	pid, err := f.pmSvc.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: atTestOrg, Name: "P", CreatedBy: owner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// AG1 is a project member but the task is NOT assigned to it → no WorkItem.
+	if _, err := f.pmSvc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+		ProjectID: pid, IdentityID: pm.IdentityRef("agent:" + atAgent1), Actor: owner,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: owner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t) // participant projector creates the task Conversation.
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": string(tid), "content": "from a member"})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (project member may post); body = %v", status, body)
+	}
+	found := false
+	for _, m := range f.taskMessages(t, string(tid)) {
+		if string(m.SenderIdentityID()) == "agent:"+atAgent1 && m.Content() == "from a member" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("member's message not posted to task conv")
+	}
+}
+
 // v2.7 #185 FINDING-L: an agent's reply via post_message is authorized by
 // agentIsActiveParticipant. Conversation participants carry the agent's MEMBER
 // ref (agent:<member-id>), but the execution-entity id differs — agentActor must
@@ -789,6 +831,65 @@ func TestDiscardTask_CrossWorker_403(t *testing.T) {
 	}
 	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
 		t.Fatalf("task status = %s, want running (no write on 403)", got)
+	}
+}
+
+// T183: a project member with NO WorkItem can discard a task it can see (the
+// create-then-discard flow). Previously requireOwnTask blocked it before
+// pm.DiscardTask's own requireProjectMember check could admit the member.
+func TestDiscardTask_ProjectMemberNoWorkItem_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	pid, err := f.pmSvc.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: atTestOrg, Name: "P", CreatedBy: owner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pmSvc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+		ProjectID: pid, IdentityID: pm.IdentityRef("agent:" + atAgent1), Actor: owner,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: owner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/discard_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": string(tid), "reason": "mis-created"})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (project member may discard); body = %v", status, body)
+	}
+	if got := f.taskStatus(t, string(tid)); got != pm.TaskDiscarded {
+		t.Fatalf("task status = %s, want discarded", got)
+	}
+}
+
+// T183: a NON-member with no WorkItem is still fail-closed on discard_task
+// (mirrors the post_task_message 403) — the relaxed gate does not leak access.
+func TestDiscardTask_NonMemberNoWorkItem_403(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	pid, _ := f.pmSvc.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: atTestOrg, Name: "P", CreatedBy: owner})
+	tid, _ := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: owner})
+	f.drain(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/discard_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": string(tid), "reason": "x"})
+	if status != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 (non-member); body = %v", status, body)
+	}
+	if body["error"] != "not_agents_task" {
+		t.Fatalf("error = %v, want not_agents_task", body["error"])
+	}
+	if got := f.taskStatus(t, string(tid)); got != pm.TaskOpen {
+		t.Fatalf("task status = %s, want open (no write on 403)", got)
 	}
 }
 
