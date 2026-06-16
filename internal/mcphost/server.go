@@ -130,16 +130,20 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "List the OPEN, unassigned assignment-pool tasks you are eligible to claim (across the projects you are a member of). This is a read-only marketplace of available work — NOT your own queue (use get_my_work for that). Pick a suitable task and claim_task it; once claimed it moves to get_my_work.",
 	}, makeListAssignmentPool(cfg))
 
-	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
-	// optionally resume it later.
+	// v2.8.1 #278 PR4 scheduling autonomy. pause_task/resume_task are the SELF
+	// half of the unified pause/resume model (T200 WS4): YOU voluntarily set your
+	// own running task aside and pick it back up. Contrast block_task (a task stuck
+	// on an EXTERNAL dependency) and resume_paused_node (an OPERATOR un-sticking
+	// ANOTHER agent's paused plan node) — same "paused/resume" vocabulary, three
+	// distinct roles, kept as separate tools.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "pause_task",
-		Description: "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_task a different item). Resume it later with resume_task. Use only when scheduling needs it — by default finish your current task first.",
+		Description: "Set the task you are currently running ASIDE so you can start_task a different one (voluntary scheduling — YOUR choice to switch). It stays yours: it shows in list_my_paused_work and you pick it back up with resume_task. This is NOT for a task stuck waiting on something outside your control — use block_task for that. By default, finish your current task before switching.",
 	}, makePauseTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "resume_task",
-		Description: "Resume a previously paused work item (pick its id from list_my_paused_work) — marks it running again. Only ONE work item can be running at a time, so finish or pause your current one first (returns agent_busy otherwise).",
+		Description: "Pick back up a task YOU paused earlier (its id from list_my_paused_work) — marks it running again. The self-resume counterpart of pause_task. Only ONE task can run at a time, so finish or pause your current one first (returns agent_busy otherwise). (To recover a task that is BLOCKED on a dependency use unblock_task; to resume a plan node ANOTHER agent paused use resume_paused_node.)",
 	}, makeResumeTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -149,7 +153,7 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_my_paused_work",
-		Description: "List your paused work items — the candidates you can resume_task later.",
+		Description: "List the tasks YOU paused (with pause_task) — the candidates you can resume_task later.",
 	}, makeListMyPausedWork(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -265,24 +269,34 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Post a question to a task and park the calling agent's work item waiting for input.",
 	}, makeRequestInput(cfg))
 
+	// block_task/unblock_task are the EXTERNAL-DEPENDENCY half of the pause/resume
+	// model (T200 WS4): a task that CANNOT proceed until something outside your
+	// control is resolved — distinct from pause_task (you voluntarily set your own
+	// task aside) and from a paused plan node (resume_paused_node). block is a
+	// self-report; unblock is operator recovery.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "block_task",
-		Description: "Post a reason and move the task to blocked.",
+		Description: "Report that a task is BLOCKED on an external dependency — it can't move until something outside your control is resolved (post the reason why). This is \"stuck\", not \"set aside by choice\": use pause_task instead when you are just switching tasks voluntarily. An owner/PD later clears it with unblock_task. (A backlog task isn't actionable — add it to a plan/pool first.)",
 	}, makeBlockTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "unblock_task",
-		Description: "Recover a blocked task: move it blocked→running and re-dispatch it to its assignee. Use to pull a task back after it was stuck blocked (e.g. reason \"agent execution failed\" from a restart).",
+		Description: "Recover a BLOCKED task (the counterpart of block_task): move it blocked→running and re-dispatch it to its assignee. Use to pull a task back after it was stuck blocked (e.g. reason \"agent execution failed\" from a restart).",
 	}, makeUnblockTask(cfg))
 
+	// rerun_failed_node/resume_paused_node are the OPERATOR-RECOVERY half of the
+	// pause/resume model (T200 WS4): an owner/PD un-sticks ANOTHER agent's plan node
+	// — the cross-agent counterpart of resume_task (which only resumes YOUR OWN
+	// paused task). Pick by the node's state: paused → resume_paused_node,
+	// failed/undispatched → rerun_failed_node.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "rerun_failed_node",
-		Description: "Clear a plan node's dispatch record so the next plan advance re-dispatches it. Plan-aware recovery for a stuck/failed node.",
+		Description: "Operator recovery for a FAILED/undispatched plan node: clear its dispatch record so the next plan advance re-dispatches it. Pair: use resume_paused_node instead when the node is merely paused (its agent set it aside and went idle).",
 	}, makeRerunFailedNode(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "resume_paused_node",
-		Description: "Resume a plan node whose agent paused its work item and went idle (the node shows `paused`): resumes the node's work item and wakes its agent so it continues. Use this to un-stick a paused node; use rerun_failed_node instead for a failed/undispatched node.",
+		Description: "Operator recovery for a PAUSED plan node (the cross-agent counterpart of resume_task): a node whose agent paused its task and went idle shows `paused` — this resumes it and wakes that agent so it continues. Use rerun_failed_node instead for a failed/undispatched node.",
 	}, makeResumePausedNode(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{

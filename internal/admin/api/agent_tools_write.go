@@ -225,7 +225,7 @@ func backlogActionMsg(action string) string {
 }
 
 // writeBacklogNotActionable writes the unified 409 `task_backlog_not_actionable`
-// envelope (T190) — the single code returned by claim_task / start_work /
+// envelope (T190) — the single code returned by claim_task / start_task /
 // complete_task / block_task when the target is a backlog (inert) task.
 func writeBacklogNotActionable(w http.ResponseWriter, action string) {
 	writeError(w, http.StatusConflict, "task_backlog_not_actionable", backlogActionMsg(action))
@@ -245,7 +245,7 @@ func writeBacklogNotActionable(w http.ResponseWriter, action string) {
 // It returns false — WITHOUT writing — when the task is in a plan/pool, is past the
 // pre-start phase, OR cannot be loaded; the caller's normal gate (ClaimPoolTask /
 // requireOwnTask) then surfaces the right error (not_found, not_agents_task, …). A
-// nil PMService degrades to "can't tell" (false), never looser. start_work converges
+// nil PMService degrades to "can't tell" (false), never looser. start_task converges
 // on the same envelope via writeWorkStateError (its backlog signal is the agent-BC
 // ErrWorkItemTaskNotRunnable sentinel from the runnable gate, not a task load).
 func (s *Server) rejectIfBacklog(w http.ResponseWriter, r *http.Request, d HandlerDeps, taskID, action string) bool {
