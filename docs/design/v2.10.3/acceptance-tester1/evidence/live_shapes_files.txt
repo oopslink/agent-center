@@ -1,0 +1,31 @@
+=== RUN   TestZZProbe_V2103_FilesPlan
+    zz_v2103_probe_test.go:144: 
+        ----- upload_file scope=conversation (participant PLAN conv)  [HTTP 200] -----
+        {
+          "file_uri": "ac://files/01KV6YYKEQPRKGKAF34QFFJWSG",
+          "scope": "conversation",
+          "scope_id": "plan-conv-acc",
+          "transfer_id": "01KV6YYKEQPRKGKAF34S4VPBV1",
+          "transfer_uri": "ac://transfers/01KV6YYKEQPRKGKAF34S4VPBV1"
+        }
+    zz_v2103_probe_test.go:155: 
+        ----- post_message + attachment into PLAN conv  [HTTP 200] -----
+        {
+          "message_id": "01KSWC2RG0884XYZXJRKVMQQVQ"
+        }
+    zz_v2103_probe_test.go:157: download participant: HTTP 200  content-type=text/plain  bytes=31  match=true
+    zz_v2103_probe_test.go:165: 
+        ----- RED: upload to NON-PARTICIPANT plan conv  [HTTP 403] -----
+        {
+          "error": "scope_not_in_agent_domain",
+          "message": "requested scope is not in the agent's own domain"
+        }
+    zz_v2103_probe_test.go:176: 
+        ----- RED: upload to CROSS-ORG plan conv  [HTTP 403] -----
+        {
+          "error": "scope_not_in_agent_domain",
+          "message": "requested scope is not in the agent's own domain"
+        }
+--- PASS: TestZZProbe_V2103_FilesPlan (0.04s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	0.665s

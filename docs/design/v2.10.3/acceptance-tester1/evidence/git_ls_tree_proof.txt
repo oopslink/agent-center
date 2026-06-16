@@ -1,0 +1,15 @@
+# git ls-tree proof — feature files present in tagged candidate commit 80794195
+$ git rev-parse HEAD
+8079419583e3cbba6dc73909da149d89a29d21a7
+
+$ git ls-tree 80794195 -- internal/admin/api/agent_tools_issues.go internal/admin/api/agent_tools_issues_test.go internal/admin/api/agent_tools_files.go internal/admin/api/agent_tools_files_t167_test.go internal/projectmanager/service/reads.go
+100644 blob 3b0cdfddc775818bb69ec491f88ff9e8a88f6e02	internal/admin/api/agent_tools_files.go
+100644 blob 38fc4d8df742b88b90f16cd9db129be4445e599b	internal/admin/api/agent_tools_files_t167_test.go
+100644 blob 75da961843a01cca09231fa141ded3cff10ec48a	internal/admin/api/agent_tools_issues.go
+100644 blob 19717ef9c31db6cdf9989c26f01a94bab5c0f552	internal/admin/api/agent_tools_issues_test.go
+100644 blob 9d5cd526d9f85a12554abf9f7b76a1701914fc4c	internal/projectmanager/service/reads.go
+
+$ git log --oneline -3 80794195
+80794195 merge(v2.10.3): T170 agent issue-management 工具 (dev/v2103-t170-agent-issue-tools)
+45f7dac7 merge(v2.10.3): T167 Plan chat 附件域修复 (dev/v2103-t167-plan-chat-attach)
+b4daf2c2 feat(sites): 历史版本页按新设计重做 + roadmap 状态更新 (当前 v2.10.2)

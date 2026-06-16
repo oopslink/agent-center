@@ -1,0 +1,40 @@
+=== RUN   TestCreateIssue_AsMember_OK
+--- PASS: TestCreateIssue_AsMember_OK (0.03s)
+=== RUN   TestCreateIssue_ForeignProject_403
+--- PASS: TestCreateIssue_ForeignProject_403 (0.03s)
+=== RUN   TestCreateIssue_MissingTitle_400
+--- PASS: TestCreateIssue_MissingTitle_400 (0.02s)
+=== RUN   TestUpdateIssue_PatchFields_OK
+--- PASS: TestUpdateIssue_PatchFields_OK (0.02s)
+=== RUN   TestUpdateIssue_PartialPatch_LeavesOthers
+--- PASS: TestUpdateIssue_PartialPatch_LeavesOthers (0.02s)
+=== RUN   TestUpdateIssue_EmptyPatch_400
+--- PASS: TestUpdateIssue_EmptyPatch_400 (0.03s)
+=== RUN   TestUpdateIssue_InvalidStatus_422
+--- PASS: TestUpdateIssue_InvalidStatus_422 (0.02s)
+=== RUN   TestCloseAndReopenIssue_OK
+--- PASS: TestCloseAndReopenIssue_OK (0.05s)
+=== RUN   TestPostIssueMessage_AsMember_OK
+--- PASS: TestPostIssueMessage_AsMember_OK (0.04s)
+=== RUN   TestPostIssueMessage_NonMember_403
+--- PASS: TestPostIssueMessage_NonMember_403 (0.04s)
+=== RUN   TestPostIssueMessage_MissingContent_400
+--- PASS: TestPostIssueMessage_MissingContent_400 (0.03s)
+=== RUN   TestListIssues_FiltersAndIsolation
+--- PASS: TestListIssues_FiltersAndIsolation (0.03s)
+=== RUN   TestListIssues_ForeignProject_403
+--- PASS: TestListIssues_ForeignProject_403 (0.03s)
+=== RUN   TestListTasksOfIssue_OK
+--- PASS: TestListTasksOfIssue_OK (0.03s)
+=== RUN   TestListTasksOfIssue_NonMember_403
+--- PASS: TestListTasksOfIssue_NonMember_403 (0.03s)
+=== RUN   TestGetIssue_OwnDerivedTask_OK
+--- PASS: TestGetIssue_OwnDerivedTask_OK (0.03s)
+=== RUN   TestGetIssue_MemberNoDerivedTask_OK
+--- PASS: TestGetIssue_MemberNoDerivedTask_OK (0.03s)
+=== RUN   TestGetIssue_NonMember_403
+--- PASS: TestGetIssue_NonMember_403 (0.02s)
+=== RUN   TestGetIssue_CrossWorker_403
+--- PASS: TestGetIssue_CrossWorker_403 (0.02s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	1.173s

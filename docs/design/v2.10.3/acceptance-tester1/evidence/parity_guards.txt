@@ -1,0 +1,8 @@
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	0.554s [no tests to run]
+=== RUN   TestAgentFacingTool_HasAdminRoute
+--- PASS: TestAgentFacingTool_HasAdminRoute (0.00s)
+=== RUN   TestAgentFacingToolParity
+--- PASS: TestAgentFacingToolParity (0.01s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/mcphost	0.759s

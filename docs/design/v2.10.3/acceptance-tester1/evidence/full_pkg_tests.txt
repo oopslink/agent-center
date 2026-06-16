@@ -1,0 +1,5 @@
+ok  	github.com/oopslink/agent-center/internal/admin/api	5.951s
+ok  	github.com/oopslink/agent-center/internal/mcphost	0.296s
+ok  	github.com/oopslink/agent-center/internal/projectmanager	0.843s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	6.180s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/sqlite	2.250s

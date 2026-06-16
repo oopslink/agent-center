@@ -1,0 +1,136 @@
+=== RUN   TestZZProbe_V2103_LiveShapes
+    zz_v2103_probe_test.go:36: 
+        ----- create_issue (member)  [HTTP 200] -----
+        {
+          "issue_id": "issue-9ba63100"
+        }
+    zz_v2103_probe_test.go:42: 
+        ----- get_issue (member, NO derived task) — RELAXED read  [HTTP 200] -----
+        {
+          "created_at": "2026-05-30T12:00:00Z",
+          "created_by": "agent:AG1",
+          "description": "repro on iPhone",
+          "id": "issue-9ba63100",
+          "project_id": "project-459b5d17",
+          "status": "open",
+          "tags": [
+            "bug",
+            "p1"
+          ],
+          "title": "Login button misaligned on mobile",
+          "updated_at": "2026-05-30T12:00:00Z",
+          "version": 1
+        }
+    zz_v2103_probe_test.go:48: 
+        ----- SAME issue read from shared pm store (Console source of truth)  [HTTP 200] -----
+        {
+          "created_by": "agent:AG1",
+          "description": "repro on iPhone",
+          "id": "issue-9ba63100",
+          "project_id": "project-459b5d17",
+          "status": "open",
+          "tags": [
+            "bug",
+            "p1"
+          ],
+          "title": "Login button misaligned on mobile",
+          "version": 1
+        }
+    zz_v2103_probe_test.go:56: 
+        ----- update_issue (status+title patch)  [HTTP 200] -----
+        {
+          "ok": true
+        }
+    zz_v2103_probe_test.go:62: 
+        ----- post_issue_message (@mention)  [HTTP 200] -----
+        {
+          "message_id": "01KSWC2RG0NQ2R90RWV0QBT8NZ"
+        }
+    zz_v2103_probe_test.go:68: 
+        ----- post_issue_message (threaded reply)  [HTTP 200] -----
+        {
+          "message_id": "01KSWC2RG0NQ2R90RWV4PQ54DM"
+        }
+    zz_v2103_probe_test.go:77: 
+        ----- list_tasks_of_issue (derived link reverse)  [HTTP 200] -----
+        {
+          "tasks": [
+            {
+              "assignee": "",
+              "blocked_reason": "",
+              "completed_by": "",
+              "created_at": "2026-05-30T12:00:00Z",
+              "derived_from_issue": "issue-9ba63100",
+              "description": "",
+              "id": "task-d030b509",
+              "plan_id": "",
+              "project_id": "project-459b5d17",
+              "status": "open",
+              "title": "Fix mobile login CSS",
+              "updated_at": "2026-05-30T12:00:00Z",
+              "version": 1
+            }
+          ],
+          "total": 1
+        }
+    zz_v2103_probe_test.go:82: 
+        ----- list_issues (status=in_progress filter)  [HTTP 200] -----
+        {
+          "issues": [
+            {
+              "created_at": "2026-05-30T12:00:00Z",
+              "created_by": "agent:AG1",
+              "description": "repro on iPhone",
+              "id": "issue-9ba63100",
+              "project_id": "project-459b5d17",
+              "status": "in_progress",
+              "tags": [
+                "bug",
+                "p1"
+              ],
+              "title": "Login button misaligned (mobile)",
+              "updated_at": "2026-05-30T12:00:00Z",
+              "version": 3
+            }
+          ],
+          "total": 1
+        }
+    zz_v2103_probe_test.go:87: 
+        ----- close_issue  [HTTP 200] -----
+        {
+          "ok": true,
+          "status": "closed"
+        }
+    zz_v2103_probe_test.go:90: 
+        ----- reopen_issue  [HTTP 200] -----
+        {
+          "ok": true,
+          "status": "open"
+        }
+    zz_v2103_probe_test.go:96: 
+        ----- RED: create_issue foreign project  [HTTP 403] -----
+        {
+          "error": "not_a_project_member",
+          "message": "not a member of project project-d5c33b9f, please ask an owner to add you"
+        }
+    zz_v2103_probe_test.go:105: 
+        ----- RED: get_issue non-member (foreign project) — must NOT leak  [HTTP 403] -----
+        {
+          "error": "terminal",
+          "message": "projectmanager: actor is not a member of this project"
+        }
+    zz_v2103_probe_test.go:112: 
+        ----- RED: post_issue_message non-member  [HTTP 403] -----
+        {
+          "error": "terminal",
+          "message": "projectmanager: actor is not a member of this project"
+        }
+    zz_v2103_probe_test.go:119: 
+        ----- RED: list_tasks_of_issue non-member  [HTTP 403] -----
+        {
+          "error": "terminal",
+          "message": "projectmanager: actor is not a member of this project"
+        }
+--- PASS: TestZZProbe_V2103_LiveShapes (0.03s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	0.650s
