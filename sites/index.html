@@ -10,8 +10,10 @@
 <style>
 /* ===== HOME ===== */
 .hero { position: relative; overflow: hidden; }
-.hero::before { /* blueprint grid atmosphere */
-  content:""; position: absolute; inset: 0; z-index: 0;
+.hero::before { /* blueprint grid atmosphere — decorative only, must never eat clicks
+     (the stats + 核心能力 bento live inside .hero; without this the inset:0 overlay
+     sat above their non-z-indexed cards and intercepted every CTA click). */
+  content:""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
   background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 34px 34px; mask-image: radial-gradient(ellipse 80% 60% at 70% 10%, #000 30%, transparent 75%); opacity: .55;
 }
