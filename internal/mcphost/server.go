@@ -169,7 +169,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_my_unread",
-		Description: "List unread messages directed at you — every unread message in your DMs plus every unread @mention of you in channels you're in (excludes channel chatter you weren't mentioned in, and your own messages). Check this periodically and when you reach a stopping point. You MUST reply to each one (acknowledge + defer, handle now, or decline with a reason) — your reply IS your decision. After you handle a message, call mark_seen so it does not come back.",
+		Description: "List unread messages directed at you — every unread message in your DMs plus every unread @mention of you in channels you're in (excludes channel chatter you weren't mentioned in, and your own messages). Check this periodically and when you reach a stopping point. Each item carries actor_kind (human|agent|system) + reply_required: a HUMAN directed message you MUST answer (acknowledge + defer, handle now, or decline with a reason) — your reply IS your decision. An AGENT-authored mention is reply-optional (reply_required=false): judge by content — reply if it actually needs one, otherwise just mark_seen to silently acknowledge (no obligation to produce a message). Handle messages at a stopping point — they don't interrupt your current task. After you handle (or silently ack) a message, call mark_seen so it does not come back.",
 	}, makeGetMyUnread(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{

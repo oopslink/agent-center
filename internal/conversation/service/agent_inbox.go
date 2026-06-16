@@ -37,6 +37,11 @@ type UnreadItem struct {
 	// here is from a participating conversation (download_file authz fail-closed).
 	Attachments []conversation.MessageAttachment
 	PostedAt     time.Time
+	// ActorKind classifies the sender (human/agent/system) for the I7-D2 reply
+	// semantic: a HUMAN directed message must be answered; an AGENT-authored
+	// mention is "可回可不回" — reply only if content warrants, else SilentAck
+	// (mark_seen). Derived from SenderRef (cognition/04-wake-guardrail.md §3.6).
+	ActorKind conversation.MentionActorKind
 }
 
 // AgentInboxService answers "what unread messages are directed at this agent?"
@@ -181,6 +186,7 @@ func (s *AgentInboxService) scanUnread(
 			Content:          content,
 			Attachments:      atts,
 			PostedAt:         pt,
+			ActorKind:        conversation.IdentityRef(sender).ActorKind(),
 		})
 	}
 	return items, rows.Err()
