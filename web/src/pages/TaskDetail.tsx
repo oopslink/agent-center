@@ -10,6 +10,9 @@ import { useProject } from '@/api/projects';
 import { usePlan } from '@/api/plans';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
+import { useConversationByOwnerRef } from '@/api/conversations';
+import { ConversationSidebar } from '@/components/ConversationSidebar';
+import { ContextPanel } from '@/shell/contextPanel';
 import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskAttachments } from '@/components/AttachmentsSection';
@@ -36,6 +39,9 @@ export default function TaskDetail(): React.ReactElement {
   // the sidebar. Gated on plan_id (usePlan no-ops without it). The built-in
   // assignment pool is excluded below — it is not a user-facing plan.
   const plan = usePlan(projectId, task.data?.plan_id);
+  // T184: resolve the task's bound conversation so the shared col④ sidebar
+  // (Participants / Threads / Files) can render for it, same as channels/DMs.
+  const conv = useConversationByOwnerRef(`pm://tasks/${id}`);
   const [editOpen, setEditOpen] = useState(false);
   // T145: on mobile the title is the big <h2>; drop it from the breadcrumb leaf
   // (show just the org_ref / "Task") so the title isn't rendered twice.
@@ -195,6 +201,14 @@ export default function TaskDetail(): React.ReactElement {
 
       {editOpen && (
         <TaskEditModal projectId={projectId} task={tk} onClose={() => setEditOpen(false)} />
+      )}
+
+      {/* T184: the task's conversation gets the shared col④ sidebar
+          (Participants / Threads / Files) — same as channels/DMs/issues/plans. */}
+      {conv.data && (
+        <ContextPanel>
+          <ConversationSidebar conversationId={conv.data.id} participants={conv.data.participants ?? []} />
+        </ContextPanel>
       )}
     </section>
     </SenderSidebarProvider>

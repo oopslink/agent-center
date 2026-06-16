@@ -40,6 +40,8 @@ import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
+import { ConversationSidebar } from '@/components/ConversationSidebar';
+import { ContextPanel } from '@/shell/contextPanel';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { dependencyEdgeError, validDropTargets } from './planDagEdit';
@@ -74,6 +76,9 @@ export default function PlanDetail(): React.ReactElement {
   const { id = '', planId = '' } = useParams<{ id: string; planId: string }>();
   const project = useProject(id);
   const plan = usePlan(id, planId);
+  // T184: the plan conversation gets the shared col④ sidebar too. Resolve it for
+  // participants (enabled:!!id makes this a no-op until the plan loads).
+  const planConv = useConversation(plan.data?.conversation_id);
   const [tab, setTab] = useState<Tab>('chat');
 
   const projectName = project.data?.name ?? id;
@@ -172,6 +177,17 @@ export default function PlanDetail(): React.ReactElement {
           </div>
         </div>
       </div>
+
+      {/* T184: the plan's conversation gets the shared col④ sidebar
+          (Participants / Threads / Files) — same as channels/DMs/tasks/issues. */}
+      {planConv.data && (
+        <ContextPanel>
+          <ConversationSidebar
+            conversationId={planConv.data.id}
+            participants={planConv.data.participants ?? []}
+          />
+        </ContextPanel>
+      )}
     </section>
   );
 }

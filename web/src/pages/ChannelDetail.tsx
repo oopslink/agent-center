@@ -6,7 +6,7 @@ import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
-import { ChannelSidebarTabs } from '@/components/ChannelSidebarTabs';
+import { ConversationSidebar } from '@/components/ConversationSidebar';
 import { ContextPanel } from '@/shell/contextPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { Avatar } from '@/components/Avatar';
@@ -100,10 +100,11 @@ export default function ChannelDetail(): React.ReactElement {
           <ContextPanel> (portals in; collapses when this page unmounts). Outside
           the shell (no provider) ContextPanel is a no-op, so the page still
           renders standalone.
-          v2.10.1 [T96]: the col④ content is now a segmented 3-tab panel
-          (Chat = participants / Threads / Files), one at a time. */}
+          v2.10.1 [T96]: the col④ content is a segmented 3-tab panel
+          (Participants / Threads / Files), one at a time. T184: now the SHARED
+          ConversationSidebar used by every conversation type. */}
       <ContextPanel>
-        <ChannelSidebarTabs conversationId={ch.id} participants={participants} />
+        <ConversationSidebar conversationId={ch.id} participants={participants} />
       </ContextPanel>
     </section>
     </SenderSidebarProvider>

@@ -7,6 +7,9 @@ import { useProject } from '@/api/projects';
 import { IssueEditModal } from '@/components/IssueEditModal';
 import { CollapsibleDescription } from '@/components/CollapsibleDescription';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
+import { useConversationByOwnerRef } from '@/api/conversations';
+import { ConversationSidebar } from '@/components/ConversationSidebar';
+import { ContextPanel } from '@/shell/contextPanel';
 import { IssueDetailSidebar } from '@/components/IssueDetailSidebar';
 import { IssueAttachments } from '@/components/AttachmentsSection';
 import { TypeChip } from '@/components/TypeChip';
@@ -30,6 +33,8 @@ export default function IssueDetail(): React.ReactElement {
   const issue = useIssue(projectId, id);
   // v2.7 #192: parent project shown by name (raw id on hover), not raw project id.
   const project = useProject(issue.data?.project_id);
+  // T184: resolve the issue's bound conversation for the shared col④ sidebar.
+  const conv = useConversationByOwnerRef(`pm://issues/${id}`);
   const [editOpen, setEditOpen] = useState(false);
   // T145: drop the title from the breadcrumb leaf on mobile (the <h2> shows it).
   const isMobile = useIsMobile();
@@ -158,6 +163,14 @@ export default function IssueDetail(): React.ReactElement {
 
       {editOpen && (
         <IssueEditModal projectId={projectId} issue={iss} onClose={() => setEditOpen(false)} />
+      )}
+
+      {/* T184: the issue's conversation gets the shared col④ sidebar
+          (Participants / Threads / Files) — same as channels/DMs/tasks/plans. */}
+      {conv.data && (
+        <ContextPanel>
+          <ConversationSidebar conversationId={conv.data.id} participants={conv.data.participants ?? []} />
+        </ContextPanel>
       )}
     </section>
   );

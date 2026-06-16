@@ -6,6 +6,8 @@ import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
 import { useAgent } from '@/api/agents';
 import { useAppStore } from '@/store/app';
 import { ConversationView } from '@/components/ConversationView';
+import { ConversationSidebar } from '@/components/ConversationSidebar';
+import { ContextPanel } from '@/shell/contextPanel';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { Avatar } from '@/components/Avatar';
@@ -250,9 +252,13 @@ function DMDetailInner(): React.ReactElement {
 
       {/* ── Message + composer zone ─────────────────────────────────────────
           #264 P1: message body + read-cursor + SSE live updates flow through
-          the surface-agnostic shell (no ParticipantsPanel for DMs). Owned by
-          another dev — kept verbatim. */}
+          the surface-agnostic shell. Owned by another dev — kept verbatim. */}
       <ConversationView surface="dm" conversationId={conv.data.id} />
+      {/* T184: DMs get the shared col④ sidebar too, but WITHOUT the Participants
+          tab — a DM is a fixed 1:1 (nothing to invite/remove). Threads / Files only. */}
+      <ContextPanel>
+        <ConversationSidebar conversationId={conv.data.id} showParticipants={false} />
+      </ContextPanel>
     </section>
   );
 }

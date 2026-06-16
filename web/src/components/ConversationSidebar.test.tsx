@@ -1,3 +1,4 @@
+import type React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
@@ -5,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import type { Participant } from '@/api/types';
-import { ChannelSidebarTabs } from './ChannelSidebarTabs';
+import { ConversationSidebar } from './ConversationSidebar';
 
 const participants: Participant[] = [
   { identity_id: 'agent:dev', role: 'member', joined_at: '2026-05-01T00:00:00Z' } as Participant,
@@ -29,31 +30,29 @@ function mockApi({ threads = [], messages = [] }: { threads?: unknown[]; message
   );
 }
 
-function wrap() {
+function wrap(props: Partial<React.ComponentProps<typeof ConversationSidebar>> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <ChannelSidebarTabs conversationId="C-1" participants={participants} />
+        <ConversationSidebar conversationId="C-1" participants={participants} {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-describe('ChannelSidebarTabs (v2.10.1 [T96] channel col④ 3-tab)', () => {
+describe('ConversationSidebar (T184 shared col④ 3-tab)', () => {
   afterEach(() => cleanup());
 
   it('renders Participants / Threads / Files tabs with Participants active by default', async () => {
     mockApi({});
     wrap();
-    // v2.10.2 [T128]: the default tab is now labeled "Participants" (was "Chat").
-    expect(screen.getByTestId('channel-tab-participants')).toHaveTextContent('Participants');
-    expect(screen.getByTestId('channel-tab-participants')).toHaveAttribute('data-active', 'true');
-    expect(screen.getByTestId('channel-tab-threads')).toHaveAttribute('data-active', 'false');
-    expect(screen.getByTestId('channel-tab-files')).toHaveAttribute('data-active', 'false');
-    // Participants tab shows the participants panel (with invite/remove); not the others.
+    expect(screen.getByTestId('conversation-tab-participants')).toHaveTextContent('Participants');
+    expect(screen.getByTestId('conversation-tab-participants')).toHaveAttribute('data-active', 'true');
+    expect(screen.getByTestId('conversation-tab-threads')).toHaveAttribute('data-active', 'false');
+    expect(screen.getByTestId('conversation-tab-files')).toHaveAttribute('data-active', 'false');
     expect(await screen.findByTestId('participants-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('channel-panel-threads')).toHaveAttribute('hidden');
+    expect(screen.getByTestId('conversation-panel-threads')).toHaveAttribute('hidden');
     expect(screen.queryByTestId('thread-list')).not.toBeInTheDocument();
   });
 
@@ -64,11 +63,10 @@ describe('ChannelSidebarTabs (v2.10.1 [T96] channel col④ 3-tab)', () => {
       ],
     });
     wrap();
-    // count badge on the Threads tab reflects the thread count.
-    expect(await screen.findByTestId('channel-tab-threads-count')).toHaveTextContent('1');
-    fireEvent.click(screen.getByTestId('channel-tab-threads'));
-    expect(screen.getByTestId('channel-tab-threads')).toHaveAttribute('data-active', 'true');
-    const panel = screen.getByTestId('channel-panel-threads');
+    expect(await screen.findByTestId('conversation-tab-threads-count')).toHaveTextContent('1');
+    fireEvent.click(screen.getByTestId('conversation-tab-threads'));
+    expect(screen.getByTestId('conversation-tab-threads')).toHaveAttribute('data-active', 'true');
+    const panel = screen.getByTestId('conversation-panel-threads');
     expect(await within(panel).findByTestId('thread-list')).toBeInTheDocument();
     expect(within(panel).getByTestId('thread-list-items')).toBeInTheDocument();
   });
@@ -80,19 +78,28 @@ describe('ChannelSidebarTabs (v2.10.1 [T96] channel col④ 3-tab)', () => {
       ],
     });
     wrap();
-    expect(await screen.findByTestId('channel-tab-files-count')).toHaveTextContent('1');
-    fireEvent.click(screen.getByTestId('channel-tab-files'));
-    const panel = screen.getByTestId('channel-panel-files');
+    expect(await screen.findByTestId('conversation-tab-files-count')).toHaveTextContent('1');
+    fireEvent.click(screen.getByTestId('conversation-tab-files'));
+    const panel = screen.getByTestId('conversation-panel-files');
     expect(await within(panel).findByTestId('shared-files-panel')).toBeInTheDocument();
   });
 
   it('Files tab shows an empty state when there are no shared files', async () => {
     mockApi({ messages: [msg({})] });
     wrap();
-    fireEvent.click(screen.getByTestId('channel-tab-files'));
-    const panel = screen.getByTestId('channel-panel-files');
-    await waitFor(() => expect(within(panel).getByTestId('channel-files-empty')).toBeInTheDocument());
-    // no count badge when zero.
-    expect(screen.queryByTestId('channel-tab-files-count')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('conversation-tab-files'));
+    const panel = screen.getByTestId('conversation-panel-files');
+    await waitFor(() => expect(within(panel).getByTestId('conversation-files-empty')).toBeInTheDocument());
+    expect(screen.queryByTestId('conversation-tab-files-count')).not.toBeInTheDocument();
+  });
+
+  // T184: DMs are a fixed 1:1 — no Participants tab; Threads is the default.
+  it('DM (showParticipants=false) hides the Participants tab and defaults to Threads', async () => {
+    mockApi({});
+    wrap({ showParticipants: false });
+    expect(screen.queryByTestId('conversation-tab-participants')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('conversation-panel-participants')).not.toBeInTheDocument();
+    expect(screen.getByTestId('conversation-tab-threads')).toHaveAttribute('data-active', 'true');
+    expect(screen.getByTestId('conversation-tab-files')).toBeInTheDocument();
   });
 });
