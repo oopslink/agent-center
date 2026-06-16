@@ -115,3 +115,27 @@ func TestAgentTaskRunGate_TranslatesAndGates(t *testing.T) {
 		t.Fatalf("gate(non-task ref) = %v, want nil", err)
 	}
 }
+
+// A RUNNING built-in pool task IS runnable. Re-activating a work item for an
+// already-running (in-motion) task — e.g. after the prior work item failed or the
+// agent's session died and a fresh queued item was minted — is a resume, NOT a
+// backlog start. Regression: a running pool task derives nodeStatus=NodeRunning
+// (never NodeDispatched), so the pre-fix gate wedged the requeued work item behind
+// a misleading task_backlog_not_actionable.
+func TestEnsureTaskRunnable_RunningPoolTask_OK(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, tid := dispatchedPoolTask(t, h, "org-run", "P")
+	addMember(t, h, pid, "agent:m1")
+	// Claim it: open → running (the in-motion state the requeue lands on).
+	if err := h.svc.ClaimPoolTask(h.ctx, tid, "agent:m1"); err != nil {
+		t.Fatalf("ClaimPoolTask (open→running): %v", err)
+	}
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); err != nil {
+		t.Fatalf("running pool task runnable = %v, want nil", err)
+	}
+	// The port adapter must agree (it is what start_work calls).
+	gate := NewAgentTaskRunGate(h.svc)
+	if err := gate.EnsureWorkItemRunnable(h.ctx, "pm://tasks/"+string(tid)); err != nil {
+		t.Fatalf("gate(running pool task) = %v, want nil", err)
+	}
+}

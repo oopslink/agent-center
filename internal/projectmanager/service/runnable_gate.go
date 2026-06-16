@@ -40,6 +40,19 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	if err != nil {
 		return err
 	}
+	// The gate authorizes the open→running TRANSITION (a backlog task must not be
+	// STARTED). A task already `running` is past that transition and IN MOTION:
+	// re-activating a work item for it — e.g. after the prior work item failed (or
+	// the agent's session died mid-flight) and a fresh queued item was minted — is
+	// a resume, NOT a backlog start, so it is runnable. This mirrors the agent-tools
+	// rejectIfBacklog gate, which likewise flags only the PRE-START states
+	// (open/reopened) as inert backlog and spares in-motion tasks. Without this a
+	// running pool task derives nodeStatus=NodeRunning (never NodeDispatched), is
+	// misclassified as backlog, and its requeued work item can NEVER start —
+	// wedging the task behind a misleading `task_backlog_not_actionable`.
+	if t.Status() == pm.TaskRunning {
+		return nil
+	}
 	planID := t.PlanID()
 	if planID == "" {
 		return pm.ErrTaskNotRunnable // pure backlog — no plan at all
