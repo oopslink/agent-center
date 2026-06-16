@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-spa-tsc lint-spa-eslint smoke vet tidy clean clean-dist release release-dir e2e e2e-install
+.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-spa-tsc lint-spa-eslint smoke vet gen-mcp-docs tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -98,6 +98,13 @@ cover-html: cover
 
 vet:
 	go vet ./...
+
+# gen-mcp-docs — regenerate the sites MCP tool reference data island from the
+# live mcphost catalog (source of truth = internal/mcphost). Re-run after adding
+# or changing an agent-facing MCP tool; commit the regenerated file.
+MCP_DOCS_OUT ?= sites/dev/v2.10.3/mcp-tools.gen.js
+gen-mcp-docs:
+	go run ./cmd/mcp-tools-export -out $(MCP_DOCS_OUT)
 
 # lint-vendor — fail if v1 vendor refs (feishu / lark / dingtalk / wechat
 # / vendor_msg_ref / internal/bridge) leak back into the tree. See
