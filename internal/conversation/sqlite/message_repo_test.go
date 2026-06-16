@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -140,6 +141,48 @@ func TestMessageRepo_FindByConversationID_Tail(t *testing.T) {
 	got, _ := msgR.FindByConversationID(context.Background(), "c-1", conversation.MessageFilter{Tail: 2})
 	if len(got) != 2 {
 		t.Fatalf("expected 2, got %d", len(got))
+	}
+	// T189: Tail returns the NEWEST N rows, in oldest→newest order. With a..e
+	// posted 0..4s, Tail:2 must be [d, e] — NOT the oldest [a, b].
+	if string(got[0].ID()) != "d" || string(got[1].ID()) != "e" {
+		t.Fatalf("expected newest two [d e] in ASC order, got [%s %s]", got[0].ID(), got[1].ID())
+	}
+}
+
+// TestMessageRepo_Tail_BeyondLimit_IncludesLatest is the T189 regression: when a
+// conversation has MORE top-level messages than the Tail window, the result must
+// include the LATEST message (and drop the oldest), not freeze on the oldest
+// window. Uses 250 messages vs a Tail of 200 (the real handler window).
+func TestMessageRepo_Tail_BeyondLimit_IncludesLatest(t *testing.T) {
+	convR, msgR := setupMsgDB(t)
+	_ = convR.Save(context.Background(), mkConv(t, "c-1", conversation.ConversationKindDM, ""))
+	now := time.Now().UTC()
+	const total = 250
+	for i := 0; i < total; i++ {
+		m, _ := conversation.NewMessage(conversation.NewMessageInput{
+			ID: conversation.MessageID(fmt.Sprintf("m-%04d", i)), ConversationID: "c-1",
+			SenderIdentityID: "user:h", ContentKind: conversation.MessageContentText,
+			Direction: conversation.DirectionInbound, PostedAt: now.Add(time.Duration(i) * time.Millisecond),
+		})
+		if err := msgR.Append(context.Background(), m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := msgR.FindByConversationID(context.Background(), "c-1",
+		conversation.MessageFilter{Tail: 200, TopLevelOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 200 {
+		t.Fatalf("expected 200, got %d", len(got))
+	}
+	// Newest message MUST be present (this is the bug: it used to be absent).
+	if last := string(got[len(got)-1].ID()); last != "m-0249" {
+		t.Fatalf("newest message missing: last id = %s, want m-0249", last)
+	}
+	// Window is the newest 200 → oldest 50 dropped; first kept is m-0050, ASC.
+	if first := string(got[0].ID()); first != "m-0050" {
+		t.Fatalf("expected oldest-in-window m-0050, got %s", first)
 	}
 }
 

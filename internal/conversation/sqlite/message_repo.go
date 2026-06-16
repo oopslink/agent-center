@@ -116,21 +116,30 @@ func (r *MessageRepo) FindByIDs(ctx context.Context, ids []conversation.MessageI
 // Since cutoff + Limit + Tail.
 func (r *MessageRepo) FindByConversationID(ctx context.Context, conversationID conversation.ConversationID, filter conversation.MessageFilter) ([]*conversation.Message, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	q := messageSelect + ` WHERE conversation_id = ?`
+	where := ` WHERE conversation_id = ?`
 	args := []any{string(conversationID)}
 	if filter.TopLevelOnly {
 		// v2.9.1 Thread P1: exclude replies — the main flow shows top-level only.
-		q += ` AND parent_message_id IS NULL`
+		where += ` AND parent_message_id IS NULL`
 	}
 	if filter.Since != nil {
-		q += ` AND posted_at >= ?`
+		where += ` AND posted_at >= ?`
 		args = append(args, filter.Since.UTC().Format(time.RFC3339Nano))
 	}
+	var q string
 	if filter.Tail > 0 {
-		q += ` ORDER BY posted_at DESC LIMIT ?`
+		// T189: take the NEWEST N rows (posted_at DESC LIMIT N in a subquery), then
+		// re-sort oldest→newest so the caller gets the latest window in chronological
+		// order directly. The previous `ORDER BY posted_at ASC LIMIT N` returned the
+		// OLDEST N, so once a conversation passed N top-level messages the list froze
+		// on the oldest window and never showed new messages (incl. the user's own).
+		// id is a stable tiebreaker for same-instant rows (RFC3339Nano text compare).
+		q = `SELECT ` + messageCols + ` FROM (` +
+			messageSelect + where + ` ORDER BY posted_at DESC, id DESC LIMIT ?` +
+			`) ORDER BY posted_at ASC, id ASC`
 		args = append(args, filter.Tail)
 	} else {
-		q += ` ORDER BY posted_at ASC`
+		q = messageSelect + where + ` ORDER BY posted_at ASC`
 		if filter.Limit > 0 {
 			q += ` LIMIT ?`
 			args = append(args, filter.Limit)
@@ -153,19 +162,13 @@ func (r *MessageRepo) FindByConversationID(ctx context.Context, conversationID c
 }
 
 // FindRecent returns the N most-recent messages, ordered oldest→newest.
+// The Tail branch of FindByConversationID already returns the newest N rows in
+// oldest→newest order (T189), so this is a thin pass-through.
 func (r *MessageRepo) FindRecent(ctx context.Context, conversationID conversation.ConversationID, n int) ([]*conversation.Message, error) {
 	if n <= 0 {
 		n = 50
 	}
-	msgs, err := r.FindByConversationID(ctx, conversationID, conversation.MessageFilter{Tail: n})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*conversation.Message, len(msgs))
-	for i, m := range msgs {
-		out[len(msgs)-1-i] = m
-	}
-	return out, nil
+	return r.FindByConversationID(ctx, conversationID, conversation.MessageFilter{Tail: n})
 }
 
 // FindThreadReplies returns ONLY the replies of a thread (root_message_id ==

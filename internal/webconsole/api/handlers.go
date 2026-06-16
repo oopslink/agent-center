@@ -861,7 +861,10 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// v2.9.1 Thread P1: the main flow shows top-level messages only; replies live in
 	// the thread panel (fetched via the /replies endpoint).
-	filter := conversation.MessageFilter{Limit: 200, TopLevelOnly: true}
+	// T189: Tail (newest 200) NOT Limit (oldest 200) — a conversation with >200
+	// top-level messages must still show the LATEST ones (incl. the user's own
+	// just-sent message), returned oldest→newest for display.
+	filter := conversation.MessageFilter{Tail: 200, TopLevelOnly: true}
 	msgs, err := d.MsgRepo.FindByConversationID(r.Context(), id, filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
