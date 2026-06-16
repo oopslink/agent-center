@@ -159,6 +159,20 @@ func (s *ReminderAppService) ListOrgReminders(ctx context.Context, orgID, reques
 	return s.repo.ListByCreator(ctx, requesterRef, f)
 }
 
+// GetReminderFirings returns a reminder's trigger history (T207 历史触发) if the
+// requester may see the reminder (creator / remindee / owner) — same visibility
+// gate as GetReminder.
+func (s *ReminderAppService) GetReminderFirings(ctx context.Context, id reminder.ReminderID, requesterRef string) ([]reminder.Firing, error) {
+	r, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !s.canManage(ctx, r, requesterRef) && r.RemindeeAgentID() != bareAgent(requesterRef) {
+		return nil, ErrReminderForbidden
+	}
+	return s.repo.ListFirings(ctx, id.String())
+}
+
 // UpdateAction selects the lifecycle op for UpdateReminder.
 type UpdateAction string
 

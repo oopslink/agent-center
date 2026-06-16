@@ -123,6 +123,30 @@ func (r *ReminderRepo) AppendFiring(ctx context.Context, fr reminder.Firing) err
 	return err
 }
 
+// ListFirings returns a reminder's trigger history newest-first (T207 历史触发).
+func (r *ReminderRepo) ListFirings(ctx context.Context, reminderID string) ([]reminder.Firing, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT id, reminder_id, fired_at, outcome, detail FROM reminder_firings
+		 WHERE reminder_id=? ORDER BY fired_at DESC, id DESC`, reminderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []reminder.Firing
+	for rows.Next() {
+		var f reminder.Firing
+		var firedAt, outcome string
+		if err := rows.Scan(&f.ID, &f.ReminderID, &firedAt, &outcome, &f.Detail); err != nil {
+			return nil, err
+		}
+		f.Outcome = reminder.FiringOutcome(outcome)
+		f.FiredAt = parseTime(firedAt)
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
 // list runs a filtered creator/remindee query (optionally narrowing status).
 func (r *ReminderRepo) list(ctx context.Context, where, arg string, f reminder.ListFilter) ([]*reminder.Reminder, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)

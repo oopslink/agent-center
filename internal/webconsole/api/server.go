@@ -196,6 +196,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/tasks", s.pmListOrgTasksHandler)
 	// v2.10.0 [T6]: org-scoped cross-project Plan list (global Workspace > Plan).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/plans", s.pmListOrgPlansHandler)
+	// T207: human Reminder CRUD (Cognition BC) — org-scoped, session-authed.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/reminders", s.remListHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/reminders", s.remCreateHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/reminders/{reminder_id}", s.remGetHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/reminders/{reminder_id}", s.remUpdateHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}", s.pmGetProjectHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}", s.pmUpdateProjectHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}", s.pmArchiveProjectHandler)

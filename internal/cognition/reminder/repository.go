@@ -54,4 +54,7 @@ type Repository interface {
 	FindDue(ctx context.Context, now time.Time) ([]*Reminder, error)
 	// AppendFiring writes one append-only reminder_firings row.
 	AppendFiring(ctx context.Context, f Firing) error
+	// ListFirings returns a reminder's trigger history (newest-first) — the
+	// "历史触发" the UI shows, incl. overlap-skips (T207).
+	ListFirings(ctx context.Context, reminderID string) ([]Firing, error)
 }
