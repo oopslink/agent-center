@@ -12,7 +12,7 @@ import (
 
 // =============================================================================
 // v2.10.3 T170 — agent issue-management MCP tools (create_issue, update_issue,
-// close_issue / reopen_issue, post_issue_message, list_issues,
+// close_issue / reopen_issue, post_message(target=issue), list_issues,
 // list_tasks_of_issue). Same writeToolsFixture as the task tools: a real admin
 // server + AuthMiddleware over the full pm → outbox → projector pipeline. The
 // WRITE tools go through the pm AppService whose requireProjectMember is the
@@ -215,7 +215,7 @@ func TestCloseAndReopenIssue_OK(t *testing.T) {
 	}
 }
 
-// --- post_issue_message ------------------------------------------------------
+// --- post_message (target type "issue") — T200 WS4 -------------------------
 
 func TestPostIssueMessage_AsMember_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
@@ -230,8 +230,8 @@ func TestPostIssueMessage_AsMember_OK(t *testing.T) {
 	f.drain(t) // let the issue.created projector create the issue Conversation
 	srv := f.server(t)
 
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_issue_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "issue_id": string(iid), "content": "my comment @oopslink"})
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "issue", "id": string(iid)}, "content": "my comment @oopslink"})
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
@@ -261,8 +261,8 @@ func TestPostIssueMessage_NonMember_403(t *testing.T) {
 	f.drain(t)
 	srv := f.server(t)
 
-	status, _ := postBearer(t, srv.URL, "/admin/agent-tools/post_issue_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "issue_id": string(iid), "content": "intrude"})
+	status, _ := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "issue", "id": string(iid)}, "content": "intrude"})
 	if status != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403 (non-member may not comment)", status)
 	}
@@ -278,8 +278,8 @@ func TestPostIssueMessage_MissingContent_400(t *testing.T) {
 	f.drain(t)
 	srv := f.server(t)
 
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_issue_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "issue_id": string(iid), "content": ""})
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "issue", "id": string(iid)}, "content": ""})
 	if status != http.StatusBadRequest || body["error"] != "missing_content" {
 		t.Fatalf("status = %d err=%v, want 400 missing_content", status, body["error"])
 	}

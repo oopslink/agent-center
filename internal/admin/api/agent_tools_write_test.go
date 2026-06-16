@@ -31,7 +31,7 @@ import (
 )
 
 // =============================================================================
-// v2.7 D2-b2 — agent MCP write tools (post_task_message, request_input,
+// v2.7 D2-b2 — agent MCP write tools (post_message, request_input,
 // block_task, complete_task). These tests stand up the REAL admin server +
 // AuthMiddleware over a full pm → outbox → projector pipeline so the task's
 // Conversation + the agent's WorkItem exist exactly as they do in production
@@ -338,7 +338,7 @@ func (f *writeToolsFixture) workItemStatus(t *testing.T, taskID string) agent.Wo
 	return items[0].Status()
 }
 
-// --- post_task_message -------------------------------------------------------
+// --- post_message (target type "task") — T200 WS4 ---------------------------
 
 func TestPostTaskMessage_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
@@ -346,8 +346,8 @@ func TestPostTaskMessage_OK(t *testing.T) {
 	tid := f.seedRunningTask(t)
 	srv := f.server(t)
 
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid, "content": "working on it"})
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": tid}, "content": "working on it"})
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
@@ -379,8 +379,8 @@ func TestPostTaskMessage_NoWorkItem_403(t *testing.T) {
 	f.drain(t)
 	srv := f.server(t)
 
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": string(tid), "content": "hi"})
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": string(tid)}, "content": "hi"})
 	if status != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403 (not the agent's task); body = %v", status, body)
 	}
@@ -415,8 +415,8 @@ func TestPostTaskMessage_ProjectMemberNoWorkItem_OK(t *testing.T) {
 	f.drain(t) // participant projector creates the task Conversation.
 	srv := f.server(t)
 
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": string(tid), "content": "from a member"})
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": string(tid)}, "content": "from a member"})
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (project member may post); body = %v", status, body)
 	}
@@ -481,8 +481,8 @@ func TestPostTaskMessage_CrossWorker_403(t *testing.T) {
 	tid := f.seedRunningTask(t)
 	srv := f.server(t)
 	// W1 token operating AG2 (bound to W2) → guardrail 403.
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
-		map[string]any{"agent_id": atAgent2, "task_id": tid, "content": "hi"})
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent2, "target": map[string]any{"type": "task", "id": tid}, "content": "hi"})
 	if status != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403; body = %v", status, body)
 	}
@@ -496,8 +496,8 @@ func TestPostTaskMessage_MissingContent_400(t *testing.T) {
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	tid := f.seedRunningTask(t)
 	srv := f.server(t)
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": tid}})
 	if status != http.StatusBadRequest || body["error"] != "missing_content" {
 		t.Fatalf("status = %d err=%v, want 400 missing_content", status, body["error"])
 	}
@@ -869,7 +869,7 @@ func TestDiscardTask_ProjectMemberNoWorkItem_OK(t *testing.T) {
 }
 
 // T183: a NON-member with no WorkItem is still fail-closed on discard_task
-// (mirrors the post_task_message 403) — the relaxed gate does not leak access.
+// (mirrors the task-post 403) — the relaxed gate does not leak access.
 func TestDiscardTask_NonMemberNoWorkItem_403(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
@@ -893,7 +893,7 @@ func TestDiscardTask_NonMemberNoWorkItem_403(t *testing.T) {
 	}
 }
 
-// F4: post_task_message with parent_message_id threads the agent's reply IN the
+// F4: post_message (task target) with parent_message_id threads the agent's reply IN the
 // thread (parent=root) instead of at conversation top-level. This is the center
 // half of the @agent-in-thread fix: the agent passes the thread root the wake brief
 // gave it, and the reply lands in the thread.
@@ -903,8 +903,8 @@ func TestPostTaskMessage_ParentMessageID_ThreadsReply(t *testing.T) {
 	tid := f.seedRunningTask(t)
 	srv := f.server(t)
 
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid, "content": "thread root"})
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": tid}, "content": "thread root"})
 	if status != http.StatusOK {
 		t.Fatalf("post root status=%d body=%v", status, body)
 	}
@@ -913,8 +913,8 @@ func TestPostTaskMessage_ParentMessageID_ThreadsReply(t *testing.T) {
 		t.Fatalf("missing root message_id: %v", body)
 	}
 
-	status, body = postBearer(t, srv.URL, "/admin/agent-tools/post_task_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid, "content": "in-thread reply", "parent_message_id": rootID})
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": tid}, "content": "in-thread reply", "parent_message_id": rootID})
 	if status != http.StatusOK {
 		t.Fatalf("post reply status=%d body=%v", status, body)
 	}

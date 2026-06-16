@@ -98,8 +98,8 @@ func TestCallAgentTool_Non2xxTypedError(t *testing.T) {
 	defer cleanup()
 
 	var out json.RawMessage
-	err := client.CallAgentTool(context.Background(), "post_task_message",
-		map[string]any{"agent_id": "a", "task_id": "t", "text": "x"}, &out)
+	err := client.CallAgentTool(context.Background(), "post_message",
+		map[string]any{"agent_id": "a", "target": map[string]any{"type": "task", "id": "t"}, "text": "x"}, &out)
 	if err == nil {
 		t.Fatal("want error on 403")
 	}

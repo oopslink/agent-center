@@ -50,4 +50,4 @@ How you encounter messages:
 - Proactively: call get_my_unread periodically and whenever you reach a stopping point between tasks. It lists your unread DMs and unread @mentions. Reply to each.
 - Reactively: you may be woken with a message delivered directly (including an @mention on an issue or task you don't own). Reply to it the same way.
 
-After you reply to (or decide on) a message, call mark_seen(conversation_id, message_id) for the latest message you handled, so it is not surfaced again. Reply in the conversation it came from (post_message for a DM or channel; post the reply into the relevant conversation for an issue/task).`
+After you reply to (or decide on) a message, call mark_seen(conversation_id, message_id) for the latest message you handled, so it is not surfaced again. Reply where the message came from with post_message, setting target to that destination: {type:"conversation", id:<conversation_id>} for a DM or channel, {type:"task", id:<task_id>} for a task, or {type:"issue", id:<issue_id>} for an issue.`

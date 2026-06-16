@@ -163,13 +163,8 @@ func NewServer(cfg Config) *mcp.Server {
 	}, makeMarkSeen(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "post_task_message",
-		Description: "Post a message into a task the calling agent participates in.",
-	}, makePostTaskMessage(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_message",
-		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
+		Description: "Post a message to a DM/channel, a task, or an issue — ONE tool for all four, selected by target. Set target.type to \"conversation\" (a DM or channel, target.id = the conversation_id from the message you were given), \"task\" (target.id = task_id), or \"issue\" (target.id = issue_id). @mention a participant by name to notify them; reply inside a thread with parent_message_id. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))
 
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
@@ -244,11 +239,6 @@ func NewServer(cfg Config) *mcp.Server {
 		Name:        "reopen_issue",
 		Description: "Reopen a closed/resolved issue (sets status=open, the actionable state).",
 	}, makeIssueID(cfg, "reopen_issue"))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "post_issue_message",
-		Description: "Post a comment into an issue's discussion (the issue analogue of post_task_message). @mention a participant by name to notify them; reply inside a thread with parent_message_id. You must be a member of the issue's project.",
-	}, makePostIssueMessage(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "assign_task",
@@ -453,36 +443,6 @@ func makeFindOrgChannel(cfg Config) mcp.ToolHandlerFor[findOrgChannelArgs, any] 
 	}
 }
 
-// postTaskMessageArgs is the typed input for post_task_message. Note there
-// is deliberately NO agent_id field: it is process-fixed and injected by
-// the handler, so the model cannot spoof which agent posts.
-type postTaskMessageArgs struct {
-	TaskID string `json:"task_id" jsonschema:"the task to post into"`
-	Text   string `json:"text" jsonschema:"the message text"`
-	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
-	// root message id the wake brief gave you. Omit for a normal top-level message.
-	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
-}
-
-// makePostTaskMessage returns the post_task_message handler bound to cfg.
-// agent_id is injected from cfg, NEVER from args.
-func makePostTaskMessage(cfg Config) mcp.ToolHandlerFor[postTaskMessageArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args postTaskMessageArgs) (*mcp.CallToolResult, any, error) {
-		// The model-facing arg is "text" (natural), but the admin
-		// post_task_message endpoint reads "content" (and 400s on
-		// missing_content), so forward the value under "content".
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-			"content":  args.Text,
-		}
-		if args.ParentMessageID != "" {
-			body["parent_message_id"] = args.ParentMessageID
-		}
-		return callAdmin(ctx, cfg, "post_task_message", body)
-	}
-}
-
 // postMessageAttachment is one already-uploaded file attached to a post_message
 // (T44). uri is the ac://files/{ulid} returned by upload_file; the rest is
 // display metadata rendered in the UI's attachment card.
@@ -493,12 +453,21 @@ type postMessageAttachment struct {
 	Size     int64  `json:"size" jsonschema:"file size in bytes"`
 }
 
-// postMessageArgs is the typed input for post_message (v2.7 #185). Like
-// post_task_message there is NO agent_id field — it is process-fixed and
-// injected by the handler so the model cannot spoof which agent posts.
+// postMessageTarget is the T200 WS4 discriminated destination of post_message —
+// it replaces the three former tools (DM/channel post_message, post_task_message,
+// post_issue_message) with one target{type,id}. There is NO agent_id here; it is
+// process-fixed and injected by the handler so the model cannot spoof which agent posts.
+type postMessageTarget struct {
+	Type string `json:"type" jsonschema:"one of: conversation (a DM or channel) | task | issue"`
+	ID   string `json:"id" jsonschema:"the destination id — a conversation_id for a DM/channel, a task_id for a task, or an issue_id for an issue"`
+}
+
+// postMessageArgs is the typed input for post_message (v2.7 #185; T200 WS4). Like
+// the former post_task_message there is NO agent_id field — it is process-fixed
+// and injected by the handler so the model cannot spoof which agent posts.
 type postMessageArgs struct {
-	ConversationID string `json:"conversation_id" jsonschema:"the conversation to reply in (use the conversation_id from the message you received)"`
-	Text           string `json:"text" jsonschema:"the message text"`
+	Target postMessageTarget `json:"target" jsonschema:"where to post: {type, id}. type=conversation (id=conversation_id of a DM/channel you received the message in), type=task (id=task_id), or type=issue (id=issue_id)"`
+	Text   string            `json:"text" jsonschema:"the message text"`
 	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
 	// root message id the wake brief gave you. Omit for a normal top-level message.
 	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
@@ -508,13 +477,18 @@ type postMessageArgs struct {
 }
 
 // makePostMessage returns the post_message handler bound to cfg. agent_id is
-// injected from cfg, NEVER from args.
+// injected from cfg, NEVER from args. The model-facing arg is "text" (natural),
+// but every admin post endpoint reads "content", so the value is forwarded under
+// "content".
 func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args postMessageArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id":        cfg.AgentID,
-			"conversation_id": args.ConversationID,
-			"content":         args.Text,
+			"agent_id": cfg.AgentID,
+			"target": map[string]any{
+				"type": args.Target.Type,
+				"id":   args.Target.ID,
+			},
+			"content": args.Text,
 		}
 		if args.ParentMessageID != "" {
 			body["parent_message_id"] = args.ParentMessageID

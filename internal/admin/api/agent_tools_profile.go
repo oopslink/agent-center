@@ -30,10 +30,12 @@ import (
 // so this list is membership-derived, not role-derived. Descriptive only — it
 // mirrors the pm write-gate + agent-tools surface, it does not grant anything.
 var projectMemberCapabilities = []string{
-	"create_task", "assign_task", "post_task_message",
+	"create_task", "assign_task",
 	"subscribe", "block_task", "complete_task",
 	// v2.10.3 T170: full issue management for project members.
-	"create_issue", "update_issue", "close_issue", "reopen_issue", "post_issue_message",
+	// T200 WS4: posting to a task/issue is the single org-scoped post_message
+	// (target type task|issue), so it is listed in orgAgentCapabilities, not here.
+	"create_issue", "update_issue", "close_issue", "reopen_issue",
 }
 
 // orgAgentCapabilities are the org-scoped actions available to any agent

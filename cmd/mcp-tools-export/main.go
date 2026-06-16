@@ -74,14 +74,14 @@ var toolDomain = map[string]string{
 	"discard_task": "tasks_issues", "block_task": "tasks_issues", "unblock_task": "tasks_issues",
 	"get_issue": "tasks_issues", "list_issues": "tasks_issues", "create_issue": "tasks_issues",
 	"update_issue": "tasks_issues", "close_issue": "tasks_issues", "reopen_issue": "tasks_issues",
-	"list_tasks_of_issue": "tasks_issues", "post_issue_message": "tasks_issues",
+	"list_tasks_of_issue": "tasks_issues",
 	// plan / orchestration
 	"create_plan": "plan", "add_task_to_plan": "plan", "remove_task_from_plan": "plan",
 	"add_plan_dependency": "plan", "remove_plan_dependency": "plan", "start_plan": "plan",
 	"stop_plan": "plan", "get_plan": "plan", "list_plans": "plan", "delete_plan": "plan",
 	"archive_plan": "plan", "rerun_failed_node": "plan", "resume_paused_node": "plan",
 	// conversations / messaging
-	"get_my_unread": "conversations", "mark_seen": "conversations", "post_task_message": "conversations",
+	"get_my_unread": "conversations", "mark_seen": "conversations",
 	"post_message": "conversations", "subscribe": "conversations", "unsubscribe": "conversations",
 	"request_input": "conversations",
 	// files

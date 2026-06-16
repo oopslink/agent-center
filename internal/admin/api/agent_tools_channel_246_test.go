@@ -74,7 +74,7 @@ func TestPostMessage_246_ConversationNotFound(t *testing.T) {
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "conversation_id": "ghost", "content": "hi"})
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "conversation", "id": "ghost"}, "content": "hi"})
 	if status != http.StatusNotFound {
 		t.Fatalf("status=%d, want 404; body=%v", status, body)
 	}
@@ -96,7 +96,7 @@ func TestPostMessage_246_NotChannelMember(t *testing.T) {
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "conversation_id": "ch-priv", "content": "hi"})
+		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "conversation", "id": "ch-priv"}, "content": "hi"})
 	if status != http.StatusForbidden {
 		t.Fatalf("status=%d, want 403 (β write-gate HELD); body=%v", status, body)
 	}
