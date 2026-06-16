@@ -1738,7 +1738,14 @@ function PlanTaskRow({
             (avatar + name), and opening it reassigns. Replaces the old redundant
             pair (a read-only AssigneeTag stacked above a separate <select> that
             showed the same value). "" routes to the unassign endpoint. */}
-        <div className="min-w-[11rem] max-w-[15rem]">
+        {/* Width is driven by min-width (not max): the Task-List table is
+            width-constrained, so a `max-w` cap never widens the column — it
+            only ever shrinks toward the min. The avatar + padding + chevron eat
+            ~4rem of the trigger, so an 11rem column left only ~15 chars of text
+            and truncated common handles (agent-center-tester1 → "agent-center-te…").
+            15rem fits ~25 chars; the table's overflow-x-auto scrolls if a row
+            ever needs more, and EntitySelect keeps a title tooltip as a fallback. */}
+        <div className="min-w-[15rem] max-w-[20rem]">
           <EntitySelect
             testId="plan-row-assign"
             options={assigneeOptions}
