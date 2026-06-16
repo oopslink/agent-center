@@ -8,6 +8,7 @@ import { TypeChip } from '@/components/TypeChip';
 import { useTask } from '@/api/tasks';
 import { useProject } from '@/api/projects';
 import { usePlan } from '@/api/plans';
+import { useIssue } from '@/api/issues';
 import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { useConversationByOwnerRef } from '@/api/conversations';
@@ -39,6 +40,10 @@ export default function TaskDetail(): React.ReactElement {
   // the sidebar. Gated on plan_id (usePlan no-ops without it). The built-in
   // assignment pool is excluded below — it is not a user-facing plan.
   const plan = usePlan(projectId, task.data?.plan_id);
+  // T193: resolve the issue this task was derived from (for the sidebar's
+  // "Related Issue" row). Gated on derived_from_issue — useIssue no-ops without
+  // an id, so a task with no provenance fires no request (no N+1).
+  const derivedIssue = useIssue(projectId, task.data?.derived_from_issue || undefined);
   // T184: resolve the task's bound conversation so the shared col④ sidebar
   // (Participants / Threads / Files) can render for it, same as channels/DMs.
   const conv = useConversationByOwnerRef(`pm://tasks/${id}`);
@@ -85,6 +90,16 @@ export default function TaskDetail(): React.ReactElement {
   const planForSidebar =
     plan.data && plan.data.is_builtin !== true
       ? { id: plan.data.id, name: plan.data.name }
+      : undefined;
+  // T193: pass the resolved derived issue to the sidebar (ref + title + id for the
+  // link). Only when the task carries derived_from_issue AND the issue loaded.
+  const derivedIssueForSidebar =
+    tk.derived_from_issue && derivedIssue.data
+      ? {
+          id: derivedIssue.data.id,
+          org_ref: derivedIssue.data.org_ref,
+          title: derivedIssue.data.title,
+        }
       : undefined;
 
   return (
@@ -181,6 +196,7 @@ export default function TaskDetail(): React.ReactElement {
             projectName={project.data?.name}
             assigneeName={resolvedAssigneeName}
             plan={planForSidebar}
+            derivedIssue={derivedIssueForSidebar}
             onEdit={() => setEditOpen(true)}
             editable={!isTerminal}
           />
