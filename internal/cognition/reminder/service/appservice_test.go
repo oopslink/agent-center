@@ -56,6 +56,40 @@ func createCmd() CreateReminderCommand {
 	}
 }
 
+// T207: the web console "全部" view — an org OWNER sees every reminder in the org
+// (any creator); a non-owner is fail-closed to its OWN created reminders.
+func TestApp_ListOrgReminders_OwnerSeesAll_NonOwnerOwnOnly(t *testing.T) {
+	dir := sameProjectDir()
+	dir.owners = map[string]bool{"user:owner": true}
+	ctx, svc, _, _ := appSetup(t, dir)
+
+	c1 := createCmd() // creator agent:AG1
+	c2 := createCmd()
+	c2.CreatorRef = "agent:AG2"
+	if _, err := svc.CreateReminder(ctx, c1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateReminder(ctx, c2); err != nil {
+		t.Fatal(err)
+	}
+
+	all, err := svc.ListOrgReminders(ctx, "org-1", "user:owner", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("owner org view = %d, want 2 (all creators)", len(all))
+	}
+
+	mine, err := svc.ListOrgReminders(ctx, "org-1", "agent:AG1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mine) != 1 || mine[0].CreatorRef() != "agent:AG1" {
+		t.Fatalf("non-owner org view = %d (creator scope), want exactly 1 own", len(mine))
+	}
+}
+
 func TestApp_Create_OK_EmitsCreated(t *testing.T) {
 	ctx, svc, repo, emitter := appSetup(t, sameProjectDir())
 	r, err := svc.CreateReminder(ctx, createCmd())
