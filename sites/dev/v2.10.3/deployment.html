@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>部署架构 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; max-width: var(--maxw); margin: 0 auto; padding: 16px 24px 0; }
+.subnav a { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--bg-subtle); border: 1px solid var(--border); padding: 7px 14px; border-radius: 999px; transition: .15s; }
+.subnav a:hover { border-color: var(--accent); color: var(--brand); }
+.subnav a.on { background: var(--core-bg); border-color: var(--core-bd); color: var(--brand); }
+
+.page { max-width: var(--maxw); margin: 0 auto; padding: 22px 24px 70px; }
+.crumbs { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); margin-bottom: 4px; }
+.head h1 { font-size: 28px; font-weight: 800; margin: 6px 0 0; }
+.head .dek { margin: 8px 0 22px; color: var(--ink-2); font-size: 14px; max-width: 760px; }
+.mono { font-family: var(--font-mono); }
+
+/* tier nodes */
+.tier { display: grid; gap: 14px; }
+.node { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-elevated); padding: 16px 18px 18px; position: relative; box-shadow: var(--shadow-1); }
+.node::before { content:""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; border-radius: var(--r-lg) 0 0 var(--r-lg); background: var(--c); }
+.node .nl { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.node .nl h3 { font-size: 17px; font-weight: 700; }
+.node .nl .zh { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.node .nl .scale { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--c); background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; }
+.node > p.lead { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; }
+.cells { display: flex; flex-wrap: wrap; gap: 9px; }
+.cell { background: var(--bg-elevated); border: 1px dashed var(--border-strong); border-radius: 9px; padding: 9px 12px; min-width: 170px; flex: 1; }
+.cell .ster { font-family: var(--font-mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
+.cell .nm { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--ink); display: block; margin-top: 2px; }
+.cell .nm .p { color: var(--accent); }
+.cell .d { font-size: 11.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.45; }
+.cell.solid { border-style: solid; }
+.flowarrow { text-align: center; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; margin: -6px 0; }
+.flag { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a; margin-left: 6px; vertical-align: middle; }
+
+/* communication links — resource layout diagram */
+.links { margin-top: 32px; }
+.links h2 { font-size: 19px; margin-bottom: 4px; }
+.links .sub { color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; margin-bottom: 16px; }
+.linkmap { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; align-items: stretch; }
+.machine { border: 1.5px solid var(--border-strong); border-radius: var(--r-lg); background: var(--bg-subtle); padding: 14px 16px 16px; }
+.machine .ml { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.machine .ml .ic { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: #fff; font-size: 12px; }
+.machine.center .ml .ic { background: linear-gradient(135deg,var(--accent),var(--brand)); }
+.machine.worker .ml .ic { background: var(--essential); }
+.machine .mz { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); margin-bottom: 12px; }
+.res { background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 11px; margin-bottom: 8px; box-shadow: var(--shadow-1); }
+.res .t { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink); }
+.res .t .p { color: var(--accent); font-weight: 700; }
+.res .d { font-size: 11px; color: var(--ink-2); margin-top: 3px; line-height: 1.4; }
+.res.db { border-left: 3px solid var(--core); }
+.res.blob { border-left: 3px solid var(--essential); }
+.res.mem { border-left: 3px solid var(--peripheral); }
+.linkcol { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 8px; min-width: 168px; }
+.wire { text-align: center; }
+.wire .conn { display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--accent); }
+.wire .line { display: block; height: 2px; background: repeating-linear-gradient(90deg,var(--accent) 0 7px, transparent 7px 13px); margin: 7px 0; }
+.wire .pin { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+.agentbox { margin-top: 8px; background: var(--essential-bg); border: 1px solid var(--essential-bd); border-radius: 8px; padding: 7px 10px; }
+.agentbox .t { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--essential); }
+.agentbox .d { font-size: 10.5px; color: var(--ink-2); margin-top: 2px; }
+
+/* link legend table */
+.linktbl { margin-top: 22px; display: grid; gap: 10px; }
+.lrow { display: grid; grid-template-columns: 210px 1fr; gap: 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-elevated); padding: 12px 14px; box-shadow: var(--shadow-1); }
+.lrow .from { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--brand); }
+.lrow .from .arr { color: var(--ink-3); }
+.lrow .desc { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.lrow .desc b { color: var(--ink); }
+.lrow .desc .p { font-family: var(--font-mono); color: var(--accent); }
+@media (max-width: 900px){ .linkmap{grid-template-columns:1fr} .linkcol{padding:14px 0} .wire .line{width:60%;margin:7px auto} .cells{flex-direction:column} .lrow{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a class="active" href="index.html">架构</a><a href="../../manual/v2.10.3/index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+
+<nav class="subnav">
+  <a href="index.html">DDD</a>
+  <a href="storage.html">存储架构</a>
+  <a class="on" href="deployment.html">部署架构</a>
+</nav>
+
+<div class="page">
+  <div class="crumbs">架构 › 部署架构</div>
+  <div class="head">
+    <h1>部署架构</h1>
+    <p class="dek">重点：资源布局 + 通信链路 —— Center 中心 + Worker 在任意机器 + Agent per-execution 子进程。</p>
+  </div>
+
+  <div class="tier">
+    <div class="node" style="--c:var(--core)">
+      <div class="nl"><h3>Center</h3><span class="zh">中心机</span><span class="scale">× 1</span></div>
+      <p class="lead">单 Go 二进制（<span class="mono">go:embed</span> SPA）。持有 SQLite + BlobStore + Memory git + Supervisor。</p>
+      <div class="cells">
+        <div class="cell solid"><span class="ster">endpoint</span><span class="nm">Web Console <span class="p">127.0.0.1:7100</span></span><div class="d">loopback HTTP + SSE</div></div>
+        <div class="cell solid"><span class="ster">endpoint</span><span class="nm">server <span class="p">:7050</span></span><div class="d">应用服务端口</div></div>
+        <div class="cell solid"><span class="ster">endpoint</span><span class="nm">admin TCP <span class="p">0.0.0.0:7300</span></span><div class="d">worker enroll / 控制</div></div>
+      </div>
+    </div>
+
+    <div class="flowarrow">↓ admin TCP+TLS · 指纹固定</div>
+
+    <div class="node" style="--c:var(--essential)">
+      <div class="nl"><h3>Worker</h3><span class="zh">任意机器 / 开发机</span><span class="scale">× N</span></div>
+      <p class="lead">守护进程，<b>bootstrap token 注册</b> + <b>TCP+TLS 指纹固定</b>（SSH 式）。一机可多 worker。</p>
+      <div class="cells">
+        <div class="cell"><span class="ster">per-execution</span><span class="nm">git worktree</span><div class="d">文件隔离，每次 execution 一个 worktree</div></div>
+        <div class="cell"><span class="ster">per-execution spawn</span><span class="nm">agent CLI 子进程</span><div class="d">worker spawn 的 claude 子进程</div></div>
+      </div>
+    </div>
+
+    <div class="flowarrow">↓ worker spawn (per-execution)</div>
+
+    <div class="node" style="--c:var(--peripheral)">
+      <div class="nl"><h3>Agent</h3><span class="zh">智能体</span><span class="scale">× N</span></div>
+      <p class="lead">worker spawn 的 claude 子进程，经 <b>MCP</b>（<span class="mono">--strict-mcp-config</span>）连 center 用工具。</p>
+    </div>
+  </div>
+
+  <div class="links">
+    <h2>资源布局 + 通信链路</h2>
+    <div class="sub">Center 机（Console / server / admin + DB / Blob / Memory） ←TCP+TLS 指纹→ Worker 机 × N（daemon + worktrees + agent 进程）</div>
+    <div class="linkmap">
+      <div class="machine center">
+        <div class="ml"><span class="ic">▣</span>Center 机</div>
+        <div class="mz">单 Go 二进制 + Supervisor</div>
+        <div class="res"><div class="t">Web Console <span class="p">:7100</span></div><div class="d">loopback HTTP + SSE</div></div>
+        <div class="res"><div class="t">server <span class="p">:7050</span></div></div>
+        <div class="res"><div class="t">admin TCP <span class="p">:7300</span></div><div class="d">0.0.0.0 · enroll / 控制</div></div>
+        <div class="res db"><div class="t">⛁ SQLite</div><div class="d">agent-center.db + events 表</div></div>
+        <div class="res blob"><div class="t">▤ BlobStore</div><div class="d">ULID blob + trace 归档</div></div>
+        <div class="res mem"><div class="t">⎇ Memory git</div><div class="d">scoped CLAUDE.md</div></div>
+      </div>
+
+      <div class="linkcol">
+        <div class="wire">
+          <span class="conn">admin TCP+TLS</span>
+          <span class="line"></span>
+          <span class="pin">:7300 · 指纹固定</span>
+        </div>
+      </div>
+
+      <div class="machine worker">
+        <div class="ml"><span class="ic">▥</span>Worker 机 × N</div>
+        <div class="mz">守护进程 (daemon) · 一机可多 worker</div>
+        <div class="res"><div class="t">git worktree</div><div class="d">per-execution 文件隔离</div></div>
+        <div class="res"><div class="t">git worktree</div><div class="d">per-execution 文件隔离</div></div>
+        <div class="agentbox"><div class="t">⬡ agent CLI 子进程</div><div class="d">claude · 经 MCP 连 center 取工具</div></div>
+        <div class="agentbox"><div class="t">⬡ agent CLI 子进程</div><div class="d">trace stdout/JSONL → worker → center</div></div>
+      </div>
+    </div>
+
+    <div class="linktbl">
+      <div class="lrow">
+        <div class="from">浏览器 <span class="arr">↔</span> Center</div>
+        <div class="desc">loopback HTTP + <b>SSE</b>（实时），<span class="p">:7100</span>。</div>
+      </div>
+      <div class="lrow">
+        <div class="from">Worker <span class="arr">↔</span> Center</div>
+        <div class="desc"><b>admin TCP+TLS <span class="p">:7300</span>，指纹固定</b>；承载 enroll（bootstrap→session token）、<b>有序可重放控制命令流</b>（offset 累积 ack）、A2A 派单 / 状态。</div>
+      </div>
+      <div class="lrow">
+        <div class="from">Agent <span class="arr">↔</span> Center</div>
+        <div class="desc"><b>MCP</b>（agent 自己的 agent-center MCP server）取工具。</div>
+      </div>
+      <div class="lrow">
+        <div class="from">Agent <span class="arr">→</span> Worker <span class="arr">→</span> Center</div>
+        <div class="desc">stdout/JSONL <b>trace 流</b>（worker 投影给 center）。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer style="border-top:1px solid var(--border);padding:30px 0;margin-top:50px;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">架构 · 部署 v2.10.3</span></div></footer>
+</body>
+</html>

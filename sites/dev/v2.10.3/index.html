@@ -8,22 +8,27 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../../assets/redesign.css">
 <style>
-.shell { display: grid; grid-template-columns: 248px 1fr; min-height: calc(100vh - 49px); }
-/* dark layer rail — product col① callback */
-.rail { background: var(--rail-bg); color: var(--rail-ink); padding: 20px 16px; border-right: 1px solid var(--rail-line); position: sticky; top: 49px; align-self: start; height: calc(100vh - 49px); }
-.rail h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #64748b; margin-bottom: 14px; }
+.shell { display: grid; grid-template-columns: 248px 1fr; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; gap: 28px; align-items: start; min-height: calc(100vh - 49px); }
+/* light, contained sidebar — matches manual sidebar aesthetic */
+.rail { background: var(--bg-elevated); color: var(--ink-2); padding: 20px 16px; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); position: sticky; top: 66px; align-self: start; margin-top: 22px; }
+.rail h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 14px; }
 .layers { list-style: none; padding: 0; margin: 0; }
-.layers li { position: relative; padding: 11px 12px 11px 30px; border-radius: 9px; font-size: 13.5px; color: var(--rail-ink); cursor: pointer; transition: .15s; }
-.layers li::before { content:""; position: absolute; left: 13px; top: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translateY(-50%); background: var(--rail-line); }
-.layers li.done { color: var(--rail-ink-2); } .layers li.done::before { background: var(--essential); }
-.layers li.cur { color: #fff; background: rgba(37,99,235,.16); } .layers li.cur::before { background: var(--accent); box-shadow: 0 0 0 4px rgba(37,99,235,.2); }
-.layers li.lock { opacity: .4; } .layers li.lock::before { background: var(--rail-line); }
-.layers .sub { font-family: var(--font-mono); font-size: 10px; color: #475569; display: block; margin-top: 2px; }
-.rail .legend { margin-top: 26px; border-top: 1px solid var(--rail-line); padding-top: 16px; display: grid; gap: 9px; }
-.rail .legend div { font-size: 11.5px; display: flex; align-items: center; gap: 8px; color: #94a3b8; }
+.layers li { position: relative; padding: 11px 12px 11px 30px; border-radius: 9px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; transition: .15s; }
+.layers li::before { content:""; position: absolute; left: 13px; top: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translateY(-50%); background: var(--border-strong); }
+.layers li.done { color: var(--ink); } .layers li.done::before { background: var(--essential); }
+.layers li.cur { color: var(--brand); background: var(--core-bg); } .layers li.cur::before { background: var(--accent); box-shadow: 0 0 0 4px rgba(37,99,235,.2); }
+.layers li.lock { opacity: .45; } .layers li.lock::before { background: var(--border-strong); }
+.layers .sub { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); display: block; margin-top: 2px; }
+.rail .legend { margin-top: 26px; border-top: 1px solid var(--border); padding-top: 16px; display: grid; gap: 9px; }
+.rail .legend div { font-size: 11.5px; display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
 .rail .legend i { width: 10px; height: 10px; border-radius: 3px; }
 
-.canvas { padding: 26px 34px 60px; position: relative; }
+.canvas { padding: 22px 0 60px; position: relative; min-width: 0; }
+/* architecture sub-nav (pill links) */
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; max-width: var(--maxw); margin: 0 auto; padding: 16px 24px 0; }
+.subnav a { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--bg-subtle); border: 1px solid var(--border); padding: 7px 14px; border-radius: 999px; transition: .15s; }
+.subnav a:hover { border-color: var(--accent); color: var(--brand); }
+.subnav a.on { background: var(--core-bg); border-color: var(--core-bd); color: var(--brand); }
 .crumbs { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .crumbs a { cursor: pointer; } .crumbs b { color: var(--ink); }
 .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 6px 0 22px; flex-wrap: wrap; }
@@ -133,6 +138,12 @@
   </div>
 </header>
 
+<nav class="subnav">
+  <a class="on" href="index.html">DDD</a>
+  <a href="storage.html">存储架构</a>
+  <a href="deployment.html">部署架构</a>
+</nav>
+
 <div class="shell">
   <aside class="rail">
     <h4>逐层探索</h4>
@@ -147,7 +158,7 @@
       <div><i style="background:var(--peripheral)"></i>Supporting · Peripheral</div>
     </div>
     <div class="legend" style="margin-top:14px">
-      <div style="color:#64748b;font-size:10px;letter-spacing:.1em">视图</div>
+      <div style="color:var(--ink-3);font-size:10px;letter-spacing:.1em">视图</div>
       <div><i style="background:var(--accent)"></i>结构 drill-down</div>
       <div><i style="background:var(--warning)"></i>序列图 sequence</div>
     </div>
