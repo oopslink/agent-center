@@ -383,21 +383,26 @@ func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem
 	// The triggering message's sender is the "from"; the woken work-item agent is
 	// the "to". Only an AGENT sender is gated (human "user:" / "system" senders
 	// bypass — human intent must deliver, system wakes are not agent storms). A
-	// denied wake is SUPPRESSED (return without enqueueing) and traced. The cycle +
-	// rate gates accumulate across hops in the Guard's shared state, so A→B→A…
-	// round-trips self-extinguish even without an explicit threaded chain.
+	// denied wake is SUPPRESSED (return without enqueueing) and traced.
+	//
+	// EvaluateHop carries the wake CHAIN across hops via the Guard's per-agent
+	// state: `to` inherits (and extends) the chain `from` received when IT was
+	// woken, so depth GROWS and the token budget is SPENT down a real A→B→C… chain
+	// (the depth ① + cost ④ gates fire on the live path), while the cycle ② + rate
+	// ③ gates accumulate as before. Together the four gates self-extinguish a
+	// runaway agent→agent wake storm.
 	if p.wakeGuard != nil {
 		if from, isAgent := strings.CutPrefix(pl.Sender, agentParticipantPrefix); isAgent {
 			rootMsg := pl.RootMessageID
 			if rootMsg == "" {
 				rootMsg = pl.MessageID
 			}
-			chain := p.wakeGuard.RootChain(rootMsg, wakeguard.ActorAgent)
-			tr := p.wakeGuard.Evaluate(from, string(agentID), chain, p.clock.Now())
+			tr := p.wakeGuard.EvaluateHop(from, string(agentID), rootMsg, p.clock.Now())
 			if !tr.Allowed {
 				slog.Info("wake projector: agent→agent wake suppressed by wake-chain guard",
 					"from", from, "to", string(agentID), "gate", string(tr.Gate),
-					"reason", tr.Reason, "work_item_id", wi.ID(), "message_id", pl.MessageID)
+					"depth", tr.Depth, "reason", tr.Reason, "work_item_id", wi.ID(),
+					"message_id", pl.MessageID)
 				return nil
 			}
 		}

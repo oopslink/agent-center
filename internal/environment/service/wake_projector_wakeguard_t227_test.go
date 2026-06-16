@@ -99,6 +99,76 @@ func TestWakeProjector_WakeGuard_RateLimitsAgent(t *testing.T) {
 	}
 }
 
+// TestWakeProjector_WakeGuard_DepthBreaks_Chain (T227) proves the depth ① gate
+// fires on the REAL wake path: a non-repeating chain A→B→C→D→E grows depth across
+// deliveries (the Guard carries the chain per agent), so the hop past MaxDepth is
+// suppressed — the gap the pre-fix per-wake-root wiring left open (depth was always 0).
+func TestWakeProjector_WakeGuard_DepthBreaks_Chain(t *testing.T) {
+	f := newWakeFixture(t)
+	for _, a := range []struct{ id, w, wi, task, conv string }{
+		{"A", "WA", "wi-a", "TA", "conv-A"},
+		{"B", "WB", "wi-b", "TB", "conv-B"},
+		{"C", "WC", "wi-c", "TC", "conv-C"},
+		{"D", "WD", "wi-d", "TD", "conv-D"},
+		{"E", "WE", "wi-e", "TE", "conv-E"},
+	} {
+		f.saveAgent(t, a.id, a.w)
+		f.saveWorkItem(t, a.wi, a.id, "pm://tasks/"+a.task, agent.WorkItemWaitingInput)
+		f.saveTaskConv(t, a.conv, a.task)
+	}
+	// MaxDepth=3: hops to depth 1,2,3 pass; depth 4 trips. Cycle/rate/budget held high.
+	p := f.guardProj(wakeguard.NewGuard(wakeguard.Config{
+		MaxDepth: 3, CycleWindow: 5 * time.Minute, CycleN: 100, RatePerMin: 100, TokenBudget: 100,
+	}))
+	// A→B (depth1), B→C (depth2), C→D (depth3) — all delivered.
+	mustProject(t, p, f, "EV1", "conv-B", "TB", "m1", "agent:A", "to B")
+	mustProject(t, p, f, "EV2", "conv-C", "TC", "m2", "agent:B", "to C")
+	mustProject(t, p, f, "EV3", "conv-D", "TD", "m3", "agent:C", "to D")
+	for _, w := range []string{"WB", "WC", "WD"} {
+		if got := len(f.commandsFor(t, w)); got != 1 {
+			t.Fatalf("%s should be woken once along the chain, got %d", w, got)
+		}
+	}
+	// D→E would be depth 4 > MaxDepth 3 → depth gate suppresses it (E not woken).
+	mustProject(t, p, f, "EV4", "conv-E", "TE", "m4", "agent:D", "to E")
+	if got := len(f.commandsFor(t, "WE")); got != 0 {
+		t.Fatalf("D→E (depth 4) must be suppressed by depth gate, E woken %d times", got)
+	}
+}
+
+// TestWakeProjector_WakeGuard_CostBreaks_Chain (T227) proves the cost ④ gate fires
+// on the real path: a per-chain token budget is spent down across hops, so a chain
+// longer than the budget self-extinguishes even with no repeated pair.
+func TestWakeProjector_WakeGuard_CostBreaks_Chain(t *testing.T) {
+	f := newWakeFixture(t)
+	for _, a := range []struct{ id, w, wi, task, conv string }{
+		{"A", "WA", "wi-a", "TA", "conv-A"},
+		{"B", "WB", "wi-b", "TB", "conv-B"},
+		{"C", "WC", "wi-c", "TC", "conv-C"},
+		{"D", "WD", "wi-d", "TD", "conv-D"},
+	} {
+		f.saveAgent(t, a.id, a.w)
+		f.saveWorkItem(t, a.wi, a.id, "pm://tasks/"+a.task, agent.WorkItemWaitingInput)
+		f.saveTaskConv(t, a.conv, a.task)
+	}
+	// TokenBudget=2: root→B spends to 1, B→C to 0, C→D denied by cost. Depth cap high.
+	p := f.guardProj(wakeguard.NewGuard(wakeguard.Config{
+		MaxDepth: 100, CycleWindow: 5 * time.Minute, CycleN: 100, RatePerMin: 100, TokenBudget: 2,
+	}))
+	mustProject(t, p, f, "EV1", "conv-B", "TB", "m1", "agent:A", "to B")
+	mustProject(t, p, f, "EV2", "conv-C", "TC", "m2", "agent:B", "to C")
+	for _, w := range []string{"WB", "WC"} {
+		if got := len(f.commandsFor(t, w)); got != 1 {
+			t.Fatalf("%s should be woken once before the budget runs out, got %d", w, got)
+		}
+	}
+	// C carries budget 0 → C→D denied by cost (D not woken).
+	mustProject(t, p, f, "EV3", "conv-D", "TD", "m3", "agent:C", "to D")
+	if got := len(f.commandsFor(t, "WD")); got != 0 {
+		t.Fatalf("C→D (budget exhausted) must be suppressed by cost gate, D woken %d times", got)
+	}
+}
+
 func mustProject(t *testing.T, p *WakeProjector, f *wakeFixture, id, convID, taskID, msgID, sender, text string) {
 	t.Helper()
 	if err := p.Project(f.ctx, messageAddedEvent(id, convID, taskID, msgID, sender, text)); err != nil {
