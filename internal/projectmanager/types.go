@@ -154,6 +154,13 @@ var (
 	// ErrPlanProjectMismatch rejects selecting a task whose project differs from
 	// the Plan's project (a Plan selects only its own project's backlog, §2/§9.6d).
 	ErrPlanProjectMismatch = errors.New("projectmanager: task and plan belong to different projects")
+	// ErrDerivedIssueProjectMismatch (T192) rejects linking a task to a
+	// derived_from_issue that belongs to a DIFFERENT project — a task may only be
+	// derived from an Issue in its OWN project (mirrors the Task↔Project scope
+	// invariant). Clearing the link ("") and same-project links are allowed; a
+	// missing issue surfaces ErrIssueNotFound. Enforced by UpdateTask /
+	// BatchUpdateTask when derived_from_issue is (re)set after creation.
+	ErrDerivedIssueProjectMismatch = errors.New("projectmanager: derived_from_issue belongs to a different project")
 	// Start validation (v2.9 #285, §9.6).
 	ErrPlanNoTasks              = errors.New("projectmanager: plan must have at least one task to start")
 	ErrPlanUnassignedTask       = errors.New("projectmanager: every plan task must have an assignee to start")

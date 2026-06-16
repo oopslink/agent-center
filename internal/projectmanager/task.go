@@ -350,6 +350,21 @@ func (t *Task) SetDescription(desc string, at time.Time) error {
 	return nil
 }
 
+// SetDerivedFromIssue links (or, with issueID=="", UNLINKS) this task to the Issue
+// it was derived from (T192 — editable after creation; previously create-only via
+// NewTaskInput). Pure metadata edit — NOT a status change, so statusChangedAt is
+// untouched. The EXISTENCE + SAME-PROJECT invariant (the linked issue must exist and
+// belong to this task's project) is enforced by the AppService, which holds the issue
+// repository — the aggregate cannot see other issues. Empty clears the link.
+func (t *Task) SetDerivedFromIssue(issueID IssueID, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	t.derivedFromIssue = issueID
+	t.touch(at)
+	return nil
+}
+
 // Assign sets the assignee as METADATA — it does NOT change the task's workflow
 // state (v2.8.1 model fix: there is no "assigned" state; an assigned task is
 // still "open" until started). Allowed in any non-terminal state; re-targets an

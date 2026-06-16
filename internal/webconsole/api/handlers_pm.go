@@ -50,7 +50,8 @@ func mapPMError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),
 		errors.Is(err, pm.ErrProjectExists), errors.Is(err, pm.ErrMemberExists),
-		errors.Is(err, pm.ErrTaskExists), errors.Is(err, pm.ErrIssueExists):
+		errors.Is(err, pm.ErrTaskExists), errors.Is(err, pm.ErrIssueExists),
+		errors.Is(err, pm.ErrDerivedIssueProjectMismatch): // T192: cross-project derived_from_issue link
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "pm_error", err.Error())
@@ -659,6 +660,17 @@ func (s *Server) pmGetTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pmTaskMap(t))
 }
 
+// issueIDPtr converts an optional JSON string to an optional pm.IssueID, preserving
+// nil (= field absent → unchanged). A present "" maps to a non-nil "" (= clear the
+// link). T192 — used by the task update/batch-patch handlers for derived_from_issue.
+func issueIDPtr(s *string) *pm.IssueID {
+	if s == nil {
+		return nil
+	}
+	id := pm.IssueID(*s)
+	return &id
+}
+
 func (s *Server) pmUpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	t, caller, ok := s.pmRequireTaskInProject(w, r, d)
@@ -668,13 +680,16 @@ func (s *Server) pmUpdateTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Title       *string `json:"title"`
 		Description *string `json:"description"`
+		// DerivedFromIssue (T192): nil = unchanged; "" = clear the link; an id (re)links.
+		DerivedFromIssue *string `json:"derived_from_issue"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
 	if err := d.PM.UpdateTask(r.Context(), pmservice.UpdateTaskCommand{
-		TaskID: t.ID(), Title: req.Title, Description: req.Description, Actor: caller,
+		TaskID: t.ID(), Title: req.Title, Description: req.Description,
+		DerivedFromIssue: issueIDPtr(req.DerivedFromIssue), Actor: caller,
 	}); err != nil {
 		mapPMError(w, err)
 		return
@@ -699,6 +714,8 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 		Tags        *[]string `json:"tags"`
 		Title       *string   `json:"title"`
 		Description *string   `json:"description"`
+		// DerivedFromIssue (T192): nil = unchanged; "" = clear the link; an id (re)links.
+		DerivedFromIssue *string `json:"derived_from_issue"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -707,6 +724,7 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 	if err := d.PM.BatchUpdateTask(r.Context(), t.ID(), pmservice.BatchTaskPatch{
 		Status: req.Status, Assignee: req.Assignee, Tags: req.Tags,
 		Title: req.Title, Description: req.Description,
+		DerivedFromIssue: issueIDPtr(req.DerivedFromIssue),
 	}, caller); err != nil {
 		mapPMError(w, err)
 		return

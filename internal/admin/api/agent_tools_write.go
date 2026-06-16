@@ -1014,3 +1014,53 @@ func (s *Server) discardTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "discarded"})
 }
+
+// --- set_task_issue (T192) ---------------------------------------------------
+
+type setTaskIssueReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+	// IssueID is the derived_from_issue to link; "" CLEARS the link. The issue must
+	// EXIST and belong to the task's project (validated in UpdateTask).
+	IssueID string `json:"issue_id"`
+}
+
+// setTaskIssueHandler is the agent-facing path to (re)set or CLEAR a task's
+// derived_from_issue AFTER creation (T192) — the link was previously create-only, so
+// a missed/wrong link could not be corrected. It always sends a non-nil
+// DerivedFromIssue (issue_id, possibly "") so the field is applied. Authorized by the
+// relaxed requireTaskAccess gate (creator / project member / own-work) — the same
+// surface as discard_task: a PD that created or owns the task may fix its link without
+// holding a WorkItem. UpdateTask enforces existence + same-project (404 not_found /
+// 409 derived_issue_project_mismatch). Returns the resulting link.
+func (s *Server) setTaskIssueHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req setTaskIssueReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	// Relaxed gate — creator / project member may fix the link without a WorkItem.
+	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
+		return
+	}
+	issueID := pm.IssueID(strings.TrimSpace(req.IssueID))
+	if err := d.PMService.UpdateTask(r.Context(), pmservice.UpdateTaskCommand{
+		TaskID: pm.TaskID(req.TaskID), DerivedFromIssue: &issueID,
+		Actor: pm.IdentityRef(agentActor(a)),
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "task_id": req.TaskID, "derived_from_issue": string(issueID),
+	})
+}

@@ -365,6 +365,9 @@ type BatchTaskPatch struct {
 	Tags        *[]string
 	Title       *string
 	Description *string
+	// DerivedFromIssue (T192): nil = unchanged; "" = clear the link; a non-empty id
+	// (re)links — validated to exist + same project, like UpdateTask.
+	DerivedFromIssue *pm.IssueID
 }
 
 // BatchUpdateTask applies any subset of {status, assignee, tags} to a Task in a
@@ -413,6 +416,11 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		}
 		if patch.Tags != nil {
 			if err := t.SetTags(*patch.Tags, now); err != nil {
+				return err
+			}
+		}
+		if patch.DerivedFromIssue != nil {
+			if err := s.applyDerivedFromIssue(txCtx, t, *patch.DerivedFromIssue, now); err != nil {
 				return err
 			}
 		}

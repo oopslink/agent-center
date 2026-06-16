@@ -402,7 +402,8 @@ func (s *Server) routes() {
 	// T53: operator resume of a paused plan node (un-stick a set-aside node).
 	s.mux.HandleFunc("POST /admin/agent-tools/resume_paused_node", s.resumePausedNodeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/discard_task", s.discardTaskHandler) // T119
+	s.mux.HandleFunc("POST /admin/agent-tools/discard_task", s.discardTaskHandler)    // T119
+	s.mux.HandleFunc("POST /admin/agent-tools/set_task_issue", s.setTaskIssueHandler) // T192: (re)set/clear derived_from_issue
 	// v2.7 D2 b2/d-ii-B — passthrough tools: thin wrappers over the pm
 	// AppServices (writes use actor=agent; the AppService's requireProjectMember
 	// is the write-gate) + per-agent-scoped reads (get_task own-work, get_issue

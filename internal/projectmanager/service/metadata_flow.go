@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -18,12 +20,15 @@ import (
 // a follow-up enhancement (would need a metadata-changed event + projector),
 // out of scope for the minimal "let users fix the title" requirement.
 
-// UpdateTaskCommand patches a Task's title/description (nil = unchanged).
+// UpdateTaskCommand patches a Task's title/description/derived_from_issue
+// (nil = unchanged). For DerivedFromIssue a non-nil pointer applies the value:
+// "" CLEARS the link, a non-empty id (RE)LINKS it (T192 — editable after creation).
 type UpdateTaskCommand struct {
-	TaskID      pm.TaskID
-	Title       *string
-	Description *string
-	Actor       pm.IdentityRef
+	TaskID           pm.TaskID
+	Title            *string
+	Description      *string
+	DerivedFromIssue *pm.IssueID // nil = unchanged; "" = clear; id = link (validated)
+	Actor            pm.IdentityRef
 }
 
 // UpdateTask applies the metadata patch under the membership gate.
@@ -51,8 +56,31 @@ func (s *Service) UpdateTask(ctx context.Context, cmd UpdateTaskCommand) error {
 				return err
 			}
 		}
+		if cmd.DerivedFromIssue != nil {
+			if err := s.applyDerivedFromIssue(txCtx, t, *cmd.DerivedFromIssue, now); err != nil {
+				return err
+			}
+		}
 		return s.tasks.Update(txCtx, t)
 	})
+}
+
+// applyDerivedFromIssue sets (or clears) a task's derived_from_issue under the T192
+// editable invariant: clearing ("") is always allowed; (re)linking a non-empty issue
+// requires that issue to EXIST (ErrIssueNotFound otherwise) and belong to the SAME
+// project as the task (ErrDerivedIssueProjectMismatch otherwise). It mutates t in
+// place; the caller persists within its tx. Shared by UpdateTask + BatchUpdateTask.
+func (s *Service) applyDerivedFromIssue(ctx context.Context, t *pm.Task, issueID pm.IssueID, now time.Time) error {
+	if strings.TrimSpace(string(issueID)) != "" {
+		iss, err := s.issues.FindByID(ctx, issueID)
+		if err != nil {
+			return err // pm.ErrIssueNotFound when missing
+		}
+		if iss.ProjectID() != t.ProjectID() {
+			return pm.ErrDerivedIssueProjectMismatch
+		}
+	}
+	return t.SetDerivedFromIssue(issueID, now)
 }
 
 // UpdateIssueCommand patches an Issue's title/description (nil = unchanged).
