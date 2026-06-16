@@ -67,9 +67,9 @@ describe('MemberInviteModal (#167)', () => {
     let closed = false;
     wrap(<MemberInviteModal conversationId="C1" participants={existing} onClose={() => { closed = true; }} />);
     await waitFor(() => expect(screen.getAllByTestId('invite-candidate').length).toBe(2));
-    const checks = screen.getAllByTestId('invite-candidate-check');
-    fireEvent.click(checks[0]); // user-bob
-    fireEvent.click(checks[1]); // agent-bot
+    const rows = screen.getAllByTestId('invite-candidate');
+    fireEvent.click(rows[0]); // user-bob
+    fireEvent.click(rows[1]); // agent-bot
     fireEvent.click(screen.getByTestId('invite-confirm'));
     await waitFor(() => expect(closed).toBe(true));
     expect(invited.sort()).toEqual(['agent:agent-bot', 'user:user-bob']);

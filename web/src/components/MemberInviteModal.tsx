@@ -59,6 +59,18 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
       return next;
     });
 
+  // Select-all over the currently-visible (search-filtered) candidates.
+  const visibleRefs = useMemo(() => candidates.map(identityRefOf), [candidates]);
+  const allVisibleSelected =
+    visibleRefs.length > 0 && visibleRefs.every((r) => selected.has(r));
+  const toggleAll = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) visibleRefs.forEach((r) => next.delete(r));
+      else visibleRefs.forEach((r) => next.add(r));
+      return next;
+    });
+
   const confirm = async () => {
     if (selected.size === 0) return;
     setErrorMsg('');
@@ -106,6 +118,19 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
           className="mb-3 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
           data-testid="invite-search"
         />
+        <div className="mb-2 flex items-center justify-between px-1 text-xs text-text-muted">
+          <span data-testid="invite-selected-count">{selected.size} selected</span>
+          {visibleRefs.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="font-medium text-accent hover:underline"
+              data-testid="invite-select-all"
+            >
+              {allVisibleSelected ? 'Clear' : 'Select all'}
+            </button>
+          )}
+        </div>
         <ul className="max-h-64 space-y-1 overflow-y-auto" data-testid="invite-candidates">
           {candidates.length === 0 && (
             <li className="px-1 py-2 text-xs italic text-text-muted" data-testid="invite-no-candidates">
@@ -116,22 +141,30 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
             const ref = identityRefOf(m);
             return (
               <li key={ref}>
-                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-bg-subtle" data-testid="invite-candidate">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(ref)}
-                    onChange={() => toggle(ref)}
-                    data-testid="invite-candidate-check"
-                    data-ref={ref}
-                  />
-                  <span className="flex-1 truncate text-text-primary">{m.display_name || m.identity_id}</span>
+                <button
+                  type="button"
+                  onClick={() => toggle(ref)}
+                  aria-pressed={selected.has(ref)}
+                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
+                    selected.has(ref)
+                      ? 'bg-bg-subtle text-text-primary ring-1 ring-inset ring-accent'
+                      : 'text-text-secondary hover:bg-bg-subtle'
+                  }`}
+                  data-testid="invite-candidate"
+                  data-ref={ref}
+                  data-selected={selected.has(ref) ? 'true' : 'false'}
+                >
+                  <span className="flex-1 truncate">{m.display_name || m.identity_id}</span>
                   <span
                     className="rounded bg-bg-subtle px-1.5 text-[0.625rem] uppercase text-text-muted"
                     data-testid="invite-candidate-kind"
                   >
                     {m.kind === 'agent' ? 'Agent' : 'Human'}
                   </span>
-                </label>
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center text-accent" aria-hidden="true">
+                    {selected.has(ref) && <CheckIcon />}
+                  </span>
+                </button>
               </li>
             );
           })}
@@ -161,5 +194,14 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
         </div>
       </div>
     </div>
+  );
+}
+
+// inline check (no-emoji UX rule — single-stroke SVG), shown on selected rows.
+function CheckIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="2" aria-hidden="true">
+      <path d="M5 10.5l3.5 3.5L15 6.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
