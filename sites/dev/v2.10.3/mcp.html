@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP 服务 / Agent 接口 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; max-width: var(--maxw); margin: 0 auto; padding: 16px 24px 0; }
+.subnav a { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--bg-subtle); border: 1px solid var(--border); padding: 7px 14px; border-radius: 999px; transition: .15s; }
+.subnav a:hover { border-color: var(--accent); color: var(--brand); }
+.subnav a.on { background: var(--core-bg); border-color: var(--core-bd); color: var(--brand); }
+
+.page { max-width: var(--maxw); margin: 0 auto; padding: 22px 24px 70px; }
+.crumbs { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); margin-bottom: 4px; }
+.crumbs b { color: var(--accent); font-weight: 700; }
+.head h1 { font-size: 28px; font-weight: 800; margin: 6px 0 0; }
+.head h1 .dim { color: var(--ink-3); font-weight: 600; }
+.head .dek { margin: 8px 0 0; color: var(--ink-2); font-size: 14px; max-width: 820px; }
+.mono { font-family: var(--font-mono); }
+
+/* ---- overview cards ---- */
+.eyebrow { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 30px 0 10px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.card { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-elevated); padding: 16px 18px; box-shadow: var(--shadow-1); }
+.card h3 { font-size: 15px; font-weight: 700; margin: 0 0 6px; }
+.card p { font-size: 13px; color: var(--ink-2); line-height: 1.6; margin: 0; }
+.card .p { font-family: var(--font-mono); color: var(--accent); font-size: 12px; }
+.card a { color: var(--accent); }
+
+/* ---- quick start ---- */
+.start { margin-top: 14px; border: 1px solid var(--core-bd); border-radius: var(--r-lg); background: var(--core-bg); padding: 14px 18px; }
+.start p { margin: 0; font-size: 13px; color: var(--ink); line-height: 1.6; }
+.start code { font-family: var(--font-mono); font-size: 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+
+/* ---- interface list ---- */
+.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.toc a { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; color: var(--ink-2); background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 999px; padding: 5px 11px; }
+.toc a:hover { border-color: var(--accent); color: var(--brand); }
+.toc a .n { color: var(--ink-3); margin-left: 5px; }
+
+.domain { margin-top: 26px; scroll-margin-top: 16px; }
+.domain h2 { font-size: 18px; font-weight: 800; margin: 0 0 2px; display: flex; align-items: baseline; gap: 10px; }
+.domain h2 .count { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--ink-3); }
+.tbl { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.tbl th { text-align: left; font-family: var(--font-mono); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; border-bottom: 1px solid var(--border-strong); padding: 6px 10px; }
+.tbl td { border-bottom: 1px solid var(--border); padding: 9px 10px; vertical-align: top; font-size: 13px; color: var(--ink-2); }
+.tbl tr:hover td { background: var(--bg-subtle); }
+.tname { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--brand); white-space: nowrap; }
+.tsum { line-height: 1.5; }
+.params { display: flex; flex-wrap: wrap; gap: 4px; }
+.pchip { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-2); background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+.pchip.req { color: var(--brand); border-color: var(--core-bd); background: var(--core-bg); }
+.pnone { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+
+.links { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 10px; }
+.links a { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--brand); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); padding: 9px 14px; box-shadow: var(--shadow-1); }
+.links a:hover { border-color: var(--accent); }
+.foot { margin-top: 22px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+
+@media (max-width: 820px){ .cards { grid-template-columns: 1fr; } .tbl, .tbl tbody, .tbl tr, .tbl td { display: block; } .tbl thead { display: none; } .tbl td { border: 0; padding: 2px 0; } .tbl tr { border-bottom: 1px solid var(--border); padding: 10px 0; } }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a class="active" href="index.html">架构</a><a href="../../manual/v2.10.3/index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+
+<nav class="subnav">
+  <a href="index.html">DDD</a>
+  <a href="storage.html">存储架构</a>
+  <a href="deployment.html">部署架构</a>
+  <a class="on" href="mcp.html">MCP 服务</a>
+</nav>
+
+<div class="page">
+  <div class="crumbs">架构 / DDD &nbsp;›&nbsp; <b>MCP 服务 / Agent 接口</b></div>
+  <div class="head">
+    <h1>MCP 服务 <span class="dim">/ Agent 接口</span></h1>
+    <p class="dek">每个 agent 子进程通过一个 per-agent 的 MCP 服务（<span class="mono">mcp-host</span>）调用 center 的能力——领取/回报工作、读写任务与 Issue、编排 Plan、收发会话消息、传文件、记录 findings。下方接口清单<strong>由代码生成</strong>（<span class="mono">make gen-mcp-docs</span> 从 <span class="mono">internal/mcphost</span> 导出），改工具后复跑即更新，绝不手写。</p>
+  </div>
+
+  <div class="eyebrow">概述 · Overview</div>
+  <div class="cards">
+    <div class="card">
+      <h3>是什么</h3>
+      <p>给 agent LLM 用的<strong>工具服务</strong>。每个 agent 子进程绑定一个 <span class="p">mcp-host</span> 进程，它把模型发起的 MCP 工具调用桥接到 center 的 admin agent-tool 接口（<span class="p">/admin/agent-tools/&lt;tool&gt;</span>）+ 文件搬运 seam。一进程只服务一个 agent。</p>
+    </div>
+    <div class="card">
+      <h3>怎么连</h3>
+      <p>传输为 <strong>stdio</strong>（worker 以子进程拉起 claude，注入该 MCP server）。鉴权走 worker bearer token（<span class="p">worker:&lt;id&gt;</span>）；操作 agent 身份是<strong>进程固定</strong>的（<span class="p">AC_MCP_AGENT_ID</span>），注入每个调用体，<strong>不</strong>取自模型参数——模型无法假冒他人。center 每次再校验 <span class="mono">requireAgentOnWorker</span> + 域授权。</p>
+    </div>
+    <div class="card">
+      <h3>在拓扑里的位置</h3>
+      <p>位于 <strong>Worker → Agent</strong> 之间：Worker spawn agent CLI，agent 经 MCP 回连 center 取工具。详见 <a href="deployment.html">部署架构 · 等距拓扑图</a> 里的 <span class="mono">Agent → Center</span> 链路。</p>
+    </div>
+  </div>
+
+  <div class="start">
+    <p>📌 <strong>接入 / 起步</strong>：生产环境由 worker 自动拉起并注入 MCP server，无需手动配置；本页是<strong>接口 reference</strong>。如何安装 worker、派单、起 agent，见手册 <a href="../../manual/v2.10.3/index.html">CLI &amp; MCP</a> 章。工具总数与分组以代码为准——本页清单由 <code>make gen-mcp-docs</code> 生成。</p>
+  </div>
+
+  <div class="eyebrow">接口清单 · Tool Reference <span id="total" class="mono" style="color:var(--ink-3);font-weight:600"></span></div>
+  <div class="toc" id="toc"></div>
+  <div id="reference"></div>
+
+  <div class="links">
+    <a href="index.html">← DDD 架构浏览器</a>
+    <a href="deployment.html">部署架构 · 拓扑图</a>
+    <a href="../../manual/v2.10.3/index.html">手册 · CLI &amp; MCP</a>
+    <a href="https://github.com/oopslink/agent-center">GitHub ↗</a>
+  </div>
+  <div class="foot" id="genfoot"></div>
+</div>
+
+<footer style="border-top:1px solid var(--border);padding:30px 0;margin-top:50px;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between;max-width:var(--maxw);margin:0 auto;padding:0 24px"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">架构 · MCP 服务 v2.10.3</span></div></footer>
+
+<!-- @generated tool data island (window.__MCP_TOOLS__) — produced by `make gen-mcp-docs`. -->
+<script src="mcp-tools.gen.js"></script>
+<script>
+(function () {
+  const data = window.__MCP_TOOLS__;
+  const ref = document.getElementById('reference');
+  if (!data || !Array.isArray(data.domains)) {
+    ref.innerHTML = '<p class="pnone">未能加载工具清单（请运行 make gen-mcp-docs）。</p>';
+    return;
+  }
+  document.getElementById('total').textContent = '共 ' + data.total + ' 个工具 · ' + data.domains.length + ' 域';
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const toc = document.getElementById('toc');
+  data.domains.forEach((d) => {
+    const a = document.createElement('a');
+    a.href = '#' + d.key;
+    a.innerHTML = esc(d.title) + '<span class="n">' + d.tools.length + '</span>';
+    toc.appendChild(a);
+  });
+
+  data.domains.forEach((d) => {
+    const sec = document.createElement('section');
+    sec.className = 'domain';
+    sec.id = d.key;
+    const rows = d.tools.map((t) => {
+      const params = (t.params && t.params.length)
+        ? '<div class="params">' + t.params.map((p) =>
+            '<span class="pchip' + (p.required ? ' req' : '') + '">' + esc(p.name) + (p.required ? ' *' : '') + '</span>').join('') + '</div>'
+        : '<span class="pnone">—</span>';
+      return '<tr>'
+        + '<td><span class="tname" title="' + esc(t.name) + '">' + esc(t.name) + '</span></td>'
+        + '<td class="tsum" title="' + esc(t.description || t.summary) + '">' + esc(t.summary) + '</td>'
+        + '<td>' + params + '</td>'
+        + '</tr>';
+    }).join('');
+    sec.innerHTML =
+      '<h2>' + esc(d.title) + ' <span class="count">' + d.tools.length + ' 个</span></h2>'
+      + '<table class="tbl"><thead><tr><th>工具</th><th>用途</th><th>关键参数（* 必填）</th></tr></thead><tbody>'
+      + rows + '</tbody></table>';
+    ref.appendChild(sec);
+  });
+
+  if (data.note) document.getElementById('genfoot').textContent = data.note;
+})();
+</script>
+</body>
+</html>
