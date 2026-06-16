@@ -40,7 +40,7 @@ var AgentFacingToolNames = []string{
 	"update_issue",
 	"close_issue",
 	"reopen_issue",
-	"post_issue_message",
+	// T200 WS4: post_issue_message merged into post_message (target type "issue").
 	"list_issues",
 	"list_tasks_of_issue",
 	"delete_plan",
@@ -59,8 +59,9 @@ var AgentFacingToolNames = []string{
 	"list_tasks",
 	"mark_seen",
 	"pause_task",
+	// T200 WS4: post_message is the single post tool (target = conversation|task|issue);
+	// the former post_task_message / post_issue_message are gone.
 	"post_message",
-	"post_task_message",
 	"reassign_task",
 	"record_finding",
 	"remove_plan_dependency",

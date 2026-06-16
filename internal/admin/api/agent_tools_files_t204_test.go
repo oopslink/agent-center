@@ -149,7 +149,7 @@ func TestAgentPostMessage_WithAttachment_Issue_OK(t *testing.T) {
 	fileURI := "ac://files/" + ulid
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1", map[string]any{
-		"agent_id": atAgent1, "conversation_id": string(convID), "content": "here is the mock",
+		"agent_id": atAgent1, "target": map[string]any{"type": "conversation", "id": string(convID)}, "content": "here is the mock",
 		"attachments": []map[string]any{{
 			"uri": fileURI, "filename": "mock.png", "mime_type": "image/png", "size": len(content),
 		}},

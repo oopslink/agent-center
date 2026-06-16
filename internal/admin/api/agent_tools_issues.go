@@ -25,10 +25,9 @@ import (
 //   - create_issue / update_issue / close_issue / reopen_issue : project-member
 //     WRITE-gated INSIDE the AppService (requireProjectMember), so a foreign
 //     project → ErrNotMember (403) and a missing project/issue → 404.
-//   - post_issue_message : comment in the issue Conversation (owner_ref
-//     pm://issues/{id}); gated by membership of the issue's project (the issue
-//     analogue of post_task_message; @mention is plain content, threading via
-//     parent_message_id — identical to the task path).
+//   - commenting on an issue : T200 WS4 routes through the unified post_message
+//     (target{type:"issue", id}); the GetIssueForMember gate + the
+//     postAgentIssueMessage primitive (owner_ref pm://issues/{id}) live here.
 //   - list_issues / list_tasks_of_issue : project-member READ-gated.
 // get_issue (relaxed to project-member scope) lives in agent_tools_passthrough.go.
 //
@@ -188,61 +187,13 @@ func (s *Server) setIssueStatusHandler(w http.ResponseWriter, r *http.Request, t
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": string(target)})
 }
 
-// --- post_issue_message ------------------------------------------------------
-
-type postIssueMessageReq struct {
-	AgentID string `json:"agent_id"`
-	IssueID string `json:"issue_id"`
-	Content string `json:"content"`
-	// ParentMessageID (v2.9.1 Thread F4): reply inside a thread — the thread root id.
-	ParentMessageID string `json:"parent_message_id"`
-}
-
-// postIssueMessageHandler appends a comment to the issue Conversation as the
-// agent — the issue analogue of post_task_message. Gated by membership of the
-// issue's project (GetIssueForMember): a non-member → 403, a missing issue → 404.
-// @mention is plain content (the notifier parses it); threading via
-// parent_message_id. Single write (AddMessage is itself atomic).
-func (s *Server) postIssueMessageHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req postIssueMessageReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.PMService == nil {
-		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
-		return
-	}
-	if d.MessageWriter == nil || d.ConvRepo == nil {
-		writeError(w, http.StatusNotImplemented, "conversation_not_wired", "")
-		return
-	}
-	if strings.TrimSpace(req.IssueID) == "" {
-		writeError(w, http.StatusBadRequest, "missing_issue_id", "")
-		return
-	}
-	if strings.TrimSpace(req.Content) == "" {
-		writeError(w, http.StatusBadRequest, "missing_content", "")
-		return
-	}
-	// Membership gate (also resolves ErrIssueNotFound → 404). Reading the issue is
-	// the same project-member scope as get_issue, so a commenter can always read.
-	if _, err := d.PMService.GetIssueForMember(r.Context(), pm.IssueID(req.IssueID), pm.IdentityRef(agentActor(a))); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	msgID, err := s.postAgentIssueMessage(r.Context(), d, a, req.IssueID, req.Content, conversation.MessageID(req.ParentMessageID))
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"message_id": string(msgID)})
-}
+// --- issue commenting --------------------------------------------------------
+//
+// T200 WS4: the dedicated post_issue_message tool is GONE — agents comment on an
+// issue via the unified post_message with target{type:"issue", id:issue_id}
+// (postMessageHandler, agent_tools_write.go). That branch runs the SAME
+// GetIssueForMember gate this handler used; the postAgentIssueMessage helper
+// below is its conversation-resolution + write primitive.
 
 // postAgentIssueMessage appends a message to the issue Conversation as the agent
 // (owner_ref pm://issues/{id}) — the issue dual of postAgentMessage. The

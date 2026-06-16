@@ -81,7 +81,7 @@ func textContent(t *testing.T, res *mcp.CallToolResult) string {
 // bytes through the FileMover, not callAdmin).
 var wantTools = []string{
 	// b3-i (locked)
-	"get_my_work", "post_task_message",
+	"get_my_work",
 	// v2.8.1 #278 D pull model: agent drives its own work-item queue
 	"start_task", "fail_task",
 	// T83: claim an open assignment-pool task (pull, no work item)
@@ -92,7 +92,7 @@ var wantTools = []string{
 	// the former get_my_active_work / list_my_paused_work / list_assignment_pool removed.
 	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention) + mark-seen
 	"get_my_unread", "mark_seen",
-	// v2.7 #185: DM/channel reply
+	// v2.7 #185; T200 WS4: the single post tool (target = conversation|task|issue)
 	"post_message",
 	// v2.7.1 #239: self / org discovery
 	"get_my_profile", "find_org_agent",
@@ -102,7 +102,7 @@ var wantTools = []string{
 	"get_task", "get_issue", "list_tasks",
 	// v2.10.3 T170: agent issue management
 	"create_issue", "update_issue", "close_issue", "reopen_issue",
-	"post_issue_message", "list_issues", "list_tasks_of_issue",
+	"list_issues", "list_tasks_of_issue",
 	// pm writes / passthrough
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe", "request_input",
@@ -163,11 +163,11 @@ func TestInitializeAndListTools(t *testing.T) {
 		}
 	}
 
-	// post_task_message's input schema must expose task_id + text properties.
-	schemaProps := inputSchemaProperties(t, byName["post_task_message"])
-	for _, prop := range []string{"task_id", "text"} {
+	// T200 WS4: post_message's input schema must expose the unified target + text.
+	schemaProps := inputSchemaProperties(t, byName["post_message"])
+	for _, prop := range []string{"target", "text"} {
 		if _, ok := schemaProps[prop]; !ok {
-			t.Errorf("post_task_message schema missing property %q (have %v)", prop, keys2(schemaProps))
+			t.Errorf("post_message schema missing property %q (have %v)", prop, keys2(schemaProps))
 		}
 	}
 }
@@ -283,28 +283,35 @@ func TestCallGetMyWork(t *testing.T) {
 	}
 }
 
-func TestCallPostTaskMessage(t *testing.T) {
+// TestCallPostMessage_Task proves the unified post_message (T200 WS4) forwards a
+// task target as target{type:"task", id} and maps the model-facing "text" to the
+// admin "content" key.
+func TestCallPostMessage_Task(t *testing.T) {
 	fake := &fakeAdmin{canned: json.RawMessage(`{"posted":true}`)}
 	cs := connect(t, Config{AgentID: "agent-7", Admin: fake})
 
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
-		Name:      "post_task_message",
-		Arguments: map[string]any{"task_id": "task-9", "text": "hello"},
+		Name:      "post_message",
+		Arguments: map[string]any{"target": map[string]any{"type": "task", "id": "task-9"}, "text": "hello"},
 	})
 	if err != nil {
-		t.Fatalf("call post_task_message: %v", err)
+		t.Fatalf("call post_message: %v", err)
 	}
 	if res.IsError {
 		t.Fatalf("unexpected IsError; content=%v", res.Content)
 	}
-	if fake.gotTool != "post_task_message" {
-		t.Errorf("forwarded tool = %q, want post_task_message", fake.gotTool)
+	if fake.gotTool != "post_message" {
+		t.Errorf("forwarded tool = %q, want post_message", fake.gotTool)
 	}
 	if got := fake.gotBody["agent_id"]; got != "agent-7" {
 		t.Errorf("forwarded agent_id = %v, want agent-7 (from cfg)", got)
 	}
-	if got := fake.gotBody["task_id"]; got != "task-9" {
-		t.Errorf("forwarded task_id = %v, want task-9", got)
+	target, ok := fake.gotBody["target"].(map[string]any)
+	if !ok {
+		t.Fatalf("forwarded target = %v, want map{type,id}", fake.gotBody["target"])
+	}
+	if target["type"] != "task" || target["id"] != "task-9" {
+		t.Errorf("forwarded target = %v, want {type:task, id:task-9}", target)
 	}
 	// The model-facing arg is "text" but the admin endpoint reads "content".
 	if got := fake.gotBody["content"]; got != "hello" {
@@ -326,9 +333,9 @@ func TestAgentIDNotSpoofable(t *testing.T) {
 	cs := connect(t, Config{AgentID: "agent-real", Admin: fake})
 
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
-		Name: "post_task_message",
+		Name: "post_message",
 		Arguments: map[string]any{
-			"task_id":  "task-1",
+			"target":   map[string]any{"type": "task", "id": "task-1"},
 			"text":     "x",
 			"agent_id": "agent-EVIL", // attempt to impersonate
 		},

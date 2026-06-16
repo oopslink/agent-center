@@ -32,7 +32,9 @@ var errNoLiveWorkItem = errors.New("agent has no live work item for this task")
 // Agent MCP write tools — explicit human-visible communication (v2.7 D2-b2,
 // ADR-0049). The agent (via its Worker daemon) posts to the task it is WORKING:
 //
-//	post_task_message  — append a message to the task Conversation        (1 write)
+//	post_message       — append a message to a DM/channel, task, or issue   (1 write)
+//	                     (T200 WS4: target{type,id} unifies the former post_message/
+//	                     post_task_message/post_issue_message trio)
 //	request_input      — post a question + park the WorkItem waiting_input (ATOMIC)
 //	block_task         — post a reason + pm.BlockTask(blocked)            (ATOMIC)
 //	complete_task      — post a summary + pm.CompleteTask(completed)      (ATOMIC)
@@ -223,7 +225,7 @@ func backlogActionMsg(action string) string {
 }
 
 // writeBacklogNotActionable writes the unified 409 `task_backlog_not_actionable`
-// envelope (T190) — the single code returned by claim_task / start_work /
+// envelope (T190) — the single code returned by claim_task / start_task /
 // complete_task / block_task when the target is a backlog (inert) task.
 func writeBacklogNotActionable(w http.ResponseWriter, action string) {
 	writeError(w, http.StatusConflict, "task_backlog_not_actionable", backlogActionMsg(action))
@@ -243,7 +245,7 @@ func writeBacklogNotActionable(w http.ResponseWriter, action string) {
 // It returns false — WITHOUT writing — when the task is in a plan/pool, is past the
 // pre-start phase, OR cannot be loaded; the caller's normal gate (ClaimPoolTask /
 // requireOwnTask) then surfaces the right error (not_found, not_agents_task, …). A
-// nil PMService degrades to "can't tell" (false), never looser. start_work converges
+// nil PMService degrades to "can't tell" (false), never looser. start_task converges
 // on the same envelope via writeWorkStateError (its backlog signal is the agent-BC
 // ErrWorkItemTaskNotRunnable sentinel from the runnable gate, not a task load).
 func (s *Server) rejectIfBacklog(w http.ResponseWriter, r *http.Request, d HandlerDeps, taskID, action string) bool {
@@ -266,52 +268,7 @@ func (s *Server) rejectIfBacklog(w http.ResponseWriter, r *http.Request, d Handl
 	}
 }
 
-// --- post_task_message -------------------------------------------------------
-
-type postTaskMessageReq struct {
-	AgentID string `json:"agent_id"`
-	TaskID  string `json:"task_id"`
-	Content string `json:"content"`
-	// ParentMessageID (v2.9.1 Thread F4): when the agent is replying inside a thread,
-	// the thread root id — so the reply lands in-thread. Empty for a top-level message.
-	ParentMessageID string `json:"parent_message_id"`
-}
-
-// postTaskMessageHandler appends a human-visible message to the task
-// Conversation as the agent. Single write (AddMessage is itself atomic).
-func (s *Server) postTaskMessageHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req postTaskMessageReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.MessageWriter == nil || d.ConvRepo == nil {
-		writeError(w, http.StatusNotImplemented, "conversation_not_wired", "")
-		return
-	}
-	if strings.TrimSpace(req.Content) == "" {
-		writeError(w, http.StatusBadRequest, "missing_content", "")
-		return
-	}
-	// T183: relaxed gate — the creator / a project member may post even without a
-	// WorkItem (this is the authorization boundary; AddMessage does not re-check).
-	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
-		return
-	}
-	msgID, err := s.postAgentMessage(r.Context(), d, a, req.TaskID, req.Content, conversation.MessageID(req.ParentMessageID))
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"message_id": string(msgID)})
-}
-
-// --- post_message (v2.7 #185) ------------------------------------------------
+// --- post_message (v2.7 #185; T200 WS4 unification) --------------------------
 
 // agentAttachmentReq is the wire shape for one file an agent attaches to a
 // message (T44) — a reference to an ALREADY-UPLOADED blob (ac://files/{ulid})
@@ -324,10 +281,32 @@ type agentAttachmentReq struct {
 	Size     int64  `json:"size"`
 }
 
+// postTargetReq is the T200 WS4 discriminated target of post_message: it replaces
+// the three sibling tools (post_message-by-conversation_id, post_task_message,
+// post_issue_message) with ONE tool that routes by Type. Only the ENTRY POINT is
+// unified — each branch runs the SAME conversation resolution + authorization
+// gate the dedicated tool used to run, so behavior and the authz red-line are
+// byte-for-byte preserved (issue I10: "只动外形,不动底层行为与授权语义").
+type postTargetReq struct {
+	// Type is one of postTarget{Conversation,Task,Issue}. "conversation" covers
+	// both a DM and a channel (addressed by conversation_id); "task"/"issue"
+	// resolve the owner-ref conversation behind the scenes.
+	Type string `json:"type"`
+	// ID is the conversation_id (conversation), task_id (task), or issue_id (issue).
+	ID string `json:"id"`
+}
+
+// The three post_message target kinds.
+const (
+	postTargetConversation = "conversation"
+	postTargetTask         = "task"
+	postTargetIssue        = "issue"
+)
+
 type postMessageReq struct {
-	AgentID        string `json:"agent_id"`
-	ConversationID string `json:"conversation_id"`
-	Content        string `json:"content"`
+	AgentID string        `json:"agent_id"`
+	Target  postTargetReq `json:"target"`
+	Content string        `json:"content"`
 	// ParentMessageID (v2.9.1 Thread F4): when the agent was @mentioned inside a
 	// thread, the thread root id — so its reply lands in-thread instead of at
 	// conversation top-level. Empty for an ordinary top-level message.
@@ -337,19 +316,24 @@ type postMessageReq struct {
 	Attachments []agentAttachmentReq `json:"attachments"`
 }
 
-// postMessageHandler appends a message, as the agent, to ANY conversation
-// (DM/channel/task) the agent is an ACTIVE participant of — resolved by
-// conversation_id. v2.7 #185: this is the agent's reply path for DM/channel
-// conversations (post_task_message is task-owner-scoped + requires a WorkItem;
-// this is participant-scoped, no WorkItem needed). Authz = active participant.
+// postMessageHandler appends a message, as the agent, to a DM/channel, a task,
+// or an issue — selected by req.Target.Type (T200 WS4). It UNIFIES the former
+// post_message / post_task_message / post_issue_message trio: one tool, one
+// surface, three resolution+authz branches kept VERBATIM:
+//
+//   - conversation: resolve by conversation_id, authz = active participant
+//     (v2.7 #185 — the DM/channel reply path; #246 actionable not-found/not-member).
+//   - task: authz = requireTaskAccess (T183 own-work OR creator OR project member),
+//     resolve the task's owner-ref conversation.
+//   - issue: authz = PMService.GetIssueForMember (project membership), resolve the
+//     issue's owner-ref conversation.
 //
 // T44: the message may carry attachments — the agent-side dual of the human
 // chat-box attachment. Each attachment names an already-uploaded blob the agent
 // can reach in its OWN domain (agentReachable); the message stores the attachment
 // metadata AND a {ScopeConversation, convID} reference is added in the SAME tx so
 // the file is downloadable by the conversation's other participants (humans +
-// agents). Authz stays the participant gate — a non-participant is 403'd before
-// any write — and a not-reachable attachment is 403'd before the message lands.
+// agents). A not-reachable attachment is 403'd before the message lands.
 func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req postMessageReq
@@ -365,8 +349,11 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "conversation_not_wired", "")
 		return
 	}
-	if strings.TrimSpace(req.ConversationID) == "" {
-		writeError(w, http.StatusBadRequest, "missing_conversation_id", "")
+	targetType := strings.TrimSpace(req.Target.Type)
+	targetID := strings.TrimSpace(req.Target.ID)
+	if targetType == "" || targetID == "" {
+		writeError(w, http.StatusBadRequest, "missing_target",
+			"target.type (one of conversation|task|issue) and target.id are required")
 		return
 	}
 	// Content is required UNLESS the message carries at least one attachment — an
@@ -376,31 +363,73 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_content", "")
 		return
 	}
-	conv, err := d.ConvRepo.FindByID(r.Context(), conversation.ConversationID(req.ConversationID))
-	if err != nil {
-		// v2.7.1 #246 (a): a missing/typo'd conversation_id gets a clear, actionable
-		// 404 (not an opaque error) — point the agent at find_org_channel to get a
-		// valid id rather than hallucinate one.
-		if errors.Is(err, conversation.ErrConversationNotFound) {
-			writeError(w, http.StatusNotFound, "conversation_not_found",
-				"conversation "+req.ConversationID+" not found — use find_org_channel to resolve a channel name to its id")
+
+	// Resolve the target → its Conversation, running the SAME per-target authz gate
+	// the dedicated tool used to run (issue I10: shape-only, authz unchanged). Each
+	// branch writes its own error envelope and returns on denial.
+	var conv *conversation.Conversation
+	switch targetType {
+	case postTargetConversation:
+		c, err := d.ConvRepo.FindByID(r.Context(), conversation.ConversationID(targetID))
+		if err != nil {
+			// v2.7.1 #246 (a): a missing/typo'd conversation_id gets a clear, actionable
+			// 404 (not an opaque error) — point the agent at find_org_channel to get a
+			// valid id rather than hallucinate one.
+			if errors.Is(err, conversation.ErrConversationNotFound) {
+				writeError(w, http.StatusNotFound, "conversation_not_found",
+					"conversation "+targetID+" not found — use find_org_channel to resolve a channel name to its id")
+				return
+			}
+			mapDomainError(w, err)
 			return
 		}
-		mapDomainError(w, err)
-		return
-	}
-	if !agentIsActiveParticipant(conv, a) {
-		// v2.7.1 #246 (3): precise not-member message for channels (the write-gate is
-		// unchanged — #224/#227 participant gate still 403s; only the wording is
-		// actionable). β boundary HELD: visibility via find_org_channel does NOT grant
-		// write — a non-member must still be added.
-		if conv.Kind() == conversation.ConversationKindChannel {
-			writeError(w, http.StatusForbidden, "not_a_channel_member",
-				"not a member of channel "+conv.Name()+" — ask an owner to add you before posting")
+		if !agentIsActiveParticipant(c, a) {
+			// v2.7.1 #246 (3): precise not-member message for channels (the write-gate is
+			// unchanged — #224/#227 participant gate still 403s; only the wording is
+			// actionable). β boundary HELD: visibility via find_org_channel does NOT grant
+			// write — a non-member must still be added.
+			if c.Kind() == conversation.ConversationKindChannel {
+				writeError(w, http.StatusForbidden, "not_a_channel_member",
+					"not a member of channel "+c.Name()+" — ask an owner to add you before posting")
+				return
+			}
+			writeError(w, http.StatusForbidden, "not_a_participant",
+				"agent is not an active participant of this conversation")
 			return
 		}
-		writeError(w, http.StatusForbidden, "not_a_participant",
-			"agent is not an active participant of this conversation")
+		conv = c
+	case postTargetTask:
+		// T183 relaxed gate — own-work OR creator OR project member (writes its own
+		// 400/403/501 on denial; this IS the authorization boundary for task posts).
+		if !s.requireTaskAccess(w, r, d, a, targetID) {
+			return
+		}
+		c, err := d.ConvRepo.FindByOwnerRef(r.Context(), conversation.NewTaskOwnerRef(targetID))
+		if err != nil {
+			mapDomainError(w, err)
+			return
+		}
+		conv = c
+	case postTargetIssue:
+		if d.PMService == nil {
+			writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+			return
+		}
+		// Membership gate (also resolves ErrIssueNotFound → 404). Same project-member
+		// scope as get_issue, so a commenter can always read.
+		if _, err := d.PMService.GetIssueForMember(r.Context(), pm.IssueID(targetID), pm.IdentityRef(agentActor(a))); err != nil {
+			mapDomainError(w, err)
+			return
+		}
+		c, err := d.ConvRepo.FindByOwnerRef(r.Context(), conversation.NewIssueOwnerRef(targetID))
+		if err != nil {
+			mapDomainError(w, err)
+			return
+		}
+		conv = c
+	default:
+		writeError(w, http.StatusBadRequest, "invalid_target_type",
+			"target.type must be one of: conversation, task, issue")
 		return
 	}
 
@@ -460,6 +489,7 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var res convservice.AddMessageResult
+	var err error
 	if len(fileURIs) > 0 {
 		if d.DB == nil {
 			writeError(w, http.StatusNotImplemented, "db_not_wired", "database not wired")

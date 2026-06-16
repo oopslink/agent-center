@@ -162,29 +162,8 @@ func makeIssueID(cfg Config, tool string) mcp.ToolHandlerFor[issueIDArgs, any] {
 	}
 }
 
-// --- post_issue_message (v2.10.3 T170) ---------------------------------------
-
-type postIssueMessageArgs struct {
-	IssueID string `json:"issue_id" jsonschema:"the issue to comment on"`
-	Text    string `json:"text" jsonschema:"the comment text (@mention a participant by name to notify them)"`
-	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread; omit for a top-level comment.
-	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id; omit for a top-level comment"`
-}
-
-func makePostIssueMessage(cfg Config) mcp.ToolHandlerFor[postIssueMessageArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args postIssueMessageArgs) (*mcp.CallToolResult, any, error) {
-		// Model-facing arg is "text"; the admin endpoint reads "content".
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"issue_id": args.IssueID,
-			"content":  args.Text,
-		}
-		if args.ParentMessageID != "" {
-			body["parent_message_id"] = args.ParentMessageID
-		}
-		return callAdmin(ctx, cfg, "post_issue_message", body)
-	}
-}
+// T200 WS4: post_issue_message is gone — comment on an issue via post_message with
+// target{type:"issue", id:issue_id} (see makePostMessage in server.go).
 
 // --- list_issues (v2.10.3 T170) ----------------------------------------------
 

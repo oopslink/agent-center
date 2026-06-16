@@ -8,13 +8,15 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 )
 
-// start_work / fail_work — v2.8.1 #278 D (@oopslink's pull model). The agent,
-// via the MCP start_work / fail_work tools, drives its OWN work-item queue:
-//   - start_work — select a queued work item and mark it running (queued→active).
+// start_task / fail_task — v2.8.1 #278 D (@oopslink's pull model; tool names
+// task-lexicon since WS1/T197). The agent, via the MCP start_task / fail_task
+// tools, drives its OWN work-item queue (the internal service/state machine keeps
+// the WorkItem vocabulary; only the agent-facing tool name is "task"):
+//   - start_task — select a queued work item and mark it running (queued→active).
 //     Single-active is enforced (service StartWork + DB UNIQUE partial index):
 //     if the agent already has an active/waiting_input item → 409 agent_busy and
 //     the item stays queued (queue-drain, not drop).
-//   - fail_work  — report the in-flight work item failed (active|waiting_input→
+//   - fail_task  — report the in-flight work item failed (active|waiting_input→
 //     failed); frees the active slot so the next queued item can drain.
 // Own-scope: the work item must belong to the calling agent (StartWork/FailWork
 // ownership-guard → ErrWorkItemNotFound → 404).
@@ -87,9 +89,12 @@ func (s *Server) failWorkHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// pause_work / resume_paused_work — v2.8.1 #278 PR4 scheduling autonomy. pause_work
-// sets the active item aside (active→paused, releases the single-active slot);
-// resume_paused_work re-acquires the slot (paused→active, single-active-gated).
+// pause_task / resume_task — v2.8.1 #278 PR4 scheduling autonomy (tool names
+// task-lexicon since WS1/T197). The SELF half of the T200 WS4 pause/resume model:
+// pause_task sets the agent's own active item aside (active→paused, releases the
+// single-active slot); resume_task re-acquires the slot (paused→active,
+// single-active-gated). (block_task is the external-dependency axis;
+// resume_paused_node is the operator cross-agent resume — both are separate tools.)
 
 type pauseWorkReq struct {
 	AgentID    string `json:"agent_id"`
@@ -160,8 +165,8 @@ func (s *Server) resumeWorkHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeWorkStateError maps the start_work / fail_work / pause_work /
-// resume_paused_work domain errors to HTTP.
+// writeWorkStateError maps the start_task / fail_task / pause_task /
+// resume_task domain errors to HTTP.
 func writeWorkStateError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, agent.ErrAgentHasActiveWork):

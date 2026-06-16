@@ -391,8 +391,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/find_org_channel", s.findOrgChannelHandler)
 	// v2.7 D2-b2 — explicit human-visible communication write tools. The agent
 	// posts to the task it is working; composite tools are atomic (one outer tx).
-	s.mux.HandleFunc("POST /admin/agent-tools/post_task_message", s.postTaskMessageHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/post_message", s.postMessageHandler) // v2.7 #185: DM/channel reply
+	// T200 WS4 — ONE post_message routes to a DM/channel, a task, or an issue via
+	// its target{type,id}; the former post_task_message / post_issue_message tools
+	// are gone (their resolution+authz branches live inside postMessageHandler).
+	s.mux.HandleFunc("POST /admin/agent-tools/post_message", s.postMessageHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/request_input", s.requestInputHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
@@ -425,7 +427,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/update_issue", s.updateIssueHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/close_issue", s.closeIssueHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/reopen_issue", s.reopenIssueHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/post_issue_message", s.postIssueMessageHandler)
+	// T200 WS4: post_issue_message merged into post_message (target type "issue").
 	s.mux.HandleFunc("POST /admin/agent-tools/list_issues", s.listIssuesHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_tasks_of_issue", s.listTasksOfIssueHandler)
 	// v2.7 post-D3 (task #104) — agent file MCP tools. Upload/download/attach with

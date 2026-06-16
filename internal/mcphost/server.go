@@ -151,11 +151,15 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Claim an OPEN assignment-pool task (a task_id from get_my_work's claimable, not a work_item_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap. Once claimed it appears in get_my_work.",
 	}, makeClaimTask(cfg))
 
-	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
-	// optionally resume it later.
+	// v2.8.1 #278 PR4 scheduling autonomy. pause_task/resume_task are the SELF
+	// half of the unified pause/resume model (T200 WS4): YOU voluntarily set your
+	// own running task aside and pick it back up. Contrast block_task (a task stuck
+	// on an EXTERNAL dependency) and resume_paused_node (an OPERATOR un-sticking
+	// ANOTHER agent's paused plan node) — same "paused/resume" vocabulary, three
+	// distinct roles, kept as separate tools.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "pause_task",
-		Description: "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_task a different item). Resume it later with resume_task. Use only when scheduling needs it — by default finish your current task first.",
+		Description: "Set the task you are currently running ASIDE so you can start_task a different one (voluntary scheduling — YOUR choice to switch). It stays yours: it shows in get_my_work's paused bucket and you pick it back up with resume_task. This is NOT for a task stuck waiting on something outside your control — use block_task for that. By default, finish your current task before switching.",
 	}, makePauseTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -174,13 +178,8 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeMarkSeen(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "post_task_message",
-		Description: "Post a message into a task the calling agent participates in.",
-	}, makePostTaskMessage(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_message",
-		Description: "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
+		Description: "Post a message to a DM/channel, a task, or an issue — ONE tool for all four, selected by target. Set target.type to \"conversation\" (a DM or channel, target.id = the conversation_id from the message you were given), \"task\" (target.id = task_id), or \"issue\" (target.id = issue_id). @mention a participant by name to notify them; reply inside a thread with parent_message_id. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))
 
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
@@ -257,11 +256,6 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeIssueID(cfg, "reopen_issue"))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "post_issue_message",
-		Description: "Post a comment into an issue's discussion (the issue analogue of post_task_message). @mention a participant by name to notify them; reply inside a thread with parent_message_id. You must be a member of the issue's project.",
-	}, makePostIssueMessage(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "assign_task",
 		Description: "Assign a task to an identity (e.g. agent:X or user:Y).",
 	}, makeAssignTask(cfg, "assign_task"))
@@ -286,24 +280,34 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Post a question to a task and park the calling agent's work item waiting for input.",
 	}, makeRequestInput(cfg))
 
+	// block_task/unblock_task are the EXTERNAL-DEPENDENCY half of the pause/resume
+	// model (T200 WS4): a task that CANNOT proceed until something outside your
+	// control is resolved — distinct from pause_task (you voluntarily set your own
+	// task aside) and from a paused plan node (resume_paused_node). block is a
+	// self-report; unblock is operator recovery.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "block_task",
-		Description: "Post a reason and move the task to blocked.",
+		Description: "Report that a task is BLOCKED on an external dependency — it can't move until something outside your control is resolved (post the reason why). This is \"stuck\", not \"set aside by choice\": use pause_task instead when you are just switching tasks voluntarily. An owner/PD later clears it with unblock_task. (A backlog task isn't actionable — add it to a plan/pool first.)",
 	}, makeBlockTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "unblock_task",
-		Description: "Recover a blocked task: move it blocked→running and re-dispatch it to its assignee. Use to pull a task back after it was stuck blocked (e.g. reason \"agent execution failed\" from a restart).",
+		Description: "Recover a BLOCKED task (the counterpart of block_task): move it blocked→running and re-dispatch it to its assignee. Use to pull a task back after it was stuck blocked (e.g. reason \"agent execution failed\" from a restart).",
 	}, makeUnblockTask(cfg))
 
+	// rerun_failed_node/resume_paused_node are the OPERATOR-RECOVERY half of the
+	// pause/resume model (T200 WS4): an owner/PD un-sticks ANOTHER agent's plan node
+	// — the cross-agent counterpart of resume_task (which only resumes YOUR OWN
+	// paused task). Pick by the node's state: paused → resume_paused_node,
+	// failed/undispatched → rerun_failed_node.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "rerun_failed_node",
-		Description: "Clear a plan node's dispatch record so the next plan advance re-dispatches it. Plan-aware recovery for a stuck/failed node.",
+		Description: "Operator recovery for a FAILED/undispatched plan node: clear its dispatch record so the next plan advance re-dispatches it. Pair: use resume_paused_node instead when the node is merely paused (its agent set it aside and went idle).",
 	}, makeRerunFailedNode(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "resume_paused_node",
-		Description: "Resume a plan node whose agent paused its work item and went idle (the node shows `paused`): resumes the node's work item and wakes its agent so it continues. Use this to un-stick a paused node; use rerun_failed_node instead for a failed/undispatched node.",
+		Description: "Operator recovery for a PAUSED plan node (the cross-agent counterpart of resume_task): a node whose agent paused its task and went idle shows `paused` — this resumes it and wakes that agent so it continues. Use rerun_failed_node instead for a failed/undispatched node.",
 	}, makeResumePausedNode(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -468,36 +472,6 @@ func makeFindOrgChannel(cfg Config) mcp.ToolHandlerFor[findOrgChannelArgs, any] 
 	}
 }
 
-// postTaskMessageArgs is the typed input for post_task_message. Note there
-// is deliberately NO agent_id field: it is process-fixed and injected by
-// the handler, so the model cannot spoof which agent posts.
-type postTaskMessageArgs struct {
-	TaskID string `json:"task_id" jsonschema:"the task to post into"`
-	Text   string `json:"text" jsonschema:"the message text"`
-	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
-	// root message id the wake brief gave you. Omit for a normal top-level message.
-	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
-}
-
-// makePostTaskMessage returns the post_task_message handler bound to cfg.
-// agent_id is injected from cfg, NEVER from args.
-func makePostTaskMessage(cfg Config) mcp.ToolHandlerFor[postTaskMessageArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args postTaskMessageArgs) (*mcp.CallToolResult, any, error) {
-		// The model-facing arg is "text" (natural), but the admin
-		// post_task_message endpoint reads "content" (and 400s on
-		// missing_content), so forward the value under "content".
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-			"content":  args.Text,
-		}
-		if args.ParentMessageID != "" {
-			body["parent_message_id"] = args.ParentMessageID
-		}
-		return callAdmin(ctx, cfg, "post_task_message", body)
-	}
-}
-
 // postMessageAttachment is one already-uploaded file attached to a post_message
 // (T44). uri is the ac://files/{ulid} returned by upload_file; the rest is
 // display metadata rendered in the UI's attachment card.
@@ -508,12 +482,21 @@ type postMessageAttachment struct {
 	Size     int64  `json:"size" jsonschema:"file size in bytes"`
 }
 
-// postMessageArgs is the typed input for post_message (v2.7 #185). Like
-// post_task_message there is NO agent_id field — it is process-fixed and
-// injected by the handler so the model cannot spoof which agent posts.
+// postMessageTarget is the T200 WS4 discriminated destination of post_message —
+// it replaces the three former tools (DM/channel post_message, post_task_message,
+// post_issue_message) with one target{type,id}. There is NO agent_id here; it is
+// process-fixed and injected by the handler so the model cannot spoof which agent posts.
+type postMessageTarget struct {
+	Type string `json:"type" jsonschema:"one of: conversation (a DM or channel) | task | issue"`
+	ID   string `json:"id" jsonschema:"the destination id — a conversation_id for a DM/channel, a task_id for a task, or an issue_id for an issue"`
+}
+
+// postMessageArgs is the typed input for post_message (v2.7 #185; T200 WS4). Like
+// the former post_task_message there is NO agent_id field — it is process-fixed
+// and injected by the handler so the model cannot spoof which agent posts.
 type postMessageArgs struct {
-	ConversationID string `json:"conversation_id" jsonschema:"the conversation to reply in (use the conversation_id from the message you received)"`
-	Text           string `json:"text" jsonschema:"the message text"`
+	Target postMessageTarget `json:"target" jsonschema:"where to post: {type, id}. type=conversation (id=conversation_id of a DM/channel you received the message in), type=task (id=task_id), or type=issue (id=issue_id)"`
+	Text   string            `json:"text" jsonschema:"the message text"`
 	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
 	// root message id the wake brief gave you. Omit for a normal top-level message.
 	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
@@ -523,13 +506,18 @@ type postMessageArgs struct {
 }
 
 // makePostMessage returns the post_message handler bound to cfg. agent_id is
-// injected from cfg, NEVER from args.
+// injected from cfg, NEVER from args. The model-facing arg is "text" (natural),
+// but every admin post endpoint reads "content", so the value is forwarded under
+// "content".
 func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args postMessageArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id":        cfg.AgentID,
-			"conversation_id": args.ConversationID,
-			"content":         args.Text,
+			"agent_id": cfg.AgentID,
+			"target": map[string]any{
+				"type": args.Target.Type,
+				"id":   args.Target.ID,
+			},
+			"content": args.Text,
 		}
 		if args.ParentMessageID != "" {
 			body["parent_message_id"] = args.ParentMessageID

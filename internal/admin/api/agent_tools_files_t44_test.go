@@ -150,7 +150,7 @@ func TestAgentPostMessage_WithAttachment_OK(t *testing.T) {
 	fileURI := "ac://files/" + ulid
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1", map[string]any{
-		"agent_id": atAgent1, "conversation_id": string(convID), "content": "here is the report",
+		"agent_id": atAgent1, "target": map[string]any{"type": "conversation", "id": string(convID)}, "content": "here is the report",
 		"attachments": []map[string]any{{
 			"uri": fileURI, "filename": "report.pdf", "mime_type": "application/pdf", "size": len(content),
 		}},
@@ -209,7 +209,7 @@ func TestAgentPostMessage_AttachmentFromPrivateScope_PlacesConvRef(t *testing.T)
 		t.Fatalf("pre-post conversation refs = %d, want 0", got)
 	}
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1", map[string]any{
-		"agent_id": atAgent1, "conversation_id": string(convID), "content": "sharing",
+		"agent_id": atAgent1, "target": map[string]any{"type": "conversation", "id": string(convID)}, "content": "sharing",
 		"attachments": []map[string]any{{
 			"uri": "ac://files/" + ulid, "filename": "n.txt", "mime_type": "text/plain", "size": len(content),
 		}},
@@ -242,7 +242,7 @@ func TestAgentPostMessage_AttachmentNotReachable_403(t *testing.T) {
 	}
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1", map[string]any{
-		"agent_id": atAgent1, "conversation_id": string(convID), "content": "try",
+		"agent_id": atAgent1, "target": map[string]any{"type": "conversation", "id": string(convID)}, "content": "try",
 		"attachments": []map[string]any{{
 			"uri": "ac://files/" + ulid, "filename": "f", "mime_type": "text/plain", "size": len(content),
 		}},

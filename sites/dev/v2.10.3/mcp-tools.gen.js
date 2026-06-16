@@ -69,8 +69,8 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "pause_task",
-          "summary": "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_task a different item).",
-          "description": "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_task a different item). Resume it later with resume_task. Use only when scheduling needs it — by default finish your current task first.",
+          "summary": "Set the task you are currently running ASIDE so you can start_task a different one (voluntary scheduling — YOUR choice to switch).",
+          "description": "Set the task you are currently running ASIDE so you can start_task a different one (voluntary scheduling — YOUR choice to switch). It stays yours: it shows in get_my_work's paused bucket and you pick it back up with resume_task. This is NOT for a task stuck waiting on something outside your control — use block_task for that. By default, finish your current task before switching.",
           "params": [
             {
               "name": "reason",
@@ -127,8 +127,8 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "block_task",
-          "summary": "Post a reason and move the task to blocked.",
-          "description": "Post a reason and move the task to blocked.",
+          "summary": "Report that a task is BLOCKED on an external dependency — it can't move until something outside your control is resolved (post the reason why).",
+          "description": "Report that a task is BLOCKED on an external dependency — it can't move until something outside your control is resolved (post the reason why). This is \"stuck\", not \"set aside by choice\": use pause_task instead when you are just switching tasks voluntarily. An owner/PD later clears it with unblock_task. (A backlog task isn't actionable — add it to a plan/pool first.)",
           "params": [
             {
               "name": "reason",
@@ -203,11 +203,19 @@ window.__MCP_TOOLS__ = {
               "required": true
             },
             {
+              "name": "assignee",
+              "required": false
+            },
+            {
               "name": "derived_from_issue",
               "required": false
             },
             {
               "name": "description",
+              "required": false
+            },
+            {
+              "name": "dispatch",
               "required": false
             }
           ]
@@ -299,25 +307,6 @@ window.__MCP_TOOLS__ = {
           ]
         },
         {
-          "name": "post_issue_message",
-          "summary": "Post a comment into an issue's discussion (the issue analogue of post_task_message).",
-          "description": "Post a comment into an issue's discussion (the issue analogue of post_task_message). @mention a participant by name to notify them; reply inside a thread with parent_message_id. You must be a member of the issue's project.",
-          "params": [
-            {
-              "name": "issue_id",
-              "required": true
-            },
-            {
-              "name": "text",
-              "required": true
-            },
-            {
-              "name": "parent_message_id",
-              "required": false
-            }
-          ]
-        },
-        {
           "name": "reassign_task",
           "summary": "Reassign a task to a different identity.",
           "description": "Reassign a task to a different identity.",
@@ -360,8 +349,8 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "unblock_task",
-          "summary": "Recover a blocked task: move it blocked→running and re-dispatch it to its assignee.",
-          "description": "Recover a blocked task: move it blocked→running and re-dispatch it to its assignee. Use to pull a task back after it was stuck blocked (e.g. reason \"agent execution failed\" from a restart).",
+          "summary": "Recover a BLOCKED task (the counterpart of block_task): move it blocked→running and re-dispatch it to its assignee.",
+          "description": "Recover a BLOCKED task (the counterpart of block_task): move it blocked→running and re-dispatch it to its assignee. Use to pull a task back after it was stuck blocked (e.g. reason \"agent execution failed\" from a restart).",
           "params": [
             {
               "name": "task_id",
@@ -543,8 +532,8 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "rerun_failed_node",
-          "summary": "Clear a plan node's dispatch record so the next plan advance re-dispatches it.",
-          "description": "Clear a plan node's dispatch record so the next plan advance re-dispatches it. Plan-aware recovery for a stuck/failed node.",
+          "summary": "Operator recovery for a FAILED/undispatched plan node: clear its dispatch record so the next plan advance re-dispatches it.",
+          "description": "Operator recovery for a FAILED/undispatched plan node: clear its dispatch record so the next plan advance re-dispatches it. Pair: use resume_paused_node instead when the node is merely paused (its agent set it aside and went idle).",
           "params": [
             {
               "name": "plan_id",
@@ -558,8 +547,8 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "resume_paused_node",
-          "summary": "Resume a plan node whose agent paused its work item and went idle (the node shows `paused`): resumes the node's work item and wakes its agent so it continues.",
-          "description": "Resume a plan node whose agent paused its work item and went idle (the node shows `paused`): resumes the node's work item and wakes its agent so it continues. Use this to un-stick a paused node; use rerun_failed_node instead for a failed/undispatched node.",
+          "summary": "Operator recovery for a PAUSED plan node (the cross-agent counterpart of resume_task): a node whose agent paused its task and went idle shows `paused` — this resumes it and wakes that agent so it continues.",
+          "description": "Operator recovery for a PAUSED plan node (the cross-agent counterpart of resume_task): a node whose agent paused its task and went idle shows `paused` — this resumes it and wakes that agent so it continues. Use rerun_failed_node instead for a failed/undispatched node.",
           "params": [
             {
               "name": "plan_id",
@@ -622,11 +611,11 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "post_message",
-          "summary": "Reply in a DM or channel the calling agent participates in (e.g.",
-          "description": "Reply in a DM or channel the calling agent participates in (e.g. when a human messages or @mentions the agent). Use the conversation_id from the message you were given. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
+          "summary": "Post a message to a DM/channel, a task, or an issue — ONE tool for all four, selected by target.",
+          "description": "Post a message to a DM/channel, a task, or an issue — ONE tool for all four, selected by target. Set target.type to \"conversation\" (a DM or channel, target.id = the conversation_id from the message you were given), \"task\" (target.id = task_id), or \"issue\" (target.id = issue_id). @mention a participant by name to notify them; reply inside a thread with parent_message_id. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
           "params": [
             {
-              "name": "conversation_id",
+              "name": "target",
               "required": true
             },
             {
@@ -636,25 +625,6 @@ window.__MCP_TOOLS__ = {
             {
               "name": "attachments",
               "required": false
-            },
-            {
-              "name": "parent_message_id",
-              "required": false
-            }
-          ]
-        },
-        {
-          "name": "post_task_message",
-          "summary": "Post a message into a task the calling agent participates in.",
-          "description": "Post a message into a task the calling agent participates in.",
-          "params": [
-            {
-              "name": "task_id",
-              "required": true
-            },
-            {
-              "name": "text",
-              "required": true
             },
             {
               "name": "parent_message_id",
@@ -810,5 +780,5 @@ window.__MCP_TOOLS__ = {
     }
   ],
   "note": "GENERATED by `make gen-mcp-docs` (cmd/mcp-tools-export) from internal/mcphost — do not edit by hand.",
-  "total": 52
+  "total": 50
 };
