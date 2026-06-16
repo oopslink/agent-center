@@ -521,6 +521,28 @@ func makeDiscardTask(cfg Config) mcp.ToolHandlerFor[discardTaskArgs, any] {
 	}
 }
 
+// --- set_task_issue (T192) ---------------------------------------------------
+
+type setTaskIssueArgs struct {
+	TaskID  string `json:"task_id" jsonschema:"the task whose derived_from_issue link to (re)set or clear"`
+	IssueID string `json:"issue_id" jsonschema:"the issue id to link as derived_from_issue; pass an empty string to CLEAR the link. The issue must exist and be in the task's project."`
+}
+
+// makeSetTaskIssue (T192) backs set_task_issue — (re)set or CLEAR a task's
+// derived_from_issue AFTER creation (the link used to be create-only). Authorized
+// by the relaxed task-access gate (creator / project member / own-work), same as
+// discard_task — no WorkItem required.
+func makeSetTaskIssue(cfg Config) mcp.ToolHandlerFor[setTaskIssueArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args setTaskIssueArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+			"issue_id": args.IssueID,
+		}
+		return callAdmin(ctx, cfg, "set_task_issue", body)
+	}
+}
+
 // --- Plan tools (v2.9 P3 Stage C, #285) --------------------------------------
 //
 // These mirror the admin Plan agent-tool handlers in

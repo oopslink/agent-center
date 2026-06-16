@@ -291,6 +291,12 @@ func NewServer(cfg Config) *mcp.Server {
 		Description: "Terminally DISCARD a non-terminal task (open/running → discarded) — the right way to retire a superseded or mis-created task. Optionally posts a reason first. Unlike complete_task it does not mark the work done (shows Discarded, not Completed); unlike block_task it won't leave a pool task to be re-dispatched. A terminal task (completed/discarded) is rejected.",
 	}, makeDiscardTask(cfg))
 
+	// T192: (re)set or clear a task's derived_from_issue AFTER creation.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "set_task_issue",
+		Description: "(Re)set or CLEAR a task's derived_from_issue link AFTER creation (previously the create-time link was the only chance to set it). Pass issue_id to link it (the issue must EXIST and belong to the task's project) or an empty string to clear. Authorized for the task's creator / a project member / its current worker — no work item required. Returns the resulting link.",
+	}, makeSetTaskIssue(cfg))
+
 	// --- plan tools (v2.9 P3 Stage C, #285) ----------------------------------
 	// A PM-agent programmatically builds and runs plans: create a draft plan,
 	// add backlog tasks as nodes, wire depends_on edges into a DAG, then start

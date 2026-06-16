@@ -70,7 +70,7 @@ var toolDomain = map[string]string{
 	// tasks & issues
 	"get_task": "tasks_issues", "list_tasks": "tasks_issues", "create_task": "tasks_issues",
 	"assign_task": "tasks_issues", "reassign_task": "tasks_issues", "complete_task": "tasks_issues",
-	"discard_task": "tasks_issues", "block_task": "tasks_issues", "unblock_task": "tasks_issues",
+	"discard_task": "tasks_issues", "set_task_issue": "tasks_issues", "block_task": "tasks_issues", "unblock_task": "tasks_issues",
 	"get_issue": "tasks_issues", "list_issues": "tasks_issues", "create_issue": "tasks_issues",
 	"update_issue": "tasks_issues", "close_issue": "tasks_issues", "reopen_issue": "tasks_issues",
 	"list_tasks_of_issue": "tasks_issues", "post_issue_message": "tasks_issues",
