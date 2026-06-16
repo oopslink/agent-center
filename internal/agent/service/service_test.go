@@ -139,13 +139,13 @@ func TestCreateAgent_Happy(t *testing.T) {
 	}
 }
 
-// v2.7 #181 / FINDING-F: agent creation rejects a cli the runtime can't
-// execute. v2.7 allowlist = {claude-code}; empty / codex / opencode / unknown
-// are 400 invalid_cli (mapped at the handler). Tx must not run (no outbox).
+// #181 / FINDING-F: agent creation rejects a cli the runtime can't execute.
+// Allowlist = {claude-code, codex}; empty / opencode / unknown are 400
+// invalid_cli (mapped at the handler). Tx must not run (no outbox).
 func TestCreateAgent_RejectsUnsupportedCLI(t *testing.T) {
 	f := newFixture(t)
 	f.seedWorker(t, testWorker, testOrg)
-	for _, cli := range []string{"", "codex", "opencode", "foobar", "claudecode"} {
+	for _, cli := range []string{"", "opencode", "foobar", "claudecode"} {
 		_, err := f.svc.CreateAgent(context.Background(), CreateAgentCommand{
 			OrganizationID: testOrg, Name: "coder", Model: "claude", CLI: cli,
 			WorkerID: testWorker, CreatedBy: "user:hayang",
@@ -167,6 +167,17 @@ func TestCreateAgent_AcceptsClaudeCode(t *testing.T) {
 		WorkerID: testWorker, CreatedBy: "user:hayang",
 	}); err != nil {
 		t.Fatalf("claude-code should be accepted, got %v", err)
+	}
+}
+
+func TestCreateAgent_AcceptsCodex(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	if _, err := f.svc.CreateAgent(context.Background(), CreateAgentCommand{
+		OrganizationID: testOrg, Name: "coder", Model: "gpt-5", CLI: "codex",
+		WorkerID: testWorker, CreatedBy: "user:hayang",
+	}); err != nil {
+		t.Fatalf("codex should be accepted, got %v", err)
 	}
 }
 

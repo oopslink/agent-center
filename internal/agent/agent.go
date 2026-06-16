@@ -112,9 +112,12 @@ var (
 	ErrInvalidResetScope  = errors.New("agent: invalid reset scope")
 	ErrVersionConflict    = errors.New("agent: version conflict (optimistic lock)")
 	// ErrUnsupportedCLI rejects creating an agent bound to a cli the runtime
-	// cannot execute (v2.7 #181 / FINDING-F). v2.7 supports only "claude-code";
-	// empty / codex / opencode / unknown are rejected.
-	ErrUnsupportedCLI = errors.New("agent: unsupported cli (v2.7 supports claude-code only)")
+	// cannot execute end-to-end (#181 / FINDING-F). Only "claude-code" is
+	// runtime-dispatchable today; codex/opencode are probe-only (discovered +
+	// shown in the Environment view, but agent.cli is not yet plumbed to the
+	// worker's session starter — see IMPLEMENTATION_PLAN.md). empty / codex /
+	// opencode / unknown are rejected.
+	ErrUnsupportedCLI = errors.New("agent: unsupported cli (only claude-code is runtime-executable; codex/opencode are probe-only)")
 	// ErrAgentNotStoppedForArchive rejects archiving a running/transitioning agent
 	// (v2.8 #272 (b) strict two-step) — the operator must stop it first. Maps to 409.
 	ErrAgentNotStoppedForArchive = errors.New("agent: agent must be stopped before archive")
