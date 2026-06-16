@@ -44,9 +44,9 @@ describe('ProjectMemberAddModal (#207)', () => {
     let closed = false;
     wrap(<ProjectMemberAddModal projectId="proj-a" existing={[]} onClose={() => { closed = true; }} />);
     await waitFor(() => expect(screen.getAllByTestId('project-add-candidate')).toHaveLength(2));
-    const checks = screen.getAllByTestId('project-add-candidate-check');
-    fireEvent.click(checks[0]); // Alice → user:user-alice
-    fireEvent.click(checks[1]); // Bot → agent:agent-bot
+    const rows = screen.getAllByTestId('project-add-candidate');
+    fireEvent.click(rows[0]); // Alice → user:user-alice
+    fireEvent.click(rows[1]); // Bot → agent:agent-bot
     await act(async () => {
       fireEvent.click(screen.getByTestId('project-add-confirm'));
     });

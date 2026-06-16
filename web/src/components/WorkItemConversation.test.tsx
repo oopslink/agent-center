@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -64,6 +64,47 @@ describe('WorkItemConversation (#137)', () => {
     // shell (task-thread surface) — so task/issue threads gain markSeen + SSE too.
     await waitFor(() => expect(screen.getByTestId('message-composer')).toBeInTheDocument());
     expect(screen.getByTestId('conversation-view')).toHaveAttribute('data-surface', 'task-thread');
+  });
+
+  // T206: the maximize toggle promotes the embedded thread to a full-viewport
+  // overlay (mobile chat was cramped at the bottom of a long detail page) and
+  // restores it inline. Toggling flips data-maximized + the button's aria state.
+  it('maximizes and restores the conversation via the toggle (#T206)', async () => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs');
+    const section = await screen.findByTestId('work-item-conversation');
+    const toggle = screen.getByTestId('conversation-maximize-toggle');
+    // inline by default
+    expect(section).toHaveAttribute('data-maximized', 'false');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).toHaveAttribute('aria-label', 'Maximize conversation');
+    // maximize → full-viewport overlay, body scroll locked
+    fireEvent.click(toggle);
+    expect(section).toHaveAttribute('data-maximized', 'true');
+    expect(section.className).toContain('fixed');
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle).toHaveAttribute('aria-label', 'Restore conversation');
+    expect(document.body.style.overflow).toBe('hidden');
+    // restore → back inline, body scroll released
+    fireEvent.click(toggle);
+    expect(section).toHaveAttribute('data-maximized', 'false');
+    expect(document.body.style.overflow).not.toBe('hidden');
+  });
+
+  it('restores a maximized conversation when Escape is pressed (#T206)', async () => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs');
+    const section = await screen.findByTestId('work-item-conversation');
+    fireEvent.click(screen.getByTestId('conversation-maximize-toggle'));
+    expect(section).toHaveAttribute('data-maximized', 'true');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(section).toHaveAttribute('data-maximized', 'false');
   });
 
   it('shows an empty hint (not an error) when no conversation is bound to the owner_ref', async () => {
