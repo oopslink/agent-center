@@ -106,7 +106,7 @@ func MigrateV1ToV2Command() *Command {
 // assigned-backlog-task backfill); v2.10.1 T99 added 0060 (pm_plans.org_sequence —
 // P<number> plan refs); v2.10 ADR-0053 added 0061 (pm_plan_findings — the DeLM
 // plan-scoped shared-findings table).
-const targetSchemaVersion = 61
+const targetSchemaVersion = 62
 
 func runMigrateV1ToV2(
 	ctx context.Context,
