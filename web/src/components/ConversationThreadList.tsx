@@ -16,6 +16,11 @@ import { useThreadSidebar } from './ThreadSidebarContext';
 
 interface Props {
   conversationId: string;
+  // embedded = rendered as a standalone panel/tab (e.g. the channel Threads tab).
+  // Drops the top divider + redundant "Threads" header that the stacked-in-
+  // Participants layout needs — otherwise the divider shows as a stray empty
+  // bordered bar at the top of its own tab (T96 follow-up).
+  embedded?: boolean;
 }
 
 // activityKey — sort/compare key for a thread: most recent reply time, falling
@@ -24,7 +29,7 @@ function activityKey(t: ThreadSummary): string {
   return t.thread_last_activity_at ?? t.root.posted_at;
 }
 
-export function ConversationThreadList({ conversationId }: Props): React.ReactElement {
+export function ConversationThreadList({ conversationId, embedded = false }: Props): React.ReactElement {
   const threads = useConversationThreads(conversationId);
   const displayName = useDisplayNameResolver();
   // Opener for the shared ThreadSidebar (mounted by ConversationView). null when
@@ -33,8 +38,13 @@ export function ConversationThreadList({ conversationId }: Props): React.ReactEl
   const openThread = useThreadSidebar();
 
   return (
-    <section className="mt-4 border-t border-border-base pt-4" data-testid="thread-list">
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Threads</h3>
+    <section
+      className={embedded ? 'px-3 py-2' : 'mt-4 border-t border-border-base pt-4'}
+      data-testid="thread-list"
+    >
+      {!embedded && (
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Threads</h3>
+      )}
       {threads.isLoading && (
         <p className="text-xs text-text-muted" data-testid="thread-list-loading">
           Loading threads…

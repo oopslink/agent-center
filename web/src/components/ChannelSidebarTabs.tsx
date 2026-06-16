@@ -110,7 +110,7 @@ export function ChannelSidebarTabs({
           hidden={tab !== 'threads'}
           data-testid="channel-panel-threads"
         >
-          {tab === 'threads' && <ConversationThreadList conversationId={conversationId} />}
+          {tab === 'threads' && <ConversationThreadList conversationId={conversationId} embedded />}
         </div>
         <div
           role="tabpanel"
