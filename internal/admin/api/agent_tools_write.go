@@ -214,6 +214,58 @@ func (s *Server) requireTaskAccess(w http.ResponseWriter, r *http.Request, d Han
 	return false
 }
 
+// backlogActionMsg builds the UNIFIED T190 guidance shown when an agent acts on a
+// BACKLOG (inert) task — claim / start / complete / block. `action` is the verb-ing
+// ("claiming", "starting", "completing", "blocking"); the base text is
+// pm.BacklogNotActionableHint so the message has ONE source across all surfaces.
+func backlogActionMsg(action string) string {
+	return pm.BacklogNotActionableHint + " before " + action
+}
+
+// writeBacklogNotActionable writes the unified 409 `task_backlog_not_actionable`
+// envelope (T190) — the single code returned by claim_task / start_work /
+// complete_task / block_task when the target is a backlog (inert) task.
+func writeBacklogNotActionable(w http.ResponseWriter, action string) {
+	writeError(w, http.StatusConflict, "task_backlog_not_actionable", backlogActionMsg(action))
+}
+
+// rejectIfBacklog is the SHARED backlog gate (T190) reused by claim_task /
+// complete_task / block_task. It loads the task and, when it is INERT BACKLOG, writes
+// the unified `task_backlog_not_actionable` error and returns true (the caller must
+// return). "Inert backlog" = pm.IsBacklogInert(planID) (no plan) AND the task is
+// still in a PRE-START state (open / reopened) — i.e. it was never placed for work.
+// A task already `running` is IN MOTION (the agent is working it), so block/complete
+// are legitimate self-reports and are NOT gated here; a terminal task falls through
+// to the normal path's illegal_transition. (In production a running task always has
+// planID!="" — it reached running via a plan or the pool — so the status guard only
+// ever spares in-motion tasks, never a truly inert one.)
+//
+// It returns false — WITHOUT writing — when the task is in a plan/pool, is past the
+// pre-start phase, OR cannot be loaded; the caller's normal gate (ClaimPoolTask /
+// requireOwnTask) then surfaces the right error (not_found, not_agents_task, …). A
+// nil PMService degrades to "can't tell" (false), never looser. start_work converges
+// on the same envelope via writeWorkStateError (its backlog signal is the agent-BC
+// ErrWorkItemTaskNotRunnable sentinel from the runnable gate, not a task load).
+func (s *Server) rejectIfBacklog(w http.ResponseWriter, r *http.Request, d HandlerDeps, taskID, action string) bool {
+	if d.PMService == nil {
+		return false
+	}
+	task, err := d.PMService.GetTask(r.Context(), pm.TaskID(taskID))
+	if err != nil {
+		return false // not-found / load error → let the caller's normal gate surface it
+	}
+	if !pm.IsBacklogInert(task.PlanID()) {
+		return false // in a real plan or dispatched into the pool → actionable
+	}
+	switch task.Status() {
+	case pm.TaskOpen, pm.TaskReopened:
+		writeBacklogNotActionable(w, action)
+		return true
+	default:
+		return false // running / terminal — in motion, not inert
+	}
+}
+
 // --- post_task_message -------------------------------------------------------
 
 type postTaskMessageReq struct {
@@ -703,6 +755,12 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_reason", "blocked requires a reason")
 		return
 	}
+	// T190: a backlog (inert) task cannot be blocked — surface the unified
+	// add-to-plan/pool guidance instead of the misleading not_agents_task (a backlog
+	// task has no WorkItem, so requireOwnTask would otherwise 403 it).
+	if s.rejectIfBacklog(w, r, d, req.TaskID, "blocking") {
+		return
+	}
 	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
 		return
 	}
@@ -876,6 +934,11 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if d.DB == nil {
 		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
+		return
+	}
+	// T190: a backlog (inert) task cannot be completed — unified guidance before the
+	// own-work scope check (which would 403 not_agents_task for the missing WorkItem).
+	if s.rejectIfBacklog(w, r, d, req.TaskID, "completing") {
 		return
 	}
 	if !s.requireOwnTask(w, r, d, a, req.TaskID) {

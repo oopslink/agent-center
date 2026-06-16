@@ -86,6 +86,16 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		// plan_conflict class in mapPlanToolError).
 		writeError(w, http.StatusConflict, "project_archived", err.Error())
 
+	// ---- task_backlog_not_actionable (409) — T190 unified backlog-inert error.
+	// A backlog task (planID=="") is inert: not claimable / startable / status-
+	// changeable until added to a plan or dispatched into the pool. The agent tools
+	// detect backlog up front (rejectIfBacklog / writeBacklogNotActionable); this
+	// case keeps the SAME code for any domain path that returns the sentinel. The
+	// message is BacklogNotActionableHint (no "projectmanager:" prefix), surfaced
+	// verbatim to agents. ----
+	case errors.Is(err, pm.ErrTaskBacklogNotActionable):
+		writeError(w, http.StatusConflict, "task_backlog_not_actionable", err.Error())
+
 	// ---- forbidden / terminal (403) -------------------------------------
 	case errors.Is(err, conversation.ErrConversationArchived),
 		errors.Is(err, conversation.ErrConversationClosed),

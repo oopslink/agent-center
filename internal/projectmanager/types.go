@@ -71,6 +71,13 @@ func (r ProjectMemberRole) IsValid() bool {
 	return r == RoleMember || r == RoleOwner
 }
 
+// BacklogNotActionableHint is the agent-facing remediation for the backlog-INERT
+// invariant (T190 — see IsBacklogInert), surfaced VERBATIM (no "projectmanager:"
+// prefix) wherever an action is refused on a backlog task. It is the SINGLE source
+// of the message for both ErrTaskBacklogNotActionable and the agent-tools
+// `task_backlog_not_actionable` envelope.
+const BacklogNotActionableHint = "task is in backlog — add it to a plan (add_task_to_plan) or dispatch it into the assignment pool"
+
 // Sentinel errors.
 var (
 	ErrProjectNotFound     = errors.New("projectmanager: project not found")
@@ -134,6 +141,16 @@ var (
 	// work item that can never start). Remedy: add_task_to_plan (real plan) or
 	// dispatch the task into the Assignment Pool.
 	ErrTaskNotRunnable = errors.New("projectmanager: task is backlog — not a real-plan node or a dispatched pool member; it cannot be started")
+	// ErrTaskBacklogNotActionable (T190) — the UNIFIED sentinel for "this action is
+	// not allowed because the task is BACKLOG (inert)". A backlog task (planID=="",
+	// see IsBacklogInert) is rejected by claim_task / start_work / complete_task /
+	// block_task with this ONE error (surfaced to agents as the
+	// `task_backlog_not_actionable` code), replacing the prior scattered
+	// not_claimable / not_runnable / not_agents_task. The remedy is always the same:
+	// add_task_to_plan (real plan) or dispatch into the Assignment Pool; discard /
+	// delete are exempt. Message = BacklogNotActionableHint (no "projectmanager:"
+	// prefix — it is surfaced VERBATIM to agents). Rule: docs/rules/backlog-task-inert.md.
+	ErrTaskBacklogNotActionable = errors.New(BacklogNotActionableHint)
 	// ErrPlanProjectMismatch rejects selecting a task whose project differs from
 	// the Plan's project (a Plan selects only its own project's backlog, §2/§9.6d).
 	ErrPlanProjectMismatch = errors.New("projectmanager: task and plan belong to different projects")

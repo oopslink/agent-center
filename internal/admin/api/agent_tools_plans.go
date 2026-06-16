@@ -614,6 +614,13 @@ func (s *Server) claimTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return
 	}
+	// T190: a backlog (inert) task is not claimable — return the unified
+	// add-to-plan/pool guidance rather than the generic not_claimable. A
+	// structured-plan node / already-claimed / wrong-status task still falls through
+	// to ClaimPoolTask's own not_claimable / already_claimed below.
+	if s.rejectIfBacklog(w, r, d, req.TaskID, "claiming") {
+		return
+	}
 	if err := d.PMService.ClaimPoolTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
 		writeClaimError(w, err)
 		return

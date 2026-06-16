@@ -107,6 +107,21 @@ func TaskClaimable(t *Task, nodeStatus NodeStatus) bool {
 	return Claimable(t.IsArchived(), t.Status(), t.Assignee(), t.PlanID(), nodeStatus)
 }
 
+// IsBacklogInert reports the T190 backlog-INERT invariant — the NAMED, shared form
+// of the rule the Claimable / EnsureTaskRunnable gates already encode per-surface:
+//
+//	A task with NO plan (planID == "") is BACKLOG — captured, but not yet placed for
+//	work — and is therefore INERT: it cannot be claimed, started, or have its status
+//	changed (complete / block). It becomes actionable only once `add_task_to_plan`
+//	places it in a real plan OR it is dispatched into the built-in Assignment Pool.
+//
+// The ONE exemption is discard / delete (cleanup of a mis-created backlog task),
+// which act on the task directly without a plan / pool / work item — see
+// docs/rules/backlog-task-inert.md and ErrTaskBacklogNotActionable. The predicate is
+// deliberately the PURE planID=="" test (the non-dispatched built-in case is a
+// runnability concern owned by EnsureTaskRunnable, not the inert invariant).
+func IsBacklogInert(planID PlanID) bool { return planID == "" }
+
 // ClaimableInPool is the OPEN-CLAIM predicate for the built-in assignment pool
 // (T83 §3.2): a pool task is claimable WITHOUT pre-assignment — any eligible
 // (project-member) agent may claim it. It drops the `assignee!=""` requirement of
