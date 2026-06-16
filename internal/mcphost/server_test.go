@@ -83,11 +83,11 @@ var wantTools = []string{
 	// b3-i (locked)
 	"get_my_work", "post_task_message",
 	// v2.8.1 #278 D pull model: agent drives its own work-item queue
-	"start_work", "fail_work",
+	"start_task", "fail_task",
 	// T83: claim an open assignment-pool task (pull, no work item) + browse the pool
 	"claim_task", "list_assignment_pool",
 	// v2.8.1 #278 PR4 scheduling autonomy
-	"pause_work", "resume_paused_work",
+	"pause_task", "resume_task",
 	// v2.8.1 #278 PR4 read tools (loop-boundary active + paused candidates)
 	"get_my_active_work", "list_my_paused_work",
 	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention) + mark-seen

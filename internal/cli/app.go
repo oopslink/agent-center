@@ -377,9 +377,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:     gen,
 		Clock:     clk,
 	})
-	// T130: wire the open→running authorization port so start_work rejects a
+	// T130: wire the open→running authorization port so start_task rejects a
 	// backlog task (one that is neither a real-plan node nor a dispatched pool
-	// member) — closing the direct-assign→start_work path the T83 claim guard did
+	// member) — closing the direct-assign→start_task path the T83 claim guard did
 	// not cover. The pm Service owns the plan/pool knowledge; the Agent BC depends
 	// only on the port (no import cycle).
 	agentSvc.SetTaskRunGate(pmservice.NewAgentTaskRunGate(pmSvc))
