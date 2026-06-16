@@ -407,3 +407,82 @@ func keys2(m map[string]any) []string {
 	}
 	return out
 }
+
+// --- WS5 tool tiering -------------------------------------------------------
+
+// TestTierTools_DefaultIsLeanCore proves that with TierTools on, the default
+// catalog is the high-frequency core + search_tools, and every deferred tool is
+// absent until loaded.
+func TestTierTools_DefaultIsLeanCore(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}, TierTools: true})
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	got := map[string]bool{}
+	for _, tool := range res.Tools {
+		got[tool.Name] = true
+	}
+	if !got["search_tools"] {
+		t.Fatalf("tiered default must expose search_tools; have %v", keys2asBool(got))
+	}
+	for _, name := range secondaryToolNames() {
+		if got[name] {
+			t.Errorf("deferred tool %q must NOT be in the tiered default set", name)
+		}
+	}
+	for _, name := range []string{"get_my_work", "start_task", "complete_task", "post_message"} {
+		if !got[name] {
+			t.Errorf("core tool %q missing from tiered default set", name)
+		}
+	}
+	// core (= all − secondary) + search_tools.
+	wantCount := len(AgentFacingToolNames) - len(secondaryToolNames()) + 1
+	if len(got) != wantCount {
+		t.Errorf("tiered default tool count = %d, want %d (core + search_tools)", len(got), wantCount)
+	}
+}
+
+// TestSearchTools_LoadsDeferred proves search_tools loads the deferred tools
+// matching the query and leaves non-matching ones deferred (replace semantics).
+func TestSearchTools_LoadsDeferred(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}, TierTools: true})
+	ctx := context.Background()
+	if toolPresent(t, cs, "create_plan") {
+		t.Fatalf("create_plan should be deferred before search_tools")
+	}
+	if _, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "search_tools",
+		Arguments: map[string]any{"query": "plan"},
+	}); err != nil {
+		t.Fatalf("search_tools: %v", err)
+	}
+	if !toolPresent(t, cs, "create_plan") {
+		t.Errorf("create_plan should be loaded after search_tools query=plan")
+	}
+	if toolPresent(t, cs, "upload_file") {
+		t.Errorf("upload_file should stay deferred (did not match query=plan)")
+	}
+}
+
+func toolPresent(t *testing.T, cs *mcp.ClientSession, name string) bool {
+	t.Helper()
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	for _, tool := range res.Tools {
+		if tool.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func keys2asBool(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
