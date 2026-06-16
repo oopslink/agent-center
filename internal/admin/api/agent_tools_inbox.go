@@ -64,6 +64,14 @@ func (s *Server) getMyUnreadHandler(w http.ResponseWriter, r *http.Request) {
 			"sender":            string(it.SenderRef),
 			"content":           it.Content,
 			"posted_at":         it.PostedAt.Format(time.RFC3339Nano),
+			// I7-D2 (cognition/04-wake-guardrail.md §3.6): tag each item with the
+			// sender kind + reply obligation. A HUMAN directed message must be
+			// answered (reply_required=true); an AGENT-authored mention is "可回可不回"
+			// — reply only if content warrants, otherwise SilentAck via mark_seen
+			// (reply_required=false). This does NOT change wake/inbox filtering, only
+			// the response semantic surfaced to the agent.
+			"actor_kind":     string(it.ActorKind),
+			"reply_required": it.ActorKind == conversation.ActorKindHuman,
 		}
 		// v2.10.0 [T74]: surface inbound attachments (file_uri + metadata) so the
 		// agent can perceive + download_file a screenshot a human sent. Present

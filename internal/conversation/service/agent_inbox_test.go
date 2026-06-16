@@ -147,6 +147,47 @@ func TestAgentInbox_SurfacesAttachments_T74(t *testing.T) {
 	}
 }
 
+// I7-D2: each unread item carries the sender's ActorKind so the agent can apply
+// the reply obligation — a human sender is "must reply", an agent sender is
+// SilentAck-eligible. Covers DM (human + agent senders) and channel @mention
+// (agent sender).
+func TestAgentInbox_ActorKind_I7D2(t *testing.T) {
+	f := setupInbox(t)
+	ctx := context.Background()
+	const agent = conversation.IdentityRef("agent:bot-1")
+
+	// DM with both a human and another agent posting.
+	f.seedConv(t, "dm-1", conversation.ConversationKindDM, "org-1", agent, "user:alice", "agent:bot-2")
+	f.seedMsg(t, "dm-1-h", "dm-1", "user:alice", "human ping")
+	f.seedMsg(t, "dm-1-a", "dm-1", "agent:bot-2", "agent ping")
+	// Channel where another agent @mentions us.
+	f.seedConv(t, "ch-1", conversation.ConversationKindChannel, "org-1", agent, "user:alice", "agent:bot-2")
+	f.seedMsg(t, "ch-1-a", "ch-1", "agent:bot-2", "hey @Bot can you look")
+
+	got, err := f.inbox.ListUnreadForIdentity(ctx, []conversation.IdentityRef{agent}, "org-1", "Bot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[conversation.MessageID]UnreadItem{}
+	for _, it := range got {
+		byID[it.MessageID] = it
+	}
+	want := map[conversation.MessageID]conversation.MentionActorKind{
+		"dm-1-h": conversation.ActorKindHuman,
+		"dm-1-a": conversation.ActorKindAgent,
+		"ch-1-a": conversation.ActorKindAgent,
+	}
+	for id, wantKind := range want {
+		it, ok := byID[id]
+		if !ok {
+			t.Fatalf("message %s not surfaced (got %d items)", id, len(got))
+		}
+		if it.ActorKind != wantKind {
+			t.Errorf("%s ActorKind = %q, want %q", id, it.ActorKind, wantKind)
+		}
+	}
+}
+
 func TestAgentInbox_ListUnreadForIdentity(t *testing.T) {
 	f := setupInbox(t)
 	ctx := context.Background()
