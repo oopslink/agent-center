@@ -126,6 +126,13 @@ func (r *MessageRepo) FindByConversationID(ctx context.Context, conversationID c
 		where += ` AND posted_at >= ?`
 		args = append(args, filter.Since.UTC().Format(time.RFC3339Nano))
 	}
+	if filter.BeforePostedAt != nil && filter.BeforeID != "" {
+		// T189 phase 2: keyset cursor — rows strictly OLDER than (posted_at, id).
+		// The id tiebreaker keeps same-instant boundaries duplicate/skip-free.
+		bp := filter.BeforePostedAt.UTC().Format(time.RFC3339Nano)
+		where += ` AND (posted_at < ? OR (posted_at = ? AND id < ?))`
+		args = append(args, bp, bp, filter.BeforeID)
+	}
 	var q string
 	if filter.Tail > 0 {
 		// T189: take the NEWEST N rows (posted_at DESC LIMIT N in a subquery), then

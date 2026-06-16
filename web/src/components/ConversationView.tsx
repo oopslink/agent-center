@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useEffect } from 'react';
-import { useMessages } from '@/api/conversations';
+import { useConversationTimeline } from '@/api/conversations';
 import { useMarkSeen } from '@/api/readState';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { MessageList } from '@/components/MessageList';
@@ -34,7 +34,10 @@ export function ConversationView({
   header,
   sidePanel,
 }: Props): React.ReactElement {
-  const messages = useMessages(conversationId);
+  // T189 phase 2: the timeline = the live latest window + an on-demand older-history
+  // buffer (scroll-up pagination). The latest window stays SSE-driven; older pages
+  // load via the `before` keyset cursor and merge in chronologically.
+  const messages = useConversationTimeline(conversationId);
   const markSeen = useMarkSeen();
 
   // Live updates: subscribe to the conversation's SSE stream (new messages /
@@ -44,7 +47,7 @@ export function ConversationView({
   // Fire-and-forget: bump the read cursor to the latest message whenever a new
   // message list arrives (mount + SSE-driven refetch). The server's only-forward
   // rule makes redundant POSTs cheap (no-op past the conditional UPSERT).
-  const latestMessageId = messages.data?.[messages.data.length - 1]?.id;
+  const latestMessageId = messages.messages[messages.messages.length - 1]?.id;
   useEffect(() => {
     if (!conversationId || !latestMessageId) return;
     markSeen.mutate({ conversationId, lastSeenMessageId: latestMessageId });
@@ -63,7 +66,15 @@ export function ConversationView({
           {(messages.error as Error).message}
         </p>
       )}
-      {messages.isSuccess && <MessageList messages={messages.data} surface={surface} />}
+      {messages.isSuccess && (
+        <MessageList
+          messages={messages.messages}
+          surface={surface}
+          onLoadOlder={messages.loadOlder}
+          hasOlder={messages.hasOlder}
+          isLoadingOlder={messages.isLoadingOlder}
+        />
+      )}
       <MessageComposer conversationId={conversationId} />
     </div>
   );

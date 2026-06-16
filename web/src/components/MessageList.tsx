@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef } from '@/api/members';
@@ -66,6 +66,15 @@ interface Props {
    * is single-level (no thread-in-thread).
    */
   showThreads?: boolean;
+  /**
+   * T189 phase 2 — scroll-up history pagination. When the user scrolls near the
+   * TOP and there is older history, onLoadOlder() fetches the previous page; the
+   * list preserves the scroll position across the prepend so the view doesn't jump.
+   * Omitted (e.g. inside a thread) → no pagination affordance.
+   */
+  onLoadOlder?: () => void;
+  hasOlder?: boolean;
+  isLoadingOlder?: boolean;
 }
 
 // MessageList — render messages chronologically. Sender id + posted_at
@@ -79,6 +88,9 @@ export function MessageList({
   messages,
   surface = 'channel',
   showThreads = true,
+  onLoadOlder,
+  hasOlder = false,
+  isLoadingOlder = false,
 }: Props): React.ReactElement {
   const displayName = useDisplayNameResolver();
   // v2.8.1 chat-rightalign: the viewer's own messages render right-aligned
@@ -89,6 +101,10 @@ export function MessageList({
   const meKey = me ? normalizeIdentityRef(me) : '';
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
+  // T189 phase 2: scroll-anchor for prepending older history. When a load is
+  // triggered we snapshot (scrollHeight, scrollTop); after the older page renders
+  // and the content grows at the top, we restore the offset so the view stays put.
+  const pendingRestoreRef = useRef<{ height: number; top: number } | null>(null);
   const latestId = messages[messages.length - 1]?.id;
   const prevLatestIdRef = useRef<string | undefined>(undefined);
   // Re-render trigger so the "New messages ↓" pill appears when a new
@@ -136,12 +152,36 @@ export function MessageList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // T189 phase 2: trigger an older-history load, snapshotting the scroll metrics so
+  // the post-prepend layout effect can restore the view position.
+  const triggerLoadOlder = () => {
+    const el = containerRef.current;
+    if (!el || !onLoadOlder || !hasOlder || isLoadingOlder || pendingRestoreRef.current) return;
+    pendingRestoreRef.current = { height: el.scrollHeight, top: el.scrollTop };
+    onLoadOlder();
+  };
+
+  // After an older page prepends, the container grows at the top — shift scrollTop
+  // by the height delta so the previously-visible message stays under the cursor
+  // (no jump). Runs before paint (useLayoutEffect) to avoid a flicker.
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    const pend = pendingRestoreRef.current;
+    if (!el || !pend) return;
+    if (el.scrollHeight > pend.height) {
+      el.scrollTop = el.scrollHeight - pend.height + pend.top;
+      pendingRestoreRef.current = null;
+    }
+  });
+
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     const atBottom = distFromBottom < 40;
     stickToBottomRef.current = atBottom;
     if (atBottom && hasNewBelow) setHasNewBelow(false);
+    // Near the top → pull the previous (older) page.
+    if (el.scrollTop < 80) triggerLoadOlder();
   };
 
   const jumpToLatest = () => {
@@ -428,6 +468,21 @@ export function MessageList({
         className="min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden p-4"
         data-testid="message-list"
       >
+        {/* T189 phase 2: older-history affordance at the top of the stream. Shown
+            only on a paginating surface (onLoadOlder wired) with more history. */}
+        {onLoadOlder && hasOlder && (
+          <div className="flex justify-center py-1" data-testid="message-list-older">
+            <button
+              type="button"
+              onClick={triggerLoadOlder}
+              disabled={isLoadingOlder}
+              data-testid="message-list-load-older"
+              className="rounded-full bg-bg-subtle px-3 py-1 text-xs font-medium text-text-secondary hover:bg-bg-base disabled:opacity-60"
+            >
+              {isLoadingOlder ? 'Loading earlier…' : 'Load earlier messages'}
+            </button>
+          </div>
+        )}
         {/* v2.7.1 #219: flat chronological stream (Slack-like); work-item
             provenance shows as a per-message tag, not a grouping header. */}
         {messages.map(renderRow)}
