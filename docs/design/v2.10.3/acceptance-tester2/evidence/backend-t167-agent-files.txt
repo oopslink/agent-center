@@ -1,0 +1,10 @@
+=== RUN   TestAgentFiles_UploadToParticipantPlan_OK
+--- PASS: TestAgentFiles_UploadToParticipantPlan_OK (0.02s)
+=== RUN   TestAgentFiles_UploadToNonParticipantPlan_403
+--- PASS: TestAgentFiles_UploadToNonParticipantPlan_403 (0.06s)
+=== RUN   TestAgentFiles_UploadToCrossOrgPlan_403
+--- PASS: TestAgentFiles_UploadToCrossOrgPlan_403 (0.03s)
+=== RUN   TestAgentPostMessage_WithAttachment_Plan_OK
+--- PASS: TestAgentPostMessage_WithAttachment_Plan_OK (0.04s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	1.541s

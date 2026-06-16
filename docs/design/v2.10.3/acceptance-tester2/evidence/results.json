@@ -1,0 +1,140 @@
+{
+  "version": "v2.10.3",
+  "candidate": "origin/v2.10.3-int @80794195",
+  "base": "http://127.0.0.1:50288",
+  "slug": "acme-v2103acc",
+  "pass": 26,
+  "total": 26,
+  "results": [
+    {
+      "name": "T167_channel_composer_reachable",
+      "status": "PASS",
+      "detail": "/organizations/acme-v2103acc/channels/channel-0c583619"
+    },
+    {
+      "name": "T167_channel_image_preview",
+      "status": "PASS",
+      "detail": "staged=1 naturalWidth=120 | download 200 bytes=292/292"
+    },
+    {
+      "name": "T167_channel_image_download",
+      "status": "PASS",
+      "detail": "naturalWidth=120 | download 200 bytes=292/292"
+    },
+    {
+      "name": "T167_channel_file_chip",
+      "status": "PASS",
+      "detail": "staged=1 chip=\"TXT\" | download 200 bytes=416/416"
+    },
+    {
+      "name": "T167_channel_file_download",
+      "status": "PASS",
+      "detail": "chip=\"TXT\" | download 200 bytes=416/416"
+    },
+    {
+      "name": "T167_dm_composer_reachable",
+      "status": "PASS",
+      "detail": "/organizations/acme-v2103acc/dms/dm-47422c49"
+    },
+    {
+      "name": "T167_dm_image_preview",
+      "status": "PASS",
+      "detail": "staged=1 naturalWidth=120 | download 200 bytes=292/292"
+    },
+    {
+      "name": "T167_dm_image_download",
+      "status": "PASS",
+      "detail": "naturalWidth=120 | download 200 bytes=292/292"
+    },
+    {
+      "name": "T167_dm_file_chip",
+      "status": "PASS",
+      "detail": "staged=1 chip=\"TXT\" | download 200 bytes=416/416"
+    },
+    {
+      "name": "T167_dm_file_download",
+      "status": "PASS",
+      "detail": "chip=\"TXT\" | download 200 bytes=416/416"
+    },
+    {
+      "name": "T167_plan_composer_reachable",
+      "status": "PASS",
+      "detail": "/organizations/acme-v2103acc/projects/project-376e3ae5/plans/plan-4bbbbc41"
+    },
+    {
+      "name": "T167_plan_image_preview",
+      "status": "PASS",
+      "detail": "staged=1 naturalWidth=120 | download 200 bytes=292/292"
+    },
+    {
+      "name": "T167_plan_image_download",
+      "status": "PASS",
+      "detail": "naturalWidth=120 | download 200 bytes=292/292"
+    },
+    {
+      "name": "T167_plan_file_chip",
+      "status": "PASS",
+      "detail": "staged=1 chip=\"TXT\" | download 200 bytes=416/416"
+    },
+    {
+      "name": "T167_plan_file_download",
+      "status": "PASS",
+      "detail": "chip=\"TXT\" | download 200 bytes=416/416"
+    },
+    {
+      "name": "T167_task_composer_reachable",
+      "status": "PASS",
+      "detail": "/organizations/acme-v2103acc/projects/project-376e3ae5/tasks/task-2dda3731"
+    },
+    {
+      "name": "T167_task_image_preview",
+      "status": "PASS",
+      "detail": "staged=1 naturalWidth=120 | download 200 bytes=292/292"
+    },
+    {
+      "name": "T167_task_image_download",
+      "status": "PASS",
+      "detail": "naturalWidth=120 | download 200 bytes=292/292"
+    },
+    {
+      "name": "T167_task_file_chip",
+      "status": "PASS",
+      "detail": "staged=1 chip=\"TXT\" | download 200 bytes=416/416"
+    },
+    {
+      "name": "T167_task_file_download",
+      "status": "PASS",
+      "detail": "chip=\"TXT\" | download 200 bytes=416/416"
+    },
+    {
+      "name": "T170_issue_created",
+      "status": "PASS",
+      "detail": "issue=issue-c71f9d7a"
+    },
+    {
+      "name": "T170_issue_status_open_initial",
+      "status": "PASS",
+      "detail": "status=\"STATUS\n\nOPEN\n<1m\""
+    },
+    {
+      "name": "T170_issue_close",
+      "status": "PASS",
+      "detail": "rendered status=\"STATUS\n\nCLOSED\n<1m\""
+    },
+    {
+      "name": "T170_issue_reopen",
+      "status": "PASS",
+      "detail": "rendered status=\"STATUS\n\nREOPENED\n<1m\""
+    },
+    {
+      "name": "T170_issue_discussion",
+      "status": "PASS",
+      "detail": "empty state (no linked conversation yet) — expected; discussion via agent comment_issue (backend). conversation-empty=1"
+    },
+    {
+      "name": "no_console_errors",
+      "status": "PASS",
+      "detail": ""
+    }
+  ]
+}
