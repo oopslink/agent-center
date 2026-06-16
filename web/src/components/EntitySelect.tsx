@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface EntityOption {
   /** The value submitted on select (e.g. a worker_id or an `agent:<id>` ref). */
@@ -49,6 +50,20 @@ export function EntitySelect({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  // T194: the popover is PORTALED to <body> with fixed positioning so it is never
+  // clipped by an `overflow:auto` ancestor (e.g. the Plan Task List's scroll
+  // container, where the absolute dropdown was being cut off + the assignee name
+  // showed incompletely). Position is anchored to the trigger and recomputed on
+  // open / scroll / resize, flipping above when there isn't room below.
+  const [pos, setPos] = useState<{
+    left: number;
+    minWidth: number;
+    maxHeight: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
 
   const selected = options.find((o) => o.value === value);
 
@@ -60,11 +75,45 @@ export function EntitySelect({
     );
   }, [options, q]);
 
-  // Close on outside click.
+  const computePos = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const margin = 4;
+    const spaceBelow = window.innerHeight - r.bottom - 8;
+    const spaceAbove = r.top - 8;
+    // Prefer below; flip up only when below is cramped and above has more room.
+    const below = spaceBelow >= 220 || spaceBelow >= spaceAbove;
+    setPos({
+      left: r.left,
+      // Anchor at least the trigger width, but widen a little so full names show.
+      minWidth: Math.max(r.width, 208),
+      maxHeight: Math.max(160, (below ? spaceBelow : spaceAbove) - margin),
+      ...(below
+        ? { top: r.bottom + margin }
+        : { bottom: window.innerHeight - r.top + margin }),
+    });
+  }, []);
+
+  // Recompute on open + keep it anchored while scrolling/resizing.
+  useLayoutEffect(() => {
+    if (!open) return;
+    computePos();
+    const onMove = () => computePos();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [open, computePos]);
+
+  // Close on outside click (the popover lives in a portal, so check it too).
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!rootRef.current?.contains(t) && !popoverRef.current?.contains(t)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -83,6 +132,7 @@ export function EntitySelect({
   return (
     <div className="relative" ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         data-testid={`${testId}-trigger`}
         disabled={disabled}
@@ -99,8 +149,20 @@ export function EntitySelect({
         <span aria-hidden="true" className="ml-2 text-text-muted">⌄</span>
       </button>
 
-      {open && (
-        <div className="absolute left-0 right-0 z-30 mt-1 rounded border border-border-base bg-bg-elevated shadow-lg">
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          className="fixed z-50 flex flex-col overflow-hidden rounded border border-border-base bg-bg-elevated shadow-lg"
+          style={{
+            left: pos?.left,
+            top: pos?.top,
+            bottom: pos?.bottom,
+            minWidth: pos?.minWidth,
+            maxWidth: 'min(20rem, calc(100vw - 16px))',
+            maxHeight: pos?.maxHeight,
+            visibility: pos ? 'visible' : 'hidden',
+          }}
+        >
           <input
             data-testid={`${testId}-search`}
             value={q}
@@ -117,7 +179,7 @@ export function EntitySelect({
             placeholder={searchPlaceholder}
             className="block w-full rounded-t border-0 border-b border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
           />
-          <ul className="max-h-60 overflow-y-auto py-1" data-testid={`${testId}-options`} role="listbox">
+          <ul className="min-h-0 flex-1 overflow-y-auto py-1" data-testid={`${testId}-options`} role="listbox">
             {filtered.length === 0 && (
               <li className="px-3 py-2 text-xs text-text-muted" data-testid={`${testId}-empty`}>
                 {emptyLabel}
@@ -152,7 +214,8 @@ export function EntitySelect({
               </li>
             ))}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
