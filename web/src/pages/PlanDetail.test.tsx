@@ -1577,7 +1577,9 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
 
     // open the dropdown + pick "Dev One" (agent:dev).
     await act(async () => fireEvent.click(trigger));
-    const opt = within(row)
+    // T194: the dropdown popover is portaled to <body> (so it isn't clipped by the
+    // task-list scroll container), so query the options from the screen, not the row.
+    const opt = screen
       .getAllByTestId('plan-row-assign-option')
       .find((o) => o.getAttribute('data-value') === 'agent:dev') as HTMLElement;
     expect(opt).toHaveTextContent('Dev One');
@@ -1599,7 +1601,8 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     await screen.findByTestId('plan-task-list-table');
     const row = screen.getByTestId('plan-task-list').querySelector('[data-task-id="b2"]') as HTMLElement;
     await act(async () => fireEvent.click(within(row).getByTestId('plan-row-assign-trigger')));
-    const unassignOpt = within(row)
+    // T194: options are portaled to <body> now — query from the screen.
+    const unassignOpt = screen
       .getAllByTestId('plan-row-assign-option')
       .find((o) => o.getAttribute('data-value') === '') as HTMLElement;
     await act(async () => fireEvent.click(unassignOpt));
