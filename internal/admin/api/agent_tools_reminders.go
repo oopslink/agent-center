@@ -156,6 +156,7 @@ func (s *Server) createReminderHandler(w http.ResponseWriter, r *http.Request) {
 		skip = *req.SkipIfOverlap
 	}
 	rem, err := d.ReminderSvc.CreateReminder(r.Context(), cogservice.CreateReminderCommand{
+		OrganizationID:  a.OrganizationID(),
 		CreatorRef:      agentActor(a),
 		RemindeeAgentID: strings.TrimSpace(req.RemindeeAgentID),
 		Schedule:        sched,

@@ -229,13 +229,13 @@ func allocateTestInstanceID(root string) (string, error) {
 // accessPack is the machine-readable output (#255 infra-piggyback + the
 // self-documenting #257 pointer hints).
 type accessPack struct {
-	ID                 string            `json:"id"`
-	Prefix             string            `json:"prefix"`
-	WebURL             string            `json:"web_url"`
-	ServerPort         int               `json:"server_port"`
-	AdminPort          int               `json:"admin_port"`
-	AdminBootstrapToken string           `json:"admin_bootstrap_token"`
-	Workers            []accessPackWorker `json:"workers"`
+	ID                  string             `json:"id"`
+	Prefix              string             `json:"prefix"`
+	WebURL              string             `json:"web_url"`
+	ServerPort          int                `json:"server_port"`
+	AdminPort           int                `json:"admin_port"`
+	AdminBootstrapToken string             `json:"admin_bootstrap_token"`
+	Workers             []accessPackWorker `json:"workers"`
 	// Self-documenting hints — doc-honesty applied to the runtime artifact:
 	// a consumer reads the JSON and sees exactly why signin / entities are
 	// absent + why workers aren't control-connected yet, and where to get

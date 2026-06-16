@@ -39,9 +39,10 @@ type ReminderContext struct {
 // (cli) reads agent→project mappings; keeping it a port keeps the AppService
 // unit-testable.
 type Directory interface {
-	// ResolveReminderContext resolves the create context for creatorRef targeting
-	// remindeeAgentID. It errors if the remindee can't be located.
-	ResolveReminderContext(ctx context.Context, creatorRef, remindeeAgentID string) (ReminderContext, error)
+	// ResolveReminderContext resolves the create context within orgID (the handler
+	// passes the guardrail-resolved operating agent's org) for creatorRef targeting
+	// remindeeAgentID. It errors if the remindee can't be located in the org.
+	ResolveReminderContext(ctx context.Context, orgID, creatorRef, remindeeAgentID string) (ReminderContext, error)
 	// IsOwner reports whether ref is an organization owner (may manage any reminder).
 	IsOwner(ctx context.Context, ref string) bool
 }
@@ -71,6 +72,7 @@ func NewReminderAppService(db *sql.DB, repo reminder.Repository, dir Directory, 
 // identity (agent:<id> injected by the tool layer, or user:<owner>); never from
 // model args.
 type CreateReminderCommand struct {
+	OrganizationID  string // the operating agent's org (handler-resolved)
 	CreatorRef      string
 	RemindeeAgentID string
 	Schedule        reminder.Schedule
@@ -82,7 +84,7 @@ type CreateReminderCommand struct {
 // CreateReminder resolves the project context + guard, builds the aggregate, and
 // persists it with a created event.
 func (s *ReminderAppService) CreateReminder(ctx context.Context, cmd CreateReminderCommand) (*reminder.Reminder, error) {
-	rc, err := s.dir.ResolveReminderContext(ctx, cmd.CreatorRef, cmd.RemindeeAgentID)
+	rc, err := s.dir.ResolveReminderContext(ctx, cmd.OrganizationID, cmd.CreatorRef, cmd.RemindeeAgentID)
 	if err != nil {
 		return nil, err
 	}

@@ -43,7 +43,9 @@ func (f *fakeAgents) FindByID(_ context.Context, _ agentpkg.AgentID) (*agentpkg.
 	return f.a, f.err
 }
 
-type fakeWaker struct{ cmds []environment.AppendCommandInput }
+type fakeWaker struct {
+	cmds []environment.AppendCommandInput
+}
 
 func (f *fakeWaker) EnqueueCommand(_ context.Context, in environment.AppendCommandInput) (*environment.WorkerControlEvent, error) {
 	f.cmds = append(f.cmds, in)

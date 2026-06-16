@@ -19,7 +19,7 @@ type fakeDir struct {
 	owners map[string]bool
 }
 
-func (d *fakeDir) ResolveReminderContext(_ context.Context, _, _ string) (ReminderContext, error) {
+func (d *fakeDir) ResolveReminderContext(_ context.Context, _, _, _ string) (ReminderContext, error) {
 	return d.rc, d.rcErr
 }
 func (d *fakeDir) IsOwner(_ context.Context, ref string) bool { return d.owners[ref] }
