@@ -150,22 +150,27 @@ func (s *Server) agentOwnDomainScopes(d HandlerDeps, r *http.Request, a *agent.A
 }
 
 // agentParticipantConvScopes returns a {ScopeConversation, convID} scope for every
-// channel/DM/plan conversation in the agent's OWN org where the agent is an ACTIVE
-// (non-left) participant — the file-domain realization of the post_message
-// participant gate (agentIsActiveParticipant). It is best-effort and fail-closed: a
-// missing ConvRepo, an empty org, or a Find error yields NO conversation scopes (the
-// agent is denied, never wrongly granted).
+// conversation in the agent's OWN org where the agent is an ACTIVE (non-left)
+// participant — the file-domain realization of the post_message participant gate
+// (agentIsActiveParticipant). It is best-effort and fail-closed: a missing ConvRepo,
+// an empty org, or a Find error yields NO conversation scopes (the agent is denied,
+// never wrongly granted).
 //
-// channel + DM + PLAN kinds are enumerated here. Plan conversations (T167) MUST be
-// enumerated by participation, NOT derived from work-items: an agent participates in
-// a plan conversation as the plan creator or via PlanParticipantsChanged on
-// dispatch/assign — a relation that is independent of whether it currently holds a
-// work-item for a task IN that plan (e.g. the PD opening a plan chat has no such
-// work-item). Task/issue conversations, by contrast, ARE reached via the work-item
-// derivation in agentOwnDomainScopes and so are deliberately omitted here. The scan
-// stays bounded — channels/DMs/plans per org are each capped by Find's
-// DefaultConversationLimit; participation is org-scoped by construction so no
-// cross-org conversation appears.
+// T204: ALL FIVE conversation kinds (channel, DM, task, issue, plan) are enumerated
+// here by participation, so an agent can attach to — and read attachments from —
+// ANY conversation it actively participates in, uniformly. Previously only
+// channel/DM/plan were scanned: task/issue were assumed "reached via the work-item
+// derivation in agentOwnDomainScopes", but that derivation only adds the *task*
+// conversation scope (and the issue *scope*, not the issue *conversation* scope) and
+// only for an agent that HOLDS a work-item — so an issue-conversation participant
+// without a work-item (e.g. the PD discussing on an issue) had no
+// {ScopeConversation, issueConvID} and hit scope_not_in_agent_domain on attach.
+// Enumerating by participation closes that gap for issues AND covers task/plan
+// participants who hold no work-item, at the SAME participant boundary post_message
+// already enforces (no authz widening). The work-item derivation in
+// agentOwnDomainScopes is retained (additive, deduped). The scan stays bounded —
+// each kind is capped by Find's DefaultConversationLimit; participation is
+// org-scoped by construction so no cross-org conversation appears.
 func (s *Server) agentParticipantConvScopes(d HandlerDeps, r *http.Request, a *agent.Agent) []filesservice.ScopeRef {
 	if d.ConvRepo == nil {
 		return nil
@@ -180,6 +185,8 @@ func (s *Server) agentParticipantConvScopes(d HandlerDeps, r *http.Request, a *a
 	for _, kind := range []conversation.ConversationKind{
 		conversation.ConversationKindChannel,
 		conversation.ConversationKindDM,
+		conversation.ConversationKindTask,
+		conversation.ConversationKindIssue,
 		conversation.ConversationKindPlan,
 	} {
 		k := kind
