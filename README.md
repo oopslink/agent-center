@@ -16,6 +16,12 @@
 
 <br/>
 
+<p align="center">
+  <img src="./assets/cover.png" alt="agent-center — centralized orchestration for multi-agent workflows" width="760">
+</p>
+
+<br/>
+
 <h3 align="center">A personal AI agent dispatch center.</h3>
 <p align="center">Run one server. Attach workers from any machine. Agents run wherever — every conversation and decision lands on a thread you can trace.</p>
 
@@ -23,19 +29,6 @@
 
 > [!TIP]
 > **Conversation is the product spine, not a log.** Tasks, Issues, decisions, progress — all hang off Conversation threads. This is the deepest difference between agent-center and the "agents are scripts" mindset: every dispatch, every InputRequest, every artifact is recoverable in its original thread.
-
-> [!IMPORTANT]
-> **v2.10.3 shipped (2026-06-16)** — **All-conversation attachments + agent issue tools + doc-site redesign.** Agents can now send/receive image & file attachments in **every** conversation type including **Plan chat** (T167, membership-gated, fail-closed). A full **agent issue-management toolset** lands over MCP — `create` / `update` / `close` / `reopen` / `comment` / `list` / `link-task` — so issue lifecycle no longer needs a human (T170, project-member-gated). The **`sites/` doc site is redesigned** on the product's design system: chart-forward low-text pages, an interactive **DDD architecture browser** (context map → layered → class diagram + sequence) with the model re-derived from source, a per-version user manual + architecture with a version switcher, and a theme-grouped roadmap (T169). See [CHANGELOG](./CHANGELOG.md).
->
-
-> [!IMPORTANT]
-> **v2.10.1 shipped (2026-06-15)** — **Mobile experience + open claim + desktop polish.** The v2.10.0 three-column desktop shell now adapts below 768px to a **mobile layout**: a **bottom Tab bar** (Workspace / Conversations / Members / System) drives a full-screen list → full-screen detail → bottom-sheet context flow; Plan's DAG becomes a **vertical stepper**, the Work Board scrolls columns horizontally (portrait) / fans out (landscape), and Members / System adapt too. **Claimability (ADR-0047)**: backlog tasks stay unclaimable, but the **Assignment Pool is now openly claimable** by any project member (fail-closed authorization, opaque to non-members), with a **per-agent hold cap (N=3)** and atomic CAS claim (no double-assign). **Desktop enhancements**: the Thread and Participants side panels are **drag-resizable** (shared `ResizablePanel`, persisted), the Channel sidebar gets **Chat / Threads / Files** tabs, the global Plan list can view **Archived plans (read-only)**, and col① consolidates connection status / search / theme toggle / Sign out into the rail. Plus **Plan `P<number>` sequence ids** + `plan-id` / `P123` message linkify (symmetric with `T<number>`), list `org_ref` (`T<n>`) everywhere in place of `#short-hash`, clickable agent names in Task / Issue panels opening the activity sidebar, a Task → related-Plan jump, **inbound attachments now reach agents** (wake passes `file_uri` through, fail-closed), a stabler SSE connection (`no-transform`), and a `discard_task` agent tool. See [CHANGELOG](./CHANGELOG.md).
->
-> **v2.10.0 shipped (2026-06-15)** — **Three-column desktop UI/UX.** The Web Console is rebuilt as a four-region shell — an **icon rail** of top modules (Workspace / Conversations / Members / System) → a per-module **second-level list** → the **content** pane → an **on-demand context** panel — on the existing IA (the Overview page is removed); col② is a per-module **secondary-nav registry**, so a module plugs in its own nav with a single registration line (no app-layout edits). Every module is rebuilt on this shell: Conversations (participants + shared-files panel), Projects + project detail, Tasks / Issues (read-only metadata panel), a **global cross-project Plan** list + detail (Chat / DAG / Task-list tabs), the **Project Work Board**, Members (Humans / Agents + Agent context panel), System. Plus **task & issue attachments** (list / upload / download, project-member-gated, fail-closed), **message ref linkify** (`task-<id>` *and* `T<number>` org-refs become task links, sent and received), **inbound message attachments** surfaced to agents, and system / scheduler messages now render a proper **System** author. Carries forward Message Threads, Plan Orchestration, the Web Console, and first-mile deployment from v2.4–v2.9.2. See [CHANGELOG](./CHANGELOG.md).
->
-> **v2.9.1 shipped (2026-06-14)** — **Message Threads**: derive a thread from any message and reply in a popout thread sidebar (Slack-style single level), with a thread list in the Participants sidebar; **@mentioning a project agent inside a thread wakes it and its reply lands in the thread**, and a "new activity" marker flags unseen replies — across all conversation types. Plus a task-model / board cleanup: **claimable + a per-project built-in assignment pool** (assign ≠ claim; a three-segment Work Board — Backlog · built-in pool · structured Plans), a simpler **task state machine** (`blocked` is now a recoverable annotation, `verified` removed), board visibility fixes (terminal tasks & archived-project items hidden from default lists; large-plan task list with search/inline-reassign), **channel archive**, a `list_tasks` MCP tool, task-recovery tooling (`unblock_task`/`rerun_failed_node` + auto-redispatch), and a full design-token migration. See [CHANGELOG](./CHANGELOG.md).
->
-> **v2.9 shipped (2026-06-12)** — **Plan Orchestration**: compose work as a DAG of tasks (a *Plan*), `start` it, and the center auto-dispatches each ready node to its assigned agent as upstream tasks complete — the plan runs to done with no manual stepping. A PM-style agent can build and run a plan programmatically through its MCP tools. Plans and projects have explicit lifecycle (draft / running / done, plus an irreversible **archive** that makes them read-only; a plan with running tasks can't be archived). **Org routing is now explicit** — every org-scoped API is addressed under `/api/orgs/{slug}/...`, eliminating implicit org state. **Plan conversations now join @mention-wake** — @mentioning a project agent in a plan conversation wakes it (issue / task conversations already supported this since v2.7.1; plan conversations and non-participant project-member breadth are the v2.9 addition). Carries forward the Web Console, pull-model dispatch, and first-mile deployment from v2.4–v2.8.1. See [CHANGELOG](./CHANGELOG.md).
 
 <br/>
 
@@ -57,7 +50,7 @@ Default ports (loopback Web Console, plus the admin endpoint workers dial):
 
 ```bash
 # From the release tarball, on the host machine:
-cd agent-center-v2.7.0-<os>-<arch>/
+cd agent-center-v2.10.3-<os>-<arch>/
 ./install center
 # Default = FOREGROUND: drops files + config, then prints the run command:
 agent-center server --config=<prefix>/etc/config.yaml   # logs to stdout
@@ -86,7 +79,7 @@ A worker spawns each agent's CLI (e.g. `claude`). The agent authenticates with t
 |---|---|
 | `~/.claude/settings.json` **hooks** (run under bypassPermissions), **plugins**, and **env** vars | **MCP servers** — the agent gets only its own agent-center MCP (pinned by `--strict-mcp-config`); the user's/plugin MCP servers are not loaded |
 
-> ⚠️ **Security note.** Because auth and the user's settings load from the same "user" source, the agent inherits the worker user's `~/.claude` **hooks** and runs them under `bypassPermissions`. If you keep sensitive or side-effecting hooks there, be aware the agent will execute them. **Full user-level isolation** (auth without loading the user source, via a `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN`) is planned for **v2.8**.
+> ⚠️ **Security note.** Because auth and the user's settings load from the same "user" source, the agent inherits the worker user's `~/.claude` **hooks** and runs them under `bypassPermissions`. If you keep sensitive or side-effecting hooks there, be aware the agent will execute them. **Full user-level isolation** (auth without loading the user source, via a `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN`) is tracked on the roadmap.
 
 If claude has no reachable credential at all, orchestration still works end-to-end (dispatch → spawn → MCP connect → activity stream), but the agent's turn fails auth (`403 Request not allowed`) and its work item is marked failed.
 
@@ -148,11 +141,11 @@ For a quick trial, a developer install, or onboarding a worker without a prebuil
 curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh | bash
 
 # Pinned-tag Center install (recommended for anything stable):
-curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/v2.7.0/install.sh | bash -s -- center --version v2.7.0
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/v2.10.3/install.sh | bash -s -- center --version v2.10.3
 
 # Worker install — use the command the Web Console "Add Worker" generates:
 curl -fsSL .../install.sh | bash -s -- worker \
-  --version v2.7.0 --center tcp://HOST:7300 \
+  --version v2.10.3 --center tcp://HOST:7300 \
   --server-fingerprint sha256:... --token enroll_... --worker-name my-box
 
 # Preview everything first — clones/builds/installs nothing:
@@ -203,7 +196,7 @@ Each is a noun your users will learn, backed by a DDD aggregate / value object /
 
 | Concept | One-line definition |
 |---|---|
-| **Task** | A unit of work you (or Supervisor) created; retryable — each retry is a new TaskExecution, task identity stays |
+| **Task** | A unit of work you (or Supervisor) created; status-driven lifecycle (open → running → completed / discarded, reopenable), assignable & claimable |
 | **Issue** | A topic to discuss ("should we use X or Y?"); the conclusion can spawn 0, 1, or N Tasks |
 | **Conversation** | A message thread attached to a Task / Issue / Channel / DM — the product spine |
 | **Worker** | A machine running agents (local or remote); one machine can host multiple workers (v2.4) |
@@ -211,7 +204,8 @@ Each is a noun your users will learn, backed by a DDD aggregate / value object /
 | **Supervisor** | A built-in agent that reads Conversation context and decides what to dispatch next — not a "brain," just another agent with logs |
 | **InputRequest** | Agent blocks mid-execution asking you to decide; you answer in the Web Console and the agent resumes |
 | **Project** | The container Tasks belong to; a worker can be mapped to multiple Projects |
-| **Artifact** | The output of an execution (PR URL, file, report) |
+| **Plan** | A DAG of tasks; `start` it and the center auto-dispatches each ready node as upstream tasks complete (draft → running → done → archived) |
+| **AgentWorkItem** | An agent's work-queue item referencing a Task — drives execution state (queued / active / waiting_input / paused / done …) |
 | **Memory** | Supervisor's persistent notes (markdown files, scoped per project / task / global) |
 
 Full ubiquitous-language glossary: [bounded contexts § 1](./docs/design/architecture/strategic/03-bounded-contexts.md#-1-通用语言ubiquitous-language).
@@ -220,15 +214,19 @@ Full ubiquitous-language glossary: [bounded contexts § 1](./docs/design/archite
 
 ## Design
 
-`agent-center` follows [Domain-Driven Design](https://en.wikipedia.org/wiki/Domain-driven_design) with **seven Bounded Contexts**:
+`agent-center` follows [Domain-Driven Design](https://en.wikipedia.org/wiki/Domain-driven_design) with **nine domain Bounded Contexts** (+ a Memory file-service):
 
-- **TaskRuntime** — Task, TaskExecution, Dispatch, Kill
-- **Discussion** — Issue, IssueComment, Conclude
-- **Workforce** — Worker, AgentInstance, Project, WorkerProjectMapping
-- **Cognition** — Supervisor, Invocation, Memory
-- **Observability** — Event, Trace, Stats
-- **Conversation** — Channel, DM, Thread, Message
-- **SecretManagement** — UserSecret + master key
+- **ProjectManager** *(Core)* — Project, Issue, Task, **Plan** (DAG orchestration), ProjectMember, Finding
+- **Agent** *(Core)* — Agent (lifecycle), AgentWorkItem (work queue), AgentActivityEvent
+- **Conversation** *(Core)* — Conversation (channel / DM / task / issue / plan), Message, participants
+- **Identity** — Identity (user / agent), Organization, Member, Invitation
+- **Workforce** — Worker (capability / dispatch), AgentInstance, BootstrapToken
+- **Environment** — control-channel Worker + ordered, replayable command stream
+- **Files** — FileTransferSession, FileReference, BlobStore (ULID file identity, ref-count GC)
+- **SecretManagement** — UserSecret (AES-256-GCM) + master key + `secret:<name>` refs
+- **Observability** — append-only domain Event store + EventSink
+
+> Memory (the Supervisor's scoped notes) is a git-backed markdown **file service**, not a DB aggregate; the Supervisor itself is an OS-process runtime, not a domain aggregate. TaskRuntime + Discussion were merged into **ProjectManager**; there is no standalone Cognition BC. (Model re-derived from source — see the [DDD architecture browser](https://oopslink.github.io/agent-center/dev/v2.10.3/).)
 
 Cross-BC interactions go through events / RPC; no shared physical tables (see [§ 9.z](./docs/rules/conventions.md)). All persistence is gated by each BC's Application Service — the transport (unix socket / TCP+TLS) is an implementation detail; **domain invariants always live behind the AppService**.
 
@@ -257,7 +255,7 @@ Documentation entry points:
 make build                  # frontend (vite) + backend (go) + worker-daemon + fakeagent
                             # produces ./bin/{agent-center, agent-center-worker-daemon, fakeagent}
 
-VERSION=v2.4.1 make build   # build with a specific version (default v2.4.0)
+VERSION=v2.10.3 make build  # build with a specific version
 ```
 
 The frontend SPA is built first (`web/` → `internal/webconsole/spa/dist/`) and then embedded into the Go binary via `go:embed`, so a single binary ships the full Web Console.
@@ -276,8 +274,8 @@ make test            # go test ./...
 make cover           # go test with coverage report
 make cover-html      # render coverage as ./coverage.html
 make vet             # go vet ./...
-make lint            # vet + lint-vendor + lint-mock-default + lint-doc-impl-drift
-                     # (enforces conventions § 0.4 architectural rules)
+make lint            # vet + vendor / mock / doc-drift / raw-colors / idtail guards
+                     # + SPA tsc -b + eslint (enforces conventions § 0.4)
 make smoke           # fresh-binary deploy + drive a task to done — § 0.4 #4 gate
 ```
 
@@ -297,10 +295,11 @@ agent-center/
 │   ├── worker-daemon/              # worker daemon (separate binary)
 │   └── fakeagent/                  # smoke-test agent (no LLM)
 ├── internal/                       # one subpackage per Bounded Context
-│   ├── taskruntime/  discussion/   # plus admin transport, webconsole, cli, ...
-│   ├── workforce/    cognition/
-│   ├── observability/ conversation/
-│   ├── secret/       admintoken/
+│   ├── projectmanager/ agent/      # plus admin transport, webconsole, cli, ...
+│   ├── conversation/   identity/
+│   ├── workforce/      environment/
+│   ├── files/          secretmgmt/
+│   ├── observability/  cognition/memory/
 │   └── ...
 ├── web/                            # React SPA (vite + TS + Tailwind)
 │   └── src/                        # → internal/webconsole/spa/dist via go:embed
