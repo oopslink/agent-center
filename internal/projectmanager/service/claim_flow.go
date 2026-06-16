@@ -165,7 +165,8 @@ func (s *Service) ListHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) (
 
 // ListClaimablePool returns the OPEN, unassigned, dispatched built-in-pool tasks
 // the agent `actor` may claim — across the projects in its org where it is a
-// member (T83 §3.5 discovery surface, exposed read-only as list_assignment_pool).
+// member (T83 §3.5 discovery surface; WS2: surfaced read-only via get_my_work's
+// "claimable" bucket — the former list_assignment_pool tool was removed).
 // It is the DISCOVERY counterpart to ClaimPoolTask and deliberately EXCLUDES the
 // agent's own assigned work (that is get_my_work) — it lists only the shared,
 // not-yet-taken pool. Fail-closed: nil agentDir / non-agent actor / unresolvable

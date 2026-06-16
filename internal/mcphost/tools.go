@@ -349,14 +349,6 @@ func makeClaimTask(cfg Config) mcp.ToolHandlerFor[claimTaskArgs, any] {
 	}
 }
 
-type listAssignmentPoolArgs struct{}
-
-func makeListAssignmentPool(cfg Config) mcp.ToolHandlerFor[listAssignmentPoolArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, _ listAssignmentPoolArgs) (*mcp.CallToolResult, any, error) {
-		return callAdmin(ctx, cfg, "list_assignment_pool", map[string]any{"agent_id": cfg.AgentID})
-	}
-}
-
 // --- pause_task / resume_task (v2.8.1 #278 D PR4 scheduling) -----------
 
 type pauseWorkArgs struct {
@@ -376,7 +368,7 @@ func makePauseTask(cfg Config) mcp.ToolHandlerFor[pauseWorkArgs, any] {
 }
 
 type resumeWorkArgs struct {
-	WorkItemID string `json:"work_item_id" jsonschema:"the id of a paused work item (from list_my_paused_work) to resume"`
+	WorkItemID string `json:"work_item_id" jsonschema:"the id of a paused work item (from get_my_work's paused bucket) to resume"`
 }
 
 func makeResumeTask(cfg Config) mcp.ToolHandlerFor[resumeWorkArgs, any] {
@@ -386,22 +378,6 @@ func makeResumeTask(cfg Config) mcp.ToolHandlerFor[resumeWorkArgs, any] {
 			"work_item_id": args.WorkItemID,
 		}
 		return callAdmin(ctx, cfg, "resume_task", body)
-	}
-}
-
-type getMyActiveWorkArgs struct{}
-
-func makeGetMyActiveWork(cfg Config) mcp.ToolHandlerFor[getMyActiveWorkArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, _ getMyActiveWorkArgs) (*mcp.CallToolResult, any, error) {
-		return callAdmin(ctx, cfg, "get_my_active_work", map[string]any{"agent_id": cfg.AgentID})
-	}
-}
-
-type listMyPausedWorkArgs struct{}
-
-func makeListMyPausedWork(cfg Config) mcp.ToolHandlerFor[listMyPausedWorkArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, _ listMyPausedWorkArgs) (*mcp.CallToolResult, any, error) {
-		return callAdmin(ctx, cfg, "list_my_paused_work", map[string]any{"agent_id": cfg.AgentID})
 	}
 }
 

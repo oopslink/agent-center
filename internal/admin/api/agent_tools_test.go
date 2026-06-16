@@ -218,12 +218,13 @@ func TestGetMyWork_OwnAgent_OK(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
-	items, ok := body["work_items"].([]any)
+	// WS2: get_my_work partitions by status; seeded items are queued.
+	items, ok := body["queued"].([]any)
 	if !ok {
-		t.Fatalf("body has no work_items array: %v", body)
+		t.Fatalf("body has no queued array: %v", body)
 	}
 	if len(items) != 2 {
-		t.Fatalf("got %d work items, want 2 (own-scoped to AG1): %v", len(items), items)
+		t.Fatalf("got %d queued items, want 2 (own-scoped to AG1): %v", len(items), items)
 	}
 	gotIDs := map[string]bool{}
 	for _, raw := range items {
@@ -254,9 +255,11 @@ func TestGetMyWork_OwnAgent_EmptyOK(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
-	items, ok := body["work_items"].([]any)
-	if !ok || len(items) != 0 {
-		t.Fatalf("want empty work_items array, got %v", body["work_items"])
+	for _, k := range []string{"active", "queued", "paused", "waiting_input"} {
+		items, ok := body[k].([]any)
+		if !ok || len(items) != 0 {
+			t.Fatalf("want empty %s array, got %v", k, body[k])
+		}
 	}
 }
 
