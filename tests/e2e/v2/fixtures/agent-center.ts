@@ -51,8 +51,6 @@ web_console:
   listen_addr: "127.0.0.1:${webPort}"
 secret_management:
   master_key_file: "${masterKeyPath}"
-identity:
-  default_user: "hayang"
 `;
     await writeFile(configPath, config, "utf8");
 

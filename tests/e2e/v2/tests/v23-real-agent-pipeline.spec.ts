@@ -203,8 +203,6 @@ secret_management:
   master_key_file: "${masterKeyPath}"
 blob_store:
   root: "${blobRoot}"
-identity:
-  default_user: "hayang"
 `;
     await writeFile(configPath, config, "utf8");
 

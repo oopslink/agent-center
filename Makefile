@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-spa-tsc lint-spa-eslint smoke vet gen-mcp-docs tidy clean clean-dist release release-dir e2e e2e-install
+.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-no-stale-e2e-config lint-spa-tsc lint-spa-eslint smoke vet gen-mcp-docs tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -186,8 +186,11 @@ lint-spa-tsc:
 lint-spa-eslint:
 	cd web && pnpm lint
 
+lint-no-stale-e2e-config:
+	./scripts/lint/no-stale-e2e-config.sh
+
 # lint — composite target for all repo-level linters.
-lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-spa-tsc lint-spa-eslint
+lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-no-stale-e2e-config lint-spa-tsc lint-spa-eslint
 
 # e2e-install — first-time setup of the Playwright e2e suite.
 # Drops chromium browser (~170MB) into Playwright's cache.
