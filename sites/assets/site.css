@@ -12,57 +12,57 @@
    ============================================================ */
 
 :root {
-  /* ---- surfaces & ink (light: drafting paper) ---- */
-  --paper:        #eef1ea;          /* page canvas            */
+  /* ---- surfaces & ink (light: aligned to product Web Console) ---- */
+  --paper:        #f8fafc;          /* page canvas            */
   --bg:           var(--paper);
   --surface:      #ffffff;          /* panels / cards         */
-  --surface-2:    #f4f7f0;          /* insets / code-inline   */
-  --border:       #d2d8cb;          /* hairline rule          */
-  --border-strong:#b4bdab;
-  --grid-line:    rgba(20,52,68,.045);
+  --surface-2:    #f1f5f9;          /* insets / code-inline   */
+  --border:       #e2e8f0;          /* hairline rule          */
+  --border-strong:#cbd5e1;
+  --grid-line:    rgba(15,23,42,.04);
 
-  --ink:          #14181d;
-  --ink-soft:     #434b53;
-  --ink-mute:     #6a7480;
-  --ink-faint:    #98a2af;
+  --ink:          #0f172a;
+  --ink-soft:     #475569;
+  --ink-mute:     #64748b;
+  --ink-faint:    #94a3b8;
 
-  /* ---- signal accents (flat) ---- */
-  --primary:      #0b6e7d;          /* teal-cyan (was blue)   */
-  --primary-deep: #0a5560;
-  --accent:       #c2410c;          /* amber-rust             */
-  --cyan:         #0e7c8e;
-  --amber:        #b45309;
+  /* ---- signal accents (slate/blue, product-aligned) ---- */
+  --primary:      #1e40af;          /* brand blue             */
+  --primary-deep: #1d4ed8;
+  --accent:       #2563eb;          /* accent blue            */
+  --cyan:         #0e7490;
+  --amber:        #d97706;
 
-  /* dark schematic panels embedded in the light page */
-  --panel:        #0d1117;          /* hero / pre background  */
-  --panel-2:      #161c24;          /* header bars            */
-  --panel-ink:    #c8d3de;
-  --panel-soft:   #8e9bab;
-  --panel-line:   rgba(120,190,210,.16);
-  --panel-cyan:   #34d0e6;
+  /* dark chrome panels embedded in the light page (rail-aligned) */
+  --panel:        #0b1220;          /* hero / pre background  */
+  --panel-2:      #11161d;          /* header bars            */
+  --panel-ink:    #cbd5e1;
+  --panel-soft:   #94a3b8;
+  --panel-line:   rgba(148,163,184,.16);
+  --panel-cyan:   #38bdf8;
   --panel-amber:  #f4b740;
 
   /* legacy alias kept for safety (no longer a gradient) */
   --hero:         var(--panel);
 
   /* ---- state pills / callouts ---- */
-  --blue-bg:  #e2f3f6; --blue-fg:  #0b6e7d;
-  --green-bg: #e6f4ea; --green-fg: #1b7d34;
-  --purple-bg:#eef0fb; --purple-fg:#5b4bb0; --purple-bd:#dadcf3;
-  --amber-bg: #fdf0e3; --amber-fg: #c2410c;
+  --blue-bg:  #dbeafe; --blue-fg:  #1e40af;
+  --green-bg: #dcfce7; --green-fg: #166534;
+  --purple-bg:#f3e8ff; --purple-fg:#6b21a8; --purple-bd:#d8b4fe;
+  --amber-bg: #fef3c7; --amber-fg: #92400e;
 
-  /* ---- DDD semantic colors (carry meaning — kept) ---- */
-  --core: #d63a3a;  --core-2: #e03131;
-  --support: #0b6e7d;
-  --generic: #7a838f;
-  --ar:  #d9610f;   /* aggregate root */
-  --vo:  #7b62e0;   /* value object   */
-  --repo:#c79100;   /* repository     */
+  /* ---- DDD semantic colors (aligned to new DDD page classification) ---- */
+  --core: #2563eb;  --core-2: #1d4ed8;
+  --support: #0d9488;
+  --generic: #64748b;
+  --ar:  #2563eb;   /* aggregate root */
+  --vo:  #9333ea;   /* value object   */
+  --repo:#475569;   /* repository     */
 
-  /* ---- geometry: blueprint = sharp corners ---- */
-  --r-sm: 2px; --r-md: 3px; --r-lg: 4px; --r-pill: 999px;
-  --shadow:    3px 3px 0 -1px rgba(11,110,125,.07);
-  --shadow-hi: 5px 5px 0 -1px rgba(11,110,125,.16);
+  /* ---- geometry: softer cards (product-aligned) ---- */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
+  --shadow:    0 1px 2px rgba(15,23,42,.05);
+  --shadow-hi: 0 4px 14px -4px rgba(15,23,42,.12);
 
   --w: 900px;
   --w-wide: 1100px;
@@ -77,44 +77,44 @@
    ============================================================ */
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper:        #0b0e12;
-    --surface:      #11161d;
-    --surface-2:    #161c25;
-    --border:       #232c37;
-    --border-strong:#33404e;
-    --grid-line:    rgba(120,190,210,.055);
+    --paper:        #0b1220;
+    --surface:      #111a2b;
+    --surface-2:    #16213a;
+    --border:       #1e293b;
+    --border-strong:#334155;
+    --grid-line:    rgba(148,163,210,.05);
 
-    --ink:          #d6dee7;
-    --ink-soft:     #aab4bf;
-    --ink-mute:     #78828f;
-    --ink-faint:    #586470;
+    --ink:          #e2e8f0;
+    --ink-soft:     #cbd5e1;
+    --ink-mute:     #94a3b8;
+    --ink-faint:    #64748b;
 
-    --primary:      #2bc4da;
-    --primary-deep: #0e7c8e;
-    --accent:       #f59e0b;
-    --cyan:         #2bc4da;
-    --amber:        #f0a93a;
+    --primary:      #60a5fa;
+    --primary-deep: #3b82f6;
+    --accent:       #3b82f6;
+    --cyan:         #38bdf8;
+    --amber:        #fbbf24;
 
-    --panel:        #070a0e;
-    --panel-2:      #0e131a;
-    --panel-ink:    #c8d3de;
-    --panel-soft:   #7d8a9a;
-    --panel-line:   rgba(120,190,210,.16);
+    --panel:        #060b16;
+    --panel-2:      #0d1626;
+    --panel-ink:    #cbd5e1;
+    --panel-soft:   #94a3b8;
+    --panel-line:   rgba(148,163,184,.16);
 
-    --blue-bg:  #0d2a30; --blue-fg:  #45cfe2;
-    --green-bg: #102a18; --green-fg: #5dd07e;
-    --purple-bg:#1c1a33; --purple-fg:#a99cf0; --purple-bd:#332e55;
-    --amber-bg: #2c1c0c; --amber-fg: #f0a93a;
+    --blue-bg:  #172554; --blue-fg:  #93c5fd;
+    --green-bg: #052e16; --green-fg: #86efac;
+    --purple-bg:#2e1065; --purple-fg:#d8b4fe; --purple-bd:#5b21b6;
+    --amber-bg: #451a03; --amber-fg: #fcd34d;
 
-    --core: #ff6b6b; --core-2: #ff5252;
-    --support: #2bc4da;
-    --generic: #8893a0;
-    --ar:  #ff9d4d;
-    --vo:  #a99cf0;
-    --repo:#ffd34d;
+    --core: #60a5fa; --core-2: #3b82f6;
+    --support: #2dd4bf;
+    --generic: #94a3b8;
+    --ar:  #60a5fa;
+    --vo:  #c084fc;
+    --repo:#94a3b8;
 
-    --shadow:    3px 3px 0 -1px rgba(43,196,218,.12);
-    --shadow-hi: 5px 5px 0 -1px rgba(43,196,218,.28);
+    --shadow:    0 1px 2px rgba(0,0,0,.4);
+    --shadow-hi: 0 6px 18px -6px rgba(0,0,0,.5);
   }
 }
 
