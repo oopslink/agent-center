@@ -132,6 +132,12 @@ func NewGuard(cfg Config) *Guard {
 	}
 }
 
+// RootChain mints a fresh root chain seeded with the Guard's configured token
+// budget — used at a wake origin (where no parent chain is carried yet).
+func (g *Guard) RootChain(rootMessageID string, actor ActorKind) WakeChain {
+	return NewRootChain(rootMessageID, actor, g.cfg.TokenBudget)
+}
+
 // Evaluate decides whether `from` may wake `to` carrying `chain`, as of `now`.
 // A human-actor chain bypasses all gates. On ALLOW it records the rate/cycle
 // state (so the next call sees this hop). On DENY it records nothing (the wake

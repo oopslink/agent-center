@@ -12,6 +12,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
@@ -109,6 +110,13 @@ type WakeProjector struct {
 	// valid @mention wake target. nil → only explicit participants are candidates
 	// (the pre-#224 behavior). Channel/DM owner_refs resolve to no project → empty.
 	projectAgentMembers func(ctx context.Context, ownerRef string) ([]string, error)
+
+	// I7-D1/T227: the wake-chain circuit breaker. nil → agent→agent wakes are NOT
+	// gated (pre-T227 behavior). When set, an agent-sender wake is run through the
+	// four gates (depth/cycle/rate/cost) before delivery; human/system senders
+	// always bypass. wakeGuard holds the rate/cycle runtime state, so it MUST be a
+	// process singleton shared across deliveries (wired once in app composition).
+	wakeGuard *wakeguard.Guard
 }
 
 // WakeProjectorDeps bundles the projector's dependencies.
@@ -132,6 +140,11 @@ type WakeProjectorDeps struct {
 	// v2.7.1 #224 (optional; nil → only conversation participants are @mention wake
 	// candidates). owner_ref → owning project's agent member-ids.
 	ProjectAgentMembers func(ctx context.Context, ownerRef string) ([]string, error)
+
+	// I7-D1/T227 wake-chain circuit breaker (optional; nil → agent→agent wakes
+	// ungated). A process singleton (holds rate/cycle state) built from the
+	// settings-driven Config in app composition.
+	WakeGuard *wakeguard.Guard
 }
 
 // NewWakeProjector constructs the projector.
@@ -153,6 +166,7 @@ func NewWakeProjector(d WakeProjectorDeps) *WakeProjector {
 		displayName:         d.DisplayName,
 		systemNotify:        d.SystemNotify,
 		projectAgentMembers: d.ProjectAgentMembers,
+		wakeGuard:           d.WakeGuard,
 	}
 }
 
@@ -364,6 +378,29 @@ func (p *WakeProjector) enqueueWake(ctx context.Context, wi *agent.AgentWorkItem
 		slog.Info("wake projector: agent.wake enqueue skipped (agent has no worker binding)",
 			"agent_id", string(agentID), "work_item_id", wi.ID())
 		return nil
+	}
+	// I7-D1/T227: gate an agent→agent wake through the wake-chain circuit breaker.
+	// The triggering message's sender is the "from"; the woken work-item agent is
+	// the "to". Only an AGENT sender is gated (human "user:" / "system" senders
+	// bypass — human intent must deliver, system wakes are not agent storms). A
+	// denied wake is SUPPRESSED (return without enqueueing) and traced. The cycle +
+	// rate gates accumulate across hops in the Guard's shared state, so A→B→A…
+	// round-trips self-extinguish even without an explicit threaded chain.
+	if p.wakeGuard != nil {
+		if from, isAgent := strings.CutPrefix(pl.Sender, agentParticipantPrefix); isAgent {
+			rootMsg := pl.RootMessageID
+			if rootMsg == "" {
+				rootMsg = pl.MessageID
+			}
+			chain := p.wakeGuard.RootChain(rootMsg, wakeguard.ActorAgent)
+			tr := p.wakeGuard.Evaluate(from, string(agentID), chain, p.clock.Now())
+			if !tr.Allowed {
+				slog.Info("wake projector: agent→agent wake suppressed by wake-chain guard",
+					"from", from, "to", string(agentID), "gate", string(tr.Gate),
+					"reason", tr.Reason, "work_item_id", wi.ID(), "message_id", pl.MessageID)
+				return nil
+			}
+		}
 	}
 	payload, err := json.Marshal(wakeCommandPayload{
 		AgentID:        string(agentID),
