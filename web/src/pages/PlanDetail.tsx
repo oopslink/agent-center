@@ -114,7 +114,11 @@ export default function PlanDetail(): React.ReactElement {
   const p = plan.data;
 
   return (
-    <section className="space-y-4" data-testid="page-PlanDetail" data-plan-id={p.id}>
+    <section
+      className="flex min-h-0 flex-1 flex-col gap-4"
+      data-testid="page-PlanDetail"
+      data-plan-id={p.id}
+    >
       <Breadcrumb
         items={[
           { label: 'Projects', to: '/projects' },
@@ -124,7 +128,7 @@ export default function PlanDetail(): React.ReactElement {
         ]}
       />
 
-      <div className="rounded-lg border border-border-base bg-bg-elevated shadow-1" data-testid="plan-detail-card">
+      <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-border-base bg-bg-elevated shadow-1" data-testid="plan-detail-card">
         <PlanDetailHeader projectId={id} plan={p} />
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
@@ -146,8 +150,18 @@ export default function PlanDetail(): React.ReactElement {
             splitter). Chat stays mounted-but-hidden across tabs so its SSE
             subscription + scroll/composer-draft survive; DAG/Task mount lazily
             when their tab is active. */}
-        <div className="p-4" data-testid="plan-detail-content">
-          <div role="tabpanel" hidden={tab !== 'chat'} data-testid="plan-panel-chat">
+        <div className="flex min-h-0 flex-1 flex-col p-4" data-testid="plan-detail-content">
+          {/* Chat stays mounted-but-hidden across tabs (SSE/scroll/draft survive).
+              When active it must FILL the card height so the message stream scrolls
+              INSIDE the viewport instead of growing the page (T180). The flex
+              classes are applied only when active — a `display:flex` utility would
+              otherwise override the `hidden` attribute's `display:none`. */}
+          <div
+            role="tabpanel"
+            hidden={tab !== 'chat'}
+            data-testid="plan-panel-chat"
+            className={tab === 'chat' ? 'flex min-h-0 flex-1 flex-col' : undefined}
+          >
             <PlanConversationSide conversationId={p.conversation_id} />
           </div>
           <div role="tabpanel" hidden={tab !== 'dag'} data-testid="plan-panel-dag">
@@ -1793,7 +1807,7 @@ function PlanConversationSide({ conversationId }: { conversationId: string }): R
 
   return (
     <SenderSidebarProvider>
-      <section className="flex min-h-0 flex-col" data-testid="plan-conversation">
+      <section className="flex min-h-0 flex-1 flex-col" data-testid="plan-conversation">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
           Plan conversation
           <span className="rounded border border-border-base px-1.5 py-0.5 text-[0.625rem] font-normal uppercase tracking-wide text-text-muted">
@@ -1810,7 +1824,7 @@ function PlanConversationSide({ conversationId }: { conversationId: string }): R
           </p>
         ) : (
           <div
-            className="flex min-h-[20rem] flex-col overflow-hidden rounded border border-border-base"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded border border-border-base"
             data-testid="plan-conversation-body"
           >
             <ConversationView surface="task-thread" conversationId={conversationId} />
