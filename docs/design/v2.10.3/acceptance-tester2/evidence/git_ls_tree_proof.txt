@@ -1,0 +1,37 @@
+# §4 verify-in-tree 实证 — v2.10.3 Tester2 §3/§4 证据
+# 生成命令见下；证明报告+脚本+全部截图真实在 commit 的 tree 里（非 untracked/盘上/stash）。
+branch: tester/v2103-s2-acceptance
+commit:  f892b5cfb56bb26a4dc40aa3f3844c3c29f2fc42  (Tester2)  on top of ba00f3953a60e3f37d510b4515a53d2d01b576ae (Tester1 §2)
+
+$ git ls-tree -r HEAD -- docs/design/v2.10.3/acceptance-tester2/ACCEPTANCE.md tests/e2e/v2/capture-v2103.mjs
+100644 blob a8e861ee18570dd33f1d1600bc16b452ae5fffa6	docs/design/v2.10.3/acceptance-tester2/ACCEPTANCE.md
+100644 blob 0eef1d87e328e84fcd901f340fcc0b62a04bf610	tests/e2e/v2/capture-v2103.mjs
+
+$ git ls-tree -r --name-only HEAD -- docs/design/v2.10.3/acceptance-tester2/evidence/
+docs/design/v2.10.3/acceptance-tester2/evidence/INDEX.md
+docs/design/v2.10.3/acceptance-tester2/evidence/backend-t167-agent-files.txt
+docs/design/v2.10.3/acceptance-tester2/evidence/backend-t170-agent-issues.txt
+docs/design/v2.10.3/acceptance-tester2/evidence/results.json
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_channel_1_open.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_channel_2_image_sent.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_channel_3_file_sent.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_channel_4_both_attachments_dark.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_channel_4_both_attachments_light.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_dm_1_open.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_dm_2_image_sent.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_dm_3_file_sent.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_dm_4_both_attachments_light.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_plan_1_open.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_plan_2_image_sent.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_plan_3_file_sent.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_plan_4_both_attachments_light.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_task_1_open.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_task_2_image_sent.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_task_3_file_sent.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t167_task_4_both_attachments_light.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t170_1_issue_open.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t170_2_issue_discussion.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t170_3_issue_closed.png
+docs/design/v2.10.3/acceptance-tester2/evidence/t170_4_issue_reopened.png
+
+# 文件计数：25 个证据文件在 tree 里
