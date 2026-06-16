@@ -220,6 +220,20 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.plansByProjectAll() });
   });
 
+  // T181: an agent creating a task/plan via MCP emits the BC-prefixed
+  // `pm.task.created` / `pm.plan.created`; these must refresh the org-scoped
+  // aggregation lists the message ref-resolver reads from, so a freshly-created
+  // task/plan reference linkifies instead of staying plain text (the bug).
+  it('pm.task.created invalidates the org tasks aggregation (ref-resolver source)', () => {
+    dispatchToQueryClient(qc, ev('pm.task.created'));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.orgTasksAll() });
+  });
+
+  it('pm.plan.created invalidates the org plans aggregation (ref-resolver source)', () => {
+    dispatchToQueryClient(qc, ev('pm.plan.created'));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.orgPlansAll() });
+  });
+
   // v2.3-5b: issue lifecycle invalidates the BC-native Issue list
   // cache (qk.issues). Mirrors the task path above.
   it('issue.* lifecycle invalidates the BC-native issues list cache', () => {

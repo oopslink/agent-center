@@ -317,6 +317,22 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       invalidate(qk.fleet());
       return;
 
+    // T181: ProjectManager BC create events (BC-prefixed `pm.*` — the LITERAL
+    // outbox EventType the fanout forwards verbatim; the legacy unprefixed
+    // `task.created` cases above are the older workforce stream). An agent
+    // creating a task/plan via MCP emits these server-side, so a human viewing a
+    // live conversation never saw the create in its own client. Refresh the
+    // org-scoped cross-project aggregation lists the message ref-resolver
+    // (useTaskRefResolver / usePlanRefResolver → useOrgWorkItems / useOrgPlans)
+    // reads from, so an agent's "just created task-X, here's task-X" reference
+    // linkifies instead of staying plain text until the 30s staleTime lapses.
+    case 'pm.task.created':
+      invalidate(qk.orgTasksAll());
+      return;
+    case 'pm.plan.created':
+      invalidate(qk.orgPlansAll());
+      return;
+
     // Issue lifecycle — BC-native Issue list/show refresh on any
     // status move (v2.3-5b: qk.issues / qk.issue were added when
     // the SPA stopped going through Conversation BC).

@@ -79,6 +79,15 @@ export const qk = {
   orgTasks: (filters?: unknown) => o('orgTasks', filters ?? null),
   // v2.10.0 [T6]: org-scoped cross-project Plan list (global Workspace > Plan).
   orgPlans: (filters?: unknown) => o('orgPlans', filters ?? null),
+  // T181: the PREFIX keys matching EVERY filtered orgTasks(...) / orgPlans(...)
+  // query (the filter object is the 4th tuple element; this 3-element prefix
+  // partial-matches all of them — same trick as plansByProjectAll). SSE
+  // invalidation uses these so a `pm.task.created` / `pm.plan.created` (an agent
+  // creating a task/plan it then references in a message) refreshes the org
+  // aggregation list the message ref-resolver reads from — without this the list
+  // stayed stale (30s) and the new task/plan ref never linkified.
+  orgTasksAll: () => o('orgTasks'),
+  orgPlansAll: () => o('orgPlans'),
   // v2.9 #286 Plan orchestration: Plans are per-project. The parallel list is
   // keyed by projectId; a single Plan (nodes + derived) keyed by plan id.
   plansByProject: (projectId: string) => o('plansByProject', projectId),
