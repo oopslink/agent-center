@@ -71,7 +71,7 @@ describe('MessageComposer attachments (v2.9.2)', () => {
   });
   afterEach(() => cleanup());
 
-  it('adds a dropped file as an attachment chip', () => {
+  it('adds a dropped file as an attachment chip', async () => {
     wrap(<MessageComposer conversationId="C1" />);
     const form = screen.getByTestId('message-composer');
     fireEvent.drop(form, {
@@ -79,6 +79,8 @@ describe('MessageComposer attachments (v2.9.2)', () => {
     });
     expect(screen.getByTestId('composer-attachment')).toBeInTheDocument();
     expect(screen.getByText('a.txt')).toBeInTheDocument();
+    // v2.10.3 [T178]: let the pre-upload settle so the trailing state update stays inside act.
+    await waitFor(() => expect(mockUpload).toHaveBeenCalled());
   });
 
   it('shows the drop overlay while a file drag is over the composer', () => {
@@ -91,7 +93,7 @@ describe('MessageComposer attachments (v2.9.2)', () => {
     expect(screen.queryByTestId('composer-dropzone')).not.toBeInTheDocument();
   });
 
-  it('pastes a clipboard image as an attachment', () => {
+  it('pastes a clipboard image as an attachment', async () => {
     wrap(<MessageComposer conversationId="C1" />);
     const ta = screen.getByTestId('composer-textarea');
     fireEvent.paste(ta, {
@@ -99,6 +101,7 @@ describe('MessageComposer attachments (v2.9.2)', () => {
     });
     expect(screen.getByTestId('composer-attachment')).toBeInTheDocument();
     expect(screen.getByTestId('composer-attachment-preview')).toBeInTheDocument();
+    await waitFor(() => expect(mockUpload).toHaveBeenCalled());
   });
 
   it('rejects an oversize file with an inline notice and does not stage it', () => {
@@ -140,10 +143,11 @@ describe('MessageComposer attachments (v2.9.2)', () => {
     );
     wrap(<MessageComposer conversationId="C1" />);
     const form = screen.getByTestId('message-composer');
+    // v2.10.3 [T178]: pre-upload starts on drop — the progress bar and the
+    // disabled (busy) Send appear without a Send click.
     fireEvent.drop(form, {
       dataTransfer: { files: [fileOf('big.bin', 'application/octet-stream')], types: ['Files'] },
     });
-    fireEvent.click(screen.getByTestId('composer-send'));
 
     const bar = await screen.findByTestId('composer-attachment-progress');
     expect(bar).toHaveAttribute('aria-valuenow', '40');
@@ -152,6 +156,9 @@ describe('MessageComposer attachments (v2.9.2)', () => {
     await act(async () => {
       resolveUpload?.();
     });
+    // Upload done → Send re-enabled; clicking it posts and clears the chips.
+    await waitFor(() => expect(screen.getByTestId('composer-send')).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId('composer-send'));
     await waitFor(() => expect(screen.queryByTestId('composer-attachment')).not.toBeInTheDocument());
   });
 
@@ -178,5 +185,45 @@ describe('MessageComposer attachments (v2.9.2)', () => {
     );
     fireEvent.click(screen.getByTestId('composer-send'));
     await waitFor(() => expect(lastBody?.attachments?.[0]?.filename).toBe('r.txt'));
+  });
+
+  // --- v2.10.3 [T178] composer attachment UX -------------------------------
+
+  it('renders the remove control as an × button (no "Remove" text)', async () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    const form = screen.getByTestId('message-composer');
+    fireEvent.drop(form, {
+      dataTransfer: { files: [fileOf('a.txt', 'text/plain')], types: ['Files'] },
+    });
+    // The control keeps its accessible name but no longer shows the word "Remove".
+    expect(screen.getByLabelText('Remove a.txt')).toBeInTheDocument();
+    expect(screen.queryByText('Remove')).not.toBeInTheDocument();
+    // Let the pre-upload settle so the trailing state update stays inside act.
+    await waitFor(() => expect(mockUpload).toHaveBeenCalled());
+  });
+
+  it('pre-uploads each file the moment it is staged (no Send click needed)', async () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    const form = screen.getByTestId('message-composer');
+    fireEvent.drop(form, {
+      dataTransfer: { files: [fileOf('doc.pdf', 'application/pdf')], types: ['Files'] },
+    });
+    await waitFor(() => expect(mockUpload).toHaveBeenCalledTimes(1));
+  });
+
+  it('opens a preview in a new tab when the attachment chip is clicked', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      wrap(<MessageComposer conversationId="C1" />);
+      const ta = screen.getByTestId('composer-textarea');
+      fireEvent.paste(ta, { clipboardData: { files: [fileOf('shot.png', 'image/png')] } });
+
+      fireEvent.click(screen.getByTestId('composer-attachment-open'));
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(openSpy.mock.calls[0]?.[1]).toBe('_blank');
+      await waitFor(() => expect(mockUpload).toHaveBeenCalled());
+    } finally {
+      openSpy.mockRestore();
+    }
   });
 });
