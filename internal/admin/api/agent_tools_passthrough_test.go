@@ -286,9 +286,11 @@ func TestCreateTask_InvalidAssignee_400(t *testing.T) {
 }
 
 // getMyWorkHasTask reports whether the get_my_work response surfaces taskID in
-// any of its buckets (work_items / claimable_tasks / my_pool_tasks).
+// any of its buckets. WS2 (issue-e346e5ec) reshaped get_my_work into the single
+// query: work-item buckets (active/queued/paused/waiting_input) carry the task
+// ref as "pm://tasks/<id>"; task buckets (claimable/claimed_pool) carry "id".
 func getMyWorkHasTask(resp map[string]any, taskID string) bool {
-	for _, key := range []string{"claimable_tasks", "my_pool_tasks"} {
+	for _, key := range []string{"claimable", "claimed_pool"} {
 		raw, _ := resp[key].([]any)
 		for _, x := range raw {
 			if m, ok := x.(map[string]any); ok && m["id"] == taskID {
@@ -296,12 +298,13 @@ func getMyWorkHasTask(resp map[string]any, taskID string) bool {
 			}
 		}
 	}
-	// work_items carry the task ref as "pm://tasks/<id>".
-	wi, _ := resp["work_items"].([]any)
-	for _, x := range wi {
-		if m, ok := x.(map[string]any); ok {
-			if ref, _ := m["task_ref"].(string); ref == "pm://tasks/"+taskID {
-				return true
+	for _, key := range []string{"active", "queued", "paused", "waiting_input"} {
+		raw, _ := resp[key].([]any)
+		for _, x := range raw {
+			if m, ok := x.(map[string]any); ok {
+				if ref, _ := m["task_ref"].(string); ref == "pm://tasks/"+taskID {
+					return true
+				}
 			}
 		}
 	}
