@@ -5,6 +5,7 @@ import { useConversationThreads } from '@/api/conversations';
 import { ParticipantsPanel } from './ParticipantsPanel';
 import { ConversationThreadList } from './ConversationThreadList';
 import { SharedFilesPanel, useSharedFiles } from './SharedFilesPanel';
+import { useContextPanelCollapse } from '@/shell/contextPanel';
 
 // ============================================================================
 // T184 — the SHARED conversation col④ sidebar (Participants / Threads / Files),
@@ -54,6 +55,9 @@ export function ConversationSidebar({
   ];
   // Default to the first available tab (Participants when shown, else Threads).
   const [tab, setTab] = useState<Tab>(showParticipants ? 'participants' : 'threads');
+  // T184: when rendered inside the shell col④, expose a fully-collapse button
+  // (desktop only — mobile col④ is a bottom sheet). Null outside the shell.
+  const collapse = useContextPanelCollapse();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="conversation-sidebar">
@@ -94,7 +98,25 @@ export function ConversationSidebar({
             </button>
           );
         })}
-        {toolbar != null && <div className="ml-auto flex shrink-0 items-center">{toolbar}</div>}
+        {(toolbar != null || collapse != null) && (
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {toolbar}
+            {collapse != null && (
+              <button
+                type="button"
+                data-testid="conversation-sidebar-collapse"
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+                onClick={() => collapse.setCollapsed(true)}
+                className="hidden h-7 w-7 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary md:inline-flex"
+              >
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 5l5 5-5 5" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

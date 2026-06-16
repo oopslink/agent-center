@@ -252,8 +252,12 @@ export default function AppLayout(): React.ReactElement {
   const navigate = useNavigate();
 
   // col④ on-demand context panel host + open flag (see shell/contextPanel.tsx).
-  const { Provider: ContextPanelProvider, value: panelValue, setHost, open: panelOpen } =
+  const { Provider: ContextPanelProvider, value: panelValue, setHost, open: panelOpen, collapsed: panelCollapsed } =
     useContextPanelController();
+  // T184: on desktop the sidebar can be FULLY collapsed (hidden), leaving a thin
+  // expand rail. Collapse is desktop-only — on mobile col④ is a bottom sheet
+  // (toggled by the top-bar ⓘ), so the collapsed flag is ignored there.
+  const setPanelCollapsed = panelValue.setCollapsed;
   // T128: the col④ column itself is the resizable surface (desktop). Dragging the
   // left-edge grip widens/narrows the whole sidebar, not its inner content.
   const {
@@ -413,7 +417,9 @@ export default function AppLayout(): React.ReactElement {
             'md:relative md:bottom-auto md:z-auto md:max-h-none md:w-[var(--ctx-w)] md:flex-shrink-0 md:rounded-none md:border-l md:border-t-0 md:border-border-base md:pb-0 md:shadow-none',
             // mobile visibility (sheetOpen) — desktop overrides via md:
             sheetOpen && panelOpen ? 'flex' : 'hidden',
-            panelOpen ? 'md:flex' : 'md:hidden',
+            // T184: desktop hides the full column when collapsed (the expand rail
+            // below takes over). Mobile ignores collapse (it's a bottom sheet).
+            panelOpen && !panelCollapsed ? 'md:flex' : 'md:hidden',
           ].join(' ')}
         >
           {/* Left-edge resize grip — desktop only (the mobile sheet is full-width).
@@ -430,6 +436,28 @@ export default function AppLayout(): React.ReactElement {
           <div aria-hidden="true" className="mx-auto my-2 h-1 w-9 rounded-full bg-border-strong md:hidden" />
           <div ref={setHost} className="flex min-h-0 flex-1 flex-col" />
         </aside>
+        {/* T184: collapsed expand rail — desktop-only thin strip shown when a panel
+            is mounted but the user fully collapsed it. Clicking re-opens col④. */}
+        {panelOpen && panelCollapsed && (
+          <aside
+            aria-label="context (collapsed)"
+            data-testid="context-panel-collapsed-rail"
+            className="hidden md:flex md:w-8 md:flex-shrink-0 md:flex-col md:items-center md:border-l md:border-border-base md:bg-bg-elevated md:pt-2"
+          >
+            <button
+              type="button"
+              data-testid="context-panel-expand"
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              onClick={() => setPanelCollapsed(false)}
+              className="flex h-7 w-7 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
+            >
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" className="h-4 w-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12.5 5 7.5 10l5 5" />
+              </svg>
+            </button>
+          </aside>
+        )}
 
         {/* col① on mobile — the bottom Tab Bar (the desktop rail reflowed). */}
         <MobileTabBar modules={modules} activeModuleId={activeModule?.id} orgBase={orgBase} />

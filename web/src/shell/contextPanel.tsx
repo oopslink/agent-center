@@ -29,35 +29,74 @@ interface ContextPanelCtx {
   /** Ref-count hooks so the shell can show/hide the column. */
   register: () => void;
   unregister: () => void;
+  /** T184: whether the (desktop) col④ is fully collapsed/hidden, + a setter. */
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
 }
 
 const Ctx = createContext<ContextPanelCtx | null>(null);
+
+// T184: collapse state is persisted so a fully-collapsed sidebar stays collapsed
+// across navigation + reload (mirrors useResizablePanel's width persistence).
+const COLLAPSE_KEY = 'ac.contextpanel.collapsed';
+
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * T184: read + toggle the col④ collapsed state from inside panel content (e.g.
+ * the sidebar's collapse button). Returns null outside the shell provider (so a
+ * panel rendered standalone in a unit test simply omits the collapse affordance).
+ */
+export function useContextPanelCollapse(): { collapsed: boolean; setCollapsed: (v: boolean) => void } | null {
+  const ctx = useContext(Ctx);
+  if (!ctx) return null;
+  return { collapsed: ctx.collapsed, setCollapsed: ctx.setCollapsed };
+}
 
 /**
  * Used by AppLayout (the shell). Owns the col④ host element and an open flag
  * derived from how many <ContextPanel>s are currently mounted.
  *
  * Returns `Provider` (wrap the shell with it), `setHost` (a stable callback
- * ref for the col④ host element), `value` (the context value), and `open`
- * (whether any panel is mounted → allocate the column).
+ * ref for the col④ host element), `value` (the context value), `open`
+ * (whether any panel is mounted → allocate the column), and `collapsed` (T184:
+ * the persisted fully-collapsed flag the shell uses to hide the column).
  */
 export function useContextPanelController(): {
   Provider: typeof Ctx.Provider;
   value: ContextPanelCtx;
   setHost: (el: HTMLElement | null) => void;
   open: boolean;
+  collapsed: boolean;
 } {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [count, setCount] = useState(0);
+  const [collapsed, setCollapsedState] = useState<boolean>(readCollapsed);
+  const setCollapsed = (v: boolean) => {
+    setCollapsedState(v);
+    try {
+      window.localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0');
+    } catch {
+      /* ignore persistence failures (private mode / quota) */
+    }
+  };
   const value = useMemo<ContextPanelCtx>(
     () => ({
       host,
       register: () => setCount((c) => c + 1),
       unregister: () => setCount((c) => Math.max(0, c - 1)),
+      collapsed,
+      setCollapsed,
     }),
-    [host],
+    [host, collapsed],
   );
-  return { Provider: Ctx.Provider, value, setHost, open: count > 0 };
+  return { Provider: Ctx.Provider, value, setHost, open: count > 0, collapsed };
 }
 
 /**
