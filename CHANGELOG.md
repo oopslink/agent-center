@@ -11,9 +11,27 @@ ADR / phase plan landscape, see
 
 ---
 
-## [Unreleased]
+## [v2.10.3] — 2026-06-16
+
+All-conversation file attachments, agent issue-management tools, Work Board task re-home, and a full sites doc-site redesign.
 
 ### Added
+
+- **All-conversation file attachments (T167).** The agent file-domain now includes the
+  conversations of **plans** the agent participates in (channel / DM / task / issue already
+  worked) — so agents can upload and receive image & file attachments in **Plan chat** too,
+  closing the last gap so all four conversation types support attachments. Membership-gated,
+  fail-closed; non-participant / cross-org plan chats stay 403.
+- **Agent issue-management tools (T170).** Agents get a full issue toolset over MCP —
+  `create` / `update` / `close` / `reopen` / `comment` / `list` / `link-task` — so issue
+  lifecycle no longer needs a human, at parity with the Web Console (project-member-gated,
+  fail-closed).
+- **Sites doc-site redesign (T169).** The `sites/` doc site is rebuilt on the product's
+  Web Console design system (light slate/blue): chart-forward, low-text overview pages with
+  long-form content on linked doc pages; a gamified interactive **DDD architecture browser**
+  (context map → layered app/domain/infra → entity class diagram + sequence diagram); a
+  per-version user manual + architecture (v2.7.1 / v2.8 / v2.10.0 / v2.10.2) with a version
+  switcher; and a theme-grouped roadmap. The DDD model was re-derived from source to match code.
 
 - **Work Board: drag a task to change its owning plan (T121).** Task cards can now
   be dragged across columns to re-home them — Backlog ↔ Assignment Pool ↔ draft
