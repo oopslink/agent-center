@@ -15,65 +15,66 @@
 
 .page { max-width: var(--maxw); margin: 0 auto; padding: 22px 24px 70px; }
 .crumbs { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); margin-bottom: 4px; }
+.crumbs b { color: var(--accent); font-weight: 700; }
 .head h1 { font-size: 28px; font-weight: 800; margin: 6px 0 0; }
+.head h1 .dim { color: var(--ink-3); font-weight: 600; }
 .head .dek { margin: 8px 0 22px; color: var(--ink-2); font-size: 14px; max-width: 760px; }
 .mono { font-family: var(--font-mono); }
 
-/* tier nodes */
-.tier { display: grid; gap: 14px; }
-.node { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-elevated); padding: 16px 18px 18px; position: relative; box-shadow: var(--shadow-1); }
-.node::before { content:""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; border-radius: var(--r-lg) 0 0 var(--r-lg); background: var(--c); }
-.node .nl { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-.node .nl h3 { font-size: 17px; font-weight: 700; }
-.node .nl .zh { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
-.node .nl .scale { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--c); background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; }
-.node > p.lead { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; }
-.cells { display: flex; flex-wrap: wrap; gap: 9px; }
-.cell { background: var(--bg-elevated); border: 1px dashed var(--border-strong); border-radius: 9px; padding: 9px 12px; min-width: 170px; flex: 1; }
-.cell .ster { font-family: var(--font-mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
-.cell .nm { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--ink); display: block; margin-top: 2px; }
-.cell .nm .p { color: var(--accent); }
-.cell .d { font-size: 11.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.45; }
-.cell.solid { border-style: solid; }
-.flowarrow { text-align: center; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; margin: -6px 0; }
-.flag { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: #fef3c7; color: #b45309; border: 1px solid #fde68a; margin-left: 6px; vertical-align: middle; }
+/* ---- isometric topology stage ---- */
+.stage { position: relative; margin-top: 8px; border: 1px solid var(--border);
+  border-radius: var(--r-xl); background:
+    radial-gradient(900px 460px at 46% 30%, #ffffff 0%, #fbfdff 55%, #f4f8ff 100%);
+  box-shadow: var(--shadow-3); overflow: hidden; }
+.stage::before { /* faint engineering grid */
+  content: ""; position: absolute; inset: 0; opacity: .5; pointer-events: none;
+  background-image:
+    linear-gradient(transparent 95%, rgba(37,99,235,.06) 0),
+    linear-gradient(90deg, transparent 95%, rgba(37,99,235,.06) 0);
+  background-size: 34px 34px; mask-image: radial-gradient(700px 420px at 50% 42%, #000 30%, transparent 78%); }
+.stage .tag { position: absolute; top: 16px; left: 18px; z-index: 5; font-family: var(--font-mono);
+  font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+  display: flex; gap: 8px; align-items: center; }
+.stage .tag .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(37,99,235,.16); }
+.scene-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+svg#scene { display: block; width: 100%; height: auto; }
 
-/* communication links — resource layout diagram */
-.links { margin-top: 32px; }
-.links h2 { font-size: 19px; margin-bottom: 4px; }
-.links .sub { color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; margin-bottom: 16px; }
-.linkmap { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; align-items: stretch; }
-.machine { border: 1.5px solid var(--border-strong); border-radius: var(--r-lg); background: var(--bg-subtle); padding: 14px 16px 16px; }
-.machine .ml { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
-.machine .ml .ic { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: #fff; font-size: 12px; }
-.machine.center .ml .ic { background: linear-gradient(135deg,var(--accent),var(--brand)); }
-.machine.worker .ml .ic { background: var(--essential); }
-.machine .mz { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); margin-bottom: 12px; }
-.res { background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 11px; margin-bottom: 8px; box-shadow: var(--shadow-1); }
-.res .t { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink); }
-.res .t .p { color: var(--accent); font-weight: 700; }
-.res .d { font-size: 11px; color: var(--ink-2); margin-top: 3px; line-height: 1.4; }
-.res.db { border-left: 3px solid var(--core); }
-.res.blob { border-left: 3px solid var(--essential); }
-.res.mem { border-left: 3px solid var(--peripheral); }
-.linkcol { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 8px; min-width: 168px; }
-.wire { text-align: center; }
-.wire .conn { display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--accent); }
-.wire .line { display: block; height: 2px; background: repeating-linear-gradient(90deg,var(--accent) 0 7px, transparent 7px 13px); margin: 7px 0; }
-.wire .pin { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
-.agentbox { margin-top: 8px; background: var(--essential-bg); border: 1px solid var(--essential-bd); border-radius: 8px; padding: 7px 10px; }
-.agentbox .t { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--essential); }
-.agentbox .d { font-size: 10.5px; color: var(--ink-2); margin-top: 2px; }
+/* hover-highlight: dim everything except the focused link + its endpoints */
+#scene .node, #scene .link, #scene .link-badge { transition: opacity .16s ease; }
+#scene.focusing .node.dimmed,
+#scene.focusing .link.dimmed,
+#scene.focusing .link-badge.dimmed { opacity: .14; }
+#scene .link.active path { stroke-width: 5; }
+#scene [data-link], #scene [data-node] { cursor: pointer; }
 
-/* link legend table */
-.linktbl { margin-top: 22px; display: grid; gap: 10px; }
-.lrow { display: grid; grid-template-columns: 210px 1fr; gap: 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-elevated); padding: 12px 14px; box-shadow: var(--shadow-1); }
-.lrow .from { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--brand); }
-.lrow .from .arr { color: var(--ink-3); }
-.lrow .desc { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
-.lrow .desc b { color: var(--ink); }
-.lrow .desc .p { font-family: var(--font-mono); color: var(--accent); }
-@media (max-width: 900px){ .linkmap{grid-template-columns:1fr} .linkcol{padding:14px 0} .wire .line{width:60%;margin:7px auto} .cells{flex-direction:column} .lrow{grid-template-columns:1fr} }
+/* ---- legend ---- */
+.legend { position: absolute; right: 18px; top: 16px; z-index: 5; display: flex; flex-direction: column; gap: 9px;
+  background: rgba(255,255,255,.82); backdrop-filter: blur(6px); border: 1px solid var(--border);
+  border-radius: 14px; padding: 13px 15px; box-shadow: var(--shadow-2); }
+.legend h4 { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 700; margin: 0 0 1px; }
+.lg { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink-2); }
+.lg .sw { width: 15px; height: 15px; border-radius: 4px; box-shadow: var(--shadow-1); }
+.lg .ln { width: 22px; height: 0; border-top: 3px solid; border-radius: 3px; }
+
+/* ---- protocol rail under diagram ---- */
+.rail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px; }
+.pc { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-elevated);
+  padding: 14px 16px; box-shadow: var(--shadow-1); position: relative; overflow: hidden; }
+.pc::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+.pc.b1::before { background: var(--accent); } .pc.b2::before { background: var(--essential); }
+.pc.b3::before { background: var(--warning); } .pc.b4::before { background: var(--peripheral); }
+.pc .pp { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--ink);
+  display: flex; align-items: center; gap: 7px; }
+.pc .pp .ar { color: var(--ink-3); }
+.pc .badge { font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px;
+  background: var(--core-bg); color: var(--brand); margin-left: auto; }
+.pc small { display: block; color: var(--ink-3); margin-top: 6px; font-size: 12px; line-height: 1.5; }
+.foot { margin-top: 18px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); letter-spacing: .03em; }
+
+@media (max-width: 900px) { .rail { grid-template-columns: 1fr 1fr; } .legend { position: static; margin: 12px 14px 0; align-self: flex-start; } .stage { display: flex; flex-direction: column; } }
+@media (max-width: 720px) { .scene-scroll svg#scene { width: 720px; } }
+@media (max-width: 560px) { .rail { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -90,96 +91,272 @@
 </nav>
 
 <div class="page">
-  <div class="crumbs">架构 › 部署架构</div>
+  <div class="crumbs">架构 / DDD &nbsp;›&nbsp; <b>部署架构</b></div>
   <div class="head">
-    <h1>部署架构</h1>
-    <p class="dek">重点：资源布局 + 通信链路 —— Center 中心 + Worker 在任意机器 + Agent per-execution 子进程。</p>
+    <h1>部署架构 <span class="dim">/ Deployment Topology</span></h1>
+    <p class="dek">一个 Center 中枢 + N 个 Worker 节点，Agent 以子进程运行在 Worker 上。下图为运行时拓扑——节点、组件与链路协议一览。悬停某条链路（或协议标签）可高亮该链路及其两端节点。</p>
   </div>
 
-  <div class="tier">
-    <div class="node" style="--c:var(--core)">
-      <div class="nl"><h3>Center</h3><span class="zh">中心机</span><span class="scale">× 1</span></div>
-      <p class="lead">单 Go 二进制（<span class="mono">go:embed</span> SPA）。持有 SQLite + BlobStore + Memory git + Supervisor。</p>
-      <div class="cells">
-        <div class="cell solid"><span class="ster">endpoint</span><span class="nm">Web Console <span class="p">127.0.0.1:7100</span></span><div class="d">loopback HTTP + SSE</div></div>
-        <div class="cell solid"><span class="ster">endpoint</span><span class="nm">server <span class="p">:7050</span></span><div class="d">应用服务端口</div></div>
-        <div class="cell solid"><span class="ster">endpoint</span><span class="nm">admin TCP <span class="p">0.0.0.0:7300</span></span><div class="d">worker enroll / 控制</div></div>
-      </div>
+  <div class="stage">
+    <div class="tag"><span class="dot"></span>Runtime Topology</div>
+    <div class="scene-scroll">
+      <svg id="scene" viewBox="0 0 1240 560" role="img" aria-label="部署拓扑等距图：Center 中枢、Worker 节点、Agent 子进程与用户/浏览器之间的链路"></svg>
     </div>
-
-    <div class="flowarrow">↓ admin TCP+TLS · 指纹固定</div>
-
-    <div class="node" style="--c:var(--essential)">
-      <div class="nl"><h3>Worker</h3><span class="zh">任意机器 / 开发机</span><span class="scale">× N</span></div>
-      <p class="lead">守护进程，<b>bootstrap token 注册</b> + <b>TCP+TLS 指纹固定</b>（SSH 式）。一机可多 worker。</p>
-      <div class="cells">
-        <div class="cell"><span class="ster">per-execution</span><span class="nm">git worktree</span><div class="d">文件隔离，每次 execution 一个 worktree</div></div>
-        <div class="cell"><span class="ster">per-execution spawn</span><span class="nm">agent CLI 子进程</span><div class="d">worker spawn 的 claude 子进程</div></div>
-      </div>
-    </div>
-
-    <div class="flowarrow">↓ worker spawn (per-execution)</div>
-
-    <div class="node" style="--c:var(--peripheral)">
-      <div class="nl"><h3>Agent</h3><span class="zh">智能体</span><span class="scale">× N</span></div>
-      <p class="lead">worker spawn 的 claude 子进程，经 <b>MCP</b>（<span class="mono">--strict-mcp-config</span>）连 center 用工具。</p>
+    <div class="legend">
+      <h4>Nodes</h4>
+      <div class="lg"><span class="sw" style="background:linear-gradient(135deg,#3b82f6,#1e40af)"></span>Center 中枢</div>
+      <div class="lg"><span class="sw" style="background:linear-gradient(135deg,#22d3ee,#0d9488)"></span>Worker 节点</div>
+      <div class="lg"><span class="sw" style="background:linear-gradient(135deg,#94a3b8,#475569)"></span>Agent 子进程</div>
+      <div class="lg"><span class="sw" style="background:linear-gradient(135deg,#e2e8f0,#94a3b8)"></span>用户 / 浏览器</div>
+      <h4 style="margin-top:5px">Links</h4>
+      <div class="lg"><span class="ln" style="border-color:#2563eb"></span>HTTP + SSE</div>
+      <div class="lg"><span class="ln" style="border-color:#0d9488"></span>WebSocket</div>
+      <div class="lg"><span class="ln" style="border-color:#d97706;border-top-style:dashed"></span>派发 / spawn</div>
     </div>
   </div>
 
-  <div class="links">
-    <h2>资源布局 + 通信链路</h2>
-    <div class="sub">Center 机（Console / server / admin + DB / Blob / Memory） ←TCP+TLS 指纹→ Worker 机 × N（daemon + worktrees + agent 进程）</div>
-    <div class="linkmap">
-      <div class="machine center">
-        <div class="ml"><span class="ic">▣</span>Center 机</div>
-        <div class="mz">单 Go 二进制 + Supervisor</div>
-        <div class="res"><div class="t">Web Console <span class="p">:7100</span></div><div class="d">loopback HTTP + SSE</div></div>
-        <div class="res"><div class="t">server <span class="p">:7050</span></div></div>
-        <div class="res"><div class="t">admin TCP <span class="p">:7300</span></div><div class="d">0.0.0.0 · enroll / 控制</div></div>
-        <div class="res db"><div class="t">⛁ SQLite</div><div class="d">agent-center.db + events 表</div></div>
-        <div class="res blob"><div class="t">▤ BlobStore</div><div class="d">ULID blob + trace 归档</div></div>
-        <div class="res mem"><div class="t">⎇ Memory git</div><div class="d">scoped CLAUDE.md</div></div>
-      </div>
-
-      <div class="linkcol">
-        <div class="wire">
-          <span class="conn">admin TCP+TLS</span>
-          <span class="line"></span>
-          <span class="pin">:7300 · 指纹固定</span>
-        </div>
-      </div>
-
-      <div class="machine worker">
-        <div class="ml"><span class="ic">▥</span>Worker 机 × N</div>
-        <div class="mz">守护进程 (daemon) · 一机可多 worker</div>
-        <div class="res"><div class="t">git worktree</div><div class="d">per-execution 文件隔离</div></div>
-        <div class="res"><div class="t">git worktree</div><div class="d">per-execution 文件隔离</div></div>
-        <div class="agentbox"><div class="t">⬡ agent CLI 子进程</div><div class="d">claude · 经 MCP 连 center 取工具</div></div>
-        <div class="agentbox"><div class="t">⬡ agent CLI 子进程</div><div class="d">trace stdout/JSONL → worker → center</div></div>
-      </div>
-    </div>
-
-    <div class="linktbl">
-      <div class="lrow">
-        <div class="from">浏览器 <span class="arr">↔</span> Center</div>
-        <div class="desc">loopback HTTP + <b>SSE</b>（实时），<span class="p">:7100</span>。</div>
-      </div>
-      <div class="lrow">
-        <div class="from">Worker <span class="arr">↔</span> Center</div>
-        <div class="desc"><b>admin TCP+TLS <span class="p">:7300</span>，指纹固定</b>；承载 enroll（bootstrap→session token）、<b>有序可重放控制命令流</b>（offset 累积 ack）、A2A 派单 / 状态。</div>
-      </div>
-      <div class="lrow">
-        <div class="from">Agent <span class="arr">↔</span> Center</div>
-        <div class="desc"><b>MCP</b>（agent 自己的 agent-center MCP server）取工具。</div>
-      </div>
-      <div class="lrow">
-        <div class="from">Agent <span class="arr">→</span> Worker <span class="arr">→</span> Center</div>
-        <div class="desc">stdout/JSONL <b>trace 流</b>（worker 投影给 center）。</div>
-      </div>
-    </div>
+  <div class="rail">
+    <div class="pc b1"><div class="pp">浏览器 <span class="ar">→</span> Center <span class="badge">HTTP+SSE</span></div>
+      <small>Web Console 拉取数据 + 服务端事件流(SSE)实时推送。</small></div>
+    <div class="pc b2"><div class="pp">Agent <span class="ar">→</span> Center <span class="badge">WS</span></div>
+      <small>Agent 进程经 WebSocket 回连 Center，领取 WorkItem、回报状态。</small></div>
+    <div class="pc b3"><div class="pp">Center <span class="ar">→</span> Worker <span class="badge">派发/ack</span></div>
+      <small>Center 向 Worker 下发运行请求，Worker 落盘游标后 ack。</small></div>
+    <div class="pc b4"><div class="pp">Worker <span class="ar">→</span> Agent <span class="badge">spawn</span></div>
+      <small>Worker 以子进程拉起 agent CLI（独立 cwd + pid），守护其生命周期。</small></div>
   </div>
+
+  <div class="foot">agent-center · 部署拓扑 · 等距(isometric)视图，配色对齐文档站 design token</div>
 </div>
 
-<footer style="border-top:1px solid var(--border);padding:30px 0;margin-top:50px;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">架构 · 部署 v2.10.3</span></div></footer>
+<footer style="border-top:1px solid var(--border);padding:30px 0;margin-top:50px;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between;max-width:var(--maxw);margin:0 auto;padding:0 24px"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">架构 · 部署 v2.10.3</span></div></footer>
+
+<script>
+const SVGNS="http://www.w3.org/2000/svg";
+const svg=document.getElementById('scene');
+function el(n,a){const e=document.createElementNS(SVGNS,n);for(const k in a)e.setAttribute(k,a[k]);return e;}
+
+/* ---------- isometric projection (2:1 dimetric) ---------- */
+const UX=42, UY=21, OX=560, OY=150;
+function P(gx,gy,z){ return [ OX+(gx-gy)*UX, OY+(gx+gy)*UY - (z||0) ]; }
+function pts(arr){ return arr.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" "); }
+
+/* draw a box (prism) footprint w×d at grid(gx,gy), base z, height h */
+function prism(g, gx,gy,w,d,z,h, topFill, rFill, fFill, stroke){
+  const A=P(gx,gy,z+h), B=P(gx+w,gy,z+h), C=P(gx+w,gy+d,z+h), D=P(gx,gy+d,z+h);
+  const Bb=P(gx+w,gy,z), Cb=P(gx+w,gy+d,z), Db=P(gx,gy+d,z);
+  g.appendChild(el('polygon',{points:pts([D,C,Cb,Db]),fill:fFill,stroke:stroke,'stroke-width':1,'stroke-linejoin':'round'}));
+  g.appendChild(el('polygon',{points:pts([B,C,Cb,Bb]),fill:rFill,stroke:stroke,'stroke-width':1,'stroke-linejoin':'round'}));
+  g.appendChild(el('polygon',{points:pts([A,B,C,D]),fill:topFill,stroke:stroke,'stroke-width':1,'stroke-linejoin':'round'}));
+  return {A,B,C,D, cx:(A[0]+C[0])/2, cyTop:(A[1]+C[1])/2};
+}
+
+/* soft ground shadow ellipse under a footprint */
+function shadow(g, gx,gy,w,d){
+  const c=P(gx+w/2, gy+d/2, 0);
+  g.appendChild(el('ellipse',{cx:c[0],cy:c[1]+6,rx:(w+d)*UX*0.42,ry:(w+d)*UY*0.42,
+    fill:'rgba(30,41,59,.14)',filter:'url(#blur)'}));
+}
+
+/* upright label plate centered at screen point */
+function label(g, sx,sy, text, opt){
+  opt=opt||{};
+  const fs=opt.fs||12.5, pad=opt.pad||9, ch=opt.chw||7.0;
+  const w=Math.max(opt.minw||0, text.length*ch + pad*2), h=opt.h||22;
+  const grp=el('g',{});
+  grp.appendChild(el('rect',{x:sx-w/2,y:sy-h/2,width:w,height:h,rx:7,
+     fill:opt.fill||'rgba(255,255,255,.96)', stroke:opt.stroke||'#cbd5e1','stroke-width':1,
+     filter:'url(#card)'}));
+  const t=el('text',{x:sx,y:sy+0.5,'text-anchor':'middle','dominant-baseline':'middle',
+     'font-family':'JetBrains Mono, monospace','font-size':fs,'font-weight':opt.weight||600,
+     fill:opt.ink||'#0f172a','letter-spacing':'-0.01em'});
+  t.textContent=text; grp.appendChild(t);
+  g.appendChild(grp);
+  return grp;
+}
+
+/* ---------- defs ---------- */
+const defs=el('defs',{});
+defs.innerHTML=`
+  <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
+  <filter id="card" x="-40%" y="-60%" width="180%" height="240%">
+     <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#1e293b" flood-opacity="0.18"/></filter>
+  <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+     <stop offset="0%" stop-color="#bfdbfe" stop-opacity=".55"/><stop offset="100%" stop-color="#bfdbfe" stop-opacity="0"/></radialGradient>
+  <linearGradient id="ctrTop" x1="0" y1="0" x2="1" y2="1">
+     <stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#2563eb"/></linearGradient>
+  <linearGradient id="wkTop" x1="0" y1="0" x2="1" y2="1">
+     <stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+`;
+svg.appendChild(defs);
+
+/* central glow */
+const gc=P(4.2,3.0,0);
+svg.appendChild(el('ellipse',{cx:gc[0],cy:gc[1],rx:360,ry:200,fill:'url(#glow)'}));
+
+/* layers */
+const gLinks=el('g',{}); svg.appendChild(gLinks);
+const gShadow=el('g',{}); svg.appendChild(gShadow);
+const gNodes=el('g',{}); svg.appendChild(gNodes);
+const gLabels=el('g',{}); svg.appendChild(gLabels);
+
+/* ---------- node layout (grid coords) ---------- */
+const NODES={
+  browser:{gx:-1.2, gy:5.2, w:2.0, d:1.6, h:5},
+  center: {gx:2.4,  gy:1.6, w:4.0, d:3.6, h:7},
+  worker: {gx:8.2,  gy:2.4, w:2.6, d:2.4, h:6},
+  agentA: {gx:11.8, gy:0.8, w:1.5, d:1.3, h:5},
+  agentB: {gx:11.8, gy:3.6, w:1.5, d:1.3, h:5},
+};
+function center0(n){ return P(n.gx+n.w/2, n.gy+n.d/2, 0); }
+
+/* ---------- links (declarative; drawn first, on ground) ---------- */
+const LINKS=[
+  {key:'browser',  from:'browser', to:'center', color:'#2563eb', dashed:false, lift:16, badge:'HTTP + SSE'},
+  {key:'agentWS',  from:'agentA',  to:'center', color:'#0d9488', dashed:false, lift:30, badge:'WS'},
+  {key:'agentWSB', from:'agentB',  to:'center', color:'#0d9488', dashed:false, lift:30, badge:null},
+  {key:'dispatch', from:'center',  to:'worker', color:'#d97706', dashed:true,  lift:22, badge:'派发 / ack'},
+  {key:'spawnA',   from:'worker',  to:'agentA', color:'#64748b', dashed:true,  lift:10, badge:'spawn'},
+  {key:'spawnB',   from:'worker',  to:'agentB', color:'#64748b', dashed:true,  lift:10, badge:null},
+];
+
+function drawLink(spec){
+  const g=el('g',{class:'link','data-link':spec.key,'data-nodes':spec.from+' '+spec.to});
+  const pa=center0(NODES[spec.from]), pb=center0(NODES[spec.to]);
+  const y0=pa[1]-(spec.lift||0), y1=pb[1]-(spec.lift||0);
+  const mx=(pa[0]+pb[0])/2, my=(y0+y1)/2;
+  g.appendChild(el('path',{d:`M${pa[0]},${y0} L${pb[0]},${y1}`,stroke:spec.color,'stroke-width':9,
+     'stroke-linecap':'round',opacity:.14,fill:'none'}));
+  g.appendChild(el('path',{d:`M${pa[0]},${y0} L${pb[0]},${y1}`,stroke:spec.color,'stroke-width':3,
+     'stroke-linecap':'round',fill:'none','stroke-dasharray':spec.dashed?'2 7':'none'}));
+  g.appendChild(el('circle',{cx:pb[0]+(pa[0]-pb[0])*0.12,cy:y1+(y0-y1)*0.12,r:3.4,fill:spec.color}));
+  gLinks.appendChild(g);
+  return {mx,my,color:spec.color,group:g,spec};
+}
+const drawn={};
+LINKS.forEach(s=>{ drawn[s.key]=drawLink(s); });
+
+/* ---------- shadows ---------- */
+for(const k in NODES){const n=NODES[k]; shadow(gShadow,n.gx,n.gy,n.w,n.d);}
+
+/* helper: wrap node drawing in a tagged group */
+function nodeGroup(key){ const g=el('g',{class:'node','data-node':key}); gNodes.appendChild(g); return g; }
+
+/* ---------- BROWSER (external client) ---------- */
+(()=>{const n=NODES.browser; const g=nodeGroup('browser');
+  const top=prism(g,n.gx,n.gy,n.w,n.d,0,n.h,'#e2e8f0','#cbd5e1','#b6c2d2','#94a3b8');
+  prism(g,n.gx+0.25,n.gy+0.25,n.w-0.5,n.d-0.5,n.h,0.6,'#f1f5f9','#cbd5e1','#cbd5e1','#94a3b8');
+  label(gLabels, top.cx, P(n.gx+n.w/2,n.gy+n.d/2,n.h)[1]-4, '用户 / 浏览器',{fill:'#f8fafc',stroke:'#94a3b8',ink:'#334155',weight:700});
+})();
+
+/* ---------- CENTER hub: platform + 6 component cards (2 col × 3 row) ---------- */
+(()=>{const n=NODES.center; const g=nodeGroup('center');
+  prism(g,n.gx,n.gy,n.w,n.d,0,n.h,'url(#ctrTop)','#1d4ed8','#1e3a8a','#1e40af');
+  const comps=['Web Console','server','redis','queue','libSQL','Memory · git'];
+  const cols=2, rows=3, mx=0.45, gxIn=(n.w-mx*2), gyIn=(n.d-mx*2);
+  const cw=gxIn/cols*0.9, cd=gyIn/rows*0.86;
+  let i=0;
+  for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){
+    const cx=n.gx+mx + c*(gxIn/cols) + (gxIn/cols-cw)/2;
+    const cy=n.gy+mx + r*(gyIn/rows) + (gyIn/rows-cd)/2;
+    const ch= (i===0)?1.7:1.2;
+    const tf=(i===0)?'#dbeafe':'#eff6ff';
+    prism(g,cx,cy,cw,cd,n.h,ch,tf,'#bfdbfe','#93c5fd','#3b82f6');
+    const sp=P(cx+cw/2,cy+cd/2,n.h+ch);
+    label(gLabels,sp[0],sp[1]-3,comps[i],{fs:11,h:19,chw:6.4,minw:62,
+       fill:'#ffffff',stroke:'#93c5fd',ink:'#1e40af',weight:700});
+    i++;
+  }}
+  const topc=P(n.gx+n.w/2,n.gy-0.1,n.h+4);
+  label(gLabels, topc[0], topc[1]-30, '◆  CENTER 中枢',
+     {fs:14,h:30,chw:9,minw:150,pad:14,fill:'#1e40af',stroke:'#1e40af',ink:'#ffffff',weight:800});
+})();
+
+/* ---------- WORKER ---------- */
+(()=>{const n=NODES.worker; const g=nodeGroup('worker');
+  prism(g,n.gx,n.gy,n.w,n.d,0,n.h,'url(#wkTop)','#0f766e','#115e59','#0d9488');
+  const cards=['git services','agent CLI'];
+  for(let r=0;r<2;r++){
+    const cw=n.w-0.8, cd=(n.d-0.9)/2*0.86;
+    const cx=n.gx+0.4, cy=n.gy+0.3 + r*((n.d-0.6)/2);
+    prism(g,cx,cy,cw,cd,n.h,1.0,'#ccfbf1','#99f6e4','#5eead4','#14b8a6');
+    const sp=P(cx+cw/2,cy+cd/2,n.h+1.0);
+    label(gLabels,sp[0],sp[1]-3,cards[r],{fs:10.5,h:18,chw:6.2,minw:70,
+       fill:'#ffffff',stroke:'#5eead4',ink:'#0f766e',weight:700});
+  }
+  const topc=P(n.gx+n.w/2,n.gy-0.1,n.h);
+  label(gLabels, topc[0], topc[1]-26, '■  WORKER 节点',
+     {fs:13,h:28,chw:8.4,minw:128,pad:13,fill:'#0d9488',stroke:'#0d9488',ink:'#ffffff',weight:800});
+})();
+
+/* ---------- AGENTS (subprocesses) ---------- */
+['agentA','agentB'].forEach((k,idx)=>{const n=NODES[k]; const g=nodeGroup(k);
+  prism(g,n.gx,n.gy,n.w,n.d,0,n.h,'#cbd5e1','#94a3b8','#64748b','#475569');
+  prism(g,n.gx+0.2,n.gy+0.2,n.w-0.4,n.d-0.4,n.h,0.5,'#e2e8f0','#cbd5e1','#cbd5e1','#94a3b8');
+  const sp=P(n.gx+n.w/2,n.gy+n.d/2,n.h);
+  label(gLabels,sp[0],sp[1]-4,'agent #'+(idx+1),{fs:11,h:19,chw:6.6,minw:66,
+     fill:'#f8fafc',stroke:'#94a3b8',ink:'#334155',weight:700});
+  label(gLabels,sp[0],sp[1]+15,'pid · cwd',{fs:9.5,h:16,chw:5.6,minw:54,
+     fill:'#eef2f7',stroke:'#cbd5e1',ink:'#64748b',weight:600});
+});
+
+/* ---------- protocol badges on links (drawn last, above nodes) ---------- */
+function badge(info,text,color){
+  const grp=label(gLabels, info.mx, info.my, text,{fs:11.5,h:21,chw:6.8,minw:74,weight:700,
+     fill:'#ffffff',stroke:color,ink:color});
+  grp.setAttribute('class','link-badge');
+  grp.setAttribute('data-link', info.spec.key);
+  grp.setAttribute('data-nodes', info.spec.from+' '+info.spec.to);
+  return grp;
+}
+LINKS.filter(s=>s.badge).forEach(s=> badge(drawn[s.key], s.badge, s.color));
+
+/* ---------- hover-highlight: focus a link + its two endpoint nodes ---------- */
+const allLinkEls=[...svg.querySelectorAll('.link')];
+const allNodeEls=[...svg.querySelectorAll('.node')];
+const allBadgeEls=[...svg.querySelectorAll('.link-badge')];
+const NEIGHBORS={}; // node -> {links:Set, nodes:Set}
+LINKS.forEach(s=>{
+  (NEIGHBORS[s.from]=NEIGHBORS[s.from]||{links:new Set(),nodes:new Set()});
+  (NEIGHBORS[s.to]  =NEIGHBORS[s.to]  ||{links:new Set(),nodes:new Set()});
+  NEIGHBORS[s.from].links.add(s.key); NEIGHBORS[s.from].nodes.add(s.to);
+  NEIGHBORS[s.to].links.add(s.key);   NEIGHBORS[s.to].nodes.add(s.from);
+});
+
+function applyFocus(linkKeys, nodeKeys){
+  svg.classList.add('focusing');
+  allLinkEls.forEach(l=>{
+    const on=linkKeys.has(l.dataset.link);
+    l.classList.toggle('dimmed', !on); l.classList.toggle('active', on && linkKeys.size===1);
+  });
+  allBadgeEls.forEach(b=> b.classList.toggle('dimmed', !linkKeys.has(b.dataset.link)));
+  allNodeEls.forEach(nd=> nd.classList.toggle('dimmed', !nodeKeys.has(nd.dataset.node)));
+}
+function clearFocus(){
+  svg.classList.remove('focusing');
+  [...allLinkEls,...allBadgeEls,...allNodeEls].forEach(e=> e.classList.remove('dimmed','active'));
+}
+function focusLink(key){
+  const s=LINKS.find(x=>x.key===key); if(!s) return;
+  applyFocus(new Set([key]), new Set([s.from,s.to]));
+}
+function focusNode(key){
+  const nb=NEIGHBORS[key]; if(!nb) return;
+  applyFocus(new Set(nb.links), new Set([key,...nb.nodes]));
+}
+
+allLinkEls.forEach(l=>{
+  l.addEventListener('mouseenter',()=>focusLink(l.dataset.link));
+  l.addEventListener('mouseleave',clearFocus);
+});
+allBadgeEls.forEach(b=>{
+  b.addEventListener('mouseenter',()=>focusLink(b.dataset.link));
+  b.addEventListener('mouseleave',clearFocus);
+});
+allNodeEls.forEach(nd=>{
+  nd.addEventListener('mouseenter',()=>focusNode(nd.dataset.node));
+  nd.addEventListener('mouseleave',clearFocus);
+});
+</script>
 </body>
 </html>
