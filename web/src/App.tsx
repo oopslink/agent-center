@@ -34,6 +34,7 @@ const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
 const WorkerDetail = lazy(() => import('./pages/WorkerDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Version = lazy(() => import('./pages/Version'));
 const Me = lazy(() => import('./pages/Me'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
 // dev2/v29-s42 §4.2: MemberNew is no longer routed (orphan retired → redirect
@@ -92,6 +93,7 @@ export function App(): React.ReactElement {
           <Route path="environment" element={<Environment />} />
           <Route path="workers/:id" element={<WorkerDetail />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="version" element={<Version />} />
           <Route path="me" element={<Me />} />
           <Route path="members/humans" element={<MembersHumans />} />
           {/* dev2/v281: the enhanced /agents page is the single canonical
