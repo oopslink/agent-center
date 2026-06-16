@@ -55,6 +55,13 @@
 .pchip.req { color: var(--brand); border-color: var(--core-bd); background: var(--core-bg); }
 .pnone { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
 
+/* ---- tool tiering (WS5) ---- */
+.tier { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 5px; padding: 1px 6px; white-space: nowrap; }
+.tier.core { color: var(--brand); background: var(--core-bg); border: 1px solid var(--core-bd); }
+.tier.secondary { color: var(--ink-3); background: var(--bg-subtle); border: 1px solid var(--border); }
+.tiering { margin: 8px 0 2px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-subtle); padding: 11px 15px; font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+.tiering b { color: var(--ink); } .tiering .mono { font-family: var(--font-mono); font-size: 12px; }
+
 .links { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 10px; }
 .links a { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--brand); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); padding: 9px 14px; box-shadow: var(--shadow-1); }
 .links a:hover { border-color: var(--accent); }
@@ -105,6 +112,7 @@
   </div>
 
   <div class="eyebrow">接口清单 · Tool Reference <span id="total" class="mono" style="color:var(--ink-3);font-weight:600"></span></div>
+  <div class="tiering" id="tiering"></div>
   <div class="toc" id="toc"></div>
   <div id="reference"></div>
 
@@ -129,8 +137,22 @@
     ref.innerHTML = '<p class="pnone">未能加载工具清单（请运行 make gen-mcp-docs）。</p>';
     return;
   }
-  document.getElementById('total').textContent = '共 ' + data.total + ' 个工具 · ' + data.domains.length + ' 域';
+  const hasTiers = typeof data.core_total === 'number' && typeof data.secondary_total === 'number';
+  document.getElementById('total').textContent = hasTiers
+    ? '共 ' + data.total + ' 个工具 · ' + data.core_total + ' 默认 + ' + data.secondary_total + ' 按需 · ' + data.domains.length + ' 域'
+    : '共 ' + data.total + ' 个工具 · ' + data.domains.length + ' 域';
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // WS5 tool tiering explainer: the default set is the high-frequency core; the
+  // rest are deferred (loaded on demand via search_tools). Each row is tagged.
+  const tieringEl = document.getElementById('tiering');
+  if (hasTiers) {
+    tieringEl.innerHTML = '🧰 <b>工具分层（WS5）</b>：每个 agent 默认只暴露 <b>' + data.core_total
+      + ' 个高频核心工具</b>（标 <span class="tier core">默认</span>）——领活/回报、消息、核心任务读。其余 <b>' + data.secondary_total
+      + ' 个低频管理工具</b>（标 <span class="tier secondary">按需</span>：Plan 编排、Issue 管理、findings、文件、订阅、组织发现、节点恢复等）默认不在工具列表里，由 <span class="mono">search_tools</span> 按关键词<strong>按需加载</strong>。分层只为降低上下文/认知负担，<strong>不是授权边界</strong>——按需工具一个 <span class="mono">search_tools</span> 调用即可达，且 center 照常做授权校验。';
+  } else {
+    tieringEl.style.display = 'none';
+  }
 
   const toc = document.getElementById('toc');
   data.domains.forEach((d) => {
@@ -144,20 +166,29 @@
     const sec = document.createElement('section');
     sec.className = 'domain';
     sec.id = d.key;
-    const rows = d.tools.map((t) => {
+    // List the default (core) tools first within each domain, then on-demand.
+    const tools = d.tools.slice().sort((a, b) => {
+      const rank = (x) => (x.tier === 'core' ? 0 : 1);
+      return rank(a) - rank(b) || a.name.localeCompare(b.name);
+    });
+    const rows = tools.map((t) => {
       const params = (t.params && t.params.length)
         ? '<div class="params">' + t.params.map((p) =>
             '<span class="pchip' + (p.required ? ' req' : '') + '">' + esc(p.name) + (p.required ? ' *' : '') + '</span>').join('') + '</div>'
         : '<span class="pnone">—</span>';
+      const tier = t.tier === 'secondary'
+        ? '<span class="tier secondary" title="按需加载：默认不在工具列表，由 search_tools 加载">按需</span>'
+        : (t.tier === 'core' ? '<span class="tier core" title="默认工具集：agent 启动即可见">默认</span>' : '');
       return '<tr>'
         + '<td><span class="tname" title="' + esc(t.name) + '">' + esc(t.name) + '</span></td>'
+        + '<td>' + tier + '</td>'
         + '<td class="tsum" title="' + esc(t.description || t.summary) + '">' + esc(t.summary) + '</td>'
         + '<td>' + params + '</td>'
         + '</tr>';
     }).join('');
     sec.innerHTML =
       '<h2>' + esc(d.title) + ' <span class="count">' + d.tools.length + ' 个</span></h2>'
-      + '<table class="tbl"><thead><tr><th>工具</th><th>用途</th><th>关键参数（* 必填）</th></tr></thead><tbody>'
+      + '<table class="tbl"><thead><tr><th>工具</th><th>层级</th><th>用途</th><th>关键参数（* 必填）</th></tr></thead><tbody>'
       + rows + '</tbody></table>';
     ref.appendChild(sec);
   });
