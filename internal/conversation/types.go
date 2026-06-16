@@ -53,6 +53,33 @@ func (r IdentityRef) IsHuman() bool {
 	return strings.HasPrefix(string(r), "user:") && len(string(r)) > len("user:")
 }
 
+// MentionActorKind classifies a message sender for the agent↔agent wake-guardrail
+// + SilentAck semantics (I7, cognition/04-wake-guardrail.md §1). The reply
+// obligation differs by kind: a HUMAN directed message must be answered, while an
+// AGENT-authored mention is "可回可不回" (reply only if content warrants, else
+// SilentAck via mark_seen). Aligns with I7-D1's actor split (same prefix-derived
+// human vs agent distinction).
+type MentionActorKind string
+
+const (
+	ActorKindHuman  MentionActorKind = "human"
+	ActorKindAgent  MentionActorKind = "agent"
+	ActorKindSystem MentionActorKind = "system"
+)
+
+// ActorKind classifies the ref's sender kind from its ADR-0033 prefix:
+// `user:` → human, `agent:` → agent, `system` (or anything else) → system.
+func (r IdentityRef) ActorKind() MentionActorKind {
+	switch {
+	case r.IsHuman():
+		return ActorKindHuman
+	case strings.HasPrefix(string(r), "agent:") && len(string(r)) > len("agent:"):
+		return ActorKindAgent
+	default:
+		return ActorKindSystem
+	}
+}
+
 // ConversationKind is the v2.7 four-value enum (ADR-0047 §1, finalized in
 // plan §10 OQ10): channel / issue / task / dm. `channel` is retained as a
 // generic Org-level group chat (owner_ref id://organizations/{org_id}, NOT
