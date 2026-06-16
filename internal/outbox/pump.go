@@ -17,6 +17,7 @@ type Pump struct {
 	interval  time.Duration
 	batchSize int
 	onError   func(error)
+	tickHooks []func(context.Context)
 }
 
 // NewPump builds a Pump. interval<=0 defaults to 1s; batchSize<=0 defaults to 100.
@@ -37,6 +38,16 @@ func (p *Pump) WithErrorHandler(fn func(error)) *Pump {
 	return p
 }
 
+// WithTickHook registers a callback run on every tick BEFORE the drain pass — the
+// reuse point for periodic scanners that emit outbox events (the Cognition
+// ReminderTickProjector scans due reminders and emits cognition.reminder.fired,
+// which the same tick's drain then relays). A panicking/slow hook would stall the
+// loop, so hooks must be cheap + non-panicking. v2.x reminders (design §D4).
+func (p *Pump) WithTickHook(fn func(context.Context)) *Pump {
+	p.tickHooks = append(p.tickHooks, fn)
+	return p
+}
+
 // Run drains the backlog immediately, then on each tick, until ctx is canceled.
 // Blocks; call as `go pump.Run(ctx)`.
 func (p *Pump) Run(ctx context.Context) {
@@ -48,6 +59,9 @@ func (p *Pump) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			for _, hook := range p.tickHooks {
+				hook(ctx)
+			}
 			p.drain(ctx)
 		}
 	}
