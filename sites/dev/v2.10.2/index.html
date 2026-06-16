@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DDD 架构浏览器 · v2.8 · agent-center</title>
+<title>DDD 架构浏览器 · agent-center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../../assets/redesign.css">
@@ -137,7 +137,7 @@
   <aside class="rail">
     <h4>逐层探索</h4>
     <ul class="layers" id="layers">
-      <li data-go="map"><b>① 限界上下文地图</b><span class="sub">7 BC · 战略层</span></li>
+      <li data-go="map"><b>① 限界上下文地图</b><span class="sub">9 BC + Memory · 战略层</span></li>
       <li data-go="context" class="lock"><b>② 上下文 / 聚合</b><span class="sub" id="l2sub">选一个 BC 进入</span></li>
       <li data-go="class" class="lock"><b>③ 实体类图</b><span class="sub" id="l3sub">选一个聚合进入</span></li>
     </ul>
@@ -164,153 +164,196 @@
 </div>
 
 <script>
-/* ---------- real domain data (v2.8 · 以 internal/* 校准) ---------- */
+/* ---------- real domain data (from docs/design/architecture) ---------- */
 const BCS = {
-  projectmanager:{ name:"ProjectManager", zh:"项目管理 (核心域)", cls:"core", clsLabel:"Core", c:"var(--core)",
-    desc:"订阅真相 + OrgSequence (T<n>/I<n>)。Project / Issue / Task / ProjectMember 四聚合；Task 八态生命周期含验收。",
-    aggs:["task","issue","project","projectmember"],
-    app:["TaskService · 任务生命周期","IssueService · open→conclude","ProjectService · 项目/成员"],
-    dom:[{n:"OrgSequenceService",o:"allocate()→T<n>/I<n>"},{n:"SubscriptionService",o:"subscribe() / unsubscribe()"}],
-    repo:["TaskRepository","IssueRepository","ProjectRepository","ProjectMemberRepository","TaskSubscriberRepository","IssueSubscriberRepository","OrgSequenceRepository"] },
-  agent:       { name:"Agent", zh:"智能体 (核心域)", cls:"core", clsLabel:"Core", c:"var(--core)",
-    desc:"在 worker 上执行任务的智能体；生命周期与工作项是两个独立聚合，强制单活工作项 (HasActiveWorkItem)。",
-    aggs:["agent","agentworkitem","activityevent"],
-    app:["AgentService · 注册/profile","WorkItemService · 调度与转移"],
-    dom:[{n:"WorkItemDispatchService",o:"activate() / supersede()"},{n:"AvailabilityService",o:"derive(lifecycle)→availability"}],
-    repo:["AgentRepository","AgentWorkItemRepository","AgentActivityEventRepository"] },
-  environment: { name:"Environment", zh:"环境 (核心域)", cls:"core", clsLabel:"Core", c:"var(--core)",
-    desc:"environment + workforce + files + blobstore 四包文档合并：控制信道 + Worker/AgentInstance + 文件传输 + 内容寻址对象存储。",
-    aggs:["worker","agentinstance","filetransfer"],
-    app:["WorkerControlService · 心跳/offset ack","EnrollService · BootstrapToken","FileTransferService · upload/download"],
-    dom:[{n:"WorkerLifecycleService",o:"online() / offline() 级联"},{n:"BlobGCService",o:"refcount=0 + 宽限 → GC"}],
-    repo:["WorkerRepository","AgentInstanceRepository","BootstrapTokenRepository","FileTransferSessionRepository","BlobStore"] },
-  conversation:{ name:"Conversation", zh:"会话 (核心域)", cls:"core", clsLabel:"Core", c:"var(--core)",
-    desc:"统一线程外壳 (surface-agnostic)：kind = dm / channel / task / issue 各 1:1 绑定；Message 追加写 + InputRequest 引用。",
+  projectmanager:{ name:"ProjectManager", zh:"项目管理", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"Project/Issue/Task/Plan(DAG 编排)/Member/Finding 的工作管理唯一真相；work-item 状态权威，不靠消息推断(ADR-0046)。",
+    aggs:["task","issue","plan","project"],
+    app:["pm Service · ~70 用例(任务/计划/池/Finding)"],
+    dom:[{n:"PlanOrchestrator(投影器)",o:"ready 节点→@mention 派发"},{n:"AgentTaskRunGate",o:"open→running 运行门"}],
+    repo:["TaskRepository","IssueRepository","PlanRepository(含 DAG 边+派发记录)","ProjectRepository","PlanFindingRepository","OrgSequenceRepository"] },
+  agent:       { name:"Agent", zh:"智能体", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"Agent 生命周期意图 + 工作队列(WorkItem) + 活动事件流；'做了什么'由事件重建，无 AgentRun(ADR-0049)。",
+    aggs:["agent","workitem"],
+    app:["Agent 运行时编排"],
+    dom:[{n:"DeriveAvailability",o:"(worker在线,生命周期,有活跃WI)→available/busy/unavailable"},{n:"OrgDirectory",o:"OrgOfAgent()"}],
+    repo:["Agent Repository","WorkItemRepository(CAS)","ActivityEventRepository(游标分页)"] },
+  conversation:{ name:"Conversation", zh:"会话", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"channel/dm/task/issue/plan 会话 + append-only 消息 + 深度1线程 + 参与者/已读/关注状态。",
     aggs:["conversation"],
-    app:["SendMessageService · 写入会话","InputRequestService · 停泊/响应"],
-    dom:[{n:"ConversationLifecycleService",o:"open() / close() / archive()"}],
-    repo:["ConversationRepository","MessageRepository"] },
-  observability:{ name:"Observability", zh:"可观测性 (支撑域 · 只读)", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
-    desc:"Event 追加写 + 投影读模型；纯下游消费者 (OHS)。状态变更与事件追加共用同一事务 (reason→message 成对)。",
-    aggs:["event"],
-    app:["ProjectionService · 投影读模型","TraceQueryService · Activity 翻页"],
-    dom:[{n:"EventProjectionService",o:"project(event)→读模型"}],
-    repo:["EventRepository","ProjectionRepository"] },
-  identity:    { name:"Identity", zh:"身份 (支撑域 · 真实 BC + SK)", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
-    desc:"Identity / Organization / Member / Invitation 四聚合；另供 IdentityRef 共享内核词汇 (SK) 横切全域。",
-    aggs:["identity","member"],
-    app:["IdentityService · 身份/组织","MembershipService · 成员/邀请"],
-    dom:[{n:"InvitationService",o:"invite() / accept()"}],
-    repo:["IdentityRepository","OrganizationRepository","MemberRepository","InvitationRepository"] },
-  secret:      { name:"SecretManagement", zh:"密钥管理 (支撑域)", cls:"peripheral", clsLabel:"Supporting · Peripheral", c:"var(--peripheral)",
-    desc:"每用户 API key (migration 0012) · master-key AES-256 加密 · 明文永不回显。",
+    app:["MessageWriter / ParticipantManagement / FollowState 服务(service/ 子包)"],
+    dom:[{n:"ResolveReplyPlacement",o:"算 parent/root(深度1)"},{n:"FindByOwnerRef",o:"task/issue/plan 会话懒建投影"}],
+    repo:["ConversationRepository","MessageRepository(批量,无N+1)","UserConversationReadStateRepository","UserConversationFollowStateRepository"] },
+  identity:    { name:"Identity", zh:"身份", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"用户/agent 身份 + 组织 + 成员(末位 owner 守卫) + 邀请 + 认证(passcode/JWT)。",
+    aggs:["identity","organization"],
+    app:["SignupService","SigninService/AuthService","AgentIdentityProvisionService","MemberRoleChangeService","OrganizationLifecycleService"],
+    dom:[{n:"OrganizationLockManager",o:"WithLock 守 owner 计数不变式"},{n:"CountActiveOwners",o:"末位 owner 守卫"}],
+    repo:["IdentityRepository","OrganizationRepository","MemberRepository(CountActiveOwners)","InvitationRepository"] },
+  workforce:   { name:"Workforce", zh:"工作池", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"Worker 容量自动探测 + 派单配置；含旧版 AgentInstance 注册与 enroll token(ADR-0023/24/29)。",
+    aggs:["worker","agentinstance"],
+    app:["容量探测 / 配置 / enroll 编排"],
+    dom:[{n:"CheckDispatchFeatures",o:"(AgentInstance,Capability)→可派/不可派 reason"}],
+    repo:["WorkerRepository(CAS状态)","AgentInstanceRepository","BootstrapTokenRepository(SELECT FOR UPDATE)"] },
+  environment: { name:"Environment", zh:"环境 / 控制通道", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"机器 Worker 守护进程注册 + 有序可重放幂等命令流(offset 累积 ack)(ADR-0050)。",
+    aggs:["envworker"],
+    app:["控制通道服务"],
+    dom:[{n:"ControlLog",o:"AppendCommand()幂等 / Replay(worker)"}],
+    repo:["environment WorkerRepository(精简)","ControlEventRepository(UNIQUE(worker,offset/key))"] },
+  files:       { name:"Files", zh:"文件", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"业务无关 blob 模块：ULID 文件身份 + 按引用放置 + 上传/下载会话 + 引用计数 GC(ADR-0048)。",
+    aggs:["filetransfer"],
+    app:["files Service · 上传/下载/完成","GC · RunGCOnce(零活引用回收)"],
+    dom:[{n:"Resolver",o:"FileURI→分桶路径"}],
+    repo:["FileReferenceRepository(CountLiveByURI)","FileTransferSessionRepository","BlobStore"] },
+  secret:      { name:"SecretManagement", zh:"密钥管理", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"用户密钥 AES-256-GCM 加密存储，master key 来自 0600 文件，worker JIT 解密(ADR-0026)。",
     aggs:["usersecret"],
-    app:["UserSecretService · CRUD / 撤销"],
-    dom:[{n:"SecretCryptoService",o:"encrypt() / decrypt(master-key)"}],
-    repo:["UserSecretRepository"] },
+    app:["UserSecretService · Create/Rotate/Revoke","SecretResolutionService · JIT 解密+MarkUsed"],
+    dom:[{n:"MasterKey",o:"Encrypt/Decrypt(GCM,认证失败即报错)"}],
+    repo:["UserSecretRepository(CAS撤销)"] },
+  observability:{ name:"Observability", zh:"观测", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"append-only 领域事件存储，与状态变更同事务双写(ADR-0014)。",
+    aggs:["event"],
+    app:["事件投影 / escalator / peek 服务(app 层)"],
+    dom:[{n:"EventSink",o:"Emit() 构造+校验+追加,调用方持事务"}],
+    repo:["EventRepository(append-only,游标分页,Max 1000)"] },
+  memory:      { name:"Memory（文件/git）", zh:"记忆", cls:"peripheral", clsLabel:"Supporting · Peripheral", c:"var(--peripheral)",
+    desc:"supervisor 的 scoped 笔记 = git 仓里的 CLAUDE.md 文件服务，非领域聚合(cognition/memory)。注：旧页误把 Cognition 当 BC——实无 Cognition 领域 BC，supervisor 是 OS 进程基础设施。",
+    aggs:["memory"],
+    app:["SkeletonFactory · 种子 markdown"],
+    dom:[{n:"GitOps",o:"init/commit(走真 git)"}],
+    repo:["(无 Repository——文件+git,非 DB)"] },
 };
 /* aggregate clusters → entity class boxes */
 const AGGS = {
-  task: { bc:"projectmanager", root:"Task", title:"Task 聚合", meta:"TaskStatus 8 态 · 含验收",
+  task: { bc:"projectmanager", root:"Task", title:"Task 聚合", meta:"状态内联·无 TaskExecution·ADR-0046",
     classes:[
-      { id:"Task", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["projectID","FK"],["title","string"],["assignee","IdentityRef"],["derivedFromIssue","FK?"],["orgNumber","T<n>"]], state:["created","assigned","running","blocked","completed","verified","canceled"], ops:["assign()","block()","complete()","verify()"] },
-      { id:"TaskSubscriber", ster:"«Entity»", c:"var(--accent)", fields:[["task_id","FK"],["identity","IdentityRef"]], state:[], ops:[] },
-      { id:"AgentWorkItem", ster:"«AR · Agent BC»", c:"var(--core)", fields:[["taskRef","pm://tasks/{id}"]], state:["queued","active","…"], ops:[] },
-      { id:"Conversation", ster:"«AR · Conversation BC»", c:"var(--essential)", fields:[["kind","'task'"]], state:[], ops:[] },
+      { id:"Task", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","TaskID"],["projectID","FK"],["status","TaskStatus"],["assignee","IdentityRef"],["derivedFromIssue","IssueID"],["planID","PlanID"]], state:["open","running","completed","discarded","reopened"], ops:["Start()","Complete(by)","Discard()","Reopen()","Block(reason)/Unblock()","Assign()"] },
+      { id:"DispatchRecord", ster:"«Value Object»", c:"var(--accent)", fields:[["planID","FK"],["taskID","FK"],["dispatchMessageID","string"]], state:[], ops:[] },
+      { id:"Conversation", ster:"«AR · Conversation BC»", c:"var(--essential)", fields:[["kind","'task'"],["ownerRef","'pm://tasks/{id}'"]], state:[], ops:[] },
+      { id:"Issue", ster:"«AR · 来源»", c:"var(--accent)", fields:[["id","IssueID"]], state:[], ops:[] },
     ],
-    rels:[ ["Task","TaskSubscriber","1","N","订阅真相"], ["Task","AgentWorkItem","1","N","派发→执行"], ["Task","Conversation","1","1","任务讨论线程"] ],
-    svc:{ n:"OrgSequenceService", ops:["allocate()→T<n>"], uses:"Task" } },
-  issue: { bc:"projectmanager", root:"Issue", title:"Issue 聚合", meta:"IssueStatus 6 态 · 协商",
+    rels:[ ["Task","Conversation","1","1","对话即审计"], ["Issue","Task","1","N","conclude 派生"], ["Task","DispatchRecord","1","N","计划派发(幂等)"] ],
+    svc:{ n:"AgentTaskRunGate", ops:["EnsureTaskRunnable()"], uses:"Task" } },
+  plan: { bc:"projectmanager", root:"Plan", title:"Plan 聚合 (DAG 编排)", meta:"ADR-0046/0047/0053",
     classes:[
-      { id:"Issue", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["projectID","FK"],["title","string"],["orgNumber","I<n>"]], state:["open","under_discussion","resolved","concluded","withdrawn","closed"], ops:["open()","conclude()→Task","withdraw()"] },
-      { id:"IssueSubscriber", ster:"«Entity»", c:"var(--accent)", fields:[["issue_id","FK"],["identity","IdentityRef"]], state:[], ops:[] },
+      { id:"Plan", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","PlanID"],["projectID","FK"],["status","PlanStatus"],["builtin","bool"],["conversationID","string"]], state:["draft","running","done","archived"], ops:["Start()","Stop()","MarkDone()","Archive()"] },
+      { id:"Dependency", ster:"«Value Object»", c:"var(--accent)", fields:[["planID","FK"],["fromTaskID","FK"],["toTaskID","FK"]], state:[], ops:["ValidateNoCycle()"] },
+      { id:"PlanNodeView", ster:"«derived VO»", c:"var(--peripheral)", fields:[["taskID","FK"],["nodeStatus","derived"],["dependsOn","'[]TaskID'"]], state:["blocked","ready","dispatched","running","paused","done","failed"], ops:[] },
+      { id:"PlanFinding", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","FindingID"],["planID","FK"],["taskID","FK"],["kind","enum"],["content","'≤4000'"]], state:[], ops:["append-only"] },
+    ],
+    rels:[ ["Plan","Dependency","1","N","DAG 边"], ["Plan","PlanNodeView","1","N","节点状态(派生)"], ["Plan","PlanFinding","1","N","共享发现"] ],
+    svc:{ n:"PlanOrchestrator", ops:["ready 节点→@mention 派发","ReconcileRunningPlans()"], uses:"Plan" } },
+  issue: { bc:"projectmanager", root:"Issue", title:"Issue 聚合", meta:"状态图+org 序号",
+    classes:[
+      { id:"Issue", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","IssueID"],["projectID","FK"],["status","IssueStatus"],["tags","'[]string'"],["orgNumber","int"]], state:["open","in_progress","resolved","closed","discarded","reopened"], ops:["Transition(to)","Rename()","SetTags()"] },
+      { id:"Task", ster:"«AR · 派生»", c:"var(--accent)", fields:[["derivedFromIssue","FK"]], state:[], ops:[] },
       { id:"Conversation", ster:"«AR · Conversation BC»", c:"var(--essential)", fields:[["kind","'issue'"]], state:[], ops:[] },
     ],
-    rels:[ ["Issue","IssueSubscriber","1","N","订阅真相"], ["Issue","Conversation","1","1","议题讨论线程"] ],
-    svc:{ n:"OrgSequenceService", ops:["allocate()→I<n>"], uses:"Issue" } },
-  project: { bc:"projectmanager", root:"Project", title:"Project 聚合", meta:"组织作用域容器",
+    rels:[ ["Issue","Conversation","1","1","议事承载"], ["Issue","Task","1","N","conclude 派生"] ] },
+  project: { bc:"projectmanager", root:"Project", title:"Project 聚合", meta:"引用式·非巨聚合 ADR-0046",
     classes:[
-      { id:"Project", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","proj-…"],["name","string"],["tags","[]string"],["organizationID","FK"]], state:[], ops:["create()","rename()"] },
-      { id:"CodeRepoRef", ster:"«AR»", c:"var(--accent)", fields:[["repo_url","string"],["project_id","FK"]], state:[], ops:[] },
+      { id:"Project", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ProjectID"],["organizationID","FK"],["name","string"],["status","ProjectStatus"]], state:["active","archived"], ops:["Archive()","Rename()"] },
+      { id:"ProjectMember", ster:"«Entity»", c:"var(--accent)", fields:[["projectID","FK"],["identityID","IdentityRef"],["role","'member|owner'"]], state:[], ops:[] },
+      { id:"CodeRepoRef", ster:"«Entity»", c:"var(--accent)", fields:[["projectID","FK"],["url","string"],["label","string"]], state:[], ops:[] },
     ],
-    rels:[ ["Project","CodeRepoRef","1","N","代码库引用"] ] },
-  projectmember: { bc:"projectmanager", root:"ProjectMember", title:"ProjectMember 聚合", meta:"角色绑定",
+    rels:[ ["Project","ProjectMember","1","N","成员=写门"], ["Project","CodeRepoRef","1","N","仓库引用"] ] },
+  agent: { bc:"agent", root:"Agent", title:"Agent 聚合", meta:"生命周期意图 ADR-0049",
     classes:[
-      { id:"ProjectMember", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","MemberID"],["projectID","FK"],["identityID","FK"],["role","enum"],["addedBy","IdentityRef"]], state:[], ops:["add()","setRole()"] },
+      { id:"Agent", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","AgentID"],["organizationID","FK"],["workerID","'string(不可变)'"],["lifecycle","AgentLifecycle"],["skills","'[]string'"]], state:["stopped","running","stopping","resetting","error","failed","archived"], ops:["Start()","Stop()","Reset(scope)","Archive()","MarkFailed()"] },
+      { id:"Profile", ster:"«Value Object»", c:"var(--peripheral)", fields:[["name","string"],["model","string"],["cli","string"],["envVars","map"]], state:[], ops:[] },
+      { id:"Availability", ster:"«derived VO»", c:"var(--peripheral)", fields:[["from","'worker在线+生命周期+活跃WI'"]], state:["available","busy","unavailable"], ops:[] },
     ],
-    rels:[] },
-  agent: { bc:"agent", root:"Agent", title:"Agent 聚合", meta:"lifecycle 状态机 · ADR profile VO",
+    rels:[ ["Agent","Profile","1","1","档案"] ],
+    svc:{ n:"DeriveAvailability", ops:["(workerOnline,lifecycle,hasActiveWI)→状态"], uses:"Agent" } },
+  workitem: { bc:"agent", root:"AgentWorkItem", title:"AgentWorkItem 聚合", meta:"工作队列·引用 Task 不持有",
     classes:[
-      { id:"Agent", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["organizationID","FK"],["profile","Profile VO"],["skills","[]string"],["workerID","不可变"],["lifecycle","enum"]], state:["stopped","running","stopping","resetting","error","failed"], ops:["start()","stop()","reset()","archive()"] },
-      { id:"Profile", ster:"«Value Object»", c:"var(--peripheral)", fields:[["Name","string"],["Model","string"],["CLI","string"],["EnvVars","map"]], state:[], ops:[] },
+      { id:"AgentWorkItem", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","string"],["agentID","FK"],["taskRef","'pm://tasks/{id}'"],["status","WorkItemStatus"],["interactions","int"]], state:["queued","active","waiting_input","paused","done","failed","canceled","superseded"], ops:["Activate()","WaitInput()","Wake()","Pause()","Resume()","Done()","Fail()","Supersede()"] },
+      { id:"WorkItemTransition", ster:"«Value Object»", c:"var(--accent)", fields:[["prevStatus","_"],["status","_"],["cause","'agent_death?'"]], state:[], ops:[] },
+      { id:"AgentActivityEvent", ster:"«Entity»", c:"var(--accent)", fields:[["agentID","FK"],["workItemRef","string"],["eventType","enum"],["payload","'JSON'"]], state:[], ops:["append-only"] },
+      { id:"Task", ster:"«AR · 引用»", c:"var(--essential)", fields:[["taskRef","'pm://tasks/{id}'"]], state:[], ops:[] },
     ],
-    rels:[ ["Agent","Profile","1","1","内嵌 (无顶层 name)"] ],
-    svc:{ n:"AvailabilityService", ops:["derive(lifecycle)→availability"], uses:"Agent" } },
-  agentworkitem: { bc:"agent", root:"AgentWorkItem", title:"AgentWorkItem 聚合", meta:"WorkItemStatus 7 态 · 单活不变式",
+    rels:[ ["AgentWorkItem","WorkItemTransition","1","N","每次转移"], ["AgentWorkItem","AgentActivityEvent","1","N","活动流"], ["AgentWorkItem","Task","N","1","引用(不持有)"] ] },
+  worker: { bc:"workforce", root:"Worker", title:"Worker 聚合 (容量/派单)", meta:"fleet 域 Worker",
     classes:[
-      { id:"AgentWorkItem", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["agentID","FK"],["taskRef","pm://tasks/{id} (非拥有)"]], state:["queued","active","waiting_input","done","failed","canceled","superseded"], ops:["activate()","supersede()"] },
-      { id:"Agent", ster:"«AR · 单活闸»", c:"var(--core)", fields:[["lifecycle","enum"]], state:[], ops:[] },
+      { id:"Worker", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","WorkerID"],["status","WorkerStatus"],["capabilities","'[]Capability'"],["concurrency","_"],["discovery","_"]], state:["online","offline"], ops:["MarkOnline()","MarkOffline(reason)","Heartbeat()","ApplyCapabilities()"] },
+      { id:"Capability", ster:"«Value Object»", c:"var(--peripheral)", fields:[["agentCLI","string"],["detected","bool"],["supportsMCP","bool"],["supportsSkills","bool"]], state:[], ops:[] },
+      { id:"AgentInstance", ster:"«AR · 绑定»", c:"var(--accent)", fields:[["workerID","'*WorkerID'"]], state:[], ops:[] },
     ],
-    rels:[ ["Agent","AgentWorkItem","1","N","单智能体仅 1 活跃"] ],
-    svc:{ n:"WorkItemDispatchService", ops:["activate()","supersede(old)"], uses:"AgentWorkItem" } },
-  activityevent: { bc:"agent", root:"AgentActivityEvent", title:"AgentActivityEvent 聚合", meta:"追加写 · 观测流",
+    rels:[ ["Worker","Capability","1","N","探测能力"], ["AgentInstance","Worker","N","1","绑定(可空iff builtin)"] ],
+    svc:{ n:"CheckDispatchFeatures", ops:["(AgentInstance,Capability)→可派/reason"], uses:"Worker" } },
+  agentinstance: { bc:"workforce", root:"AgentInstance", title:"AgentInstance 聚合 (v2 旧版)", meta:"ADR-0024/0029",
     classes:[
-      { id:"AgentActivityEvent", ster:"«Aggregate Root · append-only»", c:"var(--core)", fields:[["id","ULID"],["agentID","FK"],["kind","tool_use|tool_result|…"]], state:[], ops:["append()"] },
+      { id:"AgentInstance", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["name","'全局唯一'"],["agentCLI","string"],["workerID","'*WorkerID'"],["state","_"],["isBuiltin","bool"]], state:["idle","active","sleeping","archived"], ops:["MarkActive()","MarkIdle()","MarkSleeping()","Archive()"] },
+      { id:"BootstrapToken", ster:"«Entity»", c:"var(--accent)", fields:[["workerID","FK"],["valueHash","'SHA-256'"],["status","_"],["expiresAt","time"]], state:["active","used","expired","revoked"], ops:["MarkUsed()","MarkRevoked()"] },
     ],
-    rels:[] },
-  worker: { bc:"environment", root:"Worker", title:"Worker 聚合", meta:"丰富 AR (workforce) + 瘦控制信道 AR",
+    rels:[ ["AgentInstance","BootstrapToken","1","N","enroll token"] ] },
+  envworker: { bc:"environment", root:"Worker", title:"Worker 聚合 (控制通道)", meta:"ADR-0050·窄投影",
     classes:[
-      { id:"Worker", ster:"«AR · workforce 丰富»", c:"var(--core)", fields:[["id","ULID"],["name","string"],["capabilities","[]Capability"],["concurrency","int"],["lastHeartbeatAt","ts"]], state:["online","offline","enrolling"], ops:["enroll()","heartbeat()"] },
-      { id:"WorkerControl", ster:"«AR · environment 瘦»", c:"var(--accent)", fields:[["lastAckedOffset","int"],["status","offline⇄online"]], state:["offline","online"], ops:["ack(offset)"] },
+      { id:"Worker", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","WorkerID"],["status","WorkerStatus"],["lastAckedOffset","int64"],["lastHeartbeatAt","time"]], state:["offline","online"], ops:["Connect()","Disconnect()","Heartbeat()","AckOffset(offset)"] },
+      { id:"WorkerControlEvent", ster:"«Entity»", c:"var(--accent)", fields:[["workerID","FK"],["offset","'int64(递增)'"],["idempotencyKey","string"],["commandType","string"]], state:[], ops:["append-only"] },
     ],
-    rels:[ ["Worker","WorkerControl","1","1","控制信道 offset ack"] ],
-    svc:{ n:"WorkerLifecycleService", ops:["online() / offline() 级联 agent"], uses:"Worker" } },
-  agentinstance: { bc:"environment", root:"AgentInstance", title:"AgentInstance 聚合", meta:"workforce + BootstrapToken",
+    rels:[ ["Worker","WorkerControlEvent","1","N","有序命令流"] ],
+    svc:{ n:"ControlLog", ops:["AppendCommand()幂等","Replay(worker)=从 lastAckedOffset"], uses:"Worker" } },
+  conversation: { bc:"conversation", root:"Conversation", title:"Conversation 聚合", meta:"ADR-0033/线程深度1",
     classes:[
-      { id:"AgentInstance", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["worker_id","FK"]], state:[], ops:["bind()"] },
-      { id:"BootstrapToken", ster:"«AR · 入网引导»", c:"var(--accent)", fields:[["token","one-time"],["fingerprint","sha256:…"]], state:["pending","consumed","revoked"], ops:["mint()","consume()"] },
+      { id:"Conversation", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","_"],["kind","ConversationKind"],["ownerRef","OwnerRef"],["participants","'[]ParticipantElement'"],["status","_"]], state:["active","closed","archived"], ops:["Close()","Archive()","SetParticipants()","HasActiveParticipant()"] },
+      { id:"Message", ster:"«Entity»", c:"var(--core)", fields:[["id","_"],["conversationID","FK"],["senderIdentityID","IdentityRef"],["contentKind","enum"],["parentMessageID","_"],["rootMessageID","_"],["attachments","'[]VO'"]], state:[], ops:["IsThreadRoot()","ThreadID()"] },
+      { id:"ParticipantElement", ster:"«Value Object»", c:"var(--peripheral)", fields:[["identityID","IdentityRef"],["role","'owner|member|observer'"],["leftAt","'*time'"]], state:[], ops:["IsActive()"] },
+      { id:"IdentityRef", ster:"«Value Object»", c:"var(--peripheral)", fields:[["ref","'user:|agent:|system'"]], state:[], ops:["IsHuman()"] },
     ],
-    rels:[ ["AgentInstance","BootstrapToken","1","N","接入凭据"] ] },
-  filetransfer: { bc:"environment", root:"FileTransferSession", title:"FileTransferSession 聚合", meta:"files + blobstore · 内容寻址",
+    rels:[ ["Conversation","Message","1","N","append-only"], ["Message","ParticipantElement","N","1","发送者"] ] },
+  identity: { bc:"identity", root:"Identity", title:"Identity 聚合", meta:"ADR-0033·用户/agent",
     classes:[
-      { id:"FileTransferSession", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["fileURI","FileURI"],["transferURI","ac://transfers/{id}"],["direction","TransferDirection"],["sha256","string"],["scope","FileScope"]], state:["open","completed","failed"], ops:["open()","complete()"] },
-      { id:"BlobStore", ster:"«通用基础设施 · blobstore»", c:"var(--peripheral)", fields:[["addressing","sha256 内容寻址"],["ref_count","int"]], state:[], ops:["put()","gc()"] },
+      { id:"Identity", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","'user-/agent- 前缀'"],["kind","'user|agent'"],["displayName","string"],["accountStatus","_"],["passcodeHash","'user-only'"]], state:["active","disabled"], ops:["SetPasscode()","Disable()","ReEnable()","Rename()","RecordSession()"] },
+      { id:"Member", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["organizationID","FK"],["identityID","FK"],["role","_"],["status","_"]], state:["joined","disabled"], ops:["ChangeRole()","Disable()","ReEnable()"] },
+      { id:"Organization", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["slug","'唯一'"],["name","_"],["deletedAt","'*time'"]], state:[], ops:["SoftDelete()","UpdateSlug()"] },
     ],
-    rels:[ ["FileTransferSession","BlobStore","N","1","内容寻址引用"] ],
-    svc:{ n:"BlobGCService", ops:["ref_count=0 + 宽限 → 回收"], uses:"BlobStore" } },
-  conversation: { bc:"conversation", root:"Conversation", title:"Conversation 聚合", meta:"统一线程 · 4 surface",
+    rels:[ ["Organization","Member","1","N","成员"], ["Identity","Member","1","N","加入组织"] ],
+    svc:{ n:"MemberRoleChangeService", ops:["Change()——拒末位 owner 降级"], uses:"Member" } },
+  organization: { bc:"identity", root:"Organization", title:"Organization 聚合", meta:"末位 owner 守卫",
     classes:[
-      { id:"Conversation", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ULID"],["kind","dm|channel|task|issue"],["ownerRef","OwnerRef"],["projectRef","FK?"],["participants","[]Participant"]], state:["active","closed","archived"], ops:["open()","close()","archive()"] },
-      { id:"Message", ster:"«Entity · append-only»", c:"var(--core)", fields:[["id","ULID"],["senderIdentityID","IdentityRef"],["contentKind","enum"],["inputRequestRef","FK?"],["attachments","[]"]], state:[], ops:[] },
-      { id:"Identity", ster:"«VO · SK»", c:"var(--essential)", fields:[["ref","user:|agent:"]], state:[], ops:[] },
+      { id:"Organization", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["slug","'^[a-z0-9-]+$'"],["createdBy","IdentityRef"],["deletedAt","'*time'"]], state:[], ops:["UpdateName()","SoftDelete()"] },
+      { id:"Member", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["role","'owner|admin|member'"],["status","'joined|disabled'"]], state:["joined","disabled"], ops:[] },
+      { id:"Invitation", ster:"«Aggregate Root»", c:"var(--accent)", fields:[["token","_"],["roleToGrant","_"],["status","_"],["expiresAt","time"]], state:["pending","accepted","expired","revoked"], ops:[] },
     ],
-    rels:[ ["Conversation","Message","1","N","append-only"], ["Message","Identity","N","1","sender"] ] },
-  event: { bc:"observability", root:"Event", title:"Event 聚合", meta:"append-only · 同事务",
+    rels:[ ["Organization","Member","1","N","≥1 joined owner"], ["Organization","Invitation","1","N","邀请"] ],
+    svc:{ n:"OrganizationLifecycleService", ops:["Delete()软删+级联停用成员(锁+事务)"], uses:"Organization" } },
+  filetransfer: { bc:"files", root:"FileTransferSession", title:"Files 聚合", meta:"ADR-0048·身份/放置/传输分离",
     classes:[
-      { id:"Event", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["ID","EventID"],["OccurredAt","ts"],["Seq","int"],["EventType","string"],["Refs","EventRefs"],["Actor","IdentityRef"],["Payload","map"]], state:[], ops:["append()"] },
-      { id:"Projection", ster:"«读模型»", c:"var(--accent)", fields:[["source","Event"],["view","table"]], state:[], ops:["project()"] },
+      { id:"FileTransferSession", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["fileURI","FileURI"],["direction","'upload|download'"],["status","_"],["scope","FileScope"]], state:["open","completed","canceled","expired"], ops:["Complete()","Cancel()","Expire()"] },
+      { id:"FileReference", ster:"«Entity»", c:"var(--accent)", fields:[["fileURI","FileURI"],["scope","FileScope"],["scopeID","string"],["deletedAt","'*time(软删)'"]], state:[], ops:["IsLive()"] },
+      { id:"BlobMetadata", ster:"«Entity»", c:"var(--peripheral)", fields:[["ulid","_"],["sizeBytes","int"],["contentSHA256","'仅完整性'"]], state:[], ops:["写一次"] },
+      { id:"FileURI", ster:"«Value Object»", c:"var(--peripheral)", fields:[["uri","'ac://files/{ulid}'"]], state:[], ops:[] },
+      { id:"FileScope", ster:"«Value Object»", c:"var(--peripheral)", fields:[["scope","'task|issue|project|conversation|agent|tmp|uploader'"]], state:[], ops:[] },
     ],
-    rels:[ ["Event","Projection","1","N","投影读模型"] ],
-    svc:{ n:"EventProjectionService", ops:["project(event)→读模型"], uses:"Event" } },
-  identity: { bc:"identity", root:"Identity", title:"Identity / Organization 聚合", meta:"多租户 SK 之源",
+    rels:[ ["FileTransferSession","FileURI","1","1","身份"], ["FileReference","FileURI","N","1","放置(多引用1blob)"] ],
+    svc:{ n:"files GC", ops:["RunGCOnce()——零活引用过宽限期回收"], uses:"FileReference" } },
+  usersecret: { bc:"secret", root:"UserSecret", title:"UserSecret 聚合", meta:"AES-256-GCM·ADR-0026",
     classes:[
-      { id:"Identity", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","ULID"],["kind","user|agent"]], state:[], ops:[] },
-      { id:"Organization", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","ULID"],["name","string"]], state:[], ops:[] },
-      { id:"IdentityRef", ster:"«VO · 共享内核»", c:"var(--peripheral)", fields:[["ref","user:|agent:|T<n>"]], state:[], ops:[] },
+      { id:"UserSecret", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["name","'全局唯一'"],["kind","'mcp|cloud_credential|...'"],["ciphertext","'[]byte'"],["nonce","'[]byte'"],["state","_"]], state:["active","revoked"], ops:["Rotate()","Revoke()","MarkUsed()"] },
+      { id:"SecretRef", ster:"«Value Object»", c:"var(--peripheral)", fields:[["ref","'secret:<name>'"]], state:[], ops:[] },
+      { id:"MasterKey", ster:"«Value Object»", c:"var(--peripheral)", fields:[["key","'AES-256(0600文件)'"]], state:[], ops:["Encrypt()","Decrypt()"] },
     ],
-    rels:[ ["Organization","Identity","1","N","多租户归属"], ["Identity","IdentityRef","1","N","共享内核词汇"] ] },
-  member: { bc:"identity", root:"Member", title:"Member / Invitation 聚合", meta:"组织成员 + 邀请",
+    rels:[ ["UserSecret","SecretRef","1","N","mcp_config 引用,不存明文"] ],
+    svc:{ n:"SecretResolutionService", ops:["Resolve()——JIT 解密+MarkUsed"], uses:"UserSecret" } },
+  event: { bc:"observability", root:"Event", title:"Event 聚合", meta:"append-only·ADR-0014",
     classes:[
-      { id:"Member", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","ULID"],["organizationID","FK"],["identityID","FK"],["role","enum"]], state:["active","removed"], ops:["add()","remove()"] },
-      { id:"Invitation", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","ULID"],["organizationID","FK"],["token","one-time"]], state:["pending","accepted","revoked","expired"], ops:["invite()","accept()"] },
+      { id:"Event", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","EventID"],["seq","'int64单调'"],["eventType","'<bc>.<entity>.<action>'"],["refs","EventRefs"],["actor","Actor"],["payload","'map'"]], state:[], ops:["不可变·无Update/Delete"] },
+      { id:"EventRefs", ster:"«Value Object»", c:"var(--peripheral)", fields:[["keys","'task_id/worker_id/agent_id/...'"]], state:[], ops:[] },
+      { id:"Actor", ster:"«Value Object»", c:"var(--peripheral)", fields:[["actor","'system|user:|agent:|...'"]], state:[], ops:[] },
     ],
-    rels:[ ["Invitation","Member","1","1","accept→成员"] ] },
-  usersecret: { bc:"secret", root:"UserSecret", title:"UserSecret 聚合", meta:"AES-256 · migration 0012",
+    rels:[ ["Event","EventRefs","1","1","跨BC join 键"] ],
+    svc:{ n:"EventSink", ops:["Emit()——构造+校验+追加,同事务双写"], uses:"Event" } },
+  memory: { bc:"memory", root:"Memory", title:"Memory (文件/git 服务)", meta:"非领域聚合·cognition/memory",
     classes:[
-      { id:"UserSecret", ster:"«Aggregate Root»", c:"var(--peripheral)", fields:[["id","ULID"],["userID","FK"],["name","unique"],["value","AES-256(master-key)"]], state:["active","revoked"], ops:["create()","revoke()"] },
+      { id:"MemoryScope", ster:"«Value Object»", c:"var(--peripheral)", fields:[["kind","'global|project|task|issue|conversation|worker|supervisor'"],["key","string"],["note","'文件+git 服务,非 DB 聚合'"]], state:[], ops:["ScopeToFSPath()"] },
     ],
     rels:[],
-    svc:{ n:"SecretCryptoService", ops:["encrypt() / decrypt(master-key)"], uses:"UserSecret" } },
+    svc:{ n:"GitOps", ops:["init()/commit()(走真 git)","SkeletonFactory 种子 md"], uses:"MemoryScope" } },
 };
 
 let S = { view:"map", bc:null, agg:null, mode:"structure" };
@@ -336,8 +379,8 @@ function updateRail(){
 }
 
 function renderMap(){
-  $("#title").textContent="DDD 架构浏览器 · v2.8";
-  $("#sub").textContent="从 7 个限界上下文开始，逐层点开到聚合与实体类图。绿点=已访问，蓝点=当前。";
+  $("#title").textContent="DDD 架构浏览器";
+  $("#sub").textContent="从 9 个限界上下文(+Memory 文件服务)开始，逐层点开到聚合与实体类图。绿点=已访问，蓝点=当前。";
   $("#crumbs").innerHTML="<b>① 限界上下文地图</b>";
   let h='<div class="map fade">';
   for(const k in BCS){ const b=BCS[k];
@@ -420,24 +463,23 @@ function drawRels(rels){
 window.addEventListener("resize",()=>{ if(S.view==="class"&&S.mode==="structure"){ const g=AGGS[S.agg]; requestAnimationFrame(()=>drawRels(g.rels)); } });
 
 /* ---------- sequence diagram ---------- */
-const ACTORS=[ {k:"you",n:"You · 用户"},{k:"",n:"Center"},{k:"",n:"Worker"},{k:"agent",n:"Agent · WorkItem"} ];
+const ACTORS=[ {k:"you",n:"You · 监督者"},{k:"",n:"Center"},{k:"",n:"Worker"},{k:"agent",n:"Agent · TaskExecution"} ];
 const MSGS=[
-  {f:0,t:1,l:"create_task",s:"建任务"},
-  {f:1,t:1,self:true,l:"assign_task → WorkItem(queued)",s:"派发"},
-  {f:1,t:2,l:"控制信道下推 (SSE/poll)",s:"派单"},
-  {f:2,t:3,l:"activate_work_item (queued→active)",s:"working"},
-  {f:3,t:1,l:"post_task_message",s:"会话消息"},
-  {f:3,t:1,rtl:true,l:"request_input (waiting_input)",s:"卡住请示"},
-  {f:1,t:0,rtl:true,l:"InputRequest → 收件箱",s:"升级到人"},
-  {f:0,t:1,l:"response",s:"采纳答案"},
-  {f:3,t:1,rtl:true,l:"AgentActivityEvent (观测流)",s:"实时投影"},
-  {f:3,t:1,rtl:true,l:"complete_task (running→completed)",s:"待验收"},
-  {f:0,t:1,l:"verify_task (completed→verified)",s:"验收(≠完成者)"},
+  {f:0,t:1,l:"Open Issue",s:"开议题"},
+  {f:1,t:1,self:true,l:"Conclude → Spawn Task",s:"收敛拍板"},
+  {f:1,t:2,l:"Dispatch (A2A submit)",s:"派单"},
+  {f:2,t:3,l:"spawn CLI 子进程",s:"working"},
+  {f:3,t:1,rtl:true,l:"InputRequest (escalate)",s:"卡住请示"},
+  {f:1,t:0,rtl:true,l:"Escalate → Console 卡片",s:"升级到人"},
+  {f:0,t:1,l:"Adopt / Respond",s:"采纳答案"},
+  {f:1,t:3,l:"responded",s:"继续"},
+  {f:3,t:1,rtl:true,l:"trace events (SSE) + Artifact",s:"实时投影"},
+  {f:3,t:1,rtl:true,l:"completed → Task done",s:"终态"},
 ];
 function renderSeq(){
-  $("#title").textContent="派单 · 执行 · 验收 · 序列图 · v2.8";
-  $("#sub").textContent="一次「建任务 → 派发 → 执行 → 请示 → 完成 → 验收」的端到端协作，跨 ProjectManager / Agent / Conversation / Environment。";
-  $("#crumbs").innerHTML="<b>序列图 · dispatch & verify</b>";
+  $("#title").textContent="派单与执行 · 序列图";
+  $("#sub").textContent="一次「开议题 → 收敛 → 派单 → 执行 → 请示 → 完成」的端到端协作，跨 ProjectManager / Cognition / Workforce / Conversation。";
+  $("#crumbs").innerHTML="<b>序列图 · dispatch & execute</b>";
   const N=ACTORS.length, cols=`repeat(${N},1fr)`;
   const pct=i=>((i+0.5)/N*100);
   let actors=`<div class="actorrow" style="--cols:${cols}">`+ACTORS.map(a=>`<div class="actor"><span class="box ${a.k}">${a.n}</span></div>`).join("")+`</div>`;
