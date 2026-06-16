@@ -186,11 +186,16 @@ export default function TaskDetail(): React.ReactElement {
           <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
         </div>
 
-        {/* right sidebar — 2-section TaskDetail layout (read-only display top /
+        {/* metadata sidebar — 2-section TaskDetail layout (read-only display top /
             read-only bottom). The ONLY edit path is the Edit-Task modal.
             T145: hidden on mobile (<md) — the mobile meta summary + Details panel
-            above replace it so status/assignee/plan aren't buried at the bottom. */}
-        <div className="hidden shrink-0 overflow-y-auto md:block lg:w-72">
+            above replace it so status/assignee/plan aren't buried at the bottom.
+            sidebar-hug: at desktop (lg) this metadata rail orders to the LEFT of
+            the conversation so the conversation column sits flush against the
+            shell col④ ConversationSidebar (Participants/Threads/Files) on its
+            right — matching the DM/channel layout where the conversation hugs
+            col④. Below lg the column stacks after the conversation as before. */}
+        <div className="hidden shrink-0 overflow-y-auto md:block lg:order-first lg:w-72">
           <TaskDetailSidebar
             task={tk}
             projectName={project.data?.name}
