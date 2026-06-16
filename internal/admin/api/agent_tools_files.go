@@ -150,14 +150,22 @@ func (s *Server) agentOwnDomainScopes(d HandlerDeps, r *http.Request, a *agent.A
 }
 
 // agentParticipantConvScopes returns a {ScopeConversation, convID} scope for every
-// channel/DM in the agent's OWN org where the agent is an ACTIVE (non-left)
-// participant — the file-domain realization of the post_message participant gate
-// (agentIsActiveParticipant). It is best-effort and fail-closed: a missing
-// ConvRepo, an empty org, or a Find error yields NO conversation scopes (the agent
-// is denied, never wrongly granted). Only channel + DM kinds are enumerated (task/
-// issue/plan conversations are reached via the work-item derivation above), which
-// also keeps the scan bounded — channels/DMs per org are few, well under Find's
-// DefaultConversationLimit, so no participant conversation is silently truncated.
+// channel/DM/plan conversation in the agent's OWN org where the agent is an ACTIVE
+// (non-left) participant — the file-domain realization of the post_message
+// participant gate (agentIsActiveParticipant). It is best-effort and fail-closed: a
+// missing ConvRepo, an empty org, or a Find error yields NO conversation scopes (the
+// agent is denied, never wrongly granted).
+//
+// channel + DM + PLAN kinds are enumerated here. Plan conversations (T167) MUST be
+// enumerated by participation, NOT derived from work-items: an agent participates in
+// a plan conversation as the plan creator or via PlanParticipantsChanged on
+// dispatch/assign — a relation that is independent of whether it currently holds a
+// work-item for a task IN that plan (e.g. the PD opening a plan chat has no such
+// work-item). Task/issue conversations, by contrast, ARE reached via the work-item
+// derivation in agentOwnDomainScopes and so are deliberately omitted here. The scan
+// stays bounded — channels/DMs/plans per org are each capped by Find's
+// DefaultConversationLimit; participation is org-scoped by construction so no
+// cross-org conversation appears.
 func (s *Server) agentParticipantConvScopes(d HandlerDeps, r *http.Request, a *agent.Agent) []filesservice.ScopeRef {
 	if d.ConvRepo == nil {
 		return nil
@@ -172,6 +180,7 @@ func (s *Server) agentParticipantConvScopes(d HandlerDeps, r *http.Request, a *a
 	for _, kind := range []conversation.ConversationKind{
 		conversation.ConversationKindChannel,
 		conversation.ConversationKindDM,
+		conversation.ConversationKindPlan,
 	} {
 		k := kind
 		convs, err := d.ConvRepo.Find(ctx, conversation.ConversationFilter{
