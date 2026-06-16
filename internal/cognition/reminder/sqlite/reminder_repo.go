@@ -93,6 +93,12 @@ func (r *ReminderRepo) ListByRemindee(ctx context.Context, remindeeAgentID strin
 	return r.list(ctx, `WHERE remindee_agent_id=?`, remindeeAgentID, f)
 }
 
+// ListByOrg returns every reminder in organizationID (T207 — the web console
+// "全部" view), org-scoped by construction so no cross-org row leaks.
+func (r *ReminderRepo) ListByOrg(ctx context.Context, organizationID string, f reminder.ListFilter) ([]*reminder.Reminder, error) {
+	return r.list(ctx, `WHERE organization_id=?`, organizationID, f)
+}
+
 // FindDue returns active reminders whose next_run_at <= now (§3.3 scan predicate),
 // oldest-due first so a backlog drains in order.
 func (r *ReminderRepo) FindDue(ctx context.Context, now time.Time) ([]*reminder.Reminder, error) {

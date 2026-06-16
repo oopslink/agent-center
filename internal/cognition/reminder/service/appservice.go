@@ -148,6 +148,17 @@ func (s *ReminderAppService) ListReminders(ctx context.Context, q ListRemindersQ
 	return s.repo.ListByRemindee(ctx, q.RemindeeAgentID, f)
 }
 
+// ListOrgReminders backs the web console "全部" view (T207): an org OWNER sees
+// EVERY reminder in orgID; a non-owner requester is fail-closed to its OWN created
+// reminders (never another creator's). Org-scoped by construction — no cross-org leak.
+func (s *ReminderAppService) ListOrgReminders(ctx context.Context, orgID, requesterRef string, statuses []reminder.ReminderStatus) ([]*reminder.Reminder, error) {
+	f := reminder.ListFilter{Statuses: statuses}
+	if s.dir.IsOwner(ctx, requesterRef) {
+		return s.repo.ListByOrg(ctx, orgID, f)
+	}
+	return s.repo.ListByCreator(ctx, requesterRef, f)
+}
+
 // UpdateAction selects the lifecycle op for UpdateReminder.
 type UpdateAction string
 

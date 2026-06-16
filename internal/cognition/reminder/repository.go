@@ -46,6 +46,10 @@ type Repository interface {
 	ListByCreator(ctx context.Context, creatorRef string, f ListFilter) ([]*Reminder, error)
 	// ListByRemindee returns reminders targeting remindeeAgentID (optionally filtered).
 	ListByRemindee(ctx context.Context, remindeeAgentID string, f ListFilter) ([]*Reminder, error)
+	// ListByOrg returns every reminder in organizationID (optionally status-filtered)
+	// — the org-wide "全部" view for the human web console (T207). Org-scoped by
+	// construction (no cross-org leak); the handler gates who may see all.
+	ListByOrg(ctx context.Context, organizationID string, f ListFilter) ([]*Reminder, error)
 	// FindDue returns active reminders whose next_run_at <= now (§3.3 scan predicate).
 	FindDue(ctx context.Context, now time.Time) ([]*Reminder, error)
 	// AppendFiring writes one append-only reminder_firings row.
