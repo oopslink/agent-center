@@ -94,6 +94,8 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 		Admin:     adminClient,
 		AgentRoot: agentRoot,
 		Files:     fileClient,
+		// WS5: production agents get the tiered tool set (lean core + search_tools).
+		TierTools: true,
 	})
 
 	// SIGINT/SIGTERM cancels the run ctx so Server.Run closes the stdio

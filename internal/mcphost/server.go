@@ -85,6 +85,12 @@ type Config struct {
 	// be nil if the host is built without file support (the tools then
 	// return an IsError result explaining files are not wired).
 	Files FileMover
+	// TierTools (WS5, #issue-e346e5ec) enables tool TIERING: the default tool
+	// set is the small high-frequency core; low-frequency management tools are
+	// DEFERRED (removed from the default ListTools) and loaded on demand via the
+	// search_tools meta-tool. Off (default) registers the FULL set — used by the
+	// docs export and parity tests. The production per-agent host turns it ON.
+	TierTools bool
 }
 
 // NewServer builds the per-agent MCP server, registers the b3-i tools, and
@@ -96,6 +102,25 @@ func NewServer(cfg Config) *mcp.Server {
 		Version: "0.1.0",
 	}, nil)
 
+	registerAllTools(srv, cfg)
+	if !cfg.TierTools {
+		// Full surface (docs export / parity tests) — no tiering.
+		return srv
+	}
+	// WS5 (#issue-e346e5ec) tiering: shrink the DEFAULT agent tool set to the
+	// high-frequency core (work + messages + core queries). Low-frequency
+	// management tools are DEFERRED — removed from the default ListTools and
+	// loaded on demand via search_tools (SDK tools/list_changed). Deferring is
+	// NOT an authz gate: every secondary tool stays reachable via search_tools,
+	// and the admin layer enforces authorization on the call regardless.
+	srv.RemoveTools(secondaryToolNames()...)
+	registerSearchTools(srv, cfg)
+	return srv
+}
+
+// registerAllTools registers the FULL agent-facing tool surface on srv.
+// NewServer calls it, then (when cfg.TierTools) defers the secondary tier.
+func registerAllTools(srv *mcp.Server, cfg Config) {
 	// WS2 (#issue-e346e5ec): the SINGLE "what do I have to do?" query — one call
 	// returns the agent's work partitioned into actionable buckets. Replaces the
 	// former get_my_active_work / list_my_paused_work / list_assignment_pool tools.
@@ -384,8 +409,6 @@ func NewServer(cfg Config) *mcp.Server {
 		Name:        "attach_file",
 		Description: "Attach an existing center file into a scope in the calling agent's own domain.",
 	}, makeAttachFile(cfg))
-
-	return srv
 }
 
 // getMyWorkArgs is argless: get_my_work is inherently own-scoped (the
