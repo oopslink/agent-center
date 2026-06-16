@@ -20,8 +20,9 @@ import (
 // message that wakes ONLY the remindee; cognition.reminder.fired is NEVER added
 // to the supervisor self-wake allowlist, so a reminder cannot spiral.
 type ReminderDeliverer interface {
-	// Deliver posts the reminder content to the remindee agent's conversation.
-	Deliver(ctx context.Context, remindeeAgentID, content, reminderID string) error
+	// Deliver posts the reminder content to the remindee agent's conversation,
+	// org-scoped (orgID drives the conversation's org).
+	Deliver(ctx context.Context, orgID, remindeeAgentID, content, reminderID string) error
 }
 
 // reminderFiredPayload is the subset of the fired event payload the projector needs.
@@ -29,6 +30,7 @@ type reminderFiredPayload struct {
 	ReminderID      string `json:"reminder_id"`
 	RemindeeAgentID string `json:"remindee_agent_id"`
 	Content         string `json:"content"`
+	OrganizationID  string `json:"organization_id"`
 }
 
 // ReminderDeliveryProjector consumes cognition.reminder.fired and delivers the
@@ -62,5 +64,5 @@ func (p *ReminderDeliveryProjector) Project(ctx context.Context, e outbox.Event)
 	if pl.RemindeeAgentID == "" {
 		return fmt.Errorf("reminder delivery: event %s missing remindee_agent_id", e.ID)
 	}
-	return p.deliverer.Deliver(ctx, pl.RemindeeAgentID, pl.Content, pl.ReminderID)
+	return p.deliverer.Deliver(ctx, pl.OrganizationID, pl.RemindeeAgentID, pl.Content, pl.ReminderID)
 }

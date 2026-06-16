@@ -444,10 +444,19 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	// the D2-e-iii wake reconcile loop below must drive the SAME instance the relay
 	// drains (push + poll dedup on the same batch key).
 	projectors, wakeProj := a.outboxProjectors(outboxRepo, appliedRepo, controlLog)
+	// T206: the Reminder delivery projector consumes cognition.reminder.fired and
+	// wakes the remindee (design §3.4). Appended to the shared projector set.
+	if rdp := buildReminderDeliveryProjector(a); rdp != nil {
+		projectors = append(projectors, rdp)
+	}
 	relay := outbox.NewRelay(outboxRepo, appliedRepo, a.Clock, projectors...)
 	pump := outbox.NewPump(relay, time.Second, 0).WithErrorHandler(func(err error) {
 		logger("webconsole outbox pump: " + err.Error())
 	})
+	// T206: scan + fire due reminders on the same 1s tick (design §D4).
+	if hook := buildReminderTickHook(a, logger); hook != nil {
+		pump = pump.WithTickHook(hook)
+	}
 	pumpCtx, pumpCancel := context.WithCancel(ctx)
 	go pump.Run(pumpCtx)
 

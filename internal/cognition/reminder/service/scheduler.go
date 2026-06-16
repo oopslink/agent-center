@@ -31,13 +31,13 @@ type EventEmitter interface {
 	Emit(ctx context.Context, cmd observability.EmitCommand) (observability.EventID, error)
 }
 
-// IDGen produces a new firing ULID.
-type IDGen interface{ NewID() string }
+// IDGen produces a new firing ULID (idgen.Generator satisfies it).
+type IDGen interface{ NewULID() string }
 
 // IDGenFunc adapts a func to IDGen.
 type IDGenFunc func() string
 
-func (f IDGenFunc) NewID() string { return f() }
+func (f IDGenFunc) NewULID() string { return f() }
 
 // ReminderScheduler scans due reminders and fires them (§3.3). It is driven by
 // the ReminderTickProjector on the outbox Pump tick (§D4).
@@ -88,7 +88,7 @@ func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, n
 			return err
 		}
 		if err := s.repo.AppendFiring(txCtx, reminder.Firing{
-			ID:         s.idGen.NewID(),
+			ID:         s.idGen.NewULID(),
 			ReminderID: r.ID().String(),
 			FiredAt:    now,
 			Outcome:    reminder.OutcomeDelivered,
@@ -103,6 +103,7 @@ func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, n
 		payload := map[string]any{
 			"reminder_id":       r.ID().String(),
 			"remindee_agent_id": r.RemindeeAgentID(),
+			"organization_id":   r.OrganizationID(),
 			"creator_ref":       r.CreatorRef(),
 			"content":           r.Content(),
 			"fired_at":          now.UTC().Format(time.RFC3339Nano),

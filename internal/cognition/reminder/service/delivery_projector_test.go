@@ -15,7 +15,7 @@ type fakeDeliverer struct {
 	err     error
 }
 
-func (f *fakeDeliverer) Deliver(_ context.Context, remindeeAgentID, content, _ string) error {
+func (f *fakeDeliverer) Deliver(_ context.Context, _, remindeeAgentID, content, _ string) error {
 	f.calls++
 	f.lastTo = remindeeAgentID
 	f.lastMsg = content
