@@ -94,6 +94,7 @@
 | [cognition/00-overview](architecture/tactical/cognition/00-overview.md) | 战术 (BC4) | Cognition BC 入口 + § X.1-X.6 wrap（SupervisorInvocation + Memory 两聚合）|
 | [cognition/01-supervisor-invocation](architecture/tactical/cognition/01-supervisor-invocation.md) | 战术 (BC4) | SupervisorInvocation AR + DecisionRecord 子从属（4 态状态机 / WakeScheduler / 决策审计）|
 | [cognition/02-memory](architecture/tactical/cognition/02-memory.md) | 战术 (BC4) | Memory AR（file-based + git 仓；7 种 scope；ancestor walk）|
+| [cognition/04-wake-guardrail](architecture/tactical/cognition/04-wake-guardrail.md) | 战术 (BC4) | Agent↔Agent 唤醒护栏（WakeChain + 四闸 + SilentAck；跨 Conversation BC；I7）|
 | [observability/00-overview](architecture/tactical/observability/00-overview.md) | 战术 (BC5) | Observability BC 入口 + § X.1-X.6 wrap（Event AR + 读模型 projections + 5 个 CLI 动词 + Fleet View）|
 | [conversation/00-overview](architecture/tactical/conversation/00-overview.md) | 战术 (BC6) | Conversation BC 入口 + § X.1-X.6 wrap（Conversation + Identity 两聚合）|
 | [conversation/01-conversation](architecture/tactical/conversation/01-conversation.md) | 战术 (BC6) | Conversation AR + Message 子从属（6 种 kind + 6 种 content_kind + Invariants）|
