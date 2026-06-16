@@ -245,11 +245,21 @@ export default function AppLayout(): React.ReactElement {
   // layout (≥768) is unchanged — its real columns show instead.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  // Mobile (<768): the col② secondary nav has no column, so it reflows into a
+  // bottom sheet opened from the top-bar title. Without this, tapping a module
+  // (e.g. Workspace) on mobile only lands on its default page (Projects) with no
+  // way to reach the module's other sections (Issues / Tasks / Plans).
+  const [navSheetOpen, setNavSheetOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(readSidebarCollapsed);
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  // Close the mobile nav sheet on any route change — tapping a section navigates,
+  // so the sheet must get out of the way of the now-current screen.
+  useEffect(() => {
+    setNavSheetOpen(false);
+  }, [location.pathname, location.search]);
 
   // col④ on-demand context panel host + open flag (see shell/contextPanel.tsx).
   const { Provider: ContextPanelProvider, value: panelValue, setHost, open: panelOpen, collapsed: panelCollapsed } =
@@ -343,6 +353,9 @@ export default function AppLayout(): React.ReactElement {
           displayName={me.data?.display_name}
           hasContextPanel={panelOpen}
           sheetOpen={sheetOpen}
+          hasNav={!!activeModule}
+          navSheetOpen={navSheetOpen}
+          onOpenNav={() => setNavSheetOpen(true)}
           onToggleSheet={() => setSheetOpen((v) => !v)}
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenAccount={() => setAccountOpen(true)}
@@ -461,6 +474,18 @@ export default function AppLayout(): React.ReactElement {
 
         {/* col① on mobile — the bottom Tab Bar (the desktop rail reflowed). */}
         <MobileTabBar modules={modules} activeModuleId={activeModule?.id} orgBase={orgBase} />
+
+        {/* col② on mobile — the active module's secondary nav, reflowed into a
+            bottom sheet (opened from the top-bar title). This is what gives mobile
+            access to a module's sections beyond its default page — e.g. Workspace's
+            Issues / Tasks / Plans, not just the Projects landing. */}
+        <MobileModuleNavSheet
+          open={navSheetOpen}
+          onClose={() => setNavSheetOpen(false)}
+          module={activeModule}
+          orgBase={orgBase}
+          onOpenPalette={() => setPaletteOpen(true)}
+        />
 
         {/* Mobile account/org/theme/sign-out menu (the rail + col② footer
             actions, reflowed into a bottom sheet). */}
@@ -1106,6 +1131,9 @@ function MobileTopBar({
   displayName,
   hasContextPanel,
   sheetOpen,
+  hasNav,
+  navSheetOpen,
+  onOpenNav,
   onToggleSheet,
   onOpenPalette,
   onOpenAccount,
@@ -1114,13 +1142,34 @@ function MobileTopBar({
   displayName?: string;
   hasContextPanel: boolean;
   sheetOpen: boolean;
+  hasNav: boolean;
+  navSheetOpen: boolean;
+  onOpenNav: () => void;
   onToggleSheet: () => void;
   onOpenPalette: () => void;
   onOpenAccount: () => void;
 }): React.ReactElement {
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-1 border-b border-border-base bg-bg-elevated pl-3 pr-1 md:hidden">
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{title}</span>
+      {hasNav ? (
+        // Tappable title → opens the module's secondary-nav sheet (the only way
+        // to reach a module's other sections on mobile, where col② has no column).
+        <button
+          type="button"
+          onClick={onOpenNav}
+          aria-label={`${title} sections`}
+          aria-expanded={navSheetOpen}
+          data-testid="mobile-nav-toggle"
+          className="flex min-w-0 flex-1 items-center gap-1 rounded py-1 pr-1 text-left text-sm font-medium text-text-primary hover:bg-bg-subtle motion-safe:transition-colors"
+        >
+          <span className="min-w-0 truncate">{title}</span>
+          <span aria-hidden="true" className="inline-flex h-4 w-4 flex-shrink-0 text-text-muted">
+            <ChevronDownIcon />
+          </span>
+        </button>
+      ) : (
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{title}</span>
+      )}
       <button
         type="button"
         onClick={onOpenPalette}
@@ -1158,6 +1207,39 @@ function MobileTopBar({
         </span>
       </button>
     </header>
+  );
+}
+
+// ============================================================================
+// MobileModuleNavSheet — the col② secondary nav reflowed into a bottom sheet on
+// mobile (<768), where col② has no column. Renders the active module's registered
+// secondary nav (e.g. Workspace → Projects / Issues / Tasks / Plans) so every
+// section is reachable on mobile, not just the module's default landing page.
+// Falls back to the shared SecondaryNavBody for a module with no registered
+// override. Reuses the generic <BottomSheet> primitive.
+// ============================================================================
+function MobileModuleNavSheet({
+  open,
+  onClose,
+  module,
+  orgBase,
+  onOpenPalette,
+}: {
+  open: boolean;
+  onClose: () => void;
+  module?: ModuleDef;
+  orgBase: string;
+  onOpenPalette: () => void;
+}): React.ReactElement | null {
+  const ModuleNav = module ? SECONDARY_NAV_REGISTRY[module.id] : undefined;
+  return (
+    <BottomSheet open={open} onClose={onClose} title={module?.label ?? 'Navigation'} testId="mobile-nav-sheet">
+      {ModuleNav ? (
+        <ModuleNav orgBase={orgBase} />
+      ) : (
+        <SecondaryNavBody module={module} orgBase={orgBase} onOpenPalette={onOpenPalette} />
+      )}
+    </BottomSheet>
   );
 }
 
@@ -1511,6 +1593,13 @@ function ThemeSegmented({
 // Inline Heroicons-style outline SVGs (skill rules `no-emoji-icons` +
 // `icon-style-consistent`). Single stroke-width, current color.
 // ============================================================================
+function ChevronDownIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M5.5 8l4.5 4.5L14.5 8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
