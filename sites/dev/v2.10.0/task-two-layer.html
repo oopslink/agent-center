@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task / TaskExecution 两层模型 · agent-center 文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.docshell { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 220px 1fr 200px; gap: 38px; }
+.toc { position: sticky; top: 70px; align-self: start; height: max-content; padding: 18px 0; }
+.toc h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; }
+.toc a { display: block; padding: 5px 12px; border-left: 2px solid var(--border); color: var(--ink-2); font-size: 13.5px; }
+.toc a.on, .toc a:hover { border-color: var(--accent); color: var(--brand); background: var(--bg-subtle); }
+.article { padding: 34px 0 70px; min-width: 0; }
+.article .bc-tag { display:flex; gap:8px; align-items:center; margin-bottom: 12px; }
+.article h1 { font-size: 36px; font-weight: 800; margin-bottom: 8px; }
+.article .dek { font-size: 17px; color: var(--ink-2); margin: 0 0 26px; }
+.article h2 { font-size: 22px; font-weight: 700; margin: 38px 0 12px; padding-top: 8px; }
+.article p { margin: 0 0 16px; }
+.article p, .article li { color: var(--ink); }
+.article ul { padding-left: 20px; } .article li { margin-bottom: 7px; }
+.article code { font-family: var(--font-mono); font-size: .88em; background: var(--bg-subtle); padding: 1.5px 6px; border-radius: 5px; color: var(--brand); }
+.callout { border: 1px solid var(--core-bd); background: var(--core-bg); border-radius: var(--r-md); padding: 14px 16px; margin: 20px 0; font-size: 14px; }
+.callout b { font-family: var(--font-mono); font-size: 12px; color: var(--brand); }
+.codeblock { background: #003247; color: #f1f5f9; border-radius: var(--r-md); padding: 16px 18px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7; overflow-x: auto; margin: 18px 0; }
+.codeblock .c { color: #7dd3fc; } .codeblock .k { color: #fcd34d; }
+.statetable { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13.5px; }
+.statetable th, .statetable td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.statetable th { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }
+.statetable td code { background: var(--bg-subtle); }
+.related { position: sticky; top: 70px; align-self: start; padding: 18px 0; }
+.related h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; }
+.related a { display: block; padding: 9px 0; border-top: 1px solid var(--border); font-size: 13px; color: var(--ink-2); }
+.related a:hover { color: var(--brand); }
+.related a small { display:block; color: var(--ink-3); font-family: var(--font-mono); font-size: 10.5px; }
+.backline { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); margin: 22px 0 0; display:inline-block; }
+@media (max-width: 980px){ .docshell{grid-template-columns:1fr} .toc,.related{display:none} }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a class="active" href="index.html">架构 / DDD</a><a href="../../manual/v2.10.0/index.html">手册</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+
+<div class="docshell">
+  <aside class="toc">
+    <h4>本页目录</h4>
+    <nav>
+      <a class="on" href="#why">为什么两层</a>
+      <a href="#task">Task：身份不变</a>
+      <a href="#exec">TaskExecution：每次执行</a>
+      <a href="#state">状态机</a>
+      <a href="#retry">retry 语义</a>
+    </nav>
+  </aside>
+
+  <article class="article">
+    <div class="crumbs" style="font-family:var(--font-mono);font-size:12.5px;color:var(--ink-3);margin-bottom:6px">
+      <a href="index.html">架构 / DDD</a> › <a href="index.html">ProjectManager</a> › Task 聚合
+    </div>
+    <div class="bc-tag"><span class="chip core">Core</span><span class="muted" style="font-family:var(--font-mono);font-size:12px">ADR-0010 · ADR-0019</span></div>
+    <h1>Task / TaskExecution 两层模型</h1>
+    <p class="dek">为什么任务的「身份」和「每一次运行」要拆成两个独立聚合根 —— 这是 agent-center 调度可靠性的根。</p>
+
+    <div class="callout"><b>TL;DR</b> &nbsp;Task 是不变的工作单元身份；TaskExecution 是它的每一次 dispatch。retry 不新建 task，只追加一条 execution。一图胜千言 → 回 <a href="index.html">架构浏览器</a>看类图与序列图。</div>
+
+    <h2 id="why">为什么两层</h2>
+    <p>单层模型里，「重试一个失败任务」要么覆盖原记录（丢历史），要么复制成新任务（身份漂移）。两层模型把<strong>身份</strong>与<strong>运行痕迹</strong>分开：<code>Task</code> 持有稳定身份，<code>TaskExecution</code> 记录每一次从 dispatch 到结束的过程。</p>
+    <ul>
+      <li><code>Task</code> 1 : N <code>TaskExecution</code> —— 一个任务可被多次执行。</li>
+      <li>每条 <code>TaskExecution</code> 永远绑定一个 <code>worker</code>，由 A2A 状态机驱动。</li>
+      <li>只有 center 能创建 task，<strong>无野任务</strong>（conventions §1）。</li>
+    </ul>
+
+    <h2 id="task">Task：身份不变</h2>
+    <p>Task 是独立 Aggregate Root，属于一个 <code>project</code>，并跟一条 <code>kind=task</code> 的 Conversation <strong>1:1 绑定</strong>（<code>task.conversation_id</code>）—— 对话即决策审计。</p>
+
+    <h2 id="exec">TaskExecution：每一次执行</h2>
+    <p>TaskExecution 持 <code>task_id</code> 强引用 Task。它的子实体包括卡住时的 <code>InputRequest</code>（同步阻塞请示）和产出的 <code>Artifact</code>（PR URL / 文件 / 报告，free-form kind）。</p>
+    <div class="codeblock"><span class="c"># retry = 同 task 新 execution，不创建新 task</span><br>Task <span class="k">task_01H…</span> ─┬─ TaskExecution #1 → <span class="k">failed</span> (timeout)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ TaskExecution #2 → <span class="k">killed</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ TaskExecution #3 → <span class="k">completed</span> ✓ → Task <span class="k">done</span></div>
+
+    <h2 id="state">状态机</h2>
+    <table class="statetable">
+      <tr><th>层</th><th>状态</th></tr>
+      <tr><td>Task</td><td><code>open</code> · <code>suspended</code> · <code>done</code> · <code>abandoned</code></td></tr>
+      <tr><td>TaskExecution</td><td><code>submitted</code> · <code>working</code> · <code>input_required</code> · <code>completed</code> · <code>failed</code> · <code>killed</code></td></tr>
+    </table>
+
+    <h2 id="retry">retry 语义</h2>
+    <p>当某条 execution 走到 <code>completed</code> 终态，Task 自动联动为 <code>done</code>。失败可重试 —— 新 execution、同 task，历史完整保留。</p>
+
+    <a class="backline" href="index.html">← 回架构浏览器看 Task 聚合类图与序列图</a>
+  </article>
+
+  <aside class="related">
+    <h4>相关</h4>
+    <a href="index.html">Issue 协商流<small>ADR-0021 / 0039</small></a>
+    <a href="index.html">Task ↔ Conversation 1:1<small>ADR-0039</small></a>
+    <a href="index.html">AgentInstance 一等身份<small>ADR-0024</small></a>
+    <a href="#">Dispatch reliability 协议<small>Cognition BC</small></a>
+  </aside>
+</div>
+</body>
+</html>

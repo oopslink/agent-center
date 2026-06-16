@@ -3,248 +3,125 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>产品介绍 · agent-center</title>
-<meta name="description" content="agent-center 是一个 AI 智能体调度中心：一个 server，worker 接入任意机器，智能体在任意位置运行，每一次决策都落在可追溯的线程上。了解它是什么、解决什么问题、核心能力与整体架构。">
-<link rel="stylesheet" href="../assets/site.css">
-<script src="../assets/site.js" defer></script>
+<title>产品 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/redesign.css">
 <style>
-  /* page-specific: runtime structure diagram for the architecture overview */
-  .arch { margin: 8px 0 4px; }
-  .arch-server {
-    border: 1px solid var(--border); border-radius: var(--r-lg);
-    background: var(--surface); box-shadow: var(--shadow);
-    padding: 16px 18px; margin: 0 0 6px;
-  }
-  .arch-server > .node-h { color: var(--primary); }
-  .node {
-    border: 1px solid var(--border); border-radius: var(--r-md);
-    background: var(--surface-2); padding: 12px 14px;
-  }
-  .node .node-h { margin: 0 0 4px; font-size: 14px; font-weight: 700; font-family: var(--mono); }
-  .node .node-sub { margin: 0; font-size: 13px; color: var(--ink-soft); }
-  .node code { font-family: var(--mono); font-size: 12px; background: var(--surface); color: var(--accent); border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; }
-  .node-row { display: flex; flex-wrap: wrap; gap: 12px; }
-  .node-row > .node { flex: 1 1 220px; min-width: 200px; }
-  .arch-conn { text-align: center; color: var(--ink-mute); font-size: 13px; margin: 6px 0; }
-  .arch-conn b { color: var(--ink-soft); }
-  .arch-worker {
-    border: 1px solid var(--border); border-radius: var(--r-lg);
-    background: var(--surface); box-shadow: var(--shadow);
-    padding: 16px 18px; margin: 6px 0 0;
-  }
-  .arch-worker > .node-h { color: var(--accent); }
-  .arch-block-h { margin: 0 0 10px; font-size: 15px; font-weight: 800; }
+.phero { padding: 56px 0 30px; text-align: center; position: relative; }
+.phero h1 { font-size: 46px; font-weight: 800; letter-spacing: -.035em; max-width: 760px; margin: 14px auto 0; }
+.phero h1 .hl { color: var(--brand); }
+.phero p { font-size: 18px; color: var(--ink-2); max-width: 540px; margin: 16px auto 0; }
 
-  /* 会话脊梁图（是什么） */
-  .spine { margin: 12px 0 4px; }
-  .spine-bar { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; background: var(--panel); color: var(--panel-ink); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 15px 18px; font-family: var(--mono); font-weight: 700; font-size: 14px; box-shadow: var(--shadow); }
-  .spine-bar .tag-thread { color: var(--panel-cyan); }
-  .spine-bar small { font-weight: 400; color: var(--panel-soft); font-size: 12px; }
-  .spine-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; position: relative; }
-  .spine-cols::before { content: "▲"; position: absolute; left: 50%; top: -4px; transform: translateX(-50%); color: var(--ink-faint); font-size: 11px; }
-  @media (max-width: 720px) { .spine-cols { grid-template-columns: 1fr; } }
-  .spine-col { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: 12px 14px; box-shadow: var(--shadow); }
-  .spine-col h4 { margin: 0 0 8px; font-size: 12px; font-family: var(--mono); color: var(--ink-mute); text-transform: uppercase; letter-spacing: .5px; }
-  .spine-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .schip { font-family: var(--mono); font-size: 12px; padding: 4px 10px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-soft); }
-  .schip.hot { border-color: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
-  .impl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 0; font-family: var(--mono); font-size: 12px; color: var(--ink-mute); }
-  .impl-row .schip { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+/* how it works — 3-step flow */
+.flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: stretch; gap: 0; margin: 8px 0 60px; }
+.step { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 22px; }
+.step .k { font-family: var(--font-mono); font-size: 12px; color: var(--accent); font-weight: 700; }
+.step h3 { font-size: 18px; margin: 6px 0 8px; }
+.step p { font-size: 13px; color: var(--ink-2); margin: 0 0 14px; }
+.mini { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); }
+.mini .r { display: flex; align-items: center; gap: 7px; padding: 3px 0; }
+.mini .b { width: 8px; height: 8px; border-radius: 3px; }
+.flowsep { display: grid; place-items: center; color: var(--accent); font-size: 22px; width: 44px; }
 
-  /* 痛点 → 应对（解决什么问题） */
-  .pa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 12px; margin: 10px 0; }
-  @media (max-width: 560px) { .pa-grid { grid-template-columns: 1fr; } }
-  .pa { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 8px; }
-  .pa .pain, .pa .fix { border: 1px solid var(--border); border-radius: var(--r-md); padding: 11px 13px; font-size: 13px; box-shadow: var(--shadow); line-height: 1.5; }
-  .pa .pain { border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); color: var(--ink-soft); }
-  .pa .fix { border-left: 3px solid var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); color: var(--ink-soft); }
-  .pa .arrow { align-self: center; font-family: var(--mono); color: var(--primary); font-weight: 700; }
-  .pa b { color: var(--ink); }
-  @media (max-width: 480px) { .pa { grid-template-columns: 1fr; } .pa .arrow { transform: rotate(90deg); } }
+/* feature bento with span variety */
+.fsec { margin-bottom: 24px; }
+.fsec h2 { font-size: 28px; font-weight: 700; text-align: center; }
+.fsec .sub { text-align: center; color: var(--ink-3); margin: 6px 0 26px; }
+.fgrid { display: grid; grid-template-columns: repeat(4,1fr); grid-auto-rows: 168px; gap: 14px; margin-bottom: 64px; }
+.f { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; transition: .2s; position: relative; overflow: hidden; }
+.f:hover { border-color: var(--accent); box-shadow: var(--shadow-2); transform: translateY(-3px); }
+.f .ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 18px; background: var(--core-bg); color: var(--brand); margin-bottom: 12px; }
+.f h4 { font-size: 16px; } .f p { font-size: 13px; color: var(--ink-2); margin: 6px 0 0; }
+.f.wide { grid-column: span 2; } .f.tall { grid-row: span 2; }
+.f .badge { position: absolute; top: 16px; right: 16px; font-family: var(--font-mono); font-size: 10px; color: var(--essential); background: var(--essential-bg); padding: 2px 8px; border-radius: 999px; }
+/* console preview chart inside tall card */
+.preview { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-base); }
+.preview .bar { background: var(--rail-bg); padding: 7px 10px; display: flex; gap: 5px; }
+.preview .bar i { width: 8px; height: 8px; border-radius: 50%; background: #334155; }
+.preview .body { padding: 10px; display: grid; gap: 6px; }
+.preview .lane { display: grid; grid-template-columns: 56px 1fr; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-3); }
+.preview .track { height: 16px; border-radius: 5px; background: var(--bg-subtle); position: relative; overflow: hidden; }
+.preview .fill { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
+.preview .fill.run { background: linear-gradient(90deg,var(--essential),#5eead4); }
+.preview .fill.done { background: var(--core-bg); border: 1px solid var(--core-bd); }
+.preview .fill.wait { background: var(--status-amber-bg,#fef3c7); }
 
-  /* arch connector motion */
-  .arch-conn { position: relative; overflow: hidden; }
-  .js .arch-conn::after { content: ""; position: absolute; left: -40px; top: 50%; height: 2px; width: 40px; background: linear-gradient(90deg, transparent, var(--primary), transparent); animation: pa-run 3s linear infinite; opacity: .5; }
-  @keyframes pa-run { from { left: -40px; } to { left: 100%; } }
-  @media (prefers-reduced-motion: reduce) { .js .arch-conn::after { display: none; } }
+.cta-band { background: var(--rail-bg); border-radius: var(--r-xl); padding: 44px; text-align: center; color: #fff; margin-bottom: 60px; position: relative; overflow: hidden; }
+.cta-band::before { content:""; position:absolute; inset:0; background-image: linear-gradient(rgba(148,163,184,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.07) 1px,transparent 1px); background-size: 30px 30px; }
+.cta-band h2 { font-size: 30px; position: relative; }
+.cta-band p { color: #94a3b8; margin: 10px 0 22px; position: relative; }
+.cta-band .row { display: flex; gap: 12px; justify-content: center; position: relative; }
+.cta-band .btn.ghost { background: transparent; color: #fff; border-color: #334155; }
+
+.fade { opacity:0; transform: translateY(14px); animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
+.d1{animation-delay:.05s}.d2{animation-delay:.14s}.d3{animation-delay:.22s}
+@keyframes rise { to { opacity:1; transform:none; } }
+@media (max-width: 900px){ .flow{grid-template-columns:1fr} .flowsep{transform:rotate(90deg);width:auto;height:32px} .fgrid{grid-template-columns:1fr 1fr;grid-auto-rows:auto} .f.wide,.f.tall{grid-column:auto;grid-row:auto} .phero h1{font-size:34px} }
 </style>
 </head>
 <body>
-
-<header class="site-hd">
-  <div class="hd-inner">
-    <a class="brand" href="../index.html">agent-center<span class="dot">·</span></a>
-    <nav class="hd-nav">
-      <a class="active" href="../product/index.html">产品介绍</a>
-      <a href="../manual/v2.8/index.html">用户手册</a>
-      <a href="../dev/v2.8/index.html">开发指引</a>
-      <a href="../roadmap/index.html">路线图</a>
-      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
-    </nav>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../index.html">首页</a><a class="active" href="../product/index.html">产品</a><a href="../dev/v2.10.0/index.html">架构 / DDD</a><a href="../manual/v2.10.0/index.html">手册</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
   </div>
 </header>
 
-<div class="crumb"><a href="../index.html">首页</a> › 产品介绍</div>
-
-<section class="hero sm">
-  <div class="inner">
-    <span class="eyebrow">产品介绍 · 多智能体编排平台</span>
-    <h1>AI 智能体调度中心</h1>
-    <p class="lede">智能体在任意位置运行，每一次决策都落在可追溯的线程上。</p>
+<section class="phero">
+  <div class="wrap">
+    <span class="eyebrow fade d1">PRODUCT · 多智能体编排</span>
+    <h1 class="fade d1">一个人，指挥<span class="hl">一支 Agent 队伍</span></h1>
+    <p class="fade d2">在 Web Console 派单、看进度、做决策 —— Agent 在你的每台开发机上干活，所有过程在一条可追溯的线程里。</p>
   </div>
 </section>
 
-<main class="wrap">
-
-  <div class="section-title">agent-center 是什么 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 会话是脊梁，不只是日志</span></div>
-  <div class="spine">
-    <div class="spine-bar">
-      <span class="tag-thread">◇ Conversation</span> 会话线程 <small>· 一条可追溯的脊梁</small>
+<div class="wrap">
+  <div class="flow fade d2">
+    <div class="step">
+      <div class="k">01 · 派单</div><h3>开任务 / 议题</h3><p>你或 Supervisor 发起；Center 是唯一权威，无野任务。</p>
+      <div class="mini"><div class="r"><span class="b" style="background:var(--brand)"></span>You → Center</div><div class="r"><span class="b" style="background:var(--accent)"></span>dispatch(task, worker)</div></div>
     </div>
-    <div class="spine-cols">
-      <div class="spine-col">
-        <h4>挂在线程上的业务对象</h4>
-        <div class="spine-chips">
-          <span class="schip">Task 任务</span><span class="schip">Issue 议题</span><span class="schip">Channel 频道</span><span class="schip">DM 私信</span>
-        </div>
-      </div>
-      <div class="spine-col">
-        <h4>落在线程上的每一步</h4>
-        <div class="spine-chips">
-          <span class="schip hot">派单 Dispatch</span><span class="schip hot">InputRequest</span><span class="schip hot">决策 Decision</span><span class="schip hot">进度</span><span class="schip hot">产物 Artifact</span>
-        </div>
-      </div>
+    <div class="flowsep">→</div>
+    <div class="step">
+      <div class="k">02 · 执行</div><h3>Agent 在 Worker 上跑</h3><p>per-execution spawn CLI 子进程；卡住会向你请示。</p>
+      <div class="mini"><div class="r"><span class="b" style="background:var(--essential)"></span>Worker → Agent · working</div><div class="r"><span class="b" style="background:var(--warning)"></span>InputRequest ↑ 升级到人</div></div>
     </div>
-    <div class="impl-row">
-      实现 ＝ <span class="schip">Go 后端</span><span class="schip">React/Vite Web Console</span><span class="schip">go:embed</span> → <b style="color:var(--ink)">同一个二进制</b>
+    <div class="flowsep">→</div>
+    <div class="step">
+      <div class="k">03 · 追溯</div><h3>对话即审计</h3><p>Task / Issue 各绑一条会话；trace 实时投影，事件 append-only。</p>
+      <div class="mini"><div class="r"><span class="b" style="background:var(--essential)"></span>trace (SSE) + Artifact</div><div class="r"><span class="b" style="background:var(--core)"></span>completed → done</div></div>
     </div>
   </div>
 
-  <div class="section-title">解决什么问题 <span style="font-weight:400;font-size:12px;color:var(--ink-mute);text-transform:none;letter-spacing:0">— 痛点 → 应对</span></div>
-  <div class="pa-grid">
-    <div class="pa">
-      <div class="pain">智能体散落多机，<b>状态分散在 N 个终端</b></div>
-      <div class="arrow">→</div>
-      <div class="fix">一个 server 汇聚；<code>/fleet</code> 实时呈现 worker × 执行 × 待处理 IR</div>
-    </div>
-    <div class="pa">
-      <div class="pain">执行到一半<b>停下来问你</b>（"要不要提交？"）</div>
-      <div class="arrow">→</div>
-      <div class="fix"><b>InputRequest 一等概念</b>：Web Console 卡片作答，随即恢复</div>
-    </div>
-    <div class="pa">
-      <div class="pain">难追溯<b>做了什么、为什么、奉谁之命</b></div>
-      <div class="arrow">→</div>
-      <div class="fix">每个 Task/Issue 一条<b>会话线程</b>，派单/决策/进度/产物全在其中</div>
-    </div>
-    <div class="pa">
-      <div class="pain">Skill / MCP 配置<b>散落各仓</b></div>
-      <div class="arrow">→</div>
-      <div class="fix"><b>AgentInstance 一等聚合根</b>：指令 + MCP + skill 绑定到智能体身份</div>
-    </div>
-    <div class="pa">
-      <div class="pain"><b>凭据管理</b>散乱、易泄露</div>
-      <div class="arrow">→</div>
-      <div class="fix"><b>UserSecret</b> BC · AES-256 · 明文永不回显 · <code>secret:&lt;name&gt;</code> 引用</div>
-    </div>
-    <div class="pa">
-      <div class="pain"><b>多机部署</b>繁琐</div>
-      <div class="arrow">→</div>
-      <div class="fix">多主机 TCP+TLS（SSH 式指纹固定）+ <b>一条命令</b>完成首跳接入</div>
-    </div>
-  </div>
-
-  <div class="section-title">核心能力 / 特性</div>
-  <div class="features">
-    <div class="feature">
-      <h4>📦 装好即用</h4>
-      <p>一条命令装中心、一条命令装 worker；<code>upgrade</code> 原子切换 + 健康探针 + 自动回滚。</p>
-    </div>
-    <div class="feature">
-      <h4>🔑 开箱即用鉴权</h4>
-      <p>订阅版 <code>/login</code> 即用；智能体 claude 复用同一份登录，无需额外配置。</p>
-    </div>
-    <div class="feature">
-      <h4>🧩 AgentInstance 一等公民</h4>
-      <p>指令 + MCP servers + skill 挂载，全部绑定到智能体身份。</p>
-    </div>
-    <div class="feature">
-      <h4>🌐 单机多 worker · 跨主机 TCP+TLS</h4>
-      <p>同机多 worker；多主机 SSH 式指纹固定（pinning）。</p>
-    </div>
-  </div>
-
-  <div class="section-title">整体架构概览</div>
-  <p class="lead">单个 <code>agent-center</code> 二进制以多种模式运行。以下只描绘代码中真实存在的运行时组件。</p>
-  <div class="arch">
-
-    <div class="arch-server">
-      <div class="arch-block-h" style="color:var(--primary)">中心服务 · <code>agent-center server</code></div>
-      <p class="node-sub" style="margin:0 0 12px">汇聚全部状态，独占 SQLite 数据库，对外暴露以下端点：</p>
-      <div class="node-row">
-        <div class="node">
-          <p class="node-h">Web Console</p>
-          <p class="node-sub">内嵌的 React SPA（<code>go:embed</code>），仅监听回环 <code>127.0.0.1:7100</code>。</p>
-        </div>
-        <div class="node">
-          <p class="node-h">Admin 端点</p>
-          <p class="node-sub">本地 unix socket，及/或供跨主机 worker 使用的 TCP+TLS <code>:7300</code>。</p>
-        </div>
-        <div class="node">
-          <p class="node-h">Center 监听</p>
-          <p class="node-sub">默认监听端口 <code>:7050</code>（避开被 macOS AirPlay 占用的 7000）。</p>
+  <div class="fsec"><h2>能力一览</h2><div class="sub">denser than marketing, less dense than a trading terminal —— 单 Go 二进制，loopback-only</div></div>
+  <div class="fgrid fade d3">
+    <div class="f tall">
+      <div class="ic">▦</div><h4>Fleet View</h4><p>一屏看 N 个 Agent 在干什么。</p>
+      <div class="preview">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="body">
+          <div class="lane"><span>coder-mbp</span><div class="track"><div class="fill run" style="left:0;width:72%"></div></div></div>
+          <div class="lane"><span>tester-1</span><div class="track"><div class="fill done" style="left:0;width:100%"></div></div></div>
+          <div class="lane"><span>pd</span><div class="track"><div class="fill wait" style="left:0;width:40%"></div></div></div>
+          <div class="lane"><span>worker-2</span><div class="track"><div class="fill run" style="left:0;width:55%"></div></div></div>
         </div>
       </div>
     </div>
-
-    <div class="arch-conn">▲ ▼ &nbsp;<b>仅经由 admin 端点通信（worker 从不直接打开 SQLite）</b></div>
-
-    <div class="arch-worker">
-      <div class="arch-block-h" style="color:var(--accent)">Worker 守护进程 · <code>agent-center worker run --config=…</code></div>
-      <p class="node-sub" style="margin:0 0 12px">运行在同一台或任意其他机器上的控制流执行器，负责拉起智能体 CLI。自 v2.7 起，worker 守护进程随统一的 <code>agent-center</code> 二进制一并分发。其下还包含：</p>
-      <div class="node-row">
-        <div class="node">
-          <p class="node-h">MCP host</p>
-          <p class="node-sub"><code>agent-center worker mcp-host</code> —— 由守护进程为每个智能体拉起的 stdio MCP server，向智能体的 claude 进程暴露 agent-center 工具集。</p>
-        </div>
-        <div class="node">
-          <p class="node-h">Agent supervisor</p>
-          <p class="node-sub"><code>agent-center worker agent-supervisor</code> —— 每智能体一个的常驻 supervisor 进程（增量能力，尚未接入守护进程的拉起路径）。</p>
-        </div>
-      </div>
-    </div>
-
-  </div>
-  <div class="callout info">
-    <b>Supervisor（领域概念）</b>是一个内置的 AgentInstance：它读取会话上下文，决定下一步该派发什么 —— "不是一个'大脑'，只是另一个带日志的智能体"。
+    <div class="f wide"><span class="badge">core</span><div class="ic">⟁</div><h4>LLM 驱动的 Supervisor</h4><p>事件触发、一次决策周期 spawn 一次 CLI —— 它也是 agent，不是中央意识。调度逻辑 prompt 化。</p></div>
+    <div class="f"><div class="ic">⊞</div><h4>Worker 任意机器</h4><p>Discovery Proposal 自动发现项目映射。</p></div>
+    <div class="f"><div class="ic">◑</div><h4>Agent 一等身份</h4><p>命名 + 状态机 + 并发记账。</p></div>
+    <div class="f wide"><div class="ic">≋</div><h4>会话即审计线程</h4><p>Task / Issue 各 1:1 绑定 Conversation，决策可回放。支持频道 / DM / 任务讨论。</p></div>
+    <div class="f"><div class="ic">◷</div><h4>观测 / Trace</h4><p>事件投影 + JSONL trace 归档。</p></div>
+    <div class="f"><div class="ic">⚿</div><h4>密钥管理</h4><p>AES-GCM + secret:&lt;name&gt; 引用。</p></div>
   </div>
 
-  <div class="section-title">快速链接</div>
-  <div class="grid">
-    <a class="card" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">
-      <div class="ico">🐙</div>
-      <h3>GitHub</h3>
-      <div class="desc">源码仓库 <code>oopslink/agent-center</code> —— 安装脚本、CHANGELOG 与路线图都在这里。</div>
-    </a>
-    <a class="card" href="../manual/v2.8/index.html">
-      <div class="ico">📖</div>
-      <h3>用户手册</h3>
-      <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具与 Web Console 使用。</div>
-    </a>
-    <a class="card" href="../dev/v2.8/index.html">
-      <div class="ico">🏗️</div>
-      <h3>开发指引</h3>
-      <div class="desc">技术架构、核心机制设计与 DDD 设计（限界上下文 / 战术 / Event Storming）。</div>
-    </a>
+  <div class="cta-band fade d3">
+    <h2>一条命令，起一个调度中心</h2>
+    <p>单 Go 二进制 · go:embed Web Console · 无远程鉴权（loopback）</p>
+    <div class="row"><a class="btn primary" href="../manual/v2.10.0/index.html">快速开始 →</a><a class="btn ghost" href="../dev/v2.10.0/index.html">看架构设计</a></div>
   </div>
+</div>
 
-</main>
-
-<footer class="foot">
-  agent-center · 多智能体编排平台 ·
-  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
-  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
-</footer>
-
+<footer style="border-top:1px solid var(--border);padding:30px 0;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">v2.10.2 · MIT</span></div></footer>
 </body>
 </html>

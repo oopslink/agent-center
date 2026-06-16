@@ -4,407 +4,146 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>路线图 · agent-center</title>
-<meta name="description" content="agent-center 路线图：已完成（v2.0 GA）、v2.1 backlog、v2.7+ 身份/认证进阶、v3 推迟项与长期愿景。节奏决策一览，源自 docs/design/roadmap.md。">
-<link rel="stylesheet" href="../assets/site.css">
-<script src="../assets/site.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/redesign.css">
 <style>
-/* page-specific: blueprint timeline for the roadmap */
-.rm-legend { margin: 0 0 6px; }
-.rm-toolbar { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; }
-.tl { position: relative; margin: 20px 0 0; padding-left: 30px; }
-.tl::before {
-  content: ""; position: absolute; left: 9px; top: 6px; bottom: 6px; width: 2px;
-  background: repeating-linear-gradient(var(--border-strong) 0 6px, transparent 6px 12px);
-}
-.tl-phase { position: relative; margin: 0 0 30px; }
-.tl-phase::before {
-  content: ""; position: absolute; left: -29px; top: 4px; width: 18px; height: 18px;
-  border-radius: 50%; background: var(--surface); border: 3px solid var(--node, var(--ink-mute));
-  box-shadow: 0 0 0 4px var(--bg);
-}
-.phase-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin: 0 0 4px; }
-.phase-hd h2 { margin: 0; font-size: 20px; letter-spacing: -.3px; }
-.phase-hd .st {
-  font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 3px 9px;
-  border-radius: var(--r-sm); border: 1px solid currentColor; white-space: nowrap;
-}
-.phase-hd .when { font-family: var(--mono); font-size: 12px; color: var(--ink-mute); }
-.phase-sub { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 14px; max-width: 760px; }
-/* status colors driven by --node + .st color */
-.tl-phase.done    { --node: var(--green-fg); }
-.tl-phase.done    .st { color: var(--green-fg); background: var(--green-bg); }
-.tl-phase.backlog { --node: var(--blue-fg); }
-.tl-phase.backlog .st { color: var(--blue-fg); background: var(--blue-bg); }
-.tl-phase.next    { --node: var(--vo); }
-.tl-phase.next    .st { color: var(--vo); background: var(--purple-bg); }
-.tl-phase.later   { --node: var(--accent); }
-.tl-phase.later   .st { color: var(--accent); background: var(--amber-bg); }
+.rhero { padding: 50px 0 16px; }
+.rhero h1 { font-size: 40px; font-weight: 800; letter-spacing: -.03em; }
+.rhero p { color: var(--ink-2); font-size: 17px; max-width: 580px; margin: 12px 0 0; }
 
-.cluster { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink-mute);
-  margin: 16px 0 8px; text-transform: uppercase; letter-spacing: .6px; }
-.cluster::before { content: "▸ "; color: var(--node, var(--primary)); }
-.rm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-.rm-item {
-  position: relative; background: var(--surface); border: 1px solid var(--border);
-  border-left: 3px solid var(--node, var(--ink-mute)); border-radius: var(--r-md);
-  padding: 12px 14px; box-shadow: var(--shadow);
-}
-.rm-item h4 { margin: 0 0 5px; font-size: 14px; color: var(--ink); line-height: 1.4; }
-.rm-item p { margin: 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.55; }
-.rm-item .trig {
-  display: block; margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--ink-mute);
-  border-top: 1px dashed var(--border); padding-top: 7px;
-}
-.rm-item .trig b { color: var(--amber); font-weight: 600; }
-.rm-item .adr { font-family: var(--mono); font-size: 10.5px; color: var(--primary); }
-.rm-note { font-family: var(--mono); font-size: 12px; color: var(--ink-mute); margin: 10px 0 0; }
-.rm-disclaimer {
-  font-size: 13px; color: var(--ink-soft); border-left: 3px solid var(--amber-fg);
-  background: var(--amber-bg); color: var(--amber-fg); padding: 10px 14px; border-radius: 0 var(--r-sm) var(--r-sm) 0; margin: 0 0 6px;
-}
-.tl-phase.hide { display: none; }
-@media (max-width: 820px) { .tl { padding-left: 24px; } .tl-phase::before { left: -23px; } }
+/* compact status legend (secondary axis) */
+.statusbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); padding: 11px 16px; margin: 20px 0 30px; }
+.statusbar .lab { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.statusbar .s { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); }
+.statusbar .s b { color: var(--ink); font-weight: 600; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.d-done{background:var(--success)} .d-prog{background:var(--accent)} .d-defer{background:var(--warning)} .d-vis{background:var(--generic)}
+
+/* PRIMARY: 专题 epics as swimlanes */
+.epics { display: grid; gap: 16px; }
+.epic { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 20px 22px; position: relative; overflow: hidden; }
+.epic::before { content:""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--ec); }
+.epic .eh { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.epic .ic { width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center; font-size: 22px; background: var(--ec-bg); color: var(--ec); flex: none; }
+.epic .et h3 { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
+.epic .et p { margin: 3px 0 0; font-size: 13px; color: var(--ink-2); }
+.epic .prog { margin-left: auto; text-align: right; flex: none; }
+.epic .prog .bar { width: 130px; height: 7px; border-radius: 999px; background: var(--bg-subtle); overflow: hidden; }
+.epic .prog .bar i { display: block; height: 100%; background: var(--ec); border-radius: 999px; }
+.epic .prog .pct { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); margin-top: 4px; }
+
+.feats { display: grid; grid-template-columns: repeat(auto-fill,minmax(212px,1fr)); gap: 11px; }
+.feat { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 13px; background: var(--bg-base); transition: .18s; }
+.feat:hover { border-color: var(--ec); box-shadow: var(--shadow-1); }
+.feat .ft { font-weight: 600; font-size: 13.5px; line-height: 1.3; }
+.feat p { margin: 5px 0 9px; font-size: 11.5px; color: var(--ink-2); line-height: 1.45; }
+.feat .meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.feat .st { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px; }
+.st-done{ color: var(--success); background: var(--status-green-bg,#dcfce7); } .st-prog{ color: var(--accent); background: var(--core-bg); }
+.st-defer{ color: var(--warning); background: var(--status-amber-bg,#fef3c7); } .st-vis{ color: var(--generic); background: var(--generic-bg); }
+.feat .ver { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
+
+/* epic accent palettes */
+.e-cloud { --ec: var(--accent); --ec-bg: var(--core-bg); }
+.e-agent { --ec: var(--essential); --ec-bg: var(--essential-bg); }
+.e-collab{ --ec: var(--status-cyan-solid,#0e7490); --ec-bg: var(--status-cyan-bg,#cffafe); }
+.e-ui    { --ec: var(--generic); --ec-bg: var(--generic-bg); }
+.e-orch  { --ec: var(--brand); --ec-bg: var(--core-bg); }
+.e-plat  { --ec: #475569; --ec-bg: var(--bg-subtle); }
+
+footer { border-top: 1px solid var(--border); padding: 30px 0; margin-top: 50px; color: var(--ink-3); font-size: 13px; }
+.fade { opacity:0; transform: translateY(12px); animation: rise .55s ease forwards; }
+@keyframes rise { to { opacity:1; transform:none; } }
+@media (max-width: 760px){ .rhero h1{font-size:30px} .epic .prog{display:none} }
 </style>
 </head>
 <body>
-
-<header class="site-hd">
-  <div class="hd-inner">
-    <a class="brand" href="../index.html">agent-center<span class="dot">·</span></a>
-    <nav class="hd-nav">
-      <a href="../product/index.html">产品介绍</a>
-      <a href="../manual/v2.8/index.html">用户手册</a>
-      <a href="../dev/v2.8/index.html">开发指引</a>
-      <a class="active" href="../roadmap/index.html">路线图</a>
-      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
-    </nav>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../index.html">首页</a><a href="../product/index.html">产品</a><a href="../dev/v2.10.0/index.html">架构 / DDD</a><a href="../manual/v2.10.0/index.html">手册</a><a class="active" href="../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
   </div>
 </header>
 
-<div class="crumb"><a href="../index.html">首页</a> › 路线图</div>
-
-<section class="hero sm">
-  <div class="inner">
-    <span class="eyebrow">路线图 · 节奏决策（不构成承诺）</span>
-    <h1>Roadmap</h1>
-    <p class="lede">已完成 / 推迟做 / 长期愿景 —— 按节奏分组。<strong>明确「不做」的边界决策</strong>不在这里，去 <code>requirements/03-out-of-scope.md</code>。优先级和时间窗会随实际情况调整。</p>
+<section class="rhero">
+  <div class="wrap">
+    <span class="eyebrow">ROADMAP · 按专题归类</span>
+    <h1>路线图</h1>
+    <p>特性按<strong>专题</strong>归类 —— 每个专题是一条长期主线，里面的特性标注各自状态。不是承诺时间表，是取舍记录。</p>
   </div>
 </section>
 
-<main class="wrap wide" style="margin-top: 26px;">
-
-  <div class="rm-toolbar">
-    <div class="legend rm-legend">
-      <span><i class="swatch" style="background:var(--green-fg)"></i> v2 / v2.8.1 / v2.9 / v2.9.1 已完成</span>
-      <span><i class="swatch" style="background:var(--blue-fg)"></i> v2.1 backlog</span>
-      <span><i class="swatch" style="background:var(--vo)"></i> v2.7+ 进阶 / v3 候选</span>
-      <span><i class="swatch" style="background:var(--accent)"></i> v3 推迟</span>
-    </div>
-    <div class="tabbar" id="rm-filter" role="tablist" aria-label="按阶段筛选" style="border:0;margin:0;">
-      <button class="on" data-f="all" role="tab" aria-selected="true">全部</button>
-      <button data-f="done" role="tab" aria-selected="false">已完成</button>
-      <button data-f="backlog" role="tab" aria-selected="false">v2.1</button>
-      <button data-f="next" role="tab" aria-selected="false">v2.7+ / v2.9</button>
-      <button data-f="later" role="tab" aria-selected="false">v3</button>
-    </div>
+<div class="wrap">
+  <div class="statusbar fade">
+    <span class="lab">状态说明</span>
+    <span class="s"><span class="dot d-done"></span><b>已完成</b> 已发布可用</span>
+    <span class="s"><span class="dot d-prog"></span><b>进行中</b> 当前周期开发</span>
+    <span class="s"><span class="dot d-defer"></span><b>推迟</b> 主动排后</span>
+    <span class="s"><span class="dot d-vis"></span><b>愿景</b> 远期方向</span>
   </div>
 
-  <p class="rm-disclaimer"><b>读法：</b>每张卡 = 一个能力 / 推迟项；推迟项标注 <b>触发条件</b>（什么时候会重新排期）。点上方标签按阶段筛选。完整描述与影响分析见仓库 <code>docs/design/roadmap.md</code>。</p>
+  <div class="epics" id="epics"></div>
+</div>
 
-  <div class="tl">
-
-    <!-- ============ v2 已完成 ============ -->
-    <section class="tl-phase done" data-phase="done">
-      <div class="phase-hd">
-        <h2>v2 已完成</h2>
-        <span class="st">✓ SHIPPED</span>
-        <span class="when">v2.0 GA · 2026-05-24</span>
-      </div>
-      <p class="phase-sub">v2 周期（P8–P12）落地的核心能力，按 ADR landscape 归类。</p>
-
-      <div class="cluster">Worker · AgentInstance · AgentAdapter</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Worker enroll 轻量化</h4><p>bootstrap-token exchange 流；终端一行命令完成 enroll。 <span class="adr">ADR-0023</span></p></div>
-        <div class="rm-item"><h4>AgentInstance 一等公民化</h4><p>worker 上的 agent 实例升为独立 AR，可独立配置 + 监控。 <span class="adr">ADR-0024</span></p></div>
-        <div class="rm-item"><h4>Supervisor 即内建 AgentInstance</h4><p>supervisor 走同一套 lifecycle（amend 0024）。 <span class="adr">ADR-0029</span></p></div>
-        <div class="rm-item"><h4>agent:create = G1 CLI Endpoint</h4><p>通过 CLI 创建 agent，不走 supervisor 协议。 <span class="adr">ADR-0025</span></p></div>
-        <div class="rm-item"><h4>AgentAdapter 矩阵扩展</h4><p>claudecode + codex + opencode 三 adapter。 <span class="adr">ADR-0030</span></p></div>
-        <div class="rm-item"><h4>MCP per-agent 注入</h4><p>MCPInjectionService 在 worker daemon 侧按 agent 注入。 <span class="adr">ADR-0027</span></p></div>
-        <div class="rm-item"><h4>Skill File Mount (lite)</h4><p><code>supervisor.md</code> 等 skill 走 file mount。 <span class="adr">ADR-0028</span></p></div>
-      </div>
-
-      <div class="cluster">Secret Management</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>SecretManagement BC</h4><p>UserSecret AR + master-key AES-256 加密 + 明文永不回显。 <span class="adr">ADR-0026</span></p></div>
-      </div>
-
-      <div class="cluster">Conversation v2 (CV1–CV4)</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Channel 一等公民 + schema reset</h4><p>channel 升一等 + Conversation v2 schema。 <span class="adr">ADR-0032</span></p></div>
-        <div class="rm-item"><h4>Identity 模型重构</h4><p>4→3 kinds + <code>kind:id</code> 前缀。 <span class="adr">ADR-0033</span></p></div>
-        <div class="rm-item"><h4>Conversation Participants 字段</h4><p>会话参与者显式建模。 <span class="adr">ADR-0034</span></p></div>
-        <div class="rm-item"><h4>跨 Conversation 消息接力 (CV3)</h4><p>message carry-over 跨会话。 <span class="adr">ADR-0035</span></p></div>
-        <div class="rm-item"><h4>从消息派生 Issue/Task (CV4)</h4><p>选中消息 → 开 Issue / Task。 <span class="adr">ADR-0036</span></p></div>
-        <div class="rm-item"><h4>Conversation 业务模型 v2 统一</h4><p>supersedes 0017/0021/0022。 <span class="adr">ADR-0039</span></p></div>
-      </div>
-
-      <div class="cluster">Web Console + CLI UX</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Web Console 即 v2 用户主入口</h4><p>React SPA + SSE + 13 页覆盖 channel/DM/issue/task/agent/secret/IR/fleet；go:embed 进单 binary。 <span class="adr">ADR-0037</span></p></div>
-        <div class="rm-item"><h4>CLI UX 增强</h4><p><code>--format=table|json|text</code> 统一 + 分组 help + topic 索引。 <span class="adr">ADR-0038</span></p></div>
-      </div>
-
-      <div class="cluster">Meta</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>v2 撤回 Bridge / Vendor 集成</h4><p>v1 飞书 / 钉钉 / Bridge BC 撤回；v2 仅 loopback Web Console。 <span class="adr">ADR-0031</span></p></div>
-      </div>
-    </section>
-
-    <!-- ============ v2.1 backlog ============ -->
-    <section class="tl-phase backlog" data-phase="backlog">
-      <div class="phase-hd">
-        <h2>v2.1 backlog</h2>
-        <span class="st">◷ QUEUED</span>
-        <span class="when">post-GA 小项</span>
-      </div>
-      <p class="phase-sub">显式 defer 到 v2.1 的小项；权威清单见 <code>docs/plans/v2.1-backlog.md</code>。</p>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Unread message tracking</h4><p>channel / DM 列表显示未读角标；需 <code>user_conversation_read_state</code> 表 + endpoints + SSE 事件。<span class="trig">估算 <b>~6h</b> · <b>v2.8 已实现</b>（#268/#264 P1）</span></p></div>
-        <div class="rm-item"><h4>SPA 覆盖率收尾</h4><p>web 行覆盖 98.6% → 100%。<span class="trig">估算 <b>~1h</b> · post-GA hardening</span></p></div>
-      </div>
-    </section>
-
-    <!-- ============ v2.8 已完成 ============ -->
-    <section class="tl-phase done" data-phase="done">
-      <div class="phase-hd">
-        <h2>v2.8 已完成 · 会话页 UX + 工具显示 + 富文本</h2>
-        <span class="st">✓ SHIPPED</span>
-        <span class="when">v2.8 · 2026-06-06 · 12 PR ship chain (0 production-affecting finding)</span>
-      </div>
-      <p class="phase-sub">v2.8 周期一日交付：(1) 会话页 UX 主体 + (2) 全局工作项侧栏 + (3) 测试实例工具 + 5 piggyback 件（agent 归档 epic / Worker 详情页 / Activity epic / markdown 渲染 / #/@ picker）。验收报告 <code>docs/release/v2.8-acceptance-report.md</code> + consolidated runtime evidence。</p>
-
-      <div class="cluster">(1) 会话页 UX 主体（P1 #264）</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>4-surface 统一架构</h4><p>channel / DM / task 线程 / issue 线程 4 个会话面统一切到 <code>ConversationView</code> 外壳 + 已读游标 + SSE。<span class="trig">PR #182 · e8f9b5c</span></p></div>
-        <div class="rm-item"><h4>未读 badge + @mention 红数字</h4><p>侧栏会话名旁显未读数 + 红 mention badge（≤99+）+ aria-label SR 可读 · 非纯色。<span class="trig">PR #182 / #268 后端</span></p></div>
-        <div class="rm-item"><h4>关注 toggle (Follow)</h4><p>频道 / DM 头 + 工单 banner 可关注 / 取消关注。<span class="trig">PR #182</span></p></div>
-      </div>
-
-      <div class="cluster">(2) 全局 Issues+Tasks 侧栏</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>跨频道工作项一处看</h4><p>左侧全局 sidebar 含 Issues + Tasks + assignee 列 + 跨频道聚合。<span class="trig">PR #156 / #258</span></p></div>
-      </div>
-
-      <div class="cluster">(3) 测试实例工具</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>install test-instance --with-agent</h4><p>一键起含真 claude-opus-4-8 agent 的测试 instance（prod 零足迹 · 同机 dev 友好）。<span class="trig">#261 / #257 phase 1</span></p></div>
-      </div>
-
-      <div class="cluster">Piggyback · Agent 归档 epic（#270 + #272）</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>agent 归档后端</h4><p>soft archive 软删 + agent 行保留 + 释放 worker binding + hard-delete 改 admin-only + 严格两步（running → 409 must-stop-first）。<span class="trig">PR #181 · #272</span></p></div>
-        <div class="rm-item"><h4>agent 4 button 全图标 + 二次确认</h4><p>start / stop / restart / archive 全 SVG icon + 破坏性操作 ConfirmModal + #271 Start 偶发回文字 bug 修 + ESLint guard 防回退。<span class="trig">PR #183 · #270</span></p></div>
-        <div class="rm-item"><h4>(archived) chip 渲染</h4><p>agent 归档后任务列表显 "(archived)" 标识 · 嵌套字段 <code>assignee.assignee_lifecycle</code>。<span class="trig">PR #184/#185 后端 DTO + 前端 chip</span></p></div>
-      </div>
-
-      <div class="cluster">Piggyback · Worker 详情页（#273）</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>WorkerDetail 4-tab</h4><p>Profile（5 真字段 + 5 v2.9 占位）+ Bound Agents（重启 + Open + in-UI hint）+ Management（rename / Install / Re-mint / Remove + bound-agent 警示）+ Activity placeholder。<span class="trig">PR #190 · #273</span></p></div>
-        <div class="rm-item"><h4>useTablistKeyboard 共享 hook</h4><p>WAI-ARIA tab 键盘导航：箭头键 roving-tabindex + Enter/Space 激活（manual activation 防 async tab 触发风暴）+ 回写 #228 AgentDetail。<span class="trig">institutional</span></p></div>
-      </div>
-
-      <div class="cluster">Piggyback · Activity epic（#274）</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Activity 翻页后端</h4><p>cursor-based pagination + (a) presence-check + 并发 append 闸 + ULID DESC 稳定单调。<span class="trig">PR #186 · #274 backend</span></p></div>
-        <div class="rm-item"><h4>Load older + Checking 折叠</h4><p>"Load older" 按钮翻历史 + 连续 "Checking messages" 自动折叠 + 跨 Load-older 页边界 re-group 不裂。<span class="trig">PR #188 · #274 frontend part 1</span></p></div>
-        <div class="rm-item"><h4>Tool 富渲染 SVG icon</h4><p>CAT_TOOL_USE / CAT_TOOL_RESULT 显工具名 + 参数 + ✓/✗ 状态 + 内联输出折叠（复用 CollapsibleCodeBlock）+ SVG icon（非 emoji）+ not-color-only。<span class="trig">PR #189 · #274 frontend part 2</span></p></div>
-      </div>
-
-      <div class="cluster">Piggyback · 富文本渲染（#276）</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>完整 markdown + GFM</h4><p>react-markdown + remark-gfm（表格 / task list / strikethrough / autolink）。<span class="trig">PR #187 · #276</span></p></div>
-        <div class="rm-item"><h4>XSS 严格 escape</h4><p>no rehype-raw 原始 HTML 不渲染 + urlTransform 拦 <code>javascript:</code>/<code>data:</code> scheme + link rel="noopener noreferrer"。Tester2 真注入 <code>&lt;script&gt;</code>/<code>onerror</code>/<code>javascript:</code> 全 neutralize。<span class="trig">安全 red-line · @oopslink 拍 Q-A1=(i)</span></p></div>
-        <div class="rm-item"><h4>CollapsibleCodeBlock 共组件 13 a11y locks</h4><p>code &gt;20 行自动折叠 + 前 5 行预览 + "Show N more lines" + copy 复全量 + 语言 badge + 双向 expand/collapse + aria-controls by useId（多实例不碰撞）+ aria-live="off" 防 SR 念全文 + WCAG 兄弟非嵌套 disclosure。<span class="trig">PR #187 · 13 lock institutional</span></p></div>
-      </div>
-
-      <div class="cluster">Piggyback · 输入框 #/@ picker（#275）</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>ARIA combobox 写消息补全</h4><p>输 @ 弹人 / 输 # 弹频道 + ↑↓ active + Enter 插 + Esc 关 + email 不误触发 + 全键盘 + aria-activedescendant by stable option-id。<span class="trig">PR #192 · #275</span></p></div>
-        <div class="rm-item"><h4>插入 token + trailing space</h4><p>选完插 <code>@&lt;name&gt;</code> / <code>#&lt;channel-name&gt;</code> + 尾随空格 + cursor 落空格后 = wake word-boundary 真触（<code>@Bob</code> ✓ / <code>@Bobxyz</code> ✗）+ 零后端改。<span class="trig">PR #192 · word-boundary lock</span></p></div>
-        <div class="rm-item"><h4>选项 hover-only id</h4><p>option 可见 = 仅名字 + full id 仅 hover/title 显（#192 chrome 对齐）。<span class="trig">PR #193 · runtime fix</span></p></div>
-      </div>
-
-      <div class="cluster">质量</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>0 production-affecting finding</h4><p>跨 12 PR ship chain + 2 follow-up（cleanup + runtime fix），全程零 production finding · 15 instances pattern proven · consolidated runtime 7/7 + 7/7 PASS direct on shipped。<span class="trig">institutional discipline</span></p></div>
-      </div>
-    </section>
-
-    <!-- ============ v2.8.1 已完成 ============ -->
-    <section class="tl-phase done" data-phase="done">
-      <div class="phase-hd">
-        <h2>v2.8.1 已完成 · Web Console UX 大改版 + 派发可靠性</h2>
-        <span class="st">✓ SHIPPED</span>
-        <span class="when">v2.8.1 · 2026-06-10 · 65 PR · 三面验收（产品 / 后端 / 前端）</span>
-      </div>
-      <p class="phase-sub">v2.8 架构线上的 UX 点发布：8 个界面改版 + 编辑收敛 + 两个列表增强 + 根治 agent 派发单活竞态。验收报告 <code>docs/release/evidence/v2.8.1-acceptance-report.md</code>（每验收点内嵌截图证据）。</p>
-
-      <div class="cluster">界面改版 + 编辑收敛</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Task &amp; Issue 详情统一编辑</h4><p>详情侧栏只读、编辑统一进单一 Edit 面板（去逐字段行内编辑）；Issue 详情对齐 Task 详情风格。<span class="trig">#250 / #252 · #257</span></p></div>
-        <div class="rm-item"><h4>聊天 / DM UX 刷新</h4><p>消息行 / DM 布局 / 代码块宽度 / 输入框重做 + Channels / Agents / Settings 视觉过一遍 · 对比度(AA) 深浅两模式验。<span class="trig">8 改版</span></p></div>
-        <div class="rm-item"><h4>@提及 / 头像弹详情侧栏</h4><p>点消息里 @ 的 agent / human、或 DM 头像，弹对应详情侧栏（按 kind 分流）。<span class="trig">#258</span></p></div>
-      </div>
-
-      <div class="cluster">列表增强（后端 N+1-free）</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Channels &amp; Agents 列表</h4><p>Channels 行加创建时间 + 参与者头像 + 最近消息预览；Agents 行加供应商(CLI/model) + 最后活动时间与内容。<span class="trig">#255 list-enrich · #251 Issue batch-update</span></p></div>
-      </div>
-
-      <div class="cluster">派发可靠性</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>单活竞态根治</h4><p>activate 路径原是非原子 check-then-act + 部分（非唯一）索引，并发派同一 agent 会产生多个活跃工作项。改 pull model + UNIQUE 部分索引（<code>agent_work_items(agent_id)</code> WHERE status IN active/waiting_input）+ queue-not-drop：一个 agent 同时只有一个活跃工作项。<span class="trig">#277 / #278</span></p></div>
-      </div>
-    </section>
-
-    <!-- ============ v2.9 / v2.9.1 已完成 ============ -->
-    <section class="tl-phase done" data-phase="done">
-      <div class="phase-hd">
-        <h2>v2.9 / v2.9.1 已完成 · Plan 编排 + Message Threads</h2>
-        <span class="st">✓ SHIPPED</span>
-        <span class="when">v2.9 · 2026-06-12（58 PR） / v2.9.1 · 2026-06-14 · 三面验收（用户视角端到端 + 关键步骤截图）</span>
-      </div>
-      <p class="phase-sub">v2.9 把工作组织成任务 DAG（Plan Orchestration）并自动推进，org 路由显式化；v2.9.1 在会话上加 Message Threads,并做一波任务模型/看板/归档收尾。验收报告 <code>docs/release/evidence/v2.9.1-acceptance-report.md</code>（每验收点内嵌真实例截图，复现脚本 <code>tests/e2e/v2/capture-v291.mjs</code>）。</p>
-
-      <div class="cluster">v2.9 · Plan Orchestration</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Plan = 任务 DAG，自动推进</h4><p>建 plan / 加 backlog 节点 / draft 期连依赖（拒环/自环），<code>start</code> 后随上游完成自动 dispatch 每个就绪节点给对应 agent，节点状态派生（blocked/ready/dispatched/running/done/failed）。PM 型 agent 可经 MCP 编程式建 plan 并跑。<span class="trig">Plan Orchestration</span></div></div>
-        <div class="rm-item"><h4>显式 org 路由 + 归档语义</h4><p>每个 org-scoped API 挂 <code>/api/orgs/{slug}/...</code>，消除隐含 org 状态（跨 org 404）；Plan/Project 有 draft/running/done + 不可逆归档（只读）。plan 会话纳入 @提及唤醒。<span class="trig">org-routing · archive</span></p></div>
-      </div>
-
-      <div class="cluster">v2.9.1 · Message Threads + 任务模型/看板收尾</div>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Message Threads</h4><p>任一消息派生 thread、弹出侧栏回复（Slack 式单层）+ Participants 线程列表 +「有无新活动」标记；thread 内 @提及项目 agent 唤醒且回复落 thread 内；适用所有会话类型。<span class="trig">v2.9.1 headline</span></p></div>
-        <div class="rm-item"><h4>claimable + 内置指派池（ADR-0047）</h4><p>每项目一个常驻内置指派池（指派≠领取，可拉取认领）；三段 Work Board = Backlog · 内置池 · 结构化 Plan；claimable 为派生谓词。<span class="trig">ADR-0047</span></p></div>
-        <div class="rm-item"><h4>任务状态机 7→5（ADR-0046）</h4><p>五态（open/running/completed/discarded/reopened）；<code>blocked</code> 改为可恢复注解、删 <code>verified</code>；带数据 round-trip 迁移。<span class="trig">ADR-0046</span></p></div>
-        <div class="rm-item"><h4>看板可见性 + 频道归档 + 工具/恢复</h4><p>列表默认排终态、归档项目条目隐藏、大 plan 任务搜索/行内改派；频道归档（只读 409 + 归档组）；<code>list_tasks</code> MCP；<code>unblock_task</code>/<code>rerun_failed_node</code> + 自动重派；全量设计 token 迁移。<span class="trig">收尾波</span></p></div>
-      </div>
-    </section>
-
-    <!-- ============ v2.7+ Identity / Auth 进阶 ============ -->
-    <section class="tl-phase next" data-phase="next">
-      <div class="phase-hd">
-        <h2>v2.7+ 身份 / 认证进阶</h2>
-        <span class="st">→ PLANNED</span>
-        <span class="when">post v2.6</span>
-      </div>
-      <p class="phase-sub">v2.6 引入 Identity BC + Organization + Member + 基础 passcode + JWT cookie auth。下列条目在 v2.6 周期被明确「近期不做」（2026-05-27 决策），等 v2.6 ratify 后再排具体周期。</p>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>Email 注册 + 验证</h4><p>signup 加 email 字段 + 验证邮件 + 未验证限权。<span class="trig"><b>触发：</b>第二个真实用户 / 远程访问 / 需 password reset</span></p></div>
-        <div class="rm-item"><h4>Password Reset / Recovery</h4><p>忘记 passcode 经 email 重置；账号 / 2FA 恢复路径。<span class="trig"><b>触发：</b>Email 上线 + 多用户</span></p></div>
-        <div class="rm-item"><h4>2FA（TOTP / Email Code）</h4><p>TOTP authenticator 或 email 一次性码二次验证。<span class="trig"><b>触发：</b>账号承载共享 Org 资源 / 远程被滥用风险</span></p></div>
-        <div class="rm-item"><h4>SSO（Google / GitHub / SAML）</h4><p>外部 IdP 一键登录，跳过 passcode。<span class="trig"><b>触发：</b>企业 / 团队场景</span></p></div>
-        <div class="rm-item"><h4>PAT / API Token</h4><p>带 scope / 限定 Org / 可 revoke 的程序化访问 token。<span class="trig"><b>触发：</b>脚本调 API / CI·CD 集成</span></p></div>
-        <div class="rm-item"><h4>Account Switcher</h4><p>同浏览器多 Identity，顶 bar 切换（Google 多账号模式）。<span class="trig"><b>触发：</b>一机多角色（个人 + 工作）</span></p></div>
-        <div class="rm-item"><h4>ABAC 细粒度权限</h4><p>channel / project / agent 级授权，超 owner/admin/member 三档 RBAC。<span class="trig"><b>触发：</b>需"某 channel 仅特定成员可写"等</span></p></div>
-        <div class="rm-item"><h4>Refresh Token + 远程登出</h4><p>JWT refresh + 其它设备登出 + session 列表。<span class="trig"><b>触发：</b>跨设备使用 / 安全事件</span></p></div>
-        <div class="rm-item"><h4>失败登录锁定 / 异常检测</h4><p>连续失败触发 lockout；IP / 设备指纹异常检测。<span class="trig"><b>触发：</b>公网暴露后</span></p></div>
-        <div class="rm-item"><h4>Events organization_id 反范式列</h4><p>events 表加直接列加速跨 Org 审计查询。<span class="trig"><b>触发：</b>事件量增长、审计查询慢</span></p></div>
-        <div class="rm-item"><h4>Organization 硬删除（Purge）</h4><p>UI 永久删除 Org 并清空数据。<span class="trig"><b>触发：</b>UI 自助永久清理 / 合规"被遗忘权"</span></p></div>
-        <div class="rm-item"><h4>Identity 自助注销</h4><p><code>/me</code> 页 "Delete my account"，受最小 owner invariant 守门。<span class="trig"><b>触发：</b>主动注销 + transfer ownership 完整</span></p></div>
-      </div>
-    </section>
-
-    <!-- ============ v2.9 待做 (deferred-with-pointer) ============ -->
-    <section class="tl-phase next" data-phase="next">
-      <div class="phase-hd">
-        <h2>v2.9 待做（deferred-with-pointer）</h2>
-        <span class="st">→ PLANNED</span>
-        <span class="when">post v2.8 · 源于 v2.8 周期显式 defer 的 epic</span>
-      </div>
-      <p class="phase-sub">v2.8 周期为遵守 epic 不切碎纪律 + T-9 不空挂原则，将以下能力显式 defer 到 v2.9，每条已在 v2.8 ship code 中标注 "Coming v2.9" 占位 + ADR/PR pointer。v2.8.1 hotfix 周期 ship D pull-model + race fix 后，v2.9 头号特性增 agent memory directory（CLI-agnostic）+ ad-hoc thread。</p>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>⭐ Agent memory directory (CLI-agnostic)</h4><p>v2.9 头号特性（@oopslink 2026-06-07 拍）。agent 自己 home/data dir 下 <code>/memory/</code> 子目录：<code>MEMORY.md</code> 索引 + <code>notes/</code>（user-preferences / project-context / work-log）+ <code>tasks/&lt;id&gt;/</code>（plan / progress）。agent 自律 maintain（read on boot + update during work + write on complete）。<b>跨 CLI portable</b>：claude / codex / opencode 通用，不绑 claude-code <code>session.jsonl</code> 特定格式。CLI 切换不丢 memory。<span class="trig"><b>v2.8.1 替代：</b>DB <code>agent_work_items</code> active WI query + claude-code session resume（v2.7 #216 supervisor reattach）= 两层 memory 联合，够用 for D pull-model ship · <b>v2.9 epic：</b>memory dir + agent prompt 改造（read/write memory）+ 跨 CLI 一致性 + DB 与 memory 关系明确（DB authoritative, memory advisory）</span></p></div>
-        <div class="rm-item"><h4>⭐ Custom avatar upload</h4><p>v2.9 重要特性（@oopslink 2026-06-07 12:42 拍 Phase A=v2.8.1 / Phase B=v2.9 phased）。v2.8.1 Phase A = 自动 initials avatar（display_name 首字符 + user_id 哈希派生稳定 color，无 storage cost）覆盖立即视觉。v2.9 Phase B = 用户可上传 custom avatar 替换 initials。<span class="trig"><b>v2.8.1 Phase A：</b>Initials avatar (Dev2 polish, ~3-4hr) — round 32-40px + hash-deterministic color + a11y aria-label · <b>v2.9 Phase B：</b>(1) DB migration <code>identity.avatar_url</code>/<code>avatar_id</code> field · (2) Admin upload endpoint via Files BC（图片裁剪/Profile edit modal/removal）· (3) Phase A initials 保留作 fallback · (4) Agent profile slock-style pixel avatar option</span></p></div>
-        <div class="rm-item"><h4>⭐ Ad-hoc thread (Slack-style)</h4><p>v2.9 重要特性（@oopslink 2026-06-07 拍）。在 channel / DM 任意 message 上起 ad-hoc thread（Slack 模式 "Reply in Thread"）。<b>系统底层 <code>parent_conversation_id</code> 数据模型已存在</b>（v2.7 整改时 task-thread / issue-thread 自动 thread 通过同套字段实现），仅 API + UX surface 未暴露。<span class="trig"><b>v2.8 现状：</b>系统级 thread (per-Task / per-Issue) auto-created（用 <code>ParentConversationID</code>），用户级 ad-hoc thread on channel/DM 未实现 · <b>v2.9 epic：</b>(1) 新 admin/api endpoint <code>POST /conversations/{id}/threads</code> off message · (2) Frontend ConversationView 加 thread 入口 UI + thread side panel · (3) follow-state auto-follow on engage（已实现，复用）· (4) MCP <code>start_thread(parent_msg_id)</code> + agent 看 thread 也能区分参与</span></p></div>
-        <div class="rm-item"><h4>Worker info reporting</h4><p>Worker 详情页 Profile 缺 5 字段（hostname / OS / arch / agent-center binary version / install path）无后端源；workforce.Worker 实体 + worker 端上报路径未做。<span class="trig"><b>v2.8 占位：</b>Profile 5 真字段 + 5 "Coming v2.9" · <b>v2.9 epic：</b>worker enroll 时上报 + workforce schema + DTO 扩</span></p></div>
-        <div class="rm-item"><h4>Worker removal cascade / unbind</h4><p>v2.8 DELETE /workers/{id} = silent orphan（bound agent worker_id 悬空保留，availability 降 unavailable 不崩）；无 unbind/rebind endpoint。<span class="trig"><b>v2.8 替代：</b>Restart + Archive-via-AgentDetail + in-UI hint · <b>v2.9 epic：</b>cascade（worker 删 → bound-agent auto-archive / unbind/rebind option）</span></p></div>
-        <div class="rm-item"><h4>Task → agent work-items 关联 view</h4><p>v2.8.1 5th Phabricator-style Task detail refactor 时 @oopslink mockup spec 含 "WorkItems summary" sidebar (N Paused/Running/Pending/Done) but 系统无 task → 子-work-items 数据源 (Dev2 grounded 2026-06-07 18:20)。v2.8.1 5th defer 此 sidebar slot。<span class="trig"><b>v2.8.1 status：</b>5th Task detail sidebar 不含 WorkItems summary slot (clean ship) · <b>v2.9 epic：</b>(1) 新后端 API <code>GET /tasks/&lt;id&gt;/related-agent-work-items</code> (aggregate agent work items dispatched for this task) · (2) Task detail sidebar 显聚合 status counts · low-pri candidate (data exposure 需求驱动)</span></p></div>
-        <div class="rm-item"><h4>富块 blocks[] / 结构化卡片 (DM redesign D)</h4><p>v2.8 评估后 @oopslink 拍 "block 不引入"（agent 工具调用走 Activity 路径 / 长 code 折叠靠 markdown 派生 + CollapsibleCodeBlock）。<b>v2.8.1 DM redesign 重启讨论</b>（@oopslink 2026-06-07 12:46 拍）：聊天页结构化卡片需求（GitHub Pages 发布结果含状态码表格、部署详情 chips、deploy 耗时标签）超出 markdown 表达力。<span class="trig"><b>v2.8.1 status：</b>仅 A+B+C ship (Layout + Composer + Avatar)，D 结构化卡片 defer · <b>v2.9 discussion 路径</b>: (d1) blocks[] 系统（agent emit JSON blocks + FE 渲染卡片，Slack blocks API 模式）/ (d2) Markdown 模式识别 + 卡片模板（FE 启发式 detect, 易碎）/ (d3) Tool-call / Activity 路径（agent 调 tool + FE 渲染 tool result with custom card, 与 #274 一致） · Artifact promote 方向（a/b/c/d）一并讨论</span></p></div>
-        <div class="rm-item"><h4>Mention id-based format (option B)</h4><p>v2.8 picker 插的 <code>@&lt;name&gt;</code> 文本 token rename-fragile（改名后旧消息显 stale name，同 Slack/Discord）。<span class="trig"><b>v2.9 epic：</b>id-bearing token <code>@&lt;id&gt;</code> + 改 mention.Present matcher（read_state.go:294 + wake_projector.go:509）</span></p></div>
-        <div class="rm-item"><h4>Worker Activity tab</h4><p>v2.8 占位 "Coming v2.9"（无 <code>GET /api/workers/{id}/activity</code> endpoint）。<span class="trig"><b>v2.9 epic：</b>worker 端事件流（与 worker-info-reporting 同 epic candidate）</span></p></div>
-        <div class="rm-item"><h4>Mention friendly-handle @username</h4><p>v2.8 picker 选项 hover-only 裸 id 对齐 #192 chrome standard；MemberResult 无保证 handle。<span class="trig"><b>v2.9 epic：</b>从 email 或 user-set 派生 stable @handle 作可见 secondary</span></p></div>
-      </div>
-    </section>
-
-    <!-- ============ v3 推迟 ============ -->
-    <section class="tl-phase later" data-phase="later">
-      <div class="phase-hd">
-        <h2>v3 推迟 · 长期愿景</h2>
-        <span class="st">∞ DEFERRED</span>
-        <span class="when">v3+ 周期</span>
-      </div>
-      <p class="phase-sub">需要重新设计或跨度过大的能力，系统性放到 v3 做。完整影响分析见源文档。</p>
-      <div class="rm-grid">
-        <div class="rm-item"><h4>外部 IM / 渠道接入（重新设计）</h4><p>v2 撤回 vendor 集成（ADR-0031）；v3+ 整体重做 transport / Identity binding / 路由架构。<span class="trig"><b>触发：</b>非 Web Console 入口需求</span></p></div>
-        <div class="rm-item"><h4>Remote CLI</h4><p>从笔记本直接 <code>agent-center query --remote=vps</code>，免 SSH。<span class="trig"><b>触发：</b>SSH-to-VPS 频次高</span></p></div>
-        <div class="rm-item"><h4>Token cost 折算成钱</h4><p>已统计 token 数，v3 折算成 RMB / USD。<span class="trig"><b>触发：</b>需监控月度花销</span></p></div>
-        <div class="rm-item"><h4>Per-project 限定 agent CLI</h4><p>项目声明 <code>allowed_agent_clis</code> 限制可跑 CLI。<span class="trig"><b>触发：</b>项目级合规 / CLI 偏好</span></p></div>
-        <div class="rm-item"><h4>AgentImage 模型 + Memory git 化</h4><p>agent 本体打成不可变镜像（tag/digest）经 registry 分发；数据走独立 git 仓，本体与数据分开版本化。<span class="trig"><b>触发：</b>跨机/跨用户分发模板 / agent 类型过多</span></p></div>
-        <div class="rm-item"><h4>云 Computer 节点支持</h4><p>Worker 从"开发机 daemon"扩展为可注册算力节点（含云节点），按需拉起。<span class="trig"><b>触发：</b>临时跑大量 agent / 本地算力不足</span></p></div>
-        <div class="rm-item"><h4>Web 时间轴可视化（flamegraph）</h4><p>Honeycomb / Jaeger 风格横向时间轴 + flamegraph 专做 trace 可视化。<span class="trig"><b>触发：</b>嵌套 tool calls 几百条难诊断</span></p></div>
-        <div class="rm-item"><h4>Task / Execution 模型扩展</h4><p>父子状态联动、ETA-trigger 唤醒、per-project timeout/workspace/retry 覆盖、Issue reopen amend、复杂 Artifact 维度。<span class="trig">ADR-0010 两层模型之外</span></p></div>
-        <div class="rm-item"><h4>派单可靠性进阶</h4><p>完整 fencing token、cross-worker fail-over、<code>--force-abandon</code>、envelope budget、worker quarantine / drain。<span class="trig">ADR-0011 之外</span></p></div>
-        <div class="rm-item"><h4>Supervisor / Cognition 进阶</h4><p>自动重试、cross-invocation 协调、Memory 并发锁 / 聚合查询 / 体积告警、显式 pending 状态、多 supervisor 跨机。<span class="trig">ADR-0012/0013 之外</span></p></div>
-        <div class="rm-item"><h4>Conversation 模型扩展</h4><p>拆分 kind 两轴（受众 scope vs attached_to）、复杂多 channel 嵌套。<span class="trig"><b>触发：</b>规模化 / 多 vendor 接入</span></p></div>
-        <div class="rm-item"><h4>Workspace 模式进阶</h4><p>readonly mount 强制、fixed-path 模式、多路径 workspace。<span class="trig"><b>触发：</b>agent 自律不够 / 跨多目录</span></p></div>
-        <div class="rm-item"><h4>Observability 进阶</h4><p>实时 stream timeline（<code>-f</code>）、全文搜 events、跨 event 关联推断。</p></div>
-        <div class="rm-item"><h4>性能优化</h4><p>启动 &lt;5s、enroll &lt;1s、send→SSE &lt;500ms、万级 events index、bundle 拆分、SSE 吞吐。<span class="trig">v2 P12 决策 · GA 不卡 baseline</span></p></div>
-        <div class="rm-item"><h4>DAG 任务依赖高级特性</h4><p>cascade abandon、OR/conditional 依赖、DAG 可视化、拓扑排序自动派单。<span class="trig">基础 deps 已有</span></p></div>
-        <div class="rm-item"><h4>Supervisor 自动收敛 Issue</h4><p>低风险 / 高置信场景自动 conclude，不必每次推用户。<span class="trig"><b>触发：</b>决策信任建立 / 某类 Issue 采纳率 100%</span></p></div>
-        <div class="rm-item"><h4>Agent 主动加入 Issue 讨论</h4><p>worker agent 直接在 Issue thread 发评论，不只 supervisor 间接参与。<span class="trig"><b>触发：</b>明确场景需 agent 直接表态</span></p></div>
-        <div class="rm-item"><h4>容器化 agent 执行</h4><p>每个 task 跑隔离容器（替代 / 叠加 worktree）。<span class="trig"><b>触发：</b>跑不信任代码 / 资源限制</span></p></div>
-        <div class="rm-item"><h4>Prometheus / OTel / Grafana 接入</h4><p>events / metrics 导出时序库 + 看板。<span class="trig"><b>触发：</b>需 P99 / 失败率 / 利用率看板</span></p></div>
-        <div class="rm-item"><h4>Per-project 自定义观测维度</h4><p>项目按"扩展点规范"声明额外 trace 维度 / metric，不侵入观测层代码。<span class="trig"><b>触发：</b>多项目共性额外维度</span></p></div>
-        <div class="rm-item"><h4>Deployment as Product</h4><p>把部署从 ops 脚本升级为一级产品主题：DDD 框架 / ADR / phase plan / Linux guide / Docker / CI·release / diagnose 工具。<span class="trig">v3 既定主题（2026-05-25 决策）</span></p></div>
-        <div class="rm-item"><h4>多用户 / SaaS</h4><p>多用户共享实例 / SaaS 运营 —— 基本是重做认证·权限·隔离·计费·运维。<span class="trig"><b>触发：</b>极远 · 个人工具被验证后</span></p></div>
-        <div class="rm-item"><h4>团队模版功能</h4><p>预定义"标准团队配置"（含哪几种 agent + channel + role + 关系），用户一键 instantiate 完整团队 setup，不必逐个 agent / channel 手动创建。<span class="trig"><b>触发：</b>用户多次手动创建相似 team / 多项目共享标准 team · 2026-06-06 @oopslink 提出</span></p></div>
-      </div>
-    </section>
-
-  </div>
-
-  <p class="rm-note">// 源：<code>docs/design/roadmap.md</code> · 边界（不做）见 <code>requirements/03-out-of-scope.md</code></p>
-
-</main>
-
-<footer class="foot">
-  agent-center · 多智能体编排平台 ·
-  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
-  路线图源文档：<code>docs/design/roadmap.md</code>（本文档不构成承诺）。
-</footer>
+<footer><div class="wrap" style="display:flex;justify-content:space-between"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">v2.10.2 · 路线图按专题更新</span></div></footer>
 
 <script>
-/* phase filter — progressive enhancement; without JS all phases show */
-(function () {
-  var bar = document.getElementById('rm-filter');
-  if (!bar) return;
-  var phases = Array.prototype.slice.call(document.querySelectorAll('.tl-phase'));
-  bar.addEventListener('click', function (e) {
-    var btn = e.target.closest('button[data-f]');
-    if (!btn) return;
-    var f = btn.getAttribute('data-f');
-    Array.prototype.forEach.call(bar.querySelectorAll('button'), function (b) {
-      var on = b === btn;
-      b.classList.toggle('on', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    phases.forEach(function (p) {
-      p.classList.toggle('hide', f !== 'all' && p.getAttribute('data-phase') !== f);
-    });
-  });
-})();
+const ST = { done:["已完成","st-done"], prog:["进行中","st-prog"], defer:["推迟","st-defer"], vis:["愿景","st-vis"] };
+const EPICS = [
+  { cls:"e-cloud", ic:"☁", name:"上云与部署形态", desc:"从 loopback 单机走向远程协作与云端运行。",
+    feats:[
+      {t:"单机 / 多机部署", d:"TCP + TLS 指纹固定，worker 跨机注册。", s:"done", v:"v2.7+"},
+      {t:"上云运行形态", d:"Center 托管云端、worker 回连的部署模型。", s:"vis", v:"vision"},
+      {t:"远程协作鉴权", d:"突破 loopback-only，安全的远程多人接入。", s:"vis", v:"vision"},
+    ]},
+  { cls:"e-agent", ic:"◑", name:"Agent 强化", desc:"让数字员工更自主、更可控、更可信。",
+    feats:[
+      {t:"Agent 一等身份", d:"命名 + 状态机 + 并发记账（AgentInstance）。", s:"done", v:"v2.7+"},
+      {t:"开放认领 claimability", d:"成员 agent 自主认领 Assignment Pool 任务。", s:"done", v:"v2.10.1"},
+      {t:"Supervisor 更强自主", d:"更少升级到人、更聪明的调度决策。", s:"vis", v:"vision"},
+      {t:"Agent issue 管理工具", d:"给 agent 补 create/close/comment issue 全能力。", s:"defer", v:"→ v2.10.3"},
+    ]},
+  { cls:"e-collab", ic:"≋", name:"协作与会话", desc:"人和 agent 在同一条可追溯线程上协作。",
+    feats:[
+      {t:"消息线程 Thread", d:"频道 / DM / 任务讨论的线程化消息。", s:"done", v:"v2.9.x"},
+      {t:"附件 + linkify", d:"图片/文件收发、实体引用自动链接。", s:"done", v:"v2.9.2"},
+      {t:"全会话附件统一", d:"Plan chat / 频道 / DM / 任务讨论都能收发附件。", s:"defer", v:"→ v2.10.3"},
+    ]},
+  { cls:"e-ui", ic:"▦", name:"界面体验 (UI / UX)", desc:"桌面、移动、文档站的一致专业体验。",
+    feats:[
+      {t:"三栏式桌面 Shell", d:"模块栏 / 列表 / 详情 / 上下文四区。", s:"done", v:"v2.10.0"},
+      {t:"移动端布局", d:"<768px 全模块自适应 + 底部 Tab。", s:"done", v:"v2.10.1"},
+      {t:"Work Board 拖拽改归属", d:"任务卡跨列重新归属 Plan（T121）。", s:"prog", v:"Unreleased"},
+      {t:"sites 文档站改造", d:"低文字图表化 + 对齐产品 UI + DDD 逐层（本批 mockup）。", s:"defer", v:"评估中"},
+    ]},
+  { cls:"e-orch", ic:"⟁", name:"任务编排", desc:"Center 单一权威下的调度与计划。",
+    feats:[
+      {t:"Plan DAG 编排", d:"任务依赖图、分发 + 进度。", s:"done", v:"v2.10.0"},
+      {t:"Assignment Pool", d:"项目级待认领池 + 工作队列。", s:"done", v:"v2.10.1"},
+      {t:"Pool 自由编辑", d:"内置池 task-set 增删，结构化 plan 仍锁定。", s:"prog", v:"Unreleased"},
+    ]},
+  { cls:"e-plat", ic:"⚙", name:"平台与可观测", desc:"事件、追踪、密钥等底座能力。",
+    feats:[
+      {t:"Fleet View / Trace", d:"一屏看 N agent + JSONL trace 归档。", s:"done", v:"v2.8+"},
+      {t:"密钥管理", d:"AES-GCM + secret:<name> 引用。", s:"done", v:"v2.9+"},
+      {t:"更丰富的观测", d:"跨 agent trace 投影与回放。", s:"vis", v:"vision"},
+    ]},
+];
+const el = document.getElementById("epics");
+el.innerHTML = EPICS.map((e,i)=>{
+  const done = e.feats.filter(f=>f.s==="done").length, pct = Math.round(done/e.feats.length*100);
+  const feats = e.feats.map(f=>{
+    const [lab,cl] = ST[f.s];
+    return `<div class="feat"><div class="ft">${f.t}</div><p>${f.d}</p><div class="meta"><span class="st ${cl}"><span class="dot d-${f.s}"></span>${lab}</span><span class="ver">${f.v}</span></div></div>`;
+  }).join("");
+  return `<section class="epic ${e.cls} fade" style="animation-delay:${i*.06}s">
+    <div class="eh"><div class="ic">${e.ic}</div>
+      <div class="et"><h3>${e.name}</h3><p>${e.desc}</p></div>
+      <div class="prog"><div class="bar"><i style="width:${pct}%"></i></div><div class="pct">${done}/${e.feats.length} 已完成</div></div>
+    </div>
+    <div class="feats">${feats}</div>
+  </section>`;
+}).join("");
 </script>
-
 </body>
 </html>

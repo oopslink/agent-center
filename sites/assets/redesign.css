@@ -1,0 +1,93 @@
+/* ============================================================
+   agent-center sites — shared design tokens
+   Aligned to the product Web Console design system
+   (web/src/index.css :root). Light slate/blue, Swiss minimal.
+   Adds ONE characterful display font (Archivo) + mono for
+   technical / DDD diagram labels. No dark engineering chrome.
+   ============================================================ */
+:root {
+  /* ---- product-mirrored surface / text / brand ---- */
+  --bg-base:        #f8fafc;
+  --bg-elevated:    #ffffff;
+  --bg-subtle:      #f1f5f9;
+  --border:         #e2e8f0;
+  --border-strong:  #cbd5e1;
+  --ink:            #0f172a;
+  --ink-2:          #475569;
+  --ink-3:          #64748b;
+  --brand:          #1e40af;
+  --brand-hover:    #1d4ed8;
+  --accent:         #2563eb;
+  --success:        #16a34a;
+  --warning:        #d97706;
+  --danger:         #dc2626;
+
+  /* DDD classification hues (reuse product status palette) */
+  --core:        #2563eb;  --core-bg:     #dbeafe;  --core-bd:   #93c5fd;
+  --essential:   #0d9488;  --essential-bg:#ccfbf1;  --essential-bd:#5eead4;
+  --peripheral:  #64748b;  --peripheral-bg:#f1f5f9; --peripheral-bd:#cbd5e1;
+  --generic:     #9333ea;  --generic-bg:  #f3e8ff;  --generic-bd:#d8b4fe;
+
+  /* dark rail — echoes product col① module rail (fixed dark chrome) */
+  --rail-bg:    #0b1220;
+  --rail-line:  #1e293b;
+  --rail-ink:   #94a3b8;
+  --rail-ink-2: #cbd5e1;
+
+  --shadow-1: 0 1px 2px rgba(15,23,42,.05);
+  --shadow-2: 0 4px 14px -4px rgba(15,23,42,.12);
+  --shadow-3: 0 18px 40px -12px rgba(15,23,42,.22);
+  --ring: 0 0 0 3px rgba(37,99,235,.35);
+
+  --r-sm: 7px; --r-md: 12px; --r-lg: 18px; --r-xl: 26px;
+
+  --font-display: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body:    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+
+  --maxw: 1180px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg-base); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--brand-hover); }
+h1,h2,h3,h4 { font-family: var(--font-display); letter-spacing: -.02em; line-height: 1.1; margin: 0; }
+
+/* ---- top nav (shared) ---- */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(248,250,252,.82); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.nav .in { max-width: var(--maxw); margin: 0 auto; padding: 13px 24px; display: flex; align-items: center; gap: 26px; }
+.brand { font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--ink); display: flex; align-items: center; gap: 8px; letter-spacing: -.3px; }
+.brand .glyph { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,var(--accent),var(--brand)); box-shadow: var(--shadow-1); display: grid; place-items: center; }
+.brand .glyph::after { content:""; width: 9px; height: 9px; border: 2px solid #fff; border-radius: 50%; }
+.nav nav { display: flex; gap: 4px; margin-left: auto; }
+.nav nav a { color: var(--ink-2); font-size: 14px; font-weight: 500; padding: 7px 12px; border-radius: 8px; }
+.nav nav a:hover { background: var(--bg-subtle); color: var(--ink); }
+.nav nav a.active { color: var(--brand); background: var(--core-bg); }
+
+/* ---- buttons ---- */
+.btn { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; padding: 10px 18px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; transition: .18s; }
+.btn.primary { background: var(--brand); color: #fff; box-shadow: var(--shadow-2); }
+.btn.primary:hover { background: var(--brand-hover); transform: translateY(-1px); }
+.btn.ghost { background: var(--bg-elevated); color: var(--ink); border-color: var(--border-strong); }
+.btn.ghost:hover { border-color: var(--accent); color: var(--brand); }
+
+/* ---- chips ---- */
+.chip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--ink-2); background: var(--bg-elevated); }
+.chip.core { color: var(--core); background: var(--core-bg); border-color: var(--core-bd); }
+.chip.essential { color: var(--essential); background: var(--essential-bg); border-color: var(--essential-bd); }
+.chip.peripheral { color: var(--peripheral); background: var(--peripheral-bg); border-color: var(--peripheral-bd); }
+.chip.generic { color: var(--generic); background: var(--generic-bg); border-color: var(--generic-bd); }
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--ink-3); }

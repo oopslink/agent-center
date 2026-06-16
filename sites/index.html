@@ -4,248 +4,138 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>agent-center · 和 Agent 数字员工并肩工作</title>
-<meta name="description" content="agent-center —— 和 Agent 数字员工并肩工作的调度中心。Center 统一调度，Worker 在任意机器运行，Agent 数字员工承接每一次派单，你与他们在同一条可追溯的线程上协作。">
-<link rel="stylesheet" href="assets/site.css">
-<script src="assets/site.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/redesign.css">
 <style>
-/* ============ home: centered dynamic architecture diagram ============ */
-.hero.home { padding: 70px 24px 30px; text-align: center; }
-.hero.home .inner { max-width: 880px; }
-.hero.home h1 { font-size: 44px; line-height: 1.12; }
-.hero.home p.lede { margin: 0 auto; }
-.hero.home .cta { justify-content: center; }
-@media (max-width: 820px){ .hero.home h1 { font-size: 30px; } }
+/* ===== HOME ===== */
+.hero { position: relative; overflow: hidden; }
+.hero::before { /* blueprint grid atmosphere */
+  content:""; position: absolute; inset: 0; z-index: 0;
+  background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 34px 34px; mask-image: radial-gradient(ellipse 80% 60% at 70% 10%, #000 30%, transparent 75%); opacity: .55;
+}
+.hero .grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; padding: 70px 0 56px; }
+.hero h1 { font-size: 52px; font-weight: 800; letter-spacing: -.035em; }
+.hero h1 .hl { background: linear-gradient(120deg,var(--accent),var(--brand)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p.lede { font-size: 18px; color: var(--ink-2); max-width: 460px; margin: 18px 0 26px; }
+.hero .cta { display: flex; gap: 12px; }
+.hero .ver { margin-top: 22px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); display:flex; gap:14px; align-items:center; }
+.hero .ver b { color: var(--success); }
 
-.arch {
-  --c-down: var(--panel-cyan); --c-up: var(--panel-amber);
-  max-width: 460px; margin: 40px auto 8px; position: relative;
-}
-.node {
-  position: relative; margin: 0 auto; width: 100%; max-width: 360px;
-  background: rgba(20,30,40,.55); border: 1px solid var(--panel-line);
-  border-radius: var(--r-md); padding: 13px 16px; text-align: center;
-  font-family: var(--mono); color: var(--panel-ink);
-  transition: border-color .2s, box-shadow .2s;
-}
-.node .nm { font-weight: 700; font-size: 14px; letter-spacing: .4px; display: block; }
-.node small { display: block; font-size: 11px; color: var(--panel-soft); margin-top: 3px; font-weight: 400; }
-.node .pin { position: absolute; top: 8px; right: 11px; font-size: 9px; color: var(--panel-soft); opacity: .7; letter-spacing: 1px; }
-/* stacked = "many" (worker / agent) */
-.node.stack::before, .node.stack::after {
-  content: ""; position: absolute; inset: 0; border: 1px solid var(--panel-line);
-  border-radius: var(--r-md); z-index: -1;
-}
-.node.stack::before { transform: translate(6px, 6px); opacity: .55; }
-.node.stack::after  { transform: translate(12px, 12px); opacity: .28; }
-.node.center { border-color: var(--c-down); box-shadow: 0 0 0 1px rgba(52,208,230,.25), 0 0 22px -6px rgba(52,208,230,.5); }
-.node.center .nm { color: var(--c-down); font-size: 16px; }
-.node.agent  { border-color: rgba(244,183,64,.55); }
-.node.agent .nm { color: var(--c-up); }
-.node.human .nm { color: #fff; }
-
-/* connector: dashed spine + traveling pulses (bidirectional) */
-.link { position: relative; height: 50px; }
-.link::before {
-  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%);
-  background: repeating-linear-gradient(var(--panel-line) 0 5px, transparent 5px 11px);
-}
+/* live architecture diagram — the "chart" hero, minimal words */
+.arch { position: relative; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 26px 22px; box-shadow: var(--shadow-3); }
+.arch .cap { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 16px; display:flex; justify-content:space-between; }
+.arch .cap .dot { color: var(--success); }
+.node { position: relative; margin: 0 auto; max-width: 290px; background: var(--bg-elevated); border: 1.5px solid var(--border-strong); border-radius: var(--r-md); padding: 12px 14px; text-align: center; font-family: var(--font-mono); transition: .2s; }
+.node .nm { font-weight: 700; font-size: 14px; color: var(--ink); display: block; }
+.node small { display: block; font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.node.center { border-color: var(--accent); box-shadow: 0 0 0 4px var(--core-bg); }
+.node.center .nm { color: var(--brand); }
+.node.stack::before, .node.stack::after { content:""; position: absolute; inset: 0; border: 1.5px solid var(--border-strong); border-radius: var(--r-md); z-index: -1; background: var(--bg-elevated); }
+.node.stack::before { transform: translate(5px,5px); opacity:.6; }
+.node.stack::after { transform: translate(10px,10px); opacity:.3; }
+.node.agent { border-color: var(--essential); } .node.agent .nm { color: var(--essential); }
+.node.human { border-style: dashed; }
+.link { position: relative; height: 42px; }
+.link::before { content:""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%); background: repeating-linear-gradient(var(--border-strong) 0 5px, transparent 5px 10px); }
 .link .dot { position: absolute; left: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translateX(-50%); }
-.link .dot.dn { background: var(--c-down); box-shadow: 0 0 9px var(--c-down); animation: ac-dn 2.4s linear infinite; }
-.link .dot.up { background: var(--c-up);   box-shadow: 0 0 9px var(--c-up);   animation: ac-up 2.4s linear infinite; }
-.link .lbl {
-  position: absolute; left: calc(50% + 18px); top: 50%; transform: translateY(-50%);
-  white-space: nowrap; font-family: var(--mono); font-size: 11px; color: var(--panel-soft); text-align: left;
-}
-.link .lbl b { color: var(--c-down); font-weight: 600; }
-.link .lbl i { color: var(--c-up); font-style: normal; }
-@keyframes ac-dn { 0%{top:2px;opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{top:calc(100% - 4px);opacity:0} }
-@keyframes ac-up { 0%{top:calc(100% - 4px);opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{top:2px;opacity:0} }
+.link .dot.dn { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: dn 2.4s linear infinite; }
+.link .dot.up { background: var(--essential); box-shadow: 0 0 8px var(--essential); animation: up 2.4s linear infinite; }
+.link .lbl { position: absolute; left: calc(50% + 16px); top: 50%; transform: translateY(-50%); white-space: nowrap; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); }
+@keyframes dn { 0%{top:2px;opacity:0} 15%{opacity:1} 85%{opacity:1} 100%{top:34px;opacity:0} }
+@keyframes up { 0%{top:34px;opacity:0} 15%{opacity:1} 85%{opacity:1} 100%{top:2px;opacity:0} }
 
-.arch-cap {
-  margin: 16px auto 0; max-width: 380px; font-family: var(--mono); font-size: 11.5px;
-  color: var(--panel-soft); border-top: 1px dashed var(--panel-line); padding-top: 12px;
-}
-.arch-cap b { color: var(--c-up); font-weight: 600; }
-.arch-cap .thread { color: var(--c-down); }
+/* stat strip */
+.stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; margin: 8px 0 64px; }
+.stats div { background: var(--bg-elevated); padding: 22px 20px; }
+.stats .n { font-family: var(--font-display); font-size: 34px; font-weight: 800; color: var(--brand); letter-spacing: -.03em; }
+.stats .k { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
 
-@media (max-width: 560px){
-  .arch { max-width: 320px; }
-  .link .lbl { position: static; transform: none; display: block; margin-top: 4px; text-align: center;
-    left: auto; }
-  .link { height: auto; padding: 22px 0 8px; }
-  .link::before { bottom: auto; height: 22px; }
-  .link .dot { display: none; }
-}
-@media (prefers-reduced-motion: reduce){ .link .dot { animation: none; opacity: .9; top: 50%; } }
+/* bento capability cards */
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 22px; }
+.sec-h h2 { font-size: 27px; font-weight: 700; }
+.bento { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 70px; }
+.card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 22px; transition: .2s; display: flex; flex-direction: column; gap: 10px; }
+.card:hover { border-color: var(--accent); box-shadow: var(--shadow-2); transform: translateY(-3px); }
+.card.span2 { grid-column: span 2; }
+.card .ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--core-bg); color: var(--brand); font-size: 19px; }
+.card h3 { font-size: 17px; font-weight: 700; }
+.card p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+.card .go { margin-top: auto; font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--accent); }
+.card:hover .go { letter-spacing: .3px; }
+
+footer { border-top: 1px solid var(--border); padding: 30px 0; color: var(--ink-3); font-size: 13px; }
+footer .in { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; display: flex; justify-content: space-between; }
+.fade { opacity: 0; transform: translateY(14px); animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
+.d1{animation-delay:.05s}.d2{animation-delay:.13s}.d3{animation-delay:.21s}.d4{animation-delay:.29s}
+@keyframes rise { to { opacity:1; transform:none; } }
+@media (max-width: 880px){ .hero .grid{grid-template-columns:1fr} .bento,.stats{grid-template-columns:1fr 1fr} .card.span2{grid-column:span 2} .hero h1{font-size:38px} }
 </style>
 </head>
 <body>
-
-<header class="site-hd">
-  <div class="hd-inner">
-    <a class="brand" href="index.html">agent-center<span class="dot">·</span></a>
-    <nav class="hd-nav">
-      <a href="product/index.html">产品介绍</a>
-      <a href="manual/v2.10.0/index.html">用户手册</a>
-      <a href="dev/v2.10.0/index.html">开发指引</a>
+<header class="nav">
+  <div class="in">
+    <span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav>
+      <a class="active" href="index.html">首页</a>
+      <a href="product/index.html">产品</a>
+      <a href="dev/v2.10.0/index.html">架构 / DDD</a>
+      <a href="manual/v2.10.0/index.html">手册</a>
       <a href="roadmap/index.html">路线图</a>
-      <a class="gh" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener" aria-label="GitHub" title="GitHub"><svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
+      <a href="https://github.com/oopslink/agent-center">GitHub ↗</a>
     </nav>
   </div>
 </header>
 
-<section class="hero home">
-  <div class="inner">
-    <span class="eyebrow">多智能体编排平台 · Go + Web Console</span>
-    <h1>和 Agent 数字员工并肩工作</h1>
-    <p class="lede">Center 统一调度，Worker 在任意机器运行，Agent 数字员工承接每一次派单 —— 你与他们在同一条可追溯的线程上协作。</p>
-
-    <!-- 居中 · 动态架构图：Center ↔ Worker ↔ Agent -->
-    <div class="arch" role="img" aria-label="架构图：你 / 团队 通过 Web Console 与 Center 协作；Center 经 admin transport 调度任意机器上的 Worker；Worker 拉起并监督 Agent 数字员工；Agent 通过 MCP 直连 Center 发消息、建任务、请求输入，全部落在可追溯线程。">
-      <div class="node human">
-        <span class="pin">HUMAN</span>
-        <span class="nm">你 / 团队</span>
-        <small>Web Console（回环）</small>
+<section class="hero">
+  <div class="wrap">
+    <div class="grid">
+      <div class="fade d1">
+        <span class="eyebrow">多智能体编排平台 · Go + Web Console</span>
+        <h1>和 <span class="hl">Agent 数字员工</span><br>并肩工作的调度中心</h1>
+        <p class="lede">Center 统一调度，Worker 在任意机器运行，Agent 承接每一次派单 —— 你和他们在同一条可追溯的线程上协作。</p>
+        <div class="cta">
+          <a class="btn primary" href="product/index.html">快速开始 →</a>
+          <a class="btn ghost" href="dev/v2.10.0/index.html">看架构设计</a>
+        </div>
+        <div class="ver"><span>当前版本 <b>v2.10.2</b></span><span>·</span><span>单 Go 二进制 · go:embed</span><span>·</span><span>loopback-only</span></div>
       </div>
-      <div class="link">
-        <span class="dot dn"></span><span class="dot up"></span>
-        <span class="lbl"><b>派单 · 追问 ↓</b> &nbsp; <i>↑ 消息 · 决策</i></span>
-      </div>
-      <div class="node center">
-        <span class="pin">CENTER</span>
-        <span class="nm">Center</span>
-        <small>server · Web Console · SQLite · Supervisor</small>
-      </div>
-      <div class="link">
-        <span class="dot dn"></span><span class="dot up"></span>
-        <span class="lbl"><b>派单 · 控制流 ↓</b> &nbsp; <i>↑ enroll · 心跳</i></span>
-      </div>
-      <div class="node worker stack">
-        <span class="pin">WORKER ×N</span>
-        <span class="nm">Worker</span>
-        <small>任意机器 · daemon</small>
-      </div>
-      <div class="link">
-        <span class="dot dn"></span>
-        <span class="lbl"><b>拉起 · 监督 ↓</b></span>
-      </div>
-      <div class="node agent stack">
-        <span class="pin">AGENT ×N</span>
-        <span class="nm">Agent 数字员工</span>
-        <small>claude / codex / opencode</small>
-      </div>
-      <div class="arch-cap">
-        <b>MCP 直连 Center ↗</b> 发消息 · 建任务 · 请求输入 —— 每一步都落在<span class="thread"> 可追溯线程 </span>上。
+      <div class="arch fade d3">
+        <div class="cap"><span>运行时拓扑</span><span class="dot">● live</span></div>
+        <div class="node human"><span class="nm">You · 监督者</span><small>在 Web Console 派单 / 决策</small></div>
+        <div class="link"><span class="dot dn"></span><span class="lbl">dispatch ↓</span></div>
+        <div class="node center"><span class="nm">Center</span><small>单一权威 · 调度 / 会话 / 事件</small></div>
+        <div class="link"><span class="dot dn"></span><span class="dot up" style="animation-delay:1.2s"></span><span class="lbl">A2A ⇅ SSE</span></div>
+        <div class="node stack agent"><span class="nm">Agent × N</span><small>per-execution CLI 子进程</small></div>
+        <div class="link"><span class="dot up"></span><span class="lbl">trace ↑</span></div>
+        <div class="node stack"><span class="nm">Worker × N</span><small>你的开发机守护进程</small></div>
       </div>
     </div>
 
-    <div class="cta">
-      <a class="btn primary" href="product/index.html">了解 agent-center →</a>
-      <a class="btn ghost" href="manual/v2.10.0/index.html">快速上手</a>
-      <a class="btn ghost" href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub</a>
+    <div class="stats fade d2">
+      <div><div class="n">6</div><div class="k">限界上下文 (BC)</div></div>
+      <div><div class="n">22+</div><div class="k">领域实体</div></div>
+      <div><div class="n">39</div><div class="k">架构决策 ADR</div></div>
+      <div><div class="n">4</div><div class="k">版本手册</div></div>
+    </div>
+
+    <div class="sec-h"><h2>核心能力</h2><a class="muted" href="manual/v2.10.0/index.html" style="font-family:var(--font-mono);font-size:13px">全部文档 →</a></div>
+    <div class="bento">
+      <a class="card span2" href="dev/v2.10.0/index.html">
+        <div class="ic">◧</div>
+        <h3>DDD 架构浏览器 · 逐层点开</h3>
+        <p>限界上下文 → 聚合 → 实体类图 → 序列图，分层探索而非一页平铺。配实体关系与事件流。</p>
+        <span class="go">打开架构浏览器 →</span>
+      </a>
+      <a class="card" href="product/index.html"><div class="ic">⟁</div><h3>统一调度</h3><p>Supervisor 事件触发、LLM 驱动决策。</p><span class="go">了解 →</span></a>
+      <a class="card" href="product/index.html"><div class="ic">⊞</div><h3>Worker 任意机器</h3><p>Discovery Proposal 自动发现项目映射。</p><span class="go">了解 →</span></a>
+      <a class="card" href="product/index.html"><div class="ic">◑</div><h3>Agent 数字员工</h3><p>一等公民身份 + 状态机 + 并发记账。</p><span class="go">了解 →</span></a>
+      <a class="card" href="product/index.html"><div class="ic">≋</div><h3>可追溯线程</h3><p>Task / Issue 1:1 Conversation，对话即审计。</p><span class="go">了解 →</span></a>
     </div>
   </div>
 </section>
 
-<main class="wrap wide">
-
-  <div class="section-title">v2.10.1 新特性 · 移动端体验 + 开放认领 + 桌面增强</div>
-  <div class="desc" style="max-width:880px;margin:0 0 18px">v2.10.0 三栏桌面骨架适配到 <b>&lt;768 移动布局</b>：<b>底部 Tab 导航</b>（Workspace / Conversations / Members / System）驱动 整屏列表 → 整屏详情 → 底部 sheet 的层级流；Plan 的 DAG 转为<b>纵向 stepper</b>，Work Board 竖屏横滑 / 横屏铺开，Members / System 一并适配。<b>Claimability（ADR-0047）</b>：backlog 仍不可领，<b>Assignment Pool 开放认领</b> —— 任意项目成员可领（fail-closed 授权、对非成员 opaque）、<b>每 agent 持有上限 N=3</b>、原子 CAS（无双 assignee）。<b>桌面增强</b>：Thread / 参与者侧栏<b>拖拽调宽</b>（共用 <code>ResizablePanel</code>、持久化）、Channel 侧栏 <b>Chat / Threads / Files</b> 三 tab、全局 Plan 列表查看 <b>Archived（只读）</b>、col① 侧栏整合连接状态 / 搜索 / 主题切换 / Sign out。外加：<b>Plan <code>P&lt;number&gt;</code> 序列号</b> + <code>plan-id</code> / <code>P123</code> 消息 linkify（与 <code>T&lt;number&gt;</code> 对称）、列表 <code>org_ref</code>（<code>T&lt;n&gt;</code>）取代 <code>#短哈希</code>、Task / Issue 侧栏 agent 名点击弹出活动侧栏、Task → 关联 Plan 跳转、<b>入站附件 agent 可见</b>（wake 透传 <code>file_uri</code>、fail-closed）、SSE 连接更稳（<code>no-transform</code>）、<code>discard_task</code> agent 工具。</div>
-
-  <div class="section-title">v2.10.0 新特性 · 三栏式桌面 UI/UX</div>
-  <div class="desc" style="max-width:880px;margin:0 0 18px">Web Console 重构为<b>四区骨架</b>：顶层模块<b>图标栏</b>（Workspace / Conversations / Members / System）→ 每模块<b>二级列表</b>（col②）→<b>内容</b>区（col③）→<b>按需上下文</b>面板（col④），落在现有 IA 上（移除 Overview）。col② 由<b>二级导航注册表</b>驱动 —— 模块加自己的 nav + 一行注册即接入，不动 app layout。各模块全部在此骨架上重建（Conversations / Projects / Tasks / Issues / 全局 Plan / Work Board / Members / System）。外加：<b>task & issue 附件</b>（上传 / 下载，项目成员鉴权 fail-closed）、<b>消息引用 linkify</b>（<code>task-&lt;id&gt;</code> 与 <code>T&lt;number&gt;</code> 都成任务链接）、<b>入站消息附件</b>透出给 agent、system 消息作者显示 <b>System</b>。</div>
-  <div class="grid two" style="margin-bottom:8px">
-    <figure style="margin:0"><img src="assets/v2.10.0/appshell.png" alt="三栏式 App Shell：图标栏 + 二级列表 + 内容 + 上下文面板" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">三栏式 App Shell：图标栏（顶层模块）+ col② 二级列表 + col③ 内容 + col④ 按需上下文</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.10.0/plan-dag.png" alt="全局 Plan 详情 DAG tab" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">全局跨项目 Plan 详情：Chat / DAG / Task 列表三 tab，DAG 派生节点状态</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.10.0/attachments.png" alt="消息附件渲染" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">消息附件：上传 / 渲染 / 下载（项目成员鉴权，非成员 fail-closed）</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.10.0/projects-counts.png" alt="Projects 列表卡片计数" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Projects 列表卡片显示 task / issue / plan / repo 计数</figcaption></figure>
-  </div>
-
-  <div class="section-title">v2.9.1 新特性 · Message Threads</div>
-  <div class="desc" style="max-width:880px;margin:0 0 18px">从任一消息<b>派生出 thread</b>、在弹出侧边栏里回复（Slack 式单层），Participants 侧栏有 thread 列表 +「有无新活动」标记；<b>在 thread 内 @提及项目 agent 会唤醒它、且回复落在该 thread 内</b> —— 适用所有会话类型。外加任务模型/看板收尾：<b>claimable + 每项目内置指派池</b>（指派≠领取；三段 Work Board = Backlog · 内置池 · 结构化 Plan）、更简的<b>任务状态机</b>（5 态，<code>blocked</code> 改为可恢复注解、删 <code>verified</code>）、<b>频道归档</b>、<code>list_tasks</code> MCP 工具、任务恢复工具与自动重派。</div>
-  <div class="grid two" style="margin-bottom:8px">
-    <figure style="margin:0"><img src="assets/v2.9.1/thread-sidebar.png" alt="ThreadSidebar：root + 回复 + 回复框" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">消息派生 thread → 侧栏「Thread · 2 replies」= root + 回复 + 回复框</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.9.1/work-board.png" alt="三段 Work Board" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">三段 Work Board：Backlog（不可领）· Assignment Pool（内置·常驻·可领）· 结构化 Plan</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.9.1/plan-dag.png" alt="Plan 详情 DAG + Task 号 + 派生状态" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Plan 三 tab + DAG：Task 号 + 派生节点状态（READY/BLOCKED）+ 在图连线编辑</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.9.1/channel-archive.png" alt="频道归档组" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">频道归档：「Archived / 已归档」组（只读），活动列表默认排除</figcaption></figure>
-  </div>
-
-  <div class="section-title">v2.9 新特性 · Plan Orchestration</div>
-  <div class="desc" style="max-width:880px;margin:0 0 18px">把工作组织成<b>任务的 DAG（一个 Plan）</b>，<code>start</code> 之后 center 随上游任务完成自动把每个就绪节点派发给对应 agent —— 一路跑到完成、无需手动推进。PM 型 agent 还能通过 MCP 工具编程式建 plan 并跑起来。Plan / Project 有明确生命周期（draft / running / done + 不可逆归档=只读）。org 路由显式化（<code>/api/orgs/{slug}/...</code>，前端 <code>/organizations/{slug}/...</code>），agent 在 plan 会话被 @提及也会唤醒。</div>
-  <div class="grid two" style="margin-bottom:8px">
-    <figure style="margin:0"><img src="assets/v2.9/cap5a-plan-detail-dag.png" alt="Plan 详情：DAG 6态节点 + assignee + 依赖编辑 + 会话侧栏" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Plan 详情：DAG（START→节点→END）+ 6 态节点 + assignee 名 + draft 边编辑 + plan 会话侧栏</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.9/cap1-done.png" alt="Plan 自动推进到 DONE 2/2" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">Start 后系统自动 dispatch 每个就绪节点给 agent → 跑到 DONE 2/2，零手点</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.9/cap3-plan-chat-reply.png" alt="plan 会话 @agent 真唤真回" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">plan 会话里 @ 项目 agent → agent 真唤真回</figcaption></figure>
-    <figure style="margin:0"><img src="assets/v2.9/cap4-archived-group.png" alt="归档项目「已归档」组只读" style="width:100%;border:1px solid #e2e8f0;border-radius:8px"><figcaption class="desc" style="margin-top:6px;font-size:13px">归档项目进「已归档」组、只读（默认列表不显）</figcaption></figure>
-  </div>
-
-  <div class="section-title">文档板块</div>
-  <div class="grid">
-    <a class="card" href="product/index.html">
-      <span class="idx">01</span>
-      <div class="ico">📦</div>
-      <h3>产品介绍</h3>
-      <div class="desc">agent-center 是什么、解决什么问题、核心能力与整体架构概览。第一次了解项目从这里开始。</div>
-      <div class="tags"><span class="tag">是什么</span><span class="tag">核心能力</span><span class="tag">架构概览</span></div>
-    </a>
-    <a class="card" href="manual/v2.10.0/index.html">
-      <span class="idx">02</span>
-      <div class="ico">📖</div>
-      <h3>用户手册</h3>
-      <div class="desc">安装、单机 / 多机部署、CLI 命令、<code>worker run --config</code>、MCP 工具、Web Console 使用与约定。<strong>按版本归档</strong>。</div>
-      <div class="tags"><span class="tag">安装部署</span><span class="tag">CLI</span><span class="tag">MCP 工具</span><span class="tag">Web Console</span></div>
-    </a>
-    <a class="card" href="dev/v2.10.0/index.html">
-      <span class="idx">03</span>
-      <div class="ico">🏗️</div>
-      <h3>开发指引</h3>
-      <div class="desc">技术架构、主要机制设计与 DDD 设计（限界上下文 / 战术 / Event Storming），按版本归档以便回溯演进。</div>
-      <div class="tags"><span class="tag">技术架构</span><span class="tag">核心机制</span><span class="tag">DDD 设计</span></div>
-    </a>
-    <a class="card" href="roadmap/index.html">
-      <span class="idx">04</span>
-      <div class="ico">🧭</div>
-      <h3>路线图</h3>
-      <div class="desc">已完成、推迟、长期愿景 —— 节奏决策一览。<b>v2.10.1 已发布</b>（移动端体验 + 开放认领 claimability + 桌面/Plan UI 增强：侧栏拖拽、Channel 三 tab、Plan archived 只读、col① rail、Plan P 号 + linkify、org_ref 取代短哈希、入站附件 wake 透传、SSE no-transform、discard_task），承接 <b>v2.10.0</b>（三栏式桌面 UI/UX 重构 + 二级导航注册表 + task/issue 附件 + 消息引用 linkify + System 作者）、<b>v2.9.1</b>（Message Threads + claimable 内置指派池 + 任务状态机简化 + 频道归档）、<b>v2.9</b>（Plan Orchestration + 显式 org 路由 + 归档语义），v3 推迟项与边界。</div>
-      <div class="tags"><span class="tag">已完成</span><span class="tag">backlog</span><span class="tag">v3 推迟</span></div>
-    </a>
-  </div>
-
-  <div class="section-title">开发指引 · 设计版本</div>
-  <div class="grid two">
-    <a class="card" href="dev/v2.10.0/index.html">
-      <span class="badge current">当前</span>
-      <span class="ver">v2.10.0</span>
-      <div class="desc">当前架构视图：以现行代码 <code>internal/*</code> + <code>web/*</code> 为准的限界上下文地图与战术设计。相对 v2.8 主要演进：Plan 编排（任务 DAG + 派生节点状态 + 自动推进 projector，v2.9）+ 显式 org 路由 <code>/organizations/{slug}/*</code>（v2.9）+ Message Threads（v2.9.1）+ 任务模型/看板（claimable≠assigned、内置指派池、三段 Work Board、5 态状态机，v2.9.1）+ 三栏式 App Shell（图标栏 → 二级导航注册表 → 内容 → 上下文面板，v2.10.0）+ task/issue 附件、消息引用 linkify、System 作者（v2.10.0）。</div>
-      <div class="tags"><span class="tag">Plan 编排</span><span class="tag">三栏式 Shell</span><span class="tag">org 路由</span><span class="tag">线程</span><span class="tag">附件</span><span class="tag">DDD</span></div>
-    </a>
-    <a class="card" href="dev/v2.8/index.html">
-      <span class="badge hist">历史</span>
-      <span class="ver">v2.8（发布 v2.8.1）</span>
-      <div class="desc">历史架构快照：会话页面 4-surface 统一架构（ConversationView）+ 未读 badge / 关注 toggle / agent 归档 + Worker 详情页 + Agent Activity 翻页折叠 + 完整 markdown 渲染（XSS strict escape）+ #/@ picker；<b>v2.8.1</b> Web Console UX 大改版 + 根治 agent 派发单活竞态。</div>
-      <div class="tags"><span class="tag">会话统一</span><span class="tag">前端 UX</span><span class="tag">单活竞态</span></div>
-    </a>
-    <a class="card" href="dev/v2.7.1/index.html">
-      <span class="badge hist">历史</span>
-      <span class="ver">v2.7.1</span>
-      <div class="desc">历史架构快照：v2.7.1 增量演进（序列号 T&lt;n&gt;/I&lt;n&gt;、身份邮箱、MCP 发现工具、worker 配置单一来源等），领域模型不变。</div>
-      <div class="tags"><span class="tag">序列号</span><span class="tag">身份邮箱</span><span class="tag">MCP</span></div>
-    </a>
-    <a class="card" href="dev/v2.7/index.html">
-      <span class="badge hist">历史</span>
-      <span class="ver">v2.7</span>
-      <div class="desc">历史架构快照：v2.7 当时的领域重构设计，标注为历史版本，便于与 v2.7.1 / v2.8 对照回溯。</div>
-      <div class="tags"><span class="tag">领域重构</span><span class="tag">快照</span></div>
-    </a>
-  </div>
-
-</main>
-
-<footer class="foot">
-  agent-center · 和 Agent 数字员工并肩工作 ·
-  <a href="https://github.com/oopslink/agent-center" target="_blank" rel="noopener">GitHub: oopslink/agent-center</a><br>
-  DDD 绘制规范见仓库 <code>docs/rules/ddd-design-diagram.md</code>。
-</footer>
-
+<footer><div class="in"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">v2.10.2 · MIT</span></div></footer>
 </body>
 </html>
