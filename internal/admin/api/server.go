@@ -403,6 +403,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/discard_task", s.discardTaskHandler)    // T119
 	s.mux.HandleFunc("POST /admin/agent-tools/set_task_issue", s.setTaskIssueHandler) // T192: (re)set/clear derived_from_issue
+	// T206: Reminder agent tools (Cognition BC). tool name == route segment.
+	s.mux.HandleFunc("POST /admin/agent-tools/create_reminder", s.createReminderHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_reminders", s.listRemindersHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_reminder", s.getReminderHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/update_reminder", s.updateReminderHandler)
 	// v2.7 D2 b2/d-ii-B — passthrough tools: thin wrappers over the pm
 	// AppServices (writes use actor=agent; the AppService's requireProjectMember
 	// is the write-gate) + per-agent-scoped reads (get_task own-work, get_issue

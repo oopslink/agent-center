@@ -322,6 +322,24 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "(Re)set or CLEAR a task's derived_from_issue link AFTER creation (previously the create-time link was the only chance to set it). Pass issue_id to link it (the issue must EXIST and belong to the task's project) or an empty string to clear. Authorized for the task's creator / a project member / its current worker — no work item required. Returns the resulting link.",
 	}, makeSetTaskIssue(cfg))
 
+	// --- reminder tools (T206, Cognition BC) ---------------------------------
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "create_reminder",
+		Description: "Set a reminder that wakes a target agent at a time (once) or on a schedule (cron) and delivers a text. remindee must be in your project (owner may cross projects). schedule is once{once_at RFC3339} or cron{cron_expr, timezone}. Optional end_condition (never|until|max_count) bounds a recurring reminder; skip_if_overlap (default true) drops a fire while the previous one is still being handled.",
+	}, makeCreateReminder(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_reminders",
+		Description: "List reminders you created (default), or by remindee, optionally filtered by status (active|paused|completed|canceled). Shows next_run_at + fired_count.",
+	}, makeListReminders(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_reminder",
+		Description: "Read one reminder by id (you must be its creator, the remindee, or an owner).",
+	}, makeGetReminder(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "update_reminder",
+		Description: "Manage a reminder: action=pause | resume | cancel, or edit (pass a new schedule and/or content). Pausing stops it firing; resume recomputes the next run; cancel is terminal. Only the creator or an owner may update.",
+	}, makeUpdateReminder(cfg))
+
 	// --- plan tools (v2.9 P3 Stage C, #285) ----------------------------------
 	// A PM-agent programmatically builds and runs plans: create a draft plan,
 	// add backlog tasks as nodes, wire depends_on edges into a DAG, then start
