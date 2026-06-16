@@ -5,9 +5,9 @@
   &nbsp;·&nbsp;
   <a href="./README.zh-CN.md">简体中文</a>
   &nbsp;·&nbsp;
-  <a href="./docs/index.md">Docs</a>
+  <a href="https://oopslink.github.io/agent-center/"><strong>Website ↗</strong></a>
   &nbsp;·&nbsp;
-  <a href="./docs/design/roadmap.md">Roadmap</a>
+  <a href="./docs/index.md">Docs</a>
   &nbsp;·&nbsp;
   <a href="./docs/deployment/v2.4-first-mile.md">Deploy Guide</a>
   &nbsp;·&nbsp;
@@ -17,7 +17,7 @@
 <br/>
 
 <p align="center">
-  <img src="./assets/cover.png" alt="agent-center — centralized orchestration for multi-agent workflows" width="760">
+  <a href="https://oopslink.github.io/agent-center/"><img src="./assets/cover.png" alt="agent-center — centralized orchestration for multi-agent workflows" width="760"></a>
 </p>
 
 <br/>
@@ -79,7 +79,7 @@ A worker spawns each agent's CLI (e.g. `claude`). The agent authenticates with t
 |---|---|
 | `~/.claude/settings.json` **hooks** (run under bypassPermissions), **plugins**, and **env** vars | **MCP servers** — the agent gets only its own agent-center MCP (pinned by `--strict-mcp-config`); the user's/plugin MCP servers are not loaded |
 
-> ⚠️ **Security note.** Because auth and the user's settings load from the same "user" source, the agent inherits the worker user's `~/.claude` **hooks** and runs them under `bypassPermissions`. If you keep sensitive or side-effecting hooks there, be aware the agent will execute them. **Full user-level isolation** (auth without loading the user source, via a `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN`) is tracked on the roadmap.
+> ⚠️ **Security note.** Because auth and the user's settings load from the same "user" source, the agent inherits the worker user's `~/.claude` **hooks** and runs them under `bypassPermissions`. If you keep sensitive or side-effecting hooks there, be aware the agent will execute them. **Full user-level isolation** (auth without loading the user source, via a `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN`) is not yet implemented.
 
 If claude has no reachable credential at all, orchestration still works end-to-end (dispatch → spawn → MCP connect → activity stream), but the agent's turn fails auth (`403 Request not allowed`) and its work item is marked failed.
 
@@ -237,7 +237,6 @@ Documentation entry points:
 - [Tactical / per-BC overviews](./docs/design/architecture/tactical/)
 - [ADR index](./docs/design/decisions/)
 - [Project conventions (must-read)](./docs/rules/conventions.md)
-- [Roadmap (deferred features)](./docs/design/roadmap.md)
 
 <br/>
 
@@ -305,7 +304,6 @@ agent-center/
 │   └── src/                        # → internal/webconsole/spa/dist via go:embed
 ├── docs/
 │   ├── design/                     # DDD architecture, ADRs, requirements
-│   ├── plans/                      # phase / cycle plans + audits
 │   ├── deployment/                 # deploy guides per version
 │   ├── operations/                 # runbooks
 │   └── rules/conventions.md        # cross-cutting design rules — read this
@@ -365,6 +363,5 @@ This is currently a single-author project. If you'd like to contribute:
 
 - **Bugs and design discussion** — open a GitHub Issue
 - **Code contributions** — read [`docs/rules/conventions.md`](./docs/rules/conventions.md) first (§ 0.4 AppService discipline + § 0.6 layer discipline catch most issues)
-- **Roadmap input** — point to a row in [Roadmap](./docs/design/roadmap.md) or open a Discussion
 
 The static site under `sites/` is the public entry point (published to GitHub Pages); for the full detail browse `docs/` directly in the repo.
