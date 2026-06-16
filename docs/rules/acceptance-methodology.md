@@ -221,19 +221,22 @@ v2.7.1 多轮并行验收用的协议，固化下来：
 
 ---
 
-## § 11. 发布流程（release flow）—— PD 全程负责（owner 2026-06-15/16 固化，v2.10.2 起）
+## § 11. 发布流程（release flow）—— PD 全程负责（owner 2026-06-15/16 固化；角色边界 2026-06-16 校准）
 
-整条「验收 → ship」由 **PD 一个人跑完，IntegrationDev 不参与 ship**。固定五步：
+> **角色边界（owner 2026-06-16 重申）**：**integration-dev 的唯一职责** = 在**开发期**把各 accepted 开发分支合并进**迭代主干（`main`）**（唯一机械合并人）；**不参与验收、不参与 ship、不做其它**。所以 ship 时 `main` 应已由 integration-dev 集成完毕——**PD ship 不再合并 feature 分支**。
+
+整条「验收 → ship」由 **PD 跑完**（feature 分支 → 主干的集成除外——那是 integration-dev 开发期的活）。固定五步：
 
 1. **PD 拆分验收任务 + 制定验收计划**：综合本周期全部任务，按**功能模块且逐个开发任务**拆成验收任务（验收项数 = 任务数，不可少），组成专项验收 plan（DAG）分发 Tester。
 2. **Tester 完成验收任务 + 证据提交到仓库**：每个开发任务 run-real 核验，贴**修复后 AFTER 效果图**（不接受 before/问题图）；证据（AFTER 截图 + `ACCEPTANCE-*.md`）**commit 到仓库** `docs/design/<version>/`（命名见 [`docs/design/ACCEPTANCE-EVIDENCE-SPEC.md`]），遵守 § 4 verify-in-tree。
 3. **PD 综合出验收报告**：逐任务 pass/fail + 内嵌证据 + 总体结论。**判定铁律**：PD **绝不以节点 `completed` / plan `has_failed` 推断 PASS**——必须核每个任务的**真实 verdict + 证据**（PD 读不到他人任务内容时，从仓库分支 `git archive <branch> docs/design/<ver>` 取已 commit 的证据）；Tester 发现 fail，对应任务/模块节点**不得判绿**，须判 fail 或开回退任务。
 4. **Owner 同意验收**。
-5. **PD 独立完成 ship 全流程**（顺序）：① 更新 **README + sites**；② **打包 / build**（§ 8 构建门：`make lint` 含 `lint-spa-tsc` + `make build` 绿）；③ **合并到 `main`**（在**干净的临时 worktree**里合，**不碰**带未提交 WIP 的部署 worktree；非 FF 时正常 merge，verify 无冲突 + 构建绿再推）；④ **打 tag `<version>`** 并推送；⑤ **清理所有开发分支**（远端 + 本地 `dev/<ver>-*`、`tester/<ver>-*` + 其 worktree，**保留 tag**），列出已删分支清单。
+5. **PD 独立完成 ship**（**主干 `main` 已由 integration-dev 集成**；顺序）：① 更新 **README + CHANGELOG + sites**（版本页 / 当前指针）；② **构建硬门**（§ 8：`make lint` 含 `lint-spa-tsc` + `make build` 绿）；③ **打 tag `<version>`** 并推送（在**干净的临时 worktree**，**不碰**带未提交 WIP 的部署 worktree）；④ **清理所有开发分支**（远端 + 本地 `dev/<ver>-*`、`tester/<ver>-*` + 其 worktree，**保留 tag**），列出已删分支清单。
+   - **注**：dev 分支 → `main` 的集成是 **integration-dev 开发期的活**，不在 PD 的 ship 步骤里。若 ship 时仍有 accepted 但未集成进 `main` 的 dev 分支，PD **请 integration-dev 合并**后再继续 ship——**PD 不自己合 feature 分支**。
 
 > 教训来源（v2.10.2，两度误报）：PD 首版凭"模块节点 completed"报"全绿"漏掉 M4 Open-DM fail；二版验收 PDF 用了 before 图被 owner 当场 catch。根因＝**凭节点状态推断 + 拿不到真实 AFTER 证据**。修正即上面第 2–3 步：证据 commit 进仓库 + PD 核真实 verdict。
 
-**§ 11 自检：** 验收项是否逐任务（数量=任务数）？每项有 AFTER 效果图且已 commit 仓库？报告是核真实 verdict 还是凭节点状态？ship 五步（README+sites / 打包 / 合 main / tag / 清分支）是否 PD 独立跑完、没拉 IntegrationDev？
+**§ 11 自检：** 验收项是否逐任务（数量=任务数）？每项有 AFTER 效果图且已 commit 仓库？报告是核真实 verdict 还是凭节点状态？**dev 分支→主干集成是否由 integration-dev 完成（PD 没自己合 feature 分支）**？ship（README+CHANGELOG+sites / 构建门 / tag / 清分支）是否 PD 独立跑完？
 
 ---
 
