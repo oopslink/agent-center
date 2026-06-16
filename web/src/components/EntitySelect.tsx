@@ -139,14 +139,17 @@ export function EntitySelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
+        // Full label as a native tooltip so a truncated selection (long agent
+        // handle in a narrow column) is still readable on hover.
+        title={selected ? selected.label : placeholder}
         onClick={() => !disabled && setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded border border-border-base bg-bg-elevated px-3 py-2 text-left text-sm text-text-primary focus:border-accent disabled:opacity-50"
+        className="flex w-full items-center justify-between rounded border border-border-base bg-bg-elevated px-2.5 py-2 text-left text-sm text-text-primary focus:border-accent disabled:opacity-50"
       >
         <span className={`flex min-w-0 items-center gap-1.5 ${selected ? '' : 'text-text-muted'}`}>
           {selected?.leading}
           <span className="truncate">{selected ? selected.label : placeholder}</span>
         </span>
-        <span aria-hidden="true" className="ml-2 text-text-muted">⌄</span>
+        <span aria-hidden="true" className="ml-1.5 shrink-0 text-text-muted">⌄</span>
       </button>
 
       {open && createPortal(

@@ -1738,7 +1738,7 @@ function PlanTaskRow({
             (avatar + name), and opening it reassigns. Replaces the old redundant
             pair (a read-only AssigneeTag stacked above a separate <select> that
             showed the same value). "" routes to the unassign endpoint. */}
-        <div className="max-w-[12rem]">
+        <div className="min-w-[11rem] max-w-[15rem]">
           <EntitySelect
             testId="plan-row-assign"
             options={assigneeOptions}
