@@ -126,6 +126,7 @@ type agentLifecycleEvtPayload struct {
 	Version    int    `json:"version"`
 	ResetScope string `json:"reset_scope,omitempty"`
 	Model      string `json:"model,omitempty"`
+	CLI        string `json:"cli,omitempty"`
 }
 
 // reconcileCommandPayload is the declarative command payload the AgentController
@@ -134,8 +135,12 @@ type reconcileCommandPayload struct {
 	AgentID          string `json:"agent_id"`
 	DesiredLifecycle string `json:"desired_lifecycle"`
 	Model            string `json:"model,omitempty"`
-	Version          int    `json:"version"`
-	ResetScope       string `json:"reset_scope,omitempty"`
+	// CLI selects the per-CLI session starter on the worker ("codex" → codex exec
+	// session; empty/"claude-code" → claude supervisor). Passthrough from the
+	// lifecycle event, same as Model.
+	CLI        string `json:"cli,omitempty"`
+	Version    int    `json:"version"`
+	ResetScope string `json:"reset_scope,omitempty"`
 }
 
 // workCommandPayload MUST stay byte-identical to pm WorkItemProjector's
@@ -175,6 +180,7 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 		AgentID:          pl.AgentID,
 		DesiredLifecycle: pl.Lifecycle,
 		Model:            pl.Model, // passthrough (pure event-driven; no Agent-repo read)
+		CLI:              pl.CLI,   // passthrough — per-CLI starter selection on the worker
 		Version:          pl.Version,
 		ResetScope:       pl.ResetScope,
 	})
