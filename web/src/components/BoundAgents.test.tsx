@@ -93,4 +93,20 @@ describe('BoundAgents', () => {
     fireEvent.click(await screen.findByTestId('bound-agent-restart'));
     await waitFor(() => expect(called).toBe(true));
   });
+
+  it('agent name links into AgentDetail; no standalone "Open →" link (T133/T143 parity)', async () => {
+    server.use(
+      http.get('/api/agents', () =>
+        HttpResponse.json({
+          agents: [agent({ id: 'A1', name: 'bot-1', worker_id: 'w-1' })],
+        }),
+      ),
+    );
+    wrap('w-1');
+    const link = await screen.findByTestId('bound-agent-name-link');
+    expect(link).toHaveTextContent('bot-1');
+    expect(link).toHaveAttribute('href', expect.stringContaining('/agents/A1'));
+    // the row-end "Open →" affordance is gone — the name itself is the open link
+    expect(screen.queryByText('Open →')).not.toBeInTheDocument();
+  });
 });

@@ -6,12 +6,14 @@ import type { Agent } from '@/api/types';
 
 // BoundAgents — the #273 "Bound Agents" tab. Lists the agents bound to this
 // worker (filtered from the org agent list by worker_id, same client-side filter
-// as the Environment page) + per-agent Restart + a link into AgentDetail.
+// as the Environment page) + per-agent Restart. The agent NAME links into
+// AgentDetail (T133/T143 parity — replaces the old standalone "Open →" link).
 //
 // NOTE (backend-grounded): there is NO unbind/rebind endpoint — an agent's worker
 // binding is immutable (only Archive clears it, #272). So PD's "restart/unbind"
 // reduces to Restart here; "remove an agent from this worker" = archive it, which
-// lives on AgentDetail (Open →). Unbind-as-such is deferred (flagged to PD).
+// lives on AgentDetail (reached by clicking the agent name). Unbind-as-such is
+// deferred (flagged to PD).
 function BoundAgentRow({ agent }: { agent: Agent }): React.ReactElement {
   const restart = useRestartAgent(agent.id);
   const canRestart = agent.lifecycle === 'running';
@@ -22,7 +24,18 @@ function BoundAgentRow({ agent }: { agent: Agent }): React.ReactElement {
       data-agent-id={agent.id}
       data-lifecycle={agent.lifecycle}
     >
-      <td className="border-b border-border-base px-3 py-2 font-medium">{agent.name}</td>
+      <td className="border-b border-border-base px-3 py-2 font-medium">
+        {/* T133/T143 parity: the agent NAME is the row's open affordance — click it
+            to reach AgentDetail (replaces the standalone "Open →" link). */}
+        <OrgLink
+          to={`/agents/${encodeURIComponent(agent.id)}`}
+          className="block truncate text-accent hover:underline"
+          data-testid="bound-agent-name-link"
+          title={agent.name}
+        >
+          {agent.name}
+        </OrgLink>
+      </td>
       <td className="border-b border-border-base px-3 py-2">
         <LifecycleBadge lifecycle={agent.lifecycle} />
       </td>
@@ -42,12 +55,6 @@ function BoundAgentRow({ agent }: { agent: Agent }): React.ReactElement {
               {restart.isPending ? 'Restarting…' : 'Restart'}
             </button>
           )}
-          <OrgLink
-            to={`/agents/${encodeURIComponent(agent.id)}`}
-            className="text-xs text-accent hover:underline"
-          >
-            Open →
-          </OrgLink>
         </div>
       </td>
     </tr>
