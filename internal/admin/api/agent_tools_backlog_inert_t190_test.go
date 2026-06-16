@@ -12,7 +12,7 @@ import (
 // =============================================================================
 // T190 — backlog-task-inert invariant + unified error.
 //
-// A backlog task (planID=="", still open) is INERT: claim_task / start_work /
+// A backlog task (planID=="", still open) is INERT: claim_task / start_task /
 // complete_task / block_task ALL reject it with the ONE unified envelope
 // (409 task_backlog_not_actionable + add-to-plan/pool guidance), replacing the
 // prior scattered not_claimable / task_not_runnable / not_agents_task. discard_task
@@ -119,9 +119,9 @@ func TestBlockTask_Backlog_Unified_T190(t *testing.T) {
 	}
 }
 
-// start_work converges on the SAME unified envelope: a backlog task assigned
+// start_task converges on the SAME unified envelope: a backlog task assigned
 // directly mints a queued WorkItem, but with the T130 run gate wired (as production
-// wires it) start_work refuses to activate it — surfaced as task_backlog_not_actionable.
+// wires it) start_task refuses to activate it — surfaced as task_backlog_not_actionable.
 func TestStartWork_Backlog_Unified_T190(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
@@ -148,7 +148,7 @@ func TestStartWork_Backlog_Unified_T190(t *testing.T) {
 	}
 	srv := f.server(t)
 
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/start_work", "acat_w1",
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/start_task", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "work_item_id": items[0].ID()})
 	if status != http.StatusConflict {
 		t.Fatalf("status = %d, want 409; body = %v", status, body)

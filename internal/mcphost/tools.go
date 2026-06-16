@@ -303,19 +303,19 @@ func makeRequestInput(cfg Config) mcp.ToolHandlerFor[requestInputArgs, any] {
 	}
 }
 
-// --- start_work / fail_work (v2.8.1 #278 D pull model) -----------------------
+// --- start_task / fail_task (v2.8.1 #278 D pull model) -----------------------
 
 type startWorkArgs struct {
 	WorkItemID string `json:"work_item_id" jsonschema:"the id of one of YOUR queued work items (from get_my_work) to start working on now"`
 }
 
-func makeStartWork(cfg Config) mcp.ToolHandlerFor[startWorkArgs, any] {
+func makeStartTask(cfg Config) mcp.ToolHandlerFor[startWorkArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args startWorkArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
 			"agent_id":     cfg.AgentID,
 			"work_item_id": args.WorkItemID,
 		}
-		return callAdmin(ctx, cfg, "start_work", body)
+		return callAdmin(ctx, cfg, "start_task", body)
 	}
 }
 
@@ -323,13 +323,13 @@ type failWorkArgs struct {
 	WorkItemID string `json:"work_item_id" jsonschema:"the id of the work item you are currently running that has failed"`
 }
 
-func makeFailWork(cfg Config) mcp.ToolHandlerFor[failWorkArgs, any] {
+func makeFailTask(cfg Config) mcp.ToolHandlerFor[failWorkArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args failWorkArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
 			"agent_id":     cfg.AgentID,
 			"work_item_id": args.WorkItemID,
 		}
-		return callAdmin(ctx, cfg, "fail_work", body)
+		return callAdmin(ctx, cfg, "fail_task", body)
 	}
 }
 
@@ -357,21 +357,21 @@ func makeListAssignmentPool(cfg Config) mcp.ToolHandlerFor[listAssignmentPoolArg
 	}
 }
 
-// --- pause_work / resume_paused_work (v2.8.1 #278 D PR4 scheduling) -----------
+// --- pause_task / resume_task (v2.8.1 #278 D PR4 scheduling) -----------
 
 type pauseWorkArgs struct {
 	WorkItemID string `json:"work_item_id" jsonschema:"the id of your currently-running work item to pause (set aside)"`
 	Reason     string `json:"reason" jsonschema:"a short reason you are pausing (for observability)"`
 }
 
-func makePauseWork(cfg Config) mcp.ToolHandlerFor[pauseWorkArgs, any] {
+func makePauseTask(cfg Config) mcp.ToolHandlerFor[pauseWorkArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args pauseWorkArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
 			"agent_id":     cfg.AgentID,
 			"work_item_id": args.WorkItemID,
 			"reason":       args.Reason,
 		}
-		return callAdmin(ctx, cfg, "pause_work", body)
+		return callAdmin(ctx, cfg, "pause_task", body)
 	}
 }
 
@@ -379,13 +379,13 @@ type resumeWorkArgs struct {
 	WorkItemID string `json:"work_item_id" jsonschema:"the id of a paused work item (from list_my_paused_work) to resume"`
 }
 
-func makeResumeWork(cfg Config) mcp.ToolHandlerFor[resumeWorkArgs, any] {
+func makeResumeTask(cfg Config) mcp.ToolHandlerFor[resumeWorkArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args resumeWorkArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
 			"agent_id":     cfg.AgentID,
 			"work_item_id": args.WorkItemID,
 		}
-		return callAdmin(ctx, cfg, "resume_paused_work", body)
+		return callAdmin(ctx, cfg, "resume_task", body)
 	}
 }
 

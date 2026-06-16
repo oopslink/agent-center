@@ -51,7 +51,7 @@ window.__MCP_TOOLS__ = {
           ]
         },
         {
-          "name": "fail_work",
+          "name": "fail_task",
           "summary": "Report that the work item you are currently running has failed (cannot be completed).",
           "description": "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
           "params": [
@@ -81,14 +81,14 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "list_my_paused_work",
-          "summary": "List your paused work items — the candidates you can resume_paused_work later.",
-          "description": "List your paused work items — the candidates you can resume_paused_work later.",
+          "summary": "List your paused work items — the candidates you can resume_task later.",
+          "description": "List your paused work items — the candidates you can resume_task later.",
           "params": []
         },
         {
-          "name": "pause_work",
-          "summary": "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_work a different item).",
-          "description": "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_work a different item). Resume it later with resume_paused_work. Use only when scheduling needs it — by default finish your current task first.",
+          "name": "pause_task",
+          "summary": "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_task a different item).",
+          "description": "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_task a different item). Resume it later with resume_task. Use only when scheduling needs it — by default finish your current task first.",
           "params": [
             {
               "name": "reason",
@@ -101,7 +101,7 @@ window.__MCP_TOOLS__ = {
           ]
         },
         {
-          "name": "resume_paused_work",
+          "name": "resume_task",
           "summary": "Resume a previously paused work item (pick its id from list_my_paused_work) — marks it running again.",
           "description": "Resume a previously paused work item (pick its id from list_my_paused_work) — marks it running again. Only ONE work item can be running at a time, so finish or pause your current one first (returns agent_busy otherwise).",
           "params": [
@@ -112,9 +112,9 @@ window.__MCP_TOOLS__ = {
           ]
         },
         {
-          "name": "start_work",
+          "name": "start_task",
           "summary": "Start working on one of your queued work items (mark it running).",
-          "description": "Start working on one of your queued work items (mark it running). Pick a work_item_id from get_my_work. Only ONE work item can be running at a time — finish (complete_task) or fail (fail_work) the current one before starting the next. Returns agent_busy if you already have a running item.",
+          "description": "Start working on one of your queued work items (mark it running). Pick a work_item_id from get_my_work. Only ONE work item can be running at a time — finish (complete_task) or fail (fail_task) the current one before starting the next. Returns agent_busy if you already have a running item.",
           "params": [
             {
               "name": "work_item_id",

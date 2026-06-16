@@ -7,7 +7,7 @@
 **一个没有归属 plan 的 task（`planID == ""`）是 BACKLOG —— 已捕获、但尚未被安排执行，因而是 INERT（惰性的）：**
 
 - **不可领取**（`claim_task`）
-- **不可 start**（`start_work`）
+- **不可 start**（`start_task`）
 - **不可改状态 / 推进**（`complete_task` / `block_task`）
 
 要让它变得可动作，必须二选一：
@@ -31,14 +31,14 @@
 
 ## 统一错误（Unified error）
 
-backlog 场景下，`claim_task` / `start_work` / `complete_task` / `block_task` **都**返回同一条 409 错误：
+backlog 场景下，`claim_task` / `start_task` / `complete_task` / `block_task` **都**返回同一条 409 错误：
 
 - **code**：`task_backlog_not_actionable`
 - **message**：`task is in backlog — add it to a plan (add_task_to_plan) or dispatch it into the assignment pool before <action>`
 
 这取代了此前分散的错误：`not_claimable`（claim）、`task_not_runnable`（start）、`not_agents_task`（complete/block —— backlog 无 WorkItem，旧路径会误报「不是你的 task」而非指引入池）。
 
-`rejectIfBacklog` 是 handler 侧共享判定门：先 `GetTask` 拿到 `planID`，命中 `IsBacklogInert` 即写统一错误。**非 backlog**（structured-plan 节点、已 running、已被他人 claim 等）仍落到各自原有的门（`ClaimPoolTask` 的 `not_claimable` / `already_claimed`、`requireOwnTask` 的 `not_agents_task`），行为不回归。`start_work` 走 WorkItem，故由 `writeWorkStateError` 把 `ErrWorkItemTaskNotRunnable` 收敛到同一 envelope。
+`rejectIfBacklog` 是 handler 侧共享判定门：先 `GetTask` 拿到 `planID`，命中 `IsBacklogInert` 即写统一错误。**非 backlog**（structured-plan 节点、已 running、已被他人 claim 等）仍落到各自原有的门（`ClaimPoolTask` 的 `not_claimable` / `already_claimed`、`requireOwnTask` 的 `not_agents_task`），行为不回归。`start_task` 走 WorkItem，故由 `writeWorkStateError` 把 `ErrWorkItemTaskNotRunnable` 收敛到同一 envelope。
 
 ## 例外：discard / 删除（Exemption）
 

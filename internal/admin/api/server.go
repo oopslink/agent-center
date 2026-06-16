@@ -364,20 +364,20 @@ func (s *Server) routes() {
 	// before any tool runs. b1 ships one representative read tool.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_work", s.getMyWorkHandler)
 	// v2.8.1 #278 D (pull model): the agent drives its own work-item queue —
-	// start_work (select a queued item → running, single-active-enforced) +
-	// fail_work (report the in-flight item failed → frees the slot to drain).
-	s.mux.HandleFunc("POST /admin/agent-tools/start_work", s.startWorkHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/fail_work", s.failWorkHandler)
+	// start_task (select a queued item → running, single-active-enforced) +
+	// fail_task (report the in-flight item failed → frees the slot to drain).
+	s.mux.HandleFunc("POST /admin/agent-tools/start_task", s.startWorkHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/fail_task", s.failWorkHandler)
 	// T83: claim an open built-in assignment-pool task (pool tasks have no
-	// WorkItem, so start_work does not apply) — atomic assign+run, fail-closed.
+	// WorkItem, so start_task does not apply) — atomic assign+run, fail-closed.
 	s.mux.HandleFunc("POST /admin/agent-tools/claim_task", s.claimTaskHandler)
 	// T83: read-only discovery of the open (unassigned) pool tasks the agent may
 	// claim across its member projects (separate from get_my_work).
 	s.mux.HandleFunc("POST /admin/agent-tools/list_assignment_pool", s.listAssignmentPoolHandler)
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the active item (→paused, release
 	// slot) + resume a paused item (→active, re-acquire slot, single-active-gated).
-	s.mux.HandleFunc("POST /admin/agent-tools/pause_work", s.pauseWorkHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/resume_paused_work", s.resumeWorkHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/pause_task", s.pauseWorkHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/resume_task", s.resumeWorkHandler)
 	// read tools: the agent's active item (loop-boundary check) + paused-resume candidates.
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_active_work", s.getMyActiveWorkHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_my_paused_work", s.listMyPausedWorkHandler)

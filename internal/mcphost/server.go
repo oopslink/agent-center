@@ -102,22 +102,22 @@ func NewServer(cfg Config) *mcp.Server {
 	}, makeGetMyWork(cfg))
 
 	// v2.8.1 #278 D (pull model): the agent works its OWN queue one item at a
-	// time — pick a queued item from get_my_work, start_work it (mark running),
-	// do it, complete_task it, then start_work the next. Only one work item may
-	// be running at a time (start_work returns agent_busy if one is already
-	// active). fail_work reports the running item as failed.
+	// time — pick a queued item from get_my_work, start_task it (mark running),
+	// do it, complete_task it, then start_task the next. Only one work item may
+	// be running at a time (start_task returns agent_busy if one is already
+	// active). fail_task reports the running item as failed.
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "start_work",
-		Description: "Start working on one of your queued work items (mark it running). Pick a work_item_id from get_my_work. Only ONE work item can be running at a time — finish (complete_task) or fail (fail_work) the current one before starting the next. Returns agent_busy if you already have a running item.",
-	}, makeStartWork(cfg))
+		Name:        "start_task",
+		Description: "Start working on one of your queued work items (mark it running). Pick a work_item_id from get_my_work. Only ONE work item can be running at a time — finish (complete_task) or fail (fail_task) the current one before starting the next. Returns agent_busy if you already have a running item.",
+	}, makeStartTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "fail_work",
+		Name:        "fail_task",
 		Description: "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
-	}, makeFailWork(cfg))
+	}, makeFailTask(cfg))
 
 	// T83: claim an OPEN assignment-pool task. Pool tasks have no work item (pull,
-	// no-wake), so start_work does not apply — claim_task is how you pick one up.
+	// no-wake), so start_task does not apply — claim_task is how you pick one up.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "claim_task",
 		Description: "Claim an OPEN assignment-pool task (a task_id from list_assignment_pool, not a work_item_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap. Once claimed it appears in get_my_work.",
@@ -133,14 +133,14 @@ func NewServer(cfg Config) *mcp.Server {
 	// v2.8.1 #278 PR4 scheduling autonomy: pause the current task to switch, then
 	// optionally resume it later.
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "pause_work",
-		Description: "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_work a different item). Resume it later with resume_paused_work. Use only when scheduling needs it — by default finish your current task first.",
-	}, makePauseWork(cfg))
+		Name:        "pause_task",
+		Description: "Pause your currently-running work item to switch to another (sets it aside, freeing you to start_task a different item). Resume it later with resume_task. Use only when scheduling needs it — by default finish your current task first.",
+	}, makePauseTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "resume_paused_work",
+		Name:        "resume_task",
 		Description: "Resume a previously paused work item (pick its id from list_my_paused_work) — marks it running again. Only ONE work item can be running at a time, so finish or pause your current one first (returns agent_busy otherwise).",
-	}, makeResumeWork(cfg))
+	}, makeResumeTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_my_active_work",
@@ -149,7 +149,7 @@ func NewServer(cfg Config) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_my_paused_work",
-		Description: "List your paused work items — the candidates you can resume_paused_work later.",
+		Description: "List your paused work items — the candidates you can resume_task later.",
 	}, makeListMyPausedWork(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{

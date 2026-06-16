@@ -1641,7 +1641,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
 
 // resumeNodeErrorMessage (T101) — turn the resume failure into an ACCURATE operator
 // hint instead of a generic "try again". A node shows `paused` because its agent set
-// the work item aside (pause_work) — and the agent typically did so to switch to
+// the work item aside (pause_task) — and the agent typically did so to switch to
 // ANOTHER task, so it is now active on that one. Operator resume then hits the
 // single-active invariant (ResumeWorkByOperator → 409 agent_busy): the right answer
 // is to explain WHY, not retry blindly. Maps the backend error CODE (ApiError.code);

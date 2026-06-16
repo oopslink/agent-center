@@ -661,7 +661,7 @@ override 也仍带 commit hash 是最佳实践（`v2.8.1-9908825`），仅在外
 |---|---|---|
 | 单模块单测（unit）| **Dev / Dev2**（写实现者）| `internal/agent/work_item_test.go` 测 WorkItem AR 行为 |
 | 跨模块集成（integration）| **Tester** | `tests/integration/d_pull_flow_test.go` 串 D 全流程 |
-| 端到端 acceptance（e2e）| **Tester** | "assign → queue → wake → start_work → complete → done" 全链 |
+| 端到端 acceptance（e2e）| **Tester** | "assign → queue → wake → start_task → complete → done" 全链 |
 | Runtime / 真-LLM 行为（real-LLM behavioral）| **Tester2** | 真 claude agent 按 prompt 决策、必复 mention、真 pause |
 | UI/UX run-real | **Tester2** | 浏览器渲染 + computed-truth + 多模态 / 时区 emulation |
 
