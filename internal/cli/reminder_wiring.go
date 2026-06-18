@@ -158,11 +158,14 @@ func buildReminderDeliveryProjector(a *App) *cogservice.ReminderDeliveryProjecto
 // Returns nil if prerequisites are missing. logf reports scan errors (the next
 // tick retries — FindDue is idempotent).
 func buildReminderTickHook(a *App, logf func(string)) func(context.Context) {
-	if a == nil || a.DB == nil || a.Sink == nil || a.IDGen == nil {
+	if a == nil || a.DB == nil || a.Sink == nil || a.OutboxRepo == nil || a.IDGen == nil {
 		return nil
 	}
 	repo := remindersqlite.NewReminderRepo(a.DB)
-	scheduler := cogservice.NewReminderScheduler(a.DB, repo, a.Sink, a.IDGen)
+	// OutboxRepo is REQUIRED: the fired event must land in the outbox so the
+	// delivery projector wakes the remindee (F1). Same DB-backed outbox the relay
+	// drains, so the Append and the projector see one table.
+	scheduler := cogservice.NewReminderScheduler(a.DB, repo, a.Sink, a.OutboxRepo, a.IDGen)
 	tp := cogservice.NewReminderTickProjector(scheduler, a.Clock, func(err error) {
 		if logf != nil {
 			logf("reminder tick: " + err.Error())

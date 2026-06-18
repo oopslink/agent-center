@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"sync"
 	"testing"
@@ -10,6 +11,8 @@ import (
 	"github.com/oopslink/agent-center/internal/cognition/reminder"
 	remindersqlite "github.com/oopslink/agent-center/internal/cognition/reminder/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/outbox"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
@@ -41,6 +44,14 @@ func (f *fakeEmitter) count(et observability.EventType) int {
 }
 
 func setup(t *testing.T) (context.Context, *reminder.Reminder, *remindersqlite.ReminderRepo, *ReminderScheduler, *fakeEmitter) {
+	_, _, repo, sched, emitter, _ := setupWithOutbox(t)
+	return context.Background(), nil, repo, sched, emitter
+}
+
+// setupWithOutbox is setup plus the real outbox repo, so a test can assert the
+// fired event actually lands in outbox_events (the channel the delivery
+// projector drains — F1: without this the reminder is never delivered/woken).
+func setupWithOutbox(t *testing.T) (context.Context, *reminder.Reminder, *remindersqlite.ReminderRepo, *ReminderScheduler, *fakeEmitter, *outboxsql.OutboxRepo) {
 	t.Helper()
 	d, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
@@ -51,13 +62,14 @@ func setup(t *testing.T) (context.Context, *reminder.Reminder, *remindersqlite.R
 		t.Fatalf("migrate: %v", err)
 	}
 	repo := remindersqlite.NewReminderRepo(d)
+	outboxRepo := outboxsql.NewOutboxRepo(d)
 	emitter := &fakeEmitter{}
 	var seq int
-	sched := NewReminderScheduler(d, repo, emitter, IDGenFunc(func() string {
+	sched := NewReminderScheduler(d, repo, emitter, outboxRepo, IDGenFunc(func() string {
 		seq++
 		return "fire-" + strconv.Itoa(seq)
 	}))
-	return context.Background(), nil, repo, sched, emitter
+	return context.Background(), nil, repo, sched, emitter, outboxRepo
 }
 
 func TestScheduler_FiresOnce_Completes(t *testing.T) {
@@ -91,6 +103,56 @@ func TestScheduler_FiresOnce_Completes(t *testing.T) {
 	// A second Tick fires nothing (no longer active/due).
 	if n, _ := sched.Tick(ctx, t0.Add(2*time.Hour)); n != 0 {
 		t.Errorf("Tick after completion: n=%d, want 0", n)
+	}
+}
+
+// TestScheduler_FiredEvent_LandsInOutbox is the F1 ship-blocker regression: the
+// fired event MUST be appended to the outbox (the channel the delivery projector
+// drains), not only to the observability events table. Before the fix the fire
+// path had no outbox.Append, so the remindee was never delivered/woken.
+func TestScheduler_FiredEvent_LandsInOutbox(t *testing.T) {
+	ctx, _, repo, sched, _, outboxRepo := setupWithOutbox(t)
+	r, _ := reminder.NewReminder(reminder.NewReminderInput{
+		ID: "rmd-outbox", OrganizationID: "org-7", ProjectID: "proj-7",
+		CreatorRef: "agent:AG1", CreatorProjectID: "proj-7", RemindeeAgentID: "AG2",
+		Schedule: reminder.OnceScheduleAt(t0.Add(time.Hour)), Content: "wake up",
+		EndCondition: reminder.NeverEnd(), Now: t0,
+	})
+	if err := repo.Save(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+
+	if n, err := sched.Tick(ctx, t0.Add(time.Hour)); err != nil || n != 1 {
+		t.Fatalf("Tick(due): n=%d err=%v, want 1", n, err)
+	}
+
+	evts, err := outboxRepo.FetchUnprocessed(ctx, 100)
+	if err != nil {
+		t.Fatalf("FetchUnprocessed: %v", err)
+	}
+	var fired *outbox.Event
+	for i := range evts {
+		if evts[i].EventType == string(EventReminderFired) {
+			fired = &evts[i]
+			break
+		}
+	}
+	if fired == nil {
+		t.Fatalf("no %s event in outbox; got %d events %+v", EventReminderFired, len(evts), evts)
+	}
+	// Payload must carry exactly the fields the delivery projector decodes.
+	var pl struct {
+		ReminderID      string `json:"reminder_id"`
+		RemindeeAgentID string `json:"remindee_agent_id"`
+		Content         string `json:"content"`
+		OrganizationID  string `json:"organization_id"`
+	}
+	if err := json.Unmarshal([]byte(fired.Payload), &pl); err != nil {
+		t.Fatalf("decode payload: %v (%s)", err, fired.Payload)
+	}
+	if pl.ReminderID != "rmd-outbox" || pl.RemindeeAgentID != "AG2" ||
+		pl.Content != "wake up" || pl.OrganizationID != "org-7" {
+		t.Errorf("payload mismatch: %+v", pl)
 	}
 }
 
