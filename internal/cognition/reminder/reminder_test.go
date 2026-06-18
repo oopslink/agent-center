@@ -215,6 +215,83 @@ func TestRecordFire_Until_Completes(t *testing.T) {
 	}
 }
 
+func TestRecordSkip_Cron_AdvancesWithoutCounting(t *testing.T) {
+	r, _ := NewReminder(validCronInput()) // daily 09:00 UTC, never-end
+	skipAt := time.Date(2026, 6, 17, 9, 0, 0, 0, time.UTC)
+	if err := r.RecordSkip(skipAt); err != nil {
+		t.Fatalf("RecordSkip: %v", err)
+	}
+	// A skip is NOT a fire: fired_count and last_fired_at must be untouched.
+	if r.FiredCount() != 0 {
+		t.Errorf("firedCount=%d, want 0 (skip must not count)", r.FiredCount())
+	}
+	if r.LastFiredAt() != nil {
+		t.Errorf("lastFiredAt=%v, want nil (skip is not a fire)", r.LastFiredAt())
+	}
+	if r.Status() != StatusActive {
+		t.Errorf("status=%s, want active (recurring)", r.Status())
+	}
+	wantNext := time.Date(2026, 6, 18, 9, 0, 0, 0, time.UTC)
+	if r.NextRunAt() == nil || !r.NextRunAt().Equal(wantNext) {
+		t.Errorf("next_run_at=%v, want %v (advanced one step)", r.NextRunAt(), wantNext)
+	}
+}
+
+func TestRecordSkip_Once_Completes(t *testing.T) {
+	r, _ := NewReminder(validOnceInput())
+	if err := r.RecordSkip(t0.Add(time.Hour)); err != nil {
+		t.Fatalf("RecordSkip: %v", err)
+	}
+	if r.Status() != StatusCompleted {
+		t.Errorf("status=%s, want completed (once has no further run)", r.Status())
+	}
+	if r.FiredCount() != 0 || r.LastFiredAt() != nil {
+		t.Errorf("firedCount=%d lastFired=%v, want 0 + nil (skip is not a fire)", r.FiredCount(), r.LastFiredAt())
+	}
+	if r.NextRunAt() != nil {
+		t.Errorf("completed once must have nil next_run_at")
+	}
+}
+
+func TestRecordSkip_MaxCount_DoesNotCountTowardLimit(t *testing.T) {
+	in := validCronInput()
+	in.EndCondition = EndCondition{Kind: EndMaxCount, MaxCount: 2}
+	r, _ := NewReminder(in)
+	// Many skips must never complete a max_count reminder: skips do not consume the budget.
+	for d := 17; d <= 25; d++ {
+		if err := r.RecordSkip(time.Date(2026, 6, d, 9, 0, 0, 0, time.UTC)); err != nil {
+			t.Fatalf("RecordSkip day %d: %v", d, err)
+		}
+		if r.Status() != StatusActive {
+			t.Fatalf("after skip day %d status=%s, want active (skips must not reach max_count)", d, r.Status())
+		}
+	}
+	if r.FiredCount() != 0 {
+		t.Errorf("firedCount=%d, want 0", r.FiredCount())
+	}
+}
+
+func TestRecordSkip_Until_Completes(t *testing.T) {
+	in := validCronInput()
+	in.EndCondition = EndCondition{Kind: EndUntil, Until: time.Date(2026, 6, 18, 0, 0, 0, 0, time.UTC)}
+	r, _ := NewReminder(in)
+	// Skip on the 17th: next would be the 18th 09:00, after Until → complete (time-based end still applies).
+	if err := r.RecordSkip(time.Date(2026, 6, 17, 9, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("RecordSkip: %v", err)
+	}
+	if r.Status() != StatusCompleted {
+		t.Errorf("status=%s, want completed (until passed)", r.Status())
+	}
+}
+
+func TestRecordSkip_Terminal_Errors(t *testing.T) {
+	r, _ := NewReminder(validCronInput())
+	_ = r.Cancel(t0.Add(time.Hour))
+	if err := r.RecordSkip(t0.Add(2 * time.Hour)); !errors.Is(err, ErrReminderTerminal) {
+		t.Errorf("RecordSkip on terminal: %v, want ErrReminderTerminal", err)
+	}
+}
+
 func TestCancel_And_TerminalImmutability(t *testing.T) {
 	r, _ := NewReminder(validCronInput())
 	if err := r.Cancel(t0.Add(time.Hour)); err != nil {

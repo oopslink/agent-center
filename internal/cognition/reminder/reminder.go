@@ -495,6 +495,45 @@ func (r *Reminder) RecordFire(at time.Time) error {
 	return nil
 }
 
+// RecordSkip advances a reminder past a due occurrence WITHOUT firing it — the
+// skip_if_overlap path (§3.3, overlap invariant): the previous occurrence is
+// still in flight, so this occurrence is dropped. Unlike RecordFire it does NOT
+// bump fired_count or last_fired_at (nothing fired, so a max_count budget is not
+// consumed and the history shows no delivery), but it advances the schedule the
+// same way — recompute next_run_at, and still honor a time-based EndCondition
+// (until / no-further-run) so a skipped recurring reminder can still complete.
+// Only an ACTIVE reminder skips (Invariant #3); paused/terminal returns an error.
+func (r *Reminder) RecordSkip(at time.Time) error {
+	if r.status.IsTerminal() {
+		return ErrReminderTerminal
+	}
+	if r.status != StatusActive {
+		return fmt.Errorf("cognition: cannot skip a %s reminder", r.status)
+	}
+	if r.schedule.Kind == ScheduleOnce {
+		// A once reminder has no further run; a skipped once is done.
+		r.status = StatusCompleted
+		r.nextRunAt = nil
+		r.bump(at)
+		return nil
+	}
+	next, err := r.schedule.nextAfter(at)
+	if err != nil {
+		return err
+	}
+	// firedCount is unchanged, so max_count is never reached via skips; until /
+	// no-further-run still complete the reminder.
+	if r.endCondition.reached(r.firedCount, next) {
+		r.status = StatusCompleted
+		r.nextRunAt = nil
+		r.bump(at)
+		return nil
+	}
+	r.nextRunAt = &next
+	r.bump(at)
+	return nil
+}
+
 // IsDue reports whether an active reminder is due to fire at-or-before `now`
 // (§3.3 FindDue predicate at the aggregate level). Paused/terminal are never due.
 func (r *Reminder) IsDue(now time.Time) bool {
