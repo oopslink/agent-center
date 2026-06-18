@@ -64,6 +64,10 @@ type Repository interface {
 	// delivered). It is the skip_if_overlap "previous occurrence not processed"
 	// predicate (§3.3 overlap). skipped_overlap/delivered/failed rows do not count.
 	HasPendingFiring(ctx context.Context, reminderID string) (bool, error)
+	// UpdateFiringOutcome resolves a firing's outcome by id (e.g. pending →
+	// delivered once the delivery projector posts the DM). Idempotent on id; a
+	// missing row is a no-op (the at-least-once projector may redeliver).
+	UpdateFiringOutcome(ctx context.Context, firingID string, outcome FiringOutcome) error
 	// ListFirings returns a reminder's trigger history (newest-first) — the
 	// "历史触发" the UI shows, incl. overlap-skips (T207).
 	ListFirings(ctx context.Context, reminderID string) ([]Firing, error)

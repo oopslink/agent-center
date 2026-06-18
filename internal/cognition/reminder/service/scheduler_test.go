@@ -273,6 +273,58 @@ func TestScheduler_SkipIfOverlap_NoPending_Fires(t *testing.T) {
 	if got.FiredCount() != 1 {
 		t.Errorf("firedCount=%d, want 1 (fired normally)", got.FiredCount())
 	}
+	// The fresh fire is recorded IN FLIGHT (pending), not delivered — delivery is
+	// async and the projector resolves it later.
+	if got := latestOutcome(t, ctx, repo, "rmd-skip2"); got != reminder.OutcomePending {
+		t.Errorf("fresh fire outcome=%s, want pending (delivery is async)", got)
+	}
+}
+
+// Full overlap lifecycle: a fire is recorded pending → while pending the next
+// occurrence skips → once delivery resolves it to delivered, the following
+// occurrence fires again (overlap cleared).
+func TestScheduler_OverlapLifecycle_PendingThenDelivered(t *testing.T) {
+	ctx, _, repo, sched, emitter := setup(t)
+	seedCronSkip(t, ctx, repo, "rmd-life", true)
+
+	// Day 1: fires → records pending.
+	if n, err := sched.Tick(ctx, time.Date(2026, 6, 17, 9, 0, 0, 0, time.UTC)); err != nil || n != 1 {
+		t.Fatalf("day1 Tick: n=%d err=%v, want 1", n, err)
+	}
+	if latestOutcome(t, ctx, repo, "rmd-life") != reminder.OutcomePending {
+		t.Fatalf("day1 outcome != pending")
+	}
+	// Day 2: previous still pending → skips.
+	if n, err := sched.Tick(ctx, time.Date(2026, 6, 18, 9, 0, 0, 0, time.UTC)); err != nil || n != 0 {
+		t.Fatalf("day2 Tick: n=%d err=%v, want 0 (skip)", n, err)
+	}
+	if latestOutcome(t, ctx, repo, "rmd-life") != reminder.OutcomeSkippedOverlap {
+		t.Fatalf("day2 outcome != skipped_overlap")
+	}
+	firedAfterSkip := emitter.count(EventReminderFired)
+
+	// Delivery resolves the pending firing → delivered (what the projector does).
+	fs, _ := repo.ListFirings(ctx, "rmd-life")
+	var pendingID string
+	for _, f := range fs {
+		if f.Outcome == reminder.OutcomePending {
+			pendingID = f.ID
+		}
+	}
+	if pendingID == "" {
+		t.Fatal("no pending firing to resolve")
+	}
+	if err := repo.UpdateFiringOutcome(ctx, pendingID, reminder.OutcomeDelivered); err != nil {
+		t.Fatal(err)
+	}
+
+	// Day 3: overlap cleared → fires again.
+	if n, err := sched.Tick(ctx, time.Date(2026, 6, 19, 9, 0, 0, 0, time.UTC)); err != nil || n != 1 {
+		t.Fatalf("day3 Tick: n=%d err=%v, want 1 (overlap cleared)", n, err)
+	}
+	if emitter.count(EventReminderFired) != firedAfterSkip+1 {
+		t.Errorf("day3 should emit one more fired event")
+	}
 }
 
 // skip_if_overlap=false ignores overlap entirely: fires even with a pending firing.

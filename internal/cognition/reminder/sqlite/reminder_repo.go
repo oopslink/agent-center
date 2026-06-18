@@ -137,6 +137,17 @@ func (r *ReminderRepo) HasPendingFiring(ctx context.Context, reminderID string) 
 	return pending != 0, nil
 }
 
+// UpdateFiringOutcome resolves a firing's outcome by id (pending → delivered once
+// the delivery projector posts the DM). Idempotent; a missing/already-resolved row
+// is a no-op (RowsAffected==0 is not an error — the at-least-once projector may
+// run again).
+func (r *ReminderRepo) UpdateFiringOutcome(ctx context.Context, firingID string, outcome reminder.FiringOutcome) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`UPDATE reminder_firings SET outcome=? WHERE id=?`, string(outcome), firingID)
+	return err
+}
+
 // ListFirings returns a reminder's trigger history newest-first (T207 历史触发).
 func (r *ReminderRepo) ListFirings(ctx context.Context, reminderID string) ([]reminder.Firing, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)

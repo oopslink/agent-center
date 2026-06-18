@@ -125,11 +125,17 @@ func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, n
 		if err := s.repo.Update(txCtx, r); err != nil {
 			return err
 		}
+		// The firing starts IN FLIGHT (pending), not delivered: the fired event is
+		// only just being dispatched to the outbox here, and the delivery projector
+		// resolves it to delivered once it actually posts the DM. Recording
+		// "delivered" at fire time would lie when delivery later fails, and the
+		// skip_if_overlap path reads this pending state to detect overlap.
+		firingID := s.idGen.NewULID()
 		if err := s.repo.AppendFiring(txCtx, reminder.Firing{
-			ID:         s.idGen.NewULID(),
+			ID:         firingID,
 			ReminderID: r.ID().String(),
 			FiredAt:    now,
-			Outcome:    reminder.OutcomeDelivered,
+			Outcome:    reminder.OutcomePending,
 		}); err != nil {
 			return err
 		}
@@ -160,7 +166,7 @@ func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, n
 		// "Sink.Emit audit + outbox.Append projection" double-write the agent/pm/
 		// conversation services already use; both sit in the aggregate's tx so the
 		// fired event is atomic with the state change.
-		if err := s.appendFiredOutbox(txCtx, r, now); err != nil {
+		if err := s.appendFiredOutbox(txCtx, r, firingID, now); err != nil {
 			return err
 		}
 		// completed → lifecycle/audit (once fired its last time).
@@ -186,17 +192,22 @@ type firedOutboxPayload struct {
 	RemindeeAgentID string `json:"remindee_agent_id"`
 	Content         string `json:"content"`
 	OrganizationID  string `json:"organization_id"`
+	// FiringID lets the delivery projector resolve THIS firing pending→delivered
+	// once it posts the DM.
+	FiringID string `json:"firing_id"`
 }
 
 // appendFiredOutbox writes the cognition.reminder.fired event to the outbox
 // inside the caller's tx, so the delivery projector (which drains the outbox)
-// delivers the reminder to the remindee.
-func (s *ReminderScheduler) appendFiredOutbox(ctx context.Context, r *reminder.Reminder, now time.Time) error {
+// delivers the reminder to the remindee. firingID is carried so the projector can
+// resolve that firing's outcome to delivered.
+func (s *ReminderScheduler) appendFiredOutbox(ctx context.Context, r *reminder.Reminder, firingID string, now time.Time) error {
 	pb, err := json.Marshal(firedOutboxPayload{
 		ReminderID:      r.ID().String(),
 		RemindeeAgentID: r.RemindeeAgentID(),
 		Content:         r.Content(),
 		OrganizationID:  r.OrganizationID(),
+		FiringID:        firingID,
 	})
 	if err != nil {
 		return err

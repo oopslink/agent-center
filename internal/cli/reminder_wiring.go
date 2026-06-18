@@ -148,10 +148,14 @@ func (d *conversationDeliverer) Deliver(ctx context.Context, orgID, remindeeAgen
 // buildReminderDeliveryProjector builds the fired→deliver projector (for the
 // outbox Relay). Returns nil if the conversation writer is missing.
 func buildReminderDeliveryProjector(a *App) *cogservice.ReminderDeliveryProjector {
-	if a == nil || a.MessageWriter == nil {
+	if a == nil || a.MessageWriter == nil || a.DB == nil {
 		return nil
 	}
-	return cogservice.NewReminderDeliveryProjector(&conversationDeliverer{writer: a.MessageWriter, idGen: a.IDGen, clk: a.Clock})
+	// The repo doubles as the FiringMarker: after delivery the projector resolves
+	// the firing pending→delivered so the recorded outcome reflects reality.
+	repo := remindersqlite.NewReminderRepo(a.DB)
+	return cogservice.NewReminderDeliveryProjector(
+		&conversationDeliverer{writer: a.MessageWriter, idGen: a.IDGen, clk: a.Clock}, repo)
 }
 
 // buildReminderTickHook builds the per-tick scan→fire hook for pump.WithTickHook.
