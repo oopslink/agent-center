@@ -123,6 +123,20 @@ func (r *ReminderRepo) AppendFiring(ctx context.Context, fr reminder.Firing) err
 	return err
 }
 
+// HasPendingFiring reports whether the reminder has a still-in-flight fire (a
+// reminder_firings row with outcome=pending) — the skip_if_overlap predicate.
+func (r *ReminderRepo) HasPendingFiring(ctx context.Context, reminderID string) (bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var pending int
+	err := exec.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM reminder_firings WHERE reminder_id=? AND outcome=?)`,
+		reminderID, string(reminder.OutcomePending)).Scan(&pending)
+	if err != nil {
+		return false, err
+	}
+	return pending != 0, nil
+}
+
 // ListFirings returns a reminder's trigger history newest-first (T207 历史触发).
 func (r *ReminderRepo) ListFirings(ctx context.Context, reminderID string) ([]reminder.Firing, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)

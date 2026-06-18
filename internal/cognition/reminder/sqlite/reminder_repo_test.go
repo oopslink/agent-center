@@ -150,3 +150,39 @@ func TestRepo_AppendFiring(t *testing.T) {
 		t.Fatalf("AppendFiring 2: %v", err)
 	}
 }
+
+func TestRepo_HasPendingFiring(t *testing.T) {
+	ctx, repo := setup(t)
+	r := newOnce(t, "rmd-p")
+	_ = repo.Save(ctx, r)
+
+	// No firings yet → not in flight.
+	if pending, err := repo.HasPendingFiring(ctx, "rmd-p"); err != nil || pending {
+		t.Fatalf("no firings: pending=%v err=%v, want false", pending, err)
+	}
+	// A delivered firing is processed → not in flight.
+	_ = repo.AppendFiring(ctx, reminder.Firing{
+		ID: "f-delivered", ReminderID: "rmd-p", FiredAt: t0.Add(time.Hour),
+		Outcome: reminder.OutcomeDelivered,
+	})
+	// A skipped_overlap row is not a dispatch → not in flight.
+	_ = repo.AppendFiring(ctx, reminder.Firing{
+		ID: "f-skipped", ReminderID: "rmd-p", FiredAt: t0.Add(90 * time.Minute),
+		Outcome: reminder.OutcomeSkippedOverlap,
+	})
+	if pending, err := repo.HasPendingFiring(ctx, "rmd-p"); err != nil || pending {
+		t.Fatalf("delivered+skipped only: pending=%v err=%v, want false", pending, err)
+	}
+	// A pending firing = dispatched-but-undelivered → in flight.
+	_ = repo.AppendFiring(ctx, reminder.Firing{
+		ID: "f-pending", ReminderID: "rmd-p", FiredAt: t0.Add(2 * time.Hour),
+		Outcome: reminder.OutcomePending,
+	})
+	if pending, err := repo.HasPendingFiring(ctx, "rmd-p"); err != nil || !pending {
+		t.Fatalf("with pending firing: pending=%v err=%v, want true", pending, err)
+	}
+	// Scoped per reminder: another reminder's pending must not leak.
+	if pending, err := repo.HasPendingFiring(ctx, "rmd-other"); err != nil || pending {
+		t.Fatalf("other reminder: pending=%v err=%v, want false", pending, err)
+	}
+}

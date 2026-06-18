@@ -71,22 +71,54 @@ func (s *ReminderScheduler) Tick(ctx context.Context, now time.Time) (fired int,
 	}
 	var errs []error
 	for _, r := range due {
-		if ferr := s.fireOne(ctx, r, now); ferr != nil {
+		didFire, ferr := s.fireOne(ctx, r, now)
+		if ferr != nil {
 			errs = append(errs, ferr)
 			continue
 		}
-		fired++
+		if didFire {
+			fired++
+		}
 	}
 	return fired, errors.Join(errs...)
 }
 
-// fireOne records one firing in a single transaction (§3.3 Fire flow): advance
-// the aggregate (RecordFire → recompute next_run_at or complete), CAS-persist it,
-// append the reminder_firings row, and emit the fired event (+ completed when the
-// fire ended the reminder). The reminder_firings + outbox event share the
-// aggregate's tx so they are atomic with the state change.
-func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, now time.Time) error {
-	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+// fireOne processes one due reminder in a single transaction (§3.3 Fire flow).
+// Normally it FIRES: advance the aggregate (RecordFire → recompute next_run_at or
+// complete), CAS-persist it, append the reminder_firings row, and emit the fired
+// event (+ completed when the fire ended the reminder). But when skip_if_overlap
+// is set and the previous occurrence is still IN FLIGHT (a pending firing exists),
+// it SKIPS this occurrence instead: advance past it (RecordSkip — no fired_count
+// bump, no delivery) and record a skipped_overlap firing, so a slow remindee is
+// not piled on. The firing + event share the aggregate's tx so they are atomic
+// with the state change. Returns whether it actually fired (a skip returns false)
+// so Tick counts only real fires.
+func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, now time.Time) (bool, error) {
+	didFire := false
+	err := persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		if r.SkipIfOverlap() {
+			inFlight, err := s.repo.HasPendingFiring(txCtx, r.ID().String())
+			if err != nil {
+				return err
+			}
+			if inFlight {
+				// Previous occurrence dispatched but not yet delivered → drop this
+				// one: advance the schedule without firing, record the skip.
+				if err := r.RecordSkip(now); err != nil {
+					return err
+				}
+				if err := s.repo.Update(txCtx, r); err != nil {
+					return err
+				}
+				return s.repo.AppendFiring(txCtx, reminder.Firing{
+					ID:         s.idGen.NewULID(),
+					ReminderID: r.ID().String(),
+					FiredAt:    now,
+					Outcome:    reminder.OutcomeSkippedOverlap,
+					Detail:     "previous firing still in flight",
+				})
+			}
+		}
 		if err := r.RecordFire(now); err != nil {
 			return err
 		}
@@ -140,8 +172,10 @@ func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, n
 				return err
 			}
 		}
+		didFire = true
 		return nil
 	})
+	return didFire, err
 }
 
 // firedOutboxPayload is the JSON the ReminderDeliveryProjector decodes off the
