@@ -25,6 +25,22 @@ func (d *reminderDirectory) IsOwner(_ context.Context, ref string) bool {
 	return strings.HasPrefix(ref, "user:")
 }
 
+// scanMember folds one member's identity ref into the (remindeeIn, creatorIn)
+// flags. remindee and creator are matched with INDEPENDENT ifs, never a switch:
+// for a self-reminder remindeeRef == creatorRef, and a switch would run only its
+// first matching case — leaving creatorIn false, so the project would not count
+// as creator+remindee shared and the aggregate would wrongly reject with
+// ErrCrossProjectReminder (T229; design 03-reminder.md Invariant #4 self-reminder).
+func scanMember(ref, remindeeRef, creatorRef string, remindeeIn, creatorIn bool) (bool, bool) {
+	if ref == remindeeRef {
+		remindeeIn = true
+	}
+	if ref == creatorRef {
+		creatorIn = true
+	}
+	return remindeeIn, creatorIn
+}
+
 // ResolveReminderContext finds the project the reminder lives in (one the remindee
 // is a member of) within orgID, and — for an agent creator — confirms the creator
 // shares that project so the guard passes. Owner (user) creators bypass the guard.
@@ -46,12 +62,7 @@ func (d *reminderDirectory) ResolveReminderContext(ctx context.Context, orgID, c
 		}
 		remindeeIn, creatorIn := false, false
 		for _, m := range members {
-			switch string(m.IdentityID()) {
-			case remindeeRef:
-				remindeeIn = true
-			case creatorRef:
-				creatorIn = true
-			}
+			remindeeIn, creatorIn = scanMember(string(m.IdentityID()), remindeeRef, creatorRef, remindeeIn, creatorIn)
 		}
 		if !remindeeIn {
 			continue
