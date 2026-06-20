@@ -7,6 +7,7 @@ import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
 import { formatChatTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
+import { MessageCopyButton } from './MessageCopyButton';
 import type { ConversationSurface } from './ConversationView';
 import { SenderDetailSidebar } from './SenderDetailSidebar';
 import { useSenderSidebar } from './SenderSidebarContext';
@@ -295,6 +296,10 @@ export function MessageList({
         >
           {formatChatTime(m.posted_at)}
         </time>
+        {/* T246: per-message copy — copies the raw content to the clipboard.
+            Lives in the header line so it shares the own/other alignment (the
+            line reverses for own messages). */}
+        <MessageCopyButton content={m.content} />
       </div>
     );
 

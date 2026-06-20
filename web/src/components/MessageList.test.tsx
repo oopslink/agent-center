@@ -1,5 +1,5 @@
 import type React from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageList } from './MessageList';
@@ -446,5 +446,39 @@ describe('MessageList system sender (v2.10.0 [T75])', () => {
     expect(btn).toHaveAttribute('data-sender-resolved', 'true');
     // the message body still renders (it's a normal text @mention, not collapsed).
     expect(screen.getByTestId('message-row').textContent).toContain('is ready');
+  });
+});
+
+// T246 — every rendered message exposes a per-message copy button that writes the
+// raw content to the clipboard. System messages (collapsed) are exempt.
+describe('MessageList per-message copy (T246)', () => {
+  beforeEach(() => {
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+  });
+  afterEach(() => cleanup());
+
+  function renderFresh(ui: React.ReactElement) {
+    const c = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return rtlRender(<QueryClientProvider client={c}>{ui}</QueryClientProvider>);
+  }
+
+  it("shows a copy button on each message row that copies that row's raw content", () => {
+    const msgs = [sample('A', 'first **one**'), sample('B', 'second `two`')];
+    renderFresh(<MessageList messages={msgs} />);
+    const rows = screen.getAllByTestId('message-row');
+    expect(rows).toHaveLength(2);
+    // the second row's button copies the second row's content…
+    fireEvent.click(within(rows[1]).getByTestId('message-copy-btn'));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('second `two`');
+    // …and the first row's button copies the first row's content.
+    fireEvent.click(within(rows[0]).getByTestId('message-copy-btn'));
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith('first **one**');
+  });
+
+  it('does NOT render a copy button on a collapsed system message', () => {
+    const sys: Message = { ...sample('S1', 'rate_limit exceeded'), content_kind: 'system' };
+    renderFresh(<MessageList messages={[sys]} />);
+    expect(screen.getByTestId('message-system')).toBeInTheDocument();
+    expect(screen.queryByTestId('message-copy-btn')).toBeNull();
   });
 });
