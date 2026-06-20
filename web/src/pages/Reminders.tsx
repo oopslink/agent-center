@@ -12,6 +12,7 @@ import { useDisplayNameResolver } from '@/api/members';
 import { Avatar } from '@/components/Avatar';
 import { ReminderCreateModal } from '@/components/ReminderCreateModal';
 import { ReminderDetailModal } from '@/components/ReminderDetailModal';
+import { IconSearch, IconPause, IconPlay, IconClose } from '@/components/icons';
 
 // =============================================================================
 // T207 [提醒-3] Reminder management — screen ① (list / management), 1:1 to the
@@ -98,13 +99,16 @@ export default function Reminders(): React.ReactElement {
       {/* Left filter rail (mockup col②) */}
       <aside className="flex w-52 shrink-0 flex-col border-r border-border-base p-3">
         <h2 className="px-1 pb-2 text-sm font-semibold text-text-primary">Reminders</h2>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="🔍 搜索提醒…"
-          className="mb-3 w-full rounded-md border border-border-base bg-bg-base px-2.5 py-1.5 text-xs"
-          data-testid="reminder-search"
-        />
+        <div className="relative mb-3">
+          <IconSearch className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="搜索提醒…"
+            className="w-full rounded-md border border-border-base bg-bg-base py-1.5 pl-7 pr-2.5 text-xs"
+            data-testid="reminder-search"
+          />
+        </div>
         <FilterGroup label="范围">
           {RANGES.map((rg) => (
             <FilterItem key={rg.key} active={range === rg.key} onClick={() => setRange(rg.key)} testId={`reminder-range-${rg.key}`}>
@@ -224,18 +228,18 @@ export default function Reminders(): React.ReactElement {
                       <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex gap-2">
                           {r.status === 'active' && (
-                            <button type="button" title="暂停" data-testid="reminder-pause" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'pause' })}>
-                              ⏸
+                            <button type="button" title="暂停" aria-label="暂停" data-testid="reminder-pause" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'pause' })}>
+                              <IconPause className="h-3.5 w-3.5" />
                             </button>
                           )}
                           {r.status === 'paused' && (
-                            <button type="button" title="恢复" data-testid="reminder-resume" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'resume' })}>
-                              ▶
+                            <button type="button" title="恢复" aria-label="恢复" data-testid="reminder-resume" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'resume' })}>
+                              <IconPlay className="h-3.5 w-3.5" />
                             </button>
                           )}
                           {(r.status === 'active' || r.status === 'paused') && (
-                            <button type="button" title="取消" data-testid="reminder-cancel" className="text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
-                              ✕
+                            <button type="button" title="取消" aria-label="取消" data-testid="reminder-cancel" className="text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
+                              <IconClose className="h-3.5 w-3.5" />
                             </button>
                           )}
                         </div>

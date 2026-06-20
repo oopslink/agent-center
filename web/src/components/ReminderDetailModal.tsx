@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useReminder } from '@/api/reminders';
+import { IconClose } from './icons';
 
 // =============================================================================
 // T207 [提醒-3] — row-click detail: the reminder + its 历史触发 (reminder_firings:
@@ -33,7 +34,7 @@ export function ReminderDetailModal({ slug, reminderId, onClose }: Props): React
         <div className="flex items-center justify-between border-b border-border-base px-5 py-3">
           <h4 className="text-base font-semibold text-text-primary">提醒详情</h4>
           <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="关闭">
-            ✕
+            <IconClose className="h-4 w-4" />
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 text-sm">
