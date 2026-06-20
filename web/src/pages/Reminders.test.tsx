@@ -93,6 +93,12 @@ describe('Reminders page', () => {
     expect(lastListParams).toMatchObject({ filter: 'created' });
   });
 
+  it('the 提醒我的 range filter drives the remindee list query filter', () => {
+    renderPage();
+    fireEvent.click(screen.getByTestId('reminder-range-remindee'));
+    expect(lastListParams).toMatchObject({ filter: 'remindee' });
+  });
+
   it('the status filter narrows the query statuses', () => {
     renderPage();
     fireEvent.click(screen.getByTestId('reminder-status-active'));

@@ -60,8 +60,9 @@ export interface ReminderDetail extends Reminder {
   firings: ReminderFiring[];
 }
 
-// List filter — "全部" (all, owner view) vs "created" (mine). Status narrows.
-export type ReminderListFilter = 'all' | 'created';
+// List filter — "全部" (all, owner view) / "created" (我创建的) / "remindee"
+// (提醒我的 — reminders targeting the current viewing identity). Status narrows.
+export type ReminderListFilter = 'all' | 'created' | 'remindee';
 
 export interface ReminderListParams {
   filter?: ReminderListFilter;
