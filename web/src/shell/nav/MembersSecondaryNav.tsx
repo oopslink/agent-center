@@ -3,6 +3,12 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
+import {
+  ActivityBadge,
+  AvailabilityBadge,
+  LifecycleBadge,
+  deriveAgentActivity,
+} from '@/components/AgentBadges';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 
 // ============================================================================
@@ -18,6 +24,9 @@ import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 interface NavRow {
   to: string;
   label: string;
+  // T235: optional status chips rendered beneath the row label (agent rows show
+  // Lifecycle + Availability + derived Idle/Busy; human rows leave it undefined).
+  meta?: React.ReactNode;
 }
 
 const SECTION_STATE_KEY = 'ac.members.sections';
@@ -57,9 +66,27 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
       return { to: `${orgBase}/users/${encodeURIComponent(ref)}`, label: m.display_name || ref };
     });
 
+  // T235: each agent row carries its status chips. Lifecycle + Availability are
+  // the machine state; the derived Idle/Busy chip (running agents only) tells the
+  // operator at a glance which running agents are free to take new work. `now` is
+  // sampled once per render so all rows compare against the same instant.
+  const now = Date.now();
   const agentRows: NavRow[] = (agents.data ?? [])
     .filter((a) => a.lifecycle !== 'archived')
-    .map((a) => ({ to: `${orgBase}/agents/${encodeURIComponent(a.id)}`, label: a.name || a.id }));
+    .map((a) => {
+      const activity = deriveAgentActivity(a, now);
+      return {
+        to: `${orgBase}/agents/${encodeURIComponent(a.id)}`,
+        label: a.name || a.id,
+        meta: (
+          <span className="flex flex-wrap items-center gap-1" data-testid="agent-nav-status">
+            <LifecycleBadge lifecycle={a.lifecycle} />
+            <AvailabilityBadge availability={a.availability} />
+            {activity && <ActivityBadge status={activity} />}
+          </span>
+        ),
+      };
+    });
 
   return (
     <div className="space-y-1" data-testid="members-secondary-nav">
@@ -122,8 +149,18 @@ function NavSection({
           </li>
           {rows.map((r) => (
             <li key={r.to}>
-              <NavLink to={r.to} className={rowClass}>
-                <span className="block truncate">{r.label}</span>
+              {/* aria-label keeps the link's accessible name = the member name;
+                  the T235 status chips are supplementary visual context and must
+                  not bloat the announced link name. */}
+              <NavLink to={r.to} className={rowClass} aria-label={r.label}>
+                {r.meta ? (
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="block truncate">{r.label}</span>
+                    {r.meta}
+                  </span>
+                ) : (
+                  <span className="block truncate">{r.label}</span>
+                )}
               </NavLink>
             </li>
           ))}
