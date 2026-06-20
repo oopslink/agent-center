@@ -10,7 +10,7 @@ Settings 页新增「唤醒护栏」面板，走 `GET/PUT /api/system/wake-guard
 - 真服务：`make build` 起本地 center（:7357，自建 sqlite + master key）→ 注册沙箱 `t218-sandbox` → System → Settings。
 - 改 `最大唤醒链深度` 4→**7**、`环检测窗口` 300→**600** → 保存 → UI 显示「已保存并生效」。
 - 后端 `GET /api/system/wake-guardrail` 返回 `{"max_depth":7,"cycle_window_sec":600,...}` ✅；刷新页面 UI 仍读到 7/600（持久化 + 全链路 roundtrip）。
-- 截图：[`T218-wake-guardrail-before.png`](./T218-wake-guardrail-before.png)（默认 4/300）、[`T218-wake-guardrail-saved.png`](./T218-wake-guardrail-saved.png)（改 7/600 + 已保存并生效 + 左栏 Version 同级）、[`T218-wake-guardrail-after-reload.png`](./T218-wake-guardrail-after-reload.png)（刷新后仍 7/600）。
+- AFTER 截图：[`T218-wake-guardrail-saved.png`](./T218-wake-guardrail-saved.png)（改 7/600 + 已保存并生效 + 左栏 Version 同级）、[`T218-wake-guardrail-after-reload.png`](./T218-wake-guardrail-after-reload.png)（刷新后仍 7/600，持久化 + 全链路 roundtrip）。基线默认值 4/300 即面板默认态，无需单独 before 图。
 
 ## 顺带修复的 I7-M1(T216) 生产接线 bug（run-real 抓到）
 保存初次 501 `settings store not configured`。根因：**生产 webconsole 路径 `runWebConsole`（`internal/cli/webconsole_wiring.go`）构建 `HandlerDeps` 时漏接 `SettingsStore`**；T216 只在 `buildWebConsoleHandler`（**test-only**）里接了 → wiring 单测绿、真服务 PUT 501。修复：`runWebConsole` deps 补 `SettingsStore: settingssql.NewStore(a.DB, a.Clock)`。已同步 dev1/PD。
