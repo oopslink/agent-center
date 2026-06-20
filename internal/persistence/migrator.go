@@ -177,6 +177,15 @@ func (m *Migrator) loadMigrations() ([]migration, error) {
 		if !ok {
 			mig = &migration{version: version, name: name}
 			byVersion[version] = mig
+		} else if mig.name != name {
+			// Two DIFFERENT migrations claim the same version number (the up/down
+			// pair of ONE migration share a name, so that is fine). The map keys by
+			// version, so without this guard the alphabetically-later file would
+			// SILENTLY overwrite the earlier one's SQL and that migration would
+			// never run on a fresh DB (this bit T216/0062 and T236/0064 — fresh DBs
+			// missed columns with no error). Fail loudly so a renumber collision
+			// surfaces at the first migration run, not in production.
+			return nil, fmt.Errorf("duplicate migration version %04d: %q and %q — renumber one (a number must map to exactly one migration)", version, mig.name, name)
 		}
 		switch direction {
 		case "up":

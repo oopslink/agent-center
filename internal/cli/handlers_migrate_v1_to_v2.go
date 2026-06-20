@@ -108,8 +108,12 @@ func MigrateV1ToV2Command() *Command {
 // plan-scoped shared-findings table); v2.11.0 Cognition added 0062 (reminders +
 // reminder_firings — the Reminder aggregate); v2.11.0 F-B added 0063
 // (reminders.deliver_as_creator — per-reminder delivery identity flag); I7-D1
-// (T216) added 0064 (center_settings — the wake-guardrail thresholds KV store).
-const targetSchemaVersion = 64
+// (T216) added 0064 (center_settings — the wake-guardrail thresholds KV store);
+// T236 added 0065 (agent_llm_config — agents.reasoning/mode/provider). NOTE: T236
+// originally landed this as a SECOND 0064, colliding with center_settings — the
+// migrator keys by version into a map, so the alphabetically-later file silently
+// overwrote it and the ADD COLUMNs never ran on a fresh DB. Renumbered to 0065.
+const targetSchemaVersion = 65
 
 func runMigrateV1ToV2(
 	ctx context.Context,

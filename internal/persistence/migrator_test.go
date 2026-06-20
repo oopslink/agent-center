@@ -178,8 +178,8 @@ func TestMigrator_VersionTracksApplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 64 {
-		t.Fatalf("version after Up: got %d want 64", v)
+	if v != 65 {
+		t.Fatalf("version after Up: got %d want 65", v)
 	}
 	if err := m.Down(ctx, 0); err != nil {
 		t.Fatal(err)
@@ -225,6 +225,35 @@ func TestMigrator_DownPreviousVersion(t *testing.T) {
 	_ = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='b'`).Scan(&bCount)
 	if aCount != 1 || bCount != 0 {
 		t.Fatalf("expected a present, b dropped; got a=%d b=%d", aCount, bCount)
+	}
+}
+
+// TestMigrator_DuplicateVersionRejected guards the renumber-collision class
+// (T216/0062, T236/0064): two DIFFERENT migrations sharing one version number
+// must FAIL loudly, not silently overwrite (which made one migration never run
+// on a fresh DB). The up/down pair of the SAME migration shares a name and is
+// fine.
+func TestMigrator_DuplicateVersionRejected(t *testing.T) {
+	db, err := Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	fsys := fstest.MapFS{
+		"0001_a.up.sql":           {Data: []byte(`CREATE TABLE a (id TEXT)`)},
+		"0001_a.down.sql":         {Data: []byte(`DROP TABLE a`)},
+		"0002_b.up.sql":           {Data: []byte(`CREATE TABLE b (id TEXT)`)},
+		"0002_b.down.sql":         {Data: []byte(`DROP TABLE b`)},
+		"0002_collision.up.sql":   {Data: []byte(`CREATE TABLE c (id TEXT)`)},
+		"0002_collision.down.sql": {Data: []byte(`DROP TABLE c`)},
+	}
+	m := NewMigratorFS(db, fsys)
+	err = m.Up(context.Background())
+	if err == nil {
+		t.Fatal("expected duplicate-version error, got nil (silent overwrite regression)")
+	}
+	if !strings.Contains(err.Error(), "duplicate migration version 0002") {
+		t.Fatalf("error = %q, want it to name the duplicate version 0002", err)
 	}
 }
 
