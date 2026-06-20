@@ -11,6 +11,43 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.11.0] — 2026-06-20
+
+Agent 提醒 / 定时（Reminder）— agents and humans can schedule one-time or recurring (cron) reminders that wake a target agent at the due time.
+
+### Added
+
+- **Agent reminders (I4).** A new Cognition-side Reminder capability: create **one-time** or
+  **cron** reminders for an agent in your own project; at the due time the reminder content is
+  delivered as a **directed message** that wakes the remindee. Full lifecycle — pause / resume /
+  cancel, end conditions (never / until / max-count), and **skip-if-overlap** (skip the next
+  fire if the previous one hasn't been delivered yet). Managed from the new **Reminders** page
+  (list with scope filters 全部 / 我创建的 / 提醒我的, status filters, stats, history) and over
+  MCP tools + admin API.
+- **Deliver-as-creator toggle.** Reminders carry a `deliver_as_creator` flag — the fired message
+  is sent under the **creator's identity** (default) or the system identity.
+
+### Security / guardrails
+
+- **Same-project guard.** An agent may only set reminders for agents **in its own project**
+  (owner is exempt); cross-project attempts are rejected (HTTP 403 `cross_project_reminder`).
+- **Manage authz (class-guard).** Only the creator or the org owner may pause / resume / cancel a
+  reminder; others get 403 `reminder_forbidden`. List visibility: owner sees all, non-owners see
+  only their own.
+
+### Fixed
+
+- **Self-reminder no longer mis-flagged cross-project (T229).** A `switch` first-match bug made an
+  agent's reminder *to itself* resolve as cross-project (403) — the core I4 use case. Resolution
+  now uses independent checks so self-reminders pass the guard.
+- **Fired reminders actually deliver (T239).** The `fired` event is appended to the outbox so the
+  remindee is delivered / woken.
+- **Real delivery outcome + overlap (T240).** Firing records `pending` (in-flight) rather than a
+  hardcoded `delivered`; the delivery projector writes back `delivered` on success, so
+  `skip_if_overlap` has a real in-flight state to read.
+
+---
+
 ## [v2.10.3] — 2026-06-16
 
 All-conversation file attachments, agent issue-management tools, Work Board task re-home, and a full sites doc-site redesign.
