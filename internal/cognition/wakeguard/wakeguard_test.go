@@ -109,6 +109,66 @@ func TestExtend(t *testing.T) {
 	}
 }
 
+// TestEvaluateHop_DepthGrowsAcrossHops (T227) is the heart of the fix: EvaluateHop
+// carries the chain across hops via per-agent state, so a real non-repeating chain
+// A→B→C→D… GROWS depth and the depth gate fires — something a per-wake fresh root
+// (the pre-fix wiring) could never do (depth stayed 0 forever).
+func TestEvaluateHop_DepthGrowsAcrossHops(t *testing.T) {
+	g := NewGuard(Config{MaxDepth: 3, CycleWindow: 5 * time.Minute, CycleN: 100, RatePerMin: 100, TokenBudget: 100})
+	// Distinct pairs (no cycle), one wake per target (no rate) — isolate depth.
+	steps := [][2]string{{"A", "B"}, {"B", "C"}, {"C", "D"}} // depths 1,2,3 — all ≤ MaxDepth
+	for i, s := range steps {
+		tr := g.EvaluateHop(s[0], s[1], "root", t0.Add(time.Duration(i)*time.Second))
+		if !tr.Allowed {
+			t.Fatalf("hop %d (%s→%s) should be allowed at depth %d: gate=%s", i, s[0], s[1], tr.Depth+1, tr.Gate)
+		}
+	}
+	// D→E would be depth 4 > MaxDepth 3 → depth gate fires.
+	tr := g.EvaluateHop("D", "E", "root", t0.Add(3*time.Second))
+	if tr.Allowed || tr.Gate != GateDepth {
+		t.Fatalf("D→E (depth 4) should be denied by depth: allowed=%v gate=%s", tr.Allowed, tr.Gate)
+	}
+}
+
+// TestEvaluateHop_CostSpentAcrossHops (T227) proves the cost ④ gate fires on the
+// live path: each hop decrements the carried chain's budget, so a chain longer
+// than the budget self-extinguishes even with no repeated pair and a high depth cap.
+func TestEvaluateHop_CostSpentAcrossHops(t *testing.T) {
+	g := NewGuard(Config{MaxDepth: 100, CycleWindow: 5 * time.Minute, CycleN: 100, RatePerMin: 100, TokenBudget: 3})
+	// root budget 3: A→B spends to 2, B→C to 1, C→D to 0 (all allowed).
+	steps := [][2]string{{"A", "B"}, {"B", "C"}, {"C", "D"}}
+	for i, s := range steps {
+		if tr := g.EvaluateHop(s[0], s[1], "root", t0.Add(time.Duration(i)*time.Second)); !tr.Allowed {
+			t.Fatalf("hop %d (%s→%s) should be allowed: gate=%s", i, s[0], s[1], tr.Gate)
+		}
+	}
+	// D carries budget 0 → D→E denied by cost.
+	tr := g.EvaluateHop("D", "E", "root", t0.Add(3*time.Second))
+	if tr.Allowed || tr.Gate != GateCost {
+		t.Fatalf("D→E (budget exhausted) should be denied by cost: allowed=%v gate=%s", tr.Allowed, tr.Gate)
+	}
+}
+
+// TestEvaluateHop_StaleCarryResets (T227) confirms staleness bounding: a carried
+// chain older than CycleWindow is dropped, so an agent woken anew after an idle
+// gap starts from a fresh root (depth 0) and is NOT falsely depth/cost-gated by a
+// previous storm.
+func TestEvaluateHop_StaleCarryResets(t *testing.T) {
+	g := NewGuard(Config{MaxDepth: 1, CycleWindow: 5 * time.Minute, CycleN: 100, RatePerMin: 100, TokenBudget: 100})
+	// A→B at t0 → B carries depth 1.
+	if tr := g.EvaluateHop("A", "B", "root", t0); !tr.Allowed {
+		t.Fatalf("A→B should be allowed: gate=%s", tr.Gate)
+	}
+	// Immediately B→C: B carries depth 1 → next hop depth 2 > MaxDepth 1 → depth deny.
+	if tr := g.EvaluateHop("B", "C", "root", t0.Add(time.Second)); tr.Allowed || tr.Gate != GateDepth {
+		t.Fatalf("fresh B→C should be depth-denied: allowed=%v gate=%s", tr.Allowed, tr.Gate)
+	}
+	// After the window, B's carry is stale → fresh root (depth 0) → B→C allowed again.
+	if tr := g.EvaluateHop("B", "C", "root", t0.Add(6*time.Minute)); !tr.Allowed {
+		t.Fatalf("after CycleWindow B's stale carry should reset to root: gate=%s reason=%s", tr.Gate, tr.Reason)
+	}
+}
+
 func TestDenyRecordsNothing(t *testing.T) {
 	// A denied wake must not consume rate/cycle budget (only allowed hops do).
 	g := NewGuard(Config{MaxDepth: 0, CycleWindow: time.Minute, CycleN: 1, RatePerMin: 1, TokenBudget: 100})

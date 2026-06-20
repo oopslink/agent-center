@@ -119,8 +119,16 @@ type Guard struct {
 	cfg Config
 
 	mu         sync.Mutex
-	rate       map[string][]time.Time // to → recent allowed agent-wake times
-	cycleEdges map[string][]time.Time // unordered "A|B" pair → recent hop times
+	rate       map[string][]time.Time  // to → recent allowed agent-wake times
+	cycleEdges map[string][]time.Time  // unordered "A|B" pair → recent hop times
+	carried    map[string]carriedChain // agentId → the chain it propagates onward (EvaluateHop)
+}
+
+// carriedChain is the chain an agent received when it was last woken, plus when —
+// so EvaluateHop can expire a stale carry (older than CycleWindow) back to a root.
+type carriedChain struct {
+	chain WakeChain
+	at    time.Time
 }
 
 // NewGuard builds a Guard with the given config.
@@ -129,7 +137,14 @@ func NewGuard(cfg Config) *Guard {
 		cfg:        cfg,
 		rate:       map[string][]time.Time{},
 		cycleEdges: map[string][]time.Time{},
+		carried:    map[string]carriedChain{},
 	}
+}
+
+// RootChain mints a fresh root chain seeded with the Guard's configured token
+// budget — used at a wake origin (where no parent chain is carried yet).
+func (g *Guard) RootChain(rootMessageID string, actor ActorKind) WakeChain {
+	return NewRootChain(rootMessageID, actor, g.cfg.TokenBudget)
 }
 
 // Evaluate decides whether `from` may wake `to` carrying `chain`, as of `now`.
@@ -147,7 +162,50 @@ func (g *Guard) Evaluate(from, to string, chain WakeChain, now time.Time) Trace 
 
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	return g.gateLocked(tr, from, to, chain, now)
+}
 
+// EvaluateHop is the wired-path entry (I7-D1/T227). It evaluates an agent→agent
+// wake using the chain `from` CURRENTLY CARRIES — the chain `from` itself
+// received the last time it was woken (within CycleWindow), or a fresh agent root
+// (seeded with the configured budget) when it carries none. On ALLOW it records
+// the extended chain (depth+1, budget−1, members+to) as `to`'s carried chain, so
+// a real multi-hop chain A→B→C… GROWS depth and SPENDS budget across separate
+// wake deliveries. This is what makes the depth ① and cost ④ gates fire on the
+// live path — without threading an opaque chain token out through the agent
+// session and back (the cycle ② / rate ③ gates already accumulate via state).
+//
+// Callers must NOT pre-bypass human senders here: only agent senders are routed
+// to EvaluateHop (human/system senders skip the guard entirely at the call site),
+// so every hop is agent-actor and gated.
+//
+// Staleness is bounded to CycleWindow: a carried chain older than the window is
+// treated as absent (a fresh root), so an idle gap resets it and an agent woken
+// anew (e.g. by a human turn) is not falsely depth/cost-gated by an old storm.
+func (g *Guard) EvaluateHop(from, to, rootMessageID string, now time.Time) Trace {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	chain := g.originChainLocked(from, rootMessageID, now)
+	tr := g.gateLocked(Trace{From: from, To: to, Depth: chain.Depth, ActorKind: chain.ActorKind}, from, to, chain, now)
+	if tr.Allowed {
+		g.carried[to] = carriedChain{chain: chain.Extend(to), at: now}
+	}
+	return tr
+}
+
+// originChainLocked returns the chain `from` propagates into a new hop: its
+// carried chain when still fresh (≤ CycleWindow old), else a fresh agent root.
+// Caller holds g.mu.
+func (g *Guard) originChainLocked(from, rootMessageID string, now time.Time) WakeChain {
+	if e, ok := g.carried[from]; ok && now.Sub(e.at) <= g.cfg.CycleWindow {
+		return e.chain
+	}
+	return g.RootChain(rootMessageID, ActorAgent)
+}
+
+// gateLocked runs the four gates against `chain` (caller holds g.mu) and records
+// the rate/cycle state on ALLOW (a DENY records nothing — the wake did not happen).
+func (g *Guard) gateLocked(tr Trace, from, to string, chain WakeChain, now time.Time) Trace {
 	// ① depth — the NEXT hop would be chain.Depth+1; deny if that exceeds the cap.
 	if chain.Depth+1 > g.cfg.MaxDepth {
 		return deny(tr, GateDepth, "depth limit reached")

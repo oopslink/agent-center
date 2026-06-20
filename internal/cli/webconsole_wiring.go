@@ -10,6 +10,7 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
+	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
@@ -187,6 +188,12 @@ func (a *App) outboxProjectors(
 	// for every agent whose AgentWorkItem on that task is waiting_input (sender
 	// self-excluded), same tx. Like D2-a/c-i this only enqueues — the daemon
 	// controller (D2-c-ii) is wired DORMANT (ControlClient nil), so no real effect.
+	// I7-D1/T227: the wake-chain circuit breaker — ONE process singleton (it holds
+	// the rate/cycle runtime state shared across all wake deliveries). Config is the
+	// injection seam for the I7-D3 settings panel; until the settings store lands it
+	// uses the conservative DefaultConfig (NOT hardcoded in the gate logic — the
+	// Guard takes Config as a value, so swapping in a settings-read is a wiring change).
+	wakeGuard := wakeguard.NewGuard(wakeguard.DefaultConfig())
 	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
 		DB:         a.DB,
 		WorkItems:  agentsql.NewWorkItemRepo(a.DB),
@@ -194,6 +201,7 @@ func (a *App) outboxProjectors(
 		ControlLog: controlLog,
 		Applied:    appliedRepo,
 		Clock:      a.Clock,
+		WakeGuard:  wakeGuard,
 		// v2.7 D2-e-ii (OQ5 method 甲): batch-flush deps. When an agent ENTERS
 		// waiting_input (request_input → agent.awaiting_input) the projector reads
 		// its read-state cursor + the task conversation messages and enqueues ONE
