@@ -32,15 +32,6 @@ function validateOrgName(v: string): string {
   return '';
 }
 
-function validateSlug(v: string): string {
-  if (v.length < 3) return 'Slug must be at least 3 characters';
-  if (v.length > 40) return 'Slug must be at most 40 characters';
-  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug may only contain [a-z0-9-]';
-  if (/^-|-$/.test(v)) return 'Slug cannot start or end with a hyphen';
-  if (/--/.test(v)) return 'Slug cannot contain consecutive hyphens';
-  return '';
-}
-
 interface FieldProps {
   id: string;
   label: string;
@@ -89,7 +80,6 @@ export default function Signup(): React.ReactElement {
   const [passcode, setPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
   const [orgName, setOrgName] = useState('');
-  const [orgSlug, setOrgSlug] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [passcodeTouched, setPasscodeTouched] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -113,20 +103,6 @@ export default function Signup(): React.ReactElement {
     setErrors((prev) => ({ ...prev, passcode: validatePasscode(passcode) }));
   };
 
-  const autoSlug = (name: string) =>
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40);
-
-  const handleOrgNameChange = (v: string) => {
-    setOrgName(v);
-    if (!orgSlug || orgSlug === autoSlug(orgName)) {
-      setOrgSlug(autoSlug(v));
-    }
-  };
-
   const validate = () => {
     const errs: Record<string, string> = {};
     const e1 = validateDisplayName(displayName);
@@ -139,8 +115,6 @@ export default function Signup(): React.ReactElement {
     if (e3) errs.confirmPasscode = e3;
     const e4 = validateOrgName(orgName);
     if (e4) errs.orgName = e4;
-    const e5 = validateSlug(orgSlug);
-    if (e5) errs.orgSlug = e5;
     return errs;
   };
 
@@ -162,7 +136,6 @@ export default function Signup(): React.ReactElement {
         email: email.trim(),
         passcode,
         organization_name: orgName.trim(),
-        organization_slug: orgSlug,
       });
       navigate('/', { replace: true });
     } catch (err) {
@@ -171,8 +144,6 @@ export default function Signup(): React.ReactElement {
           setErrors((prev) => ({ ...prev, displayName: 'That display name is already taken' }));
         } else if (err.code === 'email_taken' || err.code === 'already_exists') {
           setErrors((prev) => ({ ...prev, email: 'That email is already in use' }));
-        } else if (err.code === 'slug_taken') {
-          setErrors((prev) => ({ ...prev, orgSlug: 'That slug is already taken' }));
         } else {
           setServerError(err.message);
         }
@@ -251,16 +222,7 @@ export default function Signup(): React.ReactElement {
               error={errors.orgName ?? ''}
               placeholder="My Organization"
               maxLength={80}
-              onChange={handleOrgNameChange}
-            />
-            <Field
-              id="org_slug"
-              label="Organization slug (URL path)"
-              value={orgSlug}
-              error={errors.orgSlug ?? ''}
-              placeholder="my-org"
-              maxLength={40}
-              onChange={setOrgSlug}
+              onChange={setOrgName}
             />
 
             <button

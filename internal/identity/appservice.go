@@ -3,6 +3,7 @@ package identity
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/observability"
@@ -18,6 +19,9 @@ type SignupForm struct {
 	DisplayName      string
 	PasscodePlain    string
 	OrganizationName string
+	// OrganizationSlug is OPTIONAL (T237): an empty slug is auto-generated
+	// server-side as "org-<hex>" in Execute (the signup UI no longer collects one).
+	// A non-empty value is still honored + validated (programmatic callers / tests).
 	OrganizationSlug string
 	// Email (v2.7.1 #214) is required for new signups (NOT verified). Uniqueness is
 	// enforced at the DB → mapped to ErrIdentityEmailTaken (409).
@@ -44,7 +48,12 @@ func (f SignupForm) Validate() error {
 	if f.OrganizationName == "" || len(f.OrganizationName) > 80 {
 		return ErrOrganizationNotFound
 	}
-	return ValidateSlug(f.OrganizationSlug)
+	// T237: slug is optional — only validate a caller-supplied one; an empty slug
+	// is auto-generated server-side in Execute.
+	if f.OrganizationSlug != "" {
+		return ValidateSlug(f.OrganizationSlug)
+	}
+	return nil
 }
 
 // SignupResult contains the outcome of a successful signup.
@@ -95,8 +104,17 @@ func (s *SignupService) Execute(ctx context.Context, form SignupForm) (*SignupRe
 		if existing, _ := s.identities.GetByDisplayName(txCtx, form.DisplayName); existing != nil {
 			return ErrIdentityDisplayNameTaken
 		}
-		// 2. Check slug uniqueness.
-		if existing, _ := s.orgs.GetBySlug(txCtx, form.OrganizationSlug); existing != nil {
+		// 2. Resolve the org slug. T237: an empty form slug is auto-generated
+		// server-side as a unique "org-<hex>" (the signup UI no longer collects one);
+		// a caller-supplied slug is honored and uniqueness-checked as before.
+		slug := strings.TrimSpace(form.OrganizationSlug)
+		if slug == "" {
+			generated, err := generateFreeOrgSlug(txCtx, s.orgs)
+			if err != nil {
+				return err
+			}
+			slug = generated
+		} else if existing, _ := s.orgs.GetBySlug(txCtx, slug); existing != nil {
 			return ErrOrganizationSlugTaken
 		}
 		// 3. Hash passcode + create Identity.
@@ -120,7 +138,7 @@ func (s *SignupService) Execute(ctx context.Context, form SignupForm) (*SignupRe
 			return err
 		}
 		// 4. Create Organization.
-		org, err := OrganizationFactory{}.New(form.OrganizationSlug, form.OrganizationName, identity.ID())
+		org, err := OrganizationFactory{}.New(slug, form.OrganizationName, identity.ID())
 		if err != nil {
 			return err
 		}
@@ -152,6 +170,22 @@ func (s *SignupService) Execute(ctx context.Context, form SignupForm) (*SignupRe
 		return nil, err
 	}
 	return &result, nil
+}
+
+// generateFreeOrgSlug mints a server-assigned "org-<hex>" slug that no active
+// organization holds (T237). The 8-hex space makes a collision astronomically
+// unlikely, but we retry a few times so a rare clash regenerates rather than
+// surfacing to the user; exhausting the retries returns ErrOrganizationSlugTaken
+// (the final DB unique index is the ultimate guard).
+func generateFreeOrgSlug(ctx context.Context, orgs OrganizationRepository) (string, error) {
+	const maxTries = 5
+	for i := 0; i < maxTries; i++ {
+		slug := NewOrganizationSlug()
+		if existing, _ := orgs.GetBySlug(ctx, slug); existing == nil {
+			return slug, nil
+		}
+	}
+	return "", ErrOrganizationSlugTaken
 }
 
 // ============================================================

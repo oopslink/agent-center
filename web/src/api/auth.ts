@@ -7,7 +7,8 @@ export interface SignupPayload {
   email: string;
   passcode: string;
   organization_name: string;
-  organization_slug: string;
+  // T237: the org slug is auto-generated server-side ("org-<hex>"); the client no
+  // longer supplies one.
 }
 
 export interface SignupResult {
