@@ -3,7 +3,14 @@ import { OrgLink } from '@/OrgContext';
 import { useMemo, useState } from 'react';
 
 import { ApiError } from '@/api/client';
-import { useAgents, useDeleteAgent } from '@/api/agents';
+import {
+  useAgents,
+  useDeleteAgent,
+  useBatchAgentLifecycle,
+  AGENT_BATCH_ACTIONS,
+  type AgentBatchAction,
+  type BatchLifecycleProgress,
+} from '@/api/agents';
 import { useMembers, normalizeIdentityRef, type MemberResult } from '@/api/members';
 import { useWorkers } from '@/api/workers';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
@@ -59,6 +66,43 @@ export default function Agents(): React.ReactElement {
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const del = useDeleteAgent();
 
+  // T232: multi-select + batch lifecycle (start/stop/restart/reset). Selection is
+  // a Set of agent ids; the batch runner fans out client-side and exposes
+  // progress. Destructive actions (everything but start) go through a confirm.
+  const batch = useBatchAgentLifecycle();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pendingBatch, setPendingBatch] = useState<AgentBatchAction | null>(null);
+  const agentIds = useMemo(() => (agents.data ?? []).map((a) => a.id), [agents.data]);
+  // Order-preserving list of the currently selected ids (only those still present
+  // in the list — a row that vanished after a refetch drops out cleanly).
+  const selectedIds = useMemo(() => agentIds.filter((id) => selected.has(id)), [agentIds, selected]);
+  const allSelected = agentIds.length > 0 && selectedIds.length === agentIds.length;
+  const running = batch.progress.running;
+
+  const toggleOne = (id: string): void =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleAll = (): void =>
+    setSelected(() => (allSelected ? new Set() : new Set(agentIds)));
+  const clearSelection = (): void => setSelected(new Set());
+
+  // start is non-destructive → run immediately; stop/restart/reset → confirm first.
+  const requestBatch = (action: AgentBatchAction): void => {
+    if (selectedIds.length === 0 || running) return;
+    if (action === 'start') void batch.run(selectedIds, action);
+    else setPendingBatch(action);
+  };
+  const confirmBatch = (): void => {
+    if (!pendingBatch) return;
+    const action = pendingBatch;
+    setPendingBatch(null);
+    void batch.run(selectedIds, action);
+  };
+
   return (
     <section className="space-y-4" data-testid="page-Agents">
       <header className="flex items-start justify-between">
@@ -79,6 +123,20 @@ export default function Agents(): React.ReactElement {
       </header>
 
       {createOpen && <AgentCreateModal onClose={() => setCreateOpen(false)} />}
+
+      {/* T232: batch toolbar — shown while a selection exists OR a finished batch
+          still has a result summary to surface. */}
+      {(selectedIds.length > 0 || batch.progress.results.length > 0) && (
+        <BatchToolbar
+          selectedCount={selectedIds.length}
+          progress={batch.progress}
+          onAction={requestBatch}
+          onClear={() => {
+            clearSelection();
+            batch.reset();
+          }}
+        />
+      )}
 
       {agents.isLoading && (
         <div className="space-y-2" data-testid="agents-loading">
@@ -115,6 +173,22 @@ export default function Agents(): React.ReactElement {
           >
             <thead>
               <tr className="whitespace-nowrap text-left text-xs uppercase tracking-wide text-text-muted">
+                {/* T232: select-all checkbox (selects every visible agent). */}
+                <th className="w-[4%] border-b border-border-base px-3 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all agents"
+                    data-testid="agents-select-all"
+                    className="h-4 w-4 cursor-pointer align-middle accent-brand"
+                    checked={allSelected}
+                    disabled={running}
+                    ref={(el) => {
+                      // indeterminate when a partial (non-empty, non-full) selection.
+                      if (el) el.indeterminate = selectedIds.length > 0 && !allSelected;
+                    }}
+                    onChange={toggleAll}
+                  />
+                </th>
                 <th className="w-[14%] border-b border-border-base px-3 py-2">Name</th>
                 <th className="w-[13%] border-b border-border-base px-3 py-2">Provider</th>
                 <th className="w-[11%] border-b border-border-base px-3 py-2">Lifecycle</th>
@@ -132,12 +206,25 @@ export default function Agents(): React.ReactElement {
             {agents.data.map((a) => (
               <tr
                 key={a.id}
-                className="text-sm"
+                className={['text-sm', selected.has(a.id) ? 'bg-brand/5' : ''].join(' ')}
                 data-testid="agent-row"
                 data-agent-id={a.id}
                 data-lifecycle={a.lifecycle}
                 data-availability={a.availability}
+                data-selected={selected.has(a.id) ? 'true' : 'false'}
               >
+                <td className="border-b border-border-base px-3 py-2">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select agent ${a.name}`}
+                    data-testid="agent-select-checkbox"
+                    data-agent-id={a.id}
+                    className="h-4 w-4 cursor-pointer align-middle accent-brand"
+                    checked={selected.has(a.id)}
+                    disabled={running}
+                    onChange={() => toggleOne(a.id)}
+                  />
+                </td>
                 <td className="border-b border-border-base px-3 py-2 font-medium">
                   {/* T133: the agent NAME is the row's open affordance — click it to
                       reach AgentDetail (replaces the separate "Open →" link). Styled
@@ -256,7 +343,112 @@ export default function Agents(): React.ReactElement {
           });
         }}
       />
+
+      {/* T232: confirm gate for destructive batch actions (stop/restart/reset). */}
+      <ConfirmModal
+        open={pendingBatch !== null}
+        danger={pendingBatch === 'reset'}
+        title={pendingBatch ? `${BATCH_LABELS[pendingBatch]} ${selectedIds.length} agent(s)` : undefined}
+        message={
+          pendingBatch
+            ? pendingBatch === 'reset'
+              ? `Reset ${selectedIds.length} selected agent(s)? This clears each agent's memory and workspace and cannot be undone.`
+              : `${BATCH_LABELS[pendingBatch]} ${selectedIds.length} selected agent(s)?`
+            : undefined
+        }
+        confirmLabel={pendingBatch ? BATCH_LABELS[pendingBatch] : 'Confirm'}
+        onCancel={() => setPendingBatch(null)}
+        onConfirm={confirmBatch}
+      />
     </section>
+  );
+}
+
+// T232: user-facing verb for each batch action (buttons, confirm copy, progress).
+const BATCH_LABELS: Record<AgentBatchAction, string> = {
+  start: 'Start',
+  stop: 'Stop',
+  restart: 'Restart',
+  reset: 'Reset',
+};
+
+// BatchToolbar — the selection action bar above the Agents table (T232). Shows
+// the selected count, the four lifecycle actions, a live progress bar while a
+// batch runs, and a succeeded/failed summary once it finishes. Buttons are
+// disabled mid-run so a batch can't overlap itself.
+function BatchToolbar({
+  selectedCount,
+  progress,
+  onAction,
+  onClear,
+}: {
+  selectedCount: number;
+  progress: BatchLifecycleProgress;
+  onAction: (action: AgentBatchAction) => void;
+  onClear: () => void;
+}): React.ReactElement {
+  const { running, total, done, results, action } = progress;
+  const failed = results.filter((r) => !r.ok);
+  const succeeded = results.length - failed.length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <div
+      className="flex flex-wrap items-center gap-3 rounded border border-border-base bg-bg-subtle px-3 py-2"
+      data-testid="agents-batch-toolbar"
+    >
+      <span className="text-sm font-medium" data-testid="agents-batch-selected-count">
+        {selectedCount} selected
+      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        {AGENT_BATCH_ACTIONS.map((act) => (
+          <button
+            key={act}
+            type="button"
+            data-testid={`agents-batch-${act}`}
+            disabled={running || selectedCount === 0}
+            onClick={() => onAction(act)}
+            className={[
+              'rounded px-2.5 py-1 text-xs font-medium motion-safe:transition-colors disabled:opacity-50',
+              act === 'reset'
+                ? 'text-danger hover:bg-danger/10'
+                : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
+            ].join(' ')}
+          >
+            {BATCH_LABELS[act]}
+          </button>
+        ))}
+      </div>
+
+      {running && (
+        <div className="flex min-w-[10rem] flex-1 items-center gap-2" data-testid="agents-batch-progress">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-elevated">
+            <div
+              className="h-full bg-brand motion-safe:transition-[width]"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <span className="whitespace-nowrap text-xs text-text-muted">
+            {action ? BATCH_LABELS[action] : ''} {done}/{total}
+          </span>
+        </div>
+      )}
+
+      {!running && results.length > 0 && (
+        <span className="text-xs text-text-muted" data-testid="agents-batch-summary">
+          {succeeded} succeeded{failed.length > 0 ? `, ${failed.length} failed` : ''}
+        </span>
+      )}
+
+      <button
+        type="button"
+        data-testid="agents-batch-clear"
+        onClick={onClear}
+        disabled={running}
+        className="ml-auto rounded px-2 py-1 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
+      >
+        Clear
+      </button>
+    </div>
   );
 }
 

@@ -369,3 +369,66 @@ describe('Agents delete (#197)', () => {
     expect(deleted).toBe(false);
   });
 });
+
+// T232: multi-select + batch lifecycle (start/stop/restart/reset) with progress.
+describe('Agents page batch operations (T232)', () => {
+  beforeEach(() => {
+    server.use(http.get('/api/agents', () => HttpResponse.json({ agents: seed })));
+  });
+  afterEach(() => cleanup());
+
+  it('no toolbar until a row is selected; select-all selects every agent', async () => {
+    wrap(<Agents />);
+    await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
+    expect(screen.queryByTestId('agents-batch-toolbar')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('agents-select-all'));
+    expect(screen.getByTestId('agents-batch-toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('agents-batch-selected-count')).toHaveTextContent('3 selected');
+    expect(screen.getAllByTestId('agent-select-checkbox').every((c) => (c as HTMLInputElement).checked)).toBe(true);
+  });
+
+  it('Start (non-destructive) runs immediately and shows a success summary', async () => {
+    const hits: string[] = [];
+    server.use(
+      http.post('/api/agents/:id/start', ({ params }) => {
+        hits.push(String(params.id));
+        return HttpResponse.json({ id: params.id, lifecycle: 'running' });
+      }),
+    );
+    wrap(<Agents />);
+    await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
+    // select bot-1 + bot-2
+    const checks = screen.getAllByTestId('agent-select-checkbox');
+    fireEvent.click(checks[0]);
+    fireEvent.click(checks[1]);
+    expect(screen.getByTestId('agents-batch-selected-count')).toHaveTextContent('2 selected');
+
+    fireEvent.click(screen.getByTestId('agents-batch-start'));
+    const summary = await screen.findByTestId('agents-batch-summary');
+    expect(summary).toHaveTextContent('2 succeeded');
+    expect(hits).toEqual(['bot-1', 'bot-2']);
+  });
+
+  it('Reset (destructive) requires a confirm before running', async () => {
+    let resetCount = 0;
+    server.use(
+      http.post('/api/agents/:id/reset', ({ params }) => {
+        resetCount += 1;
+        return HttpResponse.json({ id: params.id, lifecycle: 'stopped' });
+      }),
+    );
+    wrap(<Agents />);
+    await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
+    fireEvent.click(screen.getAllByTestId('agent-select-checkbox')[2]);
+
+    fireEvent.click(screen.getByTestId('agents-batch-reset'));
+    // confirm dialog gates the destructive batch — nothing fired yet
+    expect(await screen.findByTestId('confirm-modal')).toBeInTheDocument();
+    expect(resetCount).toBe(0);
+
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await screen.findByTestId('agents-batch-summary');
+    expect(resetCount).toBe(1);
+  });
+});

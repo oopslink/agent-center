@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import {
   useInfiniteQuery,
   useMutation,
@@ -122,6 +123,73 @@ export function useForceDeleteAgent() {
       void qc.removeQueries({ queryKey: qk.agent(id) });
     },
   });
+}
+
+// T232: batch lifecycle operations for the Agents list. The center exposes only
+// PER-AGENT lifecycle endpoints (/agents/:id/{start,stop,restart,reset}), so a
+// "batch" is a client-side SEQUENTIAL fan-out — POST each id in turn, tracking
+// done/total + per-agent ok/error so the list page can render a progress bar and
+// a partial-failure summary (one agent failing a transition never aborts the
+// rest; the backend's per-agent guards surface as that row's error). 'reset'
+// reuses the single-reset body ({scope:'all', confirm:true}). On completion the
+// agents list is invalidated ONCE so every affected row re-renders.
+export const AGENT_BATCH_ACTIONS = ['start', 'stop', 'restart', 'reset'] as const;
+export type AgentBatchAction = (typeof AGENT_BATCH_ACTIONS)[number];
+
+export interface BatchItemResult {
+  id: string;
+  ok: boolean;
+  error?: string;
+}
+
+export interface BatchLifecycleProgress {
+  action: AgentBatchAction | null;
+  total: number;
+  done: number;
+  running: boolean;
+  results: BatchItemResult[];
+}
+
+const IDLE_BATCH_PROGRESS: BatchLifecycleProgress = {
+  action: null,
+  total: 0,
+  done: 0,
+  running: false,
+  results: [],
+};
+
+export function useBatchAgentLifecycle() {
+  const qc = useQueryClient();
+  const [progress, setProgress] = useState<BatchLifecycleProgress>(IDLE_BATCH_PROGRESS);
+
+  const run = useCallback(
+    async (ids: string[], action: AgentBatchAction): Promise<void> => {
+      if (ids.length === 0) return;
+      setProgress({ action, total: ids.length, done: 0, running: true, results: [] });
+      const results: BatchItemResult[] = [];
+      for (const id of ids) {
+        try {
+          if (action === 'reset') {
+            await api.post<Agent>(`/agents/${id}/reset`, { scope: 'all', confirm: true });
+          } else {
+            await api.post<Agent>(`/agents/${id}/${action}`);
+          }
+          results.push({ id, ok: true });
+        } catch (e) {
+          results.push({ id, ok: false, error: e instanceof Error ? e.message : 'failed' });
+        }
+        // snapshot a copy each tick so React sees a new array reference
+        setProgress((p) => ({ ...p, done: results.length, results: [...results] }));
+      }
+      await qc.invalidateQueries({ queryKey: qk.agents() });
+      setProgress((p) => ({ ...p, running: false }));
+    },
+    [qc],
+  );
+
+  const reset = useCallback(() => setProgress(IDLE_BATCH_PROGRESS), []);
+
+  return { run, progress, reset };
 }
 
 export function useAgentWorkItems(id: string | undefined) {
