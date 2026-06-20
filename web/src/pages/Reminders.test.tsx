@@ -54,9 +54,11 @@ vi.mock('@/components/ReminderDetailModal', () => ({
 
 import Reminders from './Reminders';
 
-function renderPage() {
+// T248: filters live in the URL query (driven by col② RemindersSecondaryNav);
+// the page READS them. So tests drive filters via the initial query string.
+function renderPage(query = '') {
   return render(
-    <MemoryRouter initialEntries={['/organizations/acme/reminders']}>
+    <MemoryRouter initialEntries={[`/organizations/acme/reminders${query}`]}>
       <Routes>
         <Route path="/organizations/:slug/reminders" element={<Reminders />} />
       </Routes>
@@ -88,22 +90,24 @@ describe('Reminders page', () => {
     expect(mutate).toHaveBeenCalledWith({ id: 'rmd-1', action: 'pause' });
   });
 
-  it('the "Created by me" range filter drives the list query filter', () => {
-    renderPage();
-    fireEvent.click(screen.getByTestId('reminder-range-created'));
+  it('the ?range=created query drives the list query filter', () => {
+    renderPage('?range=created');
     expect(lastListParams).toMatchObject({ filter: 'created' });
   });
 
-  it('the "Reminding me" range filter drives the remindee list query filter', () => {
-    renderPage();
-    fireEvent.click(screen.getByTestId('reminder-range-remindee'));
+  it('the ?range=remindee query drives the remindee list query filter', () => {
+    renderPage('?range=remindee');
     expect(lastListParams).toMatchObject({ filter: 'remindee' });
   });
 
-  it('the status filter narrows the query statuses', () => {
-    renderPage();
-    fireEvent.click(screen.getByTestId('reminder-status-active'));
+  it('the ?status=active query narrows the query statuses', () => {
+    renderPage('?status=active');
     expect(lastListParams).toMatchObject({ statuses: ['active'] });
+  });
+
+  it('defaults to filter=all and no status when the query is empty', () => {
+    renderPage();
+    expect(lastListParams).toMatchObject({ filter: 'all', statuses: undefined });
   });
 
   it('opens the create modal from the New reminder button', () => {

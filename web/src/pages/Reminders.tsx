@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   useReminders,
   useUpdateReminder,
@@ -12,23 +12,24 @@ import { useDisplayNameResolver } from '@/api/members';
 import { Avatar } from '@/components/Avatar';
 import { ReminderCreateModal } from '@/components/ReminderCreateModal';
 import { ReminderDetailModal } from '@/components/ReminderDetailModal';
-import { IconSearch, IconPause, IconPlay, IconClose } from '@/components/icons';
+import { IconPause, IconPlay, IconClose } from '@/components/icons';
 
 // =============================================================================
-// T207 [提醒-3] Reminder management — screen ① (list / management), 1:1 to the
-// mockup: left filter rail (搜索 + 范围 全部/我创建的 + 状态 Active/Paused) ·
-// main (提醒 · {范围} header + 新建提醒 · Active/Paused/下次触发 统计 ·
-// 7-列表 对象/触发/下次触发/内容/创建者/状态/操作). Row click → 详情 + 历史触发.
+// T207 Reminder management — screen ① (list / management). 1:1 to the mockup
+// (docs/design/v2.11.0/mockups/reminder-mockup-v0.1-I4.png): col③ is the LIST
+// (Reminders · {scope} header + New reminder · Active/Paused/Next-run stats ·
+// the 7-column table). Row click → detail + firing history.
+//
+// T248 (issue-c438cde1) three-column fix: the filter rail (search + Scope +
+// Status) moved OUT of this page into col② (RemindersSecondaryNav) so the list
+// occupies the middle column, not its own page-internal sidebar. The filters
+// drive this list via the URL query (?range=&status=&q=) — this page READS them.
 // =============================================================================
 
 const RANGES: ReadonlyArray<{ key: ReminderListFilter; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'created', label: 'Created by me' },
   { key: 'remindee', label: 'Reminding me' },
-];
-const STATUSES: ReadonlyArray<{ key: ReminderStatus; label: string }> = [
-  { key: 'active', label: 'Active' },
-  { key: 'paused', label: 'Paused' },
 ];
 
 function relTime(iso?: string | null): string {
@@ -60,9 +61,11 @@ function StatusBadge({ status }: { status: ReminderStatus }): React.ReactElement
 
 export default function Reminders(): React.ReactElement {
   const { slug } = useParams<{ slug: string }>();
-  const [range, setRange] = useState<ReminderListFilter>('all');
-  const [statusFilter, setStatusFilter] = useState<ReminderStatus | null>(null);
-  const [search, setSearch] = useState('');
+  // T248: filter state lives in the URL query, driven by col② (RemindersSecondaryNav).
+  const [params] = useSearchParams();
+  const range = (params.get('range') as ReminderListFilter) || 'all';
+  const statusFilter = (params.get('status') as ReminderStatus) || null;
+  const search = params.get('q') ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const { data: reminders, isLoading, isError } = useReminders(slug, {
@@ -95,60 +98,23 @@ export default function Reminders(): React.ReactElement {
   const rangeLabel = RANGES.find((r) => r.key === range)?.label ?? 'All';
 
   return (
-    <div className="flex min-h-0 flex-1" data-testid="reminders-page">
-      {/* Left filter rail (mockup col②) */}
-      <aside className="flex w-52 shrink-0 flex-col border-r border-border-base p-3">
-        <h2 className="px-1 pb-2 text-sm font-semibold text-text-primary">Reminders</h2>
-        <div className="relative mb-3">
-          <IconSearch className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search reminders…"
-            className="w-full rounded-md border border-border-base bg-bg-base py-1.5 pl-7 pr-2.5 text-xs"
-            data-testid="reminder-search"
-          />
-        </div>
-        <FilterGroup label="Scope">
-          {RANGES.map((rg) => (
-            <FilterItem key={rg.key} active={range === rg.key} onClick={() => setRange(rg.key)} testId={`reminder-range-${rg.key}`}>
-              {rg.label}
-            </FilterItem>
-          ))}
-        </FilterGroup>
-        <FilterGroup label="Status">
-          <FilterItem active={statusFilter === null} onClick={() => setStatusFilter(null)} testId="reminder-status-all">
-            All statuses
-          </FilterItem>
-          {STATUSES.map((st) => (
-            <FilterItem
-              key={st.key}
-              active={statusFilter === st.key}
-              onClick={() => setStatusFilter(st.key)}
-              testId={`reminder-status-${st.key}`}
-              dot={st.key === 'active' ? 'bg-success' : 'bg-warning'}
-            >
-              {st.label}
-            </FilterItem>
-          ))}
-        </FilterGroup>
-      </aside>
+    // T248: col③ (middle workspace) is the LIST only — a single column. The
+    // filter rail now lives in col② (RemindersSecondaryNav). On mobile the shell
+    // gives this the full screen; the filters live in the nav sheet.
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="reminders-page">
+      <header className="flex items-center justify-between border-b border-border-base px-5 py-3">
+        <h3 className="text-base font-semibold text-text-primary">Reminders · {rangeLabel}</h3>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+          data-testid="reminder-new"
+        >
+          + New reminder
+        </button>
+      </header>
 
-      {/* Main */}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-border-base px-5 py-3">
-          <h3 className="text-base font-semibold text-text-primary">Reminders · {rangeLabel}</h3>
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-            data-testid="reminder-new"
-          >
-            + New reminder
-          </button>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <div className="mb-4 grid grid-cols-3 gap-3">
             <Stat label="Active" value={String(stats.active)} testId="stat-active" />
             <Stat label="Paused" value={String(stats.paused)} testId="stat-paused" />
@@ -252,49 +218,10 @@ export default function Reminders(): React.ReactElement {
           )}
           <p className="mt-3 text-xs text-text-muted">Click a row for details + firing history (each fire time, whether delivered, and whether skipped due to overlap).</p>
         </div>
-      </div>
 
       {createOpen && <ReminderCreateModal onClose={() => setCreateOpen(false)} />}
       {detailId && <ReminderDetailModal slug={slug} reminderId={detailId} onClose={() => setDetailId(null)} />}
     </div>
-  );
-}
-
-function FilterGroup({ label, children }: { label: string; children: React.ReactNode }): React.ReactElement {
-  return (
-    <div className="mb-3">
-      <div className="px-1 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">{label}</div>
-      <div className="space-y-0.5">{children}</div>
-    </div>
-  );
-}
-
-function FilterItem({
-  active,
-  onClick,
-  testId,
-  dot,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  testId: string;
-  dot?: string;
-  children: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      data-testid={testId}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
-        active ? 'bg-brand/10 font-semibold text-brand' : 'text-text-secondary hover:bg-bg-subtle'
-      }`}
-    >
-      {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
-      {children}
-    </button>
   );
 }
 
