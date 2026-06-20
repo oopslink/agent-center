@@ -60,17 +60,9 @@ const EvtAgentAwaitingInput = "agent.awaiting_input"
 const ownerRefTasksPrefix = "pm://tasks/"
 
 // ownerRefPlansPrefix is the plan-owned conversation owner_ref scheme (T250 —
-// used to label a plan-chat converse brief with its plan_id + resolved name).
+// used by the plan-failure creator wake to build a plan owner_ref; live
+// owner-title resolution otherwise goes through conversation.ResolveOwnerContext).
 const ownerRefPlansPrefix = "pm://plans/"
-
-// planIDFromOwnerRef returns the plan_id when ownerRef is a plan conversation
-// owner_ref (pm://plans/{id}), or "" otherwise (T250).
-func planIDFromOwnerRef(ownerRef string) string {
-	if strings.HasPrefix(ownerRef, ownerRefPlansPrefix) {
-		return strings.TrimPrefix(ownerRef, ownerRefPlansPrefix)
-	}
-	return ""
-}
 
 // agentParticipantPrefix is the IdentityRef scheme for an agent participant's
 // read-state cursor (the read_state repo is keyed by IdentityRef, so "agent:<id>"
@@ -132,6 +124,18 @@ type WakeProjector struct {
 	// owning entity's title rather than copying it onto the conversation.
 	planName func(ctx context.Context, planID string) (string, bool)
 
+	// T255 (I19/OQ2): issue/task title live resolvers, mirroring planName. An
+	// issue/task chat carries owner_ref pm://issues|tasks/{id}; resolveOwnerName
+	// dispatches on the OwnerContext kind (T254 table) so the converse brief header
+	// shows the real title — resolved live (a renamed issue/task reads correctly), a
+	// miss falls back to conv.Name() then the id (a name miss never blocks a wake).
+	// No projectName field: project chat has NO converse wake path today (OQ1 — there
+	// is no ConversationKindProject and pm://projects/ is only a channel soft-label),
+	// so a project-title resolver would be dead wiring. See resolveOwnerName's project
+	// case for the TODO if project chats ever gain a wake path.
+	issueTitle func(ctx context.Context, issueID string) (string, bool)
+	taskTitle  func(ctx context.Context, taskID string) (string, bool)
+
 	// I7-D1/T227: the wake-chain circuit breaker. nil → agent→agent wakes are NOT
 	// gated (pre-T227 behavior). When set, an agent-sender wake is run through the
 	// four gates (depth/cycle/rate/cost) before delivery; human/system senders
@@ -166,6 +170,11 @@ type WakeProjectorDeps struct {
 	// the plan's name, for labeling a plan-chat converse brief.
 	PlanName func(ctx context.Context, planID string) (string, bool)
 
+	// T255 (optional; nil → issue/task brief falls back to conv.Name()/id). Live
+	// title resolvers for issue/task chats, mirroring PlanName.
+	IssueTitle func(ctx context.Context, issueID string) (string, bool)
+	TaskTitle  func(ctx context.Context, taskID string) (string, bool)
+
 	// I7-D1/T227 wake-chain circuit breaker (optional; nil → agent→agent wakes
 	// ungated). A process singleton (holds rate/cycle state) built from the
 	// settings-driven Config in app composition.
@@ -192,6 +201,8 @@ func NewWakeProjector(d WakeProjectorDeps) *WakeProjector {
 		systemNotify:        d.SystemNotify,
 		projectAgentMembers: d.ProjectAgentMembers,
 		planName:            d.PlanName,
+		issueTitle:          d.IssueTitle,
+		taskTitle:           d.TaskTitle,
 		wakeGuard:           d.WakeGuard,
 	}
 }
@@ -708,15 +719,15 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		return nil
 	}
 	senderDisplay, _ := p.displayNameOr(ctx, pl.Sender, pl.Sender)
-	// T250: for a plan chat the conversation itself has no name, so resolve the
-	// owning plan's name live and carry it (plus owner_ref) so the daemon brief can
-	// tell the agent WHICH plan this message belongs to. Non-plan conversations keep
-	// conv.Name() and the resolver is never consulted.
+	// T250/T255: a plan/issue/task chat's conversation has no reliable name of its
+	// own, so resolve the owning object's title LIVE from its owner_ref and carry it
+	// (plus owner_ref) so the daemon brief can tell the agent WHICH object this
+	// message belongs to. A miss (or a kind with no resolver) keeps conv.Name(); the
+	// brief itself falls back to the id when ConvName is empty, so a title miss never
+	// blocks the wake. DM/channel owner_refs resolve to no title → conv.Name() stands.
 	convName := conv.Name()
-	if planID := planIDFromOwnerRef(pl.OwnerRef); planID != "" && p.planName != nil {
-		if name, ok := p.planName(ctx, planID); ok {
-			convName = name
-		}
+	if name, ok := p.resolveOwnerName(ctx, pl.OwnerRef); ok {
+		convName = name
 	}
 	payload, err := json.Marshal(converseCommandPayload{
 		AgentID:        entityID,
@@ -743,6 +754,41 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		IdempotencyKey: "agent.converse:" + pl.ConversationID + ":" + pl.MessageID + ":" + entityID,
 	})
 	return err
+}
+
+// resolveOwnerName resolves an owner_ref → the owning object's live title/name,
+// for the converse brief header (T255/OQ2). It routes through the SINGLE
+// OwnerContext table (T254) so the {kind → resolver} mapping stays in one place:
+// plan→planName, issue→issueTitle, task→taskTitle. It returns ("", false) for a
+// kind with no wired resolver, a resolver miss, an empty/unknown owner_ref, or a
+// channel ref — callers keep conv.Name() in that case (the brief then falls back
+// to the id), so a title miss never blocks a wake.
+func (p *WakeProjector) resolveOwnerName(ctx context.Context, ownerRef string) (string, bool) {
+	oc, ok := conversation.ResolveOwnerContext(ownerRef)
+	if !ok {
+		return "", false // dm/channel/unknown → no live title
+	}
+	var resolver func(context.Context, string) (string, bool)
+	switch oc.Kind {
+	case conversation.OwnerKindPlan:
+		resolver = p.planName
+	case conversation.OwnerKindIssue:
+		resolver = p.issueTitle
+	case conversation.OwnerKindTask:
+		resolver = p.taskTitle
+	case conversation.OwnerKindProject:
+		// OQ1: project chat has NO converse wake path today (no ConversationKindProject;
+		// pm://projects/ is only a channel soft-label), so deliverConverse is never
+		// reached with a project owner_ref and no projectName resolver is wired. TODO:
+		// wire a projectName resolver here if/when project chats gain a wake path.
+		return "", false
+	default:
+		return "", false
+	}
+	if resolver == nil {
+		return "", false
+	}
+	return resolver(ctx, oc.ID)
 }
 
 // projectPlanCreatorWake is the v2.9 P3 failure→agent-creator-wake path (§9.1 /
