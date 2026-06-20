@@ -740,6 +740,73 @@ func TestCompleteTask_NoSummary_OK(t *testing.T) {
 	}
 }
 
+// TestCompleteTask_PoolClaimed_NoWorkItem is the regression for the pool-claim
+// completion bug: a task acquired via claim_task is ASSIGNED to the agent and
+// running but has NO WorkItem (ClaimPoolTask mints none). Before the fix,
+// complete_task's requireOwnTask gate (work-item-only) 403'd not_agents_task, so a
+// claimed pool task could never be completed. The own-task gate now also accepts
+// the task's assignee, so the claimer can complete it.
+func TestCompleteTask_PoolClaimed_NoWorkItem(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	ctx := context.Background()
+	pid, _ := f.seedMemberProject(t) // AG1 is now a member of pid.
+
+	// Find the project's built-in claimable pool.
+	plans, err := f.pmSvc.ListPlans(ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pool pm.PlanID
+	for _, p := range plans {
+		if p.IsBuiltin() {
+			pool = p.ID()
+		}
+	}
+	if pool == "" {
+		t.Fatal("no built-in pool found for project")
+	}
+
+	// Create a SEPARATE, UNASSIGNED task and place it in the running pool so it is
+	// claimable (the claim — not a prior assign — is what makes AG1 the assignee).
+	owner := pm.IdentityRef("user:owner")
+	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: pid, Title: "pool task", CreatedBy: owner,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t) // participant projector creates the task Conversation.
+	if err := f.pmSvc.SelectTaskIntoPlan(ctx, pool, tid, owner); err != nil {
+		t.Fatalf("SelectTaskIntoPlan into pool: %v", err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatalf("ReconcileRunningPlans: %v", err)
+	}
+
+	srv := f.server(t)
+	// AG1 claims the pool task → assignee=AG1, running, NO WorkItem.
+	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/claim_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": string(tid)}); status != http.StatusOK {
+		t.Fatalf("claim_task status = %d, want 200; body = %v", status, body)
+	}
+	// Precondition for the regression: the claimed pool task really has no WorkItem.
+	if items, _ := f.workItems.ListByTask(ctx, "pm://tasks/"+string(tid)); len(items) != 0 {
+		t.Fatalf("expected NO work item for a pool-claimed task, got %d", len(items))
+	}
+
+	// complete_task must now succeed (was 403 not_agents_task before the fix).
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": string(tid)})
+	if status != http.StatusOK {
+		t.Fatalf("complete_task on pool-claimed task: status = %d, want 200; body = %v", status, body)
+	}
+	if got := f.taskStatus(t, string(tid)); got != pm.TaskCompleted {
+		t.Fatalf("task status = %s, want completed", got)
+	}
+}
+
 // --- discard_task (T119) -----------------------------------------------------
 
 func TestDiscardTask_RunningToDiscarded_OK(t *testing.T) {
