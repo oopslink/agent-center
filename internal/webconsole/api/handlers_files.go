@@ -147,9 +147,19 @@ func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, caller
 		if err != nil || conv == nil {
 			return false, nil
 		}
-		// Must be in the caller's org AND the caller must be a live participant.
+		// Must be in the caller's org.
 		if conv.OrganizationID() != orgID {
 			return false, nil
+		}
+		// T244: download authz must MIRROR read authz, or a viewer sees an
+		// attachment they can't fetch. A CHANNEL is readable by EVERY org member —
+		// the channel list + requireConversationInOrg (the message-read gate) don't
+		// check participation — so its attachments, INCLUDING ones an agent posted,
+		// are downloadable by any org member (download == read; never broader). A DM
+		// (and the other participant-private kinds) stays strictly participant-gated:
+		// fail-closed, no cross-member leak.
+		if conv.Kind() == conversation.ConversationKindChannel {
+			return true, nil
 		}
 		return conv.HasActiveParticipant(conversation.IdentityRef(callerRef)), nil
 

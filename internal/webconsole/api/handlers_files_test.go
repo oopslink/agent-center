@@ -372,6 +372,100 @@ func TestAPI_Files_Download_AgentScopeOnly_403(t *testing.T) {
 	}
 }
 
+// TestAPI_Files_Download_ChannelNonParticipant_200 is the T244 fix: a CHANNEL is
+// readable by every org member (the channel list + message-read gate don't check
+// participation), so its attachments — including ones an AGENT posted — must be
+// downloadable by any org member even when they are not an explicit participant.
+// Before the fix this returned 403 ("no reachable reference grants download")
+// although the same member could read the message and see the attachment.
+func TestAPI_Files_Download_ChannelNonParticipant_200(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	// A channel owned by SOMEONE ELSE — the caller (sess) is NOT a participant.
+	// An agent posts the attachment (CreatedBy agent), the caller is a plain org
+	// member who can see the channel.
+	other := "user:someone-else"
+	openRes, err := deps.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
+		Kind:           conversation.ConversationKindChannel,
+		Name:           "general",
+		OrganizationID: sess.OrgID,
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: conversation.IdentityRef(other), Role: "owner", JoinedAt: "t", JoinedBy: conversation.IdentityRef(other)},
+		},
+		CreatedBy: conversation.IdentityRef(other),
+		Actor:     observability.Actor(other),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := []byte("agent attachment in a channel")
+	ulid := uploadBlob(t, s.URL, sess, content)
+	if _, err := svc.AddReference(ctx, filesservice.AddReferenceCmd{
+		FileURI: mustURI(t, ulid), Scope: files.ScopeConversation, ScopeID: string(openRes.ConversationID),
+		Filename: "report.txt", MimeType: "text/plain", CreatedBy: "agent:AG1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedGet(t, s.URL+"/api/files/"+ulid, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("channel non-participant download: status=%d body=%s, want 200", resp.StatusCode, b)
+	}
+	got, _ := io.ReadAll(resp.Body)
+	if !bytes.Equal(got, content) {
+		t.Fatalf("body mismatch: %q != %q", got, content)
+	}
+}
+
+// TestAPI_Files_Download_DMNonParticipant_403 is the security boundary the T244
+// fix must NOT cross: a DM stays strictly participant-gated, so a non-participant
+// org member cannot download a DM attachment.
+func TestAPI_Files_Download_DMNonParticipant_403(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	// A DM between two OTHER identities — the caller (sess) is not a participant.
+	a, b := "user:alice", "user:bob"
+	openRes, err := deps.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
+		Kind:           conversation.ConversationKindDM,
+		OrganizationID: sess.OrgID,
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: conversation.IdentityRef(a), Role: "owner", JoinedAt: "t", JoinedBy: conversation.IdentityRef(a)},
+			{IdentityID: conversation.IdentityRef(b), Role: "member", JoinedAt: "t", JoinedBy: conversation.IdentityRef(a)},
+		},
+		CreatedBy: conversation.IdentityRef(a),
+		Actor:     observability.Actor(a),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ulid := uploadBlob(t, s.URL, sess, []byte("private dm file"))
+	if _, err := svc.AddReference(ctx, filesservice.AddReferenceCmd{
+		FileURI: mustURI(t, ulid), Scope: files.ScopeConversation, ScopeID: string(openRes.ConversationID),
+		Filename: "secret.txt", MimeType: "text/plain", CreatedBy: a,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedGet(t, s.URL+"/api/files/"+ulid, sess)
+	if resp.StatusCode != 403 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("DM non-participant download: status=%d body=%s, want 403", resp.StatusCode, b)
+	}
+}
+
 // =============================================================================
 // Live-only: soft-deleted reference does not grant access
 // =============================================================================
