@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
@@ -463,6 +464,177 @@ func TestAPI_Files_Download_DMNonParticipant_403(t *testing.T) {
 	if resp.StatusCode != 403 {
 		b, _ := io.ReadAll(resp.Body)
 		t.Fatalf("DM non-participant download: status=%d body=%s, want 403", resp.StatusCode, b)
+	}
+}
+
+// savePlanScopedConv builds and persists a PROJECT-SCOPED conversation (plan/task
+// /issue owner_ref) whose ONLY participant is an agent — so a human caller can
+// VIEW it (org/project read) but is NOT a participant. Mirrors what the
+// PlanParticipantProjector / task ParticipantProjector produce: an additive
+// participant set that omits non-@mentioned project members.
+func savePlanScopedConv(t *testing.T, deps HandlerDeps, id string, kind conversation.ConversationKind, owner conversation.OwnerRef, orgID string) conversation.ConversationID {
+	t.Helper()
+	conv, err := conversation.NewConversation(conversation.NewConversationInput{
+		ID:             conversation.ConversationID(id),
+		Kind:           kind,
+		OwnerRef:       owner,
+		OrganizationID: orgID,
+		CreatedBy:      conversation.IdentityRef("system"),
+		OpenedAt:       time.Now().UTC(),
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: "agent:AG1", Role: "member", JoinedAt: "t", JoinedBy: conversation.IdentityRef("system")},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deps.ConvRepo.Save(context.Background(), conv); err != nil {
+		t.Fatal(err)
+	}
+	return conv.ID()
+}
+
+// TestAPI_Files_Download_PlanConversation_ProjectMemberNonParticipant_200 is the
+// plan-chat 403 fix (T244 follow-up): a PLAN conversation's participant set is only
+// its creator + the @mention-dispatched selected-task assignees (additive), but it
+// is READABLE by any member of its owning project. So a project member who opens
+// the plan chat but was never @mentioned (e.g. the human owner/PD) is NOT a
+// participant and used to get 403 ("no reachable reference grants download") on an
+// attachment — including one an AGENT posted — that they can plainly see. Download
+// must now mirror read: a project member reaches it. This is the SAME gate the
+// ScopeTask/ScopeIssue file references already use.
+func TestAPI_Files_Download_PlanConversation_ProjectMemberNonParticipant_200(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	deps = setupPlanAPI(t, deps).deps // wire the Plans repo so GetPlan resolves
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	// Project owned by the caller (→ owner member) + a plan in it.
+	pid, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: sess.OrgID, Name: "Mine", CreatedBy: caller,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{
+		ProjectID: pid, Name: "P1", CreatedBy: caller,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	convID := savePlanScopedConv(t, deps, "PLAN-CONV-1", conversation.ConversationKindPlan,
+		conversation.NewPlanOwnerRef(string(planID)), sess.OrgID)
+
+	content := []byte("agent attachment in a plan chat")
+	ulid := uploadBlob(t, s.URL, sess, content)
+	if _, err := svc.AddReference(ctx, filesservice.AddReferenceCmd{
+		FileURI: mustURI(t, ulid), Scope: files.ScopeConversation, ScopeID: string(convID),
+		Filename: "design.txt", MimeType: "text/plain", CreatedBy: "agent:AG1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedGet(t, s.URL+"/api/files/"+ulid, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("plan-chat project-member non-participant download: status=%d body=%s, want 200", resp.StatusCode, b)
+	}
+	got, _ := io.ReadAll(resp.Body)
+	if !bytes.Equal(got, content) {
+		t.Fatalf("body mismatch: %q != %q", got, content)
+	}
+}
+
+// TestAPI_Files_Download_PlanConversation_NonProjectMember_403 is the security
+// boundary the plan-chat fix must NOT cross: a plan conversation in a project the
+// caller is NOT a member of (and is not a participant of) stays fail-closed.
+func TestAPI_Files_Download_PlanConversation_NonProjectMember_403(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	deps = setupPlanAPI(t, deps).deps // wire the Plans repo so GetPlan resolves
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	// Plan in a FOREIGN project (created by someone else) — caller is neither a
+	// project member nor a participant.
+	other := pm.IdentityRef("user:someone-else")
+	pid, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: sess.OrgID, Name: "Foreign", CreatedBy: other,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{
+		ProjectID: pid, Name: "P1", CreatedBy: other,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	convID := savePlanScopedConv(t, deps, "PLAN-CONV-FOREIGN", conversation.ConversationKindPlan,
+		conversation.NewPlanOwnerRef(string(planID)), sess.OrgID)
+
+	ulid := uploadBlob(t, s.URL, sess, []byte("foreign plan secret"))
+	if _, err := svc.AddReference(ctx, filesservice.AddReferenceCmd{
+		FileURI: mustURI(t, ulid), Scope: files.ScopeConversation, ScopeID: string(convID),
+		Filename: "x.txt", MimeType: "text/plain", CreatedBy: "agent:AG1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedGet(t, s.URL+"/api/files/"+ulid, sess)
+	if resp.StatusCode != 403 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("plan-chat non-project-member download: status=%d body=%s, want 403", resp.StatusCode, b)
+	}
+}
+
+// TestAPI_Files_Download_TaskConversation_ProjectMemberNonParticipant_200 is the
+// class-guard: the same plan-chat fix must hold for a TASK conversation (owner_ref
+// pm://tasks/...), whose participant set is likewise additive. A project member who
+// is not an explicit participant reaches its attachments.
+func TestAPI_Files_Download_TaskConversation_ProjectMemberNonParticipant_200(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	svc := attachFilesSvc(t, &deps, db)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: sess.OrgID, Name: "Mine", CreatedBy: caller,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tid, err := deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: pid, Title: "t", CreatedBy: caller,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	convID := savePlanScopedConv(t, deps, "TASK-CONV-1", conversation.ConversationKindTask,
+		conversation.NewTaskOwnerRef(string(tid)), sess.OrgID)
+
+	content := []byte("agent attachment in a task chat")
+	ulid := uploadBlob(t, s.URL, sess, content)
+	if _, err := svc.AddReference(ctx, filesservice.AddReferenceCmd{
+		FileURI: mustURI(t, ulid), Scope: files.ScopeConversation, ScopeID: string(convID),
+		Filename: "x.txt", MimeType: "text/plain", CreatedBy: "agent:AG1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedGet(t, s.URL+"/api/files/"+ulid, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("task-chat project-member non-participant download: status=%d body=%s, want 200", resp.StatusCode, b)
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/files"
@@ -60,8 +61,9 @@ func filesCallerRef(id *identity.Identity) string {
 //   - task / issue:  resolve ref → project (PM.GetTask/GetIssue → ProjectID);
 //     accessible iff the caller is a member of that project.
 //   - project:       accessible iff the caller is a member of ref.ScopeID.
-//   - conversation:  accessible iff the caller is a LIVE participant of the
-//     conversation AND the conversation is in the caller's org.
+//   - conversation:  must be in the caller's org, then (T244) channel → any org
+//     member; plan/task/issue → a LIVE participant OR a member of the conversation's
+//     owning project (download mirrors read; never broader); dm → LIVE participant.
 //   - agent / tmp:   NOT human-accessible — skipped (no human download grant;
 //     these are reachable to agents in POST-D3).
 func (s *Server) fileReachableForHuman(ctx context.Context, d HandlerDeps, caller *identity.Identity, orgID string, fileURI files.FileURI) (bool, error) {
@@ -161,7 +163,23 @@ func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, caller
 		if conv.Kind() == conversation.ConversationKindChannel {
 			return true, nil
 		}
-		return conv.HasActiveParticipant(conversation.IdentityRef(callerRef)), nil
+		// A live participant always reaches (DM/plan/task/issue alike).
+		if conv.HasActiveParticipant(conversation.IdentityRef(callerRef)) {
+			return true, nil
+		}
+		// T244 follow-up (plan-chat 403): a PROJECT-SCOPED conversation
+		// (plan/task/issue — owner_ref pm://plans|tasks|issues/...) collaborates a
+		// whole project, but its participant set is only the creator + the
+		// @mention-dispatched selected-task assignees (PlanParticipantProjector and
+		// the task/issue ParticipantProjector are ADDITIVE). A project member who can
+		// VIEW the chat but was never @mentioned (e.g. the human owner/PD opening the
+		// plan chat) is NOT a participant and used to 403 on an attachment they can
+		// plainly see. Align download with the SAME project-membership gate the
+		// ScopeTask/ScopeIssue file references above already use, so a
+		// conversation-scoped attachment and a task/issue-scoped reference to the
+		// same blob behave identically (download == read; never broader). A DM has an
+		// empty owner_ref → no project → stays strictly participant-gated.
+		return s.convOwnerProjectMember(ctx, d, callerRef, conv.OwnerRef())
 
 	case files.ScopeAgent, files.ScopeTmp, files.ScopeUploader:
 		// Not a human DOWNLOAD grant. agent/tmp are agent-domain/transient. Uploader
@@ -173,6 +191,52 @@ func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, caller
 		// removed from a conversation would still download via the uploader ref).
 		return false, nil
 
+	default:
+		return false, nil
+	}
+}
+
+// Conversation owner_ref schemes for PROJECT-SCOPED conversations (mirrors the
+// unexported prefixes in internal/conversation/context_refs.go). A plan/task/issue
+// conversation pins to a ProjectManager object; resolving it yields the project
+// whose membership gates download (T244 follow-up).
+const (
+	ownerRefPlansPrefix  = "pm://plans/"
+	ownerRefTasksPrefix  = "pm://tasks/"
+	ownerRefIssuesPrefix = "pm://issues/"
+)
+
+// convOwnerProjectMember reports whether callerRef is a member of the project that
+// OWNS a project-scoped conversation (plan/task/issue owner_ref). It is the
+// download-reachability bridge that keeps a conversation-scoped attachment as
+// reachable as a ScopeTask/ScopeIssue reference to the same project. A DM (empty
+// owner_ref), a channel (id://organizations owner_ref — handled by the caller's
+// kind switch), or any unknown scheme resolves to no project → false, so the
+// caller stays on the strict participant gate (fail-closed).
+func (s *Server) convOwnerProjectMember(ctx context.Context, d HandlerDeps, callerRef string, owner conversation.OwnerRef) (bool, error) {
+	if d.PM == nil {
+		return false, nil
+	}
+	o := owner.String()
+	switch {
+	case strings.HasPrefix(o, ownerRefPlansPrefix):
+		pl, err := d.PM.GetPlan(ctx, pm.PlanID(strings.TrimPrefix(o, ownerRefPlansPrefix)))
+		if err != nil || pl == nil {
+			return false, nil // missing/cross-domain target does not grant access
+		}
+		return s.callerIsProjectMember(ctx, d, callerRef, pl.ProjectID())
+	case strings.HasPrefix(o, ownerRefTasksPrefix):
+		tk, err := d.PM.GetTask(ctx, pm.TaskID(strings.TrimPrefix(o, ownerRefTasksPrefix)))
+		if err != nil || tk == nil {
+			return false, nil
+		}
+		return s.callerIsProjectMember(ctx, d, callerRef, tk.ProjectID())
+	case strings.HasPrefix(o, ownerRefIssuesPrefix):
+		is, err := d.PM.GetIssue(ctx, pm.IssueID(strings.TrimPrefix(o, ownerRefIssuesPrefix)))
+		if err != nil || is == nil {
+			return false, nil
+		}
+		return s.callerIsProjectMember(ctx, d, callerRef, is.ProjectID())
 	default:
 		return false, nil
 	}
