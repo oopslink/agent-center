@@ -70,14 +70,14 @@ reuses the §1 search affordance; a toggle reads unambiguously as a setting.
 and a search-filtered, portaled option list, and contains **no checkbox
 input** — selection state is carried by `aria-selected` + a check glyph.
 Boolean settings use the brand toggle button (`role="switch"`,
-`aria-checked`, `aria-label`). This rule is mechanically lintable
-(`no-restricted-syntax` on a checkbox-typed `input` JSX element, with an
-allowlist for the two carve-out idioms by `data-testid`) — per §11 that lint
-is the next step; the three pre-existing carve-out sites
-(`agents-select-all`, `agent-select-checkbox`, `agent-reset-confirm`) are
-already the allowlist, so wiring it forbids only *new* misuse. Until the
-lint lands, PD / Tester treat a new entity-multi-pick-or-setting checkbox as
-a finding.
+`aria-checked`, `aria-label`). This rule is **lint-enforced** (per §11): a
+`no-restricted-syntax` rule in `web/eslint.config.js` flags any checkbox-typed
+`input` JSX element, with the three carve-out sites allowlisted by
+`data-testid` (`agents-select-all`, `agent-select-checkbox`,
+`agent-reset-confirm`) — so the gate forbids only *new* misuse. Adding a new
+checkbox means either using the right control instead, or (for a genuine new
+carve-out idiom) extending the allowlist with a documented justification and
+PD review.
 
 ## 2 — Display names everywhere; identity refs hide behind hover
 
@@ -367,8 +367,11 @@ prevent a real bug.
 
 **Why.** Mechanism beats memory. The rule "do not call `window.confirm`"
 became `no-restricted-globals` + `no-restricted-properties` in ESLint
-(#169); the rule "no Chinese strings in the UI" is a candidate next.
-A rule in lint cannot be forgotten by a hurried PR.
+(#169); the §1a "no checkbox for multi-pick / setting" rule became a
+`no-restricted-syntax` selector (with the carve-out testids allowlisted);
+the §12 "agent action buttons are icons, not text" rule is likewise a
+`no-restricted-syntax` selector. The rule "no Chinese strings in the UI" is
+a candidate next. A rule in lint cannot be forgotten by a hurried PR.
 
 **How to apply.** New documented rules in this file ask, in the PR
 introducing them, "can this be linted?" If yes, the lint rule lands in

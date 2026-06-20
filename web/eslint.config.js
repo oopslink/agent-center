@@ -12,6 +12,13 @@ import tsParser from '@typescript-eslint/parser';
 //      (#271). The rule below flags any <button data-testid="agent-*-btn"> with a
 //      direct non-whitespace text child. The lone legitimate progress text
 //      (`{lc}…`) is a <span>, not a button, so it is naturally exempt.
+//   3. ux-standards §1a — no <input type="checkbox"> as the control for an
+//      entity multi-pick (use EntityMultiSelect: dropdown + chips) or a boolean
+//      setting (use a role="switch" toggle). The reminder modal shipped a
+//      pill-grid remindee + a raw skip-overlap checkbox; this rule prevents the
+//      regression. Two legitimate checkbox idioms are allowlisted by data-testid:
+//      data-table row-selection (agents-select-all / agent-select-checkbox, #232)
+//      and destructive-action acknowledgment (agent-reset-confirm).
 //
 // Run with `pnpm lint`.
 const banned = [
@@ -85,6 +92,14 @@ export default [
             'JSXElement[openingElement.name.name="button"]:has(JSXAttribute[name.name="data-testid"][value.value=/^agent-[a-z]+-btn$/]):has(JSXText[value=/\\S/])',
           message:
             'Agent action buttons (data-testid="agent-*-btn") must render an icon component, not text (#270/#271). Wrap the glyph in an <Icon/> component with title + aria-label; never inline a text label.',
+        },
+        {
+          // ux-standards §1a: a checkbox-typed <input> is banned except for the
+          // two allowlisted idioms (table row-select, destructive-confirm ack).
+          selector:
+            'JSXOpeningElement[name.name="input"]:has(JSXAttribute[name.name="type"][value.value="checkbox"]):not(:has(JSXAttribute[name.name="data-testid"][value.value=/^(agents-select-all|agent-select-checkbox|agent-reset-confirm)$/]))',
+          message:
+            'A checkbox is banned for entity multi-pick or a boolean setting (ux-standards §1a). Use EntityMultiSelect (dropdown + chips) for multi-pick, or a role="switch" toggle for a boolean. The only allowlisted checkboxes are table row-selection and destructive-action acknowledgment.',
         },
       ],
     },
