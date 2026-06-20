@@ -26,7 +26,7 @@ const FIELDS: ReadonlyArray<FieldSpec> = [
 ];
 
 export function WakeGuardrailPanel(): React.ReactElement {
-  const { data, isLoading, isError } = useWakeGuardrail();
+  const { data, isLoading, isError, refetch } = useWakeGuardrail();
   const update = useUpdateWakeGuardrail();
   const [form, setForm] = useState<WakeGuardrail | null>(null);
   const [saved, setSaved] = useState(false);
@@ -43,17 +43,32 @@ export function WakeGuardrailPanel(): React.ReactElement {
     return () => clearTimeout(t);
   }, [saved]);
 
+  // Error is checked BEFORE the loading gate: on a failed fetch the query
+  // settles with isError=true but data/form stay null, so an `isLoading || !form`
+  // gate placed first would mask the failure as a perpetual "加载护栏参数…"
+  // (T249). Surface an explicit error with a retry instead.
+  if (isError) {
+    return (
+      <div
+        className="flex items-center justify-between gap-4 rounded-xl border border-danger/30 bg-danger/5 p-5"
+        data-testid="wake-guardrail-error"
+      >
+        <p className="text-sm text-danger">护栏参数加载失败。</p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="shrink-0 rounded-md border border-border-base px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-subtle"
+          data-testid="wake-guardrail-retry"
+        >
+          重试
+        </button>
+      </div>
+    );
+  }
   if (isLoading || !form) {
     return (
       <p className="text-sm text-text-muted" data-testid="wake-guardrail-loading">
         加载护栏参数…
-      </p>
-    );
-  }
-  if (isError) {
-    return (
-      <p className="text-sm text-danger" data-testid="wake-guardrail-error">
-        护栏参数加载失败。
       </p>
     );
   }

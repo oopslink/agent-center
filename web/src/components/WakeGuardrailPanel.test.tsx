@@ -13,7 +13,12 @@ const DEFAULTS: WakeGuardrail = {
   rate_per_min: 10,
   chain_token_budget: 16,
 };
-let queryState: { data?: WakeGuardrail; isLoading: boolean; isError: boolean } = {
+let queryState: {
+  data?: WakeGuardrail;
+  isLoading: boolean;
+  isError: boolean;
+  refetch?: () => void;
+} = {
   data: DEFAULTS,
   isLoading: false,
   isError: false,
@@ -73,6 +78,19 @@ describe('WakeGuardrailPanel', () => {
     queryState = { data: undefined, isLoading: true, isError: false };
     render(<WakeGuardrailPanel />);
     expect(screen.getByTestId('wake-guardrail-loading')).toBeTruthy();
+  });
+
+  // T249: a failed FETCH (404/500/timeout) must surface an error state with a
+  // retry — NOT sit forever on "加载护栏参数…". Regression guard: the loading
+  // gate must not mask isError (data/form is null on error too).
+  it('shows an error state with a retry when the fetch fails (not infinite loading)', () => {
+    const refetch = vi.fn();
+    queryState = { data: undefined, isLoading: false, isError: true, refetch };
+    render(<WakeGuardrailPanel />);
+    expect(screen.queryByTestId('wake-guardrail-loading')).toBeNull();
+    expect(screen.getByTestId('wake-guardrail-error')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('wake-guardrail-retry'));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 
   // A successful save must give explicit, screen-reader-announced confirmation
