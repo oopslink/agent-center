@@ -315,6 +315,31 @@ func (a *App) outboxProjectors(
 			}
 			return name, true
 		},
+		// T255 (OQ2): live issue/task title resolvers, mirroring PlanName — an
+		// issue/task chat's converse brief header shows the real title (resolved at
+		// wake time so a rename reads correctly; a miss falls back to the id).
+		IssueTitle: func(ctx context.Context, issueID string) (string, bool) {
+			is, err := pmsql.NewIssueRepo(a.DB).FindByID(ctx, pm.IssueID(issueID))
+			if err != nil || is == nil {
+				return "", false
+			}
+			title := strings.TrimSpace(is.Title())
+			if title == "" {
+				return "", false
+			}
+			return title, true
+		},
+		TaskTitle: func(ctx context.Context, taskID string) (string, bool) {
+			tk, err := pmsql.NewTaskRepo(a.DB).FindByID(ctx, pm.TaskID(taskID))
+			if err != nil || tk == nil {
+				return "", false
+			}
+			title := strings.TrimSpace(tk.Title())
+			if title == "" {
+				return "", false
+			}
+			return title, true
+		},
 	})
 	// v2.7 #111 Phase-1: the agent-work-item PROJECTOR (transition-driven /
 	// "Opt1"). It consumes agent.work_item_transitioned and fills the
