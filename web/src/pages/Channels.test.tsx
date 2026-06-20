@@ -153,8 +153,16 @@ describe('Channels list-enrichment (v2.8.1)', () => {
     const rows = screen.getAllByTestId('channel-recent-message');
     // ≤3 previews (the 4th is dropped)
     expect(rows).toHaveLength(3);
-    // truncate class present (single-line ellipsis, no row-break)
-    expect(rows[1].className).toContain('truncate');
+    // T234: content span is truncate-capped at ≤3/4 card width (single-line
+    // ellipsis, no row-break). The truncate moved off the <li> onto the content.
+    const contents = screen.getAllByTestId('channel-recent-content');
+    expect(contents[1].className).toContain('truncate');
+    expect(contents[1].className).toContain('max-w-[75%]');
+    // T234: each row carries a "[yyyy-MM-dd HH:mm:ss]" local-tz timestamp prefix.
+    const times = screen.getAllByTestId('channel-recent-time');
+    expect(times[0].textContent).toMatch(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]$/);
+    // the [timestamp] [sender] meta is bold (font-semibold)
+    expect(times[0].parentElement?.className).toContain('font-semibold');
     // markdown is rendered as plain text — the raw markup is present as text,
     // NOT parsed into a heading/code block element.
     expect(rows[0].textContent).toContain('# heading');

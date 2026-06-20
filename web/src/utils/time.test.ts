@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatChatDate, formatChatTime, formatLocalTime, formatStatusDuration, localDateToRFC3339 } from './time';
+import { formatChatDate, formatChatTime, formatLocalDateTimeSeconds, formatLocalTime, formatStatusDuration, localDateToRFC3339 } from './time';
 
 describe('formatLocalTime', () => {
   const iso = '2026-06-04T07:34:21.874846Z';
@@ -49,6 +49,32 @@ describe('formatChatTime', () => {
 
   it('is stable for the same input', () => {
     expect(formatChatTime(iso)).toBe(formatChatTime(iso));
+  });
+});
+
+// T234: formatLocalDateTimeSeconds renders a compact "yyyy-MM-dd HH:mm:ss"
+// local-tz wall clock (e.g. "2026-06-20 13:45:09"). tz-tolerant: assert the
+// shape via regex, not a fixed wall-clock value (digits depend on the runner tz).
+describe('formatLocalDateTimeSeconds', () => {
+  const iso = '2026-06-08T12:01:02.500Z';
+
+  it('formats a known ISO into "yyyy-MM-dd HH:mm:ss" (24-hr, seconds)', () => {
+    expect(formatLocalDateTimeSeconds(iso)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it('is the full date+seconds form — NOT the long locale form (no tz label)', () => {
+    const out = formatLocalDateTimeSeconds(iso);
+    expect(out).not.toBe(formatLocalTime(iso));
+    expect(out).not.toMatch(/GMT|UTC/);
+  });
+
+  it('returns invalid / empty input unchanged (fail-safe)', () => {
+    expect(formatLocalDateTimeSeconds('not-a-date')).toBe('not-a-date');
+    expect(formatLocalDateTimeSeconds('')).toBe('');
+  });
+
+  it('is stable for the same input', () => {
+    expect(formatLocalDateTimeSeconds(iso)).toBe(formatLocalDateTimeSeconds(iso));
   });
 });
 
