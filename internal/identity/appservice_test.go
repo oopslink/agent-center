@@ -2,6 +2,7 @@ package identity
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +56,47 @@ func TestSignupService_Execute(t *testing.T) {
 	member, _ := memberRepo.GetByOrganizationAndIdentity(ctx, org.ID(), identity.ID())
 	if member == nil {
 		t.Error("member not found in DB")
+	}
+}
+
+// TestSignupService_AutoSlug covers T237: an empty form slug is auto-generated
+// server-side as a valid, unique "org-<hex>" slug, and two slug-less signups get
+// distinct slugs (no collision).
+func TestSignupService_AutoSlug(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	idRepo := NewSQLiteIdentityRepo(db)
+	orgRepo := NewSQLiteOrganizationRepo(db)
+	memberRepo := NewSQLiteMemberRepo(db)
+	svc := NewSignupService(db, idRepo, orgRepo, memberRepo)
+
+	res1, err := svc.Execute(ctx, SignupForm{
+		DisplayName: "AutoUser1", PasscodePlain: "Passw0rd1!", OrganizationName: "Org1",
+	})
+	if err != nil {
+		t.Fatalf("Execute (no slug): %v", err)
+	}
+	slug1 := res1.Organization.Slug()
+	if !strings.HasPrefix(slug1, "org-") {
+		t.Errorf("auto slug must start with org-, got %q", slug1)
+	}
+	if err := ValidateSlug(slug1); err != nil {
+		t.Errorf("auto slug %q must be valid: %v", slug1, err)
+	}
+	// Persisted and retrievable by the generated slug.
+	if org, _ := orgRepo.GetBySlug(ctx, slug1); org == nil {
+		t.Errorf("auto-slugged org not found by slug %q", slug1)
+	}
+
+	res2, err := svc.Execute(ctx, SignupForm{
+		DisplayName: "AutoUser2", PasscodePlain: "Passw0rd2!", OrganizationName: "Org2",
+	})
+	if err != nil {
+		t.Fatalf("Execute (no slug) 2: %v", err)
+	}
+	if res2.Organization.Slug() == slug1 {
+		t.Errorf("two auto-slugged signups collided on slug %q", slug1)
 	}
 }
 

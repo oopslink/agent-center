@@ -43,7 +43,6 @@ func (s *Server) signupHandler(w http.ResponseWriter, r *http.Request) {
 		DisplayName      string `json:"display_name"`
 		Passcode         string `json:"passcode"`
 		OrganizationName string `json:"organization_name"`
-		OrganizationSlug string `json:"organization_slug"`
 		Email            string `json:"email"` // v2.7.1 #214: required for new signups
 	}
 	if err := decodeJSON(r, &body); err != nil {
@@ -56,11 +55,13 @@ func (s *Server) signupHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "email_required", "email is required")
 		return
 	}
+	// T237: the org slug is no longer collected from the client — SignupService
+	// auto-generates a unique "org-<hex>" slug server-side (OrganizationSlug left
+	// empty here triggers that path).
 	form := identity.SignupForm{
 		DisplayName:      body.DisplayName,
 		PasscodePlain:    body.Passcode,
 		OrganizationName: body.OrganizationName,
-		OrganizationSlug: body.OrganizationSlug,
 		Email:            body.Email,
 	}
 	res, err := d.SignupSvc.Execute(r.Context(), form)
