@@ -46,6 +46,11 @@ export function useCreateIssue(projectId: string) {
       api.post<Issue>(`/projects/${projectId}/issues`, input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.issuesByProject(projectId) });
+      // T233: also refresh the cross-project org Issues aggregation list — the
+      // OrgWorkItems page (useOrgWorkItems → qk.orgIssues) reads from a SEPARATE
+      // cache key, so without this the table didn't show the just-added issue
+      // until the 30s staleTime lapsed.
+      void qc.invalidateQueries({ queryKey: qk.orgIssuesAll() });
     },
   });
 }

@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { createElement, type ReactNode } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook, waitFor, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { makeWrapper } from '../test/renderWith';
 import { server } from '../test/mswServer';
+import { qk } from './queryKeys';
 import {
   useAssignTask,
   useBlockTask,
@@ -76,6 +79,35 @@ describe('tasks hooks', () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(received).toMatchObject({ title: 'x' });
+  });
+
+  it('useCreateTask invalidates BOTH the project list AND the org-aggregation list (T233)', async () => {
+    // Regression: the OrgWorkItems page reads from qk.orgTasks (a separate cache
+    // key); creating a task only invalidated qk.tasksByProject, so the org table
+    // didn't show the new task until staleTime lapsed. onSuccess must now also
+    // invalidate the qk.orgTasksAll() prefix.
+    server.use(
+      http.post('/api/projects/proj-a/tasks', () =>
+        HttpResponse.json(
+          { id: 'TS-NEW', project_id: 'proj-a', title: 'x', description: '', status: 'open', version: 1, created_at: 'x', updated_at: 'x' },
+          { status: 201 },
+        ),
+      ),
+    );
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => useCreateTask('proj-a'), { wrapper });
+    act(() => {
+      result.current.mutate({ title: 'x' });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const invalidatedKeys = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(invalidatedKeys).toContain(JSON.stringify(qk.tasksByProject('proj-a')));
+    expect(invalidatedKeys).toContain(JSON.stringify(qk.orgTasksAll()));
   });
 
   it('useAssignTask POSTs the assignee (metadata only — status unchanged)', async () => {
