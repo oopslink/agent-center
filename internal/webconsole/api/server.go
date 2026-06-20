@@ -122,6 +122,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/health", s.healthHandler)
 	// v2.8.1: full build identity for the Settings version panel.
 	s.mux.HandleFunc("GET /api/system/version", s.systemVersionHandler)
+	// I7-D1 (T216): wake-guardrail config — read effective thresholds, write
+	// overrides (validated > 0); consumed by the I7-D3 Settings panel.
+	s.mux.HandleFunc("GET /api/system/wake-guardrail", s.getWakeGuardrailHandler)
+	s.mux.HandleFunc("PUT /api/system/wake-guardrail", s.putWakeGuardrailHandler)
 
 	// v2.6-FE-1: Auth endpoints — exempt from the JWT middleware.
 	// v2.7 #145: public bootstrap-status probe — lets the SPA decide signup

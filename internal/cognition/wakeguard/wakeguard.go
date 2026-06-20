@@ -116,7 +116,7 @@ type Trace struct {
 
 // Guard evaluates wakes against the four gates. It is safe for concurrent use.
 type Guard struct {
-	cfg Config
+	cfgFn func() Config // resolves the live config per evaluation (settings-backed)
 
 	mu         sync.Mutex
 	rate       map[string][]time.Time  // to → recent allowed agent-wake times
@@ -131,20 +131,32 @@ type carriedChain struct {
 	at    time.Time
 }
 
-// NewGuard builds a Guard with the given config.
+// NewGuard builds a Guard with a FIXED config (the static path: tests + any
+// caller that doesn't tune thresholds at runtime).
 func NewGuard(cfg Config) *Guard {
+	return NewGuardFunc(func() Config { return cfg })
+}
+
+// NewGuardFunc builds a Guard whose config is resolved by cfgFn on EVERY
+// evaluation — the I7-D1/D3 seam: wire cfgFn to read the settings store so a
+// Settings-UI change takes effect WITHOUT a restart (T224 "参数可配生效"). cfgFn
+// must return a valid (all-positive) Config; nil falls back to DefaultConfig.
+func NewGuardFunc(cfgFn func() Config) *Guard {
+	if cfgFn == nil {
+		cfgFn = DefaultConfig
+	}
 	return &Guard{
-		cfg:        cfg,
+		cfgFn:      cfgFn,
 		rate:       map[string][]time.Time{},
 		cycleEdges: map[string][]time.Time{},
 		carried:    map[string]carriedChain{},
 	}
 }
 
-// RootChain mints a fresh root chain seeded with the Guard's configured token
-// budget — used at a wake origin (where no parent chain is carried yet).
+// RootChain mints a fresh root chain seeded with the Guard's currently-configured
+// token budget — used at a wake origin (where no parent chain is carried yet).
 func (g *Guard) RootChain(rootMessageID string, actor ActorKind) WakeChain {
-	return NewRootChain(rootMessageID, actor, g.cfg.TokenBudget)
+	return NewRootChain(rootMessageID, actor, g.cfgFn().TokenBudget)
 }
 
 // Evaluate decides whether `from` may wake `to` carrying `chain`, as of `now`.
@@ -162,7 +174,7 @@ func (g *Guard) Evaluate(from, to string, chain WakeChain, now time.Time) Trace 
 
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.gateLocked(tr, from, to, chain, now)
+	return g.gateLocked(tr, from, to, chain, g.cfgFn(), now)
 }
 
 // EvaluateHop is the wired-path entry (I7-D1/T227). It evaluates an agent→agent
@@ -185,8 +197,9 @@ func (g *Guard) Evaluate(from, to string, chain WakeChain, now time.Time) Trace 
 func (g *Guard) EvaluateHop(from, to, rootMessageID string, now time.Time) Trace {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	chain := g.originChainLocked(from, rootMessageID, now)
-	tr := g.gateLocked(Trace{From: from, To: to, Depth: chain.Depth, ActorKind: chain.ActorKind}, from, to, chain, now)
+	cfg := g.cfgFn()
+	chain := g.originChainLocked(from, rootMessageID, cfg, now)
+	tr := g.gateLocked(Trace{From: from, To: to, Depth: chain.Depth, ActorKind: chain.ActorKind}, from, to, chain, cfg, now)
 	if tr.Allowed {
 		g.carried[to] = carriedChain{chain: chain.Extend(to), at: now}
 	}
@@ -194,20 +207,21 @@ func (g *Guard) EvaluateHop(from, to, rootMessageID string, now time.Time) Trace
 }
 
 // originChainLocked returns the chain `from` propagates into a new hop: its
-// carried chain when still fresh (≤ CycleWindow old), else a fresh agent root.
+// carried chain when still fresh (≤ cfg.CycleWindow old), else a fresh agent root.
 // Caller holds g.mu.
-func (g *Guard) originChainLocked(from, rootMessageID string, now time.Time) WakeChain {
-	if e, ok := g.carried[from]; ok && now.Sub(e.at) <= g.cfg.CycleWindow {
+func (g *Guard) originChainLocked(from, rootMessageID string, cfg Config, now time.Time) WakeChain {
+	if e, ok := g.carried[from]; ok && now.Sub(e.at) <= cfg.CycleWindow {
 		return e.chain
 	}
-	return g.RootChain(rootMessageID, ActorAgent)
+	return NewRootChain(rootMessageID, ActorAgent, cfg.TokenBudget)
 }
 
-// gateLocked runs the four gates against `chain` (caller holds g.mu) and records
-// the rate/cycle state on ALLOW (a DENY records nothing — the wake did not happen).
-func (g *Guard) gateLocked(tr Trace, from, to string, chain WakeChain, now time.Time) Trace {
+// gateLocked runs the four gates against `chain` using `cfg` (caller holds g.mu)
+// and records the rate/cycle state on ALLOW (a DENY records nothing — the wake
+// did not happen).
+func (g *Guard) gateLocked(tr Trace, from, to string, chain WakeChain, cfg Config, now time.Time) Trace {
 	// ① depth — the NEXT hop would be chain.Depth+1; deny if that exceeds the cap.
-	if chain.Depth+1 > g.cfg.MaxDepth {
+	if chain.Depth+1 > cfg.MaxDepth {
 		return deny(tr, GateDepth, "depth limit reached")
 	}
 	// ④ cost — each hop costs one token; deny if the budget is spent.
@@ -216,14 +230,14 @@ func (g *Guard) gateLocked(tr Trace, from, to string, chain WakeChain, now time.
 	}
 	// ② cycle — count this pair's recent hops (either direction) in the window.
 	key := pairKey(from, to)
-	edges := prune(g.cycleEdges[key], now.Add(-g.cfg.CycleWindow))
-	if len(edges) >= g.cfg.CycleN {
+	edges := prune(g.cycleEdges[key], now.Add(-cfg.CycleWindow))
+	if len(edges) >= cfg.CycleN {
 		g.cycleEdges[key] = edges
 		return deny(tr, GateCycle, "round-trip cycle detected for this pair")
 	}
 	// ③ rate — per-target woken-by-agent token bucket (sliding 1-minute window).
 	bucket := prune(g.rate[to], now.Add(-time.Minute))
-	if len(bucket) >= g.cfg.RatePerMin {
+	if len(bucket) >= cfg.RatePerMin {
 		g.rate[to] = bucket
 		return deny(tr, GateRate, "target agent wake rate exceeded")
 	}
