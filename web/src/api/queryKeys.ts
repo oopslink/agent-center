@@ -90,6 +90,12 @@ export const qk = {
   // aggregation list the message ref-resolver reads from — without this the list
   // stayed stale (30s) and the new task/plan ref never linkified.
   orgTasksAll: () => o('orgTasks'),
+  // T233: the PREFIX key matching EVERY filtered orgIssues(...) query (mirrors
+  // orgTasksAll). useCreateIssue invalidates this so the cross-project org Issues
+  // list (useOrgWorkItems) refreshes immediately after a create — without it the
+  // new issue stayed hidden until the 30s staleTime lapsed (only the project-
+  // scoped issuesByProject list was being invalidated).
+  orgIssuesAll: () => o('orgIssues'),
   orgPlansAll: () => o('orgPlans'),
   // v2.9 #286 Plan orchestration: Plans are per-project. The parallel list is
   // keyed by projectId; a single Plan (nodes + derived) keyed by plan id.

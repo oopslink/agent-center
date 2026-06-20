@@ -1,8 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { createElement, type ReactNode } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, renderHook, waitFor, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { makeWrapper } from '../test/renderWith';
 import { server } from '../test/mswServer';
+import { qk } from './queryKeys';
 import {
   useCreateIssue,
   useIssue,
@@ -88,6 +91,35 @@ describe('issues hooks', () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(received).toMatchObject({ title: 'x' });
+  });
+
+  it('useCreateIssue invalidates BOTH the project list AND the org-aggregation list (T233)', async () => {
+    // Regression: the OrgWorkItems page reads from qk.orgIssues (a separate cache
+    // key); creating an issue only invalidated qk.issuesByProject, so the org
+    // table didn't show the new issue until staleTime lapsed. onSuccess must now
+    // also invalidate the qk.orgIssuesAll() prefix.
+    server.use(
+      http.post('/api/projects/proj-a/issues', () =>
+        HttpResponse.json(
+          { id: 'IS-NEW', project_id: 'proj-a', title: 'x', description: '', status: 'open', created_by: 'user:hayang', version: 1, created_at: 'x', updated_at: 'x' },
+          { status: 201 },
+        ),
+      ),
+    );
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => useCreateIssue('proj-a'), { wrapper });
+    act(() => {
+      result.current.mutate({ title: 'x' });
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const invalidatedKeys = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(invalidatedKeys).toContain(JSON.stringify(qk.issuesByProject('proj-a')));
+    expect(invalidatedKeys).toContain(JSON.stringify(qk.orgIssuesAll()));
   });
 
   it('useUpdateIssue PATCHes the nested route with the dirty-only body', async () => {

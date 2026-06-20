@@ -63,6 +63,11 @@ export function useCreateTask(projectId: string) {
       api.post<Task>(`/projects/${projectId}/tasks`, input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+      // T233: also refresh the cross-project org Tasks aggregation list — the
+      // OrgWorkItems page (useOrgWorkItems → qk.orgTasks) reads from a SEPARATE
+      // cache key, so without this the table didn't show the just-added task
+      // until the 30s staleTime lapsed.
+      void qc.invalidateQueries({ queryKey: qk.orgTasksAll() });
     },
   });
 }
