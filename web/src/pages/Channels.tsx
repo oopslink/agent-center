@@ -19,7 +19,7 @@ import { ChannelCreateModal } from '@/components/ChannelCreateModal';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
-import { formatLocalTime } from '@/utils/time';
+import { formatLocalTime, formatLocalDateTimeSeconds } from '@/utils/time';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { SegmentedNav } from '@/shell/SegmentedNav';
 import { CONVERSATION_SEGMENTS } from './conversationSegments';
@@ -350,12 +350,15 @@ function ParticipantStack({
 }
 
 // RecentMessages — ≤3 compact single-line previews for a channel row (v2.8.1
-// list-enrich). Each preview is PLAIN TEXT (rendered into a text node, NOT a
-// markdown block / code / image), TRUNCATED with ellipsis (truncate; long
-// messages never grow the row height) and carries a `title` with the full
-// "sender: content" for hover. A deleted/unresolved sender shows a friendly
-// "(deleted)" (the #246 F1 isResolvedName pattern), NEVER the raw agent:<id>
-// ref. Empty channel → a friendly "No messages yet" placeholder, never blank.
+// list-enrich). T234 display format: `[yyyy-MM-dd HH:mm:ss] [{User Name}]: {content}`
+// where the `[timestamp] [User Name]` meta is BOLD and the content is plain text,
+// TRUNCATED with ellipsis and capped at ≤3/4 of the card width so a long message
+// never grows the row height nor crowds out the meta. Each preview is PLAIN TEXT
+// (rendered into a text node, NOT a markdown block / code / image) and carries a
+// `title` with the full "[time] [sender]: content" for hover. A deleted/unresolved
+// sender shows a friendly "(deleted)" (the #246 F1 isResolvedName pattern), NEVER
+// the raw agent:<id> ref. Empty channel → a friendly "No messages yet"
+// placeholder, never blank.
 function RecentMessages({
   messages,
   resolve,
@@ -379,10 +382,13 @@ function RecentMessages({
       // Flatten any newlines so a multi-line message stays a single-line
       // preview; the row's `truncate` + title carry the rest. PLAIN TEXT only.
       const content = m.content.replace(/\s+/g, ' ').trim();
+      // T234: a compact absolute "yyyy-MM-dd HH:mm:ss" local-tz timestamp prefix.
+      const timestamp = formatLocalDateTimeSeconds(m.posted_at);
       return {
         key: m.id || `${m.sender_identity_id}-${m.posted_at}-${i}`,
         senderLabel,
         senderResolved,
+        timestamp,
         content,
       };
     });
@@ -404,19 +410,27 @@ function RecentMessages({
       {previews.map((p) => (
         <li
           key={p.key}
-          className="truncate text-xs text-text-muted"
+          className="flex items-baseline gap-1 text-xs text-text-muted"
           data-testid="channel-recent-message"
-          title={`${p.senderResolved ? p.senderLabel : 'deleted'}: ${p.content}`}
+          title={`[${p.timestamp}] [${p.senderResolved ? p.senderLabel : 'deleted'}]: ${p.content}`}
         >
-          <span
-            className={p.senderResolved ? 'font-medium text-text-secondary' : 'font-medium italic text-text-secondary'}
-            data-testid="channel-recent-sender"
-            data-sender-resolved={p.senderResolved ? 'true' : 'false'}
-          >
-            {p.senderLabel}
+          {/* `[yyyy-MM-dd HH:mm:ss] [{User Name}]` — the BOLD meta (shrink-0 so it
+              never collapses); the trailing `:` and content stay normal weight. */}
+          <span className="flex shrink-0 items-baseline gap-1 font-semibold text-text-secondary">
+            <span data-testid="channel-recent-time">[{p.timestamp}]</span>
+            <span
+              className={p.senderResolved ? undefined : 'italic'}
+              data-testid="channel-recent-sender"
+              data-sender-resolved={p.senderResolved ? 'true' : 'false'}
+            >
+              [{p.senderLabel}]
+            </span>
           </span>
-          <span aria-hidden="true">: </span>
-          {p.content}
+          <span className="shrink-0" aria-hidden="true">:</span>
+          {/* content capped at ≤3/4 card width, single-line ellipsis. */}
+          <span className="min-w-0 max-w-[75%] truncate" data-testid="channel-recent-content">
+            {p.content}
+          </span>
         </li>
       ))}
     </ul>

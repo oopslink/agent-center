@@ -41,6 +41,36 @@ export function formatChatTime(iso: string): string {
   return `${hour}:${minute}`;
 }
 
+// formatLocalDateTimeSeconds — render an ISO-8601 (UTC) timestamp as a full
+// "yyyy-MM-dd HH:mm:ss" wall-clock in the viewer's LOCAL timezone (24-hr), e.g.
+// "2026-06-20 13:45:09". Used by the channel-list recent-message previews (T234)
+// where a compact, sortable absolute timestamp is wanted (NOT the long locale
+// form). Built from Intl.DateTimeFormat parts (local tz, hour12:false, 2-digit
+// everything) so the digits come from the local-tz computation. Invalid/empty
+// input is returned unchanged (fail-safe — never throw on bad data).
+export function formatLocalDateTimeSeconds(iso: string): string {
+  if (!iso) return iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  // 'en-CA' yields a stable YYYY-MM-DD date shape in the local tz; combined with
+  // 2-digit 24-hr time parts we reassemble the canonical "YYYY-MM-DD HH:mm:ss".
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(d);
+  const get = (t: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((p) => p.type === t)?.value ?? '';
+  let hour = get('hour');
+  if (hour === '24') hour = '00'; // some engines emit 24 for midnight
+  return `${get('year')}-${get('month')}-${get('day')} ${hour}:${get('minute')}:${get('second')}`;
+}
+
 // formatChatDate — chat date-separator label (@oopslink locked, DM mockup).
 // Renders an ISO-8601 (UTC) timestamp as a Chinese "YYYY年MM月DD日" date in the
 // viewer's LOCAL timezone, e.g. "2026年6月4日". Used by the 7th-DM date
