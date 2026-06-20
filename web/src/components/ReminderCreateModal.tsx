@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react';
 import { useCreateReminder, type ReminderEndCondition, type ReminderScheduleKind } from '@/api/reminders';
 import { useAgents } from '@/api/agents';
 import { Avatar } from './Avatar';
+import { EntityMultiSelect } from './EntityMultiSelect';
+import type { EntityOption } from './EntitySelect';
 import { IconClose, IconCalendar, IconClock } from './icons';
 
 // =============================================================================
@@ -53,7 +55,9 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
   const create = useCreateReminder();
   const { data: agents } = useAgents();
   const [kind, setKind] = useState<ReminderScheduleKind>('cron');
-  const [remindee, setRemindee] = useState('');
+  // Multi-select: a reminder can target several peer agents; on submit we fan out
+  // one create call per remindee (the API takes a single remindee_agent_id).
+  const [remindees, setRemindees] = useState<string[]>([]);
   const [content, setContent] = useState('');
   const [cronExpr, setCronExpr] = useState('0 18 * * 1-5');
   const [tz, setTz] = useState(browserTz);
@@ -65,9 +69,19 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
   const [err, setErr] = useState<string | null>(null);
 
   const canSubmit =
-    remindee.trim() !== '' &&
+    remindees.length > 0 &&
     content.trim() !== '' &&
     (kind === 'cron' ? cronExpr.trim() !== '' : onceDate !== '');
+
+  const remindeeOptions = useMemo<EntityOption[]>(
+    () =>
+      (agents ?? []).map((a) => ({
+        value: a.id,
+        label: a.name,
+        leading: <Avatar name={a.name} kind="agent" size="sm" />,
+      })),
+    [agents],
+  );
 
   const oncePreview = useMemo(() => {
     if (!onceDate) return '—';
@@ -77,23 +91,38 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
     return `Fires once at ${onceDate} ${onceTime} · ${rel} · TZ ${tz}`;
   }, [onceDate, onceTime, tz]);
 
-  function submit(): void {
+  async function submit(): Promise<void> {
     setErr(null);
     const schedule =
       kind === 'cron'
         ? { kind: 'cron' as const, cron_expr: cronExpr.trim(), timezone: tz }
         : { kind: 'once' as const, once_at: new Date(`${onceDate}T${onceTime}:00`).toISOString() };
     const end_condition: ReminderEndCondition = { kind: endKind };
-    create.mutate(
-      {
-        remindee_agent_id: remindee.trim(),
-        schedule,
-        content: content.trim(),
-        skip_if_overlap: skipOverlap,
-        deliver_as_creator: deliverAsCreator,
-        end_condition,
-      },
-      { onSuccess: () => onClose(), onError: (e) => setErr(e instanceof Error ? e.message : 'Failed to create') },
+    // Fan out one create per remindee; report a partial-failure summary rather
+    // than aborting the rest (mirrors the batch-lifecycle pattern). The API
+    // takes a single remindee_agent_id, so multi-target is a client-side loop.
+    const results = await Promise.allSettled(
+      remindees.map((id) =>
+        create.mutateAsync({
+          remindee_agent_id: id,
+          schedule,
+          content: content.trim(),
+          skip_if_overlap: skipOverlap,
+          deliver_as_creator: deliverAsCreator,
+          end_condition,
+        }),
+      ),
+    );
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed.length === 0) {
+      onClose();
+      return;
+    }
+    const msg = failed[0].reason instanceof Error ? failed[0].reason.message : 'Failed to create';
+    setErr(
+      failed.length === remindees.length
+        ? msg
+        : `${failed.length} of ${remindees.length} reminders failed: ${msg}`,
     );
   }
 
@@ -114,30 +143,21 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          {/* Remindee — agent pills */}
+          {/* Remindee — searchable multi-select dropdown with removable chips
+              (UX standards §1 / §1a; no toggle-pill grid, no bare checkboxes). */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-text-secondary">Remindee</label>
-            <div className="flex flex-wrap gap-1.5" data-testid="reminder-remindee-pills">
-              {(agents ?? []).map((a) => {
-                const on = remindee === a.id;
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => setRemindee(a.id)}
-                    aria-pressed={on}
-                    data-testid="reminder-remindee-pill"
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
-                      on ? 'border-brand bg-brand/10 text-brand' : 'border-border-base text-text-secondary hover:bg-bg-subtle'
-                    }`}
-                  >
-                    <Avatar name={a.name} kind="agent" size="sm" />
-                    {a.name}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-xs text-text-muted">Pick a peer agent in the same project (guardrail: same project only · creation is audited).</p>
+            <EntityMultiSelect
+              testId="reminder-remindee"
+              options={remindeeOptions}
+              values={remindees}
+              onChange={setRemindees}
+              placeholder="Select peer agents…"
+              searchPlaceholder="Search agents…"
+              emptyLabel="No agents."
+              ariaLabel="Remindee"
+            />
+            <p className="mt-1.5 text-xs text-text-muted">Pick one or more peer agents in the same project (guardrail: same project only · creation is audited).</p>
           </div>
 
           {/* Trigger type */}
@@ -201,18 +221,30 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
               </div>
               {/* Advanced */}
               <div className="space-y-2 rounded-lg border border-border-base p-3">
-                <label className="flex items-center justify-between gap-2 text-xs text-text-secondary">
+                <div className="flex items-center justify-between gap-2 text-xs text-text-secondary">
                   <span>
                     Skip this run if the previous one is unfinished
                     <span className="block text-text-muted">Avoids pile-up of recurring fires (on by default)</span>
                   </span>
-                  <input
-                    type="checkbox"
-                    checked={skipOverlap}
-                    onChange={(e) => setSkipOverlap(e.target.checked)}
+                  {/* Toggle switch, not a checkbox (UX standards §1a). */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={skipOverlap}
+                    aria-label="Skip this run if the previous one is unfinished"
+                    onClick={() => setSkipOverlap((v) => !v)}
                     data-testid="reminder-skip-overlap"
-                  />
-                </label>
+                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                      skipOverlap ? 'bg-brand' : 'bg-border-strong'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        skipOverlap ? 'translate-x-4' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
                 <label className="flex items-center justify-between gap-2 text-xs text-text-secondary">
                   <span>
                     End condition
@@ -313,7 +345,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
             <button
               type="button"
               disabled={!canSubmit || create.isPending}
-              onClick={submit}
+              onClick={() => void submit()}
               className="rounded-md bg-brand px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               data-testid="reminder-submit"
             >

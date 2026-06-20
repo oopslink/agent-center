@@ -33,6 +33,52 @@ allows it, and submits via the kind-aware ref (`user:<id>` / `agent:<id>`).
 Disabled / ineligible candidates remain visible but unselectable with a
 hover-tooltip reason.
 
+### 1a — No checkbox for entity multi-pick or a boolean setting; use a dropdown + chips, or a toggle
+
+**Sub-rule.** A `<input type="checkbox">` MUST NOT be the control for the
+two cases people most often misuse it for:
+
+- **Picking several entities** (which agents, which projects, which
+  channels) uses a searchable **dropdown whose chosen entities render as
+  removable chips** — `EntityMultiSelect`, the multi-select sibling of
+  `EntitySelect` (§1). Never a grid of toggle-pills, never a column of
+  checkboxes.
+- **A single on/off setting** (skip-if-overlap, send-as-yourself, enable
+  X) uses a **toggle switch** (`role="switch"` with `aria-checked`),
+  matching the brand toggle already used across the app.
+
+Two checkbox idioms remain legitimate and are explicitly **out of scope**:
+a **data-table row-selection** checkbox (the Gmail-style select-all + per-row
+select, e.g. the Agents batch table, `#232`), and an **explicit
+destructive-action acknowledgment** ("☑ I understand this will reset the
+agent", the Agent reset confirm). Those are not entity-pickers or settings —
+they are the conventional, expected control for their job.
+
+**Why.** The reminder-create modal shipped (in a worktree that was lost
+before merge, then caught in acceptance — see the IMG_6013 screenshot) with
+a grid of agent toggle-pills for the remindee and a bare
+`<input type="checkbox">` for skip-overlap. The pill grid does not scale
+(every agent is a button, no search, no compact "these N are selected"
+affordance) and reads as a wall of checkboxes; the raw checkbox is visually
+inconsistent with the app's toggle language and is exactly the "this looks
+unfinished" signal §3 / §12 guard against elsewhere. A dropdown+chips
+control scales to any candidate count, shows the selection compactly, and
+reuses the §1 search affordance; a toggle reads unambiguously as a setting.
+
+**How to apply.** Multi-pick fields use `EntityMultiSelect` (controlled
+`values: string[]` + `onChange`): it renders chips with a remove affordance
+and a search-filtered, portaled option list, and contains **no checkbox
+input** — selection state is carried by `aria-selected` + a check glyph.
+Boolean settings use the brand toggle button (`role="switch"`,
+`aria-checked`, `aria-label`). This rule is mechanically lintable
+(`no-restricted-syntax` on a checkbox-typed `input` JSX element, with an
+allowlist for the two carve-out idioms by `data-testid`) — per §11 that lint
+is the next step; the three pre-existing carve-out sites
+(`agents-select-all`, `agent-select-checkbox`, `agent-reset-confirm`) are
+already the allowlist, so wiring it forbids only *new* misuse. Until the
+lint lands, PD / Tester treat a new entity-multi-pick-or-setting checkbox as
+a finding.
+
 ## 2 — Display names everywhere; identity refs hide behind hover
 
 **Rule.** Anywhere we render an entity in the UI — message senders,
