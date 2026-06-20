@@ -271,6 +271,26 @@ body {
 }
 
 /*
+ * Mobile: stop iOS Safari from auto-zooming the page when a form control gets
+ * focus (@oopslink mobile-UX report). iOS zooms whenever the focused
+ * input/textarea/select has a computed font-size < 16px — and most of our
+ * controls use Tailwind text-sm/text-xs (14/12px). On phone-width screens we
+ * floor text-entry controls to 16px so focus never triggers the zoom. We do
+ * NOT use `maximum-scale=1` / `user-scalable=no` (those break pinch-zoom = an
+ * a11y violation); this keeps zoom available, only the auto-zoom-on-focus stops.
+ * Desktop (≥ sm/640px) is untouched and keeps the compact sizing. Non-text
+ * controls (checkbox/radio/range/button/file) don't trigger the zoom, so they're
+ * excluded to avoid disturbing their layout.
+ */
+@media screen and (max-width: 639.98px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='button']):not([type='file']):not([type='submit']):not([type='reset']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/*
  * v2.8.1 UX polish (@oopslink): .markdown-body element styles. react-markdown +
  * remark-gfm (#276) emit semantic <table>/<th>/<td>, <blockquote>, headings and
  * inline <code> with no styling → browser defaults look flat (esp. borderless
