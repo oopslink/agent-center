@@ -33,7 +33,8 @@ export function ReminderDetailModal({ slug, reminderId, onClose }: Props): React
         <div className="flex items-center justify-between border-b border-border-base px-5 py-3">
           <h4 className="text-base font-semibold text-text-primary">提醒详情</h4>
           <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="关闭">
-            ✕
+            {/* ASCII close glyph (no-emoji-icons a11y guardrail); aria-label carries the name. */}
+            <span aria-hidden="true">X</span>
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 text-sm">

@@ -101,7 +101,7 @@ export default function Reminders(): React.ReactElement {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="🔍 搜索提醒…"
+          placeholder="搜索提醒…"
           className="mb-3 w-full rounded-md border border-border-base bg-bg-base px-2.5 py-1.5 text-xs"
           data-testid="reminder-search"
         />
@@ -235,7 +235,8 @@ export default function Reminders(): React.ReactElement {
                           )}
                           {(r.status === 'active' || r.status === 'paused') && (
                             <button type="button" title="取消" data-testid="reminder-cancel" className="text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
-                              ✕
+                              {/* ASCII glyph (no-emoji-icons a11y guardrail); title carries the name. */}
+                              <span aria-hidden="true">X</span>
                             </button>
                           )}
                         </div>

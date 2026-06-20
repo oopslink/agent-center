@@ -107,7 +107,8 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
         <div className="flex items-center justify-between border-b border-border-base px-5 py-3">
           <h4 className="text-base font-semibold text-text-primary">新建提醒</h4>
           <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="关闭">
-            ✕
+            {/* ASCII close glyph (no-emoji-icons a11y guardrail); aria-label carries the name. */}
+            <span aria-hidden="true">X</span>
           </button>
         </div>
 
@@ -188,7 +189,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
                   className="mt-2.5 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info"
                   data-testid="reminder-preview"
                 >
-                  📅 <span>{cronHuman(cronExpr)} 触发 · 时区 {tz}</span>
+                  <span>{cronHuman(cronExpr)} 触发 · 时区 {tz}</span>
                 </div>
                 <input
                   value={tz}
