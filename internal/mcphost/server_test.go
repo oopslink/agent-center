@@ -440,7 +440,12 @@ func TestTierTools_DefaultIsLeanCore(t *testing.T) {
 			t.Errorf("deferred tool %q must NOT be in the tiered default set", name)
 		}
 	}
-	for _, name := range []string{"get_my_work", "start_task", "complete_task", "post_message"} {
+	// T252: the reminder family is CORE (directly discoverable) — guard against a
+	// regression that re-defers it behind search_tools (the bug PD hit in I4).
+	for _, name := range []string{
+		"get_my_work", "start_task", "complete_task", "post_message",
+		"create_reminder", "list_reminders", "get_reminder", "update_reminder",
+	} {
 		if !got[name] {
 			t.Errorf("core tool %q missing from tiered default set", name)
 		}
