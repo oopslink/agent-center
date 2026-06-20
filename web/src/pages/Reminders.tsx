@@ -21,9 +21,9 @@ import { ReminderDetailModal } from '@/components/ReminderDetailModal';
 // =============================================================================
 
 const RANGES: ReadonlyArray<{ key: ReminderListFilter; label: string }> = [
-  { key: 'all', label: '全部' },
-  { key: 'created', label: '我创建的' },
-  { key: 'remindee', label: '提醒我的' },
+  { key: 'all', label: 'All' },
+  { key: 'created', label: 'Created by me' },
+  { key: 'remindee', label: 'Reminding me' },
 ];
 const STATUSES: ReadonlyArray<{ key: ReminderStatus; label: string }> = [
   { key: 'active', label: 'Active' },
@@ -33,16 +33,16 @@ const STATUSES: ReadonlyArray<{ key: ReminderStatus; label: string }> = [
 function relTime(iso?: string | null): string {
   if (!iso) return '';
   const hrs = Math.round((new Date(iso).getTime() - Date.now()) / 3.6e6);
-  if (hrs <= 0) return '已过期';
-  if (hrs < 24) return `约 ${hrs} 小时后`;
-  return `约 ${Math.round(hrs / 24)} 天后`;
+  if (hrs <= 0) return 'Overdue';
+  if (hrs < 24) return `in ~${hrs}h`;
+  return `in ~${Math.round(hrs / 24)}d`;
 }
 
 function KindBadge({ r }: { r: Reminder }): React.ReactElement {
   const once = r.schedule.kind === 'once';
   return (
     <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${once ? 'bg-violet/15 text-violet' : 'bg-brand/15 text-brand'}`}>
-      {once ? '一次性' : '周期'}
+      {once ? 'Once' : 'Recurring'}
     </span>
   );
 }
@@ -91,7 +91,7 @@ export default function Reminders(): React.ReactElement {
     };
   }, [reminders]);
 
-  const rangeLabel = RANGES.find((r) => r.key === range)?.label ?? '全部';
+  const rangeLabel = RANGES.find((r) => r.key === range)?.label ?? 'All';
 
   return (
     <div className="flex min-h-0 flex-1" data-testid="reminders-page">
@@ -101,20 +101,20 @@ export default function Reminders(): React.ReactElement {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索提醒…"
+          placeholder="Search reminders…"
           className="mb-3 w-full rounded-md border border-border-base bg-bg-base px-2.5 py-1.5 text-xs"
           data-testid="reminder-search"
         />
-        <FilterGroup label="范围">
+        <FilterGroup label="Scope">
           {RANGES.map((rg) => (
             <FilterItem key={rg.key} active={range === rg.key} onClick={() => setRange(rg.key)} testId={`reminder-range-${rg.key}`}>
               {rg.label}
             </FilterItem>
           ))}
         </FilterGroup>
-        <FilterGroup label="状态">
+        <FilterGroup label="Status">
           <FilterItem active={statusFilter === null} onClick={() => setStatusFilter(null)} testId="reminder-status-all">
-            全部状态
+            All statuses
           </FilterItem>
           {STATUSES.map((st) => (
             <FilterItem
@@ -133,14 +133,14 @@ export default function Reminders(): React.ReactElement {
       {/* Main */}
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border-base px-5 py-3">
-          <h3 className="text-base font-semibold text-text-primary">提醒 · {rangeLabel}</h3>
+          <h3 className="text-base font-semibold text-text-primary">Reminders · {rangeLabel}</h3>
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
             data-testid="reminder-new"
           >
-            + 新建提醒
+            + New reminder
           </button>
         </header>
 
@@ -148,27 +148,27 @@ export default function Reminders(): React.ReactElement {
           <div className="mb-4 grid grid-cols-3 gap-3">
             <Stat label="Active" value={String(stats.active)} testId="stat-active" />
             <Stat label="Paused" value={String(stats.paused)} testId="stat-paused" />
-            <Stat label="下次触发" value={stats.next} testId="stat-next" />
+            <Stat label="Next run" value={stats.next} testId="stat-next" />
           </div>
 
-          {isLoading && <p className="py-6 text-sm text-text-muted">加载中…</p>}
-          {isError && <p className="py-6 text-sm text-danger">加载提醒失败。</p>}
+          {isLoading && <p className="py-6 text-sm text-text-muted">Loading…</p>}
+          {isError && <p className="py-6 text-sm text-danger">Failed to load reminders.</p>}
           {!isLoading && !isError && rows.length === 0 && (
             <p className="py-6 text-sm text-text-muted" data-testid="reminders-empty">
-              还没有提醒。点「新建提醒」创建一个。
+              No reminders yet. Click “New reminder” to create one.
             </p>
           )}
           {rows.length > 0 && (
             <table className="w-full text-left text-sm" data-testid="reminders-table">
               <thead className="text-xs text-text-muted">
                 <tr className="border-b border-border-base">
-                  <th className="py-2 font-medium">对象</th>
-                  <th className="py-2 font-medium">触发</th>
-                  <th className="py-2 font-medium">下次触发</th>
-                  <th className="py-2 font-medium">提醒内容</th>
-                  <th className="py-2 font-medium">创建者</th>
-                  <th className="py-2 font-medium">状态</th>
-                  <th className="py-2 font-medium text-right">操作</th>
+                  <th className="py-2 font-medium">Target</th>
+                  <th className="py-2 font-medium">Trigger</th>
+                  <th className="py-2 font-medium">Next run</th>
+                  <th className="py-2 font-medium">Content</th>
+                  <th className="py-2 font-medium">Creator</th>
+                  <th className="py-2 font-medium">Status</th>
+                  <th className="py-2 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -200,7 +200,7 @@ export default function Reminders(): React.ReactElement {
                       </td>
                       <td className="py-2 pr-3">
                         {r.status === 'paused' ? (
-                          <span className="text-xs text-text-muted">— 已暂停</span>
+                          <span className="text-xs text-text-muted">— Paused</span>
                         ) : r.next_run_at ? (
                           <>
                             <div className="text-text-secondary">{new Date(r.next_run_at).toLocaleString()}</div>
@@ -215,7 +215,7 @@ export default function Reminders(): React.ReactElement {
                         <span className="inline-flex items-center gap-1.5">
                           <Avatar name={displayName(r.creator_ref)} kind={r.creator_ref.startsWith('agent:') ? 'agent' : 'human'} size="sm" />
                           <span className="truncate text-xs">{displayName(r.creator_ref)}</span>
-                          {isSelf && <span className="text-xs text-text-muted">(自我)</span>}
+                          {isSelf && <span className="text-xs text-text-muted">(self)</span>}
                         </span>
                       </td>
                       <td className="py-2 pr-3">
@@ -224,17 +224,17 @@ export default function Reminders(): React.ReactElement {
                       <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex gap-2">
                           {r.status === 'active' && (
-                            <button type="button" title="暂停" data-testid="reminder-pause" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'pause' })}>
+                            <button type="button" title="Pause" data-testid="reminder-pause" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'pause' })}>
                               ⏸
                             </button>
                           )}
                           {r.status === 'paused' && (
-                            <button type="button" title="恢复" data-testid="reminder-resume" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'resume' })}>
+                            <button type="button" title="Resume" data-testid="reminder-resume" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'resume' })}>
                               ▶
                             </button>
                           )}
                           {(r.status === 'active' || r.status === 'paused') && (
-                            <button type="button" title="取消" data-testid="reminder-cancel" className="text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
+                            <button type="button" title="Cancel" data-testid="reminder-cancel" className="text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
                               {/* ASCII glyph (no-emoji-icons a11y guardrail); title carries the name. */}
                               <span aria-hidden="true">X</span>
                             </button>
@@ -247,7 +247,7 @@ export default function Reminders(): React.ReactElement {
               </tbody>
             </table>
           )}
-          <p className="mt-3 text-xs text-text-muted">列表行点开 = 详情 + 历史触发记录（每次触发时间、是否投递、是否因重叠被跳过）。</p>
+          <p className="mt-3 text-xs text-text-muted">Click a row for details + firing history (each fire time, whether delivered, and whether skipped due to overlap).</p>
         </div>
       </div>
 

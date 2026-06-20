@@ -14,7 +14,7 @@ import { Link } from 'react-router-dom';
 // safe-area padding, and every tab is ≥44px tall (the v2.10.1 touch baseline).
 // ============================================================================
 export interface TabBarModule {
-  id: 'workspace' | 'conversations' | 'members' | 'system';
+  id: 'workspace' | 'conversations' | 'members' | 'reminders' | 'system';
   label: string;
   short: string;
   defaultPath: string;

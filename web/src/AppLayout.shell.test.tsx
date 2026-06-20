@@ -38,6 +38,7 @@ function renderShell(initial = '/channels') {
             <Route path="/channels" element={<div data-testid="page-Channels">x</div>} />
             <Route path="/projects" element={<div data-testid="page-Projects">x</div>} />
             <Route path="/environment" element={<div data-testid="page-Environment">x</div>} />
+            <Route path="/reminders" element={<div data-testid="page-Reminders">x</div>} />
             <Route path="/panel" element={<PageWithPanel />} />
           </Route>
         </Routes>
@@ -74,6 +75,18 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     // On /channels the Conversations module is active.
     expect(screen.getByTestId('rail-module-conversations')).toHaveAttribute('data-active', 'true');
     expect(screen.getByTestId('rail-module-workspace')).toHaveAttribute('data-active', 'false');
+  });
+
+  // T207 [提醒]: Reminders is a TOP-LEVEL module (peer of Members), not a
+  // Workspace col② item. The rail + mobile tab bar both expose it.
+  it('Reminders is a top-level rail module (peer of Members), linking to /reminders', () => {
+    renderShell('/reminders');
+    const rail = screen.getByRole('navigation', { name: /^modules$/ });
+    expect(within(rail).getByTestId('rail-module-reminders')).toHaveAttribute('href', '/reminders');
+    expect(within(rail).getByTestId('rail-module-reminders')).toHaveAttribute('data-active', 'true');
+    // and on the mobile bottom tab bar.
+    const tabbar = screen.getByRole('navigation', { name: 'modules mobile' });
+    expect(within(tabbar).getByTestId('tab-reminders')).toHaveAttribute('href', '/reminders');
   });
 
   it('col② shows ONLY the active module second-level nav and swaps with the rail', () => {

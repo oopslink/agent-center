@@ -76,10 +76,10 @@ describe('Reminders page', () => {
     expect(screen.getByTestId('stat-active').textContent).toContain('1');
     expect(screen.getByTestId('stat-paused').textContent).toContain('1');
     expect(screen.getAllByTestId('reminder-row')).toHaveLength(2);
-    expect(screen.getByText('一次性')).toBeTruthy();
-    expect(screen.getByText('周期')).toBeTruthy();
-    // the paused row shows the "— 已暂停" next-trigger affordance.
-    expect(screen.getByText('— 已暂停')).toBeTruthy();
+    expect(screen.getByText('Once')).toBeTruthy();
+    expect(screen.getByText('Recurring')).toBeTruthy();
+    // the paused row shows the "— Paused" next-trigger affordance.
+    expect(screen.getByText('— Paused')).toBeTruthy();
   });
 
   it('pause action fires update.mutate with action=pause', () => {
@@ -88,13 +88,13 @@ describe('Reminders page', () => {
     expect(mutate).toHaveBeenCalledWith({ id: 'rmd-1', action: 'pause' });
   });
 
-  it('the 我创建的 range filter drives the list query filter', () => {
+  it('the "Created by me" range filter drives the list query filter', () => {
     renderPage();
     fireEvent.click(screen.getByTestId('reminder-range-created'));
     expect(lastListParams).toMatchObject({ filter: 'created' });
   });
 
-  it('the 提醒我的 range filter drives the remindee list query filter', () => {
+  it('the "Reminding me" range filter drives the remindee list query filter', () => {
     renderPage();
     fireEvent.click(screen.getByTestId('reminder-range-remindee'));
     expect(lastListParams).toMatchObject({ filter: 'remindee' });
@@ -106,7 +106,7 @@ describe('Reminders page', () => {
     expect(lastListParams).toMatchObject({ statuses: ['active'] });
   });
 
-  it('opens the create modal from the 新建提醒 button', () => {
+  it('opens the create modal from the New reminder button', () => {
     renderPage();
     expect(screen.queryByTestId('reminder-create-modal')).toBeNull();
     fireEvent.click(screen.getByTestId('reminder-new'));

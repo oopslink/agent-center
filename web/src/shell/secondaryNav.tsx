@@ -26,7 +26,7 @@ import WorkspaceSecondaryNav from '@/shell/nav/WorkspaceSecondaryNav'; // T4 (de
 // empty, every module keeps the exact T1 default behavior.
 // ============================================================================
 
-export type ShellModuleId = 'workspace' | 'conversations' | 'members' | 'system';
+export type ShellModuleId = 'workspace' | 'conversations' | 'members' | 'reminders' | 'system';
 
 export interface ModuleSecondaryNavProps {
   /** The org base path ('' in isolated tests, '/organizations/:slug' live). */

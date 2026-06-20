@@ -130,7 +130,7 @@ interface SidebarChild {
 }
 
 interface ModuleDef {
-  id: 'workspace' | 'conversations' | 'members' | 'system';
+  id: 'workspace' | 'conversations' | 'members' | 'reminders' | 'system';
   label: string;
   short: string;
   Icon: () => React.ReactElement;
@@ -188,6 +188,17 @@ function buildModules(base: string): ReadonlyArray<ModuleDef> {
         // dev2/v281: "Agents" opens the enhanced canonical /agents list.
         { to: p('agents'), label: 'Agents', Icon: AgentsIcon },
       ],
+    },
+    {
+      // T207 [提醒]: Reminders (Cognition BC). Promoted to a top-level module —
+      // peer of Members, not nested under the Workspace col② (owner directive).
+      id: 'reminders',
+      label: 'Reminders',
+      short: 'Reminders',
+      Icon: ReminderIcon,
+      defaultPath: 'reminders',
+      match: ['reminders'],
+      items: [{ to: p('reminders'), label: 'All reminders', Icon: ReminderIcon }],
     },
     {
       // v2.7 #164: Fleet merged into Environment (one operational page).
@@ -307,8 +318,9 @@ export default function AppLayout(): React.ReactElement {
     writeTheme(theme);
   }, [theme]);
 
-  // Cmd/Ctrl shortcuts. ⌘1..4 jump to the four modules' default pages
-  // (org-scoped so they resolve under /organizations/{slug}/…).
+  // Cmd/Ctrl shortcuts. ⌘1..5 jump to the five modules' default pages, in rail
+  // order (org-scoped so they resolve under /organizations/{slug}/…). T207
+  // inserted Reminders before System, shifting System from ⌘4 to ⌘5.
   const shortcuts = useMemo(
     () => ({
       'mod+k': () => setPaletteOpen((v) => !v),
@@ -317,7 +329,8 @@ export default function AppLayout(): React.ReactElement {
       'mod+1': () => navigate(orgPath('/projects', orgCtx?.slug)),
       'mod+2': () => navigate(orgPath('/channels', orgCtx?.slug)),
       'mod+3': () => navigate(orgPath('/members/humans', orgCtx?.slug)),
-      'mod+4': () => navigate(orgPath('/environment', orgCtx?.slug)),
+      'mod+4': () => navigate(orgPath('/reminders', orgCtx?.slug)),
+      'mod+5': () => navigate(orgPath('/environment', orgCtx?.slug)),
     }),
     [navigate, orgCtx?.slug],
   );
@@ -1692,6 +1705,15 @@ function PlanIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M10 2.5 17.5 10 10 17.5 2.5 10z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+// T207: Reminders ⏰ — a clock glyph for the top-level module (rail + col②).
+function ReminderIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <circle cx="10" cy="11" r="6" />
+      <path d="M10 8v3l2 1.5M6 3.5 3.5 6M14 3.5 16.5 6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
