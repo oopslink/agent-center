@@ -130,12 +130,27 @@ func (s *Server) requireOwnTask(w http.ResponseWriter, r *http.Request, d Handle
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return false
 	}
-	if len(own) == 0 {
-		writeError(w, http.StatusForbidden, "not_agents_task",
-			"agent has no work item for this task")
-		return false
+	if len(own) > 0 {
+		return true
 	}
-	return true
+	// Pool-claim path: a task claimed via claim_task is ASSIGNED to the agent and
+	// moved to running, but ClaimPoolTask mints NO WorkItem (pool tasks have none).
+	// Without this fallback the work-item scope alone would 403 the claimer from
+	// completing / blocking / reading its OWN claimed task (the deterministic
+	// not_agents_task bug). Accept the agent when it is the task's current assignee
+	// — the pool-claim owner. assign_task-assigned tasks already pass above via the
+	// WorkItem the assign flow mints, so this newly-permits only the legitimate
+	// pool claimer. Unwired PMService degrades to the stricter work-item-only scope.
+	if d.PMService != nil {
+		if task, terr := d.PMService.GetTask(r.Context(), pm.TaskID(taskID)); terr == nil {
+			if string(task.Assignee()) == agentActor(a) {
+				return true
+			}
+		}
+	}
+	writeError(w, http.StatusForbidden, "not_agents_task",
+		"agent has no work item for this task")
+	return false
 }
 
 // requireTaskAccess is the RELAXED task gate (T183) for the tools an agent may use

@@ -348,7 +348,7 @@ export default function Agents(): React.ReactElement {
       <ConfirmModal
         open={pendingBatch !== null}
         danger={pendingBatch === 'reset'}
-        title={pendingBatch ? `${BATCH_LABELS[pendingBatch]} ${selectedIds.length} agent(s)` : undefined}
+        title={pendingBatch ? `${BATCH_LABELS[pendingBatch]} ${selectedIds.length} agent(s)` : ''}
         message={
           pendingBatch
             ? pendingBatch === 'reset'
