@@ -59,6 +59,19 @@ const EvtAgentAwaitingInput = "agent.awaiting_input"
 // ownerRefTasksPrefix is the task-owned conversation owner_ref scheme.
 const ownerRefTasksPrefix = "pm://tasks/"
 
+// ownerRefPlansPrefix is the plan-owned conversation owner_ref scheme (T250 —
+// used to label a plan-chat converse brief with its plan_id + resolved name).
+const ownerRefPlansPrefix = "pm://plans/"
+
+// planIDFromOwnerRef returns the plan_id when ownerRef is a plan conversation
+// owner_ref (pm://plans/{id}), or "" otherwise (T250).
+func planIDFromOwnerRef(ownerRef string) string {
+	if strings.HasPrefix(ownerRef, ownerRefPlansPrefix) {
+		return strings.TrimPrefix(ownerRef, ownerRefPlansPrefix)
+	}
+	return ""
+}
+
 // agentParticipantPrefix is the IdentityRef scheme for an agent participant's
 // read-state cursor (the read_state repo is keyed by IdentityRef, so "agent:<id>"
 // resolves the agent's own cursor in the task conversation).
@@ -111,6 +124,14 @@ type WakeProjector struct {
 	// (the pre-#224 behavior). Channel/DM owner_refs resolve to no project → empty.
 	projectAgentMembers func(ctx context.Context, ownerRef string) ([]string, error)
 
+	// T250: resolves a plan_id → the plan's human name, used to label a plan-chat
+	// converse brief ("this conversation belongs to plan ⟨name⟩(plan_id)"). nil or a
+	// miss → the brief falls back to the plan_id alone (still disambiguates). Resolved
+	// live at wake time (not denormalized onto the conversation) so a renamed plan
+	// always reads correctly — matching the task/issue convention of resolving the
+	// owning entity's title rather than copying it onto the conversation.
+	planName func(ctx context.Context, planID string) (string, bool)
+
 	// I7-D1/T227: the wake-chain circuit breaker. nil → agent→agent wakes are NOT
 	// gated (pre-T227 behavior). When set, an agent-sender wake is run through the
 	// four gates (depth/cycle/rate/cost) before delivery; human/system senders
@@ -141,6 +162,10 @@ type WakeProjectorDeps struct {
 	// candidates). owner_ref → owning project's agent member-ids.
 	ProjectAgentMembers func(ctx context.Context, ownerRef string) ([]string, error)
 
+	// T250 (optional; nil → plan-chat brief falls back to plan_id only). plan_id →
+	// the plan's name, for labeling a plan-chat converse brief.
+	PlanName func(ctx context.Context, planID string) (string, bool)
+
 	// I7-D1/T227 wake-chain circuit breaker (optional; nil → agent→agent wakes
 	// ungated). A process singleton (holds rate/cycle state) built from the
 	// settings-driven Config in app composition.
@@ -166,6 +191,7 @@ func NewWakeProjector(d WakeProjectorDeps) *WakeProjector {
 		displayName:         d.DisplayName,
 		systemNotify:        d.SystemNotify,
 		projectAgentMembers: d.ProjectAgentMembers,
+		planName:            d.PlanName,
 		wakeGuard:           d.WakeGuard,
 	}
 }
@@ -241,6 +267,13 @@ type converseCommandPayload struct {
 	RootMessageID string `json:"root_message_id,omitempty"`
 	// AttachmentCount (v2.10.0 [T74]) → the brief tells the agent about file(s).
 	AttachmentCount int `json:"attachment_count,omitempty"`
+	// OwnerRef (T250) is the source conversation's owner_ref (pm://plans/{id} for a
+	// plan chat, empty for a DM). It rides the converse command so the daemon brief
+	// can tell the agent WHICH plan a plan-chat message belongs to — without it the
+	// brief only carries conversation_id and the agent cannot disambiguate "this
+	// plan" across concurrent plan chats. For a plan conversation ConvName carries
+	// the resolved plan name (the conversation itself has no name).
+	OwnerRef string `json:"owner_ref,omitempty"`
 }
 
 // awaitingInputPayload mirrors the JSON keys the request_input admin handler
@@ -675,11 +708,21 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		return nil
 	}
 	senderDisplay, _ := p.displayNameOr(ctx, pl.Sender, pl.Sender)
+	// T250: for a plan chat the conversation itself has no name, so resolve the
+	// owning plan's name live and carry it (plus owner_ref) so the daemon brief can
+	// tell the agent WHICH plan this message belongs to. Non-plan conversations keep
+	// conv.Name() and the resolver is never consulted.
+	convName := conv.Name()
+	if planID := planIDFromOwnerRef(pl.OwnerRef); planID != "" && p.planName != nil {
+		if name, ok := p.planName(ctx, planID); ok {
+			convName = name
+		}
+	}
 	payload, err := json.Marshal(converseCommandPayload{
 		AgentID:        entityID,
 		ConversationID: pl.ConversationID,
 		ConvKind:       string(conv.Kind()),
-		ConvName:       conv.Name(),
+		ConvName:       convName,
 		SenderRef:      pl.Sender,
 		SenderDisplay:  senderDisplay,
 		MessageID:      pl.MessageID,
@@ -688,6 +731,7 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		MessageText:     pl.Text + renderInboundAttachments(pl.Attachments),
 		RootMessageID:   pl.RootMessageID,   // F4: carry thread root → agent replies in-thread
 		AttachmentCount: pl.AttachmentCount, // T74: carry attachment count → brief hints at file(s)
+		OwnerRef:        pl.OwnerRef,        // T250: carry owner_ref → brief disambiguates "this plan"
 	})
 	if err != nil {
 		return err
@@ -800,6 +844,15 @@ func (p *WakeProjector) deliverCreatorWake(ctx context.Context, rawID, convID, f
 			convName = conv.Name()
 		}
 	}
+	// T250: this wake always targets a plan conversation, so carry owner_ref and the
+	// resolved plan name so the brief names WHICH plan failed (the plan conversation
+	// has no name of its own — resolve it live like deliverConverse).
+	ownerRef := ownerRefPlansPrefix + pl.PlanID
+	if p.planName != nil {
+		if name, ok := p.planName(ctx, pl.PlanID); ok {
+			convName = name
+		}
+	}
 	payload, err := json.Marshal(converseCommandPayload{
 		AgentID:        entityID,
 		ConversationID: convID,
@@ -809,6 +862,7 @@ func (p *WakeProjector) deliverCreatorWake(ctx context.Context, rawID, convID, f
 		SenderDisplay:  "system",
 		MessageID:      failureMsgID,
 		MessageText:    "A task in your plan failed — read the plan conversation and self-handle (adjust the DAG or escalate).",
+		OwnerRef:       ownerRef,
 	})
 	if err != nil {
 		return err

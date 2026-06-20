@@ -299,6 +299,22 @@ func (a *App) outboxProjectors(
 			}
 			return out, nil
 		},
+		// T250: resolve a plan_id → its name so a plan-chat converse brief reads
+		// "this conversation belongs to plan ⟨name⟩(plan_id)". Resolved live at wake
+		// time (not denormalized onto the conversation) so a renamed plan stays
+		// correct — mirroring the task/issue title convention. A miss falls back to
+		// the plan_id alone in the brief.
+		PlanName: func(ctx context.Context, planID string) (string, bool) {
+			pl, err := pmsql.NewPlanRepo(a.DB).FindByID(ctx, pm.PlanID(planID))
+			if err != nil || pl == nil {
+				return "", false
+			}
+			name := strings.TrimSpace(pl.Name())
+			if name == "" {
+				return "", false
+			}
+			return name, true
+		},
 	})
 	// v2.7 #111 Phase-1: the agent-work-item PROJECTOR (transition-driven /
 	// "Opt1"). It consumes agent.work_item_transitioned and fills the

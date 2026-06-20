@@ -223,6 +223,11 @@ type conversePayload struct {
 	// carries. >0 → the brief tells the agent a human sent file(s) (e.g. a
 	// screenshot) and to call get_my_unread → download_file to view them.
 	AttachmentCount int `json:"attachment_count,omitempty"`
+	// OwnerRef (T250): the source conversation's owner_ref. For a plan chat it is
+	// pm://plans/{plan_id}; the brief uses it to tell the agent WHICH plan the
+	// message belongs to (with ConvName carrying the resolved plan name) so it can
+	// disambiguate "this plan" across concurrent plan chats. Empty for DM/channel.
+	OwnerRef string `json:"owner_ref,omitempty"`
 }
 
 // AgentControllerConfig parameterises the controller.
@@ -845,7 +850,21 @@ func buildConverseBrief(pl conversePayload) string {
 		sender = strings.TrimSpace(pl.SenderRef)
 	}
 	var header string
-	if pl.ConvKind == "channel" {
+	// T250: plan-chat detection is keyed on owner_ref (pm://plans/{id}) so DM/channel
+	// briefs are byte-identical to before. A plan conversation has no name of its own,
+	// so the env wake projector resolves the plan name into ConvName — the header shows
+	// BOTH the name and plan_id so the agent can tell which plan this chat is, and a
+	// follow-up note pins "this plan" to that plan_id for any destructive action.
+	var planNote string
+	if strings.HasPrefix(pl.OwnerRef, "pm://plans/") {
+		planID := strings.TrimPrefix(pl.OwnerRef, "pm://plans/")
+		if name := strings.TrimSpace(pl.ConvName); name != "" {
+			header = fmt.Sprintf("[Plan chat — %q (plan_id=%s)] %s mentioned you:", name, planID, sender)
+		} else {
+			header = fmt.Sprintf("[Plan chat (plan_id=%s)] %s mentioned you:", planID, sender)
+		}
+		planNote = fmt.Sprintf("(This message belongs to plan_id=%s. When it refers to \"this plan\" — e.g. completing, archiving, or editing it — act on THAT plan_id, not any other plan you may also be in.)", planID)
+	} else if pl.ConvKind == "channel" {
 		where := strings.TrimSpace(pl.ConvName)
 		if where == "" {
 			where = "a channel"
@@ -860,6 +879,10 @@ func buildConverseBrief(pl conversePayload) string {
 	replyHint := fmt.Sprintf("(To reply, use the post_message tool with conversation_id=%q. This is a conversation, not a task — there is no work item to complete.)", pl.ConversationID)
 	if root := strings.TrimSpace(pl.RootMessageID); root != "" {
 		replyHint = fmt.Sprintf("(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id=%q AND parent_message_id=%q — do not omit parent_message_id, or your reply will land outside the thread.)", pl.ConversationID, root)
+	}
+	// T250: prepend the plan disambiguation note to the reply hint (empty for non-plan).
+	if planNote != "" {
+		replyHint = planNote + "\n" + replyHint
 	}
 	body := pl.MessageText
 	// v2.10.0 [T74]: tell the agent the message carries file attachment(s) (e.g. a
