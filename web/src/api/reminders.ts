@@ -39,6 +39,7 @@ export interface Reminder {
   content: string;
   status: ReminderStatus;
   skip_if_overlap: boolean;
+  deliver_as_creator: boolean;
   fired_count: number;
   version: number;
   schedule: ReminderSchedule;
@@ -112,6 +113,7 @@ export interface CreateReminderInput {
   schedule: ReminderSchedule;
   content: string;
   skip_if_overlap?: boolean;
+  deliver_as_creator?: boolean; // F-B: deliver as creator identity vs system (default ON)
   end_condition?: ReminderEndCondition;
 }
 

@@ -19,6 +19,7 @@ const cron: Reminder = {
   content: '跑一遍回归测试',
   status: 'active',
   skip_if_overlap: true,
+  deliver_as_creator: true,
   fired_count: 0,
   version: 1,
   schedule: { kind: 'cron', cron_expr: '0 18 * * 1-5', timezone: 'Asia/Shanghai' },
