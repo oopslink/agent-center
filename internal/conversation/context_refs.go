@@ -31,6 +31,16 @@ const (
 	ownerRefOrgs     = "id://organizations/"
 )
 
+// knownOwnerSchemes is the canonical list of owner_ref scheme prefixes the
+// domain recognises. WellFormed accepts exactly these (plus the empty dm ref),
+// and it is the iteration source for the OQ4 exhaustiveness guard, which asserts
+// every scheme here is also registered in the OwnerContext resolution table
+// (see owner_context.go). Keep this list and ownerContextRegistry in lockstep —
+// adding a sixth scheme here without registering it trips that guard test.
+var knownOwnerSchemes = []string{
+	ownerRefOrgs, ownerRefProjects, ownerRefIssues, ownerRefTasks, ownerRefPlans,
+}
+
 func (r OwnerRef) String() string { return string(r) }
 
 // IsEmpty reports whether no owner is set (dm / placeholder project_channel).
@@ -55,7 +65,7 @@ func (r OwnerRef) WellFormed() bool {
 	if s == "" {
 		return true // empty is allowed (dm)
 	}
-	for _, p := range []string{ownerRefOrgs, ownerRefProjects, ownerRefIssues, ownerRefTasks, ownerRefPlans} {
+	for _, p := range knownOwnerSchemes {
 		if strings.HasPrefix(s, p) && len(s) > len(p) {
 			return true
 		}
