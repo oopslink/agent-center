@@ -74,6 +74,9 @@ func mapAgentError(w http.ResponseWriter, err error) {
 	case errors.Is(err, agentbc.ErrUnsupportedCLI):
 		// v2.7 #181 / FINDING-F: cli not in the execution allowlist.
 		writeError(w, http.StatusBadRequest, "invalid_cli", err.Error())
+	case errors.Is(err, agentbc.ErrUnsupportedReasoning):
+		// T236: reasoning effort outside the allowlist.
+		writeError(w, http.StatusBadRequest, "invalid_reasoning", err.Error())
 	case errors.Is(err, agentsvc.ErrResetNotConfirmed),
 		errors.Is(err, agentbc.ErrInvalidResetScope),
 		errors.Is(err, agentbc.ErrWorkerRequired),
@@ -107,6 +110,8 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		// execution-entity ULID is internal and must NOT appear in API responses.
 		"id": agentFacingID(a), "organization_id": a.OrganizationID(),
 		"name": p.Name, "description": p.Description, "model": p.Model, "cli": p.CLI,
+		// T236: real LLM tuning fields (were hardcoded placeholders in the UI).
+		"reasoning": p.Reasoning, "mode": p.Mode, "provider": p.Provider,
 		"env_vars": envVars, "skills": skills, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
@@ -552,6 +557,38 @@ func (s *Server) agentResetHandler(w http.ResponseWriter, r *http.Request) {
 	s.agentLifecycleAction(w, r, func(id agentbc.AgentID) error {
 		return d.AgentSvc.ResetAgent(r.Context(), id, agentbc.ResetScope(req.Scope), req.Confirm)
 	})
+}
+
+// agentUpdateConfigHandler edits an agent's LLM config (T236): model / cli /
+// reasoning / mode / provider. Persist-only — the change applies on the next
+// spawn, so the UI pairs this with a restart (the second confirmation "this will
+// restart the agent" is enforced by the frontend). Returns the refreshed agent.
+func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Model     string `json:"model"`
+		CLI       string `json:"cli"`
+		Reasoning string `json:"reasoning"`
+		Mode      string `json:"mode"`
+		Provider  string `json:"provider"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	d := hd(r)
+	a, _, ok := s.agentRequireInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	err := d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
+		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
+	})
+	if err != nil {
+		mapAgentError(w, err)
+		return
+	}
+	got, _ := d.AgentSvc.GetAgent(r.Context(), a.ID())
+	s.agentWriteJSON(w, r, d, got)
 }
 
 func (s *Server) agentWorkItemsHandler(w http.ResponseWriter, r *http.Request) {

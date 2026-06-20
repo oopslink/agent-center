@@ -92,6 +92,29 @@ export function useResetAgent(id: string) {
   });
 }
 
+// T236: edit the agent's LLM config (model/cli/reasoning/mode/provider). Persists
+// immediately; the change applies on the next (re)start, so the UI pairs it with
+// a restart (useRestartAgent) behind a confirm dialog.
+export interface UpdateAgentConfigInput {
+  model: string;
+  cli: string;
+  reasoning: string;
+  mode: string;
+  provider: string;
+}
+
+export function useUpdateAgentConfig(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateAgentConfigInput) =>
+      api.patch<Agent>(`/agents/${id}/config`, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.agent(id) });
+      void qc.invalidateQueries({ queryKey: qk.agents() });
+    },
+  });
+}
+
 // useDeleteAgent hard-deletes an agent and its identity-member in one tx
 // (v2.7 #197, symmetric to #157's atomic create). The backend guards reject
 // a non-stopped agent (409 `agent_running`) or one with active work items

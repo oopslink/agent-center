@@ -158,6 +158,11 @@ export interface Agent {
   description: string;
   model: string;
   cli: string;
+  // T236: real LLM tuning (were hardcoded UI placeholders). Optional; "" = the
+  // runtime/center default. reasoning ∈ minimal|low|medium|high.
+  reasoning?: string;
+  mode?: string;
+  provider?: string;
   env_vars: Record<string, string>;
   skills: string[];
   worker_id: string;
