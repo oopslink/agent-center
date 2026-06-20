@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useInRouterContext } from 'react-router-dom';
+import { OrgLink } from '@/OrgContext';
 import { useAgent, useAgentActivity } from '@/api/agents';
 import { useUser } from '@/api/users';
 import {
@@ -91,14 +92,34 @@ export function SenderDetailSidebar({
         <div className="flex items-start gap-3 border-b border-border-base p-4">
           <Avatar name={avatarSeed} kind={kind === 'agent' ? 'agent' : 'human'} size="lg" />
           <div className="min-w-0 flex-1">
-            <div
-              className={`truncate text-base font-semibold ${nameResolved ? '' : 'italic text-text-secondary'}`}
-              title={nameResolved ? senderRef : `${avatarSeed} (${senderRef})`}
-              data-testid="sender-sidebar-name"
-              data-name-resolved={nameResolved ? 'true' : 'false'}
-            >
-              {headerName}
-            </div>
+            {kind === 'agent' && nameResolved && inRouter ? (
+              // T230: the resolved agent name is a link into the Agent detail
+              // page (/agents/:id). Gated on inRouter because OrgLink → react-
+              // router Link needs a Router ancestor — the same gate the "Open DM"
+              // button uses; router-less unit renders keep the plain-text header.
+              // Clicking navigates AND closes the sidebar so the operator lands
+              // on the detail page rather than leaving the modal panel open.
+              <OrgLink
+                to={`/agents/${encodeURIComponent(id)}`}
+                onClick={onClose}
+                className="block truncate rounded text-base font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                title={senderRef}
+                data-testid="sender-sidebar-name"
+                data-name-resolved="true"
+                data-name-link="true"
+              >
+                {headerName}
+              </OrgLink>
+            ) : (
+              <div
+                className={`truncate text-base font-semibold ${nameResolved ? '' : 'italic text-text-secondary'}`}
+                title={nameResolved ? senderRef : `${avatarSeed} (${senderRef})`}
+                data-testid="sender-sidebar-name"
+                data-name-resolved={nameResolved ? 'true' : 'false'}
+              >
+                {headerName}
+              </div>
+            )}
             <div className="text-xs uppercase tracking-wide text-text-muted">
               {kind === 'agent' ? 'Agent' : 'User'}
             </div>

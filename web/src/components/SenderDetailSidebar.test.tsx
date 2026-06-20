@@ -229,6 +229,72 @@ describe('SenderDetailSidebar', () => {
     expect(screen.queryByTestId('sender-sidebar-dm')).not.toBeInTheDocument();
   });
 
+  // T230: the resolved agent name in the header is a link into the Agent detail
+  // page (/agents/:id). Clicking it navigates there AND closes the sidebar so the
+  // operator lands on the detail page rather than leaving the modal panel open.
+  it('T230: the resolved agent name links to the agent detail page and closes the sidebar', async () => {
+    server.use(
+      // members data is what lets the resolver turn agent:A-9 into a real name
+      // (without it the header degrades to "(deleted)" and stays plain text).
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { identity_id: 'agent:A-9', kind: 'agent', display_name: 'builder-bot', role: 'member' },
+        ]),
+      ),
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id), organization_id: 'O-1', name: 'builder-bot', description: '',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-9',
+          lifecycle: 'running', availability: 'busy', created_by: 'user:hayang', version: 1,
+          created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+    );
+    const onClose = vi.fn();
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    rtlRender(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <SenderDetailSidebar open senderRef={'agent:A-9'} onClose={onClose} />
+          <LocationProbe />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    // wait for the name to resolve into the link affordance (the div is replaced
+    // by an <a> once /api/members resolves the name — re-query each tick).
+    await waitFor(() =>
+      expect(screen.getByTestId('sender-sidebar-name').tagName).toBe('A'),
+    );
+    const link = screen.getByTestId('sender-sidebar-name');
+    expect(link).toHaveAttribute('data-name-link', 'true');
+    expect(link).toHaveAttribute('href', '/agents/A-9');
+    expect(link).toHaveTextContent('builder-bot');
+
+    fireEvent.click(link);
+    // navigates to the agent detail page …
+    await waitFor(() =>
+      expect(screen.getByTestId('location-probe')).toHaveTextContent('/agents/A-9'),
+    );
+    // … and closes the sidebar so the operator lands on the detail page.
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  // T230: a deleted/unresolved agent name has no detail page to link to — it must
+  // stay plain text (no link), keeping the "(deleted)" affordance.
+  it('T230: an unresolved (deleted) agent name is NOT a link', async () => {
+    server.use(
+      http.get('/api/agents/:id', () =>
+        HttpResponse.json({ error: 'not_found', message: 'gone' }, { status: 404 }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:agent-8d1126f6'} onClose={noop} />);
+    const nameEl = screen.getByTestId('sender-sidebar-name');
+    expect(nameEl.tagName).not.toBe('A');
+    expect(nameEl).not.toHaveAttribute('data-name-link');
+  });
+
   // F2 (v2.8.1): a force-deleted agent's GET /api/agents/{id} returns 404. The
   // panel must show a FRIENDLY "unavailable (deleted)" message — NOT a blank
   // panel, NOT a bare "not found", NOT the generic "couldn't load".
