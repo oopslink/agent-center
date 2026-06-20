@@ -258,29 +258,30 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             </button>
           </>
         )}
+        {/* T238: name + goal are DESCRIPTIVE metadata — editable in any
+            non-archived status (draft/running/done). target_date stays draft-only
+            (the modal hides it off-draft, and the backend rejects it). An archived
+            plan is terminal/read-only, so no Edit. */}
+        {plan.status !== 'archived' && (
+          <button
+            type="button"
+            data-testid="plan-edit-btn"
+            onClick={() => setEditing(true)}
+            className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary"
+          >
+            Edit
+          </button>
+        )}
         {plan.status === 'draft' && (
-          <>
-            {/* Editing is a PLANNING action (§9.4): name / goal / target_date
-                are editable ONLY while the plan is a draft; a running/done plan
-                is immutable (the backend rejects PATCH with ErrPlanNotDraft). */}
-            <button
-              type="button"
-              data-testid="plan-edit-btn"
-              onClick={() => setEditing(true)}
-              className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              data-testid="plan-start-btn"
-              disabled={start.isPending}
-              onClick={() => start.mutate()}
-              className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
-            >
-              ▸ Start
-            </button>
-          </>
+          <button
+            type="button"
+            data-testid="plan-start-btn"
+            disabled={start.isPending}
+            onClick={() => start.mutate()}
+            className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            ▸ Start
+          </button>
         )}
         {/* Destructive lifecycle (v2.9 Stage B): Archive + Delete. Exposed only
             for a NON-running, NON-archived plan (canDestroy). Each opens a
@@ -556,8 +557,12 @@ function instantToDateInput(instant: string | null | undefined): string {
 function friendlyPatchError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const lower = raw.toLowerCase();
+  if (lower.includes('archived')) {
+    return 'This plan is archived and can no longer be edited.';
+  }
   if (lower.includes('draft')) {
-    return 'This plan can only be edited while it is a draft.';
+    // T238: name/goal edit any time; only the target date is draft-only.
+    return 'The target date can only be changed while the plan is a draft.';
   }
   return "Couldn't save your changes. Please try again.";
 }
@@ -575,6 +580,9 @@ function PlanEditModal({
   const [description, setDescription] = useState(plan.description ?? '');
   const [targetDate, setTargetDate] = useState(() => instantToDateInput(plan.target_date));
   const patch = usePatchPlan(projectId, plan.id);
+  // T238: name + goal are editable in any non-archived status; target_date
+  // (scheduling) stays draft-only, so the field only shows for a draft plan.
+  const isDraft = plan.status === 'draft';
 
   // The picker value the field STARTED at — used to detect "cleared" vs "changed"
   // vs "unchanged" without re-parsing the stored instant on every render.
@@ -589,8 +597,8 @@ function PlanEditModal({
     if (name.trim() !== plan.name) input.name = name.trim();
     // goal (= description) — send only when changed (cleared → '').
     if (description.trim() !== (plan.description ?? '')) input.description = description.trim();
-    // target_date — distinguish cleared / changed / unchanged.
-    if (targetDate !== originalTargetDate) {
+    // target_date — draft-only (§9.4); distinguish cleared / changed / unchanged.
+    if (isDraft && targetDate !== originalTargetDate) {
       if (targetDate === '') {
         // cleared → '' (the backend's TargetDateSet="" path CLEARS it).
         input.target_date = '';
@@ -642,18 +650,22 @@ function PlanEditModal({
           className={PLAN_EDIT_MODAL_INPUT}
           data-testid="plan-edit-description"
         />
-        <label className="mt-3 block text-xs font-medium" htmlFor="plan-edit-target-date">
-          Target date
-        </label>
-        <input
-          id="plan-edit-target-date"
-          type="date"
-          lang="en"
-          value={targetDate}
-          onChange={(e) => setTargetDate(e.target.value)}
-          className={PLAN_EDIT_MODAL_INPUT}
-          data-testid="plan-edit-target-date"
-        />
+        {isDraft && (
+          <>
+            <label className="mt-3 block text-xs font-medium" htmlFor="plan-edit-target-date">
+              Target date
+            </label>
+            <input
+              id="plan-edit-target-date"
+              type="date"
+              lang="en"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              className={PLAN_EDIT_MODAL_INPUT}
+              data-testid="plan-edit-target-date"
+            />
+          </>
+        )}
         {patch.isError && (
           <p className="mt-3 text-xs font-medium text-danger" role="alert" data-testid="plan-edit-error">
             {friendlyPatchError(patch.error)}

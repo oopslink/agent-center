@@ -232,9 +232,11 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 	})
 }
 
-// UpdatePlanCommand renames / re-goals / re-targets a DRAFT Plan (§9.4 — edits
-// only in draft). Absent (nil) fields are left unchanged; TargetDate is a
-// **TargetDateSet** + value so "" can distinguish "clear" from "unchanged".
+// UpdatePlanCommand renames / re-goals / re-targets a Plan. Name + Description
+// (descriptive metadata) may change in any non-archived status (T238); TargetDate
+// (scheduling) stays draft-only (§9.4). Absent (nil) fields are left unchanged;
+// TargetDate is a **TargetDateSet** + value so "" can distinguish "clear" from
+// "unchanged".
 type UpdatePlanCommand struct {
 	PlanID        pm.PlanID
 	Name          *string
@@ -263,7 +265,15 @@ func (s *Service) UpdatePlan(ctx context.Context, cmd UpdatePlanCommand) error {
 		if err := s.requireProjectMutable(txCtx, p.ProjectID()); err != nil {
 			return err
 		}
-		if p.Status() != pm.PlanDraft {
+		// T238: name + description are DESCRIPTIVE metadata — editable in any
+		// non-archived status (draft/running/done), so a typo in a running plan's
+		// title/goal can be fixed. STRUCTURAL/scheduling edits stay draft-only
+		// (§9.4): target_date here, DAG task/dependency edits in their own flows.
+		// An archived plan is terminal & read-only.
+		if p.Status() == pm.PlanArchived {
+			return pm.ErrPlanArchived
+		}
+		if cmd.TargetDateSet && p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft
 		}
 		if cmd.Name != nil {

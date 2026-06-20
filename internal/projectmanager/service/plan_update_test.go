@@ -81,9 +81,10 @@ func TestUpdatePlan_TargetDateSet_ThreeStates(t *testing.T) {
 	}
 }
 
-// TestUpdatePlan_RejectsNonDraft guards §9.4: a non-draft (running) plan can't be
-// edited — mirrors SelectTaskIntoPlan/RemoveTaskFromPlan/AddPlanDependency.
-func TestUpdatePlan_RejectsNonDraft(t *testing.T) {
+// TestUpdatePlan_NonDraft_NameDescEditable_TargetDateRejected guards T238: name +
+// description (descriptive metadata) ARE editable on a running plan, but
+// target_date (scheduling, §9.4) is still draft-only.
+func TestUpdatePlan_NonDraft_NameDescEditable_TargetDateRejected(t *testing.T) {
 	svc, _, plans, _, _, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a"})
@@ -98,8 +99,39 @@ func TestUpdatePlan_RejectsNonDraft(t *testing.T) {
 	if err := plans.Update(ctx, p); err != nil {
 		t.Fatal(err)
 	}
+
+	// name + description on a RUNNING plan → allowed.
+	name, desc := "Renamed", "new goal"
+	if err := svc.UpdatePlan(ctx, UpdatePlanCommand{PlanID: planID, Name: &name, Description: &desc, Actor: "user:a"}); err != nil {
+		t.Fatalf("UpdatePlan(name+desc) on running plan = %v, want nil", err)
+	}
+	got, _ := plans.FindByID(ctx, planID)
+	if got.Name() != "Renamed" || got.Description() != "new goal" {
+		t.Fatalf("running-plan edit: name=%q desc=%q, want Renamed/new goal", got.Name(), got.Description())
+	}
+
+	// target_date on a RUNNING plan → still rejected (draft-only, §9.4).
+	d := svc.clock.Now()
+	if err := svc.UpdatePlan(ctx, UpdatePlanCommand{PlanID: planID, TargetDateSet: true, TargetDate: &d, Actor: "user:a"}); !errors.Is(err, pm.ErrPlanNotDraft) {
+		t.Fatalf("UpdatePlan(target_date) on running plan = %v, want ErrPlanNotDraft", err)
+	}
+}
+
+// TestUpdatePlan_RejectsArchived guards T238: an archived (terminal, read-only)
+// plan rejects every edit, including name/description.
+func TestUpdatePlan_RejectsArchived(t *testing.T) {
+	svc, _, plans, _, _, ctx := planSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Orig", CreatedBy: "user:a"})
+	p, _ := plans.FindByID(ctx, planID)
+	if err := p.Archive(svc.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := plans.Update(ctx, p); err != nil {
+		t.Fatal(err)
+	}
 	name := "X"
-	if err := svc.UpdatePlan(ctx, UpdatePlanCommand{PlanID: planID, Name: &name, Actor: "user:a"}); !errors.Is(err, pm.ErrPlanNotDraft) {
-		t.Fatalf("UpdatePlan on running plan = %v, want ErrPlanNotDraft", err)
+	if err := svc.UpdatePlan(ctx, UpdatePlanCommand{PlanID: planID, Name: &name, Actor: "user:a"}); !errors.Is(err, pm.ErrPlanArchived) {
+		t.Fatalf("UpdatePlan on archived plan = %v, want ErrPlanArchived", err)
 	}
 }

@@ -881,29 +881,38 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(err).not.toHaveTextContent('plan not draft');
   });
 
-  // ── v2.9 Stage A3: draft-only Plan-edit modal (name / goal / target_date) ───
-  // The Edit button is gated to draft (§9.4: running/done is immutable). The
-  // modal pre-fills name/goal(description)/target_date and PATCHes via
-  // usePatchPlan. PATCH body field names are name/description/target_date
-  // (the contract names goal `description`). Cleared target_date → '' (clears);
-  // an unchanged field is OMITTED (partial update). #218 friendly errors.
-  it('A3: DRAFT plan shows the Edit button; running/done do NOT', async () => {
-    mockPlan({ status: 'draft', has_failed: false });
-    wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
-    expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument();
-    cleanup();
-
-    mockPlan({ status: 'running' });
-    wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
-    expect(screen.queryByTestId('plan-edit-btn')).not.toBeInTheDocument();
-    cleanup();
-
-    mockPlan({ status: 'done', has_failed: false });
+  // ── v2.9 Stage A3 + T238: Plan-edit modal (name / goal / target_date) ───────
+  // T238: name + goal are DESCRIPTIVE metadata, editable in any non-archived
+  // status (draft/running/done); target_date stays draft-only and the modal
+  // hides it off-draft. An archived plan is read-only (no Edit). The modal
+  // pre-fills name/goal(description)/target_date and PATCHes via usePatchPlan.
+  // PATCH body field names are name/description/target_date (the contract names
+  // goal `description`). Cleared target_date → '' (clears); an unchanged field
+  // is OMITTED (partial update). #218 friendly errors.
+  it('T238: Edit button shows for draft/running/done; hidden only when archived', async () => {
+    for (const status of ['draft', 'running', 'done'] as const) {
+      mockPlan({ status, has_failed: false });
+      wrap();
+      await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+      expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument();
+      cleanup();
+    }
+    mockPlan({ status: 'archived', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-edit-btn')).not.toBeInTheDocument();
+  });
+
+  it('T238: running plan opens the edit modal with name/goal but NO target-date field', async () => {
+    mockPlan({ status: 'running', name: 'live plan', description: 'in progress' });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-edit-btn'));
+    expect(screen.getByTestId('plan-edit-modal')).toBeInTheDocument();
+    expect((screen.getByTestId('plan-edit-name') as HTMLInputElement).value).toBe('live plan');
+    expect((screen.getByTestId('plan-edit-description') as HTMLTextAreaElement).value).toBe('in progress');
+    // target_date is draft-only → the field must be absent off-draft.
+    expect(screen.queryByTestId('plan-edit-target-date')).not.toBeInTheDocument();
   });
 
   it('A3: clicking Edit opens the modal pre-filled with name/goal/target_date', async () => {
@@ -1040,7 +1049,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     fireEvent.change(screen.getByTestId('plan-edit-name'), { target: { value: 'new' } });
     await act(async () => fireEvent.click(screen.getByTestId('plan-edit-submit')));
     const err = await screen.findByTestId('plan-edit-error');
-    expect(err).toHaveTextContent('This plan can only be edited while it is a draft.');
+    expect(err).toHaveTextContent('The target date can only be changed while the plan is a draft.');
     expect(err.textContent ?? '').not.toMatch(/projectmanager:|conflict/);
     // danger token, not raw red; scrim ok but surface no alpha-tint
     expect(err.className).toContain('text-danger');
