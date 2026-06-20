@@ -75,6 +75,19 @@ describe('WakeGuardrailPanel', () => {
     expect(screen.getByTestId('wake-guardrail-loading')).toBeTruthy();
   });
 
+  // A successful save must give explicit, screen-reader-announced confirmation
+  // (not just silently return) — the save-success affordance.
+  it('shows a save-success confirmation after a successful save', () => {
+    mutate.mockImplementation((data, opts) => opts?.onSuccess?.(data));
+    render(<WakeGuardrailPanel />);
+    fireEvent.change(screen.getByTestId('wake-guardrail-max_depth'), { target: { value: '7' } });
+    fireEvent.click(screen.getByTestId('wake-guardrail-save'));
+    const ok = screen.getByTestId('wake-guardrail-saved');
+    expect(ok).toBeTruthy();
+    expect(ok.getAttribute('role')).toBe('status');
+    expect(ok.textContent).toContain('已保存并生效');
+  });
+
   // T245: a failed save (e.g. the 501 settings-store bug) must surface a UI
   // error, not fail silently.
   it('surfaces a save failure in the UI', () => {

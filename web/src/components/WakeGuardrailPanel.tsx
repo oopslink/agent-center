@@ -36,6 +36,13 @@ export function WakeGuardrailPanel(): React.ReactElement {
     if (data) setForm(data);
   }, [data]);
 
+  // Auto-dismiss the save confirmation after a few seconds (toast-like).
+  useEffect(() => {
+    if (!saved) return;
+    const t = setTimeout(() => setSaved(false), 3000);
+    return () => clearTimeout(t);
+  }, [saved]);
+
   if (isLoading || !form) {
     return (
       <p className="text-sm text-text-muted" data-testid="wake-guardrail-loading">
@@ -128,7 +135,12 @@ export function WakeGuardrailPanel(): React.ReactElement {
           {update.isPending ? '保存中…' : '保存'}
         </button>
         {saved && !update.isPending && (
-          <span className="text-xs text-success" data-testid="wake-guardrail-saved">
+          <span
+            role="status"
+            aria-live="polite"
+            className="inline-flex items-center rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success"
+            data-testid="wake-guardrail-saved"
+          >
             已保存并生效
           </span>
         )}
