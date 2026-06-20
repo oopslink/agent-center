@@ -196,10 +196,12 @@ function buildModules(base: string): ReadonlyArray<ModuleDef> {
       short: 'System',
       Icon: SettingsIcon,
       defaultPath: 'environment',
-      match: ['environment', 'settings', 'secrets', 'workers', 'fleet'],
+      match: ['environment', 'settings', 'version', 'secrets', 'workers', 'fleet'],
       items: [
         { to: p('environment'), label: 'Environment', Icon: FleetIcon },
         { to: p('settings'), label: 'Settings', Icon: SettingsIcon },
+        // I7-D3: Version hoisted out of Settings to its own System-level page.
+        { to: p('version'), label: 'Version', Icon: InfoIcon },
       ],
     },
   ];
