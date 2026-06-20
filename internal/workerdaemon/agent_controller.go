@@ -149,7 +149,15 @@ type reconcilePayload struct {
 	Model            string `json:"model,omitempty"`
 	// CLI selects the per-CLI session starter ("codex" → CodexSession; empty /
 	// "claude-code" → the claude supervisor path).
-	CLI              string `json:"cli,omitempty"`
+	CLI string `json:"cli,omitempty"`
+	// T236 LLM tuning — transported all the way from the persisted agent profile
+	// to this reconcile handler (modeled + persisted + carried through the control
+	// loop). Model/CLI are applied at spawn today; reasoning/mode/provider are
+	// reserved here for the spawn wiring (the supervisor→claude exec flags), which
+	// lands as the CLI adapter gains flag support. Empty = runtime default.
+	Reasoning        string `json:"reasoning,omitempty"`
+	Mode             string `json:"mode,omitempty"`
+	Provider         string `json:"provider,omitempty"`
 	Version          int    `json:"version"`
 	ResetScope       string `json:"reset_scope,omitempty"`
 }

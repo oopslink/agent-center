@@ -19,6 +19,9 @@ type CreateAgentCommand struct {
 	Description    string
 	Model          string
 	CLI            string
+	Reasoning      string // T236: reasoning effort (minimal|low|medium|high, "" = default)
+	Mode           string // T236: operating mode ("" = default)
+	Provider       string // T236: LLM provider ("" = center default)
 	EnvVars        map[string]string
 	Skills         []string
 	WorkerID       string
@@ -38,6 +41,9 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 	if !agent.IsSupportedExecutionCLI(cmd.CLI) {
 		return "", agent.ErrUnsupportedCLI
 	}
+	if !agent.IsSupportedReasoning(cmd.Reasoning) {
+		return "", agent.ErrUnsupportedReasoning
+	}
 	id := agent.AgentID(s.idgen.NewULID())
 	now := s.clock.Now()
 	a, err := agent.NewAgent(agent.NewAgentInput{
@@ -45,7 +51,8 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 		OrganizationID: cmd.OrganizationID,
 		Profile: agent.Profile{
 			Name: cmd.Name, Description: cmd.Description, Model: cmd.Model,
-			CLI: cmd.CLI, EnvVars: cmd.EnvVars,
+			CLI: cmd.CLI, Reasoning: cmd.Reasoning, Mode: cmd.Mode, Provider: cmd.Provider,
+			EnvVars: cmd.EnvVars,
 		},
 		Skills:           cmd.Skills,
 		WorkerID:         cmd.WorkerID,
@@ -105,6 +112,50 @@ func (s *Service) StopAgent(ctx context.Context, id agent.AgentID) error {
 func (s *Service) RestartAgent(ctx context.Context, id agent.AgentID) error {
 	now := s.clock.Now()
 	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Restart(now) }, "")
+}
+
+// UpdateAgentConfigCommand carries the editable LLM config (T236). Name /
+// Description / EnvVars / Skills are preserved from the existing profile — this
+// edits the LLM tuning only. Empty string fields are written as-is (empty = the
+// runtime/center default).
+type UpdateAgentConfigCommand struct {
+	Model     string
+	CLI       string
+	Reasoning string
+	Mode      string
+	Provider  string
+}
+
+// UpdateAgentConfig edits an agent's LLM config (model/cli/reasoning/mode/
+// provider) and persists it. Per ADR-0049 §5 this does NOT itself restart the
+// process — the change applies on the next spawn, so the UI pairs it with a
+// restart (whose lifecycle event carries the now-persisted profile to the
+// daemon). Persist-only (no outbox emit): a pure config write must not enqueue a
+// reconcile command on its own. Validates CLI + reasoning up front (→ 400).
+func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd UpdateAgentConfigCommand) error {
+	if !agent.IsSupportedExecutionCLI(cmd.CLI) {
+		return agent.ErrUnsupportedCLI
+	}
+	if !agent.IsSupportedReasoning(cmd.Reasoning) {
+		return agent.ErrUnsupportedReasoning
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		a, err := s.agents.FindByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		p := a.Profile() // preserve Name/Description/EnvVars; edit LLM fields only.
+		p.Model = cmd.Model
+		p.CLI = cmd.CLI
+		p.Reasoning = cmd.Reasoning
+		p.Mode = cmd.Mode
+		p.Provider = cmd.Provider
+		if err := a.UpdateProfile(p, now); err != nil {
+			return err
+		}
+		return s.agents.Update(txCtx, a)
+	})
 }
 
 // ResetAgent moves the Agent to resetting for the given scope. The destructive

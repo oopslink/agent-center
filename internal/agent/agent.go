@@ -118,6 +118,9 @@ var (
 	// worker's session starter — see IMPLEMENTATION_PLAN.md). empty / codex /
 	// opencode / unknown are rejected.
 	ErrUnsupportedCLI = errors.New("agent: unsupported cli (only claude-code is runtime-executable; codex/opencode are probe-only)")
+	// ErrUnsupportedReasoning rejects a reasoning effort outside the allowlist
+	// (T236). Empty is accepted (= runtime default). Maps to 400.
+	ErrUnsupportedReasoning = errors.New("agent: unsupported reasoning effort (want one of minimal|low|medium|high)")
 	// ErrAgentNotStoppedForArchive rejects archiving a running/transitioning agent
 	// (v2.8 #272 (b) strict two-step) — the operator must stop it first. Maps to 409.
 	ErrAgentNotStoppedForArchive = errors.New("agent: agent must be stopped before archive")
@@ -135,8 +138,30 @@ type Profile struct {
 	Name        string
 	Description string
 	Model       string
-	CLI         string            // e.g. "claudecode"
-	EnvVars     map[string]string // injected into the runtime process
+	CLI         string // e.g. "claudecode"
+	// LLM tuning (T236). All optional; empty = the runtime/center default. Carried
+	// the SAME way as Model/CLI (event → projector → reconcile command → session)
+	// so editing them + restart applies on next spawn.
+	Reasoning string            // reasoning effort: minimal|low|medium|high ("" = default)
+	Mode      string            // operating mode ("" = default)
+	Provider  string            // LLM provider ("" = center default)
+	EnvVars   map[string]string // injected into the runtime process
+}
+
+// SupportedReasoningEfforts is the allowlist for Profile.Reasoning. Empty is
+// always allowed (= the runtime default); a non-empty value must be one of these.
+var SupportedReasoningEfforts = map[string]struct{}{
+	"minimal": {}, "low": {}, "medium": {}, "high": {},
+}
+
+// IsSupportedReasoning reports whether r is a valid reasoning effort. Empty is
+// valid (defaults to the runtime's own default).
+func IsSupportedReasoning(r string) bool {
+	if r == "" {
+		return true
+	}
+	_, ok := SupportedReasoningEfforts[r]
+	return ok
 }
 
 // Agent is the long-running Agent aggregate. The Worker binding is immutable in

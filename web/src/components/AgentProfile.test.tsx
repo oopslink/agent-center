@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { AgentProfile } from './AgentProfile';
@@ -63,16 +63,32 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(screen.getByTestId('agent-profile-creator')).not.toHaveTextContent('user:hayang');
   });
 
-  it('renders runtime config: CLI/Model real + reasoning/mode/provider static defaults', () => {
-    wrap(base);
+  it('renders runtime config: CLI/Model + reasoning/mode/provider; empty fields show "Default"', () => {
+    wrap(base); // base has no reasoning/mode/provider → all show Default
     expect(screen.getByTestId('agent-profile-tag-cli')).toHaveTextContent('claude-code');
     expect(screen.getByTestId('agent-profile-tag-model')).toHaveTextContent('claude-opus-4-8');
-    expect(screen.getByTestId('agent-profile-tag-reasoning')).toHaveTextContent('Medium');
+    expect(screen.getByTestId('agent-profile-tag-reasoning')).toHaveTextContent('Default');
     expect(screen.getByTestId('agent-profile-tag-mode')).toHaveTextContent('Default');
     expect(screen.getByTestId('agent-profile-tag-provider')).toHaveTextContent('Default');
-    // static fallbacks are labelled "default" (not presented as stored values).
+    // an empty (defaulted) field carries the "default" badge; a real one doesn't.
     expect(screen.getByTestId('agent-profile-tag-reasoning')).toHaveTextContent(/default/i);
     expect(screen.getByTestId('agent-profile-tag-cli')).not.toHaveTextContent(/default/i);
+  });
+
+  it('T236: renders the REAL reasoning/mode/provider values when set (no default badge)', () => {
+    wrap({ ...base, reasoning: 'high', mode: 'plan', provider: 'anthropic' });
+    const reasoning = screen.getByTestId('agent-profile-tag-reasoning');
+    expect(reasoning).toHaveTextContent('high');
+    expect(reasoning).not.toHaveTextContent(/default/i);
+    expect(screen.getByTestId('agent-profile-tag-mode')).toHaveTextContent('plan');
+    expect(screen.getByTestId('agent-profile-tag-provider')).toHaveTextContent('anthropic');
+  });
+
+  it('T236: the Edit button opens the LLM config modal', () => {
+    wrap(base);
+    expect(screen.queryByTestId('agent-config-edit-modal')).toBeNull();
+    fireEvent.click(screen.getByTestId('agent-profile-edit-config'));
+    expect(screen.getByTestId('agent-config-edit-modal')).toBeInTheDocument();
   });
 
   it('renders skills as name cards (no path/badge), empty → placeholder', () => {

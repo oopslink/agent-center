@@ -1,16 +1,18 @@
 import type React from 'react';
+import { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { EntityRef } from '@/components/EntityRef';
+import { AgentConfigEditModal } from '@/components/AgentConfigEditModal';
 import { normalizeIdentityRef } from '@/api/members';
 import type { Agent } from '@/api/types';
 
 // AgentProfile (v2.7.1 #228 PR(b)) — the Profile tab body. Three blocks:
 //   1. Info card — Computer (bound worker name + connected status), Created,
 //      Creator (#120 enrichment), Description.
-//   2. Runtime config tags — CLI + Model are real; reasoning/mode/provider are
-//      static v2.7.1 fallbacks ("Medium"/"Default"/"Default") because the schema
-//      doesn't model them yet (real values = v2.8 #229). We never fabricate them
-//      as if they were stored — they're labelled as defaults.
+//   2. Runtime config tags — CLI / Model / Reasoning / Mode / Provider are ALL
+//      real persisted config now (T236); an empty field renders its value as
+//      "Default" with the default badge. Editable via the "Edit" affordance →
+//      AgentConfigEditModal (save + restart-to-apply).
 //   3. Skills name cards (no global/local badge or path — that origin metadata
 //      is v2.8 #230) + Created-agents list (#120) + a Message button that opens
 //      a DM with the agent.
@@ -18,6 +20,8 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
   const skills = agent.skills ?? [];
   const createdAgents = agent.created_agents ?? [];
   const computer = agent.computer;
+  // T236: the Edit-config modal (model/cli/reasoning/mode/provider + restart).
+  const [editingConfig, setEditingConfig] = useState(false);
 
   return (
     <div className="space-y-4" data-testid="agent-tabpanel-profile">
@@ -76,13 +80,23 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
           </Section>
 
           <Section label="Runtime config">
+            <div className="mb-2 flex justify-end">
+              <button
+                type="button"
+                className="rounded border border-border-base px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
+                onClick={() => setEditingConfig(true)}
+                data-testid="agent-profile-edit-config"
+              >
+                Edit
+              </button>
+            </div>
             <div className="flex flex-wrap gap-2" data-testid="agent-profile-runtime">
               <ConfigTag label="CLI" value={agent.cli || '—'} testId="agent-profile-tag-cli" />
               <ConfigTag label="Model" value={agent.model || '—'} testId="agent-profile-tag-model" />
-              {/* v2.7.1 static fallbacks — real values are v2.8 #229 schema work. */}
-              <ConfigTag label="Reasoning" value="Medium" testId="agent-profile-tag-reasoning" isDefault />
-              <ConfigTag label="Mode" value="Default" testId="agent-profile-tag-mode" isDefault />
-              <ConfigTag label="Provider" value="Default" testId="agent-profile-tag-provider" isDefault />
+              {/* T236: real persisted values; empty → "Default" + default badge. */}
+              <ConfigTag label="Reasoning" value={agent.reasoning || 'Default'} testId="agent-profile-tag-reasoning" isDefault={!agent.reasoning} />
+              <ConfigTag label="Mode" value={agent.mode || 'Default'} testId="agent-profile-tag-mode" isDefault={!agent.mode} />
+              <ConfigTag label="Provider" value={agent.provider || 'Default'} testId="agent-profile-tag-provider" isDefault={!agent.provider} />
             </div>
           </Section>
         </div>
@@ -135,6 +149,10 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
           </Section>
         </div>
       </div>
+
+      {editingConfig && (
+        <AgentConfigEditModal agent={agent} onClose={() => setEditingConfig(false)} />
+      )}
     </div>
   );
 }

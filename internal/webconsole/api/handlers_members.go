@@ -193,9 +193,13 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		// only (legacy path).
 		Model    string            `json:"model"`
 		CLI      string            `json:"cli"`
-		WorkerID string            `json:"worker_id"`
-		EnvVars  map[string]string `json:"env_vars"`
-		Skills   []string          `json:"skills"`
+		// T236: optional LLM tuning at create time ("" = runtime/center default).
+		Reasoning string            `json:"reasoning"`
+		Mode      string            `json:"mode"`
+		Provider  string            `json:"provider"`
+		WorkerID  string            `json:"worker_id"`
+		EnvVars   map[string]string `json:"env_vars"`
+		Skills    []string          `json:"skills"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -275,6 +279,9 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			Description:      body.Description,
 			Model:            body.Model,
 			CLI:              body.CLI,
+			Reasoning:        body.Reasoning,
+			Mode:             body.Mode,
+			Provider:         body.Provider,
 			EnvVars:          body.EnvVars,
 			Skills:           body.Skills,
 			WorkerID:         body.WorkerID,

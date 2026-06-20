@@ -127,6 +127,9 @@ type agentLifecycleEvtPayload struct {
 	ResetScope string `json:"reset_scope,omitempty"`
 	Model      string `json:"model,omitempty"`
 	CLI        string `json:"cli,omitempty"`
+	Reasoning  string `json:"reasoning,omitempty"` // T236
+	Mode       string `json:"mode,omitempty"`      // T236
+	Provider   string `json:"provider,omitempty"`  // T236
 }
 
 // reconcileCommandPayload is the declarative command payload the AgentController
@@ -138,7 +141,11 @@ type reconcileCommandPayload struct {
 	// CLI selects the per-CLI session starter on the worker ("codex" → codex exec
 	// session; empty/"claude-code" → claude supervisor). Passthrough from the
 	// lifecycle event, same as Model.
-	CLI        string `json:"cli,omitempty"`
+	CLI string `json:"cli,omitempty"`
+	// T236 LLM tuning — passthrough to the daemon session config, same as Model/CLI.
+	Reasoning  string `json:"reasoning,omitempty"`
+	Mode       string `json:"mode,omitempty"`
+	Provider   string `json:"provider,omitempty"`
 	Version    int    `json:"version"`
 	ResetScope string `json:"reset_scope,omitempty"`
 }
@@ -181,6 +188,9 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 		DesiredLifecycle: pl.Lifecycle,
 		Model:            pl.Model, // passthrough (pure event-driven; no Agent-repo read)
 		CLI:              pl.CLI,   // passthrough — per-CLI starter selection on the worker
+		Reasoning:        pl.Reasoning, // T236 passthrough
+		Mode:             pl.Mode,      // T236 passthrough
+		Provider:         pl.Provider,  // T236 passthrough
 		Version:          pl.Version,
 		ResetScope:       pl.ResetScope,
 	})

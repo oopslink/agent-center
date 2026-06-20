@@ -125,6 +125,13 @@ type agentEventPayload struct {
 	// (claude supervisor vs codex exec). ADDITIVE: empty/absent → the daemon defaults
 	// to the claude path.
 	CLI string `json:"cli,omitempty"`
+	// T236 LLM tuning, carried the SAME way as Model/CLI (snapshotted at the
+	// (re)start that emitted this event → "edit config + restart to apply"). All
+	// ADDITIVE: empty/absent → the daemon omits the corresponding flag → runtime
+	// default.
+	Reasoning string `json:"reasoning,omitempty"`
+	Mode      string `json:"mode,omitempty"`
+	Provider  string `json:"provider,omitempty"`
 }
 
 // emit appends an outbox event inside the current transaction. Mutating
@@ -140,6 +147,9 @@ func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, re
 		ResetScope: resetScope,
 		Model:      a.Profile().Model,
 		CLI:        a.Profile().CLI,
+		Reasoning:  a.Profile().Reasoning,
+		Mode:       a.Profile().Mode,
+		Provider:   a.Profile().Provider,
 	})
 	if err != nil {
 		return err
