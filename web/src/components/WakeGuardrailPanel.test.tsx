@@ -6,31 +6,34 @@ import type { WakeGuardrail } from '@/api/system';
 // are mocked so the test asserts the panel's render + edit/validate/save logic.
 
 const mutate = vi.fn();
+const DEFAULTS: WakeGuardrail = {
+  max_depth: 4,
+  cycle_window_sec: 300,
+  cycle_threshold: 3,
+  rate_per_min: 10,
+  chain_token_budget: 16,
+};
 let queryState: { data?: WakeGuardrail; isLoading: boolean; isError: boolean } = {
-  data: {
-    max_depth: 4,
-    cycle_window_sec: 300,
-    cycle_threshold: 3,
-    rate_per_min: 10,
-    chain_token_budget: 16,
-  },
+  data: DEFAULTS,
   isLoading: false,
   isError: false,
+};
+let mutationState: { isPending: boolean; isError: boolean; error: Error | null } = {
+  isPending: false,
+  isError: false,
+  error: null,
 };
 
 vi.mock('@/api/system', () => ({
   useWakeGuardrail: () => queryState,
-  useUpdateWakeGuardrail: () => ({ mutate, isPending: false, isError: false, error: null }),
+  useUpdateWakeGuardrail: () => ({ mutate, ...mutationState }),
 }));
 
 import { WakeGuardrailPanel } from './WakeGuardrailPanel';
 
 beforeEach(() => {
-  queryState = {
-    data: { max_depth: 4, cycle_window_sec: 300, cycle_threshold: 3, rate_per_min: 10, chain_token_budget: 16 },
-    isLoading: false,
-    isError: false,
-  };
+  queryState = { data: { ...DEFAULTS }, isLoading: false, isError: false };
+  mutationState = { isPending: false, isError: false, error: null };
 });
 afterEach(() => {
   cleanup();
@@ -70,5 +73,16 @@ describe('WakeGuardrailPanel', () => {
     queryState = { data: undefined, isLoading: true, isError: false };
     render(<WakeGuardrailPanel />);
     expect(screen.getByTestId('wake-guardrail-loading')).toBeTruthy();
+  });
+
+  // T245: a failed save (e.g. the 501 settings-store bug) must surface a UI
+  // error, not fail silently.
+  it('surfaces a save failure in the UI', () => {
+    mutationState = { isPending: false, isError: true, error: new Error('settings store not configured') };
+    render(<WakeGuardrailPanel />);
+    const err = screen.getByTestId('wake-guardrail-save-error');
+    expect(err).toBeTruthy();
+    expect(err.textContent).toContain('保存失败');
+    expect(err.textContent).toContain('settings store not configured');
   });
 });
