@@ -36,11 +36,18 @@ var secondaryTools = []struct{ name, summary string }{
 	// task link / assignment admin
 	{"reassign_task", "reassign a task to a different identity"},
 	{"set_task_issue", "(re)set or clear a task's derived_from_issue link"},
-	// reminders (T206 Cognition)
-	{"create_reminder", "set a reminder that wakes an agent once or on a cron schedule"},
-	{"list_reminders", "list reminders by creator/remindee/status"},
-	{"get_reminder", "read one reminder"},
-	{"update_reminder", "pause/resume/cancel or edit a reminder"},
+	// reminders (T206 Cognition) are CORE — kept OUT of this deferred manifest
+	// (T252, issue-c438cde1). They were deferred, but that DOUBLE-hid them: in a
+	// harness whose own tool-search only surfaces tools the MCP server has already
+	// ADVERTISED, a tool deferred behind THIS server's search_tools is invisible to
+	// the harness search until search_tools is called first. So an agent told to
+	// "set a reminder" reached for the harness tool-search, found nothing (the
+	// reminder tools were not yet advertised), and fell back to ad-hoc
+	// ScheduleWakeup — exactly the I4 anti-pattern. Same reasoning as T247
+	// promoting download_file/upload_file: a capability an agent is GUIDED to call
+	// directly (I4 / follow-up T253 — "prefer reminder over ScheduleWakeup") must be
+	// directly discoverable, not gated behind a discovery hop. create/list/get/
+	// update are a tight family for the same proactive workflow, so all four are core.
 	// subscriptions
 	{"subscribe", "subscribe to a conversation or entity"},
 	{"unsubscribe", "unsubscribe from a conversation or entity"},
