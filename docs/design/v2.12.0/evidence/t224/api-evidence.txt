@@ -1,0 +1,15 @@
+# T224/I7-A2 §1 wake-guardrail run-real (verify-not-trust) — dev/i7 HEAD 7bc126f1 (fix 70185c80 incl.)
+# instance: agent-center install test-instance --id t224 --with-seed ; web http://127.0.0.1:63710
+
+## §1.2 PUT 7/600 -> 200 persist:
+{"max_depth":7,"cycle_window_sec":600,"cycle_threshold":3,"rate_per_min":10,"chain_token_budget":16}
+ [HTTP 200]
+## §1.3 read-back == PUT (persisted):
+{"max_depth":7,"cycle_window_sec":600,"cycle_threshold":3,"rate_per_min":10,"chain_token_budget":16}
+
+## §1.4 illegal depth=0 -> 400 invalid_config:
+{"error":"invalid_config","message":"wake.max_depth must be \u003e 0"}
+ [HTTP 400]
+## read-back after illegal (unchanged, atomic):
+{"max_depth":7,"cycle_window_sec":600,"cycle_threshold":3,"rate_per_min":10,"chain_token_budget":16}
+

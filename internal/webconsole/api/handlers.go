@@ -16,6 +16,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/files"
@@ -24,10 +25,10 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/persistence"
-	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
+	"github.com/oopslink/agent-center/internal/settings"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -155,6 +156,11 @@ type HandlerDeps struct {
 	MemberDisableSvc    *identity.MemberDisableService
 	AgentProvisionSvc   *identity.AgentIdentityProvisionService
 	OrgUpdateSvc        *identity.OrganizationUpdateService
+
+	// I7-D1 (T216): the center settings store backing the wake-guardrail config
+	// endpoints (GET/PUT /api/system/wake-guardrail). Optional — nil degrades the
+	// endpoints to effective-defaults (GET) / not_configured (PUT).
+	SettingsStore settings.Store
 }
 
 // hd retrieves the typed dep bag from the request context.

@@ -25,7 +25,11 @@ func TestOrgRouting_NoBareOrgScopedRoute(t *testing.T) {
 		"/api/users/{user_id}": true,
 		"/api/sse": true, "/api/sse/subscribe": true, "/api/sse/unsubscribe": true,
 		"/api/health": true, "/api/system/version": true,
-		"/api/admintoken/revoke": true, // #296: bare but authenticated (org-gate in handler, not path)
+		// I7-D1 (T216): wake-guardrail thresholds are CENTER-WIDE (one process-global
+		// WakeGuard config, not per-org) — like /api/system/version. Authed (session)
+		// but intentionally global; no org scope to leak.
+		"/api/system/wake-guardrail": true,
+		"/api/admintoken/revoke":     true, // #296: bare but authenticated (org-gate in handler, not path)
 	}
 	src, err := os.ReadFile("server.go")
 	if err != nil {

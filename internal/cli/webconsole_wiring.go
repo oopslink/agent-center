@@ -10,6 +10,7 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
+	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
@@ -26,6 +27,7 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
+	settingssql "github.com/oopslink/agent-center/internal/settings/sqlite"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
 	"github.com/oopslink/agent-center/internal/webconsole/spa"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
@@ -103,6 +105,9 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		MemberDisableSvc:    a.IdentityMemberDisableSvc,
 		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
 		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
+		// I7-D1 (T216): center settings store backing GET/PUT /api/system/wake-guardrail
+		// (the I7-D3 Settings panel reads/writes the wake-guardrail thresholds here).
+		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -187,6 +192,21 @@ func (a *App) outboxProjectors(
 	// for every agent whose AgentWorkItem on that task is waiting_input (sender
 	// self-excluded), same tx. Like D2-a/c-i this only enqueues — the daemon
 	// controller (D2-c-ii) is wired DORMANT (ControlClient nil), so no real effect.
+	// I7-D1/T227: the wake-chain circuit breaker — ONE process singleton (it holds
+	// the rate/cycle runtime state shared across all wake deliveries). I7-D1/T216:
+	// the config is now resolved LIVE from the center settings store on every
+	// evaluation, so an I7-D3 Settings-panel PUT to /api/system/wake-guardrail takes
+	// effect WITHOUT a restart (T224 "参数可配生效"). A read error or absent/blank
+	// keys fall back to the conservative DefaultConfig — the guard is never disabled
+	// by missing settings (§3.5 "阈值缺省即生效").
+	guardSettings := settingssql.NewStore(a.DB, a.Clock)
+	wakeGuard := wakeguard.NewGuardFunc(func() wakeguard.Config {
+		m, err := guardSettings.GetByPrefix(context.Background(), "wake.")
+		if err != nil {
+			return wakeguard.DefaultConfig()
+		}
+		return wakeguard.ConfigFromMap(m)
+	})
 	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
 		DB:         a.DB,
 		WorkItems:  agentsql.NewWorkItemRepo(a.DB),
@@ -194,6 +214,7 @@ func (a *App) outboxProjectors(
 		ControlLog: controlLog,
 		Applied:    appliedRepo,
 		Clock:      a.Clock,
+		WakeGuard:  wakeGuard,
 		// v2.7 D2-e-ii (OQ5 method 甲): batch-flush deps. When an agent ENTERS
 		// waiting_input (request_input → agent.awaiting_input) the projector reads
 		// its read-state cursor + the task conversation messages and enqueues ONE
@@ -391,6 +412,12 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		MemberDisableSvc:    a.IdentityMemberDisableSvc,
 		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
 		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
+		// I7-D1 (T216) center settings store backing GET/PUT /api/system/wake-guardrail
+		// (the I7-D3 Settings panel reads/writes the wake-guardrail thresholds). This is
+		// the LIVE webconsole deps path — buildWebConsoleHandler is test-only, so without
+		// this line PUT /system/wake-guardrail 501s "settings store not configured" on the
+		// real server even though the wiring test is green.
+		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),

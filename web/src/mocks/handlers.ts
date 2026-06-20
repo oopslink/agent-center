@@ -757,6 +757,11 @@ const baseHandlers = [
 
   // System build info (org-agnostic → exempt, bare only).
   http.get('/api/system/version', () => ok({ version: 'test', commit: 'test' })),
+  // I7-D3 wake-guardrail thresholds (effective config); PUT echoes the body.
+  http.get('/api/system/wake-guardrail', () =>
+    ok({ max_depth: 4, cycle_window_sec: 300, cycle_threshold: 3, rate_per_min: 10, chain_token_budget: 16 }),
+  ),
+  http.put('/api/system/wake-guardrail', async ({ request }) => ok(await request.json())),
 ];
 
 // v2.9 org-routing: the web client now path-routes org-scoped calls as

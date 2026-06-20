@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useCreateReminder, type ReminderEndCondition, type ReminderScheduleKind } from '@/api/reminders';
 import { useAgents } from '@/api/agents';
 import { Avatar } from './Avatar';
+import { IconClose, IconCalendar, IconClock } from './icons';
 
 // =============================================================================
 // T207 [提醒-3] — screens ② (新建·周期 cron) + ③ (新建·一次性 once), 1:1 to the
@@ -108,8 +109,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
         <div className="flex items-center justify-between border-b border-border-base px-5 py-3">
           <h4 className="text-base font-semibold text-text-primary">New reminder</h4>
           <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
-            {/* ASCII close glyph (no-emoji-icons a11y guardrail); aria-label carries the name. */}
-            <span aria-hidden="true">X</span>
+            <IconClose className="h-4 w-4" />
           </button>
         </div>
 
@@ -190,7 +190,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
                   className="mt-2.5 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info"
                   data-testid="reminder-preview"
                 >
-                  <span>{cronHuman(cronExpr)} · TZ {tz}</span>
+                  <IconCalendar className="h-3.5 w-3.5 shrink-0" /> <span>{cronHuman(cronExpr)} · TZ {tz}</span>
                 </div>
                 <input
                   value={tz}
@@ -254,7 +254,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
                 className="mt-2.5 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info"
                 data-testid="reminder-preview"
               >
-                ⏱ <span>{oncePreview}</span>
+                <IconClock className="h-3.5 w-3.5 shrink-0" /> <span>{oncePreview}</span>
               </div>
             </div>
           )}

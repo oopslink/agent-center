@@ -107,8 +107,9 @@ func MigrateV1ToV2Command() *Command {
 // P<number> plan refs); v2.10 ADR-0053 added 0061 (pm_plan_findings — the DeLM
 // plan-scoped shared-findings table); v2.11.0 Cognition added 0062 (reminders +
 // reminder_firings — the Reminder aggregate); v2.11.0 F-B added 0063
-// (reminders.deliver_as_creator — per-reminder delivery identity flag).
-const targetSchemaVersion = 63
+// (reminders.deliver_as_creator — per-reminder delivery identity flag); I7-D1
+// (T216) added 0064 (center_settings — the wake-guardrail thresholds KV store).
+const targetSchemaVersion = 64
 
 func runMigrateV1ToV2(
 	ctx context.Context,
