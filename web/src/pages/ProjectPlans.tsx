@@ -20,6 +20,7 @@ import { refKind, useDisplayNameResolver, normalizeIdentityRef } from '@/api/mem
 import type { Task } from '@/api/types';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
+import { BoardTaskCreateModal } from '@/components/BoardTaskCreateModal';
 import { ErrorState } from '@/components/ErrorState';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { StatusChip, refLabel } from '@/components/workItemDisplay';
@@ -106,6 +107,9 @@ export default function ProjectPlans(): React.ReactElement {
   const plans = usePlans(id);
   const backlog = useUnplannedTasks(id);
   const [createOpen, setCreateOpen] = useState(false);
+  // T231: the header "+ New Task" modal — creates a task with a chosen
+  // destination (Backlog / Assignment Pool / a draft Plan).
+  const [taskCreateOpen, setTaskCreateOpen] = useState(false);
   // The task currently being dragged (HTML5 DnD) + WHERE it came from. Held in
   // state so a draft Plan column can light up its drop-zone + reject running
   // columns, AND so a drop knows the source (Backlog vs another Plan) to pick
@@ -137,17 +141,36 @@ export default function ProjectPlans(): React.ReactElement {
             Three segments · Backlog (unscheduled) · Assignment Pool (claimable) · structured Plans.
           </p>
         </div>
-        <button
-          type="button"
-          className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
-          onClick={() => setCreateOpen(true)}
-          data-testid="plan-create-btn"
-        >
-          + New Plan
-        </button>
+        <div className="flex items-center gap-2">
+          {/* T231: create a task straight from the board, choosing its
+              destination (Backlog / Assignment Pool / a draft Plan). */}
+          <button
+            type="button"
+            className="rounded border border-brand px-2.5 py-1 text-xs font-medium text-brand hover:bg-brand/10"
+            onClick={() => setTaskCreateOpen(true)}
+            data-testid="task-create-btn"
+          >
+            + New Task
+          </button>
+          <button
+            type="button"
+            className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
+            onClick={() => setCreateOpen(true)}
+            data-testid="plan-create-btn"
+          >
+            + New Plan
+          </button>
+        </div>
       </header>
 
       {createOpen && <PlanCreateModal projectId={id} onClose={() => setCreateOpen(false)} />}
+      {taskCreateOpen && (
+        <BoardTaskCreateModal
+          projectId={id}
+          plans={plans.data}
+          onClose={() => setTaskCreateOpen(false)}
+        />
+      )}
 
       {/* Mobile portrait nudge → landscape (owner ask). */}
       <RotateForBoardHint />

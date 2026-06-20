@@ -1331,3 +1331,48 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     expect(mutated).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// T231 — Work Board "+ New Task": a header button opens a destination-aware
+// create modal (Backlog / Assignment Pool / a draft Plan).
+// ---------------------------------------------------------------------------
+describe('T231 Work Board — "+ New Task" header button', () => {
+  afterEach(() => cleanup());
+
+  const plansFixture = {
+    plans: [
+      {
+        id: 'PL-BUILTIN', project_id: 'proj-a', name: '[Built-in]', description: '',
+        status: 'running', creator_ref: 'user:owner', conversation_id: 'cb', target_date: null,
+        has_failed: false, progress: { done: 0, total: 0 }, created_at: '2026-06-01T01:00:00Z',
+        is_builtin: true, node_count: 0, nodes_preview: [],
+      },
+      {
+        id: 'PL-DRAFT', project_id: 'proj-a', name: 'Billing rework', description: '',
+        status: 'draft', creator_ref: 'user:owner', conversation_id: 'c2', target_date: null,
+        has_failed: false, progress: { done: 0, total: 0 }, created_at: '2026-06-01T01:00:00Z',
+        is_builtin: false, node_count: 0, nodes_preview: [],
+      },
+    ],
+  };
+
+  it('opens the modal offering Backlog + Assignment Pool + the draft plan', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plansFixture)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+
+    expect(screen.queryByTestId('board-task-create-modal')).toBeNull();
+    fireEvent.click(screen.getByTestId('task-create-btn'));
+
+    const modal = await screen.findByTestId('board-task-create-modal');
+    expect(within(modal).getByTestId('board-task-create-destination')).toBeInTheDocument();
+    expect(within(modal).getByRole('option', { name: /Backlog/ })).toBeInTheDocument();
+    expect(within(modal).getByTestId('board-task-create-dest-pool')).toBeInTheDocument();
+    // the draft structured plan is offered; (the built-in is offered as the Pool
+    // option, never as a generic plan name).
+    expect(within(modal).getByRole('option', { name: 'Billing rework' })).toBeInTheDocument();
+  });
+});
