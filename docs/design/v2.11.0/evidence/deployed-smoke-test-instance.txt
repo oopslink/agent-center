@@ -1,0 +1,34 @@
+# v2.11.0 deployed-smoke (§8) — install test-instance, real install+enroll codepath
+
+binary: dev/remainder-f5c0dc09 (release tip)
+result: SMOKE_EXIT=0 — center+worker installed on dynamic ports, migrations ran (schema incl reminders), center healthy within ready-timeout, tenant seeded, worker enrolled.
+
+## access pack
+{
+  "id": "v2110smoke",
+  "prefix": "/Users/oopslink/.agent-center-test/v2110smoke",
+  "web_url": "http://127.0.0.1:56947",
+  "server_port": 56948,
+  "admin_port": 56949,
+  "admin_bootstrap_token": "acat_zcrF6kboUmQaGauOb4m8hVzViN4VYWso9G31H77KXX4",
+  "workers": [
+    {
+      "id": "test-v2110smoke-w1",
+      "prefix": "/Users/oopslink/.agent-center-test/v2110smoke/worker-1"
+    }
+  ],
+  "web_login": "seeded ✓ — sign in at web_url with the credentials in `signin`",
+  "entity_ids": "seeded ✓ — see `entity_refs` (org/project/channel)",
+  "workers_note": "workers are workforce-enrolled (token exchanged) + running, but NOT org-enrolled yet — control-connect 409s until a tenant org is seeded (--with-seed, #257)",
+  "signin": {
+    "org_slug": "acme-v2110smoke",
+    "display_name": "Owner v2110smoke",
+    "email": "owner@acme-v2110smoke.test",
+    "passcode": "SeedPass1!"
+  },
+  "entity_refs": {
+    "org_id": "organization-4d8d584f",
+    "project_id": "project-eb84ab1f",
+    "channel_id": "channel-fe074770"
+  }
+}
