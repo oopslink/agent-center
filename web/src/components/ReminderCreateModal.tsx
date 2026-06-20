@@ -58,6 +58,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
   const [onceDate, setOnceDate] = useState('');
   const [onceTime, setOnceTime] = useState('09:00');
   const [skipOverlap, setSkipOverlap] = useState(true);
+  const [deliverAsCreator, setDeliverAsCreator] = useState(true); // F-B: default ON per mockup
   const [endKind, setEndKind] = useState<ReminderEndCondition['kind']>('never');
   const [err, setErr] = useState<string | null>(null);
 
@@ -82,7 +83,14 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
         : { kind: 'once' as const, once_at: new Date(`${onceDate}T${onceTime}:00`).toISOString() };
     const end_condition: ReminderEndCondition = { kind: endKind };
     create.mutate(
-      { remindee_agent_id: remindee.trim(), schedule, content: content.trim(), skip_if_overlap: skipOverlap, end_condition },
+      {
+        remindee_agent_id: remindee.trim(),
+        schedule,
+        content: content.trim(),
+        skip_if_overlap: skipOverlap,
+        deliver_as_creator: deliverAsCreator,
+        end_condition,
+      },
       { onSuccess: () => onClose(), onError: (e) => setErr(e instanceof Error ? e.message : '创建失败') },
     );
   }
@@ -260,6 +268,31 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
               className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 text-sm"
               data-testid="reminder-content"
             />
+          </div>
+
+          {/* 以本人身份创建提醒文本 (F-B) — 蓝色 toggle, 两态共用, 默认开 */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs text-text-secondary">
+              以本人身份创建提醒文本
+              <span className="block text-text-muted">到点的提醒消息以创建者身份发出（关闭则以系统身份）。</span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={deliverAsCreator}
+              aria-label="以本人身份创建提醒文本"
+              onClick={() => setDeliverAsCreator((v) => !v)}
+              data-testid="reminder-deliver-as-creator"
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                deliverAsCreator ? 'bg-brand' : 'bg-border-strong'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  deliverAsCreator ? 'translate-x-4' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
           </div>
 
           {err && (

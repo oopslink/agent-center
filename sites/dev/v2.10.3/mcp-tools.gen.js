@@ -848,7 +848,7 @@ window.__MCP_TOOLS__ = {
         {
           "name": "create_reminder",
           "summary": "Set a reminder that wakes a target agent at a time (once) or on a schedule (cron) and delivers a text.",
-          "description": "Set a reminder that wakes a target agent at a time (once) or on a schedule (cron) and delivers a text. remindee must be in your project (owner may cross projects). schedule is once{once_at RFC3339} or cron{cron_expr, timezone}. Optional end_condition (never|until|max_count) bounds a recurring reminder; skip_if_overlap (default true) drops a fire while the previous one is still being handled.",
+          "description": "Set a reminder that wakes a target agent at a time (once) or on a schedule (cron) and delivers a text. remindee must be in your project (owner may cross projects). schedule is once{once_at RFC3339} or cron{cron_expr, timezone}. Optional end_condition (never|until|max_count) bounds a recurring reminder; skip_if_overlap (default true) drops a fire while the previous one is still being handled; deliver_as_creator (default true) delivers the reminder as your identity rather than the system identity (a self-reminder always wakes via the system identity).",
           "params": [
             {
               "name": "content",
@@ -861,6 +861,10 @@ window.__MCP_TOOLS__ = {
             {
               "name": "schedule",
               "required": true
+            },
+            {
+              "name": "deliver_as_creator",
+              "required": false
             },
             {
               "name": "end_condition",

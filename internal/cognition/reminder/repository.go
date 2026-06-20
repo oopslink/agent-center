@@ -10,6 +10,11 @@ import (
 type FiringOutcome string
 
 const (
+	// OutcomePending is a dispatched-but-not-yet-delivered fire (in flight). The
+	// scheduler appends it at fire time; the delivery projector (F1) resolves it
+	// to delivered/failed once it consumes the fired event. It is the "previous
+	// occurrence not yet processed" signal the skip_if_overlap path reads.
+	OutcomePending        FiringOutcome = "pending"
 	OutcomeDelivered      FiringOutcome = "delivered"
 	OutcomeSkippedOverlap FiringOutcome = "skipped_overlap"
 	OutcomeFailed         FiringOutcome = "failed"
@@ -54,6 +59,15 @@ type Repository interface {
 	FindDue(ctx context.Context, now time.Time) ([]*Reminder, error)
 	// AppendFiring writes one append-only reminder_firings row.
 	AppendFiring(ctx context.Context, f Firing) error
+	// HasPendingFiring reports whether the reminder has a still-in-flight fire —
+	// a reminder_firings row with outcome=pending (dispatched but not yet
+	// delivered). It is the skip_if_overlap "previous occurrence not processed"
+	// predicate (§3.3 overlap). skipped_overlap/delivered/failed rows do not count.
+	HasPendingFiring(ctx context.Context, reminderID string) (bool, error)
+	// UpdateFiringOutcome resolves a firing's outcome by id (e.g. pending →
+	// delivered once the delivery projector posts the DM). Idempotent on id; a
+	// missing row is a no-op (the at-least-once projector may redeliver).
+	UpdateFiringOutcome(ctx context.Context, firingID string, outcome FiringOutcome) error
 	// ListFirings returns a reminder's trigger history (newest-first) — the
 	// "历史触发" the UI shows, incl. overlap-skips (T207).
 	ListFirings(ctx context.Context, reminderID string) ([]Firing, error)

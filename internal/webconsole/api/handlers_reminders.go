@@ -71,19 +71,20 @@ func (d remEndDTO) toDomain() (reminder.EndCondition, error) {
 // remReminderMap projects a Reminder to the FE wire shape.
 func remReminderMap(r *reminder.Reminder) map[string]any {
 	m := map[string]any{
-		"id":                r.ID().String(),
-		"organization_id":   r.OrganizationID(),
-		"project_id":        r.ProjectID(),
-		"creator_ref":       r.CreatorRef(),
-		"remindee_agent_id": r.RemindeeAgentID(),
-		"content":           r.Content(),
-		"status":            string(r.Status()),
-		"skip_if_overlap":   r.SkipIfOverlap(),
-		"fired_count":       r.FiredCount(),
-		"version":           r.Version(),
-		"schedule":          remSchedToMap(r.Schedule()),
-		"created_at":        r.CreatedAt().UTC().Format(time.RFC3339Nano),
-		"updated_at":        r.UpdatedAt().UTC().Format(time.RFC3339Nano),
+		"id":                 r.ID().String(),
+		"organization_id":    r.OrganizationID(),
+		"project_id":         r.ProjectID(),
+		"creator_ref":        r.CreatorRef(),
+		"remindee_agent_id":  r.RemindeeAgentID(),
+		"content":            r.Content(),
+		"status":             string(r.Status()),
+		"skip_if_overlap":    r.SkipIfOverlap(),
+		"deliver_as_creator": r.DeliverAsCreator(),
+		"fired_count":        r.FiredCount(),
+		"version":            r.Version(),
+		"schedule":           remSchedToMap(r.Schedule()),
+		"created_at":         r.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"updated_at":         r.UpdatedAt().UTC().Format(time.RFC3339Nano),
 	}
 	if r.NextRunAt() != nil {
 		m["next_run_at"] = r.NextRunAt().UTC().Format(time.RFC3339Nano)
@@ -144,7 +145,7 @@ func (s *Server) remCaller(w http.ResponseWriter, r *http.Request, d HandlerDeps
 	return org, "user:" + id.ID(), true
 }
 
-// GET /api/orgs/{slug}/reminders?filter=all|created&status=active,paused,...
+// GET /api/orgs/{slug}/reminders?filter=all|created|remindee&status=active,paused,...
 func (s *Server) remListHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	orgID, caller, ok := s.remCaller(w, r, d)
@@ -156,9 +157,16 @@ func (s *Server) remListHandler(w http.ResponseWriter, r *http.Request) {
 		rs  []*reminder.Reminder
 		err error
 	)
-	if r.URL.Query().Get("filter") == "created" {
+	switch r.URL.Query().Get("filter") {
+	case "created":
+		// 我创建的 — reminders this caller created.
 		rs, err = d.Reminder.ListReminders(r.Context(), cogservice.ListRemindersQuery{CreatorRef: caller, Statuses: statuses})
-	} else {
+	case "remindee":
+		// 提醒我的 — reminders TARGETING the viewing identity (remindee dimension),
+		// filtered server-side. The remindee key is the bare id (no "user:"/"agent:"
+		// prefix), matching reminder_firings' remindee_agent_id.
+		rs, err = d.Reminder.ListReminders(r.Context(), cogservice.ListRemindersQuery{RemindeeAgentID: bareRef(caller), Statuses: statuses})
+	default:
 		// default "全部" — owner (any console user) sees the org-wide set.
 		rs, err = d.Reminder.ListOrgReminders(r.Context(), orgID, caller, statuses)
 	}
@@ -171,6 +179,15 @@ func (s *Server) remListHandler(w http.ResponseWriter, r *http.Request) {
 		out = append(out, remReminderMap(rm))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"reminders": out})
+}
+
+// bareRef strips a "user:"/"agent:" prefix to the bare id, so a session
+// identity can be matched against a reminder's remindee_agent_id.
+func bareRef(ref string) string {
+	if i := strings.IndexByte(ref, ':'); i >= 0 {
+		return ref[i+1:]
+	}
+	return ref
 }
 
 func parseRemStatuses(s string) []reminder.ReminderStatus {
@@ -195,11 +212,12 @@ func (s *Server) remCreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		RemindeeAgentID string      `json:"remindee_agent_id"`
-		Schedule        remSchedDTO `json:"schedule"`
-		Content         string      `json:"content"`
-		SkipIfOverlap   *bool       `json:"skip_if_overlap"`
-		EndCondition    remEndDTO   `json:"end_condition"`
+		RemindeeAgentID  string      `json:"remindee_agent_id"`
+		Schedule         remSchedDTO `json:"schedule"`
+		Content          string      `json:"content"`
+		SkipIfOverlap    *bool       `json:"skip_if_overlap"`
+		DeliverAsCreator *bool       `json:"deliver_as_creator"`
+		EndCondition     remEndDTO   `json:"end_condition"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -219,14 +237,19 @@ func (s *Server) remCreateHandler(w http.ResponseWriter, r *http.Request) {
 	if req.SkipIfOverlap != nil {
 		skip = *req.SkipIfOverlap
 	}
+	deliverAsCreator := true // default ON per the mockup (F-B)
+	if req.DeliverAsCreator != nil {
+		deliverAsCreator = *req.DeliverAsCreator
+	}
 	rm, err := d.Reminder.CreateReminder(r.Context(), cogservice.CreateReminderCommand{
-		OrganizationID:  orgID,
-		CreatorRef:      caller,
-		RemindeeAgentID: strings.TrimSpace(req.RemindeeAgentID),
-		Schedule:        sched,
-		Content:         req.Content,
-		SkipIfOverlap:   skip,
-		EndCondition:    end,
+		OrganizationID:   orgID,
+		CreatorRef:       caller,
+		RemindeeAgentID:  strings.TrimSpace(req.RemindeeAgentID),
+		Schedule:         sched,
+		Content:          req.Content,
+		SkipIfOverlap:    skip,
+		DeliverAsCreator: deliverAsCreator,
+		EndCondition:     end,
 	})
 	if err != nil {
 		writeRemErr(w, err)

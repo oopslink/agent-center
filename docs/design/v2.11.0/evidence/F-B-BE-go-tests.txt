@@ -1,0 +1,51 @@
+# F-B-BE evidence — 「以本人身份创建提醒文本」(deliver_as_creator) 字段 + 投递身份 + 测试
+# task T242 / plan-1866ce8b / branch dev/remainder
+# generated 2026-06-20T01:15:53Z
+
+## make lint
+no-vendor-refs: clean (all hits whitelisted)
+no-mock-default: clean (no mock-as-default literals on prod paths)
+doc-impl-drift: all 3 checks passed
+no-raw-colors-spa: clean
+no-idtail-hash: clean (no #<id-tail> short-hash id encoding)
+(make lint exit 0 — see run log)
+
+## make build → exit 0 (bin/agent-center + bin/fakeagent built)
+
+## go test — reminder 域/service/sqlite + create paths (admin/webconsole/mcphost) + persistence migrations + cli
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder	(cached)
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder/service	(cached)
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder/sqlite	(cached)
+ok  	github.com/oopslink/agent-center/internal/persistence	(cached)
+ok  	github.com/oopslink/agent-center/internal/cli	(cached)
+ok  	github.com/oopslink/agent-center/internal/admin/api	(cached)
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	(cached)
+ok  	github.com/oopslink/agent-center/internal/mcphost	(cached)
+
+## 关键 F-B 用例 PASS (两条投递身份路径 + 自提醒回落 + 默认值 + 持久化)
+=== RUN   TestDeliverySender
+=== RUN   TestDeliverySender/off_→_system
+=== RUN   TestDeliverySender/on,_owner_creator_→_creator
+=== RUN   TestDeliverySender/on,_agent_creator_(other)_→_creator
+=== RUN   TestDeliverySender/on,_self-reminder_→_system_(wake_guard)
+=== RUN   TestDeliverySender/on,_empty_creator_→_system
+--- PASS: TestDeliverySender (0.00s)
+    --- PASS: TestDeliverySender/off_→_system (0.00s)
+    --- PASS: TestDeliverySender/on,_owner_creator_→_creator (0.00s)
+    --- PASS: TestDeliverySender/on,_agent_creator_(other)_→_creator (0.00s)
+    --- PASS: TestDeliverySender/on,_self-reminder_→_system_(wake_guard) (0.00s)
+    --- PASS: TestDeliverySender/on,_empty_creator_→_system (0.00s)
+
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder	0.202s [no tests to run]
+--- PASS: TestDeliveryProjector_PassesDeliveryIdentity (0.00s)
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder/service	0.297s
+--- PASS: TestRepo_DeliverAsCreator_RoundTrip (0.02s)
+ok  	github.com/oopslink/agent-center/internal/cognition/reminder/sqlite	0.499s
+
+## create_reminder / GET reminder 响应 shape 新增字段
+  "deliver_as_creator": true   // 默认 ON;create/get/list 三处 map 均含此键 (admin agent-tools + webconsole API)
+
+## 投递身份决策 (internal/cli reminder_wiring.go deliverySender)
+  deliver_as_creator=false            → sender=system (原行为)
+  deliver_as_creator=true, creator≠remindee → sender=creator_ref (本人身份)
+  deliver_as_creator=true, 自提醒(creator==remindee agent) → sender=system (护栏:WakeProjector 排除消息自身 sender,否则自提醒不唤醒)

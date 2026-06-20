@@ -544,11 +544,12 @@ type reminderEndArg struct {
 }
 
 type createReminderArgs struct {
-	RemindeeAgentID string              `json:"remindee_agent_id" jsonschema:"the agent to remind (must be in your project; owner may cross projects)"`
-	Schedule        reminderScheduleArg `json:"schedule" jsonschema:"when to fire — once{once_at} or cron{cron_expr,timezone}"`
-	Content         string              `json:"content" jsonschema:"the reminder text injected to the remindee when it fires"`
-	SkipIfOverlap   *bool               `json:"skip_if_overlap,omitempty" jsonschema:"skip a fire if the previous one is still being handled (default true)"`
-	EndCondition    reminderEndArg      `json:"end_condition,omitempty" jsonschema:"when a recurring reminder stops (never|until|max_count)"`
+	RemindeeAgentID  string              `json:"remindee_agent_id" jsonschema:"the agent to remind (must be in your project; owner may cross projects)"`
+	Schedule         reminderScheduleArg `json:"schedule" jsonschema:"when to fire — once{once_at} or cron{cron_expr,timezone}"`
+	Content          string              `json:"content" jsonschema:"the reminder text injected to the remindee when it fires"`
+	SkipIfOverlap    *bool               `json:"skip_if_overlap,omitempty" jsonschema:"skip a fire if the previous one is still being handled (default true)"`
+	DeliverAsCreator *bool               `json:"deliver_as_creator,omitempty" jsonschema:"deliver the reminder as YOUR identity instead of the system identity (default true). Ignored for a self-reminder, which always wakes via the system identity."`
+	EndCondition     reminderEndArg      `json:"end_condition,omitempty" jsonschema:"when a recurring reminder stops (never|until|max_count)"`
 }
 
 func makeCreateReminder(cfg Config) mcp.ToolHandlerFor[createReminderArgs, any] {
@@ -562,6 +563,9 @@ func makeCreateReminder(cfg Config) mcp.ToolHandlerFor[createReminderArgs, any] 
 		}
 		if args.SkipIfOverlap != nil {
 			body["skip_if_overlap"] = *args.SkipIfOverlap
+		}
+		if args.DeliverAsCreator != nil {
+			body["deliver_as_creator"] = *args.DeliverAsCreator
 		}
 		return callAdmin(ctx, cfg, "create_reminder", body)
 	}

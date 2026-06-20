@@ -19,6 +19,7 @@ const cron: Reminder = {
   content: '跑一遍回归测试',
   status: 'active',
   skip_if_overlap: true,
+  deliver_as_creator: true,
   fired_count: 0,
   version: 1,
   schedule: { kind: 'cron', cron_expr: '0 18 * * 1-5', timezone: 'Asia/Shanghai' },
@@ -91,6 +92,12 @@ describe('Reminders page', () => {
     renderPage();
     fireEvent.click(screen.getByTestId('reminder-range-created'));
     expect(lastListParams).toMatchObject({ filter: 'created' });
+  });
+
+  it('the 提醒我的 range filter drives the remindee list query filter', () => {
+    renderPage();
+    fireEvent.click(screen.getByTestId('reminder-range-remindee'));
+    expect(lastListParams).toMatchObject({ filter: 'remindee' });
   });
 
   it('the status filter narrows the query statuses', () => {

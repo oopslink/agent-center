@@ -23,6 +23,7 @@ import { ReminderDetailModal } from '@/components/ReminderDetailModal';
 const RANGES: ReadonlyArray<{ key: ReminderListFilter; label: string }> = [
   { key: 'all', label: '全部' },
   { key: 'created', label: '我创建的' },
+  { key: 'remindee', label: '提醒我的' },
 ];
 const STATUSES: ReadonlyArray<{ key: ReminderStatus; label: string }> = [
   { key: 'active', label: 'Active' },

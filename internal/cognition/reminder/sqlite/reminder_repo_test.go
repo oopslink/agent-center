@@ -59,6 +59,51 @@ func TestRepo_SaveGet_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestRepo_DeliverAsCreator_RoundTrip covers F-B: the deliver_as_creator flag
+// persists across Save/Get for both values, and an unrelated Update (pause) leaves
+// it unchanged (it is set once at creation, never mutated by the edit path).
+func TestRepo_DeliverAsCreator_RoundTrip(t *testing.T) {
+	ctx, repo := setup(t)
+	mk := func(id string, as bool) *reminder.Reminder {
+		r, err := reminder.NewReminder(reminder.NewReminderInput{
+			ID: id, OrganizationID: "org-1", ProjectID: "proj-1",
+			CreatorRef: "agent:AG1", CreatorProjectID: "proj-1", RemindeeAgentID: "AG2",
+			Schedule: reminder.OnceScheduleAt(t0.Add(time.Hour)), Content: "standup",
+			DeliverAsCreator: as, EndCondition: reminder.NeverEnd(), Now: t0,
+		})
+		if err != nil {
+			t.Fatalf("NewReminder: %v", err)
+		}
+		return r
+	}
+	on, off := mk("rmd-as-on", true), mk("rmd-as-off", false)
+	if err := repo.Save(ctx, on); err != nil {
+		t.Fatalf("Save on: %v", err)
+	}
+	if err := repo.Save(ctx, off); err != nil {
+		t.Fatalf("Save off: %v", err)
+	}
+	gotOn, _ := repo.Get(ctx, "rmd-as-on")
+	gotOff, _ := repo.Get(ctx, "rmd-as-off")
+	if !gotOn.DeliverAsCreator() {
+		t.Errorf("deliver_as_creator=true did not round-trip")
+	}
+	if gotOff.DeliverAsCreator() {
+		t.Errorf("deliver_as_creator=false did not round-trip")
+	}
+	// An edit (pause) must not clear the flag.
+	if err := gotOn.Pause(t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Update(ctx, gotOn); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	again, _ := repo.Get(ctx, "rmd-as-on")
+	if !again.DeliverAsCreator() {
+		t.Errorf("deliver_as_creator must survive an unrelated Update")
+	}
+}
+
 func TestRepo_Get_NotFound(t *testing.T) {
 	ctx, repo := setup(t)
 	if _, err := repo.Get(ctx, "missing"); err != reminder.ErrReminderNotFound {
@@ -148,5 +193,41 @@ func TestRepo_AppendFiring(t *testing.T) {
 		Outcome: reminder.OutcomeSkippedOverlap, Detail: "still running",
 	}); err != nil {
 		t.Fatalf("AppendFiring 2: %v", err)
+	}
+}
+
+func TestRepo_HasPendingFiring(t *testing.T) {
+	ctx, repo := setup(t)
+	r := newOnce(t, "rmd-p")
+	_ = repo.Save(ctx, r)
+
+	// No firings yet → not in flight.
+	if pending, err := repo.HasPendingFiring(ctx, "rmd-p"); err != nil || pending {
+		t.Fatalf("no firings: pending=%v err=%v, want false", pending, err)
+	}
+	// A delivered firing is processed → not in flight.
+	_ = repo.AppendFiring(ctx, reminder.Firing{
+		ID: "f-delivered", ReminderID: "rmd-p", FiredAt: t0.Add(time.Hour),
+		Outcome: reminder.OutcomeDelivered,
+	})
+	// A skipped_overlap row is not a dispatch → not in flight.
+	_ = repo.AppendFiring(ctx, reminder.Firing{
+		ID: "f-skipped", ReminderID: "rmd-p", FiredAt: t0.Add(90 * time.Minute),
+		Outcome: reminder.OutcomeSkippedOverlap,
+	})
+	if pending, err := repo.HasPendingFiring(ctx, "rmd-p"); err != nil || pending {
+		t.Fatalf("delivered+skipped only: pending=%v err=%v, want false", pending, err)
+	}
+	// A pending firing = dispatched-but-undelivered → in flight.
+	_ = repo.AppendFiring(ctx, reminder.Firing{
+		ID: "f-pending", ReminderID: "rmd-p", FiredAt: t0.Add(2 * time.Hour),
+		Outcome: reminder.OutcomePending,
+	})
+	if pending, err := repo.HasPendingFiring(ctx, "rmd-p"); err != nil || !pending {
+		t.Fatalf("with pending firing: pending=%v err=%v, want true", pending, err)
+	}
+	// Scoped per reminder: another reminder's pending must not leak.
+	if pending, err := repo.HasPendingFiring(ctx, "rmd-other"); err != nil || pending {
+		t.Fatalf("other reminder: pending=%v err=%v, want false", pending, err)
 	}
 }

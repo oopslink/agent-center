@@ -25,6 +25,22 @@ func (d *reminderDirectory) IsOwner(_ context.Context, ref string) bool {
 	return strings.HasPrefix(ref, "user:")
 }
 
+// scanMember folds one member's identity ref into the (remindeeIn, creatorIn)
+// flags. remindee and creator are matched with INDEPENDENT ifs, never a switch:
+// for a self-reminder remindeeRef == creatorRef, and a switch would run only its
+// first matching case — leaving creatorIn false, so the project would not count
+// as creator+remindee shared and the aggregate would wrongly reject with
+// ErrCrossProjectReminder (T229; design 03-reminder.md Invariant #4 self-reminder).
+func scanMember(ref, remindeeRef, creatorRef string, remindeeIn, creatorIn bool) (bool, bool) {
+	if ref == remindeeRef {
+		remindeeIn = true
+	}
+	if ref == creatorRef {
+		creatorIn = true
+	}
+	return remindeeIn, creatorIn
+}
+
 // ResolveReminderContext finds the project the reminder lives in (one the remindee
 // is a member of) within orgID, and — for an agent creator — confirms the creator
 // shares that project so the guard passes. Owner (user) creators bypass the guard.
@@ -46,12 +62,7 @@ func (d *reminderDirectory) ResolveReminderContext(ctx context.Context, orgID, c
 		}
 		remindeeIn, creatorIn := false, false
 		for _, m := range members {
-			switch string(m.IdentityID()) {
-			case remindeeRef:
-				remindeeIn = true
-			case creatorRef:
-				creatorIn = true
-			}
+			remindeeIn, creatorIn = scanMember(string(m.IdentityID()), remindeeRef, creatorRef, remindeeIn, creatorIn)
 		}
 		if !remindeeIn {
 			continue
@@ -93,11 +104,12 @@ func buildReminderService(a *App) *cogservice.ReminderAppService {
 }
 
 // conversationDeliverer is the concrete cognition ReminderDeliverer (design §3.4,
-// option A): on a fired reminder it opens a system↔remindee DM and posts the
-// content as a `system` sender. The EXISTING WakeProjector then wakes the remindee
-// (a DM message whose sender is not the agent wakes the agent participant). Anti-
-// loop: the woken agent is the remindee only; cognition.reminder.fired is never on
-// the supervisor self-wake allowlist.
+// option A): on a fired reminder it opens a DM to the remindee and posts the
+// content. The sender identity is the system by default, OR the reminder's CREATOR
+// when deliver_as_creator is set (F-B). The EXISTING WakeProjector then wakes the
+// remindee (a DM message whose sender is not the remindee agent wakes the agent
+// participant). Anti-loop: the woken agent is the remindee only;
+// cognition.reminder.fired is never on the supervisor self-wake allowlist.
 type conversationDeliverer struct {
 	writer *convservice.MessageWriter
 	idGen  cogservice.IDGenerator
@@ -107,13 +119,14 @@ type conversationDeliverer struct {
 // clockNow is the slice of clock.Clock the deliverer needs.
 type clockNow interface{ Now() time.Time }
 
-func (d *conversationDeliverer) Deliver(ctx context.Context, orgID, remindeeAgentID, content, _ string) error {
-	remindeeRef := conversation.IdentityRef("agent:" + remindeeAgentID)
+func (d *conversationDeliverer) Deliver(ctx context.Context, req cogservice.DeliveryRequest) error {
+	remindeeRef := conversation.IdentityRef("agent:" + req.RemindeeAgentID)
+	sender := deliverySender(req, remindeeRef)
 	now := d.clk.Now().UTC().Format(time.RFC3339Nano)
 	res, err := d.writer.OpenConversation(ctx, convservice.OpenCommand{
 		Kind:           conversation.ConversationKindDM,
 		Name:           "Reminder",
-		OrganizationID: orgID,
+		OrganizationID: req.OrganizationID,
 		Participants: []conversation.ParticipantElement{{
 			IdentityID: remindeeRef, Role: "member", JoinedAt: now, JoinedBy: conversation.IdentityRef("system"),
 		}},
@@ -125,33 +138,57 @@ func (d *conversationDeliverer) Deliver(ctx context.Context, orgID, remindeeAgen
 	}
 	_, err = d.writer.AddMessage(ctx, convservice.AddMessageCommand{
 		ConversationID:   res.ConversationID,
-		SenderIdentityID: conversation.IdentityRef("system"),
+		SenderIdentityID: sender,
 		ContentKind:      conversation.MessageContentText,
 		Direction:        conversation.DirectionOutbound,
-		Content:          content,
+		Content:          req.Content,
 		Actor:            observability.Actor("system"),
 	})
 	return err
 }
 
+// deliverySender picks the message sender identity (F-B). Default: system. When
+// deliver_as_creator is set and a creator ref is known, deliver as the creator —
+// EXCEPT a self-reminder (creator == the remindee agent): the WakeProjector excludes
+// a message's own sender from the wake, so delivering a self-reminder as the
+// remindee would silently NOT wake it. For that case we fall back to system so the
+// remindee is still woken.
+func deliverySender(req cogservice.DeliveryRequest, remindeeRef conversation.IdentityRef) conversation.IdentityRef {
+	const system = conversation.IdentityRef("system")
+	if !req.DeliverAsCreator || strings.TrimSpace(req.CreatorRef) == "" {
+		return system
+	}
+	if req.CreatorRef == string(remindeeRef) {
+		return system // self-reminder: keep system sender so the remindee still wakes.
+	}
+	return conversation.IdentityRef(req.CreatorRef)
+}
+
 // buildReminderDeliveryProjector builds the fired→deliver projector (for the
 // outbox Relay). Returns nil if the conversation writer is missing.
 func buildReminderDeliveryProjector(a *App) *cogservice.ReminderDeliveryProjector {
-	if a == nil || a.MessageWriter == nil {
+	if a == nil || a.MessageWriter == nil || a.DB == nil {
 		return nil
 	}
-	return cogservice.NewReminderDeliveryProjector(&conversationDeliverer{writer: a.MessageWriter, idGen: a.IDGen, clk: a.Clock})
+	// The repo doubles as the FiringMarker: after delivery the projector resolves
+	// the firing pending→delivered so the recorded outcome reflects reality.
+	repo := remindersqlite.NewReminderRepo(a.DB)
+	return cogservice.NewReminderDeliveryProjector(
+		&conversationDeliverer{writer: a.MessageWriter, idGen: a.IDGen, clk: a.Clock}, repo)
 }
 
 // buildReminderTickHook builds the per-tick scan→fire hook for pump.WithTickHook.
 // Returns nil if prerequisites are missing. logf reports scan errors (the next
 // tick retries — FindDue is idempotent).
 func buildReminderTickHook(a *App, logf func(string)) func(context.Context) {
-	if a == nil || a.DB == nil || a.Sink == nil || a.IDGen == nil {
+	if a == nil || a.DB == nil || a.Sink == nil || a.OutboxRepo == nil || a.IDGen == nil {
 		return nil
 	}
 	repo := remindersqlite.NewReminderRepo(a.DB)
-	scheduler := cogservice.NewReminderScheduler(a.DB, repo, a.Sink, a.IDGen)
+	// OutboxRepo is REQUIRED: the fired event must land in the outbox so the
+	// delivery projector wakes the remindee (F1). Same DB-backed outbox the relay
+	// drains, so the Append and the projector see one table.
+	scheduler := cogservice.NewReminderScheduler(a.DB, repo, a.Sink, a.OutboxRepo, a.IDGen)
 	tp := cogservice.NewReminderTickProjector(scheduler, a.Clock, func(err error) {
 		if logf != nil {
 			logf("reminder tick: " + err.Error())

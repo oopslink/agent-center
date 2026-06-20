@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/oopslink/agent-center/internal/cognition/reminder"
 	"github.com/oopslink/agent-center/internal/outbox"
 )
 
@@ -21,29 +22,57 @@ import (
 // to the supervisor self-wake allowlist, so a reminder cannot spiral.
 type ReminderDeliverer interface {
 	// Deliver posts the reminder content to the remindee agent's conversation,
-	// org-scoped (orgID drives the conversation's org).
-	Deliver(ctx context.Context, orgID, remindeeAgentID, content, reminderID string) error
+	// org-scoped (req.OrganizationID drives the conversation's org). The delivery
+	// identity (system vs creator) is selected from req per F-B.
+	Deliver(ctx context.Context, req DeliveryRequest) error
+}
+
+// DeliveryRequest is the input to a ReminderDeliverer: the org/remindee/content to
+// post, plus the delivery-identity selector (F-B). When DeliverAsCreator is set the
+// concrete deliverer posts as CreatorRef rather than the system identity (with a
+// self-reminder guard so the remindee is still woken — see the cli deliverer).
+type DeliveryRequest struct {
+	OrganizationID   string
+	RemindeeAgentID  string
+	Content          string
+	ReminderID       string
+	CreatorRef       string
+	DeliverAsCreator bool
 }
 
 // reminderFiredPayload is the subset of the fired event payload the projector needs.
 type reminderFiredPayload struct {
-	ReminderID      string `json:"reminder_id"`
-	RemindeeAgentID string `json:"remindee_agent_id"`
-	Content         string `json:"content"`
-	OrganizationID  string `json:"organization_id"`
+	ReminderID       string `json:"reminder_id"`
+	RemindeeAgentID  string `json:"remindee_agent_id"`
+	Content          string `json:"content"`
+	OrganizationID   string `json:"organization_id"`
+	CreatorRef       string `json:"creator_ref"`
+	DeliverAsCreator bool   `json:"deliver_as_creator"`
+	FiringID         string `json:"firing_id"`
+}
+
+// FiringMarker resolves a fired firing's final outcome once delivery completes
+// (pending → delivered). A narrow port keeps the projector unit-testable; the
+// sqlite ReminderRepo satisfies it.
+type FiringMarker interface {
+	UpdateFiringOutcome(ctx context.Context, firingID string, outcome reminder.FiringOutcome) error
 }
 
 // ReminderDeliveryProjector consumes cognition.reminder.fired and delivers the
 // reminder to the remindee (§3.4). It is an outbox.Projector; the Relay guards
 // (projector, event) idempotency (at-least-once delivery). Non-fired events are
 // ignored. A delivery error leaves the event unprocessed for retry next pass.
+// After a successful delivery it resolves the firing pending→delivered so the
+// recorded outcome reflects reality (and skip_if_overlap no longer sees overlap).
 type ReminderDeliveryProjector struct {
 	deliverer ReminderDeliverer
+	firings   FiringMarker
 }
 
-// NewReminderDeliveryProjector wires the projector to a deliverer.
-func NewReminderDeliveryProjector(deliverer ReminderDeliverer) *ReminderDeliveryProjector {
-	return &ReminderDeliveryProjector{deliverer: deliverer}
+// NewReminderDeliveryProjector wires the projector to a deliverer and the firing
+// marker that records the delivered outcome.
+func NewReminderDeliveryProjector(deliverer ReminderDeliverer, firings FiringMarker) *ReminderDeliveryProjector {
+	return &ReminderDeliveryProjector{deliverer: deliverer, firings: firings}
 }
 
 // compile-time check: it is an outbox projector.
@@ -64,5 +93,24 @@ func (p *ReminderDeliveryProjector) Project(ctx context.Context, e outbox.Event)
 	if pl.RemindeeAgentID == "" {
 		return fmt.Errorf("reminder delivery: event %s missing remindee_agent_id", e.ID)
 	}
-	return p.deliverer.Deliver(ctx, pl.OrganizationID, pl.RemindeeAgentID, pl.Content, pl.ReminderID)
+	if err := p.deliverer.Deliver(ctx, DeliveryRequest{
+		OrganizationID:   pl.OrganizationID,
+		RemindeeAgentID:  pl.RemindeeAgentID,
+		Content:          pl.Content,
+		ReminderID:       pl.ReminderID,
+		CreatorRef:       pl.CreatorRef,
+		DeliverAsCreator: pl.DeliverAsCreator,
+	}); err != nil {
+		return err
+	}
+	// Delivered → resolve the firing pending→delivered. Older events without a
+	// firing_id (or a nil marker in tests) simply skip the write-back. If this
+	// fails the relay retries the whole event; Deliver is at-least-once and the
+	// update is idempotent, so a redelivery converges.
+	if pl.FiringID != "" && p.firings != nil {
+		if err := p.firings.UpdateFiringOutcome(ctx, pl.FiringID, reminder.OutcomeDelivered); err != nil {
+			return fmt.Errorf("reminder delivery: mark firing %s delivered: %w", pl.FiringID, err)
+		}
+	}
+	return nil
 }
