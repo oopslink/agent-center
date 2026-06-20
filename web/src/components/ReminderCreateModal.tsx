@@ -12,33 +12,34 @@ import { Avatar } from './Avatar';
 // =============================================================================
 
 const CRON_PRESETS: ReadonlyArray<{ label: string; expr: string }> = [
-  { label: '每小时', expr: '0 * * * *' },
-  { label: '每天 09:00', expr: '0 9 * * *' },
-  { label: '工作日 18:00', expr: '0 18 * * 1-5' },
-  { label: '每周一 09:00', expr: '0 9 * * 1' },
-  { label: '每 30 分钟', expr: '*/30 * * * *' },
+  { label: 'Hourly', expr: '0 * * * *' },
+  { label: 'Daily 09:00', expr: '0 9 * * *' },
+  { label: 'Weekdays 18:00', expr: '0 18 * * 1-5' },
+  { label: 'Mondays 09:00', expr: '0 9 * * 1' },
+  { label: 'Every 30 min', expr: '*/30 * * * *' },
 ];
 
 const browserTz =
   typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
 
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // cronHuman renders a best-effort natural-language gloss for the common shapes
-// the presets cover (the mockup's "人话预览"); unknown exprs fall back to raw.
+// the presets cover (the mockup's plain-language preview); unknown exprs fall
+// back to raw.
 function cronHuman(expr: string): string {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return expr;
   const [min, hr, dom, mon, dow] = parts;
   const hhmm = (h: string, m: string) => `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
-  if (min === '*/30' && hr === '*') return '每 30 分钟';
-  if (hr === '*' && min === '0') return '每小时整点';
+  if (min === '*/30' && hr === '*') return 'Every 30 minutes';
+  if (hr === '*' && min === '0') return 'Every hour, on the hour';
   if (dom === '*' && mon === '*') {
     const time = /^\d+$/.test(hr) && /^\d+$/.test(min) ? hhmm(hr, min) : `${hr}:${min}`;
-    if (dow === '*') return `每天 ${time}`;
-    if (dow === '1-5') return `每周一至周五 ${time}`;
-    if (/^\d$/.test(dow)) return `每${WEEKDAYS[Number(dow)]} ${time}`;
-    return `每周(${dow}) ${time}`;
+    if (dow === '*') return `Daily at ${time}`;
+    if (dow === '1-5') return `Weekdays at ${time}`;
+    if (/^\d$/.test(dow)) return `Every ${WEEKDAYS[Number(dow)]} at ${time}`;
+    return `Weekly (${dow}) at ${time}`;
   }
   return expr;
 }
@@ -71,8 +72,8 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
     if (!onceDate) return '—';
     const dt = new Date(`${onceDate}T${onceTime}:00`);
     const hrs = Math.round((dt.getTime() - Date.now()) / 3.6e6);
-    const rel = hrs > 0 ? `约 ${hrs} 小时后` : '已过期';
-    return `${onceDate} ${onceTime} 触发一次 · ${rel} · 时区 ${tz}`;
+    const rel = hrs > 0 ? `in ~${hrs}h` : 'Overdue';
+    return `Fires once at ${onceDate} ${onceTime} · ${rel} · TZ ${tz}`;
   }, [onceDate, onceTime, tz]);
 
   function submit(): void {
@@ -91,7 +92,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
         deliver_as_creator: deliverAsCreator,
         end_condition,
       },
-      { onSuccess: () => onClose(), onError: (e) => setErr(e instanceof Error ? e.message : '创建失败') },
+      { onSuccess: () => onClose(), onError: (e) => setErr(e instanceof Error ? e.message : 'Failed to create') },
     );
   }
 
@@ -100,22 +101,22 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="新建提醒"
+      aria-label="New reminder"
       data-testid="reminder-create-modal"
     >
       <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-xl bg-bg-elevated shadow-xl">
         <div className="flex items-center justify-between border-b border-border-base px-5 py-3">
-          <h4 className="text-base font-semibold text-text-primary">新建提醒</h4>
-          <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="关闭">
+          <h4 className="text-base font-semibold text-text-primary">New reminder</h4>
+          <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
             {/* ASCII close glyph (no-emoji-icons a11y guardrail); aria-label carries the name. */}
             <span aria-hidden="true">X</span>
           </button>
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          {/* 提醒对象 — agent pills */}
+          {/* Remindee — agent pills */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-text-secondary">提醒对象</label>
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">Remindee</label>
             <div className="flex flex-wrap gap-1.5" data-testid="reminder-remindee-pills">
               {(agents ?? []).map((a) => {
                 const on = remindee === a.id;
@@ -136,13 +137,13 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
                 );
               })}
             </div>
-            <p className="mt-1.5 text-xs text-text-muted">可选同 project 的同伴 agent（护栏：仅同 project · 创建留审计）。</p>
+            <p className="mt-1.5 text-xs text-text-muted">Pick a peer agent in the same project (guardrail: same project only · creation is audited).</p>
           </div>
 
-          {/* 触发方式 */}
+          {/* Trigger type */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-text-secondary">触发方式</label>
-            <div className="inline-flex rounded-md bg-bg-subtle p-0.5" role="tablist" aria-label="触发方式">
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">Trigger</label>
+            <div className="inline-flex rounded-md bg-bg-subtle p-0.5" role="tablist" aria-label="Trigger type">
               {(['once', 'cron'] as const).map((k) => (
                 <button
                   key={k}
@@ -153,7 +154,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
                   onClick={() => setKind(k)}
                   className={`rounded px-3 py-1 text-xs font-semibold ${kind === k ? 'bg-brand text-white' : 'text-text-secondary'}`}
                 >
-                  {k === 'once' ? '一次性' : '周期 (cron)'}
+                  {k === 'once' ? 'Once' : 'Recurring (cron)'}
                 </button>
               ))}
             </div>
@@ -162,11 +163,11 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
           {kind === 'cron' ? (
             <>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-text-secondary">Cron 表达式</label>
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">Cron expression</label>
                 <input
                   value={cronExpr}
                   onChange={(e) => setCronExpr(e.target.value)}
-                  placeholder="分 时 日 月 周"
+                  placeholder="min hour day month weekday"
                   className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 font-mono text-sm"
                   data-testid="reminder-cron"
                 />
@@ -189,21 +190,21 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
                   className="mt-2.5 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info"
                   data-testid="reminder-preview"
                 >
-                  <span>{cronHuman(cronExpr)} 触发 · 时区 {tz}</span>
+                  <span>{cronHuman(cronExpr)} · TZ {tz}</span>
                 </div>
                 <input
                   value={tz}
                   onChange={(e) => setTz(e.target.value)}
-                  aria-label="时区"
+                  aria-label="Timezone"
                   className="mt-2 w-full rounded-md border border-border-base bg-bg-base px-3 py-2 text-sm"
                 />
               </div>
-              {/* 高级 */}
+              {/* Advanced */}
               <div className="space-y-2 rounded-lg border border-border-base p-3">
                 <label className="flex items-center justify-between gap-2 text-xs text-text-secondary">
                   <span>
-                    上次未处理完则跳过本次
-                    <span className="block text-text-muted">避免周期触发堆积（默认开）</span>
+                    Skip this run if the previous one is unfinished
+                    <span className="block text-text-muted">Avoids pile-up of recurring fires (on by default)</span>
                   </span>
                   <input
                     type="checkbox"
@@ -214,8 +215,8 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
                 </label>
                 <label className="flex items-center justify-between gap-2 text-xs text-text-secondary">
                   <span>
-                    结束条件
-                    <span className="block text-text-muted">永不结束 · 可设截止或最多触发 N 次</span>
+                    End condition
+                    <span className="block text-text-muted">Never ends · or set an end date or max N fires</span>
                   </span>
                   <select
                     value={endKind}
@@ -223,16 +224,16 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
                     className="rounded-md border border-border-base bg-bg-base px-2 py-1 text-xs"
                     data-testid="reminder-end-kind"
                   >
-                    <option value="never">永不结束</option>
-                    <option value="until">截止日期</option>
-                    <option value="max_count">最多 N 次</option>
+                    <option value="never">Never</option>
+                    <option value="until">Until date</option>
+                    <option value="max_count">Max N times</option>
                   </select>
                 </label>
               </div>
             </>
           ) : (
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-text-secondary">触发时间</label>
+              <label className="mb-1.5 block text-xs font-medium text-text-secondary">Trigger time</label>
               <div className="flex gap-2">
                 <input
                   type="date"
@@ -258,30 +259,30 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
             </div>
           )}
 
-          {/* 内容 */}
+          {/* Content */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-text-secondary">提醒内容</label>
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">Reminder content</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={2}
-              placeholder="到点会作为一条 directed message 唤醒目标 agent"
+              placeholder="At trigger time this wakes the target agent as a directed message"
               className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 text-sm"
               data-testid="reminder-content"
             />
           </div>
 
-          {/* 以本人身份创建提醒文本 (F-B) — 蓝色 toggle, 两态共用, 默认开 */}
+          {/* Send as yourself (F-B) — brand toggle, shared by both modes, on by default */}
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-text-secondary">
-              以本人身份创建提醒文本
-              <span className="block text-text-muted">到点的提醒消息以创建者身份发出（关闭则以系统身份）。</span>
+              Send as yourself
+              <span className="block text-text-muted">The fired reminder is sent as the creator (off = sent as system).</span>
             </div>
             <button
               type="button"
               role="switch"
               aria-checked={deliverAsCreator}
-              aria-label="以本人身份创建提醒文本"
+              aria-label="Send as yourself"
               onClick={() => setDeliverAsCreator((v) => !v)}
               data-testid="reminder-deliver-as-creator"
               className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
@@ -304,10 +305,10 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
         </div>
 
         <div className="flex items-center justify-between border-t border-border-base px-5 py-3">
-          <p className="text-xs text-text-muted">创建者：你 · 记入审计</p>
+          <p className="text-xs text-text-muted">Creator: you · audited</p>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">
-              取消
+              Cancel
             </button>
             <button
               type="button"
@@ -316,7 +317,7 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
               className="rounded-md bg-brand px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               data-testid="reminder-submit"
             >
-              {create.isPending ? '创建中…' : '创建提醒'}
+              {create.isPending ? 'Creating…' : 'Create reminder'}
             </button>
           </div>
         </div>

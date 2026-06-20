@@ -7,9 +7,9 @@ import { useReminder } from '@/api/reminders';
 // =============================================================================
 
 const OUTCOME_LABEL: Record<string, string> = {
-  delivered: '已投递',
-  skipped_overlap: '重叠跳过',
-  failed: '失败',
+  delivered: 'Delivered',
+  skipped_overlap: 'Skipped (overlap)',
+  failed: 'Failed',
 };
 
 interface Props {
@@ -26,38 +26,38 @@ export function ReminderDetailModal({ slug, reminderId, onClose }: Props): React
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="提醒详情"
+      aria-label="Reminder details"
       data-testid="reminder-detail-modal"
     >
       <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-xl bg-bg-elevated shadow-xl">
         <div className="flex items-center justify-between border-b border-border-base px-5 py-3">
-          <h4 className="text-base font-semibold text-text-primary">提醒详情</h4>
-          <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="关闭">
+          <h4 className="text-base font-semibold text-text-primary">Reminder details</h4>
+          <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
             {/* ASCII close glyph (no-emoji-icons a11y guardrail); aria-label carries the name. */}
             <span aria-hidden="true">X</span>
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 text-sm">
-          {isLoading && <p className="text-text-muted">加载中…</p>}
+          {isLoading && <p className="text-text-muted">Loading…</p>}
           {data && (
             <>
-              <Row label="对象">{data.remindee_agent_id}</Row>
-              <Row label="触发">
+              <Row label="Target">{data.remindee_agent_id}</Row>
+              <Row label="Trigger">
                 {data.schedule.kind === 'cron' ? (
                   <span className="font-mono text-xs">{data.schedule.cron_expr} · {data.schedule.timezone}</span>
                 ) : (
                   <span>{data.schedule.once_at}</span>
                 )}
               </Row>
-              <Row label="内容">{data.content}</Row>
-              <Row label="状态">{data.status}</Row>
-              <Row label="已触发">{data.fired_count} 次</Row>
+              <Row label="Content">{data.content}</Row>
+              <Row label="Status">{data.status}</Row>
+              <Row label="Fired">{data.fired_count}×</Row>
 
               <div className="pt-1">
-                <div className="mb-1 text-xs font-semibold text-text-secondary">历史触发</div>
+                <div className="mb-1 text-xs font-semibold text-text-secondary">Firing history</div>
                 {data.firings.length === 0 ? (
                   <p className="text-xs text-text-muted" data-testid="reminder-firings-empty">
-                    还没有触发记录。
+                    No firings yet.
                   </p>
                 ) : (
                   <ul className="space-y-1" data-testid="reminder-firings">

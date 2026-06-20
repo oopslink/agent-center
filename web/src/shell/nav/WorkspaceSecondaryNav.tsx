@@ -54,8 +54,8 @@ function TopLevelWorkspaceNav({ orgBase }: { orgBase: string }): React.ReactElem
     { to: `${orgBase}/tasks`, label: 'Tasks', Icon: TaskIcon },
     // v2.10.2 [T142]: "Plan" → "Plans" (plural, consistent with the siblings).
     { to: `${orgBase}/plans`, label: 'Plans', Icon: PlanIcon },
-    // T207 [提醒-3]: Reminders (Cognition BC). Placement per owner — adjustable.
-    { to: `${orgBase}/reminders`, label: 'Reminders', Icon: ReminderIcon },
+    // T207: Reminders moved OUT to a top-level module (peer of Members) — see
+    // buildModules() in AppLayout. It is no longer a Workspace col② item.
   ];
   return (
     <div data-testid="workspace-nav-toplevel">
@@ -190,15 +190,6 @@ function PlanIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M10 2.5 17.5 10 10 17.5 2.5 10z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-// T207: Reminders ⏰ — a clock glyph for the Workspace nav entry.
-function ReminderIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <circle cx="10" cy="11" r="6" />
-      <path d="M10 8v3l2 1.5M6 3.5 3.5 6M14 3.5 16.5 6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
