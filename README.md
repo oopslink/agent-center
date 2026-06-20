@@ -50,7 +50,7 @@ Default ports (loopback Web Console, plus the admin endpoint workers dial):
 
 ```bash
 # From the release tarball, on the host machine:
-cd agent-center-v2.11.0-<os>-<arch>/
+cd agent-center-v2.12.0-<os>-<arch>/
 ./install center
 # Default = FOREGROUND: drops files + config, then prints the run command:
 agent-center server --config=<prefix>/etc/config.yaml   # logs to stdout
@@ -141,11 +141,11 @@ For a quick trial, a developer install, or onboarding a worker without a prebuil
 curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh | bash
 
 # Pinned-tag Center install (recommended for anything stable):
-curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/v2.11.0/install.sh | bash -s -- center --version v2.11.0
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/v2.12.0/install.sh | bash -s -- center --version v2.12.0
 
 # Worker install — use the command the Web Console "Add Worker" generates:
 curl -fsSL .../install.sh | bash -s -- worker \
-  --version v2.11.0 --center tcp://HOST:7300 \
+  --version v2.12.0 --center tcp://HOST:7300 \
   --server-fingerprint sha256:... --token enroll_... --worker-name my-box
 
 # Preview everything first — clones/builds/installs nothing:
@@ -254,7 +254,7 @@ Documentation entry points:
 make build                  # frontend (vite) + backend (go) + worker-daemon + fakeagent
                             # produces ./bin/{agent-center, agent-center-worker-daemon, fakeagent}
 
-VERSION=v2.11.0 make build  # build with a specific version
+VERSION=v2.12.0 make build  # build with a specific version
 ```
 
 The frontend SPA is built first (`web/` → `internal/webconsole/spa/dist/`) and then embedded into the Go binary via `go:embed`, so a single binary ships the full Web Console.

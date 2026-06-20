@@ -11,6 +11,37 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.12.0] — 2026-06-20
+
+Agent@Agent 唤醒护栏（wake guardrail）+ configurable thresholds — agent→agent wake storms are circuit-broken by four gates, human intent always delivers, and the thresholds are live-editable from System → Settings.
+
+### Added
+
+- **Wake-chain guardrail (I7).** Agent→agent wakes now pass through a four-gate guard on the
+  live delivery path (`WakeProjector`): **depth** (max chain depth), **cycle** (A↔B round-trip
+  detection in a window), **rate** (per-target wakes/min), and **cost** (per-chain token budget).
+  Depth & cost accumulate across hops via per-agent chain state. A wake that trips a gate is
+  suppressed with an observable trace. **Human-originated wakes bypass all gates** — human intent
+  always delivers.
+- **Configurable thresholds (live).** The five thresholds (`max_depth` / `cycle_window_sec` /
+  `cycle_threshold` / `rate_per_min` / `chain_token_budget`) are editable from **System →
+  Settings** and take effect **without restart** (the guard reads live center settings each
+  evaluation), over `GET/PUT /api/system/wake-guardrail`. Invalid values (e.g. `0`) are rejected
+  atomically (HTTP 400 `invalid_config`).
+- **Mention semantics (I7-D2).** Agent @mentions are "may-reply" with silent-acknowledge — an
+  agent mention no longer hard-interrupts to a stop point; existing mention authorization is
+  unchanged.
+- **Version is now a top-level System page** (sibling to Settings / Environment), moved out of
+  the Settings panel.
+
+### Fixed
+
+- **Settings PUT no longer 501 (T245).** The production `runWebConsole` path was missing the
+  `SettingsStore` wiring, so saving guardrail thresholds returned `501 settings store not
+  configured`; now wired and persisted.
+
+---
+
 ## [v2.11.0] — 2026-06-20
 
 Agent 提醒 / 定时（Reminder）— agents and humans can schedule one-time or recurring (cron) reminders that wake a target agent at the due time.
