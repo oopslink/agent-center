@@ -64,9 +64,12 @@ var secondaryTools = []struct{ name, summary string }{
 	// plan shared findings
 	{"record_finding", "record a shared finding on a plan"},
 	{"list_findings", "list a plan's shared findings"},
-	// files
-	{"upload_file", "upload a file from the agent workspace to the center"},
-	{"download_file", "download a center file into the agent workspace"},
+	// files — T247 (issue-2dfd42a1): download_file + upload_file are CORE (kept
+	// OUT of this deferred manifest). An agent that receives an image/file
+	// attachment must be able to fetch it WITHOUT first discovering the tool via
+	// search_tools — the wake-message hint tells it to call download_file
+	// directly, and post_message attachments depend on upload_file. attach_file
+	// (rarer — re-scoping an existing blob) stays deferred.
 	{"attach_file", "attach an existing center file into a scope"},
 }
 

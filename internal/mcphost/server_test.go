@@ -469,8 +469,11 @@ func TestSearchTools_LoadsDeferred(t *testing.T) {
 	if !toolPresent(t, cs, "create_plan") {
 		t.Errorf("create_plan should be loaded after search_tools query=plan")
 	}
-	if toolPresent(t, cs, "upload_file") {
-		t.Errorf("upload_file should stay deferred (did not match query=plan)")
+	// attach_file is a deferred file tool that does NOT match query=plan, so it
+	// stays out. (download_file/upload_file are CORE since T247, so they would
+	// always be present — not a valid "stays deferred" example.)
+	if toolPresent(t, cs, "attach_file") {
+		t.Errorf("attach_file should stay deferred (did not match query=plan)")
 	}
 }
 

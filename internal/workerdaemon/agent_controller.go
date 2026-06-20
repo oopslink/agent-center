@@ -870,7 +870,10 @@ func buildConverseBrief(pl conversePayload) string {
 		if pl.AttachmentCount > 1 {
 			noun = "attachments"
 		}
-		body = fmt.Sprintf("%s\n\n[This message has %d file %s. Call get_my_unread to get their file_uri(s), then download_file to view them.]", body, pl.AttachmentCount, noun)
+		// T247 (issue-2dfd42a1): download_file is a CORE tool (always in the agent's
+		// surface), so this hint is actionable as-is. It SAVES the blob into the
+		// workspace — to view an image, download_file it then read the saved file.
+		body = fmt.Sprintf("%s\n\n[This message has %d file %s. Call get_my_unread to get their file_uri(s), then download_file each into your workspace and read the saved file (images included) to view them.]", body, pl.AttachmentCount, noun)
 	}
 	return fmt.Sprintf("%s\n%s\n\n%s", header, body, replyHint)
 }
