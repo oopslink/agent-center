@@ -60,6 +60,12 @@ func (m *Migrator) Up(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Repair DBs left inconsistent by the historical 0064 version collision
+	// before the apply loop — on a "State B" DB the renumbered 0065 would
+	// otherwise crash with a duplicate-column error (see the method doc).
+	if err := m.reconcileLegacy0064Collision(ctx, applied); err != nil {
+		return fmt.Errorf("reconcile 0064 collision: %w", err)
+	}
 	all, err := m.loadMigrations()
 	if err != nil {
 		return err
@@ -73,6 +79,94 @@ func (m *Migrator) Up(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// reconcileLegacy0064Collision repairs DBs left inconsistent by the historical
+// 0064 version collision: two DIFFERENT migrations were both numbered 0064 —
+// center_settings (T216) and agent_llm_config (T236) — fixed structurally by
+// renumbering agent_llm_config -> 0065 in d34dfe20.
+//
+// That renumber self-heals "State A" DBs (center_settings won the 0064 slot, so
+// the agent_llm_config ADD COLUMNs never ran): the new 0065 adds the missing
+// columns on the next Up. It does NOT handle "State B" DBs — ones that ran an
+// intermediate build where agent_llm_config was the SOLE 0064. On those:
+//   - agents already has reasoning/mode/provider (added under version 64), and
+//   - center_settings was never created (its 0064 slot was consumed and recorded
+//     as applied, so the renumbered 0064_center_settings is skipped forever).
+//
+// On such a DB the renumbered 0065_agent_llm_config re-runs `ALTER TABLE agents
+// ADD COLUMN reasoning` and crashes startup with "duplicate column name".
+//
+// This runs once before the apply loop and, ONLY when the State B fingerprint
+// matches (v64 applied, v65 not, agents.reasoning already present), creates the
+// missing center_settings table and records version 65 as applied so the apply
+// loop skips the colliding 0065. Idempotent and a no-op on every other DB shape
+// (fresh, State A, already-healed). Mutates `applied` so the caller's apply loop
+// sees version 65 as done.
+func (m *Migrator) reconcileLegacy0064Collision(ctx context.Context, applied map[int]bool) error {
+	if !applied[64] || applied[65] {
+		return nil
+	}
+	hasReasoning, err := m.columnExists(ctx, "agents", "reasoning")
+	if err != nil {
+		return err
+	}
+	if !hasReasoning {
+		// State A (column missing): let 0065 add the columns normally.
+		return nil
+	}
+	if err := RunInTx(ctx, m.db, func(txCtx context.Context) error {
+		exec, err := ExecutorFromCtx(txCtx, m.db)
+		if err != nil {
+			return err
+		}
+		// The center_settings table the consumed 0064 slot never created here;
+		// DDL mirrors 0064_center_settings.up.sql.
+		if _, err := exec.ExecContext(txCtx, `CREATE TABLE IF NOT EXISTS center_settings (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )`); err != nil {
+			return err
+		}
+		// Record 0065 as applied: its columns already exist, so re-running its
+		// ALTERs would fail. INSERT OR IGNORE keeps this idempotent.
+		_, err = exec.ExecContext(txCtx,
+			`INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (65, 'agent_llm_config', datetime('now'))`)
+		return err
+	}); err != nil {
+		return err
+	}
+	applied[65] = true
+	return nil
+}
+
+// columnExists reports whether table has a column named col, via PRAGMA
+// table_info. table is a trusted internal literal (PRAGMA does not accept a
+// bound parameter for the table name).
+func (m *Migrator) columnExists(ctx context.Context, table, col string) (bool, error) {
+	rows, err := m.db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%q)", table))
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cid       int
+			name      string
+			ctype     string
+			notnull   int
+			dfltValue sql.NullString
+			pk        int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return false, err
+		}
+		if name == col {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 // Down reverts migrations until current version == target.
