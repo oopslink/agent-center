@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
+	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
+	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/idgen"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -13,6 +15,40 @@ import (
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
+
+// TestDeliverySender covers F-B's delivery-identity selection + the self-reminder
+// wake guard: deliver_as_creator posts as the creator EXCEPT when the creator is
+// the remindee agent (a self-reminder), where the WakeProjector excludes the
+// message's own sender from the wake — so we fall back to the system identity so
+// the remindee is still woken.
+func TestDeliverySender(t *testing.T) {
+	remindee := conversation.IdentityRef("agent:AG2")
+	const system = conversation.IdentityRef("system")
+
+	cases := []struct {
+		name string
+		req  cogservice.DeliveryRequest
+		want conversation.IdentityRef
+	}{
+		{"off → system",
+			cogservice.DeliveryRequest{RemindeeAgentID: "AG2", CreatorRef: "user:owner", DeliverAsCreator: false}, system},
+		{"on, owner creator → creator",
+			cogservice.DeliveryRequest{RemindeeAgentID: "AG2", CreatorRef: "user:owner", DeliverAsCreator: true}, conversation.IdentityRef("user:owner")},
+		{"on, agent creator (other) → creator",
+			cogservice.DeliveryRequest{RemindeeAgentID: "AG2", CreatorRef: "agent:AG1", DeliverAsCreator: true}, conversation.IdentityRef("agent:AG1")},
+		{"on, self-reminder → system (wake guard)",
+			cogservice.DeliveryRequest{RemindeeAgentID: "AG2", CreatorRef: "agent:AG2", DeliverAsCreator: true}, system},
+		{"on, empty creator → system",
+			cogservice.DeliveryRequest{RemindeeAgentID: "AG2", CreatorRef: "", DeliverAsCreator: true}, system},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := deliverySender(tc.req, remindee); got != tc.want {
+				t.Errorf("deliverySender = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
 
 // TestScanMember_SelfReminder guards T229: when creator == remindee (an agent
 // setting a reminder for itself), a member matching that ref must mark BOTH

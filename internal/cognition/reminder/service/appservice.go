@@ -78,7 +78,10 @@ type CreateReminderCommand struct {
 	Schedule        reminder.Schedule
 	Content         string
 	SkipIfOverlap   bool
-	EndCondition    reminder.EndCondition
+	// DeliverAsCreator (F-B): when true the delivered reminder is posted as the
+	// creator's identity; when false as the system identity. Handler defaults ON.
+	DeliverAsCreator bool
+	EndCondition     reminder.EndCondition
 }
 
 // CreateReminder resolves the project context + guard, builds the aggregate, and
@@ -100,6 +103,7 @@ func (s *ReminderAppService) CreateReminder(ctx context.Context, cmd CreateRemin
 		Schedule:         cmd.Schedule,
 		Content:          cmd.Content,
 		SkipIfOverlap:    cmd.SkipIfOverlap,
+		DeliverAsCreator: cmd.DeliverAsCreator,
 		EndCondition:     cmd.EndCondition,
 		Now:              now,
 	})

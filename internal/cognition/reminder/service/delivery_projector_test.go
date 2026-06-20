@@ -13,13 +13,15 @@ type fakeDeliverer struct {
 	calls   int
 	lastTo  string
 	lastMsg string
+	lastReq DeliveryRequest
 	err     error
 }
 
-func (f *fakeDeliverer) Deliver(_ context.Context, _, remindeeAgentID, content, _ string) error {
+func (f *fakeDeliverer) Deliver(_ context.Context, req DeliveryRequest) error {
 	f.calls++
-	f.lastTo = remindeeAgentID
-	f.lastMsg = content
+	f.lastTo = req.RemindeeAgentID
+	f.lastMsg = req.Content
+	f.lastReq = req
 	return f.err
 }
 
@@ -56,6 +58,23 @@ func TestDeliveryProjector_FiredEvent_Delivers(t *testing.T) {
 	// After delivery the firing is resolved pending→delivered.
 	if m.calls != 1 || m.lastID != "fire-1" || m.lastOut != reminder.OutcomeDelivered {
 		t.Errorf("write-back: calls=%d id=%q outcome=%q, want 1/fire-1/delivered", m.calls, m.lastID, m.lastOut)
+	}
+}
+
+func TestDeliveryProjector_PassesDeliveryIdentity(t *testing.T) {
+	d := &fakeDeliverer{}
+	p := NewReminderDeliveryProjector(d, &fakeFiringMarker{})
+	e := outbox.Event{
+		ID:        "ev-fb",
+		EventType: string(EventReminderFired),
+		Payload:   `{"reminder_id":"rmd-1","remindee_agent_id":"AG2","content":"x","creator_ref":"agent:AG1","deliver_as_creator":true,"firing_id":"fire-1"}`,
+	}
+	if err := p.Project(context.Background(), e); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if !d.lastReq.DeliverAsCreator || d.lastReq.CreatorRef != "agent:AG1" {
+		t.Errorf("F-B identity not forwarded: deliver_as_creator=%v creator_ref=%q",
+			d.lastReq.DeliverAsCreator, d.lastReq.CreatorRef)
 	}
 }
 

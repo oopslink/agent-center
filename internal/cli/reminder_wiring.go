@@ -104,11 +104,12 @@ func buildReminderService(a *App) *cogservice.ReminderAppService {
 }
 
 // conversationDeliverer is the concrete cognition ReminderDeliverer (design §3.4,
-// option A): on a fired reminder it opens a system↔remindee DM and posts the
-// content as a `system` sender. The EXISTING WakeProjector then wakes the remindee
-// (a DM message whose sender is not the agent wakes the agent participant). Anti-
-// loop: the woken agent is the remindee only; cognition.reminder.fired is never on
-// the supervisor self-wake allowlist.
+// option A): on a fired reminder it opens a DM to the remindee and posts the
+// content. The sender identity is the system by default, OR the reminder's CREATOR
+// when deliver_as_creator is set (F-B). The EXISTING WakeProjector then wakes the
+// remindee (a DM message whose sender is not the remindee agent wakes the agent
+// participant). Anti-loop: the woken agent is the remindee only;
+// cognition.reminder.fired is never on the supervisor self-wake allowlist.
 type conversationDeliverer struct {
 	writer *convservice.MessageWriter
 	idGen  cogservice.IDGenerator
@@ -118,13 +119,14 @@ type conversationDeliverer struct {
 // clockNow is the slice of clock.Clock the deliverer needs.
 type clockNow interface{ Now() time.Time }
 
-func (d *conversationDeliverer) Deliver(ctx context.Context, orgID, remindeeAgentID, content, _ string) error {
-	remindeeRef := conversation.IdentityRef("agent:" + remindeeAgentID)
+func (d *conversationDeliverer) Deliver(ctx context.Context, req cogservice.DeliveryRequest) error {
+	remindeeRef := conversation.IdentityRef("agent:" + req.RemindeeAgentID)
+	sender := deliverySender(req, remindeeRef)
 	now := d.clk.Now().UTC().Format(time.RFC3339Nano)
 	res, err := d.writer.OpenConversation(ctx, convservice.OpenCommand{
 		Kind:           conversation.ConversationKindDM,
 		Name:           "Reminder",
-		OrganizationID: orgID,
+		OrganizationID: req.OrganizationID,
 		Participants: []conversation.ParticipantElement{{
 			IdentityID: remindeeRef, Role: "member", JoinedAt: now, JoinedBy: conversation.IdentityRef("system"),
 		}},
@@ -136,13 +138,30 @@ func (d *conversationDeliverer) Deliver(ctx context.Context, orgID, remindeeAgen
 	}
 	_, err = d.writer.AddMessage(ctx, convservice.AddMessageCommand{
 		ConversationID:   res.ConversationID,
-		SenderIdentityID: conversation.IdentityRef("system"),
+		SenderIdentityID: sender,
 		ContentKind:      conversation.MessageContentText,
 		Direction:        conversation.DirectionOutbound,
-		Content:          content,
+		Content:          req.Content,
 		Actor:            observability.Actor("system"),
 	})
 	return err
+}
+
+// deliverySender picks the message sender identity (F-B). Default: system. When
+// deliver_as_creator is set and a creator ref is known, deliver as the creator —
+// EXCEPT a self-reminder (creator == the remindee agent): the WakeProjector excludes
+// a message's own sender from the wake, so delivering a self-reminder as the
+// remindee would silently NOT wake it. For that case we fall back to system so the
+// remindee is still woken.
+func deliverySender(req cogservice.DeliveryRequest, remindeeRef conversation.IdentityRef) conversation.IdentityRef {
+	const system = conversation.IdentityRef("system")
+	if !req.DeliverAsCreator || strings.TrimSpace(req.CreatorRef) == "" {
+		return system
+	}
+	if req.CreatorRef == string(remindeeRef) {
+		return system // self-reminder: keep system sender so the remindee still wakes.
+	}
+	return conversation.IdentityRef(req.CreatorRef)
 }
 
 // buildReminderDeliveryProjector builds the fired→deliver projector (for the

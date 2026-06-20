@@ -25,7 +25,7 @@ func NewReminderRepo(db *sql.DB) *ReminderRepo { return &ReminderRepo{db: db} }
 var _ reminder.Repository = (*ReminderRepo)(nil)
 
 const reminderCols = `id, organization_id, project_id, creator_ref, remindee_agent_id, schedule, content,
-	status, next_run_at, last_fired_at, skip_if_overlap, end_condition, fired_count, version, created_at, updated_at`
+	status, next_run_at, last_fired_at, skip_if_overlap, deliver_as_creator, end_condition, fired_count, version, created_at, updated_at`
 
 func (r *ReminderRepo) Save(ctx context.Context, rm *reminder.Reminder) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
@@ -38,10 +38,10 @@ func (r *ReminderRepo) Save(ctx context.Context, rm *reminder.Reminder) error {
 		return err
 	}
 	_, err = exec.ExecContext(ctx,
-		`INSERT INTO reminders (`+reminderCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO reminders (`+reminderCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		rm.ID().String(), rm.OrganizationID(), rm.ProjectID(), rm.CreatorRef(), rm.RemindeeAgentID(),
 		sched, rm.Content(), string(rm.Status()), tsPtr(rm.NextRunAt()), tsPtr(rm.LastFiredAt()),
-		boolToInt(rm.SkipIfOverlap()), end, rm.FiredCount(), rm.Version(), ts(rm.CreatedAt()), ts(rm.UpdatedAt()))
+		boolToInt(rm.SkipIfOverlap()), boolToInt(rm.DeliverAsCreator()), end, rm.FiredCount(), rm.Version(), ts(rm.CreatedAt()), ts(rm.UpdatedAt()))
 	return err
 }
 
@@ -209,11 +209,11 @@ func scanReminder(scan func(...any) error) (*reminder.Reminder, error) {
 	var (
 		id, org, proj, creator, remindee, schedRaw, content, status, endRaw string
 		nextRaw, lastRaw                                                    sql.NullString
-		skip, firedCount, version                                           int
+		skip, deliverAsCreator, firedCount, version                         int
 		createdRaw, updatedRaw                                              string
 	)
 	if err := scan(&id, &org, &proj, &creator, &remindee, &schedRaw, &content, &status,
-		&nextRaw, &lastRaw, &skip, &endRaw, &firedCount, &version, &createdRaw, &updatedRaw); err != nil {
+		&nextRaw, &lastRaw, &skip, &deliverAsCreator, &endRaw, &firedCount, &version, &createdRaw, &updatedRaw); err != nil {
 		return nil, err
 	}
 	sched, err := decodeSchedule(schedRaw)
@@ -228,7 +228,8 @@ func scanReminder(scan func(...any) error) (*reminder.Reminder, error) {
 		ID: id, OrganizationID: org, ProjectID: proj, CreatorRef: creator, RemindeeAgentID: remindee,
 		Schedule: sched, Content: content, Status: reminder.ReminderStatus(status),
 		NextRunAt: parseTimePtr(nextRaw), LastFiredAt: parseTimePtr(lastRaw),
-		SkipIfOverlap: skip != 0, EndCondition: end, FiredCount: firedCount, Version: version,
+		SkipIfOverlap: skip != 0, DeliverAsCreator: deliverAsCreator != 0,
+		EndCondition: end, FiredCount: firedCount, Version: version,
 		CreatedAt: parseTime(createdRaw), UpdatedAt: parseTime(updatedRaw),
 	})
 }

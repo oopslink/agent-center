@@ -105,8 +105,10 @@ func MigrateV1ToV2Command() *Command {
 // added 0059 (pm_plans.is_builtin + per-project built-in claimable pool, with the
 // assigned-backlog-task backfill); v2.10.1 T99 added 0060 (pm_plans.org_sequence —
 // P<number> plan refs); v2.10 ADR-0053 added 0061 (pm_plan_findings — the DeLM
-// plan-scoped shared-findings table).
-const targetSchemaVersion = 62
+// plan-scoped shared-findings table); v2.11.0 Cognition added 0062 (reminders +
+// reminder_firings — the Reminder aggregate); v2.11.0 F-B added 0063
+// (reminders.deliver_as_creator — per-reminder delivery identity flag).
+const targetSchemaVersion = 63
 
 func runMigrateV1ToV2(
 	ctx context.Context,

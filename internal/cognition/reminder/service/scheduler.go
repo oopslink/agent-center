@@ -192,6 +192,12 @@ type firedOutboxPayload struct {
 	RemindeeAgentID string `json:"remindee_agent_id"`
 	Content         string `json:"content"`
 	OrganizationID  string `json:"organization_id"`
+	// CreatorRef + DeliverAsCreator drive the delivery identity (F-B): when
+	// DeliverAsCreator is set the projector posts the DM as CreatorRef instead of
+	// the system identity. Carried on the outbox event so the projector needs no
+	// extra read.
+	CreatorRef       string `json:"creator_ref"`
+	DeliverAsCreator bool   `json:"deliver_as_creator"`
 	// FiringID lets the delivery projector resolve THIS firing pending→delivered
 	// once it posts the DM.
 	FiringID string `json:"firing_id"`
@@ -203,11 +209,13 @@ type firedOutboxPayload struct {
 // resolve that firing's outcome to delivered.
 func (s *ReminderScheduler) appendFiredOutbox(ctx context.Context, r *reminder.Reminder, firingID string, now time.Time) error {
 	pb, err := json.Marshal(firedOutboxPayload{
-		ReminderID:      r.ID().String(),
-		RemindeeAgentID: r.RemindeeAgentID(),
-		Content:         r.Content(),
-		OrganizationID:  r.OrganizationID(),
-		FiringID:        firingID,
+		ReminderID:       r.ID().String(),
+		RemindeeAgentID:  r.RemindeeAgentID(),
+		Content:          r.Content(),
+		OrganizationID:   r.OrganizationID(),
+		CreatorRef:       r.CreatorRef(),
+		DeliverAsCreator: r.DeliverAsCreator(),
+		FiringID:         firingID,
 	})
 	if err != nil {
 		return err

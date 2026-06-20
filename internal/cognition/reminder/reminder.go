@@ -212,22 +212,23 @@ func (id ReminderID) String() string { return string(id) }
 // Reminder is the aggregate root. Fields are private; mutate only through the
 // lifecycle ops so invariants + version bumps stay enforced.
 type Reminder struct {
-	id              ReminderID
-	organizationID  string
-	projectID       string
-	creatorRef      string
-	remindeeAgentID string
-	schedule        Schedule
-	content         string
-	status          ReminderStatus
-	nextRunAt       *time.Time
-	lastFiredAt     *time.Time
-	skipIfOverlap   bool
-	endCondition    EndCondition
-	firedCount      int
-	version         int
-	createdAt       time.Time
-	updatedAt       time.Time
+	id               ReminderID
+	organizationID   string
+	projectID        string
+	creatorRef       string
+	remindeeAgentID  string
+	schedule         Schedule
+	content          string
+	status           ReminderStatus
+	nextRunAt        *time.Time
+	lastFiredAt      *time.Time
+	skipIfOverlap    bool
+	deliverAsCreator bool
+	endCondition     EndCondition
+	firedCount       int
+	version          int
+	createdAt        time.Time
+	updatedAt        time.Time
 }
 
 // NewReminderInput is the Factory input (§3.6). The caller (app layer) resolves
@@ -245,6 +246,11 @@ type NewReminderInput struct {
 	Schedule         Schedule
 	Content          string
 	SkipIfOverlap    bool
+	// DeliverAsCreator selects the delivered reminder's identity (F-B): when true
+	// the to-the-remindee message is posted as the CREATOR's identity (the agent /
+	// owner who set it); when false it is posted as the system identity. Default ON
+	// per the mockup. Set once at creation (immutable; the edit op does not touch it).
+	DeliverAsCreator bool
 	EndCondition     EndCondition
 	Now              time.Time // creation instant: future-check + initial next_run_at base
 }
@@ -284,21 +290,22 @@ func NewReminder(in NewReminderInput) (*Reminder, error) {
 		return nil, fmt.Errorf("%w: schedule yields no future run", ErrInvalidSchedule)
 	}
 	r := &Reminder{
-		id:              ReminderID(in.ID),
-		organizationID:  in.OrganizationID,
-		projectID:       in.ProjectID,
-		creatorRef:      in.CreatorRef,
-		remindeeAgentID: in.RemindeeAgentID,
-		schedule:        in.Schedule,
-		content:         strings.TrimSpace(in.Content),
-		status:          StatusActive,
-		nextRunAt:       &next,
-		skipIfOverlap:   in.SkipIfOverlap,
-		endCondition:    in.EndCondition,
-		firedCount:      0,
-		version:         1,
-		createdAt:       in.Now,
-		updatedAt:       in.Now,
+		id:               ReminderID(in.ID),
+		organizationID:   in.OrganizationID,
+		projectID:        in.ProjectID,
+		creatorRef:       in.CreatorRef,
+		remindeeAgentID:  in.RemindeeAgentID,
+		schedule:         in.Schedule,
+		content:          strings.TrimSpace(in.Content),
+		status:           StatusActive,
+		nextRunAt:        &next,
+		skipIfOverlap:    in.SkipIfOverlap,
+		deliverAsCreator: in.DeliverAsCreator,
+		endCondition:     in.EndCondition,
+		firedCount:       0,
+		version:          1,
+		createdAt:        in.Now,
+		updatedAt:        in.Now,
 	}
 	return r, nil
 }
@@ -306,22 +313,23 @@ func NewReminder(in NewReminderInput) (*Reminder, error) {
 // RehydrateInput rebuilds a Reminder from persisted state (repo only). No
 // validation/derivation — trusts the row.
 type RehydrateInput struct {
-	ID              string
-	OrganizationID  string
-	ProjectID       string
-	CreatorRef      string
-	RemindeeAgentID string
-	Schedule        Schedule
-	Content         string
-	Status          ReminderStatus
-	NextRunAt       *time.Time
-	LastFiredAt     *time.Time
-	SkipIfOverlap   bool
-	EndCondition    EndCondition
-	FiredCount      int
-	Version         int
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID               string
+	OrganizationID   string
+	ProjectID        string
+	CreatorRef       string
+	RemindeeAgentID  string
+	Schedule         Schedule
+	Content          string
+	Status           ReminderStatus
+	NextRunAt        *time.Time
+	LastFiredAt      *time.Time
+	SkipIfOverlap    bool
+	DeliverAsCreator bool
+	EndCondition     EndCondition
+	FiredCount       int
+	Version          int
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 // Rehydrate reconstructs a Reminder from a repository row.
@@ -336,22 +344,23 @@ func Rehydrate(in RehydrateInput) (*Reminder, error) {
 		return nil, errors.New("cognition: reminder version must be >= 1")
 	}
 	return &Reminder{
-		id:              ReminderID(in.ID),
-		organizationID:  in.OrganizationID,
-		projectID:       in.ProjectID,
-		creatorRef:      in.CreatorRef,
-		remindeeAgentID: in.RemindeeAgentID,
-		schedule:        in.Schedule,
-		content:         in.Content,
-		status:          in.Status,
-		nextRunAt:       in.NextRunAt,
-		lastFiredAt:     in.LastFiredAt,
-		skipIfOverlap:   in.SkipIfOverlap,
-		endCondition:    in.EndCondition,
-		firedCount:      in.FiredCount,
-		version:         in.Version,
-		createdAt:       in.CreatedAt,
-		updatedAt:       in.UpdatedAt,
+		id:               ReminderID(in.ID),
+		organizationID:   in.OrganizationID,
+		projectID:        in.ProjectID,
+		creatorRef:       in.CreatorRef,
+		remindeeAgentID:  in.RemindeeAgentID,
+		schedule:         in.Schedule,
+		content:          in.Content,
+		status:           in.Status,
+		nextRunAt:        in.NextRunAt,
+		lastFiredAt:      in.LastFiredAt,
+		skipIfOverlap:    in.SkipIfOverlap,
+		deliverAsCreator: in.DeliverAsCreator,
+		endCondition:     in.EndCondition,
+		firedCount:       in.FiredCount,
+		version:          in.Version,
+		createdAt:        in.CreatedAt,
+		updatedAt:        in.UpdatedAt,
 	}, nil
 }
 
@@ -367,6 +376,7 @@ func (r *Reminder) Status() ReminderStatus     { return r.status }
 func (r *Reminder) NextRunAt() *time.Time      { return r.nextRunAt }
 func (r *Reminder) LastFiredAt() *time.Time    { return r.lastFiredAt }
 func (r *Reminder) SkipIfOverlap() bool        { return r.skipIfOverlap }
+func (r *Reminder) DeliverAsCreator() bool     { return r.deliverAsCreator }
 func (r *Reminder) EndCondition() EndCondition { return r.endCondition }
 func (r *Reminder) FiredCount() int            { return r.firedCount }
 func (r *Reminder) Version() int               { return r.version }

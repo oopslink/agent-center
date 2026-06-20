@@ -22,17 +22,33 @@ import (
 // to the supervisor self-wake allowlist, so a reminder cannot spiral.
 type ReminderDeliverer interface {
 	// Deliver posts the reminder content to the remindee agent's conversation,
-	// org-scoped (orgID drives the conversation's org).
-	Deliver(ctx context.Context, orgID, remindeeAgentID, content, reminderID string) error
+	// org-scoped (req.OrganizationID drives the conversation's org). The delivery
+	// identity (system vs creator) is selected from req per F-B.
+	Deliver(ctx context.Context, req DeliveryRequest) error
+}
+
+// DeliveryRequest is the input to a ReminderDeliverer: the org/remindee/content to
+// post, plus the delivery-identity selector (F-B). When DeliverAsCreator is set the
+// concrete deliverer posts as CreatorRef rather than the system identity (with a
+// self-reminder guard so the remindee is still woken — see the cli deliverer).
+type DeliveryRequest struct {
+	OrganizationID   string
+	RemindeeAgentID  string
+	Content          string
+	ReminderID       string
+	CreatorRef       string
+	DeliverAsCreator bool
 }
 
 // reminderFiredPayload is the subset of the fired event payload the projector needs.
 type reminderFiredPayload struct {
-	ReminderID      string `json:"reminder_id"`
-	RemindeeAgentID string `json:"remindee_agent_id"`
-	Content         string `json:"content"`
-	OrganizationID  string `json:"organization_id"`
-	FiringID        string `json:"firing_id"`
+	ReminderID       string `json:"reminder_id"`
+	RemindeeAgentID  string `json:"remindee_agent_id"`
+	Content          string `json:"content"`
+	OrganizationID   string `json:"organization_id"`
+	CreatorRef       string `json:"creator_ref"`
+	DeliverAsCreator bool   `json:"deliver_as_creator"`
+	FiringID         string `json:"firing_id"`
 }
 
 // FiringMarker resolves a fired firing's final outcome once delivery completes
@@ -77,7 +93,14 @@ func (p *ReminderDeliveryProjector) Project(ctx context.Context, e outbox.Event)
 	if pl.RemindeeAgentID == "" {
 		return fmt.Errorf("reminder delivery: event %s missing remindee_agent_id", e.ID)
 	}
-	if err := p.deliverer.Deliver(ctx, pl.OrganizationID, pl.RemindeeAgentID, pl.Content, pl.ReminderID); err != nil {
+	if err := p.deliverer.Deliver(ctx, DeliveryRequest{
+		OrganizationID:   pl.OrganizationID,
+		RemindeeAgentID:  pl.RemindeeAgentID,
+		Content:          pl.Content,
+		ReminderID:       pl.ReminderID,
+		CreatorRef:       pl.CreatorRef,
+		DeliverAsCreator: pl.DeliverAsCreator,
+	}); err != nil {
 		return err
 	}
 	// Delivered → resolve the firing pending→delivered. Older events without a

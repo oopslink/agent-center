@@ -48,7 +48,8 @@
 
 ### 3.1 Aggregate Root:`Reminder`
 - **身份**:ULID,不变。
-- **字段**:`id, organization_id, project_id, creator_ref, remindee_agent_id, schedule{kind, once_at?, cron_expr?, timezone}, content, status, next_run_at, last_fired_at, skip_if_overlap(bool, 默认 true), end_condition, fired_count, version, created_at, updated_at`。
+- **字段**:`id, organization_id, project_id, creator_ref, remindee_agent_id, schedule{kind, once_at?, cron_expr?, timezone}, content, status, next_run_at, last_fired_at, skip_if_overlap(bool, 默认 true), deliver_as_creator(bool, 默认 true — v2.11.0 F-B:投递身份开关,ON 时提醒消息以 creator 本人身份发出,OFF 时系统身份;创建时一次性设定,edit 不改), end_condition, fired_count, version, created_at, updated_at`。
+  - **投递身份(F-B)**:`deliver_as_creator=true` 时 delivery projector 以 `creator_ref` 身份发 DM;**自提醒**(creator==remindee agent)例外回落系统身份——否则 WakeProjector 的「不唤醒消息自身 sender」规则会让自提醒不唤醒。
 - **状态机**:
   - `active ⇄ paused`
   - `active|paused → canceled`(终态)

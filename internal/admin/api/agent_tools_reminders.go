@@ -66,19 +66,20 @@ func (d endConditionDTO) toDomain() (reminder.EndCondition, error) {
 // reminderMap projects a Reminder to the wire shape.
 func reminderMap(r *reminder.Reminder) map[string]any {
 	m := map[string]any{
-		"id":                r.ID().String(),
-		"organization_id":   r.OrganizationID(),
-		"project_id":        r.ProjectID(),
-		"creator_ref":       r.CreatorRef(),
-		"remindee_agent_id": r.RemindeeAgentID(),
-		"content":           r.Content(),
-		"status":            string(r.Status()),
-		"skip_if_overlap":   r.SkipIfOverlap(),
-		"fired_count":       r.FiredCount(),
-		"version":           r.Version(),
-		"schedule":          scheduleToMap(r.Schedule()),
-		"created_at":        r.CreatedAt().UTC().Format(time.RFC3339Nano),
-		"updated_at":        r.UpdatedAt().UTC().Format(time.RFC3339Nano),
+		"id":                 r.ID().String(),
+		"organization_id":    r.OrganizationID(),
+		"project_id":         r.ProjectID(),
+		"creator_ref":        r.CreatorRef(),
+		"remindee_agent_id":  r.RemindeeAgentID(),
+		"content":            r.Content(),
+		"status":             string(r.Status()),
+		"skip_if_overlap":    r.SkipIfOverlap(),
+		"deliver_as_creator": r.DeliverAsCreator(),
+		"fired_count":        r.FiredCount(),
+		"version":            r.Version(),
+		"schedule":           scheduleToMap(r.Schedule()),
+		"created_at":         r.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"updated_at":         r.UpdatedAt().UTC().Format(time.RFC3339Nano),
 	}
 	if r.NextRunAt() != nil {
 		m["next_run_at"] = r.NextRunAt().UTC().Format(time.RFC3339Nano)
@@ -118,12 +119,13 @@ func writeReminderError(w http.ResponseWriter, err error) {
 // --- create_reminder ---------------------------------------------------------
 
 type createReminderReq struct {
-	AgentID         string          `json:"agent_id"`
-	RemindeeAgentID string          `json:"remindee_agent_id"`
-	Schedule        scheduleDTO     `json:"schedule"`
-	Content         string          `json:"content"`
-	SkipIfOverlap   *bool           `json:"skip_if_overlap"`
-	EndCondition    endConditionDTO `json:"end_condition"`
+	AgentID          string          `json:"agent_id"`
+	RemindeeAgentID  string          `json:"remindee_agent_id"`
+	Schedule         scheduleDTO     `json:"schedule"`
+	Content          string          `json:"content"`
+	SkipIfOverlap    *bool           `json:"skip_if_overlap"`
+	DeliverAsCreator *bool           `json:"deliver_as_creator"`
+	EndCondition     endConditionDTO `json:"end_condition"`
 }
 
 func (s *Server) createReminderHandler(w http.ResponseWriter, r *http.Request) {
@@ -155,14 +157,19 @@ func (s *Server) createReminderHandler(w http.ResponseWriter, r *http.Request) {
 	if req.SkipIfOverlap != nil {
 		skip = *req.SkipIfOverlap
 	}
+	deliverAsCreator := true // default ON per the mockup (F-B)
+	if req.DeliverAsCreator != nil {
+		deliverAsCreator = *req.DeliverAsCreator
+	}
 	rem, err := d.ReminderSvc.CreateReminder(r.Context(), cogservice.CreateReminderCommand{
-		OrganizationID:  a.OrganizationID(),
-		CreatorRef:      agentActor(a),
-		RemindeeAgentID: strings.TrimSpace(req.RemindeeAgentID),
-		Schedule:        sched,
-		Content:         req.Content,
-		SkipIfOverlap:   skip,
-		EndCondition:    end,
+		OrganizationID:   a.OrganizationID(),
+		CreatorRef:       agentActor(a),
+		RemindeeAgentID:  strings.TrimSpace(req.RemindeeAgentID),
+		Schedule:         sched,
+		Content:          req.Content,
+		SkipIfOverlap:    skip,
+		DeliverAsCreator: deliverAsCreator,
+		EndCondition:     end,
 	})
 	if err != nil {
 		writeReminderError(w, err)
