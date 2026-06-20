@@ -412,6 +412,12 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		MemberDisableSvc:    a.IdentityMemberDisableSvc,
 		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
 		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
+		// I7-D1 (T216) center settings store backing GET/PUT /api/system/wake-guardrail
+		// (the I7-D3 Settings panel reads/writes the wake-guardrail thresholds). This is
+		// the LIVE webconsole deps path — buildWebConsoleHandler is test-only, so without
+		// this line PUT /system/wake-guardrail 501s "settings store not configured" on the
+		// real server even though the wiring test is green.
+		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),
