@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
@@ -32,6 +34,7 @@ import (
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	"github.com/oopslink/agent-center/internal/projectmanager/mergecheck"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
@@ -331,6 +334,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:        clk,
 		AgentDir:     agentpkg.NewOrgDirectory(agentRepo),
 		OrgSeq:       pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
+		// v2.13.0 I18/F3: wire the concrete CycleNodeMetaPort so the F4 unmerged-branch
+		// board reads each plan node's persisted role/branch/base (it was always-empty
+		// before — no adapter was wired). A fresh repo instance is fine (stateless),
+		// mirroring how the other repos are constructed inline here.
+		CycleMeta: pmservice.NewTaskRepoCycleMeta(pmsql.NewTaskRepo(db)),
 		// v2.9 #285: advance posts the node-ready @mention into the Plan conversation
 		// via MessageWriter (the wake+mention path #220 wakes an agent assignee). The
 		// resolver mirrors the WakeProjector's DisplayName resolution (strip the
@@ -398,6 +406,17 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// exist. The operator "resume stuck node" action (ResumePausedNode) resumes the
 	// node's paused work item and wakes its agent via agent.work_available.
 	pmSvc.SetNodeResumer(NewNodeResumerAdapter(agentWorkItemRepo, agentSvc, agentRepo, envControlSvc))
+
+	// v2.13.0 I18/F3: wire the concrete git MergeChecker so CompleteTask blocks an
+	// Integrate cycle node until its feature branch has merged back into
+	// origin/<base>. The checker keeps a per-repoURL bare-mirror cache; root it next
+	// to the blob store when configured (a persistent disk path), else in the OS temp
+	// dir. Nil-safe: this is the ONLY wiring — omitting it disables the guard.
+	mergeCacheDir := filepath.Join(os.TempDir(), "ac-mergecheck-mirrors")
+	if cfg.BlobStore.Root != "" {
+		mergeCacheDir = filepath.Join(filepath.Dir(cfg.BlobStore.Root), "mergecheck-mirrors")
+	}
+	pmSvc.SetMergeChecker(mergecheck.New(mergeCacheDir, mergecheck.NewExecGitRunner()))
 
 	// v2.7 D5 slice-1: the shared SSE down-push bus. Created here so it is the
 	// SAME instance the projector's ControlLog publishes to (webconsole_wiring.go)

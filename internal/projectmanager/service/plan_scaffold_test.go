@@ -110,13 +110,38 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 		}
 	}
 
-	// S0: branch=dev/v2.13.0, base=main.
+	// S0: branch=dev/v2.13.0, base=main, role=s0.
 	s0 := byTitle["S0 开发主分支 — 切 dev/v2.13.0"]
 	if s0 == nil {
 		t.Fatalf("S0 node missing: %v", titles(all))
 	}
 	if s0.Branch() != "dev/v2.13.0" || s0.Base() != "main" {
 		t.Errorf("S0 meta = branch:%q base:%q, want dev/v2.13.0 / main", s0.Branch(), s0.Base())
+	}
+	if s0.Role() != pm.CycleRoleS0 {
+		t.Errorf("S0 role = %q, want s0", s0.Role())
+	}
+
+	// v2.13.0 I18/F3: every node persists its cycle ROLE (the discriminator F3's
+	// merge guard + F4's board key on). Assert the per-title role mapping survived
+	// Save+ListByPlan (and, for the doc-only Dev, the resolveDefaultBranch re-stamp).
+	wantRole := map[string]pm.CycleNodeRole{
+		"F1 规格 · Dev":       pm.CycleRoleDev,
+		"F1 规格 · Review":    pm.CycleRoleReview,
+		"F1 规格 · Integrate": pm.CycleRoleIntegrate,
+		"F9 文档 · Dev":       pm.CycleRoleDev,
+		"集成完成 Gate — PD 关门核对": pm.CycleRoleGate,
+		"Accept 验收（集成后主干整体）":  pm.CycleRoleAccept,
+		"Ship v2.13.0":       pm.CycleRoleShip,
+	}
+	for title, want := range wantRole {
+		n := byTitle[title]
+		if n == nil {
+			t.Fatalf("missing node %q for role check: %v", title, titles(all))
+		}
+		if n.Role() != want {
+			t.Errorf("%q role = %q, want %q", title, n.Role(), want)
+		}
 	}
 
 	// F1 chain shares the explicit branch f1-spec, base dev/v2.13.0, no skip.

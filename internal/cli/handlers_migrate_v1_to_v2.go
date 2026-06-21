@@ -114,8 +114,10 @@ func MigrateV1ToV2Command() *Command {
 // migrator keys by version into a map, so the alphabetically-later file silently
 // overwrote it and the ADD COLUMNs never ran on a fresh DB. Renumbered to 0065.
 // v2.13.0 I18/F2 added 0066 (pm_tasks.branch/base/skip_merge_check — cycle-node
-// git metadata for scaffold_cycle_plan + the F3 merge-check guard).
-const targetSchemaVersion = 66
+// git metadata for scaffold_cycle_plan + the F3 merge-check guard); v2.13.0 I18/F3
+// added 0067 (pm_tasks.role — the persisted cycle-node role discriminator the F3
+// merge guard + F4 unmerged-branch board key on).
+const targetSchemaVersion = 67
 
 func runMigrateV1ToV2(
 	ctx context.Context,
