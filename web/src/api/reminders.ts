@@ -68,12 +68,25 @@ export type ReminderListFilter = 'all' | 'created' | 'remindee';
 export interface ReminderListParams {
   filter?: ReminderListFilter;
   statuses?: ReminderStatus[];
+  /** server-side content search (contains, case-insensitive). */
+  q?: string;
+  /** sort column key: created_at | updated_at | status | next_run_at. */
+  sort?: string;
+  dir?: 'asc' | 'desc';
+  /** 1-based page (with page_size). */
+  page?: number;
+  page_size?: number;
 }
 
 function buildReminderQuery(p?: ReminderListParams): string {
   const q = new URLSearchParams();
   if (p?.filter) q.set('filter', p.filter);
   if (p?.statuses && p.statuses.length > 0) q.set('status', p.statuses.join(','));
+  if (p?.q) q.set('q', p.q);
+  if (p?.sort) q.set('sort', p.sort);
+  if (p?.dir) q.set('dir', p.dir);
+  if (p?.page && p.page > 1) q.set('page', String(p.page));
+  if (p?.page_size) q.set('page_size', String(p.page_size));
   const s = q.toString();
   return s ? `?${s}` : '';
 }
@@ -82,15 +95,16 @@ function buildReminderQuery(p?: ReminderListParams): string {
 // Reads
 // ---------------------------------------------------------------------------
 
-// GET /reminders → { reminders: Reminder[] }. slug only scopes the cache key/gate;
+// GET /reminders → { reminders: Reminder[], total }. Returns { items, total } so
+// the list can render server-side pagination. slug only scopes the cache key/gate;
 // the /orgs/{slug} segment is auto-injected by the client.
 export function useReminders(slug: string | undefined, params?: ReminderListParams) {
   return useQuery({
     queryKey: qk.reminders({ slug, params }),
     queryFn: () =>
       api
-        .get<{ reminders: Reminder[] }>(`/reminders${buildReminderQuery(params)}`)
-        .then((r) => r.reminders),
+        .get<{ reminders: Reminder[]; total?: number }>(`/reminders${buildReminderQuery(params)}`)
+        .then((r) => ({ items: r.reminders ?? [], total: r.total ?? (r.reminders ?? []).length })),
     enabled: !!slug,
   });
 }

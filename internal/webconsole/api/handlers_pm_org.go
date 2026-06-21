@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,6 +67,7 @@ func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	statusFilter := parseSetParam(r, "status")
 	projectFilter := parseSetParam(r, "project")
+	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))) // title contains (server-side search)
 	// Issues are never assignable; an explicit assignee filter excludes them all.
 	assigneeSet := strings.TrimSpace(r.URL.Query().Get("assignee")) != ""
 	tf, terr := parseTimeFilter(r)
@@ -101,11 +103,14 @@ func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) 
 			if !tf.passes(i.CreatedAt(), i.UpdatedAt()) {
 				continue
 			}
+			if q != "" && !strings.Contains(strings.ToLower(i.Title()), q) {
+				continue
+			}
 			items = append(items, orgIssueRow(i, p))
 		}
 	}
-	sortItemsUpdatedDesc(items)
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
+	page, total := applyPageItems(items, parsePageParams(r))
+	writeJSON(w, http.StatusOK, map[string]any{"items": page, "total": total})
 }
 
 func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +130,7 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	statusFilter := parseSetParam(r, "status")
 	projectFilter := parseSetParam(r, "project")
+	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))) // title contains (server-side search)
 	assigneeFilter := strings.TrimSpace(r.URL.Query().Get("assignee"))
 	tf, terr := parseTimeFilter(r)
 	if terr != nil {
@@ -160,11 +166,14 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 			if !tf.passes(t.CreatedAt(), t.UpdatedAt()) {
 				continue
 			}
+			if q != "" && !strings.Contains(strings.ToLower(t.Title()), q) {
+				continue
+			}
 			items = append(items, s.orgTaskRow(r, d, t, p))
 		}
 	}
-	sortItemsUpdatedDesc(items)
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
+	page, total := applyPageItems(items, parsePageParams(r))
+	writeJSON(w, http.StatusOK, map[string]any{"items": page, "total": total})
 }
 
 // pmListOrgPlansHandler (v2.10.0 [T6]) — GET /api/orgs/{slug}/plans returns,
@@ -196,6 +205,7 @@ func (s *Server) pmListOrgPlansHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	statusFilter := parseSetParam(r, "status")
 	projectFilter := parseSetParam(r, "project")
+	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))) // name contains (server-side search)
 	tf, terr := parseTimeFilter(r)
 	if terr != nil {
 		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
@@ -234,13 +244,16 @@ func (s *Server) pmListOrgPlansHandler(w http.ResponseWriter, r *http.Request) {
 			if !tf.passes(pl.CreatedAt(), pl.UpdatedAt()) {
 				continue
 			}
+			if q != "" && !strings.Contains(strings.ToLower(pl.Name()), q) {
+				continue
+			}
 			row := pmPlanSummaryMap(detail)
 			row["project"] = map[string]any{"id": string(p.ID()), "name": p.Name()}
 			items = append(items, row)
 		}
 	}
-	sortItemsUpdatedDesc(items)
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
+	page, total := applyPageItems(items, parsePageParams(r))
+	writeJSON(w, http.StatusOK, map[string]any{"items": page, "total": total})
 }
 
 // orgIssueRow builds the DTO row for an issue. assignee is always null — issues
@@ -429,4 +442,122 @@ func sortItemsUpdatedDesc(items []map[string]any) {
 		ub, _ := items[b]["updated_at"].(string)
 		return ua > ub // RFC3339Nano sorts lexicographically == chronologically
 	})
+}
+
+// pageParams holds the optional server-side sort + pagination controls shared by
+// the org list handlers (issues/tasks/plans). All are optional: with no params
+// the behavior is identical to before (sort updated_at DESC, return everything),
+// so existing callers/tests are unaffected.
+//
+//   - sort: a row key to sort by (created_at | updated_at | status | title |
+//     org_ref). Unknown/empty → default updated_at.
+//   - dir:  asc | desc. Empty → desc for the default updated_at sort, asc otherwise.
+//   - limit: page size (>0 enables paging; <=0 = no limit = all).
+//   - offset: rows to skip (also accepts page= 1-based with page_size=).
+type pageParams struct {
+	sortKey string
+	sortDir string
+	limit   int
+	offset  int
+}
+
+// sortableOrgKeys is the allowlist of row keys a client may sort by — guards
+// against sorting on an absent/unstable field. All map to string row values
+// (timestamps are RFC3339Nano, which sort lexicographically == chronologically).
+var sortableOrgKeys = map[string]bool{
+	"created_at": true, "updated_at": true, "status": true,
+	"title": true, "name": true, "org_ref": true,
+	// reminder list also reuses this helper (handlers_reminders.go).
+	"next_run_at": true, "last_fired_at": true,
+}
+
+func parsePageParams(r *http.Request) pageParams {
+	q := r.URL.Query()
+	pp := pageParams{
+		sortKey: strings.TrimSpace(q.Get("sort")),
+		sortDir: strings.ToLower(strings.TrimSpace(q.Get("dir"))),
+	}
+	if !sortableOrgKeys[pp.sortKey] {
+		pp.sortKey = ""
+	}
+	if pp.sortDir != "asc" && pp.sortDir != "desc" {
+		pp.sortDir = ""
+	}
+	pp.limit = atoiOr(q.Get("limit"), 0)
+	pp.offset = atoiOr(q.Get("offset"), 0)
+	// Convenience: page= (1-based) + page_size= → offset/limit, when limit not set.
+	if pp.limit <= 0 {
+		if ps := atoiOr(q.Get("page_size"), 0); ps > 0 {
+			pp.limit = ps
+			if pg := atoiOr(q.Get("page"), 1); pg > 1 {
+				pp.offset = (pg - 1) * ps
+			}
+		}
+	}
+	if pp.limit < 0 {
+		pp.limit = 0
+	}
+	if pp.offset < 0 {
+		pp.offset = 0
+	}
+	return pp
+}
+
+func atoiOr(s string, def int) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
+// applyPageItems sorts the filtered rows by the requested column (default
+// updated_at DESC, matching the prior sortItemsUpdatedDesc behavior) and slices
+// the requested page. It returns the page slice plus the TOTAL (pre-slice) count
+// so the client can render pagination. Stable + tie-broken by id.
+func applyPageItems(items []map[string]any, pp pageParams) ([]map[string]any, int) {
+	key := pp.sortKey
+	dir := pp.sortDir
+	if key == "" {
+		key = "updated_at"
+		if dir == "" {
+			dir = "desc"
+		}
+	}
+	if dir == "" {
+		dir = "asc"
+	}
+	sort.SliceStable(items, func(a, b int) bool {
+		va, vb := rowString(items[a], key), rowString(items[b], key)
+		if va == vb {
+			return rowString(items[a], "id") < rowString(items[b], "id") // stable tie-break
+		}
+		if dir == "desc" {
+			return va > vb
+		}
+		return va < vb
+	})
+	total := len(items)
+	off := pp.offset
+	if off > total {
+		off = total
+	}
+	end := total
+	if pp.limit > 0 && off+pp.limit < end {
+		end = off + pp.limit
+	}
+	return items[off:end], total
+}
+
+// rowString reads a row field as a string (org rows store sortable fields as
+// strings; a non-string/absent field sorts as "").
+func rowString(row map[string]any, key string) string {
+	if v, ok := row[key].(string); ok {
+		return v
+	}
+	return ""
 }

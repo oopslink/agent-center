@@ -40,7 +40,7 @@ const once: Reminder = {
 vi.mock('@/api/reminders', () => ({
   useReminders: (_slug: string | undefined, params: unknown) => {
     lastListParams = params;
-    return { data: [cron, once], isLoading: false, isError: false };
+    return { data: { items: [cron, once], total: 2 }, isLoading: false, isError: false };
   },
   useUpdateReminder: () => ({ mutate, isPending: false }),
 }));

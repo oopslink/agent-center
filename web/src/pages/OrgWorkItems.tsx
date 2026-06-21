@@ -5,6 +5,7 @@ import { useOrgWorkItems, buildWorkItemFilters, type OrgWorkItemKind } from '@/a
 import { OrgWorkItemsView } from '@/components/OrgWorkItemsView';
 import { type DateRange } from '@/components/WorkItemFilterBar';
 import { OrgWorkItemCreateModal } from '@/components/OrgWorkItemCreateModal';
+import { useListControls } from '@/components/listControls';
 
 // OrgWorkItems (v2.8 #258) — org-scoped cross-project Issues / Tasks aggregation
 // page (/organizations/:slug/issues|tasks). One component, two routes via the
@@ -32,9 +33,19 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
   // v2.10.0 [T3]: the selected row → drives the col④ read-only metadata panel.
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // server-side sort + pagination state (per @oopslink). Default newest-first.
+  const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
+
   // Build the wire filters from the FilterBar state (shared helper — the
-  // local-date→RFC3339-offset 命门 lives there). undefined when nothing is set.
-  const filters = buildWorkItemFilters({ selectedStatuses, selectedProjects, assignee, dateRange });
+  // local-date→RFC3339-offset 命门 lives there). Merge in sort + pagination so
+  // the backend returns the requested page (and `total` for the pagination bar).
+  const filters = {
+    ...(buildWorkItemFilters({ selectedStatuses, selectedProjects, assignee, dateRange }) ?? {}),
+    sort: controls.sort,
+    dir: controls.dir,
+    page: controls.page,
+    page_size: controls.pageSize,
+  };
   const query = useOrgWorkItems(kind, slug, filters);
 
   return (
@@ -53,6 +64,7 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
         onCreate={() => setCreateOpen(true)}
         selectedId={selectedId}
         onSelect={setSelectedId}
+        controls={controls}
       />
       {createOpen && <OrgWorkItemCreateModal kind={kind} onClose={() => setCreateOpen(false)} />}
     </>

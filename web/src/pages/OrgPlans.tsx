@@ -1,11 +1,12 @@
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useOrgPlans, type OrgPlanItem, type OrgPlanFilters } from '@/api/plans';
 import { useProjects } from '@/api/projects';
 import { PlanStatusChip, PlanFailedIndicator, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { shortDate } from '@/components/workItemDisplay';
+import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { ContextPanel } from '@/shell/contextPanel';
 
 // OrgPlans (v2.10.0 [T6]) — the global, org-scoped, cross-project Plan list
@@ -47,22 +48,34 @@ export default function OrgPlansPage(): React.ReactElement {
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const filters: OrgPlanFilters = {};
+  // server-side sort + pagination (per @oopslink). Default newest-first.
+  const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
+
+  const filters: OrgPlanFilters = {
+    sort: controls.sort,
+    dir: controls.dir,
+    page: controls.page,
+    page_size: controls.pageSize,
+  };
   if (selectedStatuses.length > 0) filters.status = selectedStatuses;
   if (selectedProject) filters.project = [selectedProject];
-  const hasFilters = Object.keys(filters).length > 0;
-  const query = useOrgPlans(slug, hasFilters ? filters : undefined);
+  // name search is now SERVER-side (q param) so it works across pages, not just
+  // the loaded page (which client-side search would have broken under pagination).
+  const q = search.trim();
+  if (q) filters.q = q;
+  const query = useOrgPlans(slug, filters);
   const projects = useProjects();
   const projectList = projects.data ?? [];
 
-  const allItems = query.data?.items ?? [];
-  // Client-side name search (the mockup's "搜索 plan…" box) over the fetched set.
-  const q = search.trim().toLowerCase();
-  const items = useMemo(
-    () => (q ? allItems.filter((p) => p.name.toLowerCase().includes(q)) : allItems),
-    [allItems, q],
-  );
+  const items = query.data?.items ?? [];
   const selected = selectedId ? items.find((p) => p.id === selectedId) ?? null : null;
+
+  // Reset to page 1 whenever a filter/search narrows the set (else you could be
+  // stranded on an out-of-range page after the result count shrinks).
+  const setPage = controls.setPage;
+  useEffect(() => {
+    setPage(1);
+  }, [q, selectedProject, selectedStatuses, setPage]);
 
   const toggleStatus = (s: string) =>
     setSelectedStatuses((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
@@ -168,11 +181,11 @@ export default function OrgPlansPage(): React.ReactElement {
           <table className="w-full text-left text-xs" data-testid="org-plans-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <th className="py-1.5 pr-3 font-medium">Name</th>
-                <th className="py-1.5 pr-3 font-medium">Status</th>
+                <SortHeader label="Name" sortKey="name" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">Project</th>
                 <th className="py-1.5 pr-3 font-medium">Progress</th>
-                <th className="py-1.5 font-medium">Updated</th>
+                <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -276,6 +289,15 @@ export default function OrgPlansPage(): React.ReactElement {
             );
           })}
         </ul>
+      )}
+
+      {query.data && (
+        <Pagination
+          page={controls.page}
+          pageSize={controls.pageSize}
+          total={query.data.total}
+          onPageChange={controls.setPage}
+        />
       )}
 
       {/* col④ — read-only summary of the selected plan (mockup §1 col④). On

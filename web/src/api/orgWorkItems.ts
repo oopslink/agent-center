@@ -30,6 +30,15 @@ export interface OrgWorkItemFilters {
   created_before?: string;
   updated_after?: string;
   updated_before?: string;
+  // server-side sort + pagination (backend handlers_pm_org applyPageItems).
+  /** sort column key: created_at | updated_at | status | title | org_ref. */
+  sort?: string;
+  /** sort direction. */
+  dir?: 'asc' | 'desc';
+  /** 1-based page number (paired with page_size). */
+  page?: number;
+  /** page size; omitted = no pagination (all rows). */
+  page_size?: number;
 }
 
 // buildWorkItemQuery — the SINGLE place the work-item filter params are turned
@@ -47,6 +56,10 @@ export function buildWorkItemQuery(f?: OrgWorkItemFilters): string {
   if (f.created_before) p.set('created_before', f.created_before);
   if (f.updated_after) p.set('updated_after', f.updated_after);
   if (f.updated_before) p.set('updated_before', f.updated_before);
+  if (f.sort) p.set('sort', f.sort);
+  if (f.dir) p.set('dir', f.dir);
+  if (f.page && f.page > 1) p.set('page', String(f.page));
+  if (f.page_size) p.set('page_size', String(f.page_size));
   const s = p.toString();
   return s ? `?${s}` : '';
 }

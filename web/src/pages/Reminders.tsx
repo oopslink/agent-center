@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   useReminders,
@@ -12,6 +12,7 @@ import { useDisplayNameResolver } from '@/api/members';
 import { Avatar } from '@/components/Avatar';
 import { ReminderCreateModal } from '@/components/ReminderCreateModal';
 import { ReminderDetailModal } from '@/components/ReminderDetailModal';
+import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { IconPause, IconPlay, IconClose } from '@/components/icons';
 
 // =============================================================================
@@ -77,21 +78,33 @@ export default function Reminders(): React.ReactElement {
   const search = params.get('q') ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const { data: reminders, isLoading, isError } = useReminders(slug, {
+  // server-side sort + pagination (per @oopslink). Default newest-first.
+  const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
+  const { data, isLoading, isError } = useReminders(slug, {
     filter: range,
     statuses,
+    // content search is now SERVER-side so it spans all pages, not just the loaded one.
+    q: search.trim() || undefined,
+    sort: controls.sort,
+    dir: controls.dir,
+    page: controls.page,
+    page_size: controls.pageSize,
   });
   const displayName = useDisplayNameResolver();
   const update = useUpdateReminder();
 
-  const rows = useMemo(() => {
-    const list = reminders ?? [];
-    const q = search.trim().toLowerCase();
-    return q ? list.filter((r) => r.content.toLowerCase().includes(q)) : list;
-  }, [reminders, search]);
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
+
+  // Reset to page 1 whenever the filter/search/status changes (else you could be
+  // stranded on an out-of-range page after the result count shrinks).
+  const setPage = controls.setPage;
+  useEffect(() => {
+    setPage(1);
+  }, [range, statusParam, search, setPage]);
 
   const stats = useMemo(() => {
-    const list = reminders ?? [];
+    const list = rows;
     const active = list.filter((r) => r.status === 'active');
     const next = active
       .map((r) => r.next_run_at)
@@ -102,7 +115,7 @@ export default function Reminders(): React.ReactElement {
       paused: list.filter((r) => r.status === 'paused').length,
       next: next ? new Date(next).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
     };
-  }, [reminders]);
+  }, [rows]);
 
   const rangeLabel = RANGES.find((r) => r.key === range)?.label ?? 'All';
 
@@ -147,10 +160,10 @@ export default function Reminders(): React.ReactElement {
                 <tr className="border-b border-border-base">
                   <th className="py-2 font-medium">Target</th>
                   <th className="py-2 font-medium">Trigger</th>
-                  <th className="py-2 font-medium">Next run</th>
+                  <SortHeader label="Next run" sortKey="next_run_at" controls={controls} className="py-2 font-medium" />
                   <th className="py-2 font-medium">Content</th>
                   <th className="py-2 font-medium">Creator</th>
-                  <th className="py-2 font-medium">Status</th>
+                  <SortHeader label="Status" sortKey="status" controls={controls} className="py-2 font-medium" />
                   <th className="py-2 font-medium text-right">Actions</th>
                 </tr>
               </thead>
@@ -229,6 +242,14 @@ export default function Reminders(): React.ReactElement {
               </tbody>
             </table>
             </div>
+          )}
+          {!isLoading && !isError && (
+            <Pagination
+              page={controls.page}
+              pageSize={controls.pageSize}
+              total={total}
+              onPageChange={controls.setPage}
+            />
           )}
           <p className="mt-3 text-xs text-text-muted">Click a row for details + firing history (each fire time, whether delivered, and whether skipped due to overlap).</p>
         </div>

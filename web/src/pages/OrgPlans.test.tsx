@@ -73,7 +73,7 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     // nav + the Projects/Issues/Tasks list-page convention.
     expect(screen.getByRole('heading', { name: 'Plans' })).toBeInTheDocument();
     // default view → no status/project params.
-    expect(gotQuery).toBe('');
+    expect(gotQuery).toBe('?sort=updated_at&dir=desc&page_size=25');
     const row = screen.getByTestId('org-plan-row');
     expect(row).toHaveAttribute('data-status', 'running');
     expect(screen.getByTestId('org-plan-name')).toHaveTextContent('v2.9.2 收尾');
@@ -121,7 +121,7 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     wrap();
     await waitFor(() => expect(screen.getByTestId('org-plan-row')).toBeInTheDocument());
     // default view excludes archived → no status param, running row shown.
-    expect(gotQuery).toBe('');
+    expect(gotQuery).toBe('?sort=updated_at&dir=desc&page_size=25');
     expect(screen.getByTestId('org-plan-row')).toHaveAttribute('data-status', 'running');
     // the archived chip exists in the filter bar...
     fireEvent.click(screen.getByTestId('org-plan-status-archived'));
@@ -133,20 +133,22 @@ describe('OrgPlans — global cross-project Plan list (v2.10.0 [T6])', () => {
     expect(screen.getByTestId('org-plan-name')).toHaveTextContent('已归档计划');
   });
 
-  it('client-side search narrows the list by name', async () => {
+  it('search is sent SERVER-side as ?q= (so it spans all pages, not just the loaded one)', async () => {
+    let gotQuery = '';
     server.use(
-      http.get('/api/plans', () =>
-        HttpResponse.json({
+      http.get('/api/plans', ({ request }) => {
+        gotQuery = new URL(request.url).search;
+        return HttpResponse.json({
           items: [planRow(), planRow({ id: 'plan-2', name: '聊天框附件增强' })],
           total: 2,
-        }),
-      ),
+        });
+      }),
     );
     wrap();
     await waitFor(() => expect(screen.getAllByTestId('org-plan-row')).toHaveLength(2));
     fireEvent.change(screen.getByTestId('org-plans-search'), { target: { value: '附件' } });
-    await waitFor(() => expect(screen.getAllByTestId('org-plan-row')).toHaveLength(1));
-    expect(screen.getByTestId('org-plan-name')).toHaveTextContent('聊天框附件增强');
+    // the search term rides the request as a server-side q param.
+    await waitFor(() => expect(new URLSearchParams(gotQuery).get('q')).toBe('附件'));
   });
 
   it('selecting a plan opens the col④ summary with an Open-plan link', async () => {

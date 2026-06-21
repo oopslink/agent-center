@@ -170,6 +170,14 @@ export interface OrgPlanFilters {
   project?: string[];
   /** status values (multi). Omitted = backend default (excludes archived). */
   status?: string[];
+  /** server-side name search (contains, case-insensitive). */
+  q?: string;
+  /** sort column key: created_at | updated_at | status | name | org_ref. */
+  sort?: string;
+  dir?: 'asc' | 'desc';
+  /** 1-based page (with page_size). */
+  page?: number;
+  page_size?: number;
 }
 
 function buildOrgPlanQuery(f?: OrgPlanFilters): string {
@@ -177,6 +185,11 @@ function buildOrgPlanQuery(f?: OrgPlanFilters): string {
   const p = new URLSearchParams();
   for (const id of f.project ?? []) p.append('project', id);
   for (const s of f.status ?? []) p.append('status', s);
+  if (f.q) p.set('q', f.q);
+  if (f.sort) p.set('sort', f.sort);
+  if (f.dir) p.set('dir', f.dir);
+  if (f.page && f.page > 1) p.set('page', String(f.page));
+  if (f.page_size) p.set('page_size', String(f.page_size));
   const s = p.toString();
   return s ? `?${s}` : '';
 }

@@ -174,11 +174,19 @@ func (s *Server) remListHandler(w http.ResponseWriter, r *http.Request) {
 		writeRemErr(w, err)
 		return
 	}
+	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))) // content contains (server-side search)
 	out := make([]map[string]any, 0, len(rs))
 	for _, rm := range rs {
+		if q != "" && !strings.Contains(strings.ToLower(rm.Content()), q) {
+			continue
+		}
 		out = append(out, remReminderMap(rm))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"reminders": out})
+	// Server-side sort + pagination (shared with the org list handlers). With no
+	// sort/limit params this is updated_at DESC + all rows; `total` is the full
+	// (pre-page) count so the client can render pagination.
+	page, total := applyPageItems(out, parsePageParams(r))
+	writeJSON(w, http.StatusOK, map[string]any{"reminders": page, "total": total})
 }
 
 // bareRef strips a "user:"/"agent:" prefix to the bare id, so a session

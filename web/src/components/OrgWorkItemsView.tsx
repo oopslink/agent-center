@@ -3,6 +3,7 @@ import { OrgLink } from '@/OrgContext';
 import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
 import { ContextPanel } from '@/shell/contextPanel';
 import { WorkItemFilterBar, type DateRange } from '@/components/WorkItemFilterBar';
+import { SortHeader, Pagination, type ListControls } from '@/components/listControls';
 import type { OrgWorkItem } from '@/api/types';
 
 // Re-exported for back-compat: callers (OrgWorkItems page, tests) historically
@@ -47,9 +48,13 @@ export function OrgWorkItemsView({
   onCreate,
   selectedId,
   onSelect,
+  controls,
 }: {
   kind: 'issue' | 'task';
   query: QueryShape;
+  // server-side sort + pagination state (per @oopslink). Drives the sortable
+  // column headers + the pagination bar; the page passes these to the hook.
+  controls: ListControls;
   // selected status filter (multi). Empty = backend default (all open, terminal
   // states excluded) — same default as the old "open only" view.
   selectedStatuses: string[];
@@ -132,13 +137,13 @@ export function OrgWorkItemsView({
           <table className="w-full text-left text-xs" data-testid="org-workitems-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <th className="py-1.5 pr-3 font-medium">ID</th>
+                <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">Project</th>
-                <th className="py-1.5 pr-3 font-medium">Title</th>
-                <th className="py-1.5 pr-3 font-medium">Status</th>
+                <SortHeader label="Title" sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">Assigned to</th>
-                <th className="py-1.5 pr-3 font-medium">Created</th>
-                <th className="py-1.5 font-medium">Updated</th>
+                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -287,6 +292,17 @@ export function OrgWorkItemsView({
             );
           })}
         </ul>
+      )}
+
+      {/* Server-side pagination bar (shared control) — shown for both the desktop
+          table and the mobile cards; hidden when everything fits one page. */}
+      {query.data && (
+        <Pagination
+          page={controls.page}
+          pageSize={controls.pageSize}
+          total={query.data.total}
+          onPageChange={controls.setPage}
+        />
       )}
 
       {/* col④ — read-only metadata for the selected row (v2.10.0 [T3]). Mounting

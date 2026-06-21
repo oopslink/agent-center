@@ -66,7 +66,7 @@ describe('OrgWorkItems page (#258)', () => {
     wrap('issue', '/organizations/acme/issues');
     await waitFor(() => expect(screen.getByTestId('org-workitem-row')).toBeInTheDocument());
     // default = open only → no status query param (backend default all-open).
-    expect(gotQuery).toBe('');
+    expect(gotQuery).toBe('?sort=updated_at&dir=desc&page_size=25');
     // ID = org_ref (I12).
     expect(screen.getByTestId('org-workitem-id')).toHaveTextContent('I12');
     expect(screen.getByTestId('org-workitem-id')).toHaveAttribute('title', 'issue-01KT8DABCDEF');
@@ -259,7 +259,7 @@ describe('OrgWorkItems page (#258)', () => {
     );
     wrap('issue', '/organizations/acme/issues');
     await screen.findByTestId('org-workitem-row');
-    expect(gotQuery).toBe(''); // default: no params
+    expect(gotQuery).toBe('?sort=updated_at&dir=desc&page_size=25'); // default: no params
 
     fireEvent.change(screen.getByTestId('org-filter-created-after'), {
       target: { value: '2026-06-08' },
@@ -305,7 +305,7 @@ describe('OrgWorkItems page (#258)', () => {
     );
     wrap('issue', '/organizations/acme/issues');
     await screen.findByTestId('org-workitem-row');
-    expect(gotQuery).toBe(''); // default: no params
+    expect(gotQuery).toBe('?sort=updated_at&dir=desc&page_size=25'); // default: no params
     const select = await screen.findByTestId('org-filter-project');
     // options: "All projects" + each project name.
     const opts = Array.from((select as HTMLSelectElement).options).map((o) => o.textContent);
@@ -397,7 +397,7 @@ describe('OrgWorkItems page (#258)', () => {
     });
     // Clear-all → every param drops.
     fireEvent.click(screen.getByTestId('org-filter-clear'));
-    await waitFor(() => expect(gotQuery).toBe(''));
+    await waitFor(() => expect(gotQuery).toBe('?sort=updated_at&dir=desc&page_size=25'));
     // inputs reset.
     expect((screen.getByTestId('org-filter-project') as HTMLSelectElement).value).toBe('');
     expect((screen.getByTestId('org-filter-assignee') as HTMLSelectElement).value).toBe('');
