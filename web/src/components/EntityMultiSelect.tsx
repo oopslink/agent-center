@@ -224,9 +224,14 @@ export function EntityMultiSelect({
                         {o.hint && <span className="block truncate text-xs text-text-muted">{o.hint}</span>}
                       </span>
                     </span>
-                    {/* Selected marker: a check glyph, never a checkbox input
-                        (UX standards §1a). aria-selected carries the real state. */}
-                    <span aria-hidden="true" className={`shrink-0 text-brand ${on ? '' : 'invisible'}`}>✓</span>
+                    {/* Selected marker: an SVG check icon, never an emoji glyph
+                        (a11y no-emoji-icons) and never a checkbox input (UX
+                        standards §1a). aria-selected carries the real state; the
+                        marker keeps its slot (invisible when unselected) so rows
+                        don't shift. */}
+                    <span aria-hidden="true" className={`shrink-0 text-brand ${on ? '' : 'invisible'}`}>
+                      <CheckIcon />
+                    </span>
                   </button>
                 </li>
               );
@@ -236,5 +241,17 @@ export function EntityMultiSelect({
         document.body,
       )}
     </div>
+  );
+}
+
+// CheckIcon — the selected-option marker (inline SVG, stroke-current inherits the
+// parent's text-brand). Matches the project's local CheckIcon convention
+// (ProjectMemberAddModal / MemberInviteModal) and replaces the prior check glyph
+// that tripped the no-emoji-icons a11y rule.
+function CheckIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="2" aria-hidden="true">
+      <path d="M5 10.5l3.5 3.5L15 6.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
