@@ -390,6 +390,89 @@ func (s *Server) listPlansHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"plans": out})
 }
 
+// --- list_unmerged_branches (v2.13.0 / I18 F4) -------------------------------
+
+type listUnmergedReq struct {
+	AgentID   string `json:"agent_id"`
+	ProjectID string `json:"project_id"`
+	PlanID    string `json:"plan_id"`
+}
+
+// listUnmergedBranchesHandler returns the F4 unmerged-branch board for a plan: the
+// `Integrate(T)` nodes that have NOT yet merged back into the integration trunk
+// (un-done Integrate nodes, F1 spec §2.5/§8) — the PD's ship-gate reconciliation
+// list. Like getPlanHandler it is project-scoped (a plan named under the wrong
+// project is not found). When no cycle metadata is wired/present the board is
+// empty (all_merged=true) rather than wrong.
+func (s *Server) listUnmergedBranchesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listUnmergedReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "")
+		return
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	board, err := d.PMService.ListUnmergedIntegrations(r.Context(), pm.PlanID(req.PlanID))
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	// Plan-in-project check (mirrors getPlanHandler): a plan named under the wrong
+	// project is not found here.
+	if string(board.Detail.Plan.ProjectID()) != req.ProjectID {
+		writeError(w, http.StatusNotFound, "not_found", "plan not found in this project")
+		return
+	}
+	writeJSON(w, http.StatusOK, unmergedBoardMap(board))
+}
+
+// unmergedBoardMap renders the F4 board DTO. Each row resolves its title / org_ref
+// / assignee from the SAME PlanDetail load (planNodeLookups), so the board mirrors
+// the plan node DTO without a second query.
+func unmergedBoardMap(board *pmservice.UnmergedBoard) map[string]any {
+	detail := board.Detail
+	titleOf, assigneeOf, _, orgRefOf := planNodeLookups(detail)
+	rows := make([]map[string]any, 0, len(board.Unmerged))
+	for _, u := range board.Unmerged {
+		row := map[string]any{
+			"task_id":          string(u.TaskID),
+			"title":            titleOf[u.TaskID],
+			"assignee_ref":     string(assigneeOf[u.TaskID]),
+			"node_status":      string(u.NodeStatus),
+			"branch":           u.Branch,
+			"base":             u.Base,
+			"skip_merge_check": u.SkipMergeCheck,
+		}
+		if ref := orgRefOf[u.TaskID]; ref != "" {
+			row["org_ref"] = ref
+		}
+		rows = append(rows, row)
+	}
+	return map[string]any{
+		"plan_id":        string(detail.Plan.ID()),
+		"project_id":     string(detail.Plan.ProjectID()),
+		"plan_name":      detail.Plan.Name(),
+		"plan_status":    string(detail.Plan.Status()),
+		"all_merged":     board.AllMerged(),
+		"unmerged_count": len(rows),
+		"unmerged":       rows,
+	}
+}
+
 // --- decode helpers ----------------------------------------------------------
 //
 // Each runs the SAME prologue every passthrough write tool uses: decode → require

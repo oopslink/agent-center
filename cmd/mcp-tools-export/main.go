@@ -86,6 +86,7 @@ var toolDomain = map[string]string{
 	"add_plan_dependency": "plan", "remove_plan_dependency": "plan", "start_plan": "plan",
 	"stop_plan": "plan", "get_plan": "plan", "list_plans": "plan", "delete_plan": "plan",
 	"archive_plan": "plan", "rerun_failed_node": "plan", "resume_paused_node": "plan",
+	"list_unmerged_branches": "plan",
 	// conversations / messaging
 	"get_my_unread": "conversations", "mark_seen": "conversations",
 	"post_message": "conversations", "subscribe": "conversations", "unsubscribe": "conversations",

@@ -394,6 +394,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeListPlans(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_unmerged_branches",
+		Description: "List a cycle plan's UNMERGED feature branches = its Integrate nodes that are not yet done (each branch not yet merged back into the integration trunk). Use this as the ship-gate reconciliation before shipping: all_merged=true means every feature integrated. Each row carries the task, branch, base, node_status, and skip_merge_check.",
+	}, makeListUnmergedBranches(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "delete_plan",
 		Description: "Hard-delete a non-running plan: its tasks return to the backlog and its dependencies/dispatch records are removed. Stop the plan first if it is running (a running plan is rejected). Irreversible.",
 	}, makePlanID(cfg, "delete_plan"))

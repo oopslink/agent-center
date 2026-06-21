@@ -115,6 +115,22 @@ type PausedTaskPort interface {
 	PausedTasks(ctx context.Context, taskIDs []string) (map[string]bool, error)
 }
 
+// CycleNodeMetaPort supplies the per-node cycle-graph metadata (role/branch/base,
+// F1 spec §4) for a plan's nodes — the input to the F4 unmerged-branch board
+// (UnmergedIntegrations) and, symmetrically, F3's merge-check guardrail. It is an
+// OPTIONAL, nil-safe read-port (v2.13.0 / I18): when nil the read model surfaces
+// NO Integrate metadata, so ListUnmergedIntegrations returns an empty board rather
+// than a wrong one (a non-scaffolded plan, or F2's storage not yet wired, simply
+// has no cycle metadata). It is a CONSUMER-owned interface (dependency inversion):
+// F4 defines it here and F2's scaffold_cycle_plan storage satisfies it at
+// composition, so the two features compose WITHOUT sharing a concrete type. The
+// returned map keys ONLY the nodes that carry cycle metadata (bare pm.TaskID); a
+// missing key means "no metadata" (not an Integrate node). An empty plan returns an
+// empty map without error.
+type CycleNodeMetaPort interface {
+	CycleNodeMeta(ctx context.Context, planID pm.PlanID) (map[pm.TaskID]pm.CycleNodeMeta, error)
+}
+
 // NodeResumer resumes a plan node whose agent PAUSED its work item and re-engages
 // the agent (T53), so an operator (PD/owner) can un-stick a node that ResumeWork —
 // agent-ownership-guarded — left unrecoverable. It is an OPTIONAL, nil-safe port of
@@ -170,6 +186,11 @@ type Service struct {
 	// ErrNodeResumerUnavailable. When wired, it resumes a paused node + wakes its
 	// agent (cross-BC effect behind the port).
 	nodeResumer NodeResumer
+	// cycleMeta is OPTIONAL (nil-safe, v2.13.0 / I18 F4). nil ⇒ the unmerged-branch
+	// board (ListUnmergedIntegrations) is empty (no cycle metadata to read). When
+	// wired (by F2's scaffold storage at composition), it supplies per-node
+	// role/branch/base so the board lists the un-done Integrate nodes.
+	cycleMeta CycleNodeMetaPort
 	// poolClaimLimit caps the concurrent claimed built-in-pool tasks per agent
 	// (T83 §3.6, owner-set). 0 ⇒ DefaultPoolClaimLimit (3).
 	poolClaimLimit int
@@ -231,6 +252,10 @@ type Deps struct {
 	// NodeResumer is OPTIONAL (T53): when set, ResumePausedNode can resume a paused
 	// node + wake its agent. nil ⇒ ResumePausedNode is unavailable.
 	NodeResumer NodeResumer
+	// CycleMeta is OPTIONAL (v2.13.0 / I18 F4): when set, ListUnmergedIntegrations
+	// reads per-node cycle metadata (role/branch/base) to list un-done Integrate
+	// nodes. nil ⇒ an empty board. Wired by F2's scaffold storage at composition.
+	CycleMeta CycleNodeMetaPort
 	// PoolClaimLimit is OPTIONAL (T83 §3.6): max concurrent claimed built-in-pool
 	// tasks per agent. 0 ⇒ DefaultPoolClaimLimit (3).
 	PoolClaimLimit int
@@ -248,6 +273,7 @@ func New(d Deps) *Service {
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
+		cycleMeta: d.CycleMeta,
 	}
 }
 
@@ -274,6 +300,15 @@ func (s *Service) SetPausedTaskProvider(p PausedTaskPort) *Service {
 // nil is tolerated. Returns the receiver for chaining.
 func (s *Service) SetNodeResumer(r NodeResumer) *Service {
 	s.nodeResumer = r
+	return s
+}
+
+// SetCycleNodeMetaProvider wires the optional F4 cycle-metadata read-port AFTER
+// construction — used by the composition root once F2's scaffold storage (the
+// adapter's backing store) is built. nil is tolerated (clears the board source).
+// Returns the receiver for chaining.
+func (s *Service) SetCycleNodeMetaProvider(p CycleNodeMetaPort) *Service {
+	s.cycleMeta = p
 	return s
 }
 

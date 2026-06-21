@@ -62,6 +62,7 @@ var AgentFacingToolNames = []string{
 	"list_findings",
 	"list_plans",
 	"list_tasks",
+	"list_unmerged_branches",
 	"mark_seen",
 	"pause_task",
 	// T200 WS4: post_message is the single post tool (target = conversation|task|issue);

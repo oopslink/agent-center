@@ -291,6 +291,58 @@ func (s *Server) pmGetPlanHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
 }
 
+// pmUnmergedBoardMap renders the F4 unmerged-branch board DTO (v2.13.0 / I18):
+// the plan's `Integrate(T)` nodes that have NOT yet merged back into the trunk
+// (un-done Integrate nodes). Each row resolves its title/org_ref/assignee from the
+// SAME PlanDetail load so the board mirrors the plan node shape. all_merged is the
+// ship-gate-clear signal (no Integrate node still open).
+func pmUnmergedBoardMap(board *pmservice.UnmergedBoard) map[string]any {
+	lookups := planNodeLookups(board.Detail)
+	rows := make([]map[string]any, 0, len(board.Unmerged))
+	for _, u := range board.Unmerged {
+		row := map[string]any{
+			"task_id":          string(u.TaskID),
+			"title":            lookups.titleOf[u.TaskID],
+			"assignee_ref":     string(lookups.assigneeOf[u.TaskID]),
+			"node_status":      string(u.NodeStatus),
+			"branch":           u.Branch,
+			"base":             u.Base,
+			"skip_merge_check": u.SkipMergeCheck,
+		}
+		if ref := lookups.orgRefOf[u.TaskID]; ref != "" {
+			row["org_ref"] = ref
+		}
+		rows = append(rows, row)
+	}
+	return map[string]any{
+		"plan_id":        string(board.Detail.Plan.ID()),
+		"project_id":     string(board.Detail.Plan.ProjectID()),
+		"plan_name":      board.Detail.Plan.Name(),
+		"plan_status":    string(board.Detail.Plan.Status()),
+		"all_merged":     board.AllMerged(),
+		"unmerged_count": len(rows),
+		"unmerged":       rows,
+	}
+}
+
+// pmListUnmergedBranchesHandler — GET …/plans/{plan_id}/unmerged-branches. The F4
+// ship-gate board: lists the plan's un-done Integrate nodes (unmerged feature
+// branches). Membership + plan-in-project gated like pmGetPlanHandler. Empty
+// (all_merged) when the plan has no cycle metadata (non-scaffolded / F2 not wired).
+func (s *Server) pmListUnmergedBranchesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, _, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	board, err := d.PM.ListUnmergedIntegrations(r.Context(), pl.ID())
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pmUnmergedBoardMap(board))
+}
+
 func (s *Server) pmUpdatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)

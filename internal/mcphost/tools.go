@@ -762,6 +762,24 @@ func makeListPlans(cfg Config) mcp.ToolHandlerFor[listPlansArgs, any] {
 	}
 }
 
+// --- list_unmerged_branches (v2.13.0 / I18 F4) -------------------------------
+
+type listUnmergedArgs struct {
+	ProjectID string `json:"project_id" jsonschema:"the project the plan belongs to (scopes the read)"`
+	PlanID    string `json:"plan_id" jsonschema:"the cycle plan whose unmerged Integrate nodes to list"`
+}
+
+func makeListUnmergedBranches(cfg Config) mcp.ToolHandlerFor[listUnmergedArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listUnmergedArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+			"plan_id":    args.PlanID,
+		}
+		return callAdmin(ctx, cfg, "list_unmerged_branches", body)
+	}
+}
+
 // --- Plan Shared Findings tools (v2.10, ADR-0053 — DeLM shared context) -------
 //
 // record_finding / list_findings mirror the admin handlers in

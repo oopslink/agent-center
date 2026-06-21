@@ -66,6 +66,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"stop_plan", "stop a running plan"},
 	{"get_plan", "read a plan and its nodes"},
 	{"list_plans", "list a project's plans"},
+	{"list_unmerged_branches", "list a cycle plan's unmerged Integrate nodes (ship-gate check)"},
 	{"delete_plan", "delete a draft plan"},
 	{"archive_plan", "archive a finished plan"},
 	// plan shared findings
