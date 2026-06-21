@@ -281,12 +281,17 @@ body {
  * Desktop (≥ sm/640px) is untouched and keeps the compact sizing. Non-text
  * controls (checkbox/radio/range/button/file) don't trigger the zoom, so they're
  * excluded to avoid disturbing their layout.
+ *
+ * `!important` is REQUIRED: the controls carry a Tailwind `text-sm`/`text-xs`
+ * utility CLASS (specificity 0,1,0) which outranks these bare ELEMENT selectors
+ * (0,0,1), so without it the 14/12px utility wins and the zoom returns (the
+ * exact regression @oopslink hit — the rule existed but never took effect).
  */
 @media screen and (max-width: 639.98px) {
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='button']):not([type='file']):not([type='submit']):not([type='reset']),
   textarea,
   select {
-    font-size: 16px;
+    font-size: 16px !important;
   }
 }
 
