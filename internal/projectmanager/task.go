@@ -131,6 +131,14 @@ type Task struct {
 	branch         string
 	base           string
 	skipMergeCheck bool
+	// role is the cycle-node ROLE discriminator (v2.13.0 I18/F3 —
+	// docs/design/v2.13.0/cycle-node-graph-spec.md §5). Dev/Review/Integrate(T)
+	// SHARE branch/base (§4.2), so role is the ONLY thing that distinguishes the
+	// Integrate node (F3's merge-check landing point + F4's board target) from its
+	// chain siblings. "" for ordinary backlog tasks not built by scaffold_cycle_plan
+	// (= no role; matches neither the F3 guard nor the F4 board). F2 (0066) stored
+	// branch/base/skip_merge_check but NOT role — F3 (0067) persists it.
+	role CycleNodeRole
 }
 
 // NewTaskInput captures constructor args.
@@ -150,6 +158,9 @@ type NewTaskInput struct {
 	Branch         string
 	Base           string
 	SkipMergeCheck bool
+	// Role is the cycle-node role discriminator (v2.13.0 I18/F3); set at create by
+	// scaffold_cycle_plan, "" for ordinary tasks.
+	Role CycleNodeRole
 }
 
 // NewTask constructs a fresh open Task. A Task must belong to a Project (no
@@ -187,6 +198,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		branch:           in.Branch,
 		base:             in.Base,
 		skipMergeCheck:   in.SkipMergeCheck,
+		role:             in.Role,
 	}, nil
 }
 
@@ -214,6 +226,7 @@ type RehydrateTaskInput struct {
 	Branch           string
 	Base             string
 	SkipMergeCheck   bool
+	Role             CycleNodeRole
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -253,6 +266,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		branch:           in.Branch,
 		base:             in.Base,
 		skipMergeCheck:   in.SkipMergeCheck,
+		role:             in.Role,
 	}, nil
 }
 
@@ -292,6 +306,11 @@ func (t *Task) ArchivedBy() IdentityRef    { return t.archivedBy }
 func (t *Task) Branch() string       { return t.branch }
 func (t *Task) Base() string         { return t.base }
 func (t *Task) SkipMergeCheck() bool { return t.skipMergeCheck }
+
+// Role exposes the cycle-node role discriminator (v2.13.0 I18/F3). "" for tasks
+// not built by scaffold_cycle_plan. The F3 merge guard targets the role ==
+// CycleRoleIntegrate node; F4's board keys on the same field. See task struct doc.
+func (t *Task) Role() CycleNodeRole { return t.role }
 
 // IsArchived reports the ORTHOGONAL archived state (v2.9 P3). Independent of
 // status: a task may be archived in any status.
@@ -381,14 +400,18 @@ func (t *Task) SetDescription(desc string, at time.Time) error {
 	return nil
 }
 
-// SetCycleMeta sets the cycle-node git metadata (v2.13.0 I18/F2) — branch, base,
-// and the skip-merge-check exemption. Pure metadata edit (NOT a status change),
-// so statusChangedAt is untouched; rejected on an archived task. scaffold_cycle_plan
-// normally stamps these at create via NewTaskInput; this setter is the editable path.
-func (t *Task) SetCycleMeta(branch, base string, skipMergeCheck bool, at time.Time) error {
+// SetCycleMeta sets the cycle-node git metadata (v2.13.0 I18/F2+F3) — role,
+// branch, base, and the skip-merge-check exemption. Pure metadata edit (NOT a
+// status change), so statusChangedAt is untouched; rejected on an archived task.
+// scaffold_cycle_plan normally stamps these at create via NewTaskInput; this
+// setter is the editable path (and resolveDefaultBranch's re-stamp). v2.13.0
+// I18/F3 added the role parameter so a re-stamp PRESERVES the node's role (callers
+// must pass t.Role() back when only adjusting branch/base).
+func (t *Task) SetCycleMeta(role CycleNodeRole, branch, base string, skipMergeCheck bool, at time.Time) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
 	}
+	t.role = role
 	t.branch = branch
 	t.base = base
 	t.skipMergeCheck = skipMergeCheck

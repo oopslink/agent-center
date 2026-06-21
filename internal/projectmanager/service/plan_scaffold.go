@@ -129,6 +129,10 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			Branch:         branch,
 			Base:           base,
 			SkipMergeCheck: skip,
+			// Persist the computed node kind as the cycle-node ROLE (v2.13.0 I18/F3):
+			// it is what F3's Integrate-complete merge guard + F4's board key on
+			// (Dev/Review/Integrate share branch/base — §4.2 — so role discriminates).
+			Role: pm.CycleNodeRole(kind),
 		})
 		if cerr != nil {
 			return "", cerr
@@ -242,7 +246,10 @@ func (s *Service) resolveDefaultBranch(ctx context.Context, devID pm.TaskID, bas
 	if t.OrgNumber() > 0 {
 		branch = "T" + strconv.Itoa(t.OrgNumber())
 	}
-	if err := t.SetCycleMeta(branch, base, skip, s.clock.Now()); err != nil {
+	// Re-stamp branch/base/skip but PRESERVE the node's role (v2.13.0 I18/F3 —
+	// SetCycleMeta now carries role; pass t.Role() back so the Dev role survives the
+	// default-branch resolution, otherwise F3/F4 would lose the discriminator).
+	if err := t.SetCycleMeta(t.Role(), branch, base, skip, s.clock.Now()); err != nil {
 		return "", err
 	}
 	if err := s.tasks.Update(ctx, t); err != nil {

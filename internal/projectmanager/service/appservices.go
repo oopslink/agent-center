@@ -290,6 +290,11 @@ type CreateTaskCommand struct {
 	Branch         string
 	Base           string
 	SkipMergeCheck bool
+	// Role is the cycle-node role discriminator (v2.13.0 I18/F3), set at create by
+	// scaffold_cycle_plan; "" for ordinary task creates. It is the bit F3's
+	// Integrate-complete merge guard + F4's board key on (Dev/Review/Integrate share
+	// branch/base — §4.2 — so role is the only discriminator).
+	Role pm.CycleNodeRole
 }
 
 // CreateTask writes the Task + outbox pm.task.created. The projector (B2-b)
@@ -323,7 +328,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 		t, terr := pm.NewTask(pm.NewTaskInput{
 			ID: taskID, ProjectID: cmd.ProjectID, Title: cmd.Title,
 			Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
-			Branch: cmd.Branch, Base: cmd.Base, SkipMergeCheck: cmd.SkipMergeCheck,
+			Branch: cmd.Branch, Base: cmd.Base, SkipMergeCheck: cmd.SkipMergeCheck, Role: cmd.Role,
 		})
 		if terr != nil {
 			return terr

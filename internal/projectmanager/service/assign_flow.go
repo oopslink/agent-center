@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -155,8 +156,98 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 }
 
 // CompleteTask moves running→completed and records the completer.
+//
+// v2.13.0 I18/F3: BEFORE the state transition, an Integrate cycle node must pass
+// the merge guardrail — its feature branch must have merged back into the
+// integration trunk on origin (docs/design/v2.13.0/cycle-node-graph-spec.md §5).
+// The guard runs OUTSIDE the DB tx (git fetch/ancestry I/O is slow + must only
+// trust origin), so it is a pre-check here, not inside taskStateOp's mutate. When
+// it blocks, the task stays `running` (no transition, no event). The guard is
+// nil-safe: with no MergeChecker wired it is disabled (pre-F3 behavior), and it
+// targets ONLY role==integrate nodes — Dev/Review/Gate/Accept/Ship and every
+// ordinary task complete normally.
 func (s *Service) CompleteTask(ctx context.Context, taskID pm.TaskID, by pm.IdentityRef) error {
+	if err := s.guardIntegrateMerge(ctx, taskID); err != nil {
+		return err
+	}
 	return s.taskStateOp(ctx, taskID, by, func(t *pm.Task, now time.Time) error { return t.Complete(by, now) }, "")
+}
+
+// guardIntegrateMerge is the F3 Integrate-complete merge guardrail (v2.13.0 I18 —
+// docs/design/v2.13.0/cycle-node-graph-spec.md §5). It returns nil (allow) for
+// every case EXCEPT an Integrate node whose branch has not (or cannot be verified
+// to have) merged back into origin/<base>:
+//
+//   - mergeChecker == nil                  → guard DISABLED (pre-F3) → allow.
+//   - role != integrate                    → not the merge-check node → allow
+//     (Dev/Review/Gate/Accept/Ship + ordinary tasks complete normally).
+//   - skip_merge_check                      → structural exemption (doc-only) → allow.
+//   - branch == "" || base == ""           → no merge target to check → allow.
+//   - project has NO CodeRepoRef            → fail CLOSED (ErrIntegrateMergeUnverifiable):
+//     the guard is enabled for this Integrate node but there is no repo to verify
+//     against — refuse rather than wave it through.
+//   - checker returns an error              → fail CLOSED (ErrIntegrateMergeUnverifiable,
+//     wrapping the cause): a flaky/missing remote must not let an unmerged branch land.
+//   - checker returns merged == false       → block (ErrIntegrateBranchNotMerged).
+//   - checker returns merged == true        → allow.
+//
+// It runs OUTSIDE any tx (plain repo reads + git I/O); CompleteTask invokes it
+// before opening the state-transition tx.
+func (s *Service) guardIntegrateMerge(ctx context.Context, taskID pm.TaskID) error {
+	if s.mergeChecker == nil {
+		return nil // guard disabled (pre-F3 behavior)
+	}
+	t, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if t.Role() != pm.CycleRoleIntegrate {
+		return nil // not an Integrate node — completes normally
+	}
+	if t.SkipMergeCheck() {
+		return nil // structural exemption (doc-only / no-code node)
+	}
+	branch, base := t.Branch(), t.Base()
+	if branch == "" || base == "" {
+		return nil // no merge target configured — nothing to verify
+	}
+	url, err := s.primaryRepoURL(ctx, t.ProjectID())
+	if err != nil {
+		return err
+	}
+	if url == "" {
+		// Enabled for this Integrate node but the project has no repo to check against.
+		// Fail closed: the PD must add a CodeRepoRef or set skip_merge_check.
+		return fmt.Errorf("%w: merge-check enabled for Integrate node %s but project %s has no code repo configured; add a CodeRepoRef or set skip_merge_check",
+			ErrIntegrateMergeUnverifiable, t.ID(), t.ProjectID())
+	}
+	merged, err := s.mergeChecker.BranchMergedToOrigin(ctx, url, branch, base)
+	if err != nil {
+		// Could not verify (fetch/transport/ref error). Fail closed.
+		return fmt.Errorf("%w: could not verify merge of %s into origin/%s against %s: %v; ensure the server can fetch the repo, or set skip_merge_check",
+			ErrIntegrateMergeUnverifiable, branch, base, url, err)
+	}
+	if !merged {
+		return fmt.Errorf("%w: branch %s has not landed on origin/%s — merge %s into %s and push to origin, then retry complete",
+			ErrIntegrateBranchNotMerged, branch, base, branch, base)
+	}
+	return nil
+}
+
+// primaryRepoURL resolves the project's primary code-repo URL for the F3 merge
+// guard: it lists the project's CodeRepoRefs (the repo's stable created-order, the
+// same order ListCodeRepos returns) and returns the FIRST one's URL. "" when the
+// project has no repo configured (the caller fails closed on that). A read-only
+// helper (no tx).
+func (s *Service) primaryRepoURL(ctx context.Context, projectID pm.ProjectID) (string, error) {
+	refs, err := s.codeRepoRefs.ListByProject(ctx, projectID)
+	if err != nil {
+		return "", err
+	}
+	if len(refs) == 0 {
+		return "", nil
+	}
+	return refs[0].URL(), nil
 }
 
 // retainAsTaskSubscriber persists `identity` as a sticky MANUAL subscriber so a

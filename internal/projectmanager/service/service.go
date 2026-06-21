@@ -131,6 +131,24 @@ type CycleNodeMetaPort interface {
 	CycleNodeMeta(ctx context.Context, planID pm.PlanID) (map[pm.TaskID]pm.CycleNodeMeta, error)
 }
 
+// MergeChecker verifies (only trusting origin) whether a feature branch has
+// merged back into the integration trunk. It is the runtime guardrail behind F3's
+// Integrate-complete check (v2.13.0 I18/F3 — docs/design/v2.13.0/cycle-node-graph-spec.md
+// §5): an Integrate node may not reach `completed` until its branch has actually
+// landed on origin/<base>. OPTIONAL / nil-safe: when nil the Integrate-complete
+// merge guard is DISABLED (pre-F3 behavior — every CompleteTask passes), so
+// existing Service constructions / tests that omit it keep working unchanged. It is
+// a CONSUMER-owned port: the concrete git adapter lives in
+// internal/projectmanager/mergecheck and is wired at composition, so the pm BC
+// never imports git.
+type MergeChecker interface {
+	// BranchMergedToOrigin reports whether origin/<base> --contains <branch> HEAD
+	// in the repo at repoURL. It MUST fetch from origin first (no local stale) so
+	// the answer reflects what has actually landed on the remote trunk. A transport
+	// / missing-ref failure is returned as an error (the guard fails CLOSED on it).
+	BranchMergedToOrigin(ctx context.Context, repoURL, branch, base string) (bool, error)
+}
+
 // NodeResumer resumes a plan node whose agent PAUSED its work item and re-engages
 // the agent (T53), so an operator (PD/owner) can un-stick a node that ResumeWork —
 // agent-ownership-guarded — left unrecoverable. It is an OPTIONAL, nil-safe port of
@@ -191,6 +209,11 @@ type Service struct {
 	// wired (by F2's scaffold storage at composition), it supplies per-node
 	// role/branch/base so the board lists the un-done Integrate nodes.
 	cycleMeta CycleNodeMetaPort
+	// mergeChecker is OPTIONAL (nil-safe, v2.13.0 / I18 F3). nil ⇒ the
+	// Integrate-complete merge guard is DISABLED (CompleteTask never blocks on a
+	// merge). When wired (the git adapter at composition), CompleteTask refuses to
+	// complete an Integrate node until its branch has merged into origin/<base>.
+	mergeChecker MergeChecker
 	// poolClaimLimit caps the concurrent claimed built-in-pool tasks per agent
 	// (T83 §3.6, owner-set). 0 ⇒ DefaultPoolClaimLimit (3).
 	poolClaimLimit int
@@ -216,6 +239,25 @@ var ErrTaskNotInPlan = errors.New("projectmanager: task is not a node of this pl
 // ErrNodeNotPaused is returned by ResumePausedNode when the target node has no
 // paused work item to resume (the resumer reports nothing paused).
 var ErrNodeNotPaused = errors.New("projectmanager: plan node has no paused work item to resume")
+
+// F3 Integrate-complete merge guard sentinels (v2.13.0 / I18,
+// docs/design/v2.13.0/cycle-node-graph-spec.md §5). CompleteTask runs the guard
+// BEFORE the state transition (outside the DB tx — git I/O is slow), so an
+// un-merged / unverifiable Integrate node stays `running`.
+var (
+	// ErrIntegrateBranchNotMerged is returned when an Integrate node's feature
+	// branch has NOT yet landed on origin/<base> (the merge check definitively says
+	// "not merged"). The message is ACTIONABLE — it names the branch + trunk + the
+	// fix — so the agent/PD knows to merge+push and retry. Use errors.Is to test.
+	ErrIntegrateBranchNotMerged = errors.New("projectmanager: integrate node cannot complete — its feature branch has not merged back into the integration trunk on origin; merge the branch into the base and push to origin, then retry complete")
+	// ErrIntegrateMergeUnverifiable wraps the infra-error case: the merge could not
+	// be VERIFIED (fetch/transport failure, or the project has no code repo
+	// configured). The guard fails CLOSED on it (an Integrate node only — not
+	// ordinary tasks), so a flaky/missing remote does not silently let an unmerged
+	// branch through. Distinct from ErrIntegrateBranchNotMerged ("definitely not
+	// merged") so callers can tell "no" apart from "couldn't check".
+	ErrIntegrateMergeUnverifiable = errors.New("projectmanager: integrate node merge could not be verified")
+)
 
 // Deps bundles the Service dependencies.
 type Deps struct {
@@ -256,6 +298,9 @@ type Deps struct {
 	// reads per-node cycle metadata (role/branch/base) to list un-done Integrate
 	// nodes. nil ⇒ an empty board. Wired by F2's scaffold storage at composition.
 	CycleMeta CycleNodeMetaPort
+	// MergeChecker is OPTIONAL (v2.13.0 / I18 F3): when set, CompleteTask blocks an
+	// Integrate node until its branch merged into origin/<base>. nil ⇒ guard disabled.
+	MergeChecker MergeChecker
 	// PoolClaimLimit is OPTIONAL (T83 §3.6): max concurrent claimed built-in-pool
 	// tasks per agent. 0 ⇒ DefaultPoolClaimLimit (3).
 	PoolClaimLimit int
@@ -273,7 +318,7 @@ func New(d Deps) *Service {
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
-		cycleMeta: d.CycleMeta,
+		cycleMeta: d.CycleMeta, mergeChecker: d.MergeChecker,
 	}
 }
 
@@ -309,6 +354,15 @@ func (s *Service) SetNodeResumer(r NodeResumer) *Service {
 // Returns the receiver for chaining.
 func (s *Service) SetCycleNodeMetaProvider(p CycleNodeMetaPort) *Service {
 	s.cycleMeta = p
+	return s
+}
+
+// SetMergeChecker wires the optional F3 merge-check guardrail AFTER construction
+// (v2.13.0 / I18) — used by the composition root once the git adapter (which needs
+// a cache dir + git binary) is built. nil is tolerated (disables the guard).
+// Returns the receiver for chaining.
+func (s *Service) SetMergeChecker(m MergeChecker) *Service {
+	s.mergeChecker = m
 	return s
 }
 
