@@ -353,6 +353,14 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Create a new draft plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
 	}, makeCreatePlan(cfg))
 
+	// v2.13.0 I18/F2: one-call cycle-plan scaffolding. CORE (advertised by default,
+	// not deferred) — it is the headline plan-authoring entrypoint a PD is directed
+	// to call, so it must be discoverable without a search_tools round-trip.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "scaffold_cycle_plan",
+		Description: "Build a whole cycle plan node-graph in one call: S0 (cut dev/<version>) → for each feature a Dev→Review→Integrate chain → 集成完成 Gate (barrier) → Accept → Ship, with depends_on edges wired. Nodes are created UNASSIGNED — assign owners afterwards with assign_task. Each node carries branch/base cycle metadata (the Integrate merge-check guard reads them). A doc_only feature collapses to a single Dev node exempt from the merge check. Returns the draft plan id + created nodes; review/adjust then start_plan.",
+	}, makeScaffoldCyclePlan(cfg))
+
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_task_to_plan",
 		Description: "Add an existing backlog task to a draft plan as a node. The plan must be in draft (stop_plan first if running) and the task must be in the plan's project. Use create_task to make the task first if it doesn't exist.",

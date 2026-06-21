@@ -120,6 +120,8 @@ var wantTools = []string{
 	"add_plan_dependency", "remove_plan_dependency",
 	"start_plan", "stop_plan", "get_plan", "list_plans",
 	"delete_plan", "archive_plan",
+	// v2.13.0 I18/F2: one-call cycle-plan scaffolding (CORE — agent-guided entrypoint)
+	"scaffold_cycle_plan",
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared context)
 	"record_finding", "list_findings",
 	// files
@@ -135,7 +137,7 @@ var planTools = []string{
 	"create_plan", "add_task_to_plan", "remove_task_from_plan",
 	"add_plan_dependency", "remove_plan_dependency",
 	"start_plan", "stop_plan", "get_plan", "list_plans",
-	"delete_plan", "archive_plan",
+	"delete_plan", "archive_plan", "scaffold_cycle_plan",
 }
 
 func TestInitializeAndListTools(t *testing.T) {

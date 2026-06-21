@@ -90,6 +90,58 @@ func TestCreatePlan_AsMember_OK(t *testing.T) {
 	}
 }
 
+func TestScaffoldCyclePlan_AsMember_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/scaffold_cycle_plan", "acat_w1",
+		map[string]any{
+			"agent_id": atAgent1, "project_id": string(pid), "version": "v9.9.0",
+			"features": []map[string]any{
+				{"name": "F1", "branch": "f1"},
+				{"name": "F2 docs", "doc_only": true},
+			},
+		})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	planID, _ := body["plan_id"].(string)
+	if planID == "" {
+		t.Fatalf("no plan_id in body: %v", body)
+	}
+	nodes, _ := body["nodes"].([]any)
+	// S0 + (F1: Dev/Review/Integrate) + (F2 doc-only: Dev) + Gate + Accept + Ship = 8.
+	if len(nodes) != 8 {
+		t.Fatalf("nodes = %d, want 8; body = %v", len(nodes), body)
+	}
+	// Plan created as a draft with actor=agent.
+	p, err := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Status() != pm.PlanDraft {
+		t.Fatalf("status = %s, want draft", p.Status())
+	}
+	if got := string(p.CreatorRef()); got != "agent:"+atAgent1 {
+		t.Fatalf("creator_ref = %q, want agent:%s", got, atAgent1)
+	}
+}
+
+func TestScaffoldCyclePlan_NoFeatures_422(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/scaffold_cycle_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "version": "v9.9.0"})
+	if status != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422 (no features); body = %v", status, body)
+	}
+}
+
 func TestCreatePlan_ForeignProject_403(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)

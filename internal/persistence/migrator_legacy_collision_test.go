@@ -44,17 +44,26 @@ func TestMigrator_ReconcileStateB_0064Collision(t *testing.T) {
 	if tableExists(t, db, "center_settings") {
 		t.Fatal("setup: center_settings should be gone")
 	}
-	if v, _ := mig.Version(ctx); v != 64 {
-		t.Fatalf("setup: version got %d want 64", v)
+	// State B precondition is "64 applied, 65 unapplied" (NOT a literal max version —
+	// later migrations like 0066 stay applied; only the v65 record was removed to
+	// re-arm the 0064/0065 reconcile path). Assert that directly so this regression
+	// survives schema-version bumps above 65.
+	applied, err := mig.appliedVersions(ctx)
+	if err != nil {
+		t.Fatalf("setup applied: %v", err)
+	}
+	if !applied[64] || applied[65] {
+		t.Fatalf("setup: want State B (64 applied, 65 unapplied), got applied[64]=%v applied[65]=%v", applied[64], applied[65])
 	}
 
 	// The fix under test: Up() must not crash on the renumbered 0065, and must
-	// recreate the skipped center_settings table.
+	// recreate the skipped center_settings table. Up ends at the latest version
+	// (reconcile re-marks 65, the apply loop carries any later migrations).
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("Up on State B DB: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 65 {
-		t.Fatalf("version after repair: got %d want 65", v)
+	if v, _ := mig.Version(ctx); v != 66 {
+		t.Fatalf("version after repair: got %d want 66", v)
 	}
 	if !tableExists(t, db, "center_settings") {
 		t.Fatal("center_settings was not recreated")
@@ -64,7 +73,7 @@ func TestMigrator_ReconcileStateB_0064Collision(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 65 {
-		t.Fatalf("version after second Up: got %d want 65", v)
+	if v, _ := mig.Version(ctx); v != 66 {
+		t.Fatalf("version after second Up: got %d want 66", v)
 	}
 }
