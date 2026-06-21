@@ -62,8 +62,10 @@ function StatusBadge({ status }: { status: ReminderStatus }): React.ReactElement
 
 export default function Reminders(): React.ReactElement {
   const { slug } = useParams<{ slug: string }>();
-  // T248: filter state lives in the URL query, driven by col② (RemindersSecondaryNav).
-  const [params] = useSearchParams();
+  // T248: filter state lives in the URL query, driven by col② (RemindersSecondaryNav)
+  // AND the in-page status chips below (so the status filter is reachable on mobile,
+  // where col② is collapsed) — both write the same ?status= param.
+  const [params, setParams] = useSearchParams();
   const range = (params.get('range') as ReminderListFilter) || 'all';
   // status filter (per @oopslink): the DEFAULT view hides terminal reminders
   // (completed/canceled). '' / no param → active+paused only; 'all' → every
@@ -119,6 +121,23 @@ export default function Reminders(): React.ReactElement {
 
   const rangeLabel = RANGES.find((r) => r.key === range)?.label ?? 'All';
 
+  // In-page status filter (per @oopslink): the same ?status= param the col② nav
+  // drives, surfaced on the page so it works on mobile (where col② is collapsed).
+  const statusChips: { key: string; label: string }[] = [
+    { key: '', label: 'Active & Paused' },
+    { key: 'all', label: 'All' },
+    { key: 'active', label: 'Active' },
+    { key: 'paused', label: 'Paused' },
+    { key: 'completed', label: 'Completed' },
+    { key: 'canceled', label: 'Canceled' },
+  ];
+  const setStatus = (key: string): void => {
+    const next = new URLSearchParams(params);
+    if (key) next.set('status', key);
+    else next.delete('status');
+    setParams(next, { replace: true });
+  };
+
   return (
     // T248: col③ (middle workspace) is the LIST only — a single column. The
     // filter rail now lives in col② (RemindersSecondaryNav). On mobile the shell
@@ -141,6 +160,28 @@ export default function Reminders(): React.ReactElement {
             <Stat label="Active" value={String(stats.active)} testId="stat-active" />
             <Stat label="Paused" value={String(stats.paused)} testId="stat-paused" />
             <Stat label="Next run" value={stats.next} testId="stat-next" />
+          </div>
+
+          {/* In-page status filter chips (mobile-reachable). Default "Active &
+              Paused" hides terminal; "All" shows every status. */}
+          <div className="mb-4 flex flex-wrap items-center gap-1.5" data-testid="reminder-status-filter">
+            {statusChips.map((c) => {
+              const active = statusParam === c.key;
+              return (
+                <button
+                  key={c.key || 'default'}
+                  type="button"
+                  onClick={() => setStatus(c.key)}
+                  aria-pressed={active}
+                  data-testid={`reminder-statuschip-${c.key || 'default'}`}
+                  className={`rounded-full px-2.5 py-0.5 text-xs ${
+                    active ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-border-base'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
           </div>
 
           {isLoading && <p className="py-6 text-sm text-text-muted">Loading…</p>}

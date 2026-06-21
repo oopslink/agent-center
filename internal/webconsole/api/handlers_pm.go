@@ -446,39 +446,31 @@ func (s *Server) pmListIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// T131: the project Issue list accepts the SAME filter params as the org-wide
-	// Issue list (status + created/updated time-range), reusing the shared helpers
-	// so there is one filter logic, not two. The project dimension is fixed by the
-	// path (no `project` param). Default (no status) EXCLUDES terminal issues —
-	// aligned with the org list (this endpoint used to return every status).
-	statusFilter := parseSetParam(r, "status")
-	// Issues are never assignable; an explicit assignee filter excludes them all
-	// (mirrors the org Issue list so the param contract matches exactly).
-	assigneeSet := strings.TrimSpace(r.URL.Query().Get("assignee")) != ""
-	tf, terr := parseTimeFilter(r)
-	if terr != nil {
-		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
+	// T131/T302: the project Issue list accepts the SAME filter params as the
+	// org-wide Issue list (status + assignee + q + time-range) PLUS sort + page,
+	// all pushed to SQL via ListIssuesOrgPage scoped to this one project. Pagination
+	// is OPTIONAL — with no page_size the repo returns every row (back-compat for
+	// callers that ignore `total`). Default (no status) EXCLUDES terminal issues.
+	q := pm.OrgListQuery{ProjectIDs: []pm.ProjectID{p.ID()}}
+	if err := applyListFilters(r, &q, issueTerminalStatus); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_filter", err.Error())
 		return
 	}
-	is, err := d.PM.ListIssues(r.Context(), p.ID())
+	// Issues are never assignable; an explicit assignee filter excludes them all.
+	if strings.TrimSpace(r.URL.Query().Get("assignee")) != "" {
+		writeJSON(w, http.StatusOK, map[string]any{"issues": []any{}, "total": 0})
+		return
+	}
+	is, total, err := d.PM.ListIssuesOrgPage(r.Context(), q)
 	if err != nil {
 		mapPMError(w, err)
 		return
 	}
 	out := make([]map[string]any, 0, len(is))
 	for _, i := range is {
-		if !statusPasses(string(i.Status()), statusFilter, issueTerminalStatus) {
-			continue
-		}
-		if assigneeSet {
-			continue
-		}
-		if !tf.passes(i.CreatedAt(), i.UpdatedAt()) {
-			continue
-		}
 		out = append(out, pmIssueMap(i))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"issues": out})
+	writeJSON(w, http.StatusOK, map[string]any{"issues": out, "total": total})
 }
 
 func (s *Server) pmCreateIssueHandler(w http.ResponseWriter, r *http.Request) {
@@ -585,53 +577,58 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ?unplanned=1|true restricts to the Backlog (v2.9 Work Board): tasks not yet
-	// selected into any Plan (empty plan_id). Absent/other → all project tasks.
-	var (
-		ts  []*pm.Task
-		err error
-	)
-	switch q := r.URL.Query().Get("unplanned"); q {
-	case "1", "true":
-		ts, err = d.PM.ListUnplannedTasks(r.Context(), p.ID())
-	default:
-		ts, err = d.PM.ListTasks(r.Context(), p.ID())
+	// selected into any Plan (empty plan_id). It is the kanban backlog POOL — it
+	// must return EVERY matching task (no pagination), so it keeps the in-memory
+	// filter path. The normal project Task LIST (below) uses SQL pagination/sort.
+	if u := r.URL.Query().Get("unplanned"); u == "1" || u == "true" {
+		ts, err := d.PM.ListUnplannedTasks(r.Context(), p.ID())
+		if err != nil {
+			mapPMError(w, err)
+			return
+		}
+		statusFilter := parseSetParam(r, "status")
+		assigneeFilter := strings.TrimSpace(r.URL.Query().Get("assignee"))
+		tf, terr := parseTimeFilter(r)
+		if terr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
+			return
+		}
+		out := make([]map[string]any, 0, len(ts))
+		for _, t := range ts {
+			if !statusPasses(string(t.Status()), statusFilter, taskTerminalStatus) {
+				continue
+			}
+			if assigneeFilter != "" && !assigneeMatches(string(t.Assignee()), assigneeFilter) {
+				continue
+			}
+			if !tf.passes(t.CreatedAt(), t.UpdatedAt()) {
+				continue
+			}
+			out = append(out, pmTaskMap(t))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"tasks": out, "total": len(out)})
+		return
 	}
+	// T131/T302: the project Task LIST accepts the SAME filter params as the
+	// org-wide Task list (status + assignee + q + time-range) PLUS sort + page,
+	// pushed to SQL via ListTasksOrgPage scoped to this one project. Default (no
+	// status) EXCLUDES terminal tasks; pagination is optional (no page_size → all).
+	q := pm.OrgListQuery{ProjectIDs: []pm.ProjectID{p.ID()}}
+	if err := applyListFilters(r, &q, taskTerminalStatus); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_filter", err.Error())
+		return
+	}
+	q.Assignee = strings.TrimSpace(r.URL.Query().Get("assignee"))
+	ts, total, err := d.PM.ListTasksOrgPage(r.Context(), q)
 	if err != nil {
 		mapPMError(w, err)
 		return
 	}
-	// v2.9.1 (task-c91805fe): the default backlog/task view shows only "unscheduled
-	// todo" — it EXCLUDES terminal tasks (completed/discarded). They remain reachable
-	// via an explicit ?status= filter (e.g. ?status=completed), mirroring the
-	// archived-projects pattern (#298/#310) and the org task list. Plan membership is
-	// untouched: a done task selected into a Plan still belongs to that Plan's DAG;
-	// only this backlog POOL view hides it. statusPasses: empty filter → exclude
-	// terminal; explicit filter → only the named statuses.
-	statusFilter := parseSetParam(r, "status")
-	// T131: the project Task list accepts the SAME filter params as the org-wide
-	// Task list (assignee + created/updated time-range), on top of the existing
-	// status filter and the ?unplanned backlog switch. Reuses the shared helpers
-	// (one filter logic). The project dimension is fixed by the path.
-	assigneeFilter := strings.TrimSpace(r.URL.Query().Get("assignee"))
-	tf, terr := parseTimeFilter(r)
-	if terr != nil {
-		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
-		return
-	}
 	out := make([]map[string]any, 0, len(ts))
 	for _, t := range ts {
-		if !statusPasses(string(t.Status()), statusFilter, taskTerminalStatus) {
-			continue
-		}
-		if assigneeFilter != "" && !assigneeMatches(string(t.Assignee()), assigneeFilter) {
-			continue
-		}
-		if !tf.passes(t.CreatedAt(), t.UpdatedAt()) {
-			continue
-		}
 		out = append(out, pmTaskMap(t))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": out, "total": total})
 }
 
 func (s *Server) pmCreateTaskHandler(w http.ResponseWriter, r *http.Request) {

@@ -210,6 +210,29 @@ func (s *Server) pmListPlansHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// T302: the project plan LIST panel sends pagination/sort params (page_size).
+	// In that mode use the SQL-paginated path (ListOrgPlansPage scoped to this one
+	// project) — which EXCLUDES the builtin pool and supports sort/q/page — and
+	// return a total. Without page params, keep the legacy path: every plan INCL.
+	// the builtin pool (the Work Board / usePlans consumers depend on that).
+	if r.URL.Query().Get("page_size") != "" {
+		q := pm.OrgListQuery{ProjectIDs: []pm.ProjectID{p.ID()}}
+		if err := applyListFilters(r, &q, planTerminalStatus); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_filter", err.Error())
+			return
+		}
+		details, total, err := d.PM.ListOrgPlansPage(r.Context(), q)
+		if err != nil {
+			mapPlanError(w, err)
+			return
+		}
+		out := make([]map[string]any, 0, len(details))
+		for _, detail := range details {
+			out = append(out, pmPlanSummaryMap(detail))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"plans": out, "total": total})
+		return
+	}
 	summaries, err := d.PM.ListPlanSummaries(r.Context(), p.ID())
 	if err != nil {
 		mapPlanError(w, err)

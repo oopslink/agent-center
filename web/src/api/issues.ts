@@ -12,14 +12,18 @@ import type { Issue, IssueStatus } from './types';
 // created_*/updated_*; issues are not assignable). Filters become a query-key
 // SUFFIX (per-filter cache) while `qk.issuesByProject(projectId)` stays a PREFIX so
 // the existing create/update invalidations still refresh every filtered variant.
+// Returns { items, total } so the project Issues panel can render server-side
+// pagination (T302). filters carries status/q/time PLUS sort/dir/page/page_size
+// (buildWorkItemQuery emits them); the backend paginates in SQL. `total` is the
+// full pre-page count.
 export function useIssues(projectId: string | undefined, filters?: OrgWorkItemFilters) {
   return useQuery({
     queryKey: [...qk.issuesByProject(projectId ?? ''), filters ?? null],
     queryFn: async () => {
-      const resp = await api.get<{ issues: Issue[] }>(
+      const resp = await api.get<{ issues: Issue[]; total?: number }>(
         `/projects/${projectId}/issues${buildWorkItemQuery(filters)}`,
       );
-      return resp.issues;
+      return { items: resp.issues ?? [], total: resp.total ?? (resp.issues ?? []).length };
     },
     enabled: !!projectId,
   });

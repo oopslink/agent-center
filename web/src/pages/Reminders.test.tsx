@@ -115,6 +115,16 @@ describe('Reminders page', () => {
     expect(lastListParams).toMatchObject({ filter: 'all', statuses: undefined });
   });
 
+  it('in-page status chips drive the same status filter (mobile-reachable)', () => {
+    renderPage();
+    // default chip "Active & Paused" is present (status filter reachable on the page).
+    expect(screen.getByTestId('reminder-statuschip-default')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('reminder-statuschip-completed'));
+    expect(lastListParams).toMatchObject({ statuses: ['completed'] });
+    fireEvent.click(screen.getByTestId('reminder-statuschip-all'));
+    expect(lastListParams).toMatchObject({ statuses: undefined });
+  });
+
   it('opens the create modal from the New reminder button', () => {
     renderPage();
     expect(screen.queryByTestId('reminder-create-modal')).toBeNull();

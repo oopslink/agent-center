@@ -270,6 +270,8 @@ describe('ProjectDetail page', () => {
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
       http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      // T302: the Plans panel hits the project plans endpoint with page params →
+      // SQL-paginated { plans, total } (builtin excluded server-side).
       http.get('/api/projects/:pid/plans', () =>
         HttpResponse.json({
           plans: [
@@ -280,6 +282,7 @@ describe('ProjectDetail page', () => {
               created_at: '2026-05-20T01:00:00Z',
             },
           ],
+          total: 1,
         }),
       ),
     );

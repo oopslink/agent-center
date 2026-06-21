@@ -57,12 +57,7 @@ var planTerminalStatus = map[string]bool{"archived": true}
 // entity's default-hidden status set. A bad time filter returns a non-nil error
 // (the caller writes a 400).
 func orgListQueryBase(r *http.Request, projects []*pm.Project, terminal map[string]bool) (pm.OrgListQuery, error) {
-	statusFilter := parseSetParam(r, "status")
 	projectFilter := parseSetParam(r, "project")
-	tf, terr := parseTimeFilter(r)
-	if terr != nil {
-		return pm.OrgListQuery{}, terr
-	}
 	var ids []pm.ProjectID
 	for _, p := range projects {
 		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
@@ -73,7 +68,24 @@ func orgListQueryBase(r *http.Request, projects []*pm.Project, terminal map[stri
 		}
 		ids = append(ids, p.ID())
 	}
-	q := pm.OrgListQuery{ProjectIDs: ids, Q: strings.TrimSpace(r.URL.Query().Get("q"))}
+	q := pm.OrgListQuery{ProjectIDs: ids}
+	if err := applyListFilters(r, &q, terminal); err != nil {
+		return pm.OrgListQuery{}, err
+	}
+	return q, nil
+}
+
+// applyListFilters fills the status / q / time-range / sort / page-window fields
+// of q from the request (the caller sets ProjectIDs). Shared by the org list
+// handlers (cross-project) and the project-scoped list handlers (single project),
+// so the filter+sort+pagination contract is identical on both surfaces.
+func applyListFilters(r *http.Request, q *pm.OrgListQuery, terminal map[string]bool) error {
+	statusFilter := parseSetParam(r, "status")
+	tf, terr := parseTimeFilter(r)
+	if terr != nil {
+		return terr
+	}
+	q.Q = strings.TrimSpace(r.URL.Query().Get("q"))
 	// status: ?status=all → no constraint; explicit set → include; else default
 	// "all open" → exclude the terminal set (mirrors statusPasses).
 	if !statusFilter["all"] {
@@ -112,7 +124,7 @@ func orgListQueryBase(r *http.Request, projects []*pm.Project, terminal map[stri
 	}
 	q.Limit = pp.limit
 	q.Offset = pp.offset
-	return q, nil
+	return nil
 }
 
 // projectByID indexes the org's projects for O(1) row enrichment of a page.

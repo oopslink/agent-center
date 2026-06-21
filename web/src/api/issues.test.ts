@@ -23,8 +23,9 @@ describe('issues hooks', () => {
       wrapper: makeWrapper(),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.[0].id).toBe('IS-1');
-    expect(result.current.data?.[0].project_id).toBe('proj-a');
+    expect(result.current.data?.items[0].id).toBe('IS-1');
+    expect(result.current.data?.items[0].project_id).toBe('proj-a');
+    expect(result.current.data?.total).toBe(1);
   });
 
   it('useIssues stays idle when projectId is undefined', () => {

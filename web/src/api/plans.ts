@@ -148,6 +148,23 @@ export function usePlans(projectId: string | undefined) {
   });
 }
 
+// useProjectPlansList — the project Plans LIST panel (T302): the SAME project
+// plans endpoint but with sort/page params, so the backend SQL-paginates and
+// EXCLUDES the builtin pool, returning { items, total }. Distinct from usePlans
+// (Work Board / AgentContextPanel), which stays unpaginated + includes builtin.
+export function useProjectPlansList(projectId: string | undefined, filters?: OrgPlanFilters) {
+  return useQuery({
+    queryKey: [...qk.plansByProject(projectId ?? ''), 'list', filters ?? null],
+    queryFn: async () => {
+      const resp = await api.get<{ plans: Plan[]; total?: number }>(
+        `${plansBase(projectId ?? '')}${buildOrgPlanQuery(filters)}`,
+      );
+      return { items: resp.plans ?? [], total: resp.total ?? (resp.plans ?? []).length };
+    },
+    enabled: !!projectId,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // v2.10.0 [T6] — global (org-scoped, cross-project) Plan list.
 // GET /api/orgs/{slug}/plans → { items: OrgPlanItem[], total }. Mirrors the

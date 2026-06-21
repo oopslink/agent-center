@@ -14,14 +14,17 @@ import type { Task, TaskStatus } from './types';
 // so `filters.project` is unused here. The filters become a query-key SUFFIX so
 // each filtered view caches separately, while `qk.tasksByProject(projectId)` stays
 // a PREFIX — the existing create/update invalidations still refresh every variant.
+// Returns { items, total } so the project Tasks panel can render server-side
+// pagination (T302). filters carries status/assignee/q/time PLUS sort/dir/page/
+// page_size; the backend paginates in SQL. `total` is the full pre-page count.
 export function useTasksList(projectId: string | undefined, filters?: OrgWorkItemFilters) {
   return useQuery({
     queryKey: [...qk.tasksByProject(projectId ?? ''), filters ?? null],
     queryFn: async () => {
-      const resp = await api.get<{ tasks: Task[] }>(
+      const resp = await api.get<{ tasks: Task[]; total?: number }>(
         `/projects/${projectId}/tasks${buildWorkItemQuery(filters)}`,
       );
-      return resp.tasks;
+      return { items: resp.tasks ?? [], total: resp.total ?? (resp.tasks ?? []).length };
     },
     enabled: !!projectId,
   });
@@ -36,7 +39,7 @@ export function useTasksList(projectId: string | undefined, filters?: OrgWorkIte
 export function useTasksOfIssue(projectId: string | undefined, issueId: string | undefined) {
   const q = useTasksList(projectId, { status: ['all'] });
   const data = useMemo(
-    () => (issueId ? (q.data ?? []).filter((t) => t.derived_from_issue === issueId) : []),
+    () => (issueId ? (q.data?.items ?? []).filter((t) => t.derived_from_issue === issueId) : []),
     [q.data, issueId],
   );
   return { ...q, data };

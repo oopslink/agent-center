@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -11,7 +11,7 @@ import {
   type Project,
 } from '@/api/projects';
 import { useIssues } from '@/api/issues';
-import { usePlans } from '@/api/plans';
+import { useProjectPlansList } from '@/api/plans';
 import { useAgents } from '@/api/agents';
 import { formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
@@ -28,6 +28,7 @@ import { ProjectMemberAddModal } from '@/components/ProjectMemberAddModal';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
+import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { PlanStatusChip, planProgressLabel, PlanFailedIndicator } from '@/components/planDisplay';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
@@ -370,8 +371,18 @@ function TabButton({
 // panels; each name links to the plan detail page. Plans are created/edited on
 // the Work Board, so there is no create button here.
 function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const plans = usePlans(projectId);
-  const data = plans.data ?? [];
+  // T302: the project plans endpoint with page params → SQL-paginated, builtin
+  // pool excluded, returns { items, total }. usePlans (Work Board) stays
+  // unpaginated + includes builtin.
+  const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
+  const plans = useProjectPlansList(projectId, {
+    sort: controls.sort,
+    dir: controls.dir,
+    page: controls.page,
+    page_size: controls.pageSize,
+  });
+  const data = plans.data?.items ?? [];
+  const total = plans.data?.total ?? 0;
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -403,9 +414,9 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
           <table className="w-full text-left text-xs" data-testid="project-plans-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <th className="py-1.5 pr-3 font-medium">ID</th>
-                <th className="py-1.5 pr-3 font-medium">Name</th>
-                <th className="py-1.5 pr-3 font-medium">Status</th>
+                <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Name" sortKey="name" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 font-medium">Progress</th>
               </tr>
             </thead>
@@ -437,6 +448,7 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
               ))}
             </tbody>
           </table>
+          <Pagination page={controls.page} pageSize={controls.pageSize} total={total} onPageChange={controls.setPage} />
         </div>
       )}
     </div>
@@ -648,15 +660,24 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [assignee, setAssignee] = useState<string>('');
   const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
-  const filters = buildWorkItemFilters({
-    selectedStatuses,
-    selectedProjects: [],
-    assignee,
-    dateRange,
-  });
+  // T302: server-side sort + pagination (column headers + bottom pager).
+  const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
+  const filters = {
+    ...(buildWorkItemFilters({ selectedStatuses, selectedProjects: [], assignee, dateRange }) ?? {}),
+    sort: controls.sort,
+    dir: controls.dir,
+    page: controls.page,
+    page_size: controls.pageSize,
+  };
   const issues = useIssues(projectId, filters);
   const [createOpen, setCreateOpen] = useState(false);
-  const data = issues.data ?? [];
+  const data = issues.data?.items ?? [];
+  const total = issues.data?.total ?? 0;
+  // reset to page 1 when a filter narrows the set.
+  const setPage = controls.setPage;
+  useEffect(() => {
+    setPage(1);
+  }, [selectedStatuses, assignee, dateRange, setPage]);
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -701,7 +722,7 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
         </p>
       ) : data.length === 0 ? (
         <p className="py-4 text-center text-xs text-text-muted">
-          {filters ? 'No matching issues' : 'No issues yet'}
+          {selectedStatuses.length > 0 || assignee ? 'No matching issues' : 'No issues yet'}
         </p>
       ) : (
         // v2.7.1 #242: table layout (ID / Title / Status / Updated). ID-first so
@@ -710,10 +731,10 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
           <table className="w-full text-left text-xs" data-testid="project-issues-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <th className="py-1.5 pr-3 font-medium">ID</th>
-                <th className="py-1.5 pr-3 font-medium">Title</th>
-                <th className="py-1.5 pr-3 font-medium">Status</th>
-                <th className="py-1.5 font-medium">Updated</th>
+                <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Title" sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -741,6 +762,7 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
               ))}
             </tbody>
           </table>
+          <Pagination page={controls.page} pageSize={controls.pageSize} total={total} onPageChange={controls.setPage} />
         </div>
       )}
     </div>
@@ -753,17 +775,25 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [assignee, setAssignee] = useState<string>('');
   const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
-  const filters = buildWorkItemFilters({
-    selectedStatuses,
-    selectedProjects: [],
-    assignee,
-    dateRange,
-  });
+  // T302: server-side sort + pagination.
+  const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
+  const filters = {
+    ...(buildWorkItemFilters({ selectedStatuses, selectedProjects: [], assignee, dateRange }) ?? {}),
+    sort: controls.sort,
+    dir: controls.dir,
+    page: controls.page,
+    page_size: controls.pageSize,
+  };
   const tasks = useTasksList(projectId, filters);
   const [createOpen, setCreateOpen] = useState(false);
   // v2.7.1 #242: resolve the assignee ref → display name (raw ref on hover, #192).
   const resolveName = useDisplayNameResolver();
-  const data = tasks.data ?? [];
+  const data = tasks.data?.items ?? [];
+  const total = tasks.data?.total ?? 0;
+  const setPage = controls.setPage;
+  useEffect(() => {
+    setPage(1);
+  }, [selectedStatuses, assignee, dateRange, setPage]);
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -808,7 +838,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
         </p>
       ) : data.length === 0 ? (
         <p className="py-4 text-center text-xs text-text-muted">
-          {filters ? 'No matching tasks' : 'No tasks yet'}
+          {selectedStatuses.length > 0 || assignee ? 'No matching tasks' : 'No tasks yet'}
         </p>
       ) : (
         // v2.7.1 #242: table (ID / Title / Status / Assigned to / Priority / Updated).
@@ -817,12 +847,12 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
           <table className="w-full text-left text-xs" data-testid="project-tasks-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <th className="py-1.5 pr-3 font-medium">ID</th>
-                <th className="py-1.5 pr-3 font-medium">Title</th>
-                <th className="py-1.5 pr-3 font-medium">Status</th>
+                <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Title" sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">Assigned to</th>
                 <th className="py-1.5 pr-3 font-medium">Priority</th>
-                <th className="py-1.5 font-medium">Updated</th>
+                <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -862,6 +892,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
               ))}
             </tbody>
           </table>
+          <Pagination page={controls.page} pageSize={controls.pageSize} total={total} onPageChange={controls.setPage} />
         </div>
       )}
     </div>

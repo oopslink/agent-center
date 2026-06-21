@@ -25,8 +25,9 @@ describe('tasks hooks', () => {
       wrapper: makeWrapper(),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.[0].id).toBe('TS-1');
-    expect(result.current.data?.[0].status).toBe('open');
+    expect(result.current.data?.items[0].id).toBe('TS-1');
+    expect(result.current.data?.items[0].status).toBe('open');
+    expect(result.current.data?.total).toBe(1);
   });
 
   it('useTasksList stays idle when projectId is undefined', () => {
