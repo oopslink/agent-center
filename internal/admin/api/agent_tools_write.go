@@ -993,6 +993,18 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
 		return
 	}
+	// B3 (v2.13.0 I18): when the agent completes a DECISION node WITHOUT an explicit
+	// outcome, auto-derive it from the §-1 gate verdict + open review comments. This
+	// is read-only + does git/CI I/O, so it runs BEFORE the tx (like F3's
+	// guardIntegrateMerge pre-check); the derived outcome is recorded INSIDE the tx.
+	// Best-effort: any error / non-decision node leaves auto empty ⇒ pre-B3 behaviour
+	// (the agent's manual outcome, if any). A decision that B3 cannot resolve
+	// (auto.IsDecision && !auto.Decided) is notified to a human AFTER the tx.
+	manualOutcome := strings.TrimSpace(req.Outcome)
+	var auto pmservice.AutoDecision
+	if manualOutcome == "" {
+		auto, _ = d.PMService.ComputeAutoDecision(r.Context(), pm.TaskID(req.TaskID))
+	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
 		if strings.TrimSpace(req.Summary) != "" {
 			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Summary, ""); err != nil {
@@ -1003,17 +1015,28 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 			pm.IdentityRef(agentActor(a))); err != nil {
 			return err
 		}
-		// B1: record a decision node's outcome in the SAME tx, so the subsequent
-		// auto-advance routes its conditional/loopback edges (no-op when empty).
-		if strings.TrimSpace(req.Outcome) != "" {
+		// Record the decision node's outcome in the SAME tx, so the subsequent
+		// auto-advance routes its conditional/loopback edges. The manual outcome (B1)
+		// wins; absent one, B3's auto-derived outcome (when decided) is used. No-op
+		// for an ordinary task / an undecided decision (left for a human).
+		outcome := manualOutcome
+		if outcome == "" && auto.Decided {
+			outcome = auto.Outcome
+		}
+		if outcome != "" {
 			return d.PMService.SetDecisionOutcome(txCtx, pm.TaskID(req.TaskID),
-				strings.TrimSpace(req.Outcome), pm.IdentityRef(agentActor(a)))
+				outcome, pm.IdentityRef(agentActor(a)))
 		}
 		return nil
 	})
 	if err != nil {
 		mapDomainError(w, err)
 		return
+	}
+	// B3: a decision node B3 could not auto-resolve → ping a human to rule manually
+	// (best-effort, post-commit so it never blocks/aborts the completion).
+	if manualOutcome == "" && auto.IsDecision && !auto.Decided {
+		_ = d.PMService.NotifyDecisionDeferred(r.Context(), pm.TaskID(req.TaskID), auto)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
 }
