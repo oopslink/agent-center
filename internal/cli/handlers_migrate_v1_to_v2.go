@@ -116,8 +116,10 @@ func MigrateV1ToV2Command() *Command {
 // v2.13.0 I18/F2 added 0066 (pm_tasks.branch/base/skip_merge_check — cycle-node
 // git metadata for scaffold_cycle_plan + the F3 merge-check guard); v2.13.0 I18/F3
 // added 0067 (pm_tasks.role — the persisted cycle-node role discriminator the F3
-// merge guard + F4 unmerged-branch board key on).
-const targetSchemaVersion = 67
+// merge guard + F4 unmerged-branch board key on). v2.13.0 I18/B1 added 0068
+// (control-flow engine — pm_task_dependencies.kind/when/max_rounds + decision-outcomes
+// + loop-rounds tables, all additive so existing DAG plans are unchanged).
+const targetSchemaVersion = 68
 
 func runMigrateV1ToV2(
 	ctx context.Context,

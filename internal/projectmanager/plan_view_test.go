@@ -71,7 +71,7 @@ func TestComputePlanView_ReadySet_FanOut(t *testing.T) {
 		{PlanID: "pl", FromTaskID: "B", ToTaskID: "A"}, // B depends_on A
 		{PlanID: "pl", FromTaskID: "C", ToTaskID: "A"}, // C depends_on A
 	}
-	view := ComputePlanView(tasks, edges, nil, nil)
+	view := ComputePlanView(tasks, edges, nil, nil, nil)
 	if len(view.ReadySet) != 2 {
 		t.Fatalf("ready-set=%v want [B C]", view.ReadySet)
 	}
@@ -97,7 +97,7 @@ func TestComputePlanView_DispatchedNotReady(t *testing.T) {
 	tasks := []*Task{a, b}
 	edges := []Dependency{{PlanID: "pl", FromTaskID: "B", ToTaskID: "A"}}
 	records := []DispatchRecord{{PlanID: "pl", TaskID: "B", DispatchedAt: time.Now(), DispatchMessageID: "m1"}}
-	view := ComputePlanView(tasks, edges, records, nil)
+	view := ComputePlanView(tasks, edges, records, nil, nil)
 	if len(view.ReadySet) != 0 {
 		t.Fatalf("ready-set=%v want empty (B already dispatched)", view.ReadySet)
 	}
@@ -117,7 +117,7 @@ func TestComputePlanView_DispatchedNotReady(t *testing.T) {
 func TestComputePlanView_PausedOverlay(t *testing.T) {
 	a := newTaskWithStatus(t, "A", TaskRunning) // paused
 	b := newTaskWithStatus(t, "B", TaskRunning) // running (not paused)
-	view := ComputePlanView([]*Task{a, b}, nil, nil, map[TaskID]bool{"A": true})
+	view := ComputePlanView([]*Task{a, b}, nil, nil, nil, map[TaskID]bool{"A": true})
 	byID := map[TaskID]NodeStatus{}
 	for _, n := range view.Nodes {
 		byID[n.TaskID] = n.NodeStatus
@@ -148,7 +148,7 @@ func TestComputePlanView_FailureIsolation(t *testing.T) {
 		{PlanID: "pl", FromTaskID: "B", ToTaskID: "A"}, // B depends_on A (failed)
 		{PlanID: "pl", FromTaskID: "Y", ToTaskID: "X"}, // Y depends_on X (done)
 	}
-	view := ComputePlanView(tasks, edges, nil, nil)
+	view := ComputePlanView(tasks, edges, nil, nil, nil)
 	byID := map[TaskID]NodeStatus{}
 	for _, n := range view.Nodes {
 		byID[n.TaskID] = n.NodeStatus
@@ -176,7 +176,7 @@ func TestComputePlanView_AllDone(t *testing.T) {
 	t.Run("all done", func(t *testing.T) {
 		a := newTaskWithStatus(t, "A", TaskCompleted)
 		b := newTaskWithStatus(t, "B", TaskCompleted)
-		view := ComputePlanView([]*Task{a, b}, nil, nil, nil)
+		view := ComputePlanView([]*Task{a, b}, nil, nil, nil, nil)
 		if !view.AllDone {
 			t.Fatal("AllDone should be true when all nodes done")
 		}
@@ -187,7 +187,7 @@ func TestComputePlanView_AllDone(t *testing.T) {
 	t.Run("one failed keeps not-done", func(t *testing.T) {
 		a := newTaskWithStatus(t, "A", TaskCompleted)
 		b := newTaskWithStatus(t, "B", TaskDiscarded)
-		view := ComputePlanView([]*Task{a, b}, nil, nil, nil)
+		view := ComputePlanView([]*Task{a, b}, nil, nil, nil, nil)
 		if view.AllDone {
 			t.Fatal("AllDone must be false when a node is failed (§9.1)")
 		}
@@ -196,7 +196,7 @@ func TestComputePlanView_AllDone(t *testing.T) {
 		}
 	})
 	t.Run("empty plan is not all-done", func(t *testing.T) {
-		view := ComputePlanView(nil, nil, nil, nil)
+		view := ComputePlanView(nil, nil, nil, nil, nil)
 		if view.AllDone {
 			t.Fatal("an empty plan is not AllDone")
 		}

@@ -471,6 +471,7 @@ func makeResumePausedNode(cfg Config) mcp.ToolHandlerFor[resumePausedNodeArgs, a
 type completeTaskArgs struct {
 	TaskID  string `json:"task_id" jsonschema:"the task to complete"`
 	Summary string `json:"summary,omitempty" jsonschema:"optional completion summary posted to the task"`
+	Outcome string `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject') that routes its conditional/loopback edges; omit for an ordinary task"`
 }
 
 func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
@@ -479,6 +480,7 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 			"agent_id": cfg.AgentID,
 			"task_id":  args.TaskID,
 			"summary":  args.Summary,
+			"outcome":  args.Outcome,
 		}
 		return callAdmin(ctx, cfg, "complete_task", body)
 	}
