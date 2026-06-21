@@ -234,6 +234,25 @@ type IssueSubscriberRepository interface {
 	ListByIssue(ctx context.Context, issueID IssueID) ([]*IssueSubscriber, error)
 }
 
+// TaskActionLogRepository persists the append-only Task lifecycle log (v2.14.0
+// I14 §7.3) that replaces the deleted agent_work_item_transitions. The aggregate
+// never mints infra IDs (see Task.TaskActionLog doc): Append assigns a ULID to any
+// entry whose ID is empty, then inserts it — so the service layer (F3) appends the
+// new entries Task.ActionLogs() produced after a domain op, exactly once, in the
+// same tx as the Task.Update. ListByTask returns a task's log stable-ordered
+// (occurred_at, id) — the source for RehydrateTaskInput.ActionLogs and the
+// `agent_started` interactions count (issue §九).
+type TaskActionLogRepository interface {
+	// Append inserts the given entries for taskID. An entry with an empty ID gets
+	// a fresh ULID (time-ordered); a non-empty ID is inserted as-is (idempotent
+	// re-inserts are the caller's responsibility — entries are immutable). It runs
+	// in the caller's ambient tx when one is set.
+	Append(ctx context.Context, taskID TaskID, logs []TaskActionLog) error
+	// ListByTask returns taskID's action log stable-ordered (occurred_at, id);
+	// empty (not an error) when the task has no entries.
+	ListByTask(ctx context.Context, taskID TaskID) ([]TaskActionLog, error)
+}
+
 // CodeRepoRefRepository persists CodeRepoRef records attached to a Project.
 type CodeRepoRefRepository interface {
 	Save(ctx context.Context, c *CodeRepoRef) error

@@ -174,14 +174,15 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue,
-			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role, blocked_reason_type, blocked_comment, execution_lease_expires_at)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(t.ID()), string(t.ProjectID()), t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		string(t.CreatedBy()), ts(t.CreatedAt()), ts(t.UpdatedAt()), t.Version(), nullInt(t.OrgNumber()),
 		marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.PlanID()),
-		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()))
+		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()),
+		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()))
 	if isUnique(err) {
 		return pm.ErrTaskExists
 	}
@@ -192,12 +193,13 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_tasks SET title=?, description=?, status=?, assignee=?, derived_from_issue=?,
-			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, plan_id=?, archived_at=?, archived_by=?, branch=?, base=?, skip_merge_check=?, role=? WHERE id=?`,
+			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, plan_id=?, archived_at=?, archived_by=?, branch=?, base=?, skip_merge_check=?, role=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=? WHERE id=?`,
 		t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.PlanID()),
-		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()), string(t.ID()))
+		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()),
+		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), string(t.ID()))
 	if err != nil {
 		return err
 	}
@@ -341,7 +343,7 @@ func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus)
 }
 
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
-	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role FROM pm_tasks`
+	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role, blocked_reason_type, blocked_comment, execution_lease_expires_at FROM pm_tasks`
 
 func scanTask(scan func(...any) error) (*pm.Task, error) {
 	var (
@@ -357,9 +359,11 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		branch, base                                                  sql.NullString
 		skipMergeCheck                                                bool
 		role                                                          sql.NullString
+		blockedReasonType, blockedComment                             sql.NullString
+		execLeaseExpiresAt                                            sql.NullString
 	)
 	if err := scan(&id, &projectID, &title, &desc, &status, &assignee, &derived,
-		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &planID, &archivedAt, &archivedBy, &branch, &base, &skipMergeCheck, &role); err != nil {
+		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &planID, &archivedAt, &archivedBy, &branch, &base, &skipMergeCheck, &role, &blockedReasonType, &blockedComment, &execLeaseExpiresAt); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateTask(pm.RehydrateTaskInput{
@@ -378,6 +382,10 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		Base:            base.String,
 		SkipMergeCheck:  skipMergeCheck,
 		Role:            pm.CycleNodeRole(role.String),
+		// v2.14.0 I14/F2 — block annotation + lease round-trip.
+		BlockedReasonType:       pm.BlockReasonType(blockedReasonType.String),
+		BlockedComment:          blockedComment.String,
+		ExecutionLeaseExpiresAt: parseTimePtr(execLeaseExpiresAt.String),
 	})
 }
 
