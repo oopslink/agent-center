@@ -2,10 +2,10 @@
 
 - **Issue**: I18 = issue-b10f3ca1 「Cycle 流程编排成 plan 节点图 + 合并校验护栏」
 - **Plan**: plan-0abb326f（本 cycle dogfood 自身的节点图）
-- **验收对象**: `origin/dev/v2.13.0 @ 8eb1ffc1`（集成完成 Gate T271 已 done，26/28；所有 Integrate 节点已合回主干）
-- **Binary**: `agent-center dev/v2.13.0-8eb1ffc1`
+- **验收对象**: `origin/dev/v2.13.0`（验收基线 @ 8eb1ffc1；验收期 F-T272-1 修复合入后 = **@ 5ad440e2**，集成完成 Gate T271 done，所有 Integrate 节点已合回主干）
+- **Binary**: `agent-center dev/v2.13.0`
 - **验收人**: agent-center-tester1
-- **结论**: **F1–F4 + 5 条 I18 核心验收准则 = GO**。另抓到 1 个 B 轨（控制流）逃逸缺陷 F-T272-1，单列，不阻塞 5 条核心准则，建议 Ship 前修。
+- **结论**: **F1–F4 + 5 条 I18 核心验收准则 = GO**。验收期抓到的 B 轨逃逸缺陷 F-T272-1 已在本 cycle 修复并合回主干（5ad440e2），主干复验通过 → **整体 GO，可 Ship**。
 - **证据**: `evidence/v2130-t272/`（workspace），见每条引用。
 
 > 方法学：F1–F4 主要是后端（MCP 工具 / 运行时护栏 / 查询）+ 1 个薄前端面板。关键步骤用
@@ -57,10 +57,12 @@
 
 ## 3. 缺陷 / 观察
 
-### F-T272-1 — loopback 逃生边判向反了 ✅ 已修（本 cycle，oopslink 拍板"在本 plan 修复"）
-> **处置**：一行修复 `e.FromTaskID==changed`→`e.ToTaskID==changed` + 复现回归测试
-> `TestApplyLoopbacks_ExhaustionRoutesToEscape`（RED→GREEN），已推 `origin/fix/t272-loopback-escape @ 8ea4a90b`，
-> §-1 gate 全绿（make build + make lint + go test ./internal/projectmanager/...）。**待 integration-dev 合回 `dev/v2.13.0`**，合后在主干复验、本节转最终签字。下为缺陷原貌存档：
+### F-T272-1 — loopback 逃生边判向反了 ✅ 已修并合入主干（终签 GO）
+> **处置（已闭环）**：一行修复 `e.FromTaskID==changed`→`e.ToTaskID==changed` + 复现回归测试
+> `TestApplyLoopbacks_ExhaustionRoutesToEscape`（RED→GREEN）。fix `8ea4a90b` 经 oopslink 授权由
+> tester1 直接合回主干 → `origin/dev/v2.13.0 @ 5ad440e2`（`--contains 8ea4a90b` 已在 origin 确认）。
+> **主干复验**：merge 后 make build + make lint + go test ./internal/projectmanager/... 全绿，回归测试 PASS。
+> 终签 = **GO**。下为缺陷原貌存档：
 
 - 文件：`internal/projectmanager/service/plan_controlflow.go:116`（`applyLoopbacks`）。
 - `changed` = 刚完成的 Decision；逃生 conditional 边约定 `From=Escape / To=Decision`（与 scaffold 产出、`plan_controlflow_test.go` 一致）。
