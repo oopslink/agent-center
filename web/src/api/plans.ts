@@ -218,6 +218,56 @@ export function usePlan(projectId: string | undefined, planId: string | undefine
 }
 
 // ---------------------------------------------------------------------------
+// v2.13.0 / I18 F4 — unmerged-branch board (un-done Integrate nodes).
+//
+// The PD's ship-gate reconciliation: which feature branches are still NOT merged
+// back into the integration trunk = which Integrate(T) nodes are not yet done.
+// `all_merged` is the gate-clear signal (zero unmerged Integrate nodes). Empty
+// when the plan has no cycle metadata (a non-scaffolded plan) — never a false
+// positive. See docs/design/v2.13.0/cycle-node-graph-spec.md §2.5/§8.
+// ---------------------------------------------------------------------------
+
+// One row of the board: an Integrate node not yet merged back. `node_status` is
+// the DERIVED node status so the PD sees WHY it is still open (blocked/running/…).
+export interface UnmergedIntegration {
+  task_id: string;
+  title: string;
+  assignee_ref: string;
+  node_status: PlanNodeStatus;
+  branch: string;
+  base: string;
+  // structural F3 merge-check exemption (pure-doc feature); the row still lists
+  // until the node is done — the flag just explains why F3 won't gate it.
+  skip_merge_check: boolean;
+  org_ref?: string;
+}
+
+export interface UnmergedBranchesBoard {
+  plan_id: string;
+  project_id: string;
+  plan_name: string;
+  plan_status: PlanStatus;
+  all_merged: boolean;
+  unmerged_count: number;
+  unmerged: UnmergedIntegration[];
+}
+
+// GET /{id}/unmerged-branches — the F4 ship-gate board for a plan.
+export function useUnmergedBranches(
+  projectId: string | undefined,
+  planId: string | undefined,
+) {
+  return useQuery({
+    queryKey: qk.unmergedBranches(planId ?? ''),
+    queryFn: () =>
+      api.get<UnmergedBranchesBoard>(
+        `${plansBase(projectId ?? '')}/${planId}/unmerged-branches`,
+      ),
+    enabled: !!projectId && !!planId,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Writes
 // ---------------------------------------------------------------------------
 

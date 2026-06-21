@@ -452,6 +452,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/archive_plan", s.archivePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_plan", s.getPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_plans", s.listPlansHandler)
+	// v2.13.0 / I18 F4 — unmerged-branch board (un-done Integrate nodes).
+	s.mux.HandleFunc("POST /admin/agent-tools/list_unmerged_branches", s.listUnmergedBranchesHandler)
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared verified context).
 	s.mux.HandleFunc("POST /admin/agent-tools/record_finding", s.recordFindingHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_findings", s.listFindingsHandler)
