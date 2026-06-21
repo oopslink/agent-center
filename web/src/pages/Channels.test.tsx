@@ -153,11 +153,15 @@ describe('Channels list-enrichment (v2.8.1)', () => {
     const rows = screen.getAllByTestId('channel-recent-message');
     // ≤3 previews (the 4th is dropped)
     expect(rows).toHaveLength(3);
-    // T234: content span is truncate-capped at ≤3/4 card width (single-line
-    // ellipsis, no row-break). The truncate moved off the <li> onto the content.
+    // content fills the remaining row width and ellipsizes on a single line
+    // (flex-1 + min-w-0 + truncate) so a long message never overflows the card.
     const contents = screen.getAllByTestId('channel-recent-content');
     expect(contents[1].className).toContain('truncate');
-    expect(contents[1].className).toContain('max-w-[75%]');
+    expect(contents[1].className).toContain('flex-1');
+    expect(contents[1].className).toContain('min-w-0');
+    // the sender label also truncates so the meta never overflows a narrow row.
+    const senders = screen.getAllByTestId('channel-recent-sender');
+    expect(senders[1].className).toContain('truncate');
     // T234: each row carries a "[yyyy-MM-dd HH:mm:ss]" local-tz timestamp prefix.
     const times = screen.getAllByTestId('channel-recent-time');
     expect(times[0].textContent).toMatch(/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]$/);

@@ -410,16 +410,17 @@ function RecentMessages({
       {previews.map((p) => (
         <li
           key={p.key}
-          className="flex items-baseline gap-1 text-xs text-text-muted"
+          className="flex min-w-0 items-baseline gap-1 text-xs text-text-muted"
           data-testid="channel-recent-message"
           title={`[${p.timestamp}] [${p.senderResolved ? p.senderLabel : 'deleted'}]: ${p.content}`}
         >
-          {/* `[yyyy-MM-dd HH:mm:ss] [{User Name}]` — the BOLD meta (shrink-0 so it
-              never collapses); the trailing `:` and content stay normal weight. */}
-          <span className="flex shrink-0 items-baseline gap-1 font-semibold text-text-secondary">
-            <span data-testid="channel-recent-time">[{p.timestamp}]</span>
+          {/* `[yyyy-MM-dd HH:mm:ss] [{User Name}]` — BOLD meta. The timestamp is
+              fixed (shrink-0); the sender truncates so the meta never overflows a
+              narrow (mobile) row. The trailing `:` + content stay normal weight. */}
+          <span className="flex min-w-0 items-baseline gap-1 font-semibold text-text-secondary">
+            <span className="shrink-0" data-testid="channel-recent-time">[{p.timestamp}]</span>
             <span
-              className={p.senderResolved ? undefined : 'italic'}
+              className={`min-w-0 max-w-[10rem] truncate ${p.senderResolved ? '' : 'italic'}`}
               data-testid="channel-recent-sender"
               data-sender-resolved={p.senderResolved ? 'true' : 'false'}
             >
@@ -427,8 +428,9 @@ function RecentMessages({
             </span>
           </span>
           <span className="shrink-0" aria-hidden="true">:</span>
-          {/* content capped at ≤3/4 card width, single-line ellipsis. */}
-          <span className="min-w-0 max-w-[75%] truncate" data-testid="channel-recent-content">
+          {/* content fills the remaining row width and ellipsizes on a single line
+              so a long message never grows the row height nor overflows the card. */}
+          <span className="min-w-0 flex-1 truncate" data-testid="channel-recent-content">
             {p.content}
           </span>
         </li>
