@@ -41,15 +41,14 @@ export function useMentionAutocomplete({
       const all: MentionOption[] = 'all'.startsWith(q)
         ? [{ id: '@all', name: 'all', secondary: 'Everyone in this conversation' }]
         : [];
-      return (members.data ?? [])
+      const memberOpts: MentionOption[] = (members.data ?? [])
         .filter((m) => (m.display_name ?? '').toLowerCase().includes(q))
         .map((m) => ({
           id: m.identity_id,
           name: m.display_name ?? m.identity_id,
           secondary: m.identity_id,
-        }))
-        .concat(all)
-        .slice(0, MAX_OPTIONS);
+        }));
+      return memberOpts.concat(all).slice(0, MAX_OPTIONS);
     }
     return (conversations.data ?? [])
       .filter((c) => c.kind === 'channel' && c.name.toLowerCase().includes(q))
