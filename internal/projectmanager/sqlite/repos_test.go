@@ -165,7 +165,7 @@ func TestTaskRepo_RoundTripWithAllFields(t *testing.T) {
 	// drive through assignment + block + complete and persist each
 	_ = tk.Assign("agent:c", t0)
 	_ = tk.Start(t0)
-	_ = tk.Block("waiting", t0)
+	_ = tk.Block("waiting", pm.BlockReasonObstacle, "agent:c", t0)
 	if err := tr.Update(ctx, tk); err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestTaskRepo_RoundTripWithAllFields(t *testing.T) {
 	if got.Status() != pm.TaskRunning || got.Assignee() != "agent:c" || got.BlockedReason() != "waiting" || got.DerivedFromIssue() != "I1" {
 		t.Fatalf("task round-trip lost fields: %+v", got)
 	}
-	_ = got.Unblock(t0)
+	_ = got.Unblock("", "agent:c", t0)
 	_ = got.Complete("agent:c", t0)
 	_ = tr.Update(ctx, got)
 	re, _ := tr.FindByID(ctx, "T1")

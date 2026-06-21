@@ -120,7 +120,14 @@ func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 // BlockTask records a stuck-reason ANNOTATION on a running task (ADR-0046: status
 // stays running, no deadlock). A required reason.
 func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Block(reason, now) }, reason)
+	// v2.14.0 I14 F1 compile-bridge: Task.Block now takes (reason, reasonType,
+	// agentRef, at). The full BlockTask rewrite (reasonType param + Conversation
+	// input_request write) lands in F3 (§13.A/13.C). Here we preserve the existing
+	// behavior: pass the task's own assignee as agentRef (so the assignee check is a
+	// no-op) and default the type to obstacle.
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
+		return t.Block(reason, pm.BlockReasonObstacle, t.Assignee(), now)
+	}, reason)
 }
 
 // UnblockTask clears a stuck (blocked_reason) annotation on a RUNNING task and
@@ -145,7 +152,9 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if strings.TrimSpace(t.BlockedReason()) == "" {
 			return nil // not stuck → nothing to recover (idempotent, no double-dispatch)
 		}
-		if err := t.Unblock(now); err != nil {
+		// v2.14.0 I14 F1 compile-bridge: Unblock now takes (comment, actorRef, at).
+		// Full rewrite (comment plumbing + Conversation input_reply) is F3 (§13.C).
+		if err := t.Unblock("", actor, now); err != nil {
 			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
