@@ -113,7 +113,9 @@ func MigrateV1ToV2Command() *Command {
 // originally landed this as a SECOND 0064, colliding with center_settings — the
 // migrator keys by version into a map, so the alphabetically-later file silently
 // overwrote it and the ADD COLUMNs never ran on a fresh DB. Renumbered to 0065.
-const targetSchemaVersion = 65
+// T288 added 0066 (dm_dedup — conversations.dm_key + the partial unique index that
+// makes one human↔agent DM unique, plus the duplicate-DM merge).
+const targetSchemaVersion = 66
 
 func runMigrateV1ToV2(
 	ctx context.Context,
