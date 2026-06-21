@@ -129,7 +129,11 @@ export default function Reminders(): React.ReactElement {
             </p>
           )}
           {rows.length > 0 && (
-            <table className="w-full text-left text-sm" data-testid="reminders-table">
+            // overflow-x-auto + min-w so a wide row scrolls horizontally inside
+            // the container instead of overflowing the page on narrow/mobile
+            // screens (mirrors the Agents table convention).
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[44rem] text-left text-sm" data-testid="reminders-table">
               <thead className="text-xs text-text-muted">
                 <tr className="border-b border-border-base">
                   <th className="py-2 font-medium">Target</th>
@@ -153,9 +157,9 @@ export default function Reminders(): React.ReactElement {
                       onClick={() => setDetailId(r.id)}
                     >
                       <td className="py-2 pr-3">
-                        <span className="inline-flex items-center gap-1.5">
+                        <span className="flex min-w-0 max-w-[12rem] items-center gap-1.5">
                           <Avatar name={displayName(`agent:${r.remindee_agent_id}`)} kind="agent" size="sm" />
-                          <span className="truncate">{displayName(`agent:${r.remindee_agent_id}`)}</span>
+                          <span className="min-w-0 truncate">{displayName(`agent:${r.remindee_agent_id}`)}</span>
                         </span>
                       </td>
                       <td className="py-2 pr-3">
@@ -182,10 +186,10 @@ export default function Reminders(): React.ReactElement {
                       </td>
                       <td className="max-w-[16rem] truncate py-2 pr-3 text-text-primary">{r.content}</td>
                       <td className="py-2 pr-3">
-                        <span className="inline-flex items-center gap-1.5">
+                        <span className="flex min-w-0 max-w-[12rem] items-center gap-1.5">
                           <Avatar name={displayName(r.creator_ref)} kind={r.creator_ref.startsWith('agent:') ? 'agent' : 'human'} size="sm" />
-                          <span className="truncate text-xs">{displayName(r.creator_ref)}</span>
-                          {isSelf && <span className="text-xs text-text-muted">(self)</span>}
+                          <span className="min-w-0 truncate text-xs">{displayName(r.creator_ref)}</span>
+                          {isSelf && <span className="shrink-0 text-xs text-text-muted">(self)</span>}
                         </span>
                       </td>
                       <td className="py-2 pr-3">
@@ -215,6 +219,7 @@ export default function Reminders(): React.ReactElement {
                 })}
               </tbody>
             </table>
+            </div>
           )}
           <p className="mt-3 text-xs text-text-muted">Click a row for details + firing history (each fire time, whether delivered, and whether skipped due to overlap).</p>
         </div>

@@ -533,9 +533,9 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
                   fallback={normalizeIdentityRef(m.identity_id)}
                   to={memberPath(m.identity_id)}
                   testId="project-member-ref"
-                  className="truncate text-sm text-text-primary"
+                  className="min-w-0 flex-1 truncate text-sm text-text-primary"
                 />
-                <span className="flex items-center gap-2">
+                <span className="flex shrink-0 items-center gap-2">
                   <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
                     {m.role}
                   </span>
