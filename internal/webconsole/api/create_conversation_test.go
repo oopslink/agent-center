@@ -324,6 +324,69 @@ func TestDeleteConversation_DMHardDelete(t *testing.T) {
 	}
 }
 
+func TestDeleteConversation_DMOrgOwnerCanDeleteNonParticipant(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	res, err := deps.MessageWriter.OpenConversation(context.Background(), convservice.OpenCommand{
+		Kind:           conversation.ConversationKindDM,
+		OrganizationID: sess.OrgID,
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: "user:alice", Role: "owner", JoinedAt: "t", JoinedBy: "user:alice"},
+			{IdentityID: "agent:s-1", Role: "member", JoinedAt: "t", JoinedBy: "user:alice"},
+		},
+		CreatedBy: "user:alice",
+		Actor:     "user:alice",
+	})
+	if err != nil {
+		t.Fatalf("seed dm: %v", err)
+	}
+
+	del := orgScopedDelete(t, s.URL+"/api/conversations/"+string(res.ConversationID), sess)
+	if del.StatusCode != http.StatusOK {
+		t.Fatalf("owner delete non-participant dm: status %d", del.StatusCode)
+	}
+	del.Body.Close()
+	if _, err := deps.ConvRepo.FindByID(context.Background(), res.ConversationID); err == nil {
+		t.Fatalf("conversation must be gone after owner delete")
+	}
+}
+
+func TestDeleteConversation_DMNonOwnerNonParticipantRejected(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	ownerSess := setupTestSession(t, db, deps)
+	memberSess := memberSessionInOrg(t, db, ownerSess.OrgID, ownerSess.OrgSlug)
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	res, err := deps.MessageWriter.OpenConversation(context.Background(), convservice.OpenCommand{
+		Kind:           conversation.ConversationKindDM,
+		OrganizationID: ownerSess.OrgID,
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: "user:alice", Role: "owner", JoinedAt: "t", JoinedBy: "user:alice"},
+			{IdentityID: "agent:s-1", Role: "member", JoinedAt: "t", JoinedBy: "user:alice"},
+		},
+		CreatedBy: "user:alice",
+		Actor:     "user:alice",
+	})
+	if err != nil {
+		t.Fatalf("seed dm: %v", err)
+	}
+
+	del := orgScopedDelete(t, s.URL+"/api/conversations/"+string(res.ConversationID), memberSess)
+	defer del.Body.Close()
+	if del.StatusCode != http.StatusForbidden {
+		t.Fatalf("member non-participant delete must be 403, got %d", del.StatusCode)
+	}
+	var e map[string]any
+	_ = json.NewDecoder(del.Body).Decode(&e)
+	if e["error"] != "not_a_participant" {
+		t.Fatalf("want error not_a_participant, got %v", e)
+	}
+}
+
 func TestDeleteConversation_ChannelRejected(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)

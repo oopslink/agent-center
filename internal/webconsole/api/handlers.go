@@ -1237,12 +1237,12 @@ func (s *Server) archiveConversationHandler(w http.ResponseWriter, r *http.Reque
 // deleteConversationHandler hard-deletes a DM conversation (v2.7 #198). Only
 // kind=DM is deletable — channels use archive (terminal-but-retained), so a
 // channel returns 400 use_archive. Authz: the caller must be an active
-// participant of the DM. The conversation row + its messages + read-state are
-// removed in one tx (no DB-level cascade).
+// participant of the DM, or an owner of the organization. The conversation row
+// + its messages + read-state are removed in one tx (no DB-level cascade).
 func (s *Server) deleteConversationHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
-	caller, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, callerMember, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -1260,7 +1260,9 @@ func (s *Server) deleteConversationHandler(w http.ResponseWriter, r *http.Reques
 			"only DMs can be deleted; archive channels instead")
 		return
 	}
-	if !c.HasActiveParticipant(conversation.IdentityRef("user:" + caller.ID())) {
+	isParticipant := c.HasActiveParticipant(conversation.IdentityRef("user:" + caller.ID()))
+	isOrgOwner := callerMember != nil && callerMember.Role().AtLeast(identity.RoleOwner)
+	if !isParticipant && !isOrgOwner {
 		writeError(w, http.StatusForbidden, "not_a_participant",
 			"only a participant can delete this DM")
 		return
