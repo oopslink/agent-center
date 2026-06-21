@@ -3,10 +3,22 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
+
+// taskRefToken returns a task's human-friendly id ("T<n>") for inclusion in
+// plan-conversation system notices, or "" when the org number is unallocated
+// (pre-allocator rows). Per @oopslink: plan-conversation system reminders should
+// name the task by its id (T123), not only its title.
+func taskRefToken(t *pm.Task) string {
+	if t == nil || t.OrgNumber() <= 0 {
+		return ""
+	}
+	return "T" + strconv.Itoa(t.OrgNumber())
+}
 
 // PlanDispatcher posts the node-ready @mention into the Plan's conversation
 // (v2.9 #285, design §4/§9.3). Dispatch = posting `@assignee …ready` into the
@@ -270,7 +282,14 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		assignee := assigneeOf[taskID]
 		// content is the BODY only — the dispatcher resolves assignee → display_name
 		// and prepends "@<display_name> " so the wake+mention path (#220) fires.
-		content := fmt.Sprintf("your task %q is ready — all upstream dependencies are done.", titleOf[taskID])
+		// Per @oopslink: name the task by its id (T<n>) so the plan-conversation
+		// reminder is unambiguous; fall back to title-only when unallocated.
+		var content string
+		if ref := taskRefToken(taskOf[taskID]); ref != "" {
+			content = fmt.Sprintf("your task %s %q is ready — all upstream dependencies are done.", ref, titleOf[taskID])
+		} else {
+			content = fmt.Sprintf("your task %q is ready — all upstream dependencies are done.", titleOf[taskID])
+		}
 		// v2.10 (ADR-0053): append the plan's shared findings so the agent builds on
 		// prior progress. Empty block (no findings) → content unchanged.
 		if findingsBlock != "" {

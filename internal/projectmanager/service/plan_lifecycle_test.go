@@ -63,6 +63,9 @@ func planAdvanceSetup(t *testing.T) *planAdvanceHarness {
 		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, IDGen: gen, Clock: clk,
+		// #245 org sequence so CreateTask allocates T<n> ids — the plan-conversation
+		// dispatch reminder names tasks by their id.
+		OrgSeq:   pmsql.NewOrgSequenceRepo(db),
 		AgentDir: allOrgDir("org-1"),
 		// Resolver mirrors production (strip the agent:/user: scheme → display_name).
 		// Here the harness has no IdentityRepo, so it uses the bare id as the
@@ -767,6 +770,66 @@ func TestDispatch_PostsAtMention_WakeWouldFire(t *testing.T) {
 	// The raw ref must NOT leak into the body (the old broken format).
 	if strings.Contains(text, assignee+" your task") {
 		t.Fatalf("dispatch text still embeds the raw ref: %q", text)
+	}
+}
+
+// TestDispatch_NamesTaskByID is the @oopslink request: the plan-conversation
+// system reminder names the dispatched task by its human id (T<n>) — not only
+// its title — so the reminder is unambiguous.
+func TestDispatch_NamesTaskByID(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "wake", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedAssignedTask(t, pid, planID, "build the thing", "agent:agent-bot-1")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	d, err := h.svc.AdvancePlan(h.ctx, planID, "user:a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d) != 1 || d[0] != a {
+		t.Fatalf("advance = %v, want [A]", d)
+	}
+	tk, err := h.tasks.FindByID(h.ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := taskRefToken(tk)
+	if ref == "" {
+		t.Fatalf("seeded task has no org number; expected an allocated T<n>")
+	}
+	text := h.latestPlanMsgText(t, planID)
+	if !strings.Contains(text, ref) {
+		t.Fatalf("dispatch text %q does not name the task by id %q", text, ref)
+	}
+	if !strings.Contains(text, "build the thing") {
+		t.Fatalf("dispatch text %q dropped the title", text)
+	}
+}
+
+// TestTaskRefToken covers the small formatter directly: allocated → "T<n>",
+// unallocated / nil → "".
+func TestTaskRefToken(t *testing.T) {
+	mk := func(org int) *pm.Task {
+		tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+			ID: "t-1", ProjectID: "p-1", Title: "x", Status: pm.TaskOpen,
+			Version: 1, OrgNumber: org, CreatedAt: time.Unix(1, 0), UpdatedAt: time.Unix(1, 0),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tk
+	}
+	if got := taskRefToken(mk(123)); got != "T123" {
+		t.Fatalf("taskRefToken(org=123) = %q, want T123", got)
+	}
+	if got := taskRefToken(mk(0)); got != "" {
+		t.Fatalf("taskRefToken(org=0) = %q, want empty", got)
+	}
+	if got := taskRefToken(nil); got != "" {
+		t.Fatalf("taskRefToken(nil) = %q, want empty", got)
 	}
 }
 
