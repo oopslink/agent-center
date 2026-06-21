@@ -30,18 +30,23 @@ const (
 	CycleRoleS0        CycleNodeRole = "s0"        // 开发主分支 — cuts dev/vX.Y.0 from main
 	CycleRoleDev       CycleNodeRole = "dev"       // 开发 — implements a feature on its branch
 	CycleRoleReview    CycleNodeRole = "review"    // 评审 — code review + §-1 gate
+	CycleRoleDecision  CycleNodeRole = "decision"  // 决策/网关 — produces pass/reject outcome routing its out-edges (B2/B0 §2.1)
 	CycleRoleIntegrate CycleNodeRole = "integrate" // 集成 — merge-check landing point (F3/F4 target)
+	CycleRoleEscape    CycleNodeRole = "escape"    // 逃生/人工兜底 — reached when a Decision's bounded loopback exhausts (B0 §4.1/§9)
 	CycleRoleGate      CycleNodeRole = "gate"       // 集成完成 Gate — PD barrier
 	CycleRoleAccept    CycleNodeRole = "accept"     // 验收
 	CycleRoleShip      CycleNodeRole = "ship"       // Ship — dev/vX.Y.0 → main + tag
 )
 
 // IsValid reports enum membership (an empty/unknown role is invalid — it simply
-// never matches the Integrate filter, which is the safe default).
+// never matches the Integrate filter, which is the safe default). Decision/Escape
+// (B2 control-flow nodes) are valid roles but, like every non-Integrate role, are
+// ignored by the F4 board.
 func (r CycleNodeRole) IsValid() bool {
 	switch r {
-	case CycleRoleS0, CycleRoleDev, CycleRoleReview, CycleRoleIntegrate,
-		CycleRoleGate, CycleRoleAccept, CycleRoleShip:
+	case CycleRoleS0, CycleRoleDev, CycleRoleReview, CycleRoleDecision,
+		CycleRoleIntegrate, CycleRoleEscape, CycleRoleGate, CycleRoleAccept,
+		CycleRoleShip:
 		return true
 	}
 	return false

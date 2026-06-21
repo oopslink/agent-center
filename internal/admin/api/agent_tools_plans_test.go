@@ -112,9 +112,26 @@ func TestScaffoldCyclePlan_AsMember_OK(t *testing.T) {
 		t.Fatalf("no plan_id in body: %v", body)
 	}
 	nodes, _ := body["nodes"].([]any)
-	// S0 + (F1: Dev/Review/Integrate) + (F2 doc-only: Dev) + Gate + Accept + Ship = 8.
-	if len(nodes) != 8 {
-		t.Fatalf("nodes = %d, want 8; body = %v", len(nodes), body)
+	// S0 + (F1 control-flow: Dev/Review/Decision/Integrate/Escape) + (F2 doc-only:
+	// Dev) + Gate + Accept + Ship = 10 (B2 control-flow graph).
+	if len(nodes) != 10 {
+		t.Fatalf("nodes = %d, want 10; body = %v", len(nodes), body)
+	}
+	// Control-flow edges are surfaced: the feature has a conditional(pass) and a
+	// loopback(reject) edge — assert both kinds appear.
+	edges, _ := body["edges"].([]any)
+	var sawCond, sawLoop bool
+	for _, raw := range edges {
+		e, _ := raw.(map[string]any)
+		switch e["kind"] {
+		case "conditional":
+			sawCond = true
+		case "loopback":
+			sawLoop = true
+		}
+	}
+	if !sawCond || !sawLoop {
+		t.Fatalf("edges missing control-flow kinds (conditional=%v loopback=%v); body = %v", sawCond, sawLoop, body)
 	}
 	// Plan created as a draft with actor=agent.
 	p, err := f.pmSvc.GetPlan(context.Background(), pm.PlanID(planID))

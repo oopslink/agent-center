@@ -147,17 +147,19 @@ type scaffoldFeatureReq struct {
 }
 
 type scaffoldCyclePlanReq struct {
-	AgentID   string               `json:"agent_id"`
-	ProjectID string               `json:"project_id"`
-	Version   string               `json:"version"`
-	Features  []scaffoldFeatureReq `json:"features"`
+	AgentID         string               `json:"agent_id"`
+	ProjectID       string               `json:"project_id"`
+	Version         string               `json:"version"`
+	Features        []scaffoldFeatureReq `json:"features"`
+	MaxReviewRounds int                  `json:"max_review_rounds"`
 }
 
-// scaffoldCyclePlanHandler builds a whole cycle node-graph (S0 → (Dev→Review→
-// Integrate)×N → 集成完成 Gate → Accept → Ship) in one call via
-// pm.ScaffoldCyclePlan (actor=agent). Nodes are created UNASSIGNED (PD assigns
-// owners next) and carry branch/base cycle metadata. Returns the draft plan id +
-// created nodes. Validation (version/features) is surfaced via mapPlanToolError.
+// scaffoldCyclePlanHandler builds a whole cycle CONTROL-FLOW graph (S0 → (Dev→
+// Review→Decision{pass→Integrate, reject→Dev 有界})×N → 集成完成 Gate → Accept →
+// Ship) in one call via pm.ScaffoldCyclePlan (actor=agent). Nodes are created
+// UNASSIGNED (PD assigns owners next) and carry branch/base/role cycle metadata.
+// Returns the draft plan id + created nodes + control-flow edges. Validation
+// (version/features) is surfaced via mapPlanToolError.
 func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req scaffoldCyclePlanReq
@@ -184,10 +186,11 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 		})
 	}
 	res, err := d.PMService.ScaffoldCyclePlan(r.Context(), pmservice.ScaffoldCyclePlanCommand{
-		ProjectID: pm.ProjectID(req.ProjectID),
-		Version:   req.Version,
-		Features:  features,
-		CreatedBy: pm.IdentityRef(agentActor(a)),
+		ProjectID:       pm.ProjectID(req.ProjectID),
+		Version:         req.Version,
+		Features:        features,
+		MaxReviewRounds: req.MaxReviewRounds,
+		CreatedBy:       pm.IdentityRef(agentActor(a)),
 	})
 	if err != nil {
 		mapPlanToolError(w, err)
@@ -200,7 +203,14 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 			"base": n.Base, "kind": n.Kind, "feature": n.Feature,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(res.PlanID), "nodes": nodes})
+	edges := make([]map[string]any, 0, len(res.Edges))
+	for _, e := range res.Edges {
+		edges = append(edges, map[string]any{
+			"from": string(e.From), "to": string(e.To),
+			"kind": e.Kind, "when": e.When, "max_rounds": e.MaxRounds,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(res.PlanID), "nodes": nodes, "edges": edges})
 }
 
 // --- add_task_to_plan --------------------------------------------------------

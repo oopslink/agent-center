@@ -10,30 +10,63 @@ import (
 )
 
 // =============================================================================
-// scaffold_cycle_plan (v2.13.0 I18/F2) — server-side generation of a whole cycle
-// node-graph from the F1 spec (docs/design/v2.13.0/cycle-node-graph-spec.md).
+// scaffold_cycle_plan (v2.13.0 I18/F2 + B2) — server-side generation of a whole
+// cycle CONTROL-FLOW graph from the B0 engine spec §9
+// (docs/design/v2.13.0/control-flow-engine-spec.md), which redefines the
+// per-feature chain from a linear DAG into
+// Dev→Review→Decision{pass→Integrate, reject→Dev(bounded)}.
 //
-// DAG shape:  S0 → (Dev → Review → Integrate) × N → 集成完成 Gate → Accept → Ship
-//   - every feature's Dev is blocked_by S0;
-//   - per feature the chain is Dev → Review → Integrate (Review per-feature);
-//   - the Gate is a barrier blocked_by EVERY feature's terminal node;
+// Graph shape:  S0 → (per feature ↓) → 集成完成 Gate → Accept → Ship
+//
+//	        ┌──────────── loopback(when=reject, max=N) ────────────┐
+//	        ▼                                                       │
+//	S0 → Dev ─seq→ Review ─seq→ Decision ─conditional(pass)→ Integrate → (Gate)
+//	                              │
+//	                              └─conditional(reject_exhausted)→ Escape(人工兜底)
+//
+//   - every feature's Dev is blocked_by S0 (seq);
+//   - Review depends_on Dev, Decision depends_on Review (seq);
+//   - Integrate is a CONDITIONAL successor of Decision (active only on outcome=pass)
+//     — it is the feature's terminal that feeds the Gate;
+//   - a bounded LOOPBACK edge Decision→Dev (when=reject, MaxRounds=N) re-runs the
+//     Dev→Review→Decision subgraph on a review reject, capped at N rounds (B0 §4);
+//   - an Escape node is the CONDITIONAL successor of Decision on outcome
+//     `reject_exhausted` — the §4.1 escape branch the engine routes to when the
+//     loopback exhausts. Scaffold ALWAYS wires it (B0 §10 "双保险": a stuck loop
+//     surfaces to a human node, not only a creator notification);
+//   - the Gate is a barrier blocked_by EVERY feature's terminal (Integrate, or the
+//     lone Dev for a doc-only feature);
 //   - Accept is blocked_by the Gate; Ship is blocked_by Accept.
+//
+// A pure-doc feature (DocOnly) keeps the F2 collapse: a single Dev node with
+// skip_merge_check=true, no Review/Decision/Integrate/loopback/escape.
 //
 // It is STRUCTURE-ONLY: every node is created UNASSIGNED — the PD assigns owners
 // per node after scaffolding (oopslink 2026-06-21: "工具生成结构，指派给谁 PD 自己决定").
 // Each node carries the cycle git metadata: branch (default the node's T<n>) + base
-// (dev/<version>; the S0 node + Ship use main as the cross-trunk reference), which
-// F3's Integrate-complete guard reads. A pure-doc feature (DocOnly) collapses to a
-// single Dev node with skip_merge_check=true (structural merge-check exemption) and
-// still counts toward the Gate.
+// (dev/<version>; the S0 node + Ship use main as the cross-trunk reference), plus
+// its ROLE; F3's Integrate-complete guard + F4's board read them.
 //
 // Implementation: it COMPOSES the existing, already-tested AppService primitives
-// (CreatePlan / CreateTask / SelectTaskIntoPlan / AddPlanDependency) rather than
+// (CreatePlan / CreateTask / SelectTaskIntoPlan / addPlanEdge) rather than
 // re-implementing the plan/task/conversation projection logic. Each primitive runs
 // in its own tx; the produced plan is a DRAFT (freely editable), so a partial
 // failure leaves an editable draft the caller can delete + retry — no orphaned
-// running state. NO new domain logic.
+// running state. NO new domain logic — the control-flow edges are the B1 engine's
+// own conditional/loopback primitives, just wired into the cycle shape here.
 // =============================================================================
+
+// cycle control-flow outcome labels (B0 §9): a Decision node routes its conditional
+// out-edges by these. reject is the bounded loopback's label; reject_exhausted is
+// the escape label the engine records when the loop exhausts.
+const (
+	cycleOutcomePass            = "pass"
+	cycleOutcomeReject          = "reject"
+	cycleOutcomeRejectExhausted = "reject_exhausted"
+	// defaultReviewRounds is the loopback bound when the caller leaves MaxReviewRounds
+	// unset (B0 §4.1 suggests 3).
+	defaultReviewRounds = 3
+)
 
 // ErrScaffoldVersionRequired / ErrScaffoldNoFeatures / ErrScaffoldFeatureNameRequired
 // are the scaffold input-validation sentinels (surfaced as 422 by the tool layer).
@@ -44,9 +77,9 @@ var (
 )
 
 // CycleFeature is one feature in the cycle plan. Name is the human label used in
-// node titles; Branch is the shared feature branch for its Dev/Review/Integrate
-// chain (default = the Dev node's T<n>); DocOnly collapses the chain to a single
-// Dev node (no Review/Integrate) exempt from the F3 merge-check guard.
+// node titles; Branch is the shared feature branch for its Dev/Review/Decision/
+// Integrate chain (default = the Dev node's T<n>); DocOnly collapses the chain to a
+// single Dev node (no Review/Decision/Integrate) exempt from the F3 merge-check guard.
 type CycleFeature struct {
 	Name    string
 	Branch  string
@@ -58,7 +91,10 @@ type ScaffoldCyclePlanCommand struct {
 	ProjectID pm.ProjectID
 	Version   string // e.g. "v2.13.0" — the integration trunk is dev/<version>
 	Features  []CycleFeature
-	CreatedBy pm.IdentityRef
+	// MaxReviewRounds bounds each feature's review loopback (Decision→Dev on reject),
+	// B0 §4.1. <=0 falls back to defaultReviewRounds (3). Ignored for doc-only features.
+	MaxReviewRounds int
+	CreatedBy       pm.IdentityRef
 }
 
 // ScaffoldCycleNode describes one created node in the returned summary.
@@ -67,16 +103,28 @@ type ScaffoldCycleNode struct {
 	Title   string    `json:"title"`
 	Branch  string    `json:"branch"`
 	Base    string    `json:"base"`
-	Kind    string    `json:"kind"`    // s0|dev|review|integrate|gate|accept|ship
+	Kind    string    `json:"kind"`    // s0|dev|review|decision|integrate|escape|gate|accept|ship
 	Feature string    `json:"feature"` // owning feature name (empty for s0/gate/accept/ship)
 }
 
+// ScaffoldCycleEdge describes one created control-flow edge in the returned summary
+// (B2): kind ∈ seq|conditional|loopback; when carries the routing outcome label for
+// conditional/loopback (empty for seq); max_rounds is the loopback bound (0 otherwise).
+type ScaffoldCycleEdge struct {
+	From      pm.TaskID `json:"from"` // the dependent node (runs AFTER To, conditionally for conditional edges)
+	To        pm.TaskID `json:"to"`   // the prerequisite/decision node
+	Kind      string    `json:"kind"`
+	When      string    `json:"when,omitempty"`
+	MaxRounds int       `json:"max_rounds,omitempty"`
+}
+
 // ScaffoldCyclePlanResult is what ScaffoldCyclePlan returns: the new draft plan id
-// + the created nodes (in creation order). Owners are intentionally absent (the PD
-// assigns them next).
+// + the created nodes and control-flow edges (in creation order). Owners are
+// intentionally absent (the PD assigns them next).
 type ScaffoldCyclePlanResult struct {
 	PlanID pm.PlanID           `json:"plan_id"`
 	Nodes  []ScaffoldCycleNode `json:"nodes"`
+	Edges  []ScaffoldCycleEdge `json:"edges"`
 }
 
 // ScaffoldCyclePlan builds the whole cycle node-graph (see file header) and returns
@@ -104,14 +152,19 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	}
 
 	trunk := "dev/" + version // the integration main branch for this cycle
+	maxRounds := cmd.MaxReviewRounds
+	if maxRounds <= 0 {
+		maxRounds = defaultReviewRounds
+	}
 
 	// 1) draft plan.
 	planID, err := s.CreatePlan(ctx, CreatePlanCommand{
 		ProjectID: cmd.ProjectID,
-		Name:      version + " — cycle 节点图",
-		Description: "由 scaffold_cycle_plan 生成的 cycle 节点图（" + version + "）。形状 " +
-			"S0→(Dev→Review→Integrate)×N→集成完成 Gate→Accept→Ship。节点 owner 留空待 PD 指派。" +
-			"规格见 docs/design/v2.13.0/cycle-node-graph-spec.md。",
+		Name:      version + " — cycle 控制流图",
+		Description: "由 scaffold_cycle_plan 生成的 cycle 控制流图（" + version + "）。形状 " +
+			"S0→(Dev→Review→Decision{过→Integrate, 打回→回 Dev 有界})×N→集成完成 Gate→Accept→Ship。" +
+			"Decision 产出 pass/reject，reject 走有界 loopback 重做、超限走 reject_exhausted 逃生节点。" +
+			"节点 owner 留空待 PD 指派。规格见 docs/design/v2.13.0/control-flow-engine-spec.md。",
 		CreatedBy: cmd.CreatedBy,
 	})
 	if err != nil {
@@ -145,9 +198,24 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		})
 		return tid, nil
 	}
-	// dependsOn wires `from` blocked_by `to` (from dispatches only after to is done).
+	// addEdge wires one control-flow edge (any Kind) and records it in the summary.
+	// Forward (seq/conditional) edges must be added before the loopback back-edge so
+	// the loopback's ancestry validation (ValidateLoopback) sees them (B0 §6.6).
+	addEdge := func(dep pm.Dependency) error {
+		dep.PlanID = planID
+		if err := s.addPlanEdge(ctx, planID, dep, cmd.CreatedBy); err != nil {
+			return err
+		}
+		result.Edges = append(result.Edges, ScaffoldCycleEdge{
+			From: dep.FromTaskID, To: dep.ToTaskID,
+			Kind: string(pm.NormalizeEdgeKind(dep.Kind)), When: dep.When, MaxRounds: dep.MaxRounds,
+		})
+		return nil
+	}
+	// dependsOn wires `from` blocked_by `to` (a plain seq edge: from dispatches only
+	// after to is done).
 	dependsOn := func(from, to pm.TaskID) error {
-		return s.AddPlanDependency(ctx, planID, from, to, cmd.CreatedBy)
+		return addEdge(pm.Dependency{FromTaskID: from, ToTaskID: to, Kind: pm.EdgeSeq})
 	}
 
 	// 2) S0 — cut dev/<version> from main. branch=trunk, base=main.
@@ -182,6 +250,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 
 		terminal := devID
 		if !f.DocOnly {
+			// Dev ─seq→ Review ─seq→ Decision (the forward review chain).
 			reviewID, rerr := addNode(name+" · Review", branch, trunk, "review", name, false)
 			if rerr != nil {
 				return result, rerr
@@ -189,11 +258,45 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			if err := dependsOn(reviewID, devID); err != nil {
 				return result, err
 			}
+			decisionID, derr := addNode(name+" · Decision（评审结论 pass/reject）", branch, trunk, "decision", name, false)
+			if derr != nil {
+				return result, derr
+			}
+			if err := dependsOn(decisionID, reviewID); err != nil {
+				return result, err
+			}
+			// Integrate is the CONDITIONAL successor of Decision on outcome=pass — the
+			// feature terminal that feeds the Gate.
 			integrateID, ierr := addNode(name+" · Integrate", branch, trunk, "integrate", name, false)
 			if ierr != nil {
 				return result, ierr
 			}
-			if err := dependsOn(integrateID, reviewID); err != nil {
+			if err := addEdge(pm.Dependency{
+				FromTaskID: integrateID, ToTaskID: decisionID,
+				Kind: pm.EdgeConditional, When: cycleOutcomePass,
+			}); err != nil {
+				return result, err
+			}
+			// Escape node is the CONDITIONAL successor of Decision on outcome
+			// reject_exhausted — where the engine routes when the loopback exhausts (B0
+			// §4.1). A leaf (human takes over); pruned→skipped on the pass path.
+			escapeID, eerr := addNode(name+" · 逃生/人工兜底（评审打回超限）", "", trunk, "escape", name, false)
+			if eerr != nil {
+				return result, eerr
+			}
+			if err := addEdge(pm.Dependency{
+				FromTaskID: escapeID, ToTaskID: decisionID,
+				Kind: pm.EdgeConditional, When: cycleOutcomeRejectExhausted,
+			}); err != nil {
+				return result, err
+			}
+			// Bounded LOOPBACK Decision→Dev on outcome=reject — re-runs Dev→Review→
+			// Decision up to maxRounds (B0 §4). Added LAST so ValidateLoopback sees the
+			// forward chain that makes Dev a forward ancestor of Decision.
+			if err := addEdge(pm.Dependency{
+				FromTaskID: decisionID, ToTaskID: devID,
+				Kind: pm.EdgeLoopback, When: cycleOutcomeReject, MaxRounds: maxRounds,
+			}); err != nil {
 				return result, err
 			}
 			terminal = integrateID

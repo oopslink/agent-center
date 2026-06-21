@@ -673,19 +673,20 @@ func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
 
 type scaffoldFeatureArgs struct {
 	Name    string `json:"name" jsonschema:"the feature label, used in node titles (e.g. 'F1 节点图规格')"`
-	Branch  string `json:"branch,omitempty" jsonschema:"optional shared feature branch for its Dev/Review/Integrate chain; defaults to the Dev node's T<n>"`
+	Branch  string `json:"branch,omitempty" jsonschema:"optional shared feature branch for its Dev/Review/Decision/Integrate chain; defaults to the Dev node's T<n>"`
 	DocOnly bool   `json:"doc_only,omitempty" jsonschema:"true for a pure-doc/no-code feature: the chain collapses to a single Dev node exempt from the merge-check guard"`
 }
 
 type scaffoldCyclePlanArgs struct {
-	ProjectID string                `json:"project_id" jsonschema:"the project to create the cycle plan in (you must be a member)"`
-	Version   string                `json:"version" jsonschema:"the cycle version, e.g. 'v2.13.0'; the integration trunk is dev/<version>"`
-	Features  []scaffoldFeatureArgs `json:"features" jsonschema:"the features in this cycle; each gets a Dev→Review→Integrate chain (or a single Dev node when doc_only)"`
+	ProjectID       string                `json:"project_id" jsonschema:"the project to create the cycle plan in (you must be a member)"`
+	Version         string                `json:"version" jsonschema:"the cycle version, e.g. 'v2.13.0'; the integration trunk is dev/<version>"`
+	Features        []scaffoldFeatureArgs `json:"features" jsonschema:"the features in this cycle; each gets a Dev→Review→Decision{pass→Integrate, reject→Dev bounded} control-flow chain (or a single Dev node when doc_only)"`
+	MaxReviewRounds int                   `json:"max_review_rounds,omitempty" jsonschema:"max review-reject loopback rounds per feature before the escape branch (default 3)"`
 }
 
-// makeScaffoldCyclePlan builds the whole cycle node-graph in one call. Nodes are
-// created UNASSIGNED (assign owners afterwards with assign_task) and carry branch/
-// base cycle metadata; the plan is a draft (wire/adjust then start_plan).
+// makeScaffoldCyclePlan builds the whole cycle control-flow graph in one call.
+// Nodes are created UNASSIGNED (assign owners afterwards with assign_task) and carry
+// branch/base/role cycle metadata; the plan is a draft (wire/adjust then start_plan).
 func makeScaffoldCyclePlan(cfg Config) mcp.ToolHandlerFor[scaffoldCyclePlanArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args scaffoldCyclePlanArgs) (*mcp.CallToolResult, any, error) {
 		features := make([]map[string]any, 0, len(args.Features))
@@ -695,10 +696,11 @@ func makeScaffoldCyclePlan(cfg Config) mcp.ToolHandlerFor[scaffoldCyclePlanArgs,
 			})
 		}
 		body := map[string]any{
-			"agent_id":   cfg.AgentID,
-			"project_id": args.ProjectID,
-			"version":    args.Version,
-			"features":   features,
+			"agent_id":          cfg.AgentID,
+			"project_id":        args.ProjectID,
+			"version":           args.Version,
+			"features":          features,
+			"max_review_rounds": args.MaxReviewRounds,
 		}
 		return callAdmin(ctx, cfg, "scaffold_cycle_plan", body)
 	}

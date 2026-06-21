@@ -167,6 +167,60 @@ func TestLoopbackResetSet(t *testing.T) {
 	}
 }
 
+// The cycle CONTROL-FLOW shape B2's scaffold_cycle_plan produces routes correctly
+// through this engine: the per-feature subgraph is Dev→Review→Decision with
+// conditional(pass)→Integrate, conditional(reject_exhausted)→Escape, and a bounded
+// loopback(reject)→Dev. This is the contract the scaffold must satisfy (the service
+// test asserts the scaffold emits exactly these edges); here we assert the edges
+// drive the engine the way B2 intends.
+func TestComputePlanView_CycleControlFlowRouting(t *testing.T) {
+	// Forward chain done up to a resolved Decision; Integrate + Escape still open.
+	mkTasks := func() []*Task {
+		return []*Task{
+			newTaskWithStatus(t, "S0", TaskCompleted),
+			newTaskWithStatus(t, "Dev", TaskCompleted),
+			newTaskWithStatus(t, "Review", TaskCompleted),
+			newTaskWithStatus(t, "Dec", TaskCompleted),
+			newTaskWithStatus(t, "Integ", TaskOpen),
+			newTaskWithStatus(t, "Esc", TaskOpen),
+		}
+	}
+	edges := []Dependency{
+		{PlanID: "pl", FromTaskID: "Dev", ToTaskID: "S0", Kind: EdgeSeq},
+		{PlanID: "pl", FromTaskID: "Review", ToTaskID: "Dev", Kind: EdgeSeq},
+		{PlanID: "pl", FromTaskID: "Dec", ToTaskID: "Review", Kind: EdgeSeq},
+		{PlanID: "pl", FromTaskID: "Integ", ToTaskID: "Dec", Kind: EdgeConditional, When: "pass"},
+		{PlanID: "pl", FromTaskID: "Esc", ToTaskID: "Dec", Kind: EdgeConditional, When: "reject_exhausted"},
+		{PlanID: "pl", FromTaskID: "Dec", ToTaskID: "Dev", Kind: EdgeLoopback, When: "reject", MaxRounds: 3},
+	}
+
+	// pass → Integrate becomes ready, Escape is pruned (skipped).
+	t.Run("pass routes to Integrate", func(t *testing.T) {
+		v := ComputePlanView(mkTasks(), edges, nil,
+			[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "pass"}}, nil)
+		st := nodeStatusByID(v)
+		if st["Integ"] != NodeReady {
+			t.Errorf("Integ = %s, want ready", st["Integ"])
+		}
+		if st["Esc"] != NodeSkipped {
+			t.Errorf("Esc = %s, want skipped", st["Esc"])
+		}
+	})
+
+	// reject_exhausted → Escape becomes ready, Integrate is pruned (skipped).
+	t.Run("reject_exhausted routes to Escape", func(t *testing.T) {
+		v := ComputePlanView(mkTasks(), edges, nil,
+			[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "reject_exhausted"}}, nil)
+		st := nodeStatusByID(v)
+		if st["Esc"] != NodeReady {
+			t.Errorf("Esc = %s, want ready", st["Esc"])
+		}
+		if st["Integ"] != NodeSkipped {
+			t.Errorf("Integ = %s, want skipped", st["Integ"])
+		}
+	})
+}
+
 // Backward compatibility: a pure seq DAG with NO edge kinds / NO outcomes derives
 // identically to the pre-B1 engine — no node is ever skipped, AllDone == all done.
 func TestComputePlanView_PureDAGBackCompat(t *testing.T) {
