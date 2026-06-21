@@ -485,9 +485,15 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 	if p.controlLog == nil || p.agents == nil || p.convRepo == nil {
 		return nil // conversational-wake deps not wired → clean no-op
 	}
-	// LOOP-BREAK + human-only: only a user: sender wakes agents. An agent reply
-	// (agent:) or a system message never triggers — structurally no ping-pong.
-	if !strings.HasPrefix(pl.Sender, userParticipantPrefix) {
+	// LOOP-BREAK + sender gate. A human (user:) sender always wakes — human intent
+	// must deliver. An AGENT (agent:) sender wakes ONLY in a DM (1:1 agent↔agent),
+	// and every such wake runs through the wake-chain four-gate guard in
+	// wakeConversationParticipants so an A↔B ping-pong self-extinguishes (T289: the
+	// send side shipped in T291 but the wake side was never plumbed — without this an
+	// agent's DM never wakes its peer). A system message never wakes (no agent storm).
+	isHumanSender := strings.HasPrefix(pl.Sender, userParticipantPrefix)
+	isAgentSender := strings.HasPrefix(pl.Sender, agentParticipantPrefix)
+	if !isHumanSender && !isAgentSender {
 		return nil
 	}
 	conv, err := p.convRepo.FindByID(ctx, conversation.ConversationID(pl.ConversationID))
@@ -495,6 +501,14 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 		return nil // conversation gone/unreadable → nothing to wake (don't fail)
 	}
 	kind := conv.Kind()
+	// T289: an agent sender wakes ONLY in a DM (minimal surface) AND only when the
+	// wake-chain guard is wired — the four-gate circuit breaker is what makes an
+	// agent→agent wake safe, so without it we keep the #185 human-only loop-break
+	// rather than open an unprotected ping-pong. In group-like kinds (channel/issue/
+	// plan) an agent reply still wakes no one.
+	if isAgentSender && (kind != conversation.ConversationKindDM || p.wakeGuard == nil) {
+		return nil
+	}
 	// v2.7.1 #220: DM / Channel / Issue handled here (conversational @mention wake).
 	// v2.9: PLAN conversations too — a human @mentioning a plan-conversation
 	// participant agent (creator/assignee, joined via #284) must wake it, exactly
@@ -593,6 +607,29 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 		// DM (1:1): wake the peer directly.
 		if kind != conversation.ConversationKindDM && !broadcastAll && !p.mentionsAgent(ctx, a, rawID, pl.Text) {
 			continue
+		}
+		// T289: an AGENT sender reaches here only via a DM (projectConversationMessage
+		// gates agent senders to DM kind). Such a wake must (a) never wake the sender
+		// itself and (b) pass the wake-chain four-gate guard (depth/cycle/rate/cost) so
+		// an A↔B ping-pong self-extinguishes. Human/system senders are unaffected.
+		if from, isAgentSender := strings.CutPrefix(pl.Sender, agentParticipantPrefix); isAgentSender {
+			if string(a.ID()) == from || a.IdentityMemberID() == from {
+				continue // self-exclusion: never wake the sender on its own message
+			}
+			if p.wakeGuard != nil {
+				rootMsg := pl.RootMessageID
+				if rootMsg == "" {
+					rootMsg = pl.MessageID
+				}
+				tr := p.wakeGuard.EvaluateHop(from, string(a.ID()), rootMsg, p.clock.Now())
+				if !tr.Allowed {
+					slog.Info("wake projector: agent→agent DM wake suppressed by wake-chain guard",
+						"from", from, "to", string(a.ID()), "gate", string(tr.Gate),
+						"depth", tr.Depth, "reason", tr.Reason,
+						"conversation_id", pl.ConversationID, "message_id", pl.MessageID)
+					continue
+				}
+			}
 		}
 		// v2.7.1 #227: a woken agent that is NOT yet an active participant (a project
 		// member, #224) is auto-joined as a participant so the DOWNSTREAM gates that
