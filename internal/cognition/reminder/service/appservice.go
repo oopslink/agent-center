@@ -163,6 +163,26 @@ func (s *ReminderAppService) ListOrgReminders(ctx context.Context, orgID, reques
 	return s.repo.ListByCreator(ctx, requesterRef, f)
 }
 
+// ListRemindersPage is the server-side paginated ListReminders: same scope
+// (creator or remindee) + filter f (status/q/sort/limit/offset), returning the
+// page + the TOTAL count for the web console pagination.
+func (s *ReminderAppService) ListRemindersPage(ctx context.Context, q ListRemindersQuery, f reminder.ListFilter) ([]*reminder.Reminder, int, error) {
+	f.Statuses = q.Statuses
+	if q.CreatorRef != "" {
+		return s.repo.ListByCreatorPage(ctx, q.CreatorRef, f)
+	}
+	return s.repo.ListByRemindeePage(ctx, q.RemindeeAgentID, f)
+}
+
+// ListOrgRemindersPage is the paginated ListOrgReminders (owner → org-wide;
+// non-owner → own created), returning the page + TOTAL count.
+func (s *ReminderAppService) ListOrgRemindersPage(ctx context.Context, orgID, requesterRef string, f reminder.ListFilter) ([]*reminder.Reminder, int, error) {
+	if s.dir.IsOwner(ctx, requesterRef) {
+		return s.repo.ListByOrgPage(ctx, orgID, f)
+	}
+	return s.repo.ListByCreatorPage(ctx, requesterRef, f)
+}
+
 // GetReminderFirings returns a reminder's trigger history (T207 历史触发) if the
 // requester may see the reminder (creator / remindee / owner) — same visibility
 // gate as GetReminder.

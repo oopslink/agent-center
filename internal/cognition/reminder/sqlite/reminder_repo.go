@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/cognition/reminder"
@@ -170,6 +171,74 @@ func (r *ReminderRepo) ListFirings(ctx context.Context, reminderID string) ([]re
 		out = append(out, f)
 	}
 	return out, rows.Err()
+}
+
+func (r *ReminderRepo) ListByCreatorPage(ctx context.Context, creatorRef string, f reminder.ListFilter) ([]*reminder.Reminder, int, error) {
+	return r.listPage(ctx, `WHERE creator_ref=?`, creatorRef, f)
+}
+
+func (r *ReminderRepo) ListByRemindeePage(ctx context.Context, remindeeAgentID string, f reminder.ListFilter) ([]*reminder.Reminder, int, error) {
+	return r.listPage(ctx, `WHERE remindee_agent_id=?`, remindeeAgentID, f)
+}
+
+func (r *ReminderRepo) ListByOrgPage(ctx context.Context, organizationID string, f reminder.ListFilter) ([]*reminder.Reminder, int, error) {
+	return r.listPage(ctx, `WHERE organization_id=?`, organizationID, f)
+}
+
+// reminderSortColumns vets the dynamic ORDER BY column (no raw interpolation).
+var reminderSortColumns = map[string]string{
+	"created_at": "created_at", "updated_at": "updated_at",
+	"status": "status", "next_run_at": "next_run_at", "last_fired_at": "last_fired_at",
+}
+
+// listPage runs a scope query with status + content-search filters, returning the
+// page (ORDER BY + LIMIT/OFFSET in SQL) plus the TOTAL (pre-page) count from a
+// sibling COUNT with the same WHERE.
+func (r *ReminderRepo) listPage(ctx context.Context, where, arg string, f reminder.ListFilter) ([]*reminder.Reminder, int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	cond := where
+	args := []any{arg}
+	if len(f.Statuses) > 0 {
+		cond += ` AND status IN (` + placeholders(len(f.Statuses)) + `)`
+		for _, s := range f.Statuses {
+			args = append(args, string(s))
+		}
+	}
+	if f.Q != "" {
+		cond += ` AND instr(lower(content), ?) > 0`
+		args = append(args, strings.ToLower(f.Q))
+	}
+	var total int
+	if err := exec.QueryRowContext(ctx, `SELECT COUNT(*) FROM reminders `+cond, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if total == 0 {
+		return nil, 0, nil
+	}
+	col := reminderSortColumns[f.SortColumn]
+	if col == "" {
+		col = "created_at"
+	}
+	dir := "ASC"
+	if f.SortDesc {
+		dir = "DESC"
+	}
+	q := `SELECT ` + reminderCols + ` FROM reminders ` + cond + ` ORDER BY ` + col + ` ` + dir + `, id ` + dir
+	if f.Limit > 0 {
+		q += ` LIMIT ? OFFSET ?`
+		off := f.Offset
+		if off < 0 {
+			off = 0
+		}
+		args = append(args, f.Limit, off)
+	}
+	rows, err := exec.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	out, err := collectReminders(rows)
+	return out, total, err
 }
 
 // list runs a filtered creator/remindee query (optionally narrowing status).

@@ -30,9 +30,19 @@ type Firing struct {
 	Detail     string
 }
 
-// ListFilter narrows ListByCreator / ListByRemindee by status (empty = all).
+// ListFilter narrows ListByCreator / ListByRemindee by status (empty = all),
+// and (for the *Page variants) carries a content search + sort + page window.
 type ListFilter struct {
 	Statuses []ReminderStatus
+	// Q is a case-insensitive substring of the reminder content; "" = no search.
+	Q string
+	// SortColumn is a vetted sort key (created_at|updated_at|status|next_run_at);
+	// "" = the default (created_at, id). SortDesc selects direction.
+	SortColumn string
+	SortDesc   bool
+	// Limit (<=0 = no limit) / Offset are the page window (the *Page variants).
+	Limit  int
+	Offset int
 }
 
 // Repository is the Reminder aggregate's persistence port (§3.5). Implementations
@@ -55,6 +65,13 @@ type Repository interface {
 	// — the org-wide "全部" view for the human web console (T207). Org-scoped by
 	// construction (no cross-org leak); the handler gates who may see all.
 	ListByOrg(ctx context.Context, organizationID string, f ListFilter) ([]*Reminder, error)
+	// ListByCreatorPage / ListByRemindeePage / ListByOrgPage are the server-side
+	// paginated variants: same scope + status/q filter, but ORDER BY + LIMIT/OFFSET
+	// in SQL, returning the page slice + the TOTAL (pre-page) count for the web
+	// console's paginated reminder list.
+	ListByCreatorPage(ctx context.Context, creatorRef string, f ListFilter) ([]*Reminder, int, error)
+	ListByRemindeePage(ctx context.Context, remindeeAgentID string, f ListFilter) ([]*Reminder, int, error)
+	ListByOrgPage(ctx context.Context, organizationID string, f ListFilter) ([]*Reminder, int, error)
 	// FindDue returns active reminders whose next_run_at <= now (§3.3 scan predicate).
 	FindDue(ctx context.Context, now time.Time) ([]*Reminder, error)
 	// AppendFiring writes one append-only reminder_firings row.

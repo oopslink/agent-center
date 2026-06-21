@@ -355,6 +355,43 @@ func (s *Service) ListPlanSummariesIncludingArchived(ctx context.Context, projec
 	return s.planSummaries(ctx, projectID, true)
 }
 
+// ListIssuesOrgPage / ListTasksOrgPage / ListOrgPlansPage are the server-side
+// paginated cross-project reads behind the org Issues/Tasks/Plans list pages:
+// filter + sort + LIMIT/OFFSET + COUNT pushed into SQL (real pagination, no
+// handler-side aggregate-then-slice). The handler resolves the project-id set +
+// status default and passes them in q; the repo returns the page + total.
+
+func (s *Service) ListIssuesOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*pm.Issue, int, error) {
+	return s.issues.ListOrgPage(ctx, q)
+}
+
+func (s *Service) ListTasksOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*pm.Task, int, error) {
+	return s.tasks.ListOrgPage(ctx, q)
+}
+
+// ListOrgPlansPage SQL-paginates the NON-builtin base plan rows across the
+// query's projects, then enriches ONLY the returned page with the derived view
+// (progress / has_failed) via planDetail. Returns the page's PlanDetails + the
+// total (pre-page) count.
+func (s *Service) ListOrgPlansPage(ctx context.Context, q pm.OrgListQuery) ([]*PlanDetail, int, error) {
+	if s.plans == nil {
+		return nil, 0, ErrPlansUnavailable
+	}
+	plans, total, err := s.plans.ListOrgPage(ctx, q)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]*PlanDetail, 0, len(plans))
+	for _, p := range plans {
+		d, derr := s.planDetail(ctx, p)
+		if derr != nil {
+			return nil, 0, derr
+		}
+		out = append(out, d)
+	}
+	return out, total, nil
+}
+
 func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, includeArchived bool) ([]*PlanDetail, error) {
 	if s.plans == nil {
 		return nil, ErrPlansUnavailable

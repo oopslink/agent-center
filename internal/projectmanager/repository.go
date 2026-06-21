@@ -10,6 +10,39 @@ import (
 // persistence.ExecutorFromCtx so the B2 AppServices can compose a write +
 // outbox event in one transaction (plan §10 OQ1).
 
+// OrgListQuery is the cross-project, filtered, sorted, SQL-paginated list query
+// the org list handlers push down to the repository (real LIMIT/OFFSET + COUNT,
+// no handler-side aggregate-then-slice). All fields are optional; the caller
+// (handler) resolves the project-id set + status default BEFORE calling.
+//
+//   - ProjectIDs: restrict to these projects (the handler already applied the
+//     project filter + archived-project exclusion). Empty ⇒ empty result.
+//   - Statuses: explicit include set; when empty, ExcludeStatuses applies (the
+//     "all open" default that hides terminal states). Both empty ⇒ no status
+//     predicate (the ?status=all escape hatch).
+//   - Assignee: tasks only — matches the full ref OR the bare member-id; "" = any.
+//   - Q: case-insensitive substring of title/name (issues/tasks/plans); "" = any.
+//   - Created/Updated bounds: inclusive RFC3339 instants (UTC); nil = unbounded.
+//   - SortColumn: a row key (created_at|updated_at|status|title|name|org_ref);
+//     "" ⇒ updated_at. SortDesc selects direction. The repo maps the key to a
+//     vetted DB column (never interpolates raw input).
+//   - Limit (<=0 ⇒ no limit) / Offset: the page window.
+type OrgListQuery struct {
+	ProjectIDs      []ProjectID
+	Statuses        []string
+	ExcludeStatuses []string
+	Assignee        string
+	Q               string
+	CreatedAfter    *time.Time
+	CreatedBefore   *time.Time
+	UpdatedAfter    *time.Time
+	UpdatedBefore   *time.Time
+	SortColumn      string
+	SortDesc        bool
+	Limit           int
+	Offset          int
+}
+
 // ProjectRepository persists Project ARs.
 type ProjectRepository interface {
 	Save(ctx context.Context, p *Project) error
@@ -48,6 +81,10 @@ type IssueRepository interface {
 	// the pm successor to the retired discussion FindByStatus full scan, used by
 	// the fleet pending-issues segment's global-admin path (v2.7 #107 #119).
 	FindByStatuses(ctx context.Context, statuses []IssueStatus, limit int) ([]*Issue, error)
+	// ListOrgPage returns one page of issues across the query's projects, filtered
+	// + sorted + LIMIT/OFFSET in SQL, plus the TOTAL (pre-page) count. The org
+	// Issues list (cross-project) uses it for real server-side pagination.
+	ListOrgPage(ctx context.Context, q OrgListQuery) ([]*Issue, int, error)
 }
 
 // TaskRepository persists Task ARs.
@@ -81,6 +118,9 @@ type TaskRepository interface {
 	// empty plan_id — i.e. not yet selected into any Plan. It is the complement of
 	// ListByPlan, stable-ordered (created_at, id).
 	ListUnplannedByProject(ctx context.Context, projectID ProjectID) ([]*Task, error)
+	// ListOrgPage returns one page of tasks across the query's projects, filtered
+	// (incl. assignee) + sorted + LIMIT/OFFSET in SQL, plus the TOTAL count.
+	ListOrgPage(ctx context.Context, q OrgListQuery) ([]*Task, int, error)
 }
 
 // PlanRepository persists Plan ARs and their execution-DAG edges (v2.9 #283).
@@ -93,6 +133,10 @@ type PlanRepository interface {
 	Update(ctx context.Context, p *Plan) error
 	FindByID(ctx context.Context, id PlanID) (*Plan, error)
 	ListByProject(ctx context.Context, projectID ProjectID) ([]*Plan, error)
+	// ListOrgPage returns one page of NON-builtin plans across the query's
+	// projects, filtered + sorted + LIMIT/OFFSET in SQL, plus the TOTAL count.
+	// Rows are base plan ARs; the service enriches only the page (progress).
+	ListOrgPage(ctx context.Context, q OrgListQuery) ([]*Plan, int, error)
 	// ListRunningPlans returns every Plan in status `running` across ALL projects
 	// (global, no project filter), stable-ordered (created_at, id). It backs the
 	// v2.9 P2-3 reconciliation sweep — the background safety net that re-dispatches

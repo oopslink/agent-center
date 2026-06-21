@@ -153,40 +153,43 @@ func (s *Server) remListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	statuses := parseRemStatuses(r.URL.Query().Get("status"))
+	// Server-side filter (status + content search) + sort + LIMIT/OFFSET in SQL.
+	pp := parsePageParams(r)
+	f := reminder.ListFilter{
+		Statuses:   statuses,
+		Q:          strings.TrimSpace(r.URL.Query().Get("q")),
+		SortColumn: pp.sortKey,
+		SortDesc:   pp.sortDir == "desc",
+		Limit:      pp.limit,
+		Offset:     pp.offset,
+	}
 	var (
-		rs  []*reminder.Reminder
-		err error
+		rs    []*reminder.Reminder
+		total int
+		err   error
 	)
 	switch r.URL.Query().Get("filter") {
 	case "created":
 		// 我创建的 — reminders this caller created.
-		rs, err = d.Reminder.ListReminders(r.Context(), cogservice.ListRemindersQuery{CreatorRef: caller, Statuses: statuses})
+		rs, total, err = d.Reminder.ListRemindersPage(r.Context(), cogservice.ListRemindersQuery{CreatorRef: caller, Statuses: statuses}, f)
 	case "remindee":
 		// 提醒我的 — reminders TARGETING the viewing identity (remindee dimension),
 		// filtered server-side. The remindee key is the bare id (no "user:"/"agent:"
 		// prefix), matching reminder_firings' remindee_agent_id.
-		rs, err = d.Reminder.ListReminders(r.Context(), cogservice.ListRemindersQuery{RemindeeAgentID: bareRef(caller), Statuses: statuses})
+		rs, total, err = d.Reminder.ListRemindersPage(r.Context(), cogservice.ListRemindersQuery{RemindeeAgentID: bareRef(caller), Statuses: statuses}, f)
 	default:
 		// default "全部" — owner (any console user) sees the org-wide set.
-		rs, err = d.Reminder.ListOrgReminders(r.Context(), orgID, caller, statuses)
+		rs, total, err = d.Reminder.ListOrgRemindersPage(r.Context(), orgID, caller, f)
 	}
 	if err != nil {
 		writeRemErr(w, err)
 		return
 	}
-	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))) // content contains (server-side search)
 	out := make([]map[string]any, 0, len(rs))
 	for _, rm := range rs {
-		if q != "" && !strings.Contains(strings.ToLower(rm.Content()), q) {
-			continue
-		}
 		out = append(out, remReminderMap(rm))
 	}
-	// Server-side sort + pagination (shared with the org list handlers). With no
-	// sort/limit params this is updated_at DESC + all rows; `total` is the full
-	// (pre-page) count so the client can render pagination.
-	page, total := applyPageItems(out, parsePageParams(r))
-	writeJSON(w, http.StatusOK, map[string]any{"reminders": page, "total": total})
+	writeJSON(w, http.StatusOK, map[string]any{"reminders": out, "total": total})
 }
 
 // bareRef strips a "user:"/"agent:" prefix to the bare id, so a session

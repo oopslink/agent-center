@@ -50,6 +50,80 @@ var taskTerminalStatus = map[string]bool{"completed": true, "discarded": true}
 // the list, like the mockup). Mirrors the issue/task default-exclude semantics.
 var planTerminalStatus = map[string]bool{"archived": true}
 
+// orgListQueryBase builds the shared SQL-pagination query (project-id set,
+// status include/exclude, q search, time range, sort + page window) for the org
+// Issues/Tasks/Plans list handlers. The project-id set already applies the
+// project filter + the archived-project default-exclude (T42). terminal is the
+// entity's default-hidden status set. A bad time filter returns a non-nil error
+// (the caller writes a 400).
+func orgListQueryBase(r *http.Request, projects []*pm.Project, terminal map[string]bool) (pm.OrgListQuery, error) {
+	statusFilter := parseSetParam(r, "status")
+	projectFilter := parseSetParam(r, "project")
+	tf, terr := parseTimeFilter(r)
+	if terr != nil {
+		return pm.OrgListQuery{}, terr
+	}
+	var ids []pm.ProjectID
+	for _, p := range projects {
+		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
+			continue
+		}
+		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
+			continue // archived project hidden unless explicitly filtered (T42)
+		}
+		ids = append(ids, p.ID())
+	}
+	q := pm.OrgListQuery{ProjectIDs: ids, Q: strings.TrimSpace(r.URL.Query().Get("q"))}
+	// status: ?status=all → no constraint; explicit set → include; else default
+	// "all open" → exclude the terminal set (mirrors statusPasses).
+	if !statusFilter["all"] {
+		if len(statusFilter) > 0 {
+			for st := range statusFilter {
+				q.Statuses = append(q.Statuses, st)
+			}
+		} else {
+			for st := range terminal {
+				q.ExcludeStatuses = append(q.ExcludeStatuses, st)
+			}
+		}
+	}
+	if tf.hasCA {
+		t := tf.createdAfter
+		q.CreatedAfter = &t
+	}
+	if tf.hasCB {
+		t := tf.createdBefore
+		q.CreatedBefore = &t
+	}
+	if tf.hasUA {
+		t := tf.updatedAfter
+		q.UpdatedAfter = &t
+	}
+	if tf.hasUB {
+		t := tf.updatedBefore
+		q.UpdatedBefore = &t
+	}
+	pp := parsePageParams(r)
+	q.SortColumn = pp.sortKey
+	if pp.sortKey == "" {
+		q.SortDesc = true // default updated_at DESC (newest first)
+	} else {
+		q.SortDesc = pp.sortDir == "desc"
+	}
+	q.Limit = pp.limit
+	q.Offset = pp.offset
+	return q, nil
+}
+
+// projectByID indexes the org's projects for O(1) row enrichment of a page.
+func projectByID(projects []*pm.Project) map[string]*pm.Project {
+	m := make(map[string]*pm.Project, len(projects))
+	for _, p := range projects {
+		m[string(p.ID())] = p
+	}
+	return m
+}
+
 func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	if d.PM == nil {
@@ -65,52 +139,29 @@ func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) 
 		mapPMError(w, err)
 		return
 	}
-	statusFilter := parseSetParam(r, "status")
-	projectFilter := parseSetParam(r, "project")
-	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))) // title contains (server-side search)
-	// Issues are never assignable; an explicit assignee filter excludes them all.
-	assigneeSet := strings.TrimSpace(r.URL.Query().Get("assignee")) != ""
-	tf, terr := parseTimeFilter(r)
+	q, terr := orgListQueryBase(r, projects, issueTerminalStatus)
 	if terr != nil {
 		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
 		return
 	}
-
-	items := make([]map[string]any, 0)
-	for _, p := range projects {
-		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
-			continue
-		}
-		// v2.9.1 (T42): hide items of an ARCHIVED project by default — UNLESS the
-		// user explicitly filters to that project (else filtering by it would be an
-		// empty, confusing list). Mirrors the archived-project / archived-channel
-		// default-exclude semantics (#310 / task-169c598d).
-		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
-			continue
-		}
-		issues, lerr := d.PM.ListIssues(r.Context(), p.ID())
-		if lerr != nil {
-			mapPMError(w, lerr)
-			return
-		}
-		for _, i := range issues {
-			if !statusPasses(string(i.Status()), statusFilter, issueTerminalStatus) {
-				continue
-			}
-			if assigneeSet {
-				continue // issues have no assignee
-			}
-			if !tf.passes(i.CreatedAt(), i.UpdatedAt()) {
-				continue
-			}
-			if q != "" && !strings.Contains(strings.ToLower(i.Title()), q) {
-				continue
-			}
+	// Issues are never assignable; an explicit assignee filter excludes them all.
+	if strings.TrimSpace(r.URL.Query().Get("assignee")) != "" {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []any{}, "total": 0})
+		return
+	}
+	issues, total, lerr := d.PM.ListIssuesOrgPage(r.Context(), q)
+	if lerr != nil {
+		mapPMError(w, lerr)
+		return
+	}
+	byID := projectByID(projects)
+	items := make([]map[string]any, 0, len(issues))
+	for _, i := range issues {
+		if p := byID[string(i.ProjectID())]; p != nil {
 			items = append(items, orgIssueRow(i, p))
 		}
 	}
-	page, total := applyPageItems(items, parsePageParams(r))
-	writeJSON(w, http.StatusOK, map[string]any{"items": page, "total": total})
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
 }
 
 func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
@@ -128,52 +179,25 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 		mapPMError(w, err)
 		return
 	}
-	statusFilter := parseSetParam(r, "status")
-	projectFilter := parseSetParam(r, "project")
-	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))) // title contains (server-side search)
-	assigneeFilter := strings.TrimSpace(r.URL.Query().Get("assignee"))
-	tf, terr := parseTimeFilter(r)
+	q, terr := orgListQueryBase(r, projects, taskTerminalStatus)
 	if terr != nil {
 		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
 		return
 	}
-
-	items := make([]map[string]any, 0)
-	for _, p := range projects {
-		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
-			continue
-		}
-		// v2.9.1 (T42): hide items of an ARCHIVED project by default — UNLESS the
-		// user explicitly filters to that project (else filtering by it would be an
-		// empty, confusing list). Mirrors the archived-project / archived-channel
-		// default-exclude semantics (#310 / task-169c598d).
-		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
-			continue
-		}
-		tasks, lerr := d.PM.ListTasks(r.Context(), p.ID())
-		if lerr != nil {
-			mapPMError(w, lerr)
-			return
-		}
-		for _, t := range tasks {
-			if !statusPasses(string(t.Status()), statusFilter, taskTerminalStatus) {
-				continue
-			}
-			ref := string(t.Assignee())
-			if assigneeFilter != "" && !assigneeMatches(ref, assigneeFilter) {
-				continue
-			}
-			if !tf.passes(t.CreatedAt(), t.UpdatedAt()) {
-				continue
-			}
-			if q != "" && !strings.Contains(strings.ToLower(t.Title()), q) {
-				continue
-			}
+	q.Assignee = strings.TrimSpace(r.URL.Query().Get("assignee"))
+	tasks, total, lerr := d.PM.ListTasksOrgPage(r.Context(), q)
+	if lerr != nil {
+		mapPMError(w, lerr)
+		return
+	}
+	byID := projectByID(projects)
+	items := make([]map[string]any, 0, len(tasks))
+	for _, t := range tasks {
+		if p := byID[string(t.ProjectID())]; p != nil {
 			items = append(items, s.orgTaskRow(r, d, t, p))
 		}
 	}
-	page, total := applyPageItems(items, parsePageParams(r))
-	writeJSON(w, http.StatusOK, map[string]any{"items": page, "total": total})
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
 }
 
 // pmListOrgPlansHandler (v2.10.0 [T6]) — GET /api/orgs/{slug}/plans returns,
@@ -203,57 +227,30 @@ func (s *Server) pmListOrgPlansHandler(w http.ResponseWriter, r *http.Request) {
 		mapPMError(w, err)
 		return
 	}
-	statusFilter := parseSetParam(r, "status")
-	projectFilter := parseSetParam(r, "project")
-	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q"))) // name contains (server-side search)
-	tf, terr := parseTimeFilter(r)
+	// T124/T98: the SQL query INCLUDES archived plans so ?status=archived/all can
+	// surface them (the default ExcludeStatuses hides them otherwise); the builtin
+	// assignment pool is excluded in SQL (is_builtin = 0). Each row's progress/
+	// has_failed is derived by the service for the returned PAGE only.
+	q, terr := orgListQueryBase(r, projects, planTerminalStatus)
 	if terr != nil {
 		writeError(w, http.StatusBadRequest, "invalid_filter", terr.Error())
 		return
 	}
-
-	items := make([]map[string]any, 0)
-	for _, p := range projects {
-		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
-			continue
-		}
-		// Hide plans of an ARCHIVED project by default unless explicitly filtered
-		// (mirrors the issues/tasks archived-project default-exclude).
-		if p.Status() == pm.ProjectArchived && !projectFilter[string(p.ID())] {
-			continue
-		}
-		// T124/T98: include archived plans so the status filter below can surface
-		// them on `?status=archived`/`all` (statusPasses default-excludes archived).
-		// The Work Board / agent-tools plan lists still use the archived-excluding
-		// ListPlanSummaries.
-		summaries, lerr := d.PM.ListPlanSummariesIncludingArchived(r.Context(), p.ID())
-		if lerr != nil {
-			mapPlanError(w, lerr)
-			return
-		}
-		for _, detail := range summaries {
-			pl := detail.Plan
-			// The builtin assignment pool is not a user plan — it lives on the
-			// project Work Board, not the global Plan list.
-			if pl.IsBuiltin() {
-				continue
-			}
-			if !statusPasses(string(pl.Status()), statusFilter, planTerminalStatus) {
-				continue
-			}
-			if !tf.passes(pl.CreatedAt(), pl.UpdatedAt()) {
-				continue
-			}
-			if q != "" && !strings.Contains(strings.ToLower(pl.Name()), q) {
-				continue
-			}
-			row := pmPlanSummaryMap(detail)
-			row["project"] = map[string]any{"id": string(p.ID()), "name": p.Name()}
-			items = append(items, row)
-		}
+	details, total, lerr := d.PM.ListOrgPlansPage(r.Context(), q)
+	if lerr != nil {
+		mapPlanError(w, lerr)
+		return
 	}
-	page, total := applyPageItems(items, parsePageParams(r))
-	writeJSON(w, http.StatusOK, map[string]any{"items": page, "total": total})
+	byID := projectByID(projects)
+	items := make([]map[string]any, 0, len(details))
+	for _, detail := range details {
+		row := pmPlanSummaryMap(detail)
+		if p := byID[string(detail.Plan.ProjectID())]; p != nil {
+			row["project"] = map[string]any{"id": string(p.ID()), "name": p.Name()}
+		}
+		items = append(items, row)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total})
 }
 
 // orgIssueRow builds the DTO row for an issue. assignee is always null — issues
