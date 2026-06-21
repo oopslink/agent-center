@@ -113,7 +113,11 @@ func (s *Service) applyLoopbacks(txCtx context.Context, plan *pm.Plan, changed p
 		escape := outcome + "_exhausted"
 		hasEscape := false
 		for _, e := range edges {
-			if e.FromTaskID == changed && pm.NormalizeEdgeKind(e.Kind) == pm.EdgeConditional && e.When == escape {
+			// The escape edge is a conditional with To=decision (From=Escape node),
+			// per the condUp convention — match by ToTaskID, not FromTaskID. (T272 /
+			// F-T272-1: the previous FromTaskID check never matched a real escape edge,
+			// so exhaustion fell through to notifyLoopStuck instead of routing to Escape.)
+			if e.ToTaskID == changed && pm.NormalizeEdgeKind(e.Kind) == pm.EdgeConditional && e.When == escape {
 				hasEscape = true
 				break
 			}
