@@ -214,6 +214,12 @@ type Service struct {
 	// merge). When wired (the git adapter at composition), CompleteTask refuses to
 	// complete an Integrate node until its branch has merged into origin/<base>.
 	mergeChecker MergeChecker
+	// decisionGate is OPTIONAL (nil-safe, v2.13.0 / I18 B3). nil ⇒ B3's auto-decision
+	// treats every gate as GateUnknown, records no outcome, and defers every decision
+	// node to a human (pre-B3 behaviour — manual complete_task outcome only). When
+	// wired (the gate adapter at composition), CompleteTask auto-derives a decision
+	// node's pass/reject outcome from the §-1 gate verdict.
+	decisionGate DecisionGate
 	// poolClaimLimit caps the concurrent claimed built-in-pool tasks per agent
 	// (T83 §3.6, owner-set). 0 ⇒ DefaultPoolClaimLimit (3).
 	poolClaimLimit int
@@ -301,6 +307,10 @@ type Deps struct {
 	// MergeChecker is OPTIONAL (v2.13.0 / I18 F3): when set, CompleteTask blocks an
 	// Integrate node until its branch merged into origin/<base>. nil ⇒ guard disabled.
 	MergeChecker MergeChecker
+	// DecisionGate is OPTIONAL (v2.13.0 / I18 B3): when set, CompleteTask auto-derives
+	// a decision node's pass/reject outcome from the §-1 gate verdict. nil ⇒ B3 defers
+	// every decision to a human (manual outcome only).
+	DecisionGate DecisionGate
 	// PoolClaimLimit is OPTIONAL (T83 §3.6): max concurrent claimed built-in-pool
 	// tasks per agent. 0 ⇒ DefaultPoolClaimLimit (3).
 	PoolClaimLimit int
@@ -318,7 +328,7 @@ func New(d Deps) *Service {
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
-		cycleMeta: d.CycleMeta, mergeChecker: d.MergeChecker,
+		cycleMeta: d.CycleMeta, mergeChecker: d.MergeChecker, decisionGate: d.DecisionGate,
 	}
 }
 
@@ -363,6 +373,15 @@ func (s *Service) SetCycleNodeMetaProvider(p CycleNodeMetaPort) *Service {
 // Returns the receiver for chaining.
 func (s *Service) SetMergeChecker(m MergeChecker) *Service {
 	s.mergeChecker = m
+	return s
+}
+
+// SetDecisionGate wires the optional B3 §-1 gate adapter AFTER construction
+// (v2.13.0 / I18) — used by the composition root once the gate adapter (which needs
+// a working-tree cache + git/toolchain) is built. nil is tolerated (B3 then defers
+// every decision to a human). Returns the receiver for chaining.
+func (s *Service) SetDecisionGate(g DecisionGate) *Service {
+	s.decisionGate = g
 	return s
 }
 

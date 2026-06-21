@@ -34,6 +34,7 @@ import (
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	"github.com/oopslink/agent-center/internal/projectmanager/gatecheck"
 	"github.com/oopslink/agent-center/internal/projectmanager/mergecheck"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
@@ -417,6 +418,17 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		mergeCacheDir = filepath.Join(filepath.Dir(cfg.BlobStore.Root), "mergecheck-mirrors")
 	}
 	pmSvc.SetMergeChecker(mergecheck.New(mergeCacheDir, mergecheck.NewExecGitRunner()))
+
+	// v2.13.0 I18/B3: wire the §-1 gate adapter so completing a DECISION node without
+	// an explicit outcome auto-derives pass/reject from the gate verdict. Running the
+	// real gate is HEAVY (a full checkout + build/test, run synchronously inside
+	// complete_task), so it is an explicit operator OPT-IN via AC_DECISION_GATE_CMD
+	// (the gate command, space-separated, e.g. "make gate"). Unset ⇒ B3 defers every
+	// decision to a human (manual complete_task outcome only) — the safe default.
+	if gateCmd := strings.Fields(os.Getenv("AC_DECISION_GATE_CMD")); len(gateCmd) > 0 {
+		gateCacheDir := filepath.Join(filepath.Dir(mergeCacheDir), "gatecheck-clones")
+		pmSvc.SetDecisionGate(gatecheck.New(gateCacheDir, gateCmd, gatecheck.NewExecCommandRunner()))
+	}
 
 	// v2.7 D5 slice-1: the shared SSE down-push bus. Created here so it is the
 	// SAME instance the projector's ControlLog publishes to (webconsole_wiring.go)
