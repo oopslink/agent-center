@@ -138,16 +138,25 @@ func (p *PlanParticipantProjector) Project(ctx context.Context, e outbox.Event) 
 		case errors.Is(err, conversation.ErrConversationNotFound):
 			// Create the Plan's 1:1 Conversation with the event's participants
 			// (creator on pm.plan.created — the FIRST event for the owner_ref).
-			if strings.TrimSpace(pl.OrganizationID) == "" {
-				// Defensive (§-1 no-silent): an org-less Plan conversation would 404 for
-				// the orchestrator's @mention path. Created always carries org.
-				return errors.New("plan participant projector: cannot create conversation with empty organization_id for " + string(ownerRef))
+			orgID := strings.TrimSpace(pl.OrganizationID)
+			if orgID == "" {
+				// Legacy/builtin Plan events before ADR-0047 may have been emitted
+				// without organization_id. Derive it from plan -> project so the
+				// relay can self-heal a missing Plan conversation instead of letting
+				// old poison events starve later wake events in the outbox batch.
+				var rerr error
+				orgID, rerr = p.organizationIDForPlanProject(txCtx, pl.PlanID)
+				if rerr != nil {
+					// Defensive (§-1 no-silent): an org-less Plan conversation would
+					// 404 for the orchestrator's @mention path.
+					return errors.New("plan participant projector: cannot create conversation with empty organization_id for " + string(ownerRef))
+				}
 			}
 			nc, nerr := conversation.NewConversation(conversation.NewConversationInput{
 				ID:             conversation.ConversationID(p.idgen.NewULID()),
 				Kind:           conversation.ConversationKindPlan,
 				OwnerRef:       ownerRef,
-				OrganizationID: pl.OrganizationID,
+				OrganizationID: orgID,
 				CreatedBy:      conversation.IdentityRef("system"),
 				OpenedAt:       now,
 				Participants:   participantsFrom(pl.Participants, now),
@@ -177,6 +186,26 @@ func (p *PlanParticipantProjector) Project(ctx context.Context, e outbox.Event) 
 		}
 		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
 	})
+}
+
+func (p *PlanParticipantProjector) organizationIDForPlanProject(ctx context.Context, planID string) (string, error) {
+	if strings.TrimSpace(planID) == "" {
+		return "", errors.New("plan participant projector: event missing plan_id")
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, p.db)
+	var orgID string
+	err := exec.QueryRowContext(ctx, `
+		SELECT pr.organization_id
+		FROM pm_plans AS pl
+		JOIN pm_projects AS pr ON pr.id = pl.project_id
+		WHERE pl.id = ?`, planID).Scan(&orgID)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(orgID) == "" {
+		return "", errors.New("plan participant projector: plan project has empty organization_id")
+	}
+	return orgID, nil
 }
 
 // deletePlanConversation hard-removes the plan's 1:1 conversation: its messages

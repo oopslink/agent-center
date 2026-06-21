@@ -109,6 +109,86 @@ func TestCreatePlan_CreatesConversationAndBinds(t *testing.T) {
 	}
 }
 
+func TestPlanParticipantsChanged_LegacyBuiltinPlanDerivesOrgWhenConversationMissing(t *testing.T) {
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
+	gen := idgen.NewGenerator(clk)
+	ob := outboxsql.NewOutboxRepo(db)
+	applied := outboxsql.NewAppliedRepo(db)
+	convRepo := convsql.NewConversationRepo(db)
+	plans := pmsql.NewPlanRepo(db)
+	svc := New(Deps{
+		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
+		Issues: pmsql.NewIssueRepo(db), Tasks: pmsql.NewTaskRepo(db),
+		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, IDGen: gen, Clock: clk,
+	})
+	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
+	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
+	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
+
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-legacy", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps, err := plans.ListByProject(ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var builtin *pm.Plan
+	for _, p := range ps {
+		if p.IsBuiltin() {
+			builtin = p
+			break
+		}
+	}
+	if builtin == nil {
+		t.Fatal("builtin plan not found")
+	}
+	// Simulate the production legacy shape: the built-in plan exists, but its
+	// plan.created event has already been swallowed/processed without creating
+	// the plan conversation; the later participants_changed event also carries
+	// an empty organization_id.
+	if _, err := db.ExecContext(ctx, `UPDATE outbox_events SET processed_at = ? WHERE event_type = ?`,
+		clk.Now().Format(time.RFC3339Nano), EvtPlanCreated); err != nil {
+		t.Fatal(err)
+	}
+	legacyPayload := `{"plan_id":"` + string(builtin.ID()) + `","project_id":"` + string(pid) + `","organization_id":"","owner_ref":"pm://plans/` + string(builtin.ID()) + `","participants":["agent:agent-1"]}`
+	if err := ob.Append(ctx, outbox.Event{
+		ID:        "01LEGACYPLANPARTICIPANT000",
+		EventType: EvtPlanParticipantsChanged,
+		Payload:   legacyPayload,
+		CreatedAt: clk.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	drain(t, relay, ctx)
+
+	conv, err := convRepo.FindByOwnerRef(ctx, conversation.NewPlanOwnerRef(string(builtin.ID())))
+	if err != nil {
+		t.Fatalf("legacy participants_changed should self-heal missing plan conversation: %v", err)
+	}
+	if conv.OrganizationID() != "org-legacy" {
+		t.Fatalf("plan Conversation org = %q, want derived org-legacy", conv.OrganizationID())
+	}
+	if ids := participantIDs(conv); !hasID(ids, "agent:agent-1") {
+		t.Fatalf("participants should include legacy assignee, got %v", ids)
+	}
+	p2, _ := plans.FindByID(ctx, builtin.ID())
+	if p2.ConversationID() != string(conv.ID()) {
+		t.Fatalf("builtin plan conversationID = %q, want %q", p2.ConversationID(), string(conv.ID()))
+	}
+}
+
 func TestCreatePlan_Unavailable_WhenNoPlanRepo(t *testing.T) {
 	// A Service with NO Plans repo wired.
 	db, err := persistence.Open(persistence.MemoryDSN())
