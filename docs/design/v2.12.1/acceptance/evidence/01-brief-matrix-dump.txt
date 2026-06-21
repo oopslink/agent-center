@@ -1,0 +1,72 @@
+=== RUN   TestT256_DumpMatrix
+
+===== CELL: plan / top-level =====
+[Plan chat — "Reminder feature" (plan_id=plan-abc123)] hayang mentioned you:
+完成这个 plan
+
+(This message belongs to plan_id=plan-abc123. When it refers to "this plan" — e.g. completing, archiving, or editing it — act on THAT plan_id, not any other plan you may also be in.)
+(To reply, use the post_message tool with conversation_id="conv-plan". This is a conversation, not a task — there is no work item to complete.)
+
+===== CELL: plan / in-thread =====
+[Plan chat — "Reminder feature" (plan_id=plan-abc123)] hayang mentioned you:
+完成这个 plan
+
+(This message belongs to plan_id=plan-abc123. When it refers to "this plan" — e.g. completing, archiving, or editing it — act on THAT plan_id, not any other plan you may also be in.)
+(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id="conv-plan" AND parent_message_id="m-root" — do not omit parent_message_id, or your reply will land outside the thread.)
+
+===== CELL: issue / top-level =====
+[Issue chat — "Login broken" (issue_id=issue-7)] bob mentioned you:
+看下这个 issue
+
+(This message belongs to issue_id=issue-7. When it refers to "this issue" — e.g. completing, archiving, or editing it — act on THAT issue_id, not any other issue you may also be in.)
+(To reply, use the post_message tool with conversation_id="conv-i".)
+
+===== CELL: issue / in-thread =====
+[Issue chat — "Login broken" (issue_id=issue-7)] bob mentioned you:
+看下这个 issue
+
+(This message belongs to issue_id=issue-7. When it refers to "this issue" — e.g. completing, archiving, or editing it — act on THAT issue_id, not any other issue you may also be in.)
+(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id="conv-i" AND parent_message_id="m-root" — do not omit parent_message_id, or your reply will land outside the thread.)
+
+===== CELL: task / top-level =====
+[Task chat — "Refactor brief" (task_id=task-9)] alice mentioned you:
+@helper 看下
+
+(This message belongs to task_id=task-9. When it refers to "this task" — e.g. completing, archiving, or editing it — act on THAT task_id, not any other task you may also be in.)
+(To reply, use the post_message tool with conversation_id="conv-t".)
+
+===== CELL: task / in-thread =====
+[Task chat — "Refactor brief" (task_id=task-9)] alice mentioned you:
+@helper 看下
+
+(This message belongs to task_id=task-9. When it refers to "this task" — e.g. completing, archiving, or editing it — act on THAT task_id, not any other task you may also be in.)
+(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id="conv-t" AND parent_message_id="m-root" — do not omit parent_message_id, or your reply will land outside the thread.)
+
+===== CELL: task / top-level NAME-MISS =====
+[Task chat (task_id=task-x)] alice mentioned you:
+hi
+
+(This message belongs to task_id=task-x. When it refers to "this task" — e.g. completing, archiving, or editing it — act on THAT task_id, not any other task you may also be in.)
+(To reply, use the post_message tool with conversation_id="conv-t".)
+
+===== CELL: project owner_ref (would-be) =====
+[Project chat — "proj" (project_id=project-1)] alice mentioned you:
+hi
+
+(This message belongs to project_id=project-1. When it refers to "this project" — e.g. completing, archiving, or editing it — act on THAT project_id, not any other project you may also be in.)
+(To reply, use the post_message tool with conversation_id="conv-p".)
+
+===== CELL: DM (regression) =====
+[Direct message from hayang]:
+hello
+
+(To reply, use the post_message tool with conversation_id="conv-dm". This is a conversation, not a task — there is no work item to complete.)
+
+===== CELL: channel (regression) =====
+[Channel #general] hayang mentioned you:
+hi
+
+(To reply, use the post_message tool with conversation_id="conv-c". This is a conversation, not a task — there is no work item to complete.)
+--- PASS: TestT256_DumpMatrix (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/workerdaemon	0.265s

@@ -1,0 +1,9 @@
+=== OQ4 mutation proof ===
+--- after removing pm://tasks/ registry entry (expect RED) ---
+--- FAIL: TestOwnerContext_AllWellFormedSchemesRegistered (0.00s)
+    owner_context_test.go:76: scheme "pm://tasks/" is WellFormed but not registered in ownerContextRegistry
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/conversation	0.377s
+FAIL
+--- after restore (expect PASS) ---
+ok  	github.com/oopslink/agent-center/internal/conversation	(cached)
