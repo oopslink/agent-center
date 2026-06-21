@@ -957,6 +957,10 @@ type completeTaskReq struct {
 	AgentID string `json:"agent_id"`
 	TaskID  string `json:"task_id"`
 	Summary string `json:"summary"`
+	// Outcome (v2.13.0 I18/B1): for a DECISION node, the outcome label (e.g.
+	// "pass"/"reject") that routes its conditional/loopback out-edges. Empty for an
+	// ordinary task complete (no routing).
+	Outcome string `json:"outcome"`
 }
 
 // completeTaskHandler optionally posts a summary to the task Conversation AND
@@ -995,8 +999,17 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 		}
-		return d.PMService.CompleteTask(txCtx, pm.TaskID(req.TaskID),
-			pm.IdentityRef(agentActor(a)))
+		if err := d.PMService.CompleteTask(txCtx, pm.TaskID(req.TaskID),
+			pm.IdentityRef(agentActor(a))); err != nil {
+			return err
+		}
+		// B1: record a decision node's outcome in the SAME tx, so the subsequent
+		// auto-advance routes its conditional/loopback edges (no-op when empty).
+		if strings.TrimSpace(req.Outcome) != "" {
+			return d.PMService.SetDecisionOutcome(txCtx, pm.TaskID(req.TaskID),
+				strings.TrimSpace(req.Outcome), pm.IdentityRef(agentActor(a)))
+		}
+		return nil
 	})
 	if err != nil {
 		mapDomainError(w, err)

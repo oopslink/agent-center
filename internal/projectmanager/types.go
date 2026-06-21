@@ -108,9 +108,12 @@ var (
 	// missing dependency must not silently bypass the cross-org guard.
 	ErrAgentDirectoryUnavailable = errors.New("projectmanager: agent directory unavailable — cannot verify assignee agent's organization")
 	// Plan orchestration (v2.9 #283).
-	ErrEmptyPlanName         = errors.New("projectmanager: plan name required")
-	ErrPlanCycle             = errors.New("projectmanager: dependency would create a cycle")
-	ErrSelfDependency        = errors.New("projectmanager: a task cannot depend on itself")
+	ErrEmptyPlanName  = errors.New("projectmanager: plan name required")
+	ErrPlanCycle      = errors.New("projectmanager: dependency would create a cycle")
+	ErrSelfDependency = errors.New("projectmanager: a task cannot depend on itself")
+	// ErrInvalidLoopback (v2.13.0 I18/B1): a loopback edge must carry a When label,
+	// MaxRounds≥1, and point To a forward ancestor of From (a real bounded loop).
+	ErrInvalidLoopback       = errors.New("projectmanager: invalid loopback edge (needs When + MaxRounds>=1 + To must be a forward ancestor of From)")
 	ErrIllegalPlanTransition = errors.New("projectmanager: illegal plan status transition")
 	ErrInvalidPlanStatus     = errors.New("projectmanager: invalid plan status")
 	ErrPlanNotDraft          = errors.New("projectmanager: plan dependencies/tasks editable only in draft")

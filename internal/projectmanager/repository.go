@@ -134,6 +134,22 @@ type PlanRepository interface {
 	// PlanID so callers group in-memory. Empty planIDs → empty slice.
 	ListDispatchRecordsByPlans(ctx context.Context, planIDs []PlanID) ([]DispatchRecord, error)
 	ClearDispatch(ctx context.Context, planID PlanID, taskID TaskID) error
+
+	// Decision outcomes (v2.13.0 I18/B1, control-flow §2.3) — a decision node's
+	// recorded outcome (latest-wins per plan_id,task_id), routing its conditional/
+	// loopback out-edges. RecordDecisionOutcome upserts (overwrite on re-decision);
+	// ListDecisionOutcomes returns one plan's outcomes (fed to ComputePlanView);
+	// ClearDecisionOutcome removes one (loopback reopen → re-decide).
+	RecordDecisionOutcome(ctx context.Context, planID PlanID, taskID TaskID, outcome string, at time.Time) error
+	ListDecisionOutcomes(ctx context.Context, planID PlanID) ([]DecisionOutcome, error)
+	ListDecisionOutcomesByPlans(ctx context.Context, planIDs []PlanID) ([]DecisionOutcome, error)
+	ClearDecisionOutcome(ctx context.Context, planID PlanID, taskID TaskID) error
+
+	// Loop rounds (v2.13.0 I18/B1, control-flow §4) — the completed-round count per
+	// loopback edge, for the max-rounds exit guard. GetLoopRound returns the current
+	// count (0 if none); IncrementLoopRound bumps it and returns the new round.
+	GetLoopRound(ctx context.Context, planID PlanID, from, to TaskID) (int, error)
+	IncrementLoopRound(ctx context.Context, planID PlanID, from, to TaskID) (int, error)
 }
 
 // PlanFindingRepository persists PlanFinding ARs (v2.10, ADR-0053 — the DeLM

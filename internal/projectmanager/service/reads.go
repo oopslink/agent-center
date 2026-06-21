@@ -289,7 +289,11 @@ func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, erro
 	if err != nil {
 		return nil, err
 	}
-	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.ComputePlanView(tasks, edges, records, paused)}, nil
+	outcomes, err := s.plans.ListDecisionOutcomes(ctx, p.ID()) // B1 control-flow routing
+	if err != nil {
+		return nil, err
+	}
+	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.ComputePlanView(tasks, edges, records, outcomes, paused)}, nil
 }
 
 // pausedSet queries the optional PausedTaskPort (T53) for the given tasks' ids,
@@ -420,6 +424,17 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 		recordsByPlan[rec.PlanID] = append(recordsByPlan[rec.PlanID], rec)
 	}
 
+	// 1 query (B1 control-flow): all plans' decision outcomes, grouped by PlanID —
+	// so conditional/loopback routing is reflected in the summary view too (N+1-free).
+	allOutcomes, err := s.plans.ListDecisionOutcomesByPlans(ctx, planIDs)
+	if err != nil {
+		return nil, err
+	}
+	outcomesByPlan := make(map[pm.PlanID][]pm.DecisionOutcome, len(plans))
+	for _, o := range allOutcomes {
+		outcomesByPlan[o.PlanID] = append(outcomesByPlan[o.PlanID], o)
+	}
+
 	// 1 query (T53): which of ALL project tasks have a paused work item — one map
 	// reused across every plan's pure derivation, so the N+1-free guarantee holds
 	// (a single extra port call regardless of plan count). nil when no port wired.
@@ -432,7 +447,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	out := make([]*PlanDetail, 0, len(plans))
 	for _, p := range plans {
 		tasks := tasksByPlan[p.ID()]
-		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], paused)
+		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused)
 		out = append(out, &PlanDetail{Plan: p, Tasks: tasks, View: view})
 	}
 	return out, nil

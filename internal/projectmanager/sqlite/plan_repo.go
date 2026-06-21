@@ -181,9 +181,12 @@ func (r *PlanRepo) AddDependency(ctx context.Context, dep pm.Dependency) error {
 		return err
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	// v2.13.0 I18/B1: persist the control-flow kind/when/max_rounds ("when" is a SQL
+	// keyword → quoted). kind is normalized so "" stores as the seq default.
 	_, err = exec.ExecContext(ctx,
-		`INSERT INTO pm_task_dependencies (plan_id, from_task_id, to_task_id) VALUES (?,?,?)`,
-		string(dep.PlanID), string(dep.FromTaskID), string(dep.ToTaskID))
+		`INSERT INTO pm_task_dependencies (plan_id, from_task_id, to_task_id, kind, "when", max_rounds) VALUES (?,?,?,?,?,?)`,
+		string(dep.PlanID), string(dep.FromTaskID), string(dep.ToTaskID),
+		string(pm.NormalizeEdgeKind(dep.Kind)), dep.When, dep.MaxRounds)
 	return err
 }
 
@@ -200,7 +203,7 @@ func (r *PlanRepo) RemoveDependency(ctx context.Context, dep pm.Dependency) erro
 func (r *PlanRepo) ListDependencies(ctx context.Context, planID pm.PlanID) ([]pm.Dependency, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		`SELECT plan_id, from_task_id, to_task_id FROM pm_task_dependencies WHERE plan_id = ? ORDER BY from_task_id, to_task_id`,
+		`SELECT plan_id, from_task_id, to_task_id, kind, "when", max_rounds FROM pm_task_dependencies WHERE plan_id = ? ORDER BY from_task_id, to_task_id`,
 		string(planID))
 	if err != nil {
 		return nil, err
@@ -208,13 +211,27 @@ func (r *PlanRepo) ListDependencies(ctx context.Context, planID pm.PlanID) ([]pm
 	defer rows.Close()
 	var out []pm.Dependency
 	for rows.Next() {
-		var pid, from, to string
-		if err := rows.Scan(&pid, &from, &to); err != nil {
+		d, err := scanDependency(rows.Scan)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, pm.Dependency{PlanID: pm.PlanID(pid), FromTaskID: pm.TaskID(from), ToTaskID: pm.TaskID(to)})
+		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+// scanDependency reads one edge row (plan_id, from, to, kind, "when", max_rounds).
+// kind is normalized so a "" / legacy row reads back as EdgeSeq (back-compat).
+func scanDependency(scan func(...any) error) (pm.Dependency, error) {
+	var pid, from, to, kind, when string
+	var maxRounds int
+	if err := scan(&pid, &from, &to, &kind, &when, &maxRounds); err != nil {
+		return pm.Dependency{}, err
+	}
+	return pm.Dependency{
+		PlanID: pm.PlanID(pid), FromTaskID: pm.TaskID(from), ToTaskID: pm.TaskID(to),
+		Kind: pm.NormalizeEdgeKind(pm.EdgeKind(kind)), When: when, MaxRounds: maxRounds,
+	}, nil
 }
 
 // ListDependenciesByPlans is the BATCH form of ListDependencies: ONE
@@ -228,7 +245,7 @@ func (r *PlanRepo) ListDependenciesByPlans(ctx context.Context, planIDs []pm.Pla
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	in, args := planIDPlaceholders(planIDs)
 	rows, err := exec.QueryContext(ctx,
-		`SELECT plan_id, from_task_id, to_task_id FROM pm_task_dependencies WHERE plan_id IN (`+in+`) ORDER BY plan_id, from_task_id, to_task_id`,
+		`SELECT plan_id, from_task_id, to_task_id, kind, "when", max_rounds FROM pm_task_dependencies WHERE plan_id IN (`+in+`) ORDER BY plan_id, from_task_id, to_task_id`,
 		args...)
 	if err != nil {
 		return nil, err
@@ -236,11 +253,11 @@ func (r *PlanRepo) ListDependenciesByPlans(ctx context.Context, planIDs []pm.Pla
 	defer rows.Close()
 	var out []pm.Dependency
 	for rows.Next() {
-		var pid, from, to string
-		if err := rows.Scan(&pid, &from, &to); err != nil {
+		d, err := scanDependency(rows.Scan)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, pm.Dependency{PlanID: pm.PlanID(pid), FromTaskID: pm.TaskID(from), ToTaskID: pm.TaskID(to)})
+		out = append(out, d)
 	}
 	return out, rows.Err()
 }
@@ -314,7 +331,8 @@ func (r *PlanRepo) ListDispatchRecordsByPlans(ctx context.Context, planIDs []pm.
 	return out, rows.Err()
 }
 
-// ClearDispatch deletes one node's dispatch record (creator re-run path, §9.3).
+// ClearDispatch deletes one node's dispatch record (creator re-run path, §9.3;
+// also the B1 loopback reopen path — clearing makes a reopened node ready again).
 // Deleting a non-existent record is a no-op (not an error).
 func (r *PlanRepo) ClearDispatch(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
@@ -322,6 +340,115 @@ func (r *PlanRepo) ClearDispatch(ctx context.Context, planID pm.PlanID, taskID p
 		`DELETE FROM pm_plan_dispatch_records WHERE plan_id = ? AND task_id = ?`,
 		string(planID), string(taskID))
 	return err
+}
+
+// --- Decision outcomes (v2.13.0 I18/B1, control-flow §2.3) ------------------
+
+// RecordDecisionOutcome upserts a decision node's outcome (latest-wins per
+// plan_id,task_id): a reopened decision re-deciding overwrites its prior outcome.
+// INSERT-OR-REPLACE on the PK so it is idempotent + overwrite-on-redecision.
+func (r *PlanRepo) RecordDecisionOutcome(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, outcome string, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`INSERT OR REPLACE INTO pm_plan_decision_outcomes (plan_id, task_id, outcome, decided_at) VALUES (?,?,?,?)`,
+		string(planID), string(taskID), outcome, ts(at))
+	return err
+}
+
+// ListDecisionOutcomes returns one Plan's recorded decision outcomes (§9.8 scoping).
+func (r *PlanRepo) ListDecisionOutcomes(ctx context.Context, planID pm.PlanID) ([]pm.DecisionOutcome, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT plan_id, task_id, outcome FROM pm_plan_decision_outcomes WHERE plan_id = ? ORDER BY task_id`,
+		string(planID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.DecisionOutcome
+	for rows.Next() {
+		var pid, tid, oc string
+		if err := rows.Scan(&pid, &tid, &oc); err != nil {
+			return nil, err
+		}
+		out = append(out, pm.DecisionOutcome{PlanID: pm.PlanID(pid), TaskID: pm.TaskID(tid), Outcome: oc})
+	}
+	return out, rows.Err()
+}
+
+// ListDecisionOutcomesByPlans is the BATCH form of ListDecisionOutcomes (one
+// `WHERE plan_id IN (...)` query), so a per-project read loads every plan's outcomes
+// without an N+1 loop. Empty planIDs → nil.
+func (r *PlanRepo) ListDecisionOutcomesByPlans(ctx context.Context, planIDs []pm.PlanID) ([]pm.DecisionOutcome, error) {
+	if len(planIDs) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	in, args := planIDPlaceholders(planIDs)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT plan_id, task_id, outcome FROM pm_plan_decision_outcomes WHERE plan_id IN (`+in+`) ORDER BY plan_id, task_id`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.DecisionOutcome
+	for rows.Next() {
+		var pid, tid, oc string
+		if err := rows.Scan(&pid, &tid, &oc); err != nil {
+			return nil, err
+		}
+		out = append(out, pm.DecisionOutcome{PlanID: pm.PlanID(pid), TaskID: pm.TaskID(tid), Outcome: oc})
+	}
+	return out, rows.Err()
+}
+
+// ClearDecisionOutcome removes a decision's recorded outcome (loopback reopen path —
+// a reopened decision must re-decide). No-op if absent.
+func (r *PlanRepo) ClearDecisionOutcome(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`DELETE FROM pm_plan_decision_outcomes WHERE plan_id = ? AND task_id = ?`,
+		string(planID), string(taskID))
+	return err
+}
+
+// --- Loop rounds (v2.13.0 I18/B1, control-flow §4) --------------------------
+
+// GetLoopRound returns the current completed-round count for a loopback edge
+// (plan_id, from_task_id, to_task_id). 0 when no loop has fired yet.
+func (r *PlanRepo) GetLoopRound(ctx context.Context, planID pm.PlanID, from, to pm.TaskID) (int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		`SELECT round FROM pm_plan_loop_rounds WHERE plan_id = ? AND from_task_id = ? AND to_task_id = ?`,
+		string(planID), string(from), string(to))
+	var round int
+	switch err := row.Scan(&round); err {
+	case nil:
+		return round, nil
+	case sql.ErrNoRows:
+		return 0, nil
+	default:
+		return 0, err
+	}
+}
+
+// IncrementLoopRound bumps (or initializes to 1) the round count for a loopback edge
+// and returns the NEW round. Upsert on the PK (plan_id, from, to).
+func (r *PlanRepo) IncrementLoopRound(ctx context.Context, planID pm.PlanID, from, to pm.TaskID) (int, error) {
+	cur, err := r.GetLoopRound(ctx, planID, from, to)
+	if err != nil {
+		return 0, err
+	}
+	next := cur + 1
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err = exec.ExecContext(ctx,
+		`INSERT OR REPLACE INTO pm_plan_loop_rounds (plan_id, from_task_id, to_task_id, round) VALUES (?,?,?,?)`,
+		string(planID), string(from), string(to), next)
+	if err != nil {
+		return 0, err
+	}
+	return next, nil
 }
 
 const planSelect = `SELECT id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version FROM pm_plans`
