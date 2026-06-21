@@ -239,7 +239,13 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if err != nil {
 		return nil, err
 	}
-	view := pm.ComputePlanView(tasks, edges, records, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
+	// B1 (control-flow): decision outcomes route conditional/loopback edges in
+	// ComputePlanView. Empty for a pure DAG plan (no outcomes recorded) ⇒ unchanged.
+	outcomes, err := s.plans.ListDecisionOutcomes(txCtx, planID)
+	if err != nil {
+		return nil, err
+	}
+	view := pm.ComputePlanView(tasks, edges, records, outcomes, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
 
 	// v2.10 (ADR-0053): load the Plan's shared findings ONCE and format them into a
 	// compact block appended to every newly-dispatched node's @mention, so a
@@ -372,7 +378,8 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 	if err != nil {
 		return nil, err
 	}
-	view := pm.ComputePlanView(tasks, edges, records, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
+	// Builtin pool is a FLAT plan — no decisions/conditional edges, so nil outcomes.
+	view := pm.ComputePlanView(tasks, edges, records, nil, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
 	var dispatched []pm.TaskID
 	for _, taskID := range view.ReadySet {
 		// PULL: record the dispatch (no message, no work-item, no wake). An empty

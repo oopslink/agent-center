@@ -471,6 +471,7 @@ func makeResumePausedNode(cfg Config) mcp.ToolHandlerFor[resumePausedNodeArgs, a
 type completeTaskArgs struct {
 	TaskID  string `json:"task_id" jsonschema:"the task to complete"`
 	Summary string `json:"summary,omitempty" jsonschema:"optional completion summary posted to the task"`
+	Outcome string `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject') that routes its conditional/loopback edges; omit for an ordinary task"`
 }
 
 func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
@@ -479,6 +480,7 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 			"agent_id": cfg.AgentID,
 			"task_id":  args.TaskID,
 			"summary":  args.Summary,
+			"outcome":  args.Outcome,
 		}
 		return callAdmin(ctx, cfg, "complete_task", body)
 	}
@@ -667,6 +669,43 @@ func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
 	}
 }
 
+// --- scaffold_cycle_plan -----------------------------------------------------
+
+type scaffoldFeatureArgs struct {
+	Name    string `json:"name" jsonschema:"the feature label, used in node titles (e.g. 'F1 节点图规格')"`
+	Branch  string `json:"branch,omitempty" jsonschema:"optional shared feature branch for its Dev/Review/Decision/Integrate chain; defaults to the Dev node's T<n>"`
+	DocOnly bool   `json:"doc_only,omitempty" jsonschema:"true for a pure-doc/no-code feature: the chain collapses to a single Dev node exempt from the merge-check guard"`
+}
+
+type scaffoldCyclePlanArgs struct {
+	ProjectID       string                `json:"project_id" jsonschema:"the project to create the cycle plan in (you must be a member)"`
+	Version         string                `json:"version" jsonschema:"the cycle version, e.g. 'v2.13.0'; the integration trunk is dev/<version>"`
+	Features        []scaffoldFeatureArgs `json:"features" jsonschema:"the features in this cycle; each gets a Dev→Review→Decision{pass→Integrate, reject→Dev bounded} control-flow chain (or a single Dev node when doc_only)"`
+	MaxReviewRounds int                   `json:"max_review_rounds,omitempty" jsonschema:"max review-reject loopback rounds per feature before the escape branch (default 3)"`
+}
+
+// makeScaffoldCyclePlan builds the whole cycle control-flow graph in one call.
+// Nodes are created UNASSIGNED (assign owners afterwards with assign_task) and carry
+// branch/base/role cycle metadata; the plan is a draft (wire/adjust then start_plan).
+func makeScaffoldCyclePlan(cfg Config) mcp.ToolHandlerFor[scaffoldCyclePlanArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args scaffoldCyclePlanArgs) (*mcp.CallToolResult, any, error) {
+		features := make([]map[string]any, 0, len(args.Features))
+		for _, f := range args.Features {
+			features = append(features, map[string]any{
+				"name": f.Name, "branch": f.Branch, "doc_only": f.DocOnly,
+			})
+		}
+		body := map[string]any{
+			"agent_id":          cfg.AgentID,
+			"project_id":        args.ProjectID,
+			"version":           args.Version,
+			"features":          features,
+			"max_review_rounds": args.MaxReviewRounds,
+		}
+		return callAdmin(ctx, cfg, "scaffold_cycle_plan", body)
+	}
+}
+
 // --- add_task_to_plan / remove_task_from_plan --------------------------------
 
 type planTaskArgs struct {
@@ -759,6 +798,24 @@ func makeListPlans(cfg Config) mcp.ToolHandlerFor[listPlansArgs, any] {
 			"project_id": args.ProjectID,
 		}
 		return callAdmin(ctx, cfg, "list_plans", body)
+	}
+}
+
+// --- list_unmerged_branches (v2.13.0 / I18 F4) -------------------------------
+
+type listUnmergedArgs struct {
+	ProjectID string `json:"project_id" jsonschema:"the project the plan belongs to (scopes the read)"`
+	PlanID    string `json:"plan_id" jsonschema:"the cycle plan whose unmerged Integrate nodes to list"`
+}
+
+func makeListUnmergedBranches(cfg Config) mcp.ToolHandlerFor[listUnmergedArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listUnmergedArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+			"plan_id":    args.PlanID,
+		}
+		return callAdmin(ctx, cfg, "list_unmerged_branches", body)
 	}
 }
 

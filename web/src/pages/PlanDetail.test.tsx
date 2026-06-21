@@ -1660,4 +1660,56 @@ describe('PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper', () => {
     expect(link).toHaveAttribute('href', expect.stringContaining(`/tasks/${taskId}`));
     expect(link.className).toContain('min-h-[44px]');
   });
+
+  // v2.13.0 / I18 F4 — the unmerged-branch ship-gate board.
+  it('shows the unmerged-branch board listing un-done Integrate nodes', async () => {
+    mockPlan();
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/unmerged-branches', () =>
+        HttpResponse.json({
+          plan_id: 'PL-1',
+          project_id: 'proj-a',
+          plan_name: 'v3.0 release plan',
+          plan_status: 'running',
+          all_merged: false,
+          unmerged_count: 2,
+          unmerged: [
+            { task_id: 'i1', title: 'F1 integrate', assignee_ref: 'agent:int', node_status: 'running', branch: 'f1-spec', base: 'dev/v2.13.0', skip_merge_check: false, org_ref: 'T261' },
+            { task_id: 'i2', title: 'F4 integrate', assignee_ref: 'agent:int', node_status: 'blocked', branch: 'f4-unmerged-board', base: 'dev/v2.13.0', skip_merge_check: true, org_ref: 'T270' },
+          ],
+        }),
+      ),
+    );
+    wrap();
+    const board = await screen.findByTestId('plan-unmerged-board');
+    expect(board).toHaveAttribute('data-unmerged-count', '2');
+    expect(within(board).getByTestId('plan-unmerged-count')).toHaveTextContent('2');
+    const rows = within(board).getAllByTestId('plan-unmerged-row');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('f1-spec → dev/v2.13.0');
+    expect(within(rows[0]).getByTestId('plan-unmerged-ref')).toHaveTextContent('T261');
+    // The skip-merge-check feature shows the skip-check marker.
+    expect(within(rows[1]).getByTestId('plan-unmerged-skipcheck')).toBeInTheDocument();
+  });
+
+  it('hides the unmerged-branch board when everything is merged (empty board)', async () => {
+    mockPlan();
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/unmerged-branches', () =>
+        HttpResponse.json({
+          plan_id: 'PL-1',
+          project_id: 'proj-a',
+          plan_name: 'v3.0 release plan',
+          plan_status: 'running',
+          all_merged: true,
+          unmerged_count: 0,
+          unmerged: [],
+        }),
+      ),
+    );
+    wrap();
+    // The header renders; the board does not (nothing to reconcile).
+    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-unmerged-board')).not.toBeInTheDocument();
+  });
 });

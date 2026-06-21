@@ -119,6 +119,13 @@ func pmTaskMap(t *pm.Task) map[string]any {
 	if pid := string(t.PlanID()); pid != "" {
 		m["plan_id"] = pid
 	}
+	// v2.13.0 I18/F2: cycle-node git metadata — present only for scaffolded nodes
+	// (branch/base set); ordinary tasks stay clean. F3/F4 + the FE board read these.
+	if t.Branch() != "" || t.Base() != "" || t.SkipMergeCheck() {
+		m["branch"] = t.Branch()
+		m["base"] = t.Base()
+		m["skip_merge_check"] = t.SkipMergeCheck()
+	}
 	return m
 }
 

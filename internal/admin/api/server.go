@@ -445,6 +445,7 @@ func (s *Server) routes() {
 	// ServeMux routes PUT/complete to the transfer handlers and bare GET to
 	// download (same precedence trick as D3-d).
 	s.mux.HandleFunc("POST /admin/agent-tools/create_plan", s.createPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/scaffold_cycle_plan", s.scaffoldCyclePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/add_task_to_plan", s.addTaskToPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/remove_task_from_plan", s.removeTaskFromPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/add_plan_dependency", s.addPlanDependencyHandler)
@@ -455,6 +456,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/archive_plan", s.archivePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_plan", s.getPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_plans", s.listPlansHandler)
+	// v2.13.0 / I18 F4 — unmerged-branch board (un-done Integrate nodes).
+	s.mux.HandleFunc("POST /admin/agent-tools/list_unmerged_branches", s.listUnmergedBranchesHandler)
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared verified context).
 	s.mux.HandleFunc("POST /admin/agent-tools/record_finding", s.recordFindingHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_findings", s.listFindingsHandler)

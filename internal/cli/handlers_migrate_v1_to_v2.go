@@ -115,7 +115,15 @@ func MigrateV1ToV2Command() *Command {
 // overwrote it and the ADD COLUMNs never ran on a fresh DB. Renumbered to 0065.
 // T288 added 0066 (dm_dedup — conversations.dm_key + the partial unique index that
 // makes one human↔agent DM unique, plus the duplicate-DM merge).
-const targetSchemaVersion = 66
+// v2.13.0 I18/F2 added 0067 (pm_tasks.branch/base/skip_merge_check — cycle-node
+// git metadata for scaffold_cycle_plan + the F3 merge-check guard); v2.13.0 I18/F3
+// added 0068 (pm_tasks.role — the persisted cycle-node role discriminator the F3
+// merge guard + F4 unmerged-branch board key on). v2.13.0 I18/B1 added 0069
+// (control-flow engine — pm_task_dependencies.kind/when/max_rounds + decision-outcomes
+// + loop-rounds tables, all additive so existing DAG plans are unchanged).
+// NOTE: dev/v2.13.0 authored these as 0066/0067/0068; renumbered to 0067/0068/0069
+// at ship-merge to land after main's 0066 (dm_dedup) which arrived on main meanwhile.
+const targetSchemaVersion = 69
 
 func runMigrateV1ToV2(
 	ctx context.Context,

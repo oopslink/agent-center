@@ -1,0 +1,11 @@
+-- 0067_v213_task_role.up.sql — v2.13.0 I18/F3: persist the cycle-node ROLE on
+-- pm_tasks (see docs/design/v2.13.0/cycle-node-graph-spec.md §5). F2 (0066) added
+-- branch/base/skip_merge_check but scaffold_cycle_plan only returned the node
+-- `kind` ephemerally — it was never stored. role is the ONLY thing that
+-- distinguishes an Integrate node from its Dev/Review siblings (they SHARE
+-- branch/base, §4.2), so both F3's Integrate-complete merge guard AND F4's
+-- unmerged-branch board need it persisted. ALTER so an existing DB picks up the
+-- column without a tasks-table rebuild; existing rows backfill to '' (= no role,
+-- the ordinary-backlog default that matches neither the F3 guard nor the F4 board).
+--   role — s0|dev|review|integrate|gate|accept|ship (pm.CycleNodeRole); '' = none.
+ALTER TABLE pm_tasks ADD COLUMN role TEXT NOT NULL DEFAULT '';

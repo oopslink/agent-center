@@ -123,6 +123,19 @@ func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Even
 	if err := p.notifyCreatorOnFailure(txCtx, e, plan); err != nil {
 		return err
 	}
+	// B1 (control-flow): if THIS event is a decision node completing with an outcome
+	// that fires a loopback edge, re-activate the loop subgraph BEFORE dispatch (so the
+	// reopened nodes re-dispatch in this same pass). No-op for non-decision/non-loopback
+	// completions and for pure DAG plans (back-compat).
+	if e.EventType == EvtTaskStateChanged {
+		var pl taskEventPayload
+		if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+			return err
+		}
+		if err := p.svc.applyLoopbacks(txCtx, plan, pm.TaskID(pl.TaskID)); err != nil {
+			return err
+		}
+	}
 	_, err = p.svc.dispatchReadyNodes(txCtx, plan)
 	return err
 }

@@ -32,6 +32,7 @@ var AgentFacingToolNames = []string{
 	"get_reminder",
 	"update_reminder",
 	"create_plan",
+	"scaffold_cycle_plan",
 	// v2.9.1 P0 recovery tools (deliberately agent-facing: owner/PD recover a
 	// task stuck blocked after a restart/stale-release).
 	"unblock_task",
@@ -62,6 +63,7 @@ var AgentFacingToolNames = []string{
 	"list_findings",
 	"list_plans",
 	"list_tasks",
+	"list_unmerged_branches",
 	"mark_seen",
 	"pause_task",
 	// T200 WS4: post_message is the single post tool (target = conversation|task|issue);

@@ -41,7 +41,25 @@ const (
 	NodePaused     NodeStatus = "paused" // T53: running task whose agent paused its work item
 	NodeDone       NodeStatus = "done"
 	NodeFailed     NodeStatus = "failed"
+	// NodeSkipped (v2.13.0 I18/B1, control-flow §3.1) is a DERIVED TERMINAL status: a
+	// node on a conditional branch that was NOT taken (its decision chose another
+	// outcome), or any node only reachable through such pruned nodes. It counts as
+	// "settled" alongside done for AllDone, so a plan with conditional branches can
+	// still complete (the not-taken branch never runs). Like every NodeStatus it is
+	// derived, never persisted — the task itself stays `open`, just never dispatched.
+	NodeSkipped NodeStatus = "skipped"
 )
+
+// DecisionOutcome is one decision node's recorded outcome (v2.13.0 I18/B1, §2.3):
+// when a decision node completes it records an outcome label (e.g. "pass"/"reject")
+// that routes its conditional/loopback out-edges. Latest-wins per (PlanID, TaskID)
+// — a re-decided (reopened) decision overwrites its prior outcome. Orchestrator-owned
+// stored state, like DispatchRecord.
+type DecisionOutcome struct {
+	PlanID  PlanID
+	TaskID  TaskID
+	Outcome string
+}
 
 // taskIsDone reports the §9.2 terminal-DONE mapping. ADR-0046: "verified" removed,
 // so DONE == completed (the only success-terminal state).
@@ -49,6 +67,10 @@ func taskIsDone(s TaskStatus) bool { return s == TaskCompleted }
 
 // taskIsFailed reports the §9.2 terminal-FAIL mapping (discarded).
 func taskIsFailed(s TaskStatus) bool { return s == TaskDiscarded }
+
+// TaskIsDone is the exported §9.2 terminal-DONE predicate (completed), reused by the
+// B1 control-flow driver so "is this node done?" lives in ONE place.
+func TaskIsDone(s TaskStatus) bool { return taskIsDone(s) }
 
 // TaskIsFailed is the exported §9.2 terminal-FAIL predicate (discarded), reused
 // by the orchestrator's P2-2 failure handler so the "is this node failed?" rule
@@ -172,7 +194,7 @@ type PlanView struct {
 // running node never changes the ready-set or AllDone (a paused node is neither
 // ready nor done). Nodes are returned in the input `tasks` order (callers pass a
 // stable order); the ready-set follows that same order.
-func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, paused map[TaskID]bool) PlanView {
+func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
 	// Index task status by id, and whether each node is dispatched.
 	statusOf := make(map[TaskID]TaskStatus, len(tasks))
 	inPlan := make(map[TaskID]struct{}, len(tasks))
@@ -188,53 +210,180 @@ func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecor
 		dispatchedMsg[d.TaskID] = d.DispatchMessageID
 		dispatchedAt[d.TaskID] = d.DispatchedAt
 	}
-	// upstream[N] = tasks N depends_on (edge.ToTaskID where edge.FromTaskID == N).
-	upstream := make(map[TaskID][]TaskID, len(tasks))
+	// outcomeOf[D] = the recorded outcome of decision node D (latest-wins, §2.3).
+	outcomeOf := make(map[TaskID]string, len(outcomes))
+	for _, o := range outcomes {
+		if _, ok := inPlan[o.TaskID]; ok {
+			outcomeOf[o.TaskID] = o.Outcome
+		}
+	}
+
+	// FORWARD edges only (loopback excluded — §5: back-edges never gate forward
+	// readiness). Partition each node's forward in-edges into seq upstream and
+	// conditional groups (keyed by the decision To → its accepted When labels), and
+	// collect ALL forward upstream for transitive pruning.
+	//   seqUp[N]   = To of N's seq in-edges (hard AND deps).
+	//   condUp[N]  = decisionTo → []When for N's conditional in-edges.
+	//   allUp[N]   = every forward upstream of N (seq + conditional To).
+	// upstream[N] (the DependsOn view field) keeps ALL forward upstream for display.
+	seqUp := make(map[TaskID][]TaskID, len(tasks))
+	condUp := make(map[TaskID]map[TaskID][]string, len(tasks))
+	allUp := make(map[TaskID][]TaskID, len(tasks))
 	for _, e := range edges {
-		// Only consider edges whose endpoints are both in the plan's task set.
 		if _, ok := inPlan[e.FromTaskID]; !ok {
 			continue
 		}
 		if _, ok := inPlan[e.ToTaskID]; !ok {
 			continue
 		}
-		upstream[e.FromTaskID] = append(upstream[e.FromTaskID], e.ToTaskID)
+		if e.IsLoopback() {
+			continue // §5: loopback is a back-edge, not a forward prerequisite.
+		}
+		allUp[e.FromTaskID] = append(allUp[e.FromTaskID], e.ToTaskID)
+		if NormalizeEdgeKind(e.Kind) == EdgeConditional {
+			if condUp[e.FromTaskID] == nil {
+				condUp[e.FromTaskID] = make(map[TaskID][]string)
+			}
+			condUp[e.FromTaskID][e.ToTaskID] = append(condUp[e.FromTaskID][e.ToTaskID], e.When)
+		} else {
+			seqUp[e.FromTaskID] = append(seqUp[e.FromTaskID], e.ToTaskID)
+		}
+	}
+
+	// Pruning (§3.1). A non-terminal node is SKIPPED if (a) a conditional decision it
+	// depends on is done and routed to a DIFFERENT branch (dead branch), or (b) it has
+	// forward upstream(s) and EVERY one is skipped (only reachable through pruned
+	// nodes). Computed as a fixpoint (transitive closure) — terminal (done/failed)
+	// nodes are never skipped; a FAILED upstream blocks (not skips) downstream (§9.7).
+	terminal := func(id TaskID) bool {
+		s := statusOf[id]
+		return taskIsDone(s) || taskIsFailed(s)
+	}
+	skipped := make(map[TaskID]bool, len(tasks))
+	// (a) direct dead-branch prune.
+	for _, t := range tasks {
+		id := t.ID()
+		if terminal(id) {
+			continue
+		}
+		for decisionTo, whens := range condUp[id] {
+			if !taskIsDone(statusOf[decisionTo]) {
+				continue // decision not resolved yet → pending, not pruned.
+			}
+			oc := outcomeOf[decisionTo]
+			matched := false
+			for _, w := range whens {
+				if w == oc {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				skipped[id] = true // decision chose another branch → this path is dead.
+				break
+			}
+		}
+	}
+	// (b) transitive prune: fixpoint over "all forward upstream skipped".
+	for changed := true; changed; {
+		changed = false
+		for _, t := range tasks {
+			id := t.ID()
+			if skipped[id] || terminal(id) {
+				continue
+			}
+			ups := allUp[id]
+			if len(ups) == 0 {
+				continue
+			}
+			allSkipped := true
+			for _, up := range ups {
+				if !skipped[up] {
+					allSkipped = false
+					break
+				}
+			}
+			if allSkipped {
+				skipped[id] = true
+				changed = true
+			}
+		}
 	}
 
 	view := PlanView{Progress: PlanProgress{Total: len(tasks)}}
 	allDone := len(tasks) > 0
 	for _, t := range tasks {
-		// upstreamAllDone: every upstream node is terminal-done. A missing upstream
-		// status (shouldn't happen — edges are pruned to in-plan tasks) is treated
-		// as not-done (conservative: keeps the node blocked rather than dispatching).
-		upstreamAllDone := true
-		for _, up := range upstream[t.ID()] {
-			us, ok := statusOf[up]
-			if !ok || !taskIsDone(us) {
-				upstreamAllDone = false
-				break
+		id := t.ID()
+		var ns NodeStatus
+		switch {
+		case taskIsDone(t.Status()):
+			ns = NodeDone
+		case taskIsFailed(t.Status()):
+			ns = NodeFailed
+		case t.Status() == TaskRunning:
+			if paused[id] {
+				ns = NodePaused
+			} else {
+				ns = NodeRunning
 			}
+		case skipped[id]:
+			ns = NodeSkipped // §3.1 — not-taken conditional branch (terminal/settled).
+		default:
+			// Forward readiness (§5): all seq upstream done AND every conditional
+			// decision resolved to a matching branch. A pending (not-done) decision or
+			// an unfinished seq upstream → blocked.
+			forwardReady := true
+			for _, up := range seqUp[id] {
+				if !taskIsDone(statusOf[up]) {
+					forwardReady = false
+					break
+				}
+			}
+			if forwardReady {
+				for decisionTo, whens := range condUp[id] {
+					if !taskIsDone(statusOf[decisionTo]) {
+						forwardReady = false // decision pending → blocked.
+						break
+					}
+					oc := outcomeOf[decisionTo]
+					matched := false
+					for _, w := range whens {
+						if w == oc {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						forwardReady = false // (should already be skipped, defensive)
+						break
+					}
+				}
+			}
+			_, dispatched := dispatchedSet[id]
+			ns = DeriveNodeStatus(t.Status(), forwardReady, dispatched, paused[id])
 		}
-		_, dispatched := dispatchedSet[t.ID()]
-		ns := DeriveNodeStatus(t.Status(), upstreamAllDone, dispatched, paused[t.ID()])
+
 		view.Nodes = append(view.Nodes, PlanNodeView{
-			TaskID:            t.ID(),
+			TaskID:            id,
 			TaskStatus:        t.Status(),
 			NodeStatus:        ns,
-			DependsOn:         upstream[t.ID()],
-			Dispatched:        dispatched,
-			DispatchedAt:      dispatchedAt[t.ID()],
-			DispatchMessageID: dispatchedMsg[t.ID()],
+			DependsOn:         allUp[id],
+			Dispatched:        func() bool { _, d := dispatchedSet[id]; return d }(),
+			DispatchedAt:      dispatchedAt[id],
+			DispatchMessageID: dispatchedMsg[id],
 		})
 		switch ns {
 		case NodeReady:
-			view.ReadySet = append(view.ReadySet, t.ID())
+			view.ReadySet = append(view.ReadySet, id)
 		case NodeDone:
 			view.Progress.Done++
 		case NodeFailed:
 			view.HasFailed = true
 		}
-		if ns != NodeDone {
+		// §3.1: a Plan completes when every node is DONE or SKIPPED (a not-taken branch
+		// is "settled"). Without conditional branches there are no skipped nodes, so this
+		// reduces to the pre-B1 "every node done".
+		if ns != NodeDone && ns != NodeSkipped {
 			allDone = false
 		}
 	}

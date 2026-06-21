@@ -174,14 +174,14 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue,
-			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(t.ID()), string(t.ProjectID()), t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		string(t.CreatedBy()), ts(t.CreatedAt()), ts(t.UpdatedAt()), t.Version(), nullInt(t.OrgNumber()),
 		marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.PlanID()),
-		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()))
+		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()))
 	if isUnique(err) {
 		return pm.ErrTaskExists
 	}
@@ -192,12 +192,12 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_tasks SET title=?, description=?, status=?, assignee=?, derived_from_issue=?,
-			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, plan_id=?, archived_at=?, archived_by=? WHERE id=?`,
+			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, plan_id=?, archived_at=?, archived_by=?, branch=?, base=?, skip_merge_check=?, role=? WHERE id=?`,
 		t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.PlanID()),
-		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), string(t.ID()))
+		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()), string(t.ID()))
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (r *TaskRepo) ListByPlan(ctx context.Context, planID pm.PlanID) ([]*pm.Task
 // ListUnplannedByProject returns the project's backlog (v2.9): tasks with an
 // empty plan_id (not yet selected into any Plan), stable-ordered (created_at,
 // id). The IS NULL guard tolerates pre-#283 rows that predate the NOT NULL
-// DEFAULT '' column.
+// DEFAULT ” column.
 func (r *TaskRepo) ListUnplannedByProject(ctx context.Context, projectID pm.ProjectID) ([]*pm.Task, error) {
 	return r.list(ctx, taskSelect+` WHERE project_id = ? AND (plan_id IS NULL OR plan_id = '') ORDER BY created_at, id`, string(projectID))
 }
@@ -341,7 +341,7 @@ func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus)
 }
 
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
-	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by FROM pm_tasks`
+	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role FROM pm_tasks`
 
 func scanTask(scan func(...any) error) (*pm.Task, error) {
 	var (
@@ -354,9 +354,12 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		planID                                                        sql.NullString
 		archivedAt                                                    sql.NullString
 		archivedBy                                                    sql.NullString
+		branch, base                                                  sql.NullString
+		skipMergeCheck                                                bool
+		role                                                          sql.NullString
 	)
 	if err := scan(&id, &projectID, &title, &desc, &status, &assignee, &derived,
-		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &planID, &archivedAt, &archivedBy); err != nil {
+		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &planID, &archivedAt, &archivedBy, &branch, &base, &skipMergeCheck, &role); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateTask(pm.RehydrateTaskInput{
@@ -371,6 +374,10 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		PlanID:          pm.PlanID(planID.String),
 		ArchivedAt:      parseTimePtr(archivedAt.String),
 		ArchivedBy:      pm.IdentityRef(archivedBy.String),
+		Branch:          branch.String,
+		Base:            base.String,
+		SkipMergeCheck:  skipMergeCheck,
+		Role:            pm.CycleNodeRole(role.String),
 	})
 }
 

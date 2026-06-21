@@ -74,7 +74,9 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
-		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists):
+		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
+		errors.Is(err, pmservice.ErrScaffoldVersionRequired), errors.Is(err, pmservice.ErrScaffoldNoFeatures),
+		errors.Is(err, pmservice.ErrScaffoldFeatureNameRequired):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 	default:
 		mapDomainError(w, err)
@@ -134,6 +136,81 @@ func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(planID)})
+}
+
+// --- scaffold_cycle_plan -----------------------------------------------------
+
+type scaffoldFeatureReq struct {
+	Name    string `json:"name"`
+	Branch  string `json:"branch"`
+	DocOnly bool   `json:"doc_only"`
+}
+
+type scaffoldCyclePlanReq struct {
+	AgentID         string               `json:"agent_id"`
+	ProjectID       string               `json:"project_id"`
+	Version         string               `json:"version"`
+	Features        []scaffoldFeatureReq `json:"features"`
+	MaxReviewRounds int                  `json:"max_review_rounds"`
+}
+
+// scaffoldCyclePlanHandler builds a whole cycle CONTROL-FLOW graph (S0 → (Dev→
+// Review→Decision{pass→Integrate, reject→Dev 有界})×N → 集成完成 Gate → Accept →
+// Ship) in one call via pm.ScaffoldCyclePlan (actor=agent). Nodes are created
+// UNASSIGNED (PD assigns owners next) and carry branch/base/role cycle metadata.
+// Returns the draft plan id + created nodes + control-flow edges. Validation
+// (version/features) is surfaced via mapPlanToolError.
+func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req scaffoldCyclePlanReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "")
+		return
+	}
+	features := make([]pmservice.CycleFeature, 0, len(req.Features))
+	for _, f := range req.Features {
+		features = append(features, pmservice.CycleFeature{
+			Name: f.Name, Branch: f.Branch, DocOnly: f.DocOnly,
+		})
+	}
+	res, err := d.PMService.ScaffoldCyclePlan(r.Context(), pmservice.ScaffoldCyclePlanCommand{
+		ProjectID:       pm.ProjectID(req.ProjectID),
+		Version:         req.Version,
+		Features:        features,
+		MaxReviewRounds: req.MaxReviewRounds,
+		CreatedBy:       pm.IdentityRef(agentActor(a)),
+	})
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	nodes := make([]map[string]any, 0, len(res.Nodes))
+	for _, n := range res.Nodes {
+		nodes = append(nodes, map[string]any{
+			"task_id": string(n.TaskID), "title": n.Title, "branch": n.Branch,
+			"base": n.Base, "kind": n.Kind, "feature": n.Feature,
+		})
+	}
+	edges := make([]map[string]any, 0, len(res.Edges))
+	for _, e := range res.Edges {
+		edges = append(edges, map[string]any{
+			"from": string(e.From), "to": string(e.To),
+			"kind": e.Kind, "when": e.When, "max_rounds": e.MaxRounds,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(res.PlanID), "nodes": nodes, "edges": edges})
 }
 
 // --- add_task_to_plan --------------------------------------------------------
@@ -388,6 +465,89 @@ func (s *Server) listPlansHandler(w http.ResponseWriter, r *http.Request) {
 		out = append(out, planSummaryMap(detail))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"plans": out})
+}
+
+// --- list_unmerged_branches (v2.13.0 / I18 F4) -------------------------------
+
+type listUnmergedReq struct {
+	AgentID   string `json:"agent_id"`
+	ProjectID string `json:"project_id"`
+	PlanID    string `json:"plan_id"`
+}
+
+// listUnmergedBranchesHandler returns the F4 unmerged-branch board for a plan: the
+// `Integrate(T)` nodes that have NOT yet merged back into the integration trunk
+// (un-done Integrate nodes, F1 spec §2.5/§8) — the PD's ship-gate reconciliation
+// list. Like getPlanHandler it is project-scoped (a plan named under the wrong
+// project is not found). When no cycle metadata is wired/present the board is
+// empty (all_merged=true) rather than wrong.
+func (s *Server) listUnmergedBranchesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listUnmergedReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "")
+		return
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	board, err := d.PMService.ListUnmergedIntegrations(r.Context(), pm.PlanID(req.PlanID))
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	// Plan-in-project check (mirrors getPlanHandler): a plan named under the wrong
+	// project is not found here.
+	if string(board.Detail.Plan.ProjectID()) != req.ProjectID {
+		writeError(w, http.StatusNotFound, "not_found", "plan not found in this project")
+		return
+	}
+	writeJSON(w, http.StatusOK, unmergedBoardMap(board))
+}
+
+// unmergedBoardMap renders the F4 board DTO. Each row resolves its title / org_ref
+// / assignee from the SAME PlanDetail load (planNodeLookups), so the board mirrors
+// the plan node DTO without a second query.
+func unmergedBoardMap(board *pmservice.UnmergedBoard) map[string]any {
+	detail := board.Detail
+	titleOf, assigneeOf, _, orgRefOf := planNodeLookups(detail)
+	rows := make([]map[string]any, 0, len(board.Unmerged))
+	for _, u := range board.Unmerged {
+		row := map[string]any{
+			"task_id":          string(u.TaskID),
+			"title":            titleOf[u.TaskID],
+			"assignee_ref":     string(assigneeOf[u.TaskID]),
+			"node_status":      string(u.NodeStatus),
+			"branch":           u.Branch,
+			"base":             u.Base,
+			"skip_merge_check": u.SkipMergeCheck,
+		}
+		if ref := orgRefOf[u.TaskID]; ref != "" {
+			row["org_ref"] = ref
+		}
+		rows = append(rows, row)
+	}
+	return map[string]any{
+		"plan_id":        string(detail.Plan.ID()),
+		"project_id":     string(detail.Plan.ProjectID()),
+		"plan_name":      detail.Plan.Name(),
+		"plan_status":    string(detail.Plan.Status()),
+		"all_merged":     board.AllMerged(),
+		"unmerged_count": len(rows),
+		"unmerged":       rows,
+	}
 }
 
 // --- decode helpers ----------------------------------------------------------

@@ -358,6 +358,14 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Create a new draft plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
 	}, makeCreatePlan(cfg))
 
+	// v2.13.0 I18/F2: one-call cycle-plan scaffolding. CORE (advertised by default,
+	// not deferred) — it is the headline plan-authoring entrypoint a PD is directed
+	// to call, so it must be discoverable without a search_tools round-trip.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "scaffold_cycle_plan",
+		Description: "Build a whole cycle CONTROL-FLOW graph in one call: S0 (cut dev/<version>) → for each feature a Dev→Review→Decision chain where the Decision routes pass→Integrate and reject→a bounded loopback back to Dev (max_review_rounds, default 3; on exhaustion → an escape/人工兜底 node) → 集成完成 Gate (barrier) → Accept → Ship. Seq, conditional, and loopback edges are wired via the B1 control-flow engine. Nodes are created UNASSIGNED — assign owners afterwards with assign_task. Each node carries branch/base/role cycle metadata (the Integrate merge-check guard reads them). A doc_only feature collapses to a single Dev node exempt from the merge check. Returns the draft plan id + created nodes + edges; review/adjust then start_plan.",
+	}, makeScaffoldCyclePlan(cfg))
+
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_task_to_plan",
 		Description: "Add an existing backlog task to a draft plan as a node. The plan must be in draft (stop_plan first if running) and the task must be in the plan's project. Use create_task to make the task first if it doesn't exist.",
@@ -397,6 +405,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Name:        "list_plans",
 		Description: "List a project's plans with a board summary each (status, progress, has_failed, node_count, and a capped nodes preview). Use this to find a plan_id to operate on.",
 	}, makeListPlans(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_unmerged_branches",
+		Description: "List a cycle plan's UNMERGED feature branches = its Integrate nodes that are not yet done (each branch not yet merged back into the integration trunk). Use this as the ship-gate reconciliation before shipping: all_merged=true means every feature integrated. Each row carries the task, branch, base, node_status, and skip_merge_check.",
+	}, makeListUnmergedBranches(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "delete_plan",

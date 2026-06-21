@@ -15,6 +15,7 @@ import {
   usePatchPlan,
   useDeletePlan,
   useArchivePlan,
+  useUnmergedBranches,
   friendlyDestructivePlanError,
   type Plan,
   type PlanNode,
@@ -135,6 +136,11 @@ export default function PlanDetail(): React.ReactElement {
 
       <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-border-base bg-bg-elevated shadow-1" data-testid="plan-detail-card">
         <PlanDetailHeader projectId={id} plan={p} />
+
+        {/* v2.13.0 / I18 F4 — the ship-gate board: the cycle's Integrate nodes
+            not yet merged back into the trunk. Renders only when there is unmerged
+            work to reconcile (a non-cycle / fully-merged plan shows nothing). */}
+        <UnmergedBranchesPanel projectId={id} planId={p.id} />
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
@@ -835,6 +841,83 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
       {s.icon}
       {s.label}
     </span>
+  );
+}
+
+// UnmergedBranchesPanel (v2.13.0 / I18 F4) — the PD's ship-gate board: the cycle
+// plan's `Integrate(T)` nodes that have NOT yet merged back into the integration
+// trunk (= unmerged feature branches), GET …/plans/{id}/unmerged-branches. It is
+// the structural counterpart of the §2.5 集成完成 Gate: while any row remains, the
+// gate is not clear and the plan must not ship.
+//
+// It renders NOTHING when there is nothing to reconcile — a non-cycle plan (no
+// node metadata) or a fully-merged cycle plan both return an empty board, and an
+// empty board has no actionable content, so the panel stays out of the way rather
+// than printing a misleading "all merged" on every plan. When rows exist it shows
+// a warning-styled checklist (branch → base, derived node_status, owner) so the PD
+// sees exactly which branches still owe a merge and why each is still open.
+function UnmergedBranchesPanel({
+  projectId,
+  planId,
+}: {
+  projectId: string;
+  planId: string;
+}): React.ReactElement | null {
+  const board = useUnmergedBranches(projectId, planId);
+  const rows = board.data?.unmerged ?? [];
+  // Stay silent while loading, on error, or when there is nothing unmerged — this
+  // is an alert surface, not a permanent fixture (a failed fetch must not block
+  // the rest of the plan view).
+  if (rows.length === 0) {
+    return null;
+  }
+  return (
+    <div
+      className="mx-4 mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2"
+      data-testid="plan-unmerged-board"
+      data-unmerged-count={rows.length}
+    >
+      <div className="flex items-center gap-2 text-xs font-semibold text-warning">
+        <span>Unmerged branches</span>
+        <span
+          className="inline-flex items-center rounded-full bg-warning/15 px-1.5 py-0.5 text-[0.625rem] font-bold text-warning"
+          data-testid="plan-unmerged-count"
+        >
+          {rows.length}
+        </span>
+        <span className="font-normal text-text-muted">
+          — feature branches not yet merged back; clear before Ship
+        </span>
+      </div>
+      <ul className="mt-1.5 space-y-1" data-testid="plan-unmerged-list">
+        {rows.map((u) => (
+          <li
+            key={u.task_id}
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs"
+            data-testid="plan-unmerged-row"
+            data-task-id={u.task_id}
+          >
+            <TaskIdTag taskId={u.task_id} orgRef={u.org_ref} testId="plan-unmerged-ref" />
+            <span className="truncate font-medium text-text-primary" title={u.title}>
+              {u.title}
+            </span>
+            <span className="font-mono text-[0.625rem] text-text-secondary">
+              {u.branch || u.task_id} → {u.base || 'trunk'}
+            </span>
+            <NodeStateChip status={u.node_status} />
+            {u.skip_merge_check && (
+              <span
+                className="inline-flex items-center rounded bg-bg-subtle px-1 py-0.5 text-[0.625rem] font-medium text-text-muted"
+                data-testid="plan-unmerged-skipcheck"
+                title="merge check structurally skipped (no-code feature); still counts until done"
+              >
+                skip-check
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

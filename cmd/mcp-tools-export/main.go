@@ -82,10 +82,11 @@ var toolDomain = map[string]string{
 	// reminders (T206 Cognition)
 	"create_reminder": "reminders", "list_reminders": "reminders", "get_reminder": "reminders", "update_reminder": "reminders",
 	// plan / orchestration
-	"create_plan": "plan", "add_task_to_plan": "plan", "remove_task_from_plan": "plan",
+	"create_plan": "plan", "scaffold_cycle_plan": "plan", "add_task_to_plan": "plan", "remove_task_from_plan": "plan",
 	"add_plan_dependency": "plan", "remove_plan_dependency": "plan", "start_plan": "plan",
 	"stop_plan": "plan", "get_plan": "plan", "list_plans": "plan", "delete_plan": "plan",
 	"archive_plan": "plan", "rerun_failed_node": "plan", "resume_paused_node": "plan",
+	"list_unmerged_branches": "plan",
 	// conversations / messaging
 	"get_my_unread": "conversations", "mark_seen": "conversations",
 	"post_message": "conversations", "start_dm": "conversations", "subscribe": "conversations", "unsubscribe": "conversations",
