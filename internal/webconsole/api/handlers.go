@@ -619,6 +619,18 @@ func (s *Server) createDM(w http.ResponseWriter, r *http.Request, d HandlerDeps,
 		mapDomainError(w, err)
 		return
 	}
+	// T288: OpenConversation get-or-create is the race-safe backstop behind the
+	// in-app pre-check above — if a concurrent request created the same DM pair
+	// first, it returns the existing one (Existing=true). Mirror the reuse response
+	// (200 + existing) instead of reporting a spurious 201 Created.
+	if res.Existing {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"conversation_id": string(res.ConversationID),
+			"kind":            string(conversation.ConversationKindDM),
+			"existing":        true,
+		})
+		return
+	}
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"conversation_id": string(res.ConversationID),
 		"event_id":        string(res.EventID),

@@ -114,6 +114,10 @@ type OpenCommand struct {
 type OpenResult struct {
 	ConversationID conversation.ConversationID
 	EventID        observability.EventID
+	// Existing is true when opening a DM RE-USED an existing DM for the same
+	// participant pair (T288 get-or-create) rather than creating a new one; EventID
+	// is empty then (no conversation.opened emitted). False for a fresh create.
+	Existing bool
 }
 
 // newConversationID mints a conversation id (v2.7 #187): user-facing DM/channel
@@ -144,6 +148,20 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 	if !cmd.Kind.IsDirectOpenAllowed() {
 		return OpenResult{}, fmt.Errorf("%w: kind=%s requires cross-BC sync-create path",
 			conversation.ErrConversationInvalidKind, cmd.Kind)
+	}
+	// T288 — DM dedup get-or-create: a DM is unique per (org, participant set), so
+	// every open of the same pair REUSES the existing DM instead of duplicating it.
+	// Pre-check returns the existing DM without minting a new id; the DB partial
+	// unique index (uniq_conversations_dm_key) is the race-safe backstop, handled on
+	// the Save conflict below.
+	dmKey := ""
+	if cmd.Kind == conversation.ConversationKindDM {
+		dmKey = conversation.DMKey(cmd.Participants)
+		if dmKey != "" {
+			if existing, ferr := w.convRepo.FindDMByKey(ctx, cmd.OrganizationID, dmKey); ferr == nil && existing != nil {
+				return OpenResult{ConversationID: existing.ID(), Existing: true}, nil
+			}
+		}
 	}
 	conv, err := conversation.NewConversation(conversation.NewConversationInput{
 		ID:                   newConversationID(w.idgen, cmd.Kind),
@@ -183,6 +201,16 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 		return nil
 	})
 	if err != nil {
+		// T288 race backstop: a concurrent open of the SAME DM pair lost the
+		// uniq_conversations_dm_key insert race (mapped to ErrConversationAlreadyExists).
+		// Re-fetch the winner by key and return it instead of surfacing a conflict, so
+		// the loser is idempotent — exactly the DB-level guard the in-app pre-check can't
+		// give under concurrency/retry.
+		if dmKey != "" && errors.Is(err, conversation.ErrConversationAlreadyExists) {
+			if existing, ferr := w.convRepo.FindDMByKey(ctx, cmd.OrganizationID, dmKey); ferr == nil && existing != nil {
+				return OpenResult{ConversationID: existing.ID(), Existing: true}, nil
+			}
+		}
 		return OpenResult{}, err
 	}
 	return OpenResult{ConversationID: conv.ID(), EventID: evID}, nil

@@ -37,11 +37,11 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 	}
 	const stmt = `INSERT INTO conversations (
 		id, kind, owner_ref, project_ref, name, description, parent_conversation_id,
-		participants, created_by,
+		participants, created_by, dm_key,
 		status, opened_at, closed_at, closed_reason, closed_message,
 		archived_at, archived_by,
 		created_at, updated_at, version, organization_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(c.ID()),
 		string(c.Kind()),
@@ -52,6 +52,9 @@ func (r *ConversationRepo) Save(ctx context.Context, c *conversation.Conversatio
 		nullString(string(c.ParentConversationID())),
 		partsJSON,
 		string(c.CreatedBy()),
+		// dm_key (T288): canonical participant-set key for DM dedup, NULL for non-DM
+		// and DMs with no active participants (the partial unique index ignores NULL).
+		nullString(dmKeyFor(c)),
 		string(c.Status()),
 		c.OpenedAt().Format(time.RFC3339Nano),
 		nullTimePtr(c.ClosedAt()),
@@ -141,6 +144,33 @@ func (r *ConversationRepo) Find(ctx context.Context, filter conversation.Convers
 func (r *ConversationRepo) FindByName(ctx context.Context, name string) (*conversation.Conversation, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	row := exec.QueryRowContext(ctx, convSelect+` WHERE name = ? AND kind = 'channel' LIMIT 1`, name)
+	c, err := scanConversation(row.Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, conversation.ErrConversationNotFound
+	}
+	return c, err
+}
+
+// dmKeyFor returns the canonical DM dedup key (T288) for a conversation, or "" for
+// any non-DM kind (so only DMs get a dm_key; the partial unique index is scoped to
+// kind='dm'). The formula lives in the domain (conversation.DMKey) so Save and the
+// migration backfill agree on the exact key bytes.
+func dmKeyFor(c *conversation.Conversation) string {
+	if c.Kind() != conversation.ConversationKindDM {
+		return ""
+	}
+	return conversation.DMKey(c.Participants())
+}
+
+// FindDMByKey returns the single NON-archived DM in an org whose canonical
+// participant-set key equals key (T288 dedup get-or-create lookup), or
+// ErrConversationNotFound. Backed by the partial unique index
+// uniq_conversations_dm_key (organization_id, dm_key) WHERE kind='dm'.
+func (r *ConversationRepo) FindDMByKey(ctx context.Context, orgID, key string) (*conversation.Conversation, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		convSelect+` WHERE organization_id = ? AND kind = 'dm' AND dm_key = ? AND archived_at IS NULL LIMIT 1`,
+		orgID, key)
 	c, err := scanConversation(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, conversation.ErrConversationNotFound

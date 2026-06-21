@@ -43,20 +43,23 @@ func TestFollowState_CrossVersionUpgrade_NonEmptyDB(t *testing.T) {
 	// Seed REAL prior-version data: a top-level channel + a thread + a
 	// read-state row (all valid at v49).
 	fc := clock.NewFakeClock(time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC))
-	convRepo := convsqlite.NewConversationRepo(db)
+	// Seed via RAW SQL at the v49 schema (NOT convRepo.Save): the repo always writes
+	// the LATEST column set, which here includes dm_key (added in 0066) — a column
+	// that does not exist at v49. Inserting only the v49 columns keeps this a true
+	// pre-upgrade seed (mirrors the raw-INSERT pattern in the message-thread upgrade
+	// acceptance test).
+	now := fc.Now().Format(time.RFC3339Nano)
 	seedConvAt := func(id, parent conversation.ConversationID) {
-		c, err := conversation.NewConversation(conversation.NewConversationInput{
-			ID:                   id,
-			Kind:                 conversation.ConversationKindChannel,
-			Name:                 "up-" + string(id),
-			CreatedBy:            conversation.IdentityRef("user:hayang"),
-			OpenedAt:             fc.Now(),
-			ParentConversationID: parent,
-		})
-		if err != nil {
-			t.Fatal(err)
+		var parentVal any
+		if parent != "" {
+			parentVal = string(parent)
 		}
-		if err := convRepo.Save(ctx, c); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO conversations
+			(id, kind, name, parent_conversation_id, participants, created_by,
+			 status, opened_at, created_at, updated_at, version, organization_id)
+			VALUES (?,?,?,?,'[]',?,'active',?,?,?,1,'')`,
+			string(id), string(conversation.ConversationKindChannel), "up-"+string(id),
+			parentVal, "user:hayang", now, now, now); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -77,8 +80,8 @@ func TestFollowState_CrossVersionUpgrade_NonEmptyDB(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("upgrade to latest: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 65 {
-		t.Fatalf("post-upgrade version=%d want 65", v)
+	if v, _ := mig.Version(ctx); v != 66 {
+		t.Fatalf("post-upgrade version=%d want 66", v)
 	}
 	if !tableExists(t, db, "user_conversation_follow_state") {
 		t.Fatal("follow-state table must exist after upgrade")
@@ -90,7 +93,9 @@ func TestFollowState_CrossVersionUpgrade_NonEmptyDB(t *testing.T) {
 	}
 
 	// The watermark: old rows (no follow row) resolve to the correct
-	// kind-default — top-level followed, thread not — without any backfill.
+	// kind-default — top-level followed, thread not — without any backfill. The
+	// conversation repo is used for READS here (post-upgrade schema = latest).
+	convRepo := convsqlite.NewConversationRepo(db)
 	svc := NewFollowStateService(convsqlite.NewFollowStateRepo(db), convRepo, fc)
 	if got, _ := svc.IsFollowed(ctx, "user:hayang", "old-chan"); !got {
 		t.Fatal("old top-level channel should resolve followed=true (default)")

@@ -9,7 +9,7 @@ import (
 // collision repair (reconcileLegacy0064Collision). A "State B" DB — agents
 // already carries the agent_llm_config columns under version 64, and
 // center_settings was never created — must run Up() to completion (no
-// duplicate-column crash on the renumbered 0065), end at version 65, and have
+// duplicate-column crash on the renumbered 0065), end at version 66, and have
 // center_settings present. Regression for the production startup crash
 // `migrate: apply up 0065_agent_llm_config: duplicate column name: reasoning`.
 func TestMigrator_ReconcileStateB_0064Collision(t *testing.T) {
@@ -28,6 +28,12 @@ func TestMigrator_ReconcileStateB_0064Collision(t *testing.T) {
 		t.Fatalf("initial Up: %v", err)
 	}
 	for _, stmt := range []string{
+		// Undo migrations AFTER 64 so the DB is back at the State-B version (64).
+		// 0066 (dm_dedup) is newer than the historical collision; tear down its
+		// schema + record too, else MAX(version) stays past 64.
+		`DROP INDEX IF EXISTS uniq_conversations_dm_key`,
+		`ALTER TABLE conversations DROP COLUMN dm_key`,
+		`DELETE FROM schema_migrations WHERE version = 66`,
 		`DROP TABLE center_settings`,
 		`DELETE FROM schema_migrations WHERE version = 65`,
 		`UPDATE schema_migrations SET name = 'agent_llm_config' WHERE version = 64`,
@@ -53,8 +59,8 @@ func TestMigrator_ReconcileStateB_0064Collision(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("Up on State B DB: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 65 {
-		t.Fatalf("version after repair: got %d want 65", v)
+	if v, _ := mig.Version(ctx); v != 66 {
+		t.Fatalf("version after repair: got %d want 66", v)
 	}
 	if !tableExists(t, db, "center_settings") {
 		t.Fatal("center_settings was not recreated")
@@ -64,7 +70,7 @@ func TestMigrator_ReconcileStateB_0064Collision(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 65 {
-		t.Fatalf("version after second Up: got %d want 65", v)
+	if v, _ := mig.Version(ctx); v != 66 {
+		t.Fatalf("version after second Up: got %d want 66", v)
 	}
 }

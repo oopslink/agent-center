@@ -41,6 +41,11 @@ type ConversationRepository interface {
 	// v2.7 ProjectManager→Conversation participant projector to create/sync the
 	// bound Conversation idempotently.
 	FindByOwnerRef(ctx context.Context, ownerRef OwnerRef) (*Conversation, error)
+	// FindDMByKey looks up the single NON-archived DM in an org by its canonical
+	// participant-set key (T288 dedup): one human↔agent pair maps to exactly one
+	// DM. ErrConversationNotFound if none. Used by OpenConversation's get-or-create
+	// so every DM-open entry point reuses the existing DM instead of duplicating it.
+	FindDMByKey(ctx context.Context, orgID, key string) (*Conversation, error)
 	FindByParent(ctx context.Context, parentID ConversationID) ([]*Conversation, error)
 	Save(ctx context.Context, c *Conversation) error
 	UpdateStatus(ctx context.Context, id ConversationID, from, to ConversationStatus, version int, closedReason, closedMessage string, at time.Time) error
