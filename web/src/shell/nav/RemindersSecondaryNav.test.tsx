@@ -34,11 +34,15 @@ describe('RemindersSecondaryNav', () => {
     expect(screen.getByTestId('loc').textContent).toBe('');
   });
 
-  it('selecting a status writes ?status= (and "All statuses" clears it)', () => {
+  it('selecting a status writes ?status=; default "Active & Paused" clears it; "All statuses" writes ?status=all', () => {
     renderNav();
     fireEvent.click(screen.getByTestId('reminder-status-active'));
     expect(screen.getByTestId('loc').textContent).toBe('?status=active');
+    // "All statuses" is the explicit opt-in to see terminal reminders → ?status=all.
     fireEvent.click(screen.getByTestId('reminder-status-all'));
+    expect(screen.getByTestId('loc').textContent).toBe('?status=all');
+    // the default "Active & Paused" view clears the param (hides terminal).
+    fireEvent.click(screen.getByTestId('reminder-status-default'));
     expect(screen.getByTestId('loc').textContent).toBe('');
   });
 

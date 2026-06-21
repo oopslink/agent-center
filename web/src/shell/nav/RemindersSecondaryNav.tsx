@@ -30,6 +30,8 @@ const RANGES: ReadonlyArray<{ key: ReminderListFilter; label: string }> = [
 const STATUSES: ReadonlyArray<{ key: ReminderStatus; label: string; dot: string }> = [
   { key: 'active', label: 'Active', dot: 'bg-success' },
   { key: 'paused', label: 'Paused', dot: 'bg-warning' },
+  { key: 'completed', label: 'Completed', dot: 'bg-text-muted' },
+  { key: 'canceled', label: 'Canceled', dot: 'bg-text-muted' },
 ];
 
 export function RemindersSecondaryNav(_props: ModuleSecondaryNavProps): React.ReactElement {
@@ -69,7 +71,12 @@ export function RemindersSecondaryNav(_props: ModuleSecondaryNavProps): React.Re
         ))}
       </FilterGroup>
       <FilterGroup label="Status">
-        <FilterItem active={!status} onClick={() => setParam('status', '')} testId="reminder-status-all">
+        {/* Default (no status param) hides terminal reminders — labeled so the
+            user knows completed/canceled are excluded until "All statuses". */}
+        <FilterItem active={!status} onClick={() => setParam('status', '')} testId="reminder-status-default">
+          Active &amp; Paused
+        </FilterItem>
+        <FilterItem active={status === 'all'} onClick={() => setParam('status', 'all')} testId="reminder-status-all">
           All statuses
         </FilterItem>
         {STATUSES.map((st) => (

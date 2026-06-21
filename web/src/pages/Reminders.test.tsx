@@ -105,8 +105,13 @@ describe('Reminders page', () => {
     expect(lastListParams).toMatchObject({ statuses: ['active'] });
   });
 
-  it('defaults to filter=all and no status when the query is empty', () => {
+  it('defaults to filter=all and hides terminal reminders (statuses=active,paused) when the query is empty', () => {
     renderPage();
+    expect(lastListParams).toMatchObject({ filter: 'all', statuses: ['active', 'paused'] });
+  });
+
+  it('the ?status=all query shows every status (statuses=undefined)', () => {
+    renderPage('?status=all');
     expect(lastListParams).toMatchObject({ filter: 'all', statuses: undefined });
   });
 

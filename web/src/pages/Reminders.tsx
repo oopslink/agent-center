@@ -64,13 +64,22 @@ export default function Reminders(): React.ReactElement {
   // T248: filter state lives in the URL query, driven by col② (RemindersSecondaryNav).
   const [params] = useSearchParams();
   const range = (params.get('range') as ReminderListFilter) || 'all';
-  const statusFilter = (params.get('status') as ReminderStatus) || null;
+  // status filter (per @oopslink): the DEFAULT view hides terminal reminders
+  // (completed/canceled). '' / no param → active+paused only; 'all' → every
+  // status (the explicit opt-in to see terminal); a specific status → just that.
+  const statusParam = params.get('status') ?? '';
+  const statuses: ReminderStatus[] | undefined =
+    statusParam === ''
+      ? ['active', 'paused']
+      : statusParam === 'all'
+        ? undefined
+        : [statusParam as ReminderStatus];
   const search = params.get('q') ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const { data: reminders, isLoading, isError } = useReminders(slug, {
     filter: range,
-    statuses: statusFilter ? [statusFilter] : undefined,
+    statuses,
   });
   const displayName = useDisplayNameResolver();
   const update = useUpdateReminder();

@@ -18,11 +18,11 @@ interface FieldSpec {
 
 // Defaults mirror wakeguard.DefaultConfig (depth 4, 5min/3, 10/min, budget 16).
 const FIELDS: ReadonlyArray<FieldSpec> = [
-  { key: 'max_depth', label: '最大唤醒链深度', hint: '一条唤醒链最多几跳；超过即熔断', def: 4 },
-  { key: 'cycle_window_sec', label: '环检测窗口（秒）', hint: '在此滚动窗口内统计往返', def: 300 },
-  { key: 'cycle_threshold', label: '环阈值（窗口内往返次数）', hint: '窗口内往返达到该次数即熔断', def: 3 },
-  { key: 'rate_per_min', label: '频控（每分钟 agent 唤醒数）', hint: '单 agent 每分钟被 agent 唤醒的令牌数', def: 10 },
-  { key: 'chain_token_budget', label: '链 token 预算（根）', hint: '每条唤醒链的成本预算，每跳递减', def: 16 },
+  { key: 'max_depth', label: 'Max wake-chain depth', hint: 'Max hops in one wake chain; exceeding it trips the breaker', def: 4 },
+  { key: 'cycle_window_sec', label: 'Cycle-detection window (seconds)', hint: 'Round-trips are counted within this rolling window', def: 300 },
+  { key: 'cycle_threshold', label: 'Cycle threshold (round-trips per window)', hint: 'Reaching this many round-trips in the window trips the breaker', def: 3 },
+  { key: 'rate_per_min', label: 'Rate limit (agent wakes per minute)', hint: 'Tokens for agent-driven wakes of a single agent per minute', def: 10 },
+  { key: 'chain_token_budget', label: 'Chain token budget (root)', hint: 'Cost budget per wake chain, decremented each hop', def: 16 },
 ];
 
 export function WakeGuardrailPanel(): React.ReactElement {
@@ -53,14 +53,14 @@ export function WakeGuardrailPanel(): React.ReactElement {
         className="flex items-center justify-between gap-4 rounded-xl border border-danger/30 bg-danger/5 p-5"
         data-testid="wake-guardrail-error"
       >
-        <p className="text-sm text-danger">护栏参数加载失败。</p>
+        <p className="text-sm text-danger">Failed to load guardrail settings.</p>
         <button
           type="button"
           onClick={() => void refetch()}
           className="shrink-0 rounded-md border border-border-base px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-subtle"
           data-testid="wake-guardrail-retry"
         >
-          重试
+          Retry
         </button>
       </div>
     );
@@ -68,7 +68,7 @@ export function WakeGuardrailPanel(): React.ReactElement {
   if (isLoading || !form) {
     return (
       <p className="text-sm text-text-muted" data-testid="wake-guardrail-loading">
-        加载护栏参数…
+        Loading guardrail settings…
       </p>
     );
   }
@@ -92,9 +92,9 @@ export function WakeGuardrailPanel(): React.ReactElement {
       data-testid="wake-guardrail-panel"
     >
       <div>
-        <h2 className="text-base font-semibold text-text-primary">唤醒护栏</h2>
+        <h2 className="text-base font-semibold text-text-primary">Wake guardrails</h2>
         <p className="mt-0.5 text-xs text-text-muted">
-          防止 agent 之间唤醒失控（链深 / 环 / 频控 / token 预算）。保存后立即生效，无需重启。
+          Prevent runaway agent-to-agent wakes (chain depth / cycles / rate limit / token budget). Applied immediately on save — no restart needed.
         </p>
       </div>
 
@@ -107,7 +107,7 @@ export function WakeGuardrailPanel(): React.ReactElement {
               <span className="text-xs text-text-secondary">
                 {f.label}
                 <span className="block text-text-muted">
-                  {f.hint} · 默认 {f.def}
+                  {f.hint} · default {f.def}
                 </span>
               </span>
               <input
@@ -130,12 +130,12 @@ export function WakeGuardrailPanel(): React.ReactElement {
 
       {invalid && (
         <p className="text-xs text-danger" data-testid="wake-guardrail-invalid">
-          所有阈值必须为正整数（&gt; 0）。
+          All thresholds must be positive integers (&gt; 0).
         </p>
       )}
       {update.isError && (
         <p className="text-xs text-danger" data-testid="wake-guardrail-save-error">
-          保存失败：{update.error instanceof Error ? update.error.message : '未知错误'}
+          Save failed: {update.error instanceof Error ? update.error.message : 'Unknown error'}
         </p>
       )}
 
@@ -147,7 +147,7 @@ export function WakeGuardrailPanel(): React.ReactElement {
           className="rounded-md bg-brand px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           data-testid="wake-guardrail-save"
         >
-          {update.isPending ? '保存中…' : '保存'}
+          {update.isPending ? 'Saving…' : 'Save'}
         </button>
         {saved && !update.isPending && (
           <span
@@ -156,7 +156,7 @@ export function WakeGuardrailPanel(): React.ReactElement {
             className="inline-flex items-center rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success"
             data-testid="wake-guardrail-saved"
           >
-            已保存并生效
+            Saved and applied
           </span>
         )}
       </div>

@@ -80,7 +80,12 @@ export const qk = {
   // v2.10.0 [T6]: org-scoped cross-project Plan list (global Workspace > Plan).
   orgPlans: (filters?: unknown) => o('orgPlans', filters ?? null),
   // T207 reminders — org-scoped list (filter/status) + a single reminder detail.
-  reminders: (filters?: unknown) => o('reminders', filters ?? null),
+  // No-arg form returns the 3-element PREFIX (no trailing param) so an
+  // invalidateQueries(qk.reminders()) prefix-matches every filtered list key
+  // o('reminders', {filters}); appending a `null` param (the old bug) made the
+  // prefix [...,'reminders',null] never match [...,'reminders',{filters}], so
+  // cancel/pause/resume/delete never refreshed the list. Mirrors qk.conversations.
+  reminders: (filters?: unknown) => (filters ? o('reminders', filters) : o('reminders')),
   reminder: (id: string) => o('reminder', id),
   // T181: the PREFIX keys matching EVERY filtered orgTasks(...) / orgPlans(...)
   // query (the filter object is the 4th tuple element; this 3-element prefix

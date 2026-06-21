@@ -103,7 +103,7 @@ describe('WakeGuardrailPanel', () => {
     const ok = screen.getByTestId('wake-guardrail-saved');
     expect(ok).toBeTruthy();
     expect(ok.getAttribute('role')).toBe('status');
-    expect(ok.textContent).toContain('已保存并生效');
+    expect(ok.textContent).toContain('Saved and applied');
   });
 
   // T245: a failed save (e.g. the 501 settings-store bug) must surface a UI
@@ -113,7 +113,7 @@ describe('WakeGuardrailPanel', () => {
     render(<WakeGuardrailPanel />);
     const err = screen.getByTestId('wake-guardrail-save-error');
     expect(err).toBeTruthy();
-    expect(err.textContent).toContain('保存失败');
+    expect(err.textContent).toContain('Save failed');
     expect(err.textContent).toContain('settings store not configured');
   });
 });
