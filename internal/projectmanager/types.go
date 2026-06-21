@@ -100,9 +100,14 @@ var (
 	// returns it (mirrors Conversation.Archive → ErrConversationArchived).
 	ErrTaskArchived        = errors.New("projectmanager: task is archived")
 	ErrBlockReasonRequired = errors.New("projectmanager: blocked requires a reason (plan §2.2)")
-	ErrVersionConflict     = errors.New("projectmanager: version conflict (optimistic lock)")
-	ErrEmptyProjectScope   = errors.New("projectmanager: project_id required (no global work items)")
-	ErrCrossOrgAssignee    = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")
+	// ErrNotTaskAssignee / ErrTaskBlocked guard the v2.14.0 I14 block+lease model:
+	// only the assignee agent may Block its own running task, and a legally blocked
+	// task cannot renew its execution lease (a block is a lease-free pause).
+	ErrNotTaskAssignee   = errors.New("projectmanager: actor is not the task assignee")
+	ErrTaskBlocked       = errors.New("projectmanager: task is blocked (no execution lease)")
+	ErrVersionConflict   = errors.New("projectmanager: version conflict (optimistic lock)")
+	ErrEmptyProjectScope = errors.New("projectmanager: project_id required (no global work items)")
+	ErrCrossOrgAssignee  = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")
 	// ErrAgentDirectoryUnavailable is returned (fail-closed) when an agent is
 	// assigned but no AgentDirectory is wired to verify the agent's org — a
 	// missing dependency must not silently bypass the cross-org guard.

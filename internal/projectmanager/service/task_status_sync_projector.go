@@ -123,7 +123,9 @@ func (s *Service) startTaskIfOpen(ctx context.Context, taskID pm.TaskID) error {
 		if strings.TrimSpace(t.BlockedReason()) == "" {
 			return nil // not stuck → nothing to clear
 		}
-		if err := t.Unblock(s.clock.Now()); err != nil {
+		// v2.14.0 I14 F1 compile-bridge: Unblock now takes (comment, actorRef, at).
+		// This projector is slated for deletion in F7 (§八); kept compiling for F1.
+		if err := t.Unblock("", pm.IdentityRef("system"), s.clock.Now()); err != nil {
 			return err
 		}
 		if err := s.tasks.Update(ctx, t); err != nil {
@@ -155,7 +157,10 @@ func (s *Service) blockTaskOnFailure(ctx context.Context, taskID pm.TaskID) erro
 	if t.Status() != pm.TaskRunning {
 		return nil
 	}
-	if err := t.Block(taskBlockedOnFailureReason, s.clock.Now()); err != nil {
+	// v2.14.0 I14 F1 compile-bridge: Block now takes (reason, reasonType, agentRef,
+	// at). System path → pass the task's own assignee as agentRef (assignee check is
+	// a no-op) and type obstacle. Full rewrite/deletion lands in F3/F7.
+	if err := t.Block(taskBlockedOnFailureReason, pm.BlockReasonObstacle, t.Assignee(), s.clock.Now()); err != nil {
 		return err
 	}
 	if err := s.tasks.Update(ctx, t); err != nil {

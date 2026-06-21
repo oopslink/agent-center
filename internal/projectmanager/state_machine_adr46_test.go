@@ -53,7 +53,7 @@ func TestADR46_BlockIsAnnotationNotState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := tk.Block("stuck", now); err != nil {
+	if err := tk.Block("stuck", BlockReasonObstacle, "agent:c", now); err != nil {
 		t.Fatalf("Block on running task: %v", err)
 	}
 	if tk.Status() != TaskRunning {
@@ -63,7 +63,7 @@ func TestADR46_BlockIsAnnotationNotState(t *testing.T) {
 		t.Fatalf("Block must set the reason annotation, got %q", tk.BlockedReason())
 	}
 
-	if err := tk.Unblock(now); err != nil {
+	if err := tk.Unblock("", "agent:c", now); err != nil {
 		t.Fatalf("Unblock: %v", err)
 	}
 	if tk.Status() != TaskRunning {
@@ -74,7 +74,7 @@ func TestADR46_BlockIsAnnotationNotState(t *testing.T) {
 	}
 
 	// Re-block then Complete: completion clears the reason and moves to completed.
-	if err := tk.Block("stuck again", now); err != nil {
+	if err := tk.Block("stuck again", BlockReasonObstacle, "agent:c", now); err != nil {
 		t.Fatal(err)
 	}
 	if err := tk.Complete("agent:c", now); err != nil {
@@ -92,7 +92,7 @@ func TestADR46_BlockIsAnnotationNotState(t *testing.T) {
 // a non-running (e.g. open) task is ErrIllegalTransition.
 func TestADR46_BlockOnNonRunningRejected(t *testing.T) {
 	tk := newTask(t) // open
-	if err := tk.Block("stuck", t0); err != ErrIllegalTransition {
+	if err := tk.Block("stuck", BlockReasonObstacle, "", t0); err != ErrIllegalTransition {
 		t.Fatalf("Block on an open (non-running) task must be ErrIllegalTransition, got %v", err)
 	}
 	if tk.BlockedReason() != "" {
