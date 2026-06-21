@@ -183,7 +183,7 @@ export default function TaskDetail(): React.ReactElement {
             onEdit={() => setEditOpen(true)}
           />
 
-          <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} />
+          <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
         </div>
 
         {/* metadata sidebar — 2-section TaskDetail layout (read-only display top /

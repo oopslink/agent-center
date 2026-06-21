@@ -222,6 +222,9 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     // default = chat: the chat panel + conversation are shown; DAG + task list are not
     expect(screen.getByTestId('plan-panel-chat')).toBeInTheDocument();
     expect(await screen.findByTestId('plan-conversation')).toBeInTheDocument();
+    // per @oopslink: the conversation panel names the plan by its concrete id
+    // (org_ref "P9") instead of the generic "Plan conversation" label.
+    expect(screen.getByTestId('plan-conversation-code')).toHaveTextContent('P9');
     expect(screen.queryByTestId('plan-dag')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-task-list')).not.toBeInTheDocument();
     // clicking DAG shows the DAG (and not the task list)

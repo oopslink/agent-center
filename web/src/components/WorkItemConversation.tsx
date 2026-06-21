@@ -10,6 +10,10 @@ interface Props {
   ownerRef: string;
   // Short human label for the owner banner, e.g. the task/issue title.
   bannerLabel: string;
+  // The owner's human-friendly short id ("T123" / "I233"). When present it
+  // replaces the generic "Conversation" badge so the banner names the bound
+  // task/issue by its concrete id (per @oopslink). Falls back to "Conversation".
+  ownerCode?: string;
 }
 
 // WorkItemConversation (#137) — embeds the task/issue conversation inside
@@ -23,7 +27,7 @@ interface Props {
 // channels/DMs, uniformly. The surface (task-thread vs issue-thread) is
 // derived from the owner_ref. v2.7 #186-4: the shell's composer keeps the
 // thread interactive (a human can send in; the agent replies via #185 wake).
-export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.ReactElement {
+export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props): React.ReactElement {
   const conv = useConversationByOwnerRef(ownerRef);
   const surface = ownerRef.includes('/issues/') ? 'issue-thread' : 'task-thread';
 
@@ -70,7 +74,12 @@ export function WorkItemConversation({ ownerRef, bannerLabel }: Props): React.Re
         data-testid="conversation-owner-banner"
         data-owner-ref={ownerRef}
       >
-        <span className="font-semibold uppercase tracking-wide text-text-muted">Conversation</span>
+        <span
+          className="font-semibold uppercase tracking-wide text-text-muted"
+          data-testid="conversation-owner-code"
+        >
+          {ownerCode || 'Conversation'}
+        </span>
         <span>· linked</span>
         <span className="font-mono text-text-primary">{bannerLabel}</span>
         <span className="ml-auto flex items-center gap-1">

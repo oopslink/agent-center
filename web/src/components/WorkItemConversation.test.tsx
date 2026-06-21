@@ -6,12 +6,12 @@ import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { WorkItemConversation } from './WorkItemConversation';
 
-function wrap(ownerRef: string, bannerLabel: string) {
+function wrap(ownerRef: string, bannerLabel: string, ownerCode?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <WorkItemConversation ownerRef={ownerRef} bannerLabel={bannerLabel} />
+        <WorkItemConversation ownerRef={ownerRef} bannerLabel={bannerLabel} ownerCode={ownerCode} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -37,6 +37,29 @@ describe('WorkItemConversation (#137)', () => {
     const banner = await screen.findByTestId('conversation-owner-banner');
     expect(banner).toHaveAttribute('data-owner-ref', 'pm://tasks/TS-1');
     expect(banner).toHaveTextContent('rebuild docs');
+  });
+
+  // Per @oopslink: the banner badge names the bound work item by its concrete
+  // short id ("T280" / "I233") instead of the generic "Conversation" label.
+  it('shows the owner short id (ownerCode) in the banner badge when provided', async () => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs', 'T280');
+    const code = await screen.findByTestId('conversation-owner-code');
+    expect(code).toHaveTextContent('T280');
+    expect(code).not.toHaveTextContent('Conversation');
+  });
+
+  it('falls back to the "Conversation" label when no ownerCode is provided', async () => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs');
+    const code = await screen.findByTestId('conversation-owner-code');
+    expect(code).toHaveTextContent('Conversation');
   });
 
   it('fetches the conversation BY owner_ref (org-scoped list query)', async () => {

@@ -167,7 +167,7 @@ export default function PlanDetail(): React.ReactElement {
             data-testid="plan-panel-chat"
             className={tab === 'chat' ? 'flex min-h-0 flex-1 flex-col' : undefined}
           >
-            <PlanConversationSide conversationId={p.conversation_id} />
+            <PlanConversationSide conversationId={p.conversation_id} ownerCode={p.org_ref} />
           </div>
           <div role="tabpanel" hidden={tab !== 'dag'} data-testid="plan-panel-dag">
             {tab === 'dag' && <PlanDag projectId={id} plan={p} />}
@@ -1837,14 +1837,23 @@ function PlanTaskRow({
 // This is where the orchestrator @-dispatches + discussion appear (bound post
 // #266). Render the Plan's conversation by its conversation_id. Empty
 // conversation_id → friendly "initializing" state (don't crash).
-function PlanConversationSide({ conversationId }: { conversationId: string }): React.ReactElement {
+function PlanConversationSide({
+  conversationId,
+  ownerCode,
+}: {
+  conversationId: string;
+  // The plan's human-friendly short id ("P123", org_ref). When present it
+  // replaces the generic "Plan conversation" label so the panel names the bound
+  // plan by its concrete id (per @oopslink). Falls back to "Plan conversation".
+  ownerCode?: string;
+}): React.ReactElement {
   const conv = useConversation(conversationId || undefined);
 
   return (
     <SenderSidebarProvider>
       <section className="flex min-h-0 flex-1 flex-col" data-testid="plan-conversation">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
-          Plan conversation
+          <span data-testid="plan-conversation-code">{ownerCode || 'Plan conversation'}</span>
           <span className="rounded border border-border-base px-1.5 py-0.5 text-[0.625rem] font-normal uppercase tracking-wide text-text-muted">
             chat
           </span>

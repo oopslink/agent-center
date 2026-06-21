@@ -143,7 +143,7 @@ export default function IssueDetail(): React.ReactElement {
             onEdit={() => setEditOpen(true)}
           />
 
-          <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} />
+          <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
         </div>
 
         {/* metadata sidebar — 2-section IssueDetail layout (read-only display top /
