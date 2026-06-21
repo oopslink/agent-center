@@ -32,14 +32,24 @@ export function useMentionAutocomplete({
     if (!active) return [];
     const q = active.query.toLowerCase();
     if (active.trigger === '@') {
+      // @all broadcast (per @oopslink): a synthetic option surfaced when the
+      // query is a prefix of "all" (or empty). Selecting it inserts "@all ",
+      // which addresses everyone — effective ONLY for human senders (the backend
+      // wake/badge layers gate @all on a human sender). Appended AFTER members so
+      // it never hijacks the default (first) selection for an ambiguous prefix
+      // like "@a" (which should still default to a member named Alice).
+      const all: MentionOption[] = 'all'.startsWith(q)
+        ? [{ id: '@all', name: 'all', secondary: 'Everyone in this conversation' }]
+        : [];
       return (members.data ?? [])
         .filter((m) => (m.display_name ?? '').toLowerCase().includes(q))
-        .slice(0, MAX_OPTIONS)
         .map((m) => ({
           id: m.identity_id,
           name: m.display_name ?? m.identity_id,
           secondary: m.identity_id,
-        }));
+        }))
+        .concat(all)
+        .slice(0, MAX_OPTIONS);
     }
     return (conversations.data ?? [])
       .filter((c) => c.kind === 'channel' && c.name.toLowerCase().includes(q))

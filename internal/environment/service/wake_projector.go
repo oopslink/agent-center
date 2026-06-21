@@ -568,6 +568,12 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 	delivered := map[agent.AgentID]bool{}
 	var toJoin []conversation.ParticipantElement // v2.7.1 #227 auto-join batch
 	joinedAt := p.clock.Now().UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
+	// @all broadcast (per @oopslink): a message that @all-mentions wakes EVERY
+	// candidate agent (skip the per-agent @display_name gate below). The whole
+	// conversational-wake path is already human-only gated (projectConversationMessage
+	// + the task branch both require a user: sender), so @all is structurally
+	// human-only — an agent writing @all reaches none of this and triggers nothing.
+	broadcastAll := mention.MentionsAll(pl.Text)
 	for _, rawID := range rawIDs {
 		// FINDING-J: the ref may carry EITHER the execution-entity id OR the
 		// identity-member id ("agent-<ulid>", #157). Resolve tolerantly so both the
@@ -583,8 +589,9 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 			continue
 		}
 		// Group-like kinds (channel/issue/task): only wake agents explicitly
-		// @mentioned by display_name. DM (1:1): wake the peer directly.
-		if kind != conversation.ConversationKindDM && !p.mentionsAgent(ctx, a, rawID, pl.Text) {
+		// @mentioned by display_name — OR every agent when the message @all-broadcasts.
+		// DM (1:1): wake the peer directly.
+		if kind != conversation.ConversationKindDM && !broadcastAll && !p.mentionsAgent(ctx, a, rawID, pl.Text) {
 			continue
 		}
 		// v2.7.1 #227: a woken agent that is NOT yet an active participant (a project

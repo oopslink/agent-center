@@ -7,6 +7,22 @@ package mention
 
 import "strings"
 
+// AllToken is the broadcast @mention ("@all") that addresses EVERY participant
+// of a group conversation at once. Per @oopslink: it is effective ONLY when the
+// sender is a human — the wake projector and the unread mention badge both gate
+// the broadcast on a human sender, so an agent writing @all never triggers it
+// (no agent-driven broadcast storm).
+const AllToken = "all"
+
+// MentionsAll reports whether text contains the broadcast @all token,
+// case-insensitive and token-bounded (so @all matches but @allies does not). It
+// is the single source of truth for @all detection, shared by the wake projector
+// (who gets woken) and the #268 mention badge (mention_count), exactly like
+// Present — so a broadcast badge counts the messages that would actually wake.
+func MentionsAll(text string) bool {
+	return TokenPresent(strings.ToLower(text), "@"+AllToken)
+}
+
 // Present reports whether text contains an @mention of name, case-insensitive
 // and token-bounded so @Bot does not match @Bottom. Surrounding whitespace on
 // name is trimmed; an empty name is never present.

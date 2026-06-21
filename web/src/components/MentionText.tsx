@@ -269,7 +269,21 @@ export function MentionText({
     // `I<number>` org_ref (group 7). Both resolve through resolveIssue.
     const issueRef = match[6] ?? match[7];
     let node: React.ReactNode = null;
-    if (handle !== undefined) {
+    if (handle !== undefined && handle.toLowerCase() === 'all') {
+      // @all broadcast (per @oopslink): a non-clickable but visually distinct
+      // mention token. It addresses everyone in the conversation and is effective
+      // only when a human sends it (the backend gates @all on a human sender).
+      node = (
+        <span
+          key={key++}
+          data-testid="mention-all-token"
+          className={`rounded font-medium ${linkClass}`}
+          title="Broadcast to everyone in this conversation (humans only)"
+        >
+          @{handle}
+        </span>
+      );
+    } else if (handle !== undefined) {
       const ref = resolve(handle);
       if (ref) {
         node = (

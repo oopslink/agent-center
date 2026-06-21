@@ -33,3 +33,25 @@ func TestTokenPresent(t *testing.T) {
 		t.Fatal("@bot must not match @bottom")
 	}
 }
+
+func TestMentionsAll(t *testing.T) {
+	cases := []struct {
+		text string
+		want bool
+	}{
+		{"hey @all please review", true},
+		{"@all", true},
+		{"ping @ALL now", true},     // case-insensitive
+		{"done, @all.", true},       // trailing punctuation = token boundary
+		{"@allies assemble", false}, // token boundary (not @all)
+		{"@allocated", false},
+		{"email all@host", false}, // not a leading-@ mention
+		{"no broadcast here", false},
+		{"cc @bob and @all", true},
+	}
+	for _, c := range cases {
+		if got := MentionsAll(c.text); got != c.want {
+			t.Errorf("MentionsAll(%q)=%v want %v", c.text, got, c.want)
+		}
+	}
+}

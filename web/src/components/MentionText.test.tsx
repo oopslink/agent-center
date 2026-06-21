@@ -583,4 +583,15 @@ describe('MentionText issue-ref linkify (issue-<id> / I<number>)', () => {
     expect(await screen.findByTestId('plan-ref-token')).toHaveTextContent('P42');
     expect(await screen.findByTestId('issue-ref-token')).toHaveTextContent('I7');
   });
+
+  // @all broadcast (per @oopslink): rendered as a distinct, non-clickable mention
+  // token regardless of member resolution (no member named "all").
+  it('renders @all as a distinct broadcast token (not a clickable member link)', async () => {
+    server.use(http.get('/api/members', () => HttpResponse.json([])));
+    renderInProvider(<MarkdownMessage content={'@all standup in 5'} />);
+    const token = await screen.findByTestId('mention-all-token');
+    expect(token).toHaveTextContent('@all');
+    expect(token.tagName).not.toBe('BUTTON'); // not clickable (a span)
+    expect(screen.queryByTestId('mention-token')).not.toBeInTheDocument();
+  });
 });

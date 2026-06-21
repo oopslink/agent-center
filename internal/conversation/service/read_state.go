@@ -269,14 +269,19 @@ func (s *ReadStateService) UnreadWithMentions(ctx context.Context,
 // countMentions scans the unread tail (id > lastSeen, capped) and counts
 // messages whose content @mentions displayName. Bounded by MaxUnreadCount+1
 // rows; result capped at MaxUnreadCount so it never exceeds the unread cap.
+//
+// @all broadcast (per @oopslink): a message that @all-mentions counts as a
+// mention for EVERY viewer — but ONLY when its sender is a human (a `user:`
+// sender). This mirrors the wake projector's human-only @all gate, so the badge
+// counts exactly the broadcasts that would actually wake/notify (no phantom
+// mention from an agent's @all). The @all check is independent of displayName,
+// so it still counts even for a viewer with no resolvable name.
 func (s *ReadStateService) countMentions(ctx context.Context,
 	convID conversation.ConversationID, lastSeen conversation.MessageID, displayName string,
 ) (int, error) {
-	if strings.TrimSpace(displayName) == "" {
-		return 0, nil
-	}
+	name := strings.TrimSpace(displayName)
 	exec, _ := persistence.ExecutorFromCtx(ctx, s.db)
-	const stmt = `SELECT content FROM messages
+	const stmt = `SELECT content, sender_identity_id FROM messages
 		WHERE conversation_id = ? AND id > ?
 		LIMIT ?`
 	rows, err := exec.QueryContext(ctx, stmt,
@@ -287,11 +292,15 @@ func (s *ReadStateService) countMentions(ctx context.Context,
 	defer rows.Close()
 	n := 0
 	for rows.Next() {
-		var content string
-		if err := rows.Scan(&content); err != nil {
+		var content, sender string
+		if err := rows.Scan(&content, &sender); err != nil {
 			return 0, err
 		}
-		if mention.Present(content, displayName) {
+		matched := name != "" && mention.Present(content, name)
+		if !matched && strings.HasPrefix(sender, "user:") && mention.MentionsAll(content) {
+			matched = true
+		}
+		if matched {
 			n++
 			if n >= MaxUnreadCount {
 				break

@@ -249,6 +249,51 @@ func TestWakeProjector_Plan_NoMention_NoWake(t *testing.T) {
 	}
 }
 
+// --- @all broadcast (per @oopslink) -----------------------------------------
+
+// A HUMAN's @all in a channel wakes EVERY agent participant — even those whose
+// own display_name is not @mentioned — because @all addresses everyone.
+func TestWakeProjector_Channel_AtAll_FromHuman_WakesAllAgents(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveRunningAgent(t, "AG1", "W1")
+	f.saveRunningAgent(t, "AG2", "W2")
+	f.saveConv(t, "chan-1", conversation.ConversationKindChannel, "general",
+		agentPart("AG1"), agentPart("AG2"), userPart("bob"))
+	p := f.projWith(map[string]string{"agent:AG1": "Helper", "agent:AG2": "Builder"}, nil)
+
+	// @all (neither Helper nor Builder named explicitly) → BOTH agents woken.
+	if err := p.Project(f.ctx, convMessageEvent("EV1", "chan-1", "m1", "user:bob", "@all standup in 5")); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if cmds := f.commandsFor(t, "W1"); len(cmds) != 1 || cmds[0].CommandType() != "agent.converse" {
+		t.Fatalf("@all must wake AG1, got %d", len(cmds))
+	}
+	if cmds := f.commandsFor(t, "W2"); len(cmds) != 1 || cmds[0].CommandType() != "agent.converse" {
+		t.Fatalf("@all must wake AG2, got %d", len(cmds))
+	}
+}
+
+// An AGENT's @all wakes NO agent: the conversational-wake path is human-only, so
+// @all is effective only when a human sends it (loop-break / no broadcast storm).
+func TestWakeProjector_Channel_AtAll_FromAgent_NoWake(t *testing.T) {
+	f := newWakeFixture(t)
+	f.saveRunningAgent(t, "AG1", "W1")
+	f.saveRunningAgent(t, "AG2", "W2")
+	f.saveConv(t, "chan-1", conversation.ConversationKindChannel, "general",
+		agentPart("AG1"), agentPart("AG2"), userPart("bob"))
+	p := f.projWith(map[string]string{"agent:AG1": "Helper", "agent:AG2": "Builder"}, nil)
+
+	if err := p.Project(f.ctx, convMessageEvent("EV1", "chan-1", "m1", "agent:AG2", "@all heads up")); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	if c1 := f.commandsFor(t, "W1"); len(c1) != 0 {
+		t.Fatalf("agent @all must not wake any agent (human-only), got %d on W1", len(c1))
+	}
+	if c2 := f.commandsFor(t, "W2"); len(c2) != 0 {
+		t.Fatalf("agent @all must not wake any agent (human-only), got %d on W2", len(c2))
+	}
+}
+
 // --- FINDING-J: member-id participant ref ↔ entity-id bridge ----------------
 
 // A channel participant referenced by its identity-MEMBER id (the canonical

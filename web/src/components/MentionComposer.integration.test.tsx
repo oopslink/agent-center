@@ -51,11 +51,31 @@ describe('MessageComposer + #275 mention picker', () => {
     wrap(<MessageComposer conversationId="C1" />);
     await userEvent.type(ta(), '@');
     await waitFor(() => expect(screen.getByText('Bob')).toBeInTheDocument());
+    // options for an empty query are [Alice, Bob, all] — the @all broadcast is
+    // appended last, so member roving is unchanged: one ArrowDown reaches Bob.
     fireEvent.keyDown(ta(), { key: 'ArrowDown' }); // active → Bob
     fireEvent.keyDown(ta(), { key: 'Enter' }); // select (not send)
     await waitFor(() => expect(ta().value).toBe('@Bob '));
     // picker closed after select
     expect(screen.queryByTestId('mention-picker')).not.toBeInTheDocument();
+  });
+
+  // @all broadcast (per @oopslink): the picker offers an "all" option that
+  // inserts "@all " — addressing everyone (effective only for human senders).
+  it('typing @all offers the broadcast option; selecting it inserts "@all "', async () => {
+    wrap(<MessageComposer conversationId="C1" />);
+    await userEvent.type(ta(), '@all');
+    await waitFor(() => expect(screen.getByTestId('mention-picker')).toBeInTheDocument());
+    const opt = screen.getByText('all');
+    expect(opt).toBeInTheDocument();
+    // secondary text rides as the option's title (hover), not visible text.
+    expect(opt.closest('[data-testid="mention-option"]')).toHaveAttribute(
+      'title',
+      'Everyone in this conversation',
+    );
+    // no member name contains "all", so @all is the only (first) option → Enter.
+    fireEvent.keyDown(ta(), { key: 'Enter' });
+    await waitFor(() => expect(ta().value).toBe('@all '));
   });
 
   it('Enter while the picker is open selects, does NOT send the message', async () => {
