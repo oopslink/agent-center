@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
+	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 )
@@ -223,10 +224,12 @@ type conversePayload struct {
 	// carries. >0 → the brief tells the agent a human sent file(s) (e.g. a
 	// screenshot) and to call get_my_unread → download_file to view them.
 	AttachmentCount int `json:"attachment_count,omitempty"`
-	// OwnerRef (T250): the source conversation's owner_ref. For a plan chat it is
-	// pm://plans/{plan_id}; the brief uses it to tell the agent WHICH plan the
-	// message belongs to (with ConvName carrying the resolved plan name) so it can
-	// disambiguate "this plan" across concurrent plan chats. Empty for DM/channel.
+	// OwnerRef (T250/T254): the source conversation's owner_ref. For a pm:// owner
+	// chat it is pm://plans|issues|tasks|projects/{id}; buildConverseBrief resolves
+	// it through the OwnerContext table (internal/conversation) to tell the agent
+	// WHICH object the message belongs to (with ConvName carrying the env-resolved
+	// name/title) so it can disambiguate "this {kind}" across concurrent chats.
+	// Empty for DM; id://organizations/{org} for a channel (not id-anchored).
 	OwnerRef string `json:"owner_ref,omitempty"`
 }
 
@@ -850,20 +853,28 @@ func buildConverseBrief(pl conversePayload) string {
 		sender = strings.TrimSpace(pl.SenderRef)
 	}
 	var header string
-	// T250: plan-chat detection is keyed on owner_ref (pm://plans/{id}) so DM/channel
-	// briefs are byte-identical to before. A plan conversation has no name of its own,
-	// so the env wake projector resolves the plan name into ConvName — the header shows
-	// BOTH the name and plan_id so the agent can tell which plan this chat is, and a
-	// follow-up note pins "this plan" to that plan_id for any destructive action.
-	var planNote string
-	if strings.HasPrefix(pl.OwnerRef, "pm://plans/") {
-		planID := strings.TrimPrefix(pl.OwnerRef, "pm://plans/")
-		if name := strings.TrimSpace(pl.ConvName); name != "" {
-			header = fmt.Sprintf("[Plan chat — %q (plan_id=%s)] %s mentioned you:", name, planID, sender)
+	// T254 (I19): owner_ref → OwnerContext is now a SINGLE resolution table, so
+	// plan / issue / task / project chats all render an id-anchored header and a
+	// "this {kind}" disambiguation note — not just plans. DM/channel briefs stay
+	// byte-identical (channel resolves but is not Anchored; a dm has no owner_ref).
+	//
+	// anchorNote pins "this {kind}" to {kind}_id for any destructive action;
+	// showConvNote keeps the legacy "this is a conversation, not a task" clause for
+	// dm/channel/plan (byte-stable) but DROPS it for issue/task/project chats where
+	// it was actively misleading (those ARE about a task/issue).
+	var anchorNote string
+	showConvNote := true
+	if oc, ok := conversation.ResolveOwnerContext(pl.OwnerRef); ok && oc.Anchored {
+		oc.Name = strings.TrimSpace(pl.ConvName) // env-resolved title (T255); empty → id-only framing
+		if oc.Name != "" {
+			header = fmt.Sprintf("[%s chat — %q (%s=%s)] %s mentioned you:", oc.Label, oc.Name, oc.IDField, oc.ID, sender)
 		} else {
-			header = fmt.Sprintf("[Plan chat (plan_id=%s)] %s mentioned you:", planID, sender)
+			header = fmt.Sprintf("[%s chat (%s=%s)] %s mentioned you:", oc.Label, oc.IDField, oc.ID, sender)
 		}
-		planNote = fmt.Sprintf("(This message belongs to plan_id=%s. When it refers to \"this plan\" — e.g. completing, archiving, or editing it — act on THAT plan_id, not any other plan you may also be in.)", planID)
+		anchorNote = fmt.Sprintf("(This message belongs to %s=%s. When it refers to \"this %s\" — e.g. completing, archiving, or editing it — act on THAT %s, not any other %s you may also be in.)", oc.IDField, oc.ID, string(oc.Kind), oc.IDField, string(oc.Kind))
+		if oc.Kind != conversation.OwnerKindPlan {
+			showConvNote = false
+		}
 	} else if pl.ConvKind == "channel" {
 		where := strings.TrimSpace(pl.ConvName)
 		if where == "" {
@@ -876,13 +887,19 @@ func buildConverseBrief(pl conversePayload) string {
 	// F4: when the mention is INSIDE a thread, tell the agent to reply in that thread
 	// (pass parent_message_id=<root>) so its answer lands in the thread, not at
 	// conversation top-level. Empty RootMessageID → an ordinary top-level reply.
-	replyHint := fmt.Sprintf("(To reply, use the post_message tool with conversation_id=%q. This is a conversation, not a task — there is no work item to complete.)", pl.ConversationID)
+	convNote := ""
+	if showConvNote {
+		convNote = " This is a conversation, not a task — there is no work item to complete."
+	}
+	replyHint := fmt.Sprintf("(To reply, use the post_message tool with conversation_id=%q.%s)", pl.ConversationID, convNote)
 	if root := strings.TrimSpace(pl.RootMessageID); root != "" {
 		replyHint = fmt.Sprintf("(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id=%q AND parent_message_id=%q — do not omit parent_message_id, or your reply will land outside the thread.)", pl.ConversationID, root)
 	}
-	// T250: prepend the plan disambiguation note to the reply hint (empty for non-plan).
-	if planNote != "" {
-		replyHint = planNote + "\n" + replyHint
+	// T254: prepend the owner-disambiguation note AFTER the thread reply-hint
+	// substitution, so both top-level and in-thread briefs carry the {kind}_id
+	// (empty for dm/channel). Mirrors the T250 planNote placement.
+	if anchorNote != "" {
+		replyHint = anchorNote + "\n" + replyHint
 	}
 	body := pl.MessageText
 	// v2.10.0 [T74]: tell the agent the message carries file attachment(s) (e.g. a

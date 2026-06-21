@@ -1,0 +1,27 @@
+go vet ./...
+./scripts/lint/no-vendor-refs.sh
+no-vendor-refs: clean (all hits whitelisted)
+./scripts/lint/no-mock-default.sh
+no-mock-default: clean (no mock-as-default literals on prod paths)
+./scripts/lint/doc-impl-drift.sh
+doc-impl-drift: running 3 checks
+
+OK admin_client_exists: internal/cli/admin_client.go present
+
+OK handlers_no_persistence_open: no off-whitelist handler opens sqlite
+
+OK no_llm_sdk_import: no LLM vendor SDK imports in internal/ or cmd/
+
+doc-impl-drift: all 3 checks passed
+./scripts/lint/no-raw-colors-spa.sh
+no-raw-colors-spa: clean
+./scripts/lint/no-idtail-hash.sh
+no-idtail-hash: clean (no #<id-tail> short-hash id encoding)
+./scripts/lint/no-stale-e2e-config.sh
+no-stale-e2e-config: clean (no removed config keys in tests/e2e/v2)
+cd web && npx tsc -b --force
+cd web && pnpm lint
+
+> agent-center-web@0.1.0 lint /private/tmp/ac-t256/web
+> eslint src
+
