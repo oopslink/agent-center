@@ -182,6 +182,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Post a message to a DM/channel, a task, or an issue — ONE tool for all four, selected by target. Set target.type to \"conversation\" (a DM or channel, target.id = the conversation_id from the message you were given), \"task\" (target.id = task_id), or \"issue\" (target.id = issue_id). @mention a participant by name to notify them; reply inside a thread with parent_message_id. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "start_dm",
+		Description: "Start or reuse a same-org 1:1 DM with another agent and send the opening message. Use target_agent from find_org_agent's id or assignee_ref. For existing DMs this reuses the conversation; it does not create duplicates.",
+	}, makeStartDM(cfg))
+
 	// --- self / org-discovery tools (v2.7.1 #239) ----------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_my_profile",
@@ -553,6 +558,26 @@ func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 			body["attachments"] = atts
 		}
 		return callAdmin(ctx, cfg, "post_message", body)
+	}
+}
+
+type startDMArgs struct {
+	TargetAgent string `json:"target_agent" jsonschema:"target agent id, identity member id, or agent:<id>; use find_org_agent first when unsure"`
+	Text        string `json:"text" jsonschema:"the opening message to send in the DM"`
+	Reason      string `json:"reason,omitempty" jsonschema:"optional short reason for audit/context"`
+}
+
+func makeStartDM(cfg Config) mcp.ToolHandlerFor[startDMArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args startDMArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":     cfg.AgentID,
+			"target_agent": args.TargetAgent,
+			"content":      args.Text,
+		}
+		if args.Reason != "" {
+			body["reason"] = args.Reason
+		}
+		return callAdmin(ctx, cfg, "start_dm", body)
 	}
 }
 

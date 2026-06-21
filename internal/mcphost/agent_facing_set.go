@@ -74,6 +74,7 @@ var AgentFacingToolNames = []string{
 	"remove_task_from_plan",
 	"request_input",
 	"resume_task",
+	"start_dm",
 	"start_plan",
 	"start_task",
 	"stop_plan",

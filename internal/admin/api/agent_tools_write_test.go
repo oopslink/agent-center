@@ -340,6 +340,67 @@ func (f *writeToolsFixture) workItemStatus(t *testing.T, taskID string) agent.Wo
 
 // --- post_message (target type "task") — T200 WS4 ---------------------------
 
+func TestStartDM_CreatesThenReusesAgentDM(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/start_dm", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target_agent": atAgent2, "content": "ping from AG1"})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	convID, _ := body["conversation_id"].(string)
+	if convID == "" || body["message_id"] == "" {
+		t.Fatalf("missing conversation/message ids: %v", body)
+	}
+	if body["reused"] != false {
+		t.Fatalf("first open reused=%v, want false", body["reused"])
+	}
+	conv, err := f.convRepo.FindByID(context.Background(), conversation.ConversationID(convID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conv.Kind() != conversation.ConversationKindDM {
+		t.Fatalf("kind=%s, want dm", conv.Kind())
+	}
+	active := map[conversation.IdentityRef]bool{}
+	for _, p := range conv.Participants() {
+		if p.IsActive() {
+			active[p.IdentityID] = true
+		}
+	}
+	if len(active) != 2 || !active[conversation.IdentityRef("agent:"+atAgent1)] || !active[conversation.IdentityRef("agent:"+atAgent2)] {
+		t.Fatalf("participants do not match agent pair: %#v", conv.Participants())
+	}
+	msgs, err := f.msgRepo.FindByConversationID(context.Background(), conversation.ConversationID(convID), conversation.MessageFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].Content() != "ping from AG1" || string(msgs[0].SenderIdentityID()) != "agent:"+atAgent1 {
+		t.Fatalf("unexpected messages after first start_dm: %#v", msgs)
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/start_dm", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "target_agent": "agent:" + atAgent2, "content": "second"})
+	if status != http.StatusOK {
+		t.Fatalf("second status = %d, want 200; body = %v", status, body)
+	}
+	if got := body["conversation_id"]; got != convID {
+		t.Fatalf("second conversation_id=%v, want existing %s", got, convID)
+	}
+	if body["reused"] != true {
+		t.Fatalf("second reused=%v, want true", body["reused"])
+	}
+	msgs, err = f.msgRepo.FindByConversationID(context.Background(), conversation.ConversationID(convID), conversation.MessageFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 || msgs[1].Content() != "second" {
+		t.Fatalf("unexpected messages after reused start_dm: %#v", msgs)
+	}
+}
+
 func TestPostTaskMessage_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)

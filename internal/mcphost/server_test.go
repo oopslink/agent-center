@@ -94,6 +94,8 @@ var wantTools = []string{
 	"get_my_unread", "mark_seen",
 	// v2.7 #185; T200 WS4: the single post tool (target = conversation|task|issue)
 	"post_message",
+	// agent-agent coordination: start/reuse a same-org DM and send the opener
+	"start_dm",
 	// v2.7.1 #239: self / org discovery
 	"get_my_profile", "find_org_agent",
 	// v2.7.1 #246: channel name → id discovery
@@ -170,6 +172,12 @@ func TestInitializeAndListTools(t *testing.T) {
 	for _, prop := range []string{"target", "text"} {
 		if _, ok := schemaProps[prop]; !ok {
 			t.Errorf("post_message schema missing property %q (have %v)", prop, keys2(schemaProps))
+		}
+	}
+	startDMProps := inputSchemaProperties(t, byName["start_dm"])
+	for _, prop := range []string{"target_agent", "text"} {
+		if _, ok := startDMProps[prop]; !ok {
+			t.Errorf("start_dm schema missing property %q (have %v)", prop, keys2(startDMProps))
 		}
 	}
 }

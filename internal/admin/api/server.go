@@ -395,6 +395,9 @@ func (s *Server) routes() {
 	// its target{type,id}; the former post_task_message / post_issue_message tools
 	// are gone (their resolution+authz branches live inside postMessageHandler).
 	s.mux.HandleFunc("POST /admin/agent-tools/post_message", s.postMessageHandler)
+	// Agent→agent coordination: create/reuse a same-org DM and send the opening
+	// message through the same MessageWriter path as human-created DMs.
+	s.mux.HandleFunc("POST /admin/agent-tools/start_dm", s.startDMHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/request_input", s.requestInputHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.

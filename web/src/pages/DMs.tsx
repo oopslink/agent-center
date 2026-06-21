@@ -7,6 +7,7 @@ import {
   useConversations,
   useDeleteConversation,
 } from '@/api/conversations';
+import type { Conversation } from '@/api/types';
 import { DMStartModal } from '@/components/DMStartModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
@@ -20,12 +21,16 @@ import { CONVERSATION_SEGMENTS } from './conversationSegments';
 // DMList page (/dms). Lists kind=dm conversations + "Start a DM" button.
 export default function DMs(): React.ReactElement {
   const dms = useConversations({ kind: 'dm' });
+  const [view, setView] = useState<'mine' | 'agent_agent'>('mine');
   const [startOpen, setStartOpen] = useState(false);
   // v2.7 #198: per-row delete (hard-delete) gated behind a confirm dialog.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const del = useDeleteConversation();
   const navigate = useNavigate();
   useSSEConversationSubscribe(dms.data?.map((c) => c.id));
+  const agentAgentDMs = dms.data?.filter((c) => c.dm_type === 'agent_agent_dm') ?? [];
+  const myDMs = dms.data?.filter((c) => c.dm_type !== 'agent_agent_dm') ?? [];
+  const visibleDMs = view === 'agent_agent' ? agentAgentDMs : myDMs;
 
   return (
     <section className="space-y-4" data-testid="page-DMs">
@@ -64,50 +69,104 @@ export default function DMs(): React.ReactElement {
         />
       )}
       {dms.isSuccess && dms.data.length > 0 && (
-        <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
-          {dms.data.map((c) => (
-            <li key={c.id} data-testid="dm-row" data-dm-id={c.id} className="flex items-center">
-              <OrgLink
-                to={`/dms/${encodeURIComponent(c.id)}`}
-                className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 hover:bg-bg-subtle"
-              >
-                <span className="flex items-center gap-3">
-                  {/* v2.7.1 #215 / Rule 2a: show the DM peer as @name (hover peer id,
+        <div className="space-y-3">
+          <div
+            className="inline-flex rounded border border-border-base bg-bg-elevated p-0.5 text-sm"
+            role="tablist"
+            aria-label="DM views"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'mine'}
+              onClick={() => setView('mine')}
+              className={`rounded px-3 py-1 ${
+                view === 'mine' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              我的
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'agent_agent'}
+              onClick={() => setView('agent_agent')}
+              className={`rounded px-3 py-1 ${
+                view === 'agent_agent' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Agent 间
+              {agentAgentDMs.length > 0 && (
+                <span className="ml-1 text-xs text-text-muted">({agentAgentDMs.length})</span>
+              )}
+            </button>
+          </div>
+          {visibleDMs.length === 0 ? (
+            <EmptyState
+              testId="dms-filter-empty"
+              title={view === 'agent_agent' ? 'No agent DMs' : 'No personal DMs'}
+              body={
+                view === 'agent_agent'
+                  ? 'Agent-to-agent DMs will appear here.'
+                  : 'DMs involving you will appear here.'
+              }
+            />
+          ) : (
+            <ul className="divide-y divide-border-base rounded border border-border-base bg-bg-elevated text-text-primary">
+              {visibleDMs.map((c) => (
+                <li key={c.id} data-testid="dm-row" data-dm-id={c.id} className="flex items-center">
+                  <OrgLink
+                    to={`/dms/${encodeURIComponent(c.id)}`}
+                    className="flex min-w-0 flex-1 items-center justify-between px-4 py-3 hover:bg-bg-subtle"
+                  >
+                    <span className="flex items-center gap-3">
+                      {/* v2.7.1 #215 / Rule 2a: show the DM peer as @name (hover peer id,
                       #192); a deleted peer → "(deleted)"; a malformed DM (no peer)
                       → "Direct message". Never the raw conversation id. */}
-                  {c.peer_identity_id ? (
-                    <EntityRef
-                      id={c.peer_identity_id}
-                      name={c.peer_display_name ? `@${c.peer_display_name}` : undefined}
-                      testId="dm-name"
-                      className="font-medium"
-                    />
-                  ) : (
-                    <span className="font-medium" data-testid="dm-name">Direct message</span>
-                  )}
-                  <UnreadBadge unreadCount={c.unread_count} mentionCount={c.mention_count} />
-                  <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
-                    {c.status}
-                  </span>
-                </span>
-              </OrgLink>
-              <button
-                type="button"
-                data-testid="dm-delete-button"
-                data-dm-id={c.id}
-                aria-label={`Delete DM ${c.name || c.id}`}
-                title="Delete DM"
-                onClick={() => {
-                  del.reset();
-                  setPendingDelete({ id: c.id, name: c.name || c.id });
-                }}
-                className="mr-2 shrink-0 rounded px-2 py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
+                      {c.dm_type === 'agent_agent_dm' ? (
+                        <span className="font-medium" data-testid="dm-name">
+                          {dmDisplayName(c)}
+                        </span>
+                      ) : c.peer_identity_id ? (
+                        <EntityRef
+                          id={c.peer_identity_id}
+                          name={c.peer_display_name ? `@${c.peer_display_name}` : undefined}
+                          testId="dm-name"
+                          className="font-medium"
+                        />
+                      ) : (
+                        <span className="font-medium" data-testid="dm-name">Direct message</span>
+                      )}
+                      <UnreadBadge unreadCount={c.unread_count} mentionCount={c.mention_count} />
+                      <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
+                        {c.status}
+                      </span>
+                      {c.dm_type === 'agent_agent_dm' && (
+                        <span className="rounded bg-status-blue-bg px-2 py-0.5 text-xs font-semibold uppercase text-status-blue-fg">
+                          agent-agent
+                        </span>
+                      )}
+                    </span>
+                  </OrgLink>
+                  <button
+                    type="button"
+                    data-testid="dm-delete-button"
+                    data-dm-id={c.id}
+                    aria-label={`Delete DM ${c.name || c.id}`}
+                    title="Delete DM"
+                    onClick={() => {
+                      del.reset();
+                      setPendingDelete({ id: c.id, name: c.name || c.id });
+                    }}
+                    className="mr-2 shrink-0 rounded px-2 py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {del.isError && (
@@ -149,4 +208,14 @@ export default function DMs(): React.ReactElement {
       />
     </section>
   );
+}
+
+function dmDisplayName(c: Conversation): string {
+  if (c.dm_title) return c.dm_title;
+  if (c.dm_type === 'agent_agent_dm' && c.dm_participants?.length) {
+    return c.dm_participants
+      .map((p) => (p.display_name ? `@${p.display_name}` : p.identity_id))
+      .join(' ↔ ');
+  }
+  return 'Direct message';
 }

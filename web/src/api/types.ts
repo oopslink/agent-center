@@ -32,6 +32,13 @@ export interface Conversation {
   // Absent on channels / malformed DMs → UI falls back to "Direct message".
   peer_identity_id?: string;
   peer_display_name?: string;
+  dm_type?: 'my_dm' | 'agent_agent_dm' | 'observed_dm';
+  dm_title?: string;
+  dm_participants?: Array<{
+    identity_id: string;
+    display_name?: string;
+    kind?: string;
+  }>;
   parent_conversation_id?: string;
   // owner_ref pins a task/issue conversation to its pm owner
   // (pm://tasks|issues/{id}); empty/absent for channels and DMs. v2.7 #137.

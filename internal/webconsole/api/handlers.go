@@ -446,15 +446,7 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		// sidebar/DMs list can show "@peer_name" instead of "Direct message". Omit
 		// the peer fields when the DM isn't a clean 1:1 (UI falls back).
 		if c.Kind() == conversation.ConversationKindDM {
-			if peer, ok := dmPeerOf(c, self); ok {
-				bare := refBareID(peer)
-				row["peer_identity_id"] = bare
-				if d.IdentityRepo != nil {
-					if ident, err := d.IdentityRepo.GetByID(r.Context(), bare); err == nil && ident != nil {
-						row["peer_display_name"] = ident.DisplayName()
-					}
-				}
-			}
+			enrichDMProjection(r.Context(), nr, c, self, row)
 		}
 		// v2.8.1 #278: participants{count,members} + the newest-first recent_messages
 		// preview on every row (most useful on channels, harmless on dm/issue/task —
@@ -669,6 +661,70 @@ func dmPeerOf(c *conversation.Conversation, self conversation.IdentityRef) (conv
 	return peer, true
 }
 
+func activeDMParticipants(c *conversation.Conversation) []conversation.IdentityRef {
+	refs := []conversation.IdentityRef{}
+	if c.Kind() != conversation.ConversationKindDM {
+		return refs
+	}
+	for _, p := range c.Participants() {
+		if p.IsActive() {
+			refs = append(refs, p.IdentityID)
+		}
+	}
+	return refs
+}
+
+func enrichDMProjection(ctx context.Context, nr *nameResolver, c *conversation.Conversation, self conversation.IdentityRef, row map[string]any) {
+	refs := activeDMParticipants(c)
+	row["dm_type"] = "observed_dm"
+	for _, ref := range refs {
+		if ref == self {
+			row["dm_type"] = "my_dm"
+			break
+		}
+	}
+	allAgents := len(refs) == 2
+	for _, ref := range refs {
+		if !strings.HasPrefix(string(ref), "agent:") {
+			allAgents = false
+			break
+		}
+	}
+	if allAgents {
+		row["dm_type"] = "agent_agent_dm"
+		row["dm_participants"] = dmParticipantSummaries(ctx, nr, refs)
+		row["dm_title"] = dmTitle(ctx, nr, refs)
+		return
+	}
+	if peer, ok := dmPeerOf(c, self); ok {
+		row["peer_identity_id"] = refBareID(peer)
+		if name := nr.resolveDisplayName(ctx, peer); name != "" {
+			row["peer_display_name"] = name
+			row["dm_title"] = "@" + name
+		}
+	}
+}
+
+func dmParticipantSummaries(ctx context.Context, nr *nameResolver, refs []conversation.IdentityRef) []map[string]any {
+	out := make([]map[string]any, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, map[string]any{
+			"identity_id":  string(ref),
+			"display_name": nr.resolve(ctx, ref),
+			"kind":         refKindLabel(ref),
+		})
+	}
+	return out
+}
+
+func dmTitle(ctx context.Context, nr *nameResolver, refs []conversation.IdentityRef) string {
+	labels := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		labels = append(labels, "@"+nr.resolve(ctx, ref))
+	}
+	return strings.Join(labels, " ↔ ")
+}
+
 // refBareID strips the "user:"/"agent:" kind prefix → the bare member-id (v2.7.1
 // #215 / #192: the UI shows the name, hover reveals this id).
 func refBareID(ref conversation.IdentityRef) string {
@@ -836,6 +892,9 @@ func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request)
 	// (detail surface), mirroring the sidebar list. Agent-aware (Q-T1).
 	self := conversation.IdentityRef(d.Actor)
 	row := convPublicMapWithParticipants(c)
+	if c.Kind() == conversation.ConversationKindDM {
+		enrichDMProjection(r.Context(), newNameResolver(r, d), c, self, row)
+	}
 	followed := false
 	if d.FollowStateSvc != nil {
 		if f, ferr := d.FollowStateSvc.IsFollowed(r.Context(), self, c.ID()); ferr == nil {

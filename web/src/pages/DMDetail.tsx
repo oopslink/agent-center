@@ -2,6 +2,7 @@ import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useConversation } from '@/api/conversations';
+import type { Conversation } from '@/api/types';
 import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
 import { useAgent } from '@/api/agents';
 import { useAppStore } from '@/store/app';
@@ -57,13 +58,16 @@ function DMDetailInner(): React.ReactElement {
   // stable, unconditional hook call (React rules-of-hooks). conv.data may be
   // undefined here — guard each access; the query is `enabled`-gated on a ref.
   const meBare = me ? normalizeIdentityRef(me) : '';
+  const isAgentAgentDM = conv.data?.dm_type === 'agent_agent_dm';
   const peerRef =
-    conv.data?.peer_identity_id ||
-    (conv.data?.participants ?? [])
-      .filter((p) => !p.left_at)
-      .map((p) => p.identity_id)
-      .find((pid) => normalizeIdentityRef(pid) !== meBare) ||
-    '';
+    isAgentAgentDM
+      ? ''
+      : conv.data?.peer_identity_id ||
+        (conv.data?.participants ?? [])
+          .filter((p) => !p.left_at)
+          .map((p) => p.identity_id)
+          .find((pid) => normalizeIdentityRef(pid) !== meBare) ||
+        '';
   const isAgentPeer = peerRef.startsWith('agent:');
   // Only fetch the execution Agent for an agent peer (users have no /agents row).
   // useAgent is `enabled: !!id` — passing undefined for a user/empty peer keeps it
@@ -112,13 +116,21 @@ function DMDetailInner(): React.ReactElement {
   const resolvedPeer = conv.data.peer_display_name || (peerRef ? resolveName(peerRef) : '');
   // resolveName returns the ref itself on a miss → treat that as unresolved.
   const peerName = resolvedPeer && resolvedPeer !== peerRef ? resolvedPeer : '';
-  const heading = peerName ? `@${peerName}` : peerRef ? '(deleted)' : 'Direct message';
+  const heading = isAgentAgentDM
+    ? conv.data.dm_title || agentAgentTitle(conv.data)
+    : peerName
+      ? `@${peerName}`
+      : peerRef
+        ? '(deleted)'
+        : 'Direct message';
   const isDeleted = !peerName && !!peerRef;
 
   // Avatar identity: agent peers render the rounded-square (agent) avatar, users
   // the circle. Name = resolved peer name, else the bare handle (so a deleted /
   // unresolved peer still seeds stable initials instead of "?").
-  const avatarName = peerName || (peerRef ? normalizeIdentityRef(peerRef) : 'Direct message');
+  const avatarName = isAgentAgentDM
+    ? heading
+    : peerName || (peerRef ? normalizeIdentityRef(peerRef) : 'Direct message');
 
   return (
     <section
@@ -159,7 +171,7 @@ function DMDetailInner(): React.ReactElement {
           >
             <Avatar
               name={avatarName}
-              kind={isAgentPeer ? 'agent' : 'human'}
+              kind={isAgentAgentDM || isAgentPeer ? 'agent' : 'human'}
               size="lg"
               // Only feed an online state for a resolved, non-deleted agent — the
               // Avatar renders its status dot only when `online` is defined, so a
@@ -190,12 +202,12 @@ function DMDetailInner(): React.ReactElement {
               <TypeChip kind="dm" />
               {/* Bot badge — only for an agent peer. Labelled text (not emoji /
                   color-only) so it reads in any theme + to AT. */}
-              {isAgentPeer && (
+              {(isAgentAgentDM || isAgentPeer) && (
                 <span
                   data-testid="dm-bot-badge"
                   className="rounded bg-status-blue-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-blue-fg"
                 >
-                  Bot
+                  {isAgentAgentDM ? 'Agent-Agent' : 'Bot'}
                 </span>
               )}
               {/* Online dot — only for a running/available agent. aria-label +
@@ -211,7 +223,7 @@ function DMDetailInner(): React.ReactElement {
               )}
             </div>
             <p className="text-xs text-text-secondary" data-testid="dm-subtitle">
-              Direct message
+              {isAgentAgentDM ? 'Agent 间对话' : 'Direct message'}
             </p>
           </div>
         </div>
@@ -273,6 +285,15 @@ function DMDetailInner(): React.ReactElement {
       )}
     </section>
   );
+}
+
+function agentAgentTitle(c: Conversation): string {
+  if (c.dm_participants?.length) {
+    return c.dm_participants
+      .map((p) => (p.display_name ? `@${p.display_name}` : p.identity_id))
+      .join(' ↔ ');
+  }
+  return 'Agent DM';
 }
 
 // ── Inline SVG icons (no emoji; every icon button carries its own aria-label).

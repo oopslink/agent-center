@@ -331,6 +331,115 @@ type postMessageReq struct {
 	Attachments []agentAttachmentReq `json:"attachments"`
 }
 
+type startDMReq struct {
+	AgentID       string `json:"agent_id"`
+	TargetAgent   string `json:"target_agent"`
+	TargetAgentID string `json:"target_agent_id"`
+	Content       string `json:"content"`
+	Reason        string `json:"reason"`
+}
+
+// startDMHandler lets an agent open or reuse a same-org 1:1 DM with another
+// agent and place the first message in it. It deliberately goes through
+// MessageWriter.OpenConversation so T288's DM-key dedup and the normal
+// conversation.message_added outbox/wake path are reused instead of duplicated.
+func (s *Server) startDMHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req startDMReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.MessageWriter == nil || d.AgentSvc == nil {
+		writeError(w, http.StatusNotImplemented, "agent_dm_not_wired", "")
+		return
+	}
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		writeError(w, http.StatusBadRequest, "missing_content", "")
+		return
+	}
+	target := strings.TrimSpace(req.TargetAgent)
+	if target == "" {
+		target = strings.TrimSpace(req.TargetAgentID)
+	}
+	if target == "" {
+		writeError(w, http.StatusBadRequest, "missing_target_agent", "target_agent is required")
+		return
+	}
+	target = strings.TrimPrefix(target, "agent:")
+	targetAgent, err := d.AgentSvc.ResolveAgent(r.Context(), target)
+	if err != nil {
+		if errors.Is(err, agent.ErrAgentNotFound) {
+			writeError(w, http.StatusNotFound, "target_agent_not_found", "")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", err.Error())
+		return
+	}
+	if targetAgent.OrganizationID() != a.OrganizationID() {
+		writeError(w, http.StatusForbidden, "cross_org_agent_dm_forbidden", "target agent is not in the same organization")
+		return
+	}
+	selfRef := conversation.IdentityRef(agentActor(a))
+	targetRef := conversation.IdentityRef(agentActor(targetAgent))
+	if selfRef == targetRef {
+		writeError(w, http.StatusBadRequest, "self_dm_not_allowed", "target_agent must be another agent")
+		return
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	parts := []conversation.ParticipantElement{
+		{IdentityID: selfRef, Role: "owner", JoinedAt: now, JoinedBy: selfRef},
+		{IdentityID: targetRef, Role: "member", JoinedAt: now, JoinedBy: selfRef},
+	}
+	var open convservice.OpenResult
+	var msg convservice.AddMessageResult
+	run := func(ctx context.Context) error {
+		var oerr error
+		open, oerr = d.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
+			Kind:           conversation.ConversationKindDM,
+			OrganizationID: a.OrganizationID(),
+			Participants:   parts,
+			CreatedBy:      selfRef,
+			Actor:          observability.Actor(selfRef),
+		})
+		if oerr != nil {
+			return oerr
+		}
+		var merr error
+		msg, merr = d.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+			ConversationID:   open.ConversationID,
+			SenderIdentityID: selfRef,
+			ContentKind:      conversation.MessageContentText,
+			Direction:        conversation.DirectionOutbound,
+			Content:          content,
+			Actor:            observability.Actor(selfRef),
+		})
+		return merr
+	}
+	if d.DB != nil {
+		err = persistence.RunInTx(r.Context(), d.DB, run)
+	} else {
+		err = run(r.Context())
+	}
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"conversation_id":  string(open.ConversationID),
+		"message_id":       string(msg.MessageID),
+		"reused":           open.Existing,
+		"target_agent_id":  string(targetAgent.ID()),
+		"target_agent_ref": string(targetRef),
+	})
+}
+
 // postMessageHandler appends a message, as the agent, to a DM/channel, a task,
 // or an issue — selected by req.Target.Type (T200 WS4). It UNIFIES the former
 // post_message / post_task_message / post_issue_message trio: one tool, one

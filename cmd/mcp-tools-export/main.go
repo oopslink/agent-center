@@ -88,7 +88,7 @@ var toolDomain = map[string]string{
 	"archive_plan": "plan", "rerun_failed_node": "plan", "resume_paused_node": "plan",
 	// conversations / messaging
 	"get_my_unread": "conversations", "mark_seen": "conversations",
-	"post_message": "conversations", "subscribe": "conversations", "unsubscribe": "conversations",
+	"post_message": "conversations", "start_dm": "conversations", "subscribe": "conversations", "unsubscribe": "conversations",
 	"request_input": "conversations",
 	// files
 	"upload_file": "files", "download_file": "files", "attach_file": "files",
