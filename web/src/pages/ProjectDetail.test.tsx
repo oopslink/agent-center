@@ -265,6 +265,37 @@ describe('ProjectDetail page', () => {
     expect(repoRow).toHaveTextContent('main repo');
   });
 
+  it('renders a Plans tab (after Tasks) listing the project plans (per @oopslink)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/projects/:pid/plans', () =>
+        HttpResponse.json({
+          plans: [
+            {
+              id: 'plan-1', project_id: 'proj-a', name: 'Sprint One', description: '',
+              status: 'running', creator_ref: 'user:hayang', conversation_id: 'c-1',
+              org_ref: 'P7', has_failed: false, progress: { done: 2, total: 5 },
+              created_at: '2026-05-20T01:00:00Z',
+            },
+          ],
+        }),
+      ),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
+
+    // The Plans tab sits after Tasks, before Members.
+    expect(screen.getByTestId('project-tab-plans')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('project-tab-plans'));
+    await waitFor(() => expect(screen.getByTestId('plan-row')).toBeInTheDocument());
+    const row = screen.getByTestId('plan-row');
+    expect(row).toHaveAttribute('data-plan-id', 'plan-1');
+    expect(within(row).getByTestId('plan-id-handle')).toHaveTextContent('P7');
+    expect(row).toHaveTextContent('Sprint One');
+  });
+
   it('member name links to its detail page (agent → AgentDetail, human → user page)', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),

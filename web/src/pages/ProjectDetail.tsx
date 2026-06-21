@@ -11,6 +11,7 @@ import {
   type Project,
 } from '@/api/projects';
 import { useIssues } from '@/api/issues';
+import { usePlans } from '@/api/plans';
 import { useAgents } from '@/api/agents';
 import { formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
@@ -27,6 +28,7 @@ import { ProjectMemberAddModal } from '@/components/ProjectMemberAddModal';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
+import { PlanStatusChip, planProgressLabel, PlanFailedIndicator } from '@/components/planDisplay';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
 // project hosts its Issues and Tasks as tabs/sections — there is no
@@ -290,7 +292,7 @@ const editInputClass =
 // -----------------------------------------------------------------------------
 // Work tabs: Issues / Tasks live inside the project.
 // -----------------------------------------------------------------------------
-type WorkTab = 'issues' | 'tasks' | 'members' | 'repos';
+type WorkTab = 'issues' | 'tasks' | 'plans' | 'members' | 'repos';
 
 // v2.10.0 [T4]: the active work tab is URL-param-driven (?tab=) so the col②
 // project sub-nav (shell/nav/WorkspaceSecondaryNav) and the in-page tab bar
@@ -298,7 +300,7 @@ type WorkTab = 'issues' | 'tasks' | 'members' | 'repos';
 // it. Defaults to 'issues' (unknown/absent param). Pre-T4 in-page state →
 // the same testids/panels, so existing tests are unaffected.
 function isWorkTab(v: string | null): v is WorkTab {
-  return v === 'issues' || v === 'tasks' || v === 'members' || v === 'repos';
+  return v === 'issues' || v === 'tasks' || v === 'plans' || v === 'members' || v === 'repos';
 }
 
 function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactElement {
@@ -318,12 +320,14 @@ function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactEleme
       <div className="flex gap-1" role="tablist" aria-label="project work">
         <TabButton label="Issues" value="issues" active={tab === 'issues'} onClick={() => setTab('issues')} />
         <TabButton label="Tasks" value="tasks" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
+        <TabButton label="Plans" value="plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
         <TabButton label="Members" value="members" active={tab === 'members'} onClick={() => setTab('members')} />
         <TabButton label="Code repos" value="repos" active={tab === 'repos'} onClick={() => setTab('repos')} />
       </div>
       <div className="mt-3">
         {tab === 'issues' && <IssuesPanel projectId={projectId} />}
         {tab === 'tasks' && <TasksPanel projectId={projectId} />}
+        {tab === 'plans' && <PlansPanel projectId={projectId} />}
         {tab === 'members' && <MembersPanel projectId={projectId} />}
         {tab === 'repos' && <CodeReposPanel projectId={projectId} />}
       </div>
@@ -358,6 +362,84 @@ function TabButton({
     >
       {label}
     </button>
+  );
+}
+
+// PlansPanel lists the project's plans (per @oopslink: a Plans tab after Tasks).
+// Read-only table (ID / Name / Status / Progress) mirroring the Issues/Tasks
+// panels; each name links to the plan detail page. Plans are created/edited on
+// the Work Board, so there is no create button here.
+function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const plans = usePlans(projectId);
+  const data = plans.data ?? [];
+  return (
+    <div
+      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
+      data-testid="project-plans-panel"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="font-heading text-sm font-semibold text-text-primary">Plans</h2>
+        <OrgLink
+          to={`/projects/${encodeURIComponent(projectId)}/plans`}
+          className="rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-secondary hover:bg-border-base"
+          data-testid="project-plans-board-link"
+        >
+          Work Board
+        </OrgLink>
+      </div>
+      {plans.isLoading ? (
+        <div className="space-y-2 py-2">
+          <Skeleton height="1.5rem" />
+          <Skeleton height="1.5rem" />
+        </div>
+      ) : plans.isError ? (
+        <p className="py-2 text-xs text-danger" data-testid="project-plans-error">
+          {(plans.error as Error).message}
+        </p>
+      ) : data.length === 0 ? (
+        <p className="py-4 text-center text-xs text-text-muted">No plans yet</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs" data-testid="project-plans-table">
+            <thead>
+              <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
+                <th className="py-1.5 pr-3 font-medium">ID</th>
+                <th className="py-1.5 pr-3 font-medium">Name</th>
+                <th className="py-1.5 pr-3 font-medium">Status</th>
+                <th className="py-1.5 font-medium">Progress</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-base">
+              {data.map((pl) => (
+                <tr key={pl.id} data-testid="plan-row" data-plan-id={pl.id}>
+                  <td className="py-1.5 pr-3 font-mono text-text-muted" data-testid="plan-id-handle" title={pl.id}>
+                    {/* P123 org_ref when present; #id-tail handle otherwise. */}
+                    {refLabel(pl.org_ref, pl.id)}
+                  </td>
+                  <td className="max-w-[18rem] truncate py-1.5 pr-3">
+                    <OrgLink
+                      to={`/projects/${encodeURIComponent(projectId)}/plans/${encodeURIComponent(pl.id)}`}
+                      className="text-text-primary hover:text-accent"
+                    >
+                      {pl.name || pl.id}
+                    </OrgLink>
+                  </td>
+                  <td className="py-1.5 pr-3">
+                    <span className="inline-flex items-center gap-1">
+                      <PlanStatusChip status={pl.status} />
+                      <PlanFailedIndicator hasFailed={pl.has_failed} />
+                    </span>
+                  </td>
+                  <td className="py-1.5 tabular-nums text-text-muted">
+                    {planProgressLabel(pl.progress)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

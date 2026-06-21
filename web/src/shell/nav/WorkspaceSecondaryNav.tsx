@@ -24,6 +24,10 @@ import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 const PROJECT_TABS: ReadonlyArray<{ key: string; label: string; Icon: () => React.ReactElement }> = [
   { key: 'issues', label: 'Issues', Icon: IssueIcon },
   { key: 'tasks', label: 'Tasks', Icon: TaskIcon },
+  // Plans tab (per @oopslink) — the project's plan list, synced with
+  // ProjectDetail's in-page tab bar (?tab=plans). Distinct from the Work Board
+  // entry below, which is the /plans kanban route.
+  { key: 'plans', label: 'Plans', Icon: PlanIcon },
   { key: 'members', label: 'Members', Icon: MembersIcon },
   { key: 'repos', label: 'Code repos', Icon: ReposIcon },
 ];

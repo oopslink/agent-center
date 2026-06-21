@@ -71,6 +71,7 @@ describe('WorkspaceSecondaryNav (v2.10.0 [T4])', () => {
     // sub-nav tab links carry ?tab=.
     expect(screen.getByTestId('project-subnav-issues')).toHaveAttribute('href', '/projects/proj-a?tab=issues');
     expect(screen.getByTestId('project-subnav-tasks')).toHaveAttribute('href', '/projects/proj-a?tab=tasks');
+    expect(screen.getByTestId('project-subnav-plans')).toHaveAttribute('href', '/projects/proj-a?tab=plans');
     expect(screen.getByTestId('project-subnav-members')).toHaveAttribute('href', '/projects/proj-a?tab=members');
     expect(screen.getByTestId('project-subnav-repos')).toHaveAttribute('href', '/projects/proj-a?tab=repos');
     // Work Board → the per-project plan board route.
