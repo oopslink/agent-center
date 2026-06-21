@@ -71,10 +71,11 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 		ProjectID: pid,
 		Version:   "v2.13.0",
 		Features: []CycleFeature{
-			{Name: "F1 规格", Branch: "f1-spec"}, // explicit branch, full chain
+			{Name: "F1 规格", Branch: "f1-spec"}, // explicit branch, full control-flow chain
 			{Name: "F9 文档", DocOnly: true},     // doc-only: Dev-only, skip merge check
 		},
-		CreatedBy: "user:pd",
+		MaxReviewRounds: 5, // non-default loopback bound (asserted on the loopback edge)
+		CreatedBy:       "user:pd",
 	})
 	if err != nil {
 		t.Fatalf("ScaffoldCyclePlan: %v", err)
@@ -94,14 +95,28 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// S0 + (F1: Dev+Review+Integrate) + (F9 doc-only: Dev) + Gate + Accept + Ship = 8.
-	if len(all) != 8 {
-		t.Fatalf("node count = %d, want 8: %v", len(all), titles(all))
+	// S0 + (F1: Dev+Review+Decision+Integrate+Escape) + (F9 doc-only: Dev) + Gate +
+	// Accept + Ship = 10 (B2 control-flow chain).
+	if len(all) != 10 {
+		t.Fatalf("node count = %d, want 10: %v", len(all), titles(all))
 	}
-	if len(res.Nodes) != 8 {
-		t.Fatalf("result node count = %d, want 8", len(res.Nodes))
+	if len(res.Nodes) != 10 {
+		t.Fatalf("result node count = %d, want 10", len(res.Nodes))
 	}
 	byTitle := scaffoldByTitle(t, all)
+
+	const (
+		f1Dev    = "F1 规格 · Dev"
+		f1Review = "F1 规格 · Review"
+		f1Dec    = "F1 规格 · Decision（评审结论 pass/reject）"
+		f1Integ  = "F1 规格 · Integrate"
+		f1Esc    = "F1 规格 · 逃生/人工兜底（评审打回超限）"
+		f9Dev    = "F9 文档 · Dev"
+		s0Title  = "S0 开发主分支 — 切 dev/v2.13.0"
+		gate     = "集成完成 Gate — PD 关门核对"
+		accept   = "Accept 验收（集成后主干整体）"
+		shipT    = "Ship v2.13.0"
+	)
 
 	// Every node is UNASSIGNED (structure-only — PD assigns owners next).
 	for _, tk := range all {
@@ -111,7 +126,7 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 	}
 
 	// S0: branch=dev/v2.13.0, base=main, role=s0.
-	s0 := byTitle["S0 开发主分支 — 切 dev/v2.13.0"]
+	s0 := byTitle[s0Title]
 	if s0 == nil {
 		t.Fatalf("S0 node missing: %v", titles(all))
 	}
@@ -122,17 +137,19 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 		t.Errorf("S0 role = %q, want s0", s0.Role())
 	}
 
-	// v2.13.0 I18/F3: every node persists its cycle ROLE (the discriminator F3's
-	// merge guard + F4's board key on). Assert the per-title role mapping survived
-	// Save+ListByPlan (and, for the doc-only Dev, the resolveDefaultBranch re-stamp).
+	// v2.13.0 I18/F3+B2: every node persists its cycle ROLE (the discriminator F3's
+	// merge guard + F4's board key on). Decision/Escape are the new B2 control-flow
+	// roles. Assert the per-title role mapping survived Save+ListByPlan.
 	wantRole := map[string]pm.CycleNodeRole{
-		"F1 规格 · Dev":       pm.CycleRoleDev,
-		"F1 规格 · Review":    pm.CycleRoleReview,
-		"F1 规格 · Integrate": pm.CycleRoleIntegrate,
-		"F9 文档 · Dev":       pm.CycleRoleDev,
-		"集成完成 Gate — PD 关门核对": pm.CycleRoleGate,
-		"Accept 验收（集成后主干整体）":  pm.CycleRoleAccept,
-		"Ship v2.13.0":       pm.CycleRoleShip,
+		f1Dev:   pm.CycleRoleDev,
+		f1Review: pm.CycleRoleReview,
+		f1Dec:   pm.CycleRoleDecision,
+		f1Integ: pm.CycleRoleIntegrate,
+		f1Esc:   pm.CycleRoleEscape,
+		f9Dev:   pm.CycleRoleDev,
+		gate:    pm.CycleRoleGate,
+		accept:  pm.CycleRoleAccept,
+		shipT:   pm.CycleRoleShip,
 	}
 	for title, want := range wantRole {
 		n := byTitle[title]
@@ -144,8 +161,9 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 		}
 	}
 
-	// F1 chain shares the explicit branch f1-spec, base dev/v2.13.0, no skip.
-	for _, title := range []string{"F1 规格 · Dev", "F1 规格 · Review", "F1 规格 · Integrate"} {
+	// F1 git-chain (Dev/Review/Decision/Integrate) shares the explicit branch f1-spec,
+	// base dev/v2.13.0, no skip. (The Escape node is a human node — branch left empty.)
+	for _, title := range []string{f1Dev, f1Review, f1Dec, f1Integ} {
 		n := byTitle[title]
 		if n == nil {
 			t.Fatalf("missing node %q: %v", title, titles(all))
@@ -157,25 +175,29 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 			t.Errorf("%q skip_merge_check = true, want false", title)
 		}
 	}
-
-	// F9 is doc-only: a single Dev node, no Review/Integrate, skip_merge_check=true,
-	// and its branch defaulted to its own T<n>.
-	if byTitle["F9 文档 · Review"] != nil || byTitle["F9 文档 · Integrate"] != nil {
-		t.Errorf("doc-only feature should have no Review/Integrate node: %v", titles(all))
+	if esc := byTitle[f1Esc]; esc == nil || esc.Branch() != "" {
+		t.Errorf("escape node branch = %q, want empty (human node, no git branch)", esc.Branch())
 	}
-	f9dev := byTitle["F9 文档 · Dev"]
-	if f9dev == nil {
+
+	// F9 is doc-only: a single Dev node, no Review/Decision/Integrate/Escape,
+	// skip_merge_check=true, and its branch defaulted to its own T<n>.
+	if byTitle["F9 文档 · Review"] != nil || byTitle["F9 文档 · Integrate"] != nil ||
+		byTitle["F9 文档 · Decision（评审结论 pass/reject）"] != nil {
+		t.Errorf("doc-only feature should have no Review/Decision/Integrate node: %v", titles(all))
+	}
+	f9 := byTitle[f9Dev]
+	if f9 == nil {
 		t.Fatalf("F9 Dev node missing: %v", titles(all))
 	}
-	if !f9dev.SkipMergeCheck() {
+	if !f9.SkipMergeCheck() {
 		t.Errorf("doc-only Dev skip_merge_check = false, want true")
 	}
-	if !strings.HasPrefix(f9dev.Branch(), "T") {
-		t.Errorf("doc-only Dev default branch = %q, want a T<n> default", f9dev.Branch())
+	if !strings.HasPrefix(f9.Branch(), "T") {
+		t.Errorf("doc-only Dev default branch = %q, want a T<n> default", f9.Branch())
 	}
 
 	// Ship: branch=trunk, base=main.
-	ship := byTitle["Ship v2.13.0"]
+	ship := byTitle[shipT]
 	if ship == nil {
 		t.Fatalf("Ship node missing: %v", titles(all))
 	}
@@ -183,14 +205,10 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 		t.Errorf("Ship meta = branch:%q base:%q, want dev/v2.13.0 / main", ship.Branch(), ship.Base())
 	}
 
-	// Edges: build a depends_on set keyed by (from→to) task ids.
+	// Edges: index persisted edges by (from→to) → the full Dependency (kind/when/max).
 	deps, err := plans.ListDependencies(ctx, res.PlanID)
 	if err != nil {
 		t.Fatal(err)
-	}
-	edge := map[string]bool{}
-	for _, e := range deps {
-		edge[string(e.FromTaskID)+"->"+string(e.ToTaskID)] = true
 	}
 	id := func(title string) pm.TaskID {
 		n := byTitle[title]
@@ -199,24 +217,45 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 		}
 		return n.ID()
 	}
-	wantEdges := [][2]string{
-		{"F1 规格 · Dev", "S0 开发主分支 — 切 dev/v2.13.0"},
-		{"F1 规格 · Review", "F1 规格 · Dev"},
-		{"F1 规格 · Integrate", "F1 规格 · Review"},
-		{"F9 文档 · Dev", "S0 开发主分支 — 切 dev/v2.13.0"},
-		{"集成完成 Gate — PD 关门核对", "F1 规格 · Integrate"},
-		{"集成完成 Gate — PD 关门核对", "F9 文档 · Dev"}, // doc-only terminal = its Dev
-		{"Accept 验收（集成后主干整体）", "集成完成 Gate — PD 关门核对"},
-		{"Ship v2.13.0", "Accept 验收（集成后主干整体）"},
+	edge := map[string]pm.Dependency{}
+	for _, e := range deps {
+		edge[string(e.FromTaskID)+"->"+string(e.ToTaskID)] = e
 	}
-	for _, e := range wantEdges {
-		key := string(id(e[0])) + "->" + string(id(e[1]))
-		if !edge[key] {
-			t.Errorf("missing depends_on edge: %q → %q", e[0], e[1])
+	// wantEdge: from-title, to-title, kind, when, maxRounds.
+	type we struct {
+		from, to, kind, when string
+		max                  int
+	}
+	wantEdges := []we{
+		{f1Dev, s0Title, "seq", "", 0},
+		{f1Review, f1Dev, "seq", "", 0},
+		{f1Dec, f1Review, "seq", "", 0},
+		{f1Integ, f1Dec, "conditional", "pass", 0},          // pass → Integrate
+		{f1Esc, f1Dec, "conditional", "reject_exhausted", 0}, // exhausted → Escape
+		{f1Dec, f1Dev, "loopback", "reject", 5},              // reject → bounded loop (max=5)
+		{f9Dev, s0Title, "seq", "", 0},
+		{gate, f1Integ, "seq", "", 0},  // Gate terminal = Integrate (pass path)
+		{gate, f9Dev, "seq", "", 0},    // doc-only terminal = its Dev
+		{accept, gate, "seq", "", 0},
+		{shipT, accept, "seq", "", 0},
+	}
+	for _, w := range wantEdges {
+		key := string(id(w.from)) + "->" + string(id(w.to))
+		e, ok := edge[key]
+		if !ok {
+			t.Errorf("missing edge: %q → %q", w.from, w.to)
+			continue
+		}
+		if string(pm.NormalizeEdgeKind(e.Kind)) != w.kind || e.When != w.when || e.MaxRounds != w.max {
+			t.Errorf("edge %q→%q = kind:%q when:%q max:%d, want kind:%q when:%q max:%d",
+				w.from, w.to, pm.NormalizeEdgeKind(e.Kind), e.When, e.MaxRounds, w.kind, w.when, w.max)
 		}
 	}
 	if len(deps) != len(wantEdges) {
 		t.Errorf("edge count = %d, want %d", len(deps), len(wantEdges))
+	}
+	if len(res.Edges) != len(wantEdges) {
+		t.Errorf("result edge count = %d, want %d", len(res.Edges), len(wantEdges))
 	}
 }
 

@@ -296,9 +296,20 @@ func (s *Service) UpdatePlan(ctx context.Context, cmd UpdatePlanCommand) error {
 // rejects self-edges + cycles (acyclic invariant, §9.6a) before persisting. Both
 // tasks must already be selected into the Plan. The actor must be a project member.
 func (s *Service) AddPlanDependency(ctx context.Context, planID pm.PlanID, fromTaskID, toTaskID pm.TaskID, actor pm.IdentityRef) error {
+	return s.addPlanEdge(ctx, planID, pm.Dependency{PlanID: planID, FromTaskID: fromTaskID, ToTaskID: toTaskID}, actor)
+}
+
+// addPlanEdge is the shared edge-insert primitive behind AddPlanDependency and the
+// control-flow edges scaffold_cycle_plan wires (B2/B0 §2.2). It carries the same
+// draft/membership/scope guards and persists whatever edge Kind/When/MaxRounds the
+// caller passes (the repo's AddDependency runs WouldCreateCycle, which validates
+// loopback ancestry and rejects forward cycles). The PlanID on `dep` is forced to
+// `planID` so a caller can't smuggle a cross-plan edge.
+func (s *Service) addPlanEdge(ctx context.Context, planID pm.PlanID, dep pm.Dependency, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
 	}
+	dep.PlanID = planID
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		p, err := s.plans.FindByID(txCtx, planID)
 		if err != nil {
@@ -320,7 +331,7 @@ func (s *Service) AddPlanDependency(ctx context.Context, planID pm.PlanID, fromT
 			return pm.ErrPlanNotDraft
 		}
 		// Both endpoints must be tasks selected into THIS plan (§9.8 scoping).
-		for _, id := range []pm.TaskID{fromTaskID, toTaskID} {
+		for _, id := range []pm.TaskID{dep.FromTaskID, dep.ToTaskID} {
 			t, terr := s.tasks.FindByID(txCtx, id)
 			if terr != nil {
 				return terr
@@ -329,7 +340,7 @@ func (s *Service) AddPlanDependency(ctx context.Context, planID pm.PlanID, fromT
 				return pm.ErrPlanProjectMismatch
 			}
 		}
-		return s.plans.AddDependency(txCtx, pm.Dependency{PlanID: planID, FromTaskID: fromTaskID, ToTaskID: toTaskID})
+		return s.plans.AddDependency(txCtx, dep)
 	})
 }
 
