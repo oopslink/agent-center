@@ -101,10 +101,10 @@ export default function Channels(): React.ReactElement {
                 className="block flex-1 px-4 py-3 hover:bg-bg-subtle"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className="truncate font-medium">{c.name}</span>
+                  <span className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className="min-w-0 truncate font-medium">{c.name}</span>
                     <UnreadBadge unreadCount={c.unread_count} mentionCount={c.mention_count} />
-                    <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
+                    <span className="shrink-0 rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
                       {c.status}
                     </span>
                   </span>

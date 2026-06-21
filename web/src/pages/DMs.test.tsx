@@ -41,6 +41,24 @@ describe('DMs page', () => {
     expect(screen.queryByText('C-D2')).not.toBeInTheDocument();
   });
 
+  it('labels the DM group tabs in English (per @oopslink): Mine / Agent-to-agent', async () => {
+    server.use(
+      http.get('/api/conversations', () =>
+        HttpResponse.json([
+          { id: 'C-D1', kind: 'dm', name: '', status: 'active', peer_identity_id: 'agent:bot-1', peer_display_name: 'Bot One' },
+        ]),
+      ),
+    );
+    wrap(<DMs />);
+    const mine = await screen.findByTestId('dms-tab-mine');
+    expect(mine).toHaveTextContent('Mine');
+    const agent = screen.getByTestId('dms-tab-agent-agent');
+    expect(agent).toHaveTextContent('Agent-to-agent');
+    // no Chinese labels remain.
+    expect(screen.queryByText('我的')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Agent 间/)).not.toBeInTheDocument();
+  });
+
   it('shows the empty state when there are no DMs', async () => {
     server.use(http.get('/api/conversations', () => HttpResponse.json([])));
     wrap(<DMs />);

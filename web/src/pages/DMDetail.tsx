@@ -223,7 +223,7 @@ function DMDetailInner(): React.ReactElement {
               )}
             </div>
             <p className="text-xs text-text-secondary" data-testid="dm-subtitle">
-              {isAgentAgentDM ? 'Agent 间对话' : 'Direct message'}
+              {isAgentAgentDM ? 'Agent-to-agent conversation' : 'Direct message'}
             </p>
           </div>
         </div>

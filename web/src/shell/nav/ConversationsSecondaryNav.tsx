@@ -118,11 +118,11 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
                 className={rowClass}
                 data-testid="conv-nav-channel"
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span aria-hidden="true" className="text-text-muted">
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <span aria-hidden="true" className="shrink-0 text-text-muted">
                     #
                   </span>
-                  <span className="truncate">{c.name}</span>
+                  <span className="min-w-0 truncate">{c.name}</span>
                 </span>
                 <UnreadBadge unreadCount={c.unread_count} mentionCount={c.mention_count} />
               </NavLink>
@@ -149,8 +149,8 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
                   className={rowClass}
                   data-testid="conv-nav-dm"
                 >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{dmLabel(d)}</span>
+                  <span className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="min-w-0 truncate">{dmLabel(d)}</span>
                   </span>
                   <UnreadBadge unreadCount={d.unread_count} mentionCount={d.mention_count} />
                 </NavLink>

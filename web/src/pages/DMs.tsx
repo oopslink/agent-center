@@ -80,22 +80,24 @@ export default function DMs(): React.ReactElement {
               role="tab"
               aria-selected={view === 'mine'}
               onClick={() => setView('mine')}
+              data-testid="dms-tab-mine"
               className={`rounded px-3 py-1 ${
                 view === 'mine' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              我的
+              Mine
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={view === 'agent_agent'}
               onClick={() => setView('agent_agent')}
+              data-testid="dms-tab-agent-agent"
               className={`rounded px-3 py-1 ${
                 view === 'agent_agent' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              Agent 间
+              Agent-to-agent
               {agentAgentDMs.length > 0 && (
                 <span className="ml-1 text-xs text-text-muted">({agentAgentDMs.length})</span>
               )}
