@@ -113,7 +113,9 @@ func MigrateV1ToV2Command() *Command {
 // originally landed this as a SECOND 0064, colliding with center_settings — the
 // migrator keys by version into a map, so the alphabetically-later file silently
 // overwrote it and the ADD COLUMNs never ran on a fresh DB. Renumbered to 0065.
-const targetSchemaVersion = 65
+// v2.13.0 I18/F2 added 0066 (pm_tasks.branch/base/skip_merge_check — cycle-node
+// git metadata for scaffold_cycle_plan + the F3 merge-check guard).
+const targetSchemaVersion = 66
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -285,6 +285,11 @@ type CreateTaskCommand struct {
 	CreatedBy        pm.IdentityRef
 	Assignee         pm.IdentityRef // optional one-step assign (T199/WS3)
 	Dispatch         bool           // optional one-step dispatch into the built-in pool (T199/WS3)
+	// Branch/Base/SkipMergeCheck are the cycle-node git metadata (v2.13.0 I18/F2),
+	// set at create by scaffold_cycle_plan; empty/false for ordinary task creates.
+	Branch         string
+	Base           string
+	SkipMergeCheck bool
 }
 
 // CreateTask writes the Task + outbox pm.task.created. The projector (B2-b)
@@ -318,6 +323,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 		t, terr := pm.NewTask(pm.NewTaskInput{
 			ID: taskID, ProjectID: cmd.ProjectID, Title: cmd.Title,
 			Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
+			Branch: cmd.Branch, Base: cmd.Base, SkipMergeCheck: cmd.SkipMergeCheck,
 		})
 		if terr != nil {
 			return terr

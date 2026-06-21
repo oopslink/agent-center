@@ -442,6 +442,7 @@ func (s *Server) routes() {
 	// ServeMux routes PUT/complete to the transfer handlers and bare GET to
 	// download (same precedence trick as D3-d).
 	s.mux.HandleFunc("POST /admin/agent-tools/create_plan", s.createPlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/scaffold_cycle_plan", s.scaffoldCyclePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/add_task_to_plan", s.addTaskToPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/remove_task_from_plan", s.removeTaskFromPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/add_plan_dependency", s.addPlanDependencyHandler)

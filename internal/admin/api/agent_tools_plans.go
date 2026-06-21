@@ -74,7 +74,9 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
-		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists):
+		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
+		errors.Is(err, pmservice.ErrScaffoldVersionRequired), errors.Is(err, pmservice.ErrScaffoldNoFeatures),
+		errors.Is(err, pmservice.ErrScaffoldFeatureNameRequired):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 	default:
 		mapDomainError(w, err)
@@ -134,6 +136,71 @@ func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(planID)})
+}
+
+// --- scaffold_cycle_plan -----------------------------------------------------
+
+type scaffoldFeatureReq struct {
+	Name    string `json:"name"`
+	Branch  string `json:"branch"`
+	DocOnly bool   `json:"doc_only"`
+}
+
+type scaffoldCyclePlanReq struct {
+	AgentID   string               `json:"agent_id"`
+	ProjectID string               `json:"project_id"`
+	Version   string               `json:"version"`
+	Features  []scaffoldFeatureReq `json:"features"`
+}
+
+// scaffoldCyclePlanHandler builds a whole cycle node-graph (S0 → (Dev→Review→
+// Integrate)×N → 集成完成 Gate → Accept → Ship) in one call via
+// pm.ScaffoldCyclePlan (actor=agent). Nodes are created UNASSIGNED (PD assigns
+// owners next) and carry branch/base cycle metadata. Returns the draft plan id +
+// created nodes. Validation (version/features) is surfaced via mapPlanToolError.
+func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req scaffoldCyclePlanReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.ProjectID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_project_id", "")
+		return
+	}
+	features := make([]pmservice.CycleFeature, 0, len(req.Features))
+	for _, f := range req.Features {
+		features = append(features, pmservice.CycleFeature{
+			Name: f.Name, Branch: f.Branch, DocOnly: f.DocOnly,
+		})
+	}
+	res, err := d.PMService.ScaffoldCyclePlan(r.Context(), pmservice.ScaffoldCyclePlanCommand{
+		ProjectID: pm.ProjectID(req.ProjectID),
+		Version:   req.Version,
+		Features:  features,
+		CreatedBy: pm.IdentityRef(agentActor(a)),
+	})
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	nodes := make([]map[string]any, 0, len(res.Nodes))
+	for _, n := range res.Nodes {
+		nodes = append(nodes, map[string]any{
+			"task_id": string(n.TaskID), "title": n.Title, "branch": n.Branch,
+			"base": n.Base, "kind": n.Kind, "feature": n.Feature,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(res.PlanID), "nodes": nodes})
 }
 
 // --- add_task_to_plan --------------------------------------------------------
