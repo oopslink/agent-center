@@ -126,7 +126,7 @@ func MigrateV1ToV2Command() *Command {
 // v2.14.0 AWI: 0070 (F2 schema-add: pm_tasks block/lease cols + task_action_logs),
 // 0071 (F4 data-backfill AWI→pm_tasks), 0072 (F3 single-active UNIQUE index) — all
 // additive; const tracks the latest migration.
-const targetSchemaVersion = 72
+const targetSchemaVersion = 73
 
 func runMigrateV1ToV2(
 	ctx context.Context,

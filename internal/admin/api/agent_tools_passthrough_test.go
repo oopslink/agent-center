@@ -260,8 +260,10 @@ func TestCreateTask_Dispatch_NoAssignee_Runnable(t *testing.T) {
 }
 
 // dispatch=true + assignee → the task is assigned AND dispatched; it surfaces in
-// the assignee's get_my_work (run-real acceptance: "出现在 assignee 队列").
-func TestCreateTask_Dispatch_WithAssignee_ShowsInGetMyWork(t *testing.T) {
+// the assignee's list_my_tasks (run-real acceptance: "出现在 assignee 队列").
+// v2.14.0 F7 (issue I14): get_my_work was replaced by list_my_tasks (the runnable
+// assigned-task query); AgentWorkItem and its buckets were retired.
+func TestCreateTask_Dispatch_WithAssignee_ShowsInListMyTasks(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	pid, _ := f.seedMemberProject(t)
@@ -276,14 +278,15 @@ func TestCreateTask_Dispatch_WithAssignee_ShowsInGetMyWork(t *testing.T) {
 	f.drain(t)
 	tid, _ := body["task_id"].(string)
 
-	// get_my_work for the assignee must surface the task (claimable_tasks bucket).
-	st, work := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_w1",
+	// list_my_tasks for the assignee must surface the dispatched+assigned task
+	// (it is runnable now).
+	st, work := postBearer(t, srv.URL, "/admin/agent-tools/list_my_tasks", "acat_w1",
 		map[string]any{"agent_id": atAgent1})
 	if st != http.StatusOK {
-		t.Fatalf("get_my_work status = %d, body = %v", st, work)
+		t.Fatalf("list_my_tasks status = %d, body = %v", st, work)
 	}
-	if !getMyWorkHasTask(work, tid) {
-		t.Fatalf("get_my_work missing dispatched+assigned task %s: %v", tid, work)
+	if !listMyTasksHasTask(work, tid) {
+		t.Fatalf("list_my_tasks missing dispatched+assigned task %s: %v", tid, work)
 	}
 	if err := f.pmSvc.EnsureTaskRunnable(context.Background(), pm.TaskID(tid)); err != nil {
 		t.Fatalf("EnsureTaskRunnable = %v, want nil", err)
@@ -304,27 +307,13 @@ func TestCreateTask_InvalidAssignee_400(t *testing.T) {
 	}
 }
 
-// getMyWorkHasTask reports whether the get_my_work response surfaces taskID in
-// any of its buckets. WS2 (issue-e346e5ec) reshaped get_my_work into the single
-// query: work-item buckets (active/queued/paused/waiting_input) carry the task
-// ref as "pm://tasks/<id>"; task buckets (claimable/claimed_pool) carry "id".
-func getMyWorkHasTask(resp map[string]any, taskID string) bool {
-	for _, key := range []string{"claimable", "claimed_pool"} {
-		raw, _ := resp[key].([]any)
-		for _, x := range raw {
-			if m, ok := x.(map[string]any); ok && m["id"] == taskID {
-				return true
-			}
-		}
-	}
-	for _, key := range []string{"active", "queued", "paused", "waiting_input"} {
-		raw, _ := resp[key].([]any)
-		for _, x := range raw {
-			if m, ok := x.(map[string]any); ok {
-				if ref, _ := m["task_ref"].(string); ref == "pm://tasks/"+taskID {
-					return true
-				}
-			}
+// listMyTasksHasTask reports whether the list_my_tasks response surfaces taskID in
+// its "tasks" array (each entry carries the task identity as "task_id").
+func listMyTasksHasTask(resp map[string]any, taskID string) bool {
+	raw, _ := resp["tasks"].([]any)
+	for _, x := range raw {
+		if m, ok := x.(map[string]any); ok && m["task_id"] == taskID {
+			return true
 		}
 	}
 	return false

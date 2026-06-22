@@ -34,17 +34,16 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrProjectNotFound),
 		errors.Is(err, pm.ErrIssueNotFound),
 		errors.Is(err, agent.ErrAgentNotFound),
-		errors.Is(err, agent.ErrWorkItemNotFound),
 		errors.Is(err, admintoken.ErrTokenNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 
-	// ---- illegal_transition (409) — agent-BC lifecycle/work-item feedback ---
+	// ---- illegal_transition (409) — agent-BC lifecycle feedback ---
 	// D2-c-i controller→center feedback: a rejected AR transition (MarkStopped
-	// precondition, WorkItem Activate/Done/Fail move) is a conflict with the
-	// current state, surfaced as 409 so the daemon can re-read + retry.
-	case errors.Is(err, agent.ErrIllegalLifecycle),
-		errors.Is(err, agent.ErrWorkItemIllegalMove),
-		errors.Is(err, agent.ErrWorkItemBadStatus):
+	// precondition) is a conflict with the current state, surfaced as 409 so the
+	// daemon can re-read + retry.
+	// v2.14.0 F7 (issue I14): the WorkItem move sentinels (ErrWorkItemIllegalMove /
+	// ErrWorkItemBadStatus) were removed — AgentWorkItem retired.
+	case errors.Is(err, agent.ErrIllegalLifecycle):
 		writeError(w, http.StatusConflict, "illegal_transition", err.Error())
 
 	// ---- agent_busy (409) — v2.8.1 #278 single-active: an activate (push
@@ -70,12 +69,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskBlocked):
 		writeError(w, http.StatusConflict, "task_blocked", err.Error())
 
-	// ---- work_item_reassigned (409) — v2.8.1 #278 PR4: an agent-facing write
-	// (complete/fail/pause/resume) lost the optimistic-lock (version CAS) race —
-	// the item moved since the agent loaded it (e.g. the reconciler released it).
-	// Benign: the agent goes back to step A (pulls fresh). ----
-	case errors.Is(err, agent.ErrWorkItemReassigned):
-		writeError(w, http.StatusConflict, "work_item_reassigned", err.Error())
+	// v2.14.0 F7 (issue I14): the work_item_reassigned (409) mapping for
+	// agent.ErrWorkItemReassigned was removed — AgentWorkItem retired (the agent
+	// optimistic-lock race now lives on the Task model via pm version conflicts).
 
 	// ---- already_exists (409) -------------------------------------------
 	case errors.Is(err, conversation.ErrConversationAlreadyExists),

@@ -13,11 +13,16 @@ import (
 // pm_task_action_logs history — without fabricating beyond what the work-item rows
 // imply.
 //
-// Strategy mirrors the ADR-0046 test: full Up lands at 71; Down to 70 reverts only
-// 0071 (its down deletes the rebuilt action logs; the pm_tasks columns from 0070
-// stay), so we can seed legacy rows against the real post-0070 schema and re-Up to
-// run the backfill. A second Down(70)->Up proves idempotency (no duplicate logs, a
-// stable end state when the migration re-runs over already-migrated data).
+// Strategy mirrors the ADR-0046 test: Down to 70 reverts 0071 (its down deletes the
+// rebuilt action logs; the pm_tasks columns from 0070 stay) AND, post-F7, runs
+// 0073's down which recreates an EMPTY agent_work_items — so we seed legacy rows
+// against the real post-0070 schema and re-Up to run the backfill. A second
+// Down(70)->reseed->Up proves idempotency (no duplicate logs, a stable end state
+// when the migration re-runs over already-migrated data). The reseed is required
+// because F7's 0073 DROPs agent_work_items at the top of the chain, so the legacy
+// source rows do not survive a full Up→Down cycle (0073.down recreates it empty);
+// 0071.down's "re-Up faithfully reproduces it" contract now means "re-Up over the
+// re-seeded source".
 func TestMigration0071_AwiDataBackfill(t *testing.T) {
 	db, err := Open(t.TempDir() + "/awi_f4.db")
 	if err != nil {
@@ -30,7 +35,8 @@ func TestMigration0071_AwiDataBackfill(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("first Up: %v", err)
 	}
-	// Down to 70 reverts 0071 only; pm_tasks keeps 0070's columns so we can seed.
+	// Down to 70 reverts 0071 (logs) + 0072 (index) + 0073 (recreates empty awi);
+	// pm_tasks keeps 0070's columns so we can seed.
 	if err := mig.Down(ctx, 70); err != nil {
 		t.Fatalf("Down(70): %v", err)
 	}
@@ -38,29 +44,35 @@ func TestMigration0071_AwiDataBackfill(t *testing.T) {
 		t.Fatalf("version after Down(70): got %d want 70", v)
 	}
 
-	seed(t, db)
+	seedTasks(t, db)
+	seedWorkItems(t, db)
 
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up (apply 0071): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 72 {
-		t.Fatalf("version after re-Up: got %d want 72", v)
+	if v, _ := mig.Version(ctx); v != 73 {
+		t.Fatalf("version after re-Up: got %d want 73", v)
 	}
 
 	assertBackfill(t, db)
 
-	// Idempotency: revert 0071's logs, re-run 0071 over the already-backfilled
-	// pm_tasks rows, and assert the same end state with no duplicate action logs.
+	// Idempotency: revert 0071's logs (and 0073 recreates an empty agent_work_items,
+	// so re-seed the legacy source rows it dropped), re-run 0071 over the
+	// already-backfilled pm_tasks rows, and assert the same end state with no
+	// duplicate action logs.
 	if err := mig.Down(ctx, 70); err != nil {
 		t.Fatalf("Down(70) #2: %v", err)
 	}
+	seedWorkItems(t, db) // 0073.down recreated agent_work_items empty — re-seed the source
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("third Up (re-apply 0071, idempotency): %v", err)
 	}
 	assertBackfill(t, db)
 }
 
-func seed(t *testing.T, db *sql.DB) {
+// seedTasks inserts the pm_tasks rows (the durable side — they survive a Down(70)
+// cycle, since 0071.down clears only the backfilled columns/logs, not the rows).
+func seedTasks(t *testing.T, db *sql.DB) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -87,6 +99,36 @@ func seed(t *testing.T, db *sql.DB) {
 			t.Fatalf("seed task %s: %v", id, err)
 		}
 	}
+	// Block-annotation mappings.
+	task("T-wi", "running", "ag-A", "", "2026-06-21T01:00:00Z", "2026-06-21T02:00:00Z")
+	task("T-blk", "running", "ag-B", "disk full", "2026-06-21T01:00:00Z", "2026-06-21T02:00:00Z")
+	task("T-fail", "running", "ag-C", "", "2026-06-21T01:00:00Z", "")
+	// §13.E in-flight paused -> open.
+	task("T-paused", "running", "ag-D", "", "2026-06-21T01:00:00Z", "2026-06-21T02:00:00Z")
+	// Single-active: ag-E holds three running, non-blocked pm_tasks (the legacy pool
+	// cap=3 allowed this) and we keep the newest. These came from pool claims, not a
+	// single-active AWI, so they have no agent_work_items rows — the surplus-running
+	// demotion (step 3) reads pm_tasks alone. (The AWI table's own idx_awi_agent_active
+	// UNIQUE index forbids >1 active|waiting_input work item per agent anyway.)
+	task("T-e1", "running", "ag-E", "", "2026-06-21T00:00:01Z", "2026-06-21T00:00:01Z")
+	task("T-e2", "running", "ag-E", "", "2026-06-21T00:00:02Z", "2026-06-21T00:00:02Z")
+	task("T-e3", "running", "ag-E", "", "2026-06-21T00:00:03Z", "2026-06-21T00:00:03Z")
+	// ag-F: a blocked running task is EXEMPT from the active slot, so its one
+	// non-blocked running task must survive (blocked does not count toward the cap).
+	task("T-f-blk", "running", "ag-F", "", "2026-06-21T03:00:00Z", "2026-06-21T03:00:00Z")
+	task("T-f-act", "running", "ag-F", "", "2026-06-21T01:00:00Z", "2026-06-21T01:00:00Z")
+	// A completed task with an AWI must NOT be resurrected as blocked.
+	task("T-done", "completed", "ag-G", "", "2026-06-21T01:00:00Z", "")
+}
+
+// seedWorkItems inserts the legacy agent_work_items rows — the backfill SOURCE
+// that 0071 folds into pm_tasks. F7's 0073 DROPs this table (and 0073.down
+// recreates it EMPTY), so these source rows do NOT survive a full Up→Down cycle;
+// the test re-seeds them before each backfill re-Up. The five ag-E pool-claim
+// tasks have no work items (the surplus-running demotion reads pm_tasks alone).
+func seedWorkItems(t *testing.T, db *sql.DB) {
+	t.Helper()
+	ctx := context.Background()
 	awi := func(id, agentID, taskID, status string) {
 		t.Helper()
 		_, err := db.ExecContext(ctx, `
@@ -97,40 +139,13 @@ func seed(t *testing.T, db *sql.DB) {
 			t.Fatalf("seed awi %s: %v", id, err)
 		}
 	}
-
-	// Block-annotation mappings.
-	task("T-wi", "running", "ag-A", "", "2026-06-21T01:00:00Z", "2026-06-21T02:00:00Z")
 	awi("wi-A", "ag-A", "T-wi", "waiting_input")
-
-	task("T-blk", "running", "ag-B", "disk full", "2026-06-21T01:00:00Z", "2026-06-21T02:00:00Z")
 	awi("wi-B", "ag-B", "T-blk", "blocked")
 	awi("wi-B-old", "ag-Z", "T-blk", "superseded") // reassignment history
-
-	task("T-fail", "running", "ag-C", "", "2026-06-21T01:00:00Z", "")
 	awi("wi-C", "ag-C", "T-fail", "failed")
-
-	// §13.E in-flight paused -> open.
-	task("T-paused", "running", "ag-D", "", "2026-06-21T01:00:00Z", "2026-06-21T02:00:00Z")
 	awi("wi-D", "ag-D", "T-paused", "paused")
-
-	// Single-active: ag-E holds three running, non-blocked pm_tasks (the legacy pool
-	// cap=3 allowed this) and we keep the newest. These came from pool claims, not a
-	// single-active AWI, so they have no agent_work_items rows — the surplus-running
-	// demotion (step 3) reads pm_tasks alone. (The AWI table's own idx_awi_agent_active
-	// UNIQUE index forbids >1 active|waiting_input work item per agent anyway.)
-	task("T-e1", "running", "ag-E", "", "2026-06-21T00:00:01Z", "2026-06-21T00:00:01Z")
-	task("T-e2", "running", "ag-E", "", "2026-06-21T00:00:02Z", "2026-06-21T00:00:02Z")
-	task("T-e3", "running", "ag-E", "", "2026-06-21T00:00:03Z", "2026-06-21T00:00:03Z")
-
-	// ag-F: a blocked running task is EXEMPT from the active slot, so its one
-	// non-blocked running task must survive (blocked does not count toward the cap).
-	task("T-f-blk", "running", "ag-F", "", "2026-06-21T03:00:00Z", "2026-06-21T03:00:00Z")
 	awi("wi-F-blk", "ag-F", "T-f-blk", "blocked")
-	task("T-f-act", "running", "ag-F", "", "2026-06-21T01:00:00Z", "2026-06-21T01:00:00Z")
 	awi("wi-F-act", "ag-F", "T-f-act", "active")
-
-	// A completed task with an AWI must NOT be resurrected as blocked.
-	task("T-done", "completed", "ag-G", "", "2026-06-21T01:00:00Z", "")
 	awi("wi-G", "ag-G", "T-done", "done")
 }
 

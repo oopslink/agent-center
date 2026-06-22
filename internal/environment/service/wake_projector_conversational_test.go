@@ -127,7 +127,7 @@ func convMessageEvent(id, convID, msgID, sender, text string) outbox.Event {
 // deps (display-name resolver + a recording system-notifier).
 func (f *wakeFixture) projWith(displayName map[string]string, sysNotes *[]string) *WakeProjector {
 	return NewWakeProjector(WakeProjectorDeps{
-		DB: f.db, WorkItems: f.workItems, Agents: f.agents,
+		DB: f.db, Agents: f.agents,
 		ControlLog: f.control, Applied: f.applied, Clock: f.clk,
 		ConvRepo: f.convs, MsgRepo: f.msgs, ReadState: f.readState,
 		DisplayName: func(_ context.Context, ref string) (string, bool) {

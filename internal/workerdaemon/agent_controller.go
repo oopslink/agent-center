@@ -690,15 +690,9 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 	}
 	c.mu.Unlock()
 
-	if pl.WorkItemID != "" {
-		if err := c.cfg.Reporter.ReportWorkItemState(ctx, pl.AgentID, pl.WorkItemID, "active", time.Now()); err != nil {
-			// The brief was already injected; a feedback failure is transient.
-			// Returning an error would re-inject the brief on retry (double work),
-			// so we log + ack instead. The WorkItem state will be reconciled by a
-			// later activity/feedback in D2-g if needed.
-			c.log("work agent=%s report active: %v", pl.AgentID, err)
-		}
-	}
+	// v2.14.0 F7 (issue I14): the ReportWorkItemState(active) feedback was removed —
+	// AgentWorkItem retired. The brief is injected; currentWorkItemID is still set
+	// above for the L2 error surface.
 	return nil
 }
 
@@ -774,13 +768,9 @@ func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
 			cur.currentConversationID = "" // work context supersedes any converse context
 		}
 		c.mu.Unlock()
-		// waiting_input→active via the existing feedback endpoint (MarkWorkItemState
-		// active drives the WorkItem AR's move to active, the Wake transition). A
-		// report failure is transient: the message is already injected, so re-running
-		// would double-inject — log + ack instead (mirrors work()'s policy).
-		if err := c.cfg.Reporter.ReportWorkItemState(ctx, pl.AgentID, pl.WorkItemID, "active", time.Now()); err != nil {
-			c.log("wake agent=%s report active: %v", pl.AgentID, err)
-		}
+		// v2.14.0 F7 (issue I14): the ReportWorkItemState(active) feedback was removed
+		// — AgentWorkItem retired. The message is injected; currentWorkItemID above
+		// still anchors the L2 error surface.
 	}
 	return nil
 }
@@ -1361,17 +1351,12 @@ func (c *AgentController) surfaceTurnFailure(agentID string, ev StreamEvent) {
 		return
 	}
 
-	if err := c.cfg.Reporter.ReportWorkItemState(
-		context.Background(), agentID, wiID, "failed", time.Now(),
-	); err != nil {
-		// Non-silent: a report failure is logged loudly. The next activity/feedback
-		// reconcile (D2-g) can still observe the failed turn in the activity stream.
-		c.log("L2 agent=%s work_item=%s report failed: %v", agentID, wiID, err)
-		return
-	}
+	// v2.14.0 F7 (issue I14): the ReportWorkItemState(failed) feedback was removed —
+	// AgentWorkItem retired. The is_error turn is surfaced loudly in the log (and
+	// remains observable in the activity stream); the in-flight pointer is cleared so
+	// a stray second result cannot re-fail an already-handled turn.
 	c.log("L2 agent=%s work_item=%s failed (is_error turn, subtype=%q)", agentID, wiID, ev.Subtype)
 
-	// Clear the in-flight pointer: this WorkItem is no longer active.
 	c.mu.Lock()
 	if ma := c.agents[agentID]; ma != nil && ma.currentWorkItemID == wiID {
 		ma.currentWorkItemID = ""

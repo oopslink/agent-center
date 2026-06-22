@@ -7,42 +7,10 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 )
 
-// TestDeleteAgent_ForceSkipsGuardsAndSweeps — v2.8.1 force-delete (@oopslink): a
-// non-force delete of an agent with active work is blocked by a guard; force skips
-// the guards, sweeps the agent's non-terminal WorkItems (orphan-sweep: in-flight→
-// failed, queued→canceled), and deletes the agent.
-func TestDeleteAgent_ForceSkipsGuardsAndSweeps(t *testing.T) {
-	f := newFixture(t)
-	ctx := context.Background()
-	f.seedWorker(t, "w-1", testOrg)
-	id := f.createAgent(t, "w-1")
-	f.seedQueuedWI(t, id, "wi-active")
-	f.seedQueuedWI(t, id, "wi-queued")
-	if err := f.svc.StartWork(ctx, id, "wi-active"); err != nil {
-		t.Fatal(err)
-	}
-	// Non-force: a guard (not-stopped / active-work) must block the delete.
-	if err := f.svc.DeleteAgent(ctx, id, false); err == nil {
-		t.Fatal("non-force delete of an agent with active work must error (guard)")
-	}
-	// Force: skips guards + sweeps WorkItems + deletes the agent row.
-	if err := f.svc.DeleteAgent(ctx, id, true); err != nil {
-		t.Fatalf("force delete: %v", err)
-	}
-	if _, err := f.svc.agents.FindByID(ctx, id); err == nil {
-		t.Fatal("agent row must be gone after force delete")
-	}
-	// Orphan-sweep: no non-terminal WorkItem may reference the deleted agent.
-	items, _ := f.workItems.ListByAgent(ctx, id)
-	if len(items) == 0 {
-		t.Fatal("expected the swept WorkItems to still exist (terminal), got none")
-	}
-	for _, w := range items {
-		if !w.Status().IsTerminal() {
-			t.Errorf("WorkItem %s left non-terminal (%s) after force delete = orphan", w.ID(), w.Status())
-		}
-	}
-}
+// v2.14.0 F7 (issue I14): TestDeleteAgent_ForceSkipsGuardsAndSweeps was removed —
+// AgentWorkItem retired, so DeleteAgent no longer has the in-flight WorkItem guard
+// (non-force) or the force-delete orphan-sweep. A deleted agent's stuck tasks are
+// recovered by the F3 execution-lease checker, not an inline WorkItem sweep.
 
 // TestUnbindAgentsFromWorker — worker force-delete unbind: every bound agent's
 // worker_id is cleared (worker-less, retained, NOT archived) and the count is

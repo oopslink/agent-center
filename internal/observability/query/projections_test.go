@@ -8,29 +8,27 @@ import (
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
-// v2.7 #107 Phase-2 (proj-A): inspect "execution" now inspects a work item.
-// The id is a work-item id; rich detail comes from the work-item projection;
-// the artifacts segment is dropped (execution-keyed, no work-item equivalent).
+// v2.14.0 F7 (issue I14): inspect "execution" reads pm_tasks (the task is the
+// unit of agent work). The id is a TASK id; work_item_id == task_id; status is
+// the mapped execution-status vocab (a running agent-assigned task → "active");
+// detail comes from the projection row. The artifacts segment is dropped (no
+// work-item equivalent).
 func TestInspectExecution_WorkItem(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
-	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
+	env.seedAgentTask(t, "WI-1", "AG-1", "p", "active")
 	res, err := env.svc.Inspect(context.Background(), "execution", "WI-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	data := res.Data.(map[string]any)
-	// status is the work-item DOMAIN status (a freshly-seeded work item is
-	// "queued"); the projection (status=active here) is the activity detail.
-	if data["work_item_id"] != "WI-1" || data["status"] != "queued" || data["task_id"] != "T-1" {
-		t.Fatalf("inspect work item: %+v", data)
+	if data["work_item_id"] != "WI-1" || data["status"] != "active" || data["task_id"] != "WI-1" {
+		t.Fatalf("inspect execution: %+v", data)
 	}
 	if _, ok := data["projection"]; !ok {
-		t.Fatal("expected projection key (work-item projection detail)")
+		t.Fatal("expected projection key (execution row detail)")
 	}
 	if _, ok := data["artifacts"]; ok {
-		t.Fatal("artifacts segment must be dropped (execution-keyed, no work-item equiv)")
+		t.Fatal("artifacts segment must be dropped (no work-item equiv)")
 	}
 }
 

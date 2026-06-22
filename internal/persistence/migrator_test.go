@@ -178,8 +178,8 @@ func TestMigrator_VersionTracksApplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v != 72 {
-		t.Fatalf("version after Up: got %d want 72", v)
+	if v != 73 {
+		t.Fatalf("version after Up: got %d want 73", v)
 	}
 	if err := m.Down(ctx, 0); err != nil {
 		t.Fatal(err)

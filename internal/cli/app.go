@@ -102,11 +102,7 @@ type App struct {
 	// read with no fitting AppService method, so the repo is exposed directly.
 	AgentRepo agentpkg.Repository
 
-	// AgentWorkItemRepo is the raw Agent WorkItem repository (C2). The admin
-	// agent-tools surface (v2.7 D2-b2 request_input) needs Update + WaitInput
-	// composed inside an outer tx — the AppService only exposes read-only
-	// ListWorkItems.
-	AgentWorkItemRepo agentpkg.WorkItemRepository
+	// v2.14.0 F7 (issue I14): AgentWorkItemRepo removed — AgentWorkItem retired.
 
 	// AgentActivityRepo is the append-only Agent activity-event repository (C2).
 	// The admin controller→center feedback surface (v2.7 D2-c-i activity sink)
@@ -231,12 +227,11 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Conversations: cr,
 		Messages:      mgRepo,
 		Workers:       wr,
-		// v2.7 #107 Phase-2 fleet repoint: new-model read deps.
-		WorkItemProjections: obsqlite.NewAgentWorkItemProjectionRepo(db),
-		WorkItems:           agentsql.NewWorkItemRepo(db),
-		PMTasks:             pmsql.NewTaskRepo(db),
-		PMProjects:          pmsql.NewProjectRepo(db),
-		PMIssues:            pmsql.NewIssueRepo(db),
+		// v2.14.0 F7 (issue I14): the WorkItemProjections / WorkItems read deps were
+		// removed — AgentWorkItem retired.
+		PMTasks:    pmsql.NewTaskRepo(db),
+		PMProjects: pmsql.NewProjectRepo(db),
+		PMIssues:   pmsql.NewIssueRepo(db),
 		// v2.7 #107 Phase-2 proj-A: inspectWorker/queryExecutions worker→agents→work-items (Q3 MAP).
 		Agents: agentsql.NewAgentRepo(db),
 	}
@@ -362,32 +357,20 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		}),
 	})
 
-	// Shared agent WorkItem repo: the Agent BC AppService owns it, and the
-	// admin agent-tools surface (v2.7 D2-b2) needs the raw repo to do
-	// Update + WaitInput inside an outer tx (the AppService only exposes a
-	// read-only ListWorkItems).
-	// v2.7 #111 locus B: the shared WorkItem repo emits agent.work_item_transitioned
-	// for every status change, drained from the AR and appended in the persisting
-	// tx via the outbox sink. Wiring the sink here (composition root) keeps the
-	// sqlite adapter free of any outbox dependency.
-	workItemTransitionSink := agentsvc.NewOutboxWorkItemTransitionSink(outboxsql.NewOutboxRepo(db), gen)
-	agentWorkItemRepo := agentsql.NewWorkItemRepoWithSink(db, workItemTransitionSink)
+	// v2.14.0 F7 (issue I14): the shared AgentWorkItem repo (+ its transition sink)
+	// and the WorkItem-backed paused-task provider were removed — AgentWorkItem
+	// retired. The pm Service's PausedTaskPort is left unwired (it degrades to a
+	// nil-safe no-op: plan view shows no paused nodes).
 	agentActivityRepo := agentsql.NewActivityEventRepo(db)
 
-	// T53: wire the paused-task read-port now that the WorkItem repo exists, so the
-	// plan read model derives a `paused` node (not a phantom `running`) for a node
-	// whose agent set its work item aside.
-	pmSvc.SetPausedTaskProvider(agentpkg.NewWorkItemPausedProvider(agentWorkItemRepo))
-
 	agentSvc := agentsvc.New(agentsvc.Deps{
-		DB:        db,
-		Agents:    agentRepo,
-		WorkItems: agentWorkItemRepo,
-		Activity:  agentActivityRepo,
-		Workers:   wr,
-		Outbox:    outboxsql.NewOutboxRepo(db),
-		IDGen:     gen,
-		Clock:     clk,
+		DB:       db,
+		Agents:   agentRepo,
+		Activity: agentActivityRepo,
+		Workers:  wr,
+		Outbox:   outboxsql.NewOutboxRepo(db),
+		IDGen:    gen,
+		Clock:    clk,
 	})
 	// T130: wire the open→running authorization port so start_task rejects a
 	// backlog task (one that is neither a real-plan node nor a dispatched pool
@@ -406,10 +389,9 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:   clk,
 	})
 
-	// T53: wire the paused-node resumer now that the agent service + env control
-	// exist. The operator "resume stuck node" action (ResumePausedNode) resumes the
-	// node's paused work item and wakes its agent via agent.work_available.
-	pmSvc.SetNodeResumer(NewNodeResumerAdapter(agentWorkItemRepo, agentSvc, agentRepo, envControlSvc))
+	// v2.14.0 F7 (issue I14): the WorkItem-backed node-resumer adapter wiring was
+	// removed — AgentWorkItem retired. The pm Service's NodeResumer port is left
+	// unwired (ResumePausedNode degrades to ErrNodeResumerUnavailable).
 
 	// v2.13.0 I18/F3: wire the concrete git MergeChecker so CompleteTask blocks an
 	// Integrate cycle node until its feature branch has merged back into
@@ -446,7 +428,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		PMService:          pmSvc,
 		AgentService:       agentSvc,
 		AgentRepo:          agentRepo,
-		AgentWorkItemRepo:  agentWorkItemRepo,
 		AgentActivityRepo:  agentActivityRepo,
 		EnvControlSvc:      envControlSvc,
 		ControlStreamBus:   controlStreamBus,

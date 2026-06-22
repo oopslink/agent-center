@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/observability"
-	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -115,56 +113,38 @@ func (s *StatsService) aggregateTasks(ctx context.Context, res StatsResult, sinc
 }
 
 func (s *StatsService) aggregateExecutions(ctx context.Context, res StatsResult, since *time.Time) (StatsResult, error) {
-	if s.deps.WorkItemProjections == nil {
-		return res, errors.New("work item projections repo not wired")
+	if s.deps.PMTasks == nil {
+		return res, errors.New("pm tasks repo not wired")
 	}
-	// v2.7 #107 Phase-2: repointed to the agent work-item model.
-	// Active (live) by status — new-model equivalent of the old
-	// executions.FindActive; live set mirrors fleet (queued/active/waiting_input).
-	projs, err := s.deps.WorkItemProjections.List(ctx, projection.AgentWorkItemProjectionFilter{
-		Statuses: []string{
-			string(agentpkg.WorkItemQueued),
-			string(agentpkg.WorkItemActive),
-			string(agentpkg.WorkItemWaitingInput),
-		},
-	})
+	// v2.14.0 F7 (issue I14): repointed off the retired AgentWorkItem model onto
+	// pm_tasks. Active (live) executions = non-terminal agent-assigned tasks,
+	// counted under the mapped execution-status vocab (queued/active/waiting_input)
+	// the Web Console still renders — distinct namespace from the pm-task status
+	// counters set by aggregateTasks.
+	tasks, err := s.deps.PMTasks.ListByStatuses(ctx, activeTaskStatuses)
 	if err != nil {
 		return res, err
 	}
-	for _, p := range projs {
-		res.Counters[p.Status]++
+	active := 0
+	for _, t := range tasks {
+		if agentMemberIDFromAssignee(t.Assignee()) == "" {
+			continue // executions are agent work only
+		}
+		res.Counters[taskExecStatus(t)]++
+		active++
 	}
-	res.Totals["active"] = len(projs)
-	// Terminal: count agent.work_item.transitioned events whose status is a
-	// terminal outcome. Decision ①=A — count transition events, preserving v1
-	// cumulative semantics. v1 counted completed/failed/killed; new-model
-	// equivalents are completed→done, failed→failed, killed→canceled (external
-	// termination) → terminal set = {done, failed, canceled} (no v1 class
-	// dropped). Each work item emits exactly one terminal transition (idempotent
-	// via the WorkItemEventProjector AppliedStore), so this counts distinct
-	// terminal work items, no double count. superseded is excluded — it has no
-	// v1 analog (it marks a work item replaced by a reassignment attempt =
-	// internal bookkeeping, not an execution outcome). Limit 1000 mirrors the v1
-	// stats shortcut.
-	if s.deps.Events != nil {
-		et := observability.EventType("agent.work_item.transitioned")
-		f := observability.EventQueryFilter{EventType: &et, Limit: 1000}
-		if since != nil {
-			f.Since = since
-		}
-		evs, err := s.deps.Events.Find(ctx, f)
-		if err != nil {
-			return res, err
-		}
-		for _, e := range evs {
-			if st, ok := e.Payload()["status"].(string); ok &&
-				(st == string(agentpkg.WorkItemDone) ||
-					st == string(agentpkg.WorkItemFailed) ||
-					st == string(agentpkg.WorkItemCanceled)) {
-				res.Counters[st]++
-			}
-		}
+	res.Totals["active"] = active
+	// Terminal executions: the AgentWorkItem done/failed/canceled split is gone
+	// (no failed status; blocked is a running annotation), so map the terminal
+	// pm-task outcomes onto the legacy execution-terminal labels — completed→done,
+	// discarded→canceled — keeping a distinct namespace from the pm-task counters.
+	// CountByStatus is global, optionally since-scoped.
+	counts, err := s.deps.PMTasks.CountByStatus(ctx, since)
+	if err != nil {
+		return res, err
 	}
+	res.Counters["done"] += counts[pm.TaskCompleted]
+	res.Counters["canceled"] += counts[pm.TaskDiscarded]
 	return res, nil
 }
 

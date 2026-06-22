@@ -1,29 +1,26 @@
 package query
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
-	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/observability"
-	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
-// projectWorkItemSummary is the compact work-item row used by inspectWorker's
-// active_work_items list (v2.7 #107 Phase-2 proj-A: worker→agents→work-items).
-// Summary form (id/agent/task/status); full activity detail is via
-// inspect execution <work_item_id> (the projection).
-func projectWorkItemSummary(wi *agentpkg.AgentWorkItem) map[string]any {
-	taskID, _ := fleetTaskIDFromRef(wi.TaskRef())
+// projectTaskExecutionSummary is the compact execution row used by
+// inspectWorker's active_work_items list (v2.14.0 F7 / issue I14: worker→agents→
+// tasks). Summary form (id/agent/task/status); work_item_id carries the task id
+// (the task is the unit of agent work). Full detail is via
+// `inspect execution <task_id>`.
+func projectTaskExecutionSummary(t *pm.Task) map[string]any {
 	return map[string]any{
-		"work_item_id": wi.ID(),
-		"agent_id":     string(wi.AgentID()),
-		"task_id":      taskID,
-		"status":       string(wi.Status()),
+		"work_item_id": string(t.ID()),
+		"agent_id":     agentMemberIDFromAssignee(t.Assignee()),
+		"task_id":      string(t.ID()),
+		"status":       taskExecStatus(t),
 	}
 }
 
@@ -153,10 +150,6 @@ func stringOrNil(s string) any {
 func mapNotFound(err error) error {
 	if err == nil {
 		return nil
-	}
-	// known sentinels from BC repos
-	if errors.Is(err, projection.ErrProjectionNotFound) {
-		return fmt.Errorf("%w: %v", ErrInspectNotFound, err)
 	}
 	// detect "not found" via message — repos vary slightly; conservative.
 	msg := err.Error()

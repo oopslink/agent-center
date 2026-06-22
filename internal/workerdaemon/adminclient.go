@@ -485,8 +485,9 @@ type feedbackReporter interface {
 	ReportAgentActivity(ctx context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, at time.Time) error
 	// ReportAgentLifecycle posts a lifecycle RESULT (state "stopped" | "error").
 	ReportAgentLifecycle(ctx context.Context, agentID, state, errMsg string, at time.Time) error
-	// ReportWorkItemState posts a WorkItem transition (state "active" | "done" | "failed").
-	ReportWorkItemState(ctx context.Context, agentID, workItemID, state string, at time.Time) error
+	// v2.14.0 F7 (issue I14): ReportWorkItemState removed — AgentWorkItem retired
+	// (the work-item-state feedback endpoint is gone; the daemon surfaces L2 errors
+	// via the lifecycle/converse-error reporters instead).
 	// ReportMarkSeen advances the agent participant's read-state cursor in a task
 	// conversation to messageID (monotonic, server-side). v2.7 D2-e-ii (OQ5): after
 	// a wake inject the controller marks the delivered batch seen so the next batch
@@ -545,25 +546,8 @@ func (c *AdminClient) ReportAgentLifecycle(ctx context.Context, agentID, state, 
 	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/lifecycle-feedback", body, nil)
 }
 
-// ReportWorkItemState POSTs to /admin/environment/agent/work-item-state.
-// state is "active", "done" or "failed".
-func (c *AdminClient) ReportWorkItemState(ctx context.Context, agentID, workItemID, state string, at time.Time) error {
-	if strings.TrimSpace(agentID) == "" {
-		return errors.New("adminclient: agent_id required")
-	}
-	if strings.TrimSpace(workItemID) == "" {
-		return errors.New("adminclient: work_item_id required")
-	}
-	body := map[string]any{
-		"agent_id":     agentID,
-		"work_item_id": workItemID,
-		"state":        state,
-	}
-	if !at.IsZero() {
-		body["at"] = at.UTC().Format(time.RFC3339Nano)
-	}
-	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/work-item-state", body, nil)
-}
+// v2.14.0 F7 (issue I14): ReportWorkItemState (POST
+// /admin/environment/agent/work-item-state) removed — AgentWorkItem retired.
 
 // ReportMarkSeen POSTs to /admin/environment/agent/mark-seen. Monotonically
 // advances the agent participant's read-state cursor in conversationID to

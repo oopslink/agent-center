@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	agentpkg "github.com/oopslink/agent-center/internal/agent"
-	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
@@ -18,9 +16,11 @@ import (
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
-// flowSetup wires the Service + BOTH projectors (participant + work item) + a
-// relay, so a test can drive assign→outbox→WorkItem/participant end to end.
-func flowSetup(t *testing.T) (*Service, *agentsql.WorkItemRepo, *outbox.Relay, context.Context) {
+// flowSetup wires the Service + the participant projector + a relay, so a test
+// can drive assign→outbox→participant end to end. (The work-item projector was
+// removed with the AgentWorkItem domain; these tests now exercise the surviving
+// Task-model behavior only.)
+func flowSetup(t *testing.T) (*Service, *outbox.Relay, context.Context) {
 	t.Helper()
 	db, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
@@ -34,7 +34,6 @@ func flowSetup(t *testing.T) (*Service, *agentsql.WorkItemRepo, *outbox.Relay, c
 	gen := idgen.NewGenerator(clk)
 	ob := outboxsql.NewOutboxRepo(db)
 	applied := outboxsql.NewAppliedRepo(db)
-	wiRepo := agentsql.NewWorkItemRepo(db)
 	svc := New(Deps{
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Issues: pmsql.NewIssueRepo(db), Tasks: pmsql.NewTaskRepo(db),
@@ -42,15 +41,14 @@ func flowSetup(t *testing.T) (*Service, *agentsql.WorkItemRepo, *outbox.Relay, c
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Outbox: ob, AgentDir: allOrgDir("org-1"), IDGen: gen, Clock: clk,
 	})
 	partProj := NewParticipantProjector(db, convsql.NewConversationRepo(db), applied, gen, clk)
-	wiProj := NewWorkItemProjector(db, wiRepo, applied, gen, clk)
-	relay := outbox.NewRelay(ob, applied, clk, partProj, wiProj)
-	return svc, wiRepo, relay, context.Background()
+	relay := outbox.NewRelay(ob, applied, clk, partProj)
+	return svc, relay, context.Background()
 }
 
-// TestProjectors_BranchHandling exercises the projector dispatch branches:
-// non-matching event types are no-ops; matching events with a bad/empty payload
-// surface errors (leaving the event for retry).
-func TestProjectors_BranchHandling(t *testing.T) {
+// TestParticipantProjector_BranchHandling exercises the participant projector
+// dispatch branches: non-matching event types are no-ops; matching events with a
+// bad/empty payload surface errors (leaving the event for retry).
+func TestParticipantProjector_BranchHandling(t *testing.T) {
 	db, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
 		t.Fatal(err)
@@ -63,14 +61,11 @@ func TestProjectors_BranchHandling(t *testing.T) {
 	gen := idgen.NewGenerator(clk)
 	applied := outboxsql.NewAppliedRepo(db)
 	pp := NewParticipantProjector(db, convsql.NewConversationRepo(db), applied, gen, clk)
-	wp := NewWorkItemProjector(db, agentsql.NewWorkItemRepo(db), applied, gen, clk)
 	ctx := context.Background()
 
 	// ignored event types → nil, no side effect
-	for _, p := range []outbox.Projector{pp, wp} {
-		if err := p.Project(ctx, outbox.Event{ID: "e1", EventType: EvtProjectCreated, Payload: "{}"}); err != nil {
-			t.Fatalf("%s should ignore project.created: %v", p.Name(), err)
-		}
+	if err := pp.Project(ctx, outbox.Event{ID: "e1", EventType: EvtProjectCreated, Payload: "{}"}); err != nil {
+		t.Fatalf("%s should ignore project.created: %v", pp.Name(), err)
 	}
 	// participant projector: task event with empty owner_ref → error
 	if err := pp.Project(ctx, outbox.Event{ID: "e2", EventType: EvtTaskCreated, Payload: `{"owner_ref":""}`}); err == nil {
@@ -80,78 +75,12 @@ func TestProjectors_BranchHandling(t *testing.T) {
 	if err := pp.Project(ctx, outbox.Event{ID: "e3", EventType: EvtTaskCreated, Payload: `not-json`}); err == nil {
 		t.Fatal("participant projector should error on bad payload")
 	}
-	if err := wp.Project(ctx, outbox.Event{ID: "e4", EventType: EvtTaskAssigned, Payload: `not-json`}); err == nil {
-		t.Fatal("work item projector should error on bad payload")
-	}
-	// work item projector: assigned to a human (non-agent) → supersede only, no new WorkItem
-	if err := wp.Project(ctx, outbox.Event{ID: "e5", EventType: EvtTaskAssigned, Payload: `{"owner_ref":"pm://tasks/T9","assignee":"user:x"}`}); err != nil {
-		t.Fatalf("human assignee should be a no-op create: %v", err)
-	}
-}
-
-func liveAndSuperseded(items []*agentpkg.AgentWorkItem) (live, superseded int) {
-	for _, w := range items {
-		switch w.Status() {
-		case agentpkg.WorkItemSuperseded:
-			superseded++
-		default:
-			if !w.Status().IsTerminal() {
-				live++
-			}
-		}
-	}
-	return
-}
-
-// TestAssignAndReassign_WorkItemSupersedeChain is the #100/#97 acceptance:
-// assign → queued WorkItem; reassign → old superseded + new queued, both under
-// the same Task (one stable Conversation).
-func TestAssignAndReassign_WorkItemSupersedeChain(t *testing.T) {
-	svc, wiRepo, relay, ctx := flowSetup(t)
-	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
-	taskRef := "pm://tasks/" + string(tid)
-
-	if err := svc.AssignTask(ctx, tid, "agent:AG1", "user:a"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := relay.RunOnce(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
-	items, _ := wiRepo.ListByTask(ctx, taskRef)
-	if live, sup := liveAndSuperseded(items); live != 1 || sup != 0 || len(items) != 1 {
-		t.Fatalf("after assign: want 1 live 0 superseded, got %d items (live=%d sup=%d)", len(items), live, sup)
-	}
-	if items[0].AgentID() != "AG1" {
-		t.Fatalf("work item agent = %s, want AG1", items[0].AgentID())
-	}
-
-	// Reassign to a different agent → old superseded + new queued.
-	if err := svc.AssignTask(ctx, tid, "agent:AG2", "user:a"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := relay.RunOnce(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
-	items2, _ := wiRepo.ListByTask(ctx, taskRef)
-	if live, sup := liveAndSuperseded(items2); live != 1 || sup != 1 || len(items2) != 2 {
-		t.Fatalf("after reassign: want 1 live + 1 superseded, got %d (live=%d sup=%d)", len(items2), live, sup)
-	}
-
-	// Replay is idempotent — no extra WorkItems.
-	if n, _ := relay.RunOnce(ctx, 100); n != 0 {
-		t.Fatalf("replay processed %d, want 0", n)
-	}
-	items3, _ := wiRepo.ListByTask(ctx, taskRef)
-	if len(items3) != 2 {
-		t.Fatalf("replay created extra work items: %d", len(items3))
-	}
 }
 
 // TestTaskStateFlow_CompleteThenNonSelfVerify covers the §2.2 acceptance:
 // running→completed→verified, with self-verification rejected.
 func TestTaskStateFlow_CompleteThenNonSelfVerify(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
 		t.Fatal(err)
@@ -186,7 +115,7 @@ func TestTaskStateFlow_CompleteThenNonSelfVerify(t *testing.T) {
 // on reassignment the previous assignee leaves the effective subscriber set
 // (unless creator/manual), and the new assignee joins it.
 func TestReassign_DropsOldAssigneeFromSubscribers(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 
@@ -209,7 +138,7 @@ func TestReassign_DropsOldAssigneeFromSubscribers(t *testing.T) {
 }
 
 func TestDiscardTask(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	if err := svc.DiscardTask(ctx, tid, "user:a"); err != nil {
@@ -226,7 +155,7 @@ func TestDiscardTask(t *testing.T) {
 }
 
 func TestCreateIssue_GatingAndUnsubscribe(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	// non-member cannot create an issue
 	if _, err := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "x", CreatedBy: "user:stranger"}); err != ErrNotMember {
@@ -243,57 +172,30 @@ func TestCreateIssue_GatingAndUnsubscribe(t *testing.T) {
 	}
 }
 
-// TestBlockAnnotates_UnblockRedispatches is the ADR-0046 acceptance (replaces the
-// old §10 OQ11 cancel-on-block contract): Block is an ANNOTATION on a RUNNING task
-// — status stays running and the live WorkItem is UNTOUCHED (no cancel; "blocked"
-// is no longer a state, so there is no deadlock). Unblock clears the reason and
-// re-dispatches via pm.task.assigned, which supersedes the stale live WorkItem and
-// mints a fresh queued one.
-func TestBlockAnnotates_UnblockRedispatches(t *testing.T) {
-	svc, wiRepo, relay, ctx := flowSetup(t)
+// TestBlockAnnotates_Unblock is the ADR-0046 acceptance (replaces the old §10 OQ11
+// cancel-on-block contract): Block is an ANNOTATION on a RUNNING task — status
+// stays running ("blocked" is no longer a state, so there is no deadlock). Unblock
+// clears the reason; the task stays running.
+func TestBlockAnnotates_Unblock(t *testing.T) {
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
-	taskRef := "pm://tasks/" + string(tid)
-	list := func() []*agentpkg.AgentWorkItem {
-		items, err := wiRepo.ListByTask(ctx, taskRef)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return items
-	}
 
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
 	_ = svc.StartTask(ctx, tid, "user:a")
-	_, _ = relay.RunOnce(ctx, 100)
-	if sc := statusCount(list()); sc[agentpkg.WorkItemSuperseded] != 0 || liveCount(list()) != 1 {
-		t.Fatalf("after assign: want 1 live WorkItem, got %v", sc)
-	}
 
-	// Block the Task → ANNOTATION only: status stays running, WorkItem UNTOUCHED.
+	// Block the Task → ANNOTATION only: status stays running.
 	if err := svc.BlockTask(ctx, tid, "needs key", pm.BlockReasonObstacle, "user:a"); err != nil {
 		t.Fatal(err)
-	}
-	if _, err := relay.RunOnce(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
-	if liveCount(list()) != 1 || statusCount(list())[agentpkg.WorkItemCanceled] != 0 {
-		t.Fatalf("after block: want 1 live + 0 canceled (annotation, no cancel), got %v", statusCount(list()))
 	}
 	tk, _ := svc.tasks.FindByID(ctx, tid)
 	if tk.Status() != pm.TaskRunning || tk.BlockedReason() != "needs key" {
 		t.Fatalf("after block: want running + reason set, got %s / %q", tk.Status(), tk.BlockedReason())
 	}
 
-	// Unblock → reason cleared + re-dispatch: stale live WI superseded, fresh queued one.
+	// Unblock → reason cleared; task stays running.
 	if err := svc.UnblockTask(ctx, UnblockTaskCommand{TaskID: tid, Actor: "user:a"}); err != nil {
 		t.Fatal(err)
-	}
-	if _, err := relay.RunOnce(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
-	sc := statusCount(list())
-	if liveCount(list()) != 1 || sc[agentpkg.WorkItemSuperseded] != 1 {
-		t.Fatalf("after unblock: want 1 live + 1 superseded (re-dispatch), got %v", sc)
 	}
 	tk, _ = svc.tasks.FindByID(ctx, tid)
 	if tk.Status() != pm.TaskRunning || tk.BlockedReason() != "" {
@@ -301,29 +203,17 @@ func TestBlockAnnotates_UnblockRedispatches(t *testing.T) {
 	}
 }
 
-func TestUnassignTask_CancelsLiveWorkItem(t *testing.T) {
-	svc, wiRepo, relay, ctx := flowSetup(t)
+// TestUnassignTask_ClearsAssignee: Unassign (assigned→open) clears the assignee
+// metadata and returns the task to open.
+func TestUnassignTask_ClearsAssignee(t *testing.T) {
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
-	taskRef := "pm://tasks/" + string(tid)
 
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
-	_, _ = relay.RunOnce(ctx, 100)
-	items, _ := wiRepo.ListByTask(ctx, taskRef)
-	if liveCount(items) != 1 {
-		t.Fatalf("after assign: want 1 live WorkItem, got %v", statusCount(items))
-	}
 
-	// Unassign (assigned→open) clears the assignee and cancels the live WorkItem.
 	if err := svc.UnassignTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
-	}
-	if _, err := relay.RunOnce(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
-	items, _ = wiRepo.ListByTask(ctx, taskRef)
-	if liveCount(items) != 0 || statusCount(items)[agentpkg.WorkItemCanceled] != 1 {
-		t.Fatalf("after unassign: want 0 live + 1 canceled, got %v", statusCount(items))
 	}
 	tk, _ := svc.tasks.FindByID(ctx, tid)
 	if tk.Status() != pm.TaskOpen || tk.Assignee() != "" {
@@ -332,7 +222,7 @@ func TestUnassignTask_CancelsLiveWorkItem(t *testing.T) {
 }
 
 func TestReopenTask_ClearsAssignmentAndCompletion(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	_ = svc.AssignTask(ctx, tid, "user:a", "user:a")
@@ -381,8 +271,7 @@ func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Outbox: ob, AgentDir: allOrgDir("org-1"), IDGen: gen, Clock: clk,
 	})
 	relay := outbox.NewRelay(ob, applied, clk,
-		NewParticipantProjector(db, convRepo, applied, gen, clk),
-		NewWorkItemProjector(db, agentsql.NewWorkItemRepo(db), applied, gen, clk))
+		NewParticipantProjector(db, convRepo, applied, gen, clk))
 	ctx := context.Background()
 	drain := func() {
 		for i := 0; i < 8; i++ {
@@ -476,7 +365,7 @@ func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
 }
 
 func TestUnassignReopen_Gating(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
@@ -500,21 +389,4 @@ func TestUnassignReopen_Gating(t *testing.T) {
 	if err := svc.UnsubscribeTask(ctx, tid, "agent:AG1", "user:stranger"); err != ErrNotMember {
 		t.Fatalf("unsubscribe by non-member: want ErrNotMember, got %v", err)
 	}
-}
-
-func statusCount(items []*agentpkg.AgentWorkItem) map[agentpkg.WorkItemStatus]int {
-	m := map[agentpkg.WorkItemStatus]int{}
-	for _, w := range items {
-		m[w.Status()]++
-	}
-	return m
-}
-
-func liveCount(items []*agentpkg.AgentWorkItem) (n int) {
-	for _, w := range items {
-		if !w.Status().IsTerminal() {
-			n++
-		}
-	}
-	return
 }

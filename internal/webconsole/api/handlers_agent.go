@@ -187,74 +187,44 @@ func (s *Server) agentDetailEnrich(ctx context.Context, d HandlerDeps, a *agentb
 	m["created_agents"] = created
 }
 
-// agentWorkItemMap renders a work item. agentFacingID is the business-layer id
-// of the owning agent (v2.7 #185) — the records are always for one agent, so the
-// caller passes it rather than leaking the entity wi.AgentID().
-func agentWorkItemMap(wi *agentbc.AgentWorkItem, agentFacingID, taskID, taskTitle, projectID, orgRef string) map[string]any {
+// agentTaskExecMap renders one of an agent's active executions — a non-terminal
+// assigned task — in the work_items wire shape the Web Console panel expects
+// (v2.14.0 F7 / issue I14: the AgentWorkItem model was removed, so the task IS
+// the unit of work — id == task id). agentFacingID is the business-layer id of
+// the owning agent (the records are always for one agent, so the caller passes
+// it). status maps the task's running/blocked annotation onto the legacy
+// queued/active/waiting_input vocabulary the panel still renders.
+func agentTaskExecMap(t *pm.Task, agentFacingID string) map[string]any {
+	status := "queued"
+	if t.BlockedReason() != "" {
+		status = "waiting_input"
+	} else if t.Status() == pm.TaskRunning {
+		status = "active"
+	}
 	m := map[string]any{
-		"id": wi.ID(), "agent_id": agentFacingID, "task_ref": wi.TaskRef(),
-		"status": string(wi.Status()), "interactions": wi.Interactions(), "version": wi.Version(),
-		"created_at": wi.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at": wi.UpdatedAt().Format(time.RFC3339Nano),
+		"id": string(t.ID()), "agent_id": agentFacingID,
+		"task_ref": "pm://tasks/" + string(t.ID()),
+		"status":   status, "version": t.Version(),
+		"created_at": t.CreatedAt().Format(time.RFC3339Nano),
+		"updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
+		// task enrichment is direct now (the row IS a task): bare task_id (hover/
+		// link), task_title (display), project_id (the
+		// /projects/{project_id}/tasks/{task_id} link). Omitted when empty so the
+		// UI falls back (zero-raw-id invariant preserved).
+		"task_id": string(t.ID()),
 	}
-	// v2.7.1 #206 read-time task enrichment: bare task_id (hover/#192), task_title
-	// (display), project_id (the /projects/{project_id}/tasks/{task_id} link). Each
-	// omitted when empty so the UI falls back (zero-raw-id invariant preserved).
-	if taskID != "" {
-		m["task_id"] = taskID
+	if title := t.Title(); title != "" {
+		m["task_title"] = title
 	}
-	if taskTitle != "" {
-		m["task_title"] = taskTitle
-	}
-	if projectID != "" {
+	if projectID := string(t.ProjectID()); projectID != "" {
 		m["project_id"] = projectID
 	}
-	// T100: the task's org_ref ("T<n>") so the UI shows T84 instead of the
-	// work-item id-tail (#b6eb82). Omitted when the task has no org_number (UI
-	// falls back), mirroring the task/issue DTO contract.
-	if orgRef != "" {
+	// the task's org_ref ("T<n>") so the UI shows T84 instead of an id-tail.
+	// Omitted when the task has no org_number (UI falls back).
+	if orgRef := orgRefToken("T", t.OrgNumber()); orgRef != "" {
 		m["org_ref"] = orgRef
 	}
 	return m
-}
-
-// taskMetaResolver returns a memoized resolver: work-item task ref
-// ("pm://tasks/{id}") → (taskID, title, projectID, orgRef), read-time via pm
-// GetTask (v2.7.1 #206). Cached by task id (work items can share a task). Missing
-// pm or an unresolvable task yields empty title/project/orgRef (the caller omits
-// them → UI falls back), and a non-matching ref yields all-empty.
-//
-// T100: orgRef ("T<n>") is resolved here so the work-item DTO can show the task's
-// org_ref (e.g. T84) instead of an id-tail (#b6eb82) — the work item carries only
-// its OWN id, so without this the agent work-item list had no org_ref to render.
-func (s *Server) taskMetaResolver(ctx context.Context, d HandlerDeps) func(taskRef string) (taskID, title, projectID, orgRef string) {
-	type meta struct{ title, project, orgRef string }
-	cache := map[string]meta{}
-	return func(taskRef string) (string, string, string, string) {
-		ref := strings.TrimSpace(taskRef)
-		const prefix = "pm://tasks/"
-		if !strings.HasPrefix(ref, prefix) {
-			return "", "", "", ""
-		}
-		id := strings.TrimPrefix(ref, prefix)
-		if id == "" {
-			return "", "", "", ""
-		}
-		if d.PM == nil {
-			return id, "", "", ""
-		}
-		if m, ok := cache[id]; ok {
-			return id, m.title, m.project, m.orgRef
-		}
-		tk, err := d.PM.GetTask(ctx, pm.TaskID(id))
-		if err != nil || tk == nil {
-			cache[id] = meta{} // negative-cache so a repeated bad ref doesn't re-query
-			return id, "", "", ""
-		}
-		m := meta{title: tk.Title(), project: string(tk.ProjectID()), orgRef: orgRefToken("T", tk.OrgNumber())}
-		cache[id] = m
-		return id, m.title, m.project, m.orgRef
-	}
 }
 
 // agentActivityMap renders an activity event. agentFacingID is the owning
@@ -597,17 +567,21 @@ func (s *Server) agentWorkItemsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, err := d.AgentSvc.ListWorkItems(r.Context(), a.ID())
-	if err != nil {
-		mapAgentError(w, err)
-		return
-	}
+	// v2.14.0 F7 (issue I14): the AgentWorkItem model was removed; an agent's
+	// "work items" are now its non-terminal assigned tasks. Source the same
+	// runnable open/running queue the MCP list_my_tasks pull uses (the panel keeps
+	// the work_items wire shape — see agentTaskExecMap).
 	facing := agentFacingID(a)
-	resolve := s.taskMetaResolver(r.Context(), d) // v2.7.1 #206: batch task title/project
-	out := make([]map[string]any, 0, len(items))
-	for _, wi := range items {
-		taskID, title, projectID, orgRef := resolve(wi.TaskRef())
-		out = append(out, agentWorkItemMap(wi, facing, taskID, title, projectID, orgRef))
+	out := make([]map[string]any, 0)
+	if d.PM != nil {
+		tasks, err := d.PM.ListRunnableAgentTasks(r.Context(), pm.IdentityRef("agent:"+facing))
+		if err != nil {
+			mapAgentError(w, err)
+			return
+		}
+		for _, t := range tasks {
+			out = append(out, agentTaskExecMap(t, facing))
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"work_items": out})
 }

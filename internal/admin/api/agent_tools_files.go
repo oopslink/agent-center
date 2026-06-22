@@ -94,10 +94,11 @@ func mapFilesError(w http.ResponseWriter, err error) {
 // computed strictly from the agent's OWN work:
 //
 //   - {ScopeAgent, agentID}                always (the agent's private scope)
-//   - per WorkItem (ListByAgent): parse the task ref (pm://tasks/{id}) →
-//     {ScopeTask, taskID}; GetTask(taskID) → if DerivedFromIssue non-empty →
-//     {ScopeIssue, issueID}; resolve the task's Conversation
-//     (ConvRepo.FindByOwnerRef(pm://tasks/{taskID})) → if found →
+//   - per ASSIGNED task (v2.14.0 F7 issue I14 — AgentWorkItem retired; the agent's
+//     own work is now expressed via Task.Assignee): PMService.ListRunnableAgentTasks
+//     lists the agent's open/running assigned tasks → for each, {ScopeTask, taskID};
+//     if DerivedFromIssue non-empty → {ScopeIssue, issueID}; resolve the task's
+//     Conversation (ConvRepo.FindByOwnerRef(pm://tasks/{taskID})) → if found →
 //     {ScopeConversation, convID}.
 //   - per participant channel/DM (T44): every channel/DM in the agent's OWN org
 //     where it is an ACTIVE participant → {ScopeConversation, convID}. This is the
@@ -109,35 +110,27 @@ func mapFilesError(w http.ResponseWriter, err error) {
 //
 // The result is deduped. Per-task lookup errors are TOLERATED (skip that task's
 // derived scopes) — fail-closed: a scope we cannot resolve simply does not
-// appear, so it is unreachable rather than wrongly granted. A hard
-// ListByAgent error IS propagated (we cannot enumerate the domain at all).
+// appear, so it is unreachable rather than wrongly granted. When PMService is
+// unwired the per-task scopes are skipped (only agent + participant-conv scopes).
 func (s *Server) agentOwnDomainScopes(d HandlerDeps, r *http.Request, a *agent.Agent) ([]filesservice.ScopeRef, error) {
 	ctx := r.Context()
 	scopes := []filesservice.ScopeRef{{Scope: files.ScopeAgent, ScopeID: string(a.ID())}}
 
-	if d.AgentWorkItemRepo == nil {
+	if d.PMService == nil {
 		return append(scopes, s.agentParticipantConvScopes(d, r, a)...), nil
 	}
-	items, err := d.AgentWorkItemRepo.ListByAgent(ctx, a.ID())
+	tasks, err := d.PMService.ListRunnableAgentTasks(ctx, pm.IdentityRef(agentActor(a)))
 	if err != nil {
 		return nil, err
 	}
-	for _, wi := range items {
-		taskID := strings.TrimPrefix(wi.TaskRef(), "pm://tasks/")
-		if taskID == "" || taskID == wi.TaskRef() {
-			// Not a pm task ref we understand — skip its derived scopes.
-			continue
-		}
+	for _, tk := range tasks {
+		taskID := string(tk.ID())
 		scopes = append(scopes, filesservice.ScopeRef{Scope: files.ScopeTask, ScopeID: taskID})
 
-		// Derived issue + bound conversation are best-effort: a lookup error or a
-		// missing target just omits that derived scope (fail-closed).
-		if d.PMService != nil {
-			if tk, terr := d.PMService.GetTask(ctx, pm.TaskID(taskID)); terr == nil && tk != nil {
-				if iss := string(tk.DerivedFromIssue()); iss != "" {
-					scopes = append(scopes, filesservice.ScopeRef{Scope: files.ScopeIssue, ScopeID: iss})
-				}
-			}
+		// Derived issue + bound conversation are best-effort: a missing target
+		// just omits that derived scope (fail-closed).
+		if iss := string(tk.DerivedFromIssue()); iss != "" {
+			scopes = append(scopes, filesservice.ScopeRef{Scope: files.ScopeIssue, ScopeID: iss})
 		}
 		if d.ConvRepo != nil {
 			if conv, cerr := d.ConvRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(taskID)); cerr == nil && conv != nil {

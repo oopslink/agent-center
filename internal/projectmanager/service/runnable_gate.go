@@ -3,11 +3,23 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
+
+// taskIDFromRef extracts the Task id from a "pm://tasks/{id}" ref. v2.14.0 F7
+// (issue I14): previously lived in the deleted work_item_projector.go; the run
+// gate is the sole remaining caller, so it is re-homed here.
+func taskIDFromRef(ref string) (string, bool) {
+	const prefix = "pm://tasks/"
+	if strings.HasPrefix(ref, prefix) && len(ref) > len(prefix) {
+		return strings.TrimPrefix(ref, prefix), true
+	}
+	return "", false
+}
 
 // runnable_gate.go (T130, rewritten v2.14.0 I14/F3 §13.A) — the open→running
 // invariant, the sibling of the T83 claimability guard (claim_flow.go). It is the

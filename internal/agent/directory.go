@@ -3,56 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
-	"strings"
 )
-
-// taskRefPrefix is the pm task work-item ref scheme an AgentWorkItem stores for a
-// plan/task it executes (pm://tasks/{id}). The agent BC already owns this string
-// (the WorkItemProjector stamps it from pm events; agent file-tools trim it), so
-// the paused-provider trims it here without importing the pm package.
-const taskRefPrefix = "pm://tasks/"
-
-// WorkItemPausedProvider adapts an agent WorkItemRepository to the ProjectManager
-// Service's optional PausedTaskPort (T53): it reports which pm tasks currently have
-// a PAUSED work item, so the plan read model can derive a `paused` node instead of
-// mis-showing a set-aside node as `running`. Like OrgDirectory it is string-typed
-// so the agent BC implements the pm port without importing pm.
-type WorkItemPausedProvider struct{ repo WorkItemRepository }
-
-// NewWorkItemPausedProvider wraps a WorkItemRepository as a paused-task resolver.
-func NewWorkItemPausedProvider(repo WorkItemRepository) *WorkItemPausedProvider {
-	return &WorkItemPausedProvider{repo: repo}
-}
-
-// PausedTasks returns the subset of taskIDs whose work item is currently paused.
-// It runs ONE query (ListByStatus(paused) — the global paused set is small) and
-// intersects it with the requested ids, so it stays N+1-free regardless of how
-// many tasks a plan has. An empty input short-circuits without a query. A paused
-// status is unambiguously the CURRENT item (paused is non-terminal; a resumed or
-// superseded item leaves the paused status), so presence ⇒ the task is paused now.
-func (p *WorkItemPausedProvider) PausedTasks(ctx context.Context, taskIDs []string) (map[string]bool, error) {
-	if len(taskIDs) == 0 {
-		return map[string]bool{}, nil
-	}
-	items, err := p.repo.ListByStatus(ctx, WorkItemPaused)
-	if err != nil {
-		return nil, err
-	}
-	pausedBare := make(map[string]bool, len(items))
-	for _, wi := range items {
-		ref := wi.TaskRef()
-		if id := strings.TrimPrefix(ref, taskRefPrefix); id != ref {
-			pausedBare[id] = true
-		}
-	}
-	out := make(map[string]bool, len(taskIDs))
-	for _, tid := range taskIDs {
-		if pausedBare[tid] {
-			out[tid] = true
-		}
-	}
-	return out, nil
-}
 
 // OrgDirectory adapts an agent Repository to the ProjectManager Service's
 // optional AgentDirectory dependency (v2.7 D2 b2/d-i, #5a, ADR-0049/0052/OQ6):
