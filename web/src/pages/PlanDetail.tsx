@@ -865,6 +865,10 @@ function UnmergedBranchesPanel({
 }): React.ReactElement | null {
   const board = useUnmergedBranches(projectId, planId);
   const rows = board.data?.unmerged ?? [];
+  // T315: the panel is collapsible (the PD asked) — a long unmerged list was a
+  // cramped wall on the plan view. Default OPEN so the ship-gate detail stays
+  // visible; the header toggles it.
+  const [open, setOpen] = useState(true);
   // Stay silent while loading, on error, or when there is nothing unmerged — this
   // is an alert surface, not a permanent fixture (a failed fetch must not block
   // the rest of the plan view).
@@ -873,11 +877,25 @@ function UnmergedBranchesPanel({
   }
   return (
     <div
-      className="mx-4 mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2"
+      className="mx-4 mt-2 overflow-hidden rounded-md border border-warning/40 bg-warning/5"
       data-testid="plan-unmerged-board"
       data-unmerged-count={rows.length}
     >
-      <div className="flex items-center gap-2 text-xs font-semibold text-warning">
+      {/* T315: clickable header = collapse toggle (chevron rotates when open). */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-warning hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/40"
+        data-testid="plan-unmerged-toggle"
+      >
+        <svg
+          viewBox="0 0 12 12"
+          aria-hidden="true"
+          className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
+        >
+          <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
         <span>Unmerged branches</span>
         <span
           className="inline-flex items-center rounded-full bg-warning/15 px-1.5 py-0.5 text-[0.625rem] font-bold text-warning"
@@ -885,38 +903,53 @@ function UnmergedBranchesPanel({
         >
           {rows.length}
         </span>
-        <span className="font-normal text-text-muted">
-          — feature branches not yet merged back; clear before Ship
+        <span className="min-w-0 flex-1 truncate font-normal text-text-muted">
+          — not yet merged back; clear before Ship
         </span>
-      </div>
-      <ul className="mt-1.5 space-y-1" data-testid="plan-unmerged-list">
-        {rows.map((u) => (
-          <li
-            key={u.task_id}
-            className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs"
-            data-testid="plan-unmerged-row"
-            data-task-id={u.task_id}
-          >
-            <TaskIdTag taskId={u.task_id} orgRef={u.org_ref} testId="plan-unmerged-ref" />
-            <span className="truncate font-medium text-text-primary" title={u.title}>
-              {u.title}
-            </span>
-            <span className="font-mono text-[0.625rem] text-text-secondary">
-              {u.branch || u.task_id} → {u.base || 'trunk'}
-            </span>
-            <NodeStateChip status={u.node_status} />
-            {u.skip_merge_check && (
-              <span
-                className="inline-flex items-center rounded bg-bg-subtle px-1 py-0.5 text-[0.625rem] font-medium text-text-muted"
-                data-testid="plan-unmerged-skipcheck"
-                title="merge check structurally skipped (no-code feature); still counts until done"
-              >
-                skip-check
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
+      </button>
+      {open && (
+        <ul
+          className="space-y-1 border-t border-warning/20 px-2 py-2"
+          data-testid="plan-unmerged-list"
+        >
+          {rows.map((u) => (
+            <li
+              key={u.task_id}
+              className="rounded border border-border-base/60 bg-bg-base/40 px-2 py-1.5"
+              data-testid="plan-unmerged-row"
+              data-task-id={u.task_id}
+            >
+              {/* line 1: id · title · status — the at-a-glance row. */}
+              <div className="flex items-center gap-2 text-xs">
+                <TaskIdTag taskId={u.task_id} orgRef={u.org_ref} testId="plan-unmerged-ref" />
+                <span className="min-w-0 flex-1 truncate font-medium text-text-primary" title={u.title}>
+                  {u.title}
+                </span>
+                <NodeStateChip status={u.node_status} />
+                {u.skip_merge_check && (
+                  <span
+                    className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 text-[0.625rem] font-medium text-text-muted"
+                    data-testid="plan-unmerged-skipcheck"
+                    title="merge check structurally skipped (no-code feature); still counts until done"
+                  >
+                    skip-check
+                  </span>
+                )}
+              </div>
+              {/* line 2: branch → base, secondary (truncates instead of wrapping). */}
+              <div className="mt-1 flex items-center gap-1 font-mono text-[0.625rem] text-text-secondary">
+                <span className="min-w-0 truncate" title={u.branch || u.task_id}>
+                  {u.branch || u.task_id}
+                </span>
+                <span className="shrink-0 text-text-muted">→</span>
+                <span className="min-w-0 shrink-0 truncate text-text-muted" title={u.base || 'trunk'}>
+                  {u.base || 'trunk'}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

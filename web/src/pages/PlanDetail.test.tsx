@@ -1686,10 +1686,41 @@ describe('PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper', () => {
     expect(within(board).getByTestId('plan-unmerged-count')).toHaveTextContent('2');
     const rows = within(board).getAllByTestId('plan-unmerged-row');
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveTextContent('f1-spec → dev/v2.13.0');
+    // branch → base render as separate spans now (2-line row); assert each.
+    expect(rows[0]).toHaveTextContent('f1-spec');
+    expect(rows[0]).toHaveTextContent('dev/v2.13.0');
     expect(within(rows[0]).getByTestId('plan-unmerged-ref')).toHaveTextContent('T261');
     // The skip-merge-check feature shows the skip-check marker.
     expect(within(rows[1]).getByTestId('plan-unmerged-skipcheck')).toBeInTheDocument();
+  });
+
+  it('collapses and expands the unmerged-branch board via its header (T315)', async () => {
+    mockPlan();
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/unmerged-branches', () =>
+        HttpResponse.json({
+          project_id: 'proj-a',
+          plan_id: 'PL-1',
+          unmerged_count: 1,
+          unmerged: [
+            { task_id: 'i1', title: 'F1 spec', assignee_ref: 'agent:dev', node_status: 'blocked', branch: 'f1-spec', base: 'dev/v2.13.0', skip_merge_check: false, org_ref: 'T261' },
+          ],
+        }),
+      ),
+    );
+    wrap();
+    const toggle = await screen.findByTestId('plan-unmerged-toggle');
+    // open by default → list + rows visible.
+    expect(screen.getByTestId('plan-unmerged-list')).toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    // collapse → list removed, count chip still shown in the header.
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('plan-unmerged-list')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('plan-unmerged-board')).getByTestId('plan-unmerged-count')).toHaveTextContent('1');
+    // expand again → list back.
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('plan-unmerged-list')).toBeInTheDocument();
   });
 
   it('hides the unmerged-branch board when everything is merged (empty board)', async () => {
