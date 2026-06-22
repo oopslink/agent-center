@@ -35,6 +35,13 @@ export interface ConversationSidebarProps {
   showParticipants?: boolean;
   /** optional toolbar rendered at the right of the tab row (e.g. the collapse toggle). */
   toolbar?: React.ReactNode;
+  /**
+   * Whether to render the shell col④ collapse button (from useContextPanelCollapse).
+   * Default true. The EMBEDDED variant (T325) passes false: it lives outside col④
+   * but still inside the shell's ContextPanelProvider, so the shell collapse would
+   * otherwise render a SECOND, no-op button (col④ isn't mounted on desktop). T326.
+   */
+  showShellCollapse?: boolean;
 }
 
 export function ConversationSidebar({
@@ -42,6 +49,7 @@ export function ConversationSidebar({
   participants = [],
   showParticipants = true,
   toolbar,
+  showShellCollapse = true,
 }: ConversationSidebarProps): React.ReactElement {
   const threads = useConversationThreads(conversationId);
   const files = useSharedFiles(conversationId);
@@ -100,10 +108,10 @@ export function ConversationSidebar({
             </button>
           );
         })}
-        {(toolbar != null || collapse != null) && (
+        {(toolbar != null || (showShellCollapse && collapse != null)) && (
           <div className="ml-auto flex shrink-0 items-center gap-1">
             {toolbar}
-            {collapse != null && (
+            {showShellCollapse && collapse != null && (
               <button
                 type="button"
                 data-testid="conversation-sidebar-collapse"
@@ -225,6 +233,7 @@ export function EmbeddedConversationSidebar(props: ConversationSidebarProps): Re
     >
       <ConversationSidebar
         {...props}
+        showShellCollapse={false}
         toolbar={
           <button
             type="button"
