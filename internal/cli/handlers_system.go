@@ -261,6 +261,21 @@ func ServerCommand() *Command {
 				}()
 				defer redispatchReconcilerCancel()
 
+				// v2.14.0 I14/F3 (§2.5/§13.D): execution-lease checker — the replacement
+				// for the deleted AgentWorkItem.FailFromAgentDeath stale sweep. It
+				// periodically reclaims running Tasks whose heartbeat-renewed lease has
+				// lapsed (the agent died), returning them to open for re-dispatch. A
+				// blocked task is a legal pause and is never reclaimed (§13.D).
+				leaseChecker := pmservice.NewLeaseChecker(
+					app.PMService, nil, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[lease-checker] "+msg+"\n", a...) },
+				)
+				leaseCheckerCtx, leaseCheckerCancel := context.WithCancel(ctx)
+				go func() {
+					_ = leaseChecker.Run(leaseCheckerCtx)
+				}()
+				defer leaseCheckerCancel()
+
 				bannerWeb := "disabled"
 				if webEnabled {
 					bannerWeb = webAddr

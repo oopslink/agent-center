@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"testing"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -183,6 +184,67 @@ func TestHeartbeatTask_RenewsAndGuards(t *testing.T) {
 	}
 	if err := h.svc.HeartbeatTask(h.ctx, tid, "agent:w1"); !errors.Is(err, pm.ErrTaskBlocked) {
 		t.Fatalf("heartbeat on blocked task = %v, want ErrTaskBlocked", err)
+	}
+}
+
+// §2.5/§13.D: the lease-checker reclaims a running task whose execution lease has
+// lapsed (the agent died) — returning it to open with the assignee cleared, ready for
+// re-dispatch. The reclaim is the replacement for FailFromAgentDeath.
+func TestLeaseChecker_ReclaimsExpiredLease(t *testing.T) {
+	h := planAdvanceSetup(t)
+	_, tid := startedPoolTask(t, h, "org-lease", "P", "agent:w1")
+
+	// Before the lease lapses, nothing is reclaimed.
+	if n, err := h.svc.ReclaimExpiredLeases(h.ctx); err != nil || n != 0 {
+		t.Fatalf("reclaim before expiry = (%d,%v), want (0,nil)", n, err)
+	}
+	// Advance past the lease TTL → the dead agent's task is reclaimed.
+	h.clk.Advance(DefaultExecutionLeaseTTL + time.Minute)
+	n, err := h.svc.ReclaimExpiredLeases(h.ctx)
+	if err != nil || n != 1 {
+		t.Fatalf("reclaim after expiry = (%d,%v), want (1,nil)", n, err)
+	}
+	got, err := h.svc.GetTask(h.ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status() != pm.TaskOpen {
+		t.Fatalf("status=%s, want open (reclaimed)", got.Status())
+	}
+	if got.Assignee() != "" {
+		t.Fatalf("assignee=%q, want cleared after lease expiry", got.Assignee())
+	}
+	if got.ExecutionLeaseExpiresAt() != nil {
+		t.Fatal("lease should be cleared after reclaim")
+	}
+	// Idempotent: a second sweep reclaims nothing (the task is no longer running).
+	if n, _ := h.svc.ReclaimExpiredLeases(h.ctx); n != 0 {
+		t.Fatalf("second reclaim = %d, want 0", n)
+	}
+}
+
+// A heartbeat within the TTL keeps the lease alive, so the checker does NOT reclaim
+// a task whose agent is still alive.
+func TestLeaseChecker_HeartbeatPreventsReclaim(t *testing.T) {
+	h := planAdvanceSetup(t)
+	_, tid := startedPoolTask(t, h, "org-lease2", "P", "agent:w1")
+
+	// Advance to just before expiry, then heartbeat → lease extended by a fresh TTL.
+	h.clk.Advance(DefaultExecutionLeaseTTL - time.Minute)
+	if err := h.svc.HeartbeatTask(h.ctx, tid, "agent:w1"); err != nil {
+		t.Fatalf("heartbeat: %v", err)
+	}
+	// Advance a little (well under the renewed TTL) → still alive, not reclaimed.
+	h.clk.Advance(2 * time.Minute)
+	if n, err := h.svc.ReclaimExpiredLeases(h.ctx); err != nil || n != 0 {
+		t.Fatalf("reclaim after heartbeat = (%d,%v), want (0,nil) (lease renewed)", n, err)
+	}
+	got, err := h.svc.GetTask(h.ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status() != pm.TaskRunning {
+		t.Fatalf("status=%s, want running (heartbeat kept it alive)", got.Status())
 	}
 }
 

@@ -34,6 +34,7 @@ type planAdvanceHarness struct {
 	convRepo *convsql.ConversationRepo
 	msgRepo  *convsql.MessageRepo
 	relay    *outbox.Relay
+	clk      *clock.FakeClock
 	ctx      context.Context
 }
 
@@ -75,7 +76,7 @@ func planAdvanceSetup(t *testing.T) *planAdvanceHarness {
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
 	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
-	return &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, ctx: context.Background()}
+	return &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, ctx: context.Background()}
 }
 
 func (h *planAdvanceHarness) drain(t *testing.T) {
