@@ -88,6 +88,16 @@ const (
 	// dispatch injection + list_findings read, not a cross-BC projection).
 	EvtPlanFindingRecorded  = "pm.plan_finding.recorded"
 	EvtPlanFindingRetracted = "pm.plan_finding.retracted"
+	// v2.14.0 I14/F6 (HTTP + Conversation 接线). When a running task is blocked
+	// with reasonType=input_required (the agent needs a USER reply) BlockTask emits
+	// EvtTaskInputRequested IN THE SAME TX; when the task is later unblocked from an
+	// input_required block UnblockTask emits EvtTaskInputReplied. Both are consumed
+	// by the (production-registered) TaskInputConversationProjector, which is the
+	// ONLY writer of the input_request / input_reply Conversation messages — the pm
+	// AppService NEVER writes a Conversation message inline (ADR-0052 outbox purity).
+	// obstacle blocks (owner/PM action, no user reply) emit NEITHER event.
+	EvtTaskInputRequested = "pm.task.input_requested"
+	EvtTaskInputReplied   = "pm.task.input_replied"
 )
 
 // AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,
@@ -477,6 +487,34 @@ type planCreatorFailureWakePayload struct {
 	PlanID         string `json:"plan_id"`
 	TaskID         string `json:"task_id"`
 	OrganizationID string `json:"organization_id"`
+}
+
+// taskInputEventPayload is the JSON payload for the v2.14.0 I14/F6 task-input
+// events (EvtTaskInputRequested / EvtTaskInputReplied). It carries everything the
+// TaskInputConversationProjector needs to resolve the task's bound Conversation
+// (by OwnerRef → NewTaskOwnerRef) and post the input_request / input_reply
+// message — WITHOUT the pm AppService writing a Conversation message inline
+// (ADR-0052 outbox purity).
+//
+//   - OwnerRef is pm://tasks/{id} (the projector derives the task id + resolves
+//     the conversation by owner_ref, mirroring the participant projector).
+//   - AgentRef is the assignee — the SENDER of the input_request (the agent asking
+//     for input). Set on the request event.
+//   - ActorRef is the user who unblocked — the SENDER of the input_reply. Set on
+//     the reply event.
+//   - Reason is the agent's block reason (the request body); Comment is the user's
+//     reply (the reply body).
+//   - InputRequestMessageID (reply only, optional) threads the reply under the
+//     original input_request message (depth-1; empty ⇒ top-level reply).
+type taskInputEventPayload struct {
+	TaskID                string `json:"task_id"`
+	ProjectID             string `json:"project_id"`
+	OwnerRef              string `json:"owner_ref"` // pm://tasks/{id}
+	AgentRef              string `json:"agent_ref,omitempty"`
+	ActorRef              string `json:"actor_ref,omitempty"`
+	Reason                string `json:"reason,omitempty"`
+	Comment               string `json:"comment,omitempty"`
+	InputRequestMessageID string `json:"input_request_message_id,omitempty"`
 }
 
 type issueEventPayload struct {

@@ -155,6 +155,15 @@ func (a *App) outboxProjectors(
 		// v2.9 P3: wire the optional message + read-state repos so EvtPlanDeleted fully
 		// hard-deletes the plan conversation ("删会话"), and EvtPlanArchived archives it.
 		WithConversationCascade(a.MsgRepo, a.ReadStateRepo)
+	// v2.14.0 I14/F6: the task-input↔Conversation projector. It consumes
+	// EvtTaskInputRequested (an input_required block) → posts an input_request
+	// message into the task's bound Conversation (sender=assignee), and
+	// EvtTaskInputReplied (the user's unblock reply) → posts an input_reply threaded
+	// under the request. It is the SOLE Conversation writer for these events
+	// (ADR-0052 outbox purity — BlockTask/UnblockTask only emit the event). The
+	// Conversation-side write is the TaskInputDispatchAdapter over MessageWriter.
+	taskInputConvProj := pmservice.NewTaskInputConversationProjector(
+		a.DB, a.ConvRepo, convservice.NewTaskInputDispatchAdapter(a.MessageWriter), appliedRepo, a.Clock)
 	// v2.7 D2-c-i: ADDITIVE work delivery. When the projector creates a queued
 	// AgentWorkItem it ALSO enqueues an agent.work command (with a brief) onto the
 	// assignee Agent's Worker control stream, same tx. The agents repo resolves
@@ -374,6 +383,7 @@ func (a *App) outboxProjectors(
 	return []outbox.Projector{
 		participantProj,
 		planParticipantProj,
+		taskInputConvProj,
 		workItemProj,
 		agentControlProj,
 		wakeProj,
