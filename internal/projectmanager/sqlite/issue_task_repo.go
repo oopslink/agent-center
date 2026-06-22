@@ -201,6 +201,14 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()),
 		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), string(t.ID()))
 	if err != nil {
+		// v2.14.0 I14/F3 §13.B: the only UNIQUE index on pm_tasks is the single-active
+		// partial index idx_pm_tasks_one_active_per_agent (migration 0072). A unique
+		// violation on UPDATE therefore means this write would give the agent a SECOND
+		// running, non-blocked task — translate it to the typed sentinel so the service
+		// layer (StartTask) can surface a clean "agent already has a running task".
+		if isUnique(err) {
+			return pm.ErrAgentHasActiveTask
+		}
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

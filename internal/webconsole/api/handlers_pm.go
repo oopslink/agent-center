@@ -795,7 +795,7 @@ func (s *Server) pmBlockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.BlockTask(r.Context(), id, req.Reason, c) })
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.BlockTask(r.Context(), id, req.Reason, pm.BlockReasonObstacle, c) })
 }
 
 func (s *Server) pmUnblockTaskHandler(w http.ResponseWriter, r *http.Request) {

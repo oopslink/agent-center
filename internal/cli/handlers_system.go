@@ -261,6 +261,37 @@ func ServerCommand() *Command {
 				}()
 				defer redispatchReconcilerCancel()
 
+				// v2.14.0 I14/F3 (§2.5/§13.D): execution-lease checker — the replacement
+				// for the deleted AgentWorkItem.FailFromAgentDeath stale sweep. It
+				// periodically reclaims running Tasks whose heartbeat-renewed lease has
+				// lapsed (the agent died), returning them to open for re-dispatch. A
+				// blocked task is a legal pause and is never reclaimed (§13.D).
+				leaseChecker := pmservice.NewLeaseChecker(
+					app.PMService, nil, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[lease-checker] "+msg+"\n", a...) },
+				)
+				leaseCheckerCtx, leaseCheckerCancel := context.WithCancel(ctx)
+				go func() {
+					_ = leaseChecker.Run(leaseCheckerCtx)
+				}()
+				defer leaseCheckerCancel()
+
+				// v2.14.0 I14/F3 (§13.D): overdue-blocked reminder. A blocked task is a
+				// legal pause never reclaimed by the lease, but if the block is never
+				// resolved it would sit silently — so once a block outlives the overdue
+				// threshold this emits a one-time pm.task.block_overdue event (owner-
+				// visible reminder, delivered by the downstream projector), nudging the
+				// owner to respond / reassign / discard.
+				overdueReminder := pmservice.NewOverdueBlockedReminder(
+					app.PMService, nil, 0, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[overdue-block-reminder] "+msg+"\n", a...) },
+				)
+				overdueReminderCtx, overdueReminderCancel := context.WithCancel(ctx)
+				go func() {
+					_ = overdueReminder.Run(overdueReminderCtx)
+				}()
+				defer overdueReminderCancel()
+
 				bannerWeb := "disabled"
 				if webEnabled {
 					bannerWeb = webAddr

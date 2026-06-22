@@ -330,11 +330,14 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
 		Plans:        pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
 		Findings:     pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
-		Outbox:       outboxsql.NewOutboxRepo(db),
-		IDGen:        gen,
-		Clock:        clk,
-		AgentDir:     agentpkg.NewOrgDirectory(agentRepo),
-		OrgSeq:       pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
+		// v2.14.0 I14/F3 §7.3: persist the append-only Task lifecycle log (block/unblock/
+		// lease_expired/reassigned) to pm_task_action_logs from the log-producing flows.
+		TaskActionLogs: pmsql.NewTaskActionLogRepo(db, gen),
+		Outbox:         outboxsql.NewOutboxRepo(db),
+		IDGen:          gen,
+		Clock:          clk,
+		AgentDir:       agentpkg.NewOrgDirectory(agentRepo),
+		OrgSeq:         pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
 		// v2.13.0 I18/F3: wire the concrete CycleNodeMetaPort so the F4 unmerged-branch
 		// board reads each plan node's persisted role/branch/base (it was always-empty
 		// before — no adapter was wired). A fresh repo instance is fine (stateless),
