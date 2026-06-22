@@ -60,9 +60,37 @@ func TestEnsureTaskRunnable_DispatchedPoolMember_OK(t *testing.T) {
 	}
 }
 
-// A real (non-builtin) structured-plan node IS runnable — being a real-plan node
-// is sufficient (the plan's own dispatch gating governs the rest).
+// A real (non-builtin) structured-plan node whose plan is RUNNING and whose DAG
+// dependencies are satisfied IS runnable. T329 (issue-9d4b3895 §13.A): being a plan
+// member is NO LONGER sufficient — the dependency/plan-state gate now governs start
+// too (the pre-fix unconditional "return nil" was the 抢跑 bug; deeper dependency
+// coverage lives in dispatch_gate_t329_test.go).
 func TestEnsureTaskRunnable_RealPlanNode_OK(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "structured", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	// A single assigned node with no upstream → ready once the plan is running.
+	tid := h.seedAssignedTask(t, pid, planID, "node", "user:x")
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	h.drain(t)
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); err != nil {
+		t.Fatalf("ready node of a running plan runnable = %v, want nil", err)
+	}
+}
+
+// T329: a real-plan node whose plan is still DRAFT is NOT runnable (the dispatch/
+// start gate respects plan run-state). This pins the behavior the pre-fix gate got
+// wrong (it returned nil for any structured-plan member regardless of plan state).
+func TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	if err != nil {
@@ -79,8 +107,8 @@ func TestEnsureTaskRunnable_RealPlanNode_OK(t *testing.T) {
 	if err := h.svc.SelectTaskIntoPlan(h.ctx, planID, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); err != nil {
-		t.Fatalf("real-plan node runnable = %v, want nil", err)
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); !errors.Is(err, pm.ErrTaskNotRunnable) {
+		t.Fatalf("node of a draft plan runnable = %v, want ErrTaskNotRunnable", err)
 	}
 }
 

@@ -33,6 +33,15 @@ const commandTypeAgentWork = "agent.work"
 // keeps this as the sole activation trigger.
 const commandTypeWorkAvailable = "agent.work_available"
 
+// DispatchGateFunc reports whether a fresh work item may be dispatched for the
+// task behind taskRef ("pm://tasks/{id}") right now (T329 dispatch hard-gate).
+// Returning nil ALLOWS the mint; returning pm.ErrTaskNotRunnable (the gate's
+// sentinel) makes the projector SKIP the mint (a non-error "not dispatchable now"
+// — e.g. dependencies unmet, plan not running, terminal/blocked node). Any other
+// error aborts the projection (infrastructure failure). Optional: a nil gate keeps
+// the legacy "mint on every assign" behavior (test fixtures / pre-T329 callers).
+type DispatchGateFunc func(ctx context.Context, taskRef string) error
+
 // WorkItemProjector is the B2-c projector that turns Task assignment into Agent
 // work (ADR-0049 §3, plan §4.2). It consumes pm.task.assigned / pm.task.reassigned
 // and, when the assignee is an Agent, supersedes any prior live AgentWorkItem
@@ -51,14 +60,15 @@ const commandTypeWorkAvailable = "agent.work_available"
 // don't exercise work delivery keep working — a nil controlLog/agents/tasks
 // simply skips the enqueue.
 type WorkItemProjector struct {
-	db         *sql.DB
-	workItems  agent.WorkItemRepository
-	applied    outbox.AppliedStore
-	idgen      idgen.Generator
-	clock      clock.Clock
-	controlLog *environment.ControlLog // optional; nil → skip agent.work enqueue
-	agents     agent.Repository        // optional; resolves assignee → worker
-	tasks      pm.TaskRepository       // optional; supplies the work brief
+	db           *sql.DB
+	workItems    agent.WorkItemRepository
+	applied      outbox.AppliedStore
+	idgen        idgen.Generator
+	clock        clock.Clock
+	controlLog   *environment.ControlLog // optional; nil → skip agent.work enqueue
+	agents       agent.Repository        // optional; resolves assignee → worker
+	tasks        pm.TaskRepository       // optional; supplies the work brief
+	dispatchGate DispatchGateFunc        // optional; nil → no dependency gating (T329)
 }
 
 // WorkItemProjectorDeps bundles the projector's dependencies. controlLog/agents/
@@ -73,6 +83,9 @@ type WorkItemProjectorDeps struct {
 	ControlLog *environment.ControlLog
 	Agents     agent.Repository
 	Tasks      pm.TaskRepository
+	// DispatchGate is the optional T329 dependency hard-gate consulted before
+	// minting a fresh work item; nil → no gating (legacy behavior).
+	DispatchGate DispatchGateFunc
 }
 
 // NewWorkItemProjector constructs the projector. controlLog/agents/tasks are
@@ -92,7 +105,7 @@ func NewWorkItemProjectorWithDeps(d WorkItemProjectorDeps) *WorkItemProjector {
 	}
 	return &WorkItemProjector{
 		db: d.DB, workItems: d.WorkItems, applied: d.Applied, idgen: d.IDGen, clock: clk,
-		controlLog: d.ControlLog, agents: d.Agents, tasks: d.Tasks,
+		controlLog: d.ControlLog, agents: d.Agents, tasks: d.Tasks, dispatchGate: d.DispatchGate,
 	}
 }
 
@@ -207,6 +220,25 @@ func (p *WorkItemProjector) Project(ctx context.Context, e outbox.Event) error {
 		// resolve it to the execution-entity id so WorkItem.AgentID (and all
 		// downstream wake/daemon/dispatch keying) stays the internal entity id.
 		if dispatch && isAgent {
+			// T329 dispatch hard-gate (issue-9d4b3895): mint a fresh work item ONLY
+			// when the task is dispatchable — its plan-node DAG dependencies are
+			// satisfied, its plan is running (or it is a dispatched pool member), and it
+			// is not terminal/blocked. This is the single choke point every dispatch
+			// path funnels through, so it stops BOTH the initial-dispatch 抢跑 and the
+			// re-dispatch churn regardless of which emitter fired EvtTaskAssigned. A nil
+			// gate keeps the legacy unconditional mint (test fixtures). ErrTaskNotRunnable
+			// = "not dispatchable now" → SKIP the mint (no work item, no wake) but still
+			// MarkApplied so the event is not reprocessed; the node re-enters dispatch
+			// when it later becomes ready (plan advance emits a fresh assign). Any other
+			// error aborts the projection.
+			if p.dispatchGate != nil {
+				if gerr := p.dispatchGate(txCtx, taskRef); gerr != nil {
+					if errors.Is(gerr, pm.ErrTaskNotRunnable) {
+						return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
+					}
+					return gerr
+				}
+			}
 			entityID := agentID
 			if p.agents != nil {
 				if a, rerr := resolveAgentByEither(txCtx, p.agents, string(agentID)); rerr == nil {
