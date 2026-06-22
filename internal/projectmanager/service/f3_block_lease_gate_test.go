@@ -258,7 +258,7 @@ func TestActionLog_BlockUnblockPersisted(t *testing.T) {
 	if err := h.svc.BlockTask(h.ctx, tid, "need a token", pm.BlockReasonObstacle, "agent:w1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.UnblockTask(h.ctx, tid, "agent:w1"); err != nil {
+	if err := h.svc.UnblockTask(h.ctx, UnblockTaskCommand{TaskID: tid, Actor: "agent:w1"}); err != nil {
 		t.Fatal(err)
 	}
 	logs, err := h.actionLogs.ListByTask(h.ctx, tid)
@@ -309,7 +309,7 @@ func TestOverdueBlockedReminder_EmitsOncePerEpisode(t *testing.T) {
 	}
 
 	// Unblock → latch pruned; a NEW block episode re-arms the reminder.
-	if err := h.svc.UnblockTask(h.ctx, tid, "agent:w1"); err != nil {
+	if err := h.svc.UnblockTask(h.ctx, UnblockTaskCommand{TaskID: tid, Actor: "agent:w1"}); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := chk.Tick(h.ctx); n != 0 {

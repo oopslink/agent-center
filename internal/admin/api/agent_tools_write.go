@@ -973,7 +973,10 @@ func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	if err := d.PMService.UnblockTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+	if err := d.PMService.UnblockTask(r.Context(), pmservice.UnblockTaskCommand{
+		TaskID: pm.TaskID(req.TaskID),
+		Actor:  pm.IdentityRef(agentActor(a)),
+	}); err != nil {
 		mapDomainError(w, err)
 		return
 	}

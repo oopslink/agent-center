@@ -285,7 +285,7 @@ func TestBlockAnnotates_UnblockRedispatches(t *testing.T) {
 	}
 
 	// Unblock → reason cleared + re-dispatch: stale live WI superseded, fresh queued one.
-	if err := svc.UnblockTask(ctx, tid, "user:a"); err != nil {
+	if err := svc.UnblockTask(ctx, UnblockTaskCommand{TaskID: tid, Actor: "user:a"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := relay.RunOnce(ctx, 100); err != nil {

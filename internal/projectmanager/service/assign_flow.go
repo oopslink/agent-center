@@ -203,20 +203,6 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 	if !reasonType.IsValid() {
 		return pm.ErrInvalidBlockReasonType
 	}
-	// agentRef is the task's own assignee: the domain Block then validates the reason
-	// (an empty reason → ErrBlockReasonRequired) without the actor having to equal the
-	// assignee at this layer (start_work already established the agent owns the run).
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
-		return t.Block(reason, reasonType, t.Assignee(), now)
-	}, reason)
-}
-
-// UnblockTask clears a stuck (blocked_reason) annotation on a RUNNING task and
-// re-dispatches it (ADR-0046). The task never left running, but its prior WorkItem
-// terminated (failed) when it got stuck, so unblocking emits pm.task.assigned and
-// the WorkItemProjector mints a fresh WorkItem. No-op if the task carries no
-// blocked_reason (not stuck) — avoids a duplicate dispatch on an already-active task.
-func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		t, err := s.tasks.FindByID(txCtx, taskID)
@@ -226,6 +212,82 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject block on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		prevStatus := t.Status()
+		// agentRef is the task's own assignee: the domain Block then validates the reason
+		// (an empty reason → ErrBlockReasonRequired) without the actor having to equal the
+		// assignee at this layer (start_work already established the agent owns the run).
+		agentRef := t.Assignee()
+		if err := t.Block(reason, reasonType, agentRef, now); err != nil {
+			return err
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		// §7.3: persist the "blocked" lifecycle log entry.
+		if err := s.flushActionLogs(txCtx, t); err != nil {
+			return err
+		}
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
+			return err
+		}
+		// F6 §3: an input_required block needs a USER reply → emit a SECOND event in
+		// THIS tx so the TaskInputConversationProjector surfaces an interactive
+		// input_request message in the task's bound Conversation (sender=assignee).
+		// An obstacle block (owner/PM action, no user reply) emits NOTHING extra.
+		if reasonType == pm.BlockReasonInputRequired {
+			return s.emitTaskInputEvent(txCtx, EvtTaskInputRequested, taskInputEventPayload{
+				TaskID:    string(t.ID()),
+				ProjectID: string(t.ProjectID()),
+				OwnerRef:  "pm://tasks/" + string(t.ID()),
+				AgentRef:  string(agentRef),
+				Reason:    reason,
+			})
+		}
+		return nil
+	})
+}
+
+// emitTaskInputEvent emits a F6 task-input event (EvtTaskInputRequested /
+// EvtTaskInputReplied) inside the caller's tx, refs keyed by task+project so the
+// outbox row carries the task locus.
+func (s *Service) emitTaskInputEvent(ctx context.Context, evt string, payload taskInputEventPayload) error {
+	return s.emit(ctx, evt,
+		refsJSON(map[string]string{"task_id": payload.TaskID, "project_id": payload.ProjectID}),
+		payload)
+}
+
+// UnblockTask clears a stuck (blocked_reason) annotation on a RUNNING task and
+// re-dispatches it (ADR-0046). The task never left running, but its prior WorkItem
+// terminated (failed) when it got stuck, so unblocking emits pm.task.assigned and
+// the WorkItemProjector mints a fresh WorkItem. No-op if the task carries no
+// blocked_reason (not stuck) — avoids a duplicate dispatch on an already-active task.
+// UnblockTaskCommand is the F6 unblock input (§13.C / §4). Comment is the
+// resolution/reply the unblocker supplies (threaded to the agent as the
+// BlockedComment, and — for an input_required block — surfaced as the
+// Conversation input_reply body). InputRequestMessageID (optional) threads that
+// reply under the original input_request message. Actor is the unblocker (the
+// user replying, or the owner resolving an obstacle).
+type UnblockTaskCommand struct {
+	TaskID                pm.TaskID
+	Comment               string
+	InputRequestMessageID string
+	Actor                 pm.IdentityRef
+}
+
+func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, cmd.TaskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), cmd.Actor); err != nil {
+			return err
+		}
 		// #297: reject unblock on an archived (read-only) project.
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
@@ -233,9 +295,13 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if strings.TrimSpace(t.BlockedReason()) == "" {
 			return nil // not stuck → nothing to recover (idempotent, no double-dispatch)
 		}
-		// v2.14.0 I14 F1 compile-bridge: Unblock now takes (comment, actorRef, at).
-		// Full rewrite (comment plumbing + Conversation input_reply) is F3 (§13.C).
-		if err := t.Unblock("", actor, now); err != nil {
+		// F6 §4: capture the block's reasonType BEFORE Unblock clears it — it decides
+		// whether a Conversation input_reply must follow (input_required) or not (obstacle).
+		prevReasonType := t.BlockedReasonType()
+		// v2.14.0 I14 F6 (§13.C): thread the real comment (not "") so the agent reads
+		// the resolution as BlockedComment; the re-dispatch (EvtTaskAssigned below) is
+		// the §13.C wake.
+		if err := t.Unblock(cmd.Comment, cmd.Actor, now); err != nil {
 			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
@@ -245,7 +311,24 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.flushActionLogs(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, "")
+		if err := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); err != nil {
+			return err
+		}
+		// F6 §4: an input_required unblock IS the user's reply → emit EvtTaskInputReplied
+		// in THIS tx so the TaskInputConversationProjector posts an input_reply message
+		// (sender=actor, threaded under the original input_request). An obstacle unblock
+		// (owner resolution, no user-facing conversation message) emits NOTHING extra.
+		if prevReasonType == pm.BlockReasonInputRequired {
+			return s.emitTaskInputEvent(txCtx, EvtTaskInputReplied, taskInputEventPayload{
+				TaskID:                string(t.ID()),
+				ProjectID:             string(t.ProjectID()),
+				OwnerRef:              "pm://tasks/" + string(t.ID()),
+				ActorRef:              string(cmd.Actor),
+				Comment:               cmd.Comment,
+				InputRequestMessageID: cmd.InputRequestMessageID,
+			})
+		}
+		return nil
 	})
 }
 
