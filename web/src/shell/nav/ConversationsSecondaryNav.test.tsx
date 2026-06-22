@@ -110,11 +110,16 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     // subgroup headers appear (My DMs + Agent-to-agent) once an agent-agent DM exists.
     expect(await screen.findByText('Agent-to-agent')).toBeInTheDocument();
     expect(screen.getByText('My DMs')).toBeInTheDocument();
-    // the agent-agent DM is labeled with BOTH agents and lives in the agent group.
+    // the agent-agent DM is labeled with BOTH agents (T318: stacked on two lines)
+    // and lives in the agent group.
     const agentGroup = screen.getByTestId('conv-nav-dms-agent');
-    const row = within(agentGroup).getByText('@pd ↔ @dev1');
-    expect(row).toBeInTheDocument();
-    expect(row.closest('[data-testid="conv-nav-dm"]')).toHaveAttribute('data-dm-type', 'agent_agent_dm');
+    const pd = within(agentGroup).getByText('@pd');
+    const dev1 = within(agentGroup).getByText('@dev1');
+    expect(pd).toBeInTheDocument();
+    expect(dev1).toBeInTheDocument();
+    expect(pd.closest('[data-testid="conv-nav-dm"]')).toHaveAttribute('data-dm-type', 'agent_agent_dm');
+    // both labels live in the same row's stacked-participant container.
+    expect(within(agentGroup).getByTestId('conv-nav-dm-a2a')).toContainElement(dev1);
     // the personal DM stays in the My DMs group.
     expect(within(screen.getByTestId('conv-nav-dms-mine')).getByText('@oopslink')).toBeInTheDocument();
   });

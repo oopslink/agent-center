@@ -8,7 +8,7 @@ import {
 } from '@/api/conversations';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { ConfirmModal } from '@/components/ConfirmModal';
-import { dmDisplayName } from '@/components/dmDisplay';
+import { dmDisplayName, dmParticipantLabels } from '@/components/dmDisplay';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 import type { Conversation } from '@/api/types';
 
@@ -121,9 +121,16 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
           : 'Direct message';
   const dmCanDelete = (d: Conversation): boolean => !!d.peer_identity_id && !d.peer_display_name;
 
-  // One DM row (NavLink + optional delete) — shared by both groups. Agent↔agent
-  // rows carry an `agent` tag so the kind is unmistakable even mid-scroll.
-  const renderDmRow = (d: Conversation): React.ReactElement => (
+  // One DM row (NavLink + optional delete) — shared by both groups. T318: an
+  // agent↔agent row STACKS its two participants on separate lines ("@A" / "↔ @B")
+  // so both agents stay legible in the narrow rail (the old single-line "@A ↔ @B"
+  // truncated the second name). The per-row "agent" tag is dropped — the
+  // "Agent-to-agent" group header already conveys the kind, and it was eating the
+  // width that caused the truncation.
+  const renderDmRow = (d: Conversation): React.ReactElement => {
+    const isA2A = d.dm_type === 'agent_agent_dm';
+    const a2aLabels = isA2A ? dmParticipantLabels(d) : [];
+    return (
     <li key={d.id}>
       <div className="flex items-center gap-1">
         <NavLink
@@ -132,14 +139,24 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
           data-testid="conv-nav-dm"
           data-dm-type={d.dm_type ?? 'my_dm'}
         >
-          <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="min-w-0 truncate">{dmLabel(d)}</span>
-            {d.dm_type === 'agent_agent_dm' && (
-              <span className="shrink-0 rounded bg-status-blue-bg px-1 py-0.5 text-[0.5rem] font-semibold uppercase leading-none text-status-blue-fg">
-                agent
-              </span>
-            )}
-          </span>
+          {isA2A && a2aLabels.length > 0 ? (
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 py-0.5" data-testid="conv-nav-dm-a2a">
+              {a2aLabels.map((label, i) => (
+                <span key={i} className="flex min-w-0 items-center gap-1 leading-tight">
+                  {i > 0 && (
+                    <span aria-hidden="true" className="shrink-0 text-[0.625rem] text-text-muted">
+                      ↔
+                    </span>
+                  )}
+                  <span className="min-w-0 truncate">{label}</span>
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="min-w-0 truncate">{dmLabel(d)}</span>
+            </span>
+          )}
           <UnreadBadge unreadCount={d.unread_count} mentionCount={d.mention_count} />
         </NavLink>
         {dmCanDelete(d) && (
@@ -163,7 +180,8 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
         )}
       </div>
     </li>
-  );
+    );
+  };
 
   return (
     <div className="space-y-4" data-testid="conversations-secondary-nav">
