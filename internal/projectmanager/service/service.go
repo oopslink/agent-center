@@ -223,6 +223,11 @@ type Service struct {
 	// poolClaimLimit caps the concurrent claimed built-in-pool tasks per agent
 	// (T83 §3.6, owner-set). 0 ⇒ DefaultPoolClaimLimit (3).
 	poolClaimLimit int
+	// actionLogs is OPTIONAL (nil-safe, v2.14.0 I14/F3 §7.3). nil ⇒ the append-only
+	// Task lifecycle log (blocked/unblocked/lease_expired/reassigned) is not persisted
+	// (the realtime annotation columns still are). When wired, the log-producing flows
+	// flush the domain's freshly-appended TaskActionLog entries to pm_task_action_logs.
+	actionLogs pm.TaskActionLogRepository
 }
 
 // DefaultPoolClaimLimit is the T83 §3.6 default cap on concurrently-claimed
@@ -314,6 +319,10 @@ type Deps struct {
 	// PoolClaimLimit is OPTIONAL (T83 §3.6): max concurrent claimed built-in-pool
 	// tasks per agent. 0 ⇒ DefaultPoolClaimLimit (3).
 	PoolClaimLimit int
+	// TaskActionLogs is OPTIONAL (v2.14.0 I14/F3 §7.3): when set, the log-producing
+	// task flows (block/unblock/lease-expiry/reassign) flush the domain's appended
+	// TaskActionLog entries to pm_task_action_logs. nil ⇒ no live log persistence.
+	TaskActionLogs pm.TaskActionLogRepository
 }
 
 // New constructs the Service.
@@ -329,7 +338,25 @@ func New(d Deps) *Service {
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
 		cycleMeta: d.CycleMeta, mergeChecker: d.MergeChecker, decisionGate: d.DecisionGate,
+		actionLogs: d.TaskActionLogs,
 	}
+}
+
+// flushActionLogs persists the domain's freshly-appended TaskActionLog entries
+// (v2.14.0 I14/F3 §7.3). It is nil-safe (no repo wired ⇒ no-op). A Task loaded via
+// FindByID rehydrates with NO action-log history (scanTask does not read the log
+// table), so after a single domain op t.ActionLogs() holds ONLY that op's new
+// entries — appending them is duplicate-safe (Append assigns a ULID to each). Runs in
+// the caller's tx so the log row commits atomically with the task state change.
+func (s *Service) flushActionLogs(ctx context.Context, t *pm.Task) error {
+	if s.actionLogs == nil {
+		return nil
+	}
+	logs := t.ActionLogs()
+	if len(logs) == 0 {
+		return nil
+	}
+	return s.actionLogs.Append(ctx, t.ID(), logs)
 }
 
 // poolLimit resolves the configured per-agent pool-claim cap, defaulting to

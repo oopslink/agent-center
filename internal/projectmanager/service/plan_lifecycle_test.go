@@ -28,14 +28,15 @@ import (
 // plan conversation + a permissive AgentDirectory), the relay (to materialize
 // the plan conversation), and the conversation/message repos to assert dispatch.
 type planAdvanceHarness struct {
-	svc      *Service
-	plans    *pmsql.PlanRepo
-	tasks    *pmsql.TaskRepo
-	convRepo *convsql.ConversationRepo
-	msgRepo  *convsql.MessageRepo
-	relay    *outbox.Relay
-	clk      *clock.FakeClock
-	ctx      context.Context
+	svc        *Service
+	plans      *pmsql.PlanRepo
+	tasks      *pmsql.TaskRepo
+	convRepo   *convsql.ConversationRepo
+	msgRepo    *convsql.MessageRepo
+	relay      *outbox.Relay
+	clk        *clock.FakeClock
+	actionLogs *pmsql.TaskActionLogRepo
+	ctx        context.Context
 }
 
 func planAdvanceSetup(t *testing.T) *planAdvanceHarness {
@@ -59,11 +60,13 @@ func planAdvanceSetup(t *testing.T) *planAdvanceHarness {
 	writer := convservice.NewMessageWriter(db, convRepo, msgRepo, sink, gen, clk).WithOutbox(ob)
 	plans := pmsql.NewPlanRepo(db)
 	tasks := pmsql.NewTaskRepo(db)
+	actionLogs := pmsql.NewTaskActionLogRepo(db, gen)
 	svc := New(Deps{
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, IDGen: gen, Clock: clk,
+		TaskActionLogs: actionLogs,
 		// #245 org sequence so CreateTask allocates T<n> ids — the plan-conversation
 		// dispatch reminder names tasks by their id.
 		OrgSeq:   pmsql.NewOrgSequenceRepo(db),
@@ -76,7 +79,7 @@ func planAdvanceSetup(t *testing.T) *planAdvanceHarness {
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
 	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
-	return &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, ctx: context.Background()}
+	return &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, ctx: context.Background()}
 }
 
 func (h *planAdvanceHarness) drain(t *testing.T) {

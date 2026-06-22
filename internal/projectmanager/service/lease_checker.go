@@ -66,6 +66,10 @@ func (s *Service) ReclaimExpiredLeases(ctx context.Context) (int, error) {
 			if uerr := s.tasks.Update(txCtx, t); uerr != nil {
 				return uerr
 			}
+			// §7.3: persist the "lease_expired" lifecycle log entry.
+			if lerr := s.flushActionLogs(txCtx, t); lerr != nil {
+				return lerr
+			}
 			did = true
 			return s.emitTaskStateChanged(txCtx, t, prevStatus, "execution lease expired")
 		}); err != nil {

@@ -241,6 +241,10 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
+		// §7.3: persist the "unblocked" lifecycle log entry.
+		if err := s.flushActionLogs(txCtx, t); err != nil {
+			return err
+		}
 		return s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, "")
 	})
 }
@@ -517,6 +521,10 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		// §7.3: persist any lifecycle log the mutate appended (e.g. Block → "blocked").
+		if err := s.flushActionLogs(txCtx, t); err != nil {
 			return err
 		}
 		return s.emitTaskStateChanged(txCtx, t, prevStatus, reason)

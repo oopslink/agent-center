@@ -248,6 +248,36 @@ func TestLeaseChecker_HeartbeatPreventsReclaim(t *testing.T) {
 	}
 }
 
+// §7.3: the log-producing flows persist the append-only lifecycle log to
+// pm_task_action_logs. Blocking then unblocking a task records both entries.
+func TestActionLog_BlockUnblockPersisted(t *testing.T) {
+	h := planAdvanceSetup(t)
+	_, tid := startedPoolTask(t, h, "org-log", "P", "agent:w1")
+
+	if err := h.svc.BlockTask(h.ctx, tid, "need a token", pm.BlockReasonObstacle, "agent:w1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.UnblockTask(h.ctx, tid, "agent:w1"); err != nil {
+		t.Fatal(err)
+	}
+	logs, err := h.actionLogs.ListByTask(h.ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawBlocked, sawUnblocked bool
+	for _, lg := range logs {
+		switch lg.Action {
+		case pm.TaskActionBlocked:
+			sawBlocked = true
+		case pm.TaskActionUnblocked:
+			sawUnblocked = true
+		}
+	}
+	if !sawBlocked || !sawUnblocked {
+		t.Fatalf("action logs = %+v, want both blocked and unblocked entries", logs)
+	}
+}
+
 // mustProjectOf returns the project id of a task (test helper).
 func mustProjectOf(t *testing.T, h *planAdvanceHarness, tid pm.TaskID) pm.ProjectID {
 	t.Helper()
