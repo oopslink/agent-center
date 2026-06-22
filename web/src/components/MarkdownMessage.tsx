@@ -58,15 +58,18 @@ function linkifyMentions(
   return Children.map(children, (child) => {
     if (typeof child === 'string') {
       // Tokenize only strings that could carry a token (@mention, task-<id>,
-      // T<number>, plan-<id>, or P<number>) — a plain prose run with none is
-      // passed through untouched. The cheap `T\d`/`P\d` tests are pre-filters
-      // only; MentionText's boundary-guarded TOKEN_RE + resolver gating decide
-      // actual linkification.
+      // T<number>, plan-<id>, P<number>, issue-<id>, I<number>, or agent-<id>) —
+      // a plain prose run with none is passed through untouched. The cheap
+      // `T\d`/`P\d` tests are pre-filters only; MentionText's boundary-guarded
+      // TOKEN_RE + resolver gating decide actual linkification. (T317: the
+      // `agent-` pre-filter must be here or a bare agent-<id> never reaches
+      // MentionText.)
       if (
         !child.includes('@') &&
         !child.includes('task-') &&
         !child.includes('plan-') &&
         !child.includes('issue-') &&
+        !child.includes('agent-') &&
         !/T\d/.test(child) &&
         !/P\d/.test(child) &&
         !/I\d/.test(child)

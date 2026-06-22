@@ -595,3 +595,39 @@ describe('MentionText issue-ref linkify (issue-<id> / I<number>)', () => {
     expect(screen.queryByTestId('mention-token')).not.toBeInTheDocument();
   });
 });
+
+// T317: a bare `agent-<id>` identity reference auto-linkifies to a clickable
+// token that opens the agent's SenderDetailSidebar (same target as an @mention).
+describe('MentionText agent-ref linkify (T317)', () => {
+  afterEach(() => cleanup());
+
+  it('linkifies a known bare agent-<id> reference; click opens the agent body', async () => {
+    mockMembers(); // includes agent:bot-1
+    server.use(
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id), organization_id: 'O', name: 'Bot One', description: '',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-1',
+          lifecycle: 'running', availability: 'available', created_by: 'user:hayang',
+          version: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+        }),
+      ),
+    );
+    renderInProvider(<MarkdownMessage content={'reassign to agent-bot-1 then ship'} />);
+    const token = await screen.findByTestId('agent-ref-token');
+    expect(token.tagName).toBe('BUTTON');
+    expect(token).toHaveTextContent('agent-bot-1');
+    expect(token).toHaveAttribute('data-agent-ref', 'agent:bot-1');
+    // clicking opens the agent detail sidebar (fetched by ref).
+    fireEvent.click(token);
+    expect(await screen.findByText('Bot One')).toBeInTheDocument();
+  });
+
+  it('leaves an unknown agent-<id> as plain text (verify-not-trust)', async () => {
+    mockMembers();
+    renderInProvider(<MarkdownMessage content={'ref to agent-deadbeef here'} />);
+    // members resolve, but agent-deadbeef is not a known member → no token.
+    await screen.findByText(/ref to/);
+    expect(screen.queryByTestId('agent-ref-token')).not.toBeInTheDocument();
+  });
+});

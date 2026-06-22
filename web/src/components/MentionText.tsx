@@ -210,8 +210,15 @@ export function useIssueRefResolver(): (ref: string) => ResolvedIssueRef | null 
 //     Resolution is still gated on a real org_ref (resolveTask returns null for
 //     an unknown T-number → stays plain text), so a bare "T1" that is not a task
 //     never becomes a (wrong) link.
+//   - agent-<id> (group 8, T317): a bare agent identity reference (e.g.
+//     "agent-584e0bdd") becomes a clickable token that opens the agent's
+//     SenderDetailSidebar (same target as an @mention). The id tail resolves
+//     through the SAME member resolver as @handles; only a KNOWN agent linkifies
+//     (an unknown agent-… stays plain text — verify-not-trust). Same boundary
+//     guards as task-/issue-/plan- (lookbehind so "myagent-1" doesn't match;
+//     "@agent-x" is captured by the @handle branch first, so this is the bare form).
 const TOKEN_RE =
-  /@([A-Za-z0-9][A-Za-z0-9._-]*)|(?<![A-Za-z0-9])(task-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(T\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(plan-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(P\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(issue-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(I\d+)(?![A-Za-z0-9])/g;
+  /@([A-Za-z0-9][A-Za-z0-9._-]*)|(?<![A-Za-z0-9])(task-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(T\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(plan-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(P\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(issue-[A-Za-z0-9]+)|(?<![A-Za-z0-9])(I\d+)(?![A-Za-z0-9])|(?<![A-Za-z0-9])(agent-[A-Za-z0-9][A-Za-z0-9-]*)/g;
 
 interface MentionTextProps {
   text: string;
@@ -268,6 +275,8 @@ export function MentionText({
     // An issue reference in either form: the bare `issue-<id>` (group 6) or the
     // `I<number>` org_ref (group 7). Both resolve through resolveIssue.
     const issueRef = match[6] ?? match[7];
+    // T317: a bare `agent-<id>` identity reference (group 8) → agent sidebar.
+    const agentRef = match[8];
     let node: React.ReactNode = null;
     if (handle !== undefined && handle.toLowerCase() === 'all') {
       // @all broadcast (per @oopslink): a non-clickable but visually distinct
@@ -369,6 +378,30 @@ export function MentionText({
           >
             {is.label}
           </a>
+        );
+      }
+    } else if (agentRef !== undefined) {
+      // T317: resolve the bare agent id (tail after "agent-") through the SAME
+      // member resolver as @handles. Only a KNOWN agent linkifies; the click
+      // opens the agent's SenderDetailSidebar (onMention with the prefixed ref).
+      const ref = resolve(agentRef.slice('agent-'.length));
+      if (ref && ref.startsWith('agent:')) {
+        node = (
+          <button
+            key={key++}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMention(ref);
+            }}
+            data-testid="agent-ref-token"
+            data-agent-ref={ref}
+            aria-label={`View ${agentRef} details`}
+            title={`Open ${agentRef}`}
+            className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+          >
+            {agentRef}
+          </button>
         );
       }
     }
