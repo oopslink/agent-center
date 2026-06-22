@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { ActivityBadge, AGENT_IDLE_MS, deriveAgentActivity } from './AgentBadges';
+import {
+  ActivityBadge,
+  AGENT_IDLE_MS,
+  AgentStatusBadge,
+  deriveAgentActivity,
+  deriveAgentStatus,
+} from './AgentBadges';
 import type { Agent } from '@/api/types';
 
 afterEach(() => cleanup());
@@ -65,5 +71,53 @@ describe('ActivityBadge (T235)', () => {
     expect(badge).toHaveAttribute('data-activity-status', 'busy');
     expect(badge.className).toContain('text-brand');
     expect(badge.className).not.toContain('text-success');
+  });
+});
+
+// T322: the single unified status folds lifecycle + availability + activity into
+// one label by priority (dead/broken first, then availability, then activity).
+describe('deriveAgentStatus (T322 single status)', () => {
+  const a = (over: Partial<Agent>): Pick<Agent, 'lifecycle' | 'availability' | 'last_activity_at'> => ({
+    lifecycle: 'running',
+    availability: 'available',
+    ...over,
+  });
+  const recent = new Date(NOW - 60_000).toISOString();
+  const stale = new Date(NOW - 10 * 60_000).toISOString();
+
+  it('error lifecycle → error (highest priority)', () => {
+    expect(deriveAgentStatus(a({ lifecycle: 'error', availability: 'available' }), NOW)).toBe('error');
+  });
+  it('non-running → stopped', () => {
+    expect(deriveAgentStatus(a({ lifecycle: 'stopped' }), NOW)).toBe('stopped');
+  });
+  it('running + unavailable → unavailable', () => {
+    expect(deriveAgentStatus(a({ availability: 'unavailable' }), NOW)).toBe('unavailable');
+  });
+  it('running + busy → busy', () => {
+    expect(deriveAgentStatus(a({ availability: 'busy' }), NOW)).toBe('busy');
+  });
+  it('running + available + recent activity → working', () => {
+    expect(deriveAgentStatus(a({ availability: 'available', last_activity_at: recent }), NOW)).toBe('working');
+  });
+  it('running + available + quiet → idle', () => {
+    expect(deriveAgentStatus(a({ availability: 'available', last_activity_at: stale }), NOW)).toBe('idle');
+  });
+});
+
+describe('AgentStatusBadge (T322)', () => {
+  it('renders one dot + word with the status + a breakdown tooltip', () => {
+    render(<AgentStatusBadge agent={{ lifecycle: 'running', availability: 'busy', last_activity_at: undefined }} now={NOW} />);
+    const badge = screen.getByTestId('agent-status-badge');
+    expect(badge).toHaveAttribute('data-agent-status', 'busy');
+    expect(badge).toHaveTextContent(/busy/i);
+    expect(badge.getAttribute('title')).toMatch(/Availability: busy/);
+  });
+
+  it('a non-running agent shows only its lifecycle in the tooltip', () => {
+    render(<AgentStatusBadge agent={{ lifecycle: 'stopped', availability: 'unavailable', last_activity_at: undefined }} now={NOW} />);
+    const badge = screen.getByTestId('agent-status-badge');
+    expect(badge).toHaveAttribute('data-agent-status', 'stopped');
+    expect(badge.getAttribute('title')).toBe('Lifecycle: stopped');
   });
 });

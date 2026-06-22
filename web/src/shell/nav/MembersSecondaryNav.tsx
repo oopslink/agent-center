@@ -3,12 +3,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
-import {
-  ActivityBadge,
-  AvailabilityBadge,
-  LifecycleBadge,
-  deriveAgentActivity,
-} from '@/components/AgentBadges';
+import { AgentStatusBadge } from '@/components/AgentBadges';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 
 // ============================================================================
@@ -66,38 +61,23 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
       return { to: `${orgBase}/users/${encodeURIComponent(ref)}`, label: m.display_name || ref };
     });
 
-  // T235: each agent row carries its status chips. Lifecycle + Availability are
-  // the machine state; the derived Idle/Busy chip (running agents only) tells the
-  // operator at a glance which running agents are free to take new work. `now` is
-  // sampled once per render so all rows compare against the same instant.
+  // T322: each agent row carries ONE unified status (dot + word), derived from
+  // lifecycle + availability + activity by priority — replacing the three
+  // look-alike chips operators found confusing. The full breakdown is in the
+  // badge's hover tooltip. `now` is sampled once per render so all rows compare
+  // against the same instant.
   const now = Date.now();
   const agentRows: NavRow[] = (agents.data ?? [])
     .filter((a) => a.lifecycle !== 'archived')
-    .map((a) => {
-      const activity = deriveAgentActivity(a, now);
-      return {
-        to: `${orgBase}/agents/${encodeURIComponent(a.id)}`,
-        label: a.name || a.id,
-        meta: (
-          <span className="flex flex-wrap items-center gap-1" data-testid="agent-nav-status">
-            {/* T320: a RUNNING agent is already implied by its Availability +
-                Activity chips, so we drop the redundant "RUNNING" lifecycle chip
-                (it was one of three look-alike chips the operator found confusing)
-                and show the two meaningful axes: Availability (Available/Busy) +
-                Activity (Active/Idle). A non-running agent shows ONLY its lifecycle
-                (Stopped/Error) — availability/activity are moot when it's down. */}
-            {a.lifecycle === 'running' ? (
-              <>
-                <AvailabilityBadge availability={a.availability} />
-                {activity && <ActivityBadge status={activity} />}
-              </>
-            ) : (
-              <LifecycleBadge lifecycle={a.lifecycle} />
-            )}
-          </span>
-        ),
-      };
-    });
+    .map((a) => ({
+      to: `${orgBase}/agents/${encodeURIComponent(a.id)}`,
+      label: a.name || a.id,
+      meta: (
+        <span className="flex flex-wrap items-center gap-1" data-testid="agent-nav-status">
+          <AgentStatusBadge agent={a} now={now} />
+        </span>
+      ),
+    }));
 
   return (
     <div className="space-y-1" data-testid="members-secondary-nav">

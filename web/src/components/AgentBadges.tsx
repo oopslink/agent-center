@@ -119,6 +119,80 @@ export function ActivityBadge({
   );
 }
 
+// ── T322: single unified agent status (one dot + word) ─────────────────────
+// @oopslink: three look-alike chips (lifecycle / availability / activity) were
+// confusing — collapse them into ONE status pill derived by priority. Color
+// principle: ALIVE states are a warm/bright family (green→blue→amber→orange, a
+// "can-accept-work → increasingly occupied" gradient) and DEAD/broken states are
+// clearly set apart (gray / red). "Can accept work" (Idle) is the brightest green,
+// adjacent to the alive family. The full three-axis breakdown stays in the
+// tooltip (and the AgentDetail page), so collapsing loses no information.
+export type AgentStatus = 'error' | 'stopped' | 'unavailable' | 'busy' | 'working' | 'idle';
+
+// deriveAgentStatus folds lifecycle + availability + activity into one status by
+// priority: dead/broken first (error, stopped/archived), then — for a running
+// agent — availability (unavailable / busy), then the derived activity splits an
+// available agent into working (recently active) vs idle (quiet, ready). `now` is
+// injectable for deterministic tests (mirrors deriveAgentActivity).
+export function deriveAgentStatus(
+  agent: Pick<Agent, 'lifecycle' | 'availability' | 'last_activity_at'>,
+  now: number = Date.now(),
+): AgentStatus {
+  if (agent.lifecycle === 'error') return 'error';
+  if (agent.lifecycle !== 'running') return 'stopped'; // stopped / archived (down)
+  if (agent.availability === 'unavailable') return 'unavailable';
+  if (agent.availability === 'busy') return 'busy';
+  // available → split by live activity (busy activity ⇒ actively working).
+  return deriveAgentActivity(agent, now) === 'busy' ? 'working' : 'idle';
+}
+
+const STATUS_META: Record<AgentStatus, { label: string; dot: string }> = {
+  idle: { label: 'Idle', dot: 'bg-status-green-solid' },
+  working: { label: 'Working', dot: 'bg-status-blue-solid' },
+  busy: { label: 'Busy', dot: 'bg-status-amber-solid' },
+  unavailable: { label: 'Unavailable', dot: 'bg-status-orange-solid' },
+  stopped: { label: 'Stopped', dot: 'bg-text-muted' },
+  error: { label: 'Error', dot: 'bg-danger' },
+};
+
+// agentStatusTooltip — the full three-axis breakdown, surfaced on hover so the
+// single pill stays scannable without hiding detail.
+function agentStatusTooltip(
+  agent: Pick<Agent, 'lifecycle' | 'availability' | 'last_activity_at'>,
+  now: number,
+): string {
+  if (agent.lifecycle !== 'running') return `Lifecycle: ${agent.lifecycle}`;
+  const activity = deriveAgentActivity(agent, now);
+  return `Lifecycle: running · Availability: ${agent.availability} · Activity: ${
+    activity === 'busy' ? 'active' : 'idle'
+  }`;
+}
+
+// AgentStatusBadge — the single status indicator: a colored dot (the alive/dead
+// signal) + a neutral, always-AA-readable word. The dot carries color; the word
+// disambiguates same-warmth states (Busy vs Unavailable). Tooltip = full breakdown.
+export function AgentStatusBadge({
+  agent,
+  now = Date.now(),
+}: {
+  agent: Pick<Agent, 'lifecycle' | 'availability' | 'last_activity_at'>;
+  now?: number;
+}): React.ReactElement {
+  const status = deriveAgentStatus(agent, now);
+  const meta = STATUS_META[status];
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-secondary"
+      data-testid="agent-status-badge"
+      data-agent-status={status}
+      title={agentStatusTooltip(agent, now)}
+    >
+      <span className={['h-2 w-2 shrink-0 rounded-full', meta.dot].join(' ')} aria-hidden="true" />
+      <span>{meta.label}</span>
+    </span>
+  );
+}
+
 export function LifecycleBadge({
   lifecycle,
 }: {

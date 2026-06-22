@@ -58,43 +58,40 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe('MembersSecondaryNav agent status (T235)', () => {
-  it('shows Availability + Activity for a running agent and hides the redundant RUNNING chip (T320)', async () => {
+describe('MembersSecondaryNav agent status (T322 single status)', () => {
+  it('shows ONE unified status pill per agent (not three chips)', async () => {
     renderNav();
     const busyLink = await screen.findByRole('link', { name: /busy-bot/ });
     const busyRow = busyLink.closest('li') as HTMLElement;
-    // T320: a running agent's lifecycle is implied → no RUNNING chip; show the
-    // two meaningful axes instead.
+    // T322: a single status badge replaces the lifecycle/availability/activity trio.
+    expect(within(busyRow).getByTestId('agent-status-badge')).toBeInTheDocument();
     expect(within(busyRow).queryByTestId('agent-lifecycle-badge')).toBeNull();
-    expect(within(busyRow).getByTestId('agent-availability-badge')).toHaveTextContent('busy');
-    expect(within(busyRow).getByTestId('agent-activity-status-badge')).toBeInTheDocument();
+    expect(within(busyRow).queryByTestId('agent-availability-badge')).toBeNull();
+    expect(within(busyRow).queryByTestId('agent-activity-status-badge')).toBeNull();
   });
 
-  it('marks a running agent with recent activity as Active (T320 label), data busy', async () => {
+  it('a running+busy agent reads "Busy"', async () => {
     renderNav();
     const link = await screen.findByRole('link', { name: /busy-bot/ });
-    const row = link.closest('li') as HTMLElement;
-    const status = within(row).getByTestId('agent-activity-status-badge');
-    expect(status).toHaveAttribute('data-activity-status', 'busy');
-    // T320: the label disambiguates from Availability's "busy" — it reads "Active".
-    expect(status).toHaveTextContent(/active/i);
+    const status = within(link.closest('li') as HTMLElement).getByTestId('agent-status-badge');
+    expect(status).toHaveAttribute('data-agent-status', 'busy');
+    expect(status).toHaveTextContent(/busy/i);
   });
 
-  it('marks a running agent idle (green) after 5 min without activity', async () => {
+  it('a running+available+quiet agent reads "Idle"', async () => {
     renderNav();
     const link = await screen.findByRole('link', { name: /idle-bot/ });
-    const row = link.closest('li') as HTMLElement;
-    const status = within(row).getByTestId('agent-activity-status-badge');
-    expect(status).toHaveAttribute('data-activity-status', 'idle');
-    expect(status.className).toContain('text-success');
+    const status = within(link.closest('li') as HTMLElement).getByTestId('agent-status-badge');
+    expect(status).toHaveAttribute('data-agent-status', 'idle');
+    expect(status).toHaveTextContent(/idle/i);
   });
 
-  it('shows NO Idle/Busy chip for a non-running agent', async () => {
+  it('a non-running agent reads "Stopped"', async () => {
     renderNav();
     const link = await screen.findByRole('link', { name: /stopped-bot/ });
-    const row = link.closest('li') as HTMLElement;
-    expect(within(row).getByTestId('agent-lifecycle-badge')).toHaveTextContent('stopped');
-    expect(within(row).queryByTestId('agent-activity-status-badge')).toBeNull();
+    const status = within(link.closest('li') as HTMLElement).getByTestId('agent-status-badge');
+    expect(status).toHaveAttribute('data-agent-status', 'stopped');
+    expect(status).toHaveTextContent(/stopped/i);
   });
 
   it('still excludes archived agents from the list', async () => {
