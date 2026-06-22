@@ -924,7 +924,11 @@ function SecondaryNavBody({
       {/* Nav body — a module may own its col② via SECONDARY_NAV_REGISTRY (per-
           module component); otherwise the shell default renders its `items` as a
           collapsible group with the channel/DM/project expandable sub-lists. */}
-      <div className="flex-1 overflow-y-auto px-2 py-2">
+      {/* T319: min-h-0 lets this flex child shrink below its content height so
+          overflow-y-auto actually scrolls — without it a long col② list (many
+          channels + DMs) grows past the viewport and the bottom rows are
+          unreachable (no scroll, no paging). @oopslink. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {module && CustomNav ? (
           <CustomNav orgBase={orgBase} />
         ) : (
