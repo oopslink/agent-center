@@ -178,7 +178,7 @@ export default function IssueDetail(): React.ReactElement {
             shell col④ ConversationSidebar (Participants/Threads/Files) on its
             right — matching the DM/channel layout where the conversation hugs
             col④. Below lg the column stacks after the conversation as before. */}
-        <div className="hidden shrink-0 overflow-y-auto md:block lg:order-first lg:w-72">
+        <div className="hidden shrink-0 overflow-y-auto md:block lg:w-72">
           <IssueDetailSidebar
             issue={iss}
             projectName={project.data?.name}
