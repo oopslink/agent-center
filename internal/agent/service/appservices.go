@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"time"
@@ -80,7 +81,7 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 // lifecycle intent verbs. The transition function is an AR method, so illegal
 // transitions are rejected by the aggregate (the AppService never bare-writes
 // the lifecycle field).
-func (s *Service) lifecycleOp(ctx context.Context, id agent.AgentID, mutate func(*agent.Agent) error, resetScope string) error {
+func (s *Service) lifecycleOp(ctx context.Context, id agent.AgentID, mutate func(*agent.Agent) error, resetScope, verb string) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		a, err := s.agents.FindByID(txCtx, id)
 		if err != nil {
@@ -92,26 +93,60 @@ func (s *Service) lifecycleOp(ctx context.Context, id agent.AgentID, mutate func
 		if err := s.agents.Update(txCtx, a); err != nil {
 			return err
 		}
+		// T338: record the user-triggered lifecycle action (start/stop/restart/
+		// reset) into the agent's append-only activity stream so it shows up in the
+		// AgentDetail Activity timeline (it renders EventTypeLifecycle's {event}).
+		// Best-effort: an observational-log hiccup must not fail the action itself.
+		s.recordLifecycleActivity(txCtx, id, verb, resetScope)
 		return s.emit(txCtx, EvtAgentLifecycleChanged, a, resetScope)
 	})
+}
+
+// recordLifecycleActivity appends a "lifecycle" activity event ({event:<verb>},
+// plus {scope} for reset) for a user-triggered lifecycle action. Best-effort.
+func (s *Service) recordLifecycleActivity(ctx context.Context, id agent.AgentID, verb, scope string) {
+	if verb == "" || s.activity == nil {
+		return
+	}
+	p := map[string]any{"event": verb}
+	if verb == "reset" && scope != "" {
+		p["scope"] = scope
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return
+	}
+	ev, err := agent.NewActivityEvent(agent.NewActivityEventInput{
+		ID:         s.idgen.NewULID(),
+		AgentID:    id,
+		EventType:  agent.EventTypeLifecycle,
+		Payload:    string(b),
+		OccurredAt: s.clock.Now(),
+	})
+	if err != nil {
+		return
+	}
+	if aerr := s.activity.Append(ctx, ev); aerr != nil {
+		slog.Warn("agent: lifecycle activity append failed", "agent_id", id, "event", verb, "err", aerr)
+	}
 }
 
 // StartAgent moves stopped/error → running (intent; D2 reconciles the process).
 func (s *Service) StartAgent(ctx context.Context, id agent.AgentID) error {
 	now := s.clock.Now()
-	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Start(now) }, "")
+	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Start(now) }, "", "started")
 }
 
 // StopAgent moves running → stopping (operational stop; does NOT touch WorkItems).
 func (s *Service) StopAgent(ctx context.Context, id agent.AgentID) error {
 	now := s.clock.Now()
-	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Stop(now) }, "")
+	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Stop(now) }, "", "stopped")
 }
 
 // RestartAgent requests a restart while keeping the running intent (version bump).
 func (s *Service) RestartAgent(ctx context.Context, id agent.AgentID) error {
 	now := s.clock.Now()
-	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Restart(now) }, "")
+	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Restart(now) }, "", "restarted")
 }
 
 // UpdateAgentConfigCommand carries the editable LLM config (T236). Name /
@@ -165,7 +200,7 @@ func (s *Service) ResetAgent(ctx context.Context, id agent.AgentID, scope agent.
 		return ErrResetNotConfirmed
 	}
 	now := s.clock.Now()
-	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Reset(scope, now) }, string(scope))
+	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Reset(scope, now) }, string(scope), "reset")
 }
 
 // --- D2-c-i controller→center lifecycle feedback (persist-only) -------------

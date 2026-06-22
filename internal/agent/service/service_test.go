@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -256,6 +257,45 @@ func TestLifecycle_StartStopRestart(t *testing.T) {
 	// created + start + restart + stop = base+3
 	if c := f.outboxCount(t); c != base+3 {
 		t.Fatalf("outbox after stop = %d, want %d", c, base+3)
+	}
+}
+
+// T338: each user-triggered lifecycle action records a "lifecycle" activity event
+// (event=started/restarted/stopped/reset) so it shows in the AgentDetail timeline.
+func TestLifecycle_RecordsActivity(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+	ctx := context.Background()
+	if err := f.svc.StartAgent(ctx, id); err != nil {
+		t.Fatalf("StartAgent: %v", err)
+	}
+	if err := f.svc.RestartAgent(ctx, id); err != nil {
+		t.Fatalf("RestartAgent: %v", err)
+	}
+	if err := f.svc.StopAgent(ctx, id); err != nil {
+		t.Fatalf("StopAgent: %v", err)
+	}
+
+	events, err := agentsql.NewActivityEventRepo(f.db).ListByAgent(ctx, id, 100, "")
+	if err != nil {
+		t.Fatalf("ListByAgent: %v", err)
+	}
+	got := map[string]bool{}
+	for _, e := range events {
+		if e.EventType() != agent.EventTypeLifecycle {
+			continue
+		}
+		var p struct {
+			Event string `json:"event"`
+		}
+		_ = json.Unmarshal([]byte(e.Payload()), &p)
+		got[p.Event] = true
+	}
+	for _, want := range []string{"started", "restarted", "stopped"} {
+		if !got[want] {
+			t.Errorf("missing lifecycle activity event %q (got %v)", want, got)
+		}
 	}
 }
 
