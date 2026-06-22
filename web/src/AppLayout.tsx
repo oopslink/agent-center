@@ -6,6 +6,7 @@ import {
   conversationDeleteErrorMessage,
   useConversations,
   useDeleteConversation,
+  useUnreadConversations,
 } from '@/api/conversations';
 import { useProjects } from '@/api/projects';
 import { identityRefOf } from '@/api/members';
@@ -551,6 +552,13 @@ function ModuleRail({
   onOpenPalette: () => void;
 }): React.ReactElement {
   const orgName = orgSwitcher.currentOrg?.name ?? orgSwitcher.fallbackName ?? 'Organization';
+  // I23 (T332): col① Conversations icon badge = the cross-source unread total.
+  // Shows the @me-mention total in brand when any source @-mentions me (the
+  // high-signal state), else the count of unread sources in neutral. Hidden at 0.
+  const unreadDigest = useUnreadConversations();
+  const digestRows = unreadDigest.data ?? [];
+  const digestMentions = digestRows.reduce((n, row) => n + (row.mention_count > 0 ? 1 : 0), 0);
+  const digestBadgeCount = digestMentions > 0 ? digestMentions : digestRows.length;
   return (
     <nav
       aria-label="modules"
@@ -593,7 +601,7 @@ function ModuleRail({
             data-testid={`rail-module-${m.id}`}
             data-active={active}
             className={[
-              'flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-xl text-rail-fg motion-safe:transition-colors',
+              'relative flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-xl text-rail-fg motion-safe:transition-colors',
               active ? 'bg-white/15 text-rail-fg-active' : 'hover:bg-white/10 hover:text-rail-fg-active',
             ].join(' ')}
           >
@@ -603,6 +611,23 @@ function ModuleRail({
             <span aria-hidden="true" className="text-[0.5rem] font-medium leading-none">
               {m.short}
             </span>
+            {m.id === 'conversations' && digestBadgeCount > 0 && (
+              <span
+                data-testid="rail-conversations-unread-badge"
+                data-mention={digestMentions > 0 ? 'true' : 'false'}
+                aria-label={
+                  digestMentions > 0
+                    ? `${digestMentions} conversations mention you`
+                    : `${digestRows.length} unread conversations`
+                }
+                className={[
+                  'absolute right-1.5 top-1 inline-flex min-w-[1.05rem] items-center justify-center rounded-full px-1 text-[0.625rem] font-semibold leading-none tabular-nums',
+                  digestMentions > 0 ? 'bg-brand text-white' : 'bg-status-slate-solid text-white',
+                ].join(' ')}
+              >
+                {digestBadgeCount > 99 ? '99+' : digestBadgeCount}
+              </span>
+            )}
           </NavLink>
         );
       })}

@@ -201,6 +201,9 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       // /dms list and the detail page header; both queries refresh so
       // the user sees the new state without a manual reload.
       invalidate(qk.conversations());
+      // I23 (T332): a conversation opening/archiving/closing changes the
+      // "未读会话" digest membership (a closed/archived source drops out).
+      invalidate(qk.unreadConversations());
       if (ev.conversation_id) {
         invalidate(qk.conversation(ev.conversation_id));
       }
@@ -211,6 +214,9 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         // New message ticks the unread badge on every listener; the
         // focused tab will then auto-mark-seen which clears it again.
         invalidate(qk.unread(ev.conversation_id));
+        // I23 (T332): a new message changes the cross-source unread digest
+        // (count bump, or a previously-read source re-surfaces).
+        invalidate(qk.unreadConversations());
         // v2.9.1 Threads F2: keep the Participants thread list live — a new
         // root thread, a reply (reply_count++/last-activity re-sort) all arrive
         // as conversation.message_added, same SSE path that keeps the per-message
@@ -235,6 +241,8 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         // badges (this is what makes the dot disappear "after viewing").
         invalidate(qk.conversationThreads(ev.conversation_id));
         invalidate(qk.messages(ev.conversation_id));
+        // I23 (T332): catching up on a source clears (or drops) its digest row.
+        invalidate(qk.unreadConversations());
       }
       return;
     case 'conversation.participant_joined':

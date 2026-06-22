@@ -82,6 +82,20 @@ describe('dispatchToQueryClient', () => {
     // v2.9.1 Threads F2: keep the Participants thread list live (new thread /
     // reply_count++ / re-sort) the same way the message badge is live.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversationThreads('C1') });
+    // I23 (T332): the cross-source "未读会话" digest must re-fetch live too.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unreadConversations() });
+  });
+
+  it('I23: lifecycle + read_state events invalidate the unread-conversations digest', () => {
+    for (const t of [
+      'conversation.opened',
+      'conversation.archived',
+      'conversation.closed',
+      'conversation.read_state.changed',
+    ]) {
+      dispatchToQueryClient(qc, ev(t, 'C1'));
+    }
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unreadConversations() });
   });
 
   it('conversation.archived / conversation.closed invalidate list + detail', () => {

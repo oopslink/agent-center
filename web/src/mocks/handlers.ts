@@ -759,6 +759,11 @@ const baseHandlers = [
     }),
   ),
 
+  // I23 (T332): cross-source unread-conversations digest. Default empty so the
+  // shell nav (which always mounts UnreadConversationsSection) doesn't trip
+  // onUnhandledRequest:'error'; tests that exercise the region override this.
+  http.get('/api/unread-conversations', () => ok([])),
+
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),
 

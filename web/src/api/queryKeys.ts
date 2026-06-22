@@ -31,6 +31,10 @@ export const qk = {
   // caches independently and never collides with qk.conversations(kind).
   conversationsArchived: (kind?: string) =>
     kind ? o('conversations', 'archived', { kind }) : o('conversations', 'archived'),
+  // I23 (T332): the cross-source unread-conversations digest (GET
+  // /unread-conversations) for the main-sidebar "未读会话" region. Single org-scoped
+  // list key; SSE invalidates it on message/read-state/lifecycle events.
+  unreadConversations: () => o('unreadConversations'),
   conversation: (id: string) => o('conversation', id),
   conversationByOwner: (ownerRef: string) => o('conversationByOwner', ownerRef),
   messages: (convId: string) => o('messages', convId),

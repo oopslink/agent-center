@@ -14,6 +14,7 @@ import type {
   SendMessageInput,
   SendMessageResult,
   ThreadSummary,
+  UnreadConversationRow,
 } from './types';
 
 interface CreateUploadResult {
@@ -30,6 +31,18 @@ export function useConversations(filter?: { kind?: ConversationKind; status?: Co
   return useQuery({
     queryKey: qk.conversations(filter?.kind),
     queryFn: () => api.get<Conversation[]>(`/conversations${qs ? `?${qs}` : ''}`),
+  });
+}
+
+// I23 (T332): the cross-source unread-conversations digest — every conversation
+// (channel / dm / task / issue / plan) the logged-in human has unread in, with a
+// pre-resolved navigable route. Drives the main-sidebar "未读会话" region. Empty
+// array when nothing is unread (the region then hides). 15s staleTime mirrors the
+// list; SSE invalidation (qk.unreadConversations) keeps it live between refetches.
+export function useUnreadConversations() {
+  return useQuery({
+    queryKey: qk.unreadConversations(),
+    queryFn: () => api.get<UnreadConversationRow[]>('/unread-conversations'),
   });
 }
 

@@ -141,6 +141,47 @@ describe('col② secondary nav — active-module group + sub-lists', () => {
     expect(screen.getByRole('link', { name: /dms/i })).toBeInTheDocument();
   });
 
+  it('I23: col① Conversations icon shows the cross-source unread badge (brand on @me)', async () => {
+    server.use(
+      http.get('/api/unread-conversations', () =>
+        HttpResponse.json([
+          {
+            conversation_id: 't1',
+            source_type: 'task',
+            source_ref: 'pm://tasks/t1',
+            source_id: 't1',
+            project_id: 'p1',
+            title: 'churn fix',
+            last_message_preview: '',
+            last_message_sender: '',
+            updated_at: '2026-06-22T09:00:00Z',
+            unread_count: 2,
+            mention_count: 1,
+            route: '/projects/p1/tasks/t1',
+          },
+          {
+            conversation_id: 'c1',
+            source_type: 'channel',
+            source_ref: '',
+            source_id: 'c1',
+            title: 'research-room',
+            last_message_preview: '',
+            last_message_sender: '',
+            updated_at: '2026-06-22T08:00:00Z',
+            unread_count: 3,
+            mention_count: 0,
+            route: '/channels/c1',
+          },
+        ]),
+      ),
+    );
+    renderShell('/channels');
+    const badge = await screen.findByTestId('rail-conversations-unread-badge');
+    // 1 source @-mentions me → badge shows the mention total in brand.
+    expect(badge).toHaveTextContent('1');
+    expect(badge).toHaveAttribute('data-mention', 'true');
+  });
+
   it('clicking the group toggle collapses its items', () => {
     renderShell('/channels');
     const toggle = screen.getByTestId('sidebar-group-toggle-Conversations');

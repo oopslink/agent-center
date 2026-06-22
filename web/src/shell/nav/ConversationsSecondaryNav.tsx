@@ -11,6 +11,7 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { dmDisplayName, dmParticipantLabels } from '@/components/dmDisplay';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 import type { Conversation } from '@/api/types';
+import { UnreadConversationsSection } from './UnreadConversationsSection';
 
 // ============================================================================
 // v2.10.0 [T2 / T64] — Conversations col② (per-module secondary-nav, registered
@@ -236,6 +237,9 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
 
   return (
     <div className="space-y-4" data-testid="conversations-secondary-nav">
+      {/* I23 (T332): cross-source "未读会话" digest — dynamic, only when unread. */}
+      <UnreadConversationsSection orgBase={orgBase} />
+
       {/* Channels */}
       <div>
         <SectionHeader

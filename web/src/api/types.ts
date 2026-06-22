@@ -7,6 +7,30 @@
 export type ConversationKind = 'channel' | 'dm' | 'issue' | 'task' | 'adhoc' | 'notification';
 export type ConversationStatus = 'active' | 'closed' | 'archived';
 
+// I23 (T332): the source families surfaced in the cross-source "未读会话" digest.
+// Distinct from ConversationKind (which omits 'plan' and carries legacy values) —
+// this is exactly the backend `source_type` set for GET /unread-conversations.
+export type UnreadConversationSource = 'plan' | 'issue' | 'task' | 'channel' | 'dm';
+
+// UnreadConversationRow mirrors one row of GET /api/orgs/{slug}/unread-conversations
+// (handlers_unread_conversations.go). The backend pre-resolves a navigable,
+// orgBase-relative `route` so the FE just prepends orgBase. plan/issue/task rows
+// carry `project_id` (the route needs it); channel/dm leave it empty.
+export interface UnreadConversationRow {
+  conversation_id: string;
+  source_type: UnreadConversationSource;
+  source_ref: string; // owner_ref (pm://… / id://organizations/…); empty for dm.
+  source_id: string; // bare object id; == conversation_id for channel/dm.
+  project_id?: string; // task/issue/plan only.
+  title: string;
+  last_message_preview: string;
+  last_message_sender: string;
+  updated_at: string; // RFC3339 — last activity (last message, else conv updated_at).
+  unread_count: number; // 999+ cap, like the per-row badge model.
+  mention_count: number; // subset of unread that @-mentions me.
+  route: string; // orgBase-relative SPA path to the source's conversation area.
+}
+
 export interface Participant {
   identity_id: string;
   role: string;
