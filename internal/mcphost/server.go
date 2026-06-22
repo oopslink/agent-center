@@ -121,51 +121,39 @@ func NewServer(cfg Config) *mcp.Server {
 // registerAllTools registers the FULL agent-facing tool surface on srv.
 // NewServer calls it, then (when cfg.TierTools) defers the secondary tier.
 func registerAllTools(srv *mcp.Server, cfg Config) {
-	// WS2 (#issue-e346e5ec): the SINGLE "what do I have to do?" query — one call
-	// returns the agent's work partitioned into actionable buckets. Replaces the
-	// former get_my_active_work / list_my_paused_work / list_assignment_pool tools.
+	// v2.14.0 I14/F5 §五/§13.A: the SINGLE "what do I have to do?" query in the Task
+	// model — replaces get_my_work. Returns the agent's open/running tasks that are
+	// RUNNABLE (blockedBy deps satisfied), each carrying its blocked_reason /
+	// blocked_reason_type / blocked_comment / lease_expires_at.
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_my_work",
-		Description: "Your single \"what do I have to do?\" query. Returns your work partitioned into: active (work items in progress), queued (pull one and start it with start_task), paused (resume one with resume_task), waiting_input (parked for a human), claimable (open tasks you can claim with claim_task — includes the shared assignment pool), and claimed_pool (pool tasks already running on you, no work item). Call it at the start of your loop and after finishing a task.",
-	}, makeGetMyWork(cfg))
+		Name:        "list_my_tasks",
+		Description: "Your single \"what do I have to do?\" query. Returns the open/running tasks assigned to you that are runnable now (their dependencies are satisfied) — each with task_id, title, status, and blocked_reason / blocked_reason_type / blocked_comment / lease_expires_at. start_task one (by task_id) to begin it. A task waiting on you (unblocked with a comment) shows a cleared blocked_reason and the reply in blocked_comment. Call it at the start of your loop and after finishing a task.",
+	}, makeListMyTasks(cfg))
 
-	// v2.8.1 #278 D (pull model): the agent works its OWN queue one item at a
-	// time — pick a queued item from get_my_work, start_task it (mark running),
-	// do it, complete_task it, then start_task the next. Only one work item may
-	// be running at a time (start_task returns agent_busy if one is already
-	// active). fail_task reports the running item as failed.
+	// v2.14.0 I14/F5 §五 (pull model on Task): the agent works its OWN tasks one at a
+	// time — pick a runnable task_id from list_my_tasks, start_task it (open→running +
+	// lease), heartbeat to renew the lease while it runs, complete_task it, then
+	// start_task the next. Only ONE running (unblocked) task at a time (§13.B).
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_task",
-		Description: "Start working on one of your queued work items (mark it running). Pick a work_item_id from get_my_work. Only ONE work item can be running at a time — finish (complete_task) or fail (fail_task) the current one before starting the next. Returns agent_busy if you already have a running item.",
+		Description: "Start working on one of your runnable tasks (open→running, sets the execution lease). Pick a task_id from list_my_tasks. Only ONE task can be running at a time — finish (complete_task) the current one before starting the next. Returns agent_busy if you already have a running task, or task_not_runnable if its dependencies aren't satisfied yet.",
 	}, makeStartTask(cfg))
 
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "fail_task",
-		Description: "Report that the work item you are currently running has failed (cannot be completed). Frees you to start the next queued item.",
-	}, makeFailTask(cfg))
-
-	// T83: claim an OPEN assignment-pool task. Pool tasks have no work item (pull,
-	// no-wake), so start_task does not apply — claim_task is how you pick one up.
+	// T83: claim an OPEN assignment-pool task. Pool tasks are ownerless, so they are
+	// claimed (assigned + started) rather than started directly.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "claim_task",
-		Description: "Claim an OPEN assignment-pool task (a task_id from get_my_work's claimable, not a work_item_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap. Once claimed it appears in get_my_work.",
+		Description: "Claim an OPEN assignment-pool task (an ownerless pool task_id). Atomically assigns it to you and starts it (open→running). Only project-member agents may claim; you can hold at most a few claimed pool tasks at once. Returns already_claimed if another agent took it first, or pool_claim_limit_reached if you're at your cap. Once claimed it appears in list_my_tasks.",
 	}, makeClaimTask(cfg))
 
-	// v2.8.1 #278 PR4 scheduling autonomy. pause_task/resume_task are the SELF
-	// half of the unified pause/resume model (T200 WS4): YOU voluntarily set your
-	// own running task aside and pick it back up. Contrast block_task (a task stuck
-	// on an EXTERNAL dependency) and resume_paused_node (an OPERATOR un-sticking
-	// ANOTHER agent's paused plan node) — same "paused/resume" vocabulary, three
-	// distinct roles, kept as separate tools.
+	// v2.14.0 I14/F5 §五/§2.5: renew the execution lease on your running task. The
+	// background lease-checker reclaims a running task whose lease lapses (the agent
+	// presumed dead); heartbeat periodically while a long task runs so it is not
+	// reclaimed. Lease-only — no status change; rejected while the task is blocked.
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "pause_task",
-		Description: "Set the task you are currently running ASIDE so you can start_task a different one (voluntary scheduling — YOUR choice to switch). It stays yours: it shows in get_my_work's paused bucket and you pick it back up with resume_task. This is NOT for a task stuck waiting on something outside your control — use block_task for that. By default, finish your current task before switching.",
-	}, makePauseTask(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "resume_task",
-		Description: "Resume a previously paused work item (pick its id from get_my_work's paused) — marks it running again. Only ONE work item can be running at a time, so finish or pause your current one first (returns agent_busy otherwise).",
-	}, makeResumeTask(cfg))
+		Name:        "heartbeat",
+		Description: "Renew the execution lease on the task you are currently running so the background lease-checker does not reclaim it (it reclaims a running task whose lease lapses, presuming the agent died). Call it periodically during a long-running task. Lease-only: it does not change status, and is rejected if the task is blocked.",
+	}, makeHeartbeat(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_my_unread",
@@ -280,24 +268,21 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Unsubscribe an identity (defaults to the calling agent) from a task.",
 	}, makeSubscribe(cfg, "unsubscribe"))
 
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "request_input",
-		Description: "Post a question to a task and park the calling agent's work item waiting for input.",
-	}, makeRequestInput(cfg))
-
-	// block_task/unblock_task are the EXTERNAL-DEPENDENCY half of the pause/resume
-	// model (T200 WS4): a task that CANNOT proceed until something outside your
-	// control is resolved — distinct from pause_task (you voluntarily set your own
-	// task aside) and from a paused plan node (resume_paused_node). block is a
-	// self-report; unblock is operator recovery.
+	// block_task/unblock_task are the unified pause channel (v2.14.0 I14 §四): an
+	// agent that can't proceed calls block_task with a reason_type — input_required
+	// (it needs a user reply, surfaced as an input box in the task Conversation) or
+	// obstacle (an external blocker needs owner/PM intervention). block keeps the
+	// task running + assigned and clears the lease; an owner/PM (or the user's reply)
+	// clears it with unblock_task, leaving the answer in blocked_comment. block is a
+	// self-report; unblock is operator/user recovery.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "block_task",
-		Description: "Report that a task is BLOCKED on an external dependency — it can't move until something outside your control is resolved (post the reason why). This is \"stuck\", not \"set aside by choice\": use pause_task instead when you are just switching tasks voluntarily. An owner/PD later clears it with unblock_task. (A backlog task isn't actionable — add it to a plan/pool first.)",
+		Description: "Report that the task you are running can't proceed and needs outside help. Set reason_type to \"input_required\" when you need a user reply (rendered as an input box in the task's Conversation; the user's answer comes back in blocked_comment) or \"obstacle\" when an external blocker needs owner/PM intervention (defaults to obstacle). The task stays yours and running; you resume once it is unblocked.",
 	}, makeBlockTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "unblock_task",
-		Description: "Recover a BLOCKED task (the counterpart of block_task): move it blocked→running and re-dispatch it to its assignee. Use to pull a task back after it was stuck blocked (e.g. reason \"agent execution failed\" from a restart).",
+		Description: "Clear the block on a task (the counterpart of block_task): wipe its blocked_reason — leaving your note in blocked_comment — and re-wake its assignee so it continues. The task was already running and assigned (block doesn't change that); this just unsticks it. Use for an obstacle you've resolved, or to recover a task stuck blocked after a restart.",
 	}, makeUnblockTask(cfg))
 
 	// rerun_failed_node/resume_paused_node are the OPERATOR-RECOVERY half of the
@@ -449,20 +434,6 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Name:        "attach_file",
 		Description: "Attach an existing center file into a scope in the calling agent's own domain.",
 	}, makeAttachFile(cfg))
-}
-
-// getMyWorkArgs is argless: get_my_work is inherently own-scoped (the
-// agent reads only its own queue), and agent_id is process-fixed, so there
-// is nothing for the model to supply.
-type getMyWorkArgs struct{}
-
-// makeGetMyWork returns the get_my_work handler bound to cfg. The forwarded
-// body carries ONLY the process-fixed agent_id.
-func makeGetMyWork(cfg Config) mcp.ToolHandlerFor[getMyWorkArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, _ getMyWorkArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{"agent_id": cfg.AgentID}
-		return callAdmin(ctx, cfg, "get_my_work", body)
-	}
 }
 
 // getMyProfileArgs is argless: get_my_profile is inherently self-scoped (the

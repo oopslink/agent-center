@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -186,6 +187,41 @@ func (s *Service) ListClaimableTasks(ctx context.Context, assignee pm.IdentityRe
 		if pm.TaskClaimable(t, ns) {
 			out = append(out, ClaimableTask{Task: t, NodeStatus: ns})
 		}
+	}
+	return out, nil
+}
+
+// ListRunnableAgentTasks returns the open/running tasks assigned to `assignee` that
+// are RUNNABLE right now — the agent's "what do I have to do?" queue in the Task
+// model (v2.14.0 I14/F5 §五, MCP `list_my_tasks`, replacing get_my_work). It is the
+// pull counterpart of the §13.A run-ahead gate: a task is included only when
+// EnsureTaskRunnable passes (its blockedBy dependencies are satisfied — a node the
+// plan engine has derived to ready/dispatched, or a task already running), so the
+// agent never treats a dependency-blocked task as work it can start. Terminal tasks
+// (completed/discarded) are history and omitted. A blocked task stays in the list
+// (it is still running and assigned) so the agent sees the blocked_reason /
+// blocked_comment an Unblock left for it.
+//
+// Cost is one ListByAssignee plus a per-task runnable derivation; EnsureTaskRunnable
+// short-circuits a running task and is the single source of truth shared with the
+// start gate, so the list and start_task never disagree on "runnable".
+func (s *Service) ListRunnableAgentTasks(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
+	tasks, err := s.tasks.ListByAssignee(ctx, assignee)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*pm.Task, 0, len(tasks))
+	for _, t := range tasks {
+		if t.Status() != pm.TaskOpen && t.Status() != pm.TaskRunning {
+			continue // terminal (completed/discarded) — history, not actionable
+		}
+		if err := s.EnsureTaskRunnable(ctx, t.ID()); err != nil {
+			if errors.Is(err, pm.ErrTaskNotRunnable) {
+				continue // deps unsatisfied / dead branch — not yet pullable (§13.A)
+			}
+			return nil, err
+		}
+		out = append(out, t)
 	}
 	return out, nil
 }

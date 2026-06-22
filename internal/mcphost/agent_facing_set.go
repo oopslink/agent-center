@@ -23,6 +23,7 @@ var AgentFacingToolNames = []string{
 	"assign_task",
 	"attach_file",
 	"block_task",
+	"heartbeat", // v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
 	"complete_task",
 	"discard_task",   // T119: terminal-discard a superseded / mis-created task
 	"set_task_issue", // T192: (re)set/clear a task's derived_from_issue after creation
@@ -51,13 +52,12 @@ var AgentFacingToolNames = []string{
 	"list_tasks_of_issue",
 	"delete_plan",
 	"download_file",
-	"fail_task",
 	"find_org_agent",
 	"find_org_channel",
 	"get_issue",
 	"get_my_profile",
 	"get_my_unread",
-	"get_my_work",
+	"list_my_tasks", // v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)
 	"get_plan",
 	"get_task",
 	"list_findings",
@@ -65,7 +65,6 @@ var AgentFacingToolNames = []string{
 	"list_tasks",
 	"list_unmerged_branches",
 	"mark_seen",
-	"pause_task",
 	// T200 WS4: post_message is the single post tool (target = conversation|task|issue);
 	// the former post_task_message / post_issue_message are gone.
 	"post_message",
@@ -74,8 +73,6 @@ var AgentFacingToolNames = []string{
 	"remove_plan_dependency",
 	"claim_task",
 	"remove_task_from_plan",
-	"request_input",
-	"resume_task",
 	"start_dm",
 	"start_plan",
 	"start_task",

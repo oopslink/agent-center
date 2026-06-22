@@ -64,18 +64,18 @@ func startAgentToolServer(t *testing.T, rec *agentToolRecorder) (*AdminClient, f
 }
 
 func TestCallAgentTool_Success(t *testing.T) {
-	rec := &agentToolRecorder{respCode: http.StatusOK, respBody: `{"work_items":[]}`}
+	rec := &agentToolRecorder{respCode: http.StatusOK, respBody: `{"tasks":[]}`}
 	client, cleanup := startAgentToolServer(t, rec)
 	defer cleanup()
 
 	var out json.RawMessage
-	err := client.CallAgentTool(context.Background(), "get_my_work",
+	err := client.CallAgentTool(context.Background(), "list_my_tasks",
 		map[string]any{"agent_id": "agent-1"}, &out)
 	if err != nil {
 		t.Fatalf("CallAgentTool: %v", err)
 	}
-	if rec.gotPath != "/admin/agent-tools/get_my_work" {
-		t.Errorf("path = %q, want /admin/agent-tools/get_my_work", rec.gotPath)
+	if rec.gotPath != "/admin/agent-tools/list_my_tasks" {
+		t.Errorf("path = %q, want /admin/agent-tools/list_my_tasks", rec.gotPath)
 	}
 	if rec.gotAuth != "Bearer tok-123" {
 		t.Errorf("auth header = %q, want Bearer tok-123", rec.gotAuth)
@@ -87,7 +87,7 @@ func TestCallAgentTool_Success(t *testing.T) {
 	if body["agent_id"] != "agent-1" {
 		t.Errorf("body agent_id = %v, want agent-1", body["agent_id"])
 	}
-	if string(out) != `{"work_items":[]}` {
+	if string(out) != `{"tasks":[]}` {
 		t.Errorf("raw out = %q, want canned body", string(out))
 	}
 }

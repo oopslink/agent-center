@@ -119,13 +119,14 @@ func TestBlockTask_Backlog_Unified_T190(t *testing.T) {
 	}
 }
 
-// start_task converges on the SAME unified envelope: a backlog task assigned
-// directly mints a queued WorkItem, but with the T130 run gate wired (as production
-// wires it) start_task refuses to activate it — surfaced as task_backlog_not_actionable.
+// start_task is task-based (v2.14.0 I14/F5 §五): a directly-assigned BACKLOG task
+// (no plan, so no blockedBy deps are placed) is not runnable under the §13.A
+// run-ahead gate, so start_task refuses to move it open→running — surfaced as
+// task_not_runnable (EnsureTaskRunnable, the single source of truth the gate and
+// list_my_tasks share).
 func TestStartWork_Backlog_Unified_T190(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
-	f.deps.AgentSvc.SetTaskRunGate(pmservice.NewAgentTaskRunGate(f.pmSvc))
 
 	ctx := context.Background()
 	owner := pm.IdentityRef("user:owner")
@@ -141,20 +142,16 @@ func TestStartWork_Backlog_Unified_T190(t *testing.T) {
 	if err := f.pmSvc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1), owner); err != nil {
 		t.Fatal(err)
 	}
-	f.drain(t) // work-item projector mints the queued WorkItem.
-	items, err := f.workItems.ListByTask(ctx, "pm://tasks/"+string(tid))
-	if err != nil || len(items) != 1 {
-		t.Fatalf("want 1 queued work item, got %d (err=%v)", len(items), err)
-	}
+	f.drain(t)
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/start_task", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "work_item_id": items[0].ID()})
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
 	if status != http.StatusConflict {
 		t.Fatalf("status = %d, want 409; body = %v", status, body)
 	}
-	if body["error"] != "task_backlog_not_actionable" {
-		t.Fatalf("error = %v, want task_backlog_not_actionable (converged from task_not_runnable)", body["error"])
+	if body["error"] != "task_not_runnable" {
+		t.Fatalf("error = %v, want task_not_runnable", body["error"])
 	}
 }
 

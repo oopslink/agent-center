@@ -11,8 +11,8 @@
 // internal/admin/api/agent_tools_passthrough.go + agent_tools_write.go:
 //   - assign_task / reassign_task : {task_id, assignee}
 //   - subscribe / unsubscribe     : {task_id, identity?}  (defaults to self)
-//   - request_input               : {task_id, question}
-//   - block_task                  : {task_id, reason}
+//   - block_task                  : {task_id, reason, reason_type?}
+//   - heartbeat                   : {task_id}
 //   - complete_task               : {task_id, summary?}
 //   - discard_task                : {task_id, reason?}
 //   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?}
@@ -270,58 +270,45 @@ func makeSubscribe(cfg Config, tool string) mcp.ToolHandlerFor[subscribeArgs, an
 	}
 }
 
-// --- request_input -----------------------------------------------------------
+// --- list_my_tasks (v2.14.0 I14/F5 §五/§13.A — replaces get_my_work) ---------
 
-type requestInputArgs struct {
-	TaskID   string `json:"task_id" jsonschema:"the task to post the question into"`
-	Question string `json:"question" jsonschema:"the question for the human; parks the agent's work item waiting_input"`
-}
+// listMyTasksArgs is argless: list_my_tasks is inherently own-scoped (the agent
+// reads only its own tasks), and agent_id is process-fixed, so there is nothing
+// for the model to supply.
+type listMyTasksArgs struct{}
 
-func makeRequestInput(cfg Config) mcp.ToolHandlerFor[requestInputArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args requestInputArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-			"question": args.Question,
-		}
-		return callAdmin(ctx, cfg, "request_input", body)
+// makeListMyTasks backs list_my_tasks — the agent's "what do I have to do?" query
+// in the Task model (§五). It returns the open/running tasks assigned to the
+// calling agent that are RUNNABLE (their blockedBy dependencies are satisfied,
+// §13.A), each with its blocked_reason / blocked_reason_type / blocked_comment /
+// lease_expires_at so the agent sees what an Unblock left for it.
+func makeListMyTasks(cfg Config) mcp.ToolHandlerFor[listMyTasksArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ listMyTasksArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID}
+		return callAdmin(ctx, cfg, "list_my_tasks", body)
 	}
 }
 
-// --- start_task / fail_task (v2.8.1 #278 D pull model) -----------------------
+// --- start_task (v2.14.0 I14/F5 §五 — task_id pull model) --------------------
 
 type startWorkArgs struct {
-	WorkItemID string `json:"work_item_id" jsonschema:"the id of one of YOUR queued work items (from get_my_work) to start working on now"`
+	TaskID string `json:"task_id" jsonschema:"the id of one of YOUR runnable tasks (from list_my_tasks) to start working on now (open→running)"`
 }
 
 func makeStartTask(cfg Config) mcp.ToolHandlerFor[startWorkArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args startWorkArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id":     cfg.AgentID,
-			"work_item_id": args.WorkItemID,
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
 		}
 		return callAdmin(ctx, cfg, "start_task", body)
-	}
-}
-
-type failWorkArgs struct {
-	WorkItemID string `json:"work_item_id" jsonschema:"the id of the work item you are currently running that has failed"`
-}
-
-func makeFailTask(cfg Config) mcp.ToolHandlerFor[failWorkArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args failWorkArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id":     cfg.AgentID,
-			"work_item_id": args.WorkItemID,
-		}
-		return callAdmin(ctx, cfg, "fail_task", body)
 	}
 }
 
 // --- claim_task (T83: open-claim of a built-in assignment-pool task) ---------
 
 type claimTaskArgs struct {
-	TaskID string `json:"task_id" jsonschema:"the id of an OPEN assignment-pool task (from get_my_work claimable_tasks) to claim now — atomically assigns it to you and starts it (open→running)"`
+	TaskID string `json:"task_id" jsonschema:"the id of an OPEN assignment-pool task to claim now — atomically assigns it to you and starts it (open→running)"`
 }
 
 func makeClaimTask(cfg Config) mcp.ToolHandlerFor[claimTaskArgs, any] {
@@ -331,38 +318,6 @@ func makeClaimTask(cfg Config) mcp.ToolHandlerFor[claimTaskArgs, any] {
 			"task_id":  args.TaskID,
 		}
 		return callAdmin(ctx, cfg, "claim_task", body)
-	}
-}
-
-// --- pause_task / resume_task (v2.8.1 #278 D PR4 scheduling) -----------
-
-type pauseWorkArgs struct {
-	WorkItemID string `json:"work_item_id" jsonschema:"the id of your currently-running work item to pause (set aside)"`
-	Reason     string `json:"reason" jsonschema:"a short reason you are pausing (for observability)"`
-}
-
-func makePauseTask(cfg Config) mcp.ToolHandlerFor[pauseWorkArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args pauseWorkArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id":     cfg.AgentID,
-			"work_item_id": args.WorkItemID,
-			"reason":       args.Reason,
-		}
-		return callAdmin(ctx, cfg, "pause_task", body)
-	}
-}
-
-type resumeWorkArgs struct {
-	WorkItemID string `json:"work_item_id" jsonschema:"the id of a paused work item (from get_my_work's paused bucket) to resume"`
-}
-
-func makeResumeTask(cfg Config) mcp.ToolHandlerFor[resumeWorkArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args resumeWorkArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id":     cfg.AgentID,
-			"work_item_id": args.WorkItemID,
-		}
-		return callAdmin(ctx, cfg, "resume_task", body)
 	}
 }
 
@@ -394,18 +349,40 @@ func makeMarkSeen(cfg Config) mcp.ToolHandlerFor[markSeenArgs, any] {
 // --- block_task --------------------------------------------------------------
 
 type blockTaskArgs struct {
-	TaskID string `json:"task_id" jsonschema:"the task to block"`
-	Reason string `json:"reason" jsonschema:"why the task is blocked (required)"`
+	TaskID     string `json:"task_id" jsonschema:"the task to block"`
+	Reason     string `json:"reason" jsonschema:"why the task is blocked (required)"`
+	ReasonType string `json:"reason_type,omitempty" jsonschema:"why-class of the block: \"input_required\" (you need a user reply before you can continue) or \"obstacle\" (an external blocker needs owner/PM intervention). Defaults to \"obstacle\" if omitted."`
 }
 
 func makeBlockTask(cfg Config) mcp.ToolHandlerFor[blockTaskArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args blockTaskArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-			"reason":   args.Reason,
+			"agent_id":    cfg.AgentID,
+			"task_id":     args.TaskID,
+			"reason":      args.Reason,
+			"reason_type": args.ReasonType,
 		}
 		return callAdmin(ctx, cfg, "block_task", body)
+	}
+}
+
+// --- heartbeat (v2.14.0 I14/F5 §五 / §2.5) -----------------------------------
+
+type heartbeatArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the running task whose execution lease you are renewing (the task you are currently working)"`
+}
+
+// makeHeartbeat renews the execution lease on the agent's running task
+// (pm.HeartbeatTask). The lease-checker reclaims a running task whose lease
+// lapses (the agent presumed dead); call heartbeat periodically while a long task
+// runs so it is not reclaimed out from under you. Lease-only — no status change.
+func makeHeartbeat(cfg Config) mcp.ToolHandlerFor[heartbeatArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args heartbeatArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "heartbeat", body)
 	}
 }
 

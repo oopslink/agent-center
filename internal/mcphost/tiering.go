@@ -51,8 +51,6 @@ var secondaryTools = []struct{ name, summary string }{
 	// subscriptions
 	{"subscribe", "subscribe to a conversation or entity"},
 	{"unsubscribe", "unsubscribe from a conversation or entity"},
-	// human-in-the-loop
-	{"request_input", "request input from a human and park the task"},
 	// plan node recovery
 	{"rerun_failed_node", "rerun a failed plan node"},
 	{"resume_paused_node", "resume a paused plan node"},

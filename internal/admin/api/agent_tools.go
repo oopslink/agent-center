@@ -196,6 +196,64 @@ func (s *Server) getMyWorkHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// listMyTasksReq is the body for POST /admin/agent-tools/list_my_tasks.
+type listMyTasksReq struct {
+	AgentID string `json:"agent_id"`
+}
+
+// listMyTasksHandler is the agent's "what do I have to do?" query in the Task model
+// (v2.14.0 I14/F5 §五, replacing get_my_work). It returns the open/running tasks
+// assigned to the calling agent that are RUNNABLE now (§13.A — their blockedBy
+// dependencies are satisfied), each projected to the §5.2 shape (task_id, title,
+// status, blocked_reason, blocked_reason_type, blocked_comment, lease_expires_at).
+// Inherently own-scoped; the runnable filter is the same gate start_task enforces,
+// so the list never offers a task the agent can't actually start.
+func (s *Server) listMyTasksHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listMyTasksReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	tasks, err := d.PMService.ListRunnableAgentTasks(r.Context(), pm.IdentityRef(agentActor(a)))
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, agentRunnableTaskMap(t))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})
+}
+
+// agentRunnableTaskMap projects a pm.Task to the list_my_tasks §5.2 wire shape:
+// the identity + status + the blocked annotation (so the agent sees what an Unblock
+// left in blocked_comment) + the execution lease deadline (null when none).
+func agentRunnableTaskMap(t *pm.Task) map[string]any {
+	m := map[string]any{
+		"task_id":             string(t.ID()),
+		"title":               t.Title(),
+		"status":              string(t.Status()),
+		"blocked_reason":      t.BlockedReason(),
+		"blocked_reason_type": string(t.BlockedReasonType()),
+		"blocked_comment":     t.BlockedComment(),
+		"lease_expires_at":    nil,
+	}
+	if exp := t.ExecutionLeaseExpiresAt(); exp != nil {
+		m["lease_expires_at"] = exp.Format(time.RFC3339Nano)
+	}
+	return m
+}
+
 // workItemMap projects an AgentWorkItem to the JSON wire shape.
 func workItemMap(it *agent.AgentWorkItem) map[string]any {
 	return map[string]any{
