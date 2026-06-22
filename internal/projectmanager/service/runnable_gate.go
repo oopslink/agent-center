@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
@@ -62,11 +63,29 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 		return err
 	}
 	if !p.IsBuiltin() {
-		return nil // real (structured) plan node — runnable
+		// T329 (issue-9d4b3895 §13.A): a structured plan node is runnable ONLY when
+		// its plan is RUNNING and its DAG dependencies are satisfied — being a plan
+		// member is NOT sufficient. The pre-fix unconditional `return nil` let a node
+		// start before its upstream Integrate/S0 finished (抢跑, ignoring the
+		// depends_on edges add_plan_dependency creates), and let nodes of a stopped
+		// (draft) plan start. NodeReady/NodeDispatched ⇒ all forward deps done (seq +
+		// matched conditional); NodeBlocked/NodeSkipped/terminal ⇒ not runnable. This
+		// mirrors EnsureTaskDispatchable so start and dispatch agree.
+		if p.Status() != pm.PlanRunning {
+			return pm.ErrTaskNotRunnable
+		}
+		ns, err := s.planNodeStatus(ctx, p, taskID)
+		if err != nil {
+			return err
+		}
+		if ns == pm.NodeReady || ns == pm.NodeDispatched {
+			return nil
+		}
+		return pm.ErrTaskNotRunnable
 	}
 	// Built-in plan: runnable ONLY as a DISPATCHED pool member. A built-in task
 	// that has not been dispatched into the pool is backlog (requirement 2).
-	ns, err := s.poolNodeStatus(ctx, p, taskID)
+	ns, err := s.planNodeStatus(ctx, p, taskID)
 	if err != nil {
 		return err
 	}
@@ -74,6 +93,71 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 		return nil // in the Assignment Pool
 	}
 	return pm.ErrTaskNotRunnable
+}
+
+// EnsureTaskDispatchable is the T329 unified DISPATCH hard-gate (issue-9d4b3895):
+// it reports whether a fresh agent work item may be dispatched for taskID RIGHT
+// NOW. It is the single predicate the WorkItemProjector consults before minting a
+// queued work item, so EVERY dispatch path (assign, plan advance, unblock,
+// auto-redispatch, reassign) is gated identically — closing the "initial dispatch
+// 抢跑 + re-dispatch churn" the v2.14.0 cycle dogfood exposed. Like EnsureTaskRunnable
+// it is a pure READ (composes inside the projector's tx).
+//
+// Rejects with pm.ErrTaskNotRunnable when:
+//   - archived / terminal (completed|discarded) — a settled node is NEVER re-dispatched;
+//   - the task carries a blocked_reason — a blocked node is a deliberate pause and
+//     must not be blindly re-dispatched (it is cleared by an explicit unblock/resume);
+//   - backlog (no plan) or a non-dispatched built-in pool member;
+//   - a structured node whose plan is NOT running (draft/stopped) — respect plan state;
+//   - a structured node whose DAG dependencies are unsatisfied / dead-branch skipped
+//     (NodeBlocked / NodeSkipped / NodePaused).
+//
+// Allows (returns nil) a dispatched pool member, or a structured node whose deps are
+// satisfied and live (NodeReady / NodeDispatched / NodeRunning).
+func (s *Service) EnsureTaskDispatchable(ctx context.Context, taskID pm.TaskID) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	t, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if t.IsArchived() {
+		return pm.ErrTaskNotRunnable
+	}
+	if t.Status().IsTerminal() {
+		return pm.ErrTaskNotRunnable // done/discarded → never re-dispatch (req: 终态不重投)
+	}
+	if strings.TrimSpace(t.BlockedReason()) != "" {
+		return pm.ErrTaskNotRunnable // blocked → don't blindly re-dispatch (req)
+	}
+	planID := t.PlanID()
+	if planID == "" {
+		return pm.ErrTaskNotRunnable // backlog
+	}
+	p, err := s.plans.FindByID(ctx, planID)
+	if err != nil {
+		return err
+	}
+	ns, err := s.planNodeStatus(ctx, p, taskID)
+	if err != nil {
+		return err
+	}
+	if p.IsBuiltin() {
+		if ns == pm.NodeDispatched {
+			return nil // dispatched Assignment-Pool member
+		}
+		return pm.ErrTaskNotRunnable
+	}
+	if p.Status() != pm.PlanRunning {
+		return pm.ErrTaskNotRunnable // req: draft/stopped plan dispatches nothing
+	}
+	switch ns {
+	case pm.NodeReady, pm.NodeDispatched, pm.NodeRunning:
+		return nil // deps satisfied + live
+	default: // NodeBlocked / NodeSkipped / NodePaused / NodeDone / NodeFailed
+		return pm.ErrTaskNotRunnable
+	}
 }
 
 // AgentTaskRunGate adapts the pm Service to the agentsvc.TaskRunGate port (T130).
@@ -104,6 +188,19 @@ func (g *AgentTaskRunGate) EnsureWorkItemRunnable(ctx context.Context, taskRef s
 		return err
 	}
 	return nil
+}
+
+// EnsureWorkItemDispatchable resolves a work item's task ref and applies the T329
+// dispatch gate (EnsureTaskDispatchable). The WorkItemProjector calls this before
+// minting a fresh queued work item; a non-task ref or a not-dispatchable task is
+// reported via pm.ErrTaskNotRunnable (the projector treats it as "skip the mint",
+// not an error). It is the dispatch-side sibling of EnsureWorkItemRunnable.
+func (g *AgentTaskRunGate) EnsureWorkItemDispatchable(ctx context.Context, taskRef string) error {
+	id, ok := taskIDFromRef(taskRef)
+	if !ok {
+		return nil
+	}
+	return g.svc.EnsureTaskDispatchable(ctx, pm.TaskID(id))
 }
 
 var _ agentsvc.TaskRunGate = (*AgentTaskRunGate)(nil)

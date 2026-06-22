@@ -60,8 +60,10 @@ func TestStartWork_DirectAssignBacklog_RejectedEndToEnd_T130(t *testing.T) {
 		t.Fatalf("backlog task status = %s, want open (start was rejected)", got.Status())
 	}
 
-	// Remedy: add the task to a real (non-builtin) plan → it becomes a real-plan
-	// node → runnable. The SAME work item now starts.
+	// Remedy: add the task to a real (non-builtin) plan AND start the plan → the
+	// (dependency-free) node becomes ready → runnable. T329 (issue-9d4b3895 §13.A):
+	// being a plan member is no longer sufficient — the plan must be RUNNING and the
+	// node's DAG deps satisfied, so start the plan before the SAME work item starts.
 	planID, err := f.pmSvc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "real", CreatedBy: owner})
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +71,10 @@ func TestStartWork_DirectAssignBacklog_RejectedEndToEnd_T130(t *testing.T) {
 	if err := f.pmSvc.SelectTaskIntoPlan(ctx, planID, tid, owner); err != nil {
 		t.Fatal(err)
 	}
+	if err := f.pmSvc.StartPlan(ctx, planID, owner); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
 	if err := f.deps.AgentSvc.StartWork(ctx, wi.AgentID(), wi.ID()); err != nil {
-		t.Fatalf("start after add-to-plan = %v, want nil", err)
+		t.Fatalf("start after add-to-plan+start = %v, want nil", err)
 	}
 }

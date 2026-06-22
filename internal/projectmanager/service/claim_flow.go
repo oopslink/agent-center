@@ -56,7 +56,7 @@ func (s *Service) ClaimPoolTask(ctx context.Context, taskID pm.TaskID, actor pm.
 		if err := s.requireProjectMember(txCtx, p.ProjectID(), actor); err != nil {
 			return err
 		}
-		ns, err := s.poolNodeStatus(txCtx, p, taskID)
+		ns, err := s.planNodeStatus(txCtx, p, taskID)
 		if err != nil {
 			return err
 		}
@@ -100,9 +100,11 @@ func (s *Service) ClaimPoolTask(ctx context.Context, taskID pm.TaskID, actor pm.
 	})
 }
 
-// poolNodeStatus derives a task's node status within its (already-loaded) plan.
-// A task not found in the view yields the zero NodeStatus (→ not claimable).
-func (s *Service) poolNodeStatus(ctx context.Context, p *pm.Plan, taskID pm.TaskID) (pm.NodeStatus, error) {
+// planNodeStatus derives a task's DERIVED node status within its (already-loaded)
+// plan — generic over builtin pools and structured plans (used by the claim guard,
+// the runnable gate, and the T329 dispatch gate). A task not found in the view
+// yields the zero NodeStatus (→ not claimable / not runnable / not dispatchable).
+func (s *Service) planNodeStatus(ctx context.Context, p *pm.Plan, taskID pm.TaskID) (pm.NodeStatus, error) {
 	detail, err := s.planDetail(ctx, p)
 	if err != nil {
 		return "", err

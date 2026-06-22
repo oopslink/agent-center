@@ -174,6 +174,10 @@ func (a *App) outboxProjectors(
 		ControlLog: controlLog,
 		Agents:     agentsql.NewAgentRepo(a.DB),
 		Tasks:      pmsql.NewTaskRepo(a.DB),
+		// T329 (issue-9d4b3895): gate work-item minting on dependency satisfaction so
+		// a structured plan node is dispatched ONLY when its DAG deps are done and its
+		// plan is running — stopping the initial-dispatch 抢跑 and the re-dispatch churn.
+		DispatchGate: pmservice.NewAgentTaskRunGate(a.PMService).EnsureWorkItemDispatchable,
 	})
 	// v2.7 #111 FINDING-1: on lifecycle→running this projector ALSO re-emits
 	// agent.work for the agent's in-flight ACTIVE work items (the deliver-on-start
