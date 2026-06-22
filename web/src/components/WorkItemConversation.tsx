@@ -64,7 +64,10 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
       className={
         maximized
           ? 'fixed inset-0 z-50 m-0 flex min-h-0 flex-col bg-bg-base p-3'
-          : 'mt-6 flex min-h-0 flex-1 flex-col'
+          : // T312: tighter gap above the chat on mobile (it sits right under the
+            // compact detail bar); keep the larger desktop separation from the
+            // description/attachments above.
+            'mt-2 flex min-h-0 flex-1 flex-col md:mt-6'
       }
       data-testid="work-item-conversation"
       data-maximized={maximized ? 'true' : 'false'}
@@ -74,18 +77,20 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
         data-testid="conversation-owner-banner"
         data-owner-ref={ownerRef}
       >
-        {/* T311: on mobile the title is redundant with the page header above the
-            chat (@oopslink) — hide the owner label/title text on <md and keep only
-            the Following + Maximize actions; show the full banner on ≥md. */}
-        <span className="hidden items-center gap-2 md:flex" data-testid="conversation-owner-label">
+        {/* T312: keep the task/issue ID (T123/I456) visible on every breakpoint,
+            but on mobile drop the redundant "· linked <title>" (the page header
+            above the chat already shows the title) — @oopslink. */}
+        <span className="flex items-center gap-2" data-testid="conversation-owner-label">
           <span
             className="font-semibold uppercase tracking-wide text-text-muted"
             data-testid="conversation-owner-code"
           >
             {ownerCode || 'Conversation'}
           </span>
-          <span>· linked</span>
-          <span className="font-mono text-text-primary">{bannerLabel}</span>
+          <span className="hidden items-center gap-2 md:flex" data-testid="conversation-owner-title">
+            <span>· linked</span>
+            <span className="font-mono text-text-primary">{bannerLabel}</span>
+          </span>
         </span>
         <span className="ml-auto flex items-center gap-1">
           {/* #264 P1 / #176 §4: follow this task/issue thread (threads default unfollowed). */}
