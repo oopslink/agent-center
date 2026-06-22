@@ -1,7 +1,24 @@
 import type React from 'react';
+import { useState } from 'react';
 import { useProjects } from '@/api/projects';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
 import { statusSolidClass, statusDotClass } from '@/components/workItemDisplay';
+import { useIsMobile } from '@/components/WorkItemMobileMeta';
+
+// T339: the filter panel collapses behind a "Filters" disclosure so the list is
+// immediately visible — esp. on mobile, where the full status/assignee/date form
+// pushed the list far below the fold. Default: collapsed on mobile, open on
+// desktop; the user's toggle persists. An active-filter count + Clear stay in the
+// header so you see/clear active filters without expanding.
+const FILTER_OPEN_KEY = 'ac.workitemfilter.open';
+function readStoredOpen(): boolean | null {
+  try {
+    const v = window.localStorage.getItem(FILTER_OPEN_KEY);
+    return v === null ? null : v === '1';
+  } catch {
+    return null;
+  }
+}
 
 // WorkItemFilterBar (v2.10.2 [T131]) — the shared status / project / assignee /
 // date-range FilterBar for the org-wide Issues/Tasks aggregation pages AND the
@@ -138,7 +155,8 @@ export function WorkItemFilterBar({
   // Assignee picker source (single-select) — org members (users + agents).
   const members = useMembers();
   const memberList = members.data ?? [];
-  const anyDateSet = DATE_KEYS.some((k) => dateRange[k] !== '');
+  const dateSetCount = DATE_KEYS.filter((k) => dateRange[k] !== '').length;
+  const anyDateSet = dateSetCount > 0;
   // Clear is offered whenever ANY user filter (status / project / assignee / date)
   // is active. The fixed project (hideProject) is NOT a user filter.
   const anyFilter =
@@ -146,6 +164,23 @@ export function WorkItemFilterBar({
     (!hideProject && selectedProjects.length > 0) ||
     assignee !== '' ||
     anyDateSet;
+  // T339: count of active filter values, shown as a header badge so a collapsed
+  // panel still signals "filters are on".
+  const activeCount =
+    selectedStatuses.length +
+    (!hideProject && selectedProjects.length > 0 ? 1 : 0) +
+    (assignee !== '' ? 1 : 0) +
+    dateSetCount;
+  const isMobile = useIsMobile();
+  const [open, setOpen] = useState<boolean>(() => readStoredOpen() ?? !isMobile);
+  const setOpenPersist = (v: boolean): void => {
+    setOpen(v);
+    try {
+      window.localStorage.setItem(FILTER_OPEN_KEY, v ? '1' : '0');
+    } catch {
+      /* storage disabled */
+    }
+  };
   const clearAll = () => {
     onStatusesChange([]);
     if (!hideProject) onProjectsChange([]);
@@ -174,6 +209,48 @@ export function WorkItemFilterBar({
       className="space-y-2 rounded-md border border-border-base bg-bg-subtle/40 p-2.5"
       data-testid="org-workitems-filterbar"
     >
+      {/* T339: disclosure header — toggle + active-count badge (left), Clear
+          (right). Always visible so a collapsed panel still shows/clears state. */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOpenPersist(!open)}
+          aria-expanded={open}
+          data-testid="org-filter-toggle"
+          className="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted hover:text-text-secondary"
+        >
+          <svg
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            className={`h-2.5 w-2.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
+          >
+            <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Filters</span>
+          {activeCount > 0 && (
+            <span
+              data-testid="org-filter-active-count"
+              className="inline-flex min-w-[1.125rem] items-center justify-center rounded-full bg-accent px-1 text-[0.625rem] font-bold leading-none text-white tabular-nums"
+            >
+              {activeCount}
+            </span>
+          )}
+        </button>
+        {/* Clear — ASCII × glyph (aria-hidden) + text; always in the DOM, disabled
+            when nothing is active so it never misleads. NOT an emoji. */}
+        <button
+          type="button"
+          data-testid="org-filter-clear"
+          onClick={clearAll}
+          disabled={!anyFilter}
+          className="ml-auto inline-flex items-center gap-1 text-xs text-accent hover:underline disabled:text-text-muted disabled:no-underline disabled:opacity-60"
+        >
+          <span aria-hidden="true">&times;</span>
+          Clear filters
+        </button>
+      </div>
+      {!open ? null : (
+      <>
       {/* Row 1 — status chips, then the two single-selects (right-aligned). */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -274,20 +351,9 @@ export function WorkItemFilterBar({
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
         />
-        {/* Clear — ASCII x glyph (multiplication sign ×, aria-hidden) + text;
-            ALWAYS rendered (not conditionally hidden). Disabled when nothing is
-            active so it never misleads, but stays in the DOM. NOT an emoji. */}
-        <button
-          type="button"
-          data-testid="org-filter-clear"
-          onClick={clearAll}
-          disabled={!anyFilter}
-          className="ml-auto inline-flex items-center gap-1 text-xs text-accent hover:underline disabled:text-text-muted disabled:no-underline disabled:opacity-60"
-        >
-          <span aria-hidden="true">&times;</span>
-          Clear filters
-        </button>
       </div>
+      </>
+      )}
     </div>
   );
 }
