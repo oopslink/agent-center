@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -275,6 +276,51 @@ func TestActionLog_BlockUnblockPersisted(t *testing.T) {
 	}
 	if !sawBlocked || !sawUnblocked {
 		t.Fatalf("action logs = %+v, want both blocked and unblocked entries", logs)
+	}
+}
+
+// §13.D: the overdue-blocked reminder emits ONE reminder per block episode once the
+// block outlives the threshold, never reclaims the task, and re-arms after unblock.
+func TestOverdueBlockedReminder_EmitsOncePerEpisode(t *testing.T) {
+	h := planAdvanceSetup(t)
+	_, tid := startedPoolTask(t, h, "org-od", "P", "agent:w1")
+	if err := h.svc.BlockTask(h.ctx, tid, "waiting on owner", pm.BlockReasonObstacle, "agent:w1"); err != nil {
+		t.Fatal(err)
+	}
+	chk := NewOverdueBlockedReminder(h.svc, h.clk, time.Hour, time.Minute, nil)
+
+	// Not overdue yet → no reminder.
+	if n, err := chk.Tick(h.ctx); err != nil || n != 0 {
+		t.Fatalf("tick before threshold = (%d,%v), want (0,nil)", n, err)
+	}
+	// Past the threshold → exactly one reminder.
+	h.clk.Advance(time.Hour + time.Minute)
+	if n, err := chk.Tick(h.ctx); err != nil || n != 1 {
+		t.Fatalf("tick after threshold = (%d,%v), want (1,nil)", n, err)
+	}
+	// Latched: a second sweep does not re-remind the same episode.
+	if n, _ := chk.Tick(h.ctx); n != 0 {
+		t.Fatalf("second tick = %d, want 0 (latched)", n)
+	}
+	// The reminder NEVER reclaims a blocked task (§13.D: not auto-recovered).
+	got, _ := h.svc.GetTask(h.ctx, tid)
+	if got.Status() != pm.TaskRunning || strings.TrimSpace(got.BlockedReason()) == "" {
+		t.Fatalf("task should stay running+blocked, got status=%s blocked=%q", got.Status(), got.BlockedReason())
+	}
+
+	// Unblock → latch pruned; a NEW block episode re-arms the reminder.
+	if err := h.svc.UnblockTask(h.ctx, tid, "agent:w1"); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := chk.Tick(h.ctx); n != 0 {
+		t.Fatalf("tick after unblock = %d, want 0 (not blocked)", n)
+	}
+	if err := h.svc.BlockTask(h.ctx, tid, "stuck again", pm.BlockReasonObstacle, "agent:w1"); err != nil {
+		t.Fatal(err)
+	}
+	h.clk.Advance(time.Hour + time.Minute)
+	if n, _ := chk.Tick(h.ctx); n != 1 {
+		t.Fatalf("tick after re-block+overdue = %d, want 1 (fresh episode)", n)
 	}
 }
 

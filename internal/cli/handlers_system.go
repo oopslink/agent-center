@@ -276,6 +276,22 @@ func ServerCommand() *Command {
 				}()
 				defer leaseCheckerCancel()
 
+				// v2.14.0 I14/F3 (§13.D): overdue-blocked reminder. A blocked task is a
+				// legal pause never reclaimed by the lease, but if the block is never
+				// resolved it would sit silently — so once a block outlives the overdue
+				// threshold this emits a one-time pm.task.block_overdue event (owner-
+				// visible reminder, delivered by the downstream projector), nudging the
+				// owner to respond / reassign / discard.
+				overdueReminder := pmservice.NewOverdueBlockedReminder(
+					app.PMService, nil, 0, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[overdue-block-reminder] "+msg+"\n", a...) },
+				)
+				overdueReminderCtx, overdueReminderCancel := context.WithCancel(ctx)
+				go func() {
+					_ = overdueReminder.Run(overdueReminderCtx)
+				}()
+				defer overdueReminderCancel()
+
 				bannerWeb := "disabled"
 				if webEnabled {
 					bannerWeb = webAddr
