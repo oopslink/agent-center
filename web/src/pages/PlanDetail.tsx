@@ -138,7 +138,12 @@ export default function PlanDetail(): React.ReactElement {
         ]}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-border-base bg-bg-elevated shadow-1" data-testid="plan-detail-card">
+      {/* T340: on MOBILE the card grows with its content (flex-col, no flex-1
+          bound) so the rounded border wraps the whole chat+composer and the PAGE
+          scrolls — the prior flex-1 bound + the chat's min-h-[60vh] floor made the
+          content spill past the card border (聊天框和背景错位 @oopslink). overflow-
+          hidden keeps the corners crisp. DESKTOP keeps flex-1 fill + internal scroll. */}
+      <div className="flex flex-col overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1 md:min-h-0 md:flex-1" data-testid="plan-detail-card">
         <PlanDetailHeader projectId={id} plan={p} />
 
         {/* v2.13.0 / I18 F4 — the ship-gate board: the cycle's Integrate nodes
