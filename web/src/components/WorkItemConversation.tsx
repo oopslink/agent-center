@@ -74,14 +74,19 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
         data-testid="conversation-owner-banner"
         data-owner-ref={ownerRef}
       >
-        <span
-          className="font-semibold uppercase tracking-wide text-text-muted"
-          data-testid="conversation-owner-code"
-        >
-          {ownerCode || 'Conversation'}
+        {/* T311: on mobile the title is redundant with the page header above the
+            chat (@oopslink) — hide the owner label/title text on <md and keep only
+            the Following + Maximize actions; show the full banner on ≥md. */}
+        <span className="hidden items-center gap-2 md:flex" data-testid="conversation-owner-label">
+          <span
+            className="font-semibold uppercase tracking-wide text-text-muted"
+            data-testid="conversation-owner-code"
+          >
+            {ownerCode || 'Conversation'}
+          </span>
+          <span>· linked</span>
+          <span className="font-mono text-text-primary">{bannerLabel}</span>
         </span>
-        <span>· linked</span>
-        <span className="font-mono text-text-primary">{bannerLabel}</span>
         <span className="ml-auto flex items-center gap-1">
           {/* #264 P1 / #176 §4: follow this task/issue thread (threads default unfollowed). */}
           {conv.data && (

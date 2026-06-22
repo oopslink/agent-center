@@ -52,6 +52,21 @@ describe('WorkItemConversation (#137)', () => {
     expect(code).not.toHaveTextContent('Conversation');
   });
 
+  it('hides the redundant banner title on mobile (<md), keeping the actions (T311)', async () => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs', 'T280');
+    // the owner label/title is wrapped in a md-only (hidden on <md) container so
+    // it doesn't duplicate the page header above the chat on a phone.
+    const label = await screen.findByTestId('conversation-owner-label');
+    expect(label.className).toContain('hidden');
+    expect(label.className).toContain('md:flex');
+    // the Maximize action stays available on every breakpoint.
+    expect(screen.getByTestId('conversation-maximize-toggle')).toBeInTheDocument();
+  });
+
   it('falls back to the "Conversation" label when no ownerCode is provided', async () => {
     server.use(
       http.get('/api/conversations', () => HttpResponse.json([conv])),
