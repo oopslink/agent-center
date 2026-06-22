@@ -152,6 +152,9 @@ type scaffoldCyclePlanReq struct {
 	Version         string               `json:"version"`
 	Features        []scaffoldFeatureReq `json:"features"`
 	MaxReviewRounds int                  `json:"max_review_rounds"`
+	// SkipMergeCheck marks every Integrate node skip_merge_check at build time (T330),
+	// standing F3's merge guard down for this cycle. Default false keeps merge-check on.
+	SkipMergeCheck bool `json:"skip_merge_check"`
 }
 
 // scaffoldCyclePlanHandler builds a whole cycle CONTROL-FLOW graph (S0 → (Dev→
@@ -190,6 +193,7 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 		Version:         req.Version,
 		Features:        features,
 		MaxReviewRounds: req.MaxReviewRounds,
+		SkipMergeCheck:  req.SkipMergeCheck,
 		CreatedBy:       pm.IdentityRef(agentActor(a)),
 	})
 	if err != nil {

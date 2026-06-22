@@ -183,9 +183,12 @@ func (s *Service) CompleteTask(ctx context.Context, taskID pm.TaskID, by pm.Iden
 //     (Dev/Review/Gate/Accept/Ship + ordinary tasks complete normally).
 //   - skip_merge_check                      → structural exemption (doc-only) → allow.
 //   - branch == "" || base == ""           → no merge target to check → allow.
-//   - project has NO CodeRepoRef            → fail CLOSED (ErrIntegrateMergeUnverifiable):
-//     the guard is enabled for this Integrate node but there is no repo to verify
-//     against — refuse rather than wave it through.
+//   - project has NO CodeRepoRef            → AUTO-SKIP (allow): the absence of a
+//     repo IS the project-level off switch (T330). A project that never configured
+//     a CodeRepoRef has nothing to verify against, so the merge guard stands down
+//     for ALL its Integrate nodes — current and future — instead of jamming every
+//     complete_task and forcing a manual per-node skip_merge_check. Projects WITH a
+//     repo are unaffected (the guard still verifies the merge below).
 //   - checker returns an error              → fail CLOSED (ErrIntegrateMergeUnverifiable,
 //     wrapping the cause): a flaky/missing remote must not let an unmerged branch land.
 //   - checker returns merged == false       → block (ErrIntegrateBranchNotMerged).
@@ -216,10 +219,12 @@ func (s *Service) guardIntegrateMerge(ctx context.Context, taskID pm.TaskID) err
 		return err
 	}
 	if url == "" {
-		// Enabled for this Integrate node but the project has no repo to check against.
-		// Fail closed: the PD must add a CodeRepoRef or set skip_merge_check.
-		return fmt.Errorf("%w: merge-check enabled for Integrate node %s but project %s has no code repo configured; add a CodeRepoRef or set skip_merge_check",
-			ErrIntegrateMergeUnverifiable, t.ID(), t.ProjectID())
+		// T330: the project has no CodeRepoRef — nothing to verify against. Treat the
+		// missing repo as the project-level off switch and auto-skip the merge check
+		// (allow) rather than fail closed. This roots out the manual per-node
+		// skip_merge_check workaround for repo-less projects. Projects that DO configure
+		// a repo still get the full guard.
+		return nil
 	}
 	merged, err := s.mergeChecker.BranchMergedToOrigin(ctx, url, branch, base)
 	if err != nil {

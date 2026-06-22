@@ -700,6 +700,7 @@ type scaffoldCyclePlanArgs struct {
 	Version         string                `json:"version" jsonschema:"the cycle version, e.g. 'v2.13.0'; the integration trunk is dev/<version>"`
 	Features        []scaffoldFeatureArgs `json:"features" jsonschema:"the features in this cycle; each gets a Dev→Review→Decision{pass→Integrate, reject→Dev bounded} control-flow chain (or a single Dev node when doc_only)"`
 	MaxReviewRounds int                   `json:"max_review_rounds,omitempty" jsonschema:"max review-reject loopback rounds per feature before the escape branch (default 3)"`
+	SkipMergeCheck  bool                  `json:"skip_merge_check,omitempty" jsonschema:"set true to mark every Integrate node skip_merge_check, standing the Integrate-complete merge guard down for this whole cycle (default false = merge-check enforced). Use when the project has no code repo configured or integrates outside this server's reach"`
 }
 
 // makeScaffoldCyclePlan builds the whole cycle control-flow graph in one call.
@@ -719,6 +720,7 @@ func makeScaffoldCyclePlan(cfg Config) mcp.ToolHandlerFor[scaffoldCyclePlanArgs,
 			"version":           args.Version,
 			"features":          features,
 			"max_review_rounds": args.MaxReviewRounds,
+			"skip_merge_check":  args.SkipMergeCheck,
 		}
 		return callAdmin(ctx, cfg, "scaffold_cycle_plan", body)
 	}

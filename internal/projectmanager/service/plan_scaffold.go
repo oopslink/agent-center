@@ -94,7 +94,13 @@ type ScaffoldCyclePlanCommand struct {
 	// MaxReviewRounds bounds each feature's review loopback (Decision→Dev on reject),
 	// B0 §4.1. <=0 falls back to defaultReviewRounds (3). Ignored for doc-only features.
 	MaxReviewRounds int
-	CreatedBy       pm.IdentityRef
+	// SkipMergeCheck, when true, marks every Integrate node skip_merge_check at build
+	// time so F3's Integrate-complete merge guard stands down for this cycle (T330).
+	// Default false preserves the existing behavior (merge-check enforced). Use it for
+	// cycles whose project has no CodeRepoRef, or that integrate outside this server's
+	// reach. Doc-only features are already exempt regardless of this flag.
+	SkipMergeCheck bool
+	CreatedBy      pm.IdentityRef
 }
 
 // ScaffoldCycleNode describes one created node in the returned summary.
@@ -267,7 +273,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			}
 			// Integrate is the CONDITIONAL successor of Decision on outcome=pass — the
 			// feature terminal that feeds the Gate.
-			integrateID, ierr := addNode(name+" · Integrate", branch, trunk, "integrate", name, false)
+			integrateID, ierr := addNode(name+" · Integrate", branch, trunk, "integrate", name, cmd.SkipMergeCheck)
 			if ierr != nil {
 				return result, ierr
 			}

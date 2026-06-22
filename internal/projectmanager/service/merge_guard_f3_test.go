@@ -229,22 +229,25 @@ func TestF3Guard_CheckerError_FailsClosed(t *testing.T) {
 	}
 }
 
-// Integrate node but the project has NO code repo → fail closed (unverifiable),
-// task stays running (the PD must add a CodeRepoRef or set skip_merge_check).
-func TestF3Guard_NoRepoConfigured_FailsClosed(t *testing.T) {
-	mc := &fakeMergeChecker{merged: true}
+// T330: Integrate node but the project has NO CodeRepoRef → AUTO-SKIP the
+// merge check (the absence of a repo IS the project-level off switch). The task
+// completes WITHOUT consulting the checker. This roots out the previous manual
+// per-node skip_merge_check workaround when a project has no repo configured.
+// (Projects WITH a repo are unaffected — see TestF3Guard_IntegrateMerged_Completes
+// and TestF3Guard_IntegrateNotMerged_Blocked: merge-check still enforced there.)
+func TestF3Guard_NoRepoConfigured_AutoSkips(t *testing.T) {
+	mc := &fakeMergeChecker{merged: false} // would block if consulted
 	f := newGuardFixture(t, mc)
 	pid := f.project(t) // NO addRepo
 	tid := f.runningTask(t, pid, pm.CycleRoleIntegrate, "T7", "dev/v2.13.0", false)
 
-	err := f.svc.CompleteTask(f.ctx, tid, "user:pd")
-	if !errors.Is(err, ErrIntegrateMergeUnverifiable) {
-		t.Fatalf("err = %v, want ErrIntegrateMergeUnverifiable (no repo)", err)
+	if err := f.svc.CompleteTask(f.ctx, tid, "user:pd"); err != nil {
+		t.Fatalf("CompleteTask (no repo should auto-skip): %v", err)
 	}
 	if mc.calls != 0 {
 		t.Fatalf("checker calls = %d, want 0 (no repo to check against)", mc.calls)
 	}
-	if got := f.statusOf(t, tid); got != pm.TaskRunning {
-		t.Fatalf("status = %s, want running", got)
+	if got := f.statusOf(t, tid); got != pm.TaskCompleted {
+		t.Fatalf("status = %s, want completed (no-repo auto-skips merge check)", got)
 	}
 }

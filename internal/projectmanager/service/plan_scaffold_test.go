@@ -259,6 +259,42 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 	}
 }
 
+// T330: SkipMergeCheck=true marks every Integrate node skip_merge_check at build
+// time so F3's Integrate-complete merge guard stands down for the whole cycle.
+// (Default false is covered by TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges,
+// which asserts the Integrate node carries skip=false.)
+func TestScaffoldCyclePlan_SkipMergeCheckFlagsIntegrate(t *testing.T) {
+	svc, _, tasks, relay, ctx := scaffoldSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := svc.ScaffoldCyclePlan(ctx, ScaffoldCyclePlanCommand{
+		ProjectID:      pid,
+		Version:        "v2.14.0",
+		Features:       []CycleFeature{{Name: "F1 规格", Branch: "f1-spec"}},
+		SkipMergeCheck: true,
+		CreatedBy:      "user:pd",
+	})
+	if err != nil {
+		t.Fatalf("ScaffoldCyclePlan: %v", err)
+	}
+	drain(t, relay, ctx)
+
+	all, err := tasks.ListByPlan(ctx, res.PlanID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	integ := scaffoldByTitle(t, all)["F1 规格 · Integrate"]
+	if integ == nil {
+		t.Fatalf("Integrate node missing: %v", titles(all))
+	}
+	if !integ.SkipMergeCheck() {
+		t.Errorf("Integrate skip_merge_check = false, want true (SkipMergeCheck cmd flag)")
+	}
+}
+
 func TestScaffoldCyclePlan_ValidatesInput(t *testing.T) {
 	svc, _, _, _, _, ctx := planSetup(t)
 	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})

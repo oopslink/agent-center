@@ -173,6 +173,7 @@ S0 → (Dev(T) → Review(T) → Integrate(T)) × N → 集成完成 Gate → Ac
 2. 校验 `origin/<base>` 是否 `--contains` `<branch>` 的 HEAD（即分支已合回主干）。
 3. **判定只信 origin**：校验前必须 `fetch`，禁用本地 stale ref（见 §6）。
 4. `skip_merge_check = true` → 跳过校验直接放行（结构化豁免）。
+   - **T330**：Project **未配 `CodeRepoRef`** 时，等同项目级关闸——自动跳过 merge-check 直接放行（无仓可校验，整库覆盖当前+未来所有 Integrate 节点），不再 fail-closed 卡 complete。已配 `CodeRepoRef` 的项目不受影响，校验照常生效。`scaffold_cycle_plan` 亦提供 `skip_merge_check` 入参，建图时即可对整个 cycle 关闸（默认 `false`=保持校验）。
 5. 未满足 → **拒绝 complete**，错误信息**可操作**，至少含：
    - 哪个 `branch` 未进哪个 `origin/<base>`；
    - 提示动作（合并并推 origin 后重试）。
