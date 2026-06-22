@@ -439,12 +439,29 @@ describe('MessageList system sender notification (T308)', () => {
   it('renders a system-sender message as a notification, not a peer bubble', () => {
     renderFresh(<MessageList messages={[sysMsg]} />);
     const notice = screen.getByTestId('message-system-notice');
-    // labeled "System" and shows the content…
+    // labeled "System" and shows the content (preview when collapsed)…
     expect(notice.textContent).toContain('System');
     expect(notice.textContent).toContain('is ready');
     // …and it is NOT a peer chat bubble (no sender button / message-row).
     expect(screen.queryByTestId('message-sender-button')).not.toBeInTheDocument();
     expect(screen.queryByTestId('message-row')).not.toBeInTheDocument();
+  });
+
+  it('is collapsed by default and expands the full body via the header (T316)', () => {
+    renderFresh(<MessageList messages={[sysMsg]} />);
+    const toggle = screen.getByTestId('message-system-toggle');
+    // collapsed by default: one-line preview, no expanded body.
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByTestId('message-system-preview')).toBeInTheDocument();
+    expect(screen.queryByTestId('message-system-body')).not.toBeInTheDocument();
+    // expand → full body shown, preview gone.
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('message-system-body')).toBeInTheDocument();
+    expect(screen.queryByTestId('message-system-preview')).not.toBeInTheDocument();
+    // collapse again.
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('message-system-preview')).toBeInTheDocument();
   });
 });
 

@@ -546,10 +546,23 @@ export function MessageList({
 // SystemMessageRow, which is the terse "Message failed" notice for content_kind
 // ='system'. Full-width-ish + centered so it reads as an out-of-band notice.
 function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
+  // T316: system notices can be long (reminder/scheduler dumps) — render them
+  // COLLAPSED by default (@oopslink), header + one-line preview, with the header
+  // as the expand/collapse toggle (chevron rotates). Full markdown on expand.
+  const [expanded, setExpanded] = useState(false);
+  const bodyId = useId();
+  const preview = m.content.replace(/\s+/g, ' ').trim();
   return (
     <div className="my-2 flex justify-center" data-testid="message-system-notice" data-message-system="true">
       <div className="w-full max-w-2xl rounded-md border border-border-base bg-bg-subtle/60 px-3 py-2">
-        <div className="mb-1 flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-controls={bodyId}
+          className="flex w-full items-center gap-1.5 text-left text-[0.625rem] font-medium uppercase tracking-wide text-text-muted"
+          data-testid="message-system-toggle"
+        >
           <svg
             viewBox="0 0 24 24"
             className="h-3 w-3 shrink-0"
@@ -568,10 +581,27 @@ function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
           <time dateTime={m.posted_at} title={m.posted_at} className="font-normal normal-case tracking-normal">
             {formatChatTime(m.posted_at)}
           </time>
-        </div>
-        <div className="text-xs text-text-secondary">
-          <MarkdownMessage content={m.content} textClass="text-text-secondary" linkClass="text-accent" />
-        </div>
+          <svg
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            className={`ml-auto h-3 w-3 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          >
+            <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        {expanded ? (
+          <div id={bodyId} className="mt-1 text-xs text-text-secondary" data-testid="message-system-body">
+            <MarkdownMessage content={m.content} textClass="text-text-secondary" linkClass="text-accent" />
+          </div>
+        ) : (
+          <div
+            className="mt-0.5 truncate text-xs text-text-muted"
+            data-testid="message-system-preview"
+            title={preview}
+          >
+            {preview}
+          </div>
+        )}
       </div>
     </div>
   );
