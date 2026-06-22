@@ -1559,25 +1559,33 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                   data-connect-source={isSource ? 'true' : undefined}
                   data-connect-target={isTarget ? 'true' : undefined}
                 >
-                  {/* v2.9.1 UX point 1: human Task id (T-number) visible on the node. */}
+                  {/* v2.9.1 UX point 1: human Task id (T-number) visible on the node.
+                      T329b: the status badge (+ archived) moves UP here to the id row
+                      (right-aligned) so the assignee row below gets the FULL node width
+                      — a long agent name is no longer cut/blocked by the badge. Mirrors
+                      the mobile stepper layout. */}
                   <div className="mb-1 flex items-center justify-between gap-1">
                     <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-node-taskid" />
-                    {/* Draft connect control (point 3): a real keyboard-focusable
-                        button. Activating enters connect mode with this node as
-                        the source. Hidden once running/done (display-only). */}
-                    {isDraft && !inConnect && (
-                      <button
-                        type="button"
-                        data-testid="plan-node-connect"
-                        data-task-id={taskId}
-                        onClick={() => setConnectFrom(taskId)}
-                        aria-label={`Add dependency from ${titleOf(taskId)}`}
-                        title={`Add a dependency from ${titleOf(taskId)} (pick the task it depends on)`}
-                        className="shrink-0 rounded border border-border-strong bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                      >
-                        + Dep
-                      </button>
-                    )}
+                    <span className="inline-flex shrink-0 items-center gap-1">
+                      <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
+                      <NodeStateChip status={p.node.node_status} />
+                      {/* Draft connect control (point 3): a real keyboard-focusable
+                          button. Activating enters connect mode with this node as
+                          the source. Hidden once running/done (display-only). */}
+                      {isDraft && !inConnect && (
+                        <button
+                          type="button"
+                          data-testid="plan-node-connect"
+                          data-task-id={taskId}
+                          onClick={() => setConnectFrom(taskId)}
+                          aria-label={`Add dependency from ${titleOf(taskId)}`}
+                          title={`Add a dependency from ${titleOf(taskId)} (pick the task it depends on)`}
+                          className="shrink-0 rounded border border-border-strong bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        >
+                          + Dep
+                        </button>
+                      )}
+                    </span>
                   </div>
                   <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
                     <TaskTitleLink
@@ -1586,16 +1594,9 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                       title={p.node.title || refLabel(p.node.org_ref, taskId)}
                     />
                   </div>
-                  {/* T329: assignee (left) truncates + status badge (right) is
-                      shrink-0 so a long agent name no longer overlaps DISPATCHED. */}
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="flex min-w-0 flex-1 text-[0.6875rem]">
-                      <AssigneeTag assigneeRef={p.node.assignee_ref} />
-                    </span>
-                    <span className="inline-flex shrink-0 items-center gap-1">
-                      <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
-                      <NodeStateChip status={p.node.node_status} />
-                    </span>
+                  {/* Assignee gets its OWN full-width row (truncates only if extreme). */}
+                  <div className="flex min-w-0 text-[0.6875rem]">
+                    <AssigneeTag assigneeRef={p.node.assignee_ref} />
                   </div>
                   {/* Connect-mode target affordance (point 3): ONLY valid targets
                       (self/exists/cycle excluded) become activatable. A real
