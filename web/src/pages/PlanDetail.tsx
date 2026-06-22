@@ -44,6 +44,7 @@ import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
 import { ContextPanel } from '@/shell/contextPanel';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
+import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { dependencyEdgeError, validDropTargets } from './planDagEdit';
 
@@ -80,6 +81,9 @@ export default function PlanDetail(): React.ReactElement {
   // T184: the plan conversation gets the shared col④ sidebar too. Resolve it for
   // participants (enabled:!!id makes this a no-op until the plan loads).
   const planConv = useConversation(plan.data?.conversation_id);
+  // T324: desktop embeds the conversation sidebar inside the chat tab; mobile
+  // keeps it in the col④ bottom sheet (mounted below for mobile only).
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState<Tab>('chat');
 
   const projectName = project.data?.name ?? id;
@@ -184,9 +188,10 @@ export default function PlanDetail(): React.ReactElement {
         </div>
       </div>
 
-      {/* T184: the plan's conversation gets the shared col④ sidebar
-          (Participants / Threads / Files) — same as channels/DMs/tasks/issues. */}
-      {planConv.data && (
+      {/* T324: MOBILE keeps the plan conversation's Participants/Threads/Files in
+          the col④ bottom sheet; DESKTOP embeds it inside the Chat tab (right pane,
+          in PlanConversationSide), so mount the col④ panel for mobile only. */}
+      {planConv.data && isMobile && (
         <ContextPanel>
           <ConversationSidebar
             conversationId={planConv.data.id}
@@ -1964,6 +1969,7 @@ function PlanConversationSide({
   ownerCode?: string;
 }): React.ReactElement {
   const conv = useConversation(conversationId || undefined);
+  const isMobile = useIsMobile(); // T324: embed the conv sidebar on desktop only
 
   return (
     <SenderSidebarProvider>
@@ -1988,14 +1994,29 @@ function PlanConversationSide({
             // scrolls), so the chat's flex-1 collapsed to 0 and the message list +
             // composer were invisible. Floor it to a usable height on phones
             // (min-h-[60vh]); desktop keeps min-h-0 and fills via flex-1 as before.
-            className="flex min-h-[60vh] flex-1 flex-col overflow-hidden rounded border border-border-base md:min-h-0"
+            className="flex min-h-[60vh] flex-1 overflow-hidden rounded border border-border-base md:min-h-0"
             data-testid="plan-conversation-body"
           >
-            <ConversationView surface="task-thread" conversationId={conversationId} />
-            {conv.isError && (
-              <p className="p-2 text-[0.6875rem] text-text-muted">
-                Couldn't refresh conversation details.
-              </p>
+            <div className="flex min-h-0 flex-1 flex-col">
+              <ConversationView surface="task-thread" conversationId={conversationId} />
+              {conv.isError && (
+                <p className="p-2 text-[0.6875rem] text-text-muted">
+                  Couldn't refresh conversation details.
+                </p>
+              )}
+            </div>
+            {/* T324: Participants/Threads/Files embedded as the chat's right pane
+                on desktop; mobile uses the col④ bottom sheet (mounted by PlanDetail). */}
+            {!isMobile && conv.data && (
+              <aside
+                className="flex w-64 shrink-0 flex-col overflow-hidden border-l border-border-base"
+                data-testid="plan-conversation-sidebar"
+              >
+                <ConversationSidebar
+                  conversationId={conversationId}
+                  participants={conv.data.participants ?? []}
+                />
+              </aside>
             )}
           </div>
         )}

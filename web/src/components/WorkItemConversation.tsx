@@ -2,8 +2,10 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
+import { ConversationSidebar } from './ConversationSidebar';
 import { SenderSidebarProvider } from './SenderSidebarContext';
 import { FollowToggle } from './FollowToggle';
+import { useIsMobile } from './WorkItemMobileMeta';
 
 interface Props {
   // The expected pm owner_ref for the embedding page (pm://tasks|issues/{id}).
@@ -30,6 +32,10 @@ interface Props {
 export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props): React.ReactElement {
   const conv = useConversationByOwnerRef(ownerRef);
   const surface = ownerRef.includes('/issues/') ? 'issue-thread' : 'task-thread';
+  // T324: on desktop the Participants/Threads/Files panel is embedded as the
+  // chat box's right pane (below); on mobile it stays in the col④ bottom sheet
+  // (mounted by the page), so we render the embedded pane only on desktop.
+  const isMobile = useIsMobile();
 
   // T206 maximize: on mobile the embedded thread sits at the very bottom of a
   // long scrolling detail page with only a few lines visible (you have to scroll
@@ -123,9 +129,25 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
           No linked conversation yet.
         </p>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col rounded-b border border-t-0 border-border-base">
+        <div className="flex min-h-0 flex-1 overflow-hidden rounded-b border border-t-0 border-border-base">
           {/* #264 P1: message body + read-cursor + SSE flow through the shared shell. */}
-          <ConversationView surface={surface} conversationId={conv.data.id} />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ConversationView surface={surface} conversationId={conv.data.id} />
+          </div>
+          {/* T324: the conversation's Participants/Threads/Files panel is part of
+              the chat box (its right pane) on desktop; on mobile it lives in the
+              col④ bottom sheet (mounted by the page), so it's not rendered here. */}
+          {!isMobile && (
+            <aside
+              className="flex w-64 shrink-0 flex-col overflow-hidden border-l border-border-base"
+              data-testid="work-item-conversation-sidebar"
+            >
+              <ConversationSidebar
+                conversationId={conv.data.id}
+                participants={conv.data.participants ?? []}
+              />
+            </aside>
+          )}
         </div>
       )}
     </section>

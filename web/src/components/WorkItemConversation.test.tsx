@@ -52,6 +52,19 @@ describe('WorkItemConversation (#137)', () => {
     expect(code).not.toHaveTextContent('Conversation');
   });
 
+  it('embeds the Participants/Threads/Files sidebar inside the chat box on desktop (T324)', async () => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+      http.get('/api/conversations/conv-1/threads', () => HttpResponse.json([])),
+      http.get('/api/conversations/conv-1/files', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs', 'T280');
+    // desktop (jsdom matchMedia → not mobile): the conversation sidebar is part
+    // of the chat box, not the shell col④.
+    expect(await screen.findByTestId('work-item-conversation-sidebar')).toBeInTheDocument();
+  });
+
   it('keeps the work-item ID on mobile but hides the redundant "· linked <title>" (T312)', async () => {
     server.use(
       http.get('/api/conversations', () => HttpResponse.json([conv])),

@@ -173,12 +173,11 @@ export default function IssueDetail(): React.ReactElement {
             ONLY edit path is the Edit-Issue pencil → modal.
             T145: hidden on mobile (<md) — the mobile meta summary + Details panel
             above replace it so status isn't buried at the bottom.
-            sidebar-hug: at desktop (lg) this metadata rail orders to the LEFT of
-            the conversation so the conversation column sits flush against the
-            shell col④ ConversationSidebar (Participants/Threads/Files) on its
-            right — matching the DM/channel layout where the conversation hugs
-            col④. Below lg the column stacks after the conversation as before. */}
-        <div className="hidden shrink-0 overflow-y-auto md:block lg:order-first lg:w-72">
+            T324: this metadata (DETAILS) rail stays on the RIGHT; the
+            conversation's Participants/Threads/Files panel is now embedded INSIDE
+            the chat box (WorkItemConversation's right pane), not the shell col④.
+            Below md the rail stacks after the conversation as before. */}
+        <div className="hidden shrink-0 overflow-y-auto md:block lg:w-72">
           <IssueDetailSidebar
             issue={iss}
             projectName={project.data?.name}
@@ -195,9 +194,11 @@ export default function IssueDetail(): React.ReactElement {
         <IssueEditModal projectId={projectId} issue={iss} onClose={() => setEditOpen(false)} />
       )}
 
-      {/* T184: the issue's conversation gets the shared col④ sidebar
-          (Participants / Threads / Files) — same as channels/DMs/tasks/plans. */}
-      {conv.data && (
+      {/* T324: on MOBILE the conversation's Participants/Threads/Files panel
+          stays in the col④ bottom sheet; on DESKTOP it is embedded inside the
+          chat box (WorkItemConversation's right pane), so we mount the col④
+          panel for mobile only — avoiding a duplicate + an empty desktop col④. */}
+      {conv.data && isMobile && (
         <ContextPanel>
           <ConversationSidebar conversationId={conv.data.id} participants={conv.data.participants ?? []} />
         </ContextPanel>
