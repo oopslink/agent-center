@@ -80,9 +80,20 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
         label: a.name || a.id,
         meta: (
           <span className="flex flex-wrap items-center gap-1" data-testid="agent-nav-status">
-            <LifecycleBadge lifecycle={a.lifecycle} />
-            <AvailabilityBadge availability={a.availability} />
-            {activity && <ActivityBadge status={activity} />}
+            {/* T320: a RUNNING agent is already implied by its Availability +
+                Activity chips, so we drop the redundant "RUNNING" lifecycle chip
+                (it was one of three look-alike chips the operator found confusing)
+                and show the two meaningful axes: Availability (Available/Busy) +
+                Activity (Active/Idle). A non-running agent shows ONLY its lifecycle
+                (Stopped/Error) — availability/activity are moot when it's down. */}
+            {a.lifecycle === 'running' ? (
+              <>
+                <AvailabilityBadge availability={a.availability} />
+                {activity && <ActivityBadge status={activity} />}
+              </>
+            ) : (
+              <LifecycleBadge lifecycle={a.lifecycle} />
+            )}
           </span>
         ),
       };

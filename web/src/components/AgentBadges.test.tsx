@@ -49,16 +49,20 @@ describe('ActivityBadge (T235)', () => {
   it('renders the status as a text label (not color-only) with a data attribute', () => {
     render(<ActivityBadge status="idle" />);
     const badge = screen.getByTestId('agent-activity-status-badge');
-    expect(badge).toHaveTextContent('idle');
+    expect(badge).toHaveTextContent(/idle/i);
     expect(badge).toHaveAttribute('data-activity-status', 'idle');
     // idle is green (T235 §2): the success text token.
     expect(badge.className).toContain('text-success');
   });
 
-  it('busy reads distinct from idle (brand token, not the green idle token)', () => {
+  it('busy reads as "Active" (T320 — disambiguated from Availability\'s "busy") with the brand token', () => {
     render(<ActivityBadge status="busy" />);
     const badge = screen.getByTestId('agent-activity-status-badge');
-    expect(badge).toHaveTextContent('busy');
+    // T320: label is "Active", NOT "busy" (kills the BUSY/BUSY collision); the
+    // raw status data attribute is still "busy".
+    expect(badge).toHaveTextContent(/active/i);
+    expect(badge).not.toHaveTextContent(/busy/i);
+    expect(badge).toHaveAttribute('data-activity-status', 'busy');
     expect(badge.className).toContain('text-brand');
     expect(badge.className).not.toContain('text-success');
   });

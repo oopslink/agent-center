@@ -23,6 +23,7 @@ export function AvailabilityBadge({
       ].join(' ')}
       data-testid="agent-availability-badge"
       data-availability={availability}
+      title="Availability — whether this agent will accept new work"
     >
       {availability}
     </span>
@@ -88,6 +89,16 @@ const ACTIVITY_CLASS: Record<AgentActivityStatus, string> = {
   busy: 'bg-brand/10 text-brand',
 };
 
+// T320: the activity axis is labeled "Active"/"Idle", NOT "Busy"/"Idle" — the old
+// "busy" label collided word-for-word with Availability's "busy" chip (a running,
+// availability=busy, recently-active agent read as a baffling "BUSY  BUSY"). The
+// vocabulary now disambiguates the two axes: Availability = Available/Busy
+// (schedulable state), Activity = Active/Idle (recently doing work).
+const ACTIVITY_LABEL: Record<AgentActivityStatus, string> = {
+  idle: 'Idle',
+  busy: 'Active',
+};
+
 export function ActivityBadge({
   status,
 }: {
@@ -101,8 +112,9 @@ export function ActivityBadge({
       ].join(' ')}
       data-testid="agent-activity-status-badge"
       data-activity-status={status}
+      title="Activity — whether this running agent is actively working or idle"
     >
-      {status}
+      {ACTIVITY_LABEL[status]}
     </span>
   );
 }

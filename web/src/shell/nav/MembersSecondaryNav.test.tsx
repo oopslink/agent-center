@@ -59,20 +59,25 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('MembersSecondaryNav agent status (T235)', () => {
-  it('shows Lifecycle + Availability chips on each agent row', async () => {
+  it('shows Availability + Activity for a running agent and hides the redundant RUNNING chip (T320)', async () => {
     renderNav();
     const busyLink = await screen.findByRole('link', { name: /busy-bot/ });
     const busyRow = busyLink.closest('li') as HTMLElement;
-    expect(within(busyRow).getByTestId('agent-lifecycle-badge')).toHaveTextContent('running');
+    // T320: a running agent's lifecycle is implied → no RUNNING chip; show the
+    // two meaningful axes instead.
+    expect(within(busyRow).queryByTestId('agent-lifecycle-badge')).toBeNull();
     expect(within(busyRow).getByTestId('agent-availability-badge')).toHaveTextContent('busy');
+    expect(within(busyRow).getByTestId('agent-activity-status-badge')).toBeInTheDocument();
   });
 
-  it('marks a running agent with recent activity as busy', async () => {
+  it('marks a running agent with recent activity as Active (T320 label), data busy', async () => {
     renderNav();
     const link = await screen.findByRole('link', { name: /busy-bot/ });
     const row = link.closest('li') as HTMLElement;
     const status = within(row).getByTestId('agent-activity-status-badge');
     expect(status).toHaveAttribute('data-activity-status', 'busy');
+    // T320: the label disambiguates from Availability's "busy" — it reads "Active".
+    expect(status).toHaveTextContent(/active/i);
   });
 
   it('marks a running agent idle (green) after 5 min without activity', async () => {
