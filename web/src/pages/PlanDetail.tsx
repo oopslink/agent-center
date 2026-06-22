@@ -149,16 +149,30 @@ export default function PlanDetail(): React.ReactElement {
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
             Board). v2.9.1 point 4. */}
-        <div className="flex items-center gap-1 px-4 pt-2" role="tablist" data-testid="plan-tabs">
-          <TabButton id="chat" active={tab === 'chat'} onSelect={setTab}>
-            Chat
-          </TabButton>
-          <TabButton id="dag" active={tab === 'dag'} onSelect={setTab}>
-            DAG
-          </TabButton>
-          <TabButton id="tasks" active={tab === 'tasks'} onSelect={setTab}>
-            Task List
-          </TabButton>
+        {/* T328: the plan id (P27) sits on the tab row (right-aligned, into the
+            empty space) — @oopslink — instead of a separate "P27 · chat" sub-header
+            row inside the chat tab, saving a row (esp. on mobile). */}
+        <div className="flex items-center gap-1 px-4 pt-2" data-testid="plan-tabs">
+          <div className="flex min-w-0 items-center gap-1" role="tablist">
+            <TabButton id="chat" active={tab === 'chat'} onSelect={setTab}>
+              Chat
+            </TabButton>
+            <TabButton id="dag" active={tab === 'dag'} onSelect={setTab}>
+              DAG
+            </TabButton>
+            <TabButton id="tasks" active={tab === 'tasks'} onSelect={setTab}>
+              Task List
+            </TabButton>
+          </div>
+          {p.org_ref && (
+            <span
+              className="ml-auto shrink-0 truncate pl-2 font-mono text-xs font-semibold text-text-muted"
+              data-testid="plan-conversation-code"
+              title={p.name}
+            >
+              {p.org_ref}
+            </span>
+          )}
         </div>
 
         {/* Single tabbed content area (point 4: chat is now a tab, not a side
@@ -177,7 +191,7 @@ export default function PlanDetail(): React.ReactElement {
             data-testid="plan-panel-chat"
             className={tab === 'chat' ? 'flex min-h-0 flex-1 flex-col' : undefined}
           >
-            <PlanConversationSide conversationId={p.conversation_id} ownerCode={p.org_ref} />
+            <PlanConversationSide conversationId={p.conversation_id} />
           </div>
           <div role="tabpanel" hidden={tab !== 'dag'} data-testid="plan-panel-dag">
             {tab === 'dag' && <PlanDag projectId={id} plan={p} />}
@@ -995,9 +1009,11 @@ function AssigneeTag({ assigneeRef }: { assigneeRef: string }): React.ReactEleme
   const resolved = resolveName(assigneeRef);
   const label = resolved === assigneeRef ? normalizeIdentityRef(assigneeRef) : resolved;
   return (
-    <span className="inline-flex items-center gap-1.5 text-text-secondary" title={assigneeRef}>
-      <Avatar name={label} kind={kind} size="sm" />
-      <span className="truncate">{label}</span>
+    <span className="flex min-w-0 items-center gap-1.5 text-text-secondary" title={assigneeRef}>
+      <span className="shrink-0">
+        <Avatar name={label} kind={kind} size="sm" />
+      </span>
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 }
@@ -1570,11 +1586,13 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                       title={p.node.title || refLabel(p.node.org_ref, taskId)}
                     />
                   </div>
+                  {/* T329: assignee (left) truncates + status badge (right) is
+                      shrink-0 so a long agent name no longer overlaps DISPATCHED. */}
                   <div className="flex items-center justify-between gap-1.5">
-                    <span className="min-w-0 text-[0.6875rem]">
+                    <span className="flex min-w-0 flex-1 text-[0.6875rem]">
                       <AssigneeTag assigneeRef={p.node.assignee_ref} />
                     </span>
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex shrink-0 items-center gap-1">
                       <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
                       <NodeStateChip status={p.node.node_status} />
                     </span>
@@ -1960,27 +1978,17 @@ function PlanTaskRow({
 // conversation_id → friendly "initializing" state (don't crash).
 function PlanConversationSide({
   conversationId,
-  ownerCode,
 }: {
   conversationId: string;
-  // The plan's human-friendly short id ("P123", org_ref). When present it
-  // replaces the generic "Plan conversation" label so the panel names the bound
-  // plan by its concrete id (per @oopslink). Falls back to "Plan conversation".
-  ownerCode?: string;
 }): React.ReactElement {
   const conv = useConversation(conversationId || undefined);
   const isMobile = useIsMobile(); // T324: embed the conv sidebar on desktop only
 
   return (
     <SenderSidebarProvider>
+      {/* T328: the "P27 · chat" sub-header was removed — the plan id now lives on
+          the tab row (right-aligned), and the active "Chat" tab already labels this. */}
       <section className="flex min-h-0 flex-1 flex-col" data-testid="plan-conversation">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
-          <span data-testid="plan-conversation-code">{ownerCode || 'Plan conversation'}</span>
-          <span className="rounded border border-border-base px-1.5 py-0.5 text-[0.625rem] font-normal uppercase tracking-wide text-text-muted">
-            chat
-          </span>
-        </div>
-
         {!conversationId ? (
           <p
             className="rounded border border-dashed border-border-base p-4 text-xs italic text-text-muted"
