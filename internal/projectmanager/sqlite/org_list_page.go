@@ -19,6 +19,7 @@ import (
 // orgWhereOpts toggles entity-specific predicates in the shared WHERE builder.
 type orgWhereOpts struct {
 	hasAssignee    bool // tasks: apply the assignee filter
+	hasCreatedBy   bool // issues: apply the created_by (author) filter
 	excludeBuiltin bool // plans: WHERE is_builtin = 0 (the builtin pool is not a user plan)
 }
 
@@ -79,6 +80,11 @@ func buildOrgListWhere(q pm.OrgListQuery, opts orgWhereOpts) (string, []any) {
 		bare := bareSchemeID(q.Assignee)
 		conds = append(conds, "(assignee = ? OR assignee = ? OR assignee = ? OR assignee = ?)")
 		args = append(args, q.Assignee, bare, "agent:"+bare, "user:"+bare)
+	}
+
+	if opts.hasCreatedBy && q.CreatedBy != "" {
+		conds = append(conds, "created_by = ?")
+		args = append(args, q.CreatedBy)
 	}
 
 	if q.Q != "" {
@@ -171,7 +177,7 @@ func countOrg(ctx context.Context, db *sql.DB, table, where string, args []any) 
 // --- Issues -----------------------------------------------------------------
 
 func (r *IssueRepo) ListOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*pm.Issue, int, error) {
-	where, args := buildOrgListWhere(q, orgWhereOpts{})
+	where, args := buildOrgListWhere(q, orgWhereOpts{hasCreatedBy: true})
 	total, err := countOrg(ctx, r.db, "pm_issues", where, args)
 	if err != nil {
 		return nil, 0, err

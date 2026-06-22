@@ -343,7 +343,17 @@ func (s *Service) pausedSet(ctx context.Context, tasks []*pm.Task) (map[pm.TaskI
 // each plan's grouped task slice — and therefore its derived node order — matches
 // what GetPlanDetail produces. §9.2: node status stays DERIVED, never stored.
 func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID) ([]*PlanDetail, error) {
-	return s.planSummaries(ctx, projectID, false)
+	out, _, err := s.planSummaries(ctx, projectID, false, 0, 0)
+	return out, err
+}
+
+// ListPlanSummariesPage paginates the project's (non-archived) plan summaries for
+// the agent-facing list_plans tool. The page window is applied to the plan ROWS
+// BEFORE the per-plan view derivation, so only the returned page is enriched (the
+// builtin pool plan is included, matching ListPlanSummaries). Returns the page +
+// the pre-page total. limit<=0 ⇒ no window (all rows).
+func (s *Service) ListPlanSummariesPage(ctx context.Context, projectID pm.ProjectID, limit, offset int) ([]*PlanDetail, int, error) {
+	return s.planSummaries(ctx, projectID, false, limit, offset)
 }
 
 // ListPlanSummariesIncludingArchived is the archived-aware variant (T124/T98): it
@@ -352,7 +362,8 @@ func (s *Service) ListPlanSummaries(ctx context.Context, projectID pm.ProjectID)
 // surfaces them on `?status=archived`/`all`) can actually see archived plans. The
 // default ListPlanSummaries still excludes archived (Work Board / agent-tools).
 func (s *Service) ListPlanSummariesIncludingArchived(ctx context.Context, projectID pm.ProjectID) ([]*PlanDetail, error) {
-	return s.planSummaries(ctx, projectID, true)
+	out, _, err := s.planSummaries(ctx, projectID, true, 0, 0)
+	return out, err
 }
 
 // ListIssuesOrgPage / ListTasksOrgPage / ListOrgPlansPage are the server-side
@@ -362,6 +373,19 @@ func (s *Service) ListPlanSummariesIncludingArchived(ctx context.Context, projec
 // status default and passes them in q; the repo returns the page + total.
 
 func (s *Service) ListIssuesOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*pm.Issue, int, error) {
+	return s.issues.ListOrgPage(ctx, q)
+}
+
+// ListProjectIssuesPageForMember paginates a SINGLE project's issues (SQL
+// LIMIT/OFFSET + COUNT) behind the §5.7 project-member guard — the paged read
+// path for the agent-facing list_issues tool (replaces the unbounded
+// ListProjectIssuesForMember). q.ProjectIDs is forced to [projectID]; the caller
+// supplies status/author filters + page window.
+func (s *Service) ListProjectIssuesPageForMember(ctx context.Context, projectID pm.ProjectID, actor pm.IdentityRef, q pm.OrgListQuery) ([]*pm.Issue, int, error) {
+	if err := s.requireProjectMember(ctx, projectID, actor); err != nil {
+		return nil, 0, err
+	}
+	q.ProjectIDs = []pm.ProjectID{projectID}
 	return s.issues.ListOrgPage(ctx, q)
 }
 
@@ -406,13 +430,13 @@ func (s *Service) ListOrgPlansPage(ctx context.Context, q pm.OrgListQuery) ([]*P
 	return out, total, nil
 }
 
-func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, includeArchived bool) ([]*PlanDetail, error) {
+func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, includeArchived bool, limit, offset int) ([]*PlanDetail, int, error) {
 	if s.plans == nil {
-		return nil, ErrPlansUnavailable
+		return nil, 0, ErrPlansUnavailable
 	}
 	plans, err := s.plans.ListByProject(ctx, projectID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	// v2.9.2 (task-1099941e): the Work Board EXCLUDES archived plans by default —
 	// an archived plan leaves the active board, mirroring project (#310) / channel
@@ -431,8 +455,28 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 		}
 		plans = active
 	}
-	if len(plans) == 0 {
-		return []*PlanDetail{}, nil
+	// total = matching plan rows BEFORE the page window; the window is applied to
+	// the rows so only the returned page gets the (per-plan) view derivation below.
+	total := len(plans)
+	if total == 0 {
+		return []*PlanDetail{}, 0, nil
+	}
+	if limit > 0 {
+		lo := offset
+		if lo < 0 {
+			lo = 0
+		}
+		if lo > len(plans) {
+			lo = len(plans)
+		}
+		hi := lo + limit
+		if hi > len(plans) {
+			hi = len(plans)
+		}
+		plans = plans[lo:hi]
+	}
+	if len(plans) == 0 { // offset past the end → empty page, real total
+		return []*PlanDetail{}, total, nil
 	}
 
 	planIDs := make([]pm.PlanID, 0, len(plans))
@@ -444,7 +488,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	// preserves the (created_at, id) order so each group mirrors ListByPlan.
 	allTasks, err := s.tasks.ListByProject(ctx, projectID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	tasksByPlan := make(map[pm.PlanID][]*pm.Task, len(plans))
 	for _, t := range allTasks {
@@ -458,7 +502,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	// 1 query: all plans' DAG edges, grouped by PlanID.
 	allEdges, err := s.plans.ListDependenciesByPlans(ctx, planIDs)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	edgesByPlan := make(map[pm.PlanID][]pm.Dependency, len(plans))
 	for _, e := range allEdges {
@@ -468,7 +512,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	// 1 query: all plans' dispatch records, grouped by PlanID.
 	allRecords, err := s.plans.ListDispatchRecordsByPlans(ctx, planIDs)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	recordsByPlan := make(map[pm.PlanID][]pm.DispatchRecord, len(plans))
 	for _, rec := range allRecords {
@@ -479,7 +523,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	// so conditional/loopback routing is reflected in the summary view too (N+1-free).
 	allOutcomes, err := s.plans.ListDecisionOutcomesByPlans(ctx, planIDs)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	outcomesByPlan := make(map[pm.PlanID][]pm.DecisionOutcome, len(plans))
 	for _, o := range allOutcomes {
@@ -491,7 +535,7 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	// (a single extra port call regardless of plan count). nil when no port wired.
 	paused, err := s.pausedSet(ctx, allTasks)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Per-plan view derivation is pure in-memory (no query).
@@ -501,5 +545,5 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused)
 		out = append(out, &PlanDetail{Plan: p, Tasks: tasks, View: view})
 	}
-	return out, nil
+	return out, total, nil
 }

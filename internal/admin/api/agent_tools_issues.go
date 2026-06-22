@@ -224,12 +224,16 @@ func (s *Server) postAgentIssueMessage(ctx context.Context, d HandlerDeps, a *ag
 type listIssuesReq struct {
 	AgentID   string   `json:"agent_id"`
 	ProjectID string   `json:"project_id"`
-	Status    []string `json:"status"` // optional; one or more issue statuses
-	Author    string   `json:"author"` // optional; exact created_by identity ref
+	Status    []string `json:"status"`    // optional; one or more issue statuses
+	Author    string   `json:"author"`    // optional; exact created_by identity ref
+	PageSize  int      `json:"page_size"` // optional; page window (default 50, max 100)
+	Offset    int      `json:"offset"`    // optional; rows to skip (default 0)
 }
 
 // listIssuesHandler lists a project's issues (optionally filtered by status
-// and/or author) — the Issue analogue of list_tasks. Project-member guarded.
+// and/or author) — the Issue analogue of list_tasks. SQL-paginated (page_size
+// default 50 / max 100, offset), newest-touched first, returning
+// {issues,total,page_size,offset,has_more}. Project-member guarded.
 func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req listIssuesReq
@@ -249,30 +253,47 @@ func (s *Server) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_project_id", "")
 		return
 	}
-	issues, err := d.PMService.ListProjectIssuesForMember(r.Context(),
-		pm.ProjectID(req.ProjectID), pm.IdentityRef(agentActor(a)))
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = agentListDefaultPageSize
+	}
+	if pageSize > agentListMaxPageSize {
+		pageSize = agentListMaxPageSize
+	}
+	offset := req.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	statuses := make([]string, 0, len(req.Status))
+	for _, st := range req.Status {
+		if t := strings.TrimSpace(st); t != "" {
+			statuses = append(statuses, t)
+		}
+	}
+	q := pm.OrgListQuery{
+		Statuses:  statuses,
+		CreatedBy: strings.TrimSpace(req.Author), // exact author (created_by) filter
+		SortDesc:  true,                          // newest-touched first (→ updated_at)
+		Limit:     pageSize,
+		Offset:    offset,
+	}
+	issues, total, err := d.PMService.ListProjectIssuesPageForMember(r.Context(),
+		pm.ProjectID(req.ProjectID), pm.IdentityRef(agentActor(a)), q)
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
-	statusSet := map[string]bool{}
-	for _, st := range req.Status {
-		if t := strings.TrimSpace(st); t != "" {
-			statusSet[t] = true
-		}
-	}
-	author := strings.TrimSpace(req.Author)
 	out := make([]map[string]any, 0, len(issues))
 	for _, i := range issues {
-		if len(statusSet) > 0 && !statusSet[string(i.Status())] {
-			continue
-		}
-		if author != "" && string(i.CreatedBy()) != author {
-			continue
-		}
 		out = append(out, agentIssueMap(i))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"issues": out, "total": len(out)})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"issues":    out,
+		"total":     total,
+		"page_size": pageSize,
+		"offset":    offset,
+		"has_more":  offset+len(out) < total,
+	})
 }
 
 // --- list_tasks_of_issue -----------------------------------------------------

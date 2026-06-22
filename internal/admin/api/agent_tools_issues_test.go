@@ -332,6 +332,59 @@ func TestListIssues_FiltersAndIsolation(t *testing.T) {
 	}
 }
 
+// TestListIssues_Pagination verifies the SQL page window + total/has_more + cap
+// for list_issues (same fix as list_tasks).
+func TestListIssues_Pagination(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	for i := 0; i < 5; i++ {
+		if _, err := f.pmSvc.CreateIssue(ctx, pmservice.CreateIssueCommand{ProjectID: pid, Title: "i", CreatedBy: owner}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srv := f.server(t)
+
+	call := func(body map[string]any) map[string]any {
+		status, resp := postBearer(t, srv.URL, "/admin/agent-tools/list_issues", "acat_w1", body)
+		if status != http.StatusOK {
+			t.Fatalf("list_issues status=%d body=%v", status, resp)
+		}
+		return resp
+	}
+	ids := func(resp map[string]any) []string {
+		raw, _ := resp["issues"].([]any)
+		out := make([]string, 0, len(raw))
+		for _, x := range raw {
+			out = append(out, x.(map[string]any)["id"].(string))
+		}
+		return out
+	}
+
+	p1 := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 2})
+	if int(p1["total"].(float64)) != 5 || int(p1["page_size"].(float64)) != 2 || p1["has_more"] != true || len(ids(p1)) != 2 {
+		t.Fatalf("issues page1 meta unexpected: %v", p1)
+	}
+	seen := map[string]bool{}
+	for off := 0; off < 5; off += 2 {
+		for _, id := range ids(call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 2, "offset": off})) {
+			if seen[id] {
+				t.Fatalf("duplicate issue id across pages: %s", id)
+			}
+			seen[id] = true
+		}
+	}
+	if len(seen) != 5 {
+		t.Fatalf("paged unique issues=%d want 5", len(seen))
+	}
+	capped := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 100000})
+	if int(capped["page_size"].(float64)) != agentListMaxPageSize {
+		t.Fatalf("issues page_size cap=%v want %d", capped["page_size"], agentListMaxPageSize)
+	}
+}
+
 func TestListIssues_ForeignProject_403(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)

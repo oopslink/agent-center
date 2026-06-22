@@ -214,8 +214,8 @@ func TestListTasks_Pagination(t *testing.T) {
 
 	// Hard cap: an over-large page_size is clamped to the max in the echoed meta.
 	capped := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 100000})
-	if int(capped["page_size"].(float64)) != listTasksMaxPageSize {
-		t.Fatalf("page_size cap=%v want %d", capped["page_size"], listTasksMaxPageSize)
+	if int(capped["page_size"].(float64)) != agentListMaxPageSize {
+		t.Fatalf("page_size cap=%v want %d", capped["page_size"], agentListMaxPageSize)
 	}
 }
 

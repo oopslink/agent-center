@@ -181,6 +181,8 @@ type listIssuesArgs struct {
 	ProjectID string   `json:"project_id" jsonschema:"the project whose issues to list (required; you must be a member)"`
 	Status    []string `json:"status,omitempty" jsonschema:"optional issue statuses to include (e.g. open, in_progress, resolved); omit for all"`
 	Author    string   `json:"author,omitempty" jsonschema:"optional author identity ref to filter by (agent:<id> / user:<id>)"`
+	PageSize  int      `json:"page_size,omitempty" jsonschema:"page size (default 50, max 100); the result includes total + has_more"`
+	Offset    int      `json:"offset,omitempty" jsonschema:"number of issues to skip for paging (default 0); use with page_size to fetch the next page"`
 }
 
 func makeListIssues(cfg Config) mcp.ToolHandlerFor[listIssuesArgs, any] {
@@ -194,6 +196,12 @@ func makeListIssues(cfg Config) mcp.ToolHandlerFor[listIssuesArgs, any] {
 		}
 		if args.Author != "" {
 			body["author"] = args.Author
+		}
+		if args.PageSize > 0 {
+			body["page_size"] = args.PageSize
+		}
+		if args.Offset > 0 {
+			body["offset"] = args.Offset
 		}
 		return callAdmin(ctx, cfg, "list_issues", body)
 	}
@@ -799,6 +807,8 @@ func makeGetPlan(cfg Config) mcp.ToolHandlerFor[getPlanArgs, any] {
 
 type listPlansArgs struct {
 	ProjectID string `json:"project_id" jsonschema:"the project whose plans to list"`
+	PageSize  int    `json:"page_size,omitempty" jsonschema:"page size (default 50, max 100); the result includes total + has_more"`
+	Offset    int    `json:"offset,omitempty" jsonschema:"number of plans to skip for paging (default 0); use with page_size to fetch the next page"`
 }
 
 func makeListPlans(cfg Config) mcp.ToolHandlerFor[listPlansArgs, any] {
@@ -806,6 +816,12 @@ func makeListPlans(cfg Config) mcp.ToolHandlerFor[listPlansArgs, any] {
 		body := map[string]any{
 			"agent_id":   cfg.AgentID,
 			"project_id": args.ProjectID,
+		}
+		if args.PageSize > 0 {
+			body["page_size"] = args.PageSize
+		}
+		if args.Offset > 0 {
+			body["offset"] = args.Offset
 		}
 		return callAdmin(ctx, cfg, "list_plans", body)
 	}

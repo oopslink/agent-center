@@ -587,3 +587,65 @@ func TestListPlans_CrossWorker_403(t *testing.T) {
 		t.Fatalf("status = %d err=%v, want 403 agent_not_bound_to_worker", status, body["error"])
 	}
 }
+
+// TestListPlans_Pagination verifies the page window + total/has_more + cap for
+// list_plans. The page is applied to the plan rows before view derivation; the
+// builtin pool plan (if any) counts toward total, so the test pages through and
+// asserts the unique ids collected equal the reported total.
+func TestListPlans_Pagination(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	ctx := context.Background()
+	for i := 0; i < 4; i++ {
+		if _, err := f.pmSvc.CreatePlan(ctx, pmservice.CreatePlanCommand{
+			ProjectID: pid, Name: "P", CreatedBy: pm.IdentityRef("agent:" + atAgent1),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		f.drain(t)
+	}
+	srv := f.server(t)
+
+	call := func(body map[string]any) map[string]any {
+		status, resp := postBearer(t, srv.URL, "/admin/agent-tools/list_plans", "acat_w1", body)
+		if status != http.StatusOK {
+			t.Fatalf("list_plans status=%d body=%v", status, resp)
+		}
+		return resp
+	}
+	ids := func(resp map[string]any) []string {
+		raw, _ := resp["plans"].([]any)
+		out := make([]string, 0, len(raw))
+		for _, x := range raw {
+			out = append(out, x.(map[string]any)["id"].(string))
+		}
+		return out
+	}
+
+	p1 := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 2})
+	total := int(p1["total"].(float64))
+	if total < 4 { // the 4 created (plus possibly the builtin pool)
+		t.Fatalf("plans total=%d want >=4", total)
+	}
+	if int(p1["page_size"].(float64)) != 2 {
+		t.Fatalf("plans page_size=%v want 2", p1["page_size"])
+	}
+	// Page through; the unique ids collected must equal the reported total (no dups).
+	seen := map[string]bool{}
+	for off := 0; off < total; off += 2 {
+		for _, id := range ids(call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 2, "offset": off})) {
+			if seen[id] {
+				t.Fatalf("duplicate plan id across pages: %s", id)
+			}
+			seen[id] = true
+		}
+	}
+	if len(seen) != total {
+		t.Fatalf("paged unique plans=%d want %d", len(seen), total)
+	}
+	capped := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 100000})
+	if int(capped["page_size"].(float64)) != agentListMaxPageSize {
+		t.Fatalf("plans page_size cap=%v want %d", capped["page_size"], agentListMaxPageSize)
+	}
+}

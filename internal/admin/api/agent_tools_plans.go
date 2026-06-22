@@ -431,10 +431,14 @@ func (s *Server) getPlanHandler(w http.ResponseWriter, r *http.Request) {
 type listPlansReq struct {
 	AgentID   string `json:"agent_id"`
 	ProjectID string `json:"project_id"`
+	PageSize  int    `json:"page_size"` // optional; page window (default 50, max 100)
+	Offset    int    `json:"offset"`    // optional; plans to skip (default 0)
 }
 
 // listPlansHandler returns the project's Plan summaries (the DERIVED board read
-// model, §9.1/§9.2) via pm.ListPlanSummaries.
+// model, §9.1/§9.2) via pm.ListPlanSummariesPage. SQL-windowed (page_size default
+// 50 / max 100, offset) so a project with many plans can't overflow the
+// tool-result token cap; returns {plans,total,page_size,offset,has_more}.
 func (s *Server) listPlansHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req listPlansReq
@@ -455,7 +459,18 @@ func (s *Server) listPlansHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_project_id", "")
 		return
 	}
-	summaries, err := d.PMService.ListPlanSummaries(r.Context(), pm.ProjectID(req.ProjectID))
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = agentListDefaultPageSize
+	}
+	if pageSize > agentListMaxPageSize {
+		pageSize = agentListMaxPageSize
+	}
+	offset := req.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	summaries, total, err := d.PMService.ListPlanSummariesPage(r.Context(), pm.ProjectID(req.ProjectID), pageSize, offset)
 	if err != nil {
 		mapPlanToolError(w, err)
 		return
@@ -464,7 +479,13 @@ func (s *Server) listPlansHandler(w http.ResponseWriter, r *http.Request) {
 	for _, detail := range summaries {
 		out = append(out, planSummaryMap(detail))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"plans": out})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"plans":     out,
+		"total":     total,
+		"page_size": pageSize,
+		"offset":    offset,
+		"has_more":  offset+len(out) < total,
+	})
 }
 
 // --- list_unmerged_branches (v2.13.0 / I18 F4) -------------------------------

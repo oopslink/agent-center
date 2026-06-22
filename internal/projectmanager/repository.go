@@ -32,6 +32,7 @@ type OrgListQuery struct {
 	Statuses        []string
 	ExcludeStatuses []string
 	Assignee        string
+	CreatedBy       string // issues: exact created_by (author) filter; ignored elsewhere
 	Q               string
 	CreatedAfter    *time.Time
 	CreatedBefore   *time.Time

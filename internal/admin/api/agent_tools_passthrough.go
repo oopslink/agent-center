@@ -277,8 +277,8 @@ type listTasksReq struct {
 // compact-JSON blob blew the MCP tool-result token cap. The tool now SQL-paginates
 // (LIMIT/OFFSET), newest-touched first, with a conservative default + hard cap.
 const (
-	listTasksDefaultPageSize = 50
-	listTasksMaxPageSize     = 100
+	agentListDefaultPageSize = 50
+	agentListMaxPageSize     = 100
 )
 
 // listTasksHandler lists a project's tasks (board overview), optionally filtered
@@ -311,10 +311,10 @@ func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 	// (hundreds of tasks × full description) can't exceed the tool-result token cap.
 	pageSize := req.PageSize
 	if pageSize <= 0 {
-		pageSize = listTasksDefaultPageSize
+		pageSize = agentListDefaultPageSize
 	}
-	if pageSize > listTasksMaxPageSize {
-		pageSize = listTasksMaxPageSize
+	if pageSize > agentListMaxPageSize {
+		pageSize = agentListMaxPageSize
 	}
 	offset := req.Offset
 	if offset < 0 {
