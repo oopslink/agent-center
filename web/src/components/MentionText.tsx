@@ -1,6 +1,7 @@
 import type React from 'react';
 import { Fragment, useMemo } from 'react';
 import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
+import { useAgents } from '@/api/agents';
 import { useOrgWorkItems } from '@/api/orgWorkItems';
 import { useOrgPlans } from '@/api/plans';
 import { useOptionalOrgContext, orgPath } from '@/OrgContext';
@@ -46,6 +47,31 @@ export function useMentionResolver(): (handle: string) => string | null {
     return m;
   }, [members.data]);
   return (handle: string) => byHandle.get(handle.toLowerCase().replace(/\s+/g, '')) ?? null;
+}
+
+// useAgentRefResolver maps a bare agent id (the tail of an `agent-<id>` token) →
+// the prefixed `agent:<id>` ref, for linkifying agent references in message text.
+// T335: it resolves against BOTH the org members AND the full agents list — many
+// referenced agents (task integrators/assignees) aren't org-member rows, so the
+// member-only resolver (useMentionResolver) left their `agent-<id>` plain text.
+// Returns null for an unknown id, so a hyphenated English word ("agent-based")
+// stays plain text rather than dangling to a non-existent agent.
+export function useAgentRefResolver(): (id: string) => string | null {
+  const members = useMembers();
+  const agents = useAgents();
+  const byId = useMemo(() => {
+    const m = new Map<string, string>(); // bare id (lowercased) → "agent:<id>"
+    for (const a of agents.data ?? []) {
+      if (a.id) m.set(a.id.toLowerCase(), `agent:${a.id}`);
+    }
+    for (const mem of members.data ?? []) {
+      if (mem.kind !== 'agent') continue;
+      const tail = normalizeIdentityRef(mem.identity_id);
+      if (tail) m.set(tail.toLowerCase(), `agent:${tail}`);
+    }
+    return m;
+  }, [agents.data, members.data]);
+  return (id: string) => byId.get(id.toLowerCase()) ?? null;
 }
 
 // ResolvedTaskRef — a `task-<id>` reference resolved to its display label + the
@@ -245,6 +271,10 @@ interface MentionTextProps {
    * detail page labelled with its "I123" org_ref; an unresolved reference stays
    * plain text. Symmetric with resolveTask / resolvePlan. */
   resolveIssue?: (ref: string) => ResolvedIssueRef | null;
+  /** T335: optional agent-id resolver (members + agents list). A bare
+   * `agent-<id>` whose id resolves becomes a clickable token opening the agent
+   * sidebar; an unknown id stays plain text. */
+  resolveAgent?: (id: string) => string | null;
 }
 
 // MentionText tokenizes one plain-text string, turning each @handle that
@@ -258,6 +288,7 @@ export function MentionText({
   resolveTask,
   resolvePlan,
   resolveIssue,
+  resolveAgent,
 }: MentionTextProps): React.ReactElement {
   const parts: React.ReactNode[] = [];
   let last = 0;
@@ -380,11 +411,11 @@ export function MentionText({
           </a>
         );
       }
-    } else if (agentRef !== undefined) {
-      // T317: resolve the bare agent id (tail after "agent-") through the SAME
-      // member resolver as @handles. Only a KNOWN agent linkifies; the click
+    } else if (agentRef !== undefined && resolveAgent) {
+      // T317/T335: resolve the bare agent id (tail after "agent-") via the agent
+      // resolver (members + agents list). Only a KNOWN agent linkifies; the click
       // opens the agent's SenderDetailSidebar (onMention with the prefixed ref).
-      const ref = resolve(agentRef.slice('agent-'.length));
+      const ref = resolveAgent(agentRef.slice('agent-'.length));
       if (ref && ref.startsWith('agent:')) {
         node = (
           <button

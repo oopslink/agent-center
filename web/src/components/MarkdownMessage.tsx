@@ -6,6 +6,7 @@ import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
 import {
   MentionText,
   useMentionResolver,
+  useAgentRefResolver,
   useTaskRefResolver,
   usePlanRefResolver,
   useIssueRefResolver,
@@ -53,6 +54,7 @@ function linkifyMentions(
   resolveTask: (taskId: string) => ResolvedTaskRef | null,
   resolvePlan: (planRef: string) => ResolvedPlanRef | null,
   resolveIssue: (issueRef: string) => ResolvedIssueRef | null,
+  resolveAgent: (id: string) => string | null,
 ): React.ReactNode {
   if (!onMention) return children;
   return Children.map(children, (child) => {
@@ -85,6 +87,7 @@ function linkifyMentions(
           resolveTask={resolveTask}
           resolvePlan={resolvePlan}
           resolveIssue={resolveIssue}
+          resolveAgent={resolveAgent}
         />
       );
     }
@@ -146,8 +149,10 @@ function MentionAwareMarkdown({
   const resolvePlan = usePlanRefResolver();
   // resolve `issue-<id>` / `I<number>` references → issue-detail links.
   const resolveIssue = useIssueRefResolver();
+  // T335: resolve bare `agent-<id>` references (members + agents list) → sidebar.
+  const resolveAgent = useAgentRefResolver();
   const linkify = (children: React.ReactNode) =>
-    linkifyMentions(children, onMention, resolve, linkClass, resolveTask, resolvePlan, resolveIssue);
+    linkifyMentions(children, onMention, resolve, linkClass, resolveTask, resolvePlan, resolveIssue, resolveAgent);
   return <MarkdownBody content={content} textClass={textClass} linkClass={linkClass} linkify={linkify} />;
 }
 

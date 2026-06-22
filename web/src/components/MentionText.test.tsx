@@ -630,4 +630,18 @@ describe('MentionText agent-ref linkify (T317)', () => {
     await screen.findByText(/ref to/);
     expect(screen.queryByTestId('agent-ref-token')).not.toBeInTheDocument();
   });
+
+  it('linkifies an agent that is in the agents list but NOT an org member (T335)', async () => {
+    mockMembers(); // bot-1 / alice — does NOT include ba6bc42a
+    server.use(
+      // ba6bc42a is a real agent (e.g. a task integrator) but not a member row.
+      http.get('/api/agents', () =>
+        HttpResponse.json({ agents: [{ id: 'ba6bc42a', name: 'integrator', lifecycle: 'running' }] }),
+      ),
+    );
+    renderInProvider(<MarkdownMessage content={'integrate done by agent-ba6bc42a now'} />);
+    const token = await screen.findByTestId('agent-ref-token');
+    expect(token).toHaveTextContent('agent-ba6bc42a');
+    expect(token).toHaveAttribute('data-agent-ref', 'agent:ba6bc42a');
+  });
 });
