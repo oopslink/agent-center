@@ -34,7 +34,11 @@ import (
 
 // Terminal status sets — "all open" (the default when ?status= is omitted)
 // excludes these. Values are the raw pm domain status strings.
-var issueTerminalStatus = map[string]bool{"resolved": true, "closed": true, "withdrawn": true}
+// T330: "withdrawn" was renamed "discarded" in v2.8.1 (issue.go) — the stale name
+// meant the default "all open" view never excluded a DISCARDED issue (it leaked
+// into the list). Use the current "discarded" so discarded issues are hidden by
+// default (@oopslink); `?status=all` / explicit `?status=discarded` still surface them.
+var issueTerminalStatus = map[string]bool{"resolved": true, "closed": true, "discarded": true}
 
 // taskTerminalStatus is the terminal Task set the default ("all open") view
 // excludes. v2.9.1 ADR-0046: the Task state machine is {open, running, completed,

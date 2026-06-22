@@ -28,7 +28,8 @@ func TestStatusPasses_260_DefaultOpenVsExplicit(t *testing.T) {
 			t.Errorf("default-open should pass %q", open)
 		}
 	}
-	for _, term := range []string{"resolved", "closed", "withdrawn"} {
+	// T330: "discarded" (was the stale "withdrawn") must be excluded by default.
+	for _, term := range []string{"resolved", "closed", "discarded"} {
 		if statusPasses(term, map[string]bool{}, issueTerm) {
 			t.Errorf("default-open should exclude terminal %q", term)
 		}
