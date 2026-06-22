@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
-	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
@@ -131,58 +130,6 @@ func (s *Server) envAgentLifecycleFeedbackHandler(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// agentWorkItemStateReq is the body for
-// POST /admin/environment/agent/work-item-state.
-type agentWorkItemStateReq struct {
-	AgentID    string `json:"agent_id"`
-	WorkItemID string `json:"work_item_id"`
-	State      string `json:"state"` // "active" | "done" | "failed"
-	At         string `json:"at,omitempty"`
-}
-
-// envAgentWorkItemStateHandler applies a controller-reported WorkItem
-// transition (active/done/failed). The AppService verifies the WorkItem belongs
-// to the agent (ownership guardrail) and the AR rejects illegal transitions
-// (→ 409). PERSIST-ONLY (the WorkItem AR emits no outbox event).
-func (s *Server) envAgentWorkItemStateHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req agentWorkItemStateReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if strings.TrimSpace(req.WorkItemID) == "" {
-		writeError(w, http.StatusBadRequest, "missing_work_item_id", "")
-		return
-	}
-	at, err := parseOptionalTime(req.At)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_at", err.Error())
-		return
-	}
-	var state agentservice.WorkItemFeedbackState
-	switch strings.ToLower(strings.TrimSpace(req.State)) {
-	case "active":
-		state = agentservice.WorkItemFeedbackActive
-	case "done":
-		state = agentservice.WorkItemFeedbackDone
-	case "failed":
-		state = agentservice.WorkItemFeedbackFailed
-	default:
-		writeError(w, http.StatusBadRequest, "invalid_state",
-			"state must be 'active', 'done' or 'failed'")
-		return
-	}
-	if err := d.AgentSvc.MarkWorkItemState(r.Context(), a.ID(), req.WorkItemID, state, at); err != nil {
-		mapDomainError(w, err) // illegal move / not-owned → 409 / 404
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-}
 
 // agentMarkSeenReq is the body for POST /admin/environment/agent/mark-seen.
 type agentMarkSeenReq struct {
@@ -337,21 +284,24 @@ type resumeStateReq struct {
 	WorkerID string `json:"worker_id"`
 }
 
-// envWorkerResumeStateHandler returns this worker's resumable agents + their
-// in-flight WorkItems so the daemon can reconcile their claude sessions on boot.
+// envWorkerResumeStateHandler returns this worker's resumable agents so the
+// daemon can reconcile their claude sessions on boot.
 //
 // AUTHZ: worker = token owner (strip `worker:` prefix; non-worker owner → 403);
 // body.worker_id MUST == that worker, else 403 (worker_mismatch).
 //
-// Computed set: AgentRepo.ListByWorker(worker) → for each agent, include it iff
-// it SHOULD be running (lifecycle == running) OR it has ≥1 in-flight WorkItem
-// (status ∈ {active, waiting_input}); a stopped/stopping/resetting/error agent
-// with no in-flight work is SKIPPED (nothing to resume). Each included agent
-// carries desired_lifecycle + version (+ reset_scope reserved for f-3) and its
-// in-flight WorkItems only.
+// Computed set: AgentRepo.ListByWorker(worker) → include each agent that SHOULD
+// be running (lifecycle == running); a stopped/stopping/resetting/error agent is
+// SKIPPED (nothing to resume). Each included agent carries desired_lifecycle +
+// version (+ reset_scope reserved for f-3).
+//
+// v2.14.0 F7 (issue I14): the per-agent in-flight WorkItem list was removed —
+// AgentWorkItem retired. The resumable set is now exactly the running agents; the
+// response's per-agent "work_items" array is always empty (the daemon's resume
+// parser still accepts it, now a no-op).
 func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	if d.AgentRepo == nil || d.AgentWorkItemRepo == nil {
+	if d.AgentRepo == nil {
 		writeError(w, http.StatusNotImplemented, "agent_repo_not_wired", "")
 		return
 	}
@@ -387,25 +337,10 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 
 	out := make([]map[string]any, 0, len(agents))
 	for _, a := range agents {
-		items, err := d.AgentWorkItemRepo.ListByAgent(r.Context(), a.ID())
-		if err != nil {
-			mapDomainError(w, err)
-			return
-		}
-		inflight := make([]map[string]any, 0, len(items))
-		for _, it := range items {
-			switch it.Status() {
-			case agent.WorkItemActive, agent.WorkItemWaitingInput:
-				inflight = append(inflight, map[string]any{
-					"work_item_id": it.ID(),
-					"task_ref":     it.TaskRef(),
-					"status":       string(it.Status()),
-				})
-			}
-		}
-		// Include the agent only if it SHOULD be running OR it has in-flight work.
-		// A stopped agent with no in-flight WorkItem has nothing to resume → skip.
-		if a.Lifecycle() != agent.LifecycleRunning && len(inflight) == 0 {
+		// Include the agent only if it SHOULD be running (lifecycle == running).
+		// v2.14.0 F7 (issue I14): the "OR has in-flight WorkItem" condition was
+		// dropped — AgentWorkItem retired; running lifecycle is the resumable signal.
+		if a.Lifecycle() != agent.LifecycleRunning {
 			continue
 		}
 		out = append(out, map[string]any{
@@ -413,8 +348,8 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			"desired_lifecycle": string(a.Lifecycle()),
 			"model":             a.Profile().Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
 			"version":           a.Version(),
-			"reset_scope":       "", // reserved for f-3 (rollback/reset semantics)
-			"work_items":        inflight,
+			"reset_scope":       "",                  // reserved for f-3 (rollback/reset semantics)
+			"work_items":        []map[string]any{}, // F7: always empty (AgentWorkItem retired)
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})

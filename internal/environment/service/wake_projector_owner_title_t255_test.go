@@ -17,7 +17,7 @@ import (
 // the T255 issue/task title resolvers (backed by the given id→title maps).
 func (f *wakeFixture) projWithTitles(displayName map[string]string, issueTitles, taskTitles map[string]string) *WakeProjector {
 	return NewWakeProjector(WakeProjectorDeps{
-		DB: f.db, WorkItems: f.workItems, Agents: f.agents,
+		DB: f.db, Agents: f.agents,
 		ControlLog: f.control, Applied: f.applied, Clock: f.clk,
 		ConvRepo: f.convs, MsgRepo: f.msgs, ReadState: f.readState,
 		DisplayName: func(_ context.Context, ref string) (string, bool) {

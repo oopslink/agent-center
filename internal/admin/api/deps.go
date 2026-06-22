@@ -95,12 +95,10 @@ type HandlerDeps struct {
 	// worker-level read (one worker → many agents), so it reads the repo directly
 	// (no AppService method fits the one-to-many shape).
 	AgentRepo agent.Repository
-	// AgentWorkItemRepo is the raw Agent WorkItem repository (v2.7 D2-b2).
-	// The agent-tools write surface (request_input) needs Update + WaitInput
-	// composed inside the SAME outer tx as the conversation AddMessage so the
-	// pair is atomic; the AppService only exposes a read-only ListWorkItems,
-	// and the scope checks (agent owns a WorkItem for the task) read from it.
-	AgentWorkItemRepo agent.WorkItemRepository
+	// v2.14.0 F7 (issue I14): AgentWorkItemRepo removed — AgentWorkItem retired.
+	// The agent-tools own-work scope is now Task.Assignee == agentActor(a) via the
+	// PM service; request_input blocks the Task (input_required) instead of parking
+	// a WorkItem.
 	// AgentActivityRepo is the append-only AgentActivityEvent repository (v2.7
 	// D2-c-i). The controller→center feedback /admin/environment/agent/activity
 	// endpoint asserts via repo in tests; the handler appends through the

@@ -10,13 +10,12 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-// v2.7 #107 Phase-2 (proj-A): query executions repointed to the work-item model.
+// v2.14.0 F7 (issue I14): query executions repointed to pm_tasks. by-task → the
+// agent-assigned task itself (work_item_id == task_id).
 func TestQuery_Executions_ByTaskID(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
-	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
-	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{TaskID: "T-1"})
+	env.seedAgentTask(t, "WI-1", "AG-1", "p", "active")
+	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{TaskID: "WI-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,9 +26,7 @@ func TestQuery_Executions_ByTaskID(t *testing.T) {
 
 func TestQuery_Executions_DefaultActive(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
-	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
-	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
+	env.seedAgentTask(t, "WI-1", "AG-1", "p", "active")
 	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{})
 	if err != nil {
 		t.Fatal(err)

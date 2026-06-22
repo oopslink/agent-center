@@ -93,36 +93,3 @@ func TestRenderInboundAttachments_T103(t *testing.T) {
 		t.Errorf("want 2 attachment lines, got: %q", multi)
 	}
 }
-
-func TestMergeMessages_T103_InlinesAttachments(t *testing.T) {
-	mk := func(id, sender, content string, atts []conversation.MessageAttachment) *conversation.Message {
-		m, err := conversation.NewMessage(conversation.NewMessageInput{
-			ID: conversation.MessageID(id), ConversationID: "dm-1",
-			SenderIdentityID: conversation.IdentityRef(sender),
-			ContentKind:      conversation.MessageContentText, Content: content,
-			Direction: conversation.DirectionInbound, Attachments: atts,
-			PostedAt: time.Unix(1_700_000_000, 0).UTC(),
-		})
-		if err != nil {
-			t.Fatalf("new message: %v", err)
-		}
-		return m
-	}
-	msgs := []*conversation.Message{
-		mk("m1", "user:bob", "look", []conversation.MessageAttachment{
-			{URI: "ac://files/abc", Filename: "shot.png", MimeType: "image/png", Size: 9},
-		}),
-		mk("m2", "user:bob", "no file", nil),
-	}
-	got := mergeMessages(msgs)
-	if !strings.Contains(got, "[user:bob] look") {
-		t.Errorf("merge missing sender-labeled content: %q", got)
-	}
-	if !strings.Contains(got, "ac://files/abc") || !strings.Contains(got, "shot.png") {
-		t.Errorf("merge missing inlined attachment uri: %q", got)
-	}
-	// the text-only message contributes no attachment line.
-	if strings.Count(got, "[attachment: ") != 1 {
-		t.Errorf("want exactly 1 attachment line, got: %q", got)
-	}
-}

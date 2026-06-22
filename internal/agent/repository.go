@@ -42,31 +42,6 @@ type Repository interface {
 	Delete(ctx context.Context, id AgentID) error
 }
 
-// WorkItemRepository persists AgentWorkItem ARs (C2). ExecutorFromCtx-aware so
-// the B2 outbox projector can supersede-old + create-new in one transaction.
-type WorkItemRepository interface {
-	Save(ctx context.Context, w *AgentWorkItem) error
-	Update(ctx context.Context, w *AgentWorkItem) error
-	// UpdateCAS persists w only if its stored version still equals expectedVersion
-	// (optimistic lock). On a version conflict (a concurrent writer committed
-	// first, e.g. the reconciler released the item) → ErrWorkItemReassigned; a
-	// missing row → ErrWorkItemNotFound. v2.8.1 #278 PR4 race guard.
-	UpdateCAS(ctx context.Context, w *AgentWorkItem, expectedVersion int) error
-	FindByID(ctx context.Context, id string) (*AgentWorkItem, error)
-	// ListByAgent returns an agent's work items (queue + history).
-	ListByAgent(ctx context.Context, agentID AgentID) ([]*AgentWorkItem, error)
-	// ListByTask returns the work items for a Task across reassignments
-	// (the superseded chain).
-	ListByTask(ctx context.Context, taskRef string) ([]*AgentWorkItem, error)
-	// ListByStatus returns all work items in the given status, stable-ordered
-	// (created_at, id). The D2-e-iii poll-fallback sweep uses it to enumerate
-	// every waiting_input item independent of any wake event.
-	ListByStatus(ctx context.Context, status WorkItemStatus) ([]*AgentWorkItem, error)
-	// HasActiveWorkItem reports whether the agent has an active/waiting_input
-	// item — the input to availability derivation (OQ2).
-	HasActiveWorkItem(ctx context.Context, agentID AgentID) (bool, error)
-}
-
 // ActivityEventRepository persists the append-only AgentActivityEvent stream.
 type ActivityEventRepository interface {
 	Append(ctx context.Context, e *AgentActivityEvent) error

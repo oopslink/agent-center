@@ -346,7 +346,9 @@ func (s *Server) routes() {
 	// reconcile loop). Nothing is activated; the legacy path is untouched.
 	s.mux.HandleFunc("POST /admin/environment/agent/activity", s.envAgentActivityHandler)
 	s.mux.HandleFunc("POST /admin/environment/agent/lifecycle-feedback", s.envAgentLifecycleFeedbackHandler)
-	s.mux.HandleFunc("POST /admin/environment/agent/work-item-state", s.envAgentWorkItemStateHandler)
+	// v2.14.0 F7 (issue I14): the work-item-state feedback route was removed —
+	// AgentWorkItem retired (the daemon pulls/advances work via list_my_tasks/
+	// start_task, so the "active" work-item feedback post is obsolete).
 	// v2.7 D2-e-ii (OQ5): controller→center mark-seen. Monotonically advances the
 	// agent participant's read-state cursor after a wake inject so the next batch
 	// flush won't re-deliver. Same requireAgentOnWorker guardrail; only-forward.
@@ -362,30 +364,17 @@ func (s *Server) routes() {
 	// the worker routes above. The per-agent auth gate takes the worker from
 	// the TOKEN OWNER and verifies the target agent is bound to it (guardrail)
 	// before any tool runs. b1 ships one representative read tool.
-	// WS2 (#issue-e346e5ec): get_my_work is the SINGLE "what do I have to do?"
-	// query — it returns the agent's work partitioned into active / queued /
-	// paused / waiting_input plus claimable (incl. the open assignment pool) and
-	// claimed_pool. It replaces the former get_my_active_work / list_my_paused_work
-	// / list_assignment_pool tools (all removed, no compat).
-	s.mux.HandleFunc("POST /admin/agent-tools/get_my_work", s.getMyWorkHandler)
-	// v2.14.0 I14/F5 §五: the Task-model agent surface. list_my_tasks is the new
-	// "what do I have to do?" query (runnable open/running tasks, §13.A) replacing
-	// get_my_work; start_task is now task-based (open→running + §2.5 lease, §13.A
-	// run-ahead gated); heartbeat renews the running task's execution lease.
-	// (get_my_work + the work-item fail_task/pause_task/resume_task below are removed
-	// from the agent-facing MCP surface in F5; their code is deleted with AgentWorkItem
-	// in F7.)
+	// v2.14.0 I14/F5 §五: the Task-model agent surface. list_my_tasks is the
+	// "what do I have to do?" query (runnable open/running tasks, §13.A); start_task
+	// is task-based (open→running + §2.5 lease, §13.A run-ahead gated); heartbeat
+	// renews the running task's execution lease.
+	// v2.14.0 F7 (issue I14): get_my_work + the work-item fail_task/pause_task/
+	// resume_task routes were removed — AgentWorkItem retired (no compat).
 	s.mux.HandleFunc("POST /admin/agent-tools/list_my_tasks", s.listMyTasksHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/heartbeat", s.heartbeatHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/start_task", s.startWorkHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/fail_task", s.failWorkHandler)
-	// T83: claim an open built-in assignment-pool task (pool tasks have no
-	// WorkItem, so start_task does not apply) — atomic assign+run, fail-closed.
+	// T83: claim an open built-in assignment-pool task — atomic assign+run, fail-closed.
 	s.mux.HandleFunc("POST /admin/agent-tools/claim_task", s.claimTaskHandler)
-	// v2.8.1 #278 PR4 scheduling autonomy: pause the active item (→paused, release
-	// slot) + resume a paused item (→active, re-acquire slot, single-active-gated).
-	s.mux.HandleFunc("POST /admin/agent-tools/pause_task", s.pauseWorkHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/resume_task", s.resumeWorkHandler)
 	// v2.8.1 #278 D PR4b dual-stream: the agent's unread messages (DM + @mention).
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_unread", s.getMyUnreadHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/mark_seen", s.markSeenHandler)

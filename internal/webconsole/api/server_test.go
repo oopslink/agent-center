@@ -123,7 +123,6 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	deps.AgentSvc = agentsvc.New(agentsvc.Deps{
 		DB:        db,
 		Agents:    agentsql.NewAgentRepo(db),
-		WorkItems: agentsql.NewWorkItemRepo(db),
 		Activity:  agentsql.NewActivityEventRepo(db),
 		Workers:   wfsqlite.NewWorkerRepo(db),
 		Outbox:    outboxsql.NewOutboxRepo(db),

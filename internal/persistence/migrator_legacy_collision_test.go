@@ -68,8 +68,8 @@ func TestMigrator_ReconcileStateB_0064Collision(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("Up on State B DB: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 72 {
-		t.Fatalf("version after repair: got %d want 72", v)
+	if v, _ := mig.Version(ctx); v != 73 {
+		t.Fatalf("version after repair: got %d want 73", v)
 	}
 	if !tableExists(t, db, "center_settings") {
 		t.Fatal("center_settings was not recreated")
@@ -79,7 +79,7 @@ func TestMigrator_ReconcileStateB_0064Collision(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 72 {
-		t.Fatalf("version after second Up: got %d want 72", v)
+	if v, _ := mig.Version(ctx); v != 73 {
+		t.Fatalf("version after second Up: got %d want 73", v)
 	}
 }

@@ -38,7 +38,6 @@ type fbFixture struct {
 	deps      HandlerDeps
 	verifier  *fakeVerifier
 	agents    *agentsql.AgentRepo
-	work      *agentsql.WorkItemRepo
 	activity  *agentsql.ActivityEventRepo
 	outbox    *outboxsql.OutboxRepo
 	convs     *convsql.ConversationRepo
@@ -68,11 +67,10 @@ func newFBFixture(t *testing.T) *fbFixture {
 
 	workers := wfsql.NewWorkerRepo(db)
 	agents := agentsql.NewAgentRepo(db)
-	work := agentsql.NewWorkItemRepo(db)
 	activity := agentsql.NewActivityEventRepo(db)
 	ob := outboxsql.NewOutboxRepo(db)
 	svc := agentsvc.New(agentsvc.Deps{
-		DB: db, Agents: agents, WorkItems: work, Activity: activity,
+		DB: db, Agents: agents, Activity: activity,
 		Workers: workers, Outbox: ob, IDGen: gen, Clock: clk,
 	})
 
@@ -106,12 +104,12 @@ func newFBFixture(t *testing.T) *fbFixture {
 		deps: HandlerDeps{
 			DB: db, AgentSvc: svc, WorkerRepo: workers,
 			AgentRepo:         agents,
-			AgentWorkItemRepo: work, AgentActivityRepo: activity,
-			ReadStateSvc:  readStateSvc,
-			MessageWriter: msgWriter,
-			ConvRepo:      convs,
+			AgentActivityRepo: activity,
+			ReadStateSvc:      readStateSvc,
+			MessageWriter:     msgWriter,
+			ConvRepo:          convs,
 		},
-		verifier: verifier, agents: agents, work: work, activity: activity, outbox: ob,
+		verifier: verifier, agents: agents, activity: activity, outbox: ob,
 		convs: convs, msgs: msgs, readState: readState, gen: gen, clk: clk, ctx: ctx,
 	}
 }
@@ -196,20 +194,6 @@ func (f *fbFixture) seedAgentLifecycle(t *testing.T, id, workerID string, lc age
 		t.Fatal(err)
 	}
 	if err := f.agents.Save(f.ctx, a); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func (f *fbFixture) seedWorkItem(t *testing.T, id, agentID, taskRef string, status agent.WorkItemStatus) {
-	t.Helper()
-	wi, err := agent.RehydrateWorkItem(agent.RehydrateWorkItemInput{
-		ID: id, AgentID: agent.AgentID(agentID), TaskRef: taskRef,
-		Status: status, CreatedAt: atNow, UpdatedAt: atNow, Version: 1,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := f.work.Save(f.ctx, wi); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -353,93 +337,8 @@ func TestEnvAgentLifecycleFeedback_CrossWorker_403(t *testing.T) {
 	}
 }
 
-// --- work-item state --------------------------------------------------------
-
-func TestEnvAgentWorkItemState_ActiveDoneFailed(t *testing.T) {
-	f := newFBFixture(t)
-	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
-	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
-	// v2.8.1 #278 single-active invariant (DB UNIQUE 0051): an agent has at most
-	// ONE active work item, so active/done/failed are exercised SEQUENTIALLY
-	// (never two active at once): wi-1 queued→active→done frees the slot, then
-	// wi-2 queued→active→failed.
-	f.seedWorkItem(t, "wi-1", atAgent1, "pm://tasks/T1", agent.WorkItemQueued)
-	f.seedWorkItem(t, "wi-2", atAgent1, "pm://tasks/T2", agent.WorkItemQueued)
-	srv := f.server(t)
-
-	cases := []struct {
-		id, state string
-		want      agent.WorkItemStatus
-	}{
-		{"wi-1", "active", agent.WorkItemActive},
-		{"wi-1", "done", agent.WorkItemDone},
-		{"wi-2", "active", agent.WorkItemActive}, // wi-1 done → agent idle → wi-2 may activate
-		{"wi-2", "failed", agent.WorkItemFailed},
-	}
-	for _, c := range cases {
-		status, body := postBearer(t, srv.URL, "/admin/environment/agent/work-item-state", "acat_fb_w1", map[string]any{
-			"agent_id": atAgent1, "work_item_id": c.id, "state": c.state,
-		})
-		if status != http.StatusOK || body["ok"] != true {
-			t.Fatalf("[%s] status = %d, want 200 ok; body = %v", c.state, status, body)
-		}
-		wi, _ := f.work.FindByID(f.ctx, c.id)
-		if wi.Status() != c.want {
-			t.Fatalf("[%s] work item status = %s, want %s", c.state, wi.Status(), c.want)
-		}
-	}
-}
-
-// TestEnvAgentWorkItemState_IllegalTransition_409: done→active is rejected by
-// the AR state machine (terminal) → 409.
-func TestEnvAgentWorkItemState_IllegalTransition_409(t *testing.T) {
-	f := newFBFixture(t)
-	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
-	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
-	f.seedWorkItem(t, "wi-term", atAgent1, "pm://tasks/T1", agent.WorkItemDone)
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/environment/agent/work-item-state", "acat_fb_w1", map[string]any{
-		"agent_id": atAgent1, "work_item_id": "wi-term", "state": "active",
-	})
-	if status != http.StatusConflict {
-		t.Fatalf("status = %d, want 409 (illegal terminal transition); body = %v", status, body)
-	}
-}
-
-// TestEnvAgentWorkItemState_NotOwned_404: a WorkItem belonging to a different
-// agent → 404 (ownership guardrail), even though the worker owns the asserted
-// agent.
-func TestEnvAgentWorkItemState_NotOwned_404(t *testing.T) {
-	f := newFBFixture(t)
-	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
-	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
-	// WorkItem belongs to a different agent (also on W1, but not atAgent1).
-	f.seedWorkItem(t, "wi-other", "OTHER", "pm://tasks/T1", agent.WorkItemQueued)
-	srv := f.server(t)
-
-	status, _ := postBearer(t, srv.URL, "/admin/environment/agent/work-item-state", "acat_fb_w1", map[string]any{
-		"agent_id": atAgent1, "work_item_id": "wi-other", "state": "active",
-	})
-	if status != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404 (work item not owned by agent)", status)
-	}
-}
-
-func TestEnvAgentWorkItemState_CrossWorker_403(t *testing.T) {
-	f := newFBFixture(t)
-	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
-	f.seedAgentLifecycle(t, atAgent2, atWorker2, agent.LifecycleRunning)
-	f.seedWorkItem(t, "wi-x", atAgent2, "pm://tasks/T1", agent.WorkItemQueued)
-	srv := f.server(t)
-
-	status, _ := postBearer(t, srv.URL, "/admin/environment/agent/work-item-state", "acat_fb_w1", map[string]any{
-		"agent_id": atAgent2, "work_item_id": "wi-x", "state": "active",
-	})
-	if status != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403 (cross-worker)", status)
-	}
-}
+// v2.14.0 F7 (issue I14): the work-item-state feedback tests were removed — the
+// /admin/environment/agent/work-item-state route + AgentWorkItem were retired.
 
 // --- mark-seen (D2-e-ii read-state cursor) ----------------------------------
 
@@ -624,26 +523,22 @@ func resumeAgentsByID(t *testing.T, body map[string]any) map[string]map[string]a
 	return out
 }
 
-// TestEnvWorkerResumeState_SelfOK is the happy path + the COMPUTED SET assertion:
-// W1 asks for its own resume-state and gets exactly the running-or-has-inflight
-// agents (running; stopped-with-inflight via active/waiting_input; NOT
-// stopped-no-work), each with only its in-flight (active ∪ waiting_input) WIs.
+// TestEnvWorkerResumeState_SelfOK is the happy path + the COMPUTED SET assertion.
+// v2.14.0 F7 (issue I14): the resumable set is now EXACTLY the running-lifecycle
+// agents (the "OR has in-flight WorkItem" condition + the per-agent in-flight WI
+// list were retired with AgentWorkItem). W1 asks for its own resume-state and
+// gets only its running agents; a stopped agent is excluded; each agent's
+// "work_items" array is ALWAYS empty.
 func TestEnvWorkerResumeState_SelfOK(t *testing.T) {
 	f := newFBFixture(t)
 	f.addWorkerToken(t, "acat_rs_w1", atWorker1)
 
-	// running agent with one active + one queued (queued is NOT in-flight).
+	// running agent → included (running lifecycle is the resumable signal).
 	f.seedAgentLifecycle(t, "AG-run", atWorker1, agent.LifecycleRunning)
-	f.seedWorkItem(t, "wi-run-active", "AG-run", "pm://tasks/T1", agent.WorkItemActive)
-	f.seedWorkItem(t, "wi-run-queued", "AG-run", "pm://tasks/T2", agent.WorkItemQueued)
 
-	// stopped agent that still carries a waiting_input orphan → included (has in-flight).
-	f.seedAgentLifecycle(t, "AG-stop-wi", atWorker1, agent.LifecycleStopped)
-	f.seedWorkItem(t, "wi-orphan", "AG-stop-wi", "pm://tasks/T3", agent.WorkItemWaitingInput)
-
-	// stopped agent, no in-flight work (only a done WI) → EXCLUDED.
-	f.seedAgentLifecycle(t, "AG-stop-nowork", atWorker1, agent.LifecycleStopped)
-	f.seedWorkItem(t, "wi-done", "AG-stop-nowork", "pm://tasks/T4", agent.WorkItemDone)
+	// stopped agent → EXCLUDED (nothing to resume), even though pre-F7 a stopped
+	// agent with an in-flight WorkItem would have been included.
+	f.seedAgentLifecycle(t, "AG-stopped", atWorker1, agent.LifecycleStopped)
 
 	// an agent on W2 must never leak into W1's resume-state.
 	f.seedAgentLifecycle(t, "AG-w2", atWorker2, agent.LifecycleRunning)
@@ -655,37 +550,24 @@ func TestEnvWorkerResumeState_SelfOK(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
 	byID := resumeAgentsByID(t, body)
-	if len(byID) != 2 {
-		t.Fatalf("computed set size = %d, want 2 (run + stop-with-inflight); got %v", len(byID), byID)
+	if len(byID) != 1 {
+		t.Fatalf("computed set size = %d, want 1 (only the running agent); got %v", len(byID), byID)
 	}
-	if _, ok := byID["AG-stop-nowork"]; ok {
-		t.Fatalf("stopped-no-work agent leaked into resume set: %v", byID)
+	if _, ok := byID["AG-stopped"]; ok {
+		t.Fatalf("stopped agent leaked into resume set: %v", byID)
 	}
 	if _, ok := byID["AG-w2"]; ok {
 		t.Fatalf("cross-worker agent leaked into resume set: %v", byID)
 	}
 
-	// AG-run: desired running, only the ACTIVE WI is in-flight (queued excluded).
+	// AG-run: desired running; the work_items array is ALWAYS empty (F7).
 	run := byID["AG-run"]
 	if run["desired_lifecycle"] != "running" {
 		t.Fatalf("AG-run desired = %v, want running", run["desired_lifecycle"])
 	}
-	runWIs := run["work_items"].([]any)
-	if len(runWIs) != 1 || runWIs[0].(map[string]any)["work_item_id"] != "wi-run-active" {
-		t.Fatalf("AG-run in-flight WIs = %v, want only wi-run-active", runWIs)
-	}
-	if runWIs[0].(map[string]any)["status"] != "active" {
-		t.Fatalf("AG-run WI status = %v, want active", runWIs[0])
-	}
-
-	// AG-stop-wi: included for its waiting_input orphan; desired stays stopped.
-	sw := byID["AG-stop-wi"]
-	if sw["desired_lifecycle"] != "stopped" {
-		t.Fatalf("AG-stop-wi desired = %v, want stopped", sw["desired_lifecycle"])
-	}
-	swWIs := sw["work_items"].([]any)
-	if len(swWIs) != 1 || swWIs[0].(map[string]any)["status"] != "waiting_input" {
-		t.Fatalf("AG-stop-wi in-flight WIs = %v, want only the waiting_input orphan", swWIs)
+	runWIs, ok := run["work_items"].([]any)
+	if !ok || len(runWIs) != 0 {
+		t.Fatalf("AG-run work_items = %v, want an empty array (F7: AgentWorkItem retired)", run["work_items"])
 	}
 }
 

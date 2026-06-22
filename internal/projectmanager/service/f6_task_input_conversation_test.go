@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -65,9 +64,8 @@ func f6Setup(t *testing.T) *f6Harness {
 		TaskActionLogs: pmsql.NewTaskActionLogRepo(db, gen),
 	})
 	partProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
-	wiProj := NewWorkItemProjector(db, agentsql.NewWorkItemRepo(db), applied, gen, clk)
 	inputProj := NewTaskInputConversationProjector(db, convRepo, convservice.NewTaskInputDispatchAdapter(writer), applied, clk)
-	relay := outbox.NewRelay(ob, applied, clk, partProj, wiProj, inputProj)
+	relay := outbox.NewRelay(ob, applied, clk, partProj, inputProj)
 	return &f6Harness{svc: svc, convRepo: convRepo, msgRepo: msgRepo, relay: relay, ctx: context.Background()}
 }
 
