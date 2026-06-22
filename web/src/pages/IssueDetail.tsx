@@ -111,39 +111,48 @@ export default function IssueDetail(): React.ReactElement {
             projectId={iss.project_id}
           />
 
-          {iss.description ? (
-            // T179: long descriptions default-collapse (Show more) so they don't
-            // push the conversation off-screen on mobile; expanding reveals the
-            // full markdown in a height-capped, keyboard-scrollable region.
-            <CollapsibleDescription
-              content={iss.description}
-              testId="issue-description"
-              ariaLabel="Issue description"
-            />
-          ) : (
-            <p className="mt-4 text-sm italic text-text-muted">No description.</p>
-          )}
+          {/* T307 mobile UX: the chat is the CORE element, so on mobile it sits
+              right after the status (order-1) and the secondary info — description,
+              attachments, Details — drops BELOW it (order-2). Desktop is unchanged
+              (md:order-none → DOM order: description/attachments above, conversation
+              last, beside the sidebar). */}
+          <div className="order-2 flex flex-col md:order-none md:contents">
+            {iss.description ? (
+              // T179: long descriptions default-collapse (Show more) so they don't
+              // push the conversation off-screen on mobile; expanding reveals the
+              // full markdown in a height-capped, keyboard-scrollable region.
+              <CollapsibleDescription
+                content={iss.description}
+                testId="issue-description"
+                ariaLabel="Issue description"
+              />
+            ) : (
+              <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+            )}
 
-          {/* v2.10.0 [T73]: issue-scoped attachments (list + upload + download). */}
-          <div className="mt-4 border-t border-border-base pt-3">
-            <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
+            {/* v2.10.0 [T73]: issue-scoped attachments (list + upload + download). */}
+            <div className="mt-4 border-t border-border-base pt-3">
+              <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
+            </div>
+
+            {/* T145: mobile-only collapsible "Details" (compact rows + Edit), moved
+                down below the summary; desktop keeps the sidebar. */}
+            <MobileDetailsPanel
+              kind="issue"
+              projectId={iss.project_id}
+              projectName={project.data?.name}
+              itemId={iss.id}
+              orgRef={iss.org_ref}
+              createdAt={iss.created_at}
+              tags={iss.tags ?? []}
+              editable={!isTerminal}
+              onEdit={() => setEditOpen(true)}
+            />
           </div>
 
-          {/* T145: mobile-only collapsible "Details" (compact rows + Edit), moved
-              down below the summary; desktop keeps the sidebar. */}
-          <MobileDetailsPanel
-            kind="issue"
-            projectId={iss.project_id}
-            projectName={project.data?.name}
-            itemId={iss.id}
-            orgRef={iss.org_ref}
-            createdAt={iss.created_at}
-            tags={iss.tags ?? []}
-            editable={!isTerminal}
-            onEdit={() => setEditOpen(true)}
-          />
-
-          <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
+          <div className="order-1 flex min-h-0 flex-1 flex-col md:order-last md:contents">
+            <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
+          </div>
         </div>
 
         {/* metadata sidebar — 2-section IssueDetail layout (read-only display top /

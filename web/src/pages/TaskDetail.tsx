@@ -151,39 +151,48 @@ export default function TaskDetail(): React.ReactElement {
             plan={planForSidebar}
           />
 
-          {tk.description ? (
-            // T179: long descriptions default-collapse (Show more) so they don't
-            // push the conversation off-screen on mobile; expanding reveals the
-            // full markdown in a height-capped, keyboard-scrollable region.
-            <CollapsibleDescription
-              content={tk.description}
-              testId="task-description"
-              ariaLabel="Task description"
-            />
-          ) : (
-            <p className="mt-4 text-sm italic text-text-muted">No description.</p>
-          )}
+          {/* T307 mobile UX: the chat is the CORE element, so on mobile it sits
+              right after the status/meta (order-1) and the secondary info —
+              description, attachments, Details — drops BELOW it (order-2). Desktop
+              is unchanged (md:contents → DOM order, conversation last beside the
+              sidebar). */}
+          <div className="order-2 flex flex-col md:order-none md:contents">
+            {tk.description ? (
+              // T179: long descriptions default-collapse (Show more) so they don't
+              // push the conversation off-screen on mobile; expanding reveals the
+              // full markdown in a height-capped, keyboard-scrollable region.
+              <CollapsibleDescription
+                content={tk.description}
+                testId="task-description"
+                ariaLabel="Task description"
+              />
+            ) : (
+              <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+            )}
 
-          {/* v2.10.0 [T73]: task-scoped attachments (list + upload + download). */}
-          <div className="mt-4 border-t border-border-base pt-3">
-            <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
+            {/* v2.10.0 [T73]: task-scoped attachments (list + upload + download). */}
+            <div className="mt-4 border-t border-border-base pt-3">
+              <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
+            </div>
+
+            {/* T145: mobile-only collapsible "Details" (compact single-line rows +
+                Edit), moved down below the summary; desktop keeps the sidebar. */}
+            <MobileDetailsPanel
+              kind="task"
+              projectId={tk.project_id}
+              projectName={project.data?.name}
+              itemId={tk.id}
+              orgRef={tk.org_ref}
+              createdAt={tk.created_at}
+              tags={tk.tags ?? []}
+              editable={!isTerminal}
+              onEdit={() => setEditOpen(true)}
+            />
           </div>
 
-          {/* T145: mobile-only collapsible "Details" (compact single-line rows +
-              Edit), moved down below the summary; desktop keeps the sidebar. */}
-          <MobileDetailsPanel
-            kind="task"
-            projectId={tk.project_id}
-            projectName={project.data?.name}
-            itemId={tk.id}
-            orgRef={tk.org_ref}
-            createdAt={tk.created_at}
-            tags={tk.tags ?? []}
-            editable={!isTerminal}
-            onEdit={() => setEditOpen(true)}
-          />
-
-          <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
+          <div className="order-1 flex min-h-0 flex-1 flex-col md:order-last md:contents">
+            <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
+          </div>
         </div>
 
         {/* metadata sidebar — 2-section TaskDetail layout (read-only display top /
