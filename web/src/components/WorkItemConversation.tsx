@@ -130,8 +130,10 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
         </p>
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden rounded-b border border-t-0 border-border-base">
-          {/* #264 P1: message body + read-cursor + SSE flow through the shared shell. */}
-          <div className="flex min-h-0 flex-1 flex-col">
+          {/* #264 P1: message body + read-cursor + SSE flow through the shared shell.
+              T327: min-w-0 lets this flex column shrink so the embedded sidebar (+ its
+              collapse toggle) stays on-screen instead of being pushed off the right. */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ConversationView surface={surface} conversationId={conv.data.id} />
           </div>
           {/* T324: the conversation's Participants/Threads/Files panel is part of

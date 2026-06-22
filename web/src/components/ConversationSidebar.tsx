@@ -94,7 +94,7 @@ export function ConversationSidebar({
                 active ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-bg-base',
               ].join(' ')}
             >
-              <span className="truncate">{t.label}</span>
+              <span className="min-w-0 truncate">{t.label}</span>
               {t.count != null && t.count > 0 && (
                 <span
                   data-testid={`conversation-tab-${t.id}-count`}

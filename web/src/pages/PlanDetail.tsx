@@ -1997,7 +1997,9 @@ function PlanConversationSide({
             className="flex min-h-[60vh] flex-1 overflow-hidden rounded border border-border-base md:min-h-0"
             data-testid="plan-conversation-body"
           >
-            <div className="flex min-h-0 flex-1 flex-col">
+            {/* T327: min-w-0 lets the messages column shrink so the embedded
+                sidebar (+ its collapse toggle) stays on-screen, not pushed off-right. */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <ConversationView surface="task-thread" conversationId={conversationId} />
               {conv.isError && (
                 <p className="p-2 text-[0.6875rem] text-text-muted">
