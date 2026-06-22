@@ -14,7 +14,7 @@ import { IssueDetailSidebar, DerivedTasksBlock } from '@/components/IssueDetailS
 import { IssueAttachments } from '@/components/AttachmentsSection';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { MobileMetaSummary, MobileDetailsPanel, useIsMobile } from '@/components/WorkItemMobileMeta';
+import { MobileWorkItemBar, MobileDetailsContent, useIsMobile } from '@/components/WorkItemMobileMeta';
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
 // ProjectManager BC: the issue is project-scoped and driven entirely by
@@ -36,6 +36,9 @@ export default function IssueDetail(): React.ReactElement {
   // T184: resolve the issue's bound conversation for the shared col④ sidebar.
   const conv = useConversationByOwnerRef(`pm://issues/${id}`);
   const [editOpen, setEditOpen] = useState(false);
+  // T309: mobile "Show info" toggle — the description/attachments/details panel
+  // is collapsed by default so the chat below fills the screen (@oopslink mockup).
+  const [showInfo, setShowInfo] = useState(false);
   // T145: drop the title from the breadcrumb leaf on mobile (the <h2> shows it).
   const isMobile = useIsMobile();
 
@@ -103,56 +106,66 @@ export default function IssueDetail(): React.ReactElement {
             </div>
           </header>
 
-          {/* T145: mobile-only meta summary (status) ABOVE the description so the
-              key metadata is on the first screen (Issues have no assignee/plan). */}
-          <MobileMetaSummary
-            status={iss.status}
-            statusChangedAt={iss.status_changed_at}
-            projectId={iss.project_id}
-          />
-
-          {/* T307 mobile UX: the chat is the CORE element, so on mobile it sits
-              right after the status (order-1) and the secondary info — description,
-              attachments, Details — drops BELOW it (order-2). Desktop is unchanged
-              (md:order-none → DOM order: description/attachments above, conversation
-              last, beside the sidebar). */}
-          <div className="order-2 flex flex-col md:order-none md:contents">
-            {iss.description ? (
-              // T179: long descriptions default-collapse (Show more) so they don't
-              // push the conversation off-screen on mobile; expanding reveals the
-              // full markdown in a height-capped, keyboard-scrollable region.
-              <CollapsibleDescription
-                content={iss.description}
-                testId="issue-description"
-                ariaLabel="Issue description"
+          {/* T309 (@oopslink mockup): on MOBILE the secondary info collapses behind
+              a compact bar (status + Show info + Edit) so the CHAT fills the rest;
+              on DESKTOP the description + attachments stay inline above the
+              conversation (the sidebar carries the details). */}
+          {isMobile ? (
+            <>
+              <MobileWorkItemBar
+                kind="issue"
+                status={iss.status}
+                statusChangedAt={iss.status_changed_at}
+                showInfo={showInfo}
+                onToggleInfo={() => setShowInfo((v) => !v)}
+                editable={!isTerminal}
+                onEdit={() => setEditOpen(true)}
               />
-            ) : (
-              <p className="mt-4 text-sm italic text-text-muted">No description.</p>
-            )}
-
-            {/* v2.10.0 [T73]: issue-scoped attachments (list + upload + download). */}
-            <div className="mt-4 border-t border-border-base pt-3">
-              <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
-            </div>
-
-            {/* T145: mobile-only collapsible "Details" (compact rows + Edit), moved
-                down below the summary; desktop keeps the sidebar. */}
-            <MobileDetailsPanel
-              kind="issue"
-              projectId={iss.project_id}
-              projectName={project.data?.name}
-              itemId={iss.id}
-              orgRef={iss.org_ref}
-              createdAt={iss.created_at}
-              tags={iss.tags ?? []}
-              editable={!isTerminal}
-              onEdit={() => setEditOpen(true)}
-            />
-          </div>
-
-          <div className="order-1 flex min-h-0 flex-1 flex-col md:order-last md:contents">
-            <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
-          </div>
+              {showInfo && (
+                <div
+                  className="mb-3 rounded-lg border border-border-base bg-bg-elevated p-3"
+                  data-testid="wi-mobile-info"
+                >
+                  {iss.description ? (
+                    <CollapsibleDescription content={iss.description} testId="issue-description" ariaLabel="Issue description" />
+                  ) : (
+                    <p className="text-sm italic text-text-muted">No description.</p>
+                  )}
+                  <div className="mt-3 border-t border-border-base pt-3">
+                    <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
+                  </div>
+                  <div className="mt-3 border-t border-border-base pt-3">
+                    <MobileDetailsContent
+                      kind="issue"
+                      projectId={iss.project_id}
+                      projectName={project.data?.name}
+                      itemId={iss.id}
+                      orgRef={iss.org_ref}
+                      createdAt={iss.created_at}
+                      tags={iss.tags ?? []}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="flex min-h-[60vh] flex-1 flex-col">
+                <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
+              </div>
+            </>
+          ) : (
+            <>
+              {iss.description ? (
+                // T179: long descriptions default-collapse (Show more) so they don't
+                // push the conversation off-screen; expanding reveals the full markdown.
+                <CollapsibleDescription content={iss.description} testId="issue-description" ariaLabel="Issue description" />
+              ) : (
+                <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+              )}
+              <div className="mt-4 border-t border-border-base pt-3">
+                <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
+              </div>
+              <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
+            </>
+          )}
         </div>
 
         {/* metadata sidebar — 2-section IssueDetail layout (read-only display top /

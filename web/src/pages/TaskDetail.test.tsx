@@ -51,10 +51,11 @@ describe('TaskDetail page', () => {
     vi.unstubAllGlobals();
   });
 
-  // T145 (mobile): the meta summary (status/assignee/plan) is surfaced ABOVE the
-  // fold via a JS-gated mobile tree, and the title is dropped from the breadcrumb
-  // leaf (the <h2> carries it) so it isn't rendered twice.
-  it('mobile (<md): shows the meta summary + Details panel; breadcrumb leaf dedupes the title', async () => {
+  // T309 (mobile): a single compact bar (status + assignee + Show info + Edit)
+  // sits under the title; the description/attachments/details collapse behind
+  // "Show info" so the chat fills the screen. Title is dropped from the breadcrumb
+  // leaf (the <h2> carries it).
+  it('mobile (<md): shows the compact bar; Show info reveals details; breadcrumb dedupes title', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: true, media: query, onchange: null,
       addEventListener: () => {}, removeEventListener: () => {},
@@ -66,13 +67,17 @@ describe('TaskDetail page', () => {
       ),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('wi-mobile-summary')).toBeInTheDocument());
-    // status surfaced in the mobile summary (first screen, not buried). Scope to
-    // the summary — the desktop sidebar (hidden via CSS) is still in the jsdom DOM.
-    const summary = screen.getByTestId('wi-mobile-summary');
-    expect(within(summary).getByTestId('status-block')).toHaveAttribute('data-status', 'running');
-    // the collapsible compact Details panel is present.
-    expect(screen.getByTestId('wi-mobile-details')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('wi-mobile-bar')).toBeInTheDocument());
+    // status surfaced in the bar. Scope to the bar — the desktop sidebar (hidden
+    // via CSS) is still in the jsdom DOM.
+    const bar = screen.getByTestId('wi-mobile-bar');
+    expect(within(bar).getByTestId('status-block')).toHaveAttribute('data-status', 'running');
+    // the info panel is collapsed by default (chat is the core surface)…
+    expect(screen.queryByTestId('wi-mobile-info')).not.toBeInTheDocument();
+    // …and "Show info" reveals the details content.
+    fireEvent.click(within(bar).getByTestId('wi-mobile-showinfo'));
+    expect(screen.getByTestId('wi-mobile-info')).toBeInTheDocument();
+    expect(screen.getByTestId('wi-mobile-details-content')).toBeInTheDocument();
     // breadcrumb leaf = just the org_ref (title is NOT repeated there on mobile).
     const crumb = screen.getByTestId('breadcrumb');
     expect(crumb).toHaveTextContent('T7');

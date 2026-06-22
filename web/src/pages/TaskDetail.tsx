@@ -18,7 +18,7 @@ import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskAttachments } from '@/components/AttachmentsSection';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { MobileMetaSummary, MobileDetailsPanel, useIsMobile } from '@/components/WorkItemMobileMeta';
+import { MobileWorkItemBar, MobileDetailsContent, useIsMobile } from '@/components/WorkItemMobileMeta';
 
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
 // the task is project-scoped and driven entirely by its projection.
@@ -48,6 +48,9 @@ export default function TaskDetail(): React.ReactElement {
   // (Participants / Threads / Files) can render for it, same as channels/DMs.
   const conv = useConversationByOwnerRef(`pm://tasks/${id}`);
   const [editOpen, setEditOpen] = useState(false);
+  // T309: mobile "Show info" toggle (description/attachments/details collapsed
+  // by default so the chat fills the screen).
+  const [showInfo, setShowInfo] = useState(false);
   // T145: on mobile the title is the big <h2>; drop it from the breadcrumb leaf
   // (show just the org_ref / "Task") so the title isn't rendered twice.
   const isMobile = useIsMobile();
@@ -139,60 +142,81 @@ export default function TaskDetail(): React.ReactElement {
             </div>
           </header>
 
-          {/* T145: mobile-only meta summary (status · assignee · plan) ABOVE the
-              description so the key metadata is on the first screen (the desktop
-              sidebar below is hidden <md). */}
-          <MobileMetaSummary
-            status={status}
-            statusChangedAt={tk.status_changed_at}
-            assignee={tk.assignee ?? null}
-            assigneeName={resolvedAssigneeName}
-            projectId={tk.project_id}
-            plan={planForSidebar}
-          />
-
-          {/* T307 mobile UX: the chat is the CORE element, so on mobile it sits
-              right after the status/meta (order-1) and the secondary info —
-              description, attachments, Details — drops BELOW it (order-2). Desktop
-              is unchanged (md:contents → DOM order, conversation last beside the
-              sidebar). */}
-          <div className="order-2 flex flex-col md:order-none md:contents">
-            {tk.description ? (
-              // T179: long descriptions default-collapse (Show more) so they don't
-              // push the conversation off-screen on mobile; expanding reveals the
-              // full markdown in a height-capped, keyboard-scrollable region.
-              <CollapsibleDescription
-                content={tk.description}
-                testId="task-description"
-                ariaLabel="Task description"
+          {/* T309 (@oopslink mockup): on MOBILE the secondary info collapses behind
+              a compact bar (status + assignee + Show info + Edit) so the CHAT fills
+              the rest; on DESKTOP the description + attachments stay inline above the
+              conversation (the sidebar carries the details). */}
+          {isMobile ? (
+            <>
+              <MobileWorkItemBar
+                kind="task"
+                status={status}
+                statusChangedAt={tk.status_changed_at}
+                assignee={tk.assignee ?? null}
+                assigneeName={resolvedAssigneeName}
+                showInfo={showInfo}
+                onToggleInfo={() => setShowInfo((v) => !v)}
+                editable={!isTerminal}
+                onEdit={() => setEditOpen(true)}
               />
-            ) : (
-              <p className="mt-4 text-sm italic text-text-muted">No description.</p>
-            )}
-
-            {/* v2.10.0 [T73]: task-scoped attachments (list + upload + download). */}
-            <div className="mt-4 border-t border-border-base pt-3">
-              <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
-            </div>
-
-            {/* T145: mobile-only collapsible "Details" (compact single-line rows +
-                Edit), moved down below the summary; desktop keeps the sidebar. */}
-            <MobileDetailsPanel
-              kind="task"
-              projectId={tk.project_id}
-              projectName={project.data?.name}
-              itemId={tk.id}
-              orgRef={tk.org_ref}
-              createdAt={tk.created_at}
-              tags={tk.tags ?? []}
-              editable={!isTerminal}
-              onEdit={() => setEditOpen(true)}
-            />
-          </div>
-
-          <div className="order-1 flex min-h-0 flex-1 flex-col md:order-last md:contents">
-            <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
-          </div>
+              {showInfo && (
+                <div
+                  className="mb-3 rounded-lg border border-border-base bg-bg-elevated p-3"
+                  data-testid="wi-mobile-info"
+                >
+                  {tk.description ? (
+                    <CollapsibleDescription content={tk.description} testId="task-description" ariaLabel="Task description" />
+                  ) : (
+                    <p className="text-sm italic text-text-muted">No description.</p>
+                  )}
+                  <div className="mt-3 border-t border-border-base pt-3">
+                    <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
+                  </div>
+                  <div className="mt-3 border-t border-border-base pt-3">
+                    <MobileDetailsContent
+                      kind="task"
+                      projectId={tk.project_id}
+                      projectName={project.data?.name}
+                      itemId={tk.id}
+                      orgRef={tk.org_ref}
+                      createdAt={tk.created_at}
+                      tags={tk.tags ?? []}
+                    />
+                    {planForSidebar && (
+                      <div className="flex items-center justify-between gap-3 pt-1">
+                        <span className="shrink-0 text-xs uppercase tracking-wide text-text-muted">Plan</span>
+                        <OrgLink
+                          to={`/projects/${encodeURIComponent(tk.project_id)}/plans/${encodeURIComponent(planForSidebar.id)}`}
+                          className="min-w-0 truncate text-right text-xs font-medium text-accent hover:underline"
+                          data-testid="wi-mobile-plan-link"
+                          data-plan-id={planForSidebar.id}
+                        >
+                          {planForSidebar.name}
+                        </OrgLink>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="flex min-h-[60vh] flex-1 flex-col">
+                <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
+              </div>
+            </>
+          ) : (
+            <>
+              {tk.description ? (
+                // T179: long descriptions default-collapse (Show more); expanding
+                // reveals the full markdown in a height-capped, scrollable region.
+                <CollapsibleDescription content={tk.description} testId="task-description" ariaLabel="Task description" />
+              ) : (
+                <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+              )}
+              <div className="mt-4 border-t border-border-base pt-3">
+                <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
+              </div>
+              <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
+            </>
+          )}
         </div>
 
         {/* metadata sidebar — 2-section TaskDetail layout (read-only display top /
