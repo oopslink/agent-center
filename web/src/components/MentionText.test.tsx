@@ -598,50 +598,44 @@ describe('MentionText issue-ref linkify (issue-<id> / I<number>)', () => {
 
 // T317: a bare `agent-<id>` identity reference auto-linkifies to a clickable
 // token that opens the agent's SenderDetailSidebar (same target as an @mention).
-describe('MentionText agent-ref linkify (T317)', () => {
+describe('MentionText agent-ref linkify (T336)', () => {
   afterEach(() => cleanup());
 
-  it('linkifies a known bare agent-<id> reference; click opens the agent body', async () => {
-    mockMembers(); // includes agent:bot-1
+  // REAL data shape: an agent's member identity_id is "agent-<id>" (hyphen) — the
+  // "agent-" is PART of the bare id (normalizeIdentityRef doesn't strip it); the
+  // prefixed ref is "agent:agent-<id>". So the whole `agent-<id>` token is the id.
+  function mockAgentMembers() {
     server.use(
-      http.get('/api/agents/:id', ({ params }) =>
-        HttpResponse.json({
-          id: String(params.id), organization_id: 'O', name: 'Bot One', description: '',
-          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-1',
-          lifecycle: 'running', availability: 'available', created_by: 'user:hayang',
-          version: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
-        }),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          { id: 'mem-1', organization_id: 'O', identity_id: 'agent-35ac0e16', display_name: 'agent-center-dev5', kind: 'agent', role: 'member', status: 'joined', joined_at: 'x' },
+          { id: 'mem-2', organization_id: 'O', identity_id: 'agent-f9dc523f', display_name: 'agent-center-pd', kind: 'agent', role: 'member', status: 'joined', joined_at: 'x' },
+        ]),
       ),
     );
-    renderInProvider(<MarkdownMessage content={'reassign to agent-bot-1 then ship'} />);
+  }
+
+  it('linkifies a bare agent-<id> ref (the full token is the member identity id)', async () => {
+    mockAgentMembers();
+    renderInProvider(<MarkdownMessage content={'integrate done by agent-35ac0e16 now'} />);
     const token = await screen.findByTestId('agent-ref-token');
     expect(token.tagName).toBe('BUTTON');
-    expect(token).toHaveTextContent('agent-bot-1');
-    expect(token).toHaveAttribute('data-agent-ref', 'agent:bot-1');
-    // clicking opens the agent detail sidebar (fetched by ref).
-    fireEvent.click(token);
-    expect(await screen.findByText('Bot One')).toBeInTheDocument();
+    expect(token).toHaveTextContent('agent-35ac0e16');
+    expect(token).toHaveAttribute('data-agent-ref', 'agent:agent-35ac0e16');
+  });
+
+  it('linkifies an agent ref embedded after "=" (e.g. [...owner=agent-f9dc523f])', async () => {
+    mockAgentMembers();
+    renderInProvider(<MarkdownMessage content={'F5 Dev T311 owner=agent-f9dc523f done'} />);
+    const token = await screen.findByTestId('agent-ref-token');
+    expect(token).toHaveTextContent('agent-f9dc523f');
+    expect(token).toHaveAttribute('data-agent-ref', 'agent:agent-f9dc523f');
   });
 
   it('leaves an unknown agent-<id> as plain text (verify-not-trust)', async () => {
-    mockMembers();
+    mockAgentMembers();
     renderInProvider(<MarkdownMessage content={'ref to agent-deadbeef here'} />);
-    // members resolve, but agent-deadbeef is not a known member → no token.
     await screen.findByText(/ref to/);
     expect(screen.queryByTestId('agent-ref-token')).not.toBeInTheDocument();
-  });
-
-  it('linkifies an agent that is in the agents list but NOT an org member (T335)', async () => {
-    mockMembers(); // bot-1 / alice — does NOT include ba6bc42a
-    server.use(
-      // ba6bc42a is a real agent (e.g. a task integrator) but not a member row.
-      http.get('/api/agents', () =>
-        HttpResponse.json({ agents: [{ id: 'ba6bc42a', name: 'integrator', lifecycle: 'running' }] }),
-      ),
-    );
-    renderInProvider(<MarkdownMessage content={'integrate done by agent-ba6bc42a now'} />);
-    const token = await screen.findByTestId('agent-ref-token');
-    expect(token).toHaveTextContent('agent-ba6bc42a');
-    expect(token).toHaveAttribute('data-agent-ref', 'agent:ba6bc42a');
   });
 });

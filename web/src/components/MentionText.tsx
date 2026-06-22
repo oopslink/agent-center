@@ -1,7 +1,6 @@
 import type React from 'react';
 import { Fragment, useMemo } from 'react';
 import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
-import { useAgents } from '@/api/agents';
 import { useOrgWorkItems } from '@/api/orgWorkItems';
 import { useOrgPlans } from '@/api/plans';
 import { useOptionalOrgContext, orgPath } from '@/OrgContext';
@@ -49,29 +48,25 @@ export function useMentionResolver(): (handle: string) => string | null {
   return (handle: string) => byHandle.get(handle.toLowerCase().replace(/\s+/g, '')) ?? null;
 }
 
-// useAgentRefResolver maps a bare agent id (the tail of an `agent-<id>` token) →
-// the prefixed `agent:<id>` ref, for linkifying agent references in message text.
-// T335: it resolves against BOTH the org members AND the full agents list — many
-// referenced agents (task integrators/assignees) aren't org-member rows, so the
-// member-only resolver (useMentionResolver) left their `agent-<id>` plain text.
-// Returns null for an unknown id, so a hyphenated English word ("agent-based")
-// stays plain text rather than dangling to a non-existent agent.
-export function useAgentRefResolver(): (id: string) => string | null {
+// useAgentRefResolver maps the FULL `agent-<id>` token → its prefixed identity
+// ref (e.g. "agent:agent-35ac0e16"), for linkifying agent references in message
+// text. T335/T336: an agent's BARE member identity_id IS "agent-<id>" (the
+// "agent-" is part of the id, NOT a strippable prefix — see normalizeIdentityRef:
+// the prefixed form is "agent:agent-<id>"). So we key by the bare member id of
+// every agent member and resolve the whole token. Returns null for an unknown id
+// (a hyphenated word like "agent-based" stays plain text — verify-not-trust).
+export function useAgentRefResolver(): (token: string) => string | null {
   const members = useMembers();
-  const agents = useAgents();
-  const byId = useMemo(() => {
-    const m = new Map<string, string>(); // bare id (lowercased) → "agent:<id>"
-    for (const a of agents.data ?? []) {
-      if (a.id) m.set(a.id.toLowerCase(), `agent:${a.id}`);
-    }
+  const byBareId = useMemo(() => {
+    const m = new Map<string, string>(); // bare id ("agent-<id>", lc) → "agent:agent-<id>"
     for (const mem of members.data ?? []) {
       if (mem.kind !== 'agent') continue;
-      const tail = normalizeIdentityRef(mem.identity_id);
-      if (tail) m.set(tail.toLowerCase(), `agent:${tail}`);
+      const bare = normalizeIdentityRef(mem.identity_id); // e.g. "agent-35ac0e16"
+      if (bare) m.set(bare.toLowerCase(), identityRefOf(mem));
     }
     return m;
-  }, [agents.data, members.data]);
-  return (id: string) => byId.get(id.toLowerCase()) ?? null;
+  }, [members.data]);
+  return (token: string) => byBareId.get(token.toLowerCase()) ?? null;
 }
 
 // ResolvedTaskRef — a `task-<id>` reference resolved to its display label + the
@@ -412,10 +407,10 @@ export function MentionText({
         );
       }
     } else if (agentRef !== undefined && resolveAgent) {
-      // T317/T335: resolve the bare agent id (tail after "agent-") via the agent
-      // resolver (members + agents list). Only a KNOWN agent linkifies; the click
-      // opens the agent's SenderDetailSidebar (onMention with the prefixed ref).
-      const ref = resolveAgent(agentRef.slice('agent-'.length));
+      // T336: resolve the FULL "agent-<id>" token (it IS the bare member identity
+      // id) via the agent resolver. Only a KNOWN agent linkifies; the click opens
+      // the agent's SenderDetailSidebar (onMention with the prefixed ref).
+      const ref = resolveAgent(agentRef);
       if (ref && ref.startsWith('agent:')) {
         node = (
           <button
