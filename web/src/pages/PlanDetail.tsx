@@ -41,7 +41,7 @@ import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
-import { ConversationSidebar } from '@/components/ConversationSidebar';
+import { ConversationSidebar, EmbeddedConversationSidebar } from '@/components/ConversationSidebar';
 import { ContextPanel } from '@/shell/contextPanel';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
@@ -2008,15 +2008,10 @@ function PlanConversationSide({
             {/* T324: Participants/Threads/Files embedded as the chat's right pane
                 on desktop; mobile uses the col④ bottom sheet (mounted by PlanDetail). */}
             {!isMobile && conv.data && (
-              <aside
-                className="flex w-64 shrink-0 flex-col overflow-hidden border-l border-border-base"
-                data-testid="plan-conversation-sidebar"
-              >
-                <ConversationSidebar
-                  conversationId={conversationId}
-                  participants={conv.data.participants ?? []}
-                />
-              </aside>
+              <EmbeddedConversationSidebar
+                conversationId={conversationId}
+                participants={conv.data.participants ?? []}
+              />
             )}
           </div>
         )}

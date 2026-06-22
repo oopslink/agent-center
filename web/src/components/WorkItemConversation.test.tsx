@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -26,7 +26,17 @@ const conv = {
 };
 
 describe('WorkItemConversation (#137)', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    // T325: the embedded-sidebar collapse state persists in localStorage — reset
+    // it so collapse in one test doesn't leak (guard the test-env stub).
+    try {
+      localStorage.clear?.();
+      localStorage.removeItem?.('ac.convsidebar.embedded.collapsed');
+    } catch {
+      /* test-env storage stub */
+    }
+  });
 
   it('renders the owner banner naming the bound task even before the conversation loads', async () => {
     server.use(
@@ -52,7 +62,7 @@ describe('WorkItemConversation (#137)', () => {
     expect(code).not.toHaveTextContent('Conversation');
   });
 
-  it('embeds the Participants/Threads/Files sidebar inside the chat box on desktop (T324)', async () => {
+  it('embeds the Participants/Threads/Files sidebar inside the chat box on desktop, collapsible (T324/T325)', async () => {
     server.use(
       http.get('/api/conversations', () => HttpResponse.json([conv])),
       http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
@@ -61,8 +71,18 @@ describe('WorkItemConversation (#137)', () => {
     );
     wrap('pm://tasks/TS-1', 'rebuild docs', 'T280');
     // desktop (jsdom matchMedia → not mobile): the conversation sidebar is part
-    // of the chat box, not the shell col④.
-    expect(await screen.findByTestId('work-item-conversation-sidebar')).toBeInTheDocument();
+    // of the chat box, not the shell col④, and starts expanded.
+    const sidebar = await screen.findByTestId('conv-embedded-sidebar');
+    expect(sidebar).toHaveAttribute('data-collapsed', 'false');
+    expect(within(sidebar).getByTestId('conversation-tab-threads')).toBeInTheDocument();
+    // T325: a working collapse toggle folds it to a thin strip (tabs gone).
+    fireEvent.click(within(sidebar).getByTestId('conv-embedded-sidebar-toggle'));
+    const collapsed = screen.getByTestId('conv-embedded-sidebar');
+    expect(collapsed).toHaveAttribute('data-collapsed', 'true');
+    expect(within(collapsed).queryByTestId('conversation-tab-threads')).toBeNull();
+    // expand again.
+    fireEvent.click(within(collapsed).getByTestId('conv-embedded-sidebar-toggle'));
+    expect(screen.getByTestId('conv-embedded-sidebar')).toHaveAttribute('data-collapsed', 'false');
   });
 
   it('keeps the work-item ID on mobile but hides the redundant "· linked <title>" (T312)', async () => {

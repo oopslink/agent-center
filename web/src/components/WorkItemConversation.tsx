@@ -2,7 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
-import { ConversationSidebar } from './ConversationSidebar';
+import { EmbeddedConversationSidebar } from './ConversationSidebar';
 import { SenderSidebarProvider } from './SenderSidebarContext';
 import { FollowToggle } from './FollowToggle';
 import { useIsMobile } from './WorkItemMobileMeta';
@@ -138,15 +138,10 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
               the chat box (its right pane) on desktop; on mobile it lives in the
               col④ bottom sheet (mounted by the page), so it's not rendered here. */}
           {!isMobile && (
-            <aside
-              className="flex w-64 shrink-0 flex-col overflow-hidden border-l border-border-base"
-              data-testid="work-item-conversation-sidebar"
-            >
-              <ConversationSidebar
-                conversationId={conv.data.id}
-                participants={conv.data.participants ?? []}
-              />
-            </aside>
+            <EmbeddedConversationSidebar
+              conversationId={conv.data.id}
+              participants={conv.data.participants ?? []}
+            />
           )}
         </div>
       )}

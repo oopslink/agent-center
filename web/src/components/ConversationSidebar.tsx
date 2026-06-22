@@ -80,11 +80,13 @@ export function ConversationSidebar({
               data-active={active}
               onClick={() => setTab(t.id)}
               className={[
-                'flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold motion-safe:transition-colors',
+                // min-w-0 lets the tabs shrink in a narrow (embedded) pane so the
+                // row doesn't overflow and push the toolbar/collapse off-screen.
+                'flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold motion-safe:transition-colors',
                 active ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-bg-base',
               ].join(' ')}
             >
-              {t.label}
+              <span className="truncate">{t.label}</span>
               {t.count != null && t.count > 0 && (
                 <span
                   data-testid={`conversation-tab-${t.id}-count`}
@@ -164,5 +166,81 @@ export function ConversationSidebar({
         </div>
       </div>
     </div>
+  );
+}
+
+// ── T324/T325: embedded (in-chat-box) variant ──────────────────────────────
+// On desktop the conversation's Participants/Threads/Files panel lives INSIDE
+// the chat box (not the shell col④). Outside the shell, useContextPanelCollapse
+// returns null, so the panel had no collapse affordance — this wrapper supplies
+// its own: a collapse toggle (passed as ConversationSidebar's `toolbar`) and a
+// thin collapsed strip with an expand button. State persists in localStorage.
+const EMBEDDED_COLLAPSE_KEY = 'ac.convsidebar.embedded.collapsed';
+function readEmbeddedCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(EMBEDDED_COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function EmbeddedConversationSidebar(props: ConversationSidebarProps): React.ReactElement {
+  const [collapsed, setCollapsed] = useState(readEmbeddedCollapsed);
+  const setAndPersist = (v: boolean): void => {
+    setCollapsed(v);
+    try {
+      window.localStorage.setItem(EMBEDDED_COLLAPSE_KEY, v ? '1' : '0');
+    } catch {
+      /* storage disabled */
+    }
+  };
+  if (collapsed) {
+    return (
+      <aside
+        className="flex w-9 shrink-0 flex-col items-center border-l border-border-base py-2"
+        data-testid="conv-embedded-sidebar"
+        data-collapsed="true"
+      >
+        <button
+          type="button"
+          onClick={() => setAndPersist(false)}
+          data-testid="conv-embedded-sidebar-toggle"
+          aria-label="Show conversation details"
+          aria-expanded={false}
+          title="Show conversation details"
+          className="inline-flex h-7 w-7 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
+        >
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12.5 5l-5 5 5 5" />
+          </svg>
+        </button>
+      </aside>
+    );
+  }
+  return (
+    <aside
+      className="flex w-72 shrink-0 flex-col overflow-hidden border-l border-border-base"
+      data-testid="conv-embedded-sidebar"
+      data-collapsed="false"
+    >
+      <ConversationSidebar
+        {...props}
+        toolbar={
+          <button
+            type="button"
+            onClick={() => setAndPersist(true)}
+            data-testid="conv-embedded-sidebar-toggle"
+            aria-label="Collapse conversation details"
+            aria-expanded
+            title="Collapse"
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
+          >
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 5l5 5-5 5" />
+            </svg>
+          </button>
+        }
+      />
+    </aside>
   );
 }
