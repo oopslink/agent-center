@@ -922,7 +922,7 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
 			return err
 		}
-		return d.PMService.BlockTask(txCtx, pm.TaskID(req.TaskID), req.Reason,
+		return d.PMService.BlockTask(txCtx, pm.TaskID(req.TaskID), req.Reason, pm.BlockReasonObstacle,
 			pm.IdentityRef(agentActor(a)))
 	})
 	if err != nil {

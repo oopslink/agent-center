@@ -91,12 +91,31 @@ func TestListTasks_FiltersAndIsolation(t *testing.T) {
 	pid, seedTID := f.seedMemberProject(t) // task "seed" assigned to atAgent1 (open)
 	ctx := context.Background()
 	owner := pm.IdentityRef("user:owner")
-	// A second task assigned to atAgent1, started → running.
+	// A second task assigned to atAgent1, started → running. v2.14.0 I14/F3 §13.A:
+	// StartTask now passes the run-ahead gate, so t2 must be a runnable (dispatched
+	// built-in-pool) member first — a backlog task is not startable.
 	t2, _ := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "two", CreatedBy: owner})
+	f.drain(t)
+	plans, _ := f.pmSvc.ListPlans(ctx, pid)
+	var pool pm.PlanID
+	for _, p := range plans {
+		if p.IsBuiltin() {
+			pool = p.ID()
+		}
+	}
+	if err := f.pmSvc.SelectTaskIntoPlan(ctx, pool, t2, owner); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
 	f.drain(t)
 	_ = f.pmSvc.AssignTask(ctx, t2, pm.IdentityRef("agent:"+atAgent1), owner)
 	f.drain(t)
-	_ = f.pmSvc.StartTask(ctx, t2, pm.IdentityRef("agent:"+atAgent1))
+	if err := f.pmSvc.StartTask(ctx, t2, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatalf("start t2: %v", err)
+	}
 	// A third task assigned to a different identity (open).
 	t3, _ := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "three", CreatedBy: owner})
 	f.drain(t)

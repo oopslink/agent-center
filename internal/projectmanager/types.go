@@ -100,14 +100,26 @@ var (
 	// returns it (mirrors Conversation.Archive → ErrConversationArchived).
 	ErrTaskArchived        = errors.New("projectmanager: task is archived")
 	ErrBlockReasonRequired = errors.New("projectmanager: blocked requires a reason (plan §2.2)")
+	// ErrInvalidBlockReasonType (v2.14.0 I14/F3, finding 01KVNFR…/§13.A): block_task
+	// must carry a reasonType ∈ {input_required, obstacle}. F1's Task.Block validates
+	// only that the reason text is non-empty (not the type), so F3's BlockTask entry
+	// enforces BlockReasonType.IsValid() and rejects any other value (incl. "").
+	ErrInvalidBlockReasonType = errors.New("projectmanager: invalid block reason type (must be input_required or obstacle)")
 	// ErrNotTaskAssignee / ErrTaskBlocked guard the v2.14.0 I14 block+lease model:
 	// only the assignee agent may Block its own running task, and a legally blocked
 	// task cannot renew its execution lease (a block is a lease-free pause).
-	ErrNotTaskAssignee   = errors.New("projectmanager: actor is not the task assignee")
-	ErrTaskBlocked       = errors.New("projectmanager: task is blocked (no execution lease)")
-	ErrVersionConflict   = errors.New("projectmanager: version conflict (optimistic lock)")
-	ErrEmptyProjectScope = errors.New("projectmanager: project_id required (no global work items)")
-	ErrCrossOrgAssignee  = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")
+	ErrNotTaskAssignee = errors.New("projectmanager: actor is not the task assignee")
+	ErrTaskBlocked     = errors.New("projectmanager: task is blocked (no execution lease)")
+	// ErrAgentHasActiveTask (v2.14.0 I14/F3 §13.B/§13.F-①) — the single-active hard
+	// constraint: an agent may have at most ONE running, non-blocked Task at a time.
+	// Surfaced when start_task would make a SECOND task running for the same agent
+	// (the idx_pm_tasks_one_active_per_agent UNIQUE partial index, migration 0072,
+	// rejects the open→running UPDATE). The agent must finish, block, or yield its
+	// current running task first. A blocked task does NOT occupy the active slot.
+	ErrAgentHasActiveTask = errors.New("projectmanager: agent already has a running task (single-active: one running, non-blocked task per agent)")
+	ErrVersionConflict    = errors.New("projectmanager: version conflict (optimistic lock)")
+	ErrEmptyProjectScope  = errors.New("projectmanager: project_id required (no global work items)")
+	ErrCrossOrgAssignee   = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")
 	// ErrAgentDirectoryUnavailable is returned (fail-closed) when an agent is
 	// assigned but no AgentDirectory is wired to verify the agent's org — a
 	// missing dependency must not silently bypass the cross-org guard.
@@ -139,16 +151,17 @@ var (
 	// ErrPoolClaimLimitReached — the agent already holds the max concurrent claimed
 	// pool tasks (T83 §3.6, default N=3). Does not affect structured-plan nodes.
 	ErrPoolClaimLimitReached = errors.New("projectmanager: pool claim limit reached")
-	// ErrTaskNotRunnable (T130) — the task may not enter running: it is BACKLOG,
-	// belonging to neither a real (non-builtin) Plan node NOR a DISPATCHED Assignment-
-	// Pool member. The running invariant (sibling of T83 claimability): a task runs
-	// ONLY from a real plan node or the pool. The builtin plan is itself backlog, NOT
-	// a "real plan" — a builtin task must be DISPATCHED (in the pool) to be runnable.
-	// Enforced both at the open→running gate (start_work, via the agent TaskRunGate)
-	// and at direct (re)assignment of an agent (so a backlog assign never mints a
-	// work item that can never start). Remedy: add_task_to_plan (real plan) or
-	// dispatch the task into the Assignment Pool.
-	ErrTaskNotRunnable = errors.New("projectmanager: task is backlog — not a real-plan node or a dispatched pool member; it cannot be started")
+	// ErrTaskNotRunnable (T130, rewritten v2.14.0 I14/F3 §13.A) — the task may not
+	// enter running because its blockedBy DEPENDENCIES are not yet satisfied. It is the
+	// 抢跑 (run-ahead) guard: a DAG node may start ONLY once every upstream it
+	// depends_on is completed/discarded (the engine derives it to `ready`/`dispatched`);
+	// a node still `blocked` on an unfinished upstream, a `skipped` dead conditional
+	// branch, or a pure-backlog task (no plan) is rejected. The builtin pool keeps its
+	// own rule (a member must be DISPATCHED). Enforced at the open→running gate
+	// (start_task / start_work via the agent TaskRunGate) AND at direct (re)assignment.
+	// Remedy: wait for the upstream dependencies to finish, add the task to a plan, or
+	// dispatch it into the Assignment Pool.
+	ErrTaskNotRunnable = errors.New("projectmanager: task is not runnable — its dependencies are not yet satisfied (or it is backlog / a not-dispatched pool member)")
 	// ErrTaskBacklogNotActionable (T190) — the UNIFIED sentinel for "this action is
 	// not allowed because the task is BACKLOG (inert)". A backlog task (planID=="",
 	// see IsBacklogInert) is rejected by claim_task / start_work / complete_task /

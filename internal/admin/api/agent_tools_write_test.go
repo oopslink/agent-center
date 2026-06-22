@@ -270,6 +270,31 @@ func (f *writeToolsFixture) seedRunningTask(t *testing.T) string {
 		t.Fatal(err)
 	}
 	f.drain(t) // participant projector creates the task Conversation.
+	// v2.14.0 I14/F3 (§13.A): StartTask now passes the run-ahead dependency gate, so a
+	// task must be RUNNABLE (a dispatched built-in-pool member, or a ready structured
+	// node) before it can move open→running — a backlog (planless) task is deliberately
+	// NOT startable. Place the task in the project's built-in pool so the gate passes.
+	plans, err := f.pmSvc.ListPlans(ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pool pm.PlanID
+	for _, p := range plans {
+		if p.IsBuiltin() {
+			pool = p.ID()
+		}
+	}
+	if pool == "" {
+		t.Fatal("no built-in pool found for project")
+	}
+	if err := f.pmSvc.SelectTaskIntoPlan(ctx, pool, tid, owner); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
 	if err := f.pmSvc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1), owner); err != nil {
 		t.Fatal(err)
 	}
@@ -847,7 +872,9 @@ func TestCompleteTask_PoolClaimed_NoWorkItem(t *testing.T) {
 	}
 
 	srv := f.server(t)
-	// AG1 claims the pool task → assignee=AG1, running, NO WorkItem.
+	// AG1 claims the pool task → assignee=AG1, NO WorkItem. v2.14.0 I14/F3 §13.B:
+	// claim→OPEN (not running); the claimer then start_tasks it to run (single-active
+	// enforced there). The agent is the assignee, so it may start it.
 	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/claim_task", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "task_id": string(tid)}); status != http.StatusOK {
 		t.Fatalf("claim_task status = %d, want 200; body = %v", status, body)
@@ -855,6 +882,10 @@ func TestCompleteTask_PoolClaimed_NoWorkItem(t *testing.T) {
 	// Precondition for the regression: the claimed pool task really has no WorkItem.
 	if items, _ := f.workItems.ListByTask(ctx, "pm://tasks/"+string(tid)); len(items) != 0 {
 		t.Fatalf("expected NO work item for a pool-claimed task, got %d", len(items))
+	}
+	// §13.B: start the claimed pool task (claim→open→running) so complete is reachable.
+	if err := f.pmSvc.StartTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatalf("start claimed pool task: %v", err)
 	}
 
 	// complete_task must now succeed (was 403 not_agents_task before the fix).

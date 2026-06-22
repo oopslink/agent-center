@@ -343,7 +343,7 @@ func TestValidationAndGatingRejections(t *testing.T) {
 		t.Fatal("invalid actor should fail")
 	}
 	// block a not-running task (illegal transition)
-	if err := svc.BlockTask(ctx, tid, "r", "user:a"); err != pm.ErrIllegalTransition {
+	if err := svc.BlockTask(ctx, tid, "r", pm.BlockReasonObstacle, "user:a"); err != pm.ErrIllegalTransition {
 		t.Fatalf("block open task want ErrIllegalTransition, got %v", err)
 	}
 	// subscribe/unsubscribe issue by non-member

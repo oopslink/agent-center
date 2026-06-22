@@ -169,7 +169,7 @@ func TestTaskStateFlow_CompleteThenNonSelfVerify(t *testing.T) {
 		t.Fatal(err)
 	}
 	// block requires a reason
-	if err := svc.BlockTask(ctx, tid, "", "user:b"); err != pm.ErrBlockReasonRequired {
+	if err := svc.BlockTask(ctx, tid, "", pm.BlockReasonObstacle, "user:b"); err != pm.ErrBlockReasonRequired {
 		t.Fatalf("block without reason should fail, got %v", err)
 	}
 	if err := svc.CompleteTask(ctx, tid, "user:b"); err != nil {
@@ -270,7 +270,7 @@ func TestBlockAnnotates_UnblockRedispatches(t *testing.T) {
 	}
 
 	// Block the Task → ANNOTATION only: status stays running, WorkItem UNTOUCHED.
-	if err := svc.BlockTask(ctx, tid, "needs key", "user:a"); err != nil {
+	if err := svc.BlockTask(ctx, tid, "needs key", pm.BlockReasonObstacle, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := relay.RunOnce(ctx, 100); err != nil {
