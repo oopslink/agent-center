@@ -42,7 +42,18 @@ beforeEach(() => {
     }),
   );
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  // T321: the DM subgroup collapse state persists in localStorage — reset it so a
+  // collapse in one test doesn't leak its default-expanded assumption to others.
+  // (The jsdom/test localStorage stub may lack clear(); guard + try/catch.)
+  try {
+    localStorage.clear?.();
+    localStorage.removeItem?.('conv-dm-group-collapsed');
+  } catch {
+    /* test-env storage stub */
+  }
+});
 
 describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
   it('renders Channels + Direct messages sections with rows linking to each conversation', async () => {
@@ -107,8 +118,8 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
       }),
     );
     renderNav();
-    // subgroup headers appear (My DMs + Agent-to-agent) once an agent-agent DM exists.
-    expect(await screen.findByText('Agent-to-agent')).toBeInTheDocument();
+    // subgroup headers appear (My DMs + A2A) once an agent-agent DM exists.
+    expect(await screen.findByText('A2A')).toBeInTheDocument();
     expect(screen.getByText('My DMs')).toBeInTheDocument();
     // the agent-agent DM is labeled with BOTH agents (T318: stacked on two lines)
     // and lives in the agent group.
@@ -122,6 +133,41 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     expect(within(agentGroup).getByTestId('conv-nav-dm-a2a')).toContainElement(dev1);
     // the personal DM stays in the My DMs group.
     expect(within(screen.getByTestId('conv-nav-dms-mine')).getByText('@oopslink')).toBeInTheDocument();
+  });
+
+  it('collapses and expands the My DMs / A2A subgroups via their headers (T321)', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const kind = new URL(request.url).searchParams.get('kind');
+        if (kind === 'dm') {
+          return HttpResponse.json([
+            { id: 'D1', kind: 'dm', status: 'active', dm_type: 'my_dm', peer_identity_id: 'user:o', peer_display_name: 'oopslink', unread_count: 0, mention_count: 0 },
+            {
+              id: 'DAA', kind: 'dm', status: 'active', dm_type: 'agent_agent_dm',
+              dm_participants: [{ identity_id: 'agent:pd', display_name: 'pd' }, { identity_id: 'agent:dev1', display_name: 'dev1' }],
+              unread_count: 0, mention_count: 0,
+            },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+    );
+    renderNav();
+    const a2aToggle = await screen.findByTestId('conv-nav-subheader-a2a');
+    // expanded by default → both lists present.
+    expect(a2aToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('conv-nav-dms-agent')).toBeInTheDocument();
+    // collapse A2A → its list is removed; My DMs is untouched.
+    fireEvent.click(a2aToggle);
+    expect(a2aToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('conv-nav-dms-agent')).not.toBeInTheDocument();
+    expect(screen.getByTestId('conv-nav-dms-mine')).toBeInTheDocument();
+    // collapse My DMs independently.
+    fireEvent.click(screen.getByTestId('conv-nav-subheader-mine'));
+    expect(screen.queryByTestId('conv-nav-dms-mine')).not.toBeInTheDocument();
+    // re-expand A2A.
+    fireEvent.click(a2aToggle);
+    expect(screen.getByTestId('conv-nav-dms-agent')).toBeInTheDocument();
   });
 
   it('confirms before deleting a deleted-peer DM', async () => {

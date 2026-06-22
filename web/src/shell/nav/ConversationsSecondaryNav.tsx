@@ -70,13 +70,51 @@ function EmptyRow({ text }: { text: string }): React.ReactElement {
   return <li className="px-2 py-0.5 text-xs italic text-text-muted">{text}</li>;
 }
 
-// SubHeader — a small in-section group label (e.g. "My DMs" / "Agent-to-agent"),
-// lighter than the SectionHeader so DM subgroups read as nested groups (T308).
-function SubHeader({ label }: { label: string }): React.ReactElement {
+// T321: the DM subgroup collapse state is persisted in localStorage (keyed by
+// group) so a collapsed "My DMs" / "A2A" stays collapsed across navigation —
+// mirroring the shell's group-expand persistence.
+const DM_GROUP_COLLAPSE_KEY = 'conv-dm-group-collapsed';
+function readDmGroupCollapsed(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(DM_GROUP_COLLAPSE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+// SubHeader — a small in-section group label (e.g. "My DMs" / "A2A"), lighter
+// than the SectionHeader so DM subgroups read as nested groups (T308). T321: it
+// is now a collapse toggle (chevron rotates when open, aria-expanded) so a long
+// DM subgroup can be folded away.
+function SubHeader({
+  label,
+  collapsed,
+  onToggle,
+  testId,
+}: {
+  label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  testId?: string;
+}): React.ReactElement {
   return (
-    <div className="px-2 pb-0.5 pt-2 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
-      {label}
-    </div>
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      data-testid={testId}
+      className="flex w-full items-center gap-1 px-2 pb-0.5 pt-2 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted hover:text-text-secondary"
+    >
+      <svg
+        viewBox="0 0 12 12"
+        aria-hidden="true"
+        className={`h-2.5 w-2.5 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+      >
+        <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -99,6 +137,19 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
   const [pendingDeleteDM, setPendingDeleteDM] = useState<{ id: string; to: string; label: string } | null>(
     null,
   );
+  // T321: per-DM-subgroup collapse state (persisted), default expanded.
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(readDmGroupCollapsed);
+  const isGroupCollapsed = (key: string): boolean => !!collapsedGroups[key];
+  const toggleGroup = (key: string): void =>
+    setCollapsedGroups((m) => {
+      const next = { ...m, [key]: !m[key] };
+      try {
+        localStorage.setItem(DM_GROUP_COLLAPSE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore quota / disabled storage */
+      }
+      return next;
+    });
 
   const activeChannels = (channels.data ?? []).filter((c) => c.status !== 'archived');
   const dmList = dms.data ?? [];
@@ -229,22 +280,39 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
           </ul>
         )}
         {/* My DMs (the subheader only appears when there are ALSO agent-agent DMs,
-            so a viewer with only personal DMs sees a clean flat list). */}
+            so a viewer with only personal DMs sees a clean flat list). T321: the
+            subheader collapses its list; with no subheader the list always shows. */}
         {myDMs.length > 0 && (
           <>
-            {agentAgentDMs.length > 0 && <SubHeader label="My DMs" />}
-            <ul className="space-y-0.5" data-testid="conv-nav-dms-mine">
-              {myDMs.map(renderDmRow)}
-            </ul>
+            {agentAgentDMs.length > 0 && (
+              <SubHeader
+                label="My DMs"
+                collapsed={isGroupCollapsed('mine')}
+                onToggle={() => toggleGroup('mine')}
+                testId="conv-nav-subheader-mine"
+              />
+            )}
+            {!(agentAgentDMs.length > 0 && isGroupCollapsed('mine')) && (
+              <ul className="space-y-0.5" data-testid="conv-nav-dms-mine">
+                {myDMs.map(renderDmRow)}
+              </ul>
+            )}
           </>
         )}
-        {/* Agent-to-agent DMs — labeled "@A ↔ @B" so the two agents are explicit. */}
+        {/* A2A (agent-to-agent) DMs — rows show the two agents stacked (T318). */}
         {agentAgentDMs.length > 0 && (
           <>
-            <SubHeader label="Agent-to-agent" />
-            <ul className="space-y-0.5" data-testid="conv-nav-dms-agent">
-              {agentAgentDMs.map(renderDmRow)}
-            </ul>
+            <SubHeader
+              label="A2A"
+              collapsed={isGroupCollapsed('a2a')}
+              onToggle={() => toggleGroup('a2a')}
+              testId="conv-nav-subheader-a2a"
+            />
+            {!isGroupCollapsed('a2a') && (
+              <ul className="space-y-0.5" data-testid="conv-nav-dms-agent">
+                {agentAgentDMs.map(renderDmRow)}
+              </ul>
+            )}
           </>
         )}
       </div>
