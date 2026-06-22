@@ -377,10 +377,18 @@ func (p *WakeProjector) projectMessageAdded(ctx context.Context, e outbox.Event)
 				return err
 			}
 		}
-		// v2.7.1 #220: also wake @mentioned agent participants of the task conversation
-		// (conversational path), human-only + loop-break (an agent/system message never
-		// triggers it) — mirrors projectConversationMessage's sender gate.
-		if taskConv != nil && strings.HasPrefix(pl.Sender, userParticipantPrefix) {
+		// v2.7.1 #220 + T333: also wake @mentioned agent participants of the task
+		// conversation (conversational path). A HUMAN sender always wakes. An AGENT
+		// sender ALSO wakes the participants it @mentions (T333 — agent→agent @mention
+		// in a task conversation), but ONLY when the wake-chain guard is wired:
+		// wakeConversationParticipants runs every agent-sender hop through the four
+		// gates (depth/cycle/rate/cost) + self-exclusion, so without the guard we keep
+		// the #220 human-only loop-break rather than open an unprotected ping-pong. A
+		// system sender never reaches this branch. The WorkItem request_input wake
+		// above is unchanged (it has always gated agent senders through wakeGuard).
+		isHumanSender := strings.HasPrefix(pl.Sender, userParticipantPrefix)
+		isAgentSender := strings.HasPrefix(pl.Sender, agentParticipantPrefix)
+		if taskConv != nil && (isHumanSender || (isAgentSender && p.wakeGuard != nil)) {
 			if err := p.wakeConversationParticipants(txCtx, taskConv, pl); err != nil {
 				return err
 			}
@@ -501,12 +509,17 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 		return nil // conversation gone/unreadable → nothing to wake (don't fail)
 	}
 	kind := conv.Kind()
-	// T289: an agent sender wakes ONLY in a DM (minimal surface) AND only when the
-	// wake-chain guard is wired — the four-gate circuit breaker is what makes an
-	// agent→agent wake safe, so without it we keep the #185 human-only loop-break
-	// rather than open an unprotected ping-pong. In group-like kinds (channel/issue/
-	// plan) an agent reply still wakes no one.
-	if isAgentSender && (kind != conversation.ConversationKindDM || p.wakeGuard == nil) {
+	// T289 + T333: an agent sender wakes only when the wake-chain guard is wired —
+	// the four-gate circuit breaker (depth/cycle/rate/cost, evaluated per hop in
+	// wakeConversationParticipants) is what makes an agent→agent wake safe, so
+	// without it we keep the #185 human-only loop-break rather than open an
+	// unprotected ping-pong. T289 originally opened this to DMs only; T333 extends
+	// it to the group-like kinds (channel/issue/plan) too, where the @mention gate
+	// (only an explicit @display_name wakes a target) + self-exclusion still apply,
+	// and @all stays human-only (broadcastAll in wakeConversationParticipants gates
+	// on a user: sender). The kind-gate just below still scopes this path to
+	// DM/Channel/Issue/Plan (task is handled in projectMessageAdded).
+	if isAgentSender && p.wakeGuard == nil {
 		return nil
 	}
 	// v2.7.1 #220: DM / Channel / Issue handled here (conversational @mention wake).
@@ -582,12 +595,14 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 	delivered := map[agent.AgentID]bool{}
 	var toJoin []conversation.ParticipantElement // v2.7.1 #227 auto-join batch
 	joinedAt := p.clock.Now().UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
-	// @all broadcast (per @oopslink): a message that @all-mentions wakes EVERY
-	// candidate agent (skip the per-agent @display_name gate below). The whole
-	// conversational-wake path is already human-only gated (projectConversationMessage
-	// + the task branch both require a user: sender), so @all is structurally
-	// human-only — an agent writing @all reaches none of this and triggers nothing.
-	broadcastAll := mention.MentionsAll(pl.Text)
+	// @all broadcast (per @oopslink): a HUMAN message that @all-mentions wakes EVERY
+	// candidate agent (skip the per-agent @display_name gate below). @all is
+	// HUMAN-ONLY: T333 opened agent→agent @mention wake to the group kinds, but an
+	// agent writing @all must still wake no one (an agent cannot broadcast-storm the
+	// room), so gate broadcastAll on a human (user:) sender. An agent sender falls
+	// through to the per-agent @display_name gate — only an explicit @name (never
+	// @all) wakes a peer, and each such hop is still run through the wake-chain guard.
+	broadcastAll := strings.HasPrefix(pl.Sender, userParticipantPrefix) && mention.MentionsAll(pl.Text)
 	for _, rawID := range rawIDs {
 		// FINDING-J: the ref may carry EITHER the execution-entity id OR the
 		// identity-member id ("agent-<ulid>", #157). Resolve tolerantly so both the

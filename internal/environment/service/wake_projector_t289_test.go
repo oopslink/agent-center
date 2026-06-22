@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
+	"github.com/oopslink/agent-center/internal/conversation"
 )
 
 // T289: agent↔agent DM wake. The send side shipped in T291 but the wake side was
@@ -91,21 +91,8 @@ func TestWakeProjector_DM_AgentPingPong_CycleBreaks(t *testing.T) {
 	}
 }
 
-// Minimal surface: even with a guard wired, an AGENT sender in a CHANNEL wakes no
-// one (T289 only opens the DM path). The #185 loop-break still holds for groups.
-func TestWakeProjector_Channel_AgentSender_Guarded_StillNoWake(t *testing.T) {
-	f := newWakeFixture(t)
-	f.saveRunningAgent(t, "AG1", "W1")
-	f.saveRunningAgent(t, "AG2", "W2")
-	f.saveConv(t, "chan-1", conversation.ConversationKindChannel, "general", agentPart("AG1"), agentPart("AG2"))
-	p := f.guardProj(wakeguard.NewGuard(wakeguard.Config{
-		MaxDepth: 100, CycleWindow: 5 * time.Minute, CycleN: 100, RatePerMin: 100, TokenBudget: 100,
-	}))
-
-	if err := p.Project(f.ctx, convMessageEvent("EV1", "chan-1", "m1", "agent:AG2", "@AG1 heads up")); err != nil {
-		t.Fatalf("Project: %v", err)
-	}
-	if c1 := f.commandsFor(t, "W1"); len(c1) != 0 {
-		t.Fatalf("agent sender in a channel must wake no one, got %d on W1", len(c1))
-	}
-}
+// NOTE: T289 originally restricted the guarded agent→agent wake to DMs only — a
+// channel agent sender woke no one. T333 SUPERSEDES that: a guarded agent→agent
+// @mention now wakes the target in channel/issue/plan/task conversations too. The
+// channel/issue/task positive cases (and the @all + no-guard guardrails) live in
+// wake_projector_t333_test.go. The DM cases above remain T289's own coverage.
