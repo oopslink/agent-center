@@ -2,7 +2,7 @@ import type React from 'react';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
-import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef } from '@/api/members';
+import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef, isSystemSender } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
 import { formatChatTime } from '@/utils/time';
@@ -209,6 +209,14 @@ export function MessageList({
     // [Details], not a full sender bubble dumping the raw API error inline.
     if (m.content_kind === 'system') {
       return <SystemMessageRow key={m.id} content={m.content} />;
+    }
+    // T308: a message authored by the SYSTEM sender (reminders, scheduler/plan
+    // dispatch notices — content_kind='text', sender='system') renders as a
+    // de-emphasized NOTIFICATION (centered notice card with a bell + "System ·
+    // time"), NOT a peer chat bubble with a "System" avatar (@oopslink). The
+    // content still renders as markdown so task/issue/plan refs stay clickable.
+    if (isSystemSender(m.sender_identity_id)) {
+      return <SystemNotificationRow key={m.id} m={m} />;
     }
     // v2.8.1 chat-rightalign: own = the viewer's own message. Normalize both
     // sides so the user:/agent: prefix never breaks the compare.
@@ -526,6 +534,45 @@ export function MessageList({
           onClose={() => setLocalThreadRoot(null)}
         />
       )}
+    </div>
+  );
+}
+
+// SystemNotificationRow (T308) — a SYSTEM-authored message (reminder / scheduler
+// / plan-dispatch notice; sender='system', content_kind='text') shown as a
+// de-emphasized NOTIFICATION rather than a peer chat bubble: a centered, subtle
+// notice card with a bell + "System · time" header and the content rendered as
+// markdown (so task/issue/plan refs stay clickable). Distinct from
+// SystemMessageRow, which is the terse "Message failed" notice for content_kind
+// ='system'. Full-width-ish + centered so it reads as an out-of-band notice.
+function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
+  return (
+    <div className="my-2 flex justify-center" data-testid="message-system-notice" data-message-system="true">
+      <div className="w-full max-w-2xl rounded-md border border-border-base bg-bg-subtle/60 px-3 py-2">
+        <div className="mb-1 flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-3 w-3 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <span>System</span>
+          <span className="text-text-muted/70">·</span>
+          <time dateTime={m.posted_at} title={m.posted_at} className="font-normal normal-case tracking-normal">
+            {formatChatTime(m.posted_at)}
+          </time>
+        </div>
+        <div className="text-xs text-text-secondary">
+          <MarkdownMessage content={m.content} textClass="text-text-secondary" linkClass="text-accent" />
+        </div>
+      </div>
     </div>
   );
 }

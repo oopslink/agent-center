@@ -7,10 +7,10 @@ import {
   useConversations,
   useDeleteConversation,
 } from '@/api/conversations';
-import type { Conversation } from '@/api/types';
 import { DMStartModal } from '@/components/DMStartModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
+import { dmDisplayName } from '@/components/dmDisplay';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
@@ -212,12 +212,3 @@ export default function DMs(): React.ReactElement {
   );
 }
 
-function dmDisplayName(c: Conversation): string {
-  if (c.dm_title) return c.dm_title;
-  if (c.dm_type === 'agent_agent_dm' && c.dm_participants?.length) {
-    return c.dm_participants
-      .map((p) => (p.display_name ? `@${p.display_name}` : p.identity_id))
-      .join(' ↔ ');
-  }
-  return 'Direct message';
-}

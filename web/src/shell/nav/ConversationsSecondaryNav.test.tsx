@@ -86,6 +86,39 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     expect(deleteButtons).toHaveLength(1); // only the deleted-peer DM
   });
 
+  it('groups agent↔agent DMs separately and labels them "@A ↔ @B" (T308)', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const kind = new URL(request.url).searchParams.get('kind');
+        if (kind === 'dm') {
+          return HttpResponse.json([
+            { id: 'D1', kind: 'dm', status: 'active', dm_type: 'my_dm', peer_identity_id: 'user:o', peer_display_name: 'oopslink', unread_count: 0, mention_count: 0 },
+            {
+              id: 'DAA', kind: 'dm', status: 'active', dm_type: 'agent_agent_dm',
+              dm_participants: [
+                { identity_id: 'agent:pd', display_name: 'pd' },
+                { identity_id: 'agent:dev1', display_name: 'dev1' },
+              ],
+              unread_count: 0, mention_count: 0,
+            },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+    );
+    renderNav();
+    // subgroup headers appear (My DMs + Agent-to-agent) once an agent-agent DM exists.
+    expect(await screen.findByText('Agent-to-agent')).toBeInTheDocument();
+    expect(screen.getByText('My DMs')).toBeInTheDocument();
+    // the agent-agent DM is labeled with BOTH agents and lives in the agent group.
+    const agentGroup = screen.getByTestId('conv-nav-dms-agent');
+    const row = within(agentGroup).getByText('@pd ↔ @dev1');
+    expect(row).toBeInTheDocument();
+    expect(row.closest('[data-testid="conv-nav-dm"]')).toHaveAttribute('data-dm-type', 'agent_agent_dm');
+    // the personal DM stays in the My DMs group.
+    expect(within(screen.getByTestId('conv-nav-dms-mine')).getByText('@oopslink')).toBeInTheDocument();
+  });
+
   it('confirms before deleting a deleted-peer DM', async () => {
     let deleteCalled = '';
     server.use(

@@ -418,13 +418,12 @@ describe('MessageList deleted/unresolved sender (#192 F1)', () => {
   });
 });
 
-// v2.10.0 [T75] — system/scheduler-authored messages (plan dispatch "your task
-// is ready" notifications; backend PlanDispatchAdapter posts SenderIdentityID
-// "system" with content_kind=text) must render an explicit "System" author, NOT
-// the "(deleted)" branch (the bare "system" ref is not an org member, so before
-// this it missed the resolver and fell through to "(deleted)"). The members
-// list is empty here — proving the fix is a sender special-case, not member data.
-describe('MessageList system sender (v2.10.0 [T75])', () => {
+// T308 (supersedes v2.10.0 [T75]) — system/scheduler-authored messages (plan
+// dispatch / reminder notices; backend posts SenderIdentityID "system" with
+// content_kind=text) render as a de-emphasized NOTIFICATION (centered notice
+// card with a "System" label + the content), NOT a peer chat bubble with a
+// "System" avatar/sender button (@oopslink). The content still renders.
+describe('MessageList system sender notification (T308)', () => {
   afterEach(() => cleanup());
 
   function renderFresh(ui: React.ReactElement) {
@@ -437,15 +436,15 @@ describe('MessageList system sender (v2.10.0 [T75])', () => {
     sender_identity_id: 'system',
   };
 
-  it('renders the "system" sender as "System" (resolved), never "(deleted)"', () => {
+  it('renders a system-sender message as a notification, not a peer bubble', () => {
     renderFresh(<MessageList messages={[sysMsg]} />);
-    const btn = screen.getByTestId('message-sender-button');
-    expect(btn.textContent).toBe('System');
-    expect(btn.textContent).not.toContain('(deleted)');
-    // treated as a RESOLVED author (stable name + avatar), not the deleted branch.
-    expect(btn).toHaveAttribute('data-sender-resolved', 'true');
-    // the message body still renders (it's a normal text @mention, not collapsed).
-    expect(screen.getByTestId('message-row').textContent).toContain('is ready');
+    const notice = screen.getByTestId('message-system-notice');
+    // labeled "System" and shows the content…
+    expect(notice.textContent).toContain('System');
+    expect(notice.textContent).toContain('is ready');
+    // …and it is NOT a peer chat bubble (no sender button / message-row).
+    expect(screen.queryByTestId('message-sender-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('message-row')).not.toBeInTheDocument();
   });
 });
 

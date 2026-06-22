@@ -8,6 +8,7 @@ import {
 } from '@/api/conversations';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { ConfirmModal } from '@/components/ConfirmModal';
+import { dmDisplayName } from '@/components/dmDisplay';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 import type { Conversation } from '@/api/types';
 
@@ -69,6 +70,16 @@ function EmptyRow({ text }: { text: string }): React.ReactElement {
   return <li className="px-2 py-0.5 text-xs italic text-text-muted">{text}</li>;
 }
 
+// SubHeader — a small in-section group label (e.g. "My DMs" / "Agent-to-agent"),
+// lighter than the SectionHeader so DM subgroups read as nested groups (T308).
+function SubHeader({ label }: { label: string }): React.ReactElement {
+  return (
+    <div className="px-2 pb-0.5 pt-2 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
+      {label}
+    </div>
+  );
+}
+
 // Trash glyph as an SVG (NOT an emoji/pictograph — the a11y no-emoji-icons gate
 // forbids unicode pictographs as icons); mirrors the shell default's TrashIcon.
 function TrashIcon(): React.ReactElement {
@@ -91,13 +102,68 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
 
   const activeChannels = (channels.data ?? []).filter((c) => c.status !== 'archived');
   const dmList = dms.data ?? [];
+  // T308: group DMs like the DMs page — "My DMs" (the viewer is a participant)
+  // vs "Agent-to-agent" (between two agents; the human viewer isn't a peer, so
+  // these previously all read "Direct message"). The agent rows now show "@A ↔ @B".
+  const agentAgentDMs = dmList.filter((d) => d.dm_type === 'agent_agent_dm');
+  const myDMs = dmList.filter((d) => d.dm_type !== 'agent_agent_dm');
 
   // A DM whose peer identity exists but whose display name is gone = a
   // deleted-peer DM; it keeps a manual delete action (same rule as the prior
   // shell default: canDelete = has peer ref but no resolvable display name).
   const dmLabel = (d: Conversation): string =>
-    d.peer_display_name ? `@${d.peer_display_name}` : d.peer_identity_id ? '(deleted)' : 'Direct message';
+    d.dm_type === 'agent_agent_dm'
+      ? dmDisplayName(d)
+      : d.peer_display_name
+        ? `@${d.peer_display_name}`
+        : d.peer_identity_id
+          ? '(deleted)'
+          : 'Direct message';
   const dmCanDelete = (d: Conversation): boolean => !!d.peer_identity_id && !d.peer_display_name;
+
+  // One DM row (NavLink + optional delete) — shared by both groups. Agent↔agent
+  // rows carry an `agent` tag so the kind is unmistakable even mid-scroll.
+  const renderDmRow = (d: Conversation): React.ReactElement => (
+    <li key={d.id}>
+      <div className="flex items-center gap-1">
+        <NavLink
+          to={`${orgBase}/dms/${encodeURIComponent(d.id)}`}
+          className={rowClass}
+          data-testid="conv-nav-dm"
+          data-dm-type={d.dm_type ?? 'my_dm'}
+        >
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="min-w-0 truncate">{dmLabel(d)}</span>
+            {d.dm_type === 'agent_agent_dm' && (
+              <span className="shrink-0 rounded bg-status-blue-bg px-1 py-0.5 text-[0.5rem] font-semibold uppercase leading-none text-status-blue-fg">
+                agent
+              </span>
+            )}
+          </span>
+          <UnreadBadge unreadCount={d.unread_count} mentionCount={d.mention_count} />
+        </NavLink>
+        {dmCanDelete(d) && (
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted hover:bg-danger/10 hover:text-danger"
+            data-testid="sidebar-dm-delete-button"
+            aria-label={`Delete DM ${dmLabel(d)}`}
+            title="Delete DM"
+            onClick={() => {
+              deleteConversation.reset();
+              setPendingDeleteDM({
+                id: d.id,
+                to: `${orgBase}/dms/${encodeURIComponent(d.id)}`,
+                label: dmLabel(d),
+              });
+            }}
+          >
+            <TrashIcon />
+          </button>
+        )}
+      </div>
+    </li>
+  );
 
   return (
     <div className="space-y-4" data-testid="conversations-secondary-nav">
@@ -139,44 +205,30 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
           createTestId="conv-new-dm"
           createLabel="New direct message"
         />
-        <ul className="space-y-0.5">
-          {dmList.length === 0 && <EmptyRow text="No direct messages" />}
-          {dmList.map((d) => (
-            <li key={d.id}>
-              <div className="flex items-center gap-1">
-                <NavLink
-                  to={`${orgBase}/dms/${encodeURIComponent(d.id)}`}
-                  className={rowClass}
-                  data-testid="conv-nav-dm"
-                >
-                  <span className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="min-w-0 truncate">{dmLabel(d)}</span>
-                  </span>
-                  <UnreadBadge unreadCount={d.unread_count} mentionCount={d.mention_count} />
-                </NavLink>
-                {dmCanDelete(d) && (
-                  <button
-                    type="button"
-                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted hover:bg-danger/10 hover:text-danger"
-                    data-testid="sidebar-dm-delete-button"
-                    aria-label={`Delete DM ${dmLabel(d)}`}
-                    title="Delete DM"
-                    onClick={() => {
-                      deleteConversation.reset();
-                      setPendingDeleteDM({
-                        id: d.id,
-                        to: `${orgBase}/dms/${encodeURIComponent(d.id)}`,
-                        label: dmLabel(d),
-                      });
-                    }}
-                  >
-                    <TrashIcon />
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+        {dmList.length === 0 && (
+          <ul className="space-y-0.5">
+            <EmptyRow text="No direct messages" />
+          </ul>
+        )}
+        {/* My DMs (the subheader only appears when there are ALSO agent-agent DMs,
+            so a viewer with only personal DMs sees a clean flat list). */}
+        {myDMs.length > 0 && (
+          <>
+            {agentAgentDMs.length > 0 && <SubHeader label="My DMs" />}
+            <ul className="space-y-0.5" data-testid="conv-nav-dms-mine">
+              {myDMs.map(renderDmRow)}
+            </ul>
+          </>
+        )}
+        {/* Agent-to-agent DMs — labeled "@A ↔ @B" so the two agents are explicit. */}
+        {agentAgentDMs.length > 0 && (
+          <>
+            <SubHeader label="Agent-to-agent" />
+            <ul className="space-y-0.5" data-testid="conv-nav-dms-agent">
+              {agentAgentDMs.map(renderDmRow)}
+            </ul>
+          </>
+        )}
       </div>
 
       {deleteConversation.isError && (
