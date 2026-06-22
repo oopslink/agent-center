@@ -145,6 +145,91 @@ func (s *Server) listUnreadConversationsHandler(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusOK, out)
 }
 
+// POST /api/orgs/{slug}/unread-conversations/mark-all-read (T334) — mark EVERY
+// conversation in the digest read for the logged-in human in one call. It mirrors
+// the list handler's scan + relevance gate (followed, top-level, engaged-for-pm),
+// then advances each unread conversation's read cursor to its newest message via
+// the same ReadStateSvc.MarkSeen the per-conversation /seen endpoint uses (only-
+// forward, idempotent). Returns {"marked": N}. Human-only + fail-soft when unwired.
+func (s *Server) markAllUnreadConversationsSeenHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	self := conversation.IdentityRef(d.Actor)
+	if !self.IsHuman() || d.ConvRepo == nil || d.ReadStateSvc == nil || d.FollowStateSvc == nil || d.MsgRepo == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"marked": 0})
+		return
+	}
+	selfDisplayName := resolveDisplayName(r, d, self)
+
+	active := conversation.ConversationActive
+	var all []*conversation.Conversation
+	var cursor *conversation.ConversationID
+	for len(all) < unreadConvScanCap {
+		page, err := d.ConvRepo.Find(r.Context(), conversation.ConversationFilter{
+			OrganizationID: orgID,
+			Status:         &active,
+			Cursor:         cursor,
+			Limit:          conversation.DefaultConversationLimit,
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+			return
+		}
+		all = append(all, page...)
+		if len(page) < conversation.DefaultConversationLimit {
+			break
+		}
+		last := page[len(page)-1].ID()
+		cursor = &last
+	}
+
+	followedMap := map[conversation.ConversationID]bool{}
+	if m, ferr := d.FollowStateSvc.ResolveFollowed(r.Context(), self, all); ferr == nil {
+		followedMap = m
+	}
+	// Newest message per conversation — the cursor target for MarkSeen.
+	recentByConv := map[conversation.ConversationID][]*conversation.Message{}
+	if len(all) > 0 {
+		ids := make([]conversation.ConversationID, len(all))
+		for i, c := range all {
+			ids[i] = c.ID()
+		}
+		if m, rerr := d.MsgRepo.RecentByConversations(r.Context(), ids, 1); rerr == nil {
+			recentByConv = m
+		}
+	}
+
+	marked := 0
+	for _, c := range all {
+		if c.ParentConversationID() != "" || !followedMap[c.ID()] {
+			continue
+		}
+		sum, err := d.ReadStateSvc.UnreadWithMentions(r.Context(), self, c.ID(), selfDisplayName)
+		if err != nil || sum.UnreadCount == 0 {
+			continue
+		}
+		if isPMConversationKind(c.Kind()) && !s.userEngagedWith(r, d, self, c, sum) {
+			continue
+		}
+		recent := recentByConv[c.ID()]
+		if len(recent) == 0 {
+			continue // nothing to advance the cursor to
+		}
+		if _, merr := d.ReadStateSvc.MarkSeen(r.Context(), convservice.MarkSeenCommand{
+			UserID:            self,
+			ConversationID:    c.ID(),
+			LastSeenMessageID: recent[0].ID(),
+			Actor:             d.Actor,
+		}); merr == nil {
+			marked++
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"marked": marked})
+}
+
 // isPMConversationKind reports whether a kind is a ProjectManager-owned
 // conversation (task/issue/plan) — the kinds that get the extra "engaged" gate
 // and need a project_id resolved for their route.

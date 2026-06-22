@@ -164,6 +164,52 @@ func TestAPI_UnreadConversations_Digest(t *testing.T) {
 	}
 }
 
+// T334: mark-all-read advances every digest conversation's read cursor in one
+// call, after which the digest is empty.
+func TestAPI_UnreadConversations_MarkAllRead(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	self := conversation.IdentityRef("user:" + sess.IdentityID)
+
+	chID, _ := seedConvAndMessages(t, deps, sess.OrgID, "research-room", 2)
+	engConv, _, _, engIDs := seedPMTaskConv(t, deps, sess.OrgID, "My churn fix", 2)
+	if _, err := deps.ReadStateSvc.MarkSeen(context.Background(), convservice.MarkSeenCommand{
+		UserID: self, ConversationID: engConv, LastSeenMessageID: engIDs[0], Actor: observability.Actor(self),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	// pre-check: digest has the channel (2 unread) + engaged task (1 unread).
+	before := digestByConvID(t, orgScopedGet(t, s.URL+"/api/unread-conversations", sess))
+	if before[string(chID)] == nil || before[string(engConv)] == nil {
+		t.Fatalf("expected channel + engaged task in digest before mark-all, got %v", before)
+	}
+
+	resp := orgScopedPost(t, s.URL+"/api/unread-conversations/mark-all-read", "{}", sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("mark-all-read status=%d", resp.StatusCode)
+	}
+	var body struct {
+		Marked int `json:"marked"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if body.Marked < 2 {
+		t.Errorf("marked=%d want >=2 (channel + engaged task)", body.Marked)
+	}
+
+	// after: the digest is empty (every conversation's cursor advanced to head).
+	after := digestByConvID(t, orgScopedGet(t, s.URL+"/api/unread-conversations", sess))
+	if len(after) != 0 {
+		t.Errorf("digest should be empty after mark-all-read, got %d rows: %v", len(after), after)
+	}
+}
+
 func TestAPI_UnreadConversations_HumanOnly_EmptyForUnwired(t *testing.T) {
 	// Services unwired (no follow/read-state) → fail-soft empty list, not 500.
 	deps, db := setupAPIWithAuth(t)

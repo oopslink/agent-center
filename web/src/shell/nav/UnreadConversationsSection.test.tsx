@@ -67,7 +67,16 @@ const DM_SINGLE: UnreadConversationRow = {
   route: '/dms/d1',
 };
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  // T334: the collapse state persists in localStorage — reset between tests.
+  try {
+    localStorage.clear?.();
+    localStorage.removeItem?.('ac.unreadconv.collapsed');
+  } catch {
+    /* test-env stub */
+  }
+});
 
 describe('UnreadConversationsSection (I23 / T332)', () => {
   beforeEach(() => mockDigest([TASK_MENTION, CHANNEL_UNREAD, DM_SINGLE]));
@@ -94,13 +103,32 @@ describe('UnreadConversationsSection (I23 / T332)', () => {
     expect(tags).toContain('DM');
   });
 
-  it('marks an @me row with the @提到你 label + a brand @N mention badge', async () => {
+  it('marks an @me row with the "Mentions you" label + a brand @N mention badge', async () => {
     renderSection();
     await screen.findByTestId('unread-conversations-section');
     const taskRow = screen.getByRole('link', { name: /My churn fix/ });
     expect(taskRow).toHaveAttribute('data-mention', 'true');
-    expect(within(taskRow).getByTestId('unread-conv-mention-label')).toHaveTextContent('@提到你');
+    expect(within(taskRow).getByTestId('unread-conv-mention-label')).toHaveTextContent(/mentions you/i);
     expect(within(taskRow).getByTestId('unread-conv-mention-badge')).toHaveTextContent('@1');
+  });
+
+  it('shows English labels + a Mark-all-read action that POSTs (T334)', async () => {
+    let marked = false;
+    server.use(
+      http.post('/api/unread-conversations/mark-all-read', () => {
+        marked = true;
+        return HttpResponse.json({ marked: 3 });
+      }),
+    );
+    renderSection();
+    const section = await screen.findByTestId('unread-conversations-section');
+    // English header + filter chips.
+    expect(within(section).getByTestId('unread-collapse-toggle')).toHaveTextContent(/Unread/);
+    expect(screen.getByTestId('unread-filter-all')).toHaveTextContent(/All/);
+    expect(screen.getByTestId('unread-filter-mentions')).toHaveTextContent(/@me/);
+    // Mark-all-read button fires the bulk endpoint.
+    fireEvent.click(screen.getByTestId('unread-mark-all-read'));
+    await waitFor(() => expect(marked).toBe(true));
   });
 
   it('shows a neutral count badge for multi-unread and a dot for a single unread', async () => {
@@ -131,6 +159,23 @@ describe('UnreadConversationsSection (I23 / T332)', () => {
     const unreadRows = screen.getAllByTestId('unread-conv-row');
     expect(unreadRows).toHaveLength(2);
     expect(screen.queryByRole('link', { name: /My churn fix/ })).not.toBeInTheDocument();
+  });
+
+  it('collapses and expands the digest via the header (T334)', async () => {
+    renderSection();
+    const toggle = await screen.findByTestId('unread-collapse-toggle');
+    // expanded by default → rows + filters shown.
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByTestId('unread-conv-row').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('unread-filter-all')).toBeInTheDocument();
+    // collapse → rows + filters hidden; header (with count) stays.
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('unread-conv-row')).toBeNull();
+    expect(screen.queryByTestId('unread-filter-all')).toBeNull();
+    // expand again.
+    fireEvent.click(toggle);
+    expect(screen.getAllByTestId('unread-conv-row').length).toBeGreaterThan(0);
   });
 
   it('renders nothing when there is no unread (dynamic region)', async () => {

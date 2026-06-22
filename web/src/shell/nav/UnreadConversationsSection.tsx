@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { useUnreadConversations } from '@/api/conversations';
+import { useUnreadConversations, useMarkAllConversationsRead } from '@/api/conversations';
 import type { UnreadConversationRow, UnreadConversationSource } from '@/api/types';
 import { formatChatTime } from '@/utils/time';
 
@@ -19,6 +19,17 @@ import { formatChatTime } from '@/utils/time';
 // ============================================================================
 
 type Filter = 'all' | 'mentions' | 'unread';
+
+// T334: the digest is collapsible; the fold state persists in localStorage so it
+// stays folded across navigation (mirrors the DM subgroups / unmerged panel).
+const UNREAD_COLLAPSE_KEY = 'ac.unreadconv.collapsed';
+function readUnreadCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(UNREAD_COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 // Source-tag presentation per source family (mockup: 来源标签着色). Colors come
 // from the design-token status palette so <html class="dark"> flips them; the
@@ -161,7 +172,7 @@ function UnreadRow({
                 data-testid="unread-conv-mention-label"
                 className="shrink-0 rounded bg-brand/10 px-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-brand"
               >
-                @提到你
+                Mentions you
               </span>
             )}
             <span className="min-w-0 truncate text-xs text-text-muted">{preview}</span>
@@ -180,7 +191,19 @@ function UnreadRow({
 
 export function UnreadConversationsSection({ orgBase }: { orgBase: string }): React.ReactElement | null {
   const { data } = useUnreadConversations();
+  const markAllRead = useMarkAllConversationsRead();
   const [filter, setFilter] = useState<Filter>('all');
+  const [collapsed, setCollapsed] = useState(readUnreadCollapsed);
+  const toggleCollapsed = (): void =>
+    setCollapsed((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem(UNREAD_COLLAPSE_KEY, next ? '1' : '0');
+      } catch {
+        /* storage disabled */
+      }
+      return next;
+    });
 
   const rows = useMemo(() => data ?? [], [data]);
   const mentionRows = useMemo(() => rows.filter((r) => r.mention_count > 0), [rows]);
@@ -194,29 +217,58 @@ export function UnreadConversationsSection({ orgBase }: { orgBase: string }): Re
 
   return (
     <div data-testid="unread-conversations-section">
-      <div className="flex items-center justify-between px-1 pb-1">
-        <h3 className="text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
-          未读会话
-        </h3>
+      <div className="flex items-center justify-between gap-2 px-1 pb-1">
+        {/* T334: the header toggles the whole digest (chevron rotates when open);
+            the total count stays visible even when collapsed. */}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          data-testid="unread-collapse-toggle"
+          className="flex min-w-0 items-center gap-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary"
+        >
+          <svg
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            className={`h-2.5 w-2.5 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+          >
+            <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Unread</span>
+          <span className="tabular-nums opacity-70">{rows.length}</span>
+        </button>
+        {/* T334: mark every conversation in the digest read in one click. */}
+        <button
+          type="button"
+          onClick={() => markAllRead.mutate()}
+          disabled={markAllRead.isPending}
+          data-testid="unread-mark-all-read"
+          className="shrink-0 rounded px-1 text-[0.625rem] font-medium text-text-muted hover:text-text-primary disabled:opacity-50"
+          title="Mark all unread conversations read"
+        >
+          {markAllRead.isPending ? 'Marking…' : 'Mark all read'}
+        </button>
       </div>
-      <div className="mb-1 flex flex-wrap gap-1 px-1" role="group" aria-label="未读会话筛选">
+      {collapsed ? null : (
+      <>
+      <div className="mb-1 flex flex-wrap gap-1 px-1" role="group" aria-label="Unread filters">
         <FilterChip
           active={filter === 'all'}
-          label="全部"
+          label="All"
           count={rows.length}
           testId="unread-filter-all"
           onClick={() => setFilter('all')}
         />
         <FilterChip
           active={filter === 'mentions'}
-          label="@我"
+          label="@me"
           count={mentionRows.length}
           testId="unread-filter-mentions"
           onClick={() => setFilter('mentions')}
         />
         <FilterChip
           active={filter === 'unread'}
-          label="未读"
+          label="Unread"
           count={plainUnreadRows.length}
           testId="unread-filter-unread"
           onClick={() => setFilter('unread')}
@@ -224,11 +276,13 @@ export function UnreadConversationsSection({ orgBase }: { orgBase: string }): Re
       </div>
       <ul className="space-y-0.5">
         {shown.length === 0 ? (
-          <li className="px-2 py-0.5 text-xs italic text-text-muted">无匹配会话</li>
+          <li className="px-2 py-0.5 text-xs italic text-text-muted">No matching conversations</li>
         ) : (
           shown.map((row) => <UnreadRow key={row.conversation_id} row={row} orgBase={orgBase} />)
         )}
       </ul>
+      </>
+      )}
     </div>
   );
 }

@@ -161,6 +161,7 @@ func (s *Server) routes() {
 	// I23 (T332): cross-source "unread conversations" digest for the main sidebar
 	// (registered before the /{id} routes so the static path isn't shadowed).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/unread-conversations", s.listUnreadConversationsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/unread-conversations/mark-all-read", s.markAllUnreadConversationsSeenHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations", s.createConversationHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}", s.showConversationHandler)
 	// v2.7 #198: hard-delete a DM (channels use archive → 400 use_archive).

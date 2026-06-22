@@ -46,6 +46,20 @@ export function useUnreadConversations() {
   });
 }
 
+// T334: "mark all read" for the cross-source unread digest — one call advances
+// every unread conversation's read cursor to its newest message server-side.
+// Invalidates the digest + the conversation lists so the badges clear.
+export function useMarkAllConversationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ marked: number }>('/unread-conversations/mark-all-read', {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.unreadConversations() });
+      void qc.invalidateQueries({ queryKey: qk.conversations() });
+    },
+  });
+}
+
 export function useConversation(id: string | undefined) {
   return useQuery({
     queryKey: qk.conversation(id ?? ''),
