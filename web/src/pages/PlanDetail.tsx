@@ -138,12 +138,13 @@ export default function PlanDetail(): React.ReactElement {
         ]}
       />
 
-      {/* T340: on MOBILE the card grows with its content (flex-col, no flex-1
-          bound) so the rounded border wraps the whole chat+composer and the PAGE
-          scrolls — the prior flex-1 bound + the chat's min-h-[60vh] floor made the
-          content spill past the card border (聊天框和背景错位 @oopslink). overflow-
-          hidden keeps the corners crisp. DESKTOP keeps flex-1 fill + internal scroll. */}
-      <div className="flex flex-col overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1 md:min-h-0 md:flex-1" data-testid="plan-detail-card">
+      {/* T341: the card is height-bounded (flex-1) + overflow-hidden so its rounded
+          border stays crisp and the CHAT fills the remaining height with its
+          composer pinned at the bottom (reachable inline — T340's grow-with-content
+          had pushed the composer off-screen). The chat body drops the min-h-[60vh]
+          floor (which had spilled past the border) — a bounded card makes flex-1
+          resolve correctly. Maximize (added on the chat) is the full-screen escape. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1" data-testid="plan-detail-card">
         <PlanDetailHeader projectId={id} plan={p} />
 
         {/* v2.13.0 / I18 F4 — the ship-gate board: the cycle's Integrate nodes
@@ -198,10 +199,24 @@ export default function PlanDetail(): React.ReactElement {
           >
             <PlanConversationSide conversationId={p.conversation_id} />
           </div>
-          <div role="tabpanel" hidden={tab !== 'dag'} data-testid="plan-panel-dag">
+          {/* T341: the card is overflow-hidden + height-bounded, so the DAG /
+              Task-List panels (tall content) must scroll INSIDE the card — give the
+              active panel min-h-0 flex-1 overflow-auto (else the content is clipped
+              and unscrollable, esp. on mobile — 'DAG 翻不了了' @oopslink). */}
+          <div
+            role="tabpanel"
+            hidden={tab !== 'dag'}
+            data-testid="plan-panel-dag"
+            className={tab === 'dag' ? 'min-h-0 flex-1 overflow-auto' : undefined}
+          >
             {tab === 'dag' && <PlanDag projectId={id} plan={p} />}
           </div>
-          <div role="tabpanel" hidden={tab !== 'tasks'} data-testid="plan-panel-tasks">
+          <div
+            role="tabpanel"
+            hidden={tab !== 'tasks'}
+            data-testid="plan-panel-tasks"
+            className={tab === 'tasks' ? 'min-h-0 flex-1 overflow-auto' : undefined}
+          >
             {tab === 'tasks' && <PlanTaskList projectId={id} plan={p} />}
           </div>
         </div>
@@ -230,6 +245,8 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   const advance = useAdvancePlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
+  // T341: mobile "Actions ▾" dropdown open-state (desktop always shows inline).
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const creatorName = resolveName(plan.creator_ref);
   const creatorLabel =
@@ -257,6 +274,23 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
         {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
         <PlanFailedIndicator hasFailed={plan.has_failed} />
         <span className="flex-1" />
+        {/* T341: on MOBILE the action buttons collapse into an "Actions ▾" dropdown
+            (@oopslink); on DESKTOP the wrapper dissolves (md:contents) and the menu
+            is always shown inline (md:flex md:static) regardless of the toggle. */}
+        <div className="relative md:contents" data-testid="plan-actions">
+          <button
+            type="button"
+            onClick={() => setActionsOpen((o) => !o)}
+            aria-expanded={actionsOpen}
+            data-testid="plan-actions-toggle"
+            className="flex items-center gap-1 rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary md:hidden"
+          >
+            Actions
+            <span aria-hidden="true">▾</span>
+          </button>
+          <div
+            className={`${actionsOpen ? 'flex' : 'hidden'} absolute right-0 top-full z-20 mt-1 w-48 flex-col items-stretch gap-1 rounded-md border border-border-base bg-bg-elevated p-1 shadow-2 md:mt-0 md:flex md:w-auto md:flex-row md:items-center md:gap-2 md:border-0 md:bg-transparent md:p-0 md:shadow-none md:static`}
+          >
         {/* Lifecycle (§9.4 / §9.6): running → Advance (dispatch ready) + Stop
             (→ draft); draft → Start. Each control is rendered exactly ONCE here
             (the DAG footer keeps the legend only). */}
@@ -340,6 +374,8 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             </button>
           </>
         )}
+          </div>
+        </div>
       </div>
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted" data-testid="plan-detail-meta">
         <div className="flex items-center gap-1">
@@ -1989,12 +2025,51 @@ function PlanConversationSide({
 }): React.ReactElement {
   const conv = useConversation(conversationId || undefined);
   const isMobile = useIsMobile(); // T324: embed the conv sidebar on desktop only
+  // T341: maximize the plan chat to a full-viewport overlay (composer pinned) —
+  // @oopslink, mirrors WorkItemConversation's maximize; the reliable way to type
+  // on mobile where the chat sits below the header/tabs in the card.
+  const [maximized, setMaximized] = useState(false);
+  useEffect(() => {
+    if (!maximized) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setMaximized(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [maximized]);
 
   return (
     <SenderSidebarProvider>
       {/* T328: the "P27 · chat" sub-header was removed — the plan id now lives on
-          the tab row (right-aligned), and the active "Chat" tab already labels this. */}
-      <section className="flex min-h-0 flex-1 flex-col" data-testid="plan-conversation">
+          the tab row. T341: a maximize toggle promotes the chat to a full-screen
+          overlay (composer pinned) — the inline chat fills the card via flex-1. */}
+      <section
+        className={
+          maximized
+            ? 'fixed inset-0 z-50 m-0 flex min-h-0 flex-col bg-bg-base p-3'
+            : 'flex min-h-0 flex-1 flex-col'
+        }
+        data-testid="plan-conversation"
+        data-maximized={maximized ? 'true' : 'false'}
+      >
+        <div className="mb-1 flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => setMaximized((m) => !m)}
+            data-testid="plan-conversation-maximize"
+            aria-pressed={maximized}
+            aria-label={maximized ? 'Restore chat' : 'Maximize chat'}
+            title={maximized ? 'Restore' : 'Maximize'}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {maximized ? <PlanChatRestoreIcon /> : <PlanChatMaximizeIcon />}
+          </button>
+        </div>
         {!conversationId ? (
           <p
             className="rounded border border-dashed border-border-base p-4 text-xs italic text-text-muted"
@@ -2004,11 +2079,8 @@ function PlanConversationSide({
           </p>
         ) : (
           <div
-            // T306: on mobile the plan-detail card is content-height (the page
-            // scrolls), so the chat's flex-1 collapsed to 0 and the message list +
-            // composer were invisible. Floor it to a usable height on phones
-            // (min-h-[60vh]); desktop keeps min-h-0 and fills via flex-1 as before.
-            className="flex min-h-[60vh] flex-1 overflow-hidden rounded border border-border-base md:min-h-0"
+            // T341: flex-1 fills the bounded card (composer pinned); no min-h floor.
+            className="flex min-h-0 flex-1 overflow-hidden rounded border border-border-base"
             data-testid="plan-conversation-body"
           >
             {/* T327: min-w-0 lets the messages column shrink so the embedded
@@ -2031,10 +2103,28 @@ function PlanConversationSide({
             )}
           </div>
         )}
-        <p className="mt-2 text-[0.6875rem] text-text-muted">
-          Dispatch = @assignee in this conversation (notify human / wake agent); also the place to discuss this plan.
-        </p>
+        {!maximized && (
+          <p className="mt-2 text-[0.6875rem] text-text-muted">
+            Dispatch = @assignee in this conversation (notify human / wake agent); also the place to discuss this plan.
+          </p>
+        )}
       </section>
     </SenderSidebarProvider>
+  );
+}
+
+// Maximize / restore glyphs for the plan chat (single-stroke SVGs, no-emoji rule).
+function PlanChatMaximizeIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.6" aria-hidden="true">
+      <path d="M8 4H4v4M16 8V4h-4M4 12v4h4M12 16h4v-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function PlanChatRestoreIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.6" aria-hidden="true">
+      <path d="M4 8h4V4M12 4v4h4M8 16v-4H4M16 12h-4v4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }

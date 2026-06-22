@@ -237,6 +237,26 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-dag')).not.toBeInTheDocument();
   });
 
+  it('maximizes / restores the plan chat via the toggle (T341)', async () => {
+    mockPlan();
+    wrap();
+    const section = await screen.findByTestId('plan-conversation');
+    expect(section).toHaveAttribute('data-maximized', 'false');
+    fireEvent.click(within(section).getByTestId('plan-conversation-maximize'));
+    expect(screen.getByTestId('plan-conversation')).toHaveAttribute('data-maximized', 'true');
+    fireEvent.click(screen.getByTestId('plan-conversation-maximize'));
+    expect(screen.getByTestId('plan-conversation')).toHaveAttribute('data-maximized', 'false');
+  });
+
+  it('collapses the header actions into a mobile Actions dropdown (T341)', async () => {
+    mockPlan();
+    wrap();
+    // The Actions toggle exists (mobile); the action buttons are still in the DOM
+    // (md: always-shown on desktop, dropdown on mobile).
+    expect(await screen.findByTestId('plan-actions-toggle')).toBeInTheDocument();
+    expect(within(screen.getByTestId('plan-actions')).getByTestId('plan-edit-btn')).toBeInTheDocument();
+  });
+
   it('DAG renders a node per task with the 6-state chips (label + color) + Advance', async () => {
     mockPlan();
     wrap();
