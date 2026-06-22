@@ -268,12 +268,26 @@ type listTasksReq struct {
 	ProjectID string   `json:"project_id"`
 	Status    []string `json:"status"`   // optional; one or more task statuses
 	Assignee  string   `json:"assignee"` // optional; exact identity ref (agent:x / user:y)
+	PageSize  int      `json:"page_size"` // optional; page window (default 50, max 100)
+	Offset    int      `json:"offset"`    // optional; rows to skip (default 0)
 }
 
-// listTasksHandler lists ALL tasks in a project (board overview), optionally
-// filtered by status and/or assignee — the MCP `list_tasks` tool. Project-member
-// guarded (org-isolation §5.7: a non-member / cross-org project → 404, no
-// disclosure). Reuses the agentTaskMap summary (incl. org_ref + plan_id).
+// list_tasks paging window — a busy project accumulates hundreds of (mostly
+// completed) tasks, each carrying a full description; returning them all in one
+// compact-JSON blob blew the MCP tool-result token cap. The tool now SQL-paginates
+// (LIMIT/OFFSET), newest-touched first, with a conservative default + hard cap.
+const (
+	listTasksDefaultPageSize = 50
+	listTasksMaxPageSize     = 100
+)
+
+// listTasksHandler lists a project's tasks (board overview), optionally filtered
+// by status and/or assignee — the MCP `list_tasks` tool. SQL-paginated
+// (page_size default 50 / max 100, offset) and newest-touched first, returning
+// {tasks,total,page_size,offset,has_more}; the prior unbounded variant returned
+// the whole board and overflowed the tool-result token cap on busy projects.
+// Project-member guarded (org-isolation §5.7: a non-member / cross-org project →
+// 404, no disclosure). Reuses the agentTaskMap summary (incl. org_ref + plan_id).
 func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req listTasksReq
@@ -293,31 +307,50 @@ func (s *Server) listTasksHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_project_id", "")
 		return
 	}
-	tasks, err := d.PMService.ListProjectTasksForMember(r.Context(),
-		pm.ProjectID(req.ProjectID), pm.IdentityRef(agentActor(a)))
+	// Page window: clamp to [1, max] with a sane default so an unbounded board
+	// (hundreds of tasks × full description) can't exceed the tool-result token cap.
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = listTasksDefaultPageSize
+	}
+	if pageSize > listTasksMaxPageSize {
+		pageSize = listTasksMaxPageSize
+	}
+	offset := req.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	// Status filter pushed into SQL (IN set); assignee matches full ref or bare id.
+	statuses := make([]string, 0, len(req.Status))
+	for _, st := range req.Status {
+		if s := strings.TrimSpace(st); s != "" {
+			statuses = append(statuses, s)
+		}
+	}
+	q := pm.OrgListQuery{
+		Statuses: statuses,
+		Assignee: strings.TrimSpace(req.Assignee),
+		SortDesc: true, // newest-touched first (SortColumn empty → updated_at)
+		Limit:    pageSize,
+		Offset:   offset,
+	}
+	tasks, total, err := d.PMService.ListProjectTasksPageForMember(r.Context(),
+		pm.ProjectID(req.ProjectID), pm.IdentityRef(agentActor(a)), q)
 	if err != nil {
 		mapDomainError(w, err) // non-member / not-found → 404 (§5.7)
 		return
 	}
-	// Optional status set (case-sensitive enum values) + exact assignee filter.
-	statusSet := map[string]bool{}
-	for _, st := range req.Status {
-		if s := strings.TrimSpace(st); s != "" {
-			statusSet[s] = true
-		}
-	}
-	assignee := strings.TrimSpace(req.Assignee)
 	out := make([]map[string]any, 0, len(tasks))
 	for _, t := range tasks {
-		if len(statusSet) > 0 && !statusSet[string(t.Status())] {
-			continue
-		}
-		if assignee != "" && string(t.Assignee()) != assignee {
-			continue
-		}
 		out = append(out, agentTaskMap(t))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tasks": out, "total": len(out)})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tasks":     out,
+		"total":     total, // pre-page total matching the filters
+		"page_size": pageSize,
+		"offset":    offset,
+		"has_more":  offset+len(out) < total,
+	})
 }
 
 // --- get_issue ---------------------------------------------------------------

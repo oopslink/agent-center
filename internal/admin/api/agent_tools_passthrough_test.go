@@ -147,6 +147,78 @@ func TestListTasks_FiltersAndIsolation(t *testing.T) {
 	}
 }
 
+// TestListTasks_Pagination verifies the SQL page window (page_size/offset),
+// the pre-page total + has_more flags, and the hard page-size cap — the fix for
+// the unbounded-board token overflow.
+func TestListTasks_Pagination(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t) // 1 task ("seed")
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	// Seed up to 5 tasks total in the project.
+	for i := 0; i < 4; i++ {
+		_, _ = f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: owner})
+		f.drain(t)
+	}
+	srv := f.server(t)
+
+	call := func(body map[string]any) map[string]any {
+		status, resp := postBearer(t, srv.URL, "/admin/agent-tools/list_tasks", "acat_w1", body)
+		if status != http.StatusOK {
+			t.Fatalf("list_tasks status=%d body=%v", status, resp)
+		}
+		return resp
+	}
+	ids := func(resp map[string]any) []string {
+		raw, _ := resp["tasks"].([]any)
+		out := make([]string, 0, len(raw))
+		for _, x := range raw {
+			out = append(out, x.(map[string]any)["id"].(string))
+		}
+		return out
+	}
+
+	// First page of 2 of 5 → has_more, total=5, page_size echoed.
+	p1 := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 2})
+	if got := int(p1["total"].(float64)); got != 5 {
+		t.Fatalf("total=%d want 5", got)
+	}
+	if int(p1["page_size"].(float64)) != 2 || p1["has_more"] != true {
+		t.Fatalf("page1 meta unexpected: %v", p1)
+	}
+	if len(ids(p1)) != 2 {
+		t.Fatalf("page1 size=%d want 2", len(ids(p1)))
+	}
+
+	// Page through with offset; collect all unique ids → must cover all 5 exactly.
+	seen := map[string]bool{}
+	for off := 0; off < 5; off += 2 {
+		page := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 2, "offset": off})
+		for _, id := range ids(page) {
+			if seen[id] {
+				t.Fatalf("duplicate id across pages: %s", id)
+			}
+			seen[id] = true
+		}
+	}
+	if len(seen) != 5 {
+		t.Fatalf("paged total unique=%d want 5", len(seen))
+	}
+
+	// Last page → has_more=false.
+	last := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 2, "offset": 4})
+	if last["has_more"] != false || len(ids(last)) != 1 {
+		t.Fatalf("last page meta unexpected: %v", last)
+	}
+
+	// Hard cap: an over-large page_size is clamped to the max in the echoed meta.
+	capped := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 100000})
+	if int(capped["page_size"].(float64)) != listTasksMaxPageSize {
+		t.Fatalf("page_size cap=%v want %d", capped["page_size"], listTasksMaxPageSize)
+	}
+}
+
 func TestListTasks_MissingProjectID_400(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)

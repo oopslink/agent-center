@@ -49,11 +49,15 @@ type listTasksArgs struct {
 	ProjectID string   `json:"project_id" jsonschema:"the project whose tasks to list (required)"`
 	Status    []string `json:"status,omitempty" jsonschema:"optional task statuses to include (e.g. open, running, completed); omit for all"`
 	Assignee  string   `json:"assignee,omitempty" jsonschema:"optional assignee identity ref to filter by (agent:<id> / user:<id>)"`
+	PageSize  int      `json:"page_size,omitempty" jsonschema:"page size (default 50, max 100); the result includes total + has_more"`
+	Offset    int      `json:"offset,omitempty" jsonschema:"number of tasks to skip for paging (default 0); use with page_size to fetch the next page"`
 }
 
-// makeListTasks lists ALL tasks in a project (board overview), optionally filtered
-// by status and/or assignee — fills the gap where get_my_work is self-only and
-// list_plans only covers plan nodes.
+// makeListTasks lists a project's tasks (board overview), newest-touched first,
+// optionally filtered by status and/or assignee — fills the gap where get_my_work
+// is self-only and list_plans only covers plan nodes. Results are SQL-paginated
+// (page_size default 50, max 100) with total + has_more, so a project with a long
+// task history doesn't overflow the tool-result token cap; page via offset.
 func makeListTasks(cfg Config) mcp.ToolHandlerFor[listTasksArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args listTasksArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
@@ -65,6 +69,12 @@ func makeListTasks(cfg Config) mcp.ToolHandlerFor[listTasksArgs, any] {
 		}
 		if args.Assignee != "" {
 			body["assignee"] = args.Assignee
+		}
+		if args.PageSize > 0 {
+			body["page_size"] = args.PageSize
+		}
+		if args.Offset > 0 {
+			body["offset"] = args.Offset
 		}
 		return callAdmin(ctx, cfg, "list_tasks", body)
 	}

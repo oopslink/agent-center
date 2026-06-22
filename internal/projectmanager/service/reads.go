@@ -369,6 +369,20 @@ func (s *Service) ListTasksOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*p
 	return s.tasks.ListOrgPage(ctx, q)
 }
 
+// ListProjectTasksPageForMember paginates a SINGLE project's tasks (SQL
+// LIMIT/OFFSET + COUNT) behind the §5.7 project-member guard — the paged read
+// path for the agent-facing list_tasks tool. It replaces the unbounded
+// ListProjectTasksForMember (which returned the whole board) so a busy project's
+// task history can't blow the MCP tool-result token cap. q.ProjectIDs is forced
+// to [projectID]; the caller supplies status/assignee filters + page window.
+func (s *Service) ListProjectTasksPageForMember(ctx context.Context, projectID pm.ProjectID, actor pm.IdentityRef, q pm.OrgListQuery) ([]*pm.Task, int, error) {
+	if err := s.requireProjectMember(ctx, projectID, actor); err != nil {
+		return nil, 0, err
+	}
+	q.ProjectIDs = []pm.ProjectID{projectID}
+	return s.tasks.ListOrgPage(ctx, q)
+}
+
 // ListOrgPlansPage SQL-paginates the NON-builtin base plan rows across the
 // query's projects, then enriches ONLY the returned page with the derived view
 // (progress / has_failed) via planDetail. Returns the page's PlanDetails + the
