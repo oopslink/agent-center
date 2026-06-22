@@ -55,14 +55,21 @@ export function useMentionResolver(): (handle: string) => string | null {
 // the prefixed form is "agent:agent-<id>"). So we key by the bare member id of
 // every agent member and resolve the whole token. Returns null for an unknown id
 // (a hyphenated word like "agent-based" stays plain text — verify-not-trust).
-export function useAgentRefResolver(): (token: string) => string | null {
+// ResolvedAgentRef — the prefixed identity ref (for the sidebar) + the display
+// label (the agent's NAME, not its raw id — @oopslink T337).
+export interface ResolvedAgentRef {
+  ref: string;
+  label: string;
+}
+
+export function useAgentRefResolver(): (token: string) => ResolvedAgentRef | null {
   const members = useMembers();
   const byBareId = useMemo(() => {
-    const m = new Map<string, string>(); // bare id ("agent-<id>", lc) → "agent:agent-<id>"
+    const m = new Map<string, ResolvedAgentRef>(); // bare id ("agent-<id>", lc) → {ref,label}
     for (const mem of members.data ?? []) {
       if (mem.kind !== 'agent') continue;
       const bare = normalizeIdentityRef(mem.identity_id); // e.g. "agent-35ac0e16"
-      if (bare) m.set(bare.toLowerCase(), identityRefOf(mem));
+      if (bare) m.set(bare.toLowerCase(), { ref: identityRefOf(mem), label: mem.display_name || bare });
     }
     return m;
   }, [members.data]);
@@ -266,10 +273,10 @@ interface MentionTextProps {
    * detail page labelled with its "I123" org_ref; an unresolved reference stays
    * plain text. Symmetric with resolveTask / resolvePlan. */
   resolveIssue?: (ref: string) => ResolvedIssueRef | null;
-  /** T335: optional agent-id resolver (members + agents list). A bare
-   * `agent-<id>` whose id resolves becomes a clickable token opening the agent
-   * sidebar; an unknown id stays plain text. */
-  resolveAgent?: (id: string) => string | null;
+  /** T336/T337: optional agent-ref resolver. The FULL `agent-<id>` token (the
+   * bare member identity id) → its prefixed ref + display NAME; a resolvable ref
+   * becomes a clickable token labelled with the agent's name (not its id). */
+  resolveAgent?: (token: string) => ResolvedAgentRef | null;
 }
 
 // MentionText tokenizes one plain-text string, turning each @handle that
@@ -407,26 +414,27 @@ export function MentionText({
         );
       }
     } else if (agentRef !== undefined && resolveAgent) {
-      // T336: resolve the FULL "agent-<id>" token (it IS the bare member identity
-      // id) via the agent resolver. Only a KNOWN agent linkifies; the click opens
-      // the agent's SenderDetailSidebar (onMention with the prefixed ref).
-      const ref = resolveAgent(agentRef);
-      if (ref && ref.startsWith('agent:')) {
+      // T336/T337: resolve the FULL "agent-<id>" token (it IS the bare member
+      // identity id) → prefixed ref + display NAME. Only a KNOWN agent linkifies;
+      // the token shows the agent's NAME (not the raw id), the raw id on hover;
+      // the click opens the agent's SenderDetailSidebar (onMention with the ref).
+      const a = resolveAgent(agentRef);
+      if (a && a.ref.startsWith('agent:')) {
         node = (
           <button
             key={key++}
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onMention(ref);
+              onMention(a.ref);
             }}
             data-testid="agent-ref-token"
-            data-agent-ref={ref}
-            aria-label={`View ${agentRef} details`}
-            title={`Open ${agentRef}`}
+            data-agent-ref={a.ref}
+            aria-label={`View ${a.label} details`}
+            title={agentRef}
             className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
           >
-            {agentRef}
+            {a.label}
           </button>
         );
       }

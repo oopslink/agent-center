@@ -13,6 +13,7 @@ import {
   type ResolvedTaskRef,
   type ResolvedPlanRef,
   type ResolvedIssueRef,
+  type ResolvedAgentRef,
 } from './MentionText';
 import { useSenderSidebar } from './SenderSidebarContext';
 
@@ -54,7 +55,7 @@ function linkifyMentions(
   resolveTask: (taskId: string) => ResolvedTaskRef | null,
   resolvePlan: (planRef: string) => ResolvedPlanRef | null,
   resolveIssue: (issueRef: string) => ResolvedIssueRef | null,
-  resolveAgent: (id: string) => string | null,
+  resolveAgent: (token: string) => ResolvedAgentRef | null,
 ): React.ReactNode {
   if (!onMention) return children;
   return Children.map(children, (child) => {

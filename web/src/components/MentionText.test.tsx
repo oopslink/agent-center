@@ -615,12 +615,14 @@ describe('MentionText agent-ref linkify (T336)', () => {
     );
   }
 
-  it('linkifies a bare agent-<id> ref (the full token is the member identity id)', async () => {
+  it('linkifies a bare agent-<id> ref showing the agent NAME, not the id (T337)', async () => {
     mockAgentMembers();
     renderInProvider(<MarkdownMessage content={'integrate done by agent-35ac0e16 now'} />);
     const token = await screen.findByTestId('agent-ref-token');
     expect(token.tagName).toBe('BUTTON');
-    expect(token).toHaveTextContent('agent-35ac0e16');
+    // T337: the token shows the display NAME; the raw id is the hover title.
+    expect(token).toHaveTextContent('agent-center-dev5');
+    expect(token).toHaveAttribute('title', 'agent-35ac0e16');
     expect(token).toHaveAttribute('data-agent-ref', 'agent:agent-35ac0e16');
   });
 
@@ -628,7 +630,7 @@ describe('MentionText agent-ref linkify (T336)', () => {
     mockAgentMembers();
     renderInProvider(<MarkdownMessage content={'F5 Dev T311 owner=agent-f9dc523f done'} />);
     const token = await screen.findByTestId('agent-ref-token');
-    expect(token).toHaveTextContent('agent-f9dc523f');
+    expect(token).toHaveTextContent('agent-center-pd');
     expect(token).toHaveAttribute('data-agent-ref', 'agent:agent-f9dc523f');
   });
 
