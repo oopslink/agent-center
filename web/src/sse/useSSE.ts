@@ -216,6 +216,15 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         // as conversation.message_added, same SSE path that keeps the per-message
         // thread badge live. (cf #318 list-refresh-on-mutation.)
         invalidate(qk.conversationThreads(ev.conversation_id));
+        // T306: refresh the ref-resolver lists. A message often references a task/
+        // issue/plan an AGENT just created; message_added had no invalidation for
+        // the org task/issue/plan lists that useTaskRefResolver reads, so a fresh
+        // `task-<id>` stayed PLAIN TEXT until the 30s staleTime lapsed ("有概率没有
+        // 转成 ref 链接"). Refresh the prefix keys so it enters the resolver map and
+        // linkifies promptly.
+        invalidate(qk.orgTasksAll());
+        invalidate(qk.orgIssuesAll());
+        invalidate(qk.orgPlansAll());
       }
       return;
     case 'conversation.read_state.changed':
@@ -238,6 +247,11 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       if (ev.conversation_id) {
         invalidate(qk.refs(ev.conversation_id));
         invalidate(qk.messages(ev.conversation_id));
+        // T306: a message just gained task/issue/plan refs — refresh the resolver
+        // lists so the new `task-<id>`/`I<n>`/`P<n>` tokens linkify (see above).
+        invalidate(qk.orgTasksAll());
+        invalidate(qk.orgIssuesAll());
+        invalidate(qk.orgPlansAll());
       }
       return;
 

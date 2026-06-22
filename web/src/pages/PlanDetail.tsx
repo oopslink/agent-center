@@ -1951,7 +1951,11 @@ function PlanConversationSide({
           </p>
         ) : (
           <div
-            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded border border-border-base"
+            // T306: on mobile the plan-detail card is content-height (the page
+            // scrolls), so the chat's flex-1 collapsed to 0 and the message list +
+            // composer were invisible. Floor it to a usable height on phones
+            // (min-h-[60vh]); desktop keeps min-h-0 and fills via flex-1 as before.
+            className="flex min-h-[60vh] flex-1 flex-col overflow-hidden rounded border border-border-base md:min-h-0"
             data-testid="plan-conversation-body"
           >
             <ConversationView surface="task-thread" conversationId={conversationId} />
