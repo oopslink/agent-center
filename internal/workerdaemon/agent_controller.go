@@ -1001,7 +1001,7 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 	// v2.8.1 #278 D PR4a: NUDGE the agent to run its pull loop. The loop
 	// instructions live in the agent's persistent system prompt
 	// (claudestream.AgentWorkQueueSystemPrompt), so this is just a short wake — the
-	// agent reacts per its system prompt (finish current task, then get_my_work →
+	// agent reacts per its system prompt (finish current task, then list_my_tasks →
 	// start_task the next item). If no running session, skip (the item stays queued;
 	// the agent pulls it on its next boot/wake) — never wedge the cursor.
 	c.mu.Lock()
@@ -1025,7 +1025,7 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 // workAvailableNudge is the short wake injected on agent.work_available (v2.8.1
 // #278 D PR4a). The full pull-loop behavior is the persistent system prompt; this
 // only nudges the agent to run that loop when new work arrives.
-const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: call get_my_work, then start_task the next item."
+const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: call list_my_tasks, then start_task the next item."
 
 // startSession generates the per-agent mcp-config (written to a FILE the
 // supervisor reads by path — minimal key surface), resolves the agent home +

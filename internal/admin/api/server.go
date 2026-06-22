@@ -368,9 +368,15 @@ func (s *Server) routes() {
 	// claimed_pool. It replaces the former get_my_active_work / list_my_paused_work
 	// / list_assignment_pool tools (all removed, no compat).
 	s.mux.HandleFunc("POST /admin/agent-tools/get_my_work", s.getMyWorkHandler)
-	// v2.8.1 #278 D (pull model): the agent drives its own work-item queue —
-	// start_task (select a queued item → running, single-active-enforced) +
-	// fail_task (report the in-flight item failed → frees the slot to drain).
+	// v2.14.0 I14/F5 §五: the Task-model agent surface. list_my_tasks is the new
+	// "what do I have to do?" query (runnable open/running tasks, §13.A) replacing
+	// get_my_work; start_task is now task-based (open→running + §2.5 lease, §13.A
+	// run-ahead gated); heartbeat renews the running task's execution lease.
+	// (get_my_work + the work-item fail_task/pause_task/resume_task below are removed
+	// from the agent-facing MCP surface in F5; their code is deleted with AgentWorkItem
+	// in F7.)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_my_tasks", s.listMyTasksHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/heartbeat", s.heartbeatHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/start_task", s.startWorkHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/fail_task", s.failWorkHandler)
 	// T83: claim an open built-in assignment-pool task (pool tasks have no

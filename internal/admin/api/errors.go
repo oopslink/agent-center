@@ -51,8 +51,24 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	// report-active or pull start_task) lost to the single-active UNIQUE index /
 	// pre-check; the agent already has an in-flight work item. Benign conflict
 	// (not a 500); the work item stays queued. ----
-	case errors.Is(err, agent.ErrAgentHasActiveWork):
+	case errors.Is(err, agent.ErrAgentHasActiveWork),
+		// v2.14.0 I14/F5 (§13.B single-active on Task): start_task lost to the
+		// idx_tasks_one_active_per_agent UNIQUE index — the agent already has a
+		// running, non-blocked task. Benign conflict; the task stays open.
+		errors.Is(err, pm.ErrAgentHasActiveTask):
 		writeError(w, http.StatusConflict, "agent_busy", err.Error())
+
+	// ---- task_not_runnable (409) — v2.14.0 I14/F5 §13.A run-ahead gate: start_task
+	// on a task whose blockedBy dependencies are not yet satisfied (or a backlog /
+	// not-dispatched pool member). The task stays open; it becomes startable once its
+	// upstream completes (or it is added to a plan / dispatched into the pool). ----
+	case errors.Is(err, pm.ErrTaskNotRunnable):
+		writeError(w, http.StatusConflict, "task_not_runnable", err.Error())
+
+	// ---- task_blocked (409) — v2.14.0 I14/F5 §2.5: heartbeat on a blocked task. A
+	// blocked task is a lease-free legal pause, so there is no lease to renew. ----
+	case errors.Is(err, pm.ErrTaskBlocked):
+		writeError(w, http.StatusConflict, "task_blocked", err.Error())
 
 	// ---- work_item_reassigned (409) — v2.8.1 #278 PR4: an agent-facing write
 	// (complete/fail/pause/resume) lost the optimistic-lock (version CAS) race —
@@ -102,7 +118,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, workforce.ErrAgentInstanceArchived),
 		errors.Is(err, secretmgmt.ErrUserSecretRevoked),
 		errors.Is(err, pmservice.ErrNotMember),
-		errors.Is(err, pm.ErrCrossProject):
+		errors.Is(err, pm.ErrCrossProject),
+		// v2.14.0 I14/F5: heartbeat/own-task ops by a non-assignee agent.
+		errors.Is(err, pm.ErrNotTaskAssignee):
 		writeError(w, http.StatusForbidden, "terminal", err.Error())
 
 	// ---- invalid_transition (422) ---------------------------------------
@@ -122,7 +140,8 @@ func mapDomainError(w http.ResponseWriter, err error) {
 
 	// ---- bad_request (400) ----------------------------------------------
 	case errors.Is(err, secretmgmt.ErrMasterKeyNotLoaded),
-		errors.Is(err, pm.ErrBlockReasonRequired):
+		errors.Is(err, pm.ErrBlockReasonRequired),
+		errors.Is(err, pm.ErrInvalidBlockReasonType):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 
 	default:

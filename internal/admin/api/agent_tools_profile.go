@@ -42,7 +42,7 @@ var projectMemberCapabilities = []string{
 // regardless of project membership (self-discovery + own-work reads + replying
 // in conversations it participates in).
 var orgAgentCapabilities = []string{
-	"get_my_work", "get_my_profile", "find_org_agent", "post_message",
+	"list_my_tasks", "get_my_profile", "find_org_agent", "post_message",
 }
 
 // getMyProfileReq is the body for POST /admin/agent-tools/get_my_profile.

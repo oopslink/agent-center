@@ -80,16 +80,14 @@ func textContent(t *testing.T, res *mcp.CallToolResult) string {
 // one whose admin route differs — GET /admin/files/{ulid} — because it moves
 // bytes through the FileMover, not callAdmin).
 var wantTools = []string{
-	// b3-i (locked)
-	"get_my_work",
-	// v2.8.1 #278 D pull model: agent drives its own work-item queue
-	"start_task", "fail_task",
-	// T83: claim an open assignment-pool task (pull, no work item)
+	// v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)
+	"list_my_tasks",
+	// v2.14.0 I14/F5 §五: agent drives its own task queue by task_id (open→running + lease)
+	"start_task",
+	// T83: claim an open assignment-pool task (pull, ownerless)
 	"claim_task",
-	// v2.8.1 #278 PR4 scheduling autonomy
-	"pause_task", "resume_task",
-	// WS2: get_my_work (above) now also covers active / paused / claimable pool —
-	// the former get_my_active_work / list_my_paused_work / list_assignment_pool removed.
+	// v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
+	"heartbeat",
 	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention) + mark-seen
 	"get_my_unread", "mark_seen",
 	// v2.7 #185; T200 WS4: the single post tool (target = conversation|task|issue)
@@ -107,7 +105,7 @@ var wantTools = []string{
 	"list_issues", "list_tasks_of_issue",
 	// pm writes / passthrough
 	"create_task", "assign_task", "reassign_task",
-	"subscribe", "unsubscribe", "request_input",
+	"subscribe", "unsubscribe",
 	"block_task", "complete_task",
 	"discard_task",   // T119: terminal-discard a superseded / mis-created task
 	"set_task_issue", // T192: (re)set/clear derived_from_issue after creation
@@ -275,24 +273,24 @@ func TestAgentFacingToolParity(t *testing.T) {
 	}
 }
 
-func TestCallGetMyWork(t *testing.T) {
-	fake := &fakeAdmin{canned: json.RawMessage(`{"work_items":[{"id":"wi-1"}]}`)}
+func TestCallListMyTasks(t *testing.T) {
+	fake := &fakeAdmin{canned: json.RawMessage(`{"tasks":[{"task_id":"task-1"}]}`)}
 	cs := connect(t, Config{AgentID: "agent-42", Admin: fake})
 
-	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_my_work"})
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_my_tasks"})
 	if err != nil {
-		t.Fatalf("call get_my_work: %v", err)
+		t.Fatalf("call list_my_tasks: %v", err)
 	}
 	if res.IsError {
 		t.Fatalf("unexpected IsError; content=%v", res.Content)
 	}
-	if fake.gotTool != "get_my_work" {
-		t.Errorf("forwarded tool = %q, want get_my_work", fake.gotTool)
+	if fake.gotTool != "list_my_tasks" {
+		t.Errorf("forwarded tool = %q, want list_my_tasks", fake.gotTool)
 	}
 	if got := fake.gotBody["agent_id"]; got != "agent-42" {
 		t.Errorf("forwarded agent_id = %v, want agent-42", got)
 	}
-	if got := textContent(t, res); got != `{"work_items":[{"id":"wi-1"}]}` {
+	if got := textContent(t, res); got != `{"tasks":[{"task_id":"task-1"}]}` {
 		t.Errorf("text content = %q, want canned JSON", got)
 	}
 }
@@ -384,7 +382,7 @@ func TestAdminErrorBecomesIsError(t *testing.T) {
 	fake := &fakeAdmin{err: &AdminToolError{Status: 403, Body: `{"error":"forbidden"}`}}
 	cs := connect(t, Config{AgentID: "agent-1", Admin: fake})
 
-	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_my_work"})
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_my_tasks"})
 	if err != nil {
 		t.Fatalf("call returned protocol error, want IsError result: %v", err)
 	}
@@ -455,7 +453,7 @@ func TestTierTools_DefaultIsLeanCore(t *testing.T) {
 	// T252: the reminder family is CORE (directly discoverable) — guard against a
 	// regression that re-defers it behind search_tools (the bug PD hit in I4).
 	for _, name := range []string{
-		"get_my_work", "start_task", "complete_task", "post_message",
+		"list_my_tasks", "start_task", "heartbeat", "complete_task", "post_message",
 		"create_reminder", "list_reminders", "get_reminder", "update_reminder",
 	} {
 		if !got[name] {

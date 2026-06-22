@@ -6,29 +6,33 @@ import (
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-// start_task / fail_task — v2.8.1 #278 D (@oopslink's pull model; tool names
-// task-lexicon since WS1/T197). The agent, via the MCP start_task / fail_task
-// tools, drives its OWN work-item queue (the internal service/state machine keeps
-// the WorkItem vocabulary; only the agent-facing tool name is "task"):
-//   - start_task — select a queued work item and mark it running (queued→active).
-//     Single-active is enforced (service StartWork + DB UNIQUE partial index):
-//     if the agent already has an active/waiting_input item → 409 agent_busy and
-//     the item stays queued (queue-drain, not drop).
-//   - fail_task  — report the in-flight work item failed (active|waiting_input→
-//     failed); frees the active slot so the next queued item can drain.
-// Own-scope: the work item must belong to the calling agent (StartWork/FailWork
-// ownership-guard → ErrWorkItemNotFound → 404).
+// start_task / heartbeat — v2.14.0 I14/F5 §五 (Task pull model; replaces the
+// work-item start_task/fail_task and get_my_work). The agent, via the MCP
+// start_task / heartbeat tools, drives its OWN Task queue by task_id:
+//   - start_task — open→running on the Task (pm.StartTask), gated by §13.A
+//     EnsureTaskRunnable (blockedBy deps satisfied) so an agent can't run ahead of
+//     its upstream, and granting the §2.5 execution lease. Single-active is enforced
+//     by the idx_tasks_one_active_per_agent UNIQUE index → pm.ErrAgentHasActiveTask
+//     → 409 agent_busy (the task stays open, queue-drain not drop).
+//   - heartbeat  — renew the running task's execution lease (pm.HeartbeatTask) so the
+//     background lease-checker does not reclaim it; only the assignee may renew and a
+//     blocked task has no lease (pm.ErrTaskBlocked → 409 task_blocked).
+//
+// pause_task / resume_task / fail_task below remain on the legacy work-item model
+// (removed from the agent-facing surface in F5; their code is deleted with
+// AgentWorkItem in F7).
 
-type startWorkReq struct {
-	AgentID    string `json:"agent_id"`
-	WorkItemID string `json:"work_item_id"`
+type startTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
 }
 
 func (s *Server) startWorkHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	var req startWorkReq
+	var req startTaskReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
@@ -37,21 +41,63 @@ func (s *Server) startWorkHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if d.AgentSvc == nil {
-		writeError(w, http.StatusNotImplemented, "agent_svc_not_wired", "")
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	if strings.TrimSpace(req.WorkItemID) == "" {
-		writeError(w, http.StatusBadRequest, "missing_work_item_id", "")
+	if strings.TrimSpace(req.TaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return
 	}
-	if err := d.AgentSvc.StartWork(r.Context(), a.ID(), req.WorkItemID); err != nil {
-		writeWorkStateError(w, err)
+	actor := pm.IdentityRef(agentActor(a))
+	// §13.A run-ahead gate: an agent may start a task ONLY once its blockedBy
+	// dependencies are satisfied (EnsureTaskRunnable) — the same gate the deleted
+	// work-item start path enforced through the agentsvc.TaskRunGate port.
+	if err := d.PMService.EnsureTaskRunnable(r.Context(), pm.TaskID(req.TaskID)); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	if err := d.PMService.StartTask(r.Context(), pm.TaskID(req.TaskID), actor); err != nil {
+		mapDomainError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"work_item_id": req.WorkItemID,
-		"status":       string(agent.WorkItemActive),
+		"task_id": req.TaskID,
+		"status":  string(pm.TaskRunning),
+	})
+}
+
+type taskHeartbeatReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+}
+
+func (s *Server) heartbeatHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req taskHeartbeatReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.TaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	if err := d.PMService.HeartbeatTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"task_id": req.TaskID,
 	})
 }
 

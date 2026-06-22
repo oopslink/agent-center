@@ -878,14 +878,18 @@ func (s *Server) emitAwaitingInput(ctx context.Context, d HandlerDeps, a *agent.
 // --- block_task --------------------------------------------------------------
 
 type blockTaskReq struct {
-	AgentID string `json:"agent_id"`
-	TaskID  string `json:"task_id"`
-	Reason  string `json:"reason"`
+	AgentID    string `json:"agent_id"`
+	TaskID     string `json:"task_id"`
+	Reason     string `json:"reason"`
+	ReasonType string `json:"reason_type"`
 }
 
-// blockTaskHandler posts the block reason to the task Conversation AND moves the
-// Task to blocked via pm.BlockTask — ATOMICALLY (one outer RunInTx; both
+// blockTaskHandler posts the block reason to the task Conversation AND records the
+// blocked annotation via pm.BlockTask — ATOMICALLY (one outer RunInTx; both
 // AddMessage and the pm service nest into it). reason is REQUIRED (400 if empty).
+// reason_type classifies the block (v2.14.0 I14 §四): input_required (the agent
+// needs a user reply) or obstacle (an external blocker needs owner/PM
+// intervention); it defaults to obstacle when omitted.
 func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req blockTaskReq
@@ -909,6 +913,12 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_reason", "blocked requires a reason")
 		return
 	}
+	// reason_type defaults to obstacle when omitted; the pm service rejects any
+	// other invalid value (pm.ErrInvalidBlockReasonType → 4xx).
+	reasonType := pm.BlockReasonType(req.ReasonType)
+	if strings.TrimSpace(req.ReasonType) == "" {
+		reasonType = pm.BlockReasonObstacle
+	}
 	// T190: a backlog (inert) task cannot be blocked — surface the unified
 	// add-to-plan/pool guidance instead of the misleading not_agents_task (a backlog
 	// task has no WorkItem, so requireOwnTask would otherwise 403 it).
@@ -922,7 +932,7 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
 			return err
 		}
-		return d.PMService.BlockTask(txCtx, pm.TaskID(req.TaskID), req.Reason, pm.BlockReasonObstacle,
+		return d.PMService.BlockTask(txCtx, pm.TaskID(req.TaskID), req.Reason, reasonType,
 			pm.IdentityRef(agentActor(a)))
 	})
 	if err != nil {
