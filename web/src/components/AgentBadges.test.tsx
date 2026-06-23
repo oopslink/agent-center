@@ -3,10 +3,12 @@ import { cleanup, render, screen } from '@testing-library/react';
 import {
   ActivityBadge,
   AGENT_IDLE_MS,
+  AgentBacklogBadge,
   AgentLoadBadge,
   AgentStatusBadge,
   deriveAgentActivity,
   deriveAgentLoad,
+  deriveBacklogLevel,
   deriveAgentStatus,
 } from './AgentBadges';
 import type { Agent } from '@/api/types';
@@ -160,5 +162,28 @@ describe('agent load metric (T342)', () => {
     const badge = screen.getByTestId('agent-load-badge');
     expect(badge).toHaveTextContent('—');
     expect(badge).toHaveAttribute('data-load-level', 'none');
+  });
+});
+
+describe('agent backlog metric (T342b)', () => {
+  it('derives backlog level by pending depth', () => {
+    expect(deriveBacklogLevel(0)).toBe('none');
+    expect(deriveBacklogLevel(2)).toBe('low');
+    expect(deriveBacklogLevel(5)).toBe('medium');
+    expect(deriveBacklogLevel(6)).toBe('high');
+  });
+
+  it('renders the pending count with a depth-colored level', () => {
+    render(<AgentBacklogBadge agent={{ pending_tasks: 7 }} />);
+    const badge = screen.getByTestId('agent-backlog-badge');
+    expect(badge).toHaveTextContent('7');
+    expect(badge).toHaveAttribute('data-backlog-level', 'high');
+  });
+
+  it('shows 0 with a neutral level when there is no backlog', () => {
+    render(<AgentBacklogBadge agent={{ pending_tasks: 0 }} />);
+    const badge = screen.getByTestId('agent-backlog-badge');
+    expect(badge).toHaveTextContent('0');
+    expect(badge).toHaveAttribute('data-backlog-level', 'none');
   });
 });

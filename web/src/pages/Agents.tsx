@@ -16,7 +16,13 @@ import { useWorkers } from '@/api/workers';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
-import { AgentLoadBadge, AvailabilityBadge, LifecycleBadge, ProviderBadge } from '@/components/AgentBadges';
+import {
+  AgentBacklogBadge,
+  AgentLoadBadge,
+  AvailabilityBadge,
+  LifecycleBadge,
+  ProviderBadge,
+} from '@/components/AgentBadges';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { formatLocalTime } from '@/utils/time';
@@ -200,6 +206,13 @@ export default function Agents(): React.ReactElement {
                 >
                   Load
                 </th>
+                {/* T342b: backlog = pending (queued) task count, colored by depth. */}
+                <th
+                  className="w-[7%] border-b border-border-base px-3 py-2"
+                  title="Backlog — pending (queued) tasks; colored by depth"
+                >
+                  Backlog
+                </th>
                 {/* dev2/v281 canonical-fold: Role + Status folded from the retired
                     /members/agents page so the merge loses no information. */}
                 <th className="w-[7%] border-b border-border-base px-3 py-2">Role</th>
@@ -263,6 +276,9 @@ export default function Agents(): React.ReactElement {
                 </td>
                 <td className="border-b border-border-base px-3 py-2" data-testid="agent-load-cell">
                   <AgentLoadBadge agent={a} />
+                </td>
+                <td className="border-b border-border-base px-3 py-2" data-testid="agent-backlog-cell">
+                  <AgentBacklogBadge agent={a} />
                 </td>
                 {/* dev2/v281 canonical-fold: Role + membership Status resolved
                     via the member-list join (see memberForAgent). */}

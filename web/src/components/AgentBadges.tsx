@@ -261,6 +261,58 @@ export function AgentLoadBadge({
   );
 }
 
+// ── T342b: backlog (pending pressure) ──────────────────────────────────────
+// @oopslink: load alone (doing/total) hides the queue depth — an agent with a
+// big backlog can still read low-load. Surface the backlog = pending (open,
+// queued) task count as its own metric, colored by depth: none → neutral,
+// 1–2 → low, 3–5 → mid, 6+ → high (red). The count carries the meaning; the
+// color/dot is supplementary (never color-only).
+export type AgentBacklogLevel = 'none' | 'low' | 'medium' | 'high';
+
+export function deriveBacklogLevel(pending: number): AgentBacklogLevel {
+  if (pending <= 0) return 'none';
+  if (pending <= 2) return 'low';
+  if (pending <= 5) return 'medium';
+  return 'high';
+}
+
+const BACKLOG_DOT: Record<AgentBacklogLevel, string> = {
+  none: 'bg-text-muted',
+  low: 'bg-status-green-solid',
+  medium: 'bg-status-amber-solid',
+  high: 'bg-danger',
+};
+
+export function AgentBacklogBadge({
+  agent,
+}: {
+  agent: Pick<Agent, 'pending_tasks'>;
+}): React.ReactElement {
+  const pending = agent.pending_tasks ?? 0;
+  const level = deriveBacklogLevel(pending);
+  const title =
+    pending === 0
+      ? 'Backlog — no pending tasks'
+      : `Backlog — ${pending} pending (queued) task${pending === 1 ? '' : 's'}`;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-secondary"
+      data-testid="agent-backlog-badge"
+      data-backlog-level={level}
+      data-backlog={pending}
+      title={title}
+    >
+      {/* a small stacked-queue glyph so the count reads as "backlog", distinct
+          from the load fraction when shown side by side. */}
+      <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0 stroke-current" fill="none" strokeWidth="1.4" aria-hidden="true">
+        <path d="M3 5h10M3 8h10M3 11h10" strokeLinecap="round" />
+      </svg>
+      <span className={['h-2 w-2 shrink-0 rounded-full', BACKLOG_DOT[level]].join(' ')} aria-hidden="true" />
+      <span className="tabular-nums">{pending}</span>
+    </span>
+  );
+}
+
 export function LifecycleBadge({
   lifecycle,
 }: {
