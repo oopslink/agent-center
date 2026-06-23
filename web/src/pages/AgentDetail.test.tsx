@@ -170,6 +170,44 @@ describe('AgentDetail page', () => {
     expect(screen.getByTestId('agent-tabpanel-workspace')).toHaveTextContent(/Coming in v2.8/i);
   });
 
+  // I28/F7 (v2.15.0): the 5th tab mounts the per-agent analytics dashboard
+  // (cards + heatmap + trend + top tasks) and carries a "NEW" pill.
+  it('Analytics tab mounts the per-agent dashboard (#i28 F7)', async () => {
+    stubAgent();
+    const today = new Date().toISOString().slice(0, 10);
+    server.use(
+      http.get('/api/agents/:id/analytics', () =>
+        HttpResponse.json({
+          agent_id: 'A1',
+          agent_ref: 'agent:A1',
+          from: today,
+          to: today,
+          heatmap: [
+            { day: today, events: 3, completed: 1, tokens_in: 100, tokens_out: 50, cache_tokens: 0, cost_micros: 1000 },
+          ],
+          overview: {
+            today: { tokens_in: 0, tokens_out: 0, cache_tokens: 0, cost_micros: 0, completed_tasks: 0 },
+            week: { tokens_in: 0, tokens_out: 0, cache_tokens: 0, cost_micros: 0, completed_tasks: 0 },
+            month: { tokens_in: 0, tokens_out: 0, cache_tokens: 0, cost_micros: 0, completed_tasks: 0 },
+            active_days: 1,
+            streak: 1,
+          },
+          trends: { by_project: [], by_model: [] },
+          top_tasks: [],
+        }),
+      ),
+    );
+    wrap('/agents/A1');
+    // The tab carries a NEW pill.
+    expect(await screen.findByTestId('agent-tab-analytics-badge')).toHaveTextContent(/new/i);
+    fireEvent.click(screen.getByTestId('agent-tab-analytics'));
+    await waitFor(() => expect(screen.getByTestId('agent-tabpanel-analytics')).toBeInTheDocument());
+    // Dashboard blocks render: overview cards, the F5 heatmap, and the trend.
+    expect(await screen.findByTestId('analytics-overview-cards')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-heatmap')).toBeInTheDocument();
+    expect(screen.getByTestId('analytics-trend')).toBeInTheDocument();
+  });
+
   it('links a work item to its task by title when resolved (#206)', async () => {
     server.use(
       http.get('/api/agents/:id', () => HttpResponse.json(agent())),
