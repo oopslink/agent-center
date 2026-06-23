@@ -1,0 +1,282 @@
+import { useMemo, useState } from 'react';
+import type React from 'react';
+import type { HeatmapCell } from '@/api/types';
+
+// AgentHeatmap (I28/F5, issue-a7ff560e v2.15.0) — the GitHub-style activity
+// contribution graph for the per-agent analytics dashboard. 53 weeks × 7 days
+// ending today (UTC), one square per UTC calendar day, with a switchable 口径
+// (Activity / Tokens / Cost). Per the English mockup
+// (docs/design/v2.15.0/mockups/i28-analytics-en.png) each 口径 owns a hue —
+// Activity=green, Tokens=blue, Cost=amber — and the SAME 5-step less→more
+// intensity ramp re-colors off that metric's field. F7 assembles this into the
+// AgentDetail analytics tab; this component is pure (cells as a prop) so it
+// unit-tests in isolation.
+//
+// All colours are semantic tokens (success / accent / warning / bg-subtle) so
+// the no-raw-colors-spa lint passes; the legend + cells are CSS squares and the
+// title marker is an inline SVG (never emoji) per the no-emoji-icons a11y rule.
+
+export type HeatmapMetric = 'activity' | 'tokens' | 'cost';
+
+interface AgentHeatmapProps {
+  cells: HeatmapCell[];
+  /** Override "now" for deterministic rendering/tests; defaults to the real now. */
+  today?: Date;
+  /** Initial 口径; defaults to 'activity'. */
+  initialMetric?: HeatmapMetric;
+}
+
+const WEEKS = 53;
+const DAYS_PER_WEEK = 7;
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Per-口径 hue + label + the solid swatch shown in the switch (mockup: green /
+// blue / amber). The intensity ramp (level 1..4) is opacity on the same token;
+// level 0 (empty) is the neutral surface so "no activity" ≠ "low activity".
+const METRICS: { id: HeatmapMetric; label: string; swatch: string; activeText: string; activePill: string }[] = [
+  { id: 'activity', label: 'Activity', swatch: 'bg-success', activeText: 'text-success', activePill: 'bg-success/15' },
+  { id: 'tokens', label: 'Tokens', swatch: 'bg-accent', activeText: 'text-accent', activePill: 'bg-accent/15' },
+  { id: 'cost', label: 'Cost', swatch: 'bg-warning', activeText: 'text-warning', activePill: 'bg-warning/15' },
+];
+
+const RAMP: Record<HeatmapMetric, Record<number, string>> = {
+  activity: { 0: 'bg-bg-subtle', 1: 'bg-success/30', 2: 'bg-success/50', 3: 'bg-success/75', 4: 'bg-success' },
+  tokens: { 0: 'bg-bg-subtle', 1: 'bg-accent/30', 2: 'bg-accent/50', 3: 'bg-accent/75', 4: 'bg-accent' },
+  cost: { 0: 'bg-bg-subtle', 1: 'bg-warning/30', 2: 'bg-warning/50', 3: 'bg-warning/75', 4: 'bg-warning' },
+};
+
+/** metricValue extracts the coloured field for a cell under the active 口径. */
+function metricValue(cell: HeatmapCell, metric: HeatmapMetric): number {
+  switch (metric) {
+    case 'tokens':
+      return cell.tokens_in + cell.tokens_out;
+    case 'cost':
+      return cell.cost_micros;
+    case 'activity':
+    default:
+      return cell.events;
+  }
+}
+
+/** intensityLevel buckets a value into 0..4 relative to the window max. */
+function intensityLevel(value: number, max: number): number {
+  if (value <= 0 || max <= 0) return 0;
+  const r = value / max;
+  if (r > 0.75) return 4;
+  if (r > 0.5) return 3;
+  if (r > 0.25) return 2;
+  return 1;
+}
+
+/** utcDay formats a Date as its UTC "YYYY-MM-DD" calendar date. */
+function utcDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** addUTCDays returns a new Date shifted by n days, preserving UTC midnight. */
+function addUTCDays(d: Date, n: number): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n));
+}
+
+/** formatValue renders the active 口径's value for the tooltip. */
+function formatValue(cell: HeatmapCell, metric: HeatmapMetric): string {
+  switch (metric) {
+    case 'tokens':
+      return `${(cell.tokens_in + cell.tokens_out).toLocaleString()} tokens`;
+    case 'cost': {
+      const usd = cell.cost_micros / 1_000_000;
+      // sub-cent costs matter on a per-turn dashboard; show up to 4 decimals.
+      return `$${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+    }
+    case 'activity':
+    default:
+      return `${cell.events} ${cell.events === 1 ? 'event' : 'events'}`;
+  }
+}
+
+/** prettyDay turns "YYYY-MM-DD" into "Jun 23, 2026" for the tooltip. */
+function prettyDay(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  if (!y || !m || !d) return day;
+  return `${MONTH_ABBR[m - 1]} ${d}, ${y}`;
+}
+
+interface GridCell {
+  date: string; // "YYYY-MM-DD"
+  inRange: boolean; // false for future days in the trailing week (rendered blank)
+  cell: HeatmapCell | null;
+}
+
+/** SectionMark is the small square outline marking each dashboard card title. */
+function SectionMark(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 stroke-current text-text-muted" fill="none" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2.5" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: AgentHeatmapProps): React.ReactElement {
+  const [metric, setMetric] = useState<HeatmapMetric>(initialMetric);
+
+  const byDay = useMemo(() => {
+    const m = new Map<string, HeatmapCell>();
+    for (const c of cells) m.set(c.day, c);
+    return m;
+  }, [cells]);
+
+  const max = useMemo(() => {
+    let mx = 0;
+    for (const c of cells) {
+      const v = metricValue(c, metric);
+      if (v > mx) mx = v;
+    }
+    return mx;
+  }, [cells, metric]);
+
+  // Build the 53×7 grid: columns are weeks (Sun-started), the last column is the
+  // week containing today, earlier days fill backwards. Work entirely in UTC so
+  // the day buckets line up with the rollup's UTC calendar dates.
+  const { columns, monthLabels } = useMemo(() => {
+    const now = today ?? new Date();
+    const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const lastSunday = addUTCDays(todayUTC, -todayUTC.getUTCDay());
+    const firstSunday = addUTCDays(lastSunday, -(WEEKS - 1) * DAYS_PER_WEEK);
+
+    const cols: GridCell[][] = [];
+    const labels: { col: number; label: string }[] = [];
+    let prevMonth = -1;
+    for (let w = 0; w < WEEKS; w++) {
+      const col: GridCell[] = [];
+      const colSunday = addUTCDays(firstSunday, w * DAYS_PER_WEEK);
+      const colMonth = colSunday.getUTCMonth();
+      if (colMonth !== prevMonth) {
+        labels.push({ col: w, label: MONTH_ABBR[colMonth] });
+        prevMonth = colMonth;
+      }
+      for (let r = 0; r < DAYS_PER_WEEK; r++) {
+        const date = addUTCDays(firstSunday, w * DAYS_PER_WEEK + r);
+        const ds = utcDay(date);
+        col.push({ date: ds, inRange: date.getTime() <= todayUTC.getTime(), cell: byDay.get(ds) ?? null });
+      }
+      cols.push(col);
+    }
+    return { columns: cols, monthLabels: labels };
+  }, [byDay, today]);
+
+  const active = METRICS.find((m) => m.id === metric) ?? METRICS[0];
+  const ramp = RAMP[metric];
+
+  const tip = (g: GridCell): string =>
+    `${prettyDay(g.date)}: ${formatValue(g.cell ?? emptyCell(g.date), metric)}`;
+  const levelOf = (g: GridCell): number => (g.cell ? intensityLevel(metricValue(g.cell, metric), max) : 0);
+
+  return (
+    <section className="rounded-lg border border-border-base bg-bg-elevated p-4" data-testid="agent-heatmap">
+      <header className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+          <SectionMark />
+          Activity Heatmap · last 12 months
+        </h3>
+        <div
+          className="flex gap-1 rounded-lg border border-border-base bg-bg-elevated p-1"
+          role="tablist"
+          aria-label="Heatmap metric"
+          data-testid="heatmap-metric-switch"
+        >
+          {METRICS.map((m) => {
+            const on = m.id === metric;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                data-testid={`heatmap-metric-${m.id}`}
+                data-active={on}
+                onClick={() => setMetric(m.id)}
+                className={[
+                  'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium',
+                  on ? `${m.activePill} ${m.activeText}` : 'text-text-secondary hover:text-text-primary',
+                ].join(' ')}
+              >
+                <span className={['h-2.5 w-2.5 rounded-[2px]', m.swatch].join(' ')} aria-hidden="true" />
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      <div className="overflow-x-auto">
+        {/* month labels row, aligned to the week columns (15px pitch = 12px cell + 3px gap) */}
+        <div className="ml-8 flex" aria-hidden="true" data-testid="heatmap-months">
+          {columns.map((_, w) => {
+            const lbl = monthLabels.find((l) => l.col === w);
+            return (
+              <div key={w} className="w-[15px] shrink-0 whitespace-nowrap text-[0.625rem] text-text-muted">
+                {lbl ? lbl.label : ''}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex">
+          {/* weekday row labels: Mon / Wed / Fri (rows 1/3/5; 0=Sun) */}
+          <div className="mr-1 flex w-7 flex-col gap-[3px] text-[0.625rem] text-text-muted" aria-hidden="true">
+            {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((lbl, i) => (
+              <div key={i} className="h-3 leading-3">
+                {lbl}
+              </div>
+            ))}
+          </div>
+
+          {/* the grid: one column per week */}
+          <div className="flex gap-[3px]" role="grid" aria-label={`Activity heatmap by day, coloured by ${active.label}`}>
+            {columns.map((col, w) => (
+              <div key={w} className="flex flex-col gap-[3px]" role="row">
+                {col.map((g) =>
+                  g.inRange ? (
+                    <div
+                      key={g.date}
+                      role="gridcell"
+                      data-testid="heatmap-cell"
+                      data-date={g.date}
+                      data-level={levelOf(g)}
+                      className={['h-3 w-3 rounded-[2px]', ramp[levelOf(g)]].join(' ')}
+                      title={tip(g)}
+                      aria-label={tip(g)}
+                    />
+                  ) : (
+                    <div key={g.date} className="h-3 w-3 rounded-[2px]" aria-hidden="true" />
+                  ),
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* legend: Less ▢▢▢▢▢ More — CSS squares in the active 口径's hue, no emoji */}
+        <div className="mt-3 flex items-center justify-end gap-1 text-[0.625rem] text-text-muted" data-testid="heatmap-legend">
+          <span>Less</span>
+          {[0, 1, 2, 3, 4].map((lvl) => (
+            <span
+              key={lvl}
+              data-testid={`heatmap-legend-${lvl}`}
+              className={['h-3 w-3 rounded-[2px]', ramp[lvl]].join(' ')}
+              aria-hidden="true"
+            />
+          ))}
+          <span>More</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** emptyCell is a zero-valued cell for a day with no rollup row (tooltip text). */
+function emptyCell(day: string): HeatmapCell {
+  return { day, events: 0, tokens_in: 0, tokens_out: 0, cache_tokens: 0, cost_micros: 0 };
+}
+
+export default AgentHeatmap;

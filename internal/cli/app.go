@@ -44,6 +44,7 @@ import (
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
 	settingssql "github.com/oopslink/agent-center/internal/settings/sqlite"
+	usagesql "github.com/oopslink/agent-center/internal/usage/sqlite"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
@@ -87,6 +88,11 @@ type App struct {
 	MsgRepo       conversation.MessageRepository
 	EventRepo     *obsqlite.EventRepo
 	Sink          *observability.EventSink
+
+	// Usage BC (v2.15.0 I28/F2): usage_events + model_prices repos backing the
+	// report_usage agent-tool.
+	UsageEventRepo *usagesql.UsageEventRepo
+	ModelPriceRepo *usagesql.ModelPriceRepo
 
 	EnrollSvc *wfservice.WorkerEnrollService
 	// WorkerConfigSvc backs the operator per-CLI capability toggle (v2.7 #147).
@@ -407,6 +413,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// nil-safe no-op: plan view shows no paused nodes).
 	agentActivityRepo := agentsql.NewActivityEventRepo(db)
 
+	// Usage BC (v2.15.0 I28/F2): plain db-backed repos for the report_usage tool.
+	usageEventRepo := usagesql.NewUsageEventRepo(db)
+	modelPriceRepo := usagesql.NewModelPriceRepo(db)
+
 	agentSvc := agentsvc.New(agentsvc.Deps{
 		DB:       db,
 		Agents:   agentRepo,
@@ -481,6 +491,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		MsgRepo:            mgRepo,
 		EventRepo:          er,
 		Sink:               sink,
+		UsageEventRepo:     usageEventRepo,
+		ModelPriceRepo:     modelPriceRepo,
 		EnrollSvc:          enroll,
 		WorkerConfigSvc:    workerConfig,
 		MessageWriter:      writer,

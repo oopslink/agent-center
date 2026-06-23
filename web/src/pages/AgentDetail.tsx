@@ -23,17 +23,22 @@ import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
 import { AgentProfile } from '@/components/AgentProfile';
 import { AgentTasks } from '@/components/AgentTasks';
+import { AgentAnalyticsPanel } from '@/components/analytics/AgentAnalyticsPanel';
 import { AgentContextPanel } from '@/components/AgentContextPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ContextPanel } from '@/shell/contextPanel';
 
-// v2.7.1 #228: AgentDetail is a 4-tab surface. Workspace is a v2.8 placeholder;
+// v2.7.1 #228: AgentDetail is a tab surface. Workspace is a v2.8 placeholder;
 // Profile/Activity/WorkItems get fleshed out in follow-up PRs (b/c/d).
+// I28/F7 (v2.15.0): the 5th tab `analytics` mounts the per-agent dashboard
+// (overview cards + activity heatmap + tokens/cost trend + top cost tasks),
+// route /agents/:id?tab=analytics. The mockup flags it with a "NEW" pill.
 const AGENT_TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'activity', label: 'Activity' },
   { key: 'workspace', label: 'Workspace' },
   { key: 'tasks', label: 'Tasks' },
+  { key: 'analytics', label: 'Analytics', badge: 'NEW' },
 ] as const;
 type AgentTab = (typeof AGENT_TABS)[number]['key'];
 
@@ -331,13 +336,21 @@ export default function AgentDetail(): React.ReactElement {
             tabIndex={tablist.tabIndexFor(t.key)}
             onClick={() => setTab(t.key)}
             data-testid={`agent-tab-${t.key}`}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+            className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
               tab === t.key
                 ? 'border-brand text-text-primary'
                 : 'border-transparent text-text-muted hover:text-text-primary'
             }`}
           >
             {t.label}
+            {'badge' in t && t.badge && (
+              <span
+                className="rounded-full bg-success/15 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase leading-none tracking-wide text-success"
+                data-testid={`agent-tab-${t.key}-badge`}
+              >
+                {t.badge}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -346,6 +359,13 @@ export default function AgentDetail(): React.ReactElement {
 
       {tab === 'workspace' && (
         <EmptyState testId="agent-tabpanel-workspace" title="Workspace" body="Coming in v2.8." />
+      )}
+
+      {/* I28/F7: per-agent analytics dashboard (cards + heatmap + trend + top tasks). */}
+      {tab === 'analytics' && (
+        <div data-testid="agent-tabpanel-analytics">
+          <AgentAnalyticsPanel agentId={id} />
+        </div>
       )}
 
       {/* Task queue (v2.7.1 #228 PR(d): read-only table). */}
