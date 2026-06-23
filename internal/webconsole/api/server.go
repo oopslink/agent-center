@@ -296,6 +296,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/archive", s.agentArchiveHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/tasks", s.agentTasksHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/activity", s.agentActivityHandler)
+	// I28/F4: per-agent analytics dashboard (composed read) + Top-Cost-Tasks drill-down.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/analytics", s.agentAnalyticsHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/analytics/tasks/{taskId}", s.agentAnalyticsTaskHandler)
 
 	// Secrets (metadata only — plaintext only at create time). Org via {slug} path.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/secrets", s.listSecretsHandler)
