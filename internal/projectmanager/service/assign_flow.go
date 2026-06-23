@@ -110,7 +110,16 @@ func (s *Service) syncPlanParticipantOnAssign(ctx context.Context, t *pm.Task, a
 // (the agent died without completing/blocking) is reclaimed to `open` by the
 // lease-checker (Task.ExpireLease) — the replacement for the deleted
 // AgentWorkItem.FailFromAgentDeath.
-const DefaultExecutionLeaseTTL = 15 * time.Minute
+//
+// T455: widened 15m → 5h. The 15m window was far too tight for a live agent that
+// goes heads-down in a long build/run without calling heartbeat — it got reclaimed
+// mid-work, and because reclaim clears the assignee + the dispatch record is
+// permanent, a structured-plan node ends up stranded (claimable=false, only manual
+// assign_task recovers it). A 5h window gives any realistic long-running task ample
+// headroom before the lease is presumed dead, while still freeing a truly-dead
+// agent's task the same day. (The deeper carry-ownership reclaim fix is tracked
+// separately; this is the immediate mitigation.)
+const DefaultExecutionLeaseTTL = 5 * time.Hour
 
 // StartTask moves an assigned Task to running (the explicit "picked up/started"
 // transition — needed before block/complete are reachable) and GRANTS the execution
