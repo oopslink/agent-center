@@ -254,6 +254,22 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     mockPlan({ description: 'ship the v3 orchestrator' });
     wrap();
     expect(await screen.findByTestId('plan-goal')).toHaveTextContent('ship the v3 orchestrator');
+    // short goal: no collapse toggle.
+    expect(screen.queryByTestId('plan-goal-toggle')).toBeNull();
+  });
+
+  it('collapses a long plan goal (clamped by default; Show more / less) — T349', async () => {
+    const longGoal = 'A'.repeat(200);
+    mockPlan({ description: longGoal });
+    wrap();
+    const goal = await screen.findByTestId('plan-goal');
+    // clamped by default.
+    expect(goal.className).toContain('line-clamp-2');
+    const toggle = screen.getByTestId('plan-goal-toggle');
+    expect(toggle).toHaveTextContent('Show more');
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('plan-goal').className).not.toContain('line-clamp-2');
+    expect(screen.getByTestId('plan-goal-toggle')).toHaveTextContent('Show less');
   });
 
   it('collapses the header actions into a mobile Actions dropdown (T341)', async () => {

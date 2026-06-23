@@ -292,6 +292,10 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
   // T341: mobile "Actions ▾" dropdown open-state (desktop always shows inline).
   const [actionsOpen, setActionsOpen] = useState(false);
+  // T349: the plan goal (description) is collapsible — clamped by default so a long
+  // goal doesn't eat the page (@oopslink); the toggle only shows for a long goal.
+  const [goalOpen, setGoalOpen] = useState(false);
+  const goalLong = plan.description.trim().length > 80 || plan.description.includes('\n');
 
   const creatorName = resolveName(plan.creator_ref);
   const creatorLabel =
@@ -423,15 +427,31 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
         </div>
       </div>
       {/* T347: surface the plan's GOAL (description) — was only editable in the
-          modal, never shown on the detail page (@oopslink). */}
+          modal. T349: collapsible — clamped to 2 lines by default; a long goal gets
+          a Show more / less toggle so it doesn't dominate the header. */}
       {plan.description.trim() !== '' && (
-        <p
-          className="whitespace-pre-wrap text-sm text-text-secondary"
-          data-testid="plan-goal"
-          title="Plan goal"
-        >
-          {plan.description}
-        </p>
+        <div data-testid="plan-goal-wrap">
+          <p
+            className={`whitespace-pre-wrap text-sm text-text-secondary ${
+              goalLong && !goalOpen ? 'line-clamp-2' : ''
+            }`}
+            data-testid="plan-goal"
+            title="Plan goal"
+          >
+            {plan.description}
+          </p>
+          {goalLong && (
+            <button
+              type="button"
+              onClick={() => setGoalOpen((v) => !v)}
+              data-testid="plan-goal-toggle"
+              aria-expanded={goalOpen}
+              className="mt-0.5 text-xs font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {goalOpen ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </div>
       )}
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted" data-testid="plan-detail-meta">
         <div className="flex items-center gap-1">
