@@ -335,3 +335,56 @@ func TestTaskRepo_ListUnplannedByProject(t *testing.T) {
 		t.Fatalf("ListUnplannedByProject after clear = %d, want 2", len(got))
 	}
 }
+
+// TestTaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks pins T342d: open
+// tasks in a TERMINAL plan (archived/done) are dead work and must NOT count toward
+// agent load/backlog (the agent's runnable Tasks panel already excludes them — the
+// reported "backlog=7 but empty task list" was archived-plan tasks). Tasks with no
+// plan or in a draft/running plan still count.
+func TestTaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks(t *testing.T) {
+	ctx, pr, tr := planSetup(t)
+	mkPlan := func(id pm.PlanID, status pm.PlanStatus) {
+		p, err := pm.RehydratePlan(pm.RehydratePlanInput{
+			ID: id, ProjectID: "P-1", Name: "pln", Status: status,
+			CreatorRef: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := pr.Save(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mkTask := func(id pm.TaskID, plan pm.PlanID, status pm.TaskStatus) {
+		tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+			ID: id, ProjectID: "P-1", Title: string(id), Status: status,
+			Assignee: "agent:agent-b5036ea8", PlanID: plan,
+			CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tr.Save(ctx, tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const ag = "agent:agent-b5036ea8"
+	mkPlan("PL-ARCH", pm.PlanArchived)
+	mkPlan("PL-DONE", pm.PlanDone)
+	mkPlan("PL-RUN", pm.PlanRunning)
+	mkTask("TA1", "PL-ARCH", pm.TaskOpen)  // archived plan → excluded
+	mkTask("TA2", "PL-ARCH", pm.TaskOpen)  // archived plan → excluded
+	mkTask("TD1", "PL-DONE", pm.TaskOpen)  // done plan → excluded
+	mkTask("TR1", "PL-RUN", pm.TaskOpen)   // running plan → counted
+	mkTask("TRr", "PL-RUN", pm.TaskRunning) // running plan, doing → counted
+	mkTask("TB1", "", pm.TaskOpen)         // no plan (backlog) → counted
+
+	got, err := tr.CountActiveByAssignee(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Pending = TR1 + TB1 (the 2 archived + 1 done excluded); Running = TRr.
+	if got[ag].Pending != 2 || got[ag].Running != 1 {
+		t.Fatalf("got %+v, want {Running:1 Pending:2} (terminal-plan tasks excluded)", got[ag])
+	}
+}

@@ -324,13 +324,21 @@ func (r *TaskRepo) CountByStatus(ctx context.Context, since *time.Time) (map[pm.
 // agent-load metric source (T342). Terminal tasks and unassigned rows are
 // excluded. A blocked task is still status=running (blocked_reason set), so it
 // counts as Running (the agent is on it).
+//
+// T342d: tasks belonging to a TERMINAL plan (archived/done) are excluded — those
+// are dead work that will never run, so counting them inflated backlog while the
+// agent's Tasks panel (runnable-only) correctly showed nothing (@oopslink). Tasks
+// with no plan (backlog) or in a draft/running plan still count.
 func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRef]pm.AgentTaskLoad, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		`SELECT assignee, status, COUNT(*) FROM pm_tasks
-		   WHERE assignee IS NOT NULL AND assignee != '' AND status IN (?, ?)
-		   GROUP BY assignee, status`,
-		string(pm.TaskRunning), string(pm.TaskOpen))
+		`SELECT t.assignee, t.status, COUNT(*) FROM pm_tasks t
+		   WHERE t.assignee IS NOT NULL AND t.assignee != '' AND t.status IN (?, ?)
+		     AND (t.plan_id IS NULL OR t.plan_id = ''
+		          OR t.plan_id NOT IN (SELECT id FROM pm_plans WHERE status IN (?, ?)))
+		   GROUP BY t.assignee, t.status`,
+		string(pm.TaskRunning), string(pm.TaskOpen),
+		string(pm.PlanArchived), string(pm.PlanDone))
 	if err != nil {
 		return nil, err
 	}
