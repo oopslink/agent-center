@@ -51,6 +51,11 @@ export const qk = {
   agent: (id: string) => o('agent', id),
   agentTasks: (id: string) => o('agentTasks', id),
   agentActivity: (id: string) => o('agentActivity', id),
+  // I28/F6 per-agent analytics dashboard. Keyed by id + window so a different
+  // from/to range caches independently; the task drill-down keys by task too.
+  agentAnalytics: (id: string, from?: string, to?: string) =>
+    o('agentAnalytics', id, from ?? '', to ?? ''),
+  agentAnalyticsTask: (id: string, taskId: string) => o('agentAnalyticsTask', id, taskId),
   secrets: () => o('secrets'),
   projects: () => o('projects'),
   // v2.9 #298: archived-only project list (GET /projects?status=archived).

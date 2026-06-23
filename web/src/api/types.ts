@@ -292,6 +292,96 @@ export interface AgentActivityEvent {
   interaction_ref?: string;
 }
 
+// --- I28/F6 per-agent analytics (mirrors the F4 GET .../agents/{id}/analytics
+// JSON contract; cost is micros = USD * 1e6). ---
+
+export interface AnalyticsHeatmapCell {
+  day: string; // "YYYY-MM-DD" UTC
+  events: number;
+  completed: number; // task completions on this day (F6 follow-up; drives TASKS DONE card + delta)
+  tokens_in: number;
+  tokens_out: number;
+  cache_tokens: number;
+  cost_micros: number;
+}
+
+export interface AnalyticsWindowStat {
+  tokens_in: number;
+  tokens_out: number;
+  cache_tokens: number;
+  cost_micros: number;
+  completed_tasks: number;
+}
+
+export interface AnalyticsOverview {
+  today: AnalyticsWindowStat;
+  week: AnalyticsWindowStat; // rolling last 7 days
+  month: AnalyticsWindowStat; // rolling last 30 days
+  active_days: number; // distinct active days over the 12-month window
+  streak: number; // consecutive active days ending today
+}
+
+export interface AnalyticsProjectTrendPoint {
+  day: string;
+  project_id: string;
+  events: number;
+  tokens_in: number;
+  tokens_out: number;
+  cache_tokens: number;
+  cost_micros: number;
+}
+
+export interface AnalyticsModelTrendPoint {
+  day: string;
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+  cache_tokens: number;
+  cost_micros: number;
+}
+
+export interface AnalyticsTopTask {
+  task_id: string;
+  title: string; // "" when unresolved (deleted / cross-project) → UI falls back to task_id
+  dominant_model: string; // model carrying the most cost on this task; "" when undeterminable
+  events: number;
+  tokens_in: number;
+  tokens_out: number;
+  cache_tokens: number;
+  cost_micros: number;
+}
+
+export interface AgentAnalytics {
+  agent_id: string;
+  agent_ref: string;
+  from: string; // "YYYY-MM-DD"
+  to: string;
+  heatmap: AnalyticsHeatmapCell[];
+  overview: AnalyticsOverview;
+  trends: {
+    by_project: AnalyticsProjectTrendPoint[];
+    by_model: AnalyticsModelTrendPoint[];
+  };
+  top_tasks: AnalyticsTopTask[];
+}
+
+export interface AgentAnalyticsTaskDrilldown {
+  task_id: string;
+  events: Array<{
+    id: string;
+    project_id: string;
+    task_id: string;
+    model: string;
+    tokens_in: number;
+    tokens_out: number;
+    cache_read_tokens: number;
+    cache_write_tokens: number;
+    cost_micros: number;
+    ts: string;
+    source: string;
+  }>;
+}
+
 export type SecretKind = 'mcp' | 'cloud_credential' | 'repo_deploy_key' | 'other';
 export type SecretState = 'active' | 'revoked';
 

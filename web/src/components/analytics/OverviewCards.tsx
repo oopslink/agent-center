@@ -1,0 +1,106 @@
+import type React from 'react';
+import type { CardData } from '@/utils/analyticsWindows';
+import { formatTokens, formatCostMicros, formatDelta } from '@/utils/format';
+
+// I28/F6 overview cards (1:1 with docs/design/v2.15.0/mockups/i28-analytics-en.png).
+// Five fixed THIS-MONTH cards derived entirely from the per-day heatmap series
+// (see deriveCards). TOKENS/COST carry a percent delta vs the prior 30 days;
+// TASKS DONE an absolute count delta; ACTIVE DAYS and CURRENT STREAK show
+// sub-text instead of a delta chip.
+//
+// NOTE (spec-vs-mockup, surfaced for Review): the Build Spec text says
+// "今日/周/月" but the approved English mockup fixes the cards to THIS MONTH with
+// no range selector — we follow the mockup. A multi-window selector can be a
+// later follow-up without reworking these cards.
+
+// TriangleIcon is an inline up/down delta arrow — inline SVG per ux-standards §12
+// (never an emoji/pictograph ▲▼ glyph).
+function TriangleIcon({ up }: { up: boolean }): React.ReactElement {
+  return (
+    <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 fill-current" aria-hidden="true">
+      {up ? <path d="M5 1l4 7H1z" /> : <path d="M5 9L1 2h8z" />}
+    </svg>
+  );
+}
+
+// DeltaChip renders a signed delta with a directional arrow + color token. Up =
+// success, down = danger (uniform with the mockup, which greens an increase
+// regardless of metric). `text` is preformatted (e.g. "+12.4%" or "-3").
+function DeltaChip({ value, text, testId }: { value: number; text: string; testId: string }): React.ReactElement {
+  const up = value > 0;
+  const flat = value === 0;
+  const cls = flat ? 'text-text-muted' : up ? 'text-success' : 'text-danger';
+  return (
+    <span className={['inline-flex items-center gap-1 text-xs font-medium', cls].join(' ')} data-testid={testId}>
+      {!flat && <TriangleIcon up={up} />}
+      {text}
+    </span>
+  );
+}
+
+// Card is the shared shell: uppercase label, big value, and a fixed-height meta
+// row so every card aligns even when one (TASKS DONE) omits its delta chip.
+function Card({
+  label,
+  value,
+  meta,
+  testId,
+}: {
+  label: string;
+  value: string;
+  meta: React.ReactNode;
+  testId: string;
+}): React.ReactElement {
+  return (
+    <div className="flex flex-1 flex-col gap-1 rounded-lg border border-border bg-bg-elevated p-4" data-testid={testId}>
+      <span className="text-[0.6875rem] uppercase tracking-wide text-text-muted">{label}</span>
+      <span className="text-2xl font-semibold tabular-nums text-text" data-testid={`${testId}-value`}>
+        {value}
+      </span>
+      <span className="flex min-h-[1.25rem] items-center text-xs text-text-muted">{meta}</span>
+    </div>
+  );
+}
+
+export function OverviewCards({ cards }: { cards: CardData }): React.ReactElement {
+  return (
+    <div className="flex flex-wrap gap-3" data-testid="analytics-overview-cards">
+      <Card
+        label="Tokens - this month"
+        value={formatTokens(cards.tokens)}
+        meta={<DeltaChip value={cards.tokensDeltaPct} text={formatDelta(cards.tokensDeltaPct)} testId="card-tokens-delta" />}
+        testId="card-tokens"
+      />
+      <Card
+        label="Cost - this month"
+        value={formatCostMicros(cards.costMicros)}
+        meta={<DeltaChip value={cards.costDeltaPct} text={formatDelta(cards.costDeltaPct)} testId="card-cost-delta" />}
+        testId="card-cost"
+      />
+      <Card
+        label="Tasks done"
+        value={String(cards.tasksDone)}
+        meta={
+          <DeltaChip
+            value={cards.tasksDoneDelta}
+            text={cards.tasksDoneDelta > 0 ? `+${cards.tasksDoneDelta}` : String(cards.tasksDoneDelta)}
+            testId="card-tasks-delta"
+          />
+        }
+        testId="card-tasks"
+      />
+      <Card
+        label="Active days"
+        value={`${cards.activeDays}/${cards.activeDenom}`}
+        meta={<span data-testid="card-active-rate">{cards.activeRatePct}% active rate</span>}
+        testId="card-active"
+      />
+      <Card
+        label="Current streak"
+        value={`${cards.streakCurrent} ${cards.streakCurrent === 1 ? 'day' : 'days'}`}
+        meta={<span data-testid="card-streak-longest">longest {cards.streakLongest} days</span>}
+        testId="card-streak"
+      />
+    </div>
+  );
+}
