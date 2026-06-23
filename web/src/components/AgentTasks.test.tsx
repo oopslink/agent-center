@@ -5,10 +5,10 @@ import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
-import { AgentWorkItems } from './AgentWorkItems';
-import type { AgentWorkItem, WorkItemStatus } from '@/api/types';
+import { AgentTasks } from './AgentTasks';
+import type { AgentTask, AgentTaskStatus } from '@/api/types';
 
-const wi = (id: string, status: WorkItemStatus, extra: Partial<AgentWorkItem> = {}): AgentWorkItem => ({
+const wi = (id: string, status: AgentTaskStatus, extra: Partial<AgentTask> = {}): AgentTask => ({
   id,
   agent_id: 'A1',
   task_ref: `pm://tasks/${id}`,
@@ -20,8 +20,8 @@ const wi = (id: string, status: WorkItemStatus, extra: Partial<AgentWorkItem> = 
   ...extra,
 });
 
-function stub(items: AgentWorkItem[]) {
-  server.use(http.get('/api/agents/:id/work-items', () => HttpResponse.json({ work_items: items })));
+function stub(items: AgentTask[]) {
+  server.use(http.get('/api/agents/:id/tasks', () => HttpResponse.json({ tasks: items })));
 }
 
 function wrap() {
@@ -29,21 +29,21 @@ function wrap() {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <AgentWorkItems agentId="A1" />
+        <AgentTasks agentId="A1" />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-describe('AgentWorkItems (#228 PR(d))', () => {
+describe('AgentTasks (#228 PR(d); v2.14.0 I14)', () => {
   afterEach(() => cleanup());
 
-  it('shows the Dev empty-state copy when there are no work items (no +New)', async () => {
+  it('shows the Dev empty-state copy when there are no tasks (no +New)', async () => {
     stub([]);
     wrap();
     await waitFor(() =>
       expect(screen.getByTestId('agent-workitems-empty')).toHaveTextContent(
-        /Work items are created when tasks are assigned/i,
+        /Tasks appear here when they are assigned/i,
       ),
     );
     // (A) read-only: no create affordance anywhere.
@@ -159,11 +159,11 @@ describe('AgentWorkItems (#228 PR(d))', () => {
     expect(link.getAttribute('href')).toContain('/projects/proj-x/tasks/task-9');
   });
 
-  it('falls back to "Work item" (no link) when the task is unresolved', async () => {
+  it('falls back to "Task" (no link) when the task is unresolved', async () => {
     stub([wi('w1', 'queued')]);
     wrap();
     const row = await screen.findByTestId('agent-workitem-row');
-    expect(row).toHaveTextContent('Work item');
+    expect(row).toHaveTextContent('Task');
     expect(screen.queryByTestId('agent-workitem-task')).not.toBeInTheDocument();
   });
 

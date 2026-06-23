@@ -214,7 +214,7 @@ function preview(eventType: string, p: Record<string, unknown>): string {
 // AgentActivityRow (v2.7.1 #216) — Phase A: subtype badge + one-line preview.
 // Phase B: click to expand the raw payload JSON (operator/debug view, exempt
 // from the #192 zero-raw-id sweep via data-testid="agent-activity-payload-json")
-// plus the work-item / interaction refs.
+// plus the task / interaction refs.
 export function AgentActivityRow({ event }: { event: AgentActivityEvent }): React.ReactElement {
   const [open, setOpen] = useState(false);
   const payload = parsePayload(event.payload);
@@ -301,12 +301,12 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
 
       {open && (
         <div className="mb-2 ml-[4.75rem] space-y-2" data-testid="agent-activity-detail">
-          {(event.work_item_ref || event.interaction_ref) && (
+          {(event.task_ref || event.interaction_ref) && (
             <dl className="grid grid-cols-[7rem_1fr] gap-x-2 text-[0.6875rem] text-text-muted">
-              {event.work_item_ref && (
+              {event.task_ref && (
                 <>
-                  <dt>work item</dt>
-                  <dd className="truncate font-mono" data-testid="agent-activity-workitem-ref">{event.work_item_ref}</dd>
+                  <dt>task</dt>
+                  <dd className="truncate font-mono" data-testid="agent-activity-task-ref">{event.task_ref}</dd>
                 </>
               )}
               {event.interaction_ref && (

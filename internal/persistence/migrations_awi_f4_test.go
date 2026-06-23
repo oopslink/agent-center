@@ -35,8 +35,8 @@ func TestMigration0071_AwiDataBackfill(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("first Up: %v", err)
 	}
-	// Down to 70 reverts 0071 (logs) + 0072 (index) + 0073 (recreates empty awi);
-	// pm_tasks keeps 0070's columns so we can seed.
+	// Down to 70 reverts 0071 (logs) + 0072 (index) + 0073 (recreates empty awi) +
+	// 0074 (activity column rename); pm_tasks keeps 0070's columns so we can seed.
 	if err := mig.Down(ctx, 70); err != nil {
 		t.Fatalf("Down(70): %v", err)
 	}
@@ -50,8 +50,8 @@ func TestMigration0071_AwiDataBackfill(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up (apply 0071): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 73 {
-		t.Fatalf("version after re-Up: got %d want 73", v)
+	if v, _ := mig.Version(ctx); v != 74 {
+		t.Fatalf("version after re-Up: got %d want 74", v)
 	}
 
 	assertBackfill(t, db)

@@ -21,16 +21,16 @@ const (
 //	running + no active work      → available
 //
 // workerOnline comes from the Environment BC (Worker.status == online);
-// hasActiveWorkItem comes from the Agent BC's AgentWorkItem stream (C2): true
+// hasActiveTask comes from the Agent BC's AgentWorkItem stream (C2): true
 // when the agent has an active or waiting_input WorkItem.
-func DeriveAvailability(workerOnline bool, lifecycle AgentLifecycle, hasActiveWorkItem bool) Availability {
+func DeriveAvailability(workerOnline bool, lifecycle AgentLifecycle, hasActiveTask bool) Availability {
 	if !workerOnline {
 		return Unavailable
 	}
 	if lifecycle != LifecycleRunning {
 		return Unavailable
 	}
-	if hasActiveWorkItem {
+	if hasActiveTask {
 		return Busy
 	}
 	return Available
@@ -38,6 +38,6 @@ func DeriveAvailability(workerOnline bool, lifecycle AgentLifecycle, hasActiveWo
 
 // Availability is the convenience method on the Agent AR; the WorkItem and
 // Worker inputs are supplied by the caller (Agent owns neither).
-func (a *Agent) Availability(workerOnline, hasActiveWorkItem bool) Availability {
-	return DeriveAvailability(workerOnline, a.lifecycle, hasActiveWorkItem)
+func (a *Agent) Availability(workerOnline, hasActiveTask bool) Availability {
+	return DeriveAvailability(workerOnline, a.lifecycle, hasActiveTask)
 }

@@ -235,8 +235,8 @@ func agentActivityMap(e *agentbc.AgentActivityEvent, agentFacingID string) map[s
 		"id": e.ID(), "agent_id": agentFacingID, "event_type": e.EventType(),
 		"payload": e.Payload(), "occurred_at": e.OccurredAt().Format(time.RFC3339Nano),
 	}
-	if r := e.WorkItemRef(); r != "" {
-		m["work_item_ref"] = r
+	if r := e.TaskRef(); r != "" {
+		m["task_ref"] = r
 	}
 	if r := e.InteractionRef(); r != "" {
 		m["interaction_ref"] = r
@@ -561,7 +561,7 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 	s.agentWriteJSON(w, r, d, got)
 }
 
-func (s *Server) agentWorkItemsHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) agentTasksHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	a, _, ok := s.agentRequireInOrg(w, r, d)
 	if !ok {
@@ -583,7 +583,7 @@ func (s *Server) agentWorkItemsHandler(w http.ResponseWriter, r *http.Request) {
 			out = append(out, agentTaskExecMap(t, facing))
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"work_items": out})
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})
 }
 
 func (s *Server) agentActivityHandler(w http.ResponseWriter, r *http.Request) {

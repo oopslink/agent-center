@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Agent, AgentActivityEvent, AgentWorkItem } from './types';
+import type { Agent, AgentActivityEvent, AgentTask } from './types';
 
 // Agent BC (v2.7 #101). Org-scoped agents backed by /api/agents. Replaces
 // the retired workforce.AgentInstance surface. List/work-items/activity
@@ -215,14 +215,16 @@ export function useBatchAgentLifecycle() {
   return { run, progress, reset };
 }
 
-export function useAgentWorkItems(id: string | undefined) {
+// v2.14.0 / issue I14: an agent's unit of work is the Task now (AgentWorkItem
+// retired). The endpoint + envelope are task-named to match the backend rename.
+export function useAgentTasks(id: string | undefined) {
   return useQuery({
-    queryKey: qk.agentWorkItems(id ?? ''),
+    queryKey: qk.agentTasks(id ?? ''),
     queryFn: async () => {
-      const resp = await api.get<{ work_items: AgentWorkItem[] }>(
-        `/agents/${id}/work-items`,
+      const resp = await api.get<{ tasks: AgentTask[] }>(
+        `/agents/${id}/tasks`,
       );
-      return resp.work_items;
+      return resp.tasks;
     },
     enabled: !!id,
   });

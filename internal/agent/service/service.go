@@ -48,10 +48,10 @@ var (
 // depends only on this PORT, never on projectmanager → no import cycle. A nil gate
 // (test fixtures / pre-T130 wiring) skips the check, preserving prior behavior.
 type TaskRunGate interface {
-	// EnsureWorkItemRunnable returns nil when the work item's task may enter
-	// running, or ErrWorkItemTaskNotRunnable when it is backlog. taskRef is the
+	// EnsureTaskRunnable returns nil when the work item's task may enter
+	// running, or ErrTaskNotRunnable when it is backlog. taskRef is the
 	// work item's "pm://tasks/{id}" owner ref.
-	EnsureWorkItemRunnable(ctx context.Context, taskRef string) error
+	EnsureTaskRunnable(ctx context.Context, taskRef string) error
 }
 
 // Service is the Agent-BC AppService facade.
@@ -177,7 +177,7 @@ func (s *Service) workerOnline(ctx context.Context, workerID string) bool {
 // Availability computes the derived availability for an Agent (OQ2): the bound
 // worker's online status + the Agent lifecycle.
 //
-// v2.14.0 F7 (issue I14): the hasActiveWorkItem input was retired with the
+// v2.14.0 F7 (issue I14): the hasActiveTask input was retired with the
 // AgentWorkItem world — availability no longer reflects an in-flight work item
 // (busy is now an observable of the pm Task model, surfaced by the read layer, not
 // by this lifecycle-derived field). Passed as false here so the derivation reduces

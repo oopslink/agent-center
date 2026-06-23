@@ -27,13 +27,13 @@ func TestFleetSnapshot_FourSegments_HappyPath(t *testing.T) {
 	if len(snap.Warnings) != 0 {
 		t.Fatalf("warnings: %v", snap.Warnings)
 	}
-	if len(snap.WorkItems) != 1 {
-		t.Fatalf("work_items: %d", len(snap.WorkItems))
+	if len(snap.Tasks) != 1 {
+		t.Fatalf("tasks: %d", len(snap.Tasks))
 	}
 	// v2.14.0 F7: token/tool metrics are 0 (no Task-model source); an active
 	// (unblocked running) task has no blocked-reason → empty CurrentActivity.
-	if snap.WorkItems[0].WorkItemID != "WI-1" || snap.WorkItems[0].Status != "active" {
-		t.Fatalf("execution fields wrong: %+v", snap.WorkItems[0])
+	if snap.Tasks[0].TaskID != "WI-1" || snap.Tasks[0].Status != "active" {
+		t.Fatalf("execution fields wrong: %+v", snap.Tasks[0])
 	}
 	if len(snap.Workers) != 1 {
 		t.Fatalf("workers: %d", len(snap.Workers))
@@ -70,10 +70,10 @@ func TestFleetSnapshot_WorkItemCarriesTaskTitleAndProject(t *testing.T) {
 	}
 	svc := query.NewFleetSnapshotService(env.deps)
 	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{})
-	if len(snap.WorkItems) != 1 {
-		t.Fatalf("work_items: %d", len(snap.WorkItems))
+	if len(snap.Tasks) != 1 {
+		t.Fatalf("tasks: %d", len(snap.Tasks))
 	}
-	wi := snap.WorkItems[0]
+	wi := snap.Tasks[0]
 	if wi.TaskID != "task-abc12345" {
 		t.Errorf("task_id=%q want task-abc12345", wi.TaskID)
 	}
@@ -141,8 +141,8 @@ func TestFleetSnapshot_ProjectFilter(t *testing.T) {
 	env.seedPMIssue(t, "I-B", "proj-b", "y", pm.IssueOpen)
 	svc := query.NewFleetSnapshotService(env.deps)
 	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{ProjectID: "proj-a"})
-	if len(snap.WorkItems) != 1 || snap.WorkItems[0].TaskID != "WI-A" {
-		t.Fatalf("work item project filter: %+v", snap.WorkItems)
+	if len(snap.Tasks) != 1 || snap.Tasks[0].TaskID != "WI-A" {
+		t.Fatalf("work item project filter: %+v", snap.Tasks)
 	}
 	if len(snap.PendingIssues) != 1 || snap.PendingIssues[0].IssueID != "I-A" {
 		t.Fatalf("pending issues filter: %+v", snap.PendingIssues)
@@ -168,7 +168,7 @@ func TestFleetSnapshot_Empty_NoCrash(t *testing.T) {
 	env := newQEnv(t)
 	svc := query.NewFleetSnapshotService(env.deps)
 	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{})
-	if len(snap.WorkItems) != 0 || len(snap.Workers) != 0 {
+	if len(snap.Tasks) != 0 || len(snap.Workers) != 0 {
 		t.Fatalf("expected empty snapshot, got %+v", snap)
 	}
 }
@@ -185,21 +185,21 @@ func TestFleetSnapshot_OrgScoping_NoCrossOrgLeak(t *testing.T) {
 	svc := query.NewFleetSnapshotService(env.deps)
 
 	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{OrganizationID: "org-A"})
-	if len(snap.WorkItems) != 1 || snap.WorkItems[0].WorkItemID != "WI-A" {
-		t.Fatalf("org scope leaked / wrong: want only WI-A for org-A, got %+v", snap.WorkItems)
+	if len(snap.Tasks) != 1 || snap.Tasks[0].TaskID != "WI-A" {
+		t.Fatalf("org scope leaked / wrong: want only WI-A for org-A, got %+v", snap.Tasks)
 	}
 
 	// An execution whose project/org can't be resolved (task in a project with no
 	// pm-project row) must be EXCLUDED under org scope (fail-closed, never leak).
 	env.seedAgentTask(t, "WI-orphan", "AG-X", "proj-missing", "active") // project has no pm-project row
 	snap = svc.Snapshot(context.Background(), query.SnapshotFilter{OrganizationID: "org-A"})
-	for _, wi := range snap.WorkItems {
-		if wi.WorkItemID == "WI-orphan" {
-			t.Fatalf("fail-closed violated: unresolvable-project execution leaked under org scope: %+v", snap.WorkItems)
+	for _, wi := range snap.Tasks {
+		if wi.TaskID == "WI-orphan" {
+			t.Fatalf("fail-closed violated: unresolvable-project execution leaked under org scope: %+v", snap.Tasks)
 		}
 	}
-	if len(snap.WorkItems) != 1 {
-		t.Fatalf("org-A should still see exactly WI-A, got %+v", snap.WorkItems)
+	if len(snap.Tasks) != 1 {
+		t.Fatalf("org-A should still see exactly WI-A, got %+v", snap.Tasks)
 	}
 }
 

@@ -76,17 +76,16 @@ func (r OwnerRef) WellFormed() bool {
 // ContextRefs travels on a Message to identify the source of a message
 // segment inside a (possibly long-lived, reassigned) Task Conversation
 // (ADR-0047 §3, plan §2.4). All fields optional; the UI groups by
-// WorkItemRef. interaction_ref is intentionally NOT here — interaction-level
+// TaskRef. interaction_ref is intentionally NOT here — interaction-level
 // detail lives in AgentActivityEvent (plan §2.6).
 type ContextRefs struct {
-	WorkItemRef string `json:"work_item_ref,omitempty"`
-	TaskRef     string `json:"task_ref,omitempty"`
-	AgentRef    string `json:"agent_ref,omitempty"`
+	TaskRef  string `json:"task_ref,omitempty"`
+	AgentRef string `json:"agent_ref,omitempty"`
 }
 
 // IsEmpty reports whether no context refs are set.
 func (c ContextRefs) IsEmpty() bool {
-	return c.WorkItemRef == "" && c.TaskRef == "" && c.AgentRef == ""
+	return c.TaskRef == "" && c.AgentRef == ""
 }
 
 // MarshalContextRefsJSON encodes context refs for the messages.context_refs

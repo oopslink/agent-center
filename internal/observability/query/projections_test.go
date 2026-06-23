@@ -9,11 +9,11 @@ import (
 )
 
 // v2.14.0 F7 (issue I14): inspect "execution" reads pm_tasks (the task is the
-// unit of agent work). The id is a TASK id; work_item_id == task_id; status is
-// the mapped execution-status vocab (a running agent-assigned task → "active");
-// detail comes from the projection row. The artifacts segment is dropped (no
+// unit of agent work). The id is a TASK id; status is the mapped
+// execution-status vocab (a running agent-assigned task → "active"); detail
+// comes from the projection row. The artifacts segment is dropped (no
 // work-item equivalent).
-func TestInspectExecution_WorkItem(t *testing.T) {
+func TestInspectExecution_Task(t *testing.T) {
 	env := newQEnv(t)
 	env.seedAgentTask(t, "WI-1", "AG-1", "p", "active")
 	res, err := env.svc.Inspect(context.Background(), "execution", "WI-1")
@@ -21,7 +21,7 @@ func TestInspectExecution_WorkItem(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := res.Data.(map[string]any)
-	if data["work_item_id"] != "WI-1" || data["status"] != "active" || data["task_id"] != "WI-1" {
+	if data["status"] != "active" || data["task_id"] != "WI-1" {
 		t.Fatalf("inspect execution: %+v", data)
 	}
 	if _, ok := data["projection"]; !ok {

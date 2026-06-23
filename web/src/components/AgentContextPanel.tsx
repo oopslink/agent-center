@@ -1,11 +1,11 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useAgentWorkItems } from '@/api/agents';
+import { useAgentTasks } from '@/api/agents';
 import { usePlans, type Plan } from '@/api/plans';
 import { planProgressLabel } from '@/components/planDisplay';
 import { refLabel } from '@/components/workItemDisplay';
-import type { AgentWorkItem, WorkItemStatus } from '@/api/types';
+import type { AgentTask, AgentTaskStatus } from '@/api/types';
 
 // ============================================================================
 // v2.10.0 [T7] Members — the col④ on-demand context panel for an Agent detail
@@ -20,17 +20,17 @@ import type { AgentWorkItem, WorkItemStatus } from '@/api/types';
 // is English).
 // ============================================================================
 
-// A work item is "current" if it is active; failing that, the most-recently
-// updated non-terminal item; failing that, the most recent item overall. This
+// A task is "current" if it is active; failing that, the most-recently
+// updated non-terminal task; failing that, the most recent task overall. This
 // mirrors what an operator means by "what is this agent doing right now".
-const TERMINAL_STATUS: ReadonlySet<WorkItemStatus> = new Set<WorkItemStatus>([
+const TERMINAL_STATUS: ReadonlySet<AgentTaskStatus> = new Set<AgentTaskStatus>([
   'done',
   'canceled',
   'superseded',
   'failed',
 ]);
 
-const STATUS_LABEL: Record<WorkItemStatus, string> = {
+const STATUS_LABEL: Record<AgentTaskStatus, string> = {
   active: 'Running',
   paused: 'Paused',
   queued: 'Pending',
@@ -41,11 +41,11 @@ const STATUS_LABEL: Record<WorkItemStatus, string> = {
   superseded: 'Superseded',
 };
 
-function byUpdatedDesc(a: AgentWorkItem, b: AgentWorkItem): number {
+function byUpdatedDesc(a: AgentTask, b: AgentTask): number {
   return (b.updated_at ?? '').localeCompare(a.updated_at ?? '');
 }
 
-export function pickCurrentWorkItem(items: AgentWorkItem[]): AgentWorkItem | undefined {
+export function pickCurrentTask(items: AgentTask[]): AgentTask | undefined {
   if (items.length === 0) return undefined;
   const active = items.find((w) => w.status === 'active');
   if (active) return active;
@@ -53,18 +53,18 @@ export function pickCurrentWorkItem(items: AgentWorkItem[]): AgentWorkItem | und
   return sorted.find((w) => !TERMINAL_STATUS.has(w.status)) ?? sorted[0];
 }
 
-function taskIdOf(item: AgentWorkItem): string {
+function taskIdOf(item: AgentTask): string {
   return item.task_id || item.task_ref?.replace(/^pm:\/\/tasks\//, '') || '';
 }
 
 export function AgentContextPanel({ agentId }: { agentId: string }): React.ReactElement {
-  const workItems = useAgentWorkItems(agentId);
+  const workItems = useAgentTasks(agentId);
   const current = useMemo(
-    () => pickCurrentWorkItem(workItems.data ?? []),
+    () => pickCurrentTask(workItems.data ?? []),
     [workItems.data],
   );
 
-  // Owning plan: resolve the current work item's task → the plan whose node set
+  // Owning plan: resolve the current task → the plan whose node set
   // contains it. As of v2.9.2 (task-0543ece9) the plan-list `nodes_preview`
   // carries EVERY node (the old 4-node cap is gone), so the list read is a
   // reliable membership source — no per-plan detail fetch needed.
@@ -82,17 +82,17 @@ export function AgentContextPanel({ agentId }: { agentId: string }): React.React
     <div className="flex flex-col gap-5 p-4" data-testid="agent-context-panel">
       <section data-testid="agent-context-current">
         <h4 className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
-          Current work item
+          Current task
         </h4>
         {workItems.isLoading ? (
           <p className="text-xs text-text-muted" data-testid="agent-context-loading">
             Loading…
           </p>
         ) : current ? (
-          <CurrentWorkItemCard item={current} />
+          <CurrentTaskCard item={current} />
         ) : (
-          <p className="text-xs text-text-muted" data-testid="agent-context-no-workitem">
-            No active work item.
+          <p className="text-xs text-text-muted" data-testid="agent-context-no-task">
+            No active task.
           </p>
         )}
       </section>
@@ -113,11 +113,11 @@ export function AgentContextPanel({ agentId }: { agentId: string }): React.React
   );
 }
 
-function CurrentWorkItemCard({ item }: { item: AgentWorkItem }): React.ReactElement {
+function CurrentTaskCard({ item }: { item: AgentTask }): React.ReactElement {
   const taskId = taskIdOf(item);
   const linkable = Boolean(item.task_title && item.project_id && taskId);
-  // T100/T126: prefer the task's org_ref (T84). Work items carry no human-facing
-  // number (#192), so absent an org_ref fall back to the FULL task/work-item id
+  // T100/T126: prefer the task's org_ref (T84). Tasks carry no human-facing
+  // number (#192), so absent an org_ref fall back to the FULL task id
   // (never the retired #id-tail hash; full ref on hover).
   const handle = refLabel(item.org_ref, taskId || item.id);
   const statusLabel = STATUS_LABEL[item.status] ?? item.status;
@@ -125,25 +125,25 @@ function CurrentWorkItemCard({ item }: { item: AgentWorkItem }): React.ReactElem
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-base p-3"
-      data-testid="agent-context-workitem"
-      data-workitem-id={item.id}
+      data-testid="agent-context-task"
+      data-task-id={item.id}
       data-status={item.status}
     >
       {linkable ? (
         <OrgLink
           to={`/projects/${encodeURIComponent(item.project_id as string)}/tasks/${encodeURIComponent(taskId)}`}
           className="block text-sm font-medium text-text-primary hover:text-accent"
-          data-testid="agent-context-workitem-link"
+          data-testid="agent-context-task-link"
         >
           {item.task_title}
         </OrgLink>
       ) : (
         <span className="block text-sm font-medium text-text-primary">
-          {item.task_title || 'Work item'}
+          {item.task_title || 'Task'}
         </span>
       )}
       <div className="mt-1 text-xs text-text-muted">
-        <span data-testid="agent-context-workitem-status">{statusLabel}</span>
+        <span data-testid="agent-context-task-status">{statusLabel}</span>
         {' · '}
         <span className="font-mono" title={item.task_ref}>
           {handle}

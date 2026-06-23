@@ -1,15 +1,15 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useAgentWorkItems } from '@/api/agents';
+import { useAgentTasks } from '@/api/agents';
 import { TypeChip } from '@/components/TypeChip';
 import { refLabel } from '@/components/workItemDisplay';
-import type { AgentWorkItem, WorkItemStatus } from '@/api/types';
+import type { AgentTask, AgentTaskStatus } from '@/api/types';
 
-// AgentWorkItems (v2.7.1 #228 PR(d)) — the Work items tab body. A READ-ONLY
+// AgentTasks (v2.7.1 #228 PR(d); v2.14.0 I14 rename) — the Tasks tab body. A READ-ONLY
 // table (design4): ID / Title / Type / Priority / Status / Updated, a summary
 // strip (N Total · In Progress · Pending · Done · Blocked) and Status/Type
-// filters. There is intentionally NO "+ New" button (PD ruling A): work items
+// filters. There is intentionally NO "+ New" button (PD ruling A): tasks
 // are a projection of task dispatch — they have no manual create endpoint, so a
 // disabled/stub button would be a dead affordance. "+ New" returns in v2.8 #235
 // as a "Create Task → auto-assign this agent" shortcut.
@@ -18,10 +18,10 @@ import type { AgentWorkItem, WorkItemStatus } from '@/api/types';
 //   Type = "Task" for every row (#231 will model real types), Priority = "—".
 
 // Status → user-facing bucket (the 4 summary buckets + a catch-all). The raw
-// WorkItemStatus is kept on the row (data-status) for operators / tests.
+// AgentTaskStatus is kept on the row (data-status) for operators / tests.
 type Bucket = 'in_progress' | 'paused' | 'pending' | 'done' | 'blocked' | 'other';
 
-const STATUS_DISPLAY: Record<WorkItemStatus, { label: string; cls: string; bucket: Bucket }> = {
+const STATUS_DISPLAY: Record<AgentTaskStatus, { label: string; cls: string; bucket: Bucket }> = {
   active: { label: 'In Progress', cls: 'bg-brand/10 text-brand', bucket: 'in_progress' },
   // v2.8.1 #278 D: agent-paused (scheduling autonomy) — a distinct bucket, not
   // "pending" (queued, waiting to be picked) nor "blocked" (system/reconciler).
@@ -49,10 +49,10 @@ const STATUS_FILTERS: Array<{ value: Bucket | 'all'; label: string }> = [
   { value: 'done', label: 'Done' },
 ];
 
-export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactElement {
-  const workItems = useAgentWorkItems(agentId);
+export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement {
+  const workItems = useAgentTasks(agentId);
   const [statusFilter, setStatusFilter] = useState<Bucket | 'all'>('all');
-  // v2.7.1: every work item is type "task" (no schema). The filter is present
+  // v2.7.1: every task is type "task" (no schema). The filter is present
   // to match the design; "task" is the only non-"all" option.
   const [typeFilter, setTypeFilter] = useState<'all' | 'task'>('all');
 
@@ -84,7 +84,7 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
   return (
     <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="agent-tabpanel-workitems">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text-primary">Work items</h3>
+        <h3 className="text-sm font-semibold text-text-primary">Tasks</h3>
         <div className="flex items-center gap-2">
           <select
             className="rounded border border-border-strong bg-bg-elevated px-2 py-1 text-xs text-text-primary"
@@ -114,7 +114,7 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
 
       {workItems.isLoading && (
         <p className="text-xs text-text-muted" data-testid="agent-workitems-loading">
-          Loading work items…
+          Loading tasks…
         </p>
       )}
       {workItems.isError && (
@@ -124,9 +124,9 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
       )}
 
       {workItems.isSuccess && items.length === 0 && (
-        // Dev-suggested copy: explain how work items appear (intent, not affordance).
+        // Dev-suggested copy: explain how tasks appear (intent, not affordance).
         <p className="text-xs text-text-muted" data-testid="agent-workitems-empty">
-          Work items are created when tasks are assigned to this agent.
+          Tasks appear here when they are assigned to this agent.
         </p>
       )}
 
@@ -157,7 +157,7 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
               </thead>
               <tbody className="divide-y divide-border-base">
                 {filtered.map((w) => (
-                  <WorkItemRow key={w.id} item={w} />
+                  <TaskRow key={w.id} item={w} />
                 ))}
               </tbody>
             </table>
@@ -165,7 +165,7 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
 
           {filtered.length === 0 && (
             <p className="mt-3 text-xs text-text-muted" data-testid="agent-workitems-no-match">
-              No work items match the current filters.
+              No tasks match the current filters.
             </p>
           )}
         </>
@@ -174,7 +174,7 @@ export function AgentWorkItems({ agentId }: { agentId: string }): React.ReactEle
   );
 }
 
-function WorkItemRow({ item: w }: { item: AgentWorkItem }): React.ReactElement {
+function TaskRow({ item: w }: { item: AgentTask }): React.ReactElement {
   // v2.7.1 #206: link the title to its task when resolved; raw pm ref on hover.
   const taskId = w.task_id || w.task_ref?.replace(/^pm:\/\/tasks\//, '') || '';
   const linkable = Boolean(w.task_title && w.project_id && taskId);
@@ -199,11 +199,11 @@ function WorkItemRow({ item: w }: { item: AgentWorkItem }): React.ReactElement {
             {w.task_title}
           </OrgLink>
         ) : (
-          <span className="text-text-secondary">{w.task_title || 'Work item'}</span>
+          <span className="text-text-secondary">{w.task_title || 'Task'}</span>
         )}
       </td>
       <td className="py-2 pr-3" data-testid="agent-workitem-type">
-        {/* v2.7.1 fallback: every work item is a Task (real types = v2.8 #231). */}
+        {/* v2.7.1 fallback: every row is a Task (real types = v2.8 #231). */}
         <TypeChip kind="task" />
       </td>
       <td className="py-2 pr-3 text-text-muted" data-testid="agent-workitem-priority">

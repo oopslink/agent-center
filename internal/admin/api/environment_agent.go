@@ -37,7 +37,7 @@ type agentActivityReq struct {
 	AgentID        string `json:"agent_id"`
 	EventType      string `json:"event_type"`
 	Payload        string `json:"payload"`
-	WorkItemRef    string `json:"work_item_ref,omitempty"`
+	TaskRef        string `json:"task_ref,omitempty"`
 	InteractionRef string `json:"interaction_ref,omitempty"`
 	OccurredAt     string `json:"occurred_at,omitempty"`
 }
@@ -66,7 +66,7 @@ func (s *Server) envAgentActivityHandler(w http.ResponseWriter, r *http.Request)
 	}
 	id, err := d.AgentSvc.AppendActivity(r.Context(), agent.NewActivityEventInput{
 		AgentID:        a.ID(),
-		WorkItemRef:    req.WorkItemRef,
+		TaskRef:        req.TaskRef,
 		InteractionRef: req.InteractionRef,
 		EventType:      req.EventType,
 		Payload:        req.Payload,
@@ -297,7 +297,7 @@ type resumeStateReq struct {
 //
 // v2.14.0 F7 (issue I14): the per-agent in-flight WorkItem list was removed —
 // AgentWorkItem retired. The resumable set is now exactly the running agents; the
-// response's per-agent "work_items" array is always empty (the daemon's resume
+// response's per-agent "tasks" array is always empty (the daemon's resume
 // parser still accepts it, now a no-op).
 func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -349,7 +349,7 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			"model":             a.Profile().Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
 			"version":           a.Version(),
 			"reset_scope":       "",                  // reserved for f-3 (rollback/reset semantics)
-			"work_items":        []map[string]any{}, // F7: always empty (AgentWorkItem retired)
+			"tasks":             []map[string]any{}, // F7: always empty (AgentWorkItem retired)
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})

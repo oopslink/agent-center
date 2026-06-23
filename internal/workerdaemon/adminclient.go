@@ -413,15 +413,15 @@ type ResumeAgent struct {
 	DesiredLifecycle string           `json:"desired_lifecycle"`
 	Model            string           `json:"model"`
 	Version          int              `json:"version"`
-	ResetScope       string           `json:"reset_scope"`
-	WorkItems        []ResumeWorkItem `json:"work_items"`
+	ResetScope       string       `json:"reset_scope"`
+	Tasks            []ResumeTask `json:"tasks"`
 }
 
-// ResumeWorkItem is one in-flight WorkItem (status ∈ {active, waiting_input}).
-type ResumeWorkItem struct {
-	WorkItemID string `json:"work_item_id"`
-	TaskRef    string `json:"task_ref"`
-	Status     string `json:"status"`
+// ResumeTask is one in-flight WorkItem (status ∈ {active, waiting_input}).
+type ResumeTask struct {
+	TaskID  string `json:"task_id"`
+	TaskRef string `json:"task_ref"`
+	Status  string `json:"status"`
 }
 
 // resumeStateQuerier is the seam the AgentController depends on for the boot-
@@ -482,7 +482,7 @@ func (c *AdminClient) HeartbeatControl(ctx context.Context, workerID string) err
 type feedbackReporter interface {
 	// ReportAgentActivity posts a single AgentActivityEvent (the stdout→activity
 	// sink — observation only; it does NOT post to any Conversation).
-	ReportAgentActivity(ctx context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, at time.Time) error
+	ReportAgentActivity(ctx context.Context, agentID, eventType, payloadJSON, taskRef, interactionRef string, at time.Time) error
 	// ReportAgentLifecycle posts a lifecycle RESULT (state "stopped" | "error").
 	ReportAgentLifecycle(ctx context.Context, agentID, state, errMsg string, at time.Time) error
 	// v2.14.0 F7 (issue I14): ReportWorkItemState removed — AgentWorkItem retired
@@ -504,9 +504,9 @@ type feedbackReporter interface {
 var _ feedbackReporter = (*AdminClient)(nil)
 
 // ReportAgentActivity POSTs to /admin/environment/agent/activity. Empty
-// workItemRef/interactionRef/at are omitted server-side (omitempty). A zero
+// taskRef/interactionRef/at are omitted server-side (omitempty). A zero
 // `at` lets the AppService stamp its own clock.
-func (c *AdminClient) ReportAgentActivity(ctx context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, at time.Time) error {
+func (c *AdminClient) ReportAgentActivity(ctx context.Context, agentID, eventType, payloadJSON, taskRef, interactionRef string, at time.Time) error {
 	if strings.TrimSpace(agentID) == "" {
 		return errors.New("adminclient: agent_id required")
 	}
@@ -515,8 +515,8 @@ func (c *AdminClient) ReportAgentActivity(ctx context.Context, agentID, eventTyp
 		"event_type": eventType,
 		"payload":    payloadJSON,
 	}
-	if workItemRef != "" {
-		body["work_item_ref"] = workItemRef
+	if taskRef != "" {
+		body["task_ref"] = taskRef
 	}
 	if interactionRef != "" {
 		body["interaction_ref"] = interactionRef

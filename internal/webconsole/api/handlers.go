@@ -1797,13 +1797,12 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 	}
 	// context_refs lets the UI segment a task conversation's messages by
 	// AgentWorkItem across re-dispatches (v2.7 #137). Emitted only when set
-	// (daemon writes work_item_ref/task_ref/agent_ref; empty for plain chat).
+	// (daemon writes task_ref/agent_ref; empty for plain chat).
 	cr := m.ContextRefs()
-	if cr.WorkItemRef != "" || cr.TaskRef != "" || cr.AgentRef != "" {
+	if cr.TaskRef != "" || cr.AgentRef != "" {
 		out["context_refs"] = map[string]any{
-			"work_item_ref": cr.WorkItemRef,
-			"task_ref":      cr.TaskRef,
-			"agent_ref":     cr.AgentRef,
+			"task_ref":  cr.TaskRef,
+			"agent_ref": cr.AgentRef,
 		}
 	}
 	// attachments (v2.7 #133): unified MessageAttachment metadata for UI display.

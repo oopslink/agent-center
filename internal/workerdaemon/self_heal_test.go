@@ -113,17 +113,17 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 		t.Fatalf("fork must --resume the prior (gen-0) session-id %q, got %q", want, got)
 	}
 	// L2×Mode-B: the in-flight WorkItem id (captured at crash) must be REBOUND onto
-	// the relaunched managedAgent's currentWorkItemID — the SAME field
+	// the relaunched managedAgent's currentTaskID — the SAME field
 	// surfaceTurnFailure reads — so a failed re-drive turn can fail the original WI
 	// instead of leaving it silently active.
 	c.mu.Lock()
 	reboundWI := ""
 	if ma := c.agents["ag-1"]; ma != nil {
-		reboundWI = ma.currentWorkItemID
+		reboundWI = ma.currentTaskID
 	}
 	c.mu.Unlock()
 	if reboundWI != "wi-7" {
-		t.Fatalf("relaunch must rebind currentWorkItemID to the in-flight WI %q (L2×Mode-B), got %q", "wi-7", reboundWI)
+		t.Fatalf("relaunch must rebind currentTaskID to the in-flight WI %q (L2×Mode-B), got %q", "wi-7", reboundWI)
 	}
 	// Model-crash-survival: the self-heal relaunch must spawn with the SAME model
 	// (carried across the crash via selfHealEntry.model), not fall back to claude's

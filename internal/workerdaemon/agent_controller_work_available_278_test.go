@@ -7,7 +7,7 @@ import (
 
 func workAvailableCmd(t *testing.T, agentID, workItemID string, offset int64) ControlCommand {
 	t.Helper()
-	pl := workAvailablePayload{AgentID: agentID, WorkItemID: workItemID}
+	pl := workAvailablePayload{AgentID: agentID, TaskID: workItemID}
 	return ControlCommand{
 		ID:          "cmd-wa",
 		Offset:      offset,

@@ -96,10 +96,11 @@ type EventRefs struct {
 	ExecutionID      string `json:"execution_id,omitempty"`
 	InputRequestID   string `json:"input_request_id,omitempty"`
 	IssueID          string `json:"issue_id,omitempty"`
-	// AgentID + WorkItemID (v2.7 #111 #3b): join keys for the work-item
-	// transition events the observability fan-out records for stats.
-	AgentID    string `json:"agent_id,omitempty"`
-	WorkItemID string `json:"work_item_id,omitempty"`
+	// AgentID (v2.7 #111 #3b): join key for the work-item transition events the
+	// observability fan-out records for stats. (v2.14.0: the vestigial
+	// WorkItemID ref dimension — the old AgentWorkItem-id filter — was dropped;
+	// it had no producer after the AgentWorkItem model was retired.)
+	AgentID string `json:"agent_id,omitempty"`
 }
 
 // MarshalJSON serialises EventRefs with stable key ordering (Go encoding/json
