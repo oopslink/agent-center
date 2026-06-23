@@ -446,6 +446,10 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 	ma.session = sess
 	c.mu.Unlock()
 	c.log("boot-reconcile agent=%s RE-ATTACHED from offset=%d (no nudge — claude alive)", agentID, pr.Hello.BaseOffset)
+	// issue I13: if the center had this agent in `error` (a prior crash), clear it back
+	// to running now that its session is live again — else it stays `unavailable` (no
+	// new dispatch) and shows crashed forever. No-op at the center unless it was error.
+	c.reportRecovered(agentID)
 }
 
 // bootReapRelaunch reaps any residual then starts a fresh supervisor (which reads
@@ -480,6 +484,11 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 		return err
 	}
 	c.log("boot-reconcile agent=%s RELAUNCHED version=%d (nudge=%v)", agentID, version, nudge)
+	// issue I13: a relaunch is a recovery (boot Mode-B OR mid-run self-heal via
+	// selfHealRelaunch). The session is back up → clear a lingering center `error` to
+	// running so the agent is dispatchable again + the UI reflects the recovery. No-op
+	// at the center unless it was in error. Best-effort (logged on failure).
+	c.reportRecovered(agentID)
 	// L2×Mode-B: rebind the in-flight WorkItem id onto the FRESH managedAgent (the
 	// crash deleted the prior one). currentTaskID is otherwise lost across the
 	// relaunch — so if the re-driven turn FAILS (is_error) while the agent stays

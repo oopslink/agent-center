@@ -429,6 +429,24 @@ func (a *Agent) MarkError(msg string, at time.Time) {
 	a.touch(at)
 }
 
+// MarkRecovered is the Environment feedback that a CRASHED agent's session is back
+// up (issue I13 auto-recovery): it clears error → running so the agent becomes
+// AVAILABLE for dispatch again and the UI stops showing it crashed. It acts ONLY on
+// the TRANSIENT `error` state — every other state is a deliberate NO-OP so a stale or
+// racing "running" feedback can never resurrect a deliberately stopped/stopping/
+// resetting agent, un-latch the TERMINAL `failed` circuit-breaker (manual recovery
+// only), revive an archived agent, or needlessly re-touch an already-running one. Like
+// MarkError/MarkStopped it is a RESULT feedback (persist-only at the service layer; no
+// outbox emit → no reconcile loop).
+func (a *Agent) MarkRecovered(at time.Time) {
+	if a.lifecycle != LifecycleError {
+		return
+	}
+	a.lifecycle = LifecycleRunning
+	a.lifecycleError = ""
+	a.touch(at)
+}
+
 // MarkFailed records the TERMINAL crash-loop circuit-breaker state (v2.7 GATE-7
 // Mode-B): the worker's self-heal exhausted its bounded relaunch attempts. Valid
 // only from running/error (the agent was up / transiently crashing). The only way

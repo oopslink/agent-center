@@ -1674,6 +1674,20 @@ func (c *AgentController) reportLifecycleOnce(ctx context.Context, agentID, stat
 	emit()
 }
 
+// reportRecovered tells the center a crashed agent's session is back up (issue I13)
+// so it clears lifecycle error → running: the agent becomes AVAILABLE for dispatch
+// again and the UI stops showing it crashed. Called from the RECOVERY paths only
+// (boot reattach/relaunch + mid-run self-heal relaunch, which routes through
+// bootReapRelaunch). It is IDEMPOTENT at the center — MarkAgentRecovered is a no-op
+// unless the agent is in `error` — so calling it whenever a recovery path brings a
+// session up is safe even when the center already considers the agent running.
+// Best-effort: a report failure is logged, never fatal (the session is already live).
+func (c *AgentController) reportRecovered(agentID string) {
+	if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "running", "", time.Now()); err != nil {
+		c.log("agent=%s report running (recovery): %v", agentID, err)
+	}
+}
+
 // recordVersion advances appliedVersion for agentID, creating a stub
 // managedAgent (no session) if none exists. Used by stop/reset/no-op desired
 // states so a later replay of the same version is recognised as already-applied.

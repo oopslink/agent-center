@@ -571,6 +571,55 @@ func TestEnvWorkerResumeState_SelfOK(t *testing.T) {
 	}
 }
 
+// TestEnvWorkerResumeState_ErrorAgentRecoverable is the auto-recovery fix for issue
+// I13 ([BUG] agent 挂了,不能自动恢复). An agent the daemon reported as CRASHED
+// (lifecycle=error) is NOT desired-stopped — the operator never asked to stop it, so
+// its intent is still running; `error` is the TRANSIENT crash state (vs the TERMINAL
+// `failed` circuit-breaker, which is manual-recovery only). It MUST appear in resume
+// -state as desired_lifecycle=running so a daemon (re)boot or a new-work wake re-
+// attaches the surviving supervisor / relaunches a dead one. If it were omitted (the
+// pre-fix behaviour), boot-reconcile would see a LIVE supervisor with no center record
+// and stop+reap it as an orphan — killing the surviving claude and never relaunching:
+// the "挂了不能自动恢复" trap. `failed` + stopped/stopping/resetting stay EXCLUDED.
+func TestEnvWorkerResumeState_ErrorAgentRecoverable(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_rs_w1", atWorker1)
+
+	f.seedAgentLifecycle(t, "AG-run", atWorker1, agent.LifecycleRunning)
+	f.seedAgentLifecycle(t, "AG-error", atWorker1, agent.LifecycleError)
+	f.seedAgentLifecycle(t, "AG-failed", atWorker1, agent.LifecycleFailed)
+	f.seedAgentLifecycle(t, "AG-stopping", atWorker1, agent.LifecycleStopping)
+
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/environment/worker/resume-state", "acat_rs_w1",
+		map[string]any{"worker_id": atWorker1})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	byID := resumeAgentsByID(t, body)
+
+	// the crashed (error) agent is included and reported as desired-running so boot
+	// -reconcile reattaches the survivor / relaunches a dead one (auto-recovery).
+	errAgent, ok := byID["AG-error"]
+	if !ok {
+		t.Fatalf("error-lifecycle agent missing from resume set (auto-recovery trap): %v", byID)
+	}
+	if errAgent["desired_lifecycle"] != "running" {
+		t.Fatalf("AG-error desired = %v, want running (error → recover as running)", errAgent["desired_lifecycle"])
+	}
+	// the normal running agent is still desired-running.
+	if run := byID["AG-run"]; run == nil || run["desired_lifecycle"] != "running" {
+		t.Fatalf("AG-run desired = %v, want running", byID["AG-run"])
+	}
+	// terminal / settling states stay excluded.
+	if _, ok := byID["AG-failed"]; ok {
+		t.Fatalf("terminal failed agent leaked into resume set (must be manual-only): %v", byID)
+	}
+	if _, ok := byID["AG-stopping"]; ok {
+		t.Fatalf("stopping agent leaked into resume set: %v", byID)
+	}
+}
+
 // TestEnvWorkerResumeState_BodyMismatch_403 is the 🔴 AUTHZ only-ask-self check:
 // a W1 token asking about W2 in the body → 403 worker_mismatch (no cross-worker
 // leak), even though the token is a valid worker token.

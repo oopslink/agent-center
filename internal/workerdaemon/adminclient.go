@@ -483,7 +483,8 @@ type feedbackReporter interface {
 	// ReportAgentActivity posts a single AgentActivityEvent (the stdout→activity
 	// sink — observation only; it does NOT post to any Conversation).
 	ReportAgentActivity(ctx context.Context, agentID, eventType, payloadJSON, taskRef, interactionRef string, at time.Time) error
-	// ReportAgentLifecycle posts a lifecycle RESULT (state "stopped" | "error").
+	// ReportAgentLifecycle posts a lifecycle RESULT (state "running" recovery |
+	// "stopped" | "error" | "failed").
 	ReportAgentLifecycle(ctx context.Context, agentID, state, errMsg string, at time.Time) error
 	// v2.14.0 F7 (issue I14): ReportWorkItemState removed — AgentWorkItem retired
 	// (the work-item-state feedback endpoint is gone; the daemon surfaces L2 errors

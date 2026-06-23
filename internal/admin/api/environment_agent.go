@@ -26,7 +26,8 @@ import (
 // intent changes. They MUST NOT emit agent.lifecycle_changed — that event is
 // consumed by the Environment AgentControlProjector, which would enqueue a NEW
 // reconcile command (feedback loop). The AppService methods invoked here
-// (MarkAgentStopped / MarkAgentError) are PERSIST-ONLY (no outbox emit).
+// (MarkAgentRecovered / MarkAgentStopped / MarkAgentError / MarkAgentFailed) are
+// PERSIST-ONLY (no outbox emit).
 //
 // D2-c-i is additive plumbing: nothing is activated (the daemon controller is
 // D2-c-ii; execution cutover is D2-f). The legacy taskruntime path is untouched.
@@ -83,7 +84,7 @@ func (s *Server) envAgentActivityHandler(w http.ResponseWriter, r *http.Request)
 // POST /admin/environment/agent/lifecycle-feedback.
 type agentLifecycleFeedbackReq struct {
 	AgentID string `json:"agent_id"`
-	State   string `json:"state"` // "stopped" | "error"
+	State   string `json:"state"` // "running" (recovery) | "stopped" | "error" | "failed"
 	Error   string `json:"error,omitempty"`
 	At      string `json:"at,omitempty"`
 }
@@ -111,6 +112,13 @@ func (s *Server) envAgentLifecycleFeedbackHandler(w http.ResponseWriter, r *http
 		at = time.Now()
 	}
 	switch strings.ToLower(strings.TrimSpace(req.State)) {
+	case "running":
+		// issue I13 auto-recovery: the daemon reports a CRASHED (error) agent's session
+		// is back up (boot reattach/relaunch or mid-run self-heal) → clear error →
+		// running so the agent is AVAILABLE for dispatch again + the UI stops showing it
+		// crashed. NO-OP on any non-error state (MarkAgentRecovered), so it can never
+		// resurrect a deliberately-stopped or terminal agent.
+		err = d.AgentSvc.MarkAgentRecovered(r.Context(), a.ID(), at)
 	case "stopped":
 		err = d.AgentSvc.MarkAgentStopped(r.Context(), a.ID(), at)
 	case "error":
@@ -120,7 +128,7 @@ func (s *Server) envAgentLifecycleFeedbackHandler(w http.ResponseWriter, r *http
 		err = d.AgentSvc.MarkAgentFailed(r.Context(), a.ID(), req.Error, at)
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_state",
-			"state must be 'stopped', 'error' or 'failed'")
+			"state must be 'running', 'stopped', 'error' or 'failed'")
 		return
 	}
 	if err != nil {
@@ -290,10 +298,13 @@ type resumeStateReq struct {
 // AUTHZ: worker = token owner (strip `worker:` prefix; non-worker owner → 403);
 // body.worker_id MUST == that worker, else 403 (worker_mismatch).
 //
-// Computed set: AgentRepo.ListByWorker(worker) → include each agent that SHOULD
-// be running (lifecycle == running); a stopped/stopping/resetting/error agent is
-// SKIPPED (nothing to resume). Each included agent carries desired_lifecycle +
-// version (+ reset_scope reserved for f-3).
+// Computed set: AgentRepo.ListByWorker(worker) → include each agent whose
+// operator INTENT is to be running: lifecycle == running (the normal signal) OR
+// lifecycle == error (issue I13: a daemon-reported CRASH — transient, the operator
+// never asked to stop it). A stopped/stopping/resetting agent and the TERMINAL
+// `failed` circuit-breaker are SKIPPED (nothing to resume / manual recovery only).
+// Each included agent carries desired_lifecycle + version (+ reset_scope reserved
+// for f-3).
 //
 // v2.14.0 F7 (issue I14): the per-agent in-flight WorkItem list was removed —
 // AgentWorkItem retired. The resumable set is now exactly the running agents; the
@@ -337,15 +348,30 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 
 	out := make([]map[string]any, 0, len(agents))
 	for _, a := range agents {
-		// Include the agent only if it SHOULD be running (lifecycle == running).
-		// v2.14.0 F7 (issue I14): the "OR has in-flight WorkItem" condition was
-		// dropped — AgentWorkItem retired; running lifecycle is the resumable signal.
-		if a.Lifecycle() != agent.LifecycleRunning {
+		// Include the agent if its operator intent is to be running:
+		//   - running: the normal resumable signal (v2.14.0 F7 / issue I14 — the
+		//     "OR has in-flight WorkItem" condition was dropped with AgentWorkItem).
+		//   - error:   the daemon reported a CRASH (issue I13). `error` is the
+		//     TRANSIENT crash state (vs the TERMINAL `failed` circuit-breaker), and
+		//     the operator never asked to stop it, so its desired intent is still
+		//     running. It MUST be resumable: on a daemon (re)boot the agent's
+		//     supervisor often SURVIVED, and omitting it here makes boot-reconcile see
+		//     a live supervisor with NO center record and stop+reap it as an orphan
+		//     (killing the surviving claude, never relaunching) — the
+		//     "挂了不能自动恢复" trap. Listing it lets boot-reconcile reattach the
+		//     survivor / relaunch a dead one, and lets a new-work wake bring it back.
+		lc := a.Lifecycle()
+		if lc != agent.LifecycleRunning && lc != agent.LifecycleError {
 			continue
 		}
 		out = append(out, map[string]any{
-			"agent_id":          string(a.ID()),
-			"desired_lifecycle": string(a.Lifecycle()),
+			"agent_id": string(a.ID()),
+			// Report the INTENT, not the literal lifecycle: the daemon keys on
+			// desired_lifecycle=="running" (boot_reconcile.wantsRunning) to reattach /
+			// relaunch. A running agent's lifecycle already == "running"; an error agent
+			// must also map to "running" here, or boot-reconcile would fall through to
+			// stop+reap (the recovery trap above).
+			"desired_lifecycle": string(agent.LifecycleRunning),
 			"model":             a.Profile().Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
 			"version":           a.Version(),
 			"reset_scope":       "",                  // reserved for f-3 (rollback/reset semantics)

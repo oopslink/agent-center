@@ -225,6 +225,15 @@ func (s *Service) MarkAgentError(ctx context.Context, id agent.AgentID, msg stri
 	return s.feedbackPersist(ctx, id, func(a *agent.Agent) error { a.MarkError(msg, at); return nil })
 }
 
+// MarkAgentRecovered clears a CRASHED agent (error → running) when the daemon
+// reports its session is back up (issue I13 auto-recovery). Persist-only: NO outbox
+// emit (RESULT feedback, not an intent change — loop-avoidance). It is a NO-OP on any
+// non-error lifecycle (see agent.MarkRecovered), so a stale/racing "running" feedback
+// can never resurrect a deliberately-stopped or terminal agent.
+func (s *Service) MarkAgentRecovered(ctx context.Context, id agent.AgentID, at time.Time) error {
+	return s.feedbackPersist(ctx, id, func(a *agent.Agent) error { a.MarkRecovered(at); return nil })
+}
+
 // MarkAgentFailed records the TERMINAL crash-loop circuit-breaker state (v2.7
 // GATE-7 Mode-B self-heal cap exhausted). Persist-only: NO outbox emit (result
 // feedback, not an intent change). Returns agent.ErrIllegalLifecycle (→ 409) if
