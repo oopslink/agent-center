@@ -20,7 +20,7 @@ import {
   useStopAgent,
   useRestartAgent,
   useResetAgent,
-  useAgentWorkItems,
+  useAgentTasks,
   useAgentActivity,
 } from './agents';
 import { useSecrets, useCreateSecret, useRevokeSecret } from './secrets';
@@ -172,9 +172,9 @@ describe('react-query hooks', () => {
     expect(result.current.data?.lifecycle).toBe('stopped');
   });
 
-  it('useAgentWorkItems + useAgentActivity unwrap their lists', async () => {
+  it('useAgentTasks + useAgentActivity unwrap their lists', async () => {
     const wrapper = makeWrapper();
-    const wi = renderHook(() => useAgentWorkItems('A-1'), { wrapper });
+    const wi = renderHook(() => useAgentTasks('A-1'), { wrapper });
     await waitFor(() => expect(wi.result.current.isSuccess).toBe(true));
     expect(wi.result.current.data?.[0].task_ref).toBe('task:T-1');
 

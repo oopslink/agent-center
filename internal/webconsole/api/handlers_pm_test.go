@@ -21,8 +21,7 @@ import (
 
 // TestPM_NestedTaskFlow_EndToEnd is the B3 spot-check path: POST a nested task
 // → the participant projector creates the task Conversation + syncs the creator
-// participant; POST assign agent → the work-item projector creates a queued
-// AgentWorkItem. All over the real HTTP handlers + outbox relay.
+// participant. All over the real HTTP handlers + outbox relay.
 func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -76,11 +75,9 @@ func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 	// Drain the outbox (the server runs this as the Pump; here we run it once).
 	applied := outboxsql.NewAppliedRepo(db)
 	convRepo := convsqlite.NewConversationRepo(db)
-	wiRepo := agentsql.NewWorkItemRepo(db)
 	gen := idgen.NewGenerator(clock.SystemClock{})
 	relay := outbox.NewRelay(outboxsql.NewOutboxRepo(db), applied, clock.SystemClock{},
-		pmservice.NewParticipantProjector(db, convRepo, applied, gen, clock.SystemClock{}),
-		pmservice.NewWorkItemProjector(db, wiRepo, applied, gen, clock.SystemClock{}))
+		pmservice.NewParticipantProjector(db, convRepo, applied, gen, clock.SystemClock{}))
 	for i := 0; i < 5; i++ {
 		n, err := relay.RunOnce(ctx, 100)
 		if err != nil {
@@ -108,12 +105,6 @@ func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 	}
 	if !foundCreator {
 		t.Fatalf("creator %s not synced as participant: %v", caller, conv.Participants())
-	}
-
-	// The work-item projector created a queued WorkItem for the agent.
-	items, _ := wiRepo.ListByTask(ctx, "pm://tasks/"+tid)
-	if len(items) != 1 || items[0].AgentID() != "AG1" {
-		t.Fatalf("expected 1 WorkItem for AG1, got %+v", items)
 	}
 }
 

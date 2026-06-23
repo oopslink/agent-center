@@ -15,26 +15,22 @@ import (
 )
 
 // recordingReporter is a fake feedbackReporter that records every call so
-// assertions can inspect activity / lifecycle / work-item feedback. Safe for
-// concurrent use (OnEvent/OnExit fire on the session reader goroutine).
+// assertions can inspect activity / lifecycle feedback. Safe for concurrent use
+// (OnEvent/OnExit fire on the session reader goroutine).
 type recordingReporter struct {
 	mu sync.Mutex
 
 	activities   []activityCall
 	lifecycles   []lifecycleCall
-	workItems    []workItemCall
 	markSeens    []markSeenCall
 	converseErrs []converseErrCall
 }
 
 type activityCall struct {
-	agentID, eventType, payload, workItemRef, interactionRef string
+	agentID, eventType, payload, taskRef, interactionRef string
 }
 type lifecycleCall struct {
 	agentID, state, errMsg string
-}
-type workItemCall struct {
-	agentID, workItemID, state string
 }
 type markSeenCall struct {
 	agentID, conversationID, messageID string
@@ -43,10 +39,10 @@ type converseErrCall struct {
 	agentID, conversationID, summary string
 }
 
-func (r *recordingReporter) ReportAgentActivity(_ context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, _ time.Time) error {
+func (r *recordingReporter) ReportAgentActivity(_ context.Context, agentID, eventType, payloadJSON, taskRef, interactionRef string, _ time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.activities = append(r.activities, activityCall{agentID, eventType, payloadJSON, workItemRef, interactionRef})
+	r.activities = append(r.activities, activityCall{agentID, eventType, payloadJSON, taskRef, interactionRef})
 	return nil
 }
 
@@ -54,13 +50,6 @@ func (r *recordingReporter) ReportAgentLifecycle(_ context.Context, agentID, sta
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.lifecycles = append(r.lifecycles, lifecycleCall{agentID, state, errMsg})
-	return nil
-}
-
-func (r *recordingReporter) ReportWorkItemState(_ context.Context, agentID, workItemID, state string, _ time.Time) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.workItems = append(r.workItems, workItemCall{agentID, workItemID, state})
 	return nil
 }
 
@@ -107,14 +96,6 @@ func (r *recordingReporter) activityCalls() []activityCall {
 	defer r.mu.Unlock()
 	out := make([]activityCall, len(r.activities))
 	copy(out, r.activities)
-	return out
-}
-
-func (r *recordingReporter) workItemCalls() []workItemCall {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]workItemCall, len(r.workItems))
-	copy(out, r.workItems)
 	return out
 }
 
@@ -288,7 +269,7 @@ func reconcileCmd(t *testing.T, agentID, desired string, version int, scope stri
 
 func workCmd(t *testing.T, agentID, workItemID, brief string, offset int64) ControlCommand {
 	t.Helper()
-	pl := workPayload{AgentID: agentID, WorkItemID: workItemID, Brief: brief}
+	pl := workPayload{AgentID: agentID, TaskID: workItemID, Brief: brief}
 	return ControlCommand{
 		ID:          "cmd-w",
 		Offset:      offset,
@@ -307,7 +288,7 @@ func wakeCmd(t *testing.T, agentID, workItemID, messageID, messageText string, o
 func wakeCmdConv(t *testing.T, agentID, workItemID, conversationID, messageID, messageText string, offset int64) ControlCommand {
 	t.Helper()
 	pl := wakePayload{
-		AgentID: agentID, WorkItemID: workItemID, ConversationID: conversationID,
+		AgentID: agentID, TaskID: workItemID, ConversationID: conversationID,
 		MessageID: messageID, MessageText: messageText,
 	}
 	return ControlCommand{
@@ -438,8 +419,8 @@ func TestAgentController_ReconcileRunning_PassesModel(t *testing.T) {
 	}
 }
 
-func TestAgentController_Work_InjectsBriefAndReportsActive(t *testing.T) {
-	c, rep, rs := newTestController(t, t.TempDir())
+func TestAgentController_Work_InjectsBrief(t *testing.T) {
+	c, _, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -454,48 +435,6 @@ func TestAgentController_Work_InjectsBriefAndReportsActive(t *testing.T) {
 	in := rs.last().injectedMsgs()
 	if len(in) != 1 || in[0] != "do the task" {
 		t.Fatalf("want the brief injected once verbatim, got %+v", in)
-	}
-
-	wis := rep.workItemCalls()
-	if len(wis) != 1 || wis[0].workItemID != "wi-1" || wis[0].state != "active" {
-		t.Fatalf("work-item calls: %+v", wis)
-	}
-}
-
-// TestAgentController_Work_IsErrorTurnFailsWorkItem is the L2 no-silent-failure
-// assertion: after work injects a brief (WorkItem→active), a `result` event with
-// is_error=true must surface as a WorkItem "failed" feedback — the failed turn
-// must NOT sit silently active. A success result must NOT fail the WorkItem (a
-// WorkItem can span multiple turns).
-func TestAgentController_Work_IsErrorTurnFailsWorkItem(t *testing.T) {
-	c, rep, rs := newTestController(t, t.TempDir())
-	defer c.Shutdown(context.Background())
-
-	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
-	if err := c.Handle(context.Background(), workCmd(t, "agent-1", "wi-1", "do the task", 2)); err != nil {
-		t.Fatalf("work: %v", err)
-	}
-	fs := rs.last()
-
-	// A successful turn must NOT fail the WorkItem (multi-turn WorkItems stay active).
-	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", Result: "partial", IsError: false})
-	if got := failedCount(rep.workItemCalls(), "wi-1"); got != 0 {
-		t.Fatalf("success result must not fail the WorkItem, got %d failed calls", got)
-	}
-
-	// An is_error turn MUST surface as a WorkItem "failed".
-	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
-	if got := failedCount(rep.workItemCalls(), "wi-1"); got != 1 {
-		t.Fatalf("is_error result must fail the in-flight WorkItem exactly once, got %d: %+v", got, rep.workItemCalls())
-	}
-
-	// After surfacing, the in-flight pointer is cleared — a stray second is_error
-	// result must NOT re-fail the (already failed) WorkItem.
-	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
-	if got := failedCount(rep.workItemCalls(), "wi-1"); got != 1 {
-		t.Fatalf("a second is_error result must not re-fail the WorkItem, got %d", got)
 	}
 }
 
@@ -532,26 +471,11 @@ func TestAgentController_Converse_IsErrorTurnPostsConverseError(t *testing.T) {
 	if !strings.Contains(calls[0].summary, "error_during_execution") {
 		t.Fatalf("summary should carry the subtype, got %q", calls[0].summary)
 	}
-	// Converse has no WorkItem → no WorkItem feedback.
-	if got := len(rep.workItemCalls()); got != 0 {
-		t.Fatalf("converse turn must not produce WorkItem feedback, got %+v", rep.workItemCalls())
-	}
 	// A stray second is_error must NOT re-post (in-flight conversation cleared).
 	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
 	if got := len(rep.converseErrCalls()); got != 1 {
 		t.Fatalf("a second is_error must not re-post converse-error, got %d", got)
 	}
-}
-
-// failedCount counts WorkItem feedback calls that failed the given workItemID.
-func failedCount(calls []workItemCall, wiID string) int {
-	n := 0
-	for _, c := range calls {
-		if c.workItemID == wiID && c.state == "failed" {
-			n++
-		}
-	}
-	return n
 }
 
 func TestAgentController_Work_NoSessionRetries(t *testing.T) {
@@ -825,8 +749,8 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("timed out waiting for condition")
 }
 
-func TestAgentController_Wake_InjectsMessageAndReportsActive(t *testing.T) {
-	c, rep, rs := newTestController(t, t.TempDir())
+func TestAgentController_Wake_InjectsMessage(t *testing.T) {
+	c, _, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -840,15 +764,10 @@ func TestAgentController_Wake_InjectsMessageAndReportsActive(t *testing.T) {
 	if len(in) != 1 || in[0] != "human replied here" {
 		t.Fatalf("want the wake message injected once verbatim, got %+v", in)
 	}
-
-	wis := rep.workItemCalls()
-	if len(wis) != 1 || wis[0].workItemID != "wi-1" || wis[0].state != "active" {
-		t.Fatalf("work-item calls: %+v", wis)
-	}
 }
 
 func TestAgentController_Wake_DedupByMessageID(t *testing.T) {
-	c, rep, rs := newTestController(t, t.TempDir())
+	c, _, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -865,10 +784,6 @@ func TestAgentController_Wake_DedupByMessageID(t *testing.T) {
 	in := rs.last().injectedMsgs()
 	if len(in) != 1 || in[0] != "reply text" {
 		t.Fatalf("dedup failed: want exactly 1 injection, got %+v", in)
-	}
-	// Only the first wake reports active.
-	if wis := rep.workItemCalls(); len(wis) != 1 {
-		t.Fatalf("dedup should report active once, got %d: %+v", len(wis), wis)
 	}
 }
 
@@ -949,7 +864,7 @@ func TestAgentController_Wake_NoConvID_NoMarkSeen_DedupStillWorks(t *testing.T) 
 
 // TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem pins v2.7 #111:
 // onEvent must stamp the in-flight WorkItem id onto the activity event's
-// work_item_ref (previously hardcoded "") so the observability projection can
+// task_ref (previously hardcoded "") so the observability projection can
 // aggregate tool_calls / tokens / current_activity per work-item. With NO
 // in-flight WorkItem the ref stays empty (idle activity), unchanged.
 func TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem(t *testing.T) {
@@ -960,22 +875,22 @@ func TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem(t *testing.T) {
 	}
 	fs := rs.last()
 
-	// No in-flight work item yet → activity carries an empty work_item_ref.
+	// No in-flight work item yet → activity carries an empty task_ref.
 	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-0"})
 	acts := rep.activityCalls()
-	if last := acts[len(acts)-1]; last.workItemRef != "" {
-		t.Fatalf("idle activity (no in-flight WI) must have empty work_item_ref, got %q", last.workItemRef)
+	if last := acts[len(acts)-1]; last.taskRef != "" {
+		t.Fatalf("idle activity (no in-flight WI) must have empty task_ref, got %q", last.taskRef)
 	}
 
 	// Simulate an in-flight work item (set the same field work/wake delivery sets).
 	c.mu.Lock()
-	c.agents["agent-1"].currentWorkItemID = "WI-1"
+	c.agents["agent-1"].currentTaskID = "WI-1"
 	c.mu.Unlock()
 
 	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-1"})
 	acts = rep.activityCalls()
 	last := acts[len(acts)-1]
-	if last.workItemRef != "WI-1" {
-		t.Fatalf("activity during an in-flight work item must carry its work_item_ref; want WI-1, got %q", last.workItemRef)
+	if last.taskRef != "WI-1" {
+		t.Fatalf("activity during an in-flight work item must carry its task_ref; want WI-1, got %q", last.taskRef)
 	}
 }

@@ -11,7 +11,7 @@ func strptr(s string) *string { return &s }
 // TestBatchUpdateTask_Partial: a {tags}-only patch leaves status + assignee
 // untouched (v2.8.1 edit-task #278).
 func TestBatchUpdateTask_Partial(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	if err := svc.AssignTask(ctx, tid, "user:a", "user:a"); err != nil {
@@ -40,7 +40,7 @@ func TestBatchUpdateTask_Partial(t *testing.T) {
 // TestBatchUpdateTask_Atomic: an invalid status in a {status,tags} patch rolls
 // back the WHOLE patch — tags must NOT be applied.
 func TestBatchUpdateTask_Atomic(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 
@@ -66,7 +66,7 @@ func TestBatchUpdateTask_Atomic(t *testing.T) {
 
 // TestBatchUpdateTask_AssigneeUnassign: assignee:"" clears the assignee.
 func TestBatchUpdateTask_AssigneeUnassign(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	if err := svc.AssignTask(ctx, tid, "user:a", "user:a"); err != nil {
@@ -85,7 +85,7 @@ func TestBatchUpdateTask_AssigneeUnassign(t *testing.T) {
 // (issues have no assignee). Mirrors the Task partial-patch contract for #232's
 // Issue analogue (v2.8.1 edit-consolidation).
 func TestBatchUpdateIssue_Partial(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "bug", CreatedBy: "user:a"})
 	tags := []string{"x", "y"}
@@ -107,7 +107,7 @@ func TestBatchUpdateIssue_Partial(t *testing.T) {
 // TestBatchUpdateIssue_Atomic: an invalid status in a {status,tags} patch rolls
 // back the whole tx — tags must NOT be applied (all-or-none).
 func TestBatchUpdateIssue_Atomic(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "bug", CreatedBy: "user:a"})
 	tags := []string{"z"}
@@ -125,7 +125,7 @@ func TestBatchUpdateIssue_Atomic(t *testing.T) {
 
 // TestBatchUpdateIssue_MultiField: title+status+tags applied together in one tx.
 func TestBatchUpdateIssue_MultiField(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "bug", CreatedBy: "user:a"})
 	tags := []string{"p"}

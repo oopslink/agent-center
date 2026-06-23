@@ -9,14 +9,12 @@ import (
 	"sync"
 	"time"
 
-	agentpkg "github.com/oopslink/agent-center/internal/agent"
-	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-// FleetWorkItemRow rows live in FleetSnapshot.WorkItems. The row VO + its
-// formatter moved to work_item_row.go (WorkItemRow / workItemRowFromProjection)
-// as the single source shared with the inspect/query verbs (#107 Phase-2).
+// Execution rows live in FleetSnapshot.Tasks. The row VO + its Task-sourced
+// formatter live in task_exec_row.go (TaskExecRow / taskExecutionRow) as the
+// single source shared with the inspect/query verbs.
 
 // FleetWorkerRow is one row in FleetSnapshot.Workers.
 type FleetWorkerRow struct {
@@ -57,7 +55,7 @@ type FleetIssueRow struct {
 // FleetSnapshot is the VO returned by FleetSnapshotService.Snapshot.
 // Per observability/00 § 7.2 + plan-4 § 1.3.
 type FleetSnapshot struct {
-	WorkItems     []WorkItemRow    `json:"work_items"`
+	Tasks         []TaskExecRow    `json:"tasks"`
 	Workers       []FleetWorkerRow `json:"workers"`
 	PendingIssues []FleetIssueRow  `json:"pending_issues"`
 	GeneratedAt   string           `json:"generated_at"`
@@ -97,7 +95,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	now := time.Now().UTC()
 	snap := FleetSnapshot{GeneratedAt: now.Format(time.RFC3339Nano)}
 	var (
-		execs       []WorkItemRow
+		execs       []TaskExecRow
 		execsErr    error
 		workers     []FleetWorkerRow
 		workerWarns []string
@@ -120,7 +118,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 		issues, issuesErr = s.fetchPendingIssues(ctx, filter)
 	}()
 	wg.Wait()
-	snap.WorkItems = execs
+	snap.Tasks = execs
 	snap.Workers = workers
 	snap.PendingIssues = issues
 	if execsErr != nil {
@@ -136,133 +134,63 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	return snap
 }
 
-// fetchExecutions reads the LIVE work-item projections (v2.7 #107: repointed off
-// the retired task-execution model to agent_work_item_projections). Project/org
-// scoping is preserved by resolving each work item's task_ref → pm task → project
-// (equivalent to the old Tasks.FindByID(org) path); fail-closed so a work item
-// whose project can't be resolved is excluded under org scope (no cross-org leak).
-func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter SnapshotFilter) ([]WorkItemRow, error) {
-	if s.deps.WorkItemProjections == nil {
-		return nil, errors.New("work item projections repo not wired")
+// fetchExecutions reads the live agent executions from pm_tasks (v2.14.0 F7 /
+// issue I14: repointed off the retired AgentWorkItem projection model). An
+// "execution" is a non-terminal task assigned to an agent (open/running/
+// reopened == activeTaskStatuses); the row's work_item_id carries the task id.
+// Project/org scoping resolves each task → pm project → org directly; fail-closed
+// so a task whose project can't be resolved is excluded under org scope (no
+// cross-org leak).
+func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter SnapshotFilter) ([]TaskExecRow, error) {
+	if s.deps.PMTasks == nil {
+		return nil, errors.New("pm tasks repo not wired")
 	}
-	projs, err := s.deps.WorkItemProjections.List(ctx, projection.AgentWorkItemProjectionFilter{
-		Statuses: []string{
-			string(agentpkg.WorkItemQueued),
-			string(agentpkg.WorkItemActive),
-			string(agentpkg.WorkItemWaitingInput),
-		},
-	})
+	tasks, err := s.deps.PMTasks.ListByStatuses(ctx, activeTaskStatuses)
 	if err != nil {
 		return nil, err
 	}
 	orgScoped := filter.OrganizationID != ""
-	memberIDOf := s.agentMemberIDResolver(ctx)
-	out := make([]WorkItemRow, 0, len(projs))
-	for _, p := range projs {
-		taskID, taskTitle, taskOrgRef, projectID, orgID := s.workItemTaskProjectOrg(ctx, p.WorkItemID)
+	out := make([]TaskExecRow, 0, len(tasks))
+	for _, t := range tasks {
+		row := taskExecutionRow(t)
+		if row.AgentID == "" {
+			continue // executions are agent work only — skip human-assigned/unassigned
+		}
+		taskOrgRef, projectID, orgID := s.taskProjectOrg(ctx, t)
 		if filter.ProjectID != "" && projectID != filter.ProjectID {
 			continue
 		}
 		if orgScoped && orgID != filter.OrganizationID {
-			continue // fail-closed: never leak a work item whose org can't be confirmed
+			continue // fail-closed: never leak a task whose org can't be confirmed
 		}
-		row := workItemRowFromProjection(p, taskID)
-		// v2.7.1 #206: read-time enrichment for the Home work-item rows (task title +
-		// owning project for the click-through link). Empty when unresolved → UI falls back.
-		// v2.10.2 [T140]: also carry the task's org_ref ("T<n>") so the Worker Activity
-		// feed shows "T<n> + title" + links to the correct project-scoped task page.
-		row.TaskTitle = taskTitle
+		// Read-time enrichment for the Home rows (task title + org_ref + owning
+		// project for the click-through link). No extra query — the task is in hand.
+		row.TaskTitle = t.Title()
 		row.TaskOrgRef = taskOrgRef
 		row.ProjectID = projectID
-		// v2.7 #185: the work-item projection stores the execution-entity agent id
-		// (internal). The fleet snapshot is user-facing (Web Console), so expose
-		// the business-layer member id instead — no entity-ULID leak.
-		row.AgentID = memberIDOf(row.AgentID)
 		out = append(out, row)
 	}
 	return out, nil
 }
 
-// agentMemberIDResolver returns a memoized entity-id → identity-member-id mapper
-// (v2.7 #185). A missing repo or unresolvable/member-less agent falls back to the
-// input id so a row never loses its agent reference. Memoized because several
-// work items can share one agent within a snapshot.
-func (s *FleetSnapshotService) agentMemberIDResolver(ctx context.Context) func(string) string {
-	cache := map[string]string{}
-	return func(entityID string) string {
-		if entityID == "" || s.deps.Agents == nil {
-			return entityID
-		}
-		if v, ok := cache[entityID]; ok {
-			return v
-		}
-		out := entityID
-		if a, err := s.deps.Agents.FindByID(ctx, agentpkg.AgentID(entityID)); err == nil {
-			if m := strings.TrimSpace(a.IdentityMemberID()); m != "" {
-				out = m
-			}
-		}
-		cache[entityID] = out
-		return out
-	}
-}
-
-// workItemTaskProjectOrg resolves a work item's task id + owning project id +
-// owning org id, all from the pm model: work_item.task_ref ("pm://tasks/{id}")
-// → pm task → pm project → organization. Returns "" for any hop that can't be
-// resolved (missing repos / work item / task / project); callers fail-closed on
-// org scope so a work item whose org can't be confirmed is never leaked.
-//
-// v2.7 #107: org is resolved from the pm project (same source as project), NOT
-// the retired workforce `projects` table — mixing the two made org-scope fail
-// closed on every work item at runtime (workforce projects are empty).
-// v2.7.1 #206: also returns the task title (read-time enrichment for the
-// user-facing Home/Overview work-item rows). taskTitle is "" when the task can't
-// be resolved (callers omit it → UI falls back). No extra query: the task entity
-// is already loaded here for org scoping.
-func (s *FleetSnapshotService) workItemTaskProjectOrg(ctx context.Context, workItemID string) (taskID, taskTitle, taskOrgRef, projectID, orgID string) {
-	if s.deps.WorkItems == nil {
-		return "", "", "", "", ""
-	}
-	wi, err := s.deps.WorkItems.FindByID(ctx, workItemID)
-	if err != nil || wi == nil {
-		return "", "", "", "", ""
-	}
-	id, ok := fleetTaskIDFromRef(wi.TaskRef())
-	if !ok {
-		return "", "", "", "", ""
-	}
-	taskID = id
-	if s.deps.PMTasks == nil {
-		return taskID, "", "", "", ""
-	}
-	tk, terr := s.deps.PMTasks.FindByID(ctx, pm.TaskID(id))
-	if terr != nil || tk == nil {
-		return taskID, "", "", "", ""
-	}
-	taskTitle = tk.Title()
-	// v2.10.2 [T140]: the org_ref token ("T<n>"), same format as the org Task list
-	// (orgRefToken); "" when the org-number isn't allocated → UI falls back to a
-	// clean #hash. No extra query — the task is already loaded here.
-	if n := tk.OrgNumber(); n > 0 {
+// taskProjectOrg resolves a task's org_ref token ("T<n>") + owning project id +
+// owning org id from the pm model: pm task → pm project → organization. Returns
+// "" for any hop that can't be resolved (missing repo / project); callers
+// fail-closed on org scope so a task whose org can't be confirmed is never
+// leaked. No task lookup — the caller already holds the loaded task.
+func (s *FleetSnapshotService) taskProjectOrg(ctx context.Context, t *pm.Task) (taskOrgRef, projectID, orgID string) {
+	// The org_ref token ("T<n>"); "" when the org-number isn't allocated → UI
+	// falls back to a clean #hash.
+	if n := t.OrgNumber(); n > 0 {
 		taskOrgRef = "T" + strconv.Itoa(n)
 	}
-	projectID = string(tk.ProjectID())
+	projectID = string(t.ProjectID())
 	if s.deps.PMProjects != nil && projectID != "" {
 		if pr, perr := s.deps.PMProjects.FindByID(ctx, pm.ProjectID(projectID)); perr == nil && pr != nil {
 			orgID = pr.OrganizationID()
 		}
 	}
-	return taskID, taskTitle, taskOrgRef, projectID, orgID
-}
-
-// fleetTaskIDFromRef extracts {id} from a "pm://tasks/{id}" work-item task ref.
-func fleetTaskIDFromRef(ref string) (string, bool) {
-	const p = "pm://tasks/"
-	if strings.HasPrefix(ref, p) && len(ref) > len(p) {
-		return strings.TrimPrefix(ref, p), true
-	}
-	return "", false
+	return taskOrgRef, projectID, orgID
 }
 
 func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter SnapshotFilter) ([]FleetWorkerRow, []string, error) {
@@ -304,57 +232,52 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 			}
 			row.Capabilities = rows
 		}
-		// v2.7 #131: ActiveCount repointed off the retired task_execution model to
-		// the agent work-item model, mirroring inspectWorker (service.go): a worker
-		// controls many agents, work items are agent-keyed, so "what's this worker
-		// actively running" = ListByWorker → ListByAgent, counting non-terminal
-		// (queued/active/waiting_input).
+		// v2.14.0 F7 (issue I14): ActiveCount repointed off the retired AgentWorkItem
+		// model onto pm_tasks. A worker controls many agents; tasks are assignee-keyed
+		// by the agent's member ref ("agent:<member-id>"), so "what's this worker
+		// actively running" = ListByWorker → ListByAssignee, counting non-terminal.
 		//
-		// v2.7 #131 §-1 #4 (multi-path-resolution-same-source): this ActiveCount
-		// org-scope (the worker-loop skip above, by worker.OrganizationID) and the
-		// work-item LIST org-scope (fetchExecutions, by task→pm-project.org) are two
-		// INDEPENDENT resolution chains. They agree only insofar as the
-		// org-scoped-dispatch invariant holds — i.e. a worker's agents run only work
-		// items whose task's pm-project shares the worker's org. This is a DEPENDENCY
-		// on that invariant, NOT a guarantee local to this code. To keep count and
-		// list consistent fail-closed (and never silently drift), when org-scoped we
-		// verify each counted work item's task→pm-project org equals the worker's
-		// org; on mismatch we DON'T count it (no cross-org count mixing) and surface
-		// a visible warning instead of a silent count≠list discrepancy.
-		if s.deps.Agents != nil && s.deps.WorkItems != nil {
+		// (multi-path-resolution-same-source): this ActiveCount org-scope (the
+		// worker-loop skip above, by worker.OrganizationID) and the executions LIST
+		// org-scope (fetchExecutions, by task→pm-project.org) are two INDEPENDENT
+		// resolution chains. They agree only insofar as the org-scoped-dispatch
+		// invariant holds — i.e. a worker's agents run only tasks whose pm-project
+		// shares the worker's org. To keep count and list consistent fail-closed,
+		// when org-scoped we verify each counted task's pm-project org equals the
+		// worker's org; on mismatch we DON'T count it and surface a visible warning
+		// instead of a silent count≠list discrepancy.
+		if s.deps.Agents != nil && s.deps.PMTasks != nil {
 			agents, _ := s.deps.Agents.ListByWorker(ctx, string(w.ID()))
 			active := 0
 			for _, ag := range agents {
-				wis, _ := s.deps.WorkItems.ListByAgent(ctx, ag.ID())
-				for _, wi := range wis {
-					if wi.Status().IsTerminal() {
+				memberID := strings.TrimSpace(ag.IdentityMemberID())
+				if memberID == "" {
+					continue
+				}
+				tasks, _ := s.deps.PMTasks.ListByAssignee(ctx, pm.IdentityRef("agent:"+memberID))
+				for _, t := range tasks {
+					if t.Status().IsTerminal() {
 						continue
 					}
 					if filter.OrganizationID != "" {
-						// Count==list across all three states: the work-item LIST
-						// (fetchExecutions) only includes items whose task→pm-project
-						// org equals the scope org, fail-closed — so unresolvable
-						// (wiOrg=="") AND divergent (wiOrg!=worker.org) are BOTH
-						// excluded there. Mirror that here: only count when the org
-						// resolves to this worker's org. (A bare wiOrg!=worker.org skip
-						// would still count the unresolvable case → count>list.)
-						_, _, _, _, wiOrg := s.workItemTaskProjectOrg(ctx, wi.ID())
-						if wiOrg != w.OrganizationID() {
-							if wiOrg != "" {
+						// Count==list: fetchExecutions only includes tasks whose
+						// pm-project org equals the scope org, fail-closed — so
+						// unresolvable ("") AND divergent are BOTH excluded there.
+						// Mirror that here: only count when the org resolves to this
+						// worker's org.
+						_, _, tOrg := s.taskProjectOrg(ctx, t)
+						if tOrg != w.OrganizationID() {
+							if tOrg != "" {
 								// Positive divergence (resolved to a DIFFERENT org) = the
 								// org-scoped-dispatch invariant is actually broken → surface
-								// a visible warning. §-1 no-leak: do NOT name the foreign
-								// org (wiOrg) — naming it in an org member's snapshot leaks
-								// its existence (red line, #119/#137/#138); the worker +
-								// work-item ids (in-org) keep it actionable, the specific
-								// foreign org is recoverable via non-org-scoped admin tools.
+								// a visible warning. No-leak: do NOT name the foreign org;
+								// the worker + task ids (in-org) keep it actionable.
 								warnings = append(warnings, fmt.Sprintf(
-									"worker %s active_count: work item %s skipped — its task's pm-project belongs to a different organization (org-scoped-dispatch invariant broken)",
-									w.ID(), wi.ID()))
+									"worker %s active_count: task %s skipped — its pm-project belongs to a different organization (org-scoped-dispatch invariant broken)",
+									w.ID(), t.ID()))
 							}
-							// wiOrg=="" is unresolvable (missing pm task/project) = missing
-							// data, NOT a violation → skip silently (no warning), still
-							// fail-closed to keep count==list.
+							// tOrg=="" is unresolvable (missing pm project) = missing data,
+							// NOT a violation → skip silently, still fail-closed.
 							continue
 						}
 					}

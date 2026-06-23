@@ -19,7 +19,7 @@ func issptr(s pm.IssueID) *pm.IssueID { return &s }
 
 // set on a task created without a link; then clear it.
 func TestUpdateTask_SetAndClearDerivedFromIssue_T192(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "bug", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "fix it", CreatedBy: "user:a"})
@@ -46,7 +46,7 @@ func TestUpdateTask_SetAndClearDerivedFromIssue_T192(t *testing.T) {
 
 // a non-nil-but-unchanged path: updating only the title must NOT touch the link.
 func TestUpdateTask_NilDerivedFromIssue_LeavesLink_T192(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "bug", CreatedBy: "user:a"})
 	// Created WITH a link (create-time behavior).
@@ -66,7 +66,7 @@ func TestUpdateTask_NilDerivedFromIssue_LeavesLink_T192(t *testing.T) {
 
 // linking to an issue in ANOTHER project is rejected.
 func TestUpdateTask_CrossProjectIssue_Rejected_T192(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	p1, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P1", CreatedBy: "user:a"})
 	p2, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P2", CreatedBy: "user:a"})
 	otherIssue, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: p2, Title: "elsewhere", CreatedBy: "user:a"})
@@ -84,7 +84,7 @@ func TestUpdateTask_CrossProjectIssue_Rejected_T192(t *testing.T) {
 
 // linking to a non-existent issue surfaces ErrIssueNotFound.
 func TestUpdateTask_MissingIssue_Rejected_T192(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
 
@@ -96,7 +96,7 @@ func TestUpdateTask_MissingIssue_Rejected_T192(t *testing.T) {
 
 // the BatchUpdateTask path applies derived_from_issue too (same validation).
 func TestBatchUpdateTask_DerivedFromIssue_T192(t *testing.T) {
-	svc, _, _, ctx := flowSetup(t)
+	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	iid, _ := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "bug", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})

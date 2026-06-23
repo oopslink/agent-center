@@ -10,7 +10,6 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/observability"
-	"github.com/oopslink/agent-center/internal/observability/projection"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -20,16 +19,12 @@ import (
 // NewService.
 type Deps struct {
 	Events observability.EventRepository
-	// v2.7 #107 Phase-2 (fleet repoint): new-model read deps. WorkItemProjections
-	// is the fleet data source (agent_work_item_projections); WorkItems resolves
-	// a work item's task_ref; PMTasks resolves task_ref→project; PMProjects
-	// resolves project→org for the work-items segment's org-scoping (same pm
-	// source as PMTasks, so org-scope no longer mixes the retired workforce
-	// project model with the pm project model).
-	WorkItemProjections projection.AgentWorkItemProjectionRepository
-	WorkItems           agentpkg.WorkItemRepository
-	PMTasks             pm.TaskRepository
-	PMProjects          pm.ProjectRepository
+	// v2.14.0 F7 (issue I14): the read side is sourced from the pm model. PMTasks
+	// is the executions data source (pm_tasks, replacing the retired
+	// agent_work_item_projections); PMProjects resolves project→org for the
+	// executions segment's org-scoping (same pm source as PMTasks).
+	PMTasks    pm.TaskRepository
+	PMProjects pm.ProjectRepository
 	// PMIssues is the fleet pending-issues source (v2.7 #107 #119): the
 	// pending-issues segment reads pm_issues (not the retired discussion model)
 	// and org-scopes via PMProjects (issue→pm-project→org, same pm source).
@@ -149,17 +144,6 @@ func (s *Service) inspectTask(ctx context.Context, id string) (InspectResult, er
 		"updated_at":         t.UpdatedAt().UTC().Format(time.RFC3339Nano),
 		"version":            t.Version(),
 	}
-	// work-items sub-section: the agent work items for this pm task (across
-	// reassignments), resolved by task_ref "pm://tasks/{id}". Fulfills the
-	// section proj-A deferred until inspectTask read the pm model.
-	if s.deps.WorkItems != nil {
-		wis, _ := s.deps.WorkItems.ListByTask(ctx, "pm://tasks/"+string(t.ID()))
-		items := make([]any, 0, len(wis))
-		for _, wi := range wis {
-			items = append(items, projectWorkItemSummary(wi))
-		}
-		out["work_items"] = items
-	}
 	// Recent events (limit small).
 	if s.deps.Events != nil {
 		evs, _ := s.deps.Events.Find(ctx, observability.EventQueryFilter{
@@ -171,38 +155,29 @@ func (s *Service) inspectTask(ctx context.Context, id string) (InspectResult, er
 }
 
 func (s *Service) inspectExecution(ctx context.Context, id string) (InspectResult, error) {
-	// v2.7 #107 Phase-2 (proj-A): "execution" inspect repointed to the agent
-	// work-item model. The id is a work-item id; rich activity/token detail comes
-	// from the work-item projection (same source as fleet/stats). artifacts段
-	// dropped (artifact is execution-keyed, no work-item equivalent — restored
-	// work-item-native in the taskruntime carve-out slice). recent_events filter
-	// by work_item_id (precise WI lifecycle incl transitions).
-	if s.deps.WorkItems == nil {
-		return InspectResult{}, errors.New("query: work items repo not wired")
+	// v2.14.0 F7 (issue I14): "execution" inspect repointed off the retired
+	// AgentWorkItem model onto pm_tasks. The id is now a TASK id (the task is the
+	// unit of agent work); the execution row carries the mapped status + the
+	// blocked annotation. recent_events filter by task_id (the task lifecycle).
+	if s.deps.PMTasks == nil {
+		return InspectResult{}, errors.New("query: pm tasks repo not wired")
 	}
-	wi, err := s.deps.WorkItems.FindByID(ctx, id)
+	t, err := s.deps.PMTasks.FindByID(ctx, pm.TaskID(id))
 	if err != nil {
 		return InspectResult{}, mapNotFound(err)
 	}
-	taskID, _ := fleetTaskIDFromRef(wi.TaskRef())
 	out := map[string]any{
-		"work_item_id": wi.ID(),
-		"agent_id":     string(wi.AgentID()),
-		"task_id":      taskID,
-		"status":       string(wi.Status()),
-		"interactions": wi.Interactions(),
-		"created_at":   wi.CreatedAt().UTC().Format(time.RFC3339Nano),
-		"updated_at":   wi.UpdatedAt().UTC().Format(time.RFC3339Nano),
-		"version":      wi.Version(),
+		"agent_id":     agentMemberIDFromAssignee(t.Assignee()),
+		"task_id":      string(t.ID()),
+		"status":       taskExecStatus(t),
+		"created_at":   t.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"updated_at":   t.UpdatedAt().UTC().Format(time.RFC3339Nano),
+		"version":      t.Version(),
 	}
-	if s.deps.WorkItemProjections != nil {
-		if p, perr := s.deps.WorkItemProjections.FindByID(ctx, id); perr == nil {
-			out["projection"] = workItemRowFromProjection(p, taskID)
-		}
-	}
+	out["projection"] = taskExecutionRow(t)
 	if s.deps.Events != nil {
 		evs, _ := s.deps.Events.Find(ctx, observability.EventQueryFilter{
-			Refs: observability.EventRefsFilter{WorkItemID: id}, Limit: 50,
+			Refs: observability.EventRefsFilter{TaskID: id}, Limit: 50,
 		})
 		out["recent_events"] = projectEventSummaryList(evs)
 	}
@@ -226,25 +201,29 @@ func (s *Service) inspectWorker(ctx context.Context, id string) (InspectResult, 
 		"working_seconds":   w.WorkingSeconds(),
 		"version":           w.Version(),
 	}
-	// v2.7 #107 Phase-2 (proj-A): "what's this worker running" = worker→its agents
-	// →their live work items (Q3 MAP; same pm·agent source, no retired
-	// task_executions). fail-loud if the deps aren't wired (should-be-wired:
-	// missing injection must error, not nil-panic — mirrors other repo guards).
-	if s.deps.Agents == nil || s.deps.WorkItems == nil {
-		return InspectResult{}, errors.New("query: agents/work-items repo not wired")
+	// v2.14.0 F7 (issue I14): "what's this worker running" = worker→its agents→
+	// their live tasks (non-terminal), repointed off the retired AgentWorkItem
+	// model onto pm_tasks (assignee-keyed by the agent's member ref). fail-loud if
+	// the deps aren't wired (missing injection must error, not nil-panic).
+	if s.deps.Agents == nil || s.deps.PMTasks == nil {
+		return InspectResult{}, errors.New("query: agents/pm-tasks repo not wired")
 	}
 	agents, _ := s.deps.Agents.ListByWorker(ctx, string(w.ID()))
-	activeWIs := make([]any, 0)
+	activeTasks := make([]any, 0)
 	for _, ag := range agents {
-		wis, _ := s.deps.WorkItems.ListByAgent(ctx, ag.ID())
-		for _, wi := range wis {
-			if wi.Status().IsTerminal() {
+		memberID := strings.TrimSpace(ag.IdentityMemberID())
+		if memberID == "" {
+			continue
+		}
+		tasks, _ := s.deps.PMTasks.ListByAssignee(ctx, pm.IdentityRef("agent:"+memberID))
+		for _, t := range tasks {
+			if t.Status().IsTerminal() {
 				continue // active = non-terminal (queued/active/waiting_input)
 			}
-			activeWIs = append(activeWIs, projectWorkItemSummary(wi))
+			activeTasks = append(activeTasks, projectTaskExecutionSummary(t))
 		}
 	}
-	out["active_work_items"] = activeWIs
+	out["active_tasks"] = activeTasks
 	return InspectResult{Kind: InspectWorker, ID: id, Data: out}, nil
 }
 
@@ -389,74 +368,68 @@ func (s *Service) queryTasks(ctx context.Context, f QueryFilter) (QueryResult, e
 }
 
 func (s *Service) queryExecutions(ctx context.Context, f QueryFilter) (QueryResult, error) {
-	// v2.7 #107 Phase-2 (proj-A): repointed to the agent work-item model. Rows
-	// come from work-item projections (rich activity/token detail, same source as
-	// fleet/stats). by-task → WorkItems.ListByTask; by-worker → worker→agents→
-	// ListByAgent (Q3); status/active → projections by status set. Labels are
-	// work-item status names. The exec-specific FailedReason filter is dropped —
-	// "why failed" is observable via `inspect execution <work_item_id>`
-	// recent_events (the failed transition's Cause); by-worker-with-status is
-	// covered by by-agent.
-	if s.deps.WorkItemProjections == nil {
-		return QueryResult{}, errors.New("query: work item projections repo not wired")
+	// v2.14.0 F7 (issue I14): repointed off the retired AgentWorkItem model onto
+	// pm_tasks. An execution is a non-terminal agent-assigned task; rows carry the
+	// mapped status (queued/active/waiting_input). by-task → the task itself;
+	// by-worker → worker→agents→ListByAssignee; status/active → ListByStatuses over
+	// the active set. The exec-specific FailedReason filter is dropped — there is
+	// no failed status on the Task model (blocked annotation replaces it).
+	if s.deps.PMTasks == nil {
+		return QueryResult{}, errors.New("query: pm tasks repo not wired")
 	}
-	rowFor := func(wiID, taskID string) (any, bool) {
-		p, perr := s.deps.WorkItemProjections.FindByID(ctx, wiID)
-		if perr != nil {
+	rowFor := func(t *pm.Task) (any, bool) {
+		if t.Status().IsTerminal() {
 			return nil, false
 		}
-		return workItemRowFromProjection(p, taskID), true
+		if agentMemberIDFromAssignee(t.Assignee()) == "" {
+			return nil, false // executions are agent work only
+		}
+		return taskExecutionRow(t), true
 	}
 	out := make([]any, 0)
 	switch {
 	case f.TaskID != "":
-		if s.deps.WorkItems == nil {
-			return QueryResult{}, errors.New("query: work items repo not wired")
-		}
-		wis, err := s.deps.WorkItems.ListByTask(ctx, "pm://tasks/"+f.TaskID)
+		t, err := s.deps.PMTasks.FindByID(ctx, pm.TaskID(f.TaskID))
 		if err != nil {
-			return QueryResult{}, err
+			return QueryResult{}, mapNotFound(err)
 		}
-		for _, wi := range wis {
-			if row, ok := rowFor(wi.ID(), f.TaskID); ok {
-				out = append(out, row)
-			}
+		if row, ok := rowFor(t); ok {
+			out = append(out, row)
 		}
 	case f.WorkerID != "":
-		if s.deps.Agents == nil || s.deps.WorkItems == nil {
-			return QueryResult{}, errors.New("query: agents/work items repo not wired")
+		if s.deps.Agents == nil {
+			return QueryResult{}, errors.New("query: agents repo not wired")
 		}
 		agents, _ := s.deps.Agents.ListByWorker(ctx, f.WorkerID)
 		for _, ag := range agents {
-			wis, _ := s.deps.WorkItems.ListByAgent(ctx, ag.ID())
-			for _, wi := range wis {
-				taskID, _ := fleetTaskIDFromRef(wi.TaskRef())
-				if row, ok := rowFor(wi.ID(), taskID); ok {
+			memberID := strings.TrimSpace(ag.IdentityMemberID())
+			if memberID == "" {
+				continue
+			}
+			tasks, _ := s.deps.PMTasks.ListByAssignee(ctx, pm.IdentityRef("agent:"+memberID))
+			for _, t := range tasks {
+				if row, ok := rowFor(t); ok {
 					out = append(out, row)
 				}
 			}
 		}
 	default:
-		statuses := []string{
-			string(agentpkg.WorkItemQueued),
-			string(agentpkg.WorkItemActive),
-			string(agentpkg.WorkItemWaitingInput),
-		}
-		if f.Status != "" && f.Status != "active" {
-			statuses = []string{f.Status}
-		}
-		projs, err := s.deps.WorkItemProjections.List(ctx, projection.AgentWorkItemProjectionFilter{Statuses: statuses})
+		tasks, err := s.deps.PMTasks.ListByStatuses(ctx, activeTaskStatuses)
 		if err != nil {
 			return QueryResult{}, err
 		}
-		for _, p := range projs {
-			taskID := ""
-			if s.deps.WorkItems != nil {
-				if wi, werr := s.deps.WorkItems.FindByID(ctx, p.WorkItemID); werr == nil {
-					taskID, _ = fleetTaskIDFromRef(wi.TaskRef())
-				}
+		// --status filters on the mapped execution-status label (queued/active/
+		// waiting_input); "active" (or empty) means the whole active set.
+		want := f.Status
+		for _, t := range tasks {
+			row, ok := rowFor(t)
+			if !ok {
+				continue
 			}
-			out = append(out, workItemRowFromProjection(p, taskID))
+			if want != "" && want != "active" && taskExecStatus(t) != want {
+				continue
+			}
+			out = append(out, row)
 		}
 	}
 	return QueryResult{Resource: QueryExecutions, Items: out}, nil

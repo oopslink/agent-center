@@ -121,17 +121,17 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 		t.Fatalf("reset lifecycle = %v, want resetting", reset["lifecycle"])
 	}
 
-	// work-items + activity → empty collections.
-	resp = orgScopedGet(t, s.URL+"/api/agents/"+id+"/work-items", sess)
+	// tasks + activity → empty collections.
+	resp = orgScopedGet(t, s.URL+"/api/agents/"+id+"/tasks", sess)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("work-items: got %d", resp.StatusCode)
+		t.Fatalf("tasks: got %d", resp.StatusCode)
 	}
 	var wis struct {
-		WorkItems []map[string]any `json:"work_items"`
+		Tasks []map[string]any `json:"tasks"`
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&wis)
-	if wis.WorkItems == nil || len(wis.WorkItems) != 0 {
-		t.Fatalf("work_items = %+v, want []", wis.WorkItems)
+	if wis.Tasks == nil || len(wis.Tasks) != 0 {
+		t.Fatalf("tasks = %+v, want []", wis.Tasks)
 	}
 
 	resp = orgScopedGet(t, s.URL+"/api/agents/"+id+"/activity", sess)
@@ -142,8 +142,16 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 		Activity []map[string]any `json:"activity"`
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&act)
-	if act.Activity == nil || len(act.Activity) != 0 {
-		t.Fatalf("activity = %+v, want []", act.Activity)
+	// v2.14.0 ships main's T338: agent lifecycle ops (start/reset/…) are recorded on
+	// the activity timeline, so after the start+reset above the feed carries those
+	// lifecycle events (the pre-T338 expectation of an empty feed no longer holds).
+	if len(act.Activity) == 0 {
+		t.Fatalf("activity = %+v, want lifecycle events (T338)", act.Activity)
+	}
+	for _, ev := range act.Activity {
+		if ev["event_type"] != "lifecycle" {
+			t.Fatalf("activity event_type = %v, want lifecycle", ev["event_type"])
+		}
 	}
 }
 

@@ -88,6 +88,16 @@ const (
 	// dispatch injection + list_findings read, not a cross-BC projection).
 	EvtPlanFindingRecorded  = "pm.plan_finding.recorded"
 	EvtPlanFindingRetracted = "pm.plan_finding.retracted"
+	// v2.14.0 I14/F6 (HTTP + Conversation 接线). When a running task is blocked
+	// with reasonType=input_required (the agent needs a USER reply) BlockTask emits
+	// EvtTaskInputRequested IN THE SAME TX; when the task is later unblocked from an
+	// input_required block UnblockTask emits EvtTaskInputReplied. Both are consumed
+	// by the (production-registered) TaskInputConversationProjector, which is the
+	// ONLY writer of the input_request / input_reply Conversation messages — the pm
+	// AppService NEVER writes a Conversation message inline (ADR-0052 outbox purity).
+	// obstacle blocks (owner/PM action, no user reply) emit NEITHER event.
+	EvtTaskInputRequested = "pm.task.input_requested"
+	EvtTaskInputReplied   = "pm.task.input_replied"
 )
 
 // AgentDirectory resolves an agent's owning Organization (v2.7 D2 b2/d-i, #5a,
@@ -223,6 +233,11 @@ type Service struct {
 	// poolClaimLimit caps the concurrent claimed built-in-pool tasks per agent
 	// (T83 §3.6, owner-set). 0 ⇒ DefaultPoolClaimLimit (3).
 	poolClaimLimit int
+	// actionLogs is OPTIONAL (nil-safe, v2.14.0 I14/F3 §7.3). nil ⇒ the append-only
+	// Task lifecycle log (blocked/unblocked/lease_expired/reassigned) is not persisted
+	// (the realtime annotation columns still are). When wired, the log-producing flows
+	// flush the domain's freshly-appended TaskActionLog entries to pm_task_action_logs.
+	actionLogs pm.TaskActionLogRepository
 }
 
 // DefaultPoolClaimLimit is the T83 §3.6 default cap on concurrently-claimed
@@ -314,6 +329,10 @@ type Deps struct {
 	// PoolClaimLimit is OPTIONAL (T83 §3.6): max concurrent claimed built-in-pool
 	// tasks per agent. 0 ⇒ DefaultPoolClaimLimit (3).
 	PoolClaimLimit int
+	// TaskActionLogs is OPTIONAL (v2.14.0 I14/F3 §7.3): when set, the log-producing
+	// task flows (block/unblock/lease-expiry/reassign) flush the domain's appended
+	// TaskActionLog entries to pm_task_action_logs. nil ⇒ no live log persistence.
+	TaskActionLogs pm.TaskActionLogRepository
 }
 
 // New constructs the Service.
@@ -329,7 +348,25 @@ func New(d Deps) *Service {
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
 		cycleMeta: d.CycleMeta, mergeChecker: d.MergeChecker, decisionGate: d.DecisionGate,
+		actionLogs: d.TaskActionLogs,
 	}
+}
+
+// flushActionLogs persists the domain's freshly-appended TaskActionLog entries
+// (v2.14.0 I14/F3 §7.3). It is nil-safe (no repo wired ⇒ no-op). A Task loaded via
+// FindByID rehydrates with NO action-log history (scanTask does not read the log
+// table), so after a single domain op t.ActionLogs() holds ONLY that op's new
+// entries — appending them is duplicate-safe (Append assigns a ULID to each). Runs in
+// the caller's tx so the log row commits atomically with the task state change.
+func (s *Service) flushActionLogs(ctx context.Context, t *pm.Task) error {
+	if s.actionLogs == nil {
+		return nil
+	}
+	logs := t.ActionLogs()
+	if len(logs) == 0 {
+		return nil
+	}
+	return s.actionLogs.Append(ctx, t.ID(), logs)
 }
 
 // poolLimit resolves the configured per-agent pool-claim cap, defaulting to
@@ -450,6 +487,34 @@ type planCreatorFailureWakePayload struct {
 	PlanID         string `json:"plan_id"`
 	TaskID         string `json:"task_id"`
 	OrganizationID string `json:"organization_id"`
+}
+
+// taskInputEventPayload is the JSON payload for the v2.14.0 I14/F6 task-input
+// events (EvtTaskInputRequested / EvtTaskInputReplied). It carries everything the
+// TaskInputConversationProjector needs to resolve the task's bound Conversation
+// (by OwnerRef → NewTaskOwnerRef) and post the input_request / input_reply
+// message — WITHOUT the pm AppService writing a Conversation message inline
+// (ADR-0052 outbox purity).
+//
+//   - OwnerRef is pm://tasks/{id} (the projector derives the task id + resolves
+//     the conversation by owner_ref, mirroring the participant projector).
+//   - AgentRef is the assignee — the SENDER of the input_request (the agent asking
+//     for input). Set on the request event.
+//   - ActorRef is the user who unblocked — the SENDER of the input_reply. Set on
+//     the reply event.
+//   - Reason is the agent's block reason (the request body); Comment is the user's
+//     reply (the reply body).
+//   - InputRequestMessageID (reply only, optional) threads the reply under the
+//     original input_request message (depth-1; empty ⇒ top-level reply).
+type taskInputEventPayload struct {
+	TaskID                string `json:"task_id"`
+	ProjectID             string `json:"project_id"`
+	OwnerRef              string `json:"owner_ref"` // pm://tasks/{id}
+	AgentRef              string `json:"agent_ref,omitempty"`
+	ActorRef              string `json:"actor_ref,omitempty"`
+	Reason                string `json:"reason,omitempty"`
+	Comment               string `json:"comment,omitempty"`
+	InputRequestMessageID string `json:"input_request_message_id,omitempty"`
 }
 
 type issueEventPayload struct {

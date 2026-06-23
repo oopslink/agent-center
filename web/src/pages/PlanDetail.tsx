@@ -1844,9 +1844,9 @@ function resumeNodeErrorMessage(error: unknown): string {
   switch (code) {
     case 'agent_busy':
       // The agent paused this item to work another; it can't be double-activated.
-      return "Its agent is busy on another work item — it'll resume this one when that finishes, or the agent can resume it from its side.";
+      return "Its agent is busy on another task — it'll resume this one when that finishes, or the agent can resume it from its side.";
     case 'node_not_paused':
-      return 'Nothing to resume — this node has no paused work item (it may have already resumed).';
+      return 'Nothing to resume — this node has no paused task (it may have already resumed).';
     case 'plan_not_running':
       return "The plan isn't running, so its nodes can't be resumed.";
     default:

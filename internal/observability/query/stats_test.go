@@ -93,33 +93,25 @@ func TestStats_Events_Aggregate(t *testing.T) {
 
 func TestStats_Executions_CountsActiveAndTerminal(t *testing.T) {
 	env := newQEnv(t)
-	// v2.7 #107 Phase-2: executions scope repointed to the agent work-item model.
-	// Active (live) work items by status via WorkItemProjections.List(live set).
-	env.seedWorkItemProjection(t, "WI-1", "agent-1", "active")
-	env.seedWorkItemProjection(t, "WI-2", "agent-2", "active")
-	env.seedWorkItemProjection(t, "WI-3", "agent-3", "waiting_input")
-	env.seedWorkItemProjection(t, "WI-4", "agent-4", "queued")
-	// A terminal projection: must NOT be counted as active (live-set excludes it).
-	env.seedWorkItemProjection(t, "WI-5", "agent-5", "done")
-	// Terminal counts come from agent.work_item.transitioned events (status in payload).
-	emitTransition := func(status string) {
-		_, _ = env.sink.Emit(context.Background(), observability.EmitCommand{
-			EventType: "agent.work_item.transitioned", Actor: "system",
-			Payload: map[string]any{"status": status},
-		})
-	}
-	emitTransition("done")
-	emitTransition("done")
-	emitTransition("failed")
-	emitTransition("canceled")   // counted: canceled = v1-killed equivalent
-	emitTransition("superseded") // must NOT be counted (no v1 analog; reassignment bookkeeping)
+	// v2.14.0 F7 (issue I14): executions scope repointed off the retired AgentWorkItem
+	// model onto pm_tasks. Active (live) executions = non-terminal agent-assigned
+	// tasks, counted under the mapped execution-status vocab (active/waiting_input/
+	// queued). Terminal: completed→done, discarded→canceled (from CountByStatus).
+	env.seedAgentTask(t, "WI-1", "agent-1", "p", "active")
+	env.seedAgentTask(t, "WI-2", "agent-2", "p", "active")
+	env.seedAgentTask(t, "WI-3", "agent-3", "p", "waiting_input")
+	env.seedAgentTask(t, "WI-4", "agent-4", "p", "queued")
+	// Terminal agent-assigned tasks: completed → done, discarded → canceled.
+	env.seedTerminalAgentTask(t, "WI-5", "agent-5", "p", pm.TaskCompleted)
+	env.seedTerminalAgentTask(t, "WI-6", "agent-6", "p", pm.TaskCompleted)
+	env.seedTerminalAgentTask(t, "WI-7", "agent-7", "p", pm.TaskDiscarded)
 
 	svc := query.NewStatsService(env.deps)
 	res, err := svc.Aggregate(context.Background(), "executions", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Active by new work-item status labels.
+	// Active by mapped execution-status labels.
 	if res.Counters["active"] != 2 {
 		t.Fatalf("active: %d (all=%v)", res.Counters["active"], res.Counters)
 	}
@@ -129,22 +121,14 @@ func TestStats_Executions_CountsActiveAndTerminal(t *testing.T) {
 	if res.Counters["queued"] != 1 {
 		t.Fatalf("queued: %d (all=%v)", res.Counters["queued"], res.Counters)
 	}
-	// Terminal = done + failed + canceled (canceled = v1-killed equivalent;
-	// preserves v1 completed/failed/killed without dropping a class). superseded
-	// is excluded (no v1 analog; reassignment bookkeeping).
+	// Terminal = completed→done + discarded→canceled.
 	if res.Counters["done"] != 2 {
 		t.Fatalf("done: %d (all=%v)", res.Counters["done"], res.Counters)
 	}
-	if res.Counters["failed"] != 1 {
-		t.Fatalf("failed: %d (all=%v)", res.Counters["failed"], res.Counters)
-	}
 	if res.Counters["canceled"] != 1 {
-		t.Fatalf("canceled (=v1 killed) must count: %d (all=%v)", res.Counters["canceled"], res.Counters)
+		t.Fatalf("canceled: %d (all=%v)", res.Counters["canceled"], res.Counters)
 	}
-	if _, ok := res.Counters["superseded"]; ok {
-		t.Fatalf("superseded must NOT count in executions terminal: %v", res.Counters)
-	}
-	// active total = live work items only (the done projection is excluded).
+	// active total = live (non-terminal) executions only.
 	if res.Totals["active"] != 4 {
 		t.Fatalf("active total: %v (want 4 live)", res.Totals["active"])
 	}

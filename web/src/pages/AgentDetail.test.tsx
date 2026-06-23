@@ -49,9 +49,9 @@ const agent = (extra: Record<string, unknown> = {}) => ({
 function stubAgent(extra: Record<string, unknown> = {}) {
   server.use(
     http.get('/api/agents/:id', () => HttpResponse.json(agent(extra))),
-    http.get('/api/agents/:id/work-items', () =>
+    http.get('/api/agents/:id/tasks', () =>
       HttpResponse.json({
-        work_items: [
+        tasks: [
           {
             id: 'WI-1',
             agent_id: 'A1',
@@ -102,12 +102,12 @@ describe('AgentDetail page', () => {
     expect(screen.getByTestId('agent-lifecycle-badge')).toHaveAttribute('data-lifecycle', 'stopped');
     expect(screen.getByTestId('agent-availability-badge')).toHaveAttribute('data-availability', 'available');
 
-    // v2.7.1 #228: work items + activity live behind their tabs.
-    fireEvent.click(screen.getByTestId('agent-tab-workitems'));
+    // v2.7.1 #228: tasks + activity live behind their tabs.
+    fireEvent.click(screen.getByTestId('agent-tab-tasks'));
     await waitFor(() => expect(screen.getByTestId('agent-workitem-row')).toBeInTheDocument());
     expect(screen.getByTestId('agent-workitem-row')).toHaveAttribute('data-status', 'queued');
-    // No task_title on this fixture → falls back to "Work item" (no link).
-    expect(screen.getByTestId('agent-workitem-row')).toHaveTextContent('Work item');
+    // No task_title on this fixture → falls back to "Task" (no link).
+    expect(screen.getByTestId('agent-workitem-row')).toHaveTextContent('Task');
     expect(screen.queryByTestId('agent-workitem-task')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('agent-tab-activity'));
     await waitFor(() => expect(screen.getByTestId('agent-activity-row')).toBeInTheDocument());
@@ -118,7 +118,7 @@ describe('AgentDetail page', () => {
     let hits = 0;
     server.use(
       http.get('/api/agents/:id', () => HttpResponse.json(agent())),
-      http.get('/api/agents/:id/work-items', () => HttpResponse.json({ work_items: [] })),
+      http.get('/api/agents/:id/tasks', () => HttpResponse.json({ tasks: [] })),
       http.get('/api/agents/:id/activity', () => {
         hits += 1;
         return HttpResponse.json({ activity: [] });
@@ -173,9 +173,9 @@ describe('AgentDetail page', () => {
   it('links a work item to its task by title when resolved (#206)', async () => {
     server.use(
       http.get('/api/agents/:id', () => HttpResponse.json(agent())),
-      http.get('/api/agents/:id/work-items', () =>
+      http.get('/api/agents/:id/tasks', () =>
         HttpResponse.json({
-          work_items: [
+          tasks: [
             { id: 'WI-9', agent_id: 'A1', task_ref: 'pm://tasks/task-9', task_id: 'task-9', task_title: 'Build login flow', project_id: 'proj-x', status: 'active', interactions: 0, version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
           ],
         }),
@@ -183,8 +183,8 @@ describe('AgentDetail page', () => {
       http.get('/api/agents/:id/activity', () => HttpResponse.json({ activity: [] })),
     );
     wrap('/agents/A1');
-    // v2.7.1 #228: work items behind the Work items tab.
-    fireEvent.click(await screen.findByTestId('agent-tab-workitems'));
+    // v2.7.1 #228: tasks behind the Tasks tab.
+    fireEvent.click(await screen.findByTestId('agent-tab-tasks'));
     const link = await screen.findByTestId('agent-workitem-task');
     expect(link).toHaveTextContent('Build login flow');
     expect(link.getAttribute('href')).toContain('/projects/proj-x/tasks/task-9');

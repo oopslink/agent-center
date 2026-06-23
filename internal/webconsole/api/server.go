@@ -294,7 +294,7 @@ func (s *Server) routes() {
 	// v2.8 #272: soft-delete (archive) — the sole user-facing delete path
 	// (hard DELETE above is admin-only). Idempotent; running → 409 must-stop-first.
 	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/archive", s.agentArchiveHandler)
-	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/work-items", s.agentWorkItemsHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/tasks", s.agentTasksHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/activity", s.agentActivityHandler)
 
 	// Secrets (metadata only — plaintext only at create time). Org via {slug} path.

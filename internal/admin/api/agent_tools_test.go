@@ -23,6 +23,17 @@ import (
 )
 
 // =============================================================================
+// Shared agent-tools test fixture + helpers (consts, postBearer, the worker /
+// agent seeding fixture) reused across the agent_tools_*_test.go siblings.
+//
+// v2.14.0 F7 (issue I14): the AgentWorkItem world was retired — the work-item
+// seeding + the get_my_work endpoint tests this file once carried were deleted
+// (get_my_work was replaced by list_my_tasks; the work-item repo no longer
+// exists). What remains is the per-agent authorization fixture (the cross-worker
+// guardrail base) the surviving #239 tests build on.
+// =============================================================================
+
+// =============================================================================
 // v2.7 D2-b1 — per-agent authorization base for the Agent MCP tool surface.
 //
 // These tests exercise the REAL admin server + AuthMiddleware: the worker
@@ -42,12 +53,11 @@ const (
 var atNow = time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
 
 type agentToolsFixture struct {
-	deps      HandlerDeps
-	verifier  *fakeVerifier
-	workItems *agentsql.WorkItemRepo
-	agents    *agentsql.AgentRepo
-	clk       *clock.FakeClock
-	db        *sql.DB // exposed so #239 profile tests can wire PMService + IdentityOrgRepo
+	deps     HandlerDeps
+	verifier *fakeVerifier
+	agents   *agentsql.AgentRepo
+	clk      *clock.FakeClock
+	db       *sql.DB // exposed so #239 profile tests can wire PMService + IdentityOrgRepo
 }
 
 // newAgentToolsFixture seeds two workers (W1, W2) and two agents (AG1→W1,
@@ -70,16 +80,14 @@ func newAgentToolsFixture(t *testing.T) *agentToolsFixture {
 
 	workers := wfsql.NewWorkerRepo(db)
 	agents := agentsql.NewAgentRepo(db)
-	workItems := agentsql.NewWorkItemRepo(db)
 	svc := agentsvc.New(agentsvc.Deps{
-		DB:        db,
-		Agents:    agents,
-		WorkItems: workItems,
-		Activity:  agentsql.NewActivityEventRepo(db),
-		Workers:   workers,
-		Outbox:    outboxsql.NewOutboxRepo(db),
-		IDGen:     gen,
-		Clock:     clk,
+		DB:       db,
+		Agents:   agents,
+		Activity: agentsql.NewActivityEventRepo(db),
+		Workers:  workers,
+		Outbox:   outboxsql.NewOutboxRepo(db),
+		IDGen:    gen,
+		Clock:    clk,
 	})
 
 	// Seed the two workforce.Workers (CreateAgent validates the worker exists
@@ -131,7 +139,7 @@ func newAgentToolsFixture(t *testing.T) *agentToolsFixture {
 		WorkerRepo: workers,
 	}
 	return &agentToolsFixture{
-		deps: deps, verifier: verifier, workItems: workItems, agents: agents, clk: clk, db: db,
+		deps: deps, verifier: verifier, agents: agents, clk: clk, db: db,
 	}
 }
 
@@ -153,20 +161,6 @@ func (f *agentToolsFixture) addOwnerToken(t *testing.T, plaintext string, owner 
 		t.Fatal(err)
 	}
 	f.verifier.tokens[plaintext] = tok
-}
-
-// seedWorkItem inserts a queued work item for the agent via the repo.
-func (f *agentToolsFixture) seedWorkItem(t *testing.T, id, agentID, taskRef string) {
-	t.Helper()
-	wi, err := agent.NewWorkItem(agent.NewWorkItemInput{
-		ID: id, AgentID: agent.AgentID(agentID), TaskRef: taskRef, CreatedAt: atNow,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := f.workItems.Save(context.Background(), wi); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // server builds the real admin server wrapped with AuthMiddleware + WithDeps so
@@ -200,160 +194,4 @@ func postBearer(t *testing.T, base, path, bearer string, body any) (int, map[str
 	var out map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&out)
 	return resp.StatusCode, out
-}
-
-// TestGetMyWork_OwnAgent_OK proves the happy path: a W1 bearer reading AG1's
-// (its own) work items succeeds and returns them.
-func TestGetMyWork_OwnAgent_OK(t *testing.T) {
-	f := newAgentToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	f.seedWorkItem(t, "wi-1", atAgent1, "task:t-1")
-	f.seedWorkItem(t, "wi-2", atAgent1, "task:t-2")
-	// AG2 has an item that must NOT leak into AG1's read.
-	f.seedWorkItem(t, "wi-3", atAgent2, "task:t-3")
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_w1",
-		map[string]any{"agent_id": atAgent1})
-	if status != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %v", status, body)
-	}
-	// WS2: get_my_work partitions by status; seeded items are queued.
-	items, ok := body["queued"].([]any)
-	if !ok {
-		t.Fatalf("body has no queued array: %v", body)
-	}
-	if len(items) != 2 {
-		t.Fatalf("got %d queued items, want 2 (own-scoped to AG1): %v", len(items), items)
-	}
-	gotIDs := map[string]bool{}
-	for _, raw := range items {
-		m := raw.(map[string]any)
-		gotIDs[m["id"].(string)] = true
-		// Spot-check the serializer fields.
-		if m["task_ref"] == "" || m["status"] != "queued" {
-			t.Fatalf("unexpected work item shape: %v", m)
-		}
-	}
-	if !gotIDs["wi-1"] || !gotIDs["wi-2"] {
-		t.Fatalf("missing expected work items: %v", gotIDs)
-	}
-	if gotIDs["wi-3"] {
-		t.Fatalf("AG2's work item leaked into AG1's read: %v", gotIDs)
-	}
-}
-
-// TestGetMyWork_OwnAgent_EmptyOK proves an agent with no work items returns an
-// empty list (not an error).
-func TestGetMyWork_OwnAgent_EmptyOK(t *testing.T) {
-	f := newAgentToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_w1",
-		map[string]any{"agent_id": atAgent1})
-	if status != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %v", status, body)
-	}
-	for _, k := range []string{"active", "queued", "paused", "waiting_input"} {
-		items, ok := body[k].([]any)
-		if !ok || len(items) != 0 {
-			t.Fatalf("want empty %s array, got %v", k, body[k])
-		}
-	}
-}
-
-// TestGetMyWork_CrossWorker_403 is the GUARDRAIL acceptance: a W1 bearer trying
-// to operate AG2 (bound to W2) is rejected with 403 — a worker can NOT operate
-// another worker's agent, even with a valid token.
-func TestGetMyWork_CrossWorker_403(t *testing.T) {
-	f := newAgentToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	f.seedWorkItem(t, "wi-3", atAgent2, "task:t-3")
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_w1",
-		map[string]any{"agent_id": atAgent2})
-	if status != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403 (cross-worker guardrail); body = %v", status, body)
-	}
-	if body["error"] != "agent_not_bound_to_worker" {
-		t.Fatalf("error code = %v, want agent_not_bound_to_worker", body["error"])
-	}
-}
-
-// TestGetMyWork_NonWorkerToken_403 proves a non-worker owner is rejected: the
-// gate requires a worker:<id> token (identity comes from the token, not body).
-func TestGetMyWork_NonWorkerToken_403(t *testing.T) {
-	f := newAgentToolsFixture(t)
-	f.addOwnerToken(t, "acat_cli", admintoken.Owner("cli:admin"))
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_cli",
-		map[string]any{"agent_id": atAgent1})
-	if status != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403 (non-worker token); body = %v", status, body)
-	}
-	if body["error"] != "not_a_worker_token" {
-		t.Fatalf("error code = %v, want not_a_worker_token", body["error"])
-	}
-}
-
-// TestGetMyWork_MissingAgentID_400 proves the missing-agent_id 400.
-func TestGetMyWork_MissingAgentID_400(t *testing.T) {
-	f := newAgentToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_w1",
-		map[string]any{})
-	if status != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body = %v", status, body)
-	}
-	if body["error"] != "missing_agent_id" {
-		t.Fatalf("error code = %v, want missing_agent_id", body["error"])
-	}
-}
-
-// TestGetMyWork_UnknownAgent_404 proves an unknown agent id (bound to no one)
-// returns 404.
-func TestGetMyWork_UnknownAgent_404(t *testing.T) {
-	f := newAgentToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_w1",
-		map[string]any{"agent_id": "ghost"})
-	if status != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404; body = %v", status, body)
-	}
-	if body["error"] != "not_found" {
-		t.Fatalf("error code = %v, want not_found", body["error"])
-	}
-}
-
-// TestGetMyWork_NoBearer_401 confirms the middleware rejects an unauthenticated
-// call before the handler runs.
-func TestGetMyWork_NoBearer_401(t *testing.T) {
-	f := newAgentToolsFixture(t)
-	srv := f.server(t)
-	status, _ := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "",
-		map[string]any{"agent_id": atAgent1})
-	if status != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401", status)
-	}
-}
-
-// TestGetMyWork_SvcNotWired_501 proves the gate fails to 501 when AgentSvc is
-// nil (defensive: never run a tool against an unwired service).
-func TestGetMyWork_SvcNotWired_501(t *testing.T) {
-	f := newAgentToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	f.deps.AgentSvc = nil
-	srv := f.server(t)
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_my_work", "acat_w1",
-		map[string]any{"agent_id": atAgent1})
-	if status != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body = %v", status, body)
-	}
 }

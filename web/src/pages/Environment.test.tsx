@@ -29,7 +29,7 @@ function wrap(ui: React.ReactElement, path?: string) {
 const fleetSnapshot = (workers: unknown[], extra: Record<string, unknown> = {}) => ({
   generated_at: '2026-05-24T02:00:00Z',
   workers,
-  work_items: [],
+  tasks: [],
   pending_issues: [],
   warnings: [],
   ...extra,
@@ -127,9 +127,8 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
       http.get('/api/fleet', () =>
         HttpResponse.json(
           fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
-            work_items: [
+            tasks: [
               {
-                work_item_id: 'wi-1',
                 task_id: 'task-1',
                 task_org_ref: 'T7',
                 task_title: 'Build login',
@@ -160,8 +159,8 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     expect(screen.getByText('Fix login')).toBeInTheDocument();
     expect(screen.getAllByTestId('environment-activity-all-row')).toHaveLength(2);
 
-    // The dedicated Work Items tab shows the work-item rows with the same link.
-    fireEvent.click(screen.getByTestId('environment-activity-tab-work_items'));
+    // The dedicated Tasks tab shows the task rows with the same link.
+    fireEvent.click(screen.getByTestId('environment-activity-tab-tasks'));
     await waitFor(() => expect(screen.getByTestId('environment-workitem-row')).toBeInTheDocument());
     expect(screen.getByTestId('environment-workitem-task-link')).toHaveAttribute(
       'href',
@@ -185,8 +184,8 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
       http.get('/api/fleet', () =>
         HttpResponse.json(
           fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
-            work_items: [
-              { work_item_id: 'wi-1', task_id: 'task-abcdef', agent_id: 'bot-a', status: 'active' },
+            tasks: [
+              { task_id: 'task-abcdef', agent_id: 'bot-a', status: 'active' },
             ],
           }),
         ),
@@ -209,8 +208,8 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
       http.get('/api/fleet', () =>
         HttpResponse.json(
           fleetSnapshot([fleetWorker('w-1', { active_count: 1 })], {
-            work_items: [
-              { work_item_id: 'wi-1', task_id: 'task-1', project_id: 'proj-x', agent_id: 'agent-mem-1', status: 'active' },
+            tasks: [
+              { task_id: 'task-1', project_id: 'proj-x', agent_id: 'agent-mem-1', status: 'active' },
             ],
           }),
         ),
@@ -307,9 +306,9 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
               fleetWorker('w-2', { status: 'offline' }),
             ],
             {
-              work_items: [
-                { work_item_id: 'wi-1', agent_id: 'bot-a', status: 'active' },
-                { work_item_id: 'wi-2', agent_id: 'bot-a', status: 'active' },
+              tasks: [
+                { task_id: 'wi-1', agent_id: 'bot-a', status: 'active' },
+                { task_id: 'wi-2', agent_id: 'bot-a', status: 'active' },
               ],
               pending_issues: [{ issue_id: 'iss-1', title: 'Fix login' }],
             },
@@ -334,7 +333,7 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     const running = screen.getByTestId('environment-stat-agents-running-value');
     expect(running).toHaveTextContent('1');
     expect(running.className).toContain('text-success');
-    expect(screen.getByTestId('environment-stat-work-items-value')).toHaveTextContent('2');
+    expect(screen.getByTestId('environment-stat-tasks-value')).toHaveTextContent('2');
     expect(screen.getByTestId('environment-stat-pending-issues-value')).toHaveTextContent('1');
   });
 

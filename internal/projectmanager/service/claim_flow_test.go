@@ -54,7 +54,8 @@ func TestClaimPoolTask_BacklogRejected(t *testing.T) {
 }
 
 // 4.2: a project-member agent claims an open dispatched pool task → assignee set
-// to the claimer, status open→running.
+// to the claimer, status stays OPEN (v2.14.0 I14/F3 §13.B claim→open: the agent
+// start_tasks it later, where the single-active index gates the actual run).
 func TestClaimPoolTask_MemberClaimsOpenPoolTask(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, tid := dispatchedPoolTask(t, h, "org-1", "P")
@@ -70,8 +71,10 @@ func TestClaimPoolTask_MemberClaimsOpenPoolTask(t *testing.T) {
 	if got.Assignee() != "agent:m1" {
 		t.Fatalf("assignee=%q, want agent:m1", got.Assignee())
 	}
-	if got.Status() != pm.TaskRunning {
-		t.Fatalf("status=%s, want running", got.Status())
+	// §13.B: claim→open, NOT claim→running. The claim records ownership; the run
+	// happens at start_task (single-active enforced there).
+	if got.Status() != pm.TaskOpen {
+		t.Fatalf("status=%s, want open (claim→open §13.B)", got.Status())
 	}
 }
 

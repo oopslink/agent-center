@@ -16,7 +16,7 @@ import (
 // by a fixed owner_ref → agent-rawID map.
 func (f *wakeFixture) projWithMembers(displayName map[string]string, byOwner map[string][]string) *WakeProjector {
 	return NewWakeProjector(WakeProjectorDeps{
-		DB: f.db, WorkItems: f.workItems, Agents: f.agents,
+		DB: f.db, Agents: f.agents,
 		ControlLog: f.control, Applied: f.applied, Clock: f.clk,
 		ConvRepo: f.convs, MsgRepo: f.msgs, ReadState: f.readState,
 		DisplayName: func(_ context.Context, ref string) (string, bool) {

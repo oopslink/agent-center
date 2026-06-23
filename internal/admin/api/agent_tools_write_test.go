@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/agent"
@@ -39,10 +38,11 @@ import (
 // =============================================================================
 
 // writeToolsFixture is a richer agent-tools fixture: it wires the pm Service,
-// the conversation MessageWriter, the agent WorkItem repo, and the outbox relay
-// so seeding a task → assigning the agent → running the relay creates the bound
-// Conversation + WorkItem, and StartTask moves the Task to running (so block /
-// complete are reachable).
+// the conversation MessageWriter, and the outbox relay so seeding a task →
+// assigning the agent → running the relay creates the bound Conversation +
+// project membership, and StartTask moves the Task to running (so block /
+// complete are reachable). v2.14.0 F7 (issue I14): the agent WorkItem repo +
+// projector were retired — own-work scope is now Task.Assignee == agent.
 type writeToolsFixture struct {
 	deps     HandlerDeps
 	verifier *fakeVerifier
@@ -51,7 +51,6 @@ type writeToolsFixture struct {
 	pmSvc      *pmservice.Service
 	convRepo   conversation.ConversationRepository
 	msgRepo    conversation.MessageRepository
-	workItems  *agentsql.WorkItemRepo
 	outboxRepo *outboxsql.OutboxRepo
 	relay      *outbox.Relay
 	clk        *clock.FakeClock
@@ -83,10 +82,9 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 
 	workers := wfsql.NewWorkerRepo(db)
 	agents := agentsql.NewAgentRepo(db)
-	workItems := agentsql.NewWorkItemRepo(db)
 
 	agentSvc := agentsvc.New(agentsvc.Deps{
-		DB: db, Agents: agents, WorkItems: workItems,
+		DB: db, Agents: agents,
 		Activity: agentsql.NewActivityEventRepo(db), Workers: workers,
 		Outbox: outboxsql.NewOutboxRepo(db), IDGen: gen, Clock: clk,
 	})
@@ -135,8 +133,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 	applied := outboxsql.NewAppliedRepo(db)
 	relay := outbox.NewRelay(outboxsql.NewOutboxRepo(db), applied, clk,
 		pmservice.NewParticipantProjector(db, convRepo, applied, gen, clk),
-		pmservice.NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk),
-		pmservice.NewWorkItemProjector(db, workItems, applied, gen, clk))
+		pmservice.NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk))
 
 	// Seed the worker + agent (bound to W1, in the test org).
 	w, werr := workforce.NewWorker(workforce.NewWorkerInput{
@@ -174,44 +171,20 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 
 	verifier := &fakeVerifier{tokens: map[string]*admintoken.AdminToken{}}
 	deps := HandlerDeps{
-		DB:                db,
-		Actor:             observability.Actor("system"),
-		AgentSvc:          agentSvc,
-		AgentWorkItemRepo: workItems,
-		WorkerRepo:        workers,
-		ConvRepo:          convRepo,
-		MsgRepo:           msgRepo,
-		MessageWriter:     writer,
-		PMService:         pmSvc,
-		OutboxRepo:        outboxRepo,
+		DB:            db,
+		Actor:         observability.Actor("system"),
+		AgentSvc:      agentSvc,
+		WorkerRepo:    workers,
+		ConvRepo:      convRepo,
+		MsgRepo:       msgRepo,
+		MessageWriter: writer,
+		PMService:     pmSvc,
+		OutboxRepo:    outboxRepo,
 	}
 	return &writeToolsFixture{
 		deps: deps, verifier: verifier, db: db, pmSvc: pmSvc, convRepo: convRepo,
-		msgRepo: msgRepo, workItems: workItems, outboxRepo: outboxRepo, relay: relay, clk: clk,
+		msgRepo: msgRepo, outboxRepo: outboxRepo, relay: relay, clk: clk,
 	}
-}
-
-// awaitingInputEvents returns the agent.awaiting_input outbox events currently in
-// the table (queried directly so the assertion is independent of the test relay,
-// which has no batch projector). Used to assert request_input's same-tx emit.
-func (f *writeToolsFixture) awaitingInputEvents(t *testing.T) []outbox.Event {
-	t.Helper()
-	rows, err := f.db.QueryContext(context.Background(),
-		`SELECT id, event_type, payload FROM outbox_events WHERE event_type = ? ORDER BY id ASC`,
-		"agent.awaiting_input")
-	if err != nil {
-		t.Fatalf("query outbox: %v", err)
-	}
-	defer rows.Close()
-	var out []outbox.Event
-	for rows.Next() {
-		var e outbox.Event
-		if err := rows.Scan(&e.ID, &e.EventType, &e.Payload); err != nil {
-			t.Fatalf("scan outbox: %v", err)
-		}
-		out = append(out, e)
-	}
-	return out
 }
 
 func (f *writeToolsFixture) addWorkerToken(t *testing.T, plaintext, workerID string) {
@@ -250,9 +223,10 @@ func (f *writeToolsFixture) drain(t *testing.T) {
 }
 
 // seedRunningTask creates a project + task, assigns it to AG1 (granting it
-// project membership + a WorkItem via the relay + creating the bound
-// Conversation), then Starts it (→ running). Returns the task id. The WorkItem
-// is then activated so request_input's WaitInput (active→waiting_input) is legal.
+// project membership via the relay + creating the bound Conversation), then
+// Starts it (→ running). Returns the task id. The task's Assignee == agent:AG1
+// is what grants the agent its own-work scope (v2.14.0 F7 — AgentWorkItem
+// retired; ownership is Task.Assignee now).
 func (f *writeToolsFixture) seedRunningTask(t *testing.T) string {
 	t.Helper()
 	ctx := context.Background()
@@ -270,37 +244,41 @@ func (f *writeToolsFixture) seedRunningTask(t *testing.T) string {
 		t.Fatal(err)
 	}
 	f.drain(t) // participant projector creates the task Conversation.
+	// v2.14.0 I14/F3 (§13.A): StartTask now passes the run-ahead dependency gate, so a
+	// task must be RUNNABLE (a dispatched built-in-pool member, or a ready structured
+	// node) before it can move open→running — a backlog (planless) task is deliberately
+	// NOT startable. Place the task in the project's built-in pool so the gate passes.
+	plans, err := f.pmSvc.ListPlans(ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pool pm.PlanID
+	for _, p := range plans {
+		if p.IsBuiltin() {
+			pool = p.ID()
+		}
+	}
+	if pool == "" {
+		t.Fatal("no built-in pool found for project")
+	}
+	if err := f.pmSvc.SelectTaskIntoPlan(ctx, pool, tid, owner); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
 	if err := f.pmSvc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1), owner); err != nil {
 		t.Fatal(err)
 	}
-	f.drain(t) // work-item projector creates the queued WorkItem for AG1.
+	f.drain(t) // assign flow grants AG1 project membership + sets the assignee.
 	// Start the task so block/complete are reachable (running state). The agent
 	// is a project member now (#5a), so it can be the actor.
 	if err := f.pmSvc.StartTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1)); err != nil {
 		t.Fatal(err)
 	}
 	return string(tid)
-}
-
-// activateWorkItem moves the agent's WorkItem for the task queued→active so
-// request_input's WaitInput is a legal transition (active→waiting_input).
-func (f *writeToolsFixture) activateWorkItem(t *testing.T, taskID string) {
-	t.Helper()
-	ctx := context.Background()
-	items, err := f.workItems.ListByTask(ctx, "pm://tasks/"+taskID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("expected 1 work item for task, got %d", len(items))
-	}
-	wi := items[0]
-	if err := wi.Activate(time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.workItems.Update(ctx, wi); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func (f *writeToolsFixture) taskMessages(t *testing.T, taskID string) []*conversation.Message {
@@ -324,18 +302,6 @@ func (f *writeToolsFixture) taskStatus(t *testing.T, taskID string) pm.TaskStatu
 		t.Fatal(err)
 	}
 	return tk.Status()
-}
-
-func (f *writeToolsFixture) workItemStatus(t *testing.T, taskID string) agent.WorkItemStatus {
-	t.Helper()
-	items, err := f.workItems.ListByTask(context.Background(), "pm://tasks/"+taskID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(items) == 0 {
-		t.Fatalf("no work item for task %s", taskID)
-	}
-	return items[0].Status()
 }
 
 // --- post_message (target type "task") — T200 WS4 ---------------------------
@@ -566,11 +532,15 @@ func TestPostTaskMessage_MissingContent_400(t *testing.T) {
 
 // --- request_input -----------------------------------------------------------
 
+// TestRequestInput_OK — v2.14.0 F7 (issue I14): request_input no longer parks a
+// WorkItem; it BLOCKS the task with reason_type=input_required (the question
+// rides as the block reason) and returns {task_id, status:"blocked"}. The block
+// IS the await-input mechanism (the former active→waiting_input WorkItem park +
+// agent.awaiting_input wake were retired with AgentWorkItem).
 func TestRequestInput_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	tid := f.seedRunningTask(t)
-	f.activateWorkItem(t, tid) // WaitInput needs active→waiting_input
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/request_input", "acat_w1",
@@ -578,121 +548,48 @@ func TestRequestInput_OK(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
 	}
-	if body["status"] != "waiting_input" {
-		t.Fatalf("status field = %v, want waiting_input", body["status"])
+	if body["task_id"] != tid {
+		t.Fatalf("task_id field = %v, want %s", body["task_id"], tid)
 	}
-	// The question is posted.
-	msgs := f.taskMessages(t, tid)
-	found := false
-	for _, m := range msgs {
-		if m.Content() == "which branch?" {
-			found = true
-		}
+	if body["status"] != "blocked" {
+		t.Fatalf("status field = %v, want blocked", body["status"])
 	}
-	if !found {
-		t.Fatalf("question not posted; got %d msgs", len(msgs))
-	}
-	// The WorkItem is parked waiting_input.
-	if got := f.workItemStatus(t, tid); got != agent.WorkItemWaitingInput {
-		t.Fatalf("work item status = %s, want waiting_input", got)
-	}
-
-	// D2-e-ii: request_input emitted agent.awaiting_input in the SAME tx as the
-	// message + WaitInput (the batch-flush trigger). Payload carries the task conv.
-	evs := f.awaitingInputEvents(t)
-	if len(evs) != 1 {
-		t.Fatalf("want 1 agent.awaiting_input event, got %d", len(evs))
-	}
-	conv, err := f.convRepo.FindByOwnerRef(context.Background(), conversation.NewTaskOwnerRef(tid))
+	// The task carries the input-required block annotation (the question is the
+	// block reason; the projector that surfaces it as a conversation message is not
+	// wired in this fixture's relay).
+	tk, err := f.pmSvc.GetTask(context.Background(), pm.TaskID(tid))
 	if err != nil {
 		t.Fatal(err)
 	}
-	pay := evs[0].Payload
-	for _, want := range []string{
-		`"agent_id":"` + atAgent1 + `"`,
-		`"task_ref":"pm://tasks/` + tid + `"`,
-		`"conversation_id":"` + string(conv.ID()) + `"`,
-		`"work_item_id":"`,
-	} {
-		if !contains(pay, want) {
-			t.Fatalf("awaiting_input payload missing %q: %s", want, pay)
-		}
+	if tk.BlockedReason() != "which branch?" {
+		t.Fatalf("blocked_reason = %q, want the question", tk.BlockedReason())
+	}
+	if got := tk.BlockedReasonType(); got != pm.BlockReasonInputRequired {
+		t.Fatalf("blocked_reason_type = %s, want input_required", got)
 	}
 }
 
-// TestRequestInput_AwaitingInput_AtomicWithRollback proves the agent.awaiting_input
-// emit shares the request_input tx: when WaitInput fails (terminal WorkItem) the
-// whole tx rolls back, so NEITHER the message NOR the awaiting_input event persist.
-func TestRequestInput_AwaitingInput_AtomicWithRollback(t *testing.T) {
+// TestRequestInput_NotOwnTask_403 — request_input is own-work scoped: an agent
+// that is not the task's assignee is rejected (Task.Assignee gate). Uses a task
+// in a project AG1 is not a member of (and not assigned to it).
+func TestRequestInput_NotOwnTask_403(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t)
-	ctx := context.Background()
-	items, _ := f.workItems.ListByTask(ctx, "pm://tasks/"+tid)
-	wi := items[0]
-	_ = wi.Activate(time.Now())
-	_ = wi.Done(time.Now())
-	if err := f.workItems.Update(ctx, wi); err != nil {
+	f.seedMemberProject(t) // AG1 resolves (member of SOME project)…
+	pid := f.seedForeignProject(t)
+	tid, err := f.pmSvc.CreateTask(context.Background(), pmservice.CreateTaskCommand{
+		ProjectID: pid, Title: "not mine", CreatedBy: pm.IdentityRef("user:other"),
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
+	f.drain(t)
 	srv := f.server(t)
-	status, _ := postBearer(t, srv.URL, "/admin/agent-tools/request_input", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid, "question": "nope"})
-	if status != http.StatusConflict {
-		t.Fatalf("status = %d, want 409", status)
-	}
-	if evs := f.awaitingInputEvents(t); len(evs) != 0 {
-		t.Fatalf("ROLLBACK FAILED: awaiting_input event leaked (%d) despite WaitInput failing", len(evs))
-	}
-}
 
-// TestRequestInput_Atomicity_RollbackOnNoLiveWorkItem is the KEY atomicity test:
-// the agent OWNS a WorkItem for the task (passes scope) but it's terminal (done),
-// so the WaitInput step fails. The whole tx must roll back — NO message is left
-// in the task Conversation.
-func TestRequestInput_Atomicity_RollbackOnNoLiveWorkItem(t *testing.T) {
-	f := newWriteToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t)
-	// Drive the WorkItem to a terminal state so there is no LIVE item to park,
-	// but the agent still OWNS an item for the task (so the scope check passes
-	// and we reach the second, failing, step).
-	ctx := context.Background()
-	items, _ := f.workItems.ListByTask(ctx, "pm://tasks/"+tid)
-	if len(items) != 1 {
-		t.Fatalf("expected 1 work item, got %d", len(items))
-	}
-	wi := items[0]
-	if err := wi.Activate(time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	if err := wi.Done(time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.workItems.Update(ctx, wi); err != nil {
-		t.Fatal(err)
-	}
-
-	msgsBefore := len(f.taskMessages(t, tid))
-	srv := f.server(t)
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/request_input", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid, "question": "should not persist"})
-	if status != http.StatusConflict {
-		t.Fatalf("status = %d, want 409 (no live work item); body = %v", status, body)
-	}
-	if body["error"] != "no_live_work_item" {
-		t.Fatalf("error = %v, want no_live_work_item", body["error"])
-	}
-	// ATOMICITY: no message was written (the whole tx rolled back).
-	msgsAfter := f.taskMessages(t, tid)
-	if len(msgsAfter) != msgsBefore {
-		t.Fatalf("ROLLBACK FAILED: message count %d → %d; the question was persisted "+
-			"despite the WaitInput step failing", msgsBefore, len(msgsAfter))
-	}
-	for _, m := range msgsAfter {
-		if m.Content() == "should not persist" {
-			t.Fatalf("ROLLBACK FAILED: the question leaked into the conversation")
-		}
+		map[string]any{"agent_id": atAgent1, "task_id": string(tid), "question": "?"})
+	if status != http.StatusForbidden || body["error"] != "not_agents_task" {
+		t.Fatalf("status = %d err=%v, want 403 not_agents_task", status, body["error"])
 	}
 }
 
@@ -847,14 +744,20 @@ func TestCompleteTask_PoolClaimed_NoWorkItem(t *testing.T) {
 	}
 
 	srv := f.server(t)
-	// AG1 claims the pool task → assignee=AG1, running, NO WorkItem.
+	// AG1 claims the pool task → assignee=AG1. v2.14.0 I14/F3 §13.B: claim→OPEN
+	// (not running); the claimer then start_tasks it to run (single-active enforced
+	// there). The agent is the assignee, so it may start it.
 	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/claim_task", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "task_id": string(tid)}); status != http.StatusOK {
 		t.Fatalf("claim_task status = %d, want 200; body = %v", status, body)
 	}
-	// Precondition for the regression: the claimed pool task really has no WorkItem.
-	if items, _ := f.workItems.ListByTask(ctx, "pm://tasks/"+string(tid)); len(items) != 0 {
-		t.Fatalf("expected NO work item for a pool-claimed task, got %d", len(items))
+	// Precondition: the claim made AG1 the assignee (the own-task scope source now).
+	if tk, _ := f.pmSvc.GetTask(ctx, tid); string(tk.Assignee()) != "agent:"+atAgent1 {
+		t.Fatalf("claimed pool task assignee = %q, want agent:%s", tk.Assignee(), atAgent1)
+	}
+	// §13.B: start the claimed pool task (claim→open→running) so complete is reachable.
+	if err := f.pmSvc.StartTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatalf("start claimed pool task: %v", err)
 	}
 
 	// complete_task must now succeed (was 403 not_agents_task before the fix).

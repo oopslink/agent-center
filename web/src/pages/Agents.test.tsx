@@ -84,7 +84,7 @@ describe('Agents page', () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
-          work_items: [],
+          tasks: [],
           workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
           pending_issues: [],
         }),
@@ -106,7 +106,7 @@ describe('Agents page', () => {
     server.use(
       http.get('/api/fleet', () =>
         HttpResponse.json({
-          work_items: [],
+          tasks: [],
           workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
           pending_issues: [],
         }),
@@ -350,7 +350,7 @@ describe('Agents delete (#197)', () => {
       fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
     });
     const err = await screen.findByTestId('agent-delete-error');
-    expect(err).toHaveTextContent(/active work/i);
+    expect(err).toHaveTextContent(/active tasks/i);
   });
 
   it('can be canceled without deleting', async () => {

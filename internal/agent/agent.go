@@ -131,6 +131,12 @@ var (
 	// Start). Archived is terminal in v2.8 (no un-archive) — maps to 400, not 409,
 	// because it is a fundamentally invalid request, not a transient state conflict.
 	ErrAgentArchived = errors.New("agent: agent is archived (terminal)")
+	// ErrTaskNotRunnable is the TaskRunGate sentinel (T130): start_work is
+	// refused because the work item's task may not enter running (e.g. it is still
+	// backlog / not yet dispatched). Kept as the agent BC's port contract even
+	// though AgentWorkItem itself was retired (v2.14.0 F7 issue I14) — the gate +
+	// the run-runnable surface survive (see runnable_gate.go / TaskRunGate).
+	ErrTaskNotRunnable = errors.New("agent: work item task is not runnable")
 )
 
 // Profile is the Agent product profile.

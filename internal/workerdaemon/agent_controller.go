@@ -166,10 +166,10 @@ type reconcilePayload struct {
 // workPayload decodes an "agent.work" command payload. Matches
 // internal/projectmanager/service/work_item_projector.go workCommandPayload.
 type workPayload struct {
-	AgentID    string `json:"agent_id"`
-	WorkItemID string `json:"work_item_id"`
-	TaskRef    string `json:"task_ref"`
-	Brief      string `json:"brief"`
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+	TaskRef string `json:"task_ref"`
+	Brief   string `json:"brief"`
 }
 
 // wakePayload decodes an "agent.wake" command payload. Matches
@@ -182,7 +182,7 @@ type workPayload struct {
 // batch text in the e-ii path (single message in the e-i path).
 type wakePayload struct {
 	AgentID        string `json:"agent_id"`
-	WorkItemID     string `json:"work_item_id"`
+	TaskID         string `json:"task_id"`
 	TaskRef        string `json:"task_ref"`
 	ConversationID string `json:"conversation_id"`
 	MessageID      string `json:"message_id"`
@@ -199,8 +199,8 @@ type wakePayload struct {
 // queue") + the agent's pull-loop land together in PR4. WorkItemID is the
 // per-WI idempotency/dedup key.
 type workAvailablePayload struct {
-	AgentID    string `json:"agent_id"`
-	WorkItemID string `json:"work_item_id"`
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
 }
 
 // conversePayload decodes an "agent.converse" command (v2.7 #185). Mirrors
@@ -352,7 +352,7 @@ type managedAgent struct {
 	// nudge. Guarded by AgentController.mu.
 	hadWork bool
 
-	// currentWorkItemID is the LAST WorkItem injected into this session (work/wake),
+	// currentTaskID is the LAST WorkItem injected into this session (work/wake),
 	// used by the L2 no-silent-failure surface: when claude emits a `result` event
 	// with is_error=true, onEvent fails THIS WorkItem (active→failed) so a failed
 	// turn never sits silently "active". Guarded by AgentController.mu; cleared
@@ -367,17 +367,17 @@ type managedAgent struct {
 	// window is effectively unreachable. TRIGGER: max_concurrent>1 OR an observed
 	// mis-attribution → add precise correlation (a turn-seq/token claude echoes back,
 	// since the result line carries no WorkItem id). (CHANGELOG + Tester §A.)
-	currentWorkItemID string
+	currentTaskID string
 
 	// currentConversationID is the conversation of the LAST agent.converse inject
 	// (a DM/channel turn, which has NO WorkItem). It is the converse analogue of
-	// currentWorkItemID for the L2 no-silent-failure surface: when a converse turn
+	// currentTaskID for the L2 no-silent-failure surface: when a converse turn
 	// ends is_error (e.g. an invalid model → claude 404), onEvent posts a visible
 	// "couldn't process the message" SYSTEM message into this conversation instead
-	// of leaving the human in a silent black hole (UX Rule 9). currentWorkItemID
+	// of leaving the human in a silent black hole (UX Rule 9). currentTaskID
 	// and currentConversationID are mutually exclusive — whichever context was
 	// injected last is set, the other cleared. Same "last injected" imprecision +
-	// deferred-with-trigger caveat as currentWorkItemID. Guarded by mu.
+	// deferred-with-trigger caveat as currentTaskID. Guarded by mu.
 	currentConversationID string
 
 	// toolNames correlates a claude tool_use_id → tool_name within a turn (v2.7.1
@@ -683,22 +683,16 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 	c.mu.Lock()
 	if cur := c.agents[pl.AgentID]; cur != nil {
 		cur.hadWork = true
-		if pl.WorkItemID != "" {
-			cur.currentWorkItemID = pl.WorkItemID
+		if pl.TaskID != "" {
+			cur.currentTaskID = pl.TaskID
 			cur.currentConversationID = "" // work context supersedes any converse context
 		}
 	}
 	c.mu.Unlock()
 
-	if pl.WorkItemID != "" {
-		if err := c.cfg.Reporter.ReportWorkItemState(ctx, pl.AgentID, pl.WorkItemID, "active", time.Now()); err != nil {
-			// The brief was already injected; a feedback failure is transient.
-			// Returning an error would re-inject the brief on retry (double work),
-			// so we log + ack instead. The WorkItem state will be reconciled by a
-			// later activity/feedback in D2-g if needed.
-			c.log("work agent=%s report active: %v", pl.AgentID, err)
-		}
-	}
+	// v2.14.0 F7 (issue I14): the ReportWorkItemState(active) feedback was removed —
+	// AgentWorkItem retired. The brief is injected; currentTaskID is still set
+	// above for the L2 error surface.
 	return nil
 }
 
@@ -766,21 +760,17 @@ func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
 		}
 	}
 
-	if pl.WorkItemID != "" {
+	if pl.TaskID != "" {
 		// Record as the in-flight WorkItem so an is_error turn surfaces against it (L2).
 		c.mu.Lock()
 		if cur := c.agents[pl.AgentID]; cur != nil {
-			cur.currentWorkItemID = pl.WorkItemID
+			cur.currentTaskID = pl.TaskID
 			cur.currentConversationID = "" // work context supersedes any converse context
 		}
 		c.mu.Unlock()
-		// waiting_input→active via the existing feedback endpoint (MarkWorkItemState
-		// active drives the WorkItem AR's move to active, the Wake transition). A
-		// report failure is transient: the message is already injected, so re-running
-		// would double-inject — log + ack instead (mirrors work()'s policy).
-		if err := c.cfg.Reporter.ReportWorkItemState(ctx, pl.AgentID, pl.WorkItemID, "active", time.Now()); err != nil {
-			c.log("wake agent=%s report active: %v", pl.AgentID, err)
-		}
+		// v2.14.0 F7 (issue I14): the ReportWorkItemState(active) feedback was removed
+		// — AgentWorkItem retired. The message is injected; currentTaskID above
+		// still anchors the L2 error surface.
 	}
 	return nil
 }
@@ -830,7 +820,7 @@ func (c *AgentController) converse(ctx context.Context, pl conversePayload) erro
 	c.mu.Lock()
 	if cur := c.agents[pl.AgentID]; cur != nil {
 		cur.currentConversationID = pl.ConversationID
-		cur.currentWorkItemID = ""
+		cur.currentTaskID = ""
 	}
 	c.mu.Unlock()
 
@@ -952,8 +942,8 @@ func (c *AgentController) recordWake(agentID, messageID string) {
 // coalesce set (v2.8.1 #278 D PR3). Returns true if NEWLY recorded, false if it
 // was already seen (a coalesced re-emit/flap/replay). Mirrors recordWake (lazy
 // managedAgent create + FIFO eviction at wakeDedupCap).
-func (c *AgentController) recordWorkAvail(agentID, workItemID string) bool {
-	if workItemID == "" {
+func (c *AgentController) recordWorkAvail(agentID, taskID string) bool {
+	if taskID == "" {
 		return false
 	}
 	c.mu.Lock()
@@ -966,11 +956,11 @@ func (c *AgentController) recordWorkAvail(agentID, workItemID string) bool {
 	if ma.workAvailSeen == nil {
 		ma.workAvailSeen = make(map[string]struct{}, wakeDedupCap)
 	}
-	if _, ok := ma.workAvailSeen[workItemID]; ok {
+	if _, ok := ma.workAvailSeen[taskID]; ok {
 		return false
 	}
-	ma.workAvailSeen[workItemID] = struct{}{}
-	ma.workAvailOrder = append(ma.workAvailOrder, workItemID)
+	ma.workAvailSeen[taskID] = struct{}{}
+	ma.workAvailOrder = append(ma.workAvailOrder, taskID)
 	for len(ma.workAvailOrder) > wakeDedupCap {
 		oldest := ma.workAvailOrder[0]
 		ma.workAvailOrder = ma.workAvailOrder[1:]
@@ -995,13 +985,13 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 	}
 	// Coalesce per work_item_id (mirror wake dedup) so reemit/flap/replay don't
 	// spam nudges. A coalesced re-emit is a silent no-op.
-	if !c.recordWorkAvail(pl.AgentID, pl.WorkItemID) {
+	if !c.recordWorkAvail(pl.AgentID, pl.TaskID) {
 		return nil
 	}
 	// v2.8.1 #278 D PR4a: NUDGE the agent to run its pull loop. The loop
 	// instructions live in the agent's persistent system prompt
 	// (claudestream.AgentWorkQueueSystemPrompt), so this is just a short wake — the
-	// agent reacts per its system prompt (finish current task, then get_my_work →
+	// agent reacts per its system prompt (finish current task, then list_my_tasks →
 	// start_task the next item). If no running session, skip (the item stays queued;
 	// the agent pulls it on its next boot/wake) — never wedge the cursor.
 	c.mu.Lock()
@@ -1012,7 +1002,7 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 	}
 	c.mu.Unlock()
 	if sess == nil {
-		c.log("work_available agent=%s work_item=%s — no running session; queued, agent pulls on next wake", pl.AgentID, pl.WorkItemID)
+		c.log("work_available agent=%s work_item=%s — no running session; queued, agent pulls on next wake", pl.AgentID, pl.TaskID)
 		return nil
 	}
 	if err := sess.Inject(ctx, workAvailableNudge); err != nil {
@@ -1025,7 +1015,7 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 // workAvailableNudge is the short wake injected on agent.work_available (v2.8.1
 // #278 D PR4a). The full pull-loop behavior is the persistent system prompt; this
 // only nudges the agent to run that loop when new work arrives.
-const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: call get_my_work, then start_task the next item."
+const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: call list_my_tasks, then start_task the next item."
 
 // startSession generates the per-agent mcp-config (written to a FILE the
 // supervisor reads by path — minimal key surface), resolves the agent home +
@@ -1284,12 +1274,12 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	// projection can aggregate tool_calls / tokens / current_activity per
 	// work-item (#111: previously hardcoded ""). Read under the lock, mirroring
 	// surfaceTurnFailure — this callback runs on the session reader goroutine and
-	// the agents map + currentWorkItemID are mutex-guarded. Empty when idle (no
+	// the agents map + currentTaskID are mutex-guarded. Empty when idle (no
 	// in-flight work), which is the pre-#111 behaviour.
 	c.mu.Lock()
 	var workItemRef, toolName string
 	if ma := c.agents[agentID]; ma != nil {
-		workItemRef = ma.currentWorkItemID
+		workItemRef = ma.currentTaskID
 		// v2.7.1 #216: maintain the per-turn tool_use_id→tool_name correlation so the
 		// tool_result activity can carry the tool_name (the claude tool_result event
 		// only has the id). Reset at turn boundaries (system-init / result).
@@ -1334,7 +1324,7 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 }
 
 // surfaceTurnFailure fails the agent's in-flight WorkItem after an is_error turn
-// (L2). It reads currentWorkItemID under the lock, then reports the failure
+// (L2). It reads currentTaskID under the lock, then reports the failure
 // outside the lock (the reporter is a network call). With no in-flight WorkItem
 // (an is_error turn on an idle agent — e.g. an unsolicited error) it logs a
 // VISIBLE warning rather than silently dropping it. On success it clears the
@@ -1343,7 +1333,7 @@ func (c *AgentController) surfaceTurnFailure(agentID string, ev StreamEvent) {
 	c.mu.Lock()
 	var wiID, convID string
 	if ma := c.agents[agentID]; ma != nil {
-		wiID = ma.currentWorkItemID
+		wiID = ma.currentTaskID
 		convID = ma.currentConversationID
 	}
 	c.mu.Unlock()
@@ -1361,20 +1351,15 @@ func (c *AgentController) surfaceTurnFailure(agentID string, ev StreamEvent) {
 		return
 	}
 
-	if err := c.cfg.Reporter.ReportWorkItemState(
-		context.Background(), agentID, wiID, "failed", time.Now(),
-	); err != nil {
-		// Non-silent: a report failure is logged loudly. The next activity/feedback
-		// reconcile (D2-g) can still observe the failed turn in the activity stream.
-		c.log("L2 agent=%s work_item=%s report failed: %v", agentID, wiID, err)
-		return
-	}
+	// v2.14.0 F7 (issue I14): the ReportWorkItemState(failed) feedback was removed —
+	// AgentWorkItem retired. The is_error turn is surfaced loudly in the log (and
+	// remains observable in the activity stream); the in-flight pointer is cleared so
+	// a stray second result cannot re-fail an already-handled turn.
 	c.log("L2 agent=%s work_item=%s failed (is_error turn, subtype=%q)", agentID, wiID, ev.Subtype)
 
-	// Clear the in-flight pointer: this WorkItem is no longer active.
 	c.mu.Lock()
-	if ma := c.agents[agentID]; ma != nil && ma.currentWorkItemID == wiID {
-		ma.currentWorkItemID = ""
+	if ma := c.agents[agentID]; ma != nil && ma.currentTaskID == wiID {
+		ma.currentTaskID = ""
 	}
 	c.mu.Unlock()
 }
@@ -1548,7 +1533,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	expected := ma.expectedStop
 	version := ma.appliedVersion       // captured for a possible self-heal relaunch
 	hadWork := ma.hadWork              // injected work → nudge on self-heal relaunch
-	workItemID := ma.currentWorkItemID // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
+	taskID := ma.currentTaskID // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
 	model := ma.model                  // agent's --model → carry across crash so self-heal re-drive uses the SAME model
 	cli := ma.cli                      // codex agents skip the supervisor self-heal machinery (no epoch/fork)
 	// Clear the entry: this daemon no longer tracks the session (on detach the
@@ -1593,7 +1578,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
 	// returns the lifecycle state to report: "error" (transient, still auto-retrying)
 	// or "failed" (terminal circuit-breaker), reported once for this crash instance.
-	state := c.recordCrashAndSchedule(agentID, version, hadWork, workItemID, model, msg)
+	state := c.recordCrashAndSchedule(agentID, version, hadWork, taskID, model, msg)
 	if state != "" {
 		ma.lifecycleOnce.Do(func() {
 			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {

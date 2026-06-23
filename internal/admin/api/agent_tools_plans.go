@@ -837,6 +837,6 @@ func writeClaimError(w http.ResponseWriter, err error) {
 	}
 }
 
-// list_assignment_pool was removed in WS2 (#issue-e346e5ec): the OPEN, unassigned
-// claimable pool it surfaced is now folded into get_my_work's "claimable" bucket
-// (see getMyWorkHandler), so the agent gets its claimable work in one call.
+// list_assignment_pool was removed in WS2 (#issue-e346e5ec). v2.14.0 F7 (issue
+// I14): get_my_work was removed too (AgentWorkItem retired); the agent's runnable
+// work — including the claimable pool — is now served by list_my_tasks.

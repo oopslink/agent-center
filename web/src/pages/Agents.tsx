@@ -27,7 +27,7 @@ function agentDeleteErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === 'agent_running') return 'This agent must be stopped before it can be deleted.';
     if (err.code === 'agent_has_active_work') {
-      return 'This agent has active work items and cannot be deleted until they finish.';
+      return 'This agent has active tasks and cannot be deleted until they finish.';
     }
     if (err.code === 'not_found') return 'This agent no longer exists.';
   }

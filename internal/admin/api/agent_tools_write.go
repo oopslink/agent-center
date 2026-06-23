@@ -2,9 +2,7 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -12,21 +10,13 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
-	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
-	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
-
-// errNoLiveWorkItem signals that the agent holds a WorkItem for the task but
-// none of them are non-terminal — there is nothing to park in waiting_input, so
-// request_input is rejected and its whole tx rolls back.
-var errNoLiveWorkItem = errors.New("agent has no live work item for this task")
 
 // =============================================================================
 // Agent MCP write tools — explicit human-visible communication (v2.7 D2-b2,
@@ -67,25 +57,9 @@ func agentActor(a *agent.Agent) string {
 	return "agent:" + string(a.ID())
 }
 
-// findOwnWorkItems returns the agent's WorkItems for pm://tasks/{taskID} — the
-// per-agent own-work scope (OQ4/OQ6, tightest scope: the agent acts on its own
-// task). We read the agent's items and filter to the task ref; an empty result
-// means the agent does not own this task. Reads honor the ambient tx when one
-// is present (ExecutorFromCtx in the repo).
-func (s *Server) findOwnWorkItems(ctx context.Context, repo agent.WorkItemRepository, a *agent.Agent, taskID string) ([]*agent.AgentWorkItem, error) {
-	all, err := repo.ListByAgent(ctx, a.ID())
-	if err != nil {
-		return nil, err
-	}
-	ref := taskRefFor(taskID)
-	var own []*agent.AgentWorkItem
-	for _, wi := range all {
-		if wi.TaskRef() == ref {
-			own = append(own, wi)
-		}
-	}
-	return own, nil
-}
+// v2.14.0 F7 (issue I14): findOwnWorkItems removed — AgentWorkItem retired. The
+// per-agent own-work scope is now Task.Assignee == agentActor(a), resolved via
+// the PM service (see requireOwnTask / requireTaskAccess).
 
 // postAgentMessage appends a message to the task Conversation as the agent.
 // It must run inside the caller's tx context (AddMessage nests its own RunInTx).
@@ -112,44 +86,40 @@ func (s *Server) postAgentMessage(ctx context.Context, d HandlerDeps, a *agent.A
 	return res.MessageID, nil
 }
 
-// requireOwnTask runs the per-agent own-work scope check: the agent must hold at
-// least one WorkItem for pm://tasks/{taskID}. On failure it writes the error
-// envelope (403 — not the agent's task) and returns false. taskID-missing is a
-// 400. wired-checks for the deps it needs are 501.
+// requireOwnTask runs the per-agent own-work scope check: the task must be
+// ASSIGNED to the agent (Task.Assignee == agentActor(a)). On failure it writes the
+// error envelope (403 — not the agent's task) and returns false. taskID-missing is
+// a 400; an unwired PMService is a 501.
+//
+// v2.14.0 F7 (issue I14): the WorkItem ownership check (findOwnWorkItems) was
+// retired — own-work is expressed entirely via Task.Assignee now. This covers both
+// assign_task-assigned and pool-claim-assigned tasks (claim_task sets the assignee)
+// with one rule.
 func (s *Server) requireOwnTask(w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, taskID string) bool {
 	if strings.TrimSpace(taskID) == "" {
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return false
 	}
-	if d.AgentWorkItemRepo == nil {
-		writeError(w, http.StatusNotImplemented, "work_item_repo_not_wired", "")
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return false
 	}
-	own, err := s.findOwnWorkItems(r.Context(), d.AgentWorkItemRepo, a, taskID)
+	task, err := d.PMService.GetTask(r.Context(), pm.TaskID(taskID))
 	if err != nil {
+		if errors.Is(err, pm.ErrTaskNotFound) {
+			// Non-disclosure: a missing/unseeable task is the same 403 as no-access.
+			writeError(w, http.StatusForbidden, "not_agents_task",
+				"agent is not assigned this task")
+			return false
+		}
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return false
 	}
-	if len(own) > 0 {
+	if string(task.Assignee()) == agentActor(a) {
 		return true
 	}
-	// Pool-claim path: a task claimed via claim_task is ASSIGNED to the agent and
-	// moved to running, but ClaimPoolTask mints NO WorkItem (pool tasks have none).
-	// Without this fallback the work-item scope alone would 403 the claimer from
-	// completing / blocking / reading its OWN claimed task (the deterministic
-	// not_agents_task bug). Accept the agent when it is the task's current assignee
-	// — the pool-claim owner. assign_task-assigned tasks already pass above via the
-	// WorkItem the assign flow mints, so this newly-permits only the legitimate
-	// pool claimer. Unwired PMService degrades to the stricter work-item-only scope.
-	if d.PMService != nil {
-		if task, terr := d.PMService.GetTask(r.Context(), pm.TaskID(taskID)); terr == nil {
-			if string(task.Assignee()) == agentActor(a) {
-				return true
-			}
-		}
-	}
 	writeError(w, http.StatusForbidden, "not_agents_task",
-		"agent has no work item for this task")
+		"agent is not assigned this task")
 	return false
 }
 
@@ -157,7 +127,7 @@ func (s *Server) requireOwnTask(w http.ResponseWriter, r *http.Request, d Handle
 // on a task it can SEE but is not actively WORKING — post_task_message and
 // discard_task. The agent is authorized when ANY of:
 //
-//	(a) it holds a WorkItem for pm://tasks/{taskID}  (own-work scope), OR
+//	(a) it is the task's ASSIGNEE                    (own-work scope), OR
 //	(b) it CREATED the task                          (creator), OR
 //	(c) it is a MEMBER of the task's project         (project membership).
 //
@@ -180,23 +150,11 @@ func (s *Server) requireTaskAccess(w http.ResponseWriter, r *http.Request, d Han
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return false
 	}
-	if d.AgentWorkItemRepo == nil {
-		writeError(w, http.StatusNotImplemented, "work_item_repo_not_wired", "")
-		return false
-	}
 	ctx := r.Context()
-	// (a) own-work scope — the agent holds a WorkItem for the task.
-	own, err := s.findOwnWorkItems(ctx, d.AgentWorkItemRepo, a, taskID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", err.Error())
-		return false
-	}
-	if len(own) > 0 {
-		return true
-	}
 	const denyMsg = "agent is neither working this task nor the creator/a member of its project"
-	// (b)+(c) creator or project member — needs the task (creator + project) and
-	// its members. Without a wired PMService we can only honor the work-item scope.
+	// v2.14.0 F7 (issue I14): (a) own-work scope is now Task.Assignee == self —
+	// AgentWorkItem retired. All three branches need the task, so without a wired
+	// PMService we fail closed (same 403 as the pre-F7 work-item-only path).
 	if d.PMService == nil {
 		writeError(w, http.StatusForbidden, "not_agents_task", denyMsg)
 		return false
@@ -212,6 +170,10 @@ func (s *Server) requireTaskAccess(w http.ResponseWriter, r *http.Request, d Han
 		return false
 	}
 	self := agentActor(a)
+	// (a) assignee (own-work scope).
+	if string(task.Assignee()) == self {
+		return true
+	}
 	// (b) creator.
 	if string(task.CreatedBy()) == self {
 		return true
@@ -262,7 +224,7 @@ func writeBacklogNotActionable(w http.ResponseWriter, action string) {
 // requireOwnTask) then surfaces the right error (not_found, not_agents_task, …). A
 // nil PMService degrades to "can't tell" (false), never looser. start_task converges
 // on the same envelope via writeWorkStateError (its backlog signal is the agent-BC
-// ErrWorkItemTaskNotRunnable sentinel from the runnable gate, not a task load).
+// ErrTaskNotRunnable sentinel from the runnable gate, not a task load).
 func (s *Server) rejectIfBacklog(w http.ResponseWriter, r *http.Request, d HandlerDeps, taskID, action string) bool {
 	if d.PMService == nil {
 		return false
@@ -715,17 +677,16 @@ type requestInputReq struct {
 	Question string `json:"question"`
 }
 
-// requestInputHandler posts the agent's question to the task Conversation AND
-// parks the agent's live WorkItem in waiting_input — ATOMICALLY. Both writes run
-// inside ONE outer persistence.RunInTx(deps.DB): AddMessage nests its own
-// RunInTx (reuses the ambient tx) and WorkItemRepo.Update joins via
-// ExecutorFromCtx. If the WaitInput step fails (e.g. no non-terminal WorkItem,
-// or an illegal transition), the whole tx rolls back and no message is written.
+// requestInputHandler records an input-required block on the task so it is
+// BLOCKED awaiting a user reply (v2.14.0 F7 issue I14 / F6 input-required path).
 //
-// WorkItem targeting (the agent's NON-TERMINAL WorkItem for the task):
-//   - exactly one  → WaitInput(now) + Update
-//   - zero         → error (the agent is not actively working the task)
-//   - multiple     → shouldn't happen; pick the newest + log a warning
+// It calls pm.BlockTask with reason_type=input_required, passing the agent's
+// QUESTION as the block reason. BlockTask emits EvtTaskInputRequested in its own
+// tx; the TaskInputConversationProjector consumes it and posts the input_request
+// message (the question) into the task's bound Conversation as the assignee — so
+// the handler must NOT post the question itself (that would double-post). The
+// former active→waiting_input WorkItem park + agent.awaiting_input wake trigger
+// were removed (AgentWorkItem retired); the F6 block IS the await-input mechanism.
 func (s *Server) requestInputHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req requestInputReq
@@ -737,12 +698,8 @@ func (s *Server) requestInputHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if d.MessageWriter == nil || d.ConvRepo == nil {
-		writeError(w, http.StatusNotImplemented, "conversation_not_wired", "")
-		return
-	}
-	if d.DB == nil {
-		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
+	if d.PMService == nil || d.ConvRepo == nil {
+		writeError(w, http.StatusNotImplemented, "pm_or_conversation_not_wired", "")
 		return
 	}
 	if strings.TrimSpace(req.Question) == "" {
@@ -752,140 +709,36 @@ func (s *Server) requestInputHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
 		return
 	}
-
-	var parked *agent.AgentWorkItem
-	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
-		// (a) post the question to the task Conversation (nests the ambient tx).
-		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Question, ""); err != nil {
-			return err
-		}
-		// (b) target the agent's NON-TERMINAL WorkItem for the task and park it.
-		own, err := s.findOwnWorkItems(txCtx, d.AgentWorkItemRepo, a, req.TaskID)
-		if err != nil {
-			return err
-		}
-		var live []*agent.AgentWorkItem
-		for _, wi := range own {
-			if !wi.Status().IsTerminal() {
-				live = append(live, wi)
-			}
-		}
-		if len(live) == 0 {
-			// Agent isn't actively working the task — nothing to park. Roll
-			// back the message too (atomicity).
-			return errNoLiveWorkItem
-		}
-		target := live[0]
-		if len(live) > 1 {
-			// Should not happen (one live item per task per agent). Pick the
-			// newest by updated_at and warn so the anomaly is auditable.
-			for _, wi := range live[1:] {
-				if wi.UpdatedAt().After(target.UpdatedAt()) {
-					target = wi
-				}
-			}
-			log.Printf("agent-tools request_input: agent=%s task=%s has %d live work items; parking newest %s",
-				a.ID(), req.TaskID, len(live), target.ID())
-		}
-		if err := target.WaitInput(time.Now().UTC()); err != nil {
-			return err
-		}
-		if err := d.AgentWorkItemRepo.Update(txCtx, target); err != nil {
-			return err
-		}
-		// (c) v2.7 D2-e-ii (OQ5 method 甲): emit `agent.awaiting_input` IN THIS
-		// SAME outer tx (the outbox repo joins via ExecutorFromCtx). request_input
-		// is the ONLY active→waiting_input path, so this is the batch-flush trigger:
-		// the WakeProjector consumes it to deliver all the agent's UNREAD messages
-		// in the task conversation as ONE merged stdin injection. Atomic with the
-		// message + WaitInput — the trigger commits iff the WorkItem is parked. A nil
-		// outbox dep (test fixtures not exercising wake) skips silently.
-		if err := s.emitAwaitingInput(txCtx, d, a, req.TaskID, target); err != nil {
-			return err
-		}
-		parked = target
-		return nil
-	})
-	if err != nil {
-		if errors.Is(err, errNoLiveWorkItem) {
-			writeError(w, http.StatusConflict, "no_live_work_item", err.Error())
-			return
-		}
-		if errors.Is(err, agent.ErrWorkItemIllegalMove) {
-			// The WorkItem isn't in a state that can move to waiting_input
-			// (e.g. still queued — not activated). 422, like other illegal
-			// transitions.
-			writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
-			return
-		}
+	// Block the task awaiting a user reply (input_required). The question rides as
+	// the block reason → the TaskInputConversationProjector surfaces it as the
+	// input_request message in the task conversation (sender=assignee). BlockTask
+	// runs its own tx; no extra message post here (avoids a double question).
+	if err := d.PMService.BlockTask(r.Context(), pm.TaskID(req.TaskID), req.Question,
+		pm.BlockReasonInputRequired, pm.IdentityRef(agentActor(a))); err != nil {
 		mapDomainError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"work_item_id": parked.ID(),
-		"status":       string(parked.Status()),
-	})
-}
-
-// awaitingInputOutboxPayload mirrors the JSON the WakeProjector's
-// awaitingInputPayload decodes (env service). Kept local so the admin handler
-// does not import the env payload type.
-type awaitingInputOutboxPayload struct {
-	AgentID        string `json:"agent_id"`
-	WorkItemID     string `json:"work_item_id"`
-	TaskRef        string `json:"task_ref"`
-	ConversationID string `json:"conversation_id"`
-}
-
-// emitAwaitingInput appends the `agent.awaiting_input` batch-flush trigger to the
-// cross-BC outbox INSIDE the caller's tx (request_input's outer RunInTx), so it
-// commits atomically with the message + WaitInput. Resolves the task's
-// conversation by owner_ref (pm://tasks/{taskID}). A nil OutboxRepo skips the
-// emit (nil-tolerant, mirrors MessageWriter.WithOutbox).
-func (s *Server) emitAwaitingInput(ctx context.Context, d HandlerDeps, a *agent.Agent, taskID string, wi *agent.AgentWorkItem) error {
-	if d.OutboxRepo == nil {
-		return nil
-	}
-	conv, err := d.ConvRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(taskID))
-	if err != nil {
-		return err
-	}
-	taskRef := taskRefFor(taskID)
-	pb, err := json.Marshal(awaitingInputOutboxPayload{
-		AgentID:        string(a.ID()),
-		WorkItemID:     wi.ID(),
-		TaskRef:        taskRef,
-		ConversationID: string(conv.ID()),
-	})
-	if err != nil {
-		return err
-	}
-	refs, _ := json.Marshal(map[string]string{
-		"agent_id":        string(a.ID()),
-		"work_item_id":    wi.ID(),
-		"task_ref":        taskRef,
-		"conversation_id": string(conv.ID()),
-	})
-	return d.OutboxRepo.Append(ctx, outbox.Event{
-		ID:        idgen.MustNewULID(),
-		EventType: envservice.EvtAgentAwaitingInput,
-		Refs:      string(refs),
-		Payload:   string(pb),
-		CreatedAt: time.Now().UTC(),
+		"task_id": req.TaskID,
+		"status":  "blocked",
 	})
 }
 
 // --- block_task --------------------------------------------------------------
 
 type blockTaskReq struct {
-	AgentID string `json:"agent_id"`
-	TaskID  string `json:"task_id"`
-	Reason  string `json:"reason"`
+	AgentID    string `json:"agent_id"`
+	TaskID     string `json:"task_id"`
+	Reason     string `json:"reason"`
+	ReasonType string `json:"reason_type"`
 }
 
-// blockTaskHandler posts the block reason to the task Conversation AND moves the
-// Task to blocked via pm.BlockTask — ATOMICALLY (one outer RunInTx; both
+// blockTaskHandler posts the block reason to the task Conversation AND records the
+// blocked annotation via pm.BlockTask — ATOMICALLY (one outer RunInTx; both
 // AddMessage and the pm service nest into it). reason is REQUIRED (400 if empty).
+// reason_type classifies the block (v2.14.0 I14 §四): input_required (the agent
+// needs a user reply) or obstacle (an external blocker needs owner/PM
+// intervention); it defaults to obstacle when omitted.
 func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req blockTaskReq
@@ -909,6 +762,12 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_reason", "blocked requires a reason")
 		return
 	}
+	// reason_type defaults to obstacle when omitted; the pm service rejects any
+	// other invalid value (pm.ErrInvalidBlockReasonType → 4xx).
+	reasonType := pm.BlockReasonType(req.ReasonType)
+	if strings.TrimSpace(req.ReasonType) == "" {
+		reasonType = pm.BlockReasonObstacle
+	}
 	// T190: a backlog (inert) task cannot be blocked — surface the unified
 	// add-to-plan/pool guidance instead of the misleading not_agents_task (a backlog
 	// task has no WorkItem, so requireOwnTask would otherwise 403 it).
@@ -922,7 +781,7 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
 			return err
 		}
-		return d.PMService.BlockTask(txCtx, pm.TaskID(req.TaskID), req.Reason,
+		return d.PMService.BlockTask(txCtx, pm.TaskID(req.TaskID), req.Reason, reasonType,
 			pm.IdentityRef(agentActor(a)))
 	})
 	if err != nil {
@@ -963,7 +822,10 @@ func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	if err := d.PMService.UnblockTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+	if err := d.PMService.UnblockTask(r.Context(), pmservice.UnblockTaskCommand{
+		TaskID: pm.TaskID(req.TaskID),
+		Actor:  pm.IdentityRef(agentActor(a)),
+	}); err != nil {
 		mapDomainError(w, err)
 		return
 	}

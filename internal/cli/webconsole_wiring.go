@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
@@ -20,8 +19,6 @@ import (
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	filessql "github.com/oopslink/agent-center/internal/files/sqlite"
 	"github.com/oopslink/agent-center/internal/observability"
-	obsprojection "github.com/oopslink/agent-center/internal/observability/projection"
-	obssql "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -155,42 +152,20 @@ func (a *App) outboxProjectors(
 		// v2.9 P3: wire the optional message + read-state repos so EvtPlanDeleted fully
 		// hard-deletes the plan conversation ("删会话"), and EvtPlanArchived archives it.
 		WithConversationCascade(a.MsgRepo, a.ReadStateRepo)
-	// v2.7 D2-c-i: ADDITIVE work delivery. When the projector creates a queued
-	// AgentWorkItem it ALSO enqueues an agent.work command (with a brief) onto the
-	// assignee Agent's Worker control stream, same tx. The agents repo resolves
-	// the assignee → worker; the pm tasks repo supplies the brief. Like D2-a this
-	// only enqueues — the daemon controller (D2-c-ii) is not active yet.
-	// v2.7 #111 locus B: this projector transitions work items (Supersede/Cancel
-	// on reassign / task-blocked), so its repo MUST carry the transition sink —
-	// otherwise canceled/superseded emits would be missed (structural no-miss
-	// requires every transition-capable repo instance to emit).
-	workItemTransitionSink := agentsvc.NewOutboxWorkItemTransitionSink(outboxRepo, a.IDGen)
-	workItemProj := pmservice.NewWorkItemProjectorWithDeps(pmservice.WorkItemProjectorDeps{
-		DB:         a.DB,
-		WorkItems:  agentsql.NewWorkItemRepoWithSink(a.DB, workItemTransitionSink),
-		Applied:    appliedRepo,
-		IDGen:      a.IDGen,
-		Clock:      a.Clock,
-		ControlLog: controlLog,
-		Agents:     agentsql.NewAgentRepo(a.DB),
-		Tasks:      pmsql.NewTaskRepo(a.DB),
-		// T329 (issue-9d4b3895): gate work-item minting on dependency satisfaction so
-		// a structured plan node is dispatched ONLY when its DAG deps are done and its
-		// plan is running — stopping the initial-dispatch 抢跑 and the re-dispatch churn.
-		DispatchGate: pmservice.NewAgentTaskRunGate(a.PMService).EnsureWorkItemDispatchable,
-	})
-	// v2.7 #111 FINDING-1: on lifecycle→running this projector ALSO re-emits
-	// agent.work for the agent's in-flight ACTIVE work items (the deliver-on-start
-	// companion to the enqueueWork lifecycle guard), emitting reconcile→work in the
-	// same tx so the session is up before work arrives (no HOL deadlock). It needs a
-	// READ-ONLY WorkItemRepository to find active WIs (no transition sink — it does
-	// not transition, only reads + delivers).
-	// #115 brief backfill: the re-emit also needs the pm tasks repo to resolve the
-	// SAME brief (title+description) enqueueWork captures, so re-delivered work
-	// carries the original task content (an empty brief made claude reply with only
-	// a generic greeting → lost work). pmsql.TaskRepo is stateless read-only, so a
-	// fresh instance over a.DB matches the per-projector construction pattern above.
-	agentControlProj := envservice.NewAgentControlProjectorWithWork(a.DB, controlLog, appliedRepo, a.Clock, agentsql.NewWorkItemRepo(a.DB), pmsql.NewTaskRepo(a.DB))
+	// v2.14.0 I14/F6: the task-input↔Conversation projector. It consumes
+	// EvtTaskInputRequested (an input_required block) → posts an input_request
+	// message into the task's bound Conversation (sender=assignee), and
+	// EvtTaskInputReplied (the user's unblock reply) → posts an input_reply threaded
+	// under the request. It is the SOLE Conversation writer for these events
+	// (ADR-0052 outbox purity — BlockTask/UnblockTask only emit the event). The
+	// Conversation-side write is the TaskInputDispatchAdapter over MessageWriter.
+	taskInputConvProj := pmservice.NewTaskInputConversationProjector(
+		a.DB, a.ConvRepo, convservice.NewTaskInputDispatchAdapter(a.MessageWriter), appliedRepo, a.Clock)
+	// v2.14.0 F7 (issue I14): the pm WorkItemProjector (+ its transition sink) and
+	// the agent-control work re-emit on →running were removed — AgentWorkItem
+	// retired. Work delivery is now the Task model's concern; the agent-control
+	// projector keeps only the reconcile loop.
+	agentControlProj := envservice.NewAgentControlProjector(a.DB, controlLog, appliedRepo, a.Clock)
 	// v2.7 D2-e-i (OQ5): ADDITIVE wakeup. A message posted into a TASK conversation
 	// (MessageWriter emits conversation.message_added) becomes an agent.wake command
 	// for every agent whose AgentWorkItem on that task is waiting_input (sender
@@ -213,7 +188,6 @@ func (a *App) outboxProjectors(
 	})
 	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
 		DB:         a.DB,
-		WorkItems:  agentsql.NewWorkItemRepo(a.DB),
 		Agents:     agentsql.NewAgentRepo(a.DB),
 		ControlLog: controlLog,
 		Applied:    appliedRepo,
@@ -345,23 +319,10 @@ func (a *App) outboxProjectors(
 			return title, true
 		},
 	})
-	// v2.7 #111 Phase-1: the agent-work-item PROJECTOR (transition-driven /
-	// "Opt1"). It consumes agent.work_item_transitioned and fills the
-	// agent_work_item_projections read model: status/agent_id from the event +
-	// re-aggregated metrics (tool calls, token totals, current activity) from the
-	// work item's agent_activity_events stream. Owned by Observability — it is the
-	// only writer of that table on the outbox path.
-	agentWorkItemProj := obsprojection.NewAgentWorkItemProjector(
-		a.DB,
-		obssql.NewAgentWorkItemProjectionRepo(a.DB),
-		agentsql.NewActivityEventRepo(a.DB),
-		appliedRepo,
-		a.Clock,
-	)
-	// v2.7 #111 #2: sync pm.Task status to the agent work-item lifecycle —
-	// active → Task.Start (assigned→running), the keystone that makes the
-	// agent-declared complete_task/block_task reachable (both require running).
-	taskStatusSyncProj := pmservice.NewTaskStatusSyncProjector(a.DB, a.PMService, appliedRepo, a.Clock)
+	// v2.14.0 F7 (issue I14): the agent-work-item projection projector, the
+	// task-status-sync projector, and the work-item-event projector were removed —
+	// AgentWorkItem retired (the agent_work_item_projections read model + the
+	// pm.Task↔WorkItem status sync are gone).
 	// v2.9 P2-1 AUTO-ADVANCE core (#266 LESSON): the orchestrator projector must be
 	// in the PRODUCTION relay or auto-advance is silently dead. It consumes
 	// pm.task.state_changed (a plan-task reaching a terminal state → re-dispatch the
@@ -370,21 +331,13 @@ func (a *App) outboxProjectors(
 	// PlanDispatcher wired); idempotent via AppliedStore + INSERT-OR-IGNORE dispatch
 	// records (§9.3). Registered in the returned slice + guarded by the #266 class-test.
 	planOrchestratorProj := pmservice.NewPlanOrchestratorProjector(a.DB, a.PMService, appliedRepo, a.Clock)
-	// v2.7 #111 #3b: fan work-item transitions out to the observability Event
-	// store (one agent.work_item.transitioned Event each) so the append-only
-	// stats stream sees the work-item lifecycle. Producer-only — the stats query
-	// repoint is Phase-2.
-	workItemEventProj := obsprojection.NewWorkItemEventProjector(a.DB, a.Sink, appliedRepo, a.Clock)
 	return []outbox.Projector{
 		participantProj,
 		planParticipantProj,
-		workItemProj,
+		taskInputConvProj,
 		agentControlProj,
 		wakeProj,
-		agentWorkItemProj,
-		taskStatusSyncProj,
 		planOrchestratorProj,
-		workItemEventProj,
 	}, wakeProj
 }
 

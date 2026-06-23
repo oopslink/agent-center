@@ -15,7 +15,6 @@ import (
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/observability"
-	"github.com/oopslink/agent-center/internal/observability/projection"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -55,12 +54,10 @@ func newQEnv(t *testing.T) *qenv {
 		Conversations: convsqlite.NewConversationRepo(db),
 		Messages:      convsqlite.NewMessageRepo(db),
 		Workers:       wfsqlite.NewWorkerRepo(db),
-		WorkItemProjections: obsqlite.NewAgentWorkItemProjectionRepo(db),
-		WorkItems:           agentsqlite.NewWorkItemRepo(db),
-		PMTasks:             pmsqlite.NewTaskRepo(db),
-		PMProjects:          pmsqlite.NewProjectRepo(db),
-		PMIssues:            pmsqlite.NewIssueRepo(db),
-		Agents:              agentsqlite.NewAgentRepo(db),
+		PMTasks:       pmsqlite.NewTaskRepo(db),
+		PMProjects:    pmsqlite.NewProjectRepo(db),
+		PMIssues:      pmsqlite.NewIssueRepo(db),
+		Agents:        agentsqlite.NewAgentRepo(db),
 	}
 	return &qenv{db: db, deps: deps, svc: query.NewService(deps), sink: sink, er: er, clk: clk, gen: gen}
 }
@@ -174,28 +171,10 @@ func TestInspect_Task_HappyPath(t *testing.T) {
 	}
 }
 
-// TestInspect_Task_WorkItemsSubSection pins the proj-B work-items sub-section:
-// inspectTask lists the agent work items for the pm task (resolved by task_ref
-// "pm://tasks/{id}") — the section proj-A deferred until inspectTask read pm.
-func TestInspect_Task_WorkItemsSubSection(t *testing.T) {
-	env := newQEnv(t)
-	env.seedTask(t, "T-1", "proj", "hello")
-	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
-	env.seedWorkItem(t, "WI-2", "AG-2", "T-1")
-	res, err := env.svc.Inspect(context.Background(), "task", "T-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data := res.Data.(map[string]any)
-	wis, ok := data["work_items"].([]any)
-	if !ok || len(wis) != 2 {
-		t.Fatalf("expected 2 work_items for the task, got %+v", data["work_items"])
-	}
-	first := wis[0].(map[string]any)
-	if first["work_item_id"] != "WI-1" || first["task_id"] != "T-1" {
-		t.Fatalf("work item summary fields wrong: %+v", first)
-	}
-}
+// TestInspect_Task_WorkItemsSubSection removed — the inspectTask "work_items"
+// sub-section is dropped in v2.14.0 F7 (issue I14): the AgentWorkItem model was
+// retired, the task IS the unit of agent work now, so there is no per-task
+// work-item list to enumerate.
 
 func TestInspect_Task_NotFound(t *testing.T) {
 	env := newQEnv(t)
@@ -213,21 +192,23 @@ func TestInspect_UnknownKind(t *testing.T) {
 	}
 }
 
+// v2.14.0 F7 (issue I14): inspect "execution" reads pm_tasks (the task is the
+// unit of agent work). The id is a TASK id; the projection row's CurrentActivity
+// surfaces the blocked_reason, and WorkItemID == task id.
 func TestInspect_Execution_WithProjection(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "proj", "h")
-	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
-	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active") // sets CurrentActivity:"edit"
+	// waiting_input → running + blocked_reason "edit" → CurrentActivity "edit".
+	env.seedAgentTask(t, "WI-1", "AG-1", "proj", "waiting_input")
 	res, err := env.svc.Inspect(context.Background(), "execution", "WI-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	data := res.Data.(map[string]any)
-	proj, ok := data["projection"].(query.WorkItemRow)
+	proj, ok := data["projection"].(query.TaskExecRow)
 	if !ok {
 		t.Fatalf("projection key missing/wrong type: %+v", data)
 	}
-	if proj.CurrentActivity != "edit" || proj.WorkItemID != "WI-1" {
+	if proj.CurrentActivity != "edit" || proj.TaskID != "WI-1" {
 		t.Fatalf("projection: %+v", proj)
 	}
 }
@@ -361,23 +342,20 @@ func TestQuery_Tasks_ByProject(t *testing.T) {
 	}
 }
 
-// v2.7 #107 Phase-2 (proj-A): query executions by-worker = worker→its agents→
-// their work items (Q3 MAP).
+// v2.14.0 F7 (issue I14): query executions by-worker = worker→its agents→
+// their agent-assigned tasks (ListByWorker → ListByAssignee).
 func TestQuery_Executions_ByWorker(t *testing.T) {
 	env := newQEnv(t)
-	env.seedTask(t, "T-1", "p", "x")
 	env.seedAgent(t, "AG-1", "W-1")
 	env.seedAgent(t, "AG-2", "W-2")
-	env.seedWorkItem(t, "WI-1", "AG-1", "T-1")
-	env.seedWorkItemProjection(t, "WI-1", "AG-1", "active")
-	env.seedWorkItem(t, "WI-2", "AG-2", "T-1")
-	env.seedWorkItemProjection(t, "WI-2", "AG-2", "active")
+	env.seedAgentTask(t, "WI-1", "AG-1", "p", "active")
+	env.seedAgentTask(t, "WI-2", "AG-2", "p", "active")
 	res, err := env.svc.Query(context.Background(), "executions", query.QueryFilter{WorkerID: "W-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(res.Items) != 1 {
-		t.Fatalf("expected 1 (W-1's agent's work item), got %d", len(res.Items))
+		t.Fatalf("expected 1 (W-1's agent's task), got %d", len(res.Items))
 	}
 }
 
@@ -551,12 +529,16 @@ func (e *qenv) seedPMIssue(t *testing.T, issueID, projectID, title string, statu
 	}
 }
 
+// seedAgent seeds an agent on a worker. v2.14.0 F7 (issue I14): the agent's
+// IdentityMemberID == its agentID so tasks assigned to "agent:<agentID>" resolve
+// back through worker→agents→ListByAssignee for the fleet ActiveCount chain.
 func (e *qenv) seedAgent(t *testing.T, agentID, workerID string) {
 	t.Helper()
 	a, err := agentpkg.NewAgent(agentpkg.NewAgentInput{
 		ID: agentpkg.AgentID(agentID), OrganizationID: "org-test",
 		Profile: agentpkg.Profile{Name: agentID}, WorkerID: workerID,
-		CreatedBy: "user:test", CreatedAt: e.clk.Now(),
+		IdentityMemberID: agentID,
+		CreatedBy:        "user:test", CreatedAt: e.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -566,35 +548,60 @@ func (e *qenv) seedAgent(t *testing.T, agentID, workerID string) {
 	}
 }
 
-func (e *qenv) seedWorkItem(t *testing.T, wiID, agentID, taskID string) {
+// seedAgentTask seeds an "execution": a non-terminal pm.Task assigned to an agent
+// ("agent:<agentID>"), in the given execution status. v2.14.0 F7 (issue I14)
+// retired the AgentWorkItem projection model — the task IS the unit of agent work
+// now (work_item_id == task_id). The execution-status vocab maps back onto pm.Task:
+// "active"→running, "waiting_input"→running+blocked_reason, anything else→open
+// (queued). Token/tool metrics no longer exist on the Task model.
+func (e *qenv) seedAgentTask(t *testing.T, taskID, agentID, projectID, status string) {
 	t.Helper()
-	wi, err := agentpkg.NewWorkItem(agentpkg.NewWorkItemInput{
-		ID: wiID, AgentID: agentpkg.AgentID(agentID), TaskRef: "pm://tasks/" + taskID, CreatedAt: e.clk.Now(),
+	pmStatus := pm.TaskOpen
+	blockedReason := ""
+	switch status {
+	case "active":
+		pmStatus = pm.TaskRunning
+	case "waiting_input":
+		pmStatus = pm.TaskRunning
+		blockedReason = "edit"
+	}
+	tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+		ID: pm.TaskID(taskID), ProjectID: pm.ProjectID(projectID), Title: taskID,
+		Status: pmStatus, Assignee: pm.IdentityRef("agent:" + agentID),
+		BlockedReason: blockedReason,
+		CreatedBy:     "user:test", CreatedAt: e.clk.Now(), UpdatedAt: e.clk.Now(), Version: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := agentsqlite.NewWorkItemRepo(e.db).Save(context.Background(), wi); err != nil {
+	if err := e.deps.PMTasks.Save(context.Background(), tk); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (e *qenv) seedWorkItemProjection(t *testing.T, wiID, agentID, status string) {
+// seedTerminalAgentTask seeds a TERMINAL agent-assigned pm.Task (completed or
+// discarded) for the executions-terminal stats counters (completed→done,
+// discarded→canceled). v2.14.0 F7 (issue I14).
+func (e *qenv) seedTerminalAgentTask(t *testing.T, taskID, agentID, projectID string, status pm.TaskStatus) {
 	t.Helper()
-	if _, _, err := obsqlite.NewAgentWorkItemProjectionRepo(e.db).UpsertIfFresh(context.Background(), wiID, projection.AgentWorkItemProjectionUpdate{
-		AgentID: agentID, Status: status, CurrentActivity: "edit", TotalToolCalls: 2, TotalTokensInput: 100, TotalTokensOutput: 50, LastActivityAt: e.clk.Now(),
-	}); err != nil {
+	tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+		ID: pm.TaskID(taskID), ProjectID: pm.ProjectID(projectID), Title: taskID,
+		Status: status, Assignee: pm.IdentityRef("agent:" + agentID),
+		CreatedBy: "user:test", CreatedAt: e.clk.Now(), UpdatedAt: e.clk.Now(), Version: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.deps.PMTasks.Save(context.Background(), tk); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// seedLiveWorkItem wires a full live work item: org-project + pm task + agent
-// work item (task_ref) + projection — so fleet's resolve (proj→task_ref→pm
-// task→project→org) has every hop.
-func (e *qenv) seedLiveWorkItem(t *testing.T, wiID, agentID, taskID, projectID, orgID, status string) {
+// seedLiveExecution wires a full live agent execution: org-project + an
+// agent-assigned non-terminal pm task — so fleet's resolve (task→project→org)
+// has every hop. v2.14.0 F7: replaces the retired work-item/projection wiring.
+func (e *qenv) seedLiveExecution(t *testing.T, taskID, agentID, projectID, orgID, status string) {
 	t.Helper()
 	e.seedOrgProject(t, projectID, orgID)
-	e.seedTask(t, taskID, projectID, taskID)
-	e.seedWorkItem(t, wiID, agentID, taskID)
-	e.seedWorkItemProjection(t, wiID, agentID, status)
+	e.seedAgentTask(t, taskID, agentID, projectID, status)
 }

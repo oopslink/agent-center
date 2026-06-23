@@ -795,12 +795,43 @@ func (s *Server) pmBlockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.BlockTask(r.Context(), id, req.Reason, c) })
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error {
+		return d.PM.BlockTask(r.Context(), id, req.Reason, pm.BlockReasonObstacle, c)
+	})
 }
 
+// pmUnblockTaskHandler — POST /tasks/{task_id}/unblock {input_request_message_id?,
+// comment?}: clears a stuck (blocked_reason) annotation + re-dispatches the task
+// (v2.14.0 I14/F6 §13.C). Both body fields are OPTIONAL: an obstacle block uses
+// `comment` (the owner's resolution); an input_required block uses `comment` as
+// the user's reply and may thread it under the original input_request via
+// `input_request_message_id`. The reply→Conversation input_reply write is handled
+// by the TaskInputConversationProjector (ADR-0052 outbox purity).
+//
+// TODO(F6): strict validation that input_request_message_id belongs to the task
+// conversation + is unanswered is SKIPPED here — the projector's threading is
+// idempotent (a stray id just yields a top-level/mismatched reply, never a write
+// to another task), so the §7 easy-read validation is left as a follow-up.
 func (s *Server) pmUnblockTaskHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		InputRequestMessageID string `json:"input_request_message_id"`
+		Comment               string `json:"comment"`
+	}
+	// Body is optional (empty body ⇒ obstacle unblock with no comment); only a
+	// malformed non-empty body is rejected.
+	if err := decodeJSON(r, &req); err != nil && r.ContentLength != 0 {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
 	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.UnblockTask(r.Context(), id, c) })
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error {
+		return d.PM.UnblockTask(r.Context(), pmservice.UnblockTaskCommand{
+			TaskID:                id,
+			Comment:               req.Comment,
+			InputRequestMessageID: req.InputRequestMessageID,
+			Actor:                 c,
+		})
+	})
 }
 
 func (s *Server) pmCompleteTaskHandler(w http.ResponseWriter, r *http.Request) {

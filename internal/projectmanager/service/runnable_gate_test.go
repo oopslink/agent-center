@@ -114,7 +114,7 @@ func TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected(t *testing.T) {
 
 // The AgentTaskRunGate port resolves the work item's task ref and translates the
 // pm sentinel to the agent-BC sentinel the start_work HTTP layer maps. Backlog →
-// agentpkg.ErrWorkItemTaskNotRunnable; a dispatched pool member → nil.
+// agentpkg.ErrTaskNotRunnable; a dispatched pool member → nil.
 func TestAgentTaskRunGate_TranslatesAndGates(t *testing.T) {
 	h := planAdvanceSetup(t)
 	gate := NewAgentTaskRunGate(h.svc)
@@ -128,18 +128,18 @@ func TestAgentTaskRunGate_TranslatesAndGates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := gate.EnsureWorkItemRunnable(h.ctx, "pm://tasks/"+string(backlog)); !errors.Is(err, agentpkg.ErrWorkItemTaskNotRunnable) {
-		t.Fatalf("gate(backlog) = %v, want ErrWorkItemTaskNotRunnable", err)
+	if err := gate.EnsureTaskRunnable(h.ctx, "pm://tasks/"+string(backlog)); !errors.Is(err, agentpkg.ErrTaskNotRunnable) {
+		t.Fatalf("gate(backlog) = %v, want ErrTaskNotRunnable", err)
 	}
 
 	// dispatched pool member → allowed.
 	_, runnable := dispatchedPoolTask(t, h, "org-2", "P2")
-	if err := gate.EnsureWorkItemRunnable(h.ctx, "pm://tasks/"+string(runnable)); err != nil {
+	if err := gate.EnsureTaskRunnable(h.ctx, "pm://tasks/"+string(runnable)); err != nil {
 		t.Fatalf("gate(pool member) = %v, want nil", err)
 	}
 
 	// a non-task ref is left to the caller (defensive no-op, not an error).
-	if err := gate.EnsureWorkItemRunnable(h.ctx, "not-a-task-ref"); err != nil {
+	if err := gate.EnsureTaskRunnable(h.ctx, "not-a-task-ref"); err != nil {
 		t.Fatalf("gate(non-task ref) = %v, want nil", err)
 	}
 }
@@ -163,7 +163,7 @@ func TestEnsureTaskRunnable_RunningPoolTask_OK(t *testing.T) {
 	}
 	// The port adapter must agree (it is what start_work calls).
 	gate := NewAgentTaskRunGate(h.svc)
-	if err := gate.EnsureWorkItemRunnable(h.ctx, "pm://tasks/"+string(tid)); err != nil {
+	if err := gate.EnsureTaskRunnable(h.ctx, "pm://tasks/"+string(tid)); err != nil {
 		t.Fatalf("gate(running pool task) = %v, want nil", err)
 	}
 }

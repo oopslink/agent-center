@@ -42,7 +42,7 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		// (and grants the agent project membership); it is a legitimate, widely-used
 		// operation (e.g. assign before planning). What is gated is ENTERING RUNNING:
 		// a backlog task is rejected at the open→running boundary — claim (T83) and
-		// now start_work (the TaskRunGate, ErrWorkItemTaskNotRunnable) — NOT at
+		// now start_work (the TaskRunGate, ErrTaskNotRunnable) — NOT at
 		// assign. So a directly-assigned backlog task can sit assigned but cannot run
 		// until it is added to a real plan or dispatched into the Assignment Pool.
 		prev := t.Assignee()
@@ -105,30 +105,26 @@ func (s *Service) syncPlanParticipantOnAssign(ctx context.Context, t *pm.Task, a
 		})
 }
 
+// DefaultExecutionLeaseTTL is the v2.14.0 I14 §2.5 execution-lease window granted
+// on start_task and extended by each heartbeat. A running task whose lease lapses
+// (the agent died without completing/blocking) is reclaimed to `open` by the
+// lease-checker (Task.ExpireLease) — the replacement for the deleted
+// AgentWorkItem.FailFromAgentDeath.
+const DefaultExecutionLeaseTTL = 15 * time.Minute
+
 // StartTask moves an assigned Task to running (the explicit "picked up/started"
-// transition — needed before block/complete are reachable).
+// transition — needed before block/complete are reachable) and GRANTS the execution
+// lease (v2.14.0 I14/F3 §2.5; the agent's heartbeat extends it, the lease-checker
+// reclaims it on lapse).
+//
+// §13.A run-ahead gate: the dependency gate (EnsureTaskRunnable, now rewritten to the
+// Task.blockedBy model) is enforced on the AGENT start path — start_work, via the
+// agentsvc.TaskRunGate port — which is where an agent actually starts a dispatched
+// task. StartTask itself is the owner/console "mark running" action (handlers_pm.go)
+// and stays ungated, matching its pre-F3 behavior. The open→running UPDATE is where
+// the §13.B single-active UNIQUE index bites: if the agent already has a running,
+// non-blocked task the repo returns pm.ErrAgentHasActiveTask (one running task/agent).
 func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Start(now) }, "")
-}
-
-// DiscardTask discards a non-terminal Task (terminal "discarded"; was CancelTask
-// pre-v2.8.1, uniform 废弃 semantic).
-func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Discard(now) }, "")
-}
-
-// BlockTask records a stuck-reason ANNOTATION on a running task (ADR-0046: status
-// stays running, no deadlock). A required reason.
-func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Block(reason, now) }, reason)
-}
-
-// UnblockTask clears a stuck (blocked_reason) annotation on a RUNNING task and
-// re-dispatches it (ADR-0046). The task never left running, but its prior WorkItem
-// terminated (failed) when it got stuck, so unblocking emits pm.task.assigned and
-// the WorkItemProjector mints a fresh WorkItem. No-op if the task carries no
-// blocked_reason (not stuck) — avoids a duplicate dispatch on an already-active task.
-func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		t, err := s.tasks.FindByID(txCtx, taskID)
@@ -138,6 +134,160 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
 			return err
 		}
+		// #297: reject start on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		prevStatus := t.Status()
+		if err := t.Start(now); err != nil {
+			return err
+		}
+		// §2.5: grant the execution lease on start.
+		if err := t.RenewLease(DefaultExecutionLeaseTTL, now); err != nil {
+			return err
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err // single-active UNIQUE → pm.ErrAgentHasActiveTask (§13.B)
+		}
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
+	})
+}
+
+// HeartbeatTask extends the running agent's execution lease (v2.14.0 I14 §2.5 / §六,
+// MCP `heartbeat`). Only the assignee may renew, and only a RUNNING, non-blocked task
+// has a live lease to keep alive: a blocked task is a lease-free legal pause
+// (pm.ErrTaskBlocked) and a non-running task has no execution (ErrIllegalTransition).
+// It is a lease-only touch (no status change), so it emits no state_changed event —
+// the renewed deadline is purely the lease-checker's input.
+func (s *Service) HeartbeatTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		// Only the assignee agent heartbeats its own running task.
+		if t.Assignee() != actor {
+			return pm.ErrNotTaskAssignee
+		}
+		if err := t.RenewLease(DefaultExecutionLeaseTTL, now); err != nil {
+			return err
+		}
+		return s.tasks.Update(txCtx, t)
+	})
+}
+
+// DiscardTask discards a non-terminal Task (terminal "discarded"; was CancelTask
+// pre-v2.8.1, uniform 废弃 semantic).
+func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Discard(now) }, "")
+}
+
+// BlockTask records a stuck-reason ANNOTATION on a running task (ADR-0046: status
+// stays running, no deadlock; issue I14 §2.5/§13.A). It classifies the block by
+// reasonType — input_required (the agent needs a user reply) or obstacle (an external
+// blocker needs owner/PM intervention) — and a non-empty reason.
+//
+// v2.14.0 I14/F3 (finding 01KVN… / §13.A): F1's Task.Block validates only the reason
+// text, NOT the type, so this entry enforces BlockReasonType.IsValid() — any value
+// other than input_required/obstacle (including "") is rejected with
+// pm.ErrInvalidBlockReasonType. The Conversation input_request write for the
+// input_required case is F6's HTTP/Conversation wiring (§3/§6.2), not here.
+func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string, reasonType pm.BlockReasonType, actor pm.IdentityRef) error {
+	if !reasonType.IsValid() {
+		return pm.ErrInvalidBlockReasonType
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		// #297: reject block on an archived (read-only) project.
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		prevStatus := t.Status()
+		// agentRef is the task's own assignee: the domain Block then validates the reason
+		// (an empty reason → ErrBlockReasonRequired) without the actor having to equal the
+		// assignee at this layer (start_work already established the agent owns the run).
+		agentRef := t.Assignee()
+		if err := t.Block(reason, reasonType, agentRef, now); err != nil {
+			return err
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		// §7.3: persist the "blocked" lifecycle log entry.
+		if err := s.flushActionLogs(txCtx, t); err != nil {
+			return err
+		}
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
+			return err
+		}
+		// F6 §3: an input_required block needs a USER reply → emit a SECOND event in
+		// THIS tx so the TaskInputConversationProjector surfaces an interactive
+		// input_request message in the task's bound Conversation (sender=assignee).
+		// An obstacle block (owner/PM action, no user reply) emits NOTHING extra.
+		if reasonType == pm.BlockReasonInputRequired {
+			return s.emitTaskInputEvent(txCtx, EvtTaskInputRequested, taskInputEventPayload{
+				TaskID:    string(t.ID()),
+				ProjectID: string(t.ProjectID()),
+				OwnerRef:  "pm://tasks/" + string(t.ID()),
+				AgentRef:  string(agentRef),
+				Reason:    reason,
+			})
+		}
+		return nil
+	})
+}
+
+// emitTaskInputEvent emits a F6 task-input event (EvtTaskInputRequested /
+// EvtTaskInputReplied) inside the caller's tx, refs keyed by task+project so the
+// outbox row carries the task locus.
+func (s *Service) emitTaskInputEvent(ctx context.Context, evt string, payload taskInputEventPayload) error {
+	return s.emit(ctx, evt,
+		refsJSON(map[string]string{"task_id": payload.TaskID, "project_id": payload.ProjectID}),
+		payload)
+}
+
+// UnblockTask clears a stuck (blocked_reason) annotation on a RUNNING task and
+// re-dispatches it (ADR-0046). The task never left running, but its prior WorkItem
+// terminated (failed) when it got stuck, so unblocking emits pm.task.assigned and
+// the WorkItemProjector mints a fresh WorkItem. No-op if the task carries no
+// blocked_reason (not stuck) — avoids a duplicate dispatch on an already-active task.
+// UnblockTaskCommand is the F6 unblock input (§13.C / §4). Comment is the
+// resolution/reply the unblocker supplies (threaded to the agent as the
+// BlockedComment, and — for an input_required block — surfaced as the
+// Conversation input_reply body). InputRequestMessageID (optional) threads that
+// reply under the original input_request message. Actor is the unblocker (the
+// user replying, or the owner resolving an obstacle).
+type UnblockTaskCommand struct {
+	TaskID                pm.TaskID
+	Comment               string
+	InputRequestMessageID string
+	Actor                 pm.IdentityRef
+}
+
+func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, cmd.TaskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), cmd.Actor); err != nil {
+			return err
+		}
 		// #297: reject unblock on an archived (read-only) project.
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
@@ -145,13 +295,40 @@ func (s *Service) UnblockTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if strings.TrimSpace(t.BlockedReason()) == "" {
 			return nil // not stuck → nothing to recover (idempotent, no double-dispatch)
 		}
-		if err := t.Unblock(now); err != nil {
+		// F6 §4: capture the block's reasonType BEFORE Unblock clears it — it decides
+		// whether a Conversation input_reply must follow (input_required) or not (obstacle).
+		prevReasonType := t.BlockedReasonType()
+		// v2.14.0 I14 F6 (§13.C): thread the real comment (not "") so the agent reads
+		// the resolution as BlockedComment; the re-dispatch (EvtTaskAssigned below) is
+		// the §13.C wake.
+		if err := t.Unblock(cmd.Comment, cmd.Actor, now); err != nil {
 			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, "")
+		// §7.3: persist the "unblocked" lifecycle log entry.
+		if err := s.flushActionLogs(txCtx, t); err != nil {
+			return err
+		}
+		if err := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); err != nil {
+			return err
+		}
+		// F6 §4: an input_required unblock IS the user's reply → emit EvtTaskInputReplied
+		// in THIS tx so the TaskInputConversationProjector posts an input_reply message
+		// (sender=actor, threaded under the original input_request). An obstacle unblock
+		// (owner resolution, no user-facing conversation message) emits NOTHING extra.
+		if prevReasonType == pm.BlockReasonInputRequired {
+			return s.emitTaskInputEvent(txCtx, EvtTaskInputReplied, taskInputEventPayload{
+				TaskID:                string(t.ID()),
+				ProjectID:             string(t.ProjectID()),
+				OwnerRef:              "pm://tasks/" + string(t.ID()),
+				ActorRef:              string(cmd.Actor),
+				Comment:               cmd.Comment,
+				InputRequestMessageID: cmd.InputRequestMessageID,
+			})
+		}
+		return nil
 	})
 }
 
@@ -432,6 +609,10 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		// §7.3: persist any lifecycle log the mutate appended (e.g. Block → "blocked").
+		if err := s.flushActionLogs(txCtx, t); err != nil {
 			return err
 		}
 		return s.emitTaskStateChanged(txCtx, t, prevStatus, reason)

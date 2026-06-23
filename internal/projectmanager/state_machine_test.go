@@ -123,17 +123,17 @@ func TestTaskBlockRequiresReason(t *testing.T) {
 	tk := newTask(t)
 	_ = tk.Assign("agent:c", t0)
 	_ = tk.Start(t0)
-	if err := tk.Block("", t0); err != ErrBlockReasonRequired {
+	if err := tk.Block("", BlockReasonObstacle, "agent:c", t0); err != ErrBlockReasonRequired {
 		t.Fatalf("block without reason must fail, got %v", err)
 	}
-	if err := tk.Block("waiting on API key", t0); err != nil {
+	if err := tk.Block("waiting on API key", BlockReasonObstacle, "agent:c", t0); err != nil {
 		t.Fatal(err)
 	}
 	// ADR-0046: Block is an annotation on a RUNNING task — status stays running.
 	if tk.Status() != TaskRunning || tk.BlockedReason() == "" {
 		t.Fatal("blocked-reason annotation set, status stays running")
 	}
-	if err := tk.Unblock(t0); err != nil {
+	if err := tk.Unblock("", "agent:c", t0); err != nil {
 		t.Fatal(err)
 	}
 	if tk.Status() != TaskRunning || tk.BlockedReason() != "" {

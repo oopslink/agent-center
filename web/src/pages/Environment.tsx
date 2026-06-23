@@ -7,7 +7,7 @@ import { useDisplayNameResolver } from '@/api/members';
 import { useTransferSessions } from '@/api/workers';
 import { withOrgSlug } from '@/api/client';
 import { useOptionalOrgContext, OrgLink } from '@/OrgContext';
-import type { Agent, FleetWorkerRow, TransferSession, WorkItemRow, FleetIssueRow } from '@/api/types';
+import type { Agent, FleetWorkerRow, TransferSession, TaskExecRow, FleetIssueRow } from '@/api/types';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
 import { refLabel } from '@/components/workItemDisplay';
 import { LifecycleBadge } from '@/components/AgentBadges';
@@ -145,7 +145,7 @@ export default function Environment(): React.ReactElement {
   // Stats — derived from the already-loaded snapshots. Counts default to 0 when
   // the data hasn't resolved yet, so the cells render "0" gracefully.
   const workers = fleet.data?.workers ?? [];
-  const workItems = fleet.data?.work_items ?? [];
+  const workItems = fleet.data?.tasks ?? [];
   const pendingIssues = fleet.data?.pending_issues ?? [];
   const workersOnline = workers.filter((w) => w.status === 'online').length;
   const agentsRunning = (agents.data ?? []).filter((a) => a.lifecycle === RUNNING_LIFECYCLE).length;
@@ -198,9 +198,9 @@ export default function Environment(): React.ReactElement {
           valueClassName={agentsRunning > 0 ? 'text-success' : 'text-text-muted'}
         />
         <StatCell
-          testId="environment-stat-work-items"
+          testId="environment-stat-tasks"
           value={workItems.length}
-          label="Work Items"
+          label="Tasks"
         />
         <StatCell
           testId="environment-stat-pending-issues"
@@ -274,7 +274,7 @@ export default function Environment(): React.ReactElement {
 
       <ActivitySection
         base={base}
-        workItems={fleet.isSuccess ? fleet.data.work_items : []}
+        workItems={fleet.isSuccess ? fleet.data.tasks : []}
         issues={fleet.isSuccess ? fleet.data.pending_issues : []}
         transfers={transfers}
       />
@@ -461,7 +461,7 @@ function WorkerCard({
 // ---------------------------------------------------------------------------
 const ACTIVITY_TABS = [
   { key: 'all', label: 'All' },
-  { key: 'work_items', label: 'Work Items' },
+  { key: 'tasks', label: 'Tasks' },
   { key: 'issues', label: 'Issues' },
   { key: 'transfers', label: 'Transfers' },
 ] as const;
@@ -474,7 +474,7 @@ function ActivitySection({
   transfers,
 }: {
   base: string;
-  workItems: WorkItemRow[];
+  workItems: TaskExecRow[];
   issues: FleetIssueRow[];
   transfers: ReturnType<typeof useTransferSessions>;
 }): React.ReactElement {
@@ -486,7 +486,7 @@ function ActivitySection({
   // inside the panel, so only treat the resolved-empty case as "empty".)
   const tabIsEmpty =
     (tab === 'all' && workItems.length === 0 && issues.length === 0 && transferRows.length === 0) ||
-    (tab === 'work_items' && workItems.length === 0) ||
+    (tab === 'tasks' && workItems.length === 0) ||
     (tab === 'issues' && issues.length === 0) ||
     (tab === 'transfers' && transfers.isSuccess && transferRows.length === 0);
 
@@ -540,7 +540,7 @@ function ActivitySection({
             {tab === 'all' && (
               <AllStream base={base} workItems={workItems} issues={issues} transfers={transferRows} />
             )}
-            {tab === 'work_items' && <WorkItemsList base={base} workItems={workItems} />}
+            {tab === 'tasks' && <WorkItemsList base={base} workItems={workItems} />}
             {tab === 'issues' && <IssuesList base={base} issues={issues} />}
             {tab === 'transfers' && <TransfersPanel transfers={transfers} />}
           </>
@@ -588,7 +588,7 @@ function AllStream({
   transfers,
 }: {
   base: string;
-  workItems: WorkItemRow[];
+  workItems: TaskExecRow[];
   issues: FleetIssueRow[];
   transfers: TransferSession[];
 }): React.ReactElement {
@@ -600,13 +600,13 @@ function AllStream({
     >
       {workItems.map((wi) => (
         <li
-          key={`wi-${wi.work_item_id}`}
+          key={`wi-${wi.task_id}`}
           className="flex items-center gap-2 px-3 py-2 text-xs"
           data-testid="environment-activity-all-row"
-          data-kind="work_item"
+          data-kind="task"
         >
-          <TypeTag label="Work" testId="environment-activity-all-type" />
-          <WorkItemContent base={base} wi={wi} agent={resolveAgent(wi.agent_id)} />
+          <TypeTag label="Task" testId="environment-activity-all-type" />
+          <TaskExecContent base={base} wi={wi} agent={resolveAgent(wi.agent_id)} />
         </li>
       ))}
       {issues.map((i) => (
@@ -670,17 +670,17 @@ function useWorkItemAgentResolver(base: string): (memberID: string) => { name: s
 // route's required segment) — without it the row stays plain text, not a 404 link.
 // v2.10.2 [T141]: the agent shows its display NAME + links to the agent detail
 // page (resolved by the caller via useWorkItemAgentResolver), not the raw agent-id.
-function WorkItemContent({
+function TaskExecContent({
   base,
   wi,
   agent,
 }: {
   base: string;
-  wi: WorkItemRow;
+  wi: TaskExecRow;
   agent: { name: string; href: string | null };
 }): React.ReactElement {
   const ref = refLabel(wi.task_org_ref, wi.task_id ?? '');
-  const label = [ref, wi.task_title].filter(Boolean).join(' · ') || wi.work_item_id;
+  const label = [ref, wi.task_title].filter(Boolean).join(' · ') || wi.task_id;
   const taskHref =
     wi.task_id && wi.project_id
       ? `${base}/projects/${encodeURIComponent(wi.project_id)}/tasks/${encodeURIComponent(wi.task_id)}`
@@ -757,7 +757,7 @@ function TransferContent({ tr }: { tr: TransferSession }): React.ReactElement {
   );
 }
 
-function WorkItemsList({ base, workItems }: { base: string; workItems: WorkItemRow[] }): React.ReactElement {
+function WorkItemsList({ base, workItems }: { base: string; workItems: TaskExecRow[] }): React.ReactElement {
   const resolveAgent = useWorkItemAgentResolver(base);
   return (
     <ul
@@ -766,12 +766,12 @@ function WorkItemsList({ base, workItems }: { base: string; workItems: WorkItemR
     >
       {workItems.map((wi) => (
         <li
-          key={wi.work_item_id}
+          key={wi.task_id}
           className="flex items-center justify-between px-3 py-2 text-xs"
           data-testid="environment-workitem-row"
-          data-work-item-id={wi.work_item_id}
+          data-task-id={wi.task_id}
         >
-          <WorkItemContent base={base} wi={wi} agent={resolveAgent(wi.agent_id)} />
+          <TaskExecContent base={base} wi={wi} agent={resolveAgent(wi.agent_id)} />
         </li>
       ))}
     </ul>

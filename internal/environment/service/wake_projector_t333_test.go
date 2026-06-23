@@ -24,7 +24,7 @@ import (
 // @display_name). guardProj alone has no resolver; projWith alone has no guard.
 func (f *wakeFixture) guardProjT333(g *wakeguard.Guard, displayName map[string]string) *WakeProjector {
 	return NewWakeProjector(WakeProjectorDeps{
-		DB: f.db, WorkItems: f.workItems, Agents: f.agents,
+		DB: f.db, Agents: f.agents,
 		ControlLog: f.control, Applied: f.applied, Clock: f.clk,
 		ConvRepo: f.convs, MsgRepo: f.msgs, ReadState: f.readState,
 		WakeGuard: g,

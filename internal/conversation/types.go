@@ -165,13 +165,20 @@ const (
 	MessageContentSupervisorSummary MessageContentKind = "supervisor_summary"
 	MessageContentConclusionDraft   MessageContentKind = "conclusion_draft"
 	MessageContentTaskProposal      MessageContentKind = "task_proposal"
+	// v2.14.0 I14/F6: a task agent that blocks with reasonType=input_required
+	// surfaces an interactive input_request message into the task Conversation; the
+	// user's reply is recorded as an input_reply (threaded under the request). Both
+	// are written ONLY by the task-input outbox projector (ADR-0052 outbox purity).
+	MessageContentInputRequest MessageContentKind = "input_request"
+	MessageContentInputReply   MessageContentKind = "input_reply"
 )
 
 // IsValid checks enum membership.
 func (k MessageContentKind) IsValid() bool {
 	switch k {
 	case MessageContentText, MessageContentSystem, MessageContentAgentFinding,
-		MessageContentSupervisorSummary, MessageContentConclusionDraft, MessageContentTaskProposal:
+		MessageContentSupervisorSummary, MessageContentConclusionDraft, MessageContentTaskProposal,
+		MessageContentInputRequest, MessageContentInputReply:
 		return true
 	}
 	return false

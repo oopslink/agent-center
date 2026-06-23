@@ -30,12 +30,11 @@ const (
 var tNow = time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
 
 type fixture struct {
-	svc       *Service
-	db        *sql.DB
-	outbox    *outboxsql.OutboxRepo
-	workers   *wfsql.WorkerRepo
-	workItems *agentsql.WorkItemRepo
-	clk       *clock.FakeClock
+	svc     *Service
+	db      *sql.DB
+	outbox  *outboxsql.OutboxRepo
+	workers *wfsql.WorkerRepo
+	clk     *clock.FakeClock
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -51,18 +50,16 @@ func newFixture(t *testing.T) *fixture {
 	clk := clock.NewFakeClock(tNow)
 	ob := outboxsql.NewOutboxRepo(db)
 	workers := wfsql.NewWorkerRepo(db)
-	workItems := agentsql.NewWorkItemRepo(db)
 	svc := New(Deps{
-		DB:        db,
-		Agents:    agentsql.NewAgentRepo(db),
-		WorkItems: workItems,
-		Activity:  agentsql.NewActivityEventRepo(db),
-		Workers:   workers,
-		Outbox:    ob,
-		IDGen:     idgen.NewGenerator(clk),
-		Clock:     clk,
+		DB:       db,
+		Agents:   agentsql.NewAgentRepo(db),
+		Activity: agentsql.NewActivityEventRepo(db),
+		Workers:  workers,
+		Outbox:   ob,
+		IDGen:    idgen.NewGenerator(clk),
+		Clock:    clk,
 	})
-	return &fixture{svc: svc, db: db, outbox: ob, workers: workers, workItems: workItems, clk: clk}
+	return &fixture{svc: svc, db: db, outbox: ob, workers: workers, clk: clk}
 }
 
 // seedWorker saves an OFFLINE worker in orgID.
@@ -385,26 +382,9 @@ func TestAvailability(t *testing.T) {
 		t.Fatalf("running/no-work availability = %s, want available", av)
 	}
 
-	// running + active work item → busy.
-	wi, err := agent.NewWorkItem(agent.NewWorkItemInput{
-		ID: "wi-1", AgentID: id, TaskRef: "task:t-1", CreatedAt: tNow,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := f.workItems.Save(ctx, wi); err != nil {
-		t.Fatal(err)
-	}
-	if err := wi.Activate(tNow); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.workItems.Update(ctx, wi); err != nil {
-		t.Fatal(err)
-	}
-	a, _ = f.svc.GetAgent(ctx, id)
-	if av, _ := f.svc.Availability(ctx, a); av != agent.Busy {
-		t.Fatalf("running/active-work availability = %s, want busy", av)
-	}
+	// v2.14.0 F7 (issue I14): the "running + active work item → busy" assertion was
+	// removed — AgentWorkItem retired, so Availability no longer reflects an in-flight
+	// work item (busy is now an observable of the pm Task model, not lifecycle-derived).
 
 	// offline worker → unavailable even when running.
 	offID, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
@@ -429,67 +409,10 @@ func TestAvailability(t *testing.T) {
 	}
 }
 
-// TestMarkAgentFailed_CascadesInflightWorkItems pins the v2.7 GATE-7 Mode-B B3
-// cascade: agent terminal-failed → its in-flight WorkItems (active + waiting_input)
-// → failed atomically, terminal ones untouched. Also asserts the STRUCTURAL guard:
-// the general feedback path (MarkWorkItemState "failed") on a waiting_input WI is
-// STILL rejected — only the agent-death cascade may move waiting_input→failed.
-func TestMarkAgentFailed_CascadesInflightWorkItems(t *testing.T) {
-	f := newFixture(t)
-	ctx := context.Background()
-	f.seedWorker(t, testWorker, testOrg)
-	id := f.createAgent(t, testWorker)
-	if err := f.svc.StartAgent(ctx, id); err != nil { // → running (MarkFailed needs running/error)
-		t.Fatal(err)
-	}
-
-	mkWI := func(wiID string, prep func(*agent.AgentWorkItem)) {
-		wi, err := agent.NewWorkItem(agent.NewWorkItemInput{ID: wiID, AgentID: id, TaskRef: "task:" + wiID, CreatedAt: tNow})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := f.workItems.Save(ctx, wi); err != nil {
-			t.Fatal(err)
-		}
-		prep(wi)
-		if err := f.workItems.Update(ctx, wi); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// v2.8.1 #278: single-active invariant (DB UNIQUE 0051) — an agent has AT MOST
-	// ONE in-flight (active|waiting_input) WI. So this uses one in-flight WI
-	// (waiting_input — the harder edge: exercises the structural guard below + the
-	// special FailFromAgentDeath waiting_input→failed cascade) + one terminal
-	// (done, must stay untouched).
-	mkWI("wi-wait", func(w *agent.AgentWorkItem) { _ = w.Activate(tNow); _ = w.WaitInput(tNow) })
-	mkWI("wi-done", func(w *agent.AgentWorkItem) { _ = w.Activate(tNow); _ = w.Done(tNow) })
-
-	// Structural guard: the GENERAL feedback path must STILL reject
-	// waiting_input→failed (the edge is not globally open).
-	if err := f.svc.MarkWorkItemState(ctx, id, "wi-wait", WorkItemFeedbackFailed, tNow); err != agent.ErrWorkItemIllegalMove {
-		t.Fatalf("general MarkWorkItemState(failed) on waiting_input must stay illegal, got %v", err)
-	}
-
-	// Terminal: agent → failed cascades the in-flight WI → failed.
-	if err := f.svc.MarkAgentFailed(ctx, id, "crash-loop", tNow); err != nil {
-		t.Fatal(err)
-	}
-	a, _ := f.svc.GetAgent(ctx, id)
-	if a.Lifecycle() != agent.LifecycleFailed || a.LifecycleError() != "crash-loop" {
-		t.Fatalf("agent want failed+cause, got %s / %q", a.Lifecycle(), a.LifecycleError())
-	}
-	items, _ := f.svc.ListWorkItems(ctx, id)
-	got := map[string]agent.WorkItemStatus{}
-	for _, wi := range items {
-		got[wi.ID()] = wi.Status()
-	}
-	if got["wi-wait"] != agent.WorkItemFailed {
-		t.Fatalf("waiting_input WI must cascade → failed, got %s", got["wi-wait"])
-	}
-	if got["wi-done"] != agent.WorkItemDone {
-		t.Fatalf("terminal (done) WI must be untouched, got %s", got["wi-done"])
-	}
-}
+// v2.14.0 F7 (issue I14): TestMarkAgentFailed_CascadesInflightWorkItems was removed —
+// AgentWorkItem retired, so MarkAgentFailed no longer cascades in-flight work items
+// to failed. A dead agent's stuck tasks are now recovered by the F3 execution-lease
+// checker (Task.Block on lease expiry / reassign), not an inline WorkItem cascade.
 
 func TestReads(t *testing.T) {
 	f := newFixture(t)
@@ -514,16 +437,10 @@ func TestReads(t *testing.T) {
 		t.Fatalf("GetAgent = %v, %v", a, err)
 	}
 
-	// Seed a work item + activity event, then list.
-	wi, _ := agent.NewWorkItem(agent.NewWorkItemInput{ID: "wi-1", AgentID: id, TaskRef: "task:t-1", CreatedAt: tNow})
-	if err := f.workItems.Save(ctx, wi); err != nil {
-		t.Fatal(err)
-	}
-	items, err := f.svc.ListWorkItems(ctx, id)
-	if err != nil || len(items) != 1 || items[0].ID() != "wi-1" {
-		t.Fatalf("ListWorkItems = %+v, %v", items, err)
-	}
+	// v2.14.0 F7 (issue I14): the seed-WorkItem + ListWorkItems assertions were
+	// removed — AgentWorkItem retired (the agent's work queue is now the pm Task model).
 
+	// Seed an activity event, then list.
 	ev, _ := agent.NewActivityEvent(agent.NewActivityEventInput{
 		ID: "ev-1", AgentID: id, EventType: "status", Payload: `{"x":1}`, OccurredAt: tNow,
 	})

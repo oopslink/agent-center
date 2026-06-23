@@ -10,11 +10,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"syscall"
 	"time"
 
-	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/escalator"
@@ -222,44 +220,41 @@ func ServerCommand() *Command {
 				}()
 				defer reconcilerCancel()
 
-				// v2.8.1 #278 D PR5: work-item reconciler. Releases an agent's
-				// active WorkItem once the agent has been inactive for the stale-age
-				// (default 30 min; AGENT_CENTER_WORKITEM_STALE_MINUTES overrides for
-				// testing), freeing the single-active slot so a hung/dead agent's
-				// task can be retried instead of wedging forever.
-				wiStaleAge := agentservice.WorkItemReconcileDefaultStaleAge
-				if v := os.Getenv("AGENT_CENTER_WORKITEM_STALE_MINUTES"); v != "" {
-					if m, perr := strconv.Atoi(v); perr == nil && m > 0 {
-						wiStaleAge = time.Duration(m) * time.Minute
-					}
-				}
-				wiReconciler := agentservice.NewWorkItemReconciler(
-					app.AgentWorkItemRepo, app.AgentActivityRepo, nil, wiStaleAge, 0,
-					func(msg string, a ...any) { fmt.Fprintf(out, "[work-item-reconcile] "+msg+"\n", a...) },
-				)
-				wiReconcilerCtx, wiReconcilerCancel := context.WithCancel(ctx)
-				go func() {
-					_ = wiReconciler.Run(wiReconcilerCtx)
-				}()
-				defer wiReconcilerCancel()
+				// v2.14.0 F7 (issue I14): the work-item reconciler (stale active-WorkItem
+				// release) and the auto-redispatch reconciler were removed — AgentWorkItem
+				// retired. Stale-agent reclaim is now the Task execution-lease checker
+				// (below), and re-dispatch flows from the plan engine + unblock_task.
 
-				// v2.9.1 P1 (task-aab863b3): auto-redispatch reconciler. Follow-up to
-				// the P0 manual recovery — once a stuck-released node's assignee agent
-				// is back online (lifecycle running + no live WorkItem), automatically
-				// re-dispatch it, capped at AutoRedispatchDefaultMaxAttempts per stuck
-				// episode (then it backs off to manual unblock_task). The agent-BC
-				// eligibility adapter is injected as a port so the pm reconciler never
-				// imports agent repos directly (DDD BC seam).
-				redispatchGate := agentservice.NewRedispatchEligibility(app.AgentRepo, app.AgentWorkItemRepo)
-				redispatchReconciler := pmservice.NewAutoRedispatchReconciler(
-					app.PMService, redispatchGate, nil, 0, 0,
-					func(msg string, a ...any) { fmt.Fprintf(out, "[auto-redispatch] "+msg+"\n", a...) },
+				// v2.14.0 I14/F3 (§2.5/§13.D): execution-lease checker — the replacement
+				// for the deleted AgentWorkItem.FailFromAgentDeath stale sweep. It
+				// periodically reclaims running Tasks whose heartbeat-renewed lease has
+				// lapsed (the agent died), returning them to open for re-dispatch. A
+				// blocked task is a legal pause and is never reclaimed (§13.D).
+				leaseChecker := pmservice.NewLeaseChecker(
+					app.PMService, nil, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[lease-checker] "+msg+"\n", a...) },
 				)
-				redispatchReconcilerCtx, redispatchReconcilerCancel := context.WithCancel(ctx)
+				leaseCheckerCtx, leaseCheckerCancel := context.WithCancel(ctx)
 				go func() {
-					_ = redispatchReconciler.Run(redispatchReconcilerCtx)
+					_ = leaseChecker.Run(leaseCheckerCtx)
 				}()
-				defer redispatchReconcilerCancel()
+				defer leaseCheckerCancel()
+
+				// v2.14.0 I14/F3 (§13.D): overdue-blocked reminder. A blocked task is a
+				// legal pause never reclaimed by the lease, but if the block is never
+				// resolved it would sit silently — so once a block outlives the overdue
+				// threshold this emits a one-time pm.task.block_overdue event (owner-
+				// visible reminder, delivered by the downstream projector), nudging the
+				// owner to respond / reassign / discard.
+				overdueReminder := pmservice.NewOverdueBlockedReminder(
+					app.PMService, nil, 0, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[overdue-block-reminder] "+msg+"\n", a...) },
+				)
+				overdueReminderCtx, overdueReminderCancel := context.WithCancel(ctx)
+				go func() {
+					_ = overdueReminder.Run(overdueReminderCtx)
+				}()
+				defer overdueReminderCancel()
 
 				bannerWeb := "disabled"
 				if webEnabled {

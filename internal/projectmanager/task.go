@@ -2,6 +2,7 @@ package projectmanager
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -76,6 +77,65 @@ func (s TaskStatus) IsTerminal() bool {
 	return false
 }
 
+// BlockReasonType classifies WHY a running Task is blocked (issue I14 §2.4). It
+// drives both the UI rendering and the Unblock handling path:
+//   - input_required: the agent needs a user answer; the user replies in the
+//     bound Conversation, which triggers Unblock with the reply as the comment.
+//   - obstacle: an external blocker the agent cannot clear on its own; owner/PM
+//     intervenes and records what they did via the Unblock comment.
+//
+// The empty value ("") is the "not blocked" sentinel (no blocked_reason).
+type BlockReasonType string
+
+const (
+	BlockReasonInputRequired BlockReasonType = "input_required" // needs a user reply
+	BlockReasonObstacle      BlockReasonType = "obstacle"       // needs owner/PM intervention
+)
+
+// IsValid reports whether the type is one of the known block kinds. The empty
+// value is intentionally NOT valid here (it is the unblocked sentinel, not a kind).
+func (b BlockReasonType) IsValid() bool {
+	switch b {
+	case BlockReasonInputRequired, BlockReasonObstacle:
+		return true
+	}
+	return false
+}
+
+// TaskAction names a lifecycle event recorded on a Task's append-only action log
+// (issue I14 §2.4). The TaskActionLog replaces the deleted AgentWorkItem
+// transition history — reassignment, block/unblock, lease expiry, etc. all become
+// single-table entries keyed by this action.
+type TaskAction string
+
+const (
+	TaskActionAssigned     TaskAction = "assigned"
+	TaskActionReassigned   TaskAction = "reassigned"
+	TaskActionAgentStarted TaskAction = "agent_started"
+	TaskActionBlocked      TaskAction = "blocked"
+	TaskActionUnblocked    TaskAction = "unblocked"
+	TaskActionLeaseExpired TaskAction = "lease_expired"
+	TaskActionCompleted    TaskAction = "completed"
+)
+
+// TaskActionLog is an immutable, append-only record of a key Task lifecycle event
+// (issue I14 §2.4). It supersedes the AgentWorkItem transition log: reassignment
+// history (replacing WorkItem Supersede+New), block/unblock, and lease expiry
+// (replacing FailFromAgentDeath) are all entries in this one log.
+//
+// ID is assigned by the PERSISTENCE layer (the F2 repo, via idgen) on insert and
+// repopulated on rehydrate — a freshly appended in-memory entry carries an empty
+// ID until persisted. This keeps the domain package free of an id-generation
+// (infra) dependency: the aggregate never mints ULIDs itself.
+type TaskActionLog struct {
+	ID         string
+	OccurredAt time.Time
+	Action     TaskAction
+	ActorRef   IdentityRef // who triggered it (user / owner / PM / agent / "system")
+	AgentRef   IdentityRef // the agent the action concerns (may be empty)
+	Note       string
+}
+
 // Task is a project-scoped unit of work and its assignment state. It binds a
 // stable Conversation via owner_ref pm://tasks/{id} (held by Conversation,
 // ADR-0047) across reassignments. A Task may be independent or derived from an
@@ -139,6 +199,21 @@ type Task struct {
 	// (= no role; matches neither the F3 guard nor the F4 board). F2 (0066) stored
 	// branch/base/skip_merge_check but NOT role — F3 (0067) persists it.
 	role CycleNodeRole
+	// --- v2.14.0 I14 (remove AgentWorkItem →收敛到 Task): block annotation + lease + log ---
+	// blockedReasonType classifies blockedReason (input_required vs obstacle); "" when
+	// not blocked. Set by Block, cleared by Unblock / ExpireLease / RecordReassignment.
+	blockedReasonType BlockReasonType
+	// blockedComment is filled by Unblock: the user's reply (input_required) or the
+	// owner/PM resolution note (obstacle). The agent reads it on resume. Survives
+	// Unblock (unlike blockedReason) so the resumed agent can see the answer.
+	blockedComment string
+	// executionLeaseExpiresAt is the running agent's heartbeat-lease deadline (nil =
+	// no live lease: not running, or a legal block). RenewLease extends it, Block
+	// clears it (a blocked task needs no heartbeat), ExpireLease reclaims a lapsed one.
+	executionLeaseExpiresAt *time.Time
+	// actionLogs is the append-only lifecycle history (assign/reassign/block/unblock/
+	// lease_expired/…) that replaces the AgentWorkItem transition log (§2.4).
+	actionLogs []TaskActionLog
 }
 
 // NewTaskInput captures constructor args.
@@ -227,6 +302,11 @@ type RehydrateTaskInput struct {
 	Base             string
 	SkipMergeCheck   bool
 	Role             CycleNodeRole
+	// v2.14.0 I14 — block annotation + lease + action log (F2 round-trip).
+	BlockedReasonType       BlockReasonType
+	BlockedComment          string
+	ExecutionLeaseExpiresAt *time.Time
+	ActionLogs              []TaskActionLog
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -244,29 +324,33 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		statusChangedAt = in.UpdatedAt.UTC()
 	}
 	return &Task{
-		id:               in.ID,
-		projectID:        in.ProjectID,
-		title:            in.Title,
-		description:      in.Description,
-		status:           in.Status,
-		assignee:         in.Assignee,
-		derivedFromIssue: in.DerivedFromIssue,
-		completedBy:      in.CompletedBy,
-		blockedReason:    in.BlockedReason,
-		createdBy:        in.CreatedBy,
-		createdAt:        in.CreatedAt.UTC(),
-		updatedAt:        in.UpdatedAt.UTC(),
-		version:          in.Version,
-		orgNumber:        in.OrgNumber,
-		tags:             in.Tags,
-		statusChangedAt:  statusChangedAt,
-		planID:           in.PlanID,
-		archivedAt:       copyTaskTimePtr(in.ArchivedAt),
-		archivedBy:       in.ArchivedBy,
-		branch:           in.Branch,
-		base:             in.Base,
-		skipMergeCheck:   in.SkipMergeCheck,
-		role:             in.Role,
+		id:                      in.ID,
+		projectID:               in.ProjectID,
+		title:                   in.Title,
+		description:             in.Description,
+		status:                  in.Status,
+		assignee:                in.Assignee,
+		derivedFromIssue:        in.DerivedFromIssue,
+		completedBy:             in.CompletedBy,
+		blockedReason:           in.BlockedReason,
+		createdBy:               in.CreatedBy,
+		createdAt:               in.CreatedAt.UTC(),
+		updatedAt:               in.UpdatedAt.UTC(),
+		version:                 in.Version,
+		orgNumber:               in.OrgNumber,
+		tags:                    in.Tags,
+		statusChangedAt:         statusChangedAt,
+		planID:                  in.PlanID,
+		archivedAt:              copyTaskTimePtr(in.ArchivedAt),
+		archivedBy:              in.ArchivedBy,
+		branch:                  in.Branch,
+		base:                    in.Base,
+		skipMergeCheck:          in.SkipMergeCheck,
+		role:                    in.Role,
+		blockedReasonType:       in.BlockedReasonType,
+		blockedComment:          in.BlockedComment,
+		executionLeaseExpiresAt: copyTaskTimePtr(in.ExecutionLeaseExpiresAt),
+		actionLogs:              in.ActionLogs,
 	}, nil
 }
 
@@ -281,25 +365,49 @@ func copyTaskTimePtr(t *time.Time) *time.Time {
 }
 
 // Getters.
-func (t *Task) ID() TaskID                 { return t.id }
-func (t *Task) ProjectID() ProjectID       { return t.projectID }
-func (t *Task) Title() string              { return t.title }
-func (t *Task) Description() string        { return t.description }
-func (t *Task) Status() TaskStatus         { return t.status }
-func (t *Task) Assignee() IdentityRef      { return t.assignee }
-func (t *Task) DerivedFromIssue() IssueID  { return t.derivedFromIssue }
-func (t *Task) CompletedBy() IdentityRef   { return t.completedBy }
-func (t *Task) BlockedReason() string      { return t.blockedReason }
-func (t *Task) CreatedBy() IdentityRef     { return t.createdBy }
-func (t *Task) OrgNumber() int             { return t.orgNumber }
-func (t *Task) CreatedAt() time.Time       { return t.createdAt }
-func (t *Task) UpdatedAt() time.Time       { return t.updatedAt }
-func (t *Task) Version() int               { return t.version }
-func (t *Task) Tags() []string             { return t.tags }
-func (t *Task) StatusChangedAt() time.Time { return t.statusChangedAt }
-func (t *Task) PlanID() PlanID             { return t.planID }
-func (t *Task) ArchivedAt() *time.Time     { return t.archivedAt }
-func (t *Task) ArchivedBy() IdentityRef    { return t.archivedBy }
+func (t *Task) ID() TaskID                { return t.id }
+func (t *Task) ProjectID() ProjectID      { return t.projectID }
+func (t *Task) Title() string             { return t.title }
+func (t *Task) Description() string       { return t.description }
+func (t *Task) Status() TaskStatus        { return t.status }
+func (t *Task) Assignee() IdentityRef     { return t.assignee }
+func (t *Task) DerivedFromIssue() IssueID { return t.derivedFromIssue }
+func (t *Task) CompletedBy() IdentityRef  { return t.completedBy }
+func (t *Task) BlockedReason() string     { return t.blockedReason }
+func (t *Task) CreatedBy() IdentityRef    { return t.createdBy }
+
+// BlockedReasonType / BlockedComment expose the v2.14.0 I14 block annotation
+// (§2.4). Type is "" when not blocked; Comment carries the user reply / resolution
+// note set by Unblock (it survives Unblock so the resumed agent can read it).
+func (t *Task) BlockedReasonType() BlockReasonType { return t.blockedReasonType }
+func (t *Task) BlockedComment() string             { return t.blockedComment }
+func (t *Task) OrgNumber() int                     { return t.orgNumber }
+func (t *Task) CreatedAt() time.Time               { return t.createdAt }
+func (t *Task) UpdatedAt() time.Time               { return t.updatedAt }
+func (t *Task) Version() int                       { return t.version }
+func (t *Task) Tags() []string                     { return t.tags }
+func (t *Task) StatusChangedAt() time.Time         { return t.statusChangedAt }
+func (t *Task) PlanID() PlanID                     { return t.planID }
+func (t *Task) ArchivedAt() *time.Time             { return t.archivedAt }
+func (t *Task) ArchivedBy() IdentityRef            { return t.archivedBy }
+
+// ExecutionLeaseExpiresAt returns a COPY of the running agent's lease deadline
+// (nil = no live lease), so callers cannot mutate the aggregate's pointer (v2.14.0
+// I14).
+func (t *Task) ExecutionLeaseExpiresAt() *time.Time {
+	return copyTaskTimePtr(t.executionLeaseExpiresAt)
+}
+
+// ActionLogs returns a COPY of the append-only lifecycle history (v2.14.0 I14) so
+// callers cannot mutate the aggregate's internal slice. nil when empty.
+func (t *Task) ActionLogs() []TaskActionLog {
+	if len(t.actionLogs) == 0 {
+		return nil
+	}
+	out := make([]TaskActionLog, len(t.actionLogs))
+	copy(out, t.actionLogs)
+	return out
+}
 
 // Branch/Base/SkipMergeCheck expose the cycle-node git metadata (v2.13.0 I18/F2).
 // Empty/false for tasks not built by scaffold_cycle_plan. See task struct doc.
@@ -479,35 +587,139 @@ func (t *Task) Start(at time.Time) error {
 	return nil
 }
 
-// Block records a stuck-reason ANNOTATION on a RUNNING task — it does NOT change
-// the status (ADR-0046: "blocked" is no longer a state, so a blocked task can never
-// deadlock). A reason is required. No-op-safe callers should check status first; a
-// non-running task is rejected (only running work can be "stuck").
-func (t *Task) Block(reason string, at time.Time) error {
+// Block records a stuck-reason ANNOTATION on a RUNNING task (issue I14 §2.5,
+// ADR-0046: "blocked" is not a state, so a blocked task can never deadlock). It is
+// the SINGLE pause entrypoint — reasonType=input_required means the agent needs a
+// user reply, obstacle means an external blocker needs owner/PM intervention. Block
+// does NOT change status, KEEPS the assignee, and clears the execution lease (a
+// blocked task is a legal pause and needs no heartbeat). Only the assignee agent
+// may block its own running task. A reason is required.
+func (t *Task) Block(reason string, reasonType BlockReasonType, agentRef IdentityRef, at time.Time) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
-	}
-	if strings.TrimSpace(reason) == "" {
-		return ErrBlockReasonRequired
 	}
 	if t.status != TaskRunning {
 		return ErrIllegalTransition
 	}
+	if t.assignee != agentRef {
+		return ErrNotTaskAssignee
+	}
+	if strings.TrimSpace(reason) == "" {
+		return ErrBlockReasonRequired
+	}
 	t.blockedReason = reason
+	t.blockedReasonType = reasonType
+	t.blockedComment = ""
+	t.executionLeaseExpiresAt = nil
+	t.appendLog(TaskActionBlocked, agentRef, agentRef, fmt.Sprintf("[%s] %s", reasonType, reason), at)
 	t.touch(at)
 	return nil
 }
 
-// Unblock clears the blocked_reason annotation (ADR-0046). The task stays RUNNING
-// (it never left running), so it is immediately resumable — no transition, no
-// deadlock. Idempotent: clearing an empty reason is a no-op-safe touch.
-func (t *Task) Unblock(at time.Time) error {
+// Unblock is the SINGLE recovery entrypoint (issue I14 §2.5). It clears the block
+// annotation and stores comment (the user's reply for input_required, or the
+// owner/PM resolution note for obstacle) for the agent to read on resume —
+// blockedComment SURVIVES the unblock. Status and assignee are unchanged (the task
+// was running the whole time), so it is immediately resumable. Idempotent: a no-op
+// (no log, no version bump) when the task is not blocked. Handing the work to a
+// DIFFERENT agent goes through RecordReassignment, not Unblock.
+func (t *Task) Unblock(comment string, actorRef IdentityRef, at time.Time) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
 	}
+	if t.blockedReason == "" {
+		return nil // not blocked → idempotent no-op
+	}
+	t.blockedComment = comment
 	t.blockedReason = ""
+	t.blockedReasonType = ""
+	t.appendLog(TaskActionUnblocked, actorRef, t.assignee, comment, at)
 	t.touch(at)
 	return nil
+}
+
+// RenewLease extends the running agent's execution lease by ttl (issue I14 §2.5,
+// driven by the MCP heartbeat tool). Only a RUNNING, non-blocked task can renew: a
+// blocked task is a legal pause with no lease (ErrTaskBlocked), and a non-running
+// task has no live execution to keep alive (ErrIllegalTransition).
+func (t *Task) RenewLease(ttl time.Duration, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if t.status != TaskRunning {
+		return ErrIllegalTransition
+	}
+	if t.blockedReason != "" {
+		return ErrTaskBlocked
+	}
+	exp := at.Add(ttl).UTC()
+	t.executionLeaseExpiresAt = &exp
+	t.touch(at)
+	return nil
+}
+
+// ExpireLease reclaims a running task whose agent lease has lapsed (issue I14
+// §2.5 — the replacement for the deleted AgentWorkItem.FailFromAgentDeath, driven
+// by the background lease-checker). The task returns to open with its assignee
+// cleared so the PM can re-dispatch it. It is a no-op (returns nil) when there is
+// nothing to reclaim: archived, not running, legally blocked (ANY reasonType — a
+// blocked task is never reclaimed by lease), no lease set, or the lease has not yet
+// lapsed.
+func (t *Task) ExpireLease(at time.Time) error {
+	if t.IsArchived() {
+		return nil
+	}
+	if t.status != TaskRunning {
+		return nil
+	}
+	if t.blockedReason != "" {
+		return nil // legal pause — not reclaimed by lease
+	}
+	if t.executionLeaseExpiresAt == nil || at.Before(*t.executionLeaseExpiresAt) {
+		return nil
+	}
+	prev := t.assignee
+	t.status = TaskOpen
+	t.statusChangedAt = at.UTC()
+	t.blockedReason = ""
+	t.blockedReasonType = ""
+	t.blockedComment = ""
+	t.executionLeaseExpiresAt = nil
+	t.assignee = ""
+	t.appendLog(TaskActionLeaseExpired, IdentityRef("system"), prev, "agent lease expired", at)
+	t.touch(at)
+	return nil
+}
+
+// RecordReassignment reassigns the task to newAssignee and logs it (issue I14
+// §2.5 — the replacement for AgentWorkItem Supersede+New). It reuses Assign (which
+// validates newAssignee and rejects an archived/terminal task), then clears any
+// block annotation + lease so the new agent starts clean, and appends a reassigned
+// log attributed to `by`. Assign's touch covers the version bump.
+func (t *Task) RecordReassignment(newAssignee, by IdentityRef, at time.Time) error {
+	if err := t.Assign(newAssignee, at); err != nil {
+		return err
+	}
+	t.blockedReason = ""
+	t.blockedReasonType = ""
+	t.blockedComment = ""
+	t.executionLeaseExpiresAt = nil
+	t.appendLog(TaskActionReassigned, by, newAssignee, "", at)
+	return nil
+}
+
+// appendLog appends an immutable lifecycle entry (issue I14 §2.4). The entry's ID
+// is left empty on purpose: the persistence layer (F2 repo) mints a ULID on insert
+// and rehydrate repopulates it, so this domain package needs no id-generation
+// dependency.
+func (t *Task) appendLog(action TaskAction, actor, agent IdentityRef, note string, at time.Time) {
+	t.actionLogs = append(t.actionLogs, TaskActionLog{
+		OccurredAt: at.UTC(),
+		Action:     action,
+		ActorRef:   actor,
+		AgentRef:   agent,
+		Note:       note,
+	})
 }
 
 // Complete moves running→completed and records who completed it. ADR-0046: clears

@@ -8,9 +8,19 @@ import (
 )
 
 // ClaimPoolTask is the T83 open-claim operation: an eligible agent claims a
-// built-in assignment-pool task — atomically assigning it to the claimer and
-// moving it open→running. It is the pool's claim entry point (pool tasks have no
-// WorkItem, so there is no start_work path; the agent pulls + claims directly).
+// built-in assignment-pool task by assigning it to the claimer. It is the pool's
+// claim entry point (pool tasks have no WorkItem, so there is no start_work path;
+// the agent pulls + claims directly).
+//
+// v2.14.0 I14/F3 (§13.B / finding 01KVNKJG): claim is now claim→OPEN, NOT
+// claim→running. The claimed task stays `open` (assigned) and only goes `running`
+// when the agent later start_tasks it — at which point the §13.F-① single-active
+// UNIQUE index (idx_pm_tasks_one_active_per_agent, migration 0072) enforces "one
+// running, non-blocked task per agent". This decouples the HOLDING cap (how many
+// pool tasks an agent may have claimed at once = poolLimit) from the RUN cap (how
+// many it may run at once = exactly 1, by the index): an agent can hold N=poolLimit
+// claimed-open tasks but run them one at a time. Claiming several therefore never
+// trips the single-active index (only one is ever running).
 //
 // Guards (all fail-closed, service layer — not UI):
 //   - §3.1/4.1: a backlog task (no plan) is never claimable → ErrTaskNotClaimable.
@@ -20,7 +30,8 @@ import (
 //     via requireProjectMember (the edge maps it to an opaque 403/404 so the task's
 //     existence is not leaked).
 //   - the task must be an open, dispatched, non-archived pool node.
-//   - §3.6/4.6: the agent must hold < N concurrent claimed pool tasks (N=poolLimit).
+//   - §3.6/4.6: the agent must HOLD < N concurrent claimed pool tasks (N=poolLimit);
+//     held = its open-or-running pool tasks (ListHeldPoolTasks).
 //   - §3.3/4.4: the claim persists ONLY while the row is still open & unassigned
 //     (ClaimIfUnassigned CAS) — a concurrent loser gets ErrTaskAlreadyClaimed.
 //
@@ -76,13 +87,13 @@ func (s *Service) ClaimPoolTask(ctx context.Context, taskID pm.TaskID, actor pm.
 		if held >= s.poolLimit() {
 			return pm.ErrPoolClaimLimitReached
 		}
-		// atomic claim: assign + start in-memory, then persist ONLY if the stored
-		// row is still open & unassigned (CAS) — the concurrency guard (4.4).
+		// atomic claim: assign in-memory (claim→OPEN, NOT running — §13.B/F3), then
+		// persist ONLY if the stored row is still open & unassigned (CAS) — the
+		// concurrency guard (4.4). The task stays `open`; the agent start_tasks it later
+		// (where the single-active index gates the actual run), so holding several
+		// claimed-open tasks never trips that index.
 		prev := t.Status()
 		if err := t.Assign(actor, now); err != nil {
-			return err
-		}
-		if err := t.Start(now); err != nil {
 			return err
 		}
 		won, err := s.tasks.ClaimIfUnassigned(txCtx, t)
@@ -127,13 +138,19 @@ func (s *Service) countHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) 
 	return len(held), nil
 }
 
-// ListHeldPoolTasks returns the actor's currently-held (assigned-to-it + running)
-// built-in-pool tasks — its in-flight CLAIMED pool work (T83). It backs both the
-// §3.6 holding-cap count and the get_my_work surface: a claimed pool task is
-// running with NO WorkItem (pull/no-wake), so without this it would be invisible
-// in get_my_work after claiming. Bounded by the actor's assigned-task count;
-// built-in lookups are memoized per plan. Structured-plan work is NOT included
-// (it has a WorkItem and already shows in get_my_work).
+// ListHeldPoolTasks returns the actor's currently-held built-in-pool tasks — its
+// in-flight CLAIMED pool work (T83). It backs both the §3.6 holding-cap count and
+// the get_my_work surface.
+//
+// v2.14.0 I14/F3 (§13.B): "held" is OPEN-or-RUNNING, not running-only. Since claim
+// is now claim→open (the task stays open until the agent start_tasks it), counting
+// only running tasks would let an agent claim unboundedly many open pool tasks
+// (each held one invisible to the cap) — defeating the holding cap. A claimed pool
+// task has NO WorkItem (pull/no-wake), so without this it would also be invisible in
+// get_my_work after claiming. Terminal (completed/discarded) tasks are not held.
+// Bounded by the actor's assigned-task count; built-in lookups are memoized per
+// plan. Structured-plan work is NOT included (it has a WorkItem and already shows in
+// get_my_work).
 func (s *Service) ListHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) ([]ClaimableTask, error) {
 	tasks, err := s.tasks.ListByAssignee(ctx, actor)
 	if err != nil {
@@ -142,8 +159,8 @@ func (s *Service) ListHeldPoolTasks(ctx context.Context, actor pm.IdentityRef) (
 	builtin := map[pm.PlanID]bool{}
 	var held []ClaimableTask
 	for _, t := range tasks {
-		if t.Status() != pm.TaskRunning {
-			continue
+		if t.Status() != pm.TaskOpen && t.Status() != pm.TaskRunning {
+			continue // terminal/other — no longer held
 		}
 		pid := t.PlanID()
 		if pid == "" {

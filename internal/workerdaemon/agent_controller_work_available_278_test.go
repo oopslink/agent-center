@@ -7,7 +7,7 @@ import (
 
 func workAvailableCmd(t *testing.T, agentID, workItemID string, offset int64) ControlCommand {
 	t.Helper()
-	pl := workAvailablePayload{AgentID: agentID, WorkItemID: workItemID}
+	pl := workAvailablePayload{AgentID: agentID, TaskID: workItemID}
 	return ControlCommand{
 		ID:          "cmd-wa",
 		Offset:      offset,
@@ -22,7 +22,7 @@ func workAvailableCmd(t *testing.T, agentID, workItemID string, offset int64) Co
 // self-activates via start_work). Coalesce: a re-emit/replay of the same WI does
 // NOT inject again. Acking keeps the control-stream cursor advancing.
 func TestAgentController_WorkAvailable_NudgesOnceCoalesced(t *testing.T) {
-	c, rep, rs := newTestController(t, t.TempDir())
+	c, _, rs := newTestController(t, t.TempDir())
 	defer c.Shutdown(context.Background())
 
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
@@ -39,10 +39,6 @@ func TestAgentController_WorkAvailable_NudgesOnceCoalesced(t *testing.T) {
 	}
 	if in[0] != workAvailableNudge {
 		t.Fatalf("work_available nudge = %q, want the short workAvailableNudge", in[0])
-	}
-	// NO report active (the agent self-activates via start_work — pull model).
-	if wis := rep.workItemCalls(); len(wis) != 0 {
-		t.Fatalf("work_available must NOT report WorkItem state, got %+v", wis)
 	}
 
 	// Coalesce: a re-emit/replay of the SAME work_item_id does NOT inject again.

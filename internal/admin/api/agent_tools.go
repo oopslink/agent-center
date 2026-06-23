@@ -84,17 +84,21 @@ func (s *Server) requireAgentOnWorker(w http.ResponseWriter, r *http.Request, d 
 	return a, true
 }
 
-// getMyWorkReq is the body for POST /admin/agent-tools/get_my_work.
-type getMyWorkReq struct {
+// listMyTasksReq is the body for POST /admin/agent-tools/list_my_tasks.
+type listMyTasksReq struct {
 	AgentID string `json:"agent_id"`
 }
 
-// getMyWorkHandler is the representative read tool: it returns the OPERATING
-// agent's own WorkItems. Inherently own-scoped — the agent reads only its own
-// queue + history — demonstrating per-agent read scope on top of the guardrail.
-func (s *Server) getMyWorkHandler(w http.ResponseWriter, r *http.Request) {
+// listMyTasksHandler is the agent's "what do I have to do?" query in the Task model
+// (v2.14.0 I14/F5 §五, replacing get_my_work). It returns the open/running tasks
+// assigned to the calling agent that are RUNNABLE now (§13.A — their blockedBy
+// dependencies are satisfied), each projected to the §5.2 shape (task_id, title,
+// status, blocked_reason, blocked_reason_type, blocked_comment, lease_expires_at).
+// Inherently own-scoped; the runnable filter is the same gate start_task enforces,
+// so the list never offers a task the agent can't actually start.
+func (s *Server) listMyTasksHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	var req getMyWorkReq
+	var req listMyTasksReq
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
@@ -103,108 +107,37 @@ func (s *Server) getMyWorkHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	items, err := d.AgentSvc.ListWorkItems(r.Context(), a.ID())
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	tasks, err := d.PMService.ListRunnableAgentTasks(r.Context(), pm.IdentityRef(agentActor(a)))
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
-	// WS2 (#issue-e346e5ec): get_my_work is the SINGLE "what do I have to do?"
-	// query — it partitions the agent's work items into the actionable buckets
-	// the loop needs (active / queued / paused / waiting_input), replacing the
-	// former get_my_active_work + list_my_paused_work tools. Terminal items
-	// (done/failed/canceled/superseded) are history and intentionally omitted.
-	active := make([]map[string]any, 0)
-	queued := make([]map[string]any, 0)
-	paused := make([]map[string]any, 0)
-	waiting := make([]map[string]any, 0)
-	for _, it := range items {
-		switch it.Status() {
-		case agent.WorkItemActive:
-			active = append(active, workItemMap(it))
-		case agent.WorkItemQueued:
-			queued = append(queued, workItemMap(it))
-		case agent.WorkItemPaused:
-			paused = append(paused, workItemMap(it))
-		case agent.WorkItemWaitingInput:
-			waiting = append(waiting, workItemMap(it))
-		}
+	out := make([]map[string]any, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, agentRunnableTaskMap(t))
 	}
-	resp := map[string]any{
-		"active":        active,
-		"queued":        queued,
-		"paused":        paused,
-		"waiting_input": waiting,
-	}
-
-	// ADR-0047 PULL pool: the built-in "assignment pool" dispatches via pull — it
-	// creates NO WorkItem and posts NO wake. Its claimable tasks would therefore be
-	// invisible to the WorkItem-only surface above. So we ALSO query pm for what the
-	// agent can claim and surface it under "claimable" (WS2 folds in the former
-	// list_assignment_pool tool). The agent pulls + claims these (open→running) via
-	// claim_task rather than being woken. Nil-safe: only when PMService is wired.
-	//
-	// Two disjoint sources, merged into one "claimable" bucket — each entry carries
-	// `assignee` so the agent can tell them apart:
-	//   - ListClaimableTasks  — tasks DISPATCHED to this agent (assigned + open + in
-	//     a plan), i.e. claimable work meant for it.
-	//   - ListClaimablePool   — the OPEN, UNASSIGNED shared pool the agent is eligible
-	//     to grab across its member projects (the former list_assignment_pool surface).
-	if d.PMService != nil {
-		claimable := make([]map[string]any, 0)
-		assigned, cerr := d.PMService.ListClaimableTasks(r.Context(), pm.IdentityRef(agentActor(a)))
-		if cerr != nil {
-			mapDomainError(w, cerr)
-			return
-		}
-		for _, c := range assigned {
-			m := agentTaskMap(c.Task)
-			m["node_status"] = string(c.NodeStatus)
-			m["claimable"] = true
-			claimable = append(claimable, m)
-		}
-		pool, perr := d.PMService.ListClaimablePool(r.Context(), pm.IdentityRef(agentActor(a)))
-		if perr != nil {
-			mapDomainError(w, perr)
-			return
-		}
-		for _, c := range pool {
-			m := agentTaskMap(c.Task)
-			m["node_status"] = string(c.NodeStatus)
-			m["claimable"] = true
-			claimable = append(claimable, m)
-		}
-		resp["claimable"] = claimable
-
-		// T83: a CLAIMED pool task is running with NO WorkItem (pull/no-wake), so it
-		// would otherwise vanish after the agent claims it. Surface the agent's
-		// in-flight claimed pool work under "claimed_pool" so "my work" includes the
-		// pool tasks already running on it (and survives wake/restart).
-		held, herr := d.PMService.ListHeldPoolTasks(r.Context(), pm.IdentityRef(agentActor(a)))
-		if herr != nil {
-			mapDomainError(w, herr)
-			return
-		}
-		mp := make([]map[string]any, 0, len(held))
-		for _, c := range held {
-			m := agentTaskMap(c.Task)
-			m["node_status"] = string(c.NodeStatus)
-			mp = append(mp, m)
-		}
-		resp["claimed_pool"] = mp
-	}
-
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})
 }
 
-// workItemMap projects an AgentWorkItem to the JSON wire shape.
-func workItemMap(it *agent.AgentWorkItem) map[string]any {
-	return map[string]any{
-		"id":           it.ID(),
-		"task_ref":     it.TaskRef(),
-		"status":       string(it.Status()),
-		"interactions": it.Interactions(),
-		"created_at":   it.CreatedAt().Format(time.RFC3339Nano),
-		"updated_at":   it.UpdatedAt().Format(time.RFC3339Nano),
-		"version":      it.Version(),
+// agentRunnableTaskMap projects a pm.Task to the list_my_tasks §5.2 wire shape:
+// the identity + status + the blocked annotation (so the agent sees what an Unblock
+// left in blocked_comment) + the execution lease deadline (null when none).
+func agentRunnableTaskMap(t *pm.Task) map[string]any {
+	m := map[string]any{
+		"task_id":             string(t.ID()),
+		"title":               t.Title(),
+		"status":              string(t.Status()),
+		"blocked_reason":      t.BlockedReason(),
+		"blocked_reason_type": string(t.BlockedReasonType()),
+		"blocked_comment":     t.BlockedComment(),
+		"lease_expires_at":    nil,
 	}
+	if exp := t.ExecutionLeaseExpiresAt(); exp != nil {
+		m["lease_expires_at"] = exp.Format(time.RFC3339Nano)
+	}
+	return m
 }
