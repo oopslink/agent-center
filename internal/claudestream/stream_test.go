@@ -121,6 +121,15 @@ func TestParseStreamLine_RealFixture(t *testing.T) {
 	if r.TokensIn != 10 {
 		t.Fatalf("result tokens_in = %d, want 10", r.TokensIn)
 	}
+	// v2.15.0 I28/F2: cache splits surfaced additively from the SAME real 2.1.156
+	// result line (usage.cache_creation_input_tokens=47110, cache_read=0). This
+	// pins the additive extension against genuine captured data.
+	if r.CacheWriteTokens != 47110 {
+		t.Fatalf("result cache_write (cache_creation_input_tokens) = %d, want 47110", r.CacheWriteTokens)
+	}
+	if r.CacheReadTokens != 0 {
+		t.Fatalf("result cache_read = %d, want 0", r.CacheReadTokens)
+	}
 
 	// None of the genuine shapes may be "unknown".
 	for _, l := range lines {
@@ -334,6 +343,14 @@ func TestParseStreamLine_RealToolCallFixture(t *testing.T) {
 				sawToolResult = true
 			case "result":
 				sawResult = true
+				// v2.15.0 I28/F2: this real toolcall result line carries
+				// cache_creation_input_tokens=10136, cache_read_input_tokens=84384.
+				if e.CacheWriteTokens != 10136 {
+					t.Errorf("result cache_write = %d, want 10136", e.CacheWriteTokens)
+				}
+				if e.CacheReadTokens != 84384 {
+					t.Errorf("result cache_read = %d, want 84384", e.CacheReadTokens)
+				}
 			case "system":
 				sawSystem = true
 			case "unknown":

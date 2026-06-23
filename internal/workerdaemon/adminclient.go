@@ -507,10 +507,57 @@ type feedbackReporter interface {
 	// case); errors are best-effort (logged, never fatal — the guardrail is a
 	// safety net, not a critical path).
 	FetchReplyNudges(ctx context.Context, agentID string) ([]string, error)
+	// ReportUsage posts one turn's token usage to the center (v2.15.0 I28/F2,
+	// source='report'). Best-effort: the controller logs failures and never lets a
+	// failed report affect the agent loop.
+	ReportUsage(ctx context.Context, u UsageReport) error
+}
+
+// UsageReport is one per-turn usage sample the worker turn-end hook reports to
+// the center's report_usage agent-tool (v2.15.0 I28/F2). TaskID is "" for a
+// task-less (converse) turn; the cache splits map to claude's
+// cache_read_input_tokens / cache_creation_input_tokens (a cache write).
+type UsageReport struct {
+	AgentID          string
+	Model            string
+	TaskID           string
+	InputTokens      int
+	OutputTokens     int
+	CacheReadTokens  int
+	CacheWriteTokens int
+	At               time.Time
 }
 
 // var _ feedbackReporter asserts *AdminClient satisfies the controller seam.
 var _ feedbackReporter = (*AdminClient)(nil)
+
+// ReportUsage posts a per-turn usage sample to /admin/agent-tools/report_usage.
+// The endpoint derives project_id from task_id and materializes cost; this client
+// only ships the observed token counts.
+func (c *AdminClient) ReportUsage(ctx context.Context, u UsageReport) error {
+	if strings.TrimSpace(u.AgentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	body := map[string]any{
+		"agent_id":      u.AgentID,
+		"model":         u.Model,
+		"input_tokens":  u.InputTokens,
+		"output_tokens": u.OutputTokens,
+	}
+	if u.TaskID != "" {
+		body["task_id"] = u.TaskID
+	}
+	if u.CacheReadTokens != 0 {
+		body["cache_read_tokens"] = u.CacheReadTokens
+	}
+	if u.CacheWriteTokens != 0 {
+		body["cache_write_tokens"] = u.CacheWriteTokens
+	}
+	if !u.At.IsZero() {
+		body["ts"] = u.At.UTC().Format(time.RFC3339Nano)
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/agent-tools/report_usage", body, nil)
+}
 
 // ReportAgentActivity POSTs to /admin/environment/agent/activity. Empty
 // taskRef/interactionRef/at are omitted server-side (omitempty). A zero

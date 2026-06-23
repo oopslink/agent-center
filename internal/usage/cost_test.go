@@ -130,6 +130,13 @@ func TestUsageEvent_Validate(t *testing.T) {
 	if base.TaskID != "" {
 		t.Fatal("precondition")
 	}
+	// project_id MAY be empty: a task-less converse turn has no project, so ""
+	// is the agent's own interaction-usage bucket (v2.15.0 I28/F2 sentinel).
+	noProj := base
+	noProj.ProjectID = ""
+	if err := noProj.Validate(); err != nil {
+		t.Fatalf("empty project_id (interaction bucket) must be accepted: %v", err)
+	}
 
 	bad := []struct {
 		name   string
@@ -137,7 +144,6 @@ func TestUsageEvent_Validate(t *testing.T) {
 	}{
 		{"empty id", func(e *UsageEvent) { e.ID = "" }},
 		{"empty agent", func(e *UsageEvent) { e.AgentRef = "  " }},
-		{"empty project", func(e *UsageEvent) { e.ProjectID = "" }},
 		{"empty model", func(e *UsageEvent) { e.Model = "" }},
 		{"zero ts", func(e *UsageEvent) { e.TS = time.Time{} }},
 		{"bad source", func(e *UsageEvent) { e.Source = "guess" }},

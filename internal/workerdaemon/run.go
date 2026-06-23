@@ -182,16 +182,23 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	// `agent-center` binary this routes `worker agent-supervisor` +
 	// `worker mcp-host`.
 	binPath, _ := os.Executable()
+	// F2 (v2.15.0 I28) per-turn usage hook: ON by default; ops kill-switch via
+	// AGENT_CENTER_DISABLE_USAGE_REPORT=1 (or "true").
+	disableUsageReport := false
+	if v := strings.TrimSpace(os.Getenv("AGENT_CENTER_DISABLE_USAGE_REPORT")); v == "1" || strings.EqualFold(v, "true") {
+		disableUsageReport = true
+	}
 	if controller, cerr := NewAgentController(AgentControllerConfig{
-		Reporter:          client,
-		Resumer:           client,
-		WorkerID:          opts.WorkerID,
-		AdminURL:          targetSpec,
-		WorkerToken:       token,
-		ServerFingerprint: fingerprint,
-		BinaryPath:        binPath,
-		AgentHomeBase:     agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
-		Logger:            logf,
+		Reporter:           client,
+		Resumer:            client,
+		WorkerID:           opts.WorkerID,
+		AdminURL:           targetSpec,
+		WorkerToken:        token,
+		ServerFingerprint:  fingerprint,
+		BinaryPath:         binPath,
+		AgentHomeBase:      agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
+		Logger:             logf,
+		DisableUsageReport: disableUsageReport,
 	}); cerr != nil {
 		logf("warning: agent controller not wired: " + cerr.Error())
 	} else {

@@ -309,5 +309,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		StatsSvc:  a.StatsSvc,
 		LogsSvc:   a.LogsSvc,
 		BlobStore: a.BlobStore,
+
+		// Usage BC (v2.15.0 I28/F2)
+		UsageEventRepo: a.UsageEventRepo,
+		ModelPriceRepo: a.ModelPriceRepo,
 	}
 }

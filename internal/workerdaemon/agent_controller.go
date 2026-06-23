@@ -265,6 +265,12 @@ type AgentControllerConfig struct {
 	// (Stop → StopSupervisor SIGTERM grace).
 	StopGrace time.Duration
 
+	// DisableUsageReport turns OFF the per-turn report_usage hook (v2.15.0 I28/F2).
+	// Default (zero value, false) = reporting ON. This is the ops kill-switch: the
+	// hook is best-effort/non-blocking, but if it ever becomes noisy, flipping it
+	// (AGENT_CENTER_DISABLE_USAGE_REPORT=1) stops new reports immediately.
+	DisableUsageReport bool
+
 	// Resumer queries the center for this worker's boot-resume state (s4b boot
 	// reconcile). Nil → ReconcileOnBoot is a no-op (additive/dormant). The daemon's
 	// *AdminClient satisfies resumeStateQuerier.
@@ -1447,6 +1453,10 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	// goroutine — the fetch is a network round-trip and must not stall the stream.
 	if ev.Type == "result" && !ev.IsError {
 		go c.maybeReplyNudge(agentID)
+		// v2.15.0 I28/F2: a clean turn-end carries the result line's usage totals
+		// — report them to the center for per-turn cost accounting. Off the reader
+		// goroutine (network round-trip) and best-effort (failures only logged).
+		go c.maybeReportUsage(agentID, ev)
 	}
 }
 
@@ -1497,6 +1507,48 @@ func (c *AgentController) maybeReplyNudge(agentID string) {
 			return // session closed mid-loop — stop; a later turn-end will retry
 		}
 		c.log("reply-guardrail agent=%s injected directed-reply nudge", agentID)
+	}
+}
+
+// maybeReportUsage is the worker half of the F2 per-turn usage hook (v2.15.0
+// I28). On a clean turn-end it ships the result line's token totals (input /
+// output / cache read / cache write) to the center's report_usage tool, tagged
+// with the agent's model and current task (if any). It is deliberately thin and
+// best-effort: gated by the DisableUsageReport kill-switch, it skips empty turns,
+// resolves model/task under the lock, and logs (never surfaces) any error so a
+// failed report can never stall or fail the agent loop.
+func (c *AgentController) maybeReportUsage(agentID string, ev StreamEvent) {
+	if c.cfg.DisableUsageReport || c.cfg.Reporter == nil {
+		return
+	}
+	// Nothing observed this turn → nothing to account.
+	if ev.TokensIn == 0 && ev.TokensOut == 0 && ev.CacheReadTokens == 0 && ev.CacheWriteTokens == 0 {
+		return
+	}
+	c.mu.Lock()
+	var model, taskID string
+	if ma := c.agents[agentID]; ma != nil {
+		model = ma.model
+		taskID = ma.currentTaskID
+	}
+	c.mu.Unlock()
+	if model == "" {
+		return // no model resolvable (agent not started here) — skip rather than guess
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := c.cfg.Reporter.ReportUsage(ctx, UsageReport{
+		AgentID:          agentID,
+		Model:            model,
+		TaskID:           taskID,
+		InputTokens:      ev.TokensIn,
+		OutputTokens:     ev.TokensOut,
+		CacheReadTokens:  ev.CacheReadTokens,
+		CacheWriteTokens: ev.CacheWriteTokens,
+		At:               time.Now(),
+	}); err != nil {
+		c.log("report_usage agent=%s: %v", agentID, err)
 	}
 }
 
