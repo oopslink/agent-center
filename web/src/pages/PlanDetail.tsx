@@ -87,6 +87,9 @@ export default function PlanDetail(): React.ReactElement {
   const [tab, setTab] = useState<Tab>('chat');
   // T347: chat maximize state lives here so the toggle can sit on the tab row.
   const [chatMaximized, setChatMaximized] = useState(false);
+  // T348: DAG compact (zoom-to-fit) state lifted here too, so its toggle becomes an
+  // icon on the tab row (next to maximize) instead of a text button on the canvas.
+  const [dagCompact, setDagCompact] = useState(false);
 
   const projectName = project.data?.name ?? id;
 
@@ -188,6 +191,25 @@ export default function PlanDetail(): React.ReactElement {
                 {chatMaximized ? <PlanChatRestoreIcon /> : <PlanChatMaximizeIcon />}
               </button>
             )}
+            {/* T348: DAG compact (zoom-to-fit) toggle — icon on the tab row, mirroring
+                the chat maximize button. Desktop-only (the mobile DAG is a stepper). */}
+            {tab === 'dag' && (
+              <button
+                type="button"
+                onClick={() => setDagCompact((c) => !c)}
+                data-testid="plan-dag-compact-toggle"
+                aria-pressed={dagCompact}
+                aria-label={dagCompact ? 'Reset DAG zoom' : 'Compact DAG (zoom to fit)'}
+                title={dagCompact ? 'Reset zoom' : 'Compact (zoom to fit)'}
+                className={`hidden h-7 w-7 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:inline-flex ${
+                  dagCompact
+                    ? 'text-accent'
+                    : 'text-text-muted hover:bg-bg-subtle hover:text-text-primary'
+                }`}
+              >
+                <PlanCompactIcon />
+              </button>
+            )}
             {p.org_ref && (
               <span
                 className="truncate font-mono text-xs font-semibold text-text-muted"
@@ -232,7 +254,7 @@ export default function PlanDetail(): React.ReactElement {
             data-testid="plan-panel-dag"
             className={tab === 'dag' ? 'min-h-0 flex-1 overflow-auto' : undefined}
           >
-            {tab === 'dag' && <PlanDag projectId={id} plan={p} />}
+            {tab === 'dag' && <PlanDag projectId={id} plan={p} compact={dagCompact} />}
           </div>
           <div
             role="tabpanel"
@@ -1340,14 +1362,21 @@ function PlanStepper({
   );
 }
 
-function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
+function PlanDag({
+  projectId,
+  plan,
+  compact,
+}: {
+  projectId: string;
+  plan: Plan;
+  // T348: compact (zoom-to-fit) is controlled by the tab-row icon in PlanDetail.
+  compact: boolean;
+}): React.ReactElement {
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
-  // v2.9.1 UX point 2: a "Compact" toggle uniformly zooms the DAG down so a long
-  // (many-level) / wide plan fits in view without endless horizontal scrolling.
-  // CSS transform (content scales cleanly, no node-content overflow); the scroll
-  // area is sized to the scaled extent. Layout algorithm is untouched.
-  const [compact, setCompact] = useState(false);
+  // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
+  // / wide plan fits in view without endless horizontal scrolling. CSS transform
+  // (content scales cleanly); the scroll area is sized to the scaled extent.
   const scale = compact ? 0.7 : 1;
 
   // v2.9.1 point 3: IN-GRAPH dependency editing (draft-only). The dependency
@@ -1488,12 +1517,10 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
         {/* v2.10.1 [M4] Mobile (<md): the left→right SVG DAG becomes a vertical
             stepper. The desktop graph + its controls are md:-only. */}
         <PlanStepper positioned={positioned} projectId={projectId} />
-        {/* v2.9.1 point 2: compact (zoom-to-fit) toggle for long/wide DAGs. */}
-        <div className="mb-2 hidden items-center justify-between gap-2 md:flex">
-          {/* Connect-mode banner (point 3, draft-only): shown while a connection
-              is in progress. Tells the user to pick a highlighted target and
-              offers a visible Cancel affordance (Escape also exits). */}
-          {isDraft && connectFrom != null ? (
+        {/* T348: the Compact toggle moved to the tab row (icon). The connect-mode
+            banner (point 3, draft-only) stays here, shown only while connecting. */}
+        {isDraft && connectFrom != null && (
+          <div className="mb-2 hidden items-center gap-2 md:flex">
             <div
               className="flex flex-1 items-center gap-2 rounded border border-accent bg-bg-elevated px-2 py-1 text-[0.6875rem] text-text-secondary"
               data-testid="plan-connect-banner"
@@ -1513,19 +1540,8 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                 Cancel
               </button>
             </div>
-          ) : (
-            <span />
-          )}
-          <button
-            type="button"
-            onClick={() => setCompact((c) => !c)}
-            aria-pressed={compact}
-            data-testid="plan-dag-compact-toggle"
-            className="shrink-0 rounded border border-border-strong px-2 py-0.5 text-[0.6875rem] font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            {compact ? 'Compact: on' : 'Compact'}
-          </button>
-        </div>
+          </div>
+        )}
         <div
           className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle md:block"
           data-testid="plan-dag-canvas"
@@ -2175,6 +2191,14 @@ function PlanChatMaximizeIcon(): React.ReactElement {
   return (
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.6" aria-hidden="true">
       <path d="M8 4H4v4M16 8V4h-4M4 12v4h4M12 16h4v-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+// T348: DAG compact (zoom-to-fit) — two arrows pointing inward = "compress to fit".
+function PlanCompactIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.6" aria-hidden="true">
+      <path d="M2 10h6M6 6.5 9.5 10 6 13.5M18 10h-6M14 6.5 10.5 10 14 13.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
