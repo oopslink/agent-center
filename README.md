@@ -37,9 +37,9 @@
 The Web Console is the day-to-day surface — conversations, plans, members, and fleet status — and is fully responsive (the desktop rail reflows to a bottom tab bar on mobile).
 
 <p align="center">
-  <img src="./assets/screenshots/web-console-conversations.png" alt="Web Console — a channel conversation with the Channels/DMs rail, participants, threads and files" width="820">
+  <img src="./assets/screenshots/web-console-conversations.png" alt="Web Console — a channel conversation with the Channels/DMs rail and an agent's live activity panel" width="820">
   <br/>
-  <em>Conversations — channels &amp; DMs with participants, threads, files, and an unread digest. Tasks / Issues / Plans all hang off their own threads.</em>
+  <em>Conversations — the Channels/DMs rail, a channel thread, and an agent's live activity feed on the right. Tasks / Issues / Plans all hang off their own threads.</em>
 </p>
 
 <br/>

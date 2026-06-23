@@ -40,9 +40,9 @@
 Web Console 是日常操作面 —— 会话、Plan、成员、舰队状态 —— 并且完全响应式(桌面侧栏在移动端会收成底部 Tab 栏)。
 
 <p align="center">
-  <img src="./assets/screenshots/web-console-conversations.png" alt="Web Console —— 频道会话,左侧 Channels/DMs 栏,右侧参与者 / Threads / Files" width="820">
+  <img src="./assets/screenshots/web-console-conversations.png" alt="Web Console —— 频道会话,左侧 Channels/DMs 栏,右侧 agent 实时活动面板" width="820">
   <br/>
-  <em>会话 —— 频道 &amp; DM,带参与者、Threads、Files 与未读汇总。Task / Issue / Plan 都挂在各自的线程上。</em>
+  <em>会话 —— 左侧 Channels/DMs 栏、中间频道线程、右侧 agent 实时活动流。Task / Issue / Plan 都挂在各自的线程上。</em>
 </p>
 
 <br/>
