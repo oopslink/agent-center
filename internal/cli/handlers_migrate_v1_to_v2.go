@@ -130,7 +130,8 @@ func MigrateV1ToV2Command() *Command {
 // T340 added 0075 (worker_control_events GC index — additive, retention-based stream pruning).
 // T339 added 0076 (data backfill: archived + non-terminal tasks → discarded, closing the
 // open+archived leak — see migration header; idempotent, archived-only WHERE guard).
-const targetSchemaVersion = 76
+// I28/F1 added 0077 (usage collection: model_prices + usage_events — additive, new tables).
+const targetSchemaVersion = 77
 
 func runMigrateV1ToV2(
 	ctx context.Context,
