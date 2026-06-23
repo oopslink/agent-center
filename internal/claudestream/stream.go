@@ -22,6 +22,14 @@
 // "system" (with a subtype, e.g. "init"), "assistant", "user", "result",
 // "rate_limit_event". Text / thinking / tool_use live in
 // assistant.message.content[]; tool_result lives in user.message.content[].
+//
+// v2.15.0 (I28/F2, issue-a7ff560e) ADDITIVELY extended the result-line `usage`
+// decode to also surface cache_read_input_tokens / cache_creation_input_tokens
+// (the two prompt-cache token splits) on StreamEvent, for per-turn cost
+// accounting. No existing parse path was modified — input/output and every other
+// field decode unchanged. The same captured 2.1.156 fixtures already carry the
+// cache fields, so TestParseStreamLine_RealFixture / _RealToolCallFixture pin the
+// extended round-trip against genuine data.
 package claudestream
 
 import (
@@ -54,13 +62,18 @@ type StreamEvent struct {
 	// (e.g. "success").
 	Subtype string
 
-	// Result / StopReason / CostUSD / TokensIn / TokensOut are populated for a
-	// "result" event (the terminal summary line).
-	Result     string
-	StopReason string
-	CostUSD    float64
-	TokensIn   int
-	TokensOut  int
+	// Result / StopReason / CostUSD / TokensIn / TokensOut / CacheReadTokens /
+	// CacheWriteTokens are populated for a "result" event (the terminal summary
+	// line). CacheReadTokens / CacheWriteTokens (v2.15.0 I28/F2) feed per-turn
+	// cost accounting; CacheWriteTokens is claude's cache_creation_input_tokens
+	// (a cache write). They default to 0 on any result line that omits them.
+	Result           string
+	StopReason       string
+	CostUSD          float64
+	TokensIn         int
+	TokensOut        int
+	CacheReadTokens  int
+	CacheWriteTokens int
 
 	// IsError is the result line's `is_error` flag (v2.7 L2 no-silent-failure):
 	// true means the turn ENDED in failure (e.g. an API/auth error, max_turns).
@@ -170,6 +183,8 @@ func ParseStreamLine(line []byte) ([]StreamEvent, error) {
 		if head.Usage != nil {
 			ev.TokensIn = head.Usage.InputTokens
 			ev.TokensOut = head.Usage.OutputTokens
+			ev.CacheReadTokens = head.Usage.CacheReadInputTokens
+			ev.CacheWriteTokens = head.Usage.CacheCreationInputTokens
 		}
 		return []StreamEvent{ev}, nil
 
@@ -188,10 +203,18 @@ func ParseStreamLine(line []byte) ([]StreamEvent, error) {
 	}
 }
 
-// usage decodes the input/output token counts from a result line's usage object.
+// usage decodes the token counts from a result line's usage object. The
+// cache_read / cache_creation fields were added additively in v2.15.0 (I28/F2,
+// issue-a7ff560e) to feed per-turn cost accounting; the input/output decode and
+// every other parser path are unchanged.
 type usage struct {
 	InputTokens  int `json:"input_tokens"`
 	OutputTokens int `json:"output_tokens"`
+	// CacheReadInputTokens / CacheCreationInputTokens are the prompt-cache token
+	// splits Anthropic prices separately (read ≪ write). cache_creation IS a
+	// cache WRITE. Both are present on real claude 2.1.156 result lines.
+	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 }
 
 // parseContentBlocks expands an assistant/user message's content[] into one

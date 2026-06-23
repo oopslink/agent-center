@@ -30,6 +30,9 @@ type recordingReporter struct {
 	replyNudges    []string
 	replyNudgeErr  error
 	replyNudgeAgts []string
+
+	// F2 per-turn usage hook (v2.15.0 I28): every ReportUsage call recorded.
+	usages []usageCall
 }
 
 type activityCall struct {
@@ -83,6 +86,21 @@ func (r *recordingReporter) FetchReplyNudges(_ context.Context, agentID string) 
 	out := make([]string, len(r.replyNudges))
 	copy(out, r.replyNudges)
 	return out, nil
+}
+
+type usageCall struct {
+	agentID, model, taskID                     string
+	inTok, outTok, cacheReadTok, cacheWriteTok int
+}
+
+func (r *recordingReporter) ReportUsage(_ context.Context, u UsageReport) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.usages = append(r.usages, usageCall{
+		u.AgentID, u.Model, u.TaskID,
+		u.InputTokens, u.OutputTokens, u.CacheReadTokens, u.CacheWriteTokens,
+	})
+	return nil
 }
 
 func (r *recordingReporter) replyNudgeAgents() []string {

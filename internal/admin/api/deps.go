@@ -26,6 +26,7 @@ import (
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
+	"github.com/oopslink/agent-center/internal/usage"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -168,6 +169,11 @@ type HandlerDeps struct {
 	StatsSvc  *query.StatsService
 	LogsSvc   *query.LogsService
 	BlobStore blobstore.BlobStore
+
+	// Usage BC (v2.15.0 I28/F2): the report_usage agent-tool materializes cost
+	// (ModelPriceRepo → PriceBook) and persists raw events (UsageEventRepo).
+	UsageEventRepo usage.UsageEventRepository
+	ModelPriceRepo usage.ModelPriceRepository
 }
 
 type depsKey struct{}

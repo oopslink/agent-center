@@ -28,7 +28,7 @@ func (s Source) Valid() bool { return s == SourceReport || s == SourceTranscript
 type UsageEvent struct {
 	ID         string
 	AgentRef   string
-	ProjectID  string
+	ProjectID  string // "" = no project (the agent's own interaction/non-task usage bucket)
 	TaskID     string // "" = not task-scoped
 	Model      string
 	Tokens     TokenCounts
@@ -40,14 +40,17 @@ type UsageEvent struct {
 // Validate checks the invariants a row must satisfy before persistence. It does
 // NOT verify cost against the price book — materialization is the caller's job;
 // this guards shape only.
+//
+// ProjectID is intentionally NOT required: a task-less (converse) turn has no
+// project, so report_usage stores "" — the agent's own interaction-usage bucket
+// (v2.15.0 I28/F2, PD-approved sentinel). The column is NOT NULL; "" is the
+// consistent sentinel, never NULL.
 func (e UsageEvent) Validate() error {
 	switch {
 	case strings.TrimSpace(e.ID) == "":
 		return fmt.Errorf("usage: empty event id")
 	case strings.TrimSpace(e.AgentRef) == "":
 		return fmt.Errorf("usage: empty agent_ref")
-	case strings.TrimSpace(e.ProjectID) == "":
-		return fmt.Errorf("usage: empty project_id")
 	case strings.TrimSpace(e.Model) == "":
 		return fmt.Errorf("usage: empty model")
 	case e.TS.IsZero():

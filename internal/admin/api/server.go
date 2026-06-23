@@ -377,6 +377,9 @@ func (s *Server) routes() {
 	// resume_task routes were removed — AgentWorkItem retired (no compat).
 	s.mux.HandleFunc("POST /admin/agent-tools/list_my_tasks", s.listMyTasksHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/heartbeat", s.heartbeatHandler)
+	// report_usage (v2.15.0 I28/F2): worker-initiated per-turn usage ingest — not
+	// LLM-facing (deliberately absent from the agent-facing MCP set).
+	s.mux.HandleFunc("POST /admin/agent-tools/report_usage", s.reportUsageHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/start_task", s.startWorkHandler)
 	// T83: claim an open built-in assignment-pool task — atomic assign+run, fail-closed.
 	s.mux.HandleFunc("POST /admin/agent-tools/claim_task", s.claimTaskHandler)
