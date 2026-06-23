@@ -85,6 +85,8 @@ export default function PlanDetail(): React.ReactElement {
   // keeps it in the col④ bottom sheet (mounted below for mobile only).
   const isMobile = useIsMobile();
   const [tab, setTab] = useState<Tab>('chat');
+  // T347: chat maximize state lives here so the toggle can sit on the tab row.
+  const [chatMaximized, setChatMaximized] = useState(false);
 
   const projectName = project.data?.name ?? id;
 
@@ -170,15 +172,32 @@ export default function PlanDetail(): React.ReactElement {
               Task List
             </TabButton>
           </div>
-          {p.org_ref && (
-            <span
-              className="ml-auto shrink-0 truncate pl-2 font-mono text-xs font-semibold text-text-muted"
-              data-testid="plan-conversation-code"
-              title={p.name}
-            >
-              {p.org_ref}
-            </span>
-          )}
+          <div className="ml-auto flex shrink-0 items-center gap-2 pl-2">
+            {/* T347: the chat maximize toggle lives on the tab row (was floating
+                above the chat body). Only meaningful on the Chat tab. */}
+            {tab === 'chat' && (
+              <button
+                type="button"
+                onClick={() => setChatMaximized((m) => !m)}
+                data-testid="plan-chat-maximize"
+                aria-pressed={chatMaximized}
+                aria-label={chatMaximized ? 'Restore chat' : 'Maximize chat'}
+                title={chatMaximized ? 'Restore (Esc)' : 'Maximize chat'}
+                className="inline-flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {chatMaximized ? <PlanChatRestoreIcon /> : <PlanChatMaximizeIcon />}
+              </button>
+            )}
+            {p.org_ref && (
+              <span
+                className="truncate font-mono text-xs font-semibold text-text-muted"
+                data-testid="plan-conversation-code"
+                title={p.name}
+              >
+                {p.org_ref}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Single tabbed content area (point 4: chat is now a tab, not a side
@@ -197,7 +216,11 @@ export default function PlanDetail(): React.ReactElement {
             data-testid="plan-panel-chat"
             className={tab === 'chat' ? 'flex min-h-0 flex-1 flex-col' : undefined}
           >
-            <PlanConversationSide conversationId={p.conversation_id} />
+            <PlanConversationSide
+              conversationId={p.conversation_id}
+              maximized={chatMaximized}
+              onToggleMaximize={() => setChatMaximized((m) => !m)}
+            />
           </div>
           {/* T341: the card is overflow-hidden + height-bounded, so the DAG /
               Task-List panels (tall content) must scroll INSIDE the card — give the
@@ -377,6 +400,17 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           </div>
         </div>
       </div>
+      {/* T347: surface the plan's GOAL (description) — was only editable in the
+          modal, never shown on the detail page (@oopslink). */}
+      {plan.description.trim() !== '' && (
+        <p
+          className="whitespace-pre-wrap text-sm text-text-secondary"
+          data-testid="plan-goal"
+          title="Plan goal"
+        >
+          {plan.description}
+        </p>
+      )}
       <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted" data-testid="plan-detail-meta">
         <div className="flex items-center gap-1">
           <dt className="uppercase tracking-wide text-[0.625rem]">Progress</dt>
@@ -1210,7 +1244,12 @@ function SyntheticAnchorMarker({
   const label = kind === 'start' ? 'Start' : 'End';
   return (
     <div
-      className="absolute flex items-center justify-center rounded-full border-[1.5px] border-border-strong bg-bg-elevated text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary shadow-1"
+      // T347: Start gets a solid accent BORDER (the entry point); End keeps the
+      // neutral strong border. Both keep readable text-text-secondary; no
+      // alpha-tint-on-token (renders transparent — guardrail) and no 6-state border.
+      className={`absolute flex items-center justify-center rounded-full border-[1.5px] bg-bg-elevated text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary shadow-2 ${
+        kind === 'start' ? 'border-accent' : 'border-border-strong'
+      }`}
       style={{
         left: anchor.cx - SYNTH_R,
         top: anchor.cy - SYNTH_R,
@@ -1491,7 +1530,13 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
           className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle md:block"
           data-testid="plan-dag-canvas"
           data-compact={compact ? 'true' : 'false'}
-          style={{ maxHeight: 480 }}
+          // T347: a subtle dot-grid gives the DAG a "canvas" feel instead of a flat
+          // panel (@oopslink: 太素了).
+          style={{
+            maxHeight: 480,
+            backgroundImage: 'radial-gradient(var(--color-border-base) 1px, transparent 1px)',
+            backgroundSize: '16px 16px',
+          }}
         >
           {/* Sizing wrapper reserves the SCALED extent so the scroll area is
               correct; the inner layer keeps its natural size and is zoomed via
@@ -1583,10 +1628,14 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
               const inConnect = connectFrom != null;
               const isSource = connectFrom === taskId;
               const isTarget = inConnect && !isSource && dropTargets.has(taskId);
+              // T347: a status-colored left accent bar (derived from the border
+              // token) + hover lift make the nodes read as status cards, not plain
+              // boxes. overflow-hidden clips the bar to the rounded corner.
+              const accentCls = s.border.replace(/^border-/, 'bg-');
               return (
                 <div
                   key={taskId}
-                  className={`absolute rounded-lg border-[1.5px] bg-bg-elevated p-2 shadow-1 ${
+                  className={`absolute overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 ${
                     isTarget
                       ? 'border-accent ring-2 ring-accent'
                       : isSource
@@ -1600,6 +1649,10 @@ function PlanDag({ projectId, plan }: { projectId: string; plan: Plan }): React.
                   data-connect-source={isSource ? 'true' : undefined}
                   data-connect-target={isTarget ? 'true' : undefined}
                 >
+                  <span
+                    className={`absolute inset-y-0 left-0 w-1.5 ${accentCls}`}
+                    aria-hidden="true"
+                  />
                   {/* v2.9.1 UX point 1: human Task id (T-number) visible on the node.
                       T329b: the status badge (+ archived) moves UP here to the id row
                       (right-aligned) so the assignee row below gets the FULL node width
@@ -2020,34 +2073,37 @@ function PlanTaskRow({
 // conversation_id → friendly "initializing" state (don't crash).
 function PlanConversationSide({
   conversationId,
+  maximized,
+  onToggleMaximize,
 }: {
   conversationId: string;
+  // T347: maximize state is lifted to PlanDetail so the toggle can live on the tab
+  // row (@oopslink). When maximized the chat is a full-viewport overlay (composer
+  // pinned); a restore button sits in the overlay. Esc also restores.
+  maximized: boolean;
+  onToggleMaximize: () => void;
 }): React.ReactElement {
   const conv = useConversation(conversationId || undefined);
   const isMobile = useIsMobile(); // T324: embed the conv sidebar on desktop only
-  // T341: maximize the plan chat to a full-viewport overlay (composer pinned) —
-  // @oopslink, mirrors WorkItemConversation's maximize; the reliable way to type
-  // on mobile where the chat sits below the header/tabs in the card.
-  const [maximized, setMaximized] = useState(false);
   useEffect(() => {
     if (!maximized) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setMaximized(false);
+      if (e.key === 'Escape') onToggleMaximize();
     };
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKey);
     };
-  }, [maximized]);
+  }, [maximized, onToggleMaximize]);
 
   return (
     <SenderSidebarProvider>
       {/* T328: the "P27 · chat" sub-header was removed — the plan id now lives on
-          the tab row. T341: a maximize toggle promotes the chat to a full-screen
-          overlay (composer pinned) — the inline chat fills the card via flex-1. */}
+          the tab row. T347: the maximize toggle moved to the tab row; when maximized
+          the chat is a full-viewport overlay with a restore button (top-right). */}
       <section
         className={
           maximized
@@ -2057,19 +2113,20 @@ function PlanConversationSide({
         data-testid="plan-conversation"
         data-maximized={maximized ? 'true' : 'false'}
       >
-        <div className="mb-1 flex items-center justify-end">
-          <button
-            type="button"
-            onClick={() => setMaximized((m) => !m)}
-            data-testid="plan-conversation-maximize"
-            aria-pressed={maximized}
-            aria-label={maximized ? 'Restore chat' : 'Maximize chat'}
-            title={maximized ? 'Restore' : 'Maximize'}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            {maximized ? <PlanChatRestoreIcon /> : <PlanChatMaximizeIcon />}
-          </button>
-        </div>
+        {maximized && (
+          <div className="mb-1 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={onToggleMaximize}
+              data-testid="plan-conversation-restore"
+              aria-label="Restore chat"
+              title="Restore (Esc)"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <PlanChatRestoreIcon />
+            </button>
+          </div>
+        )}
         {!conversationId ? (
           <p
             className="rounded border border-dashed border-border-base p-4 text-xs italic text-text-muted"

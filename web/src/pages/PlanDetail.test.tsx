@@ -237,15 +237,23 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-dag')).not.toBeInTheDocument();
   });
 
-  it('maximizes / restores the plan chat via the toggle (T341)', async () => {
+  it('maximizes via the tab-row toggle / restores via the overlay button (T347)', async () => {
     mockPlan();
     wrap();
     const section = await screen.findByTestId('plan-conversation');
     expect(section).toHaveAttribute('data-maximized', 'false');
-    fireEvent.click(within(section).getByTestId('plan-conversation-maximize'));
+    // T347: the maximize toggle now lives on the tab row, not above the chat.
+    fireEvent.click(screen.getByTestId('plan-chat-maximize'));
     expect(screen.getByTestId('plan-conversation')).toHaveAttribute('data-maximized', 'true');
-    fireEvent.click(screen.getByTestId('plan-conversation-maximize'));
+    // restore from inside the maximized overlay.
+    fireEvent.click(screen.getByTestId('plan-conversation-restore'));
     expect(screen.getByTestId('plan-conversation')).toHaveAttribute('data-maximized', 'false');
+  });
+
+  it('shows the plan goal (description) on the detail page (T347)', async () => {
+    mockPlan({ description: 'ship the v3 orchestrator' });
+    wrap();
+    expect(await screen.findByTestId('plan-goal')).toHaveTextContent('ship the v3 orchestrator');
   });
 
   it('collapses the header actions into a mobile Actions dropdown (T341)', async () => {
