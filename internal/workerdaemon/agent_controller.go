@@ -287,6 +287,15 @@ type AgentControllerConfig struct {
 	SelfHealBackoffCap  time.Duration
 	SelfHealResetWindow time.Duration
 
+	// Rate-limit auto-recovery tuning (issue: LLM 服务端限流自动恢复); 0 → defaults
+	// (default 60s when claude gives no window, floor 5s, cap 1h). When an LLM
+	// server-side rate-limit ends a turn, the controller schedules an automatic
+	// resume after the window clears (using claude's retry_after / resets_at when
+	// present) instead of abandoning the in-flight work. See rate_limit.go.
+	RateLimitDefaultBackoff time.Duration
+	RateLimitMinBackoff     time.Duration
+	RateLimitMaxBackoff     time.Duration
+
 	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
 	// same-package _test.go can override it with a fake — production callers cannot
 	// set it, so NewAgentController always defaults it to the real supervisor-spawn
@@ -398,6 +407,23 @@ type managedAgent struct {
 	// → claude supervisor). Read in onExit to route a codex agent away from the
 	// supervisor self-heal machinery (codex has no epoch/fork/reattach). Guarded by mu.
 	cli string
+
+	// rlRetryAfterSecs / rlResetAtUnix remember the rate-limit window from the most
+	// recent "rate_limit" event in the current turn (carried from the rate_limit_event
+	// line by claudestream). If the turn then ENDS in a rate-limit is_error result,
+	// scheduleRateLimitResume uses this window to time the automatic resume. Reset at
+	// turn boundaries (system-init / a non-rate-limit result). Guarded by mu.
+	rlRetryAfterSecs int
+	rlResetAtUnix    int64
+
+	// rateLimitResumeAt is non-zero when an LLM server-side rate-limit ended the
+	// in-flight turn and an automatic resume nudge is DUE at this time (the limit
+	// window has cleared). OnTick injects DefaultResumeNudge into the still-live
+	// session when now ≥ this, then clears it — re-driving the interrupted work
+	// instead of leaving it silently abandoned (issue: LLM 服务端限流自动恢复). The
+	// session stays alive across a rate-limit (no crash), so this is the live-session
+	// analogue of selfHealEntry.nextRelaunchAt. Guarded by mu.
+	rateLimitResumeAt time.Time
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -1343,6 +1369,12 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	// in-flight work), which is the pre-#111 behaviour.
 	c.mu.Lock()
 	var workItemRef, toolName string
+	// rlRetryAfter / rlResetAt snapshot the rate-limit window remembered for THIS
+	// turn (set by a prior rate_limit event) at the moment the turn ends, so the
+	// is_error branch below can schedule a resume with claude's own window before we
+	// clear it. Zero unless a rate_limit event preceded the result.
+	var rlRetryAfter int
+	var rlResetAt int64
 	if ma := c.agents[agentID]; ma != nil {
 		workItemRef = ma.currentTaskID
 		// v2.7.1 #216: maintain the per-turn tool_use_id→tool_name correlation so the
@@ -1358,8 +1390,21 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 			}
 		case "tool_result":
 			toolName = ma.toolNames[ev.ToolUseID]
-		case "system", "result":
+		case "rate_limit":
+			// Remember the window (retry_after / resets_at) for a possible later
+			// is_error turn-end; a bare rate_limit event does NOT end the turn, so we
+			// only record it here (claude may still recover on its own).
+			ma.rlRetryAfterSecs = ev.RetryAfterSecs
+			ma.rlResetAtUnix = ev.ResetAtUnix
+		case "system":
 			ma.toolNames = nil
+			if ev.Subtype == "init" {
+				ma.rlRetryAfterSecs, ma.rlResetAtUnix = 0, 0 // fresh turn → drop a stale window
+			}
+		case "result":
+			ma.toolNames = nil
+			rlRetryAfter, rlResetAt = ma.rlRetryAfterSecs, ma.rlResetAtUnix
+			ma.rlRetryAfterSecs, ma.rlResetAtUnix = 0, 0 // turn ended → consume the window
 		}
 	}
 	c.mu.Unlock()
@@ -1384,6 +1429,13 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	// the B3 agent-death cascade, which is for a crashed/result-less claude). The
 	// failure detail is preserved in the result activity above (is_error/subtype/result).
 	if ev.Type == "result" && ev.IsError {
+		// LLM 服务端限流自动恢复: if the turn ended because of a server-side rate-limit,
+		// schedule an automatic resume (re-drive the SAME work after the window clears)
+		// instead of abandoning it via surfaceTurnFailure. Falls through to the normal
+		// failure surface when it is not a rate-limit / there is nothing to resume.
+		if c.maybeScheduleRateLimitResume(agentID, ev, rlRetryAfter, rlResetAt) {
+			return
+		}
 		c.surfaceTurnFailure(agentID, ev)
 	}
 

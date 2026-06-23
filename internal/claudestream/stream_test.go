@@ -180,6 +180,46 @@ func TestParseStreamLine_RateLimit(t *testing.T) {
 	}
 }
 
+// TestParseStreamLine_RateLimitWindow pins that the rate-limit window (retry_after /
+// resets_at) is extracted from the claude rate_limit_event line — flat and nested
+// shapes, both spellings of the reset timestamp — so the daemon can time an
+// automatic resume. A line with no window degrades to a zero window (no error).
+func TestParseStreamLine_RateLimitWindow(t *testing.T) {
+	cases := []struct {
+		name           string
+		line           string
+		wantRetryAfter int
+		wantResetAt    int64
+	}{
+		{"flat retry_after", `{"type":"rate_limit_event","retry_after":30}`, 30, 0},
+		{"flat resets_at", `{"type":"rate_limit_event","resets_at":1700000000}`, 0, 1700000000},
+		{"flat reset_at spelling", `{"type":"rate_limit_event","reset_at":1700000123}`, 0, 1700000123},
+		{"nested rate_limit", `{"type":"rate_limit_event","rate_limit":{"retry_after":12,"resets_at":1700000777}}`, 12, 1700000777},
+		{"both flat", `{"type":"rate_limit_event","retry_after":7,"resets_at":1700000999}`, 7, 1700000999},
+		{"no window", `{"type":"rate_limit_event"}`, 0, 0},
+		{"negative ignored", `{"type":"rate_limit_event","retry_after":-3}`, 0, 0},
+		{"negative resets_at ignored", `{"type":"rate_limit_event","resets_at":-9}`, 0, 0},
+		{"nested fills missing flat", `{"type":"rate_limit_event","retry_after":4,"rate_limit":{"resets_at":1700001234}}`, 4, 1700001234},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			evs, err := ParseStreamLine([]byte(tc.line))
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			if len(evs) != 1 || evs[0].Type != "rate_limit" {
+				t.Fatalf("want one rate_limit event, got %+v", evs)
+			}
+			if got := evs[0].RetryAfterSecs; got != tc.wantRetryAfter {
+				t.Fatalf("RetryAfterSecs = %d, want %d", got, tc.wantRetryAfter)
+			}
+			if got := evs[0].ResetAtUnix; got != tc.wantResetAt {
+				t.Fatalf("ResetAtUnix = %d, want %d", got, tc.wantResetAt)
+			}
+		})
+	}
+}
+
 func TestParseStreamLine_UnknownTopLevel(t *testing.T) {
 	evs, err := ParseStreamLine([]byte(`{"type":"some_future_thing","foo":1}`))
 	if err != nil {

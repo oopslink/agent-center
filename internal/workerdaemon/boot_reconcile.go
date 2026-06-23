@@ -515,10 +515,7 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	if !nudge {
 		return nil
 	}
-	msg := c.cfg.ResumeNudge
-	if strings.TrimSpace(msg) == "" {
-		msg = DefaultResumeNudge
-	}
+	msg := c.resumeNudgeText()
 	c.mu.Lock()
 	ma := c.agents[agentID]
 	var sess agentSession
