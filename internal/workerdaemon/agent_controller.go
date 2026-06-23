@@ -156,11 +156,11 @@ type reconcilePayload struct {
 	// loop). Model/CLI are applied at spawn today; reasoning/mode/provider are
 	// reserved here for the spawn wiring (the supervisor→claude exec flags), which
 	// lands as the CLI adapter gains flag support. Empty = runtime default.
-	Reasoning        string `json:"reasoning,omitempty"`
-	Mode             string `json:"mode,omitempty"`
-	Provider         string `json:"provider,omitempty"`
-	Version          int    `json:"version"`
-	ResetScope       string `json:"reset_scope,omitempty"`
+	Reasoning  string `json:"reasoning,omitempty"`
+	Mode       string `json:"mode,omitempty"`
+	Provider   string `json:"provider,omitempty"`
+	Version    int    `json:"version"`
+	ResetScope string `json:"reset_scope,omitempty"`
 }
 
 // workPayload decodes an "agent.work" command payload. Matches
@@ -1386,6 +1386,66 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	if ev.Type == "result" && ev.IsError {
 		c.surfaceTurnFailure(agentID, ev)
 	}
+
+	// T341 reply-guardrail (方案 A): a CLEAN turn-end is the natural "the agent
+	// reached a stopping point" moment. Ask the center whether this agent still
+	// owes any human/agent-directed reply it perceived but never sent, and inject
+	// a bounded re-inject nudge so the agent itself discharges it. Runs only on a
+	// non-error `result` (an is_error turn is handled above). Off the reader
+	// goroutine — the fetch is a network round-trip and must not stall the stream.
+	if ev.Type == "result" && !ev.IsError {
+		go c.maybeReplyNudge(agentID)
+	}
+}
+
+// maybeReplyNudge is the worker half of the reply-guardrail turn-end hook (T341).
+// It asks the center for the directed replies this agent still owes and injects
+// each returned prompt into the live session so the agent replies (or explicitly
+// declines) itself (方案 A). The SERVER is the actual guardrail — it derives
+// obligations from the message log + read-state, gates agent-authored ones through
+// the shared wake-guardrail, and bounds re-injects by max_nudges + cooldown — so
+// this side stays deliberately thin: it fires once per clean turn-end and trusts
+// the server to return an empty slice in the (common) no-obligation case.
+//
+// It skips when the agent is anchored to an in-flight CONVERSATION turn
+// (currentConversationID != ""): that agent is actively conversing and its own
+// reply loop owns the discharge; nudging mid-conversation would be premature
+// (design §5-②, "不误伤" an agent that is already replying). It does NOT gate on
+// currentTaskID — that pointer lingers as the "last work injected" anchor and
+// would over-suppress; the server's cooldown + perceived/discharge gating is the
+// real bound. Best-effort throughout: a missing session or a fetch error is
+// logged and dropped (the guardrail is a safety net, never a critical path).
+func (c *AgentController) maybeReplyNudge(agentID string) {
+	c.mu.Lock()
+	var sess agentSession
+	var inConverse bool
+	if ma := c.agents[agentID]; ma != nil {
+		sess = ma.session
+		inConverse = ma.currentConversationID != ""
+	}
+	c.mu.Unlock()
+	if sess == nil || inConverse {
+		return
+	}
+	if c.cfg.Reporter == nil {
+		return
+	}
+	ctx := context.Background()
+	prompts, err := c.cfg.Reporter.FetchReplyNudges(ctx, agentID)
+	if err != nil {
+		c.log("reply-guardrail agent=%s fetch nudges: %v", agentID, err)
+		return
+	}
+	for _, p := range prompts {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		if err := sess.Inject(ctx, p); err != nil {
+			c.log("reply-guardrail agent=%s inject nudge: %v", agentID, err)
+			return // session closed mid-loop — stop; a later turn-end will retry
+		}
+		c.log("reply-guardrail agent=%s injected directed-reply nudge", agentID)
+	}
 }
 
 // surfaceTurnFailure fails the agent's in-flight WorkItem after an is_error turn
@@ -1596,11 +1656,11 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	}
 	detaching := ma.detaching
 	expected := ma.expectedStop
-	version := ma.appliedVersion       // captured for a possible self-heal relaunch
-	hadWork := ma.hadWork              // injected work → nudge on self-heal relaunch
-	taskID := ma.currentTaskID // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
-	model := ma.model                  // agent's --model → carry across crash so self-heal re-drive uses the SAME model
-	cli := ma.cli                      // codex agents skip the supervisor self-heal machinery (no epoch/fork)
+	version := ma.appliedVersion // captured for a possible self-heal relaunch
+	hadWork := ma.hadWork        // injected work → nudge on self-heal relaunch
+	taskID := ma.currentTaskID   // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
+	model := ma.model            // agent's --model → carry across crash so self-heal re-drive uses the SAME model
+	cli := ma.cli                // codex agents skip the supervisor self-heal machinery (no epoch/fork)
 	// Clear the entry: this daemon no longer tracks the session (on detach the
 	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)

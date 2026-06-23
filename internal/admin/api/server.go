@@ -358,6 +358,11 @@ func (s *Server) routes() {
 	// visible system message into the conversation so the human isn't left in a
 	// silent black hole. Same requireAgentOnWorker guardrail + participant check.
 	s.mux.HandleFunc("POST /admin/environment/agent/converse-error", s.envAgentConverseErrorHandler)
+	// T341 reply-guardrail: controller→center at turn-end + TrueIdle. The server
+	// derives the agent's outstanding directed replies, gates agent-authored ones
+	// through the shared wake-guardrail, and returns bounded re-inject prompts the
+	// controller injects (方案 A). Same requireAgentOnWorker guardrail.
+	s.mux.HandleFunc("POST /admin/environment/agent/reply-nudges", s.envAgentReplyNudgesHandler)
 
 	// --- agent tools (v2.7 D2-b1, ADR-0049) ------------------------------
 	// Per-agent MCP tool surface. ADDITIVE — rides the same bearer auth as

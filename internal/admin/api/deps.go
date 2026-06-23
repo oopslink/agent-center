@@ -60,6 +60,12 @@ type HandlerDeps struct {
 	// the agent's unread messages directed at it (DM-all + channel-@mention),
 	// org-scoped, across its conversations. nil → get_my_unread returns 501.
 	InboxSvc *convservice.AgentInboxService
+	// ReplyNudgeSvc backs the reply-guardrail (T341): given an idle agent, it
+	// derives the directed replies it still owes, gates agent-authored ones through
+	// the shared wake-guardrail, and returns bounded re-inject nudges. The worker
+	// calls /admin/environment/agent/reply-nudges at turn-end + TrueIdle and injects
+	// the prompts. nil → the endpoint returns 501 (feature off).
+	ReplyNudgeSvc *convservice.ReplyNudgeService
 
 	// Workforce BC
 	WorkerRepo        workforce.WorkerRepository

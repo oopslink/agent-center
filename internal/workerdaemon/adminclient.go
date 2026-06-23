@@ -409,10 +409,10 @@ type ResumeState struct {
 // ResumeAgent is one resumable agent: its desired lifecycle + version (+
 // reset_scope reserved for f-3) and its in-flight WorkItems.
 type ResumeAgent struct {
-	AgentID          string           `json:"agent_id"`
-	DesiredLifecycle string           `json:"desired_lifecycle"`
-	Model            string           `json:"model"`
-	Version          int              `json:"version"`
+	AgentID          string       `json:"agent_id"`
+	DesiredLifecycle string       `json:"desired_lifecycle"`
+	Model            string       `json:"model"`
+	Version          int          `json:"version"`
 	ResetScope       string       `json:"reset_scope"`
 	Tasks            []ResumeTask `json:"tasks"`
 }
@@ -499,6 +499,14 @@ type feedbackReporter interface {
 	// a DM/channel reply that failed, e.g. invalid model → claude 404). summary is
 	// a short failure description (subtype + bounded result text).
 	ReportConverseError(ctx context.Context, agentID, conversationID, summary string, at time.Time) error
+	// FetchReplyNudges asks the center, at turn-end, which directed replies the
+	// agent still owes (T341 方案 A). The server derives them from the message log +
+	// read-state, gates agent-authored ones through the shared wake-guardrail, and
+	// returns bounded re-inject prompts the controller injects so the agent itself
+	// discharges the obligation. An empty slice means "nothing owed" (the common
+	// case); errors are best-effort (logged, never fatal — the guardrail is a
+	// safety net, not a critical path).
+	FetchReplyNudges(ctx context.Context, agentID string) ([]string, error)
 }
 
 // var _ feedbackReporter asserts *AdminClient satisfies the controller seam.
@@ -596,6 +604,26 @@ func (c *AdminClient) ReportConverseError(ctx context.Context, agentID, conversa
 		body["at"] = at.UTC().Format(time.RFC3339Nano)
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/converse-error", body, nil)
+}
+
+// FetchReplyNudges POSTs to /admin/environment/agent/reply-nudges (T341). The
+// controller calls it at turn-end + TrueIdle; the server derives the agent's
+// outstanding directed replies, gates agent-authored ones through the shared
+// wake-guardrail, and returns the bounded re-inject prompts the controller injects
+// (方案 A). agent_id is the execution-entity id; the server resolves the agent's
+// org/display-name/identity-member. Returns the prompts (possibly empty).
+func (c *AdminClient) FetchReplyNudges(ctx context.Context, agentID string) ([]string, error) {
+	if strings.TrimSpace(agentID) == "" {
+		return nil, errors.New("adminclient: agent_id required")
+	}
+	var resp struct {
+		Prompts []string `json:"prompts"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/reply-nudges",
+		map[string]any{"agent_id": agentID}, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Prompts, nil
 }
 
 // doJSON is the shared request helper. Returns a typed error on non-2xx

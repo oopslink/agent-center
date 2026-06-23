@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/agent"
@@ -13,6 +14,7 @@ import (
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/conversation/replyguard"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -489,6 +491,77 @@ func TestEnvAgentConverseError_NotParticipant_403(t *testing.T) {
 	})
 	if status != http.StatusForbidden || body["error"] != "not_a_participant" {
 		t.Fatalf("status = %d body = %v, want 403 not_a_participant", status, body)
+	}
+}
+
+// --- reply-guardrail (T341) -------------------------------------------------
+
+// wireReplyGuardrail attaches a real ReplyNudgeService (human-only: nil
+// wake-guard) backed by the fixture's conversation repos.
+func (f *fbFixture) wireReplyGuardrail() {
+	obl := convservice.NewReplyObligationService(f.deps.DB, f.convs, f.readState)
+	f.deps.ReplyNudgeSvc = convservice.NewReplyNudgeService(obl, nil, replyguard.DefaultConfig, f.clk)
+}
+
+// TestEnvAgentReplyNudges_ReturnsPrompts is the happy path: an agent that
+// perceived a human DM but never replied gets back exactly one re-inject prompt
+// naming the source conversation (方案 A).
+func TestEnvAgentReplyNudges_ReturnsPrompts(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
+	f.wireReplyGuardrail()
+	convID := f.seedConvWithAgentParticipant(t, "dm-1", atAgent1)
+	f.appendMsg(t, convID, "user:alice", "please look at this")
+	f.clk.Advance(31 * time.Second) // exceed idle_grace(30s) → perceived w/o mark_seen
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/environment/agent/reply-nudges", "acat_fb_w1", map[string]any{
+		"agent_id": atAgent1,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d body = %v, want 200", status, body)
+	}
+	prompts, ok := body["prompts"].([]any)
+	if !ok || len(prompts) != 1 {
+		t.Fatalf("want 1 prompt, got %v", body["prompts"])
+	}
+	if !strings.Contains(prompts[0].(string), convID) {
+		t.Fatalf("prompt should name the source conversation %q, got %q", convID, prompts[0])
+	}
+}
+
+// TestEnvAgentReplyNudges_NotWired_501 pins the feature-off contract: a nil
+// ReplyNudgeSvc returns 501 (after the per-agent guardrail passes).
+func TestEnvAgentReplyNudges_NotWired_501(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	f.seedAgentLifecycle(t, atAgent1, atWorker1, agent.LifecycleRunning)
+	// deps.ReplyNudgeSvc deliberately left nil.
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/environment/agent/reply-nudges", "acat_fb_w1", map[string]any{
+		"agent_id": atAgent1,
+	})
+	if status != http.StatusNotImplemented || body["error"] != "reply_guardrail_not_wired" {
+		t.Fatalf("want 501 reply_guardrail_not_wired, got %d %v", status, body)
+	}
+}
+
+// TestEnvAgentReplyNudges_CrossWorker_403 pins the per-agent guardrail: a worker
+// may only fetch reply-nudges for an agent bound to ITSELF.
+func TestEnvAgentReplyNudges_CrossWorker_403(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_fb_w1", atWorker1)
+	f.seedAgentLifecycle(t, atAgent2, atWorker2, agent.LifecycleRunning)
+	f.wireReplyGuardrail()
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/environment/agent/reply-nudges", "acat_fb_w1", map[string]any{
+		"agent_id": atAgent2,
+	})
+	if status != http.StatusForbidden || body["error"] != "agent_not_bound_to_worker" {
+		t.Fatalf("want 403 agent_not_bound_to_worker, got %d %v", status, body)
 	}
 }
 
