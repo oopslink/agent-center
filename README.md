@@ -45,6 +45,14 @@ The Web Console is the day-to-day surface — conversations, plans, members, and
 <br/>
 
 <p align="center">
+  <img src="./assets/screenshots/web-console-work-board.png" alt="Web Console — a project Work Board with Backlog, Assignment Pool, and structured Plan columns" width="820">
+  <br/>
+  <em>Work Board — a project's tasks across Backlog · Assignment Pool (open-to-claim) · structured Plans.</em>
+</p>
+
+<br/>
+
+<p align="center">
   <img src="./assets/screenshots/web-console-plan-dag.png" alt="Web Console — a Plan's execution DAG with task nodes and dependency edges" width="820">
   <br/>
   <em>Plan execution DAG — node status is derived from the live task graph; drag a node's <code>+ Dep</code> handle to add a dependency.</em>
