@@ -538,6 +538,78 @@ func TestAgentController_WorkAvailable_NoSession_RelaunchesDownAgent(t *testing.
 	}
 }
 
+// TestAgentController_WorkAvailable_TrackedDeadSession_RelaunchesPastAppliedVersion is
+// the load-bearing guard for the T335 SECOND net (the server-side session-heal sweep,
+// task-c7298a2e): the sweep re-emits agent.work_available — NOT agent.reconcile —
+// precisely because a same-version reconcile is swallowed by the appliedVersion replay
+// guard (reconcile(): version <= appliedVersion → no-op, never relaunches). This pins
+// that the work_available path does NOT consult that guard: a DEAD-BUT-TRACKED agent
+// (managedAgent present with a HIGH appliedVersion but session==nil) is still
+// relaunched. If a future refactor ever routed work_available through the
+// version-guarded reconcile path, this fails (0 starts) and the whole server sweep
+// goes silently dead.
+func TestAgentController_WorkAvailable_TrackedDeadSession_RelaunchesPastAppliedVersion(t *testing.T) {
+	base := t.TempDir()
+	resumer := &fakeResumer{state: ResumeState{Agents: []ResumeAgent{
+		{AgentID: "agent-1", DesiredLifecycle: "running", Version: 7},
+	}}}
+	c, rs := newTestControllerWithResumer(t, base, resumer)
+	defer c.Shutdown(context.Background())
+	writeBootInstance(t, filepath.Join(base, "agents", "agent-1"), "agent-1")
+
+	// Dead-but-TRACKED: an entry exists with a high appliedVersion (a same-version
+	// reconcile would be a replay no-op here), but its session is dead (nil).
+	c.mu.Lock()
+	c.agents["agent-1"] = &managedAgent{agentID: "agent-1", appliedVersion: 99}
+	c.mu.Unlock()
+
+	if err := c.Handle(context.Background(), workAvailableCmd(t, "agent-1", "wi-1", 1)); err != nil {
+		t.Fatalf("work_available must ack, got err: %v", err)
+	}
+	if rs.count() != 1 {
+		t.Fatalf("a dead-but-tracked agent (appliedVersion=99) must STILL relaunch on work_available — the work_available path must not consult the reconcile appliedVersion guard; got %d starts", rs.count())
+	}
+}
+
+// TestAgentController_WorkAvailable_ResendWhileDown_RelaunchesEachTime pins the
+// bring-up-BEFORE-dedup ordering the server sweep relies on: the sweep re-emits a wake
+// every tick while an agent is down, and a RESEND for the SAME (agent, task) must
+// relaunch AGAIN rather than be swallowed by the per-(agent,task) coalesce dedup
+// (recordWorkAvail). The sess==nil bring-up short-circuits before that dedup, so as
+// long as the session stays dead each resend retries the relaunch.
+func TestAgentController_WorkAvailable_ResendWhileDown_RelaunchesEachTime(t *testing.T) {
+	base := t.TempDir()
+	resumer := &fakeResumer{state: ResumeState{Agents: []ResumeAgent{
+		{AgentID: "agent-1", DesiredLifecycle: "running", Version: 5},
+	}}}
+	c, rs := newTestControllerWithResumer(t, base, resumer)
+	defer c.Shutdown(context.Background())
+	writeBootInstance(t, filepath.Join(base, "agents", "agent-1"), "agent-1")
+
+	// First resend (same task id a coalesce dedup would key on).
+	if err := c.Handle(context.Background(), workAvailableCmd(t, "agent-1", "wi-1", 1)); err != nil {
+		t.Fatalf("work_available #1 must ack, got err: %v", err)
+	}
+	if rs.count() != 1 {
+		t.Fatalf("want 1 relaunch after first wake, got %d", rs.count())
+	}
+
+	// The relaunch tracked a (fake) live session; simulate it dying again so the agent
+	// is still down when the sweep's next tick resends the SAME wake.
+	c.mu.Lock()
+	if ma := c.agents["agent-1"]; ma != nil {
+		ma.session = nil
+	}
+	c.mu.Unlock()
+
+	if err := c.Handle(context.Background(), workAvailableCmd(t, "agent-1", "wi-1", 2)); err != nil {
+		t.Fatalf("work_available #2 must ack, got err: %v", err)
+	}
+	if rs.count() != 2 {
+		t.Fatalf("a resent wake for a STILL-down agent must relaunch again (bring-up precedes dedup), got %d starts", rs.count())
+	}
+}
+
 // TestAgentController_WorkAvailable_NoSession_DesiredStoppedNoRelaunch: a wake for a
 // down agent the center wants STOPPED must NOT resurrect it (a queued WI under a
 // stopped agent is the rollback/reset path's job). Still acks (no wedge).
