@@ -35,6 +35,34 @@
 
 <br/>
 
+## 截图
+
+Web Console 是日常操作面 —— 会话、Plan、成员、舰队状态 —— 并且完全响应式(桌面侧栏在移动端会收成底部 Tab 栏)。
+
+<p align="center">
+  <img src="./assets/screenshots/web-console-conversations.png" alt="Web Console —— 频道会话,左侧 Channels/DMs 栏,右侧参与者 / Threads / Files" width="820">
+  <br/>
+  <em>会话 —— 频道 &amp; DM,带参与者、Threads、Files 与未读汇总。Task / Issue / Plan 都挂在各自的线程上。</em>
+</p>
+
+<br/>
+
+<p align="center">
+  <img src="./assets/screenshots/web-console-plan-dag.png" alt="Web Console —— Plan 执行 DAG,任务节点与依赖边" width="820">
+  <br/>
+  <em>Plan 执行 DAG —— 节点状态由实时任务图派生;拖节点的 <code>+ Dep</code> 手柄即可加依赖。</em>
+</p>
+
+<br/>
+
+<p align="center">
+  <img src="./assets/screenshots/mobile-chat.png" alt="移动端 Web Console —— 频道聊天 + 底部 Tab 栏" width="300">
+  <br/>
+  <em>移动端 —— 同一个控制台在手机上:聊天、Plan、成员、提醒都通过底部 Tab 栏。</em>
+</p>
+
+<br/>
+
 ## 安装
 
 `agent-center` 现在是**装一次跑全套**。解压官方 tarball 后，两条命令分别装 center 和 worker：

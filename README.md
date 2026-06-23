@@ -32,6 +32,34 @@
 
 <br/>
 
+## Screenshots
+
+The Web Console is the day-to-day surface — conversations, plans, members, and fleet status — and is fully responsive (the desktop rail reflows to a bottom tab bar on mobile).
+
+<p align="center">
+  <img src="./assets/screenshots/web-console-conversations.png" alt="Web Console — a channel conversation with the Channels/DMs rail, participants, threads and files" width="820">
+  <br/>
+  <em>Conversations — channels &amp; DMs with participants, threads, files, and an unread digest. Tasks / Issues / Plans all hang off their own threads.</em>
+</p>
+
+<br/>
+
+<p align="center">
+  <img src="./assets/screenshots/web-console-plan-dag.png" alt="Web Console — a Plan's execution DAG with task nodes and dependency edges" width="820">
+  <br/>
+  <em>Plan execution DAG — node status is derived from the live task graph; drag a node's <code>+ Dep</code> handle to add a dependency.</em>
+</p>
+
+<br/>
+
+<p align="center">
+  <img src="./assets/screenshots/mobile-chat.png" alt="agent-center Web Console on mobile — a channel chat with the bottom tab bar" width="300">
+  <br/>
+  <em>Mobile — the same console on a phone: chat, plans, members and reminders via the bottom tab bar.</em>
+</p>
+
+<br/>
+
 ## Install
 
 `agent-center` is **install-once-and-go**. One command installs the center, one installs each worker, and a matching pair of `upgrade` commands moves an existing install forward (atomic symlink swap + health probe + auto-rollback). Supported on macOS (this cycle's acceptance target) and Linux (systemd unit installed automatically; full validation deferred).
