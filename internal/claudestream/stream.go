@@ -70,6 +70,16 @@ type StreamEvent struct {
 	// done; a WorkItem can span multiple turns.)
 	IsError bool
 
+	// RetryAfterSecs / ResetAtUnix carry the rate-limit window parsed from a
+	// "rate_limit" event (the claude `rate_limit_event` line). RetryAfterSecs is the
+	// `retry_after` seconds-to-wait; ResetAtUnix is the absolute window-clears
+	// timestamp (`resets_at`/`reset_at`, unix seconds). 0 = the field was absent.
+	// Only meaningful for a "rate_limit" event. The workerdaemon uses whichever is
+	// present to schedule an automatic resume after the limit window clears, instead
+	// of abandoning the in-flight turn (issue: LLM 服务端限流自动恢复).
+	RetryAfterSecs int
+	ResetAtUnix    int64
+
 	// Raw is the originating bytes for the activity payload: the whole line for
 	// top-level events (system/result/rate_limit/unknown), or the marshaled
 	// content block for per-block events (assistant_text/thinking/tool_use/
@@ -164,10 +174,9 @@ func ParseStreamLine(line []byte) ([]StreamEvent, error) {
 		return []StreamEvent{ev}, nil
 
 	case "rate_limit_event":
-		return []StreamEvent{{
-			Type: "rate_limit",
-			Raw:  cloneRaw(line),
-		}}, nil
+		ev := StreamEvent{Type: "rate_limit", Raw: cloneRaw(line)}
+		ev.RetryAfterSecs, ev.ResetAtUnix = parseRateLimitWindow(line)
+		return []StreamEvent{ev}, nil
 
 	default:
 		// Forward-compatible: a top-level type this version doesn't model maps
@@ -253,6 +262,58 @@ func parseContentBlocks(rawMsg json.RawMessage, fromUser bool) []StreamEvent {
 		}
 	}
 	return out
+}
+
+// parseRateLimitWindow extracts the rate-limit window from a claude
+// `rate_limit_event` line. The field layout has varied across claude versions, so
+// it parses DEFENSIVELY: both the flat shape ({"retry_after":N,"resets_at":T}) and
+// the nested shape ({"rate_limit":{"retry_after":N,"resets_at":T}}), accepting
+// either `resets_at` or `reset_at` for the absolute timestamp. A malformed line or
+// absent fields degrade to (0, 0) — never an error (the caller already has the raw
+// line + a usable "rate_limit" event; a missing window just falls back to a
+// default backoff downstream).
+func parseRateLimitWindow(line []byte) (retryAfterSecs int, resetAtUnix int64) {
+	var rl struct {
+		RetryAfter int   `json:"retry_after"`
+		ResetsAt   int64 `json:"resets_at"`
+		ResetAt    int64 `json:"reset_at"`
+		RateLimit  *struct {
+			RetryAfter int   `json:"retry_after"`
+			ResetsAt   int64 `json:"resets_at"`
+			ResetAt    int64 `json:"reset_at"`
+		} `json:"rate_limit"`
+	}
+	if err := json.Unmarshal(line, &rl); err != nil {
+		return 0, 0
+	}
+	retryAfterSecs = rl.RetryAfter
+	resetAtUnix = firstNonZero64(rl.ResetsAt, rl.ResetAt)
+	if rl.RateLimit != nil {
+		if retryAfterSecs == 0 {
+			retryAfterSecs = rl.RateLimit.RetryAfter
+		}
+		if resetAtUnix == 0 {
+			resetAtUnix = firstNonZero64(rl.RateLimit.ResetsAt, rl.RateLimit.ResetAt)
+		}
+	}
+	if retryAfterSecs < 0 {
+		retryAfterSecs = 0
+	}
+	if resetAtUnix < 0 {
+		resetAtUnix = 0
+	}
+	return retryAfterSecs, resetAtUnix
+}
+
+// firstNonZero64 returns the first non-zero value (the parser accepts more than one
+// spelling of the same field; whichever was present wins).
+func firstNonZero64(vals ...int64) int64 {
+	for _, v := range vals {
+		if v != 0 {
+			return v
+		}
+	}
+	return 0
 }
 
 // cloneRaw returns a defensive copy of b so the parsed event does not alias the

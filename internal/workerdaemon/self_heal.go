@@ -196,6 +196,12 @@ func (c *AgentController) OnTick(ctx context.Context) {
 	for _, d := range dues {
 		c.selfHealRelaunch(ctx, d.agentID, d.version, d.nudge, d.taskID, d.model, d.attempt)
 	}
+
+	// LLM 服务端限流自动恢复: re-drive any agent whose rate-limit window has cleared.
+	// Unlike self-heal this needs NO relaunch — the session stayed alive across the
+	// rate-limit; we just inject the resume nudge into the live session. See
+	// rate_limit.go.
+	c.drainRateLimitResumes(ctx, now)
 }
 
 // selfHealRelaunch performs ONE due relaunch on the ControlLoop goroutine: acquire
