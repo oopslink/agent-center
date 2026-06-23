@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
@@ -123,6 +125,20 @@ type WakeProjector struct {
 	// always bypass. wakeGuard holds the rate/cycle runtime state, so it MUST be a
 	// process singleton shared across deliveries (wired once in app composition).
 	wakeGuard *wakeguard.Guard
+
+	// T335 follow-up — server-side periodic session-heal sweep (see wake_sweep.go).
+	// sweepCandidates lists agents that are desired-running but have queued runnable
+	// work and no running task (≈ a dropped/idle session). nil → ReconcileOnce stays a
+	// no-op (dormant until wired, preserving the post-F7 behavior). sweepGrace is the
+	// per-agent debounce window (<=0 → defaultSweepGrace). sweepGiveUp raises the
+	// visible signal when an agent crosses the give-up cap (nil → silent give-up).
+	// sweepState/sweepMu hold the per-agent debounce+backoff memory across ticks
+	// (in-memory only; reset on restart).
+	sweepCandidates func(ctx context.Context) ([]SweepCandidate, error)
+	sweepGrace      time.Duration
+	sweepGiveUp     func(ctx context.Context, c SweepCandidate)
+	sweepMu         sync.Mutex
+	sweepState      map[string]*sweepAgentState
 }
 
 // WakeProjectorDeps bundles the projector's dependencies.
@@ -159,6 +175,13 @@ type WakeProjectorDeps struct {
 	// ungated). A process singleton (holds rate/cycle state) built from the
 	// settings-driven Config in app composition.
 	WakeGuard *wakeguard.Guard
+
+	// T335 follow-up — server-side session-heal sweep (optional). SweepCandidates
+	// nil → ReconcileOnce is a no-op (dormant). SweepGrace <=0 → defaultSweepGrace.
+	// SweepGiveUp nil → give-up is silent (no escalation signal).
+	SweepCandidates func(ctx context.Context) ([]SweepCandidate, error)
+	SweepGrace      time.Duration
+	SweepGiveUp     func(ctx context.Context, c SweepCandidate)
 }
 
 // NewWakeProjector constructs the projector.
@@ -183,6 +206,10 @@ func NewWakeProjector(d WakeProjectorDeps) *WakeProjector {
 		issueTitle:          d.IssueTitle,
 		taskTitle:           d.TaskTitle,
 		wakeGuard:           d.WakeGuard,
+		sweepCandidates:     d.SweepCandidates,
+		sweepGrace:          d.SweepGrace,
+		sweepGiveUp:         d.SweepGiveUp,
+		sweepState:          make(map[string]*sweepAgentState),
 	}
 }
 
@@ -836,14 +863,70 @@ func renderInboundAttachments(atts []wakeAttachment) string {
 
 // ReconcileOnce is the poll-fallback sweep hook for the WakeReconcileLoop.
 //
-// v2.14.0 F7 (issue I14): the D2-e-iii poll-fallback sweep recomputed unread for
-// every waiting_input AgentWorkItem and re-enqueued any pending batch flush. With
-// AgentWorkItem retired (input-required is now a Task-level block, not a
-// per-WorkItem waiting_input state) there is no WorkItem set to sweep, so this is
-// a no-op. The loop wiring is kept so re-introducing a task-level sweep later is a
-// one-method change.
-func (p *WakeProjector) ReconcileOnce(_ context.Context) error {
-	return nil
+// v2.14.0 F7 (issue I14) emptied this when AgentWorkItem retired (the old
+// waiting_input WorkItem sweep had nothing left to scan). T335 follow-up re-homes a
+// TASK-level sweep here: the SERVER-side session-heal backstop (see wake_sweep.go).
+// Each tick it asks sweepCandidates for agents that are desired-running but have
+// queued runnable work and no running task (≈ a dropped/idle session whose wake was
+// lost), applies the per-agent grace + backoff + give-up debounce, and re-emits
+// agent.work_available for the due ones — which routes through the T335
+// workAvailable→relaunchForWake path that relaunches a down session (a same-version
+// agent.reconcile would instead be swallowed by the daemon's appliedVersion guard).
+//
+// Dormant when SweepCandidates is nil (the post-F7 no-op). Best-effort and
+// non-wedging: a per-candidate append error is collected but never aborts the rest,
+// and the loop logs whatever is returned and retries next tick (with a fresh epoch
+// key, so a transient failure is cleanly re-attempted).
+func (p *WakeProjector) ReconcileOnce(ctx context.Context) error {
+	if p.sweepCandidates == nil {
+		return nil // dormant until wired
+	}
+	cands, err := p.sweepCandidates(ctx)
+	if err != nil {
+		return err
+	}
+	due, giveUp := p.selectDueSweeps(cands)
+
+	for _, c := range giveUp {
+		// Escalate ONCE: the sweep nudged this desired-running agent the cap's worth of
+		// times and it still has no running session — surface it (the hook logs warn /
+		// raises a human-facing obstacle) instead of slow-retrying silently forever.
+		if p.sweepGiveUp != nil {
+			p.sweepGiveUp(ctx, c)
+		}
+	}
+	if len(due) == 0 {
+		return nil
+	}
+
+	// One epoch per tick → a fresh idempotency key each tick (the ControlLog dedups on
+	// UNIQUE(worker_id, idempotency_key); a stable key would fold re-emits into one row
+	// and a down agent would be nudged at most once). UnixNano advances between 60s
+	// ticks trivially; within a tick all candidates share the epoch but differ by
+	// agent/task, so keys stay unique.
+	epoch := strconv.FormatInt(p.clock.Now().UnixNano(), 10)
+	var firstErr error
+	for _, c := range due {
+		payload, mErr := json.Marshal(sweepWakePayload{AgentID: c.AgentID, TaskID: c.TaskID})
+		if mErr != nil {
+			if firstErr == nil {
+				firstErr = mErr
+			}
+			continue
+		}
+		if _, aErr := p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+			WorkerID:       environment.WorkerID(c.WorkerID),
+			CommandType:    commandTypeWorkAvailable,
+			Payload:        string(payload),
+			IdempotencyKey: "sweep.wake:" + c.AgentID + ":" + c.TaskID + ":" + epoch,
+		}); aErr != nil {
+			if firstErr == nil {
+				firstErr = aErr
+			}
+			continue
+		}
+	}
+	return firstErr
 }
 
 var _ outbox.Projector = (*WakeProjector)(nil)

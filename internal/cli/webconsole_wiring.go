@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -186,13 +187,29 @@ func (a *App) outboxProjectors(
 		}
 		return wakeguard.ConfigFromMap(m)
 	})
+	sweepAgentRepo := agentsql.NewAgentRepo(a.DB)
 	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
 		DB:         a.DB,
-		Agents:     agentsql.NewAgentRepo(a.DB),
+		Agents:     sweepAgentRepo,
 		ControlLog: controlLog,
 		Applied:    appliedRepo,
 		Clock:      a.Clock,
 		WakeGuard:  wakeGuard,
+		// T335 follow-up — server-side session-heal sweep (the second net). The
+		// WakeReconcileLoop drives ReconcileOnce on a 60s tick; it re-emits
+		// agent.work_available for desired-running agents that have queued runnable work
+		// but no running session (≈ a dropped wake), which routes through the T335
+		// relaunch path. Grace=60s (one tick) debounces a normally-booting session; a
+		// stuck-forever agent is bounded by backoff + a give-up cap that escalates once.
+		SweepGrace:      60 * time.Second,
+		SweepCandidates: buildSweepCandidates(a.PMService, sweepAgentRepo),
+		SweepGiveUp: func(_ context.Context, c envservice.SweepCandidate) {
+			// The sweep nudged this desired-running agent the cap's worth of times and it
+			// still has no running session — surface it for a human instead of slow-
+			// retrying silently. (control_events has no global GC today — issue-b71ee81f.)
+			slog.Warn("session-heal sweep gave up: desired-running agent never came back up",
+				"agent_id", c.AgentID, "worker_id", c.WorkerID, "task_id", c.TaskID)
+		},
 		// v2.7 D2-e-ii (OQ5 method 甲): batch-flush deps. When an agent ENTERS
 		// waiting_input (request_input → agent.awaiting_input) the projector reads
 		// its read-state cursor + the task conversation messages and enqueues ONE

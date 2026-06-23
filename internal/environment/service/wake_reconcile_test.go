@@ -6,8 +6,9 @@ import (
 	"time"
 )
 
-// ReconcileOnce is now a no-op (the waiting_input WorkItem sweep was removed with
-// the AgentWorkItem domain). It must still return nil and never panic.
+// With no SweepCandidates wired (the fixture default), ReconcileOnce is dormant — it
+// returns nil, enqueues nothing, and never panics. (The session-heal sweep behavior
+// when candidates ARE wired is covered in wake_sweep_test.go.)
 func TestReconcileOnce_NoOp(t *testing.T) {
 	f := newWakeFixture(t)
 	if err := f.proj.ReconcileOnce(f.ctx); err != nil {
