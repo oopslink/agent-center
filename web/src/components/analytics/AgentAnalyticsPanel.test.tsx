@@ -51,6 +51,9 @@ describe('AgentAnalyticsPanel', () => {
     renderWithQuery(<AgentAnalyticsPanel agentId="a1" />);
     await waitFor(() => expect(screen.getByTestId('agent-analytics')).toBeInTheDocument());
     expect(screen.getByTestId('analytics-overview-cards')).toBeInTheDocument();
+    // F7: the F5 heatmap renders between the cards and the trend, fed by the same
+    // series fetch (no extra request).
+    expect(screen.getByTestId('agent-heatmap')).toBeInTheDocument();
     expect(screen.getByTestId('analytics-trend')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('analytics-top-tasks')).toBeInTheDocument());
     expect(screen.getByTestId('top-task-label-task-1')).toHaveTextContent('Build the thing');
