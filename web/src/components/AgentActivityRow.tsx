@@ -18,6 +18,11 @@ const CAT_CHECKING: Category = { key: 'checking', label: 'Checking messages', cl
 // SEARCH_TOOLS — Q2; tool_result ok/error via payload.ok — Q3).
 const CAT_TOOL_USE: Category = { key: 'tool_use', label: 'Tool', cls: 'text-brand', dot: 'bg-brand' };
 const CAT_TOOL_RESULT: Category = { key: 'tool_result', label: 'Result', cls: 'text-text-secondary', dot: 'bg-text-secondary' };
+// T345 (@oopslink): agent control/lifecycle ops (start / stop / restart / reset)
+// get their OWN category — they were falling through to CAT_CHECKING and being
+// folded into the "Checking messages × N" group, so operators couldn't see when
+// an agent was started/stopped/reset. Distinct blue label + dot, never grouped.
+const CAT_CONTROL: Category = { key: 'control', label: 'Control', cls: 'text-status-blue-fg', dot: 'bg-status-blue-solid' };
 
 // search-y tool names (lowercased) → "Searching code"; otherwise tool events
 // are "Running command". These are claude's real content-block tool names
@@ -38,8 +43,12 @@ function categoryOf(eventType: string): Category {
       return CAT_TOOL_USE;
     case 'tool_result':
       return CAT_TOOL_RESULT;
+    case 'lifecycle':
+      // T345: start / stop / restart / reset — a distinct "Control" category, NOT
+      // folded into "Checking messages".
+      return CAT_CONTROL;
     default:
-      // system_init, lifecycle, rate_limit, generic system, unknown → Checking.
+      // system_init, rate_limit, generic system, unknown → Checking.
       return CAT_CHECKING;
   }
 }
@@ -200,8 +209,12 @@ function preview(eventType: string, p: Record<string, unknown>): string {
     }
     case 'status_change':
       return `${str(p.from)} → ${str(p.to)}`;
-    case 'lifecycle':
-      return str(p.event);
+    case 'lifecycle': {
+      // T338 payload = {event:<verb>, scope?}; show e.g. "reset (workspace)".
+      const verb = str(p.event);
+      const scope = str(p.scope);
+      return scope ? `${verb} (${scope})` : verb;
+    }
     default:
       try {
         return truncate(JSON.stringify(p), 120);

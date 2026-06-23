@@ -159,10 +159,24 @@ describe('AgentActivityRow (#228 categories)', () => {
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('slow down');
   });
 
-  it('lifecycle / status_change fall into Checking messages + keep their preview', () => {
+  it('status_change falls into Checking messages + keeps its preview', () => {
     row(ev('status_change', { from: 'queued', to: 'active' }));
     expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Checking messages');
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('queued → active');
+  });
+
+  // T345: lifecycle ops get their OWN "Control" category (not folded into Checking).
+  it('lifecycle → Control badge + verb preview (started/stopped/restarted/reset)', () => {
+    row(ev('lifecycle', { event: 'restarted' }));
+    const badge = screen.getByTestId('agent-activity-badge');
+    expect(badge).toHaveTextContent('Control');
+    expect(badge).not.toHaveTextContent('Checking messages');
+    expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('restarted');
+  });
+
+  it('lifecycle reset shows the scope in the preview', () => {
+    row(ev('lifecycle', { event: 'reset', scope: 'workspace' }));
+    expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('reset (workspace)');
   });
 
   it('unknown event type → Checking messages badge + JSON preview', () => {

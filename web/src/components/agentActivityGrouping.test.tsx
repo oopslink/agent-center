@@ -17,7 +17,7 @@ describe('groupActivity (#274 Checking fold)', () => {
     const items = groupActivity([
       ev('1', 'result'), // output (non-checking)
       ev('2', 'system_init'),
-      ev('3', 'lifecycle'),
+      ev('3', 'system_init'),
       ev('4', 'rate_limit'),
       ev('5', 'result'),
     ]);
@@ -33,8 +33,8 @@ describe('groupActivity (#274 Checking fold)', () => {
   });
 
   it('folds a run over the FULL accumulated set (spanning what were separate pages)', () => {
-    // page1 [lifecycle,lifecycle] + page2 [lifecycle] concatenated → one "× 3" group.
-    const items = groupActivity([ev('a', 'lifecycle'), ev('b', 'lifecycle'), ev('c', 'lifecycle')]);
+    // page1 [system_init x2] + page2 [system_init] concatenated → one "× 3" group.
+    const items = groupActivity([ev('a', 'system_init'), ev('b', 'system_init'), ev('c', 'system_init')]);
     expect(items).toHaveLength(1);
     expect(items[0].kind).toBe('checking-group');
     if (items[0].kind === 'checking-group') expect(items[0].events).toHaveLength(3);
@@ -46,7 +46,7 @@ describe('CheckingGroup (#274)', () => {
 
   it('shows "× N" + time range + a disclosure that expands to the raw events', () => {
     // newest-first (ULID DESC): [0]=03:00 latest, [2]=01:00 earliest.
-    const events = [ev('3', 'lifecycle', '03:00'), ev('2', 'lifecycle', '02:00'), ev('1', 'lifecycle', '01:00')];
+    const events = [ev('3', 'system_init', '03:00'), ev('2', 'system_init', '02:00'), ev('1', 'system_init', '01:00')];
     render(
       <ul>
         <CheckingGroup events={events} />
