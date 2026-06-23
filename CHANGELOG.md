@@ -11,6 +11,21 @@ ADR / phase plan landscape, see
 
 ---
 
+## [v2.15.0] — 2026-06-24
+
+Per-agent analytics dashboard (I28) — a single-agent **Analytics** page surfacing an activity heatmap and token/cost consumption, fed by a new end-to-end usage-collection pipeline.
+
+### Added
+
+- **Usage collection pipeline (I28/F1–F3).** New `internal/usage` bounded context: `model_prices` + `usage_events` tables (migration 0077) with cache read/write split and source tagging; cost computed from a non-retroactive price book; a daily rollup into `agent_activity_daily` (migration 0078) via an incremental, idempotent dirty-bucket recompute.
+- **`report_usage` MCP tool + worker hook (F2).** Agents/harness report token usage; events flow into `usage_events` for cost attribution and activity aggregation.
+- **Analytics API + permissions (F4).** Read endpoints for heatmap / overview cards / trends / top-cost-tasks with org isolation and member-sees-self authorization; drill-down re-filters by agent to prevent shared-task leakage.
+- **Single-agent Analytics page (F5–F7).** New 5th tab on AgentDetail (`/agents/:id?tab=analytics`): five overview cards (tokens & cost this month with deltas, tasks done, active days, current streak), a GitHub-style 53×7 activity heatmap with Activity / Tokens / Cost modes, a Tokens & Cost stacked-area trend by model, and a Top Cost Tasks drill-down.
+
+> Note: CHANGELOG entries for v2.12.1, v2.13.0, and v2.14.0 were skipped at their ship; commit history is authoritative for those.
+
+---
+
 ## [v2.12.0] — 2026-06-20
 
 Agent@Agent 唤醒护栏（wake guardrail）+ configurable thresholds — agent→agent wake storms are circuit-broken by four gates, human intent always delivers, and the thresholds are live-editable from System → Settings.
