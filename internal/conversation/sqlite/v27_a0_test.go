@@ -98,7 +98,7 @@ func TestV27A0_MessageContextRefsAndAttachments(t *testing.T) {
 		ContentKind:      conversation.MessageContentText,
 		Content:          "see attached",
 		Direction:        conversation.DirectionOutbound,
-		ContextRefs:      conversation.ContextRefs{WorkItemRef: "wi-1", TaskRef: "task-123", AgentRef: "agent:coder"},
+		ContextRefs:      conversation.ContextRefs{TaskRef: "task-123", AgentRef: "agent:coder"},
 		Attachments: []conversation.MessageAttachment{
 			{URI: "ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAV", Filename: "design.png", MimeType: "image/png", Size: 2048},
 		},
@@ -114,7 +114,7 @@ func TestV27A0_MessageContextRefsAndAttachments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ContextRefs().WorkItemRef != "wi-1" || got.ContextRefs().TaskRef != "task-123" || got.ContextRefs().AgentRef != "agent:coder" {
+	if got.ContextRefs().TaskRef != "task-123" || got.ContextRefs().AgentRef != "agent:coder" {
 		t.Fatalf("context_refs round-trip failed: %+v", got.ContextRefs())
 	}
 	atts := got.Attachments()

@@ -27,7 +27,7 @@ type recordingReporter struct {
 }
 
 type activityCall struct {
-	agentID, eventType, payload, workItemRef, interactionRef string
+	agentID, eventType, payload, taskRef, interactionRef string
 }
 type lifecycleCall struct {
 	agentID, state, errMsg string
@@ -39,10 +39,10 @@ type converseErrCall struct {
 	agentID, conversationID, summary string
 }
 
-func (r *recordingReporter) ReportAgentActivity(_ context.Context, agentID, eventType, payloadJSON, workItemRef, interactionRef string, _ time.Time) error {
+func (r *recordingReporter) ReportAgentActivity(_ context.Context, agentID, eventType, payloadJSON, taskRef, interactionRef string, _ time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.activities = append(r.activities, activityCall{agentID, eventType, payloadJSON, workItemRef, interactionRef})
+	r.activities = append(r.activities, activityCall{agentID, eventType, payloadJSON, taskRef, interactionRef})
 	return nil
 }
 
@@ -269,7 +269,7 @@ func reconcileCmd(t *testing.T, agentID, desired string, version int, scope stri
 
 func workCmd(t *testing.T, agentID, workItemID, brief string, offset int64) ControlCommand {
 	t.Helper()
-	pl := workPayload{AgentID: agentID, WorkItemID: workItemID, Brief: brief}
+	pl := workPayload{AgentID: agentID, TaskID: workItemID, Brief: brief}
 	return ControlCommand{
 		ID:          "cmd-w",
 		Offset:      offset,
@@ -288,7 +288,7 @@ func wakeCmd(t *testing.T, agentID, workItemID, messageID, messageText string, o
 func wakeCmdConv(t *testing.T, agentID, workItemID, conversationID, messageID, messageText string, offset int64) ControlCommand {
 	t.Helper()
 	pl := wakePayload{
-		AgentID: agentID, WorkItemID: workItemID, ConversationID: conversationID,
+		AgentID: agentID, TaskID: workItemID, ConversationID: conversationID,
 		MessageID: messageID, MessageText: messageText,
 	}
 	return ControlCommand{
@@ -864,7 +864,7 @@ func TestAgentController_Wake_NoConvID_NoMarkSeen_DedupStillWorks(t *testing.T) 
 
 // TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem pins v2.7 #111:
 // onEvent must stamp the in-flight WorkItem id onto the activity event's
-// work_item_ref (previously hardcoded "") so the observability projection can
+// task_ref (previously hardcoded "") so the observability projection can
 // aggregate tool_calls / tokens / current_activity per work-item. With NO
 // in-flight WorkItem the ref stays empty (idle activity), unchanged.
 func TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem(t *testing.T) {
@@ -875,22 +875,22 @@ func TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem(t *testing.T) {
 	}
 	fs := rs.last()
 
-	// No in-flight work item yet → activity carries an empty work_item_ref.
+	// No in-flight work item yet → activity carries an empty task_ref.
 	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-0"})
 	acts := rep.activityCalls()
-	if last := acts[len(acts)-1]; last.workItemRef != "" {
-		t.Fatalf("idle activity (no in-flight WI) must have empty work_item_ref, got %q", last.workItemRef)
+	if last := acts[len(acts)-1]; last.taskRef != "" {
+		t.Fatalf("idle activity (no in-flight WI) must have empty task_ref, got %q", last.taskRef)
 	}
 
 	// Simulate an in-flight work item (set the same field work/wake delivery sets).
 	c.mu.Lock()
-	c.agents["agent-1"].currentWorkItemID = "WI-1"
+	c.agents["agent-1"].currentTaskID = "WI-1"
 	c.mu.Unlock()
 
 	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-1"})
 	acts = rep.activityCalls()
 	last := acts[len(acts)-1]
-	if last.workItemRef != "WI-1" {
-		t.Fatalf("activity during an in-flight work item must carry its work_item_ref; want WI-1, got %q", last.workItemRef)
+	if last.taskRef != "WI-1" {
+		t.Fatalf("activity during an in-flight work item must carry its task_ref; want WI-1, got %q", last.taskRef)
 	}
 }

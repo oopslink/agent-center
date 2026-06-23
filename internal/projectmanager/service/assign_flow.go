@@ -42,7 +42,7 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		// (and grants the agent project membership); it is a legitimate, widely-used
 		// operation (e.g. assign before planning). What is gated is ENTERING RUNNING:
 		// a backlog task is rejected at the open→running boundary — claim (T83) and
-		// now start_work (the TaskRunGate, ErrWorkItemTaskNotRunnable) — NOT at
+		// now start_work (the TaskRunGate, ErrTaskNotRunnable) — NOT at
 		// assign. So a directly-assigned backlog task can sit assigned but cannot run
 		// until it is added to a real plan or dispatched into the Assignment Pool.
 		prev := t.Assignee()

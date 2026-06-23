@@ -17,9 +17,9 @@ func NewActivityEventRepo(db *sql.DB) *ActivityEventRepo { return &ActivityEvent
 func (r *ActivityEventRepo) Append(ctx context.Context, e *agent.AgentActivityEvent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
-		`INSERT INTO agent_activity_events (id, agent_id, work_item_ref, interaction_ref, event_type, payload, occurred_at)
+		`INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at)
 		 VALUES (?,?,?,?,?,?,?)`,
-		e.ID(), string(e.AgentID()), nullString(e.WorkItemRef()), nullString(e.InteractionRef()),
+		e.ID(), string(e.AgentID()), nullString(e.TaskRef()), nullString(e.InteractionRef()),
 		e.EventType(), e.Payload(), ts(e.OccurredAt()))
 	return err
 }
@@ -100,10 +100,10 @@ func (r *ActivityEventRepo) LatestByAgents(ctx context.Context, agentIDs []agent
 	return out, nil
 }
 
-func (r *ActivityEventRepo) ListByWorkItem(ctx context.Context, workItemRef string) ([]*agent.AgentActivityEvent, error) {
+func (r *ActivityEventRepo) ListByTask(ctx context.Context, taskRef string) ([]*agent.AgentActivityEvent, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		activitySelect+` WHERE work_item_ref = ? ORDER BY occurred_at, id`, workItemRef)
+		activitySelect+` WHERE task_ref = ? ORDER BY occurred_at, id`, taskRef)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func (r *ActivityEventRepo) ListByWorkItem(ctx context.Context, workItemRef stri
 // activityCols is the shared column list (kept in sync with scanActivityEvents).
 // activitySelect prepends SELECT + appends the FROM for the simple list queries;
 // LatestByAgents reuses activityCols directly inside its window subquery.
-const activityCols = `id, agent_id, work_item_ref, interaction_ref, event_type, payload, occurred_at`
+const activityCols = `id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at`
 
 const activitySelect = `SELECT ` + activityCols + ` FROM agent_activity_events`
 
@@ -123,13 +123,13 @@ func scanActivityEvents(rows *sql.Rows) ([]*agent.AgentActivityEvent, error) {
 	for rows.Next() {
 		var (
 			id, agentID, eventType, payload, occurredAt string
-			workItemRef, interactionRef                 sql.NullString
+			taskRef, interactionRef                     sql.NullString
 		)
-		if err := rows.Scan(&id, &agentID, &workItemRef, &interactionRef, &eventType, &payload, &occurredAt); err != nil {
+		if err := rows.Scan(&id, &agentID, &taskRef, &interactionRef, &eventType, &payload, &occurredAt); err != nil {
 			return nil, err
 		}
 		e, err := agent.NewActivityEvent(agent.NewActivityEventInput{
-			ID: id, AgentID: agent.AgentID(agentID), WorkItemRef: workItemRef.String,
+			ID: id, AgentID: agent.AgentID(agentID), TaskRef: taskRef.String,
 			InteractionRef: interactionRef.String, EventType: eventType, Payload: payload,
 			OccurredAt: parseTime(occurredAt),
 		})

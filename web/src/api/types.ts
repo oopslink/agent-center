@@ -213,7 +213,7 @@ export interface AgentRef {
   name: string;
 }
 
-export type WorkItemStatus =
+export type AgentTaskStatus =
   | 'queued'
   | 'active'
   | 'paused' // v2.8.1 #278 D: agent paused this item to switch to another (scheduling autonomy)
@@ -223,7 +223,12 @@ export type WorkItemStatus =
   | 'canceled'
   | 'superseded';
 
-export interface AgentWorkItem {
+// AgentTask (v2.14.0 / issue I14): an agent's unit of work is now the Task —
+// the retired AgentWorkItem model collapsed into pm.Task. The per-agent panel
+// still reads the same JSON shape over the wire (the backend kept the
+// `work_items` envelope + `work_item`-era field names for the contract), so the
+// wire keys below are unchanged even though the TS surface is now "task"-named.
+export interface AgentTask {
   id: string;
   agent_id: string;
   task_ref: string;
@@ -232,11 +237,11 @@ export interface AgentWorkItem {
   task_id?: string;
   task_title?: string;
   project_id?: string;
-  // T100: the underlying task's org_ref ("T<n>") so the work-item list/card shows
+  // T100: the underlying task's org_ref ("T<n>") so the task list/card shows
   // T84 instead of an id-tail (#b6eb82). Absent when the task has no org_number
   // (UI falls back), mirroring the task/issue DTO contract.
   org_ref?: string;
-  status: WorkItemStatus;
+  status: AgentTaskStatus;
   interactions: number;
   version: number;
   created_at: string;
@@ -249,7 +254,10 @@ export interface AgentActivityEvent {
   event_type: string;
   payload: string;
   occurred_at: string;
-  work_item_ref?: string;
+  // v2.14.0 / issue I14: the activity event's provenance ref is the task it ran
+  // under. The backend emits this as `task_ref` (agentActivityMap) — the prior
+  // `work_item_ref` name was AgentWorkItem-lineage and never matched the wire.
+  task_ref?: string;
   interaction_ref?: string;
 }
 
@@ -282,13 +290,12 @@ export interface InputRequest {
   decided_at?: string;
 }
 
-// WorkItemRow is one fleet work-item row (v2.7 #107: the work-item model
-// replaced the retired task-execution model — executions→work_items). Mirrors
-// internal/observability/query/work_item_row.go.
-export interface WorkItemRow {
-  work_item_id: string;
+// TaskExecRow is one fleet task-execution row (v2.14.0 F7: the AgentWorkItem
+// model was retired — the task IS the unit of agent work). Mirrors
+// internal/observability/query/task_exec_row.go.
+export interface TaskExecRow {
+  task_id: string;
   agent_id: string;
-  task_id?: string;
   // v2.7.1 #206: resolved task title + parent project for display + linking.
   task_title?: string;
   // v2.10.2 [T140]: resolved org_ref token ("T<n>") so the Worker Activity feed
@@ -371,11 +378,11 @@ export interface FleetIssueRow {
   opener: string;
 }
 
-// FleetSnapshot (v2.7 #107/#118): executions→work_items; the open_input_requests
-// segment was dropped — "waiting input" is a work item with status=waiting_input,
-// surfaced in work_items.
+// FleetSnapshot (v2.14.0 F7: AgentWorkItem retired — the task is the unit of
+// agent work). "waiting input" is a task with status=waiting_input, surfaced in
+// tasks.
 export interface FleetSnapshot {
-  work_items: WorkItemRow[];
+  tasks: TaskExecRow[];
   workers: FleetWorkerRow[];
   pending_issues: FleetIssueRow[];
   generated_at?: string;

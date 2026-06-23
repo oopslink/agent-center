@@ -289,9 +289,9 @@ function agentHandlers() {
     http.post('/api/agents/:id/reset', ({ params }) =>
       ok(baseAgent(String(params.id), { lifecycle: 'stopped' })),
     ),
-    http.get('/api/agents/:id/work-items', ({ params }) =>
+    http.get('/api/agents/:id/tasks', ({ params }) =>
       ok({
-        work_items: [
+        tasks: [
           {
             id: 'WI-1',
             agent_id: String(params.id),
@@ -752,7 +752,7 @@ const baseHandlers = [
   // Fleet
   http.get('/api/fleet', () =>
     ok({
-      work_items: [],
+      tasks: [],
       workers: [],
       pending_issues: [],
       generated_at: '2026-05-24T01:00:00Z',

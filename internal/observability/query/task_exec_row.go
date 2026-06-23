@@ -7,21 +7,19 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-// WorkItemRow is the shared agent-execution row VO. v2.14.0 F7 (issue I14):
+// TaskExecRow is the shared agent-execution row VO. v2.14.0 F7 (issue I14):
 // the AgentWorkItem model was removed and its responsibilities collapsed into
 // pm.Task, so this row is now sourced from a pm.Task (was: agent_work_item
-// projection). The JSON shape is PRESERVED — the Web Console fleet view and the
-// per-agent work-items panel still render these field names — so the
-// "work_item" naming survives in the wire contract even though the unit of work
-// is now the Task itself (work_item_id == task_id).
+// projection). The unit of work is now the Task itself, so the row is keyed by
+// task_id (the vestigial duplicate work_item_id slot was dropped in v2.14.0 —
+// it always equalled task_id).
 //
 // It is the SINGLE source of the execution-row shape across read surfaces: the
-// fleet snapshot (FleetSnapshot.WorkItems) and the inspect/query verbs. One
+// fleet snapshot (FleetSnapshot.Tasks) and the inspect/query verbs. One
 // definition + one formatter keeps the surfaces byte-identical (no copy-drift).
-type WorkItemRow struct {
-	WorkItemID string `json:"work_item_id"`
-	AgentID    string `json:"agent_id"`
-	TaskID     string `json:"task_id,omitempty"`
+type TaskExecRow struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
 	// TaskTitle + ProjectID are read-time enrichments (Home/AgentDetail show the
 	// real task title + link to /projects/{project_id}/tasks/{task_id}). Populated
 	// by the user-facing fleet snapshot (which already loads the pm task + project
@@ -82,15 +80,14 @@ func agentMemberIDFromAssignee(assignee pm.IdentityRef) string {
 	return ""
 }
 
-// taskExecutionRow builds the execution WorkItemRow from a pm.Task. It is pure
+// taskExecutionRow builds the execution TaskExecRow from a pm.Task. It is pure
 // (task→row) and carries NO org/project scoping — org-scoping is a filter
 // concern owned by the caller (fleet resolves it via taskProjectOrg; inspect/
-// query is global admin). work_item_id == task_id (the task IS the unit of agent
-// work now); token/tool/duration metrics are 0 (no Task-model source); the
+// query is global admin). The row is keyed by task_id (the task IS the unit of
+// agent work now); token/tool/duration metrics are 0 (no Task-model source); the
 // blocked reason surfaces as current_activity so a paused row shows WHY.
-func taskExecutionRow(t *pm.Task) WorkItemRow {
-	return WorkItemRow{
-		WorkItemID:      string(t.ID()),
+func taskExecutionRow(t *pm.Task) TaskExecRow {
+	return TaskExecRow{
 		AgentID:         agentMemberIDFromAssignee(t.Assignee()),
 		TaskID:          string(t.ID()),
 		Status:          taskExecStatus(t),

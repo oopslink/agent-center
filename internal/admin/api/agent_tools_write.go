@@ -224,7 +224,7 @@ func writeBacklogNotActionable(w http.ResponseWriter, action string) {
 // requireOwnTask) then surfaces the right error (not_found, not_agents_task, …). A
 // nil PMService degrades to "can't tell" (false), never looser. start_task converges
 // on the same envelope via writeWorkStateError (its backlog signal is the agent-BC
-// ErrWorkItemTaskNotRunnable sentinel from the runnable gate, not a task load).
+// ErrTaskNotRunnable sentinel from the runnable gate, not a task load).
 func (s *Server) rejectIfBacklog(w http.ResponseWriter, r *http.Request, d HandlerDeps, taskID, action string) bool {
 	if d.PMService == nil {
 		return false

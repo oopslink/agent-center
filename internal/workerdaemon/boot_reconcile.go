@@ -148,11 +148,11 @@ type centerRecord struct {
 	// HasActive is true iff the agent has ≥1 ACTIVE WorkItem — drives the relaunch
 	// nudge.
 	HasActive bool
-	// ActiveWorkItemID is the id of an ACTIVE in-flight WorkItem (first one, if
-	// several) — rebound onto the relaunched managedAgent's currentWorkItemID so a
+	// ActiveTaskID is the id of an ACTIVE in-flight WorkItem (first one, if
+	// several) — rebound onto the relaunched managedAgent's currentTaskID so a
 	// FAILED re-drive turn surfaces via L2 (no-silent-failure across a boot-reconcile
 	// Mode-B relaunch). Empty when there is no active WorkItem.
-	ActiveWorkItemID string
+	ActiveTaskID string
 	// Model is the agent's configured claude --model (from resume-state), passed to
 	// the boot-reconcile relaunch so the spawned claude uses it. Empty → claude default.
 	Model string
@@ -291,12 +291,12 @@ func toCenterRecord(ra ResumeAgent) *centerRecord {
 	rec := &centerRecord{
 		DesiredLifecycle: ra.DesiredLifecycle,
 		Model:            ra.Model,
-		HasInflight:      len(ra.WorkItems) > 0,
+		HasInflight:      len(ra.Tasks) > 0,
 	}
-	for _, wi := range ra.WorkItems {
+	for _, wi := range ra.Tasks {
 		if wi.Status == string(workItemStatusActive) {
 			rec.HasActive = true
-			rec.ActiveWorkItemID = wi.WorkItemID // rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
+			rec.ActiveTaskID = wi.TaskID // rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
 			break
 		}
 	}
@@ -394,7 +394,7 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 		// Boot-reconcile treats a per-agent relaunch failure as logged-and-skip (one
 		// bad agent never stalls boot; bootReapRelaunch already logged). The error is
 		// consumed only by the SELF-HEAL caller for circuit-breaking (part A).
-		_ = c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveWorkItemID, rec.Model)
+		_ = c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveTaskID, rec.Model)
 	case bootStopReap:
 		c.bootStopReap(agentID, home, pr)
 	case bootReapOnly:
@@ -457,7 +457,7 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 // Returns the startSession error (nil on success) so the SELF-HEAL caller can
 // circuit-break a relaunch that fails to come up (FINDING-3 #117 part A); the
 // boot-reconcile caller treats a per-agent failure as logged-and-skip.
-func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, workItemID, model string) error {
+func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, taskID, model string) error {
 	if rerr := supervisormanager.ReapResidual(home); rerr != nil {
 		c.log("boot-reconcile agent=%s reap before relaunch: %v", agentID, rerr)
 	}
@@ -481,7 +481,7 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	}
 	c.log("boot-reconcile agent=%s RELAUNCHED version=%d (nudge=%v)", agentID, version, nudge)
 	// L2×Mode-B: rebind the in-flight WorkItem id onto the FRESH managedAgent (the
-	// crash deleted the prior one). currentWorkItemID is otherwise lost across the
+	// crash deleted the prior one). currentTaskID is otherwise lost across the
 	// relaunch — so if the re-driven turn FAILS (is_error) while the agent stays
 	// alive, L2's surfaceTurnFailure would have no WI to fail and the original WI
 	// would silently remain active. Binding it here (to the SAME field
@@ -490,16 +490,16 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	//
 	// 🕒 DEFERRED-WITH-TRIGGER (PM): binding AFTER startSession (vs inside it, at
 	// managedAgent creation) leaves a theoretical window where a resume-phase result
-	// could read an empty currentWorkItemID. It is UNREACHABLE today: under stream-json
+	// could read an empty currentTaskID. It is UNREACHABLE today: under stream-json
 	// --input-format claude does NOT turn on --resume/--fork-session until it receives
 	// stdin input (the nudge, injected below — AFTER this bind), so no result can land
 	// before the bind. TRIGGER: a future bind-point/nudge-timing refactor, OR observing
 	// any resume-phase (pre-nudge) result → move the bind INTO startSession (set it at
 	// managedAgent creation, structurally window-free). (CHANGELOG + §A.)
-	if workItemID != "" {
+	if taskID != "" {
 		c.mu.Lock()
 		if ma := c.agents[agentID]; ma != nil {
-			ma.currentWorkItemID = workItemID
+			ma.currentTaskID = taskID
 		}
 		c.mu.Unlock()
 	}

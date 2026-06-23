@@ -12,9 +12,9 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
-// FleetWorkItemRow rows live in FleetSnapshot.WorkItems. The row VO + its
-// Task-sourced formatter live in work_item_row.go (WorkItemRow /
-// taskExecutionRow) as the single source shared with the inspect/query verbs.
+// Execution rows live in FleetSnapshot.Tasks. The row VO + its Task-sourced
+// formatter live in task_exec_row.go (TaskExecRow / taskExecutionRow) as the
+// single source shared with the inspect/query verbs.
 
 // FleetWorkerRow is one row in FleetSnapshot.Workers.
 type FleetWorkerRow struct {
@@ -55,7 +55,7 @@ type FleetIssueRow struct {
 // FleetSnapshot is the VO returned by FleetSnapshotService.Snapshot.
 // Per observability/00 § 7.2 + plan-4 § 1.3.
 type FleetSnapshot struct {
-	WorkItems     []WorkItemRow    `json:"work_items"`
+	Tasks         []TaskExecRow    `json:"tasks"`
 	Workers       []FleetWorkerRow `json:"workers"`
 	PendingIssues []FleetIssueRow  `json:"pending_issues"`
 	GeneratedAt   string           `json:"generated_at"`
@@ -95,7 +95,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 	now := time.Now().UTC()
 	snap := FleetSnapshot{GeneratedAt: now.Format(time.RFC3339Nano)}
 	var (
-		execs       []WorkItemRow
+		execs       []TaskExecRow
 		execsErr    error
 		workers     []FleetWorkerRow
 		workerWarns []string
@@ -118,7 +118,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 		issues, issuesErr = s.fetchPendingIssues(ctx, filter)
 	}()
 	wg.Wait()
-	snap.WorkItems = execs
+	snap.Tasks = execs
 	snap.Workers = workers
 	snap.PendingIssues = issues
 	if execsErr != nil {
@@ -141,7 +141,7 @@ func (s *FleetSnapshotService) Snapshot(ctx context.Context, filter SnapshotFilt
 // Project/org scoping resolves each task → pm project → org directly; fail-closed
 // so a task whose project can't be resolved is excluded under org scope (no
 // cross-org leak).
-func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter SnapshotFilter) ([]WorkItemRow, error) {
+func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter SnapshotFilter) ([]TaskExecRow, error) {
 	if s.deps.PMTasks == nil {
 		return nil, errors.New("pm tasks repo not wired")
 	}
@@ -150,7 +150,7 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 		return nil, err
 	}
 	orgScoped := filter.OrganizationID != ""
-	out := make([]WorkItemRow, 0, len(tasks))
+	out := make([]TaskExecRow, 0, len(tasks))
 	for _, t := range tasks {
 		row := taskExecutionRow(t)
 		if row.AgentID == "" {

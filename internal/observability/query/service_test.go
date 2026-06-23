@@ -204,11 +204,11 @@ func TestInspect_Execution_WithProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := res.Data.(map[string]any)
-	proj, ok := data["projection"].(query.WorkItemRow)
+	proj, ok := data["projection"].(query.TaskExecRow)
 	if !ok {
 		t.Fatalf("projection key missing/wrong type: %+v", data)
 	}
-	if proj.CurrentActivity != "edit" || proj.WorkItemID != "WI-1" {
+	if proj.CurrentActivity != "edit" || proj.TaskID != "WI-1" {
 		t.Fatalf("projection: %+v", proj)
 	}
 }

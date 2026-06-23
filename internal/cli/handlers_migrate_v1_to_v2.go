@@ -124,9 +124,10 @@ func MigrateV1ToV2Command() *Command {
 // NOTE: dev/v2.13.0 authored these as 0066/0067/0068; renumbered to 0067/0068/0069
 // at ship-merge to land after main's 0066 (dm_dedup) which arrived on main meanwhile.
 // v2.14.0 AWI: 0070 (F2 schema-add: pm_tasks block/lease cols + task_action_logs),
-// 0071 (F4 data-backfill AWI→pm_tasks), 0072 (F3 single-active UNIQUE index) — all
-// additive; const tracks the latest migration.
-const targetSchemaVersion = 73
+// 0071 (F4 data-backfill AWI→pm_tasks), 0072 (F3 single-active UNIQUE index),
+// 0074 (I14 naming cleanup: rename agent_activity_events.work_item_ref→task_ref +
+// idx_aae_work_item→idx_aae_task) — all additive; const tracks the latest migration.
+const targetSchemaVersion = 74
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -49,8 +49,8 @@ type ActivityEventRepository interface {
 	// cursor pagination: before="" = newest page, before=<event-id> = only events
 	// with id < before; limit>0 caps, limit<=0 = unlimited (no cap).
 	ListByAgent(ctx context.Context, agentID AgentID, limit int, before string) ([]*AgentActivityEvent, error)
-	// ListByWorkItem returns events for one WorkItem segment, oldest first.
-	ListByWorkItem(ctx context.Context, workItemRef string) ([]*AgentActivityEvent, error)
+	// ListByTask returns events for one Task segment, oldest first.
+	ListByTask(ctx context.Context, taskRef string) ([]*AgentActivityEvent, error)
 	// LatestByAgents batch-fetches the single most-recent activity event per agent
 	// across the whole input set in ONE window-function query (NO N+1) — the v2.8.1
 	// agents-list enrich uses it to render last_activity_at/last_activity_content for

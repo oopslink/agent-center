@@ -226,7 +226,7 @@ func TestEnvAgentActivity_Appends(t *testing.T) {
 
 	status, body := postBearer(t, srv.URL, "/admin/environment/agent/activity", "acat_fb_w1", map[string]any{
 		"agent_id": atAgent1, "event_type": "assistant_text",
-		"payload": `{"text":"hi"}`, "work_item_ref": "wi-1",
+		"payload": `{"text":"hi"}`, "task_ref": "wi-1",
 	})
 	if status != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %v", status, body)
@@ -238,7 +238,7 @@ func TestEnvAgentActivity_Appends(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(evts) != 1 || evts[0].EventType() != "assistant_text" || evts[0].WorkItemRef() != "wi-1" {
+	if len(evts) != 1 || evts[0].EventType() != "assistant_text" || evts[0].TaskRef() != "wi-1" {
 		t.Fatalf("activity event not appended as expected: %+v", evts)
 	}
 }
@@ -560,14 +560,14 @@ func TestEnvWorkerResumeState_SelfOK(t *testing.T) {
 		t.Fatalf("cross-worker agent leaked into resume set: %v", byID)
 	}
 
-	// AG-run: desired running; the work_items array is ALWAYS empty (F7).
+	// AG-run: desired running; the tasks array is ALWAYS empty (F7).
 	run := byID["AG-run"]
 	if run["desired_lifecycle"] != "running" {
 		t.Fatalf("AG-run desired = %v, want running", run["desired_lifecycle"])
 	}
-	runWIs, ok := run["work_items"].([]any)
+	runWIs, ok := run["tasks"].([]any)
 	if !ok || len(runWIs) != 0 {
-		t.Fatalf("AG-run work_items = %v, want an empty array (F7: AgentWorkItem retired)", run["work_items"])
+		t.Fatalf("AG-run tasks = %v, want an empty array (F7: AgentWorkItem retired)", run["tasks"])
 	}
 }
 

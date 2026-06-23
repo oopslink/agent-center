@@ -167,7 +167,6 @@ func (s *Service) inspectExecution(ctx context.Context, id string) (InspectResul
 		return InspectResult{}, mapNotFound(err)
 	}
 	out := map[string]any{
-		"work_item_id": string(t.ID()),
 		"agent_id":     agentMemberIDFromAssignee(t.Assignee()),
 		"task_id":      string(t.ID()),
 		"status":       taskExecStatus(t),
@@ -224,7 +223,7 @@ func (s *Service) inspectWorker(ctx context.Context, id string) (InspectResult, 
 			activeTasks = append(activeTasks, projectTaskExecutionSummary(t))
 		}
 	}
-	out["active_work_items"] = activeTasks
+	out["active_tasks"] = activeTasks
 	return InspectResult{Kind: InspectWorker, ID: id, Data: out}, nil
 }
 

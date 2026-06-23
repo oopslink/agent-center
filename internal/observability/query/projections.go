@@ -11,13 +11,11 @@ import (
 )
 
 // projectTaskExecutionSummary is the compact execution row used by
-// inspectWorker's active_work_items list (v2.14.0 F7 / issue I14: worker→agents→
-// tasks). Summary form (id/agent/task/status); work_item_id carries the task id
-// (the task is the unit of agent work). Full detail is via
+// inspectWorker's active_tasks list (v2.14.0 F7 / issue I14: worker→agents→
+// tasks). Summary form (id/agent/task/status); Full detail is via
 // `inspect execution <task_id>`.
 func projectTaskExecutionSummary(t *pm.Task) map[string]any {
 	return map[string]any{
-		"work_item_id": string(t.ID()),
 		"agent_id":     agentMemberIDFromAssignee(t.Assignee()),
 		"task_id":      string(t.ID()),
 		"status":       taskExecStatus(t),

@@ -174,11 +174,11 @@ describe('AgentActivityRow (#228 categories)', () => {
   });
 
   it('toggles an expanded JSON payload (debug view) + shows refs', () => {
-    row(ev('tool_use', { tool_name: 'read_file' }, { work_item_ref: 'agent://WI-1', interaction_ref: 'int-9' }));
+    row(ev('tool_use', { tool_name: 'read_file' }, { task_ref: 'pm://tasks/TS-1', interaction_ref: 'int-9' }));
     expect(screen.queryByTestId('agent-activity-payload-json')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('agent-activity-toggle'));
     expect(screen.getByTestId('agent-activity-payload-json')).toHaveTextContent('read_file');
-    expect(screen.getByTestId('agent-activity-workitem-ref')).toHaveTextContent('agent://WI-1');
+    expect(screen.getByTestId('agent-activity-task-ref')).toHaveTextContent('pm://tasks/TS-1');
     expect(screen.getByTestId('agent-activity-interaction-ref')).toHaveTextContent('int-9');
     // collapse again
     fireEvent.click(screen.getByTestId('agent-activity-toggle'));

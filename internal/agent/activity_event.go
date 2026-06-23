@@ -43,12 +43,12 @@ const (
 // text, tool-use) is parsed into these events and does NOT auto-post to the
 // Conversation (plan §2.6) — only explicit agent messages reach humans.
 //
-// WorkItemRef/InteractionRef are optional: they let the UI group activity by
-// WorkItem segment and by interaction (logical turn) within it (plan §2.4).
+// TaskRef/InteractionRef are optional: they let the UI group activity by
+// Task segment and by interaction (logical turn) within it (plan §2.4).
 type AgentActivityEvent struct {
 	id             string
 	agentID        AgentID
-	workItemRef    string // optional
+	taskRef        string // optional
 	interactionRef string // optional
 	eventType      string // e.g. "assistant_text" | "tool_use" | "status" | "lifecycle"
 	payload        string // JSON
@@ -59,7 +59,7 @@ type AgentActivityEvent struct {
 type NewActivityEventInput struct {
 	ID             string
 	AgentID        AgentID
-	WorkItemRef    string
+	TaskRef        string
 	InteractionRef string
 	EventType      string
 	Payload        string
@@ -85,7 +85,7 @@ func NewActivityEvent(in NewActivityEventInput) (*AgentActivityEvent, error) {
 		payload = "{}"
 	}
 	return &AgentActivityEvent{
-		id: in.ID, agentID: in.AgentID, workItemRef: in.WorkItemRef,
+		id: in.ID, agentID: in.AgentID, taskRef: in.TaskRef,
 		interactionRef: in.InteractionRef, eventType: in.EventType,
 		payload: payload, occurredAt: in.OccurredAt.UTC(),
 	}, nil
@@ -94,7 +94,7 @@ func NewActivityEvent(in NewActivityEventInput) (*AgentActivityEvent, error) {
 // Getters.
 func (e *AgentActivityEvent) ID() string             { return e.id }
 func (e *AgentActivityEvent) AgentID() AgentID       { return e.agentID }
-func (e *AgentActivityEvent) WorkItemRef() string    { return e.workItemRef }
+func (e *AgentActivityEvent) TaskRef() string        { return e.taskRef }
 func (e *AgentActivityEvent) InteractionRef() string { return e.interactionRef }
 func (e *AgentActivityEvent) EventType() string      { return e.eventType }
 func (e *AgentActivityEvent) Payload() string        { return e.payload }

@@ -22,7 +22,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
 import { AgentProfile } from '@/components/AgentProfile';
-import { AgentWorkItems } from '@/components/AgentWorkItems';
+import { AgentTasks } from '@/components/AgentTasks';
 import { AgentContextPanel } from '@/components/AgentContextPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ContextPanel } from '@/shell/contextPanel';
@@ -33,7 +33,7 @@ const AGENT_TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'activity', label: 'Activity' },
   { key: 'workspace', label: 'Workspace' },
-  { key: 'workitems', label: 'Work items' },
+  { key: 'tasks', label: 'Tasks' },
 ] as const;
 type AgentTab = (typeof AGENT_TABS)[number]['key'];
 
@@ -345,8 +345,8 @@ export default function AgentDetail(): React.ReactElement {
         <EmptyState testId="agent-tabpanel-workspace" title="Workspace" body="Coming in v2.8." />
       )}
 
-      {/* WorkItem queue (v2.7.1 #228 PR(d): read-only table). */}
-      {tab === 'workitems' && <AgentWorkItems agentId={id} />}
+      {/* Task queue (v2.7.1 #228 PR(d): read-only table). */}
+      {tab === 'tasks' && <AgentTasks agentId={id} />}
 
       {/* Activity stream */}
       {tab === 'activity' && (

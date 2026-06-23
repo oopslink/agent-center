@@ -133,19 +133,19 @@ type AgentTaskRunGate struct{ svc *Service }
 // NewAgentTaskRunGate builds the port adapter over the pm Service.
 func NewAgentTaskRunGate(svc *Service) *AgentTaskRunGate { return &AgentTaskRunGate{svc: svc} }
 
-// EnsureWorkItemRunnable resolves the work item's task ref ("pm://tasks/{id}") and
+// EnsureTaskRunnable resolves the work item's task ref ("pm://tasks/{id}") and
 // applies EnsureTaskRunnable, translating the pm sentinel to the agent-BC sentinel
 // the start_work HTTP layer maps. A ref that is not task-backed is left to the
 // caller (no task to gate) — work items are always task-backed, so this is purely
 // defensive.
-func (g *AgentTaskRunGate) EnsureWorkItemRunnable(ctx context.Context, taskRef string) error {
+func (g *AgentTaskRunGate) EnsureTaskRunnable(ctx context.Context, taskRef string) error {
 	id, ok := taskIDFromRef(taskRef)
 	if !ok {
 		return nil
 	}
 	if err := g.svc.EnsureTaskRunnable(ctx, pm.TaskID(id)); err != nil {
 		if errors.Is(err, pm.ErrTaskNotRunnable) {
-			return agentpkg.ErrWorkItemTaskNotRunnable
+			return agentpkg.ErrTaskNotRunnable
 		}
 		return err
 	}

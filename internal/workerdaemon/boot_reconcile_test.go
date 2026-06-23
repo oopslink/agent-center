@@ -62,7 +62,7 @@ func TestReconcileOnBoot_SourceUnionAndRouting(t *testing.T) {
 	resumer := &fakeResumer{state: ResumeState{Agents: []ResumeAgent{
 		// running + ACTIVE in-flight → reapRelaunch + nudge.
 		{AgentID: "ag-relaunch", DesiredLifecycle: "running", Version: 7,
-			WorkItems: []ResumeWorkItem{{WorkItemID: "wi-1", Status: "active"}}},
+			Tasks: []ResumeTask{{TaskID: "wi-1", Status: "active"}}},
 		// running + NO in-flight → reap+relaunch (Mode-B self-heal at boot), NO nudge.
 		{AgentID: "ag-idle", DesiredLifecycle: "running", Version: 3},
 		// stopped → reapOnly.
@@ -156,7 +156,7 @@ func TestReconcileOnBoot_RelaunchWaitingInputNoNudge(t *testing.T) {
 	rs := &recordingStarter{}
 	resumer := &fakeResumer{state: ResumeState{Agents: []ResumeAgent{
 		{AgentID: "ag-wait", DesiredLifecycle: "running", Version: 4,
-			WorkItems: []ResumeWorkItem{{WorkItemID: "wi-w", Status: "waiting_input"}}},
+			Tasks: []ResumeTask{{TaskID: "wi-w", Status: "waiting_input"}}},
 	}}}
 	c, err := NewAgentController(AgentControllerConfig{
 		Reporter: &recordingReporter{}, WorkerID: "w-1",
@@ -321,19 +321,19 @@ func TestDecideBootAction_NudgeOnlyOnRelaunch(t *testing.T) {
 	}
 }
 
-// TestToCenterRecord_CapturesActiveWorkItemID pins the boot-reconcile half of the
+// TestToCenterRecord_CapturesActiveTaskID pins the boot-reconcile half of the
 // L2×Mode-B WI-id-restore: an ACTIVE in-flight WorkItem's id is captured into the
 // centerRecord so bootReapRelaunch can rebind it onto the relaunched
-// managedAgent.currentWorkItemID (a failed re-drive then surfaces via L2). A
+// managedAgent.currentTaskID (a failed re-drive then surfaces via L2). A
 // waiting_input-only agent yields no active id.
-func TestToCenterRecord_CapturesActiveWorkItemID(t *testing.T) {
+func TestToCenterRecord_CapturesActiveTaskID(t *testing.T) {
 	active := toCenterRecord(ResumeAgent{
 		DesiredLifecycle: "running",
 		Model:            "claude-boot-model",
-		WorkItems:        []ResumeWorkItem{{WorkItemID: "wi-w", Status: "waiting_input"}, {WorkItemID: "wi-a", Status: "active"}},
+		Tasks:        []ResumeTask{{TaskID: "wi-w", Status: "waiting_input"}, {TaskID: "wi-a", Status: "active"}},
 	})
-	if !active.HasActive || active.ActiveWorkItemID != "wi-a" {
-		t.Fatalf("active WI id must be captured, got HasActive=%v id=%q", active.HasActive, active.ActiveWorkItemID)
+	if !active.HasActive || active.ActiveTaskID != "wi-a" {
+		t.Fatalf("active WI id must be captured, got HasActive=%v id=%q", active.HasActive, active.ActiveTaskID)
 	}
 	// Model carries through to the boot-reconcile relaunch (v2.7 Model plumbing).
 	if active.Model != "claude-boot-model" {
@@ -343,9 +343,9 @@ func TestToCenterRecord_CapturesActiveWorkItemID(t *testing.T) {
 	// waiting_input only → no active id (nothing to rebind).
 	wOnly := toCenterRecord(ResumeAgent{
 		DesiredLifecycle: "running",
-		WorkItems:        []ResumeWorkItem{{WorkItemID: "wi-w", Status: "waiting_input"}},
+		Tasks:        []ResumeTask{{TaskID: "wi-w", Status: "waiting_input"}},
 	})
-	if wOnly.HasActive || wOnly.ActiveWorkItemID != "" {
-		t.Fatalf("waiting_input-only must yield no active id, got HasActive=%v id=%q", wOnly.HasActive, wOnly.ActiveWorkItemID)
+	if wOnly.HasActive || wOnly.ActiveTaskID != "" {
+		t.Fatalf("waiting_input-only must yield no active id, got HasActive=%v id=%q", wOnly.HasActive, wOnly.ActiveTaskID)
 	}
 }
