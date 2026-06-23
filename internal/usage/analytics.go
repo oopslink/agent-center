@@ -85,11 +85,15 @@ type ModelTrendPoint struct {
 // (turns) charged to the task; drill into the raw events via TaskDrilldown.
 type TaskCost struct {
 	TaskID      string
+	Title       string // pm_tasks.title; "" when the task row is gone / cross-project unresolved (UI falls back to TaskID)
 	Events      int64
 	TokensIn    int64
 	TokensOut   int64
 	CacheTokens int64
 	CostMicros  int64
+	// DominantModel is the model that accounts for the most cost on this task
+	// (usage_events grouped by task+model, max cost_micros). "" when undeterminable.
+	DominantModel string
 }
 
 // AnalyticsService serves the per-agent dashboard reads (F4). agentRef is the
