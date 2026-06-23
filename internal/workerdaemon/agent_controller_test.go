@@ -486,6 +486,123 @@ func TestAgentController_Work_NoSessionRetries(t *testing.T) {
 	}
 }
 
+// newTestControllerWithResumer is newTestController plus a wired Resumer (the
+// T335 sess==nil relaunch path needs the center's desired state).
+func newTestControllerWithResumer(t *testing.T, base string, resumer resumeStateQuerier) (*AgentController, *recordingStarter) {
+	t.Helper()
+	c, err := NewAgentController(AgentControllerConfig{
+		Reporter:      &recordingReporter{},
+		WorkerID:      "w-1",
+		AdminURL:      "unix:/tmp/admin.sock",
+		WorkerToken:   "tok",
+		BinaryPath:    "agent-center",
+		AgentHomeBase: base,
+		StopGrace:     50 * time.Millisecond,
+		Resumer:       resumer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := &recordingStarter{}
+	c.cfg.starter = rs.start
+	return c, rs
+}
+
+// TestAgentController_WorkAvailable_NoSession_RelaunchesDownAgent is the T335
+// regression guard: a work_available wake for a DOWN, desired-running agent must NO
+// LONGER be silently ACK-dropped — it must relaunch the dead session (reusing the
+// boot-reconcile path) so the agent can drain its queued work on boot. The handler
+// still ACKs (returns nil) so the single-cursor control loop never wedges.
+func TestAgentController_WorkAvailable_NoSession_RelaunchesDownAgent(t *testing.T) {
+	base := t.TempDir()
+	resumer := &fakeResumer{state: ResumeState{Agents: []ResumeAgent{
+		{AgentID: "agent-1", DesiredLifecycle: "running", Version: 5},
+	}}}
+	c, rs := newTestControllerWithResumer(t, base, resumer)
+	defer c.Shutdown(context.Background())
+
+	// Plant a DEAD supervisor instance → ProbeAgent → Unavailable; desired-running +
+	// Unavailable → reap+relaunch (Mode-B). No live session exists for agent-1.
+	writeBootInstance(t, filepath.Join(base, "agents", "agent-1"), "agent-1")
+
+	// The wake must ACK (return nil) — never wedge the cursor on a down agent.
+	if err := c.Handle(context.Background(), workAvailableCmd(t, "agent-1", "wi-1", 1)); err != nil {
+		t.Fatalf("work_available must ack (no cursor wedge), got err: %v", err)
+	}
+	// …and it must have relaunched the dead session (the old code dropped it → 0).
+	if rs.count() != 1 {
+		t.Fatalf("work_available for a down desired-running agent must relaunch its session, got %d starts", rs.count())
+	}
+	if got := rs.last().cfg.AgentID; got != "agent-1" {
+		t.Fatalf("relaunched wrong agent: %q", got)
+	}
+}
+
+// TestAgentController_WorkAvailable_NoSession_DesiredStoppedNoRelaunch: a wake for a
+// down agent the center wants STOPPED must NOT resurrect it (a queued WI under a
+// stopped agent is the rollback/reset path's job). Still acks (no wedge).
+func TestAgentController_WorkAvailable_NoSession_DesiredStoppedNoRelaunch(t *testing.T) {
+	base := t.TempDir()
+	resumer := &fakeResumer{state: ResumeState{Agents: []ResumeAgent{
+		{AgentID: "agent-1", DesiredLifecycle: "stopped", Version: 5},
+	}}}
+	c, rs := newTestControllerWithResumer(t, base, resumer)
+	defer c.Shutdown(context.Background())
+	writeBootInstance(t, filepath.Join(base, "agents", "agent-1"), "agent-1")
+
+	if err := c.Handle(context.Background(), workAvailableCmd(t, "agent-1", "wi-1", 1)); err != nil {
+		t.Fatalf("work_available must ack, got err: %v", err)
+	}
+	if rs.count() != 0 {
+		t.Fatalf("desired-stopped agent must NOT be relaunched by a wake, got %d starts", rs.count())
+	}
+}
+
+// TestAgentController_WorkAvailable_NoSession_NoResumerDormant: with no Resumer wired
+// (dormant / pre-cutover), the sess==nil path falls back to the legacy behavior —
+// leave queued, ack, never wedge, never start a session.
+func TestAgentController_WorkAvailable_NoSession_NoResumerDormant(t *testing.T) {
+	c, _, rs := newTestController(t, t.TempDir()) // newTestController wires NO Resumer
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), workAvailableCmd(t, "agent-1", "wi-1", 1)); err != nil {
+		t.Fatalf("work_available must ack even with no resumer, got err: %v", err)
+	}
+	if rs.count() != 0 {
+		t.Fatalf("no resumer → no relaunch, got %d starts", rs.count())
+	}
+}
+
+// TestAgentController_WorkAvailable_LiveSession_NudgesNotRelaunch: with a LIVE
+// session the wake stays on the cheap nudge path (inject the pull nudge), and does
+// NOT touch the resumer/relaunch path.
+func TestAgentController_WorkAvailable_LiveSession_NudgesNotRelaunch(t *testing.T) {
+	base := t.TempDir()
+	resumer := &fakeResumer{err: errors.New("resumer must not be consulted when a session is live")}
+	c, rs := newTestControllerWithResumer(t, base, resumer)
+	defer c.Shutdown(context.Background())
+
+	// Bring agent-1 up first.
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile running: %v", err)
+	}
+	if rs.count() != 1 {
+		t.Fatalf("want 1 start from reconcile, got %d", rs.count())
+	}
+	sess := rs.last()
+
+	if err := c.Handle(context.Background(), workAvailableCmd(t, "agent-1", "wi-1", 2)); err != nil {
+		t.Fatalf("work_available (live session) must ack, got err: %v", err)
+	}
+	// No NEW session started (resumer not consulted), and the pull nudge was injected.
+	if rs.count() != 1 {
+		t.Fatalf("live-session wake must not start a new session, got %d starts", rs.count())
+	}
+	if msgs := sess.injectedMsgs(); len(msgs) != 1 || msgs[0] != workAvailableNudge {
+		t.Fatalf("live-session wake must inject the pull nudge once, got %v", msgs)
+	}
+}
+
 func TestAgentController_ReconcileStop_ReportsStoppedOnce(t *testing.T) {
 	c, rep, rs := newTestController(t, t.TempDir())
 

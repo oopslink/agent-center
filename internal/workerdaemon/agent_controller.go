@@ -983,17 +983,6 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 		c.log("work_available missing agent_id — skipping")
 		return nil
 	}
-	// Coalesce per work_item_id (mirror wake dedup) so reemit/flap/replay don't
-	// spam nudges. A coalesced re-emit is a silent no-op.
-	if !c.recordWorkAvail(pl.AgentID, pl.TaskID) {
-		return nil
-	}
-	// v2.8.1 #278 D PR4a: NUDGE the agent to run its pull loop. The loop
-	// instructions live in the agent's persistent system prompt
-	// (claudestream.AgentWorkQueueSystemPrompt), so this is just a short wake — the
-	// agent reacts per its system prompt (finish current task, then list_my_tasks →
-	// start_task the next item). If no running session, skip (the item stays queued;
-	// the agent pulls it on its next boot/wake) — never wedge the cursor.
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
 	var sess agentSession
@@ -1001,15 +990,91 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 		sess = ma.session
 	}
 	c.mu.Unlock()
+
+	// T335: a queued WorkItem arrived but this agent has NO live session
+	// (crashed-and-circuit-broken, idle-downed, or otherwise dead). The old code
+	// silently ACK-dropped the wake here, so a down agent's dispatched work stayed
+	// queued FOREVER: dispatch emits only agent.work_available — never a paired
+	// reconcile(running) — and nothing else pulls up a dead session on new work (the
+	// only session-starters are boot-reconcile and onExit self-heal, neither of which
+	// a wake triggers). Instead, drive the SAME proven per-agent boot-reconcile for
+	// THIS agent (probe local supervisor × center desired state → reattach/relaunch)
+	// so the dead session comes back; its pull loop then drains the queued WorkItems
+	// (the agent's system prompt list_my_tasks-on-boot), self-healing the dropped
+	// wake. Run BEFORE the coalesce dedup so a re-emitted wake keeps retrying the
+	// bring-up while the agent is down (the dedup only suppresses a redundant nudge
+	// on a LIVE session). Best-effort + non-wedging: always ack (return nil) so the
+	// single-cursor control loop is never blocked behind a down agent.
+	//
+	// SAFETY (single-goroutine startSession invariant): workAvailable is invoked only
+	// from the ControlLoop executor goroutine — the same goroutine that runs OnTick
+	// self-heal and boot-reconcile — so reusing the session-start path here is never
+	// concurrent with another startSession (ControlLoop §-1 CONCURRENCY).
 	if sess == nil {
-		c.log("work_available agent=%s work_item=%s — no running session; queued, agent pulls on next wake", pl.AgentID, pl.TaskID)
+		c.relaunchForWake(ctx, pl.AgentID, pl.TaskID)
 		return nil
 	}
+
+	// Live session: coalesce per work_item_id (mirror wake dedup) so reemit/flap/
+	// replay don't spam nudges. A coalesced re-emit is a silent no-op.
+	if !c.recordWorkAvail(pl.AgentID, pl.TaskID) {
+		return nil
+	}
+	// v2.8.1 #278 D PR4a: NUDGE the agent to run its pull loop. The loop
+	// instructions live in the agent's persistent system prompt
+	// (claudestream.AgentWorkQueueSystemPrompt), so this is just a short wake — the
+	// agent reacts per its system prompt (finish current task, then list_my_tasks →
+	// start_task the next item).
 	if err := sess.Inject(ctx, workAvailableNudge); err != nil {
 		// Benign: the work stays queued; the agent pulls on its next loop. Log + ack.
 		c.log("work_available agent=%s nudge inject: %v", pl.AgentID, err)
 	}
 	return nil
+}
+
+// relaunchForWake brings a DOWN agent's session back up when an agent.work_available
+// wake arrives but no live session exists (T335 — "派了不起跑"). It reuses the
+// per-agent boot-reconcile path (probe local supervisor × center desired state →
+// reattach a survivor / relaunch a dead one) so a queued WorkItem can never sit
+// forever behind a dead session. Best-effort and NON-WEDGING: every failure is
+// logged, never returned — the caller acks the wake regardless so the single-cursor
+// control loop is never blocked.
+//
+// Single-thread: invoked only from workAvailable, which runs on the ControlLoop
+// executor goroutine (the same single-threaded caller that boot-reconcile and OnTick
+// self-heal use), so the reused session-start path is never concurrent with another
+// startSession.
+func (c *AgentController) relaunchForWake(ctx context.Context, agentID, taskID string) {
+	if c.cfg.Resumer == nil {
+		// No resumer wired (dormant / pre-cutover / unit tests without a Resumer) → we
+		// cannot learn the agent's desired state, so fall back to the legacy behavior:
+		// leave the item queued; the agent pulls it on its next daemon-boot reconcile.
+		c.log("work_available agent=%s work_item=%s — no running session and no resumer; queued, agent pulls on next boot", agentID, taskID)
+		return
+	}
+	state, err := c.cfg.Resumer.ResumeState(ctx, c.cfg.WorkerID)
+	if err != nil {
+		c.log("work_available agent=%s relaunch: resume-state worker=%s: %v — left queued", agentID, c.cfg.WorkerID, err)
+		return
+	}
+	for _, ra := range state.Agents {
+		if strings.TrimSpace(ra.AgentID) != agentID {
+			continue
+		}
+		if ra.DesiredLifecycle != "running" {
+			// The center does NOT want this agent running (stopped/stopping/error) — a
+			// queued WorkItem under a non-running agent is the rollback/reset path's job,
+			// not ours. Leave it; do not resurrect a deliberately-stopped agent.
+			c.log("work_available agent=%s desired=%s — not relaunching (queued)", agentID, ra.DesiredLifecycle)
+			return
+		}
+		c.log("work_available agent=%s work_item=%s — no running session; relaunching to drain queued work", agentID, taskID)
+		c.reconcileAgentOnBoot(ctx, agentID, toCenterRecord(ra), ra.Version)
+		return
+	}
+	// The center's resume-state has no record of this agent on this worker — nothing
+	// to relaunch against (a stale/cross-worker wake). Leave it queued.
+	c.log("work_available agent=%s — no center record in resume-state; left queued", agentID)
 }
 
 // workAvailableNudge is the short wake injected on agent.work_available (v2.8.1
