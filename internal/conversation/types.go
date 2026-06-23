@@ -233,6 +233,11 @@ var (
 	ErrConversationArchived        = errors.New("conversation: conversation is archived, read-only (ADR-0032 § 5)")
 	ErrConversationInvalidKind     = errors.New("conversation: invalid kind for operation")
 	ErrConversationInvalidStatus   = errors.New("conversation: invalid status")
+	// T344: a DM must be a 1:1 between two distinct parties. Creating one with a
+	// single (or zero) active participant produced a single-party dm_key that the
+	// dedup unique index could not collide with the real pair DM (stray "Reminder"
+	// DMs). This invariant blocks that class of bug at creation.
+	ErrConversationDMParticipants = errors.New("conversation: a DM requires exactly two distinct active participants")
 	ErrConversationVersionConflict = errors.New("conversation: conversation version conflict (optimistic lock)")
 
 	// Message

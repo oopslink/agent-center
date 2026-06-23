@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -38,15 +39,45 @@ func setup(t *testing.T) *MessageWriter {
 func TestOpenConversation_DMHappy(t *testing.T) {
 	w := setup(t)
 	res, err := w.OpenConversation(context.Background(), OpenCommand{
-		Kind:      conversation.ConversationKindDM,
-		CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor:     observability.Actor("user:hayang"),
+		Kind:         conversation.ConversationKindDM,
+		CreatedBy:    conversation.IdentityRef("user:hayang"),
+		Participants: dmFixtureParticipants(),
+		Actor:        observability.Actor("user:hayang"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.ConversationID == "" || res.EventID == "" {
 		t.Fatalf("got %+v", res)
+	}
+}
+
+// dmFixtureParticipants is the canonical 2-party DM participant set for tests
+// (T344: OpenConversation rejects a DM with <2 distinct active participants).
+func dmFixtureParticipants() []conversation.ParticipantElement {
+	return []conversation.ParticipantElement{
+		{IdentityID: "user:hayang", Role: "owner", JoinedAt: "t", JoinedBy: "user:hayang"},
+		{IdentityID: "agent:agent-peer", Role: "member", JoinedAt: "t", JoinedBy: "user:hayang"},
+	}
+}
+
+// T344: a DM with a single (or zero) active participant is rejected — the bug that
+// let the reminder deliverer mint stray single-party DMs.
+func TestOpenConversation_DM_RequiresTwoParticipants(t *testing.T) {
+	w := setup(t)
+	for _, parts := range [][]conversation.ParticipantElement{
+		nil,
+		{{IdentityID: "agent:agent-solo", Role: "member", JoinedAt: "t", JoinedBy: "system"}},
+	} {
+		_, err := w.OpenConversation(context.Background(), OpenCommand{
+			Kind:         conversation.ConversationKindDM,
+			CreatedBy:    conversation.IdentityRef("system"),
+			Participants: parts,
+			Actor:        observability.Actor("system"),
+		})
+		if !errors.Is(err, conversation.ErrConversationDMParticipants) {
+			t.Fatalf("participants=%v: want ErrConversationDMParticipants, got %v", parts, err)
+		}
 	}
 }
 
@@ -102,9 +133,10 @@ func TestOpenConversation_BadActor(t *testing.T) {
 func TestAddMessage_Happy(t *testing.T) {
 	w := setup(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
-		Kind:      conversation.ConversationKindDM,
-		CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor:     observability.Actor("user:hayang"),
+		Kind:         conversation.ConversationKindDM,
+		CreatedBy:    conversation.IdentityRef("user:hayang"),
+		Participants: dmFixtureParticipants(),
+		Actor:        observability.Actor("user:hayang"),
 	})
 	got, err := w.AddMessage(context.Background(), AddMessageCommand{
 		ConversationID:   res.ConversationID,
@@ -140,9 +172,10 @@ func TestAddMessage_NotFound(t *testing.T) {
 func TestAddMessage_ToArchived(t *testing.T) {
 	w := setup(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
-		Kind:      conversation.ConversationKindDM,
-		CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor:     observability.Actor("user:hayang"),
+		Kind:         conversation.ConversationKindDM,
+		CreatedBy:    conversation.IdentityRef("user:hayang"),
+		Participants: dmFixtureParticipants(),
+		Actor:        observability.Actor("user:hayang"),
 	})
 	_, err := w.Archive(context.Background(), ArchiveCommand{
 		ConversationID: res.ConversationID,
@@ -169,9 +202,10 @@ func TestAddMessage_ToArchived(t *testing.T) {
 func TestAddMessage_ToClosed(t *testing.T) {
 	w := setup(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
-		Kind:      conversation.ConversationKindDM,
-		CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor:     observability.Actor("user:hayang"),
+		Kind:         conversation.ConversationKindDM,
+		CreatedBy:    conversation.IdentityRef("user:hayang"),
+		Participants: dmFixtureParticipants(),
+		Actor:        observability.Actor("user:hayang"),
 	})
 	_, _ = w.Close(context.Background(), CloseCommand{
 		ConversationID: res.ConversationID, Version: 1,
@@ -191,7 +225,8 @@ func TestAddMessage_BadSender(t *testing.T) {
 	w := setup(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
 		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor: observability.Actor("user:hayang"),
+		Participants: dmFixtureParticipants(),
+		Actor:        observability.Actor("user:hayang"),
 	})
 	_, err := w.AddMessage(context.Background(), AddMessageCommand{
 		ConversationID: res.ConversationID, SenderIdentityID: "",
@@ -207,7 +242,8 @@ func TestClose_Happy(t *testing.T) {
 	w := setup(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
 		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor: observability.Actor("user:hayang"),
+		Participants: dmFixtureParticipants(),
+		Actor:        observability.Actor("user:hayang"),
 	})
 	evID, err := w.Close(context.Background(), CloseCommand{
 		ConversationID: res.ConversationID, Version: 1,
@@ -235,7 +271,8 @@ func TestClose_VersionConflict(t *testing.T) {
 	w := setup(t)
 	res, _ := w.OpenConversation(context.Background(), OpenCommand{
 		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor: observability.Actor("user:hayang"),
+		Participants: dmFixtureParticipants(),
+		Actor:        observability.Actor("user:hayang"),
 	})
 	_, err := w.Close(context.Background(), CloseCommand{
 		ConversationID: res.ConversationID, Version: 99,
@@ -283,7 +320,8 @@ func TestAddMessage_WithAttachments(t *testing.T) {
 
 	res, err := w.OpenConversation(context.Background(), OpenCommand{
 		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
-		Actor: observability.Actor("user:hayang"),
+		Participants: dmFixtureParticipants(),
+		Actor:        observability.Actor("user:hayang"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -344,10 +382,21 @@ func setupWithRepos(t *testing.T) (*MessageWriter, *convsqlite.MessageRepo) {
 	return NewMessageWriter(db, convRepo, msgRepo, sink, gen, fc), msgRepo
 }
 
+// dmPeerSeq makes each openDM() call a DISTINCT 1:1 pair (distinct dm_key) so
+// tests that open two DMs get two conversations (the dedup index would otherwise
+// collapse identical pairs). T344: a DM now requires ≥2 distinct active parties.
+var dmPeerSeq int
+
 func openDM(t *testing.T, w *MessageWriter) conversation.ConversationID {
 	t.Helper()
+	dmPeerSeq++
+	now := time.Now().UTC().Format(time.RFC3339Nano)
 	res, err := w.OpenConversation(context.Background(), OpenCommand{
 		Kind: conversation.ConversationKindDM, CreatedBy: conversation.IdentityRef("user:hayang"),
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: "user:hayang", Role: "owner", JoinedAt: now, JoinedBy: "user:hayang"},
+			{IdentityID: conversation.IdentityRef(fmt.Sprintf("agent:agent-peer%d", dmPeerSeq)), Role: "member", JoinedAt: now, JoinedBy: "user:hayang"},
+		},
 		Actor: observability.Actor("user:hayang"),
 	})
 	if err != nil {

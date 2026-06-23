@@ -420,6 +420,10 @@ func TestAPI_InvitePartOnDM_Rejected(t *testing.T) {
 	ctx := context.Background()
 	openRes, _ := deps.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
 		Kind: conversation.ConversationKindDM, OrganizationID: sess.OrgID, CreatedBy: "user:hayang",
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: "user:hayang", Role: "owner", JoinedAt: "t", JoinedBy: "user:hayang"},
+			{IdentityID: "agent:agent-peer", Role: "member", JoinedAt: "t", JoinedBy: "user:hayang"},
+		},
 		Actor: observability.Actor("user:hayang"),
 	})
 	s := newTestServer(t, deps)

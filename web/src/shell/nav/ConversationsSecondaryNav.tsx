@@ -171,7 +171,11 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
         : d.peer_identity_id
           ? '(deleted)'
           : 'Direct message';
-  const dmCanDelete = (d: Conversation): boolean => !!d.peer_identity_id && !d.peer_display_name;
+  // T344 (@oopslink: "电脑端也要支持删除 DM"): desktop now allows deleting ANY DM
+  // (mobile already did via the DMs page). The backend lets an org owner delete a
+  // DM even when not a participant — so stray DMs (e.g. old single-party "Reminder"
+  // DMs) can be cleaned up from the rail. Was previously gated to deleted-peer DMs.
+  const dmCanDelete = (_d: Conversation): boolean => true;
 
   // One DM row (NavLink + optional delete) — shared by both groups. T318: an
   // agent↔agent row STACKS its two participants on separate lines ("@A" / "↔ @B")

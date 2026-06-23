@@ -123,14 +123,22 @@ func (d *conversationDeliverer) Deliver(ctx context.Context, req cogservice.Deli
 	remindeeRef := conversation.IdentityRef("agent:" + req.RemindeeAgentID)
 	sender := deliverySender(req, remindeeRef)
 	now := d.clk.Now().UTC().Format(time.RFC3339Nano)
+	// T344: the DM must include BOTH parties — the SENDER (system for a self-reminder,
+	// else the creator) AND the remindee. The old code listed only the remindee, so
+	// the DM had a single-party dm_key (e.g. "agent:<id>") that the dedup index could
+	// not collide with the real pair DM — every self-reminding agent accreted a stray
+	// single-participant "Reminder" DM (@oopslink: duplicate @agent DMs). With the
+	// sender as a participant the key is canonical: a creator-delivered reminder reuses
+	// the existing creator↔agent DM; a self-reminder uses one [system, agent] DM.
 	res, err := d.writer.OpenConversation(ctx, convservice.OpenCommand{
 		Kind:           conversation.ConversationKindDM,
 		Name:           "Reminder",
 		OrganizationID: req.OrganizationID,
-		Participants: []conversation.ParticipantElement{{
-			IdentityID: remindeeRef, Role: "member", JoinedAt: now, JoinedBy: conversation.IdentityRef("system"),
-		}},
-		CreatedBy: conversation.IdentityRef("system"),
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: sender, Role: "owner", JoinedAt: now, JoinedBy: conversation.IdentityRef("system")},
+			{IdentityID: remindeeRef, Role: "member", JoinedAt: now, JoinedBy: conversation.IdentityRef("system")},
+		},
+		CreatedBy: sender,
 		Actor:     observability.Actor("system"),
 	})
 	if err != nil {

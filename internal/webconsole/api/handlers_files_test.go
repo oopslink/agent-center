@@ -151,8 +151,10 @@ func seedParticipantDM(t *testing.T, deps HandlerDeps, sess testSession) string 
 	res, err := deps.MessageWriter.OpenConversation(context.Background(), convservice.OpenCommand{
 		Kind:           conversation.ConversationKindDM,
 		OrganizationID: sess.OrgID,
+		// T344: a DM needs ≥2 distinct active participants.
 		Participants: []conversation.ParticipantElement{
 			{IdentityID: owner, Role: "owner", JoinedAt: "t", JoinedBy: owner},
+			{IdentityID: "agent:agent-peer", Role: "member", JoinedAt: "t", JoinedBy: owner},
 		},
 		CreatedBy: owner,
 		Actor:     observability.Actor(owner),
@@ -223,6 +225,7 @@ func TestAPI_Files_UploadDownload_ConversationRoundTrip(t *testing.T) {
 		OrganizationID: sess.OrgID,
 		Participants: []conversation.ParticipantElement{
 			{IdentityID: conversation.IdentityRef(owner), Role: "owner", JoinedAt: "t", JoinedBy: conversation.IdentityRef(owner)},
+			{IdentityID: "agent:agent-peer", Role: "member", JoinedAt: "t", JoinedBy: conversation.IdentityRef(owner)},
 		},
 		CreatedBy: conversation.IdentityRef(owner),
 		Actor:     observability.Actor(owner),

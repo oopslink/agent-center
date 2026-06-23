@@ -8,7 +8,11 @@ import (
 	"github.com/oopslink/agent-center/internal/clock"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/conversation"
+	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/observability"
+	obsqlite "github.com/oopslink/agent-center/internal/observability/sqlite"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -188,5 +192,67 @@ func TestResolveReminderContext_CrossProjectStillRejected(t *testing.T) {
 	}
 	if rc.CreatorProjectID != "" {
 		t.Fatalf("cross-project: CreatorProjectID must stay empty so the aggregate rejects, got %q", rc.CreatorProjectID)
+	}
+}
+
+// TestConversationDeliverer_OpensTwoPartyDM pins T344: the reminder deliverer must
+// open a proper 2-party DM (sender + remindee), NOT a single-participant DM. The
+// old code listed only the remindee → a single-party dm_key the dedup index could
+// never collide with the real pair DM (duplicate "@agent" DMs).
+func TestConversationDeliverer_OpensTwoPartyDM(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := persistence.NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	fc := clock.NewFakeClock(time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC))
+	gen := idgen.NewGenerator(fc)
+	er, _ := obsqlite.NewEventRepo(ctx, db)
+	sink := observability.NewEventSink(er, er, gen, fc)
+	convRepo := convsqlite.NewConversationRepo(db)
+	writer := convservice.NewMessageWriter(db, convRepo, convsqlite.NewMessageRepo(db), sink, gen, fc)
+	d := &conversationDeliverer{writer: writer, idGen: gen, clk: fc}
+
+	// A self-reminder (creator == remindee): sender falls back to system, so the DM
+	// must be [system, agent:AG2] — two distinct active participants.
+	if err := d.Deliver(ctx, cogservice.DeliveryRequest{
+		OrganizationID: "org-1", RemindeeAgentID: "AG2",
+		CreatorRef: "agent:AG2", DeliverAsCreator: true, Content: "ping",
+	}); err != nil {
+		t.Fatalf("Deliver: %v", err)
+	}
+
+	dmKind := conversation.ConversationKindDM
+	convs, err := convRepo.Find(ctx, conversation.ConversationFilter{OrganizationID: "org-1", Kind: &dmKind})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(convs) != 1 {
+		t.Fatalf("want exactly 1 DM, got %d", len(convs))
+	}
+	seen := map[conversation.IdentityRef]bool{}
+	for _, p := range convs[0].Participants() {
+		if p.IsActive() {
+			seen[p.IdentityID] = true
+		}
+	}
+	if len(seen) != 2 || !seen["system"] || !seen["agent:AG2"] {
+		t.Fatalf("DM participants = %v, want {system, agent:AG2}", seen)
+	}
+
+	// A second fire reuses the same DM (dedup), not a new one.
+	if err := d.Deliver(ctx, cogservice.DeliveryRequest{
+		OrganizationID: "org-1", RemindeeAgentID: "AG2",
+		CreatorRef: "agent:AG2", DeliverAsCreator: true, Content: "ping2",
+	}); err != nil {
+		t.Fatalf("Deliver 2: %v", err)
+	}
+	convs2, _ := convRepo.Find(ctx, conversation.ConversationFilter{OrganizationID: "org-1", Kind: &dmKind})
+	if len(convs2) != 1 {
+		t.Fatalf("second fire must reuse the DM, got %d DMs", len(convs2))
 	}
 }

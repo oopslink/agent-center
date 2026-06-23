@@ -89,12 +89,14 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     expect(screen.getByTestId('conv-new-dm')).toHaveAttribute('href', '/dms');
   });
 
-  it('a deleted-peer DM renders "(deleted)" and keeps a manual delete action; others do not', async () => {
+  it('a deleted-peer DM renders "(deleted)"; every DM exposes a delete action (T344)', async () => {
     renderNav();
     await screen.findByRole('link', { name: /oopslink/ });
     expect(screen.getByText('(deleted)')).toBeInTheDocument();
+    // T344 (@oopslink): desktop can delete ANY DM now — both the normal and the
+    // deleted-peer DM have a delete button (was previously only the deleted-peer).
     const deleteButtons = screen.getAllByTestId('sidebar-dm-delete-button');
-    expect(deleteButtons).toHaveLength(1); // only the deleted-peer DM
+    expect(deleteButtons).toHaveLength(2);
   });
 
   it('groups agent↔agent DMs separately and labels them "@A ↔ @B" (T308)', async () => {
@@ -179,7 +181,8 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
       }),
     );
     renderNav('/dms/D-DEL');
-    fireEvent.click(await screen.findByTestId('sidebar-dm-delete-button'));
+    // multiple DMs now have a delete button (T344) — target the deleted-peer row.
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete DM (deleted)' }));
     // Confirm dialog appears; nothing deleted until confirmed.
     const confirm = await screen.findByRole('button', { name: /^Delete$/ });
     expect(deleteCalled).toBe('');

@@ -156,6 +156,20 @@ func (w *MessageWriter) OpenConversation(ctx context.Context, cmd OpenCommand) (
 	// the Save conflict below.
 	dmKey := ""
 	if cmd.Kind == conversation.ConversationKindDM {
+		// T344: a DM is a 1:1 — opening one needs ≥2 DISTINCT active participants.
+		// A single-party DM yields a single-party dm_key (e.g. "agent:<id>") that the
+		// dedup unique index can never collide with the real pair DM, so every caller
+		// that opened a one-sided DM (the reminder deliverer) accreted a stray
+		// duplicate. Reject it at the create entry point.
+		distinct := make(map[conversation.IdentityRef]bool, len(cmd.Participants))
+		for _, p := range cmd.Participants {
+			if p.IsActive() {
+				distinct[p.IdentityID] = true
+			}
+		}
+		if len(distinct) < 2 {
+			return OpenResult{}, conversation.ErrConversationDMParticipants
+		}
 		dmKey = conversation.DMKey(cmd.Participants)
 		if dmKey != "" {
 			if existing, ferr := w.convRepo.FindDMByKey(ctx, cmd.OrganizationID, dmKey); ferr == nil && existing != nil {
