@@ -632,3 +632,16 @@ export interface RespondInputRequestInput {
   answer: string;
   decided_by?: string;
 }
+
+// ── I28/F4 per-agent analytics (issue-a7ff560e, v2.15.0) ────────────────────
+// Mirrors the GET /api/orgs/{slug}/agents/{id}/analytics projection. F5 consumes
+// only HeatmapCell (the heatmap block); F6/F7 add the overview/trend/top-task
+// shapes onto the same response. cost_micros is 1e-6 USD (integer, no float).
+export interface HeatmapCell {
+  day: string; // 'YYYY-MM-DD' UTC calendar date
+  events: number;
+  tokens_in: number;
+  tokens_out: number;
+  cache_tokens: number;
+  cost_micros: number;
+}
