@@ -90,7 +90,6 @@ var toolDomain = map[string]string{
 	// conversations / messaging
 	"get_my_unread": "conversations", "mark_seen": "conversations",
 	"post_message": "conversations", "start_dm": "conversations", "subscribe": "conversations", "unsubscribe": "conversations",
-	"request_input": "conversations",
 	// files
 	"upload_file": "files", "download_file": "files", "attach_file": "files",
 	// findings

@@ -25,7 +25,6 @@ import (
 //	post_message       — append a message to a DM/channel, task, or issue   (1 write)
 //	                     (T200 WS4: target{type,id} unifies the former post_message/
 //	                     post_task_message/post_issue_message trio)
-//	request_input      — post a question + park the WorkItem waiting_input (ATOMIC)
 //	block_task         — post a reason + pm.BlockTask(blocked)            (ATOMIC)
 //	complete_task      — post a summary + pm.CompleteTask(completed)      (ATOMIC)
 //
@@ -667,61 +666,6 @@ func agentIsActiveParticipant(conv *conversation.Conversation, a *agent.Agent) b
 		}
 	}
 	return false
-}
-
-// --- request_input -----------------------------------------------------------
-
-type requestInputReq struct {
-	AgentID  string `json:"agent_id"`
-	TaskID   string `json:"task_id"`
-	Question string `json:"question"`
-}
-
-// requestInputHandler records an input-required block on the task so it is
-// BLOCKED awaiting a user reply (v2.14.0 F7 issue I14 / F6 input-required path).
-//
-// It calls pm.BlockTask with reason_type=input_required, passing the agent's
-// QUESTION as the block reason. BlockTask emits EvtTaskInputRequested in its own
-// tx; the TaskInputConversationProjector consumes it and posts the input_request
-// message (the question) into the task's bound Conversation as the assignee — so
-// the handler must NOT post the question itself (that would double-post). The
-// former active→waiting_input WorkItem park + agent.awaiting_input wake trigger
-// were removed (AgentWorkItem retired); the F6 block IS the await-input mechanism.
-func (s *Server) requestInputHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var req requestInputReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.PMService == nil || d.ConvRepo == nil {
-		writeError(w, http.StatusNotImplemented, "pm_or_conversation_not_wired", "")
-		return
-	}
-	if strings.TrimSpace(req.Question) == "" {
-		writeError(w, http.StatusBadRequest, "missing_question", "")
-		return
-	}
-	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
-		return
-	}
-	// Block the task awaiting a user reply (input_required). The question rides as
-	// the block reason → the TaskInputConversationProjector surfaces it as the
-	// input_request message in the task conversation (sender=assignee). BlockTask
-	// runs its own tx; no extra message post here (avoids a double question).
-	if err := d.PMService.BlockTask(r.Context(), pm.TaskID(req.TaskID), req.Question,
-		pm.BlockReasonInputRequired, pm.IdentityRef(agentActor(a))); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"task_id": req.TaskID,
-		"status":  "blocked",
-	})
 }
 
 // --- block_task --------------------------------------------------------------

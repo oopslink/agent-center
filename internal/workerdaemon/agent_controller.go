@@ -748,8 +748,8 @@ func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
 	c.recordWake(pl.AgentID, pl.MessageID)
 
 	// D2-e-ii (OQ5 method 甲): advance the agent participant's read-state cursor
-	// to the newest delivered message so the NEXT batch flush (request_input →
-	// agent.awaiting_input) does not re-deliver what was already injected here.
+	// to the newest delivered message so the NEXT batch flush (the dormant
+	// conversational batch-flush trigger) does not re-deliver what was injected here.
 	// This applies to BOTH the e-i immediate wake (single message) and the e-ii
 	// batch flush. Best-effort: a mark-seen failure is logged, not fatal (the
 	// FIFO dedup set already guards crash-replay; the cursor is the batch boundary

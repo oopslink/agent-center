@@ -319,20 +319,19 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 		// v2.7 D2-e-i (OQ5): when the message lands in a TASK-owned conversation,
 		// ALSO append a `conversation.message_added` event to the cross-BC outbox
 		// IN THIS SAME TX (the outbox repo joins via ExecutorFromCtx). The
-		// Environment-BC WakeProjector consumes it to wake any agent whose
-		// AgentWorkItem for the task is waiting_input. Only task conversations
-		// (owner_ref `pm://tasks/`) carry waiting_input WorkItems, so non-task
-		// conversations (channel/dm/issue/project/org) emit NOTHING. A nil outbox
-		// dep (test fixtures not exercising wake) also skips silently.
+		// Environment-BC WakeProjector consumes it to wake the task's participant
+		// agent (e.g. an assignee blocked input_required awaiting the user reply).
+		// v2.14.0 F7 (I14): AgentWorkItem retired, so the wake is purely the
+		// conversational @mention/participant path — no waiting_input WorkItem lookup.
+		// A nil outbox dep (test fixtures not exercising wake) skips silently.
 		//
 		// This runs INSIDE the same tx as msgRepo.Append + sink.Emit, so the
-		// request_input atomic flow (AddMessage + WaitInput in one outer RunInTx)
-		// stays atomic: the wake event commits iff the message commits. The
-		// agent's own question carries sender=agent:<id>, which the WakeProjector
-		// self-excludes — so request_input never wakes the asking agent.
+		// wake event commits iff the message commits. The agent's own message
+		// carries sender=agent:<id>, which the WakeProjector self-excludes — so an
+		// agent posting to its own task never wakes itself.
 		// Emit conversation.message_added to the cross-BC outbox for the
 		// conversations where an agent may need waking:
-		//   - TASK conversations (owner_ref pm://tasks/) → WorkItem wake (D2-e-i).
+		//   - TASK conversations (owner_ref pm://tasks/) → participant wake (D2-e-i).
 		//   - v2.7 #185: DM/Channel conversations that HAVE an agent participant →
 		//     conversational wake (the WakeProjector decides DM-direct vs
 		//     channel-@mention; loop-break is the user:-only sender check there).

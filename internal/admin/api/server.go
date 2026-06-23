@@ -393,7 +393,6 @@ func (s *Server) routes() {
 	// Agent→agent coordination: create/reuse a same-org DM and send the opening
 	// message through the same MessageWriter path as human-created DMs.
 	s.mux.HandleFunc("POST /admin/agent-tools/start_dm", s.startDMHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/request_input", s.requestInputHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
 	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)

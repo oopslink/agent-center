@@ -2,7 +2,7 @@ package service
 
 // v2.7.1 #220: issue/task conversations are conversations too — an @mention of an
 // agent participant wakes it (agent.converse), reusing the channel @mention policy.
-// For task, this runs IN ADDITION to the existing WorkItem request_input wake,
+// For task, this is the wake path (v2.14.0 F7 retired the old WorkItem-keyed wake),
 // under the same applied-mark.
 
 import (

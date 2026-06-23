@@ -42,8 +42,8 @@ const userParticipantPrefix = "user:"
 
 // v2.14.0 F7 (issue I14): EvtAgentAwaitingInput + the D2-e-ii batch-flush /
 // awaiting_input wake path (and the WorkItem-keyed task wake) removed —
-// AgentWorkItem retired. request_input now blocks the Task (input_required) via
-// the PM F6 path; the wake projector keeps only the conversation @mention wakes.
+// AgentWorkItem retired. The input-required await is now block_task(input_required)
+// via the PM F6 path; the wake projector keeps only the conversation @mention wakes.
 
 // ownerRefTasksPrefix is the task-owned conversation owner_ref scheme.
 const ownerRefTasksPrefix = "pm://tasks/"
@@ -365,7 +365,7 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 	// participant agent (creator/assignee, joined via #284) must wake it, exactly
 	// like DM/Channel.
 	// v2.14.0 F7 (issue I14): TASK conversations are now handled here as well — the
-	// WorkItem request_input wake that used to run in projectMessageAdded was
+	// WorkItem-keyed input-required wake that used to run in projectMessageAdded was
 	// removed (AgentWorkItem retired), so a task chat is treated like any other
 	// @mention/participant conversational wake. Other kinds: ignore.
 	if kind != conversation.ConversationKindDM &&

@@ -132,9 +132,10 @@ type App struct {
 	FollowStateRepo    conversation.UserConversationFollowStateRepository
 	FollowStateSvc     *convservice.FollowStateService
 
-	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). The admin
-	// request_input handler uses it to emit `agent.awaiting_input` in the same tx
-	// as the WorkItem entering waiting_input (the batch-flush trigger).
+	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). The MessageWriter
+	// uses it to emit `conversation.message_added` in the same tx as the message
+	// append (the conversational-wake trigger). (The retired request_input →
+	// agent.awaiting_input emit no longer exists; AgentWorkItem was removed in F7.)
 	OutboxRepo outbox.Repository
 
 	// Workforce — AgentInstance (P10 § 3.8 + F5)

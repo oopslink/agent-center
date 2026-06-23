@@ -30,8 +30,8 @@ import (
 )
 
 // =============================================================================
-// v2.7 D2-b2 — agent MCP write tools (post_message, request_input,
-// block_task, complete_task). These tests stand up the REAL admin server +
+// v2.7 D2-b2 — agent MCP write tools (post_message, block_task,
+// complete_task). These tests stand up the REAL admin server +
 // AuthMiddleware over a full pm → outbox → projector pipeline so the task's
 // Conversation + the agent's WorkItem exist exactly as they do in production
 // (the participant + work-item projectors create them from pm.task.assigned).
@@ -527,81 +527,6 @@ func TestPostTaskMessage_MissingContent_400(t *testing.T) {
 		map[string]any{"agent_id": atAgent1, "target": map[string]any{"type": "task", "id": tid}})
 	if status != http.StatusBadRequest || body["error"] != "missing_content" {
 		t.Fatalf("status = %d err=%v, want 400 missing_content", status, body["error"])
-	}
-}
-
-// --- request_input -----------------------------------------------------------
-
-// TestRequestInput_OK — v2.14.0 F7 (issue I14): request_input no longer parks a
-// WorkItem; it BLOCKS the task with reason_type=input_required (the question
-// rides as the block reason) and returns {task_id, status:"blocked"}. The block
-// IS the await-input mechanism (the former active→waiting_input WorkItem park +
-// agent.awaiting_input wake were retired with AgentWorkItem).
-func TestRequestInput_OK(t *testing.T) {
-	f := newWriteToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t)
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/request_input", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid, "question": "which branch?"})
-	if status != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %v", status, body)
-	}
-	if body["task_id"] != tid {
-		t.Fatalf("task_id field = %v, want %s", body["task_id"], tid)
-	}
-	if body["status"] != "blocked" {
-		t.Fatalf("status field = %v, want blocked", body["status"])
-	}
-	// The task carries the input-required block annotation (the question is the
-	// block reason; the projector that surfaces it as a conversation message is not
-	// wired in this fixture's relay).
-	tk, err := f.pmSvc.GetTask(context.Background(), pm.TaskID(tid))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if tk.BlockedReason() != "which branch?" {
-		t.Fatalf("blocked_reason = %q, want the question", tk.BlockedReason())
-	}
-	if got := tk.BlockedReasonType(); got != pm.BlockReasonInputRequired {
-		t.Fatalf("blocked_reason_type = %s, want input_required", got)
-	}
-}
-
-// TestRequestInput_NotOwnTask_403 — request_input is own-work scoped: an agent
-// that is not the task's assignee is rejected (Task.Assignee gate). Uses a task
-// in a project AG1 is not a member of (and not assigned to it).
-func TestRequestInput_NotOwnTask_403(t *testing.T) {
-	f := newWriteToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	f.seedMemberProject(t) // AG1 resolves (member of SOME project)…
-	pid := f.seedForeignProject(t)
-	tid, err := f.pmSvc.CreateTask(context.Background(), pmservice.CreateTaskCommand{
-		ProjectID: pid, Title: "not mine", CreatedBy: pm.IdentityRef("user:other"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.drain(t)
-	srv := f.server(t)
-
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/request_input", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": string(tid), "question": "?"})
-	if status != http.StatusForbidden || body["error"] != "not_agents_task" {
-		t.Fatalf("status = %d err=%v, want 403 not_agents_task", status, body["error"])
-	}
-}
-
-func TestRequestInput_MissingQuestion_400(t *testing.T) {
-	f := newWriteToolsFixture(t)
-	f.addWorkerToken(t, "acat_w1", atWorker1)
-	tid := f.seedRunningTask(t)
-	srv := f.server(t)
-	status, body := postBearer(t, srv.URL, "/admin/agent-tools/request_input", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	if status != http.StatusBadRequest || body["error"] != "missing_question" {
-		t.Fatalf("status = %d err=%v, want 400 missing_question", status, body["error"])
 	}
 }
 

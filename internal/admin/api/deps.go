@@ -97,19 +97,21 @@ type HandlerDeps struct {
 	AgentRepo agent.Repository
 	// v2.14.0 F7 (issue I14): AgentWorkItemRepo removed — AgentWorkItem retired.
 	// The agent-tools own-work scope is now Task.Assignee == agentActor(a) via the
-	// PM service; request_input blocks the Task (input_required) instead of parking
-	// a WorkItem.
+	// PM service; the input-required await is block_task(reason_type=input_required)
+	// blocking the Task instead of parking a WorkItem. (I25: the request_input alias
+	// route was physically removed — block_task is the single recovery path.)
 	// AgentActivityRepo is the append-only AgentActivityEvent repository (v2.7
 	// D2-c-i). The controller→center feedback /admin/environment/agent/activity
 	// endpoint asserts via repo in tests; the handler appends through the
 	// AgentSvc AppService.
 	AgentActivityRepo agent.ActivityEventRepository
 
-	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). request_input
-	// uses it to emit `agent.awaiting_input` IN THE SAME outer tx as the
-	// AddMessage + WaitInput, so the batch-flush trigger commits atomically with
-	// the agent entering waiting_input. nil-tolerant (like MessageWriter's
-	// optional outbox): a nil repo skips the emit, keeping existing tests green.
+	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). The MessageWriter
+	// uses it to emit `conversation.message_added` IN THE SAME outer tx as the
+	// AddMessage, so the conversational-wake trigger commits atomically with the
+	// message. nil-tolerant (like MessageWriter's optional outbox): a nil repo
+	// skips the emit, keeping existing tests green. (The retired request_input →
+	// agent.awaiting_input emit no longer exists; AgentWorkItem was removed in F7.)
 	OutboxRepo outbox.Repository
 
 	// Files module (v2.7 post-D3, task #104) — backs the agent file MCP tools

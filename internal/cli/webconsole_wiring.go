@@ -210,10 +210,10 @@ func (a *App) outboxProjectors(
 			slog.Warn("session-heal sweep gave up: desired-running agent never came back up",
 				"agent_id", c.AgentID, "worker_id", c.WorkerID, "task_id", c.TaskID)
 		},
-		// v2.7 D2-e-ii (OQ5 method 甲): batch-flush deps. When an agent ENTERS
-		// waiting_input (request_input → agent.awaiting_input) the projector reads
-		// its read-state cursor + the task conversation messages and enqueues ONE
-		// merged agent.wake with all unread. Still DORMANT (control loop off).
+		// v2.7 D2-e-ii (OQ5 method 甲): batch-flush deps. The projector would read
+		// an agent's read-state cursor + the task conversation messages and enqueue
+		// ONE merged agent.wake with all unread. Still DORMANT (control loop off; the
+		// former request_input → agent.awaiting_input trigger was retired in F7).
 		ConvRepo:  a.ConvRepo,
 		MsgRepo:   a.MsgRepo,
 		ReadState: a.ReadStateRepo,
