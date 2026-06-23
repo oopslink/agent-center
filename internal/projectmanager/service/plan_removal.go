@@ -149,11 +149,19 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 		if err := s.plans.Update(txCtx, p); err != nil {
 			return err
 		}
-		// (b) CASCADE: archive every (not-yet-archived) task in the plan. Orthogonal —
-		// status is preserved. (Reuses the list fetched for the running-task check.)
+		// (b) CASCADE: archive every (not-yet-archived) task in the plan. Archive is
+		// orthogonal (status preserved), so FIRST finalize any NON-terminal task to
+		// discarded (T339): a skipped/abandoned escape node stays `open`, and archiving
+		// it orthogonally would leave an open+archived task that leaks into the board /
+		// list_tasks(open) yet is locked against any later transition. Finalizing before
+		// Archive() closes that hole; a completed/discarded task keeps its real outcome.
+		// (Reuses the list fetched for the running-task check.)
 		for _, t := range tasks {
 			if t.IsArchived() {
 				continue // idempotent: already archived
+			}
+			if err := t.FinalizeForArchive(now); err != nil {
+				return err
 			}
 			if err := t.Archive(now, actor); err != nil {
 				return err

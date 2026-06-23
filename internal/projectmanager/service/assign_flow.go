@@ -186,7 +186,17 @@ func (s *Service) HeartbeatTask(ctx context.Context, taskID pm.TaskID, actor pm.
 // DiscardTask discards a non-terminal Task (terminal "discarded"; was CancelTask
 // pre-v2.8.1, uniform 废弃 semantic).
 func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
-	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error { return t.Discard(now) }, "")
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
+		// T339 escape hatch: discard_task is the operator tool to conclude a leaked
+		// open+archived dead task. Task.Discard() rejects an archived task
+		// (ErrTaskArchived) — by design, archived is read-only — so route an archived
+		// (non-terminal) task through FinalizeArchived, the one permitted terminal
+		// cleanup. A live task takes the normal Discard path unchanged.
+		if t.IsArchived() {
+			return t.FinalizeArchived(now)
+		}
+		return t.Discard(now)
+	}, "")
 }
 
 // BlockTask records a stuck-reason ANNOTATION on a running task (ADR-0046: status

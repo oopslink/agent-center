@@ -42,6 +42,12 @@ type OrgListQuery struct {
 	SortDesc        bool
 	Limit           int
 	Offset          int
+	// IncludeArchived, when false (the default), excludes ORTHOGONALLY-archived tasks
+	// (archived_at != '') from a tasks list (T339): an archived task is read-only and
+	// must not surface in the board / list_tasks as if it were live work. Tasks-only —
+	// issues/plans have no archived_at column and ignore it. Set true for an explicit
+	// "show archived" view.
+	IncludeArchived bool
 }
 
 // ProjectRepository persists Project ARs.

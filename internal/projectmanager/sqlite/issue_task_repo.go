@@ -266,7 +266,9 @@ func (r *TaskRepo) ListByPlan(ctx context.Context, planID pm.PlanID) ([]*pm.Task
 // id). The IS NULL guard tolerates pre-#283 rows that predate the NOT NULL
 // DEFAULT ” column.
 func (r *TaskRepo) ListUnplannedByProject(ctx context.Context, projectID pm.ProjectID) ([]*pm.Task, error) {
-	return r.list(ctx, taskSelect+` WHERE project_id = ? AND (plan_id IS NULL OR plan_id = '') ORDER BY created_at, id`, string(projectID))
+	// T339: also exclude archived rows from the backlog (archived tasks are read-only
+	// and must not surface as live backlog work).
+	return r.list(ctx, taskSelect+` WHERE project_id = ? AND (plan_id IS NULL OR plan_id = '') AND archived_at = '' ORDER BY created_at, id`, string(projectID))
 }
 
 func (r *TaskRepo) list(ctx context.Context, q string, arg string) ([]*pm.Task, error) {

@@ -182,10 +182,55 @@ func TestDeletePlan_Running_Rejected(t *testing.T) {
 	}
 }
 
+// TestDiscardTask_ArchivedOpen_EscapeHatch (T339-D): discard_task is the operator
+// tool to conclude a LEAKED open+archived dead task. Such a task rejects every normal
+// mutator (incl. Discard) with ErrTaskArchived; DiscardTask routes it through
+// FinalizeArchived so it can finally be concluded to discarded (staying archived).
+func TestDiscardTask_ArchivedOpen_EscapeHatch(t *testing.T) {
+	h := planRemovalSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "alpha", CreatedBy: "user:a"})
+	h.drain(t)
+	a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
+
+	// Forge the dead state directly: archive the task while it is still OPEN (the
+	// pre-T339 leak that ArchivePlan no longer produces, but legacy rows / other paths
+	// might). Persist it as archived+open.
+	tk, err := h.tasks.FindByID(h.ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Unix(1_700_000_500, 0).UTC()
+	if err := tk.Archive(at, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tasks.Update(h.ctx, tk); err != nil {
+		t.Fatal(err)
+	}
+
+	// The escape hatch: discard_task concludes it (Discard() alone would reject it).
+	if err := h.svc.DiscardTask(h.ctx, a, "user:a"); err != nil {
+		t.Fatalf("DiscardTask(archived open) escape hatch: %v", err)
+	}
+	got, err := h.tasks.FindByID(h.ctx, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status() != pm.TaskDiscarded {
+		t.Fatalf("status = %q want discarded (escape hatch concluded it)", got.Status())
+	}
+	if !got.IsArchived() {
+		t.Fatal("task must stay archived (concluded, not un-archived)")
+	}
+}
+
 // --- ArchivePlan ------------------------------------------------------------
 
 // TestArchivePlan_NonRunning_CascadeArchivesTasks: archiving a plan archives the
-// plan AND all its tasks (orthogonal — task status preserved).
+// plan AND all its tasks. A TERMINAL task keeps its real outcome (a=completed stays
+// completed); a NON-TERMINAL task is FINALIZED to discarded (T339 — b=open→discarded)
+// so the cascade never leaves an open+archived task leaking into the board /
+// list_tasks(open).
 func TestArchivePlan_NonRunning_CascadeArchivesTasks(t *testing.T) {
 	h := planRemovalSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
@@ -193,11 +238,11 @@ func TestArchivePlan_NonRunning_CascadeArchivesTasks(t *testing.T) {
 	h.drain(t)
 	a := h.seedTaskInPlan(t, pid, planID, "a", "user:x")
 	b := h.seedTaskInPlan(t, pid, planID, "b", "user:y")
-	// Drive one task to a non-open, NON-RUNNING status so we can assert it's
-	// preserved (v2.9 #299: a running task would block archive — see
-	// TestArchivePlan_RunningTask_Rejected; here we use Discarded to keep testing the
-	// status-orthogonal cascade).
-	if err := h.svc.SetTaskStatus(h.ctx, a, pm.TaskDiscarded, "user:a"); err != nil {
+	// Drive task a to a TERMINAL status (completed) so we can assert archive preserves
+	// a finished node's real outcome. Task b is left OPEN — the escape/skipped-node
+	// case T339 must finalize to discarded. (v2.9 #299: a running task would block
+	// archive — see TestArchivePlan_RunningTask_Rejected.)
+	if err := h.svc.SetTaskStatus(h.ctx, a, pm.TaskCompleted, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -213,8 +258,8 @@ func TestArchivePlan_NonRunning_CascadeArchivesTasks(t *testing.T) {
 	if p.Status() != pm.PlanArchived {
 		t.Fatalf("plan status = %q want archived", p.Status())
 	}
-	// Both tasks archived; status preserved (a=discarded, b=open).
-	wantStatus := map[pm.TaskID]pm.TaskStatus{a: pm.TaskDiscarded, b: pm.TaskOpen}
+	// Both archived; terminal preserved (a=completed), non-terminal finalized (b→discarded).
+	wantStatus := map[pm.TaskID]pm.TaskStatus{a: pm.TaskCompleted, b: pm.TaskDiscarded}
 	for id, want := range wantStatus {
 		tk, err := h.tasks.FindByID(h.ctx, id)
 		if err != nil {
@@ -227,7 +272,7 @@ func TestArchivePlan_NonRunning_CascadeArchivesTasks(t *testing.T) {
 			t.Fatalf("task %s archived_by=%q want user:a", id, tk.ArchivedBy())
 		}
 		if tk.Status() != want {
-			t.Fatalf("task %s status=%q want %q (orthogonal preserved)", id, tk.Status(), want)
+			t.Fatalf("task %s status=%q want %q (terminal preserved / non-terminal finalized)", id, tk.Status(), want)
 		}
 	}
 	// Plan conversation archived.

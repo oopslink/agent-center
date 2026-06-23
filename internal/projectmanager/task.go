@@ -445,6 +445,62 @@ func (t *Task) Archive(at time.Time, by IdentityRef) error {
 	return nil
 }
 
+// FinalizeForArchive moves a NON-terminal task to discarded as it is being archived
+// (T339). Archiving is orthogonal and preserves status, so a plan's escape/skipped
+// node — which never ran and stays `open` — would otherwise become open+archived: a
+// dead task that leaks into the task board / list_tasks(open) yet is locked
+// (ErrTaskArchived) so no normal transition can ever finalize it. Calling this in the
+// archive cascade BEFORE Archive() closes that hole.
+//
+// Unlike Discard() it accepts ANY non-terminal status (open/running/reopened) without
+// the adjacency check, because an archive abandons whatever was in flight — there is
+// no "illegal" non-terminal→discarded here. It MUST run before Archive() (the
+// IsArchived guard rejects it afterward — that lock is exactly why this exists). A
+// task already terminal (completed/discarded) is left untouched (no-op, nil), so the
+// cascade preserves a finished node's real outcome.
+func (t *Task) FinalizeForArchive(at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if t.status.IsTerminal() {
+		return nil // already concluded — preserve its real outcome
+	}
+	t.forceDiscard(at)
+	return nil
+}
+
+// FinalizeArchived is the T339 escape hatch: it concludes an ALREADY-archived but
+// non-terminal task to discarded — the ONE permitted write on an archived task. An
+// archive is orthogonal, so a legacy/edge path could leave a task archived yet `open`:
+// a dead state that leaks into the board / list_tasks(open) but is locked
+// (ErrTaskArchived) so no normal mutator — including Discard() — can ever conclude it.
+// This concludes (does not edit) such a leaked task. It REQUIRES archived (a live task
+// must use Discard → ErrTaskNotArchived) and is a no-op on an already-terminal archived
+// task. Wired behind discard_task, which becomes the operator tool to close the leak.
+func (t *Task) FinalizeArchived(at time.Time) error {
+	if !t.IsArchived() {
+		return ErrTaskNotArchived
+	}
+	if t.status.IsTerminal() {
+		return nil
+	}
+	t.forceDiscard(at)
+	return nil
+}
+
+// forceDiscard concludes a non-terminal task to discarded, bypassing BOTH the
+// adjacency check and the archived read-only lock. It is the shared core of the two
+// terminal-cleanup paths (FinalizeForArchive before archiving, FinalizeArchived after)
+// — the only places a discard legitimately ignores those guards. Callers MUST gate on
+// non-terminal first (this would otherwise overwrite a real completed/discarded
+// outcome).
+func (t *Task) forceDiscard(at time.Time) {
+	t.status = TaskDiscarded
+	t.statusChangedAt = at.UTC()
+	t.blockedReason = "" // a discarded task is not stuck (mirrors Discard)
+	t.touch(at)
+}
+
 // SetPlan selects this task into a Plan (v2.9 #283). A task is in 0..1 Plan
 // (design §2), so this overwrites any prior plan membership. Metadata edit (NOT
 // a status change): does not touch statusChangedAt. The 1:1 DAG-scope invariant

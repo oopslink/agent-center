@@ -114,7 +114,7 @@ func TestMigrateV1ToV2_DryRunReportsCounts(t *testing.T) {
 	}
 	for _, want := range []string{
 		"current schema version: 6",
-		"target  schema version: 75",
+		"target  schema version: 76",
 		"feishu_delivery_ledger:    2",
 		"bridge_subscription_cursors: 1",
 		"dry-run: no changes applied",
@@ -149,7 +149,7 @@ func TestMigrateV1ToV2_ApplyArchivesAndUpgrades(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("code=%d stdout=%s", code, stdout)
 	}
-	if !strings.Contains(stdout, "new schema version: 75") {
+	if !strings.Contains(stdout, "new schema version: 76") {
 		t.Fatalf("expected new version line; got:\n%s", stdout)
 	}
 
@@ -193,8 +193,8 @@ func TestMigrateV1ToV2_ApplyArchivesAndUpgrades(t *testing.T) {
 	db, _ := persistence.Open(dbPath)
 	defer db.Close()
 	v, _ := persistence.NewMigrator(db).Version(context.Background())
-	if v != 75 {
-		t.Fatalf("post-apply version=%d want 75", v)
+	if v != 76 {
+		t.Fatalf("post-apply version=%d want 76", v)
 	}
 	for _, tbl := range []string{"feishu_delivery_ledger", "bridge_subscription_cursors"} {
 		var n int

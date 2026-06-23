@@ -588,7 +588,9 @@ func TestPlanAPI_Delete_OrgGate(t *testing.T) {
 }
 
 // TestPlanAPI_Archive_NonRunning: POST /plans/{id}/archive on a draft plan → 200,
-// plan status archived, its task archived (status preserved).
+// plan status archived, its NON-terminal task finalized to discarded then archived
+// (T339: archiving a plan no longer leaves an open+archived dead task — the cascade
+// finalizes a non-terminal task to discarded before archiving it).
 func TestPlanAPI_Archive_NonRunning(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -616,8 +618,8 @@ func TestPlanAPI_Archive_NonRunning(t *testing.T) {
 	if !tk.IsArchived() {
 		t.Fatal("cascade: task must be archived")
 	}
-	if tk.Status() != pm.TaskOpen {
-		t.Fatalf("task status=%q want open (orthogonal preserved)", tk.Status())
+	if tk.Status() != pm.TaskDiscarded {
+		t.Fatalf("task status=%q want discarded (T339: non-terminal task finalized on plan archive)", tk.Status())
 	}
 }
 

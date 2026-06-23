@@ -18,9 +18,10 @@ import (
 
 // orgWhereOpts toggles entity-specific predicates in the shared WHERE builder.
 type orgWhereOpts struct {
-	hasAssignee    bool // tasks: apply the assignee filter
-	hasCreatedBy   bool // issues: apply the created_by (author) filter
-	excludeBuiltin bool // plans: WHERE is_builtin = 0 (the builtin pool is not a user plan)
+	hasAssignee     bool // tasks: apply the assignee filter
+	hasCreatedBy    bool // issues: apply the created_by (author) filter
+	excludeBuiltin  bool // plans: WHERE is_builtin = 0 (the builtin pool is not a user plan)
+	excludeArchived bool // tasks: exclude archived rows unless q.IncludeArchived (T339; archived_at is a tasks-only column)
 }
 
 // orgSortColumns maps a client sort key → a vetted physical column. The key is
@@ -55,6 +56,13 @@ func buildOrgListWhere(q pm.OrgListQuery, opts orgWhereOpts) (string, []any) {
 
 	if opts.excludeBuiltin {
 		conds = append(conds, "is_builtin = 0")
+	}
+
+	// T339: hide orthogonally-archived tasks from the default board / list_tasks. The
+	// archived_at column exists only on pm_tasks, so this is gated on the tasks opt;
+	// q.IncludeArchived opts back in for an explicit archived view.
+	if opts.excludeArchived && !q.IncludeArchived {
+		conds = append(conds, "archived_at = ''")
 	}
 
 	if len(q.Statuses) > 0 {
@@ -206,7 +214,7 @@ func (r *IssueRepo) ListOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*pm.I
 // --- Tasks ------------------------------------------------------------------
 
 func (r *TaskRepo) ListOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*pm.Task, int, error) {
-	where, args := buildOrgListWhere(q, orgWhereOpts{hasAssignee: true})
+	where, args := buildOrgListWhere(q, orgWhereOpts{hasAssignee: true, excludeArchived: true})
 	total, err := countOrg(ctx, r.db, "pm_tasks", where, args)
 	if err != nil {
 		return nil, 0, err
