@@ -80,6 +80,37 @@ describe('SenderDetailSidebar', () => {
     expect(panel).toHaveAttribute('aria-modal', 'true');
   });
 
+  // T346: a BARE agent id ("agent-<id>", no "agent:" prefix) must ALSO route to the
+  // agent branch — the activity sidebar passed the bare ref, refKind mis-read it as
+  // a user, and the card showed "This user is unavailable (deleted)" for a live agent.
+  it('dispatches a BARE agent-<id> ref to the agent branch (not the user/deleted path)', async () => {
+    server.use(
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          organization_id: 'O-1',
+          name: 'agent-center-pd',
+          description: '',
+          model: 'claude-opus',
+          cli: 'claudecode',
+          env_vars: {},
+          skills: [],
+          worker_id: 'w-9',
+          lifecycle: 'running',
+          availability: 'available',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent-b5036ea8'} onClose={noop} />);
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar-agent')).toBeInTheDocument());
+    expect(screen.queryByText(/This user is unavailable/i)).toBeNull();
+    expect(screen.getByTestId('agent-lifecycle-badge')).toHaveTextContent('running');
+  });
+
   it('shows the agent activity feed in the sidebar', async () => {
     server.use(
       http.get('/api/agents/:id', ({ params }) =>

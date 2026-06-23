@@ -59,12 +59,19 @@ export function identityRefOf(m: { kind: 'user' | 'agent'; identity_id: string }
   return `${m.kind === 'agent' ? 'agent:' : 'user:'}${normalizeIdentityRef(m.identity_id)}`;
 }
 
-// refKind reads the kind from a prefixed identity ref ("agent:" → 'agent',
-// otherwise 'user'). Matches MemberResult.kind. v2.9 #254. NOTE: UI sites that
-// map to the 'agent' | 'human' avatar-kind contract (ParticipantsPanel /
-// MessageList) intentionally keep their own mapping — different return type.
+// refKind reads the kind from an identity ref. Matches MemberResult.kind. v2.9
+// #254. NOTE: UI sites that map to the 'agent' | 'human' avatar-kind contract
+// (ParticipantsPanel / MessageList) intentionally keep their own mapping —
+// different return type.
+//
+// T346: also recognize the BARE agent id form. An agent member's bare identity_id
+// IS `agent-<hex>` (the "agent-" is part of the id, not a strippable kind prefix);
+// the prefixed form is `agent:agent-<id>`. A caller that passes the bare ref (e.g.
+// the activity sidebar) was misclassified as 'user' → the SenderDetailSidebar hit
+// useUser → "This user is unavailable (deleted)" for a perfectly live agent
+// (@oopslink). Bare user ids are `user-<id>`, so this never misreads a user.
 export function refKind(ref: string): 'user' | 'agent' {
-  return ref.startsWith('agent:') ? 'agent' : 'user';
+  return ref.startsWith('agent:') || ref.startsWith('agent-') ? 'agent' : 'user';
 }
 
 export interface AddUserResult extends MemberResult {
