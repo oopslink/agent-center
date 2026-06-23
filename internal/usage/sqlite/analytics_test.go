@@ -48,6 +48,11 @@ func TestAnalyticsHeatmap(t *testing.T) {
 	appendUsage(t, env, "u1", ag, "p1", "claude-opus-4-8", "2026-06-20T10:00:00Z", 100, 50, 10, 5)
 	appendUsage(t, env, "u2", ag, "p2", "claude-opus-4-8", "2026-06-20T11:00:00Z", 200, 80, 0, 0)
 	appendUsage(t, env, "u3", ag, "p1", "claude-opus-4-8", "2026-06-21T09:00:00Z", 30, 10, 0, 0)
+	// two task completions on 06-20 → that cell's Completed = 2 (folded from
+	// pm_task_action_logs); 06-21 has none → Completed 0.
+	insertTask(t, env.db, "task-c", "p1", ag, "2026-06-20T08:00:00Z")
+	completedLog(t, env, "cl-a", "task-c", ag, "2026-06-20T10:30:00Z")
+	completedLog(t, env, "cl-b", "task-c", ag, "2026-06-20T12:00:00Z")
 	runRollup(t, env)
 
 	cells, err := an.Heatmap(env.ctx, ag, "2026-06-01", "2026-06-30")
@@ -60,10 +65,12 @@ func TestAnalyticsHeatmap(t *testing.T) {
 	if cells[0].Day != "2026-06-20" || cells[0].TokensIn != 300 || cells[0].TokensOut != 130 || cells[0].CacheTokens != 15 {
 		t.Fatalf("06-20 cell wrong (want in=300 out=130 cache=15): %+v", cells[0])
 	}
-	// Two usage events on 06-20 → events_count counts the activity rows, not usage
-	// rows; here there are no activity-source rows, so events stays 0 but tokens sum.
-	if cells[1].Day != "2026-06-21" || cells[1].TokensIn != 30 {
-		t.Fatalf("06-21 cell wrong: %+v", cells[1])
+	if cells[0].Completed != 2 {
+		t.Fatalf("06-20 Completed = %d, want 2 (two completion logs folded in)", cells[0].Completed)
+	}
+	// 06-21 has usage but no completions → tokens sum, Completed 0.
+	if cells[1].Day != "2026-06-21" || cells[1].TokensIn != 30 || cells[1].Completed != 0 {
+		t.Fatalf("06-21 cell wrong (want in=30 completed=0): %+v", cells[1])
 	}
 	// Range filter excludes out-of-window days.
 	none, err := an.Heatmap(env.ctx, ag, "2026-07-01", "2026-07-31")
@@ -189,10 +196,14 @@ func TestAnalyticsTopTasks(t *testing.T) {
 	env := setupRollup(t)
 	an := NewAnalytics(env.db)
 	const ag = "agent:agent-tt"
-	// task-A: cheap; task-B: expensive → B ranks first. A no-task event is excluded.
+	// task-A: cheap, NO pm_tasks row → title falls back to "" (UI shows task_id).
 	appendUsageTask(t, env, "a1", ag, "p1", "task-A", "claude-opus-4-8", "2026-06-20T10:00:00Z", 10, 5, 0, 0, 100)
+	// task-B: expensive, HAS a pm_tasks row (title resolves) + mixed models so the
+	// dominant model = the one with the most cost (opus 1800 >> sonnet 50).
+	insertTask(t, env.db, "task-B", "p1", ag, "2026-06-20T08:00:00Z") // title = "t" (helper default)
 	appendUsageTask(t, env, "b1", ag, "p1", "task-B", "claude-opus-4-8", "2026-06-20T10:00:00Z", 100, 50, 0, 0, 900)
 	appendUsageTask(t, env, "b2", ag, "p1", "task-B", "claude-opus-4-8", "2026-06-21T10:00:00Z", 100, 50, 0, 0, 900)
+	appendUsageTask(t, env, "b3", ag, "p1", "task-B", "claude-sonnet-4-6", "2026-06-21T11:00:00Z", 10, 5, 0, 0, 50)
 	appendUsage(t, env, "no-task", ag, "p1", "claude-opus-4-8", "2026-06-20T10:00:00Z", 999, 0, 0, 0) // TaskID="" → excluded
 
 	tasks, err := an.TopTasks(env.ctx, ag, "2026-06-01", "2026-06-30", 10)
@@ -202,11 +213,25 @@ func TestAnalyticsTopTasks(t *testing.T) {
 	if len(tasks) != 2 {
 		t.Fatalf("tasks = %d, want 2 (A, B; no-task excluded): %+v", len(tasks), tasks)
 	}
-	if tasks[0].TaskID != "task-B" || tasks[0].CostMicros != 1800 || tasks[0].Events != 2 {
-		t.Fatalf("rank#1 should be task-B (cost=1800, events=2): %+v", tasks[0])
+	// rank#1 = task-B (cost 900+900+50 = 1850, 3 events), title resolved, opus dominant.
+	if tasks[0].TaskID != "task-B" || tasks[0].CostMicros != 1850 || tasks[0].Events != 3 {
+		t.Fatalf("rank#1 should be task-B (cost=1850, events=3): %+v", tasks[0])
 	}
+	if tasks[0].Title != "t" {
+		t.Fatalf("task-B title should resolve from pm_tasks: %q", tasks[0].Title)
+	}
+	if tasks[0].DominantModel != "claude-opus-4-8" {
+		t.Fatalf("task-B dominant model should be opus (most cost): %q", tasks[0].DominantModel)
+	}
+	// rank#2 = task-A: no pm_tasks row → Title falls back to "" (never blank-by-error).
 	if tasks[1].TaskID != "task-A" || tasks[1].CostMicros != 100 {
 		t.Fatalf("rank#2 should be task-A (cost=100): %+v", tasks[1])
+	}
+	if tasks[1].Title != "" {
+		t.Fatalf("task-A title should fall back to empty (no pm_tasks row): %q", tasks[1].Title)
+	}
+	if tasks[1].DominantModel != "claude-opus-4-8" {
+		t.Fatalf("task-A dominant model should be opus: %q", tasks[1].DominantModel)
 	}
 }
 

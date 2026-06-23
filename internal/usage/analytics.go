@@ -28,6 +28,12 @@ type HeatmapCell struct {
 	TokensOut   int64
 	CacheTokens int64
 	CostMicros  int64
+	// Completed is the count of task completions on this day (pm_task_action_logs
+	// action='completed'). F6 follow-up: lets the dashboard derive ALL overview
+	// cards (incl. "tasks done" + its delta) and every range from this single
+	// per-day series. Additive + backward-compatible — existing heatmap consumers
+	// (e.g. the F5 heatmap component) that ignore it are unaffected.
+	Completed int64
 }
 
 // WindowStat is the token/cost/completed-task totals over one time window — the
@@ -79,11 +85,15 @@ type ModelTrendPoint struct {
 // (turns) charged to the task; drill into the raw events via TaskDrilldown.
 type TaskCost struct {
 	TaskID      string
+	Title       string // pm_tasks.title; "" when the task row is gone / cross-project unresolved (UI falls back to TaskID)
 	Events      int64
 	TokensIn    int64
 	TokensOut   int64
 	CacheTokens int64
 	CostMicros  int64
+	// DominantModel is the model that accounts for the most cost on this task
+	// (usage_events grouped by task+model, max cost_micros). "" when undeterminable.
+	DominantModel string
 }
 
 // AnalyticsService serves the per-agent dashboard reads (F4). agentRef is the

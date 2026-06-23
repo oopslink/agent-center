@@ -3,6 +3,8 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -35,7 +37,12 @@ const defaultTopTasksLimit = 20
 // duplicated as a literal to avoid a usage→projectmanager import for one string.
 const actionCompleted = "completed"
 
-// Heatmap sums each UTC day's rollup rows across projects, in [fromDay, toDay].
+// Heatmap sums each UTC day's rollup rows across projects, in [fromDay, toDay],
+// and folds in that day's task-completion count (Completed) so the dashboard can
+// derive every overview card + delta from this single per-day series. A day with
+// activity but no completions reports Completed=0; a completion always coincides
+// with an activity row (the completion IS a task_action_log the rollup counts),
+// but a completed-only day is still surfaced defensively.
 func (a *Analytics) Heatmap(ctx context.Context, agentRef, fromDay, toDay string) ([]usage.HeatmapCell, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, a.db)
 	rows, err := exec.QueryContext(ctx,
@@ -49,15 +56,40 @@ func (a *Analytics) Heatmap(ctx context.Context, agentRef, fromDay, toDay string
 		return nil, err
 	}
 	defer rows.Close()
-	var out []usage.HeatmapCell
+	byDay := map[string]*usage.HeatmapCell{}
+	order := []string{}
 	for rows.Next() {
 		var c usage.HeatmapCell
 		if err := rows.Scan(&c.Day, &c.Events, &c.TokensIn, &c.TokensOut, &c.CacheTokens, &c.CostMicros); err != nil {
 			return nil, err
 		}
-		out = append(out, c)
+		cc := c
+		byDay[c.Day] = &cc
+		order = append(order, c.Day)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	completed, err := a.completedByDay(ctx, exec, agentRef, fromDay, toDay)
+	if err != nil {
+		return nil, err
+	}
+	for day, n := range completed {
+		if cell := byDay[day]; cell != nil {
+			cell.Completed = n
+		} else {
+			byDay[day] = &usage.HeatmapCell{Day: day, Completed: n}
+			order = append(order, day)
+		}
+	}
+	sort.Strings(order)
+
+	out := make([]usage.HeatmapCell, 0, len(order))
+	for _, day := range order {
+		out = append(out, *byDay[day])
+	}
+	return out, nil
 }
 
 // Overview computes today / last-7-days / last-30-days windows + 12-month
@@ -224,15 +256,18 @@ func (a *Analytics) TopTasks(ctx context.Context, agentRef, fromDay, toDay strin
 		limit = defaultTopTasksLimit
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, a.db)
+	// Title via LEFT JOIN pm_tasks: a deleted / cross-project-unresolved task keeps
+	// its usage row but yields no title → "" (the UI falls back to the task_id).
+	// MAX(t.title) collapses the per-task-constant title under GROUP BY task_id.
 	rows, err := exec.QueryContext(ctx,
-		`SELECT task_id, COUNT(*),
-		        COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
-		        COALESCE(SUM(cache_read_tokens + cache_write_tokens),0), COALESCE(SUM(cost_micros),0)
-		   FROM usage_events
-		  WHERE agent_ref = ? AND task_id IS NOT NULL AND task_id != ''
-		    AND substr(ts,1,10) >= ? AND substr(ts,1,10) <= ?
-		  GROUP BY task_id
-		  ORDER BY SUM(cost_micros) DESC, task_id
+		`SELECT ue.task_id, COALESCE(MAX(t.title),''), COUNT(*),
+		        COALESCE(SUM(ue.input_tokens),0), COALESCE(SUM(ue.output_tokens),0),
+		        COALESCE(SUM(ue.cache_read_tokens + ue.cache_write_tokens),0), COALESCE(SUM(ue.cost_micros),0)
+		   FROM usage_events ue LEFT JOIN pm_tasks t ON ue.task_id = t.id
+		  WHERE ue.agent_ref = ? AND ue.task_id IS NOT NULL AND ue.task_id != ''
+		    AND substr(ue.ts,1,10) >= ? AND substr(ue.ts,1,10) <= ?
+		  GROUP BY ue.task_id
+		  ORDER BY SUM(ue.cost_micros) DESC, ue.task_id
 		  LIMIT ?`, agentRef, fromDay, toDay, limit)
 	if err != nil {
 		return nil, err
@@ -241,12 +276,75 @@ func (a *Analytics) TopTasks(ctx context.Context, agentRef, fromDay, toDay strin
 	var out []usage.TaskCost
 	for rows.Next() {
 		var tc usage.TaskCost
-		if err := rows.Scan(&tc.TaskID, &tc.Events, &tc.TokensIn, &tc.TokensOut, &tc.CacheTokens, &tc.CostMicros); err != nil {
+		if err := rows.Scan(&tc.TaskID, &tc.Title, &tc.Events, &tc.TokensIn, &tc.TokensOut, &tc.CacheTokens, &tc.CostMicros); err != nil {
 			return nil, err
 		}
 		out = append(out, tc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Dominant model per task: the model carrying the most cost on that task.
+	ids := make([]string, len(out))
+	for i := range out {
+		ids[i] = out[i].TaskID
+	}
+	dom, err := a.dominantModels(ctx, exec, agentRef, fromDay, toDay, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].DominantModel = dom[out[i].TaskID]
+	}
+	return out, nil
+}
+
+// dominantModels returns, for each task_id in ids, the model accounting for the
+// most cost_micros on that task within [fromDay, toDay] (ties broken by the
+// max-cost row encountered). Empty ids → empty map.
+func (a *Analytics) dominantModels(ctx context.Context, exec persistence.SQLExecutor, agentRef, fromDay, toDay string, ids []string) (map[string]string, error) {
+	out := map[string]string{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, 0, len(ids)+3)
+	args = append(args, agentRef)
+	for _, id := range ids {
+		args = append(args, id)
+	}
+	args = append(args, fromDay, toDay)
+	q := `SELECT task_id, model, COALESCE(SUM(cost_micros),0)
+	        FROM usage_events
+	       WHERE agent_ref = ? AND task_id IN (` + placeholders(len(ids)) + `)
+	         AND substr(ts,1,10) >= ? AND substr(ts,1,10) <= ?
+	       GROUP BY task_id, model`
+	rows, err := exec.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	best := map[string]int64{}
+	for rows.Next() {
+		var taskID, model string
+		var cost int64
+		if err := rows.Scan(&taskID, &model, &cost); err != nil {
+			return nil, err
+		}
+		if _, seen := best[taskID]; !seen || cost > best[taskID] {
+			best[taskID] = cost
+			out[taskID] = model
+		}
+	}
 	return out, rows.Err()
+}
+
+// placeholders returns "?,?,...," with n question marks for an IN clause.
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.Repeat("?,", n-1) + "?"
 }
 
 // TaskDrilldown returns the raw usage events for a task ordered by ts — delegates

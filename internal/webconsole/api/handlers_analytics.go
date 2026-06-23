@@ -199,7 +199,7 @@ func heatmapJSON(cells []usage.HeatmapCell) []map[string]any {
 	out := make([]map[string]any, 0, len(cells))
 	for _, c := range cells {
 		out = append(out, map[string]any{
-			"day": c.Day, "events": c.Events,
+			"day": c.Day, "events": c.Events, "completed": c.Completed,
 			"tokens_in": c.TokensIn, "tokens_out": c.TokensOut,
 			"cache_tokens": c.CacheTokens, "cost_micros": c.CostMicros,
 		})
@@ -250,7 +250,8 @@ func topTasksJSON(tasks []usage.TaskCost) []map[string]any {
 	out := make([]map[string]any, 0, len(tasks))
 	for _, t := range tasks {
 		out = append(out, map[string]any{
-			"task_id": t.TaskID, "events": t.Events,
+			"task_id": t.TaskID, "title": t.Title, "dominant_model": t.DominantModel,
+			"events":    t.Events,
 			"tokens_in": t.TokensIn, "tokens_out": t.TokensOut,
 			"cache_tokens": t.CacheTokens, "cost_micros": t.CostMicros,
 		})
