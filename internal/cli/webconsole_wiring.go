@@ -12,7 +12,6 @@ import (
 
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
-	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment"
@@ -181,14 +180,11 @@ func (a *App) outboxProjectors(
 	// effect WITHOUT a restart (T224 "参数可配生效"). A read error or absent/blank
 	// keys fall back to the conservative DefaultConfig — the guard is never disabled
 	// by missing settings (§3.5 "阈值缺省即生效").
-	guardSettings := settingssql.NewStore(a.DB, a.Clock)
-	wakeGuard := wakeguard.NewGuardFunc(func() wakeguard.Config {
-		m, err := guardSettings.GetByPrefix(context.Background(), "wake.")
-		if err != nil {
-			return wakeguard.DefaultConfig()
-		}
-		return wakeguard.ConfigFromMap(m)
-	})
+	// I7-D1/T341: the ONE wake-chain circuit breaker is now constructed in NewApp
+	// and shared with the reply-guardrail (same rate/cycle/depth budget across wake
+	// delivery + reply nudges). Reuse that instance here rather than building a
+	// second guard with independent state.
+	wakeGuard := a.WakeGuard
 	sweepAgentRepo := agentsql.NewAgentRepo(a.DB)
 	wakeProj := envservice.NewWakeProjector(envservice.WakeProjectorDeps{
 		DB:         a.DB,

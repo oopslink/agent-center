@@ -18,8 +18,10 @@ import (
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
+	"github.com/oopslink/agent-center/internal/conversation/replyguard"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
 	"github.com/oopslink/agent-center/internal/environment/controlstream"
@@ -41,6 +43,7 @@ import (
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
+	settingssql "github.com/oopslink/agent-center/internal/settings/sqlite"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
@@ -132,6 +135,19 @@ type App struct {
 	FollowStateRepo    conversation.UserConversationFollowStateRepository
 	FollowStateSvc     *convservice.FollowStateService
 
+	// WakeGuard is the ONE process-singleton wake-chain circuit breaker (I7-D1).
+	// It holds the rate/cycle/depth anti-storm runtime state shared across ALL
+	// agent→agent down-pushes. Hoisted onto App (formerly a webconsole-wiring
+	// local) so the reply-guardrail (T341) gates agent-authored reply nudges
+	// through the SAME instance as wake delivery — one shared budget, no
+	// ungoverned ping-pong. Config is resolved LIVE from center settings.
+	WakeGuard *wakeguard.Guard
+	// ReplyNudgeSvc is the server-side reply-guardrail (T341, 方案 A). At
+	// turn-end + TrueIdle the worker asks it which directed replies an idle agent
+	// still owes; it derives them from the message log + read-state, gates
+	// agent-authored ones through WakeGuard, and returns bounded re-inject prompts.
+	ReplyNudgeSvc *convservice.ReplyNudgeService
+
 	// OutboxRepo is the cross-BC outbox emitter (v2.7 D2-e-ii). The MessageWriter
 	// uses it to emit `conversation.message_added` in the same tx as the message
 	// append (the conversational-wake trigger). (The retired request_input →
@@ -221,6 +237,33 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	inboxSvc := convservice.NewAgentInboxService(db, cr, readStateRepo)
 	followStateRepo := convsqlite.NewFollowStateRepo(db)
 	followStateSvc := convservice.NewFollowStateService(followStateRepo, cr, clk)
+
+	// I7-D1/T341: the ONE wake-chain circuit breaker, hoisted here so wake
+	// delivery (webconsole wiring) and the reply-guardrail (admin wiring) share a
+	// SINGLE instance — same rate/cycle/depth budget across both down-push paths.
+	// Config is resolved LIVE from the center settings store on every evaluation
+	// (an I7-D3 / T341 §3.5 Settings PUT takes effect without a restart); a read
+	// error or absent keys fall back to the conservative DefaultConfig — the guard
+	// is never disabled by missing settings.
+	guardSettings := settingssql.NewStore(db, clk)
+	wakeGuard := wakeguard.NewGuardFunc(func() wakeguard.Config {
+		m, err := guardSettings.GetByPrefix(context.Background(), "wake.")
+		if err != nil {
+			return wakeguard.DefaultConfig()
+		}
+		return wakeguard.ConfigFromMap(m)
+	})
+	// T341 reply-guardrail (方案 A): obligation derivation (read-only, no new
+	// table) + bounded re-inject. Agent-authored obligations are gated through the
+	// shared wakeGuard; thresholds come live from the `reply.` settings prefix.
+	replyObligationSvc := convservice.NewReplyObligationService(db, cr, readStateRepo)
+	replyNudgeSvc := convservice.NewReplyNudgeService(replyObligationSvc, wakeGuard, func() replyguard.Config {
+		m, err := guardSettings.GetByPrefix(context.Background(), "reply.")
+		if err != nil {
+			return replyguard.DefaultConfig()
+		}
+		return replyguard.ConfigFromMap(m)
+	}, clk)
 
 	// Observability Phase 4
 	deps := query.Deps{
@@ -448,6 +491,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		ReadStateRepo:      readStateRepo,
 		ReadStateSvc:       readStateSvc,
 		InboxSvc:           inboxSvc,
+		WakeGuard:          wakeGuard,
+		ReplyNudgeSvc:      replyNudgeSvc,
 		FollowStateRepo:    followStateRepo,
 		FollowStateSvc:     followStateSvc,
 		OutboxRepo:         outboxRepo,

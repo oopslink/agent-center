@@ -148,6 +148,12 @@ func (fs *fakeServer) registerRoutes() {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"S-1","name":"db_password","plaintext_base64":"c2VjcmV0LXZhbA=="}`))
 	})
+	// T341 reply-guardrail: echoes two prompts so FetchReplyNudges can round-trip.
+	fs.mux.HandleFunc("/admin/environment/agent/reply-nudges", func(w http.ResponseWriter, r *http.Request) {
+		fs.record(r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"prompts":["reply in DM dm-1","reply in channel ch-2"]}`))
+	})
 }
 
 func TestAdminClient_Enroll(t *testing.T) {
@@ -174,6 +180,42 @@ func TestAdminClient_Enroll(t *testing.T) {
 	caps, _ := body["capabilities"].([]any)
 	if len(caps) != 1 || caps[0] != "claude-code" {
 		t.Fatalf("capabilities=%v", caps)
+	}
+}
+
+// TestAdminClient_FetchReplyNudges is the worker-client↔center critical-path
+// seam (T341): the client POSTs {agent_id} to the reply-nudges endpoint and
+// parses the returned prompts.
+func TestAdminClient_FetchReplyNudges(t *testing.T) {
+	fs, client, cleanup := newFakeServer(t)
+	defer cleanup()
+
+	prompts, err := client.FetchReplyNudges(context.Background(), "AG1")
+	if err != nil {
+		t.Fatalf("FetchReplyNudges: %v", err)
+	}
+	if len(prompts) != 2 || prompts[0] != "reply in DM dm-1" {
+		t.Fatalf("unexpected prompts: %+v", prompts)
+	}
+	reqs := fs.reqs()
+	if len(reqs) != 1 || reqs[0].Method != "POST" || reqs[0].Path != "/admin/environment/agent/reply-nudges" {
+		t.Fatalf("bad request: %+v", reqs)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(reqs[0].Body, &body); err != nil {
+		t.Fatalf("body decode: %v", err)
+	}
+	if body["agent_id"] != "AG1" {
+		t.Fatalf("agent_id=%v", body["agent_id"])
+	}
+}
+
+// TestAdminClient_FetchReplyNudges_EmptyAgentIDFails pins the client-side guard.
+func TestAdminClient_FetchReplyNudges_EmptyAgentIDFails(t *testing.T) {
+	_, client, cleanup := newFakeServer(t)
+	defer cleanup()
+	if _, err := client.FetchReplyNudges(context.Background(), "  "); err == nil {
+		t.Fatal("want error for blank agent_id, got nil")
 	}
 }
 

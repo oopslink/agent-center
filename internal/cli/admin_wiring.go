@@ -255,6 +255,8 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		CarryOverSvc:       a.CarryOverSvc,
 		ReadStateSvc:       a.ReadStateSvc,
 		InboxSvc:           a.InboxSvc,
+		// T341 reply-guardrail: turn-end + TrueIdle reply-nudge derivation.
+		ReplyNudgeSvc: a.ReplyNudgeSvc,
 
 		// Workforce BC
 		WorkerRepo:        a.WorkerRepo,

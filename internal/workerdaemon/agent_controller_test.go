@@ -24,6 +24,12 @@ type recordingReporter struct {
 	lifecycles   []lifecycleCall
 	markSeens    []markSeenCall
 	converseErrs []converseErrCall
+
+	// T341 reply-guardrail seam: replyNudges is what FetchReplyNudges returns;
+	// replyNudgeErr is the error it returns; replyNudgeCalls records every call.
+	replyNudges    []string
+	replyNudgeErr  error
+	replyNudgeAgts []string
 }
 
 type activityCall struct {
@@ -65,6 +71,26 @@ func (r *recordingReporter) ReportConverseError(_ context.Context, agentID, conv
 	defer r.mu.Unlock()
 	r.converseErrs = append(r.converseErrs, converseErrCall{agentID, conversationID, summary})
 	return nil
+}
+
+func (r *recordingReporter) FetchReplyNudges(_ context.Context, agentID string) ([]string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.replyNudgeAgts = append(r.replyNudgeAgts, agentID)
+	if r.replyNudgeErr != nil {
+		return nil, r.replyNudgeErr
+	}
+	out := make([]string, len(r.replyNudges))
+	copy(out, r.replyNudges)
+	return out, nil
+}
+
+func (r *recordingReporter) replyNudgeAgents() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, len(r.replyNudgeAgts))
+	copy(out, r.replyNudgeAgts)
+	return out
 }
 
 func (r *recordingReporter) converseErrCalls() []converseErrCall {
@@ -475,6 +501,136 @@ func TestAgentController_Converse_IsErrorTurnPostsConverseError(t *testing.T) {
 	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
 	if got := len(rep.converseErrCalls()); got != 1 {
 		t.Fatalf("a second is_error must not re-post converse-error, got %d", got)
+	}
+}
+
+// TestAgentController_ReplyGuardrail_TurnEnd_InjectsNudge pins the T341 方案 A
+// worker hook: a CLEAN turn-end (result, !is_error) asks the center for the
+// directed replies the agent still owes and injects each returned prompt so the
+// agent discharges it itself.
+func TestAgentController_ReplyGuardrail_TurnEnd_InjectsNudge(t *testing.T) {
+	c, rep, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	fs := rs.last()
+	rep.mu.Lock()
+	rep.replyNudges = []string{"📨 You owe a directed reply in DM conv-1."}
+	rep.mu.Unlock()
+
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", Result: "ok", IsError: false})
+
+	waitFor(t, func() bool {
+		for _, m := range fs.injectedMsgs() {
+			if strings.Contains(m, "owe a directed reply") {
+				return true
+			}
+		}
+		return false
+	})
+	if got := rep.replyNudgeAgents(); len(got) == 0 || got[0] != "agent-1" {
+		t.Fatalf("FetchReplyNudges should be called for agent-1, got %+v", got)
+	}
+}
+
+// TestAgentController_ReplyGuardrail_SkipsDuringConverse pins §5-② "不误伤" — the
+// hook does NOT fetch/inject while the agent is anchored to an in-flight
+// conversation turn (its own reply loop owns the discharge).
+func TestAgentController_ReplyGuardrail_SkipsDuringConverse(t *testing.T) {
+	c, rep, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	fs := rs.last()
+	rep.mu.Lock()
+	rep.replyNudges = []string{"should not be injected"}
+	rep.mu.Unlock()
+	// Anchor the agent to an in-flight conversation turn.
+	c.mu.Lock()
+	c.agents["agent-1"].currentConversationID = "conv-9"
+	c.mu.Unlock()
+
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
+	time.Sleep(50 * time.Millisecond) // let the async hook run (or correctly no-op)
+
+	if got := len(rep.replyNudgeAgents()); got != 0 {
+		t.Fatalf("must not fetch reply nudges during an in-flight converse turn, got %d calls", got)
+	}
+	if got := fs.injectedMsgs(); len(got) != 0 {
+		t.Fatalf("must not inject during converse, got %+v", got)
+	}
+}
+
+// TestAgentController_ReplyGuardrail_SkipsOnErrorTurn pins that only a CLEAN
+// turn-end triggers the guardrail; an is_error turn is handled by the L2 failure
+// surface, not the reply hook.
+func TestAgentController_ReplyGuardrail_SkipsOnErrorTurn(t *testing.T) {
+	c, rep, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	fs := rs.last()
+	rep.mu.Lock()
+	rep.replyNudges = []string{"should not be injected"}
+	rep.mu.Unlock()
+
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "error_during_execution", IsError: true})
+	time.Sleep(50 * time.Millisecond)
+
+	if got := len(rep.replyNudgeAgents()); got != 0 {
+		t.Fatalf("an is_error turn must not trigger the reply guardrail, got %d fetch calls", got)
+	}
+	if got := fs.injectedMsgs(); len(got) != 0 {
+		t.Fatalf("an is_error turn must not inject a reply nudge, got %+v", got)
+	}
+}
+
+// TestAgentController_ReplyGuardrail_FetchError_NoInject pins the best-effort
+// contract: a FetchReplyNudges error is logged and dropped — no inject, no panic.
+func TestAgentController_ReplyGuardrail_FetchError_NoInject(t *testing.T) {
+	c, rep, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	fs := rs.last()
+	rep.mu.Lock()
+	rep.replyNudgeErr = context.DeadlineExceeded // any non-nil error
+	rep.mu.Unlock()
+
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
+	waitFor(t, func() bool { return len(rep.replyNudgeAgents()) == 1 })
+	time.Sleep(20 * time.Millisecond) // allow any (erroneous) inject to land
+	if got := fs.injectedMsgs(); len(got) != 0 {
+		t.Fatalf("a fetch error must not inject anything, got %+v", got)
+	}
+}
+
+// TestAgentController_ReplyGuardrail_SkipsBlankPrompts pins that blank prompts
+// from the server are skipped (defensive) while real ones still inject.
+func TestAgentController_ReplyGuardrail_SkipsBlankPrompts(t *testing.T) {
+	c, rep, rs := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	fs := rs.last()
+	rep.mu.Lock()
+	rep.replyNudges = []string{"   ", "real directed-reply nudge"}
+	rep.mu.Unlock()
+
+	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
+	waitFor(t, func() bool { return len(fs.injectedMsgs()) == 1 })
+	if got := fs.injectedMsgs(); len(got) != 1 || !strings.Contains(got[0], "real directed-reply") {
+		t.Fatalf("blank prompt must be skipped, only the real one injected; got %+v", got)
 	}
 }
 

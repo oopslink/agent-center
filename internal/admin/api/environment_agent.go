@@ -138,7 +138,6 @@ func (s *Server) envAgentLifecycleFeedbackHandler(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-
 // agentMarkSeenReq is the body for POST /admin/environment/agent/mark-seen.
 type agentMarkSeenReq struct {
 	AgentID        string `json:"agent_id"`
@@ -259,6 +258,52 @@ func (s *Server) envAgentConverseErrorHandler(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// agentReplyNudgesReq is the body for POST /admin/environment/agent/reply-nudges.
+type agentReplyNudgesReq struct {
+	AgentID string `json:"agent_id"`
+}
+
+// agentReplyNudgesResp returns the re-inject prompts the worker should inject.
+type agentReplyNudgesResp struct {
+	Prompts []string `json:"prompts"`
+}
+
+// envAgentReplyNudgesHandler is the reply-guardrail server hook (T341). The
+// worker calls it at turn-end + TrueIdle; the server resolves the agent's
+// org/display-name/identity-member, derives the directed replies it still owes,
+// gates agent-authored ones through the SHARED wake-guardrail (a hop the guardrail
+// drops is released — "被 wake-guardrail 拦下就不用回"), bounds the rest by
+// max_nudges + cooldown, and returns the prompts to inject (方案 A — the agent
+// itself discharges the obligation). Same per-agent guardrail as the other
+// feedback endpoints (requireAgentOnWorker). nil ReplyNudgeSvc → 501 (feature off).
+func (s *Server) envAgentReplyNudgesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req agentReplyNudgesReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.ReplyNudgeSvc == nil {
+		writeError(w, http.StatusNotImplemented, "reply_guardrail_not_wired", "")
+		return
+	}
+	nudges, err := d.ReplyNudgeSvc.NudgesForAgent(
+		r.Context(), string(a.ID()), a.IdentityMemberID(), a.OrganizationID(), strings.TrimSpace(a.Profile().Name))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "reply_nudge_failed", err.Error())
+		return
+	}
+	prompts := make([]string, 0, len(nudges))
+	for _, n := range nudges {
+		prompts = append(prompts, n.Prompt)
+	}
+	writeJSON(w, http.StatusOK, agentReplyNudgesResp{Prompts: prompts})
+}
+
 // parseOptionalTime parses an optional RFC3339 timestamp. An empty string
 // yields the zero time (callers treat it as "use server clock").
 func parseOptionalTime(s string) (time.Time, error) {
@@ -374,7 +419,7 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			"desired_lifecycle": string(agent.LifecycleRunning),
 			"model":             a.Profile().Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
 			"version":           a.Version(),
-			"reset_scope":       "",                  // reserved for f-3 (rollback/reset semantics)
+			"reset_scope":       "",                 // reserved for f-3 (rollback/reset semantics)
 			"tasks":             []map[string]any{}, // F7: always empty (AgentWorkItem retired)
 		})
 	}
