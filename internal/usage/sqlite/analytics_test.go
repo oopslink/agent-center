@@ -48,6 +48,11 @@ func TestAnalyticsHeatmap(t *testing.T) {
 	appendUsage(t, env, "u1", ag, "p1", "claude-opus-4-8", "2026-06-20T10:00:00Z", 100, 50, 10, 5)
 	appendUsage(t, env, "u2", ag, "p2", "claude-opus-4-8", "2026-06-20T11:00:00Z", 200, 80, 0, 0)
 	appendUsage(t, env, "u3", ag, "p1", "claude-opus-4-8", "2026-06-21T09:00:00Z", 30, 10, 0, 0)
+	// two task completions on 06-20 → that cell's Completed = 2 (folded from
+	// pm_task_action_logs); 06-21 has none → Completed 0.
+	insertTask(t, env.db, "task-c", "p1", ag, "2026-06-20T08:00:00Z")
+	completedLog(t, env, "cl-a", "task-c", ag, "2026-06-20T10:30:00Z")
+	completedLog(t, env, "cl-b", "task-c", ag, "2026-06-20T12:00:00Z")
 	runRollup(t, env)
 
 	cells, err := an.Heatmap(env.ctx, ag, "2026-06-01", "2026-06-30")
@@ -60,10 +65,12 @@ func TestAnalyticsHeatmap(t *testing.T) {
 	if cells[0].Day != "2026-06-20" || cells[0].TokensIn != 300 || cells[0].TokensOut != 130 || cells[0].CacheTokens != 15 {
 		t.Fatalf("06-20 cell wrong (want in=300 out=130 cache=15): %+v", cells[0])
 	}
-	// Two usage events on 06-20 → events_count counts the activity rows, not usage
-	// rows; here there are no activity-source rows, so events stays 0 but tokens sum.
-	if cells[1].Day != "2026-06-21" || cells[1].TokensIn != 30 {
-		t.Fatalf("06-21 cell wrong: %+v", cells[1])
+	if cells[0].Completed != 2 {
+		t.Fatalf("06-20 Completed = %d, want 2 (two completion logs folded in)", cells[0].Completed)
+	}
+	// 06-21 has usage but no completions → tokens sum, Completed 0.
+	if cells[1].Day != "2026-06-21" || cells[1].TokensIn != 30 || cells[1].Completed != 0 {
+		t.Fatalf("06-21 cell wrong (want in=30 completed=0): %+v", cells[1])
 	}
 	// Range filter excludes out-of-window days.
 	none, err := an.Heatmap(env.ctx, ag, "2026-07-01", "2026-07-31")

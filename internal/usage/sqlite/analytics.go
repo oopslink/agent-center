@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -35,7 +36,12 @@ const defaultTopTasksLimit = 20
 // duplicated as a literal to avoid a usage→projectmanager import for one string.
 const actionCompleted = "completed"
 
-// Heatmap sums each UTC day's rollup rows across projects, in [fromDay, toDay].
+// Heatmap sums each UTC day's rollup rows across projects, in [fromDay, toDay],
+// and folds in that day's task-completion count (Completed) so the dashboard can
+// derive every overview card + delta from this single per-day series. A day with
+// activity but no completions reports Completed=0; a completion always coincides
+// with an activity row (the completion IS a task_action_log the rollup counts),
+// but a completed-only day is still surfaced defensively.
 func (a *Analytics) Heatmap(ctx context.Context, agentRef, fromDay, toDay string) ([]usage.HeatmapCell, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, a.db)
 	rows, err := exec.QueryContext(ctx,
@@ -49,15 +55,40 @@ func (a *Analytics) Heatmap(ctx context.Context, agentRef, fromDay, toDay string
 		return nil, err
 	}
 	defer rows.Close()
-	var out []usage.HeatmapCell
+	byDay := map[string]*usage.HeatmapCell{}
+	order := []string{}
 	for rows.Next() {
 		var c usage.HeatmapCell
 		if err := rows.Scan(&c.Day, &c.Events, &c.TokensIn, &c.TokensOut, &c.CacheTokens, &c.CostMicros); err != nil {
 			return nil, err
 		}
-		out = append(out, c)
+		cc := c
+		byDay[c.Day] = &cc
+		order = append(order, c.Day)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	completed, err := a.completedByDay(ctx, exec, agentRef, fromDay, toDay)
+	if err != nil {
+		return nil, err
+	}
+	for day, n := range completed {
+		if cell := byDay[day]; cell != nil {
+			cell.Completed = n
+		} else {
+			byDay[day] = &usage.HeatmapCell{Day: day, Completed: n}
+			order = append(order, day)
+		}
+	}
+	sort.Strings(order)
+
+	out := make([]usage.HeatmapCell, 0, len(order))
+	for _, day := range order {
+		out = append(out, *byDay[day])
+	}
+	return out, nil
 }
 
 // Overview computes today / last-7-days / last-30-days windows + 12-month

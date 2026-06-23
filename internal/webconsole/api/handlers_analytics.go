@@ -199,7 +199,7 @@ func heatmapJSON(cells []usage.HeatmapCell) []map[string]any {
 	out := make([]map[string]any, 0, len(cells))
 	for _, c := range cells {
 		out = append(out, map[string]any{
-			"day": c.Day, "events": c.Events,
+			"day": c.Day, "events": c.Events, "completed": c.Completed,
 			"tokens_in": c.TokensIn, "tokens_out": c.TokensOut,
 			"cache_tokens": c.CacheTokens, "cost_micros": c.CostMicros,
 		})

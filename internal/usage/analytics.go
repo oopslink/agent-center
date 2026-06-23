@@ -28,6 +28,12 @@ type HeatmapCell struct {
 	TokensOut   int64
 	CacheTokens int64
 	CostMicros  int64
+	// Completed is the count of task completions on this day (pm_task_action_logs
+	// action='completed'). F6 follow-up: lets the dashboard derive ALL overview
+	// cards (incl. "tasks done" + its delta) and every range from this single
+	// per-day series. Additive + backward-compatible — existing heatmap consumers
+	// (e.g. the F5 heatmap component) that ignore it are unaffected.
+	Completed int64
 }
 
 // WindowStat is the token/cost/completed-task totals over one time window — the
