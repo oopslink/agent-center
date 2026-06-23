@@ -12,7 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
+	"time"
 )
 
 // AttachClient is a single connection to a supervisor socket. It is
@@ -26,8 +28,8 @@ type AttachClient struct {
 }
 
 // Connect dials the supervisor unix socket at sockPath. The ctx bounds the dial
-// only (per-call deadlines are not plumbed onto the long-lived conn here; s3 can
-// add them if it needs them).
+// only; per-call deadlines on the long-lived conn are applied by roundTrip from
+// each op's ctx (issue-9bd86b8f gap ①).
 func Connect(ctx context.Context, sockPath string) (*AttachClient, error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "unix", sockPath)
@@ -53,7 +55,20 @@ func (c *AttachClient) Close() error {
 // per connection. A response with ok=false is surfaced as an error so callers
 // branch on err; the typed fields are returned for inspection (e.g.
 // offset_truncated, base_offset).
-func (c *AttachClient) roundTrip(req Request) (Response, error) {
+//
+// issue-9bd86b8f gap ①: ctx's deadline (if any) BOUNDS the socket I/O via a conn
+// deadline. Without this, a hung-but-alive supervisor (假死) blocks the caller —
+// and the control-loop goroutine behind Inject — forever, so the daemon's OnTick
+// self-heal never runs ("卡死不能自动恢复"). The pump/Inject call sites already
+// wrap their ctx with a 5s timeout; honoring it here is what makes that real. A
+// ctx with NO deadline imposes no bound (behavior unchanged — e.g. tests using
+// context.Background()).
+//
+// On a TIMEOUT the connection is POISONED (closed + nil'd): the request frame was
+// already written, so a late response would arrive out-of-band and desync the
+// length-framed stream if the conn were reused. A returning daemon must re-dial a
+// fresh AttachClient (boot-reconcile reattach / pump reconnect) instead.
+func (c *AttachClient) roundTrip(ctx context.Context, req Request) (Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.conn == nil {
@@ -63,11 +78,18 @@ func (c *AttachClient) roundTrip(req Request) (Response, error) {
 	if err != nil {
 		return Response{}, fmt.Errorf("agentsupervisor: encode request: %w", err)
 	}
-	if err := writeFrame(c.conn, b); err != nil {
+	conn := c.conn
+	if dl, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(dl)
+		defer func() { _ = conn.SetDeadline(time.Time{}) }()
+	}
+	if err := writeFrame(conn, b); err != nil {
+		c.poisonIfTimeoutLocked(err)
 		return Response{}, fmt.Errorf("agentsupervisor: write request: %w", err)
 	}
-	frame, err := readFrame(c.conn)
+	frame, err := readFrame(conn)
 	if err != nil {
+		c.poisonIfTimeoutLocked(err)
 		return Response{}, fmt.Errorf("agentsupervisor: read response: %w", err)
 	}
 	var resp Response
@@ -77,11 +99,22 @@ func (c *AttachClient) roundTrip(req Request) (Response, error) {
 	return resp, nil
 }
 
+// poisonIfTimeoutLocked closes + clears the conn when err is a deadline timeout, so
+// a desynced (request-sent, response-pending) connection is never reused. Caller
+// MUST hold c.mu. Non-timeout I/O errors are left alone — the caller's existing
+// bounded-retry / reconnect logic decides what to do.
+func (c *AttachClient) poisonIfTimeoutLocked(err error) {
+	if errors.Is(err, os.ErrDeadlineExceeded) && c.conn != nil {
+		_ = c.conn.Close()
+		c.conn = nil
+	}
+}
+
 // Hello performs the handshake and returns the supervisor's identity + offsets.
 // resp.ProtocolVersion is informational (diagnostics + the deferred breaking-change
 // trigger); it no longer gates re-attach (v2.7 — backward-compat assumed).
 func (c *AttachClient) Hello(ctx context.Context) (HelloResp, error) {
-	resp, err := c.roundTrip(Request{Op: OpHello})
+	resp, err := c.roundTrip(ctx, Request{Op: OpHello})
 	if err != nil {
 		return HelloResp{}, err
 	}
@@ -102,7 +135,7 @@ func (c *AttachClient) Hello(ctx context.Context) (HelloResp, error) {
 // Inject sends plain text the supervisor wraps as a stream-json user line and
 // writes to claude's held-open stdin.
 func (c *AttachClient) Inject(ctx context.Context, msg string) error {
-	resp, err := c.roundTrip(Request{Op: OpInject, Message: msg})
+	resp, err := c.roundTrip(ctx, Request{Op: OpInject, Message: msg})
 	if err != nil {
 		return err
 	}
@@ -118,7 +151,7 @@ func (c *AttachClient) Inject(ctx context.Context, msg string) error {
 // the ErrCodeOffsetTruncated code (callers compare via errors.Is(err,
 // ErrOffsetTruncated)).
 func (c *AttachClient) ReadFrom(ctx context.Context, offset int64, max int) (data []byte, next int64, eof bool, err error) {
-	resp, err := c.roundTrip(Request{Op: OpRead, Offset: offset, MaxBytes: max})
+	resp, err := c.roundTrip(ctx, Request{Op: OpRead, Offset: offset, MaxBytes: max})
 	if err != nil {
 		return nil, offset, false, err
 	}
@@ -134,7 +167,7 @@ func (c *AttachClient) ReadFrom(ctx context.Context, offset int64, max int) (dat
 // Ack truncates events consumed up to the ABSOLUTE offset and returns the
 // supervisor's new baseOffset.
 func (c *AttachClient) Ack(ctx context.Context, offset int64) (base int64, err error) {
-	resp, err := c.roundTrip(Request{Op: OpAck, AckOffset: offset})
+	resp, err := c.roundTrip(ctx, Request{Op: OpAck, AckOffset: offset})
 	if err != nil {
 		return 0, err
 	}
