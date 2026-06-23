@@ -13,6 +13,7 @@ const Signin = lazy(() => import('./pages/Signin'));
 // boundary inside AppLayout renders a fallback while a chunk streams.
 // v2.10.0 [T1]: the Overview/Home dashboard is removed — the org index
 // redirects into the Workspace module (see the index route below).
+const Unread = lazy(() => import('./pages/Unread'));
 const Channels = lazy(() => import('./pages/Channels'));
 const ChannelDetail = lazy(() => import('./pages/ChannelDetail'));
 const DMs = lazy(() => import('./pages/DMs'));
@@ -66,6 +67,8 @@ export function App(): React.ReactElement {
           {/* v2.10.0 [T1]: Overview/Home removed. The org index redirects into
               the Workspace module's default page (Projects). */}
           <Route index element={<Navigate to="projects" replace />} />
+          {/* T343: mobile cross-source unread digest (desktop uses col②). */}
+          <Route path="unread" element={<Unread />} />
           <Route path="channels" element={<Channels />} />
           <Route path="channels/:channelId" element={<ChannelDetail />} />
           <Route path="dms" element={<DMs />} />

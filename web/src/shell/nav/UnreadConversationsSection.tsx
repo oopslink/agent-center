@@ -47,7 +47,7 @@ function cap(n: number): string {
   return n > MAX_BADGE ? `${MAX_BADGE}+` : String(n);
 }
 
-function SourceTag({ source }: { source: UnreadConversationSource }): React.ReactElement {
+export function SourceTag({ source }: { source: UnreadConversationSource }): React.ReactElement {
   const t = SOURCE_TAG[source] ?? SOURCE_TAG.channel;
   return (
     <span
@@ -63,7 +63,7 @@ function SourceTag({ source }: { source: UnreadConversationSource }): React.Reac
 //   - mention > 0 → brand "@N" pill (the high-signal @-me state).
 //   - unread > 1 → neutral count pill.
 //   - unread == 1 → small neutral dot (low count degrades to a dot).
-function RowBadge({ unread, mention }: { unread: number; mention: number }): React.ReactElement | null {
+export function RowBadge({ unread, mention }: { unread: number; mention: number }): React.ReactElement | null {
   if (mention > 0) {
     return (
       <span

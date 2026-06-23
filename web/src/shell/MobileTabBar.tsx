@@ -25,10 +25,16 @@ export function MobileTabBar({
   modules,
   activeModuleId,
   orgBase,
+  conversationsUnread = 0,
+  conversationsMentions = 0,
 }: {
   modules: ReadonlyArray<TabBarModule>;
   activeModuleId?: TabBarModule['id'];
   orgBase: string;
+  // T343: cross-source unread badge for the Chat (conversations) tab — mirrors the
+  // desktop rail. conversationsMentions>0 → high-signal @me state (brand color).
+  conversationsUnread?: number;
+  conversationsMentions?: number;
 }): React.ReactElement {
   return (
     <nav
@@ -50,7 +56,7 @@ export function MobileTabBar({
             data-testid={`tab-${m.id}`}
             data-active={active}
             className={[
-              'flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[0.625rem] font-medium leading-none motion-safe:transition-colors',
+              'relative flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[0.625rem] font-medium leading-none motion-safe:transition-colors',
               active ? 'text-brand' : 'text-text-muted hover:text-text-secondary',
             ].join(' ')}
           >
@@ -58,6 +64,23 @@ export function MobileTabBar({
               <m.Icon />
             </span>
             <span>{m.short}</span>
+            {m.id === 'conversations' && conversationsUnread > 0 && (
+              <span
+                data-testid="tab-conversations-unread-badge"
+                data-mention={conversationsMentions > 0 ? 'true' : 'false'}
+                aria-label={
+                  conversationsMentions > 0
+                    ? `${conversationsMentions} conversations mention you`
+                    : `${conversationsUnread} unread conversations`
+                }
+                className={[
+                  'absolute right-[18%] top-0.5 inline-flex min-w-[1.05rem] items-center justify-center rounded-full px-1 text-[0.625rem] font-semibold leading-none tabular-nums text-white',
+                  conversationsMentions > 0 ? 'bg-brand' : 'bg-status-slate-solid',
+                ].join(' ')}
+              >
+                {conversationsUnread > 99 ? '99+' : conversationsUnread}
+              </span>
+            )}
           </Link>
         );
       })}

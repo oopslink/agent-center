@@ -15,10 +15,20 @@ const MODULES: ReadonlyArray<TabBarModule> = [
   { id: 'system', label: 'System', short: 'System', defaultPath: 'environment', Icon: Dot },
 ];
 
-function renderBar(activeModuleId?: TabBarModule['id'], orgBase = '') {
+function renderBar(
+  activeModuleId?: TabBarModule['id'],
+  orgBase = '',
+  badge?: { unread?: number; mentions?: number },
+) {
   return render(
     <MemoryRouter>
-      <MobileTabBar modules={MODULES} activeModuleId={activeModuleId} orgBase={orgBase} />
+      <MobileTabBar
+        modules={MODULES}
+        activeModuleId={activeModuleId}
+        orgBase={orgBase}
+        conversationsUnread={badge?.unread}
+        conversationsMentions={badge?.mentions}
+      />
     </MemoryRouter>,
   );
 }
@@ -52,5 +62,25 @@ describe('MobileTabBar (v2.10.1 [M1] mobile bottom nav)', () => {
     for (const m of MODULES) {
       expect(screen.getByTestId(`tab-${m.id}`).className).toContain('min-h-[44px]');
     }
+  });
+
+  // T343: cross-source unread badge on the Chat tab (mirrors the desktop rail).
+  it('shows no Chat-tab unread badge at zero unread', () => {
+    renderBar('workspace', '', { unread: 0, mentions: 0 });
+    expect(screen.queryByTestId('tab-conversations-unread-badge')).toBeNull();
+  });
+
+  it('shows the unread count on the Chat tab (neutral when no mentions)', () => {
+    renderBar('workspace', '', { unread: 5, mentions: 0 });
+    const badge = screen.getByTestId('tab-conversations-unread-badge');
+    expect(badge).toHaveTextContent('5');
+    expect(badge).toHaveAttribute('data-mention', 'false');
+  });
+
+  it('shows the @me mention total (brand) when any source mentions me, capped at 99+', () => {
+    renderBar('workspace', '', { unread: 120, mentions: 3 });
+    const badge = screen.getByTestId('tab-conversations-unread-badge');
+    expect(badge).toHaveTextContent('99+'); // count capped
+    expect(badge).toHaveAttribute('data-mention', 'true');
   });
 });

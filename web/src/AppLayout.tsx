@@ -339,6 +339,18 @@ export default function AppLayout(): React.ReactElement {
   );
   useKeyShortcuts(shortcuts);
 
+  // T343: the mobile Chat tab gets the same cross-source unread badge the desktop
+  // rail shows — @me mention total (brand) when any source mentions me, else the
+  // count of unread sources. Computed here (one shared digest query) + passed to
+  // MobileTabBar so it stays a pure presentational component.
+  const mobileUnreadDigest = useUnreadConversations();
+  const mobileDigestRows = mobileUnreadDigest.data ?? [];
+  const mobileDigestMentions = mobileDigestRows.reduce(
+    (n, row) => n + (row.mention_count > 0 ? 1 : 0),
+    0,
+  );
+  const mobileDigestBadge = mobileDigestMentions > 0 ? mobileDigestMentions : mobileDigestRows.length;
+
   const orgSwitcher: OrgSwitcherBinding = {
     currentOrg,
     orgs: orgs.data ?? [],
@@ -489,7 +501,13 @@ export default function AppLayout(): React.ReactElement {
         )}
 
         {/* col① on mobile — the bottom Tab Bar (the desktop rail reflowed). */}
-        <MobileTabBar modules={modules} activeModuleId={activeModule?.id} orgBase={orgBase} />
+        <MobileTabBar
+          modules={modules}
+          activeModuleId={activeModule?.id}
+          orgBase={orgBase}
+          conversationsUnread={mobileDigestBadge}
+          conversationsMentions={mobileDigestMentions}
+        />
 
         {/* col② on mobile — the active module's secondary nav, reflowed into a
             bottom sheet (opened from the top-bar title). This is what gives mobile
