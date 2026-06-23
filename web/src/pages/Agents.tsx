@@ -16,7 +16,7 @@ import { useWorkers } from '@/api/workers';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EntityRef } from '@/components/EntityRef';
-import { AvailabilityBadge, LifecycleBadge, ProviderBadge } from '@/components/AgentBadges';
+import { AgentLoadBadge, AvailabilityBadge, LifecycleBadge, ProviderBadge } from '@/components/AgentBadges';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { formatLocalTime } from '@/utils/time';
@@ -192,10 +192,17 @@ export default function Agents(): React.ReactElement {
                 <th className="w-[14%] border-b border-border-base px-3 py-2">Name</th>
                 <th className="w-[13%] border-b border-border-base px-3 py-2">Provider</th>
                 <th className="w-[11%] border-b border-border-base px-3 py-2">Lifecycle</th>
-                <th className="w-[13%] border-b border-border-base px-3 py-2">Availability</th>
+                <th className="w-[12%] border-b border-border-base px-3 py-2">Availability</th>
+                {/* T342: agent load = doing / (doing+pending), colored by pressure. */}
+                <th
+                  className="w-[8%] border-b border-border-base px-3 py-2"
+                  title="Load = doing ÷ (doing + pending) tasks; colored by pressure"
+                >
+                  Load
+                </th>
                 {/* dev2/v281 canonical-fold: Role + Status folded from the retired
                     /members/agents page so the merge loses no information. */}
-                <th className="w-[8%] border-b border-border-base px-3 py-2">Role</th>
+                <th className="w-[7%] border-b border-border-base px-3 py-2">Role</th>
                 <th className="w-[9%] border-b border-border-base px-3 py-2">Status</th>
                 <th className="w-[13%] border-b border-border-base px-3 py-2">Last activity</th>
                 <th className="w-[12%] border-b border-border-base px-3 py-2">Worker</th>
@@ -253,6 +260,9 @@ export default function Agents(): React.ReactElement {
                 </td>
                 <td className="border-b border-border-base px-3 py-2">
                   <AvailabilityBadge availability={a.availability} />
+                </td>
+                <td className="border-b border-border-base px-3 py-2" data-testid="agent-load-cell">
+                  <AgentLoadBadge agent={a} />
                 </td>
                 {/* dev2/v281 canonical-fold: Role + membership Status resolved
                     via the member-list join (see memberForAgent). */}

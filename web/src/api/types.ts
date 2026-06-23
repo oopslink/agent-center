@@ -219,6 +219,13 @@ export interface Agent {
   // an agent with no activity omits them and the UI shows a friendly placeholder.
   last_activity_at?: string; // RFC3339; rendered via formatLocalTime (LOCAL tz).
   last_activity_content?: string; // single-line PLAIN-TEXT preview (truncated in UI).
+  // T342 agent-load: the active-task split behind the load metric. running_tasks
+  // ("doing") + pending_tasks ("open") non-terminal tasks assigned to the agent;
+  // task_load = running/(running+pending) ∈ [0,1] (0 when idle). Emitted on both
+  // the list and detail; the UI colors it by pressure level.
+  running_tasks?: number;
+  pending_tasks?: number;
+  task_load?: number;
 }
 
 // v2.7.1 #120: the bound worker's label + connected state. daemon version is

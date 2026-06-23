@@ -205,6 +205,14 @@ func (s *Service) ListClaimableTasks(ctx context.Context, assignee pm.IdentityRe
 // Cost is one ListByAssignee plus a per-task runnable derivation; EnsureTaskRunnable
 // short-circuits a running task and is the single source of truth shared with the
 // start gate, so the list and start_task never disagree on "runnable".
+// AgentTaskLoads returns the per-assignee active-task split (Running "doing" +
+// Pending "open") for the whole surface in ONE grouped query — the agent-load
+// metric source (T342). Keyed by the task assignee ref ("agent:<id>" /
+// "user:<id>"); the handler computes load = Running / (Running+Pending).
+func (s *Service) AgentTaskLoads(ctx context.Context) (map[pm.IdentityRef]pm.AgentTaskLoad, error) {
+	return s.tasks.CountActiveByAssignee(ctx)
+}
+
 func (s *Service) ListRunnableAgentTasks(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
 	tasks, err := s.tasks.ListByAssignee(ctx, assignee)
 	if err != nil {

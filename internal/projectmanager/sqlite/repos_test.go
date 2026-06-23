@@ -335,6 +335,48 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 	}
 }
 
+// TestTaskRepo_CountActiveByAssignee pins the agent-load metric source (T342):
+// per-assignee Running ("doing") + Open ("pending") counts across all projects,
+// terminal + unassigned rows excluded.
+func TestTaskRepo_CountActiveByAssignee(t *testing.T) {
+	ctx, _, _, _, tr, _, _, _ := setup(t)
+	save := func(id, project string, status pm.TaskStatus, assignee string) {
+		tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+			ID: pm.TaskID(id), ProjectID: pm.ProjectID(project), Title: id,
+			Status: status, Assignee: pm.IdentityRef(assignee),
+			CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tr.Save(ctx, tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const a1 = "agent:agent-aaaa1111"
+	const a2 = "agent:agent-bbbb2222"
+	save("T1", "PA", pm.TaskRunning, a1)   // a1 doing
+	save("T2", "PB", pm.TaskOpen, a1)      // a1 pending (other project)
+	save("T3", "PA", pm.TaskOpen, a1)      // a1 pending
+	save("T4", "PA", pm.TaskRunning, a2)   // a2 doing
+	save("T5", "PA", pm.TaskCompleted, a1) // terminal — excluded
+	save("T6", "PA", pm.TaskOpen, "")      // unassigned — excluded
+
+	got, err := tr.CountActiveByAssignee(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[a1].Running != 1 || got[a1].Pending != 2 {
+		t.Fatalf("a1: got %+v want {Running:1 Pending:2}", got[a1])
+	}
+	if got[a2].Running != 1 || got[a2].Pending != 0 {
+		t.Fatalf("a2: got %+v want {Running:1 Pending:0}", got[a2])
+	}
+	if _, ok := got[""]; ok {
+		t.Fatalf("unassigned must be excluded: %v", got)
+	}
+}
+
 // TestIssueRepo_FindByStatuses_GlobalNonTerminal pins the additive global
 // issue-by-status scan (v2.7 #107 #119 fleet issues-repoint): the fleet
 // pending-issues segment's global-admin path needs all non-terminal issues

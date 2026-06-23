@@ -262,6 +262,22 @@ func enrichAgentLastActivity(m map[string]any, e *agentbc.AgentActivityEvent) {
 	}
 }
 
+// enrichAgentLoad attaches the agent-load metric (T342) to an agent DTO:
+// running_tasks ("doing"), pending_tasks ("open"), and task_load =
+// running/(running+pending) ∈ [0,1] (0 when the agent has no active task). The
+// frontend colors the load by pressure level. Always emitted (0/0/0 when idle)
+// so the SPA can render a stable column.
+func enrichAgentLoad(m map[string]any, l pm.AgentTaskLoad) {
+	total := l.Running + l.Pending
+	load := 0.0
+	if total > 0 {
+		load = float64(l.Running) / float64(total)
+	}
+	m["running_tasks"] = l.Running
+	m["pending_tasks"] = l.Pending
+	m["task_load"] = load
+}
+
 // activityPreviewText derives a human-readable content string from an activity
 // event's JSON payload (v2.8.1 #278). The payload schema is per event_type
 // (activity_event.go): it pulls the first present human-meaningful field
@@ -366,6 +382,15 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 			latestActivity = m
 		}
 	}
+	// T342 agent-load: batch-fetch the per-assignee active-task split for the whole
+	// page in ONE grouped query (no N+1). Fail-soft — a load error → no enrich
+	// (task_load stays 0), never a 500.
+	loads := map[pm.IdentityRef]pm.AgentTaskLoad{}
+	if d.PM != nil {
+		if lm, lerr := d.PM.AgentTaskLoads(r.Context()); lerr == nil {
+			loads = lm
+		}
+	}
 	out := make([]map[string]any, 0, len(shown))
 	for _, a := range shown {
 		avail, aerr := d.AgentSvc.Availability(r.Context(), a)
@@ -375,6 +400,7 @@ func (s *Server) agentListHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		m := agentMap(a, avail)
 		enrichAgentLastActivity(m, latestActivity[a.ID()])
+		enrichAgentLoad(m, loads[pm.IdentityRef("agent:"+agentFacingID(a))])
 		out = append(out, m)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
@@ -401,6 +427,12 @@ func (s *Server) agentGetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	m := agentMap(a, avail)
 	s.agentDetailEnrich(r.Context(), d, a, m)
+	// T342 agent-load on the detail DTO (single-agent; fail-soft → 0).
+	if d.PM != nil {
+		if lm, lerr := d.PM.AgentTaskLoads(r.Context()); lerr == nil {
+			enrichAgentLoad(m, lm[pm.IdentityRef("agent:"+agentFacingID(a))])
+		}
+	}
 	writeJSON(w, http.StatusOK, m)
 }
 

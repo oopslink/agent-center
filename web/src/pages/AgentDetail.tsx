@@ -15,7 +15,7 @@ import {
   useStopAgent,
   type ResetScope,
 } from '@/api/agents';
-import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
+import { AgentLoadBadge, AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ForceDeleteModal } from '@/components/ForceDeleteModal';
 import { EmptyState } from '@/components/EmptyState';
@@ -175,6 +175,8 @@ export default function AgentDetail(): React.ReactElement {
           <h2 className="text-xl font-semibold">{a.name}</h2>
           <LifecycleBadge lifecycle={a.lifecycle} />
           <AvailabilityBadge availability={a.availability} />
+          {/* T342: agent load (doing/total) with a pressure-colored dot. */}
+          <AgentLoadBadge agent={a} />
         </div>
 
         {/* v2.10.1 M6: lifecycle controls are ≥44px touch targets on mobile

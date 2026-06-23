@@ -319,6 +319,41 @@ func (r *TaskRepo) CountByStatus(ctx context.Context, since *time.Time) (map[pm.
 	return out, rows.Err()
 }
 
+// CountActiveByAssignee returns, per assignee, the active-task split (Running
+// "doing" + Pending "open") across ALL projects in ONE grouped scan — the
+// agent-load metric source (T342). Terminal tasks and unassigned rows are
+// excluded. A blocked task is still status=running (blocked_reason set), so it
+// counts as Running (the agent is on it).
+func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRef]pm.AgentTaskLoad, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT assignee, status, COUNT(*) FROM pm_tasks
+		   WHERE assignee IS NOT NULL AND assignee != '' AND status IN (?, ?)
+		   GROUP BY assignee, status`,
+		string(pm.TaskRunning), string(pm.TaskOpen))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[pm.IdentityRef]pm.AgentTaskLoad)
+	for rows.Next() {
+		var assignee, status string
+		var n int
+		if err := rows.Scan(&assignee, &status, &n); err != nil {
+			return nil, err
+		}
+		l := out[pm.IdentityRef(assignee)]
+		switch pm.TaskStatus(status) {
+		case pm.TaskRunning:
+			l.Running += n
+		case pm.TaskOpen:
+			l.Pending += n
+		}
+		out[pm.IdentityRef(assignee)] = l
+	}
+	return out, rows.Err()
+}
+
 // ListByStatuses returns tasks whose status is in any of the given statuses,
 // across ALL projects (global), stable-ordered (created_at, id). Empty input →
 // empty result. v2.7 #107 Phase-2 (proj-B) observability task-query repoint.

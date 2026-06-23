@@ -193,6 +193,74 @@ export function AgentStatusBadge({
   );
 }
 
+// ── T342: agent load (pressure) ────────────────────────────────────────────
+// @oopslink: show how loaded an agent is — load = doing / (doing + pending),
+// where doing = running tasks and pending = open (queued) tasks assigned to it,
+// ∈ [0,1]. Color encodes pressure: green (low) → amber (mid) → red (high); an
+// agent with no active task reads neutral "—". The fraction shown is doing/total
+// (the metric's numerator/denominator) so the raw numbers are always visible.
+export type AgentLoadLevel = 'none' | 'low' | 'medium' | 'high';
+
+export interface AgentLoadInfo {
+  running: number;
+  pending: number;
+  total: number;
+  load: number; // [0,1]
+  level: AgentLoadLevel;
+}
+
+export function deriveAgentLoad(
+  agent: Pick<Agent, 'running_tasks' | 'pending_tasks' | 'task_load'>,
+): AgentLoadInfo {
+  const running = agent.running_tasks ?? 0;
+  const pending = agent.pending_tasks ?? 0;
+  const total = running + pending;
+  // Prefer the server-computed value; fall back to a local compute (older API).
+  const load = total > 0 ? (agent.task_load ?? running / total) : 0;
+  let level: AgentLoadLevel = 'none';
+  if (total > 0) level = load >= 0.67 ? 'high' : load >= 0.34 ? 'medium' : 'low';
+  return { running, pending, total, load, level };
+}
+
+// Pressure palette: the dot carries the color (high → danger red, mid → amber,
+// low → green, none → muted). Color is supplementary — the fraction + tooltip
+// carry the meaning (never color-only).
+const LOAD_DOT: Record<AgentLoadLevel, string> = {
+  none: 'bg-text-muted',
+  low: 'bg-status-green-solid',
+  medium: 'bg-status-amber-solid',
+  high: 'bg-danger',
+};
+
+export function AgentLoadBadge({
+  agent,
+}: {
+  agent: Pick<Agent, 'running_tasks' | 'pending_tasks' | 'task_load'>;
+}): React.ReactElement {
+  const info = deriveAgentLoad(agent);
+  const pct = Math.round(info.load * 100);
+  const label = info.total === 0 ? '—' : `${info.running}/${info.total}`;
+  const title =
+    info.total === 0
+      ? 'Load — no active tasks'
+      : `Load ${pct}% — doing ${info.running} / pending ${info.pending} (running ÷ running+pending)`;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-secondary"
+      data-testid="agent-load-badge"
+      data-load-level={info.level}
+      data-load={info.load.toFixed(2)}
+      title={title}
+    >
+      <span
+        className={['h-2 w-2 shrink-0 rounded-full', LOAD_DOT[info.level]].join(' ')}
+        aria-hidden="true"
+      />
+      <span className="tabular-nums">{label}</span>
+    </span>
+  );
+}
+
 export function LifecycleBadge({
   lifecycle,
 }: {

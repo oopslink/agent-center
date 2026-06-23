@@ -3,8 +3,10 @@ import { cleanup, render, screen } from '@testing-library/react';
 import {
   ActivityBadge,
   AGENT_IDLE_MS,
+  AgentLoadBadge,
   AgentStatusBadge,
   deriveAgentActivity,
+  deriveAgentLoad,
   deriveAgentStatus,
 } from './AgentBadges';
 import type { Agent } from '@/api/types';
@@ -119,5 +121,44 @@ describe('AgentStatusBadge (T322)', () => {
     const badge = screen.getByTestId('agent-status-badge');
     expect(badge).toHaveAttribute('data-agent-status', 'stopped');
     expect(badge.getAttribute('title')).toBe('Lifecycle: stopped');
+  });
+});
+
+describe('agent load metric (T342)', () => {
+  it('derives load + pressure level from running/pending counts', () => {
+    // none: no tasks → load 0, level none
+    expect(deriveAgentLoad({ running_tasks: 0, pending_tasks: 0 })).toMatchObject({
+      total: 0,
+      load: 0,
+      level: 'none',
+    });
+    // high: 1 doing, 0 pending → 1.0
+    expect(deriveAgentLoad({ running_tasks: 1, pending_tasks: 0 })).toMatchObject({
+      load: 1,
+      level: 'high',
+    });
+    // medium: 1 doing, 1 pending → 0.5
+    expect(deriveAgentLoad({ running_tasks: 1, pending_tasks: 1 })).toMatchObject({
+      load: 0.5,
+      level: 'medium',
+    });
+    // low: 1 doing, 4 pending → 0.2
+    expect(deriveAgentLoad({ running_tasks: 1, pending_tasks: 4 }).level).toBe('low');
+    // prefers the server task_load when present
+    expect(deriveAgentLoad({ running_tasks: 1, pending_tasks: 1, task_load: 0.7 }).load).toBe(0.7);
+  });
+
+  it('renders the doing/total fraction + a pressure-colored level', () => {
+    render(<AgentLoadBadge agent={{ running_tasks: 1, pending_tasks: 3 }} />);
+    const badge = screen.getByTestId('agent-load-badge');
+    expect(badge).toHaveTextContent('1/4');
+    expect(badge).toHaveAttribute('data-load-level', 'low');
+  });
+
+  it('shows a neutral dash when the agent has no active tasks', () => {
+    render(<AgentLoadBadge agent={{ running_tasks: 0, pending_tasks: 0 }} />);
+    const badge = screen.getByTestId('agent-load-badge');
+    expect(badge).toHaveTextContent('—');
+    expect(badge).toHaveAttribute('data-load-level', 'none');
   });
 });

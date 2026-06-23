@@ -89,6 +89,14 @@ type IssueRepository interface {
 }
 
 // TaskRepository persists Task ARs.
+// AgentTaskLoad is the per-assignee active-task split behind the agent-load
+// metric (T342): Running ("doing") + Pending ("open") non-terminal tasks. The
+// load value is Running / (Running+Pending), 0 when the assignee has none.
+type AgentTaskLoad struct {
+	Running int
+	Pending int
+}
+
 type TaskRepository interface {
 	Save(ctx context.Context, t *Task) error
 	Update(ctx context.Context, t *Task) error
@@ -106,6 +114,11 @@ type TaskRepository interface {
 	// scan that stats used. since, if non-nil, restricts to tasks created
 	// at/after it. v2.7 #107 Phase-2 stats repoint.
 	CountByStatus(ctx context.Context, since *time.Time) (map[TaskStatus]int, error)
+	// CountActiveByAssignee returns, per assignee, the active-task split (Running
+	// "doing" + Pending "open") across ALL projects/orgs in ONE grouped scan — the
+	// agent-load metric source (no per-agent N+1). Terminal tasks are excluded;
+	// unassigned rows are omitted. v2.14.0 T342.
+	CountActiveByAssignee(ctx context.Context) (map[IdentityRef]AgentTaskLoad, error)
 	// ListByStatuses returns tasks whose status is in any of the given statuses,
 	// across ALL projects/orgs (global), stable-ordered (created_at, id). Empty
 	// input → empty result. v2.7 #107 Phase-2 (proj-B): observability task query
