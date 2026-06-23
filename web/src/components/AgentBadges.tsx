@@ -222,14 +222,15 @@ export function deriveAgentLoad(
   return { running, pending, total, load, level };
 }
 
-// Pressure palette: the dot carries the color (high → danger red, mid → amber,
-// low → green, none → muted). Color is supplementary — the fraction + tooltip
-// carry the meaning (never color-only).
-const LOAD_DOT: Record<AgentLoadLevel, string> = {
-  none: 'bg-text-muted',
-  low: 'bg-status-green-solid',
-  medium: 'bg-status-amber-solid',
-  high: 'bg-danger',
+// T342c (@oopslink): the dot+fraction read as cryptic — render an explicit
+// labeled TAG ("load: 0.7") instead. Pressure is carried by the TEXT color
+// (high → danger, mid → warning, low → success, none → muted) on a neutral chip
+// (solid bg-subtle, never an alpha tint — the transparent-token trap noted above).
+const LOAD_TEXT: Record<AgentLoadLevel, string> = {
+  none: 'text-text-muted',
+  low: 'text-success',
+  medium: 'text-warning',
+  high: 'text-danger',
 };
 
 export function AgentLoadBadge({
@@ -238,25 +239,23 @@ export function AgentLoadBadge({
   agent: Pick<Agent, 'running_tasks' | 'pending_tasks' | 'task_load'>;
 }): React.ReactElement {
   const info = deriveAgentLoad(agent);
-  const pct = Math.round(info.load * 100);
-  const label = info.total === 0 ? '—' : `${info.running}/${info.total}`;
+  const value = info.load.toFixed(1); // 0.0 … 1.0 (one decimal, matches the spec)
   const title =
     info.total === 0
-      ? 'Load — no active tasks'
-      : `Load ${pct}% — doing ${info.running} / pending ${info.pending} (running ÷ running+pending)`;
+      ? 'Load — no active tasks (doing ÷ (doing + pending))'
+      : `Load = doing ${info.running} ÷ (doing + pending ${info.total}) = ${info.load.toFixed(2)}`;
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-secondary"
+      className={[
+        'inline-flex items-center whitespace-nowrap rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] font-medium tabular-nums',
+        LOAD_TEXT[info.level],
+      ].join(' ')}
       data-testid="agent-load-badge"
       data-load-level={info.level}
       data-load={info.load.toFixed(2)}
       title={title}
     >
-      <span
-        className={['h-2 w-2 shrink-0 rounded-full', LOAD_DOT[info.level]].join(' ')}
-        aria-hidden="true"
-      />
-      <span className="tabular-nums">{label}</span>
+      load: {value}
     </span>
   );
 }
@@ -276,11 +275,13 @@ export function deriveBacklogLevel(pending: number): AgentBacklogLevel {
   return 'high';
 }
 
-const BACKLOG_DOT: Record<AgentBacklogLevel, string> = {
-  none: 'bg-text-muted',
-  low: 'bg-status-green-solid',
-  medium: 'bg-status-amber-solid',
-  high: 'bg-danger',
+// T342c: explicit labeled tag ("backlog: 13") — pressure by text color on a
+// neutral chip, mirroring AgentLoadBadge.
+const BACKLOG_TEXT: Record<AgentBacklogLevel, string> = {
+  none: 'text-text-muted',
+  low: 'text-success',
+  medium: 'text-warning',
+  high: 'text-danger',
 };
 
 export function AgentBacklogBadge({
@@ -292,23 +293,20 @@ export function AgentBacklogBadge({
   const level = deriveBacklogLevel(pending);
   const title =
     pending === 0
-      ? 'Backlog — no pending tasks'
+      ? 'Backlog — no pending (queued) tasks'
       : `Backlog — ${pending} pending (queued) task${pending === 1 ? '' : 's'}`;
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-secondary"
+      className={[
+        'inline-flex items-center whitespace-nowrap rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] font-medium tabular-nums',
+        BACKLOG_TEXT[level],
+      ].join(' ')}
       data-testid="agent-backlog-badge"
       data-backlog-level={level}
       data-backlog={pending}
       title={title}
     >
-      {/* a small stacked-queue glyph so the count reads as "backlog", distinct
-          from the load fraction when shown side by side. */}
-      <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0 stroke-current" fill="none" strokeWidth="1.4" aria-hidden="true">
-        <path d="M3 5h10M3 8h10M3 11h10" strokeLinecap="round" />
-      </svg>
-      <span className={['h-2 w-2 shrink-0 rounded-full', BACKLOG_DOT[level]].join(' ')} aria-hidden="true" />
-      <span className="tabular-nums">{pending}</span>
+      backlog: {pending}
     </span>
   );
 }

@@ -195,20 +195,20 @@ export default function Agents(): React.ReactElement {
                     onChange={toggleAll}
                   />
                 </th>
-                <th className="w-[14%] border-b border-border-base px-3 py-2">Name</th>
-                <th className="w-[13%] border-b border-border-base px-3 py-2">Provider</th>
-                <th className="w-[11%] border-b border-border-base px-3 py-2">Lifecycle</th>
-                <th className="w-[12%] border-b border-border-base px-3 py-2">Availability</th>
+                <th className="w-[13%] border-b border-border-base px-3 py-2">Name</th>
+                <th className="w-[11%] border-b border-border-base px-3 py-2">Provider</th>
+                <th className="w-[10%] border-b border-border-base px-3 py-2">Lifecycle</th>
+                <th className="w-[11%] border-b border-border-base px-3 py-2">Availability</th>
                 {/* T342: agent load = doing / (doing+pending), colored by pressure. */}
                 <th
-                  className="w-[8%] border-b border-border-base px-3 py-2"
+                  className="w-[9%] border-b border-border-base px-3 py-2"
                   title="Load = doing ÷ (doing + pending) tasks; colored by pressure"
                 >
                   Load
                 </th>
                 {/* T342b: backlog = pending (queued) task count, colored by depth. */}
                 <th
-                  className="w-[7%] border-b border-border-base px-3 py-2"
+                  className="w-[9%] border-b border-border-base px-3 py-2"
                   title="Backlog — pending (queued) tasks; colored by depth"
                 >
                   Backlog

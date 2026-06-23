@@ -150,17 +150,17 @@ describe('agent load metric (T342)', () => {
     expect(deriveAgentLoad({ running_tasks: 1, pending_tasks: 1, task_load: 0.7 }).load).toBe(0.7);
   });
 
-  it('renders the doing/total fraction + a pressure-colored level', () => {
+  it('renders an explicit "load: x.x" tag + a pressure-colored level (T342c)', () => {
     render(<AgentLoadBadge agent={{ running_tasks: 1, pending_tasks: 3 }} />);
     const badge = screen.getByTestId('agent-load-badge');
-    expect(badge).toHaveTextContent('1/4');
+    expect(badge).toHaveTextContent('load: 0.3'); // 1/4 = 0.25 → 0.3 (toFixed(1) rounds)
     expect(badge).toHaveAttribute('data-load-level', 'low');
   });
 
-  it('shows a neutral dash when the agent has no active tasks', () => {
+  it('shows load: 0.0 (muted) when the agent has no active tasks', () => {
     render(<AgentLoadBadge agent={{ running_tasks: 0, pending_tasks: 0 }} />);
     const badge = screen.getByTestId('agent-load-badge');
-    expect(badge).toHaveTextContent('—');
+    expect(badge).toHaveTextContent('load: 0.0');
     expect(badge).toHaveAttribute('data-load-level', 'none');
   });
 });
@@ -173,17 +173,17 @@ describe('agent backlog metric (T342b)', () => {
     expect(deriveBacklogLevel(6)).toBe('high');
   });
 
-  it('renders the pending count with a depth-colored level', () => {
+  it('renders an explicit "backlog: N" tag with a depth-colored level (T342c)', () => {
     render(<AgentBacklogBadge agent={{ pending_tasks: 7 }} />);
     const badge = screen.getByTestId('agent-backlog-badge');
-    expect(badge).toHaveTextContent('7');
+    expect(badge).toHaveTextContent('backlog: 7');
     expect(badge).toHaveAttribute('data-backlog-level', 'high');
   });
 
-  it('shows 0 with a neutral level when there is no backlog', () => {
+  it('shows backlog: 0 (muted) when there is no backlog', () => {
     render(<AgentBacklogBadge agent={{ pending_tasks: 0 }} />);
     const badge = screen.getByTestId('agent-backlog-badge');
-    expect(badge).toHaveTextContent('0');
+    expect(badge).toHaveTextContent('backlog: 0');
     expect(badge).toHaveAttribute('data-backlog-level', 'none');
   });
 });
