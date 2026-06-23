@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -550,18 +552,63 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	})
 	go planReconcileLoop.Run(planReconcileLoopCtx)
 
+	// T340 (issue-b71ee81f): bring the control-event stream GC online. The
+	// worker_control_events table is append-only for every command type and had no
+	// GC → chronic growth. This slow-cadence (hourly) sweep prunes acked rows older
+	// than the retention window (default 3 days, env-overridable). It runs once on
+	// boot then on a ticker, mirroring the wakeLoop/planReconcileLoop lifecycle
+	// (ctx-cancel + graceful shutdown). SAFETY: it never deletes an un-acked row, so
+	// a worker offline past retention loses no undelivered command on reconnect.
+	ceRetention, ceInterval := controlEventGCConfig(logger)
+	controlEventGCCtx, controlEventGCCancel := context.WithCancel(ctx)
+	controlEventGC := envservice.NewControlEventGC(
+		envsql.NewControlEventRepo(a.DB), a.Clock, ceRetention, ceInterval,
+		func(format string, args ...any) { logger("webconsole control-event gc: " + fmt.Sprintf(format, args...)) },
+	)
+	go controlEventGC.Run(controlEventGCCtx)
+
 	cleanup = func() error {
 		fanoutCancel()
 		pumpCancel()
 		gcCancel()
 		wakeLoopCancel()
 		planReconcileLoopCancel()
+		controlEventGCCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)
 		return srv.Shutdown(shutCtx)
 	}
 	return cleanup, nil
+}
+
+// controlEventGCConfig resolves the control-event GC retention + sweep interval from
+// the environment (T340 — "别写死"), falling back to the service defaults (3-day
+// retention / hourly sweep) when unset or unparseable. Both accept a Go duration
+// string (e.g. "72h", "30m"):
+//   - AC_CONTROL_EVENTS_RETENTION — age past which an acked control event is pruned.
+//   - AC_CONTROL_EVENTS_GC_INTERVAL — sweep cadence.
+//
+// A non-positive or malformed value is logged once and ignored (default stands), so a
+// fat-fingered env never silently disables or thrashes the sweep.
+func controlEventGCConfig(logger func(string)) (retention, interval time.Duration) {
+	retention = envservice.DefaultControlEventRetention
+	interval = envservice.DefaultControlEventGCInterval
+	if v := strings.TrimSpace(os.Getenv("AC_CONTROL_EVENTS_RETENTION")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			retention = d
+		} else {
+			logger(fmt.Sprintf("webconsole control-event gc: ignoring invalid AC_CONTROL_EVENTS_RETENTION=%q (using %s)", v, retention))
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("AC_CONTROL_EVENTS_GC_INTERVAL")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			interval = d
+		} else {
+			logger(fmt.Sprintf("webconsole control-event gc: ignoring invalid AC_CONTROL_EVENTS_GC_INTERVAL=%q (using %s)", v, interval))
+		}
+	}
+	return retention, interval
 }
 
 // _ keeps observability import alive (handler deps include Actor).

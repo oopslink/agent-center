@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	env "github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -85,6 +86,43 @@ func (r *ControlEventRepo) ListAfter(ctx context.Context, workerID env.WorkerID,
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// DeleteAckedBefore prunes up to `limit` command-stream rows that are SAFE to GC
+// (T340, issue-b71ee81f): rows created strictly before `cutoff` whose offset the
+// OWNING worker has already acked (e."offset" <= env_workers.last_acked_offset), plus
+// orphan rows whose worker no longer exists (COALESCE to MaxInt64 → matched by time
+// alone). It NEVER deletes an un-acked row (offset > last_acked_offset) — that is the
+// safety guard guaranteeing a worker offline past the retention window still replays
+// every undelivered command (CommandsAfter = offset > last_acked) on reconnect; the
+// desired lifecycle/work state is re-derived on reconnect (ResumeState boot-reconcile
+// + the server work_available sweep) so already-acked rows are dead weight.
+//
+// Batched (id IN (SELECT ... LIMIT ?)) so a large backlog never locks the table in one
+// big transaction — the caller loops until it returns < limit. Times are stored as
+// RFC3339Nano UTC strings (clock.Now is always UTC), so the lexicographic '<' is a
+// correct time comparison — the same convention the files-GC ListCollectable relies on.
+// Returns the number of rows deleted.
+func (r *ControlEventRepo) DeleteAckedBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	const stmt = `DELETE FROM worker_control_events
+		WHERE id IN (
+			SELECT e.id FROM worker_control_events e
+			LEFT JOIN env_workers w ON w.id = e.worker_id
+			WHERE e.created_at < ?
+			  AND e."offset" <= COALESCE(w.last_acked_offset, 9223372036854775807)
+			ORDER BY e.created_at
+			LIMIT ?
+		)`
+	res, err := exec.ExecContext(ctx, stmt, ts(cutoff.UTC()), limit)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 const eventSelect = `SELECT id, worker_id, "offset", idempotency_key, command_type, payload, created_at FROM worker_control_events`

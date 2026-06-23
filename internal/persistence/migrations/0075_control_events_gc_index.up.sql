@@ -1,0 +1,16 @@
+-- 0075_control_events_gc_index.up.sql — T340 (issue-b71ee81f): periodic GC for the
+-- worker_control_events command stream (retention-based pruning, default 3 days).
+--
+-- The stream is append-only for every command type (agent.reconcile / agent.converse
+-- / agent.work_available, incl. the T335 session-heal sweep's epoch-key rows) and had
+-- NO GC → chronic monotonic growth. The GC sweep (ControlEventGC) range-deletes rows
+-- older than the retention window that the owning worker has already ACKED
+-- (offset <= env_workers.last_acked_offset) — never an un-acked row, so a worker
+-- offline past retention loses no undelivered command on reconnect (orphan rows whose
+-- worker no longer exists are pruned by time alone).
+--
+-- This index makes the GC candidate scan (`created_at < cutoff` ORDER BY created_at
+-- LIMIT n, batched) seek instead of full-scanning the table. The existing
+-- idx_wce_worker_offset (worker_id, "offset") already covers the ListAfter replay
+-- path + the per-row ack-offset comparison; this adds the time dimension the GC needs.
+CREATE INDEX IF NOT EXISTS idx_wce_created_at ON worker_control_events (created_at);

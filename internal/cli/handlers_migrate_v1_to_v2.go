@@ -127,7 +127,8 @@ func MigrateV1ToV2Command() *Command {
 // 0071 (F4 data-backfill AWI→pm_tasks), 0072 (F3 single-active UNIQUE index),
 // 0074 (I14 naming cleanup: rename agent_activity_events.work_item_ref→task_ref +
 // idx_aae_work_item→idx_aae_task) — all additive; const tracks the latest migration.
-const targetSchemaVersion = 74
+// T340 added 0075 (worker_control_events GC index — additive, retention-based stream pruning).
+const targetSchemaVersion = 75
 
 func runMigrateV1ToV2(
 	ctx context.Context,
