@@ -110,6 +110,17 @@ const pumpIdlePoll = 50 * time.Millisecond
 // and firing OnExit. Reset to zero on any successful read.
 const pumpMaxTransientErrs = 100
 
+// pumpReconnectEvery is how many consecutive read errors the pump tolerates
+// before it tries to RE-DIAL a still-alive supervisor (issue-9bd86b8f gap ③). A
+// dropped CONNECTION (vs a dead supervisor) must not cost the healthy claude a
+// destructive reap+relaunch. Re-dialing on a cadence (not every error) avoids
+// churning a working conn on a brief blip; the pump keeps trying up to
+// pumpMaxTransientErrs before finally giving up (the truly-dead fallback).
+const pumpReconnectEvery = 5
+
+// supervisorReconnectTimeout bounds a single re-dial+Hello probe attempt.
+const supervisorReconnectTimeout = 2 * time.Second
+
 // SupervisorSession is a long-lived daemon-side handle to one agent's persistent
 // supervisor. It spawns ONLY the supervisor (never claude), pumps claude's stdout
 // events over the socket into OnEvent, injects input over the socket, and offers
@@ -266,6 +277,17 @@ func (s *SupervisorSession) pump(offset int64) {
 				}
 			}
 			transient++
+			// issue-9bd86b8f gap ③: a dropped CONNECTION (not a dead supervisor)
+			// should be recovered by re-dialing the live supervisor — NOT by burning
+			// the whole error budget and firing OnExit, which upstream turns into a
+			// destructive reap+relaunch that kills the still-healthy claude. Try to
+			// reconnect on a cadence; on success swap in the fresh client and resume
+			// from the SAME offset (a stale offset below base is handled by the
+			// normal offset-truncated resync on the next read).
+			if transient%pumpReconnectEvery == 0 && s.tryReconnect() {
+				transient = 0
+				continue
+			}
 			if transient >= pumpMaxTransientErrs {
 				s.logger("[worker] supervisor_session: supervisor gone (read errors exhausted)")
 				s.fireExit(err)
@@ -352,6 +374,49 @@ func (s *SupervisorSession) resyncOffset() (int64, error) {
 		return 0, err
 	}
 	return hello.BaseOffset, nil
+}
+
+// tryReconnect re-dials the agent's supervisor and swaps the fresh connection in,
+// so a dropped socket (vs a dead supervisor) is recovered WITHOUT the destructive
+// reap+relaunch the pump's give-up path triggers (issue-9bd86b8f gap ③). It reuses
+// the boot-probe, which is identity-checked + PID-reuse-safe: a Reattachable probe
+// means the SAME supervisor incarnation is still live, so events.jsonl is
+// continuous and the pump resumes from its EXISTING offset. Returns false — leaving
+// the pump to keep retrying and eventually give up (the truly-dead fallback) — when
+// the supervisor is genuinely gone or a Stop/Detach is in progress.
+func (s *SupervisorSession) tryReconnect() bool {
+	s.mu.Lock()
+	if s.closed || s.stopping {
+		s.mu.Unlock()
+		return false
+	}
+	s.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), supervisorReconnectTimeout)
+	defer cancel()
+	pr, err := supervisormanager.ProbeAgent(ctx, s.cfg.HomeDir)
+	if err != nil || pr.State != supervisormanager.Reattachable {
+		// ProbeAgent closes its own connection on any non-Reattachable result.
+		return false
+	}
+
+	s.mu.Lock()
+	// Re-check under lock: a Stop/Detach may have raced in while we probed.
+	if s.closed || s.stopping {
+		s.mu.Unlock()
+		_ = pr.Client.Close()
+		return false
+	}
+	old := s.client
+	s.client = pr.Client
+	s.ref = supervisormanager.RefFromProbe(s.cfg.HomeDir, pr)
+	s.mu.Unlock()
+
+	if old != nil {
+		_ = old.Close()
+	}
+	s.logger("[worker] supervisor_session: RECONNECTED to live supervisor (non-destructive)")
+	return true
 }
 
 // Inject sends msg over the socket; the supervisor wraps it as a stream-json user
