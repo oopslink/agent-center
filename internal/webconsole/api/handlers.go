@@ -29,6 +29,7 @@ import (
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/settings"
+	"github.com/oopslink/agent-center/internal/usage"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -161,6 +162,11 @@ type HandlerDeps struct {
 	// endpoints (GET/PUT /api/system/wake-guardrail). Optional — nil degrades the
 	// endpoints to effective-defaults (GET) / not_configured (PUT).
 	SettingsStore settings.Store
+
+	// I28/F4 (issue-a7ff560e): per-agent analytics read service backing the
+	// dashboard endpoints (GET /api/orgs/{slug}/agents/{id}/analytics + the
+	// Top-Cost-Tasks drill-down). Optional — nil degrades the endpoints to 501.
+	Analytics usage.AnalyticsService
 }
 
 // hd retrieves the typed dep bag from the request context.

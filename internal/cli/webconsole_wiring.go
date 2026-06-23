@@ -27,6 +27,7 @@ import (
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	settingssql "github.com/oopslink/agent-center/internal/settings/sqlite"
+	usagesql "github.com/oopslink/agent-center/internal/usage/sqlite"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
 	"github.com/oopslink/agent-center/internal/webconsole/spa"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
@@ -107,6 +108,9 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		// I7-D1 (T216): center settings store backing GET/PUT /api/system/wake-guardrail
 		// (the I7-D3 Settings panel reads/writes the wake-guardrail thresholds here).
 		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
+		// I28/F4: per-agent analytics read service (heatmap/cards/trends/Top-task).
+		// Wired in BOTH builders so the test handler and the live server agree.
+		Analytics: usagesql.NewAnalytics(a.DB),
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -431,6 +435,9 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		// this line PUT /system/wake-guardrail 501s "settings store not configured" on the
 		// real server even though the wiring test is green.
 		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
+		// I28/F4: per-agent analytics read service (heatmap/cards/trends/Top-task).
+		// Wired in BOTH builders so the test handler and the live server agree.
+		Analytics: usagesql.NewAnalytics(a.DB),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),
