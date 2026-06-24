@@ -250,20 +250,26 @@ func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecor
 		}
 	}
 
-	// Pruning (§3.1). A non-terminal node is SKIPPED if (a) a conditional decision it
-	// depends on is done and routed to a DIFFERENT branch (dead branch), or (b) it has
-	// forward upstream(s) and EVERY one is skipped (only reachable through pruned
-	// nodes). Computed as a fixpoint (transitive closure) — terminal (done/failed)
-	// nodes are never skipped; a FAILED upstream blocks (not skips) downstream (§9.7).
-	terminal := func(id TaskID) bool {
-		s := statusOf[id]
-		return taskIsDone(s) || taskIsFailed(s)
-	}
+	// Pruning (§3.1). A node is SKIPPED if (a) a conditional decision it depends on is
+	// done and routed to a DIFFERENT branch (dead branch), or (b) it has forward
+	// upstream(s) and EVERY one is skipped (only reachable through pruned nodes).
+	// Computed as a fixpoint (transitive closure).
+	//
+	// T467 (issue-f5067ad2): pruning is immune ONLY to a DONE (completed) node — a node
+	// that genuinely concluded its own work is never reclassified. A DISCARDED node is
+	// NOT immune: an untaken escape/fallback node (e.g. reject_exhausted on a feature
+	// that went pass) is often discarded as cleanup, and such a discard on a DEAD branch
+	// must converge to NodeSkipped, NOT count as a failure. A discarded node on a LIVE
+	// (taken / non-conditional) branch is not on a dead path, so pruning never reaches
+	// it and it stays NodeFailed (a real failure — dev truly failed, or the escape branch
+	// was actually taken then discarded). A FAILED/real upstream still BLOCKS (not skips)
+	// downstream (§9.7): it is not `skipped`, so the all-upstream-skipped test (b) fails.
+	pruneImmune := func(id TaskID) bool { return taskIsDone(statusOf[id]) }
 	skipped := make(map[TaskID]bool, len(tasks))
 	// (a) direct dead-branch prune.
 	for _, t := range tasks {
 		id := t.ID()
-		if terminal(id) {
+		if pruneImmune(id) {
 			continue
 		}
 		for decisionTo, whens := range condUp[id] {
@@ -289,7 +295,7 @@ func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecor
 		changed = false
 		for _, t := range tasks {
 			id := t.ID()
-			if skipped[id] || terminal(id) {
+			if skipped[id] || pruneImmune(id) {
 				continue
 			}
 			ups := allUp[id]
@@ -318,16 +324,23 @@ func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecor
 		switch {
 		case taskIsDone(t.Status()):
 			ns = NodeDone
-		case taskIsFailed(t.Status()):
-			ns = NodeFailed
 		case t.Status() == TaskRunning:
+			// A running node tells the truth even on a (transiently) dead branch — never
+			// hide a live task behind `skipped` (a decision can still be re-decided by a
+			// loopback, re-activating this node).
 			if paused[id] {
 				ns = NodePaused
 			} else {
 				ns = NodeRunning
 			}
 		case skipped[id]:
-			ns = NodeSkipped // §3.1 — not-taken conditional branch (terminal/settled).
+			// §3.1 + T467 — a not-taken conditional branch (settled). Takes precedence over
+			// taskIsFailed below so a DISCARDED untaken escape/fallback node converges to
+			// NodeSkipped rather than polluting has_failed. A discarded node on a LIVE branch
+			// is not `skipped` (pruning never reached it) → it falls through to NodeFailed.
+			ns = NodeSkipped
+		case taskIsFailed(t.Status()):
+			ns = NodeFailed
 		default:
 			// Forward readiness (§5): all seq upstream done AND every conditional
 			// decision resolved to a matching branch. A pending (not-done) decision or

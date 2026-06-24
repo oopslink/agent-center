@@ -118,6 +118,7 @@ Dependency{
 - `NodeSkipped` 是**派生**的（由 outcome 记录 + 图可达性算出），不落 task.status（task 仍 `open`，只是永不被 dispatch）。
 - **AllDone 重定义**：`AllDone = 每个节点 ∈ {done, skipped}`（而非全 done）。`MarkDone` 据此触发。
   → 向后兼容：无 conditional 边时无 skipped 节点，退化为「全 done」== 今天。
+- **T467（issue-f5067ad2）剪枝豁免修正**：剪枝只对 **DONE（completed）** 节点豁免——一个真正完成了自身工作的节点永不被重分类。一个 **discarded** 节点**不**豁免：未命中的逃生/兜底节点（如某 feature 走 pass，其 `reject_exhausted` 节点）常被当 cleanup 弃置（discarded），这种「死分支上的 discard」必须收敛为 `NodeSkipped`、**不计入 `has_failed`**。反之，**活分支**（被选中的命中分支 / 无 conditional 的普通路径）上的 discarded 节点剪枝永远触达不到它 ⇒ 仍是 `NodeFailed`（真实失败：dev 真挂、或逃生分支真被走后弃置）。派生分类的优先级：`done > running > skipped > failed`——`running` 永远如实显示（有界回环可能重判 decision 并重激活该节点），`skipped`（死分支）优先于 `failed`（discarded），保证未走分支的弃置不污染 `has_failed`。
 
 ### 3.2 汇合（join）
 - 多条分支汇合到同一下游节点（如 reject 回环 vs pass 前进最终都到 Ship 之前的某节点）时，
@@ -164,16 +165,18 @@ Dependency{
 ```
 inputs: tasks, edges(含 Kind/When), dispatch(含 round), outcomes(DecisionOutcome), loopRounds, paused
 for each node N:
+  # 优先级（T467）：done > running > skipped > failed。pruned 只对 DONE 豁免，
+  # 故 discarded 的死分支节点也会被 pruned → Skipped；活分支的 discarded 才落 Failed。
   if N.task done:        status = Done;  continue
-  if N.task discarded:   status = Failed; continue
   if N.task running:     status = Running/Paused; continue
-  # 前向就绪求值（§3）：
+  # 前向就绪 / 剪枝求值（§3）：pruned 只跳过 DONE 节点，discarded 节点参与死分支剪枝。
   seqOK   = all seq-incoming.To are Done
   condOK  = for each conditional-decision group D of N:
                D done AND exists incoming(When == outcome(D, currentRound))
   pruned  = exists conditional-decision group D of N: D done AND no incoming When matches outcome
             OR N only reachable through pruned nodes        # 传递剪枝
-  if pruned:             status = Skipped; continue          # 新终态（§3.1）
+  if pruned:             status = Skipped; continue          # 死分支终态（§3.1，含被弃置的未走逃生节点）
+  if N.task discarded:   status = Failed; continue           # 活分支上的真实失败
   if not (seqOK and condOK): status = Blocked; continue
   status = dispatched(N, currentRound) ? Dispatched : Ready
 # loopback 边不参与上面的前向就绪（它们是后向重激活触发器，§4），从前向图中排除
