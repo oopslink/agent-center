@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -8,6 +9,8 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/files"
+	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
@@ -147,6 +150,13 @@ type scaffoldFeatureReq struct {
 	// Issue overrides the plan-level source_issue for THIS feature's chain nodes
 	// (T462); empty → inherit source_issue.
 	Issue string `json:"issue"`
+	// Spec is the feature's spec/acceptance markdown, written verbatim as the Dev
+	// node's description (T466). Optional.
+	Spec string `json:"spec"`
+	// MockupURIs are already-uploaded file URIs (ac://files/...) attached to this
+	// feature's Dev + Review nodes (T466). Each must be reachable in the agent's own
+	// domain. Optional.
+	MockupURIs []string `json:"mockup_uris"`
 }
 
 type scaffoldCyclePlanReq struct {
@@ -189,11 +199,23 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "missing_project_id", "")
 		return
 	}
+	// T466: resolve + authorize feature mockups BEFORE scaffolding (fail-closed,
+	// mirroring the message-attachment path). Each mockup must parse and be reachable
+	// in the agent's OWN domain (e.g. uploaded by it / on a task or issue it owns), else
+	// 403 before any node is created — a bad/unreachable uri can't leave a half-built
+	// draft. Metadata is captured from an existing reference so the new task-scope cards
+	// render with a name/size.
+	mockMeta, ok := s.resolveScaffoldMockups(w, r, d, a, req.Features)
+	if !ok {
+		return
+	}
+
 	features := make([]pmservice.CycleFeature, 0, len(req.Features))
 	for _, f := range req.Features {
 		features = append(features, pmservice.CycleFeature{
 			Name: f.Name, Branch: f.Branch, DocOnly: f.DocOnly,
 			Issue: pm.IssueID(strings.TrimSpace(f.Issue)),
+			Spec:  f.Spec,
 		})
 	}
 	res, err := d.PMService.ScaffoldCyclePlan(r.Context(), pmservice.ScaffoldCyclePlanCommand{
@@ -209,12 +231,24 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 		mapPlanToolError(w, err)
 		return
 	}
+
+	// T466: place each feature's mockups as task-scope references on its Dev + Review
+	// nodes (reuse the T73 task-attachment path → visible as preview cards on the node).
+	// Runs after the (non-atomic, draft) scaffold; a placement error leaves a deletable
+	// draft, consistent with scaffold's partial-failure contract.
+	attachCount, err := s.attachScaffoldMockups(r.Context(), d, a, req.Features, res.Nodes, mockMeta)
+	if err != nil {
+		mapFilesError(w, err)
+		return
+	}
+
 	nodes := make([]map[string]any, 0, len(res.Nodes))
 	for _, n := range res.Nodes {
 		nodes = append(nodes, map[string]any{
 			"task_id": string(n.TaskID), "title": n.Title, "branch": n.Branch,
 			"base": n.Base, "kind": n.Kind, "feature": n.Feature,
 			"derived_from_issue": string(n.DerivedFromIssue),
+			"description":        n.Description,
 		})
 	}
 	edges := make([]map[string]any, 0, len(res.Edges))
@@ -224,7 +258,142 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 			"kind": e.Kind, "when": e.When, "max_rounds": e.MaxRounds,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(res.PlanID), "nodes": nodes, "edges": edges})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"plan_id": string(res.PlanID), "nodes": nodes, "edges": edges,
+		"attachments_placed": attachCount,
+	})
+}
+
+// scaffoldMockupMeta is the captured metadata for a mockup file, copied onto each
+// task-scope reference so the node's attachment card renders a name/size (T466).
+type scaffoldMockupMeta struct {
+	uri         files.FileURI
+	filename    string
+	mimeType    string
+	displayName string
+	sizeBytes   int64
+}
+
+// resolveScaffoldMockups validates every distinct feature mockup uri up-front: it must
+// parse and be reachable in the agent's own domain (else the error envelope is written
+// and ok=false). Returns a uri→metadata map for the later placement. No mockups → empty
+// map, ok=true (no FilesSvc requirement on the spec-only / plain path).
+func (s *Server) resolveScaffoldMockups(
+	w http.ResponseWriter, r *http.Request, d HandlerDeps, a *agent.Agent, feats []scaffoldFeatureReq,
+) (map[files.FileURI]scaffoldMockupMeta, bool) {
+	out := map[files.FileURI]scaffoldMockupMeta{}
+	for _, f := range feats {
+		for _, raw := range f.MockupURIs {
+			if strings.TrimSpace(raw) == "" {
+				continue
+			}
+			uri, perr := files.ParseFileURI(raw)
+			if perr != nil {
+				writeError(w, http.StatusBadRequest, "invalid_file_uri", perr.Error())
+				return nil, false
+			}
+			if _, done := out[uri]; done {
+				continue
+			}
+			if d.FilesSvc == nil {
+				writeError(w, http.StatusNotImplemented, "files_not_wired", "files service not wired")
+				return nil, false
+			}
+			reachable, rerr := s.agentReachable(d, r, a, uri)
+			if rerr != nil {
+				writeError(w, http.StatusInternalServerError, "reachability_failed", rerr.Error())
+				return nil, false
+			}
+			if !reachable {
+				// Fail-closed. 403 (not 404) — the URI is well-formed; the agent simply
+				// has no reachable reference to it in its own domain.
+				writeError(w, http.StatusForbidden, "file_not_reachable",
+					"mockup "+raw+" is not reachable in the agent's own domain")
+				return nil, false
+			}
+			out[uri] = s.scaffoldMockupMeta(r.Context(), d, uri)
+		}
+	}
+	return out, true
+}
+
+// scaffoldMockupMeta reads a mockup's filename/mime/size from an existing live
+// reference (any scope) so the new task-scope reference copies it. Reachability has
+// already been confirmed by the caller, so a live reference exists; if none is found
+// the zero metadata is used (the card still works, just without a name/size).
+func (s *Server) scaffoldMockupMeta(ctx context.Context, d HandlerDeps, uri files.FileURI) scaffoldMockupMeta {
+	m := scaffoldMockupMeta{uri: uri}
+	refs, err := d.FilesSvc.ListReferences(ctx, uri)
+	if err == nil && len(refs) > 0 {
+		m.filename = refs[0].Filename
+		m.mimeType = refs[0].MimeType
+		m.displayName = refs[0].DisplayName
+		m.sizeBytes = refs[0].SizeBytes
+	}
+	return m
+}
+
+// attachScaffoldMockups places each feature's mockups as task-scope references on its
+// Dev and Review nodes (T466) and returns the number of references created. Targets are
+// resolved from the returned node summary by (feature, kind); a doc-only feature has no
+// Review node so it gets the Dev placement only.
+func (s *Server) attachScaffoldMockups(
+	ctx context.Context, d HandlerDeps, a *agent.Agent,
+	feats []scaffoldFeatureReq, nodes []pmservice.ScaffoldCycleNode, meta map[files.FileURI]scaffoldMockupMeta,
+) (int, error) {
+	if len(meta) == 0 {
+		return 0, nil
+	}
+	devByFeat := map[string]pm.TaskID{}
+	reviewByFeat := map[string]pm.TaskID{}
+	for _, n := range nodes {
+		switch n.Kind {
+		case "dev":
+			devByFeat[n.Feature] = n.TaskID
+		case "review":
+			reviewByFeat[n.Feature] = n.TaskID
+		}
+	}
+	placed := 0
+	for _, f := range feats {
+		if len(f.MockupURIs) == 0 {
+			continue
+		}
+		key := strings.TrimSpace(f.Name)
+		var targets []pm.TaskID
+		if id, ok := devByFeat[key]; ok {
+			targets = append(targets, id)
+		}
+		if id, ok := reviewByFeat[key]; ok {
+			targets = append(targets, id)
+		}
+		for _, raw := range f.MockupURIs {
+			if strings.TrimSpace(raw) == "" {
+				continue
+			}
+			uri, perr := files.ParseFileURI(raw)
+			if perr != nil {
+				continue // already validated in resolveScaffoldMockups
+			}
+			m := meta[uri]
+			for _, tid := range targets {
+				if _, err := d.FilesSvc.AddReference(ctx, filesservice.AddReferenceCmd{
+					FileURI:     uri,
+					Scope:       files.ScopeTask,
+					ScopeID:     string(tid),
+					Filename:    m.filename,
+					MimeType:    m.mimeType,
+					SizeBytes:   m.sizeBytes,
+					DisplayName: m.displayName,
+					CreatedBy:   agentActor(a),
+				}); err != nil {
+					return placed, err
+				}
+				placed++
+			}
+		}
+	}
+	return placed, nil
 }
 
 // --- add_task_to_plan --------------------------------------------------------

@@ -667,10 +667,12 @@ func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
 // --- scaffold_cycle_plan -----------------------------------------------------
 
 type scaffoldFeatureArgs struct {
-	Name    string `json:"name" jsonschema:"the feature label, used in node titles (e.g. 'F1 节点图规格')"`
-	Branch  string `json:"branch,omitempty" jsonschema:"optional shared feature branch for its Dev/Review/Decision/Integrate chain; defaults to the Dev node's T<n>"`
-	DocOnly bool   `json:"doc_only,omitempty" jsonschema:"true for a pure-doc/no-code feature: the chain collapses to a single Dev node exempt from the merge-check guard"`
-	Issue   string `json:"issue,omitempty" jsonschema:"optional issue id whose spec drives THIS feature's chain; overrides source_issue for this feature's nodes (must be in the same project)"`
+	Name       string   `json:"name" jsonschema:"the feature label, used in node titles (e.g. 'F1 节点图规格')"`
+	Branch     string   `json:"branch,omitempty" jsonschema:"optional shared feature branch for its Dev/Review/Decision/Integrate chain; defaults to the Dev node's T<n>"`
+	DocOnly    bool     `json:"doc_only,omitempty" jsonschema:"true for a pure-doc/no-code feature: the chain collapses to a single Dev node exempt from the merge-check guard"`
+	Issue      string   `json:"issue,omitempty" jsonschema:"optional issue id whose spec drives THIS feature's chain; overrides source_issue for this feature's nodes (must be in the same project)"`
+	Spec       string   `json:"spec,omitempty" jsonschema:"optional spec/acceptance markdown for THIS feature; written verbatim as the Dev node's description, with a short pointer added to Review/Decision/Integrate — so a dispatched owner knows what to build/check without chasing the issue body"`
+	MockupURIs []string `json:"mockup_uris,omitempty" jsonschema:"optional already-uploaded file URIs (ac://files/...) — e.g. FE mockups — attached to this feature's Dev and Review nodes (visible as preview cards). Each must be reachable in your own domain (e.g. you uploaded it)"`
 }
 
 type scaffoldCyclePlanArgs struct {
@@ -691,6 +693,7 @@ func makeScaffoldCyclePlan(cfg Config) mcp.ToolHandlerFor[scaffoldCyclePlanArgs,
 		for _, f := range args.Features {
 			features = append(features, map[string]any{
 				"name": f.Name, "branch": f.Branch, "doc_only": f.DocOnly, "issue": f.Issue,
+				"spec": f.Spec, "mockup_uris": f.MockupURIs,
 			})
 		}
 		body := map[string]any{

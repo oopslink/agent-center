@@ -68,6 +68,27 @@ const (
 	defaultReviewRounds = 3
 )
 
+// featureNodeDescriptions builds the at-create descriptions for a feature's chain
+// nodes from its spec (T466). The Dev node gets the spec VERBATIM; Review/Decision/
+// Integrate get a short pointer back to it (+ the source issue when known) so a
+// dispatched owner knows what to build/check without chasing the issue body. When
+// spec is empty every description is empty — the pre-T466 behavior (no regression).
+func featureNodeDescriptions(spec string, issue pm.IssueID) (dev, review, decision, integrate string) {
+	if strings.TrimSpace(spec) == "" {
+		return "", "", "", ""
+	}
+	issuePart := ""
+	if strings.TrimSpace(string(issue)) != "" {
+		issuePart = "（源 " + string(issue) + "）"
+	}
+	dev = spec
+	review = "评审本 feature：对照规格逐条核对（规格见本 feature 的 Dev 节点描述" + issuePart +
+		"，如挂了 mockup 附件请 1:1 核 UI）+ 跑真实门（make build / lint / test）。"
+	decision = "评审结论 pass/reject。规格见本 feature 的 Dev 节点描述" + issuePart + "。"
+	integrate = "集成本 feature 到 trunk。规格/验收见本 feature 的 Dev 节点描述" + issuePart + "。"
+	return dev, review, decision, integrate
+}
+
 // ErrScaffoldVersionRequired / ErrScaffoldNoFeatures / ErrScaffoldFeatureNameRequired
 // are the scaffold input-validation sentinels (surfaced as 422 by the tool layer).
 var (
@@ -89,6 +110,13 @@ type CycleFeature struct {
 	// OVERRIDES the plan-level SourceIssue for this feature. Empty → the feature
 	// inherits the plan-level SourceIssue (T462). Must belong to the same project.
 	Issue pm.IssueID
+	// Spec, when non-empty, is the feature's per-feature spec/acceptance markdown
+	// (T466). It is written VERBATIM as the Dev node's description at create, and a
+	// short pointer to it is added to the Review/Decision/Integrate node descriptions
+	// — so a dev/reviewer dispatched to a node knows what to build/check without
+	// chasing the issue body. Empty → those nodes keep empty descriptions (the
+	// pre-T466 behavior). Attachments (mockups) are placed by the tool layer, not here.
+	Spec string
 }
 
 // ScaffoldCyclePlanCommand is the input to ScaffoldCyclePlan.
@@ -128,6 +156,10 @@ type ScaffoldCycleNode struct {
 	// DerivedFromIssue is the source issue this node was linked to at create (T462),
 	// empty when the scaffold was called without a SourceIssue/feature Issue.
 	DerivedFromIssue pm.IssueID `json:"derived_from_issue,omitempty"`
+	// Description is the node's description set at create (T466): the feature Spec
+	// verbatim on Dev nodes, a short spec pointer on Review/Decision/Integrate, empty
+	// otherwise. Surfaced so the tool caller can self-evidence the spec landed.
+	Description string `json:"description,omitempty"`
 }
 
 // ScaffoldCycleEdge describes one created control-flow edge in the returned summary
@@ -209,10 +241,11 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	// addNode creates an UNASSIGNED task with cycle metadata + selects it into the
 	// plan, appends to the summary, and returns its id. derived is the source issue
 	// linked at create (T462; "" = no link).
-	addNode := func(title, branch, base, kind, feature string, skip bool, derived pm.IssueID) (pm.TaskID, error) {
+	addNode := func(title, desc, branch, base, kind, feature string, skip bool, derived pm.IssueID) (pm.TaskID, error) {
 		tid, cerr := s.CreateTask(ctx, CreateTaskCommand{
 			ProjectID:      cmd.ProjectID,
 			Title:          title,
+			Description:    desc, // T466: feature spec (Dev) or spec pointer (Review/Decision/Integrate); "" elsewhere
 			CreatedBy:      cmd.CreatedBy,
 			Branch:         branch,
 			Base:           base,
@@ -233,7 +266,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		}
 		result.Nodes = append(result.Nodes, ScaffoldCycleNode{
 			TaskID: tid, Title: title, Branch: branch, Base: base, Kind: kind, Feature: feature,
-			DerivedFromIssue: derived,
+			DerivedFromIssue: derived, Description: desc,
 		})
 		return tid, nil
 	}
@@ -259,7 +292,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 
 	// 2) S0 — cut dev/<version> from main. branch=trunk, base=main. Plan-level
 	// SourceIssue (T462; a feature override does not apply to the shared S0 node).
-	s0, err := addNode("S0 开发主分支 — 切 "+trunk, trunk, "main", "s0", "", false, cmd.SourceIssue)
+	s0, err := addNode("S0 开发主分支 — 切 "+trunk, "", trunk, "main", "s0", "", false, cmd.SourceIssue)
 	if err != nil {
 		return result, err
 	}
@@ -275,10 +308,12 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		if strings.TrimSpace(string(f.Issue)) != "" {
 			featIssue = f.Issue
 		}
+		// T466: spec → Dev description (verbatim) + pointers on Review/Decision/Integrate.
+		devDesc, reviewDesc, decisionDesc, integrateDesc := featureNodeDescriptions(f.Spec, featIssue)
 
 		// Dev node. If no explicit branch, default it to the Dev node's own T<n>
 		// (F1 §4.1) — resolved after create, then applied to the whole chain.
-		devID, derr := addNode(name+" · Dev", branch, trunk, "dev", name, f.DocOnly, featIssue)
+		devID, derr := addNode(name+" · Dev", devDesc, branch, trunk, "dev", name, f.DocOnly, featIssue)
 		if derr != nil {
 			return result, derr
 		}
@@ -297,14 +332,14 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		terminal := devID
 		if !f.DocOnly {
 			// Dev ─seq→ Review ─seq→ Decision (the forward review chain).
-			reviewID, rerr := addNode(name+" · Review", branch, trunk, "review", name, false, featIssue)
+			reviewID, rerr := addNode(name+" · Review", reviewDesc, branch, trunk, "review", name, false, featIssue)
 			if rerr != nil {
 				return result, rerr
 			}
 			if err := dependsOn(reviewID, devID); err != nil {
 				return result, err
 			}
-			decisionID, derr := addNode(name+" · Decision（评审结论 pass/reject）", branch, trunk, "decision", name, false, featIssue)
+			decisionID, derr := addNode(name+" · Decision（评审结论 pass/reject）", decisionDesc, branch, trunk, "decision", name, false, featIssue)
 			if derr != nil {
 				return result, derr
 			}
@@ -313,7 +348,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			}
 			// Integrate is the CONDITIONAL successor of Decision on outcome=pass — the
 			// feature terminal that feeds the Gate.
-			integrateID, ierr := addNode(name+" · Integrate", branch, trunk, "integrate", name, cmd.SkipMergeCheck, featIssue)
+			integrateID, ierr := addNode(name+" · Integrate", integrateDesc, branch, trunk, "integrate", name, cmd.SkipMergeCheck, featIssue)
 			if ierr != nil {
 				return result, ierr
 			}
@@ -326,7 +361,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			// Escape node is the CONDITIONAL successor of Decision on outcome
 			// reject_exhausted — where the engine routes when the loopback exhausts (B0
 			// §4.1). A leaf (human takes over); pruned→skipped on the pass path.
-			escapeID, eerr := addNode(name+" · 逃生/人工兜底（评审打回超限）", "", trunk, "escape", name, false, featIssue)
+			escapeID, eerr := addNode(name+" · 逃生/人工兜底（评审打回超限）", "", "", trunk, "escape", name, false, featIssue)
 			if eerr != nil {
 				return result, eerr
 			}
@@ -351,7 +386,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	}
 
 	// 4) 集成完成 Gate — barrier blocked_by every feature's terminal node.
-	gate, err := addNode("集成完成 Gate — PD 关门核对", "", trunk, "gate", "", false, cmd.SourceIssue)
+	gate, err := addNode("集成完成 Gate — PD 关门核对", "", "", trunk, "gate", "", false, cmd.SourceIssue)
 	if err != nil {
 		return result, err
 	}
@@ -362,7 +397,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	}
 
 	// 5) Accept — blocked_by the Gate (verify on the integrated trunk).
-	accept, err := addNode("Accept 验收（集成后主干整体）", "", trunk, "accept", "", false, cmd.SourceIssue)
+	accept, err := addNode("Accept 验收（集成后主干整体）", "", "", trunk, "accept", "", false, cmd.SourceIssue)
 	if err != nil {
 		return result, err
 	}
@@ -371,7 +406,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	}
 
 	// 6) Ship — blocked_by Accept. branch=trunk, base=main (trunk → main + tag).
-	ship, err := addNode("Ship "+version, trunk, "main", "ship", "", false, cmd.SourceIssue)
+	ship, err := addNode("Ship "+version, "", trunk, "main", "ship", "", false, cmd.SourceIssue)
 	if err != nil {
 		return result, err
 	}
