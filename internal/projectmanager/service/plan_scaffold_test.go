@@ -528,3 +528,86 @@ func derivedOf(t *pm.Task) pm.IssueID {
 	}
 	return t.DerivedFromIssue()
 }
+
+// TestScaffoldCyclePlan_SpecLandsOnDevVerbatimWithPointers pins T466: a feature's
+// spec is written VERBATIM as its Dev node's description, and the Review/Decision/
+// Integrate nodes get a non-empty pointer back to it (+ the source issue). A feature
+// WITHOUT a spec keeps empty descriptions on every node (no regression).
+func TestScaffoldCyclePlan_SpecLandsOnDevVerbatimWithPointers(t *testing.T) {
+	svc, _, tasks, relay, ctx := scaffoldSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	iid, err := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "spec", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const specText = "## F1 验收\n- 列表分页\n- 空态文案\n- a11y 焦点环"
+
+	res, err := svc.ScaffoldCyclePlan(ctx, ScaffoldCyclePlanCommand{
+		ProjectID:   pid,
+		Version:     "v2.13.0",
+		SourceIssue: iid,
+		Features: []CycleFeature{
+			{Name: "F1 列表", Branch: "f1", Spec: specText},
+			{Name: "F2 无规格", Branch: "f2"}, // no spec → descriptions stay empty
+		},
+		CreatedBy: "user:pd",
+	})
+	if err != nil {
+		t.Fatalf("ScaffoldCyclePlan: %v", err)
+	}
+	drain(t, relay, ctx)
+
+	all, err := tasks.ListByPlan(ctx, res.PlanID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byTitle := scaffoldByTitle(t, all)
+
+	// F1 Dev description == spec VERBATIM.
+	if dev := byTitle["F1 列表 · Dev"]; dev == nil || dev.Description() != specText {
+		t.Fatalf("F1 Dev description = %q, want verbatim spec %q", descOf(byTitle["F1 列表 · Dev"]), specText)
+	}
+	// F1 Review/Decision/Integrate get a non-empty pointer mentioning the Dev node +
+	// the source issue.
+	for _, title := range []string{"F1 列表 · Review", "F1 列表 · Decision（评审结论 pass/reject）", "F1 列表 · Integrate"} {
+		n := byTitle[title]
+		if n == nil || n.Description() == "" {
+			t.Fatalf("%q description empty, want a spec pointer", title)
+		}
+		if !strings.Contains(n.Description(), "Dev 节点") || !strings.Contains(n.Description(), string(iid)) {
+			t.Errorf("%q pointer = %q, want mention of Dev 节点 + %s", title, n.Description(), iid)
+		}
+	}
+	// F2 (no spec): every node description stays empty — no regression.
+	for _, title := range []string{"F2 无规格 · Dev", "F2 无规格 · Review", "F2 无规格 · Decision（评审结论 pass/reject）", "F2 无规格 · Integrate"} {
+		if n := byTitle[title]; n == nil || n.Description() != "" {
+			t.Errorf("%q description = %q, want empty (no spec)", title, descOf(byTitle[title]))
+		}
+	}
+	// Static nodes (S0/Gate/Accept/Ship) never get descriptions.
+	for _, title := range []string{"S0 开发主分支 — 切 dev/v2.13.0", "集成完成 Gate — PD 关门核对", "Accept 验收（集成后主干整体）", "Ship v2.13.0"} {
+		if n := byTitle[title]; n == nil || n.Description() != "" {
+			t.Errorf("static node %q description = %q, want empty", title, descOf(byTitle[title]))
+		}
+	}
+	// Summary reflects the Dev spec for the tool caller.
+	var sawDevSpec bool
+	for _, n := range res.Nodes {
+		if n.Title == "F1 列表 · Dev" && n.Description == specText {
+			sawDevSpec = true
+		}
+	}
+	if !sawDevSpec {
+		t.Error("result summary missing F1 Dev description == spec")
+	}
+}
+
+func descOf(t *pm.Task) string {
+	if t == nil {
+		return "<nil>"
+	}
+	return t.Description()
+}

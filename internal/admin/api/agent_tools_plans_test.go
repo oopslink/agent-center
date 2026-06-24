@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/files"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
@@ -711,5 +712,121 @@ func TestListPlans_Pagination(t *testing.T) {
 	capped := call(map[string]any{"agent_id": atAgent1, "project_id": string(pid), "page_size": 100000})
 	if int(capped["page_size"].(float64)) != agentListMaxPageSize {
 		t.Fatalf("plans page_size cap=%v want %d", capped["page_size"], agentListMaxPageSize)
+	}
+}
+
+// =============================================================================
+// T466 — scaffold_cycle_plan features[].spec + mockup_uris
+// =============================================================================
+
+// liveTaskRefs counts live {ScopeTask, taskID} references on a file (T466).
+func liveTaskRefs(t *testing.T, svc interface {
+	ListReferences(context.Context, files.FileURI) ([]files.FileReference, error)
+}, ulid, taskID string) int {
+	t.Helper()
+	uri, _ := files.NewFileURI(ulid)
+	refs, err := svc.ListReferences(context.Background(), uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, r := range refs {
+		if r.Scope == files.ScopeTask && r.ScopeID == taskID && r.IsLive() {
+			n++
+		}
+	}
+	return n
+}
+
+// TestScaffoldCyclePlan_SpecAndMockups_LandOnNodes is T466's end-to-end acceptance:
+// features[].spec lands verbatim on the Dev node's description, and features[].mockup_uris
+// are attached as task-scope references on the Dev AND Review nodes (the reviewer's 1:1
+// mockup check), surfaced via the attachments_placed count.
+func TestScaffoldCyclePlan_SpecAndMockups_LandOnNodes(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t) // AG1 is a member of pid
+	svc := f.attachAgentFilesSvc(t)
+	srv := f.filesServer(t)
+
+	// Upload a mockup into the agent's OWN private scope ({ScopeAgent, AG1}, always
+	// in-domain) so it is reachable when the scaffold re-scopes it onto the nodes.
+	ulid := uploadViaAgent(t, srv.URL, "acat_w1", atAgent1, "agent", atAgent1, []byte("mockup png bytes"))
+	mockURI, _ := files.NewFileURI(ulid)
+
+	const specText = "## F1 spec\n- 列表分页\n- 空态"
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/scaffold_cycle_plan", "acat_w1",
+		map[string]any{
+			"agent_id": atAgent1, "project_id": string(pid), "version": "v9.9.0",
+			"features": []map[string]any{
+				{"name": "F1", "branch": "f1", "spec": specText, "mockup_uris": []string{mockURI.String()}},
+			},
+		})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	// One mockup × (Dev + Review) = 2 references placed.
+	if got, _ := body["attachments_placed"].(float64); int(got) != 2 {
+		t.Fatalf("attachments_placed = %v, want 2; body = %v", body["attachments_placed"], body)
+	}
+	nodes, _ := body["nodes"].([]any)
+	var devID, reviewID string
+	for _, raw := range nodes {
+		n, _ := raw.(map[string]any)
+		switch n["kind"] {
+		case "dev":
+			devID, _ = n["task_id"].(string)
+			if d, _ := n["description"].(string); d != specText {
+				t.Fatalf("Dev description = %q, want spec verbatim %q", d, specText)
+			}
+		case "review":
+			reviewID, _ = n["task_id"].(string)
+		}
+	}
+	if devID == "" || reviewID == "" {
+		t.Fatalf("missing dev/review node ids; body = %v", body)
+	}
+	// The mockup is attached (live task-scope ref) on BOTH the Dev and Review nodes.
+	if got := liveTaskRefs(t, svc, ulid, devID); got != 1 {
+		t.Fatalf("Dev node mockup refs = %d, want 1", got)
+	}
+	if got := liveTaskRefs(t, svc, ulid, reviewID); got != 1 {
+		t.Fatalf("Review node mockup refs = %d, want 1", got)
+	}
+}
+
+// TestScaffoldCyclePlan_UnreachableMockup_403 pins the fail-closed authz: a well-formed
+// but unreachable mockup uri is rejected BEFORE any node is created (no越权, no partial
+// draft).
+func TestScaffoldCyclePlan_UnreachableMockup_403(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	f.attachAgentFilesSvc(t)
+	srv := f.filesServer(t)
+
+	// A well-formed file uri the agent has NO reachable reference to.
+	unreachable, _ := files.NewFileURI("01J0000000000000000000MOCK")
+
+	listPlans := func() int {
+		ps, err := f.pmSvc.ListPlans(context.Background(), pid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(ps)
+	}
+	plansBefore := listPlans()
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/scaffold_cycle_plan", "acat_w1",
+		map[string]any{
+			"agent_id": atAgent1, "project_id": string(pid), "version": "v9.9.0",
+			"features": []map[string]any{
+				{"name": "F1", "branch": "f1", "mockup_uris": []string{unreachable.String()}},
+			},
+		})
+	if status != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 (unreachable mockup); body = %v", status, body)
+	}
+	if after := listPlans(); after != plansBefore {
+		t.Fatalf("a rejected scaffold must mint NO plan: before=%d after=%d", plansBefore, after)
 	}
 }
