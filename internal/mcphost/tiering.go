@@ -99,7 +99,7 @@ type searchToolsArgs struct {
 func registerSearchTools(srv *mcp.Server, cfg Config) {
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "search_tools",
-		Description: "Find and load DEFERRED tools. Your default tool set is the high-frequency core; lower-frequency tools (plans, issues, findings, files, subscriptions, org discovery, node recovery) are loaded on demand. Call search_tools with keywords (e.g. \"plan\", \"issue\", \"file\") and the matching tools become callable immediately; an empty query loads ALL deferred tools. Replace semantics: each call loads exactly the tools matching your query (a later call changes the loaded set), so pass every group you need at once. Returns the loaded tool names + summaries.",
+		Description: "Find and load DEFERRED tools. Your default tool set is the high-frequency core; lower-frequency tools (plans, issues, findings, files, subscriptions, org discovery, node recovery) are loaded on demand. Call search_tools with keywords (e.g. \"plan\", \"issue\", \"file\") and the matching tools become callable immediately; an empty query loads ALL deferred tools. Common deferred read tools: get_issue (read a task's spec from its source issue) via \"issue\", get_plan via \"plan\", download_file (view a file/image someone sent) via \"file\". Discoverability is not absence — if a capability seems missing, search_tools here FIRST before concluding the tool does not exist. Replace semantics: each call loads exactly the tools matching your query (a later call changes the loaded set), so pass every group you need at once. Returns the loaded tool names + summaries.",
 	}, makeSearchTools(srv, cfg))
 }
 

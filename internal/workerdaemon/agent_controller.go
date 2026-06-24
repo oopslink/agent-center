@@ -1128,7 +1128,7 @@ func (c *AgentController) relaunchForWake(ctx context.Context, agentID, taskID s
 // workAvailableNudge is the short wake injected on agent.work_available (v2.8.1
 // #278 D PR4a). The full pull-loop behavior is the persistent system prompt; this
 // only nudges the agent to run that loop when new work arrives.
-const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: call list_my_tasks, then start_task the next item."
+const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: call list_my_tasks, then start_task the next item. (Need a tool you don't see — e.g. get_issue to read a task's spec from its source issue? It's deferred, not missing: run search_tools first before assuming it's absent or blocking.)"
 
 // startSession generates the per-agent mcp-config (written to a FILE the
 // supervisor reads by path — minimal key surface), resolves the agent home +

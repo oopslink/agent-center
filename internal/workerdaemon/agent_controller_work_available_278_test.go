@@ -2,6 +2,7 @@ package workerdaemon
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -67,5 +68,17 @@ func TestAgentController_RecordWorkAvail_Coalesce(t *testing.T) {
 	}
 	if c.recordWorkAvail("agent-1", "") {
 		t.Fatal("empty work_item_id must be a no-op (false)")
+	}
+}
+
+// TestWorkAvailableNudge_CarriesDiscoverabilityHint pins T463 (issue d8c8c9b8
+// (b) #3): the dispatch wake nudge points a freshly-dispatched agent at
+// search_tools before it concludes a read tool (e.g. get_issue) is missing — so
+// "派活就卡、静默无报错" can't recur via the wake path.
+func TestWorkAvailableNudge_CarriesDiscoverabilityHint(t *testing.T) {
+	for _, want := range []string{"search_tools", "get_issue", "deferred"} {
+		if !strings.Contains(workAvailableNudge, want) {
+			t.Fatalf("workAvailableNudge missing %q (T463 discoverability hint)", want)
+		}
 	}
 }
