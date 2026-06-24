@@ -31,6 +31,7 @@ function payload() {
     top_tasks: [
       {
         task_id: 'task-1',
+        org_ref: 'T1',
         title: 'Build the thing',
         dominant_model: 'claude-opus-4-8',
         events: 3,

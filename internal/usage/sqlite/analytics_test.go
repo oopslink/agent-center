@@ -201,6 +201,7 @@ func TestAnalyticsTopTasks(t *testing.T) {
 	// task-B: expensive, HAS a pm_tasks row (title resolves) + mixed models so the
 	// dominant model = the one with the most cost (opus 1800 >> sonnet 50).
 	insertTask(t, env.db, "task-B", "p1", ag, "2026-06-20T08:00:00Z") // title = "t" (helper default)
+	mustExec(t, env.db, `UPDATE pm_tasks SET org_number = 280 WHERE id = 'task-B'`)
 	appendUsageTask(t, env, "b1", ag, "p1", "task-B", "claude-opus-4-8", "2026-06-20T10:00:00Z", 100, 50, 0, 0, 900)
 	appendUsageTask(t, env, "b2", ag, "p1", "task-B", "claude-opus-4-8", "2026-06-21T10:00:00Z", 100, 50, 0, 0, 900)
 	appendUsageTask(t, env, "b3", ag, "p1", "task-B", "claude-sonnet-4-6", "2026-06-21T11:00:00Z", 10, 5, 0, 0, 50)
@@ -220,6 +221,9 @@ func TestAnalyticsTopTasks(t *testing.T) {
 	if tasks[0].Title != "t" {
 		t.Fatalf("task-B title should resolve from pm_tasks: %q", tasks[0].Title)
 	}
+	if tasks[0].OrgRef != "T280" {
+		t.Fatalf("task-B org_ref should resolve to T280 from org_number: %q", tasks[0].OrgRef)
+	}
 	if tasks[0].DominantModel != "claude-opus-4-8" {
 		t.Fatalf("task-B dominant model should be opus (most cost): %q", tasks[0].DominantModel)
 	}
@@ -229,6 +233,9 @@ func TestAnalyticsTopTasks(t *testing.T) {
 	}
 	if tasks[1].Title != "" {
 		t.Fatalf("task-A title should fall back to empty (no pm_tasks row): %q", tasks[1].Title)
+	}
+	if tasks[1].OrgRef != "" {
+		t.Fatalf("task-A org_ref should fall back to empty (no pm_tasks row): %q", tasks[1].OrgRef)
 	}
 	if tasks[1].DominantModel != "claude-opus-4-8" {
 		t.Fatalf("task-A dominant model should be opus: %q", tasks[1].DominantModel)

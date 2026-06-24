@@ -250,7 +250,7 @@ func topTasksJSON(tasks []usage.TaskCost) []map[string]any {
 	out := make([]map[string]any, 0, len(tasks))
 	for _, t := range tasks {
 		out = append(out, map[string]any{
-			"task_id": t.TaskID, "title": t.Title, "dominant_model": t.DominantModel,
+			"task_id": t.TaskID, "org_ref": t.OrgRef, "title": t.Title, "dominant_model": t.DominantModel,
 			"events":    t.Events,
 			"tokens_in": t.TokensIn, "tokens_out": t.TokensOut,
 			"cache_tokens": t.CacheTokens, "cost_micros": t.CostMicros,

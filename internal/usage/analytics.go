@@ -85,6 +85,7 @@ type ModelTrendPoint struct {
 // (turns) charged to the task; drill into the raw events via TaskDrilldown.
 type TaskCost struct {
 	TaskID      string
+	OrgRef      string // human-facing "T<n>" ref (pm_tasks.org_number); "" when the task row is gone / unnumbered
 	Title       string // pm_tasks.title; "" when the task row is gone / cross-project unresolved (UI falls back to TaskID)
 	Events      int64
 	TokensIn    int64

@@ -39,6 +39,7 @@ function TaskRow({
 }): React.ReactElement {
   const [open, setOpen] = useState(false);
   const drill = useAgentAnalyticsTask(agentId, task.task_id, open);
+  const ref = (task.org_ref ?? '').trim();
   const label = task.title.trim() !== '' ? task.title : task.task_id;
   const color = modelColor(task.dominant_model);
   const widthPct = maxCost > 0 ? Math.max(2, Math.round((task.cost_micros / maxCost) * 100)) : 0;
@@ -53,8 +54,20 @@ function TaskRow({
       >
         <span className="w-6 shrink-0 text-xs tabular-nums text-text-muted">#{rank}</span>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="flex items-center gap-2">
-            <span className="truncate text-sm text-text" title={label} data-testid={`top-task-label-${task.task_id}`}>
+          <span className="flex items-baseline gap-1.5">
+            {ref !== '' && (
+              <span
+                className="shrink-0 font-mono text-xs text-text-muted"
+                data-testid={`top-task-ref-${task.task_id}`}
+              >
+                {ref}
+              </span>
+            )}
+            <span
+              className="truncate text-sm text-text"
+              title={ref !== '' ? `${ref} ${label}` : label}
+              data-testid={`top-task-label-${task.task_id}`}
+            >
               {label}
             </span>
           </span>

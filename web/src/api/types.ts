@@ -342,6 +342,7 @@ export interface AnalyticsModelTrendPoint {
 
 export interface AnalyticsTopTask {
   task_id: string;
+  org_ref: string; // human-facing "T<n>" ref; "" when the task is gone / unnumbered
   title: string; // "" when unresolved (deleted / cross-project) → UI falls back to task_id
   dominant_model: string; // model carrying the most cost on this task; "" when undeterminable
   events: number;

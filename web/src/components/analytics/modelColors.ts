@@ -1,5 +1,6 @@
 // Shared model series palette for the F6 trend chart + Top Cost Tasks bars,
-// matching the mockup legend (opus = blue, sonnet = green, haiku = purple). These
+// matching the mockup legend (opus = blue, sonnet = green, haiku = purple,
+// fable = amber). These
 // are data-viz series colors applied via inline SVG fill / style (NOT Tailwind
 // palette classNames), so the no-raw-colors-spa lint does not apply; the mid-tone
 // hues read acceptably on both the light and dark elevated card backgrounds.
@@ -9,6 +10,7 @@ const PALETTE: Record<string, string> = {
   opus: '#3b82f6', // blue
   sonnet: '#22c55e', // green
   haiku: '#8b5cf6', // purple
+  fable: '#f59e0b', // amber
 };
 
 const FALLBACK = '#94a3b8'; // slate — unknown / unmapped model

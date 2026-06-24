@@ -9,6 +9,7 @@ import type { AnalyticsTopTask } from '@/api/types';
 const tasks: AnalyticsTopTask[] = [
   {
     task_id: 'task-1',
+    org_ref: 'T280',
     title: 'Scaffold control-flow upgrade',
     dominant_model: 'claude-opus-4-8',
     events: 5,
@@ -20,6 +21,7 @@ const tasks: AnalyticsTopTask[] = [
   {
     // title unresolved → must fall back to the task_id, never a blank row.
     task_id: 'task-2',
+    org_ref: '',
     title: '',
     dominant_model: '',
     events: 2,
@@ -37,8 +39,11 @@ describe('TopCostTasks', () => {
     renderWithQuery(<TopCostTasks tasks={tasks} agentId="a1" />);
     expect(screen.getByTestId('top-task-label-task-1')).toHaveTextContent('Scaffold control-flow upgrade');
     expect(screen.getByTestId('top-task-cost-task-1')).toHaveTextContent('$42.18');
-    // unresolved title → task_id shown.
+    // org_ref present → human "T<n>" ref shown as a prefix.
+    expect(screen.getByTestId('top-task-ref-task-1')).toHaveTextContent('T280');
+    // unresolved title → task_id shown; no org_ref → no ref prefix.
     expect(screen.getByTestId('top-task-label-task-2')).toHaveTextContent('task-2');
+    expect(screen.queryByTestId('top-task-ref-task-2')).toBeNull();
   });
 
   it('drills down into a task\'s usage events on click', async () => {

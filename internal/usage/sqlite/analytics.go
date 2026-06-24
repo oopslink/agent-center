@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -256,11 +257,11 @@ func (a *Analytics) TopTasks(ctx context.Context, agentRef, fromDay, toDay strin
 		limit = defaultTopTasksLimit
 	}
 	exec, _ := persistence.ExecutorFromCtx(ctx, a.db)
-	// Title via LEFT JOIN pm_tasks: a deleted / cross-project-unresolved task keeps
-	// its usage row but yields no title → "" (the UI falls back to the task_id).
-	// MAX(t.title) collapses the per-task-constant title under GROUP BY task_id.
+	// Title + org_number via LEFT JOIN pm_tasks: a deleted / cross-project-unresolved
+	// task keeps its usage row but yields no title/number → "" / 0 (the UI falls back
+	// to the task_id). MAX(...) collapses the per-task-constant columns under GROUP BY.
 	rows, err := exec.QueryContext(ctx,
-		`SELECT ue.task_id, COALESCE(MAX(t.title),''), COUNT(*),
+		`SELECT ue.task_id, COALESCE(MAX(t.title),''), COALESCE(MAX(t.org_number),0), COUNT(*),
 		        COALESCE(SUM(ue.input_tokens),0), COALESCE(SUM(ue.output_tokens),0),
 		        COALESCE(SUM(ue.cache_read_tokens + ue.cache_write_tokens),0), COALESCE(SUM(ue.cost_micros),0)
 		   FROM usage_events ue LEFT JOIN pm_tasks t ON ue.task_id = t.id
@@ -276,8 +277,12 @@ func (a *Analytics) TopTasks(ctx context.Context, agentRef, fromDay, toDay strin
 	var out []usage.TaskCost
 	for rows.Next() {
 		var tc usage.TaskCost
-		if err := rows.Scan(&tc.TaskID, &tc.Title, &tc.Events, &tc.TokensIn, &tc.TokensOut, &tc.CacheTokens, &tc.CostMicros); err != nil {
+		var orgNumber int64
+		if err := rows.Scan(&tc.TaskID, &tc.Title, &orgNumber, &tc.Events, &tc.TokensIn, &tc.TokensOut, &tc.CacheTokens, &tc.CostMicros); err != nil {
 			return nil, err
+		}
+		if orgNumber > 0 { // v2.7.1 #245: "T<n>" human ref; omitted when unallocated
+			tc.OrgRef = "T" + strconv.FormatInt(orgNumber, 10)
 		}
 		out = append(out, tc)
 	}
