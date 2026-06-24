@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   useMembers,
   useAddMember,
@@ -45,13 +46,74 @@ function MemberRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<null | 'disable' | 'reenable'>(null);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{
+    right: number;
+    top?: number;
+    bottom?: number;
+    maxHeight: number;
+  } | null>(null);
   const changeRole = useChangeMemberRole();
   const disable = useDisableMember();
   const reEnable = useReEnableMember();
   const isSelf = member.identity_id === currentIdentityId;
+  const popoverOpen = menuOpen || rolePickerOpen || confirmAction !== null;
+
+  const closePopovers = useCallback(() => {
+    setMenuOpen(false);
+    setRolePickerOpen(false);
+    setConfirmAction(null);
+  }, []);
+
+  const computePopoverPos = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const margin = 4;
+    const viewportPad = 8;
+    const spaceBelow = window.innerHeight - r.bottom - viewportPad;
+    const spaceAbove = r.top - viewportPad;
+    const below = spaceBelow >= 160 || spaceBelow >= spaceAbove;
+    setPopoverPos({
+      right: Math.max(viewportPad, window.innerWidth - r.right),
+      maxHeight: Math.max(120, (below ? spaceBelow : spaceAbove) - margin),
+      ...(below ? { top: r.bottom + margin } : { bottom: window.innerHeight - r.top + margin }),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!popoverOpen) return;
+    computePopoverPos();
+    const onMove = () => computePopoverPos();
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
+    return () => {
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [popoverOpen, computePopoverPos]);
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !popoverRef.current?.contains(target)) closePopovers();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closePopovers();
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [popoverOpen, closePopovers]);
 
   return (
-    <tr className="border-b border-border last:border-0">
+    <tr className="border-b border-border-base last:border-0">
       {/* v2.7 #192: display name, raw id on hover. v2.7.1 #193: links to UserDetail
           by member-id (rename-safe). */}
       <td className="py-2 px-3 text-sm text-text-primary">
@@ -85,8 +147,9 @@ function MemberRow({
       </td>
       <td className="py-2 px-3 text-right">
         {!isSelf && (
-          <div className="relative inline-block">
+          <div className="relative inline-block" ref={rootRef}>
             <button
+              ref={triggerRef}
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
               className="rounded px-2 py-1 text-sm text-text-muted hover:bg-bg-subtle"
@@ -94,97 +157,106 @@ function MemberRow({
             >
               ···
             </button>
-            {menuOpen && (
+            {popoverOpen && popoverPos && createPortal(
               <div
-                className="absolute right-0 top-full z-20 mt-1 w-36 rounded-md border border-border bg-bg-elevated shadow-[var(--shadow-2)]"
-                role="menu"
+                ref={popoverRef}
+                className="fixed z-50 overflow-y-auto rounded-md border border-border-base bg-bg-elevated shadow-[var(--shadow-2)]"
+                style={{
+                  right: popoverPos.right,
+                  maxHeight: Math.min(popoverPos.maxHeight, 384),
+                  ...(popoverPos.top !== undefined ? { top: popoverPos.top } : { bottom: popoverPos.bottom }),
+                }}
+                data-testid="member-actions-popover"
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => { setMenuOpen(false); setRolePickerOpen(true); }}
-                  className="flex w-full px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
-                >
-                  Change role
-                </button>
-                {member.status === 'joined' ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { setMenuOpen(false); setConfirmAction('disable'); }}
-                    className="flex w-full px-3 py-2 text-sm text-danger hover:bg-bg-subtle"
-                  >
-                    Disable
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { setMenuOpen(false); setConfirmAction('reenable'); }}
-                    className="flex w-full px-3 py-2 text-sm text-success hover:bg-bg-subtle"
-                  >
-                    Re-enable
-                  </button>
+                {menuOpen && (
+                  <div className="w-36" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { setMenuOpen(false); setRolePickerOpen(true); }}
+                      className="flex w-full px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
+                    >
+                      Change role
+                    </button>
+                    {member.status === 'joined' ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setMenuOpen(false); setConfirmAction('disable'); }}
+                        className="flex w-full px-3 py-2 text-sm text-danger hover:bg-bg-subtle"
+                      >
+                        Disable
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setMenuOpen(false); setConfirmAction('reenable'); }}
+                        className="flex w-full px-3 py-2 text-sm text-success hover:bg-bg-subtle"
+                      >
+                        Re-enable
+                      </button>
+                    )}
+                  </div>
                 )}
-              </div>
+                {rolePickerOpen && (
+                  <div className="w-36">
+                    {(['owner', 'admin', 'member'] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => {
+                          changeRole.mutate({ id: member.id, role: r });
+                          setRolePickerOpen(false);
+                        }}
+                        className={`flex w-full px-3 py-2 text-sm hover:bg-bg-subtle ${
+                          member.role === r ? 'font-semibold text-brand' : 'text-text-primary'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setRolePickerOpen(false)}
+                      className="flex w-full px-3 py-2 text-xs text-text-muted hover:bg-bg-subtle"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {confirmAction && (
+                  <div className="w-48 p-3">
+                    <p className="text-sm text-text-primary mb-2">
+                      {confirmAction === 'disable' ? 'Disable this member?' : 'Re-enable this member?'}
+                    </p>
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmAction(null)}
+                        className="rounded px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirmAction === 'disable') disable.mutate({ id: member.id });
+                          else reEnable.mutate(member.id);
+                          setConfirmAction(null);
+                        }}
+                        className={`rounded px-2 py-1 text-xs text-white ${
+                          confirmAction === 'disable' ? 'bg-danger' : 'bg-success'
+                        }`}
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>,
+              document.body,
             )}
-          </div>
-        )}
-        {/* Role picker inline */}
-        {rolePickerOpen && (
-          <div className="absolute right-0 z-20 mt-1 w-36 rounded-md border border-border bg-bg-elevated shadow-[var(--shadow-2)]">
-            {(['owner', 'admin', 'member'] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => {
-                  changeRole.mutate({ id: member.id, role: r });
-                  setRolePickerOpen(false);
-                }}
-                className={`flex w-full px-3 py-2 text-sm hover:bg-bg-subtle ${
-                  member.role === r ? 'font-semibold text-brand' : 'text-text-primary'
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setRolePickerOpen(false)}
-              className="flex w-full px-3 py-2 text-xs text-text-muted hover:bg-bg-subtle"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
-        {/* Confirm dialog */}
-        {confirmAction && (
-          <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-border bg-bg-elevated p-3 shadow-[var(--shadow-2)]">
-            <p className="text-sm text-text-primary mb-2">
-              {confirmAction === 'disable' ? 'Disable this member?' : 'Re-enable this member?'}
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setConfirmAction(null)}
-                className="rounded px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirmAction === 'disable') disable.mutate({ id: member.id });
-                  else reEnable.mutate(member.id);
-                  setConfirmAction(null);
-                }}
-                className={`rounded px-2 py-1 text-xs text-white ${
-                  confirmAction === 'disable' ? 'bg-danger' : 'bg-success'
-                }`}
-              >
-                Confirm
-              </button>
-            </div>
           </div>
         )}
       </td>

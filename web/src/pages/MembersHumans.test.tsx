@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -60,5 +60,37 @@ describe('MembersHumans page (#193 columns + link)', () => {
     await waitFor(() => expect(screen.getAllByText('Legacy').length).toBeGreaterThan(0));
     expect(screen.getByTestId('human-email')).toHaveTextContent('—');
     expect(screen.getByTestId('human-last-session')).toHaveTextContent('—');
+  });
+
+  it('renders the member actions menu in a fixed portal so the table cannot clip it', async () => {
+    server.use(
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          {
+            id: 'M-3',
+            organization_id: 'O-1',
+            identity_id: 'user:user-action',
+            kind: 'user',
+            role: 'member',
+            status: 'joined',
+            joined_at: '2026-01-01T00:00:00Z',
+            display_name: 'Action User',
+            email: 'action@example.com',
+            created_at: '2026-05-20T01:00:00Z',
+            last_session_at: '2026-06-01T09:00:00Z',
+          },
+        ]),
+      ),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getAllByText('Action User').length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByLabelText('Member actions'));
+
+    const popover = screen.getByTestId('member-actions-popover');
+    expect(popover).toHaveClass('fixed');
+    expect(popover.parentElement).toBe(document.body);
+    expect(screen.getByRole('menuitem', { name: 'Change role' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Disable' })).toBeInTheDocument();
   });
 });
