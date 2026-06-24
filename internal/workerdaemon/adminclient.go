@@ -511,6 +511,13 @@ type feedbackReporter interface {
 	// source='report'). Best-effort: the controller logs failures and never lets a
 	// failed report affect the agent loop.
 	ReportUsage(ctx context.Context, u UsageReport) error
+	// RenewTaskLease asserts the agent's process is ALIVE and renews its running
+	// task's execution lease (T456 / issue-21ba5b78 I30 P0 #1) — decoupled from the
+	// agent's LLM turn, so a long build/test never lets the lease lapse. The
+	// controller calls it on a periodic tick for every live session's current task.
+	// Best-effort: a failure is logged and never affects the agent loop. agentID is
+	// the execution-entity id (the worker's view); the center maps it to the assignee.
+	RenewTaskLease(ctx context.Context, agentID, taskID string, at time.Time) error
 }
 
 // UsageReport is one per-turn usage sample the worker turn-end hook reports to
@@ -671,6 +678,26 @@ func (c *AdminClient) FetchReplyNudges(ctx context.Context, agentID string) ([]s
 		return nil, err
 	}
 	return resp.Prompts, nil
+}
+
+// RenewTaskLease POSTs to /admin/environment/agent/lease/heartbeat (T456). It is the
+// worker's process-alive lease auto-renew: the controller calls it on a tick for each
+// live session's current task so the lease never lapses while the agent process is up,
+// decoupled from the LLM turn. agent_id is the execution-entity id (the server maps it
+// to the task assignee + verifies it's that agent's running, non-blocked task before
+// renewing). Best-effort at the call site.
+func (c *AdminClient) RenewTaskLease(ctx context.Context, agentID, taskID string, at time.Time) error {
+	if strings.TrimSpace(agentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	if strings.TrimSpace(taskID) == "" {
+		return errors.New("adminclient: task_id required")
+	}
+	body := map[string]any{
+		"agent_id": agentID,
+		"task_id":  taskID,
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/lease/heartbeat", body, nil)
 }
 
 // doJSON is the shared request helper. Returns a typed error on non-2xx

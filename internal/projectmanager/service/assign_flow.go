@@ -192,6 +192,46 @@ func (s *Service) HeartbeatTask(ctx context.Context, taskID pm.TaskID, actor pm.
 	})
 }
 
+// WorkerRenewLease renews a running task's execution lease on behalf of the
+// worker-daemon's process-alive auto-renew (T456 — issue-21ba5b78/I30 P0 #1). Unlike
+// HeartbeatTask (driven by the agent's MCP `heartbeat`, gated on actor==assignee +
+// project membership), this is the WORKER attesting "the agent process for this task
+// is alive" — decoupled from the agent's LLM turn so a long build/test never lets the
+// lease lapse. The worker only renews tasks it is actually running (its live
+// managedAgent.currentTaskID), and a superseded session is dropped worker-side, so the
+// trust boundary is the enrolled-worker auth; here we still verify the task is the
+// SAME agent's running, non-blocked task before renewing (defense in depth — never
+// renew another agent's or a blocked task's lease).
+//
+// agentRef is the assignee form the agent itself uses ("agent:<member-id>" via
+// agentActor). It is a no-op (returns nil) when the task is archived/not running/
+// blocked/no lease, or when the assignee no longer matches agentRef (reassigned /
+// stale) — letting the lease lapse so the nudge path takes over.
+func (s *Service) WorkerRenewLease(ctx context.Context, taskID pm.TaskID, agentRef pm.IdentityRef) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if t.IsArchived() || t.Status() != pm.TaskRunning {
+			return nil // nothing alive to keep alive
+		}
+		if t.Assignee() != agentRef {
+			return nil // reassigned / stale worker view → don't renew someone else's task
+		}
+		// RenewLease no-ops cleanly on a blocked task (ErrTaskBlocked) — a blocked task
+		// is a lease-free legal pause; swallow it so the auto-renew sweep is best-effort.
+		if rerr := t.RenewLease(DefaultExecutionLeaseTTL, now); rerr != nil {
+			if errors.Is(rerr, pm.ErrTaskBlocked) || errors.Is(rerr, pm.ErrIllegalTransition) {
+				return nil
+			}
+			return rerr
+		}
+		return s.tasks.Update(txCtx, t)
+	})
+}
+
 // DiscardTask discards a non-terminal Task (terminal "discarded"; was CancelTask
 // pre-v2.8.1, uniform 废弃 semantic).
 func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {

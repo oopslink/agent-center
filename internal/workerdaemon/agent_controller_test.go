@@ -33,6 +33,13 @@ type recordingReporter struct {
 
 	// F2 per-turn usage hook (v2.15.0 I28): every ReportUsage call recorded.
 	usages []usageCall
+
+	// T456 process-alive lease auto-renew: every RenewTaskLease call recorded.
+	leaseRenews []leaseRenewCall
+}
+
+type leaseRenewCall struct {
+	agentID, taskID string
 }
 
 type activityCall struct {
@@ -101,6 +108,21 @@ func (r *recordingReporter) ReportUsage(_ context.Context, u UsageReport) error 
 		u.InputTokens, u.OutputTokens, u.CacheReadTokens, u.CacheWriteTokens,
 	})
 	return nil
+}
+
+func (r *recordingReporter) RenewTaskLease(_ context.Context, agentID, taskID string, _ time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.leaseRenews = append(r.leaseRenews, leaseRenewCall{agentID, taskID})
+	return nil
+}
+
+func (r *recordingReporter) leaseRenewCalls() []leaseRenewCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]leaseRenewCall, len(r.leaseRenews))
+	copy(out, r.leaseRenews)
+	return out
 }
 
 func (r *recordingReporter) replyNudgeAgents() []string {

@@ -363,6 +363,11 @@ func (s *Server) routes() {
 	// through the shared wake-guardrail, and returns bounded re-inject prompts the
 	// controller injects (方案 A). Same requireAgentOnWorker guardrail.
 	s.mux.HandleFunc("POST /admin/environment/agent/reply-nudges", s.envAgentReplyNudgesHandler)
+	// T456 (issue-21ba5b78/I30): worker process-alive lease auto-renew. The daemon
+	// renews each live session's current-task lease on a tick — decoupled from the
+	// agent's LLM turn — so a long build/test never lets the lease lapse. Same
+	// requireAgentOnWorker guardrail; PERSIST-ONLY lease touch (no outbox emit).
+	s.mux.HandleFunc("POST /admin/environment/agent/lease/heartbeat", s.envAgentLeaseHeartbeatHandler)
 
 	// --- agent tools (v2.7 D2-b1, ADR-0049) ------------------------------
 	// Per-agent MCP tool surface. ADDITIVE — rides the same bearer auth as

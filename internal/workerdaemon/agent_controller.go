@@ -293,6 +293,14 @@ type AgentControllerConfig struct {
 	SelfHealBackoffCap  time.Duration
 	SelfHealResetWindow time.Duration
 
+	// LeaseRenewEvery is the cadence of the process-alive lease auto-renew (T456 /
+	// issue-21ba5b78 I30 P0 #1): OnTick renews the execution lease for every live
+	// session's current task at most this often, decoupled from the agent's LLM turn,
+	// so a long build/test never lets the lease lapse. 0 → DefaultLeaseRenewEvery. It
+	// MUST stay well under the server's DefaultExecutionLeaseTTL so a renew lands long
+	// before the lease would lapse.
+	LeaseRenewEvery time.Duration
+
 	// Rate-limit auto-recovery tuning (issue: LLM 服务端限流自动恢复); 0 → defaults
 	// (default 60s when claude gives no window, floor 5s, cap 1h). When an LLM
 	// server-side rate-limit ends a turn, the controller schedules an automatic
@@ -444,6 +452,11 @@ type AgentController struct {
 	// selfHeal tracks mid-run crash recovery per agent (backoff/cap/terminal). It
 	// SURVIVES the managedAgent delete on crash. Guarded by mu. See self_heal.go.
 	selfHeal map[string]*selfHealEntry
+
+	// nextLeaseRenewAt gates the T456 process-alive lease auto-renew sweep so it runs
+	// at most every cfg.LeaseRenewEvery even though OnTick fires on the (sub-second)
+	// poll cadence. Guarded by mu. See lease_renew.go.
+	nextLeaseRenewAt time.Time
 }
 
 // compile-time: AgentController is a CommandHandler.
@@ -461,6 +474,9 @@ func NewAgentController(cfg AgentControllerConfig) (*AgentController, error) {
 	}
 	if cfg.codexStarter == nil {
 		cfg.codexStarter = startCodexSessionAdapter
+	}
+	if cfg.LeaseRenewEvery <= 0 {
+		cfg.LeaseRenewEvery = DefaultLeaseRenewEvery
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = func(string) {}

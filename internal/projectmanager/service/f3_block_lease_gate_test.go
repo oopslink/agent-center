@@ -183,45 +183,65 @@ func TestHeartbeatTask_RenewsAndGuards(t *testing.T) {
 	}
 }
 
-// §2.5/§13.D: the lease-checker reclaims a running task whose execution lease has
-// lapsed (the agent died) — returning it to open with the assignee cleared, ready for
-// re-dispatch. The reclaim is the replacement for FailFromAgentDeath.
-func TestLeaseChecker_ReclaimsExpiredLease(t *testing.T) {
+// T456 (issue-21ba5b78/I30): a lapsed lease is NUDGED, not reclaimed — the task stays
+// running with the SAME assignee, the lease is renewed (so it is not re-nudged every
+// sweep), and a lease_nudge log + EvtTaskLeaseExpiredNudge are produced. This replaces
+// the old reclaim (open + assignee cleared) that silently orphaned an agent's work.
+func TestLeaseChecker_NudgesExpiredLease(t *testing.T) {
 	h := planAdvanceSetup(t)
 	_, tid := startedPoolTask(t, h, "org-lease", "P", "agent:w1")
 
-	// Before the lease lapses, nothing is reclaimed.
-	if n, err := h.svc.ReclaimExpiredLeases(h.ctx); err != nil || n != 0 {
-		t.Fatalf("reclaim before expiry = (%d,%v), want (0,nil)", n, err)
+	// Before the lease lapses, nothing is nudged.
+	if n, err := h.svc.NudgeExpiredLeases(h.ctx); err != nil || n != 0 {
+		t.Fatalf("nudge before expiry = (%d,%v), want (0,nil)", n, err)
 	}
-	// Advance past the lease TTL → the dead agent's task is reclaimed.
+	// Advance past the lease TTL → the stalled agent's task is nudged (NOT reclaimed).
 	h.clk.Advance(DefaultExecutionLeaseTTL + time.Minute)
-	n, err := h.svc.ReclaimExpiredLeases(h.ctx)
+	n, err := h.svc.NudgeExpiredLeases(h.ctx)
 	if err != nil || n != 1 {
-		t.Fatalf("reclaim after expiry = (%d,%v), want (1,nil)", n, err)
+		t.Fatalf("nudge after expiry = (%d,%v), want (1,nil)", n, err)
 	}
 	got, err := h.svc.GetTask(h.ctx, tid)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status() != pm.TaskOpen {
-		t.Fatalf("status=%s, want open (reclaimed)", got.Status())
+	// The anti-orphan invariant: still running, same assignee, lease renewed (not cleared).
+	if got.Status() != pm.TaskRunning {
+		t.Fatalf("status=%s, want running (nudged, never reclaimed)", got.Status())
 	}
-	if got.Assignee() != "" {
-		t.Fatalf("assignee=%q, want cleared after lease expiry", got.Assignee())
+	if got.Assignee() != "agent:w1" {
+		t.Fatalf("assignee=%q, want unchanged agent:w1 (owner never changes)", got.Assignee())
 	}
-	if got.ExecutionLeaseExpiresAt() != nil {
-		t.Fatal("lease should be cleared after reclaim")
+	exp := got.ExecutionLeaseExpiresAt()
+	if exp == nil || !exp.After(h.clk.Now()) {
+		t.Fatalf("lease should be RENEWED (future), got %v at now=%v", exp, h.clk.Now())
 	}
-	// Idempotent: a second sweep reclaims nothing (the task is no longer running).
-	if n, _ := h.svc.ReclaimExpiredLeases(h.ctx); n != 0 {
-		t.Fatalf("second reclaim = %d, want 0", n)
+	// A lease_nudge action-log entry was persisted (attributed to system, agent=assignee).
+	logs, err := h.actionLogs.ListByTask(h.ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawNudge bool
+	for _, lg := range logs {
+		if lg.Action == pm.TaskActionLeaseNudged {
+			sawNudge = true
+			if lg.ActorRef != "system" || lg.AgentRef != "agent:w1" {
+				t.Fatalf("lease_nudge log wrong: %+v", lg)
+			}
+		}
+	}
+	if !sawNudge {
+		t.Fatalf("expected a lease_nudge action-log entry, logs=%+v", logs)
+	}
+	// Renewing the lease rate-limits re-nudges: an immediate second sweep nudges nothing.
+	if n, _ := h.svc.NudgeExpiredLeases(h.ctx); n != 0 {
+		t.Fatalf("second sweep = %d, want 0 (lease renewed by the nudge)", n)
 	}
 }
 
-// A heartbeat within the TTL keeps the lease alive, so the checker does NOT reclaim
-// a task whose agent is still alive.
-func TestLeaseChecker_HeartbeatPreventsReclaim(t *testing.T) {
+// A heartbeat within the TTL keeps the lease alive, so the checker does NOT nudge a
+// task whose agent is still alive (the long-build/test acceptance case).
+func TestLeaseChecker_HeartbeatPreventsNudge(t *testing.T) {
 	h := planAdvanceSetup(t)
 	_, tid := startedPoolTask(t, h, "org-lease2", "P", "agent:w1")
 
@@ -230,10 +250,10 @@ func TestLeaseChecker_HeartbeatPreventsReclaim(t *testing.T) {
 	if err := h.svc.HeartbeatTask(h.ctx, tid, "agent:w1"); err != nil {
 		t.Fatalf("heartbeat: %v", err)
 	}
-	// Advance a little (well under the renewed TTL) → still alive, not reclaimed.
+	// Advance a little (well under the renewed TTL) → still alive, not nudged.
 	h.clk.Advance(2 * time.Minute)
-	if n, err := h.svc.ReclaimExpiredLeases(h.ctx); err != nil || n != 0 {
-		t.Fatalf("reclaim after heartbeat = (%d,%v), want (0,nil) (lease renewed)", n, err)
+	if n, err := h.svc.NudgeExpiredLeases(h.ctx); err != nil || n != 0 {
+		t.Fatalf("nudge after heartbeat = (%d,%v), want (0,nil) (lease renewed)", n, err)
 	}
 	got, err := h.svc.GetTask(h.ctx, tid)
 	if err != nil {
@@ -241,6 +261,49 @@ func TestLeaseChecker_HeartbeatPreventsReclaim(t *testing.T) {
 	}
 	if got.Status() != pm.TaskRunning {
 		t.Fatalf("status=%s, want running (heartbeat kept it alive)", got.Status())
+	}
+}
+
+// WorkerRenewLease (T456 P0 #1): the worker's process-alive renew keeps a live
+// session's task lease alive without the agent calling heartbeat, and is a safe no-op
+// for a stale/foreign assignee.
+func TestWorkerRenewLease(t *testing.T) {
+	h := planAdvanceSetup(t)
+	_, tid := startedPoolTask(t, h, "org-wrl", "P", "agent:w1")
+
+	// A foreign agentRef must NOT renew the task's lease.
+	before, err := h.svc.GetTask(h.ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.WorkerRenewLease(h.ctx, tid, "agent:someone-else"); err != nil {
+		t.Fatalf("WorkerRenewLease(foreign) = %v, want nil no-op", err)
+	}
+	mid, err := h.svc.GetTask(h.ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before.ExecutionLeaseExpiresAt().Equal(*mid.ExecutionLeaseExpiresAt()) {
+		t.Fatalf("foreign renew must not touch the lease: %v -> %v",
+			before.ExecutionLeaseExpiresAt(), mid.ExecutionLeaseExpiresAt())
+	}
+
+	// The assignee's worker renews → lease pushed out to now+TTL, keeping it alive past
+	// what would have been the original expiry.
+	h.clk.Advance(DefaultExecutionLeaseTTL - time.Minute)
+	if err := h.svc.WorkerRenewLease(h.ctx, tid, "agent:w1"); err != nil {
+		t.Fatalf("WorkerRenewLease(assignee) = %v", err)
+	}
+	h.clk.Advance(2 * time.Minute) // past the ORIGINAL expiry, within the renewed TTL
+	if n, err := h.svc.NudgeExpiredLeases(h.ctx); err != nil || n != 0 {
+		t.Fatalf("nudge after worker-renew = (%d,%v), want (0,nil)", n, err)
+	}
+	got, err := h.svc.GetTask(h.ctx, tid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status() != pm.TaskRunning || got.Assignee() != "agent:w1" {
+		t.Fatalf("status=%s assignee=%q, want running/agent:w1", got.Status(), got.Assignee())
 	}
 }
 

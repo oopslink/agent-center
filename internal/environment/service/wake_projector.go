@@ -291,6 +291,17 @@ type planCreatorFailureWakePayload struct {
 	OrganizationID string `json:"organization_id"`
 }
 
+// taskLeaseExpiredNudgePayload mirrors the JSON the PM Service writes for the T456
+// EvtTaskLeaseExpiredNudge outbox event (env-side copy — that pm type is unexported;
+// mirroring its keys keeps the BC boundary clean). AssigneeRef is "agent:<member-id>";
+// OwnerRef is pm://tasks/{id} (used to resolve the task's bound conversation).
+type taskLeaseExpiredNudgePayload struct {
+	TaskID      string `json:"task_id"`
+	ProjectID   string `json:"project_id"`
+	OwnerRef    string `json:"owner_ref"`
+	AssigneeRef string `json:"assignee_ref"`
+}
+
 // Project enqueues an agent.converse / agent.wake command for the conversation's
 // @mentioned (or DM peer) agent participants when a message is added (v2.7 #185 /
 // #220), and handles the plan-creator failure wake.
@@ -304,6 +315,8 @@ func (p *WakeProjector) Project(ctx context.Context, e outbox.Event) error {
 		return p.projectMessageAdded(ctx, e)
 	case pmservice.EvtPlanCreatorFailureWake:
 		return p.projectPlanCreatorWake(ctx, e)
+	case pmservice.EvtTaskLeaseExpiredNudge:
+		return p.projectLeaseExpiredNudge(ctx, e)
 	default:
 		return nil
 	}
@@ -815,6 +828,136 @@ func (p *WakeProjector) deliverCreatorWake(ctx context.Context, rawID, convID, f
 		CommandType:    commandTypeAgentConverse,
 		Payload:        string(payload),
 		IdempotencyKey: "agent.converse:" + convID + ":" + failureMsgID + ":" + entityID,
+	})
+	return err
+}
+
+// projectLeaseExpiredNudge is the T456 lapsed-lease nudge path (issue-21ba5b78/I30):
+// the lease-checker emitted EvtTaskLeaseExpiredNudge because a running task's
+// execution lease lapsed — and it must NOT be reclaimed (no open/assignee-cleared
+// orphan). This SANCTIONED system→agent wake (mirroring projectPlanCreatorWake) (a)
+// posts a visible @assignee nudge message into the task's bound conversation and (b)
+// enqueues an agent.converse so the SAME owner is woken to continue. A system @mention
+// alone can never wake an agent (the #185 human-only loop-break), hence the direct
+// converse enqueue. The task stays running and the assignee is unchanged.
+//
+// Same-tx idempotent (IsApplied/MarkApplied), exactly like the other projector paths,
+// so a redelivered event posts the message + wakes at most once.
+func (p *WakeProjector) projectLeaseExpiredNudge(ctx context.Context, e outbox.Event) error {
+	var pl taskLeaseExpiredNudgePayload
+	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+		return err
+	}
+	if p.controlLog == nil || p.agents == nil || p.convRepo == nil {
+		return nil // wake/conversation delivery not wired (e.g. test fixtures) → no-op
+	}
+	assigneeRef := strings.TrimSpace(pl.AssigneeRef)
+	if !strings.HasPrefix(assigneeRef, agentParticipantPrefix) ||
+		!strings.HasPrefix(pl.OwnerRef, ownerRefTasksPrefix) {
+		slog.Info("wake projector: lease-nudge skipped (non-agent assignee or non-task owner_ref)",
+			"assignee_ref", assigneeRef, "owner_ref", pl.OwnerRef, "task_id", pl.TaskID)
+		return nil
+	}
+	rawID := strings.TrimPrefix(assigneeRef, agentParticipantPrefix)
+	taskID := strings.TrimPrefix(pl.OwnerRef, ownerRefTasksPrefix)
+
+	now := p.clock.Now()
+	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+		if done, err := p.applied.IsApplied(txCtx, p.Name(), e.ID); err != nil {
+			return err
+		} else if done {
+			return nil
+		}
+		if err := p.deliverLeaseNudge(txCtx, e, rawID, taskID, pl); err != nil {
+			return err
+		}
+		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
+	})
+}
+
+// deliverLeaseNudge resolves the task's bound conversation, posts the visible
+// @assignee nudge message (systemNotify, sender=system → does NOT itself wake — the
+// #185 loop-break — which is why we ALSO enqueue the converse below), and enqueues an
+// agent.converse for a RUNNING assignee so the owner is woken to continue. Runs in the
+// caller's tx. A missing conversation / unresolved-or-stopped assignee / no worker
+// binding is a logged skip (no error — a missing wake target must not stall the
+// projector); the posted message persists for the agent to read when it next runs
+// (e.g. after self-heal relaunch).
+func (p *WakeProjector) deliverLeaseNudge(ctx context.Context, e outbox.Event, rawID, taskID string, pl taskLeaseExpiredNudgePayload) error {
+	conv, err := p.convRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(taskID))
+	if err != nil {
+		if errors.Is(err, conversation.ErrConversationNotFound) {
+			slog.Info("wake projector: lease-nudge skipped (no bound task conversation)", "task_id", taskID)
+			return nil // no conversation to nudge into → drain the event (MarkApplied)
+		}
+		return err
+	}
+	convID := string(conv.ID())
+
+	// Resolve the assignee for the @mention display name (tolerant: rawID may be the
+	// entity id OR the identity-member id, like deliverConverse).
+	a, ok := p.resolveAgent(ctx, rawID)
+	name := rawID
+	if ok {
+		if n, nok := p.agentDisplayName(ctx, a, rawID); nok {
+			name = n
+		}
+	}
+	nudgeText := "@" + name + " ⏰ your run on this task may have stalled — its execution lease lapsed. " +
+		"The task is still yours (assignee unchanged); please continue, or complete/block it if you're done."
+
+	// (a) The visible, durable @assignee nudge message (sender=system). It does NOT
+	// wake by itself (system sender, #185), so the converse below is what wakes a
+	// running agent; the message is what a stopped/relaunched agent reads later.
+	if p.systemNotify != nil {
+		if err := p.systemNotify(ctx, convID, nudgeText); err != nil {
+			return err
+		}
+	}
+
+	// (b) Wake a RUNNING assignee. Resolve/running/worker failures log + skip (the
+	// posted message already persists for the agent to read on its next run).
+	if !ok {
+		slog.Warn("wake projector: lease-nudge wake skipped (assignee unresolved)", "raw_id", rawID, "task_id", taskID)
+		return nil
+	}
+	entityID := string(a.ID())
+	if a.Lifecycle() != agent.LifecycleRunning {
+		slog.Info("wake projector: lease-nudge wake skipped (assignee not running)", "agent_id", entityID, "task_id", taskID)
+		return nil
+	}
+	workerID := a.WorkerID()
+	if strings.TrimSpace(workerID) == "" {
+		slog.Info("wake projector: lease-nudge wake skipped (assignee has no worker binding)", "agent_id", entityID, "task_id", taskID)
+		return nil
+	}
+	// Resolve the task title LIVE for the converse brief header (T255 convention; a
+	// miss falls back to conv.Name() then the id).
+	convName := conv.Name()
+	if p.taskTitle != nil {
+		if title, tok := p.taskTitle(ctx, taskID); tok {
+			convName = title
+		}
+	}
+	payload, err := json.Marshal(converseCommandPayload{
+		AgentID:        entityID,
+		ConversationID: convID,
+		ConvKind:       string(conv.Kind()),
+		ConvName:       convName,
+		SenderRef:      "system",
+		SenderDisplay:  "system",
+		MessageID:      e.ID, // unique per nudge episode → distinct converse per lapse
+		MessageText:    nudgeText,
+		OwnerRef:       pl.OwnerRef,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(workerID),
+		CommandType:    commandTypeAgentConverse,
+		Payload:        string(payload),
+		IdempotencyKey: "agent.converse:" + convID + ":lease-nudge:" + e.ID + ":" + entityID,
 	})
 	return err
 }

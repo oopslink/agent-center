@@ -202,6 +202,11 @@ func (c *AgentController) OnTick(ctx context.Context) {
 	// rate-limit; we just inject the resume nudge into the live session. See
 	// rate_limit.go.
 	c.drainRateLimitResumes(ctx, now)
+
+	// T456 (issue-21ba5b78/I30): process-alive lease auto-renew. Renew the execution
+	// lease for every live session's current task so a long LLM turn never lets the
+	// lease lapse. Internally rate-limited to cfg.LeaseRenewEvery. See lease_renew.go.
+	c.drainLeaseRenewals(ctx, now)
 }
 
 // selfHealRelaunch performs ONE due relaunch on the ControlLoop goroutine: acquire

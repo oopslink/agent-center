@@ -222,6 +222,70 @@ func TestExpireLease_NoOpCases(t *testing.T) {
 	}
 }
 
+// --- NudgeOnLeaseExpiry (T456 / issue-21ba5b78 I30) ---
+
+func TestNudgeOnLeaseExpiry_RenewsAndNudgesLapsedRunning(t *testing.T) {
+	tk := running(t, "agent:c")
+	if err := tk.RenewLease(time.Minute, t0); err != nil {
+		t.Fatalf("RenewLease: %v", err)
+	}
+	at := t0.Add(2 * time.Minute) // past the lease
+	fired, err := tk.NudgeOnLeaseExpiry(time.Hour, at)
+	if err != nil {
+		t.Fatalf("NudgeOnLeaseExpiry: %v", err)
+	}
+	if !fired {
+		t.Fatal("expected a nudge to fire on a lapsed lease")
+	}
+	// The anti-orphan invariant: NEVER reclaim — stay running, keep the assignee.
+	if tk.Status() != TaskRunning {
+		t.Fatalf("a lapsed lease must NOT reclaim the task, got %s", tk.Status())
+	}
+	if tk.Assignee() != "agent:c" {
+		t.Fatalf("a lapsed lease must keep the assignee, got %q", tk.Assignee())
+	}
+	// The lease is RENEWED (pushed to at+ttl) so the next sweep does not re-nudge.
+	exp := tk.ExecutionLeaseExpiresAt()
+	if exp == nil || !exp.Equal(at.Add(time.Hour)) {
+		t.Fatalf("lease must be renewed to at+ttl, got %v", exp)
+	}
+	lg := lastLog(t, tk)
+	if lg.Action != TaskActionLeaseNudged || lg.ActorRef != "system" || lg.AgentRef != "agent:c" {
+		t.Fatalf("lease_nudge log wrong: %+v", lg)
+	}
+}
+
+func TestNudgeOnLeaseExpiry_NoOpCases(t *testing.T) {
+	// not yet lapsed
+	tk := running(t, "agent:c")
+	_ = tk.RenewLease(time.Hour, t0)
+	v := tk.Version()
+	if fired, err := tk.NudgeOnLeaseExpiry(time.Hour, t0.Add(time.Minute)); err != nil || fired {
+		t.Fatalf("not-lapsed must be (false,nil), got (%v,%v)", fired, err)
+	}
+	if tk.Status() != TaskRunning || tk.Version() != v {
+		t.Fatalf("not-lapsed must not mutate, status=%s v=%d", tk.Status(), tk.Version())
+	}
+
+	// no lease set
+	tk2 := running(t, "agent:c")
+	v2 := tk2.Version()
+	if fired, err := tk2.NudgeOnLeaseExpiry(time.Hour, t0.Add(time.Hour)); err != nil || fired || tk2.Version() != v2 {
+		t.Fatalf("no-lease must be a no-op, fired=%v err=%v v=%d", fired, err, tk2.Version())
+	}
+
+	// legally blocked → never nudged even with a (would-be) lapsed lease
+	tk3 := running(t, "agent:c")
+	_ = tk3.RenewLease(time.Minute, t0)
+	_ = tk3.Block("stuck", BlockReasonObstacle, "agent:c", t0) // clears lease + marks blocked
+	if fired, err := tk3.NudgeOnLeaseExpiry(time.Hour, t0.Add(time.Hour)); err != nil || fired {
+		t.Fatalf("blocked must be a no-op, fired=%v err=%v", fired, err)
+	}
+	if tk3.Status() != TaskRunning {
+		t.Fatalf("blocked task unchanged, got %s", tk3.Status())
+	}
+}
+
 // --- RecordReassignment (I14 §2.5) ---
 
 func TestRecordReassignment_RetargetsAndClears(t *testing.T) {

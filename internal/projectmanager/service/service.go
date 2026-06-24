@@ -80,6 +80,16 @@ const (
 	// failure transition, not a chat agent→agent reply loop. For a HUMAN creator NO
 	// event is emitted (the @mention in the conversation IS their notification).
 	EvtPlanCreatorFailureWake = "pm.plan.creator_failure_wake"
+	// T456 (issue-21ba5b78/I30 — 租约到期不 reclaim，只 nudge). Emitted by the
+	// lease-checker (NudgeExpiredLeases) IN THE SAME TX as the lease renew + lease_nudge
+	// log when a running task's execution lease lapsed. The (production-registered)
+	// WakeProjector consumes it and (a) posts a visible @assignee nudge message into the
+	// task's bound conversation and (b) enqueues an agent.converse for the assignee so
+	// the SAME owner is woken to continue — the task NEVER leaves running and the
+	// assignee NEVER changes (the anti-orphan fix). This is the SANCTIONED system→agent
+	// wake (like EvtPlanCreatorFailureWake) — a system @mention can otherwise never wake
+	// an agent (the #185 human-only loop-break).
+	EvtTaskLeaseExpiredNudge = "pm.task.lease_expired_nudge"
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared verified context).
 	// EvtPlanFindingRecorded is emitted (same tx) when an agent records a finding
 	// back to a Plan; EvtPlanFindingRetracted when one is retracted. Both are pure
@@ -487,6 +497,20 @@ type planCreatorFailureWakePayload struct {
 	PlanID         string `json:"plan_id"`
 	TaskID         string `json:"task_id"`
 	OrganizationID string `json:"organization_id"`
+}
+
+// taskLeaseExpiredNudgePayload is the JSON payload for EvtTaskLeaseExpiredNudge
+// (T456). It carries everything the WakeProjector needs to resolve the task's bound
+// conversation and wake the SAME assignee — without re-reading the task:
+//   - AssigneeRef is the agent ref ("agent:<member-id>") to nudge/wake.
+//   - OwnerRef is pm://tasks/{id} (the projector resolves the bound conversation by
+//     owner_ref, mirroring the task-input projector).
+//   - TaskID / ProjectID are the locus (diagnostics + conversation resolution).
+type taskLeaseExpiredNudgePayload struct {
+	TaskID      string `json:"task_id"`
+	ProjectID   string `json:"project_id"`
+	OwnerRef    string `json:"owner_ref"` // pm://tasks/{id}
+	AssigneeRef string `json:"assignee_ref"`
 }
 
 // taskInputEventPayload is the JSON payload for the v2.14.0 I14/F6 task-input

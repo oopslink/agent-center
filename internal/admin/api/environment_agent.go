@@ -9,6 +9,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
 
 // =============================================================================
@@ -302,6 +303,47 @@ func (s *Server) envAgentReplyNudgesHandler(w http.ResponseWriter, r *http.Reque
 		prompts = append(prompts, n.Prompt)
 	}
 	writeJSON(w, http.StatusOK, agentReplyNudgesResp{Prompts: prompts})
+}
+
+// agentLeaseHeartbeatReq is the body for POST /admin/environment/agent/lease/heartbeat.
+type agentLeaseHeartbeatReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// envAgentLeaseHeartbeatHandler is the WORKER-driven process-alive lease auto-renew
+// (T456 / issue-21ba5b78 I30 P0 #1). The daemon AgentController renews the lease for
+// every live session's current task on a periodic tick — decoupled from the agent's
+// LLM turn — so a long build/test never lets the lease lapse and get the task
+// nudged/recovered. PERSIST-ONLY (a lease touch, no status change → no outbox emit).
+// Same per-agent guardrail as the other feedback endpoints (requireAgentOnWorker: the
+// worker is the token owner, the target agent must be bound to it). The PM layer
+// (WorkerRenewLease) still verifies the task is THIS agent's running, non-blocked task
+// before renewing, so a stale worker view (reassigned/blocked task) is a safe no-op.
+func (s *Server) envAgentLeaseHeartbeatHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req agentLeaseHeartbeatReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.TaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	if err := d.PMService.WorkerRenewLease(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // parseOptionalTime parses an optional RFC3339 timestamp. An empty string

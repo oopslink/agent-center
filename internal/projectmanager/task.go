@@ -115,7 +115,13 @@ const (
 	TaskActionBlocked      TaskAction = "blocked"
 	TaskActionUnblocked    TaskAction = "unblocked"
 	TaskActionLeaseExpired TaskAction = "lease_expired"
-	TaskActionCompleted    TaskAction = "completed"
+	// TaskActionLeaseNudged (T456) records a lapsed-lease NUDGE: the lease-checker no
+	// longer reclaims a running task whose lease lapsed (the old ExpireLease →
+	// open+assignee-cleared orphan path, issue-21ba5b78/I30). Instead it renews the
+	// lease and @-nudges the assignee in the task conversation so the SAME owner is
+	// woken to continue — the task never leaves running and the assignee never changes.
+	TaskActionLeaseNudged TaskAction = "lease_nudge"
+	TaskActionCompleted   TaskAction = "completed"
 )
 
 // TaskActionLog is an immutable, append-only record of a key Task lifecycle event
@@ -714,13 +720,47 @@ func (t *Task) RenewLease(ttl time.Duration, at time.Time) error {
 	return nil
 }
 
-// ExpireLease reclaims a running task whose agent lease has lapsed (issue I14
-// §2.5 — the replacement for the deleted AgentWorkItem.FailFromAgentDeath, driven
-// by the background lease-checker). The task returns to open with its assignee
-// cleared so the PM can re-dispatch it. It is a no-op (returns nil) when there is
-// nothing to reclaim: archived, not running, legally blocked (ANY reasonType — a
-// blocked task is never reclaimed by lease), no lease set, or the lease has not yet
-// lapsed.
+// NudgeOnLeaseExpiry handles a lapsed execution lease the T456 way (issue-21ba5b78
+// /I30): instead of reclaiming the task (ExpireLease — the old open+assignee-cleared
+// orphan path that silently lost an agent's work), it RENEWS the lease by ttl and
+// records a lease_nudge log, leaving status=running and the assignee UNCHANGED. The
+// caller (lease-checker) then emits the @-nudge event that wakes the SAME owner to
+// continue. Renewing the lease is what rate-limits the nudge: a still-stuck task is
+// re-nudged at most once per ttl, not every sweep, without a separate latch.
+//
+// Returns (fired=true) when a nudge should be emitted. It is a no-op (false, nil)
+// when there is nothing to nudge: archived, not running, legally blocked (ANY
+// reasonType — a blocked task is a legal pause, handled by the overdue-block
+// reminder, never the lease), no lease set, or the lease has not yet lapsed.
+func (t *Task) NudgeOnLeaseExpiry(ttl time.Duration, at time.Time) (bool, error) {
+	if t.IsArchived() {
+		return false, nil
+	}
+	if t.status != TaskRunning {
+		return false, nil
+	}
+	if t.blockedReason != "" {
+		return false, nil // legal pause — not nudged by lease
+	}
+	if t.executionLeaseExpiresAt == nil || at.Before(*t.executionLeaseExpiresAt) {
+		return false, nil
+	}
+	exp := at.Add(ttl).UTC()
+	t.executionLeaseExpiresAt = &exp
+	t.appendLog(TaskActionLeaseNudged, IdentityRef("system"), t.assignee, "agent lease lapsed — nudged (owner unchanged)", at)
+	t.touch(at)
+	return true, nil
+}
+
+// ExpireLease reclaims a running task whose agent lease has lapsed by returning it
+// to open with the assignee cleared (issue I14 §2.5 — the original replacement for
+// AgentWorkItem.FailFromAgentDeath). As of T456 (issue-21ba5b78/I30) the
+// lease-checker NO LONGER calls this: a lapsed lease now nudges its owner
+// (NudgeOnLeaseExpiry) instead of being silently reclaimed. ExpireLease is RETAINED
+// (not wired) for a future explicit agent-offline/archive handoff that may want the
+// open+reclaim semantics; it must not be re-attached to the lease path. It is a
+// no-op (returns nil) when there is nothing to reclaim: archived, not running,
+// legally blocked (ANY reasonType), no lease set, or the lease has not yet lapsed.
 func (t *Task) ExpireLease(at time.Time) error {
 	if t.IsArchived() {
 		return nil
