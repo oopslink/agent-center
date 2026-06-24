@@ -144,6 +144,9 @@ type scaffoldFeatureReq struct {
 	Name    string `json:"name"`
 	Branch  string `json:"branch"`
 	DocOnly bool   `json:"doc_only"`
+	// Issue overrides the plan-level source_issue for THIS feature's chain nodes
+	// (T462); empty → inherit source_issue.
+	Issue string `json:"issue"`
 }
 
 type scaffoldCyclePlanReq struct {
@@ -155,6 +158,10 @@ type scaffoldCyclePlanReq struct {
 	// SkipMergeCheck marks every Integrate node skip_merge_check at build time (T330),
 	// standing F3's merge guard down for this cycle. Default false keeps merge-check on.
 	SkipMergeCheck bool `json:"skip_merge_check"`
+	// SourceIssue links EVERY generated node to this issue as derived_from_issue at
+	// create (T462), so each node's owner can get_issue the spec (the derive-gate is
+	// satisfied). Empty → no node carries a link (pre-T462 behavior).
+	SourceIssue string `json:"source_issue"`
 }
 
 // scaffoldCyclePlanHandler builds a whole cycle CONTROL-FLOW graph (S0 → (Dev→
@@ -186,6 +193,7 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 	for _, f := range req.Features {
 		features = append(features, pmservice.CycleFeature{
 			Name: f.Name, Branch: f.Branch, DocOnly: f.DocOnly,
+			Issue: pm.IssueID(strings.TrimSpace(f.Issue)),
 		})
 	}
 	res, err := d.PMService.ScaffoldCyclePlan(r.Context(), pmservice.ScaffoldCyclePlanCommand{
@@ -194,6 +202,7 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 		Features:        features,
 		MaxReviewRounds: req.MaxReviewRounds,
 		SkipMergeCheck:  req.SkipMergeCheck,
+		SourceIssue:     pm.IssueID(strings.TrimSpace(req.SourceIssue)),
 		CreatedBy:       pm.IdentityRef(agentActor(a)),
 	})
 	if err != nil {
@@ -205,6 +214,7 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 		nodes = append(nodes, map[string]any{
 			"task_id": string(n.TaskID), "title": n.Title, "branch": n.Branch,
 			"base": n.Base, "kind": n.Kind, "feature": n.Feature,
+			"derived_from_issue": string(n.DerivedFromIssue),
 		})
 	}
 	edges := make([]map[string]any, 0, len(res.Edges))
