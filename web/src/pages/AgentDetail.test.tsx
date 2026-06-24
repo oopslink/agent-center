@@ -198,8 +198,9 @@ describe('AgentDetail page', () => {
       ),
     );
     wrap('/agents/A1');
-    // The tab carries a NEW pill.
-    expect(await screen.findByTestId('agent-tab-analytics-badge')).toHaveTextContent(/new/i);
+    // T470: the "NEW" pill was dropped — the Analytics tab has no badge.
+    expect(await screen.findByTestId('agent-tab-analytics')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-tab-analytics-badge')).toBeNull();
     fireEvent.click(screen.getByTestId('agent-tab-analytics'));
     await waitFor(() => expect(screen.getByTestId('agent-tabpanel-analytics')).toBeInTheDocument());
     // Dashboard blocks render: overview cards, the F5 heatmap, and the trend.

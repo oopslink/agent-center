@@ -32,13 +32,13 @@ import { ContextPanel } from '@/shell/contextPanel';
 // Profile/Activity/WorkItems get fleshed out in follow-up PRs (b/c/d).
 // I28/F7 (v2.15.0): the 5th tab `analytics` mounts the per-agent dashboard
 // (overview cards + activity heatmap + tokens/cost trend + top cost tasks),
-// route /agents/:id?tab=analytics. The mockup flags it with a "NEW" pill.
+// route /agents/:id?tab=analytics. (T470: the "NEW" pill was dropped @oopslink.)
 const AGENT_TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'activity', label: 'Activity' },
   { key: 'workspace', label: 'Workspace' },
   { key: 'tasks', label: 'Tasks' },
-  { key: 'analytics', label: 'Analytics', badge: 'NEW' },
+  { key: 'analytics', label: 'Analytics' },
 ] as const;
 type AgentTab = (typeof AGENT_TABS)[number]['key'];
 
@@ -343,14 +343,6 @@ export default function AgentDetail(): React.ReactElement {
             }`}
           >
             {t.label}
-            {'badge' in t && t.badge && (
-              <span
-                className="rounded-full bg-success/15 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase leading-none tracking-wide text-success"
-                data-testid={`agent-tab-${t.key}-badge`}
-              >
-                {t.badge}
-              </span>
-            )}
           </button>
         ))}
       </nav>
