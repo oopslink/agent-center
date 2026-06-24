@@ -290,6 +290,12 @@ type postMessageReq struct {
 	// Attachments (T44): already-uploaded files to attach to this message — the
 	// agent-side dual of the human chat-box attachment. Optional.
 	Attachments []agentAttachmentReq `json:"attachments"`
+	// MentionRefs (T460 ①): explicit, typo-proof agent mention refs ("agent:<id>")
+	// — the machine-reliable @mention for agent↔agent coordination (an assignee_ref
+	// is never mistyped). Each named candidate wakes even without a matching
+	// @display_name in the content, but only within the conversation's existing wake
+	// scope (participants ∪ project members). Optional.
+	MentionRefs []string `json:"mention_refs"`
 }
 
 type startDMReq struct {
@@ -536,6 +542,7 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 			Content:          req.Content,
 			ParentMessageID:  conversation.MessageID(req.ParentMessageID), // F4: reply in-thread
 			Attachments:      atts,
+			MentionRefs:      normalizeMentionRefs(req.MentionRefs), // T460 ①: typo-proof structural @mention
 			Actor:            observability.Actor(agentActor(a)),
 		})
 		if aerr != nil {
@@ -592,7 +599,17 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"message_id": string(res.MessageID)})
+	// T460 ③: minimal delivery check — classify the intended @mentions (text @tokens
+	// + structural mention_refs) into resolved vs unresolved and, when any are
+	// unresolved, return a "did you mean" report so the sender can self-correct a
+	// mistyped handle ON THE SPOT. Pure information: the message has already been sent
+	// (this never blocks), and a fully-resolved message carries no mentions block (no
+	// noise on the happy path).
+	out := map[string]any{"message_id": string(res.MessageID)}
+	if rep := s.buildMentionsReport(r.Context(), d, a, conv, req.Content, req.MentionRefs); rep != nil && len(rep.Unresolved) > 0 {
+		out["mentions"] = rep
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // resolveAgentAttachments validates + maps the request attachments to domain

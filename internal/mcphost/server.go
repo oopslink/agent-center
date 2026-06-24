@@ -510,6 +510,11 @@ type postMessageArgs struct {
 	// Attachments (T44): files to share in the conversation, rendered as preview
 	// cards. Upload each via upload_file first, then pass the returned file_uri here.
 	Attachments []postMessageAttachment `json:"attachments,omitempty" jsonschema:"optional files to attach (upload each via upload_file first, then pass the returned file_uri as uri); the UI renders them as preview cards"`
+	// MentionRefs (T460 ①): the reliable, typo-proof way to @mention agents — pass
+	// each target's agent_ref ("agent:<id>", e.g. an assignee_ref from find_org_agent /
+	// get_task) instead of (or alongside) an @display_name in the text. A ref never
+	// fails silently the way a mistyped handle does. Prefer this for agent↔agent handoffs.
+	MentionRefs []string `json:"mention_refs,omitempty" jsonschema:"reliable @mention of agents by ref ('agent:<id>', e.g. an assignee_ref) — never fails silently like a mistyped @display_name; prefer for agent-to-agent handoffs"`
 }
 
 // makePostMessage returns the post_message handler bound to cfg. agent_id is
@@ -528,6 +533,9 @@ func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 		}
 		if args.ParentMessageID != "" {
 			body["parent_message_id"] = args.ParentMessageID
+		}
+		if len(args.MentionRefs) > 0 {
+			body["mention_refs"] = args.MentionRefs
 		}
 		if len(args.Attachments) > 0 {
 			atts := make([]map[string]any, len(args.Attachments))

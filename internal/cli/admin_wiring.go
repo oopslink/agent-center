@@ -289,6 +289,25 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// identity org repo — org-name resolution for get_my_profile (v2.7.1 #239).
 		IdentityOrgRepo: a.IdentityOrgRepo,
 
+		// T460 ③: resolve a participant identity ref → display_name for the
+		// post_message unresolved-mention report, so a valid HUMAN @mention is not
+		// falsely flagged. Same closure shape the WakeProjector uses; nil-safe when the
+		// identity repo is unwired.
+		DisplayNameResolver: func(ctx context.Context, identityRef string) (string, bool) {
+			if a.IdentityRepo == nil {
+				return "", false
+			}
+			id := identityRef
+			if i := strings.IndexByte(id, ':'); i >= 0 {
+				id = id[i+1:] // strip the agent:/user: scheme → bare identity id
+			}
+			idn, err := a.IdentityRepo.GetByID(ctx, id)
+			if err != nil || idn == nil {
+				return "", false
+			}
+			return idn.DisplayName(), true
+		},
+
 		// Files module (v2.7 post-D3, task #104) — agent file MCP tools. Reuses
 		// the shared buildFilesService helper (same as the webconsole FilesSvc +
 		// GC loop); nil when the blobstore root is unset → file endpoints 501.

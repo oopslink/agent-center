@@ -413,6 +413,35 @@ func TestAddMessage_ChannelWithAgent_EmitsWakeOutbox(t *testing.T) {
 	}
 }
 
+// T460 ①: a message carrying explicit mention_refs MUST emit the wake-trigger
+// event (even a DM with no agent participant / no owner_ref, which otherwise would
+// not emit), and the payload MUST carry the refs so the WakeProjector can wake the
+// named candidate without a matching @display_name in the text.
+func TestAddMessage_MentionRefs_EmitsWakeOutboxWithRefs(t *testing.T) {
+	f := newWakeFixture(t)
+	convID := conversation.ConversationID("conv-dm-refs")
+	f.saveConv(t, convID, conversation.ConversationKindDM, "", "") // no agent participant, no owner_ref
+
+	if _, err := f.w.AddMessage(f.ctx, AddMessageCommand{
+		ConversationID:   convID,
+		SenderIdentityID: conversation.IdentityRef("agent:AG1"),
+		ContentKind:      conversation.MessageContentText,
+		Content:          "handing off, please re-review",
+		Direction:        conversation.DirectionOutbound,
+		MentionRefs:      []string{"agent:agent-ba6bc42a"},
+		Actor:            observability.Actor("agent:AG1"),
+	}); err != nil {
+		t.Fatalf("AddMessage: %v", err)
+	}
+	evs := f.messageAddedEvents(t)
+	if len(evs) != 1 {
+		t.Fatalf("mention_refs must force a wake outbox event, got %d", len(evs))
+	}
+	if p := evs[0].Payload; !strings.Contains(p, `"mention_refs":["agent:agent-ba6bc42a"]`) {
+		t.Fatalf("payload must carry mention_refs, got: %s", p)
+	}
+}
+
 // A nil outbox dep (default) must not emit and must not break AddMessage.
 func TestAddMessage_NilOutbox_NoEmitNoError(t *testing.T) {
 	f := newWakeFixture(t)

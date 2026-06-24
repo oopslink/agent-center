@@ -247,7 +247,13 @@ type AddMessageCommand struct {
 	// depth-1: a reply always hangs off a root; a reply to a reply is merged into
 	// the same thread). The parent must live in the SAME conversation.
 	ParentMessageID conversation.MessageID
-	Actor           observability.Actor
+	// MentionRefs (T460 ①) are explicit, typo-proof agent mention refs ("agent:<id>")
+	// the sender passed structurally — they ride the cross-BC message_added wake event
+	// so the WakeProjector wakes the named candidate even without a matching
+	// @display_name in the text. Transient wake-routing metadata only: NOT persisted on
+	// the Message (no domain/DB change) — they exist solely to typo-proof the @mention.
+	MentionRefs []string
+	Actor       observability.Actor
 }
 
 // AddMessageResult tracks the message id + event id.
@@ -358,8 +364,9 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			if strings.HasPrefix(ownerRef, ownerRefTasksPrefix) ||
 				strings.HasPrefix(ownerRef, ownerRefIssuesPrefix) || // v2.7.1 #227: issue @mention → project-member auto-join
 				strings.HasPrefix(ownerRef, ownerRefPlansPrefix) || // v2.9 #306 ②: plan @mention → project-member broaden (non-participant)
+				len(cmd.MentionRefs) > 0 || // T460 ①: structural mention_refs must reach the wake projector
 				conversationHasAgentParticipant(conv) {
-				if emitErr := w.emitMessageAddedOutbox(txCtx, conv, m); emitErr != nil {
+				if emitErr := w.emitMessageAddedOutbox(txCtx, conv, m, cmd.MentionRefs); emitErr != nil {
 					return emitErr
 				}
 			}
@@ -397,6 +404,11 @@ type messageAddedOutboxPayload struct {
 	// WakeProjector → daemon brief so the woken agent replies IN the same thread
 	// (parent=root) instead of at conversation top-level.
 	RootMessageID string `json:"root_message_id,omitempty"`
+	// MentionRefs (T460 ①) are explicit agent mention refs ("agent:<id>") the sender
+	// passed structurally to post_message — carried through so the WakeProjector wakes
+	// the named candidate(s) even with no matching @display_name in the text. Omitted
+	// for an ordinary message. Transient wake metadata (not persisted on the Message).
+	MentionRefs []string `json:"mention_refs,omitempty"`
 	// AttachmentCount (v2.10.0 [T74]) is how many attachments the message carries.
 	// Flows through the WakeProjector → daemon brief so the woken agent is told a
 	// human sent file(s) (e.g. a screenshot) and to call get_my_unread →
@@ -411,8 +423,10 @@ type messageAddedOutboxPayload struct {
 }
 
 // emitMessageAddedOutbox appends the wake-trigger event to the outbox inside the
-// caller's tx. Called only for task-owned conversations (owner_ref `pm://tasks/`).
-func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conversation.Conversation, m *conversation.Message) error {
+// caller's tx. Called for task/issue/plan-owned or agent-participant conversations
+// (and, T460, whenever the message carries explicit mention_refs). mentionRefs ride
+// the payload so the WakeProjector can wake a structurally-named candidate.
+func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conversation.Conversation, m *conversation.Message, mentionRefs []string) error {
 	pb, err := json.Marshal(messageAddedOutboxPayload{
 		ConversationID:  string(m.ConversationID()),
 		OwnerRef:        string(conv.OwnerRef()),
@@ -420,6 +434,7 @@ func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conver
 		Sender:          string(m.SenderIdentityID()),
 		Text:            m.Content(),
 		RootMessageID:   string(m.RootMessageID()), // F4: thread root (empty if top-level)
+		MentionRefs:     mentionRefs,               // T460 ①: structural typo-proof mention refs
 		AttachmentCount: len(m.Attachments()),      // T74: tell the brief about file(s)
 		Attachments:     m.Attachments(),           // T103: carry the file_uri(s) → woken agent can download_file
 	})

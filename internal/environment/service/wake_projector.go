@@ -228,6 +228,13 @@ type messageAddedPayload struct {
 	// RootMessageID (v2.9.1 Thread F4) is the thread root of the triggering message
 	// (empty if top-level); carried through to the agent so its reply lands in-thread.
 	RootMessageID string `json:"root_message_id,omitempty"`
+	// MentionRefs (T460 ①) are explicit, typo-proof agent mention refs ("agent:<id>")
+	// the sender passed structurally to post_message — a machine-reliable @mention
+	// (assignee_ref never mistyped). A candidate agent named here wakes even when the
+	// text carries no matching @display_name, but STILL only within the conversation's
+	// existing wake scope (participants ∪ project members) and STILL through the
+	// four-gate wake guard — refs typo-proof the mention, they do not widen who is reachable.
+	MentionRefs []string `json:"mention_refs,omitempty"`
 	// AttachmentCount (v2.10.0 [T74]) — how many attachments the message carries.
 	AttachmentCount int `json:"attachment_count,omitempty"`
 	// Attachments (v2.10.1 [T103]) — the inbound attachments' file_uri + metadata,
@@ -454,6 +461,30 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 	// through to the per-agent @display_name gate — only an explicit @name (never
 	// @all) wakes a peer, and each such hop still runs through the wake-chain guard.
 	broadcastAll := strings.HasPrefix(pl.Sender, userParticipantPrefix) && mention.MentionsAll(pl.Text)
+	// T460 ①: structural mention_refs ("agent:<id>") explicitly name wake targets,
+	// typo-proof (assignee_ref never mistyped). A candidate named here passes the
+	// @mention gate even when the text has no matching @display_name — but it must
+	// already BE a candidate (participant ∪ project member), so refs only bypass the
+	// text gate, they never widen the reachable set (承载性 handoff dispatch is out of
+	// scope). Normalized to the bare id (scheme stripped, lowercased) for matching.
+	mentionRefSet := map[string]bool{}
+	for _, ref := range pl.MentionRefs {
+		r := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(ref), agentParticipantPrefix)))
+		if r != "" {
+			mentionRefSet[r] = true
+		}
+	}
+	explicitRef := func(a *agent.Agent, rawID string) bool {
+		if len(mentionRefSet) == 0 {
+			return false
+		}
+		for _, id := range []string{string(a.ID()), a.IdentityMemberID(), rawID} {
+			if id != "" && mentionRefSet[strings.ToLower(strings.TrimSpace(id))] {
+				return true
+			}
+		}
+		return false
+	}
 	for _, rawID := range rawIDs {
 		// FINDING-J: the ref may carry EITHER the execution-entity id OR the
 		// identity-member id ("agent-<ulid>", #157). Resolve tolerantly so both the
@@ -471,7 +502,7 @@ func (p *WakeProjector) wakeConversationParticipants(ctx context.Context, conv *
 		// Group-like kinds (channel/issue/task): only wake agents explicitly
 		// @mentioned by display_name — OR every agent when the message @all-broadcasts.
 		// DM (1:1): wake the peer directly.
-		if kind != conversation.ConversationKindDM && !broadcastAll && !p.mentionsAgent(ctx, a, rawID, pl.Text) {
+		if kind != conversation.ConversationKindDM && !broadcastAll && !explicitRef(a, rawID) && !p.mentionsAgent(ctx, a, rawID, pl.Text) {
 			continue
 		}
 		// T289: an AGENT sender reaches here only via a DM (projectConversationMessage
@@ -547,17 +578,38 @@ func (p *WakeProjector) resolveAgent(ctx context.Context, rawID string) (*agent.
 	return nil, false
 }
 
-// mentionsAgent reports whether text @mentions the agent's display_name
-// (case-insensitive, token-bounded so @Bot ≠ @Bottom). The name is resolved via
-// agentDisplayName (identity display_name preferred, profile name fallback); when
-// only the raw id is available there is nothing meaningful to @mention, so it
-// returns false. Channel gating (#185 / FINDING-J).
+// mentionsAgent reports whether text @mentions the agent — by its display_name
+// (case-insensitive, token-bounded so @Bot ≠ @Bottom) OR, per T460, by its agent
+// id/ref. The id/ref forms close the silent-failure gap where a handle written as
+// "@agent-center-ba6bc42a" or "agent:agent-ba6bc42a" (an id/ref, not the
+// display_name) matched nobody and woke no one. A match on ANY of these is
+// equivalent to a display_name hit (same wake path):
+//   - display_name @mention (agentDisplayName: identity name preferred, profile fallback);
+//   - a bare "agent:<id>" colon-ref for the entity id, member id, or participant ref;
+//   - an @token that equals, or contains the unique id-fragment of, any of those ids.
+//
+// Channel gating (#185 / FINDING-J).
 func (p *WakeProjector) mentionsAgent(ctx context.Context, a *agent.Agent, rawID, text string) bool {
-	name, ok := p.agentDisplayName(ctx, a, rawID)
-	if !ok || strings.TrimSpace(name) == "" {
-		return false
+	if name, ok := p.agentDisplayName(ctx, a, rawID); ok && strings.TrimSpace(name) != "" {
+		if mention.Present(text, name) {
+			return true
+		}
 	}
-	return mention.Present(text, name)
+	tokens := mention.ExtractTokens(text)
+	for _, id := range []string{string(a.ID()), a.IdentityMemberID(), rawID} {
+		if strings.TrimSpace(id) == "" {
+			continue
+		}
+		if mention.ContainsRef(text, agentParticipantPrefix+id) {
+			return true
+		}
+		for _, tok := range tokens {
+			if mention.TokenMatchesID(tok, id) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // agentDisplayName resolves an agent's user-facing name for @mention matching and

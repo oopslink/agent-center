@@ -148,6 +148,14 @@ type HandlerDeps struct {
 	// (v2.7.1 #239) — read-only GetByID(org_id). Same repo the webconsole uses.
 	IdentityOrgRepo identity.OrganizationRepository
 
+	// DisplayNameResolver (T460 ③) resolves an identity ref ("agent:<id>"/"user:<id>")
+	// to its display_name, used by the post_message unresolved-mention report so a
+	// valid HUMAN @mention of a conversation participant is not falsely flagged as
+	// unresolved. Optional; nil → only the org AGENT roster resolves names (a human
+	// participant mention may then be reported unresolved). Mirrors the WakeProjector's
+	// DisplayName resolver, wired from the same IdentityRepo.
+	DisplayNameResolver func(ctx context.Context, identityRef string) (string, bool)
+
 	// SecretManagement BC
 	UserSecretRepo secretmgmt.UserSecretRepository
 	UserSecretSvc  *secretservice.UserSecretService
