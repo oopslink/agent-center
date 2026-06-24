@@ -116,6 +116,47 @@ func BuildSupervisorEnv(source []string) []string {
 	return filterAllowedEnv(source)
 }
 
+// GitIdentityEnv returns the git author/committer identity env for an agent,
+// derived from its stable AgentID (T459). Injecting identity as ENV — not
+// `git config` — is the root fix for the recurring commit-author misattribution:
+// git's GIT_{AUTHOR,COMMITTER}_{NAME,EMAIL} env outrank `git config user.*` and
+// apply to EVERY worktree the agent's process creates. So a dev that enters,
+// switches, or forks a worktree can no longer inherit a stale/default identity —
+// every commit is attributed to the right agent automatically, with zero
+// per-worktree `git config` discipline. This realizes "运行时护栏 > 操作纪律".
+//
+// NAME is the AgentID (stable, 1:1 with the agent); EMAIL is <agent-id>@agent-center.
+// These are DEFAULTS overlaid UNDER the ② seam (see mergeGitIdentity): a future
+// human-readable display_name plumbed via AgentEnv (GIT_AUTHOR_NAME=…) overrides
+// them with no code change. Empty agentID → nil (no injection; caller no-ops).
+func GitIdentityEnv(agentID string) map[string]string {
+	if agentID == "" {
+		return nil
+	}
+	email := agentID + "@agent-center"
+	return map[string]string{
+		"GIT_AUTHOR_NAME":     agentID,
+		"GIT_AUTHOR_EMAIL":    email,
+		"GIT_COMMITTER_NAME":  agentID,
+		"GIT_COMMITTER_EMAIL": email,
+	}
+}
+
+// mergeGitIdentity overlays the center-injected agentEnv (② seam) ON TOP of the
+// AgentID-derived git identity, so an explicit center value (e.g. a display_name
+// in GIT_AUTHOR_NAME) wins over the derived default while everything else in
+// agentEnv passes through unchanged. Returns agentEnv as-is when agentID is empty.
+func mergeGitIdentity(agentID string, agentEnv map[string]string) map[string]string {
+	base := GitIdentityEnv(agentID)
+	if base == nil {
+		return agentEnv
+	}
+	for k, v := range agentEnv {
+		base[k] = v
+	}
+	return base
+}
+
 // BuildClaudeEnv builds the agent-claude child's env (supervisor→claude segment):
 //
 //	layer 1 — allowlisted system env (default-deny; no worker secrets). HOME and
