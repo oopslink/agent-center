@@ -101,6 +101,12 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 	if skills == nil {
 		skills = []string{}
 	}
+	// T461: capability tags — emit [] never null (same contract as skills) so the
+	// SPA can read .length safely.
+	tags := a.CapabilityTags()
+	if tags == nil {
+		tags = []string{}
+	}
 	envVars := p.EnvVars
 	if envVars == nil {
 		envVars = map[string]string{}
@@ -112,7 +118,7 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		"name": p.Name, "description": p.Description, "model": p.Model, "cli": p.CLI,
 		// T236: real LLM tuning fields (were hardcoded placeholders in the UI).
 		"reasoning": p.Reasoning, "mode": p.Mode, "provider": p.Provider,
-		"env_vars": envVars, "skills": skills, "worker_id": a.WorkerID(),
+		"env_vars": envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
 		// v2.7 #157: kept for back-compat (equals id now). Lets the Members page
@@ -586,6 +592,32 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
 	})
 	if err != nil {
+		mapAgentError(w, err)
+		return
+	}
+	got, _ := d.AgentSvc.GetAgent(r.Context(), a.ID())
+	s.agentWriteJSON(w, r, d, got)
+}
+
+// agentUpdateTagsHandler replaces an agent's capability tags (T461) — the
+// dispatch labels (FE / BE / platform / test / integration / docs ...) the PD
+// reads via find_org_agent to assign work by capability + load. Free-form: any
+// string list is accepted; the domain normalizes (trim / drop-blank / de-dupe).
+// Pure metadata, no restart implication. Returns the refreshed agent.
+func (s *Server) agentUpdateTagsHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CapabilityTags []string `json:"capability_tags"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	d := hd(r)
+	a, _, ok := s.agentRequireInOrg(w, r, d)
+	if !ok {
+		return
+	}
+	if err := d.AgentSvc.SetAgentCapabilityTags(r.Context(), a.ID(), req.CapabilityTags); err != nil {
 		mapAgentError(w, err)
 		return
 	}

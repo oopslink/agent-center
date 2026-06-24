@@ -291,6 +291,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/reset", s.agentResetHandler)
 	// T236: edit LLM config (model/cli/reasoning/mode/provider); applies on restart.
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/agents/{id}/config", s.agentUpdateConfigHandler)
+	// T461: edit capability tags (dispatch labels) — pure metadata, no restart.
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/agents/{id}/tags", s.agentUpdateTagsHandler)
 	// v2.8 #272: soft-delete (archive) — the sole user-facing delete path
 	// (hard DELETE above is admin-only). Idempotent; running → 409 must-stop-first.
 	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/archive", s.agentArchiveHandler)

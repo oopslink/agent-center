@@ -1,0 +1,13 @@
+-- 0079_v2151_agent_capability_tags.up.sql — v2.15.1 T461
+-- Capability tags on the agent profile: free-form specialty labels (FE / BE /
+-- platform / test / integration / docs ...) the PD reads to dispatch work to a
+-- capable AND least-busy agent (root-fix for uneven assignment). Stored as a JSON
+-- array of strings, NOT NULL DEFAULT '[]' so every existing + future row reads as
+-- an empty list (the domain + serializers never see NULL).
+--
+-- Deliberately a FREE-FORM tag list, NOT a hard enum (oopslink: agree common
+-- values, don't weld the schema) — the convention lives in the UI/docs, the
+-- column accepts any string. Distinct from `skills` (the agent's runtime CLI
+-- skill names): tags describe the agent's role/specialty for human/PD dispatch,
+-- skills are the tool surface the runtime loads.
+ALTER TABLE agents ADD COLUMN capability_tags TEXT NOT NULL DEFAULT '[]';

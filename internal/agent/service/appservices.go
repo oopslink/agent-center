@@ -192,6 +192,23 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 	})
 }
 
+// SetAgentCapabilityTags replaces an agent's dispatch capability tags (T461) and
+// persists them. Pure metadata for PD dispatch (find_org_agent) — it does NOT
+// restart the process and emits nothing on the outbox (no runtime effect, like
+// UpdateAgentConfig's persist-only contract). Tags are normalized in the domain
+// (trim / drop-blank / case-insensitive de-dupe).
+func (s *Service) SetAgentCapabilityTags(ctx context.Context, id agent.AgentID, tags []string) error {
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		a, err := s.agents.FindByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		a.SetCapabilityTags(tags, now)
+		return s.agents.Update(txCtx, a)
+	})
+}
+
 // ResetAgent moves the Agent to resetting for the given scope. The destructive
 // op requires explicit confirmation (ADR-0049 §5 second confirmation).
 func (s *Service) ResetAgent(ctx context.Context, id agent.AgentID, scope agent.ResetScope, confirm bool) error {

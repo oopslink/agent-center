@@ -28,18 +28,18 @@ func nullString(s string) any {
 
 func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	env, skills, err := marshalProfileJSON(a)
+	env, skills, tags, err := marshalProfileJSON(a)
 	if err != nil {
 		return err
 	}
 	p := a.Profile()
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO agents (id, organization_id, name, description, model, cli, reasoning, mode, provider, env_vars, skills,
-			worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			capability_tags, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(a.ID()), a.OrganizationID(), p.Name, nullString(p.Description), nullString(p.Model),
 		nullString(p.CLI), nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
-		env, skills, a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
+		env, skills, tags, a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
 		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), a.Version())
 	if persistence.IsUniqueViolation(err) {
 		return agent.ErrAgentExists
@@ -49,7 +49,7 @@ func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 
 func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	env, skills, err := marshalProfileJSON(a)
+	env, skills, tags, err := marshalProfileJSON(a)
 	if err != nil {
 		return err
 	}
@@ -57,10 +57,10 @@ func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	// worker_id is intentionally NOT in the SET list — the binding is immutable.
 	res, err := exec.ExecContext(ctx,
 		`UPDATE agents SET name=?, description=?, model=?, cli=?, reasoning=?, mode=?, provider=?, env_vars=?, skills=?,
-			lifecycle=?, lifecycle_error=?, updated_at=?, version=? WHERE id=?`,
+			capability_tags=?, lifecycle=?, lifecycle_error=?, updated_at=?, version=? WHERE id=?`,
 		p.Name, nullString(p.Description), nullString(p.Model), nullString(p.CLI),
 		nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider), env, skills,
-		string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), a.Version(), string(a.ID()))
+		tags, string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), a.Version(), string(a.ID()))
 	if err != nil {
 		return err
 	}
@@ -174,11 +174,11 @@ func (r *AgentRepo) list(ctx context.Context, q, arg string) ([]*agent.Agent, er
 }
 
 const agentSelect = `SELECT id, organization_id, name, description, model, cli, reasoning, mode, provider, env_vars, skills,
-	worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version FROM agents`
+	capability_tags, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version FROM agents`
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
-func marshalProfileJSON(a *agent.Agent) (env string, skills string, err error) {
+func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string, err error) {
 	p := a.Profile()
 	ev := p.EnvVars
 	if ev == nil {
@@ -186,7 +186,7 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, err error) {
 	}
 	eb, err := json.Marshal(ev)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	sk := a.Skills()
 	if sk == nil {
@@ -194,9 +194,17 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, err error) {
 	}
 	sb, err := json.Marshal(sk)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return string(eb), string(sb), nil
+	tg := a.CapabilityTags()
+	if tg == nil {
+		tg = []string{}
+	}
+	tb, err := json.Marshal(tg)
+	if err != nil {
+		return "", "", "", err
+	}
+	return string(eb), string(sb), string(tb), nil
 }
 
 func scanAgent(scan func(...any) error) (*agent.Agent, error) {
@@ -204,11 +212,11 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 		id, org, name, workerID, lifecycle, createdBy, createdAt, updatedAt string
 		desc, model, cli, lifecycleErr, identityMemberID                    sql.NullString
 		reasoning, mode, provider                                           sql.NullString
-		envJSON, skillsJSON                                                 string
+		envJSON, skillsJSON, tagsJSON                                       string
 		version                                                             int
 	)
 	if err := scan(&id, &org, &name, &desc, &model, &cli, &reasoning, &mode, &provider, &envJSON, &skillsJSON,
-		&workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &version); err != nil {
+		&tagsJSON, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
 	var env map[string]string
@@ -219,13 +227,17 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 	if err := json.Unmarshal([]byte(skillsJSON), &skills); err != nil {
 		return nil, err
 	}
+	var tags []string
+	if err := json.Unmarshal([]byte(tagsJSON), &tags); err != nil {
+		return nil, err
+	}
 	return agent.RehydrateAgent(agent.RehydrateAgentInput{
 		ID: agent.AgentID(id), OrganizationID: org,
 		Profile: agent.Profile{
 			Name: name, Description: desc.String, Model: model.String, CLI: cli.String,
 			Reasoning: reasoning.String, Mode: mode.String, Provider: provider.String, EnvVars: env,
 		},
-		Skills: skills, WorkerID: workerID,
+		Skills: skills, CapabilityTags: tags, WorkerID: workerID,
 		Lifecycle: agent.AgentLifecycle(lifecycle), LifecycleError: lifecycleErr.String,
 		CreatedBy:        agent.IdentityRef(createdBy),
 		IdentityMemberID: identityMemberID.String,

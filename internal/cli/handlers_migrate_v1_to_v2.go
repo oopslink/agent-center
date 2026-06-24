@@ -132,7 +132,8 @@ func MigrateV1ToV2Command() *Command {
 // open+archived leak — see migration header; idempotent, archived-only WHERE guard).
 // I28/F1 added 0077 (usage collection: model_prices + usage_events — additive, new tables).
 // I28/F3 added 0078 (agent_activity_daily rollup + rollup cursor — additive, new tables).
-const targetSchemaVersion = 78
+// T461 added 0079 (agents.capability_tags — additive ADD COLUMN, dispatch labels).
+const targetSchemaVersion = 79
 
 func runMigrateV1ToV2(
 	ctx context.Context,

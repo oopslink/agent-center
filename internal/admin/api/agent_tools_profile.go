@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // =============================================================================
@@ -160,6 +163,24 @@ type findOrgAgentReq struct {
 // whose name matches the given substring (case-insensitive). An empty name
 // returns all org agents. Read-only, org-confined (the org is the operating
 // agent's own, from the guardrail-resolved agent). v2.7.1 #239.
+//
+// T461: each row is enriched so the PD can dispatch work to a capable AND
+// least-busy agent in ONE call (root-fix for uneven assignment):
+//   - profile: display_name, agent_ref, capability_tags (dispatch labels)
+//   - status:  lifecycle (running/stopped/error/...) + the bound worker's
+//     online/offline + last_heartbeat_at (liveness)
+//   - load:    the agent's non-terminal task counts by assignee — see the load
+//     口径 note below.
+//
+// Load口径 (what counts): reuses the same metric the web console / FleetView
+// show, so the numbers agree. `running` = tasks in status=running (a blocked
+// task is running + a blocked_reason, so it counts). `open` = status=open —
+// assigned but not yet started ("queued" in the request vocabulary; there is no
+// separate queued status). `total` = running + open. EXCLUDED: terminal tasks
+// (completed/discarded) and tasks under archived/done plans; `reopened` (a rare
+// transient) is not separately bucketed. The status/load enrichments are
+// best-effort: an unwired WorkerRepo/PMService simply omits worker fields /
+// reports zero load — the roster still returns.
 func (s *Server) findOrgAgentHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req findOrgAgentReq
@@ -176,6 +197,15 @@ func (s *Server) findOrgAgentHandler(w http.ResponseWriter, r *http.Request) {
 		mapDomainError(w, err)
 		return
 	}
+	// Task loads are aggregated ONCE across the org, keyed by "agent:<id>"
+	// assignee ref (best-effort: a nil PMService yields a nil map → zero loads).
+	var loads map[pm.IdentityRef]pm.AgentTaskLoad
+	if d.PMService != nil {
+		loads, _ = d.PMService.AgentTaskLoads(r.Context())
+	}
+	// Worker lookups are cached per distinct worker_id (agents commonly share a
+	// worker); a nil cache value means "looked up, not found".
+	workerCache := map[string]*workforce.Worker{}
 	needle := strings.ToLower(strings.TrimSpace(req.Name))
 	out := []map[string]any{}
 	for _, ag := range agents {
@@ -194,10 +224,55 @@ func (s *Server) findOrgAgentHandler(w http.ResponseWriter, r *http.Request) {
 		// prefixed ref, so the agent feeds assignee_ref straight in — no manual
 		// "agent:"+id concatenation (which is a bare-id-vs-prefixed-ref footgun,
 		// the same class as the #240 createDm bug). id stays bare for display/#192.
+		ref := "agent:" + id
+
+		tags := ag.CapabilityTags()
+		if tags == nil {
+			tags = []string{}
+		}
+
+		// status: lifecycle intent + bound-worker liveness (best-effort).
+		status := map[string]any{"lifecycle": string(ag.Lifecycle())}
+		if le := ag.LifecycleError(); le != "" {
+			status["lifecycle_error"] = le
+		}
+		if d.WorkerRepo != nil {
+			if wid := strings.TrimSpace(ag.WorkerID()); wid != "" {
+				wk, seen := workerCache[wid]
+				if !seen {
+					if found, ferr := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(wid)); ferr == nil {
+						wk = found
+					}
+					workerCache[wid] = wk
+				}
+				if wk != nil {
+					status["worker_status"] = string(wk.Status())
+					if hb := wk.LastHeartbeatAt(); hb != nil {
+						status["last_heartbeat_at"] = hb.UTC().Format(time.RFC3339Nano)
+					}
+				}
+			}
+		}
+
+		l := loads[pm.IdentityRef(ref)]
+		load := map[string]any{
+			"running": l.Running,
+			"open":    l.Pending,
+			"total":   l.Running + l.Pending,
+		}
+
 		out = append(out, map[string]any{
+			// Top-level id/name/assignee_ref kept for back-compat (#239/#241).
 			"id":           id,
 			"name":         name,
-			"assignee_ref": "agent:" + id,
+			"assignee_ref": ref,
+			"profile": map[string]any{
+				"display_name":    name,
+				"agent_ref":       ref,
+				"capability_tags": tags,
+			},
+			"status": status,
+			"load":   load,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})

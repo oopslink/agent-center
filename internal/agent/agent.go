@@ -178,6 +178,11 @@ type Agent struct {
 	organizationID string
 	profile        Profile
 	skills         []string
+	// capabilityTags are free-form specialty labels (FE / BE / platform / test /
+	// integration / docs ...) the PD reads to dispatch work by capability + load
+	// (T461). Distinct from skills (runtime CLI skill names): tags describe the
+	// agent's role for human/PD assignment, not the loaded tool surface.
+	capabilityTags []string
 	workerID       string // immutable runtime binding
 	lifecycle      AgentLifecycle
 	lifecycleError string // populated when lifecycle == error
@@ -200,7 +205,8 @@ type NewAgentInput struct {
 	OrganizationID string
 	Profile        Profile
 	Skills         []string
-	WorkerID       string // required; immutable thereafter
+	CapabilityTags []string // free-form dispatch labels (T461); optional
+	WorkerID       string   // required; immutable thereafter
 	CreatedBy      IdentityRef
 	// IdentityMemberID (optional, v2.7 #157) — the identity-member id ("agent-<ulid>")
 	// this execution Agent represents; set by the unified Members→Add Agent flow.
@@ -235,6 +241,7 @@ func NewAgent(in NewAgentInput) (*Agent, error) {
 		organizationID:   in.OrganizationID,
 		profile:          in.Profile,
 		skills:           append([]string(nil), in.Skills...),
+		capabilityTags:   normalizeTags(in.CapabilityTags),
 		workerID:         in.WorkerID,
 		lifecycle:        LifecycleStopped,
 		createdBy:        in.CreatedBy,
@@ -245,12 +252,40 @@ func NewAgent(in NewAgentInput) (*Agent, error) {
 	}, nil
 }
 
+// normalizeTags trims each tag, drops blanks, and de-duplicates case-insensitively
+// while preserving the first-seen original casing and order. Returns nil for an
+// empty result so the field round-trips as an empty JSON array via the repo.
+func normalizeTags(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, t := range in {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		key := strings.ToLower(t)
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, t)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // RehydrateAgentInput is for repository round-trip.
 type RehydrateAgentInput struct {
 	ID               AgentID
 	OrganizationID   string
 	Profile          Profile
 	Skills           []string
+	CapabilityTags   []string
 	WorkerID         string
 	Lifecycle        AgentLifecycle
 	LifecycleError   string
@@ -274,6 +309,7 @@ func RehydrateAgent(in RehydrateAgentInput) (*Agent, error) {
 		organizationID:   in.OrganizationID,
 		profile:          in.Profile,
 		skills:           append([]string(nil), in.Skills...),
+		capabilityTags:   normalizeTags(in.CapabilityTags),
 		workerID:         in.WorkerID,
 		lifecycle:        in.Lifecycle,
 		lifecycleError:   in.LifecycleError,
@@ -305,6 +341,16 @@ func (a *Agent) Skills() []string {
 	}
 	out := make([]string, len(a.skills))
 	copy(out, a.skills)
+	return out
+}
+
+// CapabilityTags returns a defensive copy of the dispatch labels (T461).
+func (a *Agent) CapabilityTags() []string {
+	if len(a.capabilityTags) == 0 {
+		return nil
+	}
+	out := make([]string, len(a.capabilityTags))
+	copy(out, a.capabilityTags)
 	return out
 }
 
@@ -475,6 +521,15 @@ func (a *Agent) UpdateProfile(p Profile, at time.Time) error {
 // SetSkills replaces the skill list (also applies on next restart).
 func (a *Agent) SetSkills(skills []string, at time.Time) {
 	a.skills = append([]string(nil), skills...)
+	a.touch(at)
+}
+
+// SetCapabilityTags replaces the dispatch labels (T461). Tags are normalized
+// (trimmed, blanks dropped, case-insensitively de-duplicated). Pure metadata —
+// it does not affect the runtime, so unlike a profile edit it carries no restart
+// implication; it just changes what the PD sees in find_org_agent.
+func (a *Agent) SetCapabilityTags(tags []string, at time.Time) {
+	a.capabilityTags = normalizeTags(tags)
 	a.touch(at)
 }
 
