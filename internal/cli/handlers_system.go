@@ -18,6 +18,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/escalator"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	usagesql "github.com/oopslink/agent-center/internal/usage/sqlite"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
 )
@@ -255,6 +256,20 @@ func ServerCommand() *Command {
 					_ = overdueReminder.Run(overdueReminderCtx)
 				}()
 				defer overdueReminderCancel()
+
+				// v2.15.0 I28/F3 wiring (T471): the per-agent analytics DAILY ROLLUP.
+				// It folds raw usage_events + activity sources into agent_activity_daily,
+				// which the dashboard's overview cards / heatmap / project trend read.
+				// The job was implemented but never scheduled (@oopslink: dashboard
+				// showed 0 despite usage_events accumulating) — run it once on boot to
+				// backfill, then every 2m incrementally.
+				rollup := usagesql.NewRollup(app.DB)
+				rollupCtx, rollupCancel := context.WithCancel(ctx)
+				go func() {
+					rollup.Run(rollupCtx, 2*time.Minute,
+						func(msg string, a ...any) { fmt.Fprintf(out, "[usage-rollup] "+msg+"\n", a...) })
+				}()
+				defer rollupCancel()
 
 				bannerWeb := "disabled"
 				if webEnabled {

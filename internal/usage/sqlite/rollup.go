@@ -139,6 +139,43 @@ func (r *Rollup) RunIncremental(ctx context.Context) (RollupStats, error) {
 	return stats, err
 }
 
+// Run drives an immediate RunIncremental pass, then one every interval until ctx is
+// done — the production wiring for the F3 rollup so the dashboard's rollup-backed
+// reads (overview cards / heatmap / project trend) stay fresh. A zero/negative
+// interval defaults to 2m; logf may be nil. (T471: the job existed but was never
+// scheduled, so agent_activity_daily stayed empty and the dashboard read 0.)
+func (r *Rollup) Run(ctx context.Context, interval time.Duration, logf func(string, ...any)) {
+	if interval <= 0 {
+		interval = 2 * time.Minute
+	}
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
+	pass := func() {
+		stats, err := r.RunIncremental(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				logf("incremental pass failed: %v", err)
+			}
+			return
+		}
+		if stats.BucketsRecomputed > 0 {
+			logf("folded %d bucket(s) → %d daily row(s)", stats.BucketsRecomputed, stats.RowsWritten)
+		}
+	}
+	pass()
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			pass()
+		}
+	}
+}
+
 // scanDirty runs a source's scan query, adds each row's (agent_ref, day) to dirty,
 // and returns the max cursor key observed ("" when no new rows).
 func (r *Rollup) scanDirty(ctx context.Context, exec persistence.SQLExecutor, src, cursor string, dirty map[bucket]struct{}) (string, error) {

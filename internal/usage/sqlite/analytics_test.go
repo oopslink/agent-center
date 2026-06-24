@@ -266,3 +266,37 @@ func TestAnalyticsTaskDrilldown(t *testing.T) {
 var _ usage.AnalyticsService = (*Analytics)(nil)
 
 var _ = context.Background
+
+// TestRollup_Run_BackfillsThenStopsOnCancel pins the T471 production wiring: Run()
+// must do an IMMEDIATE incremental pass (so a freshly-started center backfills
+// agent_activity_daily from existing usage_events) and then return promptly when
+// its context is canceled.
+func TestRollup_Run_BackfillsThenStopsOnCancel(t *testing.T) {
+	env := setupRollup(t)
+	const ag = "agent:agent-run"
+	appendUsage(t, env, "u1", ag, "p1", "claude-opus-4-8", "2026-06-20T10:00:00Z", 100, 50, 0, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { env.roll.Run(ctx, time.Hour, nil); close(done) }()
+
+	deadline := time.Now().Add(3 * time.Second)
+	var n int
+	for time.Now().Before(deadline) {
+		_ = env.db.QueryRow(`SELECT COUNT(*) FROM agent_activity_daily WHERE agent_ref = ?`, ag).Scan(&n)
+		if n > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n == 0 {
+		t.Fatal("Run did not backfill agent_activity_daily on its immediate pass")
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run did not return after ctx cancel")
+	}
+}
