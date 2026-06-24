@@ -51,12 +51,17 @@ describe('AgentAnalyticsPanel', () => {
     server.use(http.get('/api/agents/:id/analytics', () => HttpResponse.json(payload())));
     renderWithQuery(<AgentAnalyticsPanel agentId="a1" />);
     await waitFor(() => expect(screen.getByTestId('agent-analytics')).toBeInTheDocument());
-    expect(screen.getByTestId('analytics-overview-cards')).toBeInTheDocument();
-    // F7: the F5 heatmap renders between the cards and the trend, fed by the same
-    // series fetch (no extra request).
-    expect(screen.getByTestId('agent-heatmap')).toBeInTheDocument();
-    expect(screen.getByTestId('analytics-trend')).toBeInTheDocument();
+    const cards = screen.getByTestId('analytics-overview-cards');
+    const heatmap = screen.getByTestId('agent-heatmap');
+    const trend = screen.getByTestId('analytics-trend');
+    expect(cards).toBeInTheDocument();
+    expect(heatmap).toBeInTheDocument();
+    expect(trend).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('analytics-top-tasks')).toBeInTheDocument());
+    const topTasks = screen.getByTestId('analytics-top-tasks');
+    expect(cards.compareDocumentPosition(heatmap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(heatmap.compareDocumentPosition(topTasks) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(topTasks.compareDocumentPosition(trend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByTestId('top-task-label-task-1')).toHaveTextContent('Build the thing');
   });
 

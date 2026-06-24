@@ -33,17 +33,29 @@ const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep
 // Per-口径 hue + label + the solid swatch shown in the switch (mockup: green /
 // blue / amber). The intensity ramp (level 1..4) is opacity on the same token;
 // level 0 (empty) is the neutral surface so "no activity" ≠ "low activity".
-const METRICS: { id: HeatmapMetric; label: string; swatch: string; activeText: string; activePill: string }[] = [
-  { id: 'activity', label: 'Activity', swatch: 'bg-success', activeText: 'text-success', activePill: 'bg-success/15' },
-  { id: 'tokens', label: 'Tokens', swatch: 'bg-accent', activeText: 'text-accent', activePill: 'bg-accent/15' },
-  { id: 'cost', label: 'Cost', swatch: 'bg-warning', activeText: 'text-warning', activePill: 'bg-warning/15' },
+const METRICS: { id: HeatmapMetric; label: string; swatch: string }[] = [
+  { id: 'activity', label: 'Activity', swatch: 'bg-success' },
+  { id: 'tokens', label: 'Tokens', swatch: 'bg-accent' },
+  { id: 'cost', label: 'Cost', swatch: 'bg-warning' },
 ];
 
-const RAMP: Record<HeatmapMetric, Record<number, string>> = {
-  activity: { 0: 'bg-bg-subtle', 1: 'bg-success/30', 2: 'bg-success/50', 3: 'bg-success/75', 4: 'bg-success' },
-  tokens: { 0: 'bg-bg-subtle', 1: 'bg-accent/30', 2: 'bg-accent/50', 3: 'bg-accent/75', 4: 'bg-accent' },
-  cost: { 0: 'bg-bg-subtle', 1: 'bg-warning/30', 2: 'bg-warning/50', 3: 'bg-warning/75', 4: 'bg-warning' },
+// T474: the intensity ramp. Level 0 (empty) is the neutral surface TOKEN (visible
+// via the cell ring). Levels 1..4 are a data-viz hue ramp applied via INLINE STYLE
+// — the old `bg-success/30` etc. were alpha-on-token, which renders TRANSPARENT in
+// this SPA (the documented trap), so levels 1-3 were invisible and only level 4
+// (solid) showed (@oopslink: Less/More 不对). raw-color-ok: data-visualization ramp.
+const RAMP_EMPTY = 'bg-bg-subtle';
+const RAMP_HEX: Record<HeatmapMetric, [string, string, string, string]> = {
+  activity: ['#0e4429', '#006d32', '#26a641', '#39d353'], // GitHub-style greens
+  tokens: ['#0a3069', '#0969da', '#218bff', '#54aeff'], // blues
+  cost: ['#7a4f01', '#bb8009', '#e3a008', '#f5c518'], // ambers
 };
+
+/** rampStyle returns the inline backgroundColor for a level (1..4), or undefined
+ * for level 0 (which uses the neutral RAMP_EMPTY token class instead). */
+function rampStyle(metric: HeatmapMetric, level: number): React.CSSProperties | undefined {
+  return level > 0 ? { backgroundColor: RAMP_HEX[metric][level - 1] } : undefined;
+}
 
 /** metricValue extracts the coloured field for a cell under the active 口径. */
 function metricValue(cell: HeatmapCell, metric: HeatmapMetric): number {
@@ -107,15 +119,6 @@ interface GridCell {
   cell: HeatmapCell | null;
 }
 
-/** SectionMark is the small square outline marking each dashboard card title. */
-function SectionMark(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0 stroke-current text-text-muted" fill="none" aria-hidden="true">
-      <rect x="2.5" y="2.5" width="11" height="11" rx="2.5" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
 export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: AgentHeatmapProps): React.ReactElement {
   const [metric, setMetric] = useState<HeatmapMetric>(initialMetric);
 
@@ -165,21 +168,19 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
   }, [byDay, today]);
 
   const active = METRICS.find((m) => m.id === metric) ?? METRICS[0];
-  const ramp = RAMP[metric];
 
   const tip = (g: GridCell): string =>
     `${prettyDay(g.date)}: ${formatValue(g.cell ?? emptyCell(g.date), metric)}`;
   const levelOf = (g: GridCell): number => (g.cell ? intensityLevel(metricValue(g.cell, metric), max) : 0);
 
   return (
-    <section className="rounded-lg border border-border-base bg-bg-elevated p-4" data-testid="agent-heatmap">
-      <header className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-          <SectionMark />
+    <section className="flex min-h-[18rem] w-full min-w-0 flex-col rounded-lg border border-border-base bg-bg-elevated p-5" data-testid="agent-heatmap">
+      <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-text-primary">
           Activity Heatmap · last 12 months
         </h3>
         <div
-          className="flex gap-1 rounded-lg border border-border-base bg-bg-elevated p-1"
+          className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1"
           role="tablist"
           aria-label="Heatmap metric"
           data-testid="heatmap-metric-switch"
@@ -196,8 +197,8 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
                 data-active={on}
                 onClick={() => setMetric(m.id)}
                 className={[
-                  'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium',
-                  on ? `${m.activePill} ${m.activeText}` : 'text-text-secondary hover:text-text-primary',
+                  'flex items-center gap-1.5 rounded px-0.5 py-0.5 text-xs font-medium',
+                  on ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary',
                 ].join(' ')}
               >
                 <span className={['h-2.5 w-2.5 rounded-[2px]', m.swatch].join(' ')} aria-hidden="true" />
@@ -208,9 +209,9 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
         </div>
       </header>
 
-      <div className="overflow-x-auto">
+      <div className="flex flex-1 flex-col justify-center overflow-x-auto">
         {/* month labels row, aligned to the week columns (15px pitch = 12px cell + 3px gap) */}
-        <div className="ml-8 flex" aria-hidden="true" data-testid="heatmap-months">
+        <div className="ml-8 flex min-w-max" aria-hidden="true" data-testid="heatmap-months">
           {columns.map((_, w) => {
             const lbl = monthLabels.find((l) => l.col === w);
             return (
@@ -221,7 +222,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
           })}
         </div>
 
-        <div className="flex">
+        <div className="flex min-w-max">
           {/* weekday row labels: Mon / Wed / Fri (rows 1/3/5; 0=Sun) */}
           <div className="mr-1 flex w-7 flex-col gap-[3px] text-[0.625rem] text-text-muted" aria-hidden="true">
             {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((lbl, i) => (
@@ -247,7 +248,8 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
                       // full GitHub-style grid is visible — empty (level-0) cells
                       // were bg-bg-subtle ≈ the card bg in dark mode and vanished
                       // (@oopslink: 每个块都要展示出来).
-                      className={['h-3 w-3 rounded-[2px] ring-1 ring-inset ring-border-base', ramp[levelOf(g)]].join(' ')}
+                      className={['h-3 w-3 rounded-[2px] ring-1 ring-inset ring-border-base', levelOf(g) === 0 ? RAMP_EMPTY : ''].join(' ')}
+                      style={rampStyle(metric, levelOf(g))}
                       title={tip(g)}
                       aria-label={tip(g)}
                     />
@@ -267,7 +269,8 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
             <span
               key={lvl}
               data-testid={`heatmap-legend-${lvl}`}
-              className={['h-3 w-3 rounded-[2px] ring-1 ring-inset ring-border-base', ramp[lvl]].join(' ')}
+              className={['h-3 w-3 rounded-[2px] ring-1 ring-inset ring-border-base', lvl === 0 ? RAMP_EMPTY : ''].join(' ')}
+              style={rampStyle(metric, lvl)}
               aria-hidden="true"
             />
           ))}

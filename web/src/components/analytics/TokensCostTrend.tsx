@@ -25,6 +25,23 @@ const VIEW_H = 220;
 // note). raw-color-ok: data-visualization series palette.
 const PROJECT_PALETTE = ['#3b82f6', '#22c55e', '#8b5cf6', '#f59e0b', '#ec4899', '#14b8a6', '#64748b'];
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// T475: fmtDay turns "YYYY-MM-DD" → "Jun 1" for the x-axis time ticks (manual parse
+// so there's no local-tz day shift).
+function fmtDay(day: string): string {
+  const [, m, d] = day.split('-').map(Number);
+  if (!m || !d) return day;
+  return `${MONTH_ABBR[m - 1]} ${d}`;
+}
+
+// axisTicks picks up to 3 evenly-spaced day labels (first / middle / last) so the
+// x-axis reads as a time axis without crowding.
+function axisTicks(days: string[]): string[] {
+  if (days.length <= 2) return days;
+  return [days[0], days[Math.floor((days.length - 1) / 2)], days[days.length - 1]];
+}
+
 type Metric = 'tokens' | 'cost';
 type Dimension = 'model' | 'project';
 
@@ -130,7 +147,7 @@ function Toggle<T extends string>({
   testId: string;
 }): React.ReactElement {
   return (
-    <div className="inline-flex overflow-hidden rounded-md border border-border text-xs" role="group" data-testid={testId}>
+    <div className="inline-flex overflow-hidden rounded-md border border-border-base text-xs" role="group" data-testid={testId}>
       {options.map((o) => (
         <button
           key={o.value}
@@ -173,11 +190,12 @@ export function TokensCostTrend({
   );
   const fmtMax = metric === 'cost' ? formatCostMicros(stack.max) : formatTokens(stack.max);
   const hasData = stack.days.length > 0 && stack.max > 0;
+  const tickDays = axisTicks(stack.days);
 
   return (
-    <section className="flex flex-col rounded-lg border border-border bg-bg-elevated p-4" data-testid="analytics-trend">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text">Tokens &amp; Cost Trend</h3>
+    <section className="flex flex-col rounded-lg border border-border-base bg-bg-elevated p-5 lg:p-6" data-testid="analytics-trend">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-text-primary">Tokens &amp; Cost Trend</h3>
         <div className="flex items-center gap-2">
           <Toggle
             value={metric}
@@ -206,28 +224,58 @@ export function TokensCostTrend({
         </p>
       ) : (
         <>
-          <div className="flex gap-2">
-            <div className="flex flex-col justify-between py-1 text-[0.625rem] tabular-nums text-text-muted">
+          <div className="flex gap-3">
+            <div className="flex w-10 shrink-0 flex-col justify-between py-1 text-[0.625rem] tabular-nums text-text-muted">
               <span>{fmtMax}</span>
               <span>0</span>
             </div>
-            <svg
-              viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-              preserveAspectRatio="none"
-              className="h-44 w-full"
-              role="img"
-              aria-label={`${metric} trend stacked by ${dim}`}
-              data-testid="analytics-trend-svg"
-            >
-              {stack.keys.map((k, i) => (
-                <path
-                  key={k}
-                  d={stack.areas[k]}
-                  style={{ fill: seriesColor(dim, k, i), fillOpacity: 0.55 }}
-                  data-testid={`trend-area-${k}`}
-                />
-              ))}
-            </svg>
+            <div className="min-w-0 flex-1">
+              <svg
+                viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+                preserveAspectRatio="none"
+                className="h-60 w-full lg:h-72"
+                role="img"
+                aria-label={`${metric} trend stacked by ${dim}`}
+                data-testid="analytics-trend-svg"
+              >
+                {[0.25, 0.5, 0.75].map((p) => (
+                  <line
+                    key={p}
+                    x1="0"
+                    x2={VIEW_W}
+                    y1={VIEW_H * p}
+                    y2={VIEW_H * p}
+                    className="text-border-base opacity-70"
+                    stroke="currentColor"
+                    strokeDasharray="3 4"
+                    strokeWidth="1"
+                  />
+                ))}
+                {stack.keys.map((k, i) => (
+                  <path
+                    key={k}
+                    d={stack.areas[k]}
+                    style={{ fill: seriesColor(dim, k, i), fillOpacity: 0.55 }}
+                    data-testid={`trend-area-${k}`}
+                  />
+                ))}
+              </svg>
+              <div className="relative mt-1 h-4 text-[0.625rem] text-text-muted" aria-hidden="true">
+                {tickDays.map((d) => {
+                  const idx = stack.days.indexOf(d);
+                  const left = stack.days.length <= 1 ? 0 : (idx / (stack.days.length - 1)) * 100;
+                  return (
+                    <span
+                      key={d}
+                      className="absolute -translate-x-1/2 whitespace-nowrap first:translate-x-0 last:-translate-x-full"
+                      style={{ left: `${left}%` }}
+                    >
+                      {fmtDay(d)}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
           </div>
           <ul className="mt-2 flex flex-wrap gap-3" data-testid="analytics-trend-legend">
             {stack.keys.map((k, i) => (

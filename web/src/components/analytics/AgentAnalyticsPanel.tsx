@@ -23,7 +23,7 @@ import { TopCostTasks } from './TopCostTasks';
 
 function PanelMessage({ children, testId }: { children: React.ReactNode; testId: string }): React.ReactElement {
   return (
-    <div className="rounded-lg border border-border bg-bg-elevated p-6 text-sm text-text-muted" data-testid={testId}>
+    <div className="rounded-lg border border-border-base bg-bg-elevated p-6 text-sm text-text-muted" data-testid={testId}>
       {children}
     </div>
   );
@@ -45,21 +45,17 @@ export function AgentAnalyticsPanel({ agentId }: { agentId: string }): React.Rea
   const cards = deriveCards(series.data.heatmap, now);
 
   return (
-    <div className="flex flex-col gap-4" data-testid="agent-analytics">
+    <div className="flex flex-col gap-5 lg:gap-6" data-testid="agent-analytics">
       <OverviewCards cards={cards} />
-      <AgentHeatmap cells={series.data.heatmap} today={now} />
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <TokensCostTrend byModel={series.data.trends.by_model} byProject={series.data.trends.by_project} />
-        </div>
-        <div>
-          {monthQ.isLoading ? (
-            <PanelMessage testId="agent-analytics-toptasks-loading">Loading top tasks…</PanelMessage>
-          ) : (
-            <TopCostTasks tasks={monthQ.data?.top_tasks ?? []} agentId={agentId} />
-          )}
-        </div>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)] lg:items-stretch lg:gap-6">
+        <AgentHeatmap cells={series.data.heatmap} today={now} />
+        {monthQ.isLoading ? (
+          <PanelMessage testId="agent-analytics-toptasks-loading">Loading top tasks…</PanelMessage>
+        ) : (
+          <TopCostTasks tasks={monthQ.data?.top_tasks ?? []} agentId={agentId} />
+        )}
       </div>
+      <TokensCostTrend byModel={series.data.trends.by_model} byProject={series.data.trends.by_project} />
     </div>
   );
 }

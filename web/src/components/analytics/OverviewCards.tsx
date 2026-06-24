@@ -52,9 +52,12 @@ function Card({
   testId: string;
 }): React.ReactElement {
   return (
-    <div className="flex flex-1 flex-col gap-1 rounded-lg border border-border bg-bg-elevated p-4" data-testid={testId}>
-      <span className="text-[0.6875rem] uppercase tracking-wide text-text-muted">{label}</span>
-      <span className="text-2xl font-semibold tabular-nums text-text" data-testid={`${testId}-value`}>
+    <div
+      className="flex min-h-[8rem] flex-col justify-center gap-1 rounded-lg border border-border-base bg-bg-elevated px-5 py-4"
+      data-testid={testId}
+    >
+      <span className="text-xs uppercase tracking-wide text-text-muted">{label}</span>
+      <span className="text-3xl font-semibold leading-none tabular-nums text-text-primary" data-testid={`${testId}-value`}>
         {value}
       </span>
       <span className="flex min-h-[1.25rem] items-center text-xs text-text-muted">{meta}</span>
@@ -64,7 +67,7 @@ function Card({
 
 export function OverviewCards({ cards }: { cards: CardData }): React.ReactElement {
   return (
-    <div className="flex flex-wrap gap-3" data-testid="analytics-overview-cards">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5" data-testid="analytics-overview-cards">
       <Card
         label="Tokens - this month"
         value={formatTokens(cards.tokens)}

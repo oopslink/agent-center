@@ -100,15 +100,27 @@ describe('AgentHeatmap', () => {
     expect(screen.getByRole('grid')).toHaveAttribute('aria-label', expect.stringContaining('Cost'));
   });
 
-  it('each 口径 owns a hue (green / blue / amber) per the mockup', () => {
+  it('each 口径 owns a distinct hue ramp (green / blue / amber) via inline style — T474', () => {
     render(<AgentHeatmap cells={[]} today={TODAY} />);
-    // the level-4 legend swatch carries the active metric's solid hue token.
-    expect(screen.getByTestId('heatmap-legend-4').className).toContain('bg-success');
+    // T474: levels 1-4 use a data-viz inline-style hue ramp (alpha-on-token was
+    // transparent). The level-4 swatch's backgroundColor is the metric's solid hue
+    // and differs per 口径; level-3 differs from level-4 (a real ramp, not blank).
+    const green4 = screen.getByTestId('heatmap-legend-4').style.backgroundColor;
+    const green3 = screen.getByTestId('heatmap-legend-3').style.backgroundColor;
+    expect(green4).not.toBe('');
+    expect(green3).not.toBe('');
+    expect(green3).not.toBe(green4);
 
     fireEvent.click(screen.getByTestId('heatmap-metric-tokens'));
-    expect(screen.getByTestId('heatmap-legend-4').className).toContain('bg-accent');
+    const blue4 = screen.getByTestId('heatmap-legend-4').style.backgroundColor;
+    expect(blue4).not.toBe('');
+    expect(blue4).not.toBe(green4);
 
     fireEvent.click(screen.getByTestId('heatmap-metric-cost'));
-    expect(screen.getByTestId('heatmap-legend-4').className).toContain('bg-warning');
+    const amber4 = screen.getByTestId('heatmap-legend-4').style.backgroundColor;
+    expect(amber4).not.toBe('');
+    expect(amber4).not.toBe(blue4);
+    // level 0 stays the neutral token (no inline hue).
+    expect(screen.getByTestId('heatmap-legend-0').className).toContain('bg-bg-subtle');
   });
 });

@@ -45,7 +45,7 @@ function TaskRow({
   const widthPct = maxCost > 0 ? Math.max(2, Math.round((task.cost_micros / maxCost) * 100)) : 0;
 
   return (
-    <li className="border-b border-border last:border-b-0" data-testid={`top-task-${task.task_id}`}>
+    <li className="border-b border-border-base last:border-b-0" data-testid={`top-task-${task.task_id}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -64,7 +64,7 @@ function TaskRow({
               </span>
             )}
             <span
-              className="truncate text-sm text-text"
+              className="truncate text-sm text-text-primary"
               title={ref !== '' ? `${ref} ${label}` : label}
               data-testid={`top-task-label-${task.task_id}`}
             >
@@ -76,7 +76,7 @@ function TaskRow({
           </span>
         </span>
         <span className="flex shrink-0 flex-col items-end">
-          <span className="text-sm font-medium tabular-nums text-text" data-testid={`top-task-cost-${task.task_id}`}>
+          <span className="text-sm font-medium tabular-nums text-text-primary" data-testid={`top-task-cost-${task.task_id}`}>
             {formatCostMicros(task.cost_micros)}
           </span>
           {task.dominant_model !== '' && (
@@ -106,7 +106,7 @@ function TaskRow({
               </thead>
               <tbody>
                 {drill.data.events.map((e) => (
-                  <tr key={e.id} className="text-text">
+                  <tr key={e.id} className="text-text-primary">
                     <td className="py-0.5">{formatLocalTime(e.ts)}</td>
                     <td className="py-0.5">{modelShortLabel(e.model)}</td>
                     <td className="py-0.5 text-right tabular-nums">{formatTokens(e.tokens_in + e.tokens_out)}</td>
@@ -131,10 +131,10 @@ export function TopCostTasks({
 }): React.ReactElement {
   const maxCost = tasks.reduce((m, t) => Math.max(m, t.cost_micros), 0);
   return (
-    <section className="rounded-lg border border-border bg-bg-elevated p-4" data-testid="analytics-top-tasks">
-      <h3 className="mb-3 text-sm font-semibold text-text">Top Cost Tasks</h3>
+    <section className="flex min-h-[18rem] flex-col rounded-lg border border-border-base bg-bg-elevated p-5" data-testid="analytics-top-tasks">
+      <h3 className="mb-3 text-sm font-semibold text-text-primary">Top Cost Tasks</h3>
       {tasks.length === 0 ? (
-        <p className="text-xs text-text-muted" data-testid="analytics-top-tasks-empty">
+        <p className="flex flex-1 items-center justify-center text-center text-sm text-text-muted" data-testid="analytics-top-tasks-empty">
           No task-scoped usage this month.
         </p>
       ) : (
