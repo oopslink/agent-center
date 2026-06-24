@@ -7,13 +7,13 @@ import (
 
 func TestExecutionConfig_Durations(t *testing.T) {
 	cfg := ExecutionConfig{
-		SubmittedTimeoutSeconds:    300,
-		DefaultTimeoutHours:        6,
-		DispatchAckTimeoutSeconds:  30,
-		InputRequestPingHours:      4,
-		InputRequestTimeoutHours:   24,
-		ShimHelloTimeoutSeconds:    60,
-		KillGraceSeconds:           5,
+		SubmittedTimeoutSeconds:   300,
+		DefaultTimeoutHours:       6,
+		DispatchAckTimeoutSeconds: 30,
+		InputRequestPingHours:     4,
+		InputRequestTimeoutHours:  24,
+		ShimHelloTimeoutSeconds:   60,
+		KillGraceSeconds:          5,
 	}
 	if cfg.SubmittedTimeout() != 5*time.Minute {
 		t.Fatalf("submitted: %v", cfg.SubmittedTimeout())

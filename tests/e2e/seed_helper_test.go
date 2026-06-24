@@ -52,4 +52,3 @@ func seedWorkerE2E(t *testing.T, app *cli.App, id string) {
 		t.Fatalf("seed worker: %v", err)
 	}
 }
-

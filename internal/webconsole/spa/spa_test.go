@@ -96,9 +96,9 @@ func TestHandler_DirectoryRequestFallsToIndex(t *testing.T) {
 	// fall through to index.html — react-router treats /channels as a
 	// route, not a directory listing.
 	fs := fstest.MapFS{
-		"index.html":      &fstest.MapFile{Data: []byte("<root/>")},
-		"assets/foo.txt":  &fstest.MapFile{Data: []byte("foo")},
-		"assets/bar.txt":  &fstest.MapFile{Data: []byte("bar")},
+		"index.html":     &fstest.MapFile{Data: []byte("<root/>")},
+		"assets/foo.txt": &fstest.MapFile{Data: []byte("foo")},
+		"assets/bar.txt": &fstest.MapFile{Data: []byte("bar")},
 	}
 	h := HandlerFromFS(fs)
 	req := httptest.NewRequest(http.MethodGet, "/assets", nil)

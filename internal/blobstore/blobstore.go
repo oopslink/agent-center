@@ -40,10 +40,10 @@ type BlobStore interface {
 
 // Sentinel errors. Use errors.Is to test.
 var (
-	ErrBlobNotFound        = errors.New("blobstore: not found")
-	ErrBlobAlreadyExists   = errors.New("blobstore: already exists")
-	ErrBlobStoreUnavail    = errors.New("blobstore: store unavailable")
-	ErrPayloadTooLarge     = errors.New("blobstore: payload too large")
+	ErrBlobNotFound      = errors.New("blobstore: not found")
+	ErrBlobAlreadyExists = errors.New("blobstore: already exists")
+	ErrBlobStoreUnavail  = errors.New("blobstore: store unavailable")
+	ErrPayloadTooLarge   = errors.New("blobstore: payload too large")
 )
 
 // MaxBlobBytes is the default v1 guard against runaway uploads. Configurable

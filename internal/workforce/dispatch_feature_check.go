@@ -43,24 +43,24 @@ func CheckDispatchFeatures(ai *AgentInstance, cap Capability) FeatureCheckResult
 	}
 	if cap.AgentCLI != ai.AgentCLI() {
 		return FeatureCheckResult{
-			OK:      false,
-			Reason:  "capability_missing",
+			OK:     false,
+			Reason: "capability_missing",
 			Message: fmt.Sprintf("capability mismatch: agent expects %s but capability is for %s",
 				ai.AgentCLI(), cap.AgentCLI),
 		}
 	}
 	if ai.HasMCPConfig() && !cap.SupportsMCP {
 		return FeatureCheckResult{
-			OK:      false,
-			Reason:  "feature_unsupported",
+			OK:     false,
+			Reason: "feature_unsupported",
 			Message: fmt.Sprintf("adapter %q does not support MCP but agent_instance %q has mcp_config",
 				cap.AgentCLI, ai.Name()),
 		}
 	}
 	if ai.HasSkillsHint() && !cap.SupportsSkills {
 		return FeatureCheckResult{
-			OK:      false,
-			Reason:  "feature_unsupported",
+			OK:     false,
+			Reason: "feature_unsupported",
 			Message: fmt.Sprintf("adapter %q does not support skills but agent_instance %q references skills",
 				cap.AgentCLI, ai.Name()),
 		}

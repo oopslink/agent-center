@@ -36,11 +36,11 @@ func TestHashPasscode_DifferentSalts(t *testing.T) {
 func TestValidatePasscodePlain(t *testing.T) {
 	longOK := strings.Repeat("a", 126) + "1!" // 128 runes, all three classes
 	valid := []string{
-		"abc12!@",     // letter + digit + symbol
-		"Passw0rd!",   // mixed
-		"a1!bcd",      // 6-char minimal valid
-		"密码1!ab",      // unicode letters count via unicode.IsLetter
-		longOK,        // exactly 128 chars
+		"abc12!@",   // letter + digit + symbol
+		"Passw0rd!", // mixed
+		"a1!bcd",    // 6-char minimal valid
+		"密码1!ab",    // unicode letters count via unicode.IsLetter
+		longOK,      // exactly 128 chars
 	}
 	for _, p := range valid {
 		if err := ValidatePasscodePlain(p); err != nil {

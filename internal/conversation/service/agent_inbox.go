@@ -36,7 +36,7 @@ type UnreadItem struct {
 	// inbox only scans conversations the agent participates in, so every uri
 	// here is from a participating conversation (download_file authz fail-closed).
 	Attachments []conversation.MessageAttachment
-	PostedAt     time.Time
+	PostedAt    time.Time
 	// ActorKind classifies the sender (human/agent/system) for the I7-D2 reply
 	// semantic: a HUMAN directed message must be answered; an AGENT-authored
 	// mention is "可回可不回" — reply only if content warrants, else SilentAck

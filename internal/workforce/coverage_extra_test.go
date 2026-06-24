@@ -254,7 +254,7 @@ func TestBootstrapTokenRevokedReason_String(t *testing.T) {
 func TestRehydrateBootstrapToken_Happy(t *testing.T) {
 	tok, err := RehydrateBootstrapToken(RehydrateBootstrapTokenInput{
 		ID: "01H", WorkerID: "W-1", ValueHash: "h",
-		Status: BootstrapTokenActive,
+		Status:    BootstrapTokenActive,
 		CreatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Minute),
 		CreatedBy: "u",
 	})
@@ -473,4 +473,3 @@ func TestHashTokenValue_EmptyAndNotEmpty(t *testing.T) {
 		t.Fatal()
 	}
 }
-

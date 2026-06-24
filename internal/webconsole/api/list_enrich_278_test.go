@@ -12,8 +12,8 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/identity"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
 )
 

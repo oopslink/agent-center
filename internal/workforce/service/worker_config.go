@@ -43,9 +43,9 @@ type SetConfigCommand struct {
 
 // SetConfigResult — EventID identifies the emitted worker.config.updated event.
 type SetConfigResult struct {
-	WorkerID workforce.WorkerID
+	WorkerID   workforce.WorkerID
 	NewVersion int
-	EventID  observability.EventID
+	EventID    observability.EventID
 }
 
 // SetConfig persists new concurrency / discovery config and emits the

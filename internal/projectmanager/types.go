@@ -98,11 +98,11 @@ var (
 	// every mutator (Rename/SetDescription/status transitions/Assign/…) rejects with
 	// this once the task is archived. Re-archiving an already-archived task also
 	// returns it (mirrors Conversation.Archive → ErrConversationArchived).
-	ErrTaskArchived        = errors.New("projectmanager: task is archived")
+	ErrTaskArchived = errors.New("projectmanager: task is archived")
 	// ErrTaskNotArchived guards the FinalizeArchived escape hatch (T339): it concludes
 	// an ALREADY-archived dead task and rejects a live (non-archived) task — a live task
 	// must use the normal Discard path, not this read-only-lock bypass.
-	ErrTaskNotArchived = errors.New("projectmanager: task is not archived")
+	ErrTaskNotArchived     = errors.New("projectmanager: task is not archived")
 	ErrBlockReasonRequired = errors.New("projectmanager: blocked requires a reason (plan §2.2)")
 	// ErrInvalidBlockReasonType (v2.14.0 I14/F3, finding 01KVNFR…/§13.A): block_task
 	// must carry a reasonType ∈ {input_required, obstacle}. F1's Task.Block validates

@@ -201,7 +201,7 @@ func TestAgentInbox_ListUnreadForIdentity(t *testing.T) {
 
 	// Channel (agent is a participant): only @mentions surface.
 	f.seedConv(t, "ch-1", conversation.ConversationKindChannel, "org-1", agent, "user:alice")
-	f.seedMsg(t, "ch-1-msg-1", "ch-1", "user:alice", "morning everyone") // no mention → excluded
+	f.seedMsg(t, "ch-1-msg-1", "ch-1", "user:alice", "morning everyone")   // no mention → excluded
 	f.seedMsg(t, "ch-1-msg-2", "ch-1", "user:alice", "@Bot please review") // mention → included
 
 	// Channel the agent is NOT in (mentions it, but non-participant) → excluded.

@@ -39,11 +39,11 @@ func seedUnknown(t *testing.T, sink *observability.EventSink, n int, adapter, cl
 			EventType: escalator.EventTypeUnknownSeen,
 			Actor:     observability.Actor("worker:W-1"),
 			Payload: map[string]any{
-				"adapter_name":    adapter,
-				"cli_type_field":  cliType,
-				"sample_raw":      `{"type":"new_thing"}`,
-				"reason":          "first_seen",
-				"message":         "encountered an unknown event type",
+				"adapter_name":   adapter,
+				"cli_type_field": cliType,
+				"sample_raw":     `{"type":"new_thing"}`,
+				"reason":         "first_seen",
+				"message":        "encountered an unknown event type",
 			},
 		})
 		if err != nil {

@@ -18,12 +18,12 @@ import (
 // canned (merged, err) and counts calls so a test can assert the guard short-circuited
 // (e.g. skip/role/nil cases must NOT call it).
 type fakeMergeChecker struct {
-	merged    bool
-	err       error
-	calls     int
-	lastURL   string
-	lastBr    string
-	lastBase  string
+	merged   bool
+	err      error
+	calls    int
+	lastURL  string
+	lastBr   string
+	lastBase string
 }
 
 func (f *fakeMergeChecker) BranchMergedToOrigin(_ context.Context, repoURL, branch, base string) (bool, error) {

@@ -226,8 +226,8 @@ func NewSecretResolutionService(db *sql.DB, repo secretmgmt.UserSecretRepository
 
 // ResolveRequest inputs.
 type ResolveRequest struct {
-	SecretName    string
-	CallerActor   observability.Actor // worker:<worker_id> for worker daemon
+	SecretName  string
+	CallerActor observability.Actor // worker:<worker_id> for worker daemon
 }
 
 // ResolveResponse — plaintext returned ONCE, caller must wipe after use.

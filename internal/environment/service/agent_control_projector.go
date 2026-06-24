@@ -120,8 +120,8 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 	cmdPayload, err := json.Marshal(reconcileCommandPayload{
 		AgentID:          pl.AgentID,
 		DesiredLifecycle: pl.Lifecycle,
-		Model:            pl.Model, // passthrough (pure event-driven; no Agent-repo read)
-		CLI:              pl.CLI,   // passthrough — per-CLI starter selection on the worker
+		Model:            pl.Model,     // passthrough (pure event-driven; no Agent-repo read)
+		CLI:              pl.CLI,       // passthrough — per-CLI starter selection on the worker
 		Reasoning:        pl.Reasoning, // T236 passthrough
 		Mode:             pl.Mode,      // T236 passthrough
 		Provider:         pl.Provider,  // T236 passthrough

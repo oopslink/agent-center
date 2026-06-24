@@ -33,9 +33,9 @@ const (
 	CycleRoleDecision  CycleNodeRole = "decision"  // 决策/网关 — produces pass/reject outcome routing its out-edges (B2/B0 §2.1)
 	CycleRoleIntegrate CycleNodeRole = "integrate" // 集成 — merge-check landing point (F3/F4 target)
 	CycleRoleEscape    CycleNodeRole = "escape"    // 逃生/人工兜底 — reached when a Decision's bounded loopback exhausts (B0 §4.1/§9)
-	CycleRoleGate      CycleNodeRole = "gate"       // 集成完成 Gate — PD barrier
-	CycleRoleAccept    CycleNodeRole = "accept"     // 验收
-	CycleRoleShip      CycleNodeRole = "ship"       // Ship — dev/vX.Y.0 → main + tag
+	CycleRoleGate      CycleNodeRole = "gate"      // 集成完成 Gate — PD barrier
+	CycleRoleAccept    CycleNodeRole = "accept"    // 验收
+	CycleRoleShip      CycleNodeRole = "ship"      // Ship — dev/vX.Y.0 → main + tag
 )
 
 // IsValid reports enum membership (an empty/unknown role is invalid — it simply

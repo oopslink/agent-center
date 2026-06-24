@@ -47,7 +47,7 @@ type Worker struct {
 // convenience; they are auto-promoted to Capability{Detected:true,Enabled:true}.
 // For richer initialisation use CapabilityList directly.
 type NewWorkerInput struct {
-	ID             WorkerID
+	ID WorkerID
 	// Name is the operator-facing friendly label. Optional; defaults
 	// to ID when empty so legacy callers continue to work.
 	Name           string

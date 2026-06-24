@@ -9,8 +9,8 @@
 // Wire format:
 //   - Client → Server: 1 JSON request line `{"execution_id":"E-1","last":10,"kind":"tool_call","follow":true}\n`
 //   - Server → Client: N JSON response lines, each is either:
-//       * `{"line":"<raw events.jsonl row>"}` (a streamed trace event)
-//       * `{"error":{"reason":"worker_offline","message":"..."}}`
+//   - `{"line":"<raw events.jsonl row>"}` (a streamed trace event)
+//   - `{"error":{"reason":"worker_offline","message":"..."}}`
 //     terminated by `{"done":true}\n` or by the connection closing.
 package peek
 

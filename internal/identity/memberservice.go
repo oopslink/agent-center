@@ -505,9 +505,9 @@ func (s *IdentityAccountService) ReEnable(ctx context.Context, identityID, reEna
 
 // MemberCreateUserResult holds the new identity, member, and temp passcode.
 type MemberCreateUserResult struct {
-	Identity      *Identity
-	Member        *Member
-	TempPasscode  string // plaintext temp passcode (returned ONCE; user must change on first signin)
+	Identity     *Identity
+	Member       *Member
+	TempPasscode string // plaintext temp passcode (returned ONCE; user must change on first signin)
 }
 
 // MemberCreateUserService creates a new user Identity and adds it as a member

@@ -36,13 +36,13 @@ func TestInspectConversation_WithMessages(t *testing.T) {
 	env := newQEnv(t)
 	env.seedConversation(t, "C-1", conversation.ConversationKindDM)
 	msg, err := conversation.NewMessage(conversation.NewMessageInput{
-		ID:                "M-1",
-		ConversationID:    "C-1",
-		SenderIdentityID:  conversation.IdentityRef("user:t"),
-		ContentKind:       conversation.MessageContentKind("text"),
-		Content:           "hi",
-		Direction:         conversation.MessageDirection("internal"),
-		PostedAt:          env.clk.Now(),
+		ID:               "M-1",
+		ConversationID:   "C-1",
+		SenderIdentityID: conversation.IdentityRef("user:t"),
+		ContentKind:      conversation.MessageContentKind("text"),
+		Content:          "hi",
+		Direction:        conversation.MessageDirection("internal"),
+		PostedAt:         env.clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -98,4 +98,3 @@ func TestInspect_Project_WithTasks(t *testing.T) {
 		t.Fatal("tags must be dropped (pm.Project has no Tags)")
 	}
 }
-

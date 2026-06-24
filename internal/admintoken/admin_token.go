@@ -52,12 +52,12 @@ type AdminToken struct {
 
 // NewAdminTokenInput captures the fields available at creation.
 type NewAdminTokenInput struct {
-	ID         TokenID
-	Owner      Owner
-	Scopes     []Scope
-	ValueHash  []byte
-	CreatedAt  time.Time
-	CreatedBy  string
+	ID        TokenID
+	Owner     Owner
+	Scopes    []Scope
+	ValueHash []byte
+	CreatedAt time.Time
+	CreatedBy string
 	// v2.4-D-A3: set IsEnroll=true + ExpiresAt non-nil to mint an
 	// enroll-token (short TTL, first-use-burns). Long-term tokens
 	// leave both at zero values.

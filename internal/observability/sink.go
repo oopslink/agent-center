@@ -44,10 +44,10 @@ type SeqAllocator interface {
 //	    return err
 //	})
 type EventSink struct {
-	repo    EventRepository
-	seq     SeqAllocator
-	idgen   idgen.Generator
-	clock   clock.Clock
+	repo  EventRepository
+	seq   SeqAllocator
+	idgen idgen.Generator
+	clock clock.Clock
 }
 
 // NewEventSink constructs an EventSink. The same SQLite EventRepo is

@@ -269,10 +269,10 @@ func (s *BootstrapTokenService) Revoke(ctx context.Context, cmd RevokeCommand) (
 			Refs:      observability.EventRefs{WorkerID: string(tok.WorkerID())},
 			Actor:     cmd.ActorIdentity,
 			Payload: map[string]any{
-				"token_id":       string(tok.ID()),
-				"worker_id":      string(tok.WorkerID()),
-				"revoked_by":     cmd.ActorIdentity.String(),
-				"revoked_reason": string(cmd.Reason),
+				"token_id":        string(tok.ID()),
+				"worker_id":       string(tok.WorkerID()),
+				"revoked_by":      cmd.ActorIdentity.String(),
+				"revoked_reason":  string(cmd.Reason),
 				"revoked_message": cmd.Message,
 			},
 		})

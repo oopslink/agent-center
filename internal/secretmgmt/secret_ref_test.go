@@ -57,11 +57,11 @@ func TestParseSecretRef_InvalidCases(t *testing.T) {
 	cases := []string{
 		"",
 		":",
-		"github-pat",      // no scheme
-		"secret:",         // no name
-		":github-pat",     // empty scheme
-		"env:GITHUB_PAT",  // unsupported scheme
-		"file:/path",      // unsupported scheme
+		"github-pat",     // no scheme
+		"secret:",        // no name
+		":github-pat",    // empty scheme
+		"env:GITHUB_PAT", // unsupported scheme
+		"file:/path",     // unsupported scheme
 		"secret:with spaces",
 		"secret:bad@char",
 	}

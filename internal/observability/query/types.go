@@ -105,9 +105,9 @@ type InspectResult struct {
 
 // Sentinel errors for the QueryService. Use errors.Is to test.
 var (
-	ErrInspectKindUnknown    = errors.New("query: unknown inspect kind")
-	ErrQueryResourceUnknown  = errors.New("query: unknown resource")
-	ErrInspectIDRequired     = errors.New("query: inspect id required")
-	ErrInspectNotFound       = errors.New("query: inspect target not found")
-	ErrInspectUnimplemented  = errors.New("query: inspect kind not yet provisioned with data")
+	ErrInspectKindUnknown   = errors.New("query: unknown inspect kind")
+	ErrQueryResourceUnknown = errors.New("query: unknown resource")
+	ErrInspectIDRequired    = errors.New("query: inspect id required")
+	ErrInspectNotFound      = errors.New("query: inspect target not found")
+	ErrInspectUnimplemented = errors.New("query: inspect kind not yet provisioned with data")
 )

@@ -37,11 +37,13 @@ import (
 //
 // THE TRIGGER: if a future change is genuinely BREAKING (reframing / removed /
 // repurposed field / changed semantics), you MUST AT THAT TIME either
-//   (a) re-introduce a mixed-version guard — a returning daemon detects the
-//       incompatible old supervisor and FORCES A RELAUNCH instead of a silent
-//       mis-parse (re-add the version check in supervisormanager.ProbeAgent, where
-//       a comment marks the spot), OR
-//   (b) force-relaunch ALL existing agents on that deploy,
+//
+//	(a) re-introduce a mixed-version guard — a returning daemon detects the
+//	    incompatible old supervisor and FORCES A RELAUNCH instead of a silent
+//	    mis-parse (re-add the version check in supervisormanager.ProbeAgent, where
+//	    a comment marks the spot), OR
+//	(b) force-relaunch ALL existing agents on that deploy,
+//
 // PLUS its real-claude e2e (Tester's Mode A-x GATE, removed now, comes back then).
 // Without that, an old supervisor would fail to parse the new wire and re-attach
 // would SILENTLY break. This note (+ Tester's §A registration) is the single place

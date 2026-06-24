@@ -203,9 +203,9 @@ func (s *AgentInstanceManagementService) Archive(ctx context.Context, cmd Archiv
 			Refs:      observability.EventRefs{},
 			Actor:     cmd.ActorIdentity,
 			Payload: map[string]any{
-				"id":              string(cmd.ID),
-				"archived_by":     cmd.ActorIdentity.String(),
-				"archived_reason": string(cmd.Reason),
+				"id":               string(cmd.ID),
+				"archived_by":      cmd.ActorIdentity.String(),
+				"archived_reason":  string(cmd.Reason),
 				"archived_message": cmd.Message,
 			},
 		})

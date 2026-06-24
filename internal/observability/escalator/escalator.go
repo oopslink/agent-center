@@ -64,9 +64,9 @@ type Service struct {
 }
 
 type dedupKey struct {
-	adapterName    string
-	cliTypeField   string
-	dayBucket      string
+	adapterName  string
+	cliTypeField string
+	dayBucket    string
 }
 
 // NewService wires the escalator. Defaults applied to cfg.

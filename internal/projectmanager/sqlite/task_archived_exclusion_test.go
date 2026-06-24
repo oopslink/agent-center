@@ -8,7 +8,7 @@ import (
 )
 
 // TestTaskRepo_ListOrgPage_ExcludesArchived is the T339 display fix: an archived task
-// (archived_at != '') must NOT leak into the default tasks list / board, even when its
+// (archived_at != ”) must NOT leak into the default tasks list / board, even when its
 // status still matches the filter (the open+archived leak). IncludeArchived opts back
 // in for an explicit archived view.
 func TestTaskRepo_ListOrgPage_ExcludesArchived(t *testing.T) {
@@ -39,8 +39,8 @@ func TestTaskRepo_ListOrgPage_ExcludesArchived(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	mk("live-open", pm.TaskOpen, false)       // live → visible
-	mk("archived-open", pm.TaskOpen, true)    // the leak → hidden by default
+	mk("live-open", pm.TaskOpen, false)    // live → visible
+	mk("archived-open", pm.TaskOpen, true) // the leak → hidden by default
 	mk("archived-done", pm.TaskCompleted, true)
 
 	q := pm.OrgListQuery{ProjectIDs: []pm.ProjectID{"P1"}}

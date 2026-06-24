@@ -186,4 +186,3 @@ func TestAgentInstanceRepo_Archive_RejectsActive(t *testing.T) {
 		t.Fatal("expected archive rejection from active")
 	}
 }
-

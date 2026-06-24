@@ -225,7 +225,7 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 			Name: name, Description: desc.String, Model: model.String, CLI: cli.String,
 			Reasoning: reasoning.String, Mode: mode.String, Provider: provider.String, EnvVars: env,
 		},
-		Skills:  skills, WorkerID: workerID,
+		Skills: skills, WorkerID: workerID,
 		Lifecycle: agent.AgentLifecycle(lifecycle), LifecycleError: lifecycleErr.String,
 		CreatedBy:        agent.IdentityRef(createdBy),
 		IdentityMemberID: identityMemberID.String,

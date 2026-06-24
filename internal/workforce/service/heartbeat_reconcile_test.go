@@ -17,7 +17,7 @@ import (
 // fixedClock advances on demand for the reconciler edge-case tests.
 type fixedClock struct{ now time.Time }
 
-func (c *fixedClock) Now() time.Time     { return c.now }
+func (c *fixedClock) Now() time.Time          { return c.now }
 func (c *fixedClock) advance(d time.Duration) { c.now = c.now.Add(d) }
 
 func setupHB(t *testing.T) (workforce.WorkerRepository, *observability.EventSink, *fixedClock, func()) {
@@ -47,7 +47,7 @@ func TestReconciler_FreshlyEnrolledNotInScope(t *testing.T) {
 	repo, sink, clk, cleanup := setupHB(t)
 	defer cleanup()
 	w, err := workforce.NewWorker(workforce.NewWorkerInput{
-		ID:         "w-fresh", Capabilities: []string{"fakeagent"}, EnrolledAt: clk.Now(),
+		ID: "w-fresh", Capabilities: []string{"fakeagent"}, EnrolledAt: clk.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -113,4 +113,3 @@ func TestReconciler_OnlineWithFreshHeartbeatStaysOnline(t *testing.T) {
 		t.Errorf("fresh-heartbeat worker should stay online; got %q", got.Status())
 	}
 }
-

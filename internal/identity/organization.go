@@ -70,15 +70,15 @@ func RehydrateOrganization(
 
 // Getters.
 
-func (o *Organization) ID() string                { return o.id }
-func (o *Organization) Slug() string              { return o.slug }
-func (o *Organization) Name() string              { return o.name }
-func (o *Organization) Description() string       { return o.description }
+func (o *Organization) ID() string                  { return o.id }
+func (o *Organization) Slug() string                { return o.slug }
+func (o *Organization) Name() string                { return o.name }
+func (o *Organization) Description() string         { return o.description }
 func (o *Organization) CreatedByIdentityID() string { return o.createdByIdentityID }
-func (o *Organization) CreatedAt() time.Time      { return o.createdAt }
-func (o *Organization) UpdatedAt() time.Time      { return o.updatedAt }
-func (o *Organization) DeletedAt() *time.Time     { return o.deletedAt }
-func (o *Organization) IsDeleted() bool           { return o.deletedAt != nil }
+func (o *Organization) CreatedAt() time.Time        { return o.createdAt }
+func (o *Organization) UpdatedAt() time.Time        { return o.updatedAt }
+func (o *Organization) DeletedAt() *time.Time       { return o.deletedAt }
+func (o *Organization) IsDeleted() bool             { return o.deletedAt != nil }
 
 // UpdateName sets the organization name (admin+).
 func (o *Organization) UpdateName(name string) error {

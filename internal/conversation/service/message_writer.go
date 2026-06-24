@@ -420,8 +420,8 @@ func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conver
 		Sender:          string(m.SenderIdentityID()),
 		Text:            m.Content(),
 		RootMessageID:   string(m.RootMessageID()), // F4: thread root (empty if top-level)
-		AttachmentCount: len(m.Attachments()),       // T74: tell the brief about file(s)
-		Attachments:     m.Attachments(),            // T103: carry the file_uri(s) → woken agent can download_file
+		AttachmentCount: len(m.Attachments()),      // T74: tell the brief about file(s)
+		Attachments:     m.Attachments(),           // T103: carry the file_uri(s) → woken agent can download_file
 	})
 	if err != nil {
 		return err

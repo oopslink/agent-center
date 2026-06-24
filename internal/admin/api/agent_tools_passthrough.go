@@ -266,8 +266,8 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 type listTasksReq struct {
 	AgentID   string   `json:"agent_id"`
 	ProjectID string   `json:"project_id"`
-	Status    []string `json:"status"`   // optional; one or more task statuses
-	Assignee  string   `json:"assignee"` // optional; exact identity ref (agent:x / user:y)
+	Status    []string `json:"status"`    // optional; one or more task statuses
+	Assignee  string   `json:"assignee"`  // optional; exact identity ref (agent:x / user:y)
 	PageSize  int      `json:"page_size"` // optional; page window (default 50, max 100)
 	Offset    int      `json:"offset"`    // optional; rows to skip (default 0)
 }

@@ -160,10 +160,10 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 	}
 
 	ref, err := supervisormanager.SpawnSupervisor(ctx, supervisormanager.SpawnSupervisorCfg{
-		AgentID:       cfg.AgentID,
-		HomeDir:       cfg.HomeDir,
-		MCPConfigPath: cfg.MCPConfigPath,
-		WorkspaceDir:  cfg.WorkspaceDir,
+		AgentID:             cfg.AgentID,
+		HomeDir:             cfg.HomeDir,
+		MCPConfigPath:       cfg.MCPConfigPath,
+		WorkspaceDir:        cfg.WorkspaceDir,
 		BinaryPath:          cfg.BinaryPath,
 		Model:               cfg.Model,
 		ClaudeBin:           cfg.ClaudeBin,

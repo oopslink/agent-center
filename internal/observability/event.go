@@ -83,19 +83,19 @@ func (a Actor) Validate() error {
 // Add fields here as Phase 2+ needs them. JSON marshaller is omitempty-
 // safe: empty struct serialises to `{}`.
 type EventRefs struct {
-	IdentityID       string `json:"identity_id,omitempty"`
-	OrganizationID   string `json:"organization_id,omitempty"`
-	MemberID         string `json:"member_id,omitempty"`
-	WorkerID         string `json:"worker_id,omitempty"`
-	ProjectID        string `json:"project_id,omitempty"`
-	ProposalID       string `json:"proposal_id,omitempty"`
-	MappingID        string `json:"mapping_id,omitempty"`
-	ConversationID   string `json:"conversation_id,omitempty"`
-	MessageID        string `json:"message_id,omitempty"`
-	TaskID           string `json:"task_id,omitempty"`
-	ExecutionID      string `json:"execution_id,omitempty"`
-	InputRequestID   string `json:"input_request_id,omitempty"`
-	IssueID          string `json:"issue_id,omitempty"`
+	IdentityID     string `json:"identity_id,omitempty"`
+	OrganizationID string `json:"organization_id,omitempty"`
+	MemberID       string `json:"member_id,omitempty"`
+	WorkerID       string `json:"worker_id,omitempty"`
+	ProjectID      string `json:"project_id,omitempty"`
+	ProposalID     string `json:"proposal_id,omitempty"`
+	MappingID      string `json:"mapping_id,omitempty"`
+	ConversationID string `json:"conversation_id,omitempty"`
+	MessageID      string `json:"message_id,omitempty"`
+	TaskID         string `json:"task_id,omitempty"`
+	ExecutionID    string `json:"execution_id,omitempty"`
+	InputRequestID string `json:"input_request_id,omitempty"`
+	IssueID        string `json:"issue_id,omitempty"`
 	// AgentID (v2.7 #111 #3b): join key for the work-item transition events the
 	// observability fan-out records for stats. (v2.14.0: the vestigial
 	// WorkItemID ref dimension — the old AgentWorkItem-id filter — was dropped;

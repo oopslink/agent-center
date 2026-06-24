@@ -12,7 +12,7 @@ import (
 // so the service-level tests can assert retention math + batched-drain looping without
 // a real DB.
 type fakeGCRepo struct {
-	backlog    int   // acked+old rows still to delete
+	backlog    int // acked+old rows still to delete
 	lastCutoff time.Time
 	calls      int
 }

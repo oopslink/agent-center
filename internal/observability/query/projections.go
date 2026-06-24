@@ -16,9 +16,9 @@ import (
 // `inspect execution <task_id>`.
 func projectTaskExecutionSummary(t *pm.Task) map[string]any {
 	return map[string]any{
-		"agent_id":     agentMemberIDFromAssignee(t.Assignee()),
-		"task_id":      string(t.ID()),
-		"status":       taskExecStatus(t),
+		"agent_id": agentMemberIDFromAssignee(t.Assignee()),
+		"task_id":  string(t.ID()),
+		"status":   taskExecStatus(t),
 	}
 }
 
@@ -91,14 +91,14 @@ func projectMessageList(items []*conversation.Message) []any {
 
 func projectEventFull(e *observability.Event) map[string]any {
 	out := map[string]any{
-		"id":           string(e.ID()),
-		"occurred_at":  e.OccurredAt().UTC().Format(time.RFC3339Nano),
-		"seq":          e.Seq(),
-		"event_type":   string(e.Type()),
-		"actor":        string(e.Actor()),
-		"refs":         e.Refs(),
-		"payload":      e.Payload(),
-		"created_at":   e.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"id":          string(e.ID()),
+		"occurred_at": e.OccurredAt().UTC().Format(time.RFC3339Nano),
+		"seq":         e.Seq(),
+		"event_type":  string(e.Type()),
+		"actor":       string(e.Actor()),
+		"refs":        e.Refs(),
+		"payload":     e.Payload(),
+		"created_at":  e.CreatedAt().UTC().Format(time.RFC3339Nano),
 	}
 	if e.CorrelationID() != "" {
 		out["correlation_id"] = e.CorrelationID()

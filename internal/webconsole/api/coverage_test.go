@@ -709,4 +709,3 @@ func TestAPI_ArchiveConversation_BadJSON(t *testing.T) {
 		t.Fatalf("error=%v want invalid_json", body["error"])
 	}
 }
-

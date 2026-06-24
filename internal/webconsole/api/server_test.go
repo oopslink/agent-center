@@ -121,13 +121,13 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	// (handlers_agent.go). Mirrors deps.PM: sqlite repos over the test DB + the
 	// workforce WorkerRepo for the worker-in-org check & availability derivation.
 	deps.AgentSvc = agentsvc.New(agentsvc.Deps{
-		DB:        db,
-		Agents:    agentsql.NewAgentRepo(db),
-		Activity:  agentsql.NewActivityEventRepo(db),
-		Workers:   wfsqlite.NewWorkerRepo(db),
-		Outbox:    outboxsql.NewOutboxRepo(db),
-		IDGen:     idgen.NewGenerator(clock.SystemClock{}),
-		Clock:     clock.SystemClock{},
+		DB:       db,
+		Agents:   agentsql.NewAgentRepo(db),
+		Activity: agentsql.NewActivityEventRepo(db),
+		Workers:  wfsqlite.NewWorkerRepo(db),
+		Outbox:   outboxsql.NewOutboxRepo(db),
+		IDGen:    idgen.NewGenerator(clock.SystemClock{}),
+		Clock:    clock.SystemClock{},
 	})
 	// v2.7 #157: agent identity-member provisioning (Members→Add Agent), incl. the
 	// unified one-step create that also spins up the execution Agent.
@@ -226,7 +226,7 @@ func orgScopedURL(url, slug string) string {
 	if idx < 0 {
 		return url
 	}
-	head := url[:idx]            // "" or "scheme://host"
+	head := url[:idx]                // "" or "scheme://host"
 	rest := url[idx+len(apiPrefix):] // e.g. "conversations" or "orgs/s/x"
 	if strings.HasPrefix(rest, "orgs/") || rest == "orgs" {
 		return url // already path-scoped (or the org CRUD endpoint itself)

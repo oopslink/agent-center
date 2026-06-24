@@ -23,7 +23,7 @@ func TestOrgRouting_NoBareOrgScopedRoute(t *testing.T) {
 		"/api/auth/signin": true, "/api/auth/signout": true, "/api/auth/signup": true,
 		"/api/orgs": true, "/api/orgs/{id}": true,
 		"/api/users/{user_id}": true,
-		"/api/sse": true, "/api/sse/subscribe": true, "/api/sse/unsubscribe": true,
+		"/api/sse":             true, "/api/sse/subscribe": true, "/api/sse/unsubscribe": true,
 		"/api/health": true, "/api/system/version": true,
 		// I7-D1 (T216): wake-guardrail thresholds are CENTER-WIDE (one process-global
 		// WakeGuard config, not per-org) — like /api/system/version. Authed (session)

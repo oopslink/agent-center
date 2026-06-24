@@ -372,12 +372,12 @@ func TestTaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks(t *testing.T) 
 	mkPlan("PL-ARCH", pm.PlanArchived)
 	mkPlan("PL-DONE", pm.PlanDone)
 	mkPlan("PL-RUN", pm.PlanRunning)
-	mkTask("TA1", "PL-ARCH", pm.TaskOpen)  // archived plan → excluded
-	mkTask("TA2", "PL-ARCH", pm.TaskOpen)  // archived plan → excluded
-	mkTask("TD1", "PL-DONE", pm.TaskOpen)  // done plan → excluded
-	mkTask("TR1", "PL-RUN", pm.TaskOpen)   // running plan → counted
+	mkTask("TA1", "PL-ARCH", pm.TaskOpen)   // archived plan → excluded
+	mkTask("TA2", "PL-ARCH", pm.TaskOpen)   // archived plan → excluded
+	mkTask("TD1", "PL-DONE", pm.TaskOpen)   // done plan → excluded
+	mkTask("TR1", "PL-RUN", pm.TaskOpen)    // running plan → counted
 	mkTask("TRr", "PL-RUN", pm.TaskRunning) // running plan, doing → counted
-	mkTask("TB1", "", pm.TaskOpen)         // no plan (backlog) → counted
+	mkTask("TB1", "", pm.TaskOpen)          // no plan (backlog) → counted
 
 	got, err := tr.CountActiveByAssignee(ctx)
 	if err != nil {

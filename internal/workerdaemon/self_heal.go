@@ -48,7 +48,7 @@ type selfHealEntry struct {
 	lastCrashMsg   string    // most recent crash cause (observability)
 	version        int       // reconcile version captured at crash, for the relaunch
 	nudge          bool      // had active work at crash → re-drive the interrupted turn
-	taskID     string    // in-flight WorkItem id captured at crash (survives the
+	taskID         string    // in-flight WorkItem id captured at crash (survives the
 	// managedAgent delete) → the relaunch rebinds currentTaskID to it so a FAILED
 	// re-drive turn surfaces via L2 (no-silent-failure across Mode-B). Empty = idle crash.
 	model string // agent's claude --model captured at crash (survives the managedAgent
@@ -147,7 +147,7 @@ func (c *AgentController) recordCrashAndSchedule(agentID string, version int, ha
 	e.version = version
 	e.nudge = hadWork
 	e.taskID = taskID // rebound to currentTaskID on the relaunch (L2×Mode-B)
-	e.model = model           // re-driven claude spawns with the SAME model (self-heal gets no fresh reconcile)
+	e.model = model   // re-driven claude spawns with the SAME model (self-heal gets no fresh reconcile)
 	if dec.failed {
 		e.failed = true
 		e.nextRelaunchAt = time.Time{}
@@ -168,12 +168,12 @@ func (c *AgentController) recordCrashAndSchedule(agentID string, version int, ha
 func (c *AgentController) OnTick(ctx context.Context) {
 	now := c.now()
 	type due struct {
-		agentID    string
-		version    int
-		nudge      bool
-		taskID string
-		model      string
-		attempt    int
+		agentID string
+		version int
+		nudge   bool
+		taskID  string
+		model   string
+		attempt int
 	}
 	var dues []due
 	c.mu.Lock()

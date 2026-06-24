@@ -17,7 +17,9 @@ import (
 // =============================================================================
 
 // fakeCycleMeta is a stub CycleNodeMetaPort returning a fixed per-plan map.
-type fakeCycleMeta struct{ m map[pm.TaskID]pm.CycleNodeMeta }
+type fakeCycleMeta struct {
+	m map[pm.TaskID]pm.CycleNodeMeta
+}
 
 func (f fakeCycleMeta) CycleNodeMeta(_ context.Context, _ pm.PlanID) (map[pm.TaskID]pm.CycleNodeMeta, error) {
 	return f.m, nil

@@ -218,4 +218,3 @@ func (s *StatsService) aggregateIssues(ctx context.Context, res StatsResult, sin
 	res.Totals["total"] = total
 	return res, nil
 }
-

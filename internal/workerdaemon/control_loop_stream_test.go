@@ -535,7 +535,7 @@ func TestStream_HOL_DoesNotSkipStuckHead(t *testing.T) {
 	fs := newControlFakeServer()
 	st := &fakeStreamClient{}
 	seedShared(fs, st, "agent.work", "{}", "k1") // cmd-1: the stuck head (fails)
-	seedShared(fs, st, "noop", "{}", "k2")        // cmd-2: must NOT be handled while cmd-1 stuck
+	seedShared(fs, st, "noop", "{}", "k2")       // cmd-2: must NOT be handled while cmd-1 stuck
 
 	rec := &recordingHandler{failOn: "cmd-1", failErr: errors.New("no running session (retry)")}
 	loop := newStreamLoop(t, fs, st, rec, nil)

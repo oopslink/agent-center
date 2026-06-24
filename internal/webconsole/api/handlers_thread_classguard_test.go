@@ -197,10 +197,12 @@ func TestClassGuard_ThreadDigestParity_AcrossRenderSites(t *testing.T) {
 // CLASS GUARD 3 — thread addressing is existence-non-disclosure (§5.7): every way of
 // addressing a thread the caller should not see resolves to 404, never 403/409/200.
 // One guard for the whole class, across BOTH thread read endpoints:
-//   (a) reply id as a root on /replies            → 404
-//   (b) foreign-conversation root on /replies      → 404 (FindThreadReplies conv-scoped)
-//   (c) cross-conversation parent on POST          → 404 (not 409/422)
-//   (d) cross-org conversation on /threads list    → 404
+//
+//	(a) reply id as a root on /replies            → 404
+//	(b) foreign-conversation root on /replies      → 404 (FindThreadReplies conv-scoped)
+//	(c) cross-conversation parent on POST          → 404 (not 409/422)
+//	(d) cross-org conversation on /threads list    → 404
+//
 // plus positive controls so the guard can't pass by always-404-ing.
 func TestClassGuard_ThreadIsolation_404_Class(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)

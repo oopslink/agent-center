@@ -49,13 +49,13 @@ func NewWorkerEnrollServiceV2(db *sql.DB, repo workforce.WorkerRepository, token
 
 // EnrollCommand captures the CLI input.
 type EnrollCommand struct {
-	WorkerID       workforce.WorkerID
+	WorkerID workforce.WorkerID
 	// Name is the operator-facing friendly label set at enroll time
 	// (v2.4-D-X1 @oopslink). Empty falls back to WorkerID inside the
 	// Worker AR.
-	Name           string
-	Capabilities   []string
-	ActorIdentity  observability.Actor
+	Name          string
+	Capabilities  []string
+	ActorIdentity observability.Actor
 }
 
 // EnrollResult is what the service returns.
@@ -72,9 +72,9 @@ type EnrollResult struct {
 //   - worker not found        → legacy path: NewWorker + Save (create)
 //   - worker found, offline   → update capabilities only (claim path)
 //   - worker found, online    → ErrWorkerAlreadyExists (real re-enroll
-//                                of a live worker is rejected so a
-//                                second daemon can't silently shadow
-//                                the first; operator must Remove first)
+//     of a live worker is rejected so a
+//     second daemon can't silently shadow
+//     the first; operator must Remove first)
 //
 // Either branch emits workforce.worker.enrolled — the event semantics
 // is "daemon successfully checked in for the first time", independent
@@ -474,12 +474,12 @@ var (
 )
 
 // Exchange validates the supplied BootstrapToken and atomically:
-//   1. marks the token used,
-//   2. creates the Worker (first-time enroll) — re-enroll of an existing
-//      worker_id is rejected because each token is single-use and bound to a
-//      specific worker_id,
-//   3. emits workforce.worker.bootstrap_token.used + workforce.worker.enrolled,
-//   4. returns an opaque session_token for the worker to persist locally.
+//  1. marks the token used,
+//  2. creates the Worker (first-time enroll) — re-enroll of an existing
+//     worker_id is rejected because each token is single-use and bound to a
+//     specific worker_id,
+//  3. emits workforce.worker.bootstrap_token.used + workforce.worker.enrolled,
+//  4. returns an opaque session_token for the worker to persist locally.
 //
 // Validation order (per ADR-0023 § 2 + plan § 3.3 step-1):
 //   - token exists (FindByValueHash) → not found → ErrBootstrapTokenNotFound

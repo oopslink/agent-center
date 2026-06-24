@@ -141,15 +141,15 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 	// merge guard + F4's board key on). Decision/Escape are the new B2 control-flow
 	// roles. Assert the per-title role mapping survived Save+ListByPlan.
 	wantRole := map[string]pm.CycleNodeRole{
-		f1Dev:   pm.CycleRoleDev,
+		f1Dev:    pm.CycleRoleDev,
 		f1Review: pm.CycleRoleReview,
-		f1Dec:   pm.CycleRoleDecision,
-		f1Integ: pm.CycleRoleIntegrate,
-		f1Esc:   pm.CycleRoleEscape,
-		f9Dev:   pm.CycleRoleDev,
-		gate:    pm.CycleRoleGate,
-		accept:  pm.CycleRoleAccept,
-		shipT:   pm.CycleRoleShip,
+		f1Dec:    pm.CycleRoleDecision,
+		f1Integ:  pm.CycleRoleIntegrate,
+		f1Esc:    pm.CycleRoleEscape,
+		f9Dev:    pm.CycleRoleDev,
+		gate:     pm.CycleRoleGate,
+		accept:   pm.CycleRoleAccept,
+		shipT:    pm.CycleRoleShip,
 	}
 	for title, want := range wantRole {
 		n := byTitle[title]
@@ -230,12 +230,12 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 		{f1Dev, s0Title, "seq", "", 0},
 		{f1Review, f1Dev, "seq", "", 0},
 		{f1Dec, f1Review, "seq", "", 0},
-		{f1Integ, f1Dec, "conditional", "pass", 0},          // pass → Integrate
+		{f1Integ, f1Dec, "conditional", "pass", 0},           // pass → Integrate
 		{f1Esc, f1Dec, "conditional", "reject_exhausted", 0}, // exhausted → Escape
 		{f1Dec, f1Dev, "loopback", "reject", 5},              // reject → bounded loop (max=5)
 		{f9Dev, s0Title, "seq", "", 0},
-		{gate, f1Integ, "seq", "", 0},  // Gate terminal = Integrate (pass path)
-		{gate, f9Dev, "seq", "", 0},    // doc-only terminal = its Dev
+		{gate, f1Integ, "seq", "", 0}, // Gate terminal = Integrate (pass path)
+		{gate, f9Dev, "seq", "", 0},   // doc-only terminal = its Dev
 		{accept, gate, "seq", "", 0},
 		{shipT, accept, "seq", "", 0},
 	}

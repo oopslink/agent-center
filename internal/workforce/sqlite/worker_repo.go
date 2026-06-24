@@ -404,23 +404,23 @@ func scanWorkers(rows *sql.Rows) ([]*workforce.Worker, error) {
 
 func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 	var (
-		id               string
-		name             string
-		status           string
-		concurrencyJSON  string
-		discoveryJSON    string
-		capsJSON         string
-		lastHeartbeatAt  sql.NullString
-		workingSeconds   int64
-		enrolledAt       string
-		onlineAt         sql.NullString
-		offlineAt        sql.NullString
-		offlineReason    sql.NullString
-		offlineMessage   sql.NullString
-		createdAt        string
-		updatedAt        string
-		version          int
-		organizationID   string
+		id              string
+		name            string
+		status          string
+		concurrencyJSON string
+		discoveryJSON   string
+		capsJSON        string
+		lastHeartbeatAt sql.NullString
+		workingSeconds  int64
+		enrolledAt      string
+		onlineAt        sql.NullString
+		offlineAt       sql.NullString
+		offlineReason   sql.NullString
+		offlineMessage  sql.NullString
+		createdAt       string
+		updatedAt       string
+		version         int
+		organizationID  string
 	)
 	if err := scan(&id, &name, &status, &concurrencyJSON, &discoveryJSON, &capsJSON,
 		&lastHeartbeatAt, &workingSeconds,

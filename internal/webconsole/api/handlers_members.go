@@ -191,8 +191,8 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		// Agent in one step (the unified create). worker_id is required for an
 		// execution agent (immutable binding, ADR-0049). Absent → identity-member
 		// only (legacy path).
-		Model    string            `json:"model"`
-		CLI      string            `json:"cli"`
+		Model string `json:"model"`
+		CLI   string `json:"cli"`
 		// T236: optional LLM tuning at create time ("" = runtime/center default).
 		Reasoning string            `json:"reasoning"`
 		Mode      string            `json:"mode"`

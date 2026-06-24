@@ -230,11 +230,11 @@ func HashTokenValue(plain string) string {
 
 // BootstrapToken sentinel errors.
 var (
-	ErrBootstrapTokenNotFound         = errors.New("workforce: bootstrap token not found")
-	ErrBootstrapTokenAlreadyExists    = errors.New("workforce: bootstrap token id already exists")
+	ErrBootstrapTokenNotFound          = errors.New("workforce: bootstrap token not found")
+	ErrBootstrapTokenAlreadyExists     = errors.New("workforce: bootstrap token id already exists")
 	ErrBootstrapTokenValueHashConflict = errors.New("workforce: bootstrap token value_hash conflict")
-	ErrBootstrapTokenNotActive        = errors.New("workforce: bootstrap token not in active state")
-	ErrBootstrapTokenAlreadyUsed      = errors.New("workforce: bootstrap token already used (terminal; not reissuable per ADR-0023)")
-	ErrBootstrapTokenStatusConflict   = errors.New("workforce: bootstrap token status conflict (concurrent transition)")
-	ErrBootstrapTokenActiveExists     = errors.New("workforce: worker already has an active bootstrap token")
+	ErrBootstrapTokenNotActive         = errors.New("workforce: bootstrap token not in active state")
+	ErrBootstrapTokenAlreadyUsed       = errors.New("workforce: bootstrap token already used (terminal; not reissuable per ADR-0023)")
+	ErrBootstrapTokenStatusConflict    = errors.New("workforce: bootstrap token status conflict (concurrent transition)")
+	ErrBootstrapTokenActiveExists      = errors.New("workforce: worker already has an active bootstrap token")
 )

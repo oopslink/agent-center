@@ -16,8 +16,8 @@ import (
 // directory (01-blob-store.md "实现"). Concurrency-safe at the FS level
 // (rename / O_TRUNC writes); no cross-process locking — single-server v1.
 type LocalDir struct {
-	root         string
-	maxBytes     int64
+	root     string
+	maxBytes int64
 }
 
 // NewLocalDir returns a LocalDir rooted at root. The directory is created

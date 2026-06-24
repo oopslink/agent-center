@@ -34,7 +34,7 @@ func (f *fakeCodexSess) Inject(_ context.Context, msg string) error {
 }
 
 func (f *fakeCodexSess) Stop(_ context.Context) error { f.fireExit(true, nil); return nil }
-func (f *fakeCodexSess) Detach()                       { f.fireExit(false, nil) }
+func (f *fakeCodexSess) Detach()                      { f.fireExit(false, nil) }
 
 func (f *fakeCodexSess) fireExit(viaStop bool, err error) {
 	f.mu.Lock()

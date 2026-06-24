@@ -137,22 +137,22 @@ func RehydrateUserSecret(in RehydrateUserSecretInput) (*UserSecret, error) {
 
 // Getters.
 
-func (u *UserSecret) ID() UserSecretID                   { return u.id }
-func (u *UserSecret) Name() string                       { return u.name }
-func (u *UserSecret) Kind() UserSecretKind               { return u.kind }
-func (u *UserSecret) Ciphertext() []byte                 { return append([]byte(nil), u.ciphertext...) }
-func (u *UserSecret) Nonce() []byte                      { return append([]byte(nil), u.nonce...) }
-func (u *UserSecret) State() UserSecretState             { return u.state }
-func (u *UserSecret) CreatedAt() time.Time               { return u.createdAt }
-func (u *UserSecret) CreatedBy() string                  { return u.createdBy }
-func (u *UserSecret) LastUsedAt() *time.Time             { return copyTimePtr(u.lastUsedAt) }
-func (u *UserSecret) RotatedAt() *time.Time              { return copyTimePtr(u.rotatedAt) }
-func (u *UserSecret) RevokedAt() *time.Time              { return copyTimePtr(u.revokedAt) }
-func (u *UserSecret) RevokedBy() string                  { return u.revokedBy }
+func (u *UserSecret) ID() UserSecretID                       { return u.id }
+func (u *UserSecret) Name() string                           { return u.name }
+func (u *UserSecret) Kind() UserSecretKind                   { return u.kind }
+func (u *UserSecret) Ciphertext() []byte                     { return append([]byte(nil), u.ciphertext...) }
+func (u *UserSecret) Nonce() []byte                          { return append([]byte(nil), u.nonce...) }
+func (u *UserSecret) State() UserSecretState                 { return u.state }
+func (u *UserSecret) CreatedAt() time.Time                   { return u.createdAt }
+func (u *UserSecret) CreatedBy() string                      { return u.createdBy }
+func (u *UserSecret) LastUsedAt() *time.Time                 { return copyTimePtr(u.lastUsedAt) }
+func (u *UserSecret) RotatedAt() *time.Time                  { return copyTimePtr(u.rotatedAt) }
+func (u *UserSecret) RevokedAt() *time.Time                  { return copyTimePtr(u.revokedAt) }
+func (u *UserSecret) RevokedBy() string                      { return u.revokedBy }
 func (u *UserSecret) RevokedReason() UserSecretRevokedReason { return u.revokedReason }
-func (u *UserSecret) RevokedMessage() string             { return u.revokedMessage }
-func (u *UserSecret) Version() int                       { return u.version }
-func (u *UserSecret) OrganizationID() string             { return u.organizationID }
+func (u *UserSecret) RevokedMessage() string                 { return u.revokedMessage }
+func (u *UserSecret) Version() int                           { return u.version }
+func (u *UserSecret) OrganizationID() string                 { return u.organizationID }
 
 // Rotate replaces ciphertext + nonce. Bumps rotated_at + version. Rejects
 // revoked secrets.

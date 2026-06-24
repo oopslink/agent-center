@@ -15,12 +15,13 @@ import (
 // Analytics is the SQLite-backed usage.AnalyticsService — the F4 read side of the
 // per-agent dashboard (issue-a7ff560e, v2.15.0). It aggregates on read across
 // three tables per the PD-pinned read-model split (see usage/analytics.go):
-//   · agent_activity_daily — heatmap, overview cards, project-dimension trend
-//     (the pre-aggregated fast path; summed across projects where needed).
-//   · usage_events         — model-dimension trend + Top-Cost-Tasks (the raw
-//     table carries the model + task_id the rollup intentionally drops).
-//   · pm_task_action_logs  — completed-task counts (action='completed'); read
-//     directly here exactly as rollup.go reads the PM tables for activity counts.
+//
+//	· agent_activity_daily — heatmap, overview cards, project-dimension trend
+//	  (the pre-aggregated fast path; summed across projects where needed).
+//	· usage_events         — model-dimension trend + Top-Cost-Tasks (the raw
+//	  table carries the model + task_id the rollup intentionally drops).
+//	· pm_task_action_logs  — completed-task counts (action='completed'); read
+//	  directly here exactly as rollup.go reads the PM tables for activity counts.
 //
 // Day bounds are inclusive UTC "YYYY-MM-DD" strings compared lexicographically
 // (valid for the fixed ISO format) against day/substr(ts,1,10), mirroring the

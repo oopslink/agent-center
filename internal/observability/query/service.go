@@ -167,12 +167,12 @@ func (s *Service) inspectExecution(ctx context.Context, id string) (InspectResul
 		return InspectResult{}, mapNotFound(err)
 	}
 	out := map[string]any{
-		"agent_id":     agentMemberIDFromAssignee(t.Assignee()),
-		"task_id":      string(t.ID()),
-		"status":       taskExecStatus(t),
-		"created_at":   t.CreatedAt().UTC().Format(time.RFC3339Nano),
-		"updated_at":   t.UpdatedAt().UTC().Format(time.RFC3339Nano),
-		"version":      t.Version(),
+		"agent_id":   agentMemberIDFromAssignee(t.Assignee()),
+		"task_id":    string(t.ID()),
+		"status":     taskExecStatus(t),
+		"created_at": t.CreatedAt().UTC().Format(time.RFC3339Nano),
+		"updated_at": t.UpdatedAt().UTC().Format(time.RFC3339Nano),
+		"version":    t.Version(),
 	}
 	out["projection"] = taskExecutionRow(t)
 	if s.deps.Events != nil {

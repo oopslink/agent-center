@@ -156,8 +156,8 @@ func TestTransferSessionRepo_ListOpen(t *testing.T) {
 		return s
 	}
 
-	live1 := mk("p-live-1", now, time.Hour)        // open + future expiry → included
-	live2 := mk("p-live-2", now, 24*time.Hour)     // open + future expiry → included
+	live1 := mk("p-live-1", now, time.Hour)           // open + future expiry → included
+	live2 := mk("p-live-2", now, 24*time.Hour)        // open + future expiry → included
 	mk("p-expired", now.Add(-2*time.Hour), time.Hour) // open but expired → excluded
 
 	completed := mk("p-completed", now, time.Hour)

@@ -10,9 +10,9 @@ import (
 
 // AgentProvisionForm holds the input for creating an agent identity.
 type AgentProvisionForm struct {
-	DisplayName  string
-	Description  string
-	Role         MemberRole
+	DisplayName string
+	Description string
+	Role        MemberRole
 }
 
 // AgentProvisionResult is the outcome of a successful agent provision.

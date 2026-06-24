@@ -66,9 +66,9 @@ type subscriber struct {
 // NewBus returns a fresh Bus. Heartbeat default 30s; ringBuffer default 256.
 func NewBus() *Bus {
 	return &Bus{
-		subs:      make(map[string]*subscriber),
-		channels:  make(map[string]map[string]struct{}),
-		ring:      newRingBuffer(256),
+		subs:     make(map[string]*subscriber),
+		channels: make(map[string]map[string]struct{}),
+		ring:     newRingBuffer(256),
 		// v2.10.2 [T135]: 15s (was 30s) so idle gaps stay short behind a
 		// domain/CDN/local-proxy chain (Cloudflare keep-idle ~100s, but a local
 		// forward proxy may read-timeout much sooner) and a dropped stream is

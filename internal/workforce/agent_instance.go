@@ -42,8 +42,8 @@ func (s AgentInstanceState) String() string { return string(s) }
 type AgentInstanceArchivedReason string
 
 const (
-	AgentInstanceArchivedReasonManual          AgentInstanceArchivedReason = "manual"
-	AgentInstanceArchivedReasonWorkerRetired   AgentInstanceArchivedReason = "worker_retired"
+	AgentInstanceArchivedReasonManual        AgentInstanceArchivedReason = "manual"
+	AgentInstanceArchivedReasonWorkerRetired AgentInstanceArchivedReason = "worker_retired"
 )
 
 // IsValid reports enum membership.
@@ -69,14 +69,14 @@ func (r AgentInstanceArchivedReason) String() string { return string(r) }
 //  6. is_builtin / name / agent_cli / is_builtin immutable post-create
 //  7. built-in cannot be archived
 type AgentInstance struct {
-	id              AgentInstanceID
-	name            string
-	agentCLI        string
-	workerID        *WorkerID // nullable iff isBuiltin
-	config          string    // raw JSON; opaque to AR (validated by service layer)
-	maxConcurrent   *int      // nullable = no AR-level cap
-	state           AgentInstanceState
-	isBuiltin       bool
+	id            AgentInstanceID
+	name          string
+	agentCLI      string
+	workerID      *WorkerID // nullable iff isBuiltin
+	config        string    // raw JSON; opaque to AR (validated by service layer)
+	maxConcurrent *int      // nullable = no AR-level cap
+	state         AgentInstanceState
+	isBuiltin     bool
 	// v2.6 fields (BE-7)
 	identityID      string // FK identities.id; empty for pre-v2.6 or supervisor rows
 	organizationID  string // FK organizations.id (app-layer enforced)
@@ -91,13 +91,13 @@ type AgentInstance struct {
 // NewAgentInstanceInput is the constructor input. Caller passes WorkerID==nil
 // only when IsBuiltin is true; the constructor enforces the XOR.
 type NewAgentInstanceInput struct {
-	ID             AgentInstanceID
-	Name           string
-	AgentCLI       string
-	WorkerID       *WorkerID
-	Config         string // JSON; pass "{}" if empty
-	MaxConcurrent  *int
-	IsBuiltin      bool
+	ID            AgentInstanceID
+	Name          string
+	AgentCLI      string
+	WorkerID      *WorkerID
+	Config        string // JSON; pass "{}" if empty
+	MaxConcurrent *int
+	IsBuiltin     bool
 	// v2.6 fields (BE-7)
 	IdentityID     string // FK identities.id; empty string for pre-v2.6 / supervisor
 	OrganizationID string // FK organizations.id
@@ -157,14 +157,14 @@ func NewAgentInstance(in NewAgentInstanceInput) (*AgentInstance, error) {
 
 // RehydrateAgentInstanceInput is for Repository implementations only.
 type RehydrateAgentInstanceInput struct {
-	ID              AgentInstanceID
-	Name            string
-	AgentCLI        string
-	WorkerID        *WorkerID
-	Config          string
-	MaxConcurrent   *int
-	State           AgentInstanceState
-	IsBuiltin       bool
+	ID            AgentInstanceID
+	Name          string
+	AgentCLI      string
+	WorkerID      *WorkerID
+	Config        string
+	MaxConcurrent *int
+	State         AgentInstanceState
+	IsBuiltin     bool
 	// v2.6 fields (BE-7)
 	IdentityID      string
 	OrganizationID  string
@@ -214,23 +214,24 @@ func RehydrateAgentInstance(in RehydrateAgentInstanceInput) (*AgentInstance, err
 
 // Getters.
 
-func (a *AgentInstance) ID() AgentInstanceID                       { return a.id }
-func (a *AgentInstance) Name() string                              { return a.name }
-func (a *AgentInstance) AgentCLI() string                          { return a.agentCLI }
-func (a *AgentInstance) WorkerID() *WorkerID                       { return copyWorkerIDPtr(a.workerID) }
-func (a *AgentInstance) Config() string                            { return a.config }
-func (a *AgentInstance) MaxConcurrent() *int                       { return copyIntPtr(a.maxConcurrent) }
-func (a *AgentInstance) State() AgentInstanceState                 { return a.state }
-func (a *AgentInstance) IsBuiltin() bool                           { return a.isBuiltin }
+func (a *AgentInstance) ID() AgentInstanceID       { return a.id }
+func (a *AgentInstance) Name() string              { return a.name }
+func (a *AgentInstance) AgentCLI() string          { return a.agentCLI }
+func (a *AgentInstance) WorkerID() *WorkerID       { return copyWorkerIDPtr(a.workerID) }
+func (a *AgentInstance) Config() string            { return a.config }
+func (a *AgentInstance) MaxConcurrent() *int       { return copyIntPtr(a.maxConcurrent) }
+func (a *AgentInstance) State() AgentInstanceState { return a.state }
+func (a *AgentInstance) IsBuiltin() bool           { return a.isBuiltin }
+
 // v2.6 getters (BE-7)
-func (a *AgentInstance) IdentityID() string                        { return a.identityID }
-func (a *AgentInstance) OrganizationID() string                    { return a.organizationID }
-func (a *AgentInstance) Kind() string                              { return a.kind }
-func (a *AgentInstance) CreatedAt() time.Time                      { return a.createdAt }
-func (a *AgentInstance) ArchivedAt() *time.Time                    { return copyTimePtr(a.archivedAt) }
+func (a *AgentInstance) IdentityID() string                          { return a.identityID }
+func (a *AgentInstance) OrganizationID() string                      { return a.organizationID }
+func (a *AgentInstance) Kind() string                                { return a.kind }
+func (a *AgentInstance) CreatedAt() time.Time                        { return a.createdAt }
+func (a *AgentInstance) ArchivedAt() *time.Time                      { return copyTimePtr(a.archivedAt) }
 func (a *AgentInstance) ArchivedReason() AgentInstanceArchivedReason { return a.archivedReason }
-func (a *AgentInstance) ArchivedMessage() string                   { return a.archivedMessage }
-func (a *AgentInstance) Version() int                              { return a.version }
+func (a *AgentInstance) ArchivedMessage() string                     { return a.archivedMessage }
+func (a *AgentInstance) Version() int                                { return a.version }
 
 // SetConfig replaces the JSON config blob. Bumps version. The config string
 // itself is opaque to the AR; service layer validates JSON shape.

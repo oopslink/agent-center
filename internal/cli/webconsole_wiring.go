@@ -566,7 +566,9 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	controlEventGCCtx, controlEventGCCancel := context.WithCancel(ctx)
 	controlEventGC := envservice.NewControlEventGC(
 		envsql.NewControlEventRepo(a.DB), a.Clock, ceRetention, ceInterval,
-		func(format string, args ...any) { logger("webconsole control-event gc: " + fmt.Sprintf(format, args...)) },
+		func(format string, args ...any) {
+			logger("webconsole control-event gc: " + fmt.Sprintf(format, args...))
+		},
 	)
 	go controlEventGC.Run(controlEventGCCtx)
 

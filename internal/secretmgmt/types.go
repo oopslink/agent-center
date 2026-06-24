@@ -64,8 +64,8 @@ func (s UserSecretState) String() string { return string(s) }
 type UserSecretRevokedReason string
 
 const (
-	UserSecretRevokedReasonManual    UserSecretRevokedReason = "manual"
-	UserSecretRevokedReasonRotated   UserSecretRevokedReason = "rotated"
+	UserSecretRevokedReasonManual     UserSecretRevokedReason = "manual"
+	UserSecretRevokedReasonRotated    UserSecretRevokedReason = "rotated"
 	UserSecretRevokedReasonCompromise UserSecretRevokedReason = "compromise"
 )
 
@@ -83,13 +83,13 @@ func (r UserSecretRevokedReason) String() string { return string(r) }
 
 // SecretManagement BC sentinel errors.
 var (
-	ErrUserSecretNotFound      = errors.New("secretmgmt: user secret not found")
-	ErrUserSecretAlreadyExists = errors.New("secretmgmt: user secret id already exists")
-	ErrUserSecretNameTaken     = errors.New("secretmgmt: user secret name already taken")
+	ErrUserSecretNotFound        = errors.New("secretmgmt: user secret not found")
+	ErrUserSecretAlreadyExists   = errors.New("secretmgmt: user secret id already exists")
+	ErrUserSecretNameTaken       = errors.New("secretmgmt: user secret name already taken")
 	ErrUserSecretVersionConflict = errors.New("secretmgmt: user secret version conflict (optimistic lock)")
-	ErrUserSecretRevoked       = errors.New("secretmgmt: user secret is revoked (terminal)")
-	ErrUserSecretInvalidKind   = errors.New("secretmgmt: invalid user secret kind")
-	ErrUserSecretInvalidState  = errors.New("secretmgmt: invalid user secret state")
+	ErrUserSecretRevoked         = errors.New("secretmgmt: user secret is revoked (terminal)")
+	ErrUserSecretInvalidKind     = errors.New("secretmgmt: invalid user secret kind")
+	ErrUserSecretInvalidState    = errors.New("secretmgmt: invalid user secret state")
 
 	ErrMasterKeyNotLoaded    = errors.New("secretmgmt: master key not loaded (call LoadMasterKey first)")
 	ErrMasterKeyInvalidSize  = errors.New("secretmgmt: master key must be 32 bytes after base64 decode")

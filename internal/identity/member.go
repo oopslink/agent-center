@@ -15,16 +15,16 @@ import (
 //	M5: disabled_at non-nil ⟺ status=disabled
 //	M6: Identity.account_status=disabled ⇒ member treated as disabled (runtime check)
 type Member struct {
-	id                   string
-	organizationID       string
-	identityID           string
-	role                 MemberRole
-	status               MemberStatus
-	joinedAt             time.Time
-	invitedByIdentityID  *string
-	invitedAt            *time.Time
-	disabledAt           *time.Time
-	disabledReason       string
+	id                  string
+	organizationID      string
+	identityID          string
+	role                MemberRole
+	status              MemberStatus
+	joinedAt            time.Time
+	invitedByIdentityID *string
+	invitedAt           *time.Time
+	disabledAt          *time.Time
+	disabledReason      string
 }
 
 // MemberFactory creates Member instances.
@@ -85,17 +85,17 @@ func RehydrateMember(
 
 // Getters.
 
-func (m *Member) ID() string                      { return m.id }
-func (m *Member) OrganizationID() string          { return m.organizationID }
-func (m *Member) IdentityID() string              { return m.identityID }
-func (m *Member) Role() MemberRole                { return m.role }
-func (m *Member) Status() MemberStatus            { return m.status }
-func (m *Member) JoinedAt() time.Time             { return m.joinedAt }
-func (m *Member) InvitedByIdentityID() *string    { return m.invitedByIdentityID }
-func (m *Member) InvitedAt() *time.Time           { return m.invitedAt }
-func (m *Member) DisabledAt() *time.Time          { return m.disabledAt }
-func (m *Member) DisabledReason() string          { return m.disabledReason }
-func (m *Member) IsJoined() bool                  { return m.status == MemberJoined }
+func (m *Member) ID() string                   { return m.id }
+func (m *Member) OrganizationID() string       { return m.organizationID }
+func (m *Member) IdentityID() string           { return m.identityID }
+func (m *Member) Role() MemberRole             { return m.role }
+func (m *Member) Status() MemberStatus         { return m.status }
+func (m *Member) JoinedAt() time.Time          { return m.joinedAt }
+func (m *Member) InvitedByIdentityID() *string { return m.invitedByIdentityID }
+func (m *Member) InvitedAt() *time.Time        { return m.invitedAt }
+func (m *Member) DisabledAt() *time.Time       { return m.disabledAt }
+func (m *Member) DisabledReason() string       { return m.disabledReason }
+func (m *Member) IsJoined() bool               { return m.status == MemberJoined }
 
 // ChangeRole updates the member's role. Cross-AR last-owner invariant is
 // enforced by MemberRoleChangeService before calling this.

@@ -30,11 +30,11 @@ func TestUnmergedIntegrations(t *testing.T) {
 		nodeView("s0", NodeDone),
 		nodeView("f1-dev", NodeDone),
 		nodeView("f1-review", NodeDone),
-		nodeView("f1-int", NodeRunning),   // unmerged: still running
+		nodeView("f1-int", NodeRunning), // unmerged: still running
 		nodeView("f2-dev", NodeDone),
 		nodeView("f2-review", NodeDispatched),
-		nodeView("f2-int", NodeBlocked),   // unmerged: blocked upstream
-		nodeView("f3-int", NodeDone),       // merged: dropped from the board
+		nodeView("f2-int", NodeBlocked), // unmerged: blocked upstream
+		nodeView("f3-int", NodeDone),    // merged: dropped from the board
 		nodeView("gate", NodeBlocked),
 	}}
 	meta := map[TaskID]CycleNodeMeta{

@@ -330,7 +330,7 @@ func TestToCenterRecord_CapturesActiveTaskID(t *testing.T) {
 	active := toCenterRecord(ResumeAgent{
 		DesiredLifecycle: "running",
 		Model:            "claude-boot-model",
-		Tasks:        []ResumeTask{{TaskID: "wi-w", Status: "waiting_input"}, {TaskID: "wi-a", Status: "active"}},
+		Tasks:            []ResumeTask{{TaskID: "wi-w", Status: "waiting_input"}, {TaskID: "wi-a", Status: "active"}},
 	})
 	if !active.HasActive || active.ActiveTaskID != "wi-a" {
 		t.Fatalf("active WI id must be captured, got HasActive=%v id=%q", active.HasActive, active.ActiveTaskID)
@@ -343,7 +343,7 @@ func TestToCenterRecord_CapturesActiveTaskID(t *testing.T) {
 	// waiting_input only → no active id (nothing to rebind).
 	wOnly := toCenterRecord(ResumeAgent{
 		DesiredLifecycle: "running",
-		Tasks:        []ResumeTask{{TaskID: "wi-w", Status: "waiting_input"}},
+		Tasks:            []ResumeTask{{TaskID: "wi-w", Status: "waiting_input"}},
 	})
 	if wOnly.HasActive || wOnly.ActiveTaskID != "" {
 		t.Fatalf("waiting_input-only must yield no active id, got HasActive=%v id=%q", wOnly.HasActive, wOnly.ActiveTaskID)
