@@ -129,6 +129,36 @@ func TestAgentControlProjector_PassesModel(t *testing.T) {
 	}
 }
 
+// TestAgentControlProjector_PassesDisplayName (T469) pins the display_name passthrough:
+// a lifecycle event carrying the agent's display_name is forwarded into the reconcile
+// command so the worker→supervisor injects it as git author NAME (② AgentEnv seam). A
+// display_name-less event omits it (additive → supervisor falls back to the ULID).
+func TestAgentControlProjector_PassesDisplayName(t *testing.T) {
+	f := newProjectorFixture(t)
+	withName := outbox.Event{
+		ID:        "EVDN",
+		EventType: agentsvc.EvtAgentLifecycleChanged,
+		Payload:   `{"agent_id":"AG1","worker_id":"W1","lifecycle":"running","version":2,"display_name":"agent-center-dev4"}`,
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+	if err := f.proj.Project(f.ctx, withName); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 || !strings.Contains(cmds[0].Payload(), `"display_name":"agent-center-dev4"`) {
+		t.Fatalf("reconcile command must carry display_name, got: %s", cmds[0].Payload())
+	}
+
+	// display_name-less event → no display_name key (omitempty, backward-compat).
+	f2 := newProjectorFixture(t)
+	if err := f2.proj.Project(f2.ctx, lifecycleEvent("EV1", "AG2", "W2", "running", 1, "")); err != nil {
+		t.Fatalf("Project no-display-name: %v", err)
+	}
+	if c := f2.commandsFor(t, "W2"); len(c) != 1 || strings.Contains(c[0].Payload(), `"display_name"`) {
+		t.Fatalf("display_name-less event must omit display_name, got: %s", c[0].Payload())
+	}
+}
+
 func TestAgentControlProjector_ResetScope(t *testing.T) {
 	f := newProjectorFixture(t)
 	e := lifecycleEvent("EV1", "AG1", "W1", "resetting", 5, "all")

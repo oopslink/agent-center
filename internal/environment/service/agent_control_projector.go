@@ -67,16 +67,17 @@ func (p *AgentControlProjector) Name() string { return "env-agent-control" }
 // (agent_id/worker_id/lifecycle/version/reset_scope). We define our own struct
 // rather than depend on the unexported agentEventPayload.
 type agentLifecycleEvtPayload struct {
-	AgentID    string `json:"agent_id"`
-	WorkerID   string `json:"worker_id"`
-	Lifecycle  string `json:"lifecycle"`
-	Version    int    `json:"version"`
-	ResetScope string `json:"reset_scope,omitempty"`
-	Model      string `json:"model,omitempty"`
-	CLI        string `json:"cli,omitempty"`
-	Reasoning  string `json:"reasoning,omitempty"` // T236
-	Mode       string `json:"mode,omitempty"`      // T236
-	Provider   string `json:"provider,omitempty"`  // T236
+	AgentID     string `json:"agent_id"`
+	WorkerID    string `json:"worker_id"`
+	Lifecycle   string `json:"lifecycle"`
+	Version     int    `json:"version"`
+	ResetScope  string `json:"reset_scope,omitempty"`
+	Model       string `json:"model,omitempty"`
+	DisplayName string `json:"display_name,omitempty"` // T469: git author NAME via ② AgentEnv seam
+	CLI         string `json:"cli,omitempty"`
+	Reasoning   string `json:"reasoning,omitempty"` // T236
+	Mode        string `json:"mode,omitempty"`      // T236
+	Provider    string `json:"provider,omitempty"`  // T236
 }
 
 // reconcileCommandPayload is the declarative command payload the AgentController
@@ -85,6 +86,10 @@ type reconcileCommandPayload struct {
 	AgentID          string `json:"agent_id"`
 	DesiredLifecycle string `json:"desired_lifecycle"`
 	Model            string `json:"model,omitempty"`
+	// DisplayName is the agent's human-readable display_name, passthrough from the
+	// lifecycle event (same as Model) so the supervisor injects it as
+	// GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam (T469).
+	DisplayName string `json:"display_name,omitempty"`
 	// CLI selects the per-CLI session starter on the worker ("codex" → codex exec
 	// session; empty/"claude-code" → claude supervisor). Passthrough from the
 	// lifecycle event, same as Model.
@@ -120,11 +125,12 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 	cmdPayload, err := json.Marshal(reconcileCommandPayload{
 		AgentID:          pl.AgentID,
 		DesiredLifecycle: pl.Lifecycle,
-		Model:            pl.Model,     // passthrough (pure event-driven; no Agent-repo read)
-		CLI:              pl.CLI,       // passthrough — per-CLI starter selection on the worker
-		Reasoning:        pl.Reasoning, // T236 passthrough
-		Mode:             pl.Mode,      // T236 passthrough
-		Provider:         pl.Provider,  // T236 passthrough
+		Model:            pl.Model,       // passthrough (pure event-driven; no Agent-repo read)
+		DisplayName:      pl.DisplayName, // T469 passthrough — git author NAME via ② AgentEnv seam
+		CLI:              pl.CLI,         // passthrough — per-CLI starter selection on the worker
+		Reasoning:        pl.Reasoning,   // T236 passthrough
+		Mode:             pl.Mode,        // T236 passthrough
+		Provider:         pl.Provider,    // T236 passthrough
 		Version:          pl.Version,
 		ResetScope:       pl.ResetScope,
 	})

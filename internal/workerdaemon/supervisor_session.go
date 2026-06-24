@@ -58,6 +58,10 @@ type SupervisorSessionConfig struct {
 	BinaryPath string
 	// Model is an optional claude --model override.
 	Model string
+	// DisplayName is the agent's human-readable display_name, forwarded to the
+	// supervisor as --display-name so it injects GIT_{AUTHOR,COMMITTER}_NAME via the
+	// ② AgentEnv seam (T469). Empty → the supervisor falls back to the ULID AgentID.
+	DisplayName string
 	// ClaudeBin overrides the claude binary path the SUPERVISOR uses to exec
 	// claude (tests point it at a stand-in). The session itself never execs it.
 	ClaudeBin string
@@ -166,6 +170,7 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 		WorkspaceDir:        cfg.WorkspaceDir,
 		BinaryPath:          cfg.BinaryPath,
 		Model:               cfg.Model,
+		DisplayName:         cfg.DisplayName,
 		ClaudeBin:           cfg.ClaudeBin,
 		Epoch:               cfg.Epoch,
 		Generation:          cfg.Generation,

@@ -460,6 +460,7 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			// stop+reap (the recovery trap above).
 			"desired_lifecycle": string(agent.LifecycleRunning),
 			"model":             a.Profile().Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
+			"display_name":      a.Profile().Name,  // T469: boot-reconcile relaunch injects it as git author NAME (② AgentEnv seam)
 			"version":           a.Version(),
 			"reset_scope":       "",                 // reserved for f-3 (rollback/reset semantics)
 			"tasks":             []map[string]any{}, // F7: always empty (AgentWorkItem retired)

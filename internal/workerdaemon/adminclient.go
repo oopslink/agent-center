@@ -409,12 +409,16 @@ type ResumeState struct {
 // ResumeAgent is one resumable agent: its desired lifecycle + version (+
 // reset_scope reserved for f-3) and its in-flight WorkItems.
 type ResumeAgent struct {
-	AgentID          string       `json:"agent_id"`
-	DesiredLifecycle string       `json:"desired_lifecycle"`
-	Model            string       `json:"model"`
-	Version          int          `json:"version"`
-	ResetScope       string       `json:"reset_scope"`
-	Tasks            []ResumeTask `json:"tasks"`
+	AgentID          string `json:"agent_id"`
+	DesiredLifecycle string `json:"desired_lifecycle"`
+	Model            string `json:"model"`
+	// DisplayName is the agent's human-readable display_name (resume-state), carried
+	// like Model so a boot-reconcile relaunch injects it as GIT_{AUTHOR,COMMITTER}_NAME
+	// via the ② AgentEnv seam (T469). Empty/absent → the supervisor uses the ULID.
+	DisplayName string       `json:"display_name"`
+	Version     int          `json:"version"`
+	ResetScope  string       `json:"reset_scope"`
+	Tasks       []ResumeTask `json:"tasks"`
 }
 
 // ResumeTask is one in-flight WorkItem (status ∈ {active, waiting_input}).

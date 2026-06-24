@@ -83,7 +83,7 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	c.cfg.starter = rs.start
 
 	// Crash with active work → schedules a relaunch at now+1s (crashCount 1).
-	c.recordCrashAndSchedule("ag-1", 7 /*version*/, true /*hadWork*/, "wi-7" /*workItemID*/, "bad-model-x" /*model*/, "boom")
+	c.recordCrashAndSchedule("ag-1", 7 /*version*/, true /*hadWork*/, "wi-7" /*workItemID*/, "bad-model-x" /*model*/, "agent-center-dev4" /*displayName*/, "boom")
 
 	// Before the 1s backoff elapses → OnTick must NOT relaunch.
 	c.OnTick(context.Background())
@@ -99,6 +99,11 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	}
 	if got := rs.last().cfg.AgentID; got != "ag-1" {
 		t.Fatalf("relaunched wrong agent: %s", got)
+	}
+	// T469: the display_name captured at crash must survive the managedAgent delete and
+	// reach the self-heal relaunch's session config (→ supervisor → git author NAME).
+	if got := rs.last().cfg.DisplayName; got != "agent-center-dev4" {
+		t.Fatalf("self-heal relaunch must carry display_name across the crash, got %q", got)
 	}
 	if msgs := rs.last().injectedMsgs(); len(msgs) != 1 || msgs[0] != DefaultResumeNudge {
 		t.Fatalf("self-heal relaunch with active work must nudge once, got %v", msgs)
@@ -168,7 +173,7 @@ func TestSelfHeal_IdleRelaunchFreshNoResume(t *testing.T) {
 
 	// Crash of an IDLE agent (hadWork=false, no in-flight WorkItem) → schedules a
 	// relaunch at now+1s.
-	c.recordCrashAndSchedule("ag-1", 3 /*version*/, false /*hadWork*/, "" /*workItemID*/, "" /*model*/, "idle-crash")
+	c.recordCrashAndSchedule("ag-1", 3 /*version*/, false /*hadWork*/, "" /*workItemID*/, "" /*model*/, "" /*displayName*/, "idle-crash")
 
 	clock.advance(2 * time.Second)
 	c.OnTick(context.Background())
@@ -218,7 +223,7 @@ func TestSelfHeal_RelaunchFailCircuitBreaks(t *testing.T) {
 	c.cfg.starter = rs.start
 
 	// One real crash arms the first relaunch (crashCount 1).
-	c.recordCrashAndSchedule("ag-1", 9 /*version*/, false /*hadWork*/, "", "", "boom")
+	c.recordCrashAndSchedule("ag-1", 9 /*version*/, false /*hadWork*/, "", "", "", "boom")
 
 	// Each relaunch attempt FAILS to come up (startSession returns an error). The cap
 	// is the default 5: relaunch-fails advance crashCount 2..5 (transient "error"),
@@ -324,7 +329,7 @@ func TestSelfHeal_CircuitBreaksAndClearUnlatches(t *testing.T) {
 	// reset → counts 1..6): crashes 1-5 report transient "error", the 6th circuit-
 	// breaks and reports terminal "failed".
 	for i := 0; i < 6; i++ {
-		state := c.recordCrashAndSchedule("ag-1", 1, false, "" /*workItemID*/, "" /*model*/, "boom")
+		state := c.recordCrashAndSchedule("ag-1", 1, false, "" /*workItemID*/, "" /*model*/, "" /*displayName*/, "boom")
 		want := "error"
 		if i == 5 {
 			want = "failed"

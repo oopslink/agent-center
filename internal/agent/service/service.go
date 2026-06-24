@@ -112,6 +112,12 @@ type agentEventPayload struct {
 	// the daemon omits --model → claude default. Snapshotted at the (re)start that
 	// emitted this lifecycle event ("change model → restart to apply" semantics).
 	Model string `json:"model,omitempty"`
+	// DisplayName is the agent's human-readable display_name (Profile.Name), carried
+	// the SAME way as Model so the Environment projector passes it into the reconcile
+	// command and the supervisor injects it as GIT_{AUTHOR,COMMITTER}_NAME via the ②
+	// AgentEnv seam (commit authorship reads as the display_name, not the ULID — T469).
+	// ADDITIVE: empty/absent → the supervisor falls back to the ULID AgentID.
+	DisplayName string `json:"display_name,omitempty"`
 	// CLI is the agent's configured execution CLI (Profile.CLI: "claude-code" /
 	// "codex"), carried the SAME way as Model so the Environment projector can pass it
 	// into the reconcile command and the daemon can pick the per-CLI session starter
@@ -132,17 +138,18 @@ type agentEventPayload struct {
 // commit atomically (OQ1).
 func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, resetScope string) error {
 	pb, err := json.Marshal(agentEventPayload{
-		AgentID:    string(a.ID()),
-		OrgID:      a.OrganizationID(),
-		WorkerID:   a.WorkerID(),
-		Lifecycle:  string(a.Lifecycle()),
-		Version:    a.Version(),
-		ResetScope: resetScope,
-		Model:      a.Profile().Model,
-		CLI:        a.Profile().CLI,
-		Reasoning:  a.Profile().Reasoning,
-		Mode:       a.Profile().Mode,
-		Provider:   a.Profile().Provider,
+		AgentID:     string(a.ID()),
+		OrgID:       a.OrganizationID(),
+		WorkerID:    a.WorkerID(),
+		Lifecycle:   string(a.Lifecycle()),
+		Version:     a.Version(),
+		ResetScope:  resetScope,
+		Model:       a.Profile().Model,
+		DisplayName: a.Profile().Name,
+		CLI:         a.Profile().CLI,
+		Reasoning:   a.Profile().Reasoning,
+		Mode:        a.Profile().Mode,
+		Provider:    a.Profile().Provider,
 	})
 	if err != nil {
 		return err
