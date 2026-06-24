@@ -239,12 +239,17 @@ func (s *Supervisor) Start() error {
 		s.cmd.Dir = s.cfg.WorkspaceDir
 	}
 	// v2.7 security (C+A): build a CONTROLLED env for claude — allowlisted system
-	// env (NO worker secrets) + the AgentEnv overlay (② seam, empty here). NOT raw
-	// os.Environ() (which would leak worker secrets). A isolation (no operator
-	// ~/.claude hook/settings pollution) is done IN-PLACE by the claude argv flag
+	// env (NO worker secrets) + the AgentEnv overlay (② seam). NOT raw os.Environ()
+	// (which would leak worker secrets). A isolation (no operator ~/.claude
+	// hook/settings pollution) is done IN-PLACE by the claude argv flag
 	// `--setting-sources ""` (see claudestream.BuildStreamingArgv), NOT by relocating
 	// HOME/CLAUDE_CONFIG_DIR — relocating breaks keychain /login.
-	s.cmd.Env = BuildClaudeEnv(os.Environ(), s.cfg.AgentEnv)
+	//
+	// T459: overlay the AgentID-derived git identity UNDER the AgentEnv seam so every
+	// commit the agent makes (in ANY worktree) is correctly attributed automatically —
+	// a runtime guardrail replacing per-worktree `git config` discipline. A center-
+	// injected GIT_AUTHOR_NAME (② seam) still wins (see mergeGitIdentity).
+	s.cmd.Env = BuildClaudeEnv(os.Environ(), mergeGitIdentity(s.cfg.AgentID, s.cfg.AgentEnv))
 	// Child in its OWN process group (pgid == child pid) under the supervisor's
 	// session: Stop can killpg the whole claude tree, and a child-group signal
 	// never reaches the supervisor. We deliberately do NOT Setsid the child and

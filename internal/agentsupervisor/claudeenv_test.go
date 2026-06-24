@@ -114,6 +114,88 @@ func TestBuildClaudeEnv_KeepsProxyVars(t *testing.T) {
 	}
 }
 
+// TestGitIdentityEnv_DerivesAllFourVarsFromAgentID pins T459's root fix: the agent
+// gets a complete git author+committer identity derived from its stable AgentID, so
+// git attributes every commit (in ANY worktree) to the right agent via ENV — which
+// outranks `git config user.*` — with no per-worktree `git config` discipline.
+func TestGitIdentityEnv_DerivesAllFourVarsFromAgentID(t *testing.T) {
+	got := GitIdentityEnv("agent-35ac0e16")
+	want := map[string]string{
+		"GIT_AUTHOR_NAME":     "agent-35ac0e16",
+		"GIT_AUTHOR_EMAIL":    "agent-35ac0e16@agent-center",
+		"GIT_COMMITTER_NAME":  "agent-35ac0e16",
+		"GIT_COMMITTER_EMAIL": "agent-35ac0e16@agent-center",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("GitIdentityEnv keys = %v, want exactly %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Fatalf("GitIdentityEnv[%q] = %q, want %q", k, got[k], v)
+		}
+	}
+}
+
+// TestGitIdentityEnv_EmptyAgentIDNoInjection: an empty AgentID yields no identity
+// (nil) so the caller no-ops — we never emit a bogus "@agent-center" author.
+func TestGitIdentityEnv_EmptyAgentIDNoInjection(t *testing.T) {
+	if got := GitIdentityEnv(""); got != nil {
+		t.Fatalf("GitIdentityEnv(\"\") = %v, want nil (no injection)", got)
+	}
+}
+
+// TestBuildClaudeEnv_GitIdentityInjectedForAgent is the end-to-end assertion of the
+// supervisor wiring: the derived git identity reaches claude's env (so every commit
+// is correctly attributed), riding the AgentEnv overlay AS-IS (unaffected by the
+// allowlist filter).
+func TestBuildClaudeEnv_GitIdentityInjectedForAgent(t *testing.T) {
+	source := []string{"PATH=/usr/bin"}
+	got := envMap(BuildClaudeEnv(source, mergeGitIdentity("agent-35ac0e16", nil)))
+	if got["GIT_AUTHOR_NAME"] != "agent-35ac0e16" || got["GIT_AUTHOR_EMAIL"] != "agent-35ac0e16@agent-center" {
+		t.Fatalf("git author identity not injected into claude env: %v", got)
+	}
+	if got["GIT_COMMITTER_NAME"] != "agent-35ac0e16" || got["GIT_COMMITTER_EMAIL"] != "agent-35ac0e16@agent-center" {
+		t.Fatalf("git committer identity not injected into claude env: %v", got)
+	}
+}
+
+// TestMergeGitIdentity_CenterEnvWins pins the ② seam upgrade path (Design B): a
+// center-injected GIT_AUTHOR_NAME (e.g. a human-readable display_name) overrides the
+// AgentID-derived default, while the rest of the derived identity and any unrelated
+// AgentEnv pass through. This is what lets display_name replace the agent-id later
+// with NO code change.
+func TestMergeGitIdentity_CenterEnvWins(t *testing.T) {
+	agentEnv := map[string]string{
+		"GIT_AUTHOR_NAME": "agent-center-dev4", // center overrides the derived default
+		"AC_OTHER":        "keep",
+	}
+	got := mergeGitIdentity("agent-35ac0e16", agentEnv)
+	if got["GIT_AUTHOR_NAME"] != "agent-center-dev4" {
+		t.Fatalf("center GIT_AUTHOR_NAME must win: got %q", got["GIT_AUTHOR_NAME"])
+	}
+	// non-overridden derived vars remain (email/committer still from the agent-id default).
+	if got["GIT_AUTHOR_EMAIL"] != "agent-35ac0e16@agent-center" {
+		t.Fatalf("derived GIT_AUTHOR_EMAIL must remain: got %q", got["GIT_AUTHOR_EMAIL"])
+	}
+	if got["AC_OTHER"] != "keep" {
+		t.Fatal("unrelated AgentEnv must pass through")
+	}
+}
+
+// TestMergeGitIdentity_EmptyAgentIDPassesThrough: with no AgentID there is nothing to
+// derive, so the original AgentEnv is returned unchanged (the slice-① security case
+// still gets exactly the empty/center env it had before).
+func TestMergeGitIdentity_EmptyAgentIDPassesThrough(t *testing.T) {
+	agentEnv := map[string]string{"AC_X": "y"}
+	got := mergeGitIdentity("", agentEnv)
+	if len(got) != 1 || got["AC_X"] != "y" {
+		t.Fatalf("empty AgentID must pass AgentEnv through unchanged: %v", got)
+	}
+	if got := mergeGitIdentity("", nil); got != nil {
+		t.Fatalf("empty AgentID + nil AgentEnv = %v, want nil", got)
+	}
+}
+
 // TestBuildSupervisorEnv_StripsWorkerSecrets pins the defense-in-depth ⑤: the
 // supervisor's OWN env also drops worker secrets.
 func TestBuildSupervisorEnv_StripsWorkerSecrets(t *testing.T) {
