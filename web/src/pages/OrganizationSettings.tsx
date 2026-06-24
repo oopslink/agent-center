@@ -38,7 +38,11 @@ export default function OrganizationSettings(): React.ReactElement {
   if (!section || !SECTIONS.includes(section)) {
     return <Navigate to="profile" replace />;
   }
-  const goToInvitations = (): void => navigate('../invitations');
+  // Block body discards navigate()'s `void | Promise<void>` return so the
+  // arrow's `: void` annotation type-checks under `tsc -b` (the build gate).
+  const goToInvitations = (): void => {
+    navigate('../invitations');
+  };
   return (
     <section className="min-h-full text-text-primary">
       <div className="mx-auto max-w-3xl">
