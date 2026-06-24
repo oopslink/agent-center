@@ -326,3 +326,205 @@ func titles(tasks []*pm.Task) []string {
 	}
 	return out
 }
+
+// TestScaffoldCyclePlan_SourceIssueLinksEveryNodeAtCreate is T462's core acceptance:
+// a scaffold with SourceIssue links EVERY generated node to that issue as
+// derived_from_issue at create — so each node's owner can get_issue the spec (the
+// get_issue derive-gate is satisfied) WITHOUT the PD set_task_issue-ing each node.
+func TestScaffoldCyclePlan_SourceIssueLinksEveryNodeAtCreate(t *testing.T) {
+	svc, _, tasks, relay, ctx := scaffoldSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	iid, err := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "cycle spec", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := svc.ScaffoldCyclePlan(ctx, ScaffoldCyclePlanCommand{
+		ProjectID:   pid,
+		Version:     "v2.13.0",
+		SourceIssue: iid,
+		Features: []CycleFeature{
+			{Name: "F1 规格", Branch: "f1-spec"},
+			{Name: "F9 文档", DocOnly: true},
+		},
+		CreatedBy: "user:pd",
+	})
+	if err != nil {
+		t.Fatalf("ScaffoldCyclePlan: %v", err)
+	}
+	drain(t, relay, ctx)
+
+	all, err := tasks.ListByPlan(ctx, res.PlanID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 10 {
+		t.Fatalf("node count = %d, want 10", len(all))
+	}
+	// Every persisted node carries the source issue (the gate-satisfying link).
+	for _, tk := range all {
+		if tk.DerivedFromIssue() != iid {
+			t.Errorf("node %q derived_from_issue = %q, want %q", tk.Title(), tk.DerivedFromIssue(), iid)
+		}
+	}
+	// The returned summary reflects it too (self-evidencing for the tool caller).
+	for _, n := range res.Nodes {
+		if n.DerivedFromIssue != iid {
+			t.Errorf("summary node %q derived_from_issue = %q, want %q", n.Title, n.DerivedFromIssue, iid)
+		}
+	}
+}
+
+// TestScaffoldCyclePlan_FeatureIssueOverridesPlanSource: a per-feature Issue overrides
+// the plan-level SourceIssue for THAT feature's chain nodes, while the shared
+// S0/Gate/Accept/Ship nodes (and other features) keep the plan-level source (T462).
+func TestScaffoldCyclePlan_FeatureIssueOverridesPlanSource(t *testing.T) {
+	svc, _, tasks, relay, ctx := scaffoldSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planIss, err := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "cycle spec", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	featIss, err := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: pid, Title: "F1 spec", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := svc.ScaffoldCyclePlan(ctx, ScaffoldCyclePlanCommand{
+		ProjectID:   pid,
+		Version:     "v2.13.0",
+		SourceIssue: planIss,
+		Features: []CycleFeature{
+			{Name: "F1 规格", Branch: "f1-spec", Issue: featIss}, // override
+			{Name: "F2 其它", Branch: "f2"},                      // inherits planIss
+		},
+		CreatedBy: "user:pd",
+	})
+	if err != nil {
+		t.Fatalf("ScaffoldCyclePlan: %v", err)
+	}
+	drain(t, relay, ctx)
+
+	all, err := tasks.ListByPlan(ctx, res.PlanID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byTitle := scaffoldByTitle(t, all)
+	// F1's chain nodes derive from featIss.
+	for _, title := range []string{"F1 规格 · Dev", "F1 规格 · Review", "F1 规格 · Decision（评审结论 pass/reject）", "F1 规格 · Integrate", "F1 规格 · 逃生/人工兜底（评审打回超限）"} {
+		if got := byTitle[title]; got == nil || got.DerivedFromIssue() != featIss {
+			t.Errorf("node %q derived = %q, want feature override %q", title, derivedOf(got), featIss)
+		}
+	}
+	// F2's Dev + the shared S0/Gate/Accept/Ship derive from the plan-level source.
+	for _, title := range []string{"F2 其它 · Dev", "S0 开发主分支 — 切 dev/v2.13.0", "集成完成 Gate — PD 关门核对", "Accept 验收（集成后主干整体）", "Ship v2.13.0"} {
+		if got := byTitle[title]; got == nil || got.DerivedFromIssue() != planIss {
+			t.Errorf("node %q derived = %q, want plan source %q", title, derivedOf(got), planIss)
+		}
+	}
+}
+
+// TestScaffoldCyclePlan_NoSourceIssueNoLink pins the non-regression: omitting the
+// source issue leaves every node UNLINKED, exactly as before T462.
+func TestScaffoldCyclePlan_NoSourceIssueNoLink(t *testing.T) {
+	svc, _, tasks, relay, ctx := scaffoldSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := svc.ScaffoldCyclePlan(ctx, ScaffoldCyclePlanCommand{
+		ProjectID: pid, Version: "v2.13.0",
+		Features:  []CycleFeature{{Name: "F1", Branch: "f1"}},
+		CreatedBy: "user:pd",
+	})
+	if err != nil {
+		t.Fatalf("ScaffoldCyclePlan: %v", err)
+	}
+	drain(t, relay, ctx)
+	all, err := tasks.ListByPlan(ctx, res.PlanID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tk := range all {
+		if tk.DerivedFromIssue() != "" {
+			t.Errorf("node %q derived_from_issue = %q, want empty (no source issue → no link)", tk.Title(), tk.DerivedFromIssue())
+		}
+	}
+}
+
+// TestScaffoldCyclePlan_BadSourceIssueRejectedBeforeAnyNode: an unknown or
+// cross-project source issue fails validation UP-FRONT (no nodes/plan minted) so a
+// bad ref can never produce dangling-linked nodes (T462). derived_from_issue is
+// immutable after create, making create-time validation the only safe gate.
+func TestScaffoldCyclePlan_BadSourceIssueRejectedBeforeAnyNode(t *testing.T) {
+	svc, plans, _, _, ctx := scaffoldSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An issue in ANOTHER project — exists, but wrong project.
+	otherPid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "Q", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherIss, err := svc.CreateIssue(ctx, CreateIssueCommand{ProjectID: otherPid, Title: "x", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name string
+		cmd  ScaffoldCyclePlanCommand
+		want error
+	}{
+		{
+			name: "unknown plan source issue",
+			cmd: ScaffoldCyclePlanCommand{ProjectID: pid, Version: "v1", SourceIssue: "issue-does-not-exist",
+				Features: []CycleFeature{{Name: "F1"}}, CreatedBy: "user:pd"},
+			want: pm.ErrIssueNotFound,
+		},
+		{
+			name: "cross-project plan source issue",
+			cmd: ScaffoldCyclePlanCommand{ProjectID: pid, Version: "v1", SourceIssue: otherIss,
+				Features: []CycleFeature{{Name: "F1"}}, CreatedBy: "user:pd"},
+			want: pm.ErrDerivedIssueProjectMismatch,
+		},
+		{
+			name: "cross-project feature issue override",
+			cmd: ScaffoldCyclePlanCommand{ProjectID: pid, Version: "v1",
+				Features: []CycleFeature{{Name: "F1", Issue: otherIss}}, CreatedBy: "user:pd"},
+			want: pm.ErrDerivedIssueProjectMismatch,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			before, err := plans.ListByProject(ctx, pid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ScaffoldCyclePlan(ctx, tc.cmd); !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+			after, err := plans.ListByProject(ctx, pid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(after) != len(before) {
+				t.Fatalf("a rejected scaffold must mint NO plan: before=%d after=%d", len(before), len(after))
+			}
+		})
+	}
+}
+
+func derivedOf(t *pm.Task) pm.IssueID {
+	if t == nil {
+		return "<nil>"
+	}
+	return t.DerivedFromIssue()
+}

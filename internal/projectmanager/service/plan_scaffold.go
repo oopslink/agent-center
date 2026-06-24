@@ -84,6 +84,11 @@ type CycleFeature struct {
 	Name    string
 	Branch  string
 	DocOnly bool
+	// Issue, when set, links this feature's chain nodes (Dev/Review/Decision/
+	// Integrate/Escape) to that issue as their derived_from_issue AT CREATE — it
+	// OVERRIDES the plan-level SourceIssue for this feature. Empty → the feature
+	// inherits the plan-level SourceIssue (T462). Must belong to the same project.
+	Issue pm.IssueID
 }
 
 // ScaffoldCyclePlanCommand is the input to ScaffoldCyclePlan.
@@ -100,7 +105,16 @@ type ScaffoldCyclePlanCommand struct {
 	// cycles whose project has no CodeRepoRef, or that integrate outside this server's
 	// reach. Doc-only features are already exempt regardless of this flag.
 	SkipMergeCheck bool
-	CreatedBy      pm.IdentityRef
+	// SourceIssue, when set, is the cycle's source issue: EVERY generated node
+	// (S0/Dev/Review/Decision/Integrate/Escape/Gate/Accept/Ship) is linked to it as
+	// derived_from_issue AT CREATE (T462), so each node's owner can get_issue the
+	// spec straight away (the get_issue derive-gate is satisfied). A feature may
+	// override it for its own chain via CycleFeature.Issue. Empty → no node carries
+	// a link (the pre-T462 behavior, unchanged). derived_from_issue is immutable
+	// after create, so it MUST be set here, not back-filled later
+	// (see [[derived-from-issue-set-at-creation]]).
+	SourceIssue pm.IssueID
+	CreatedBy   pm.IdentityRef
 }
 
 // ScaffoldCycleNode describes one created node in the returned summary.
@@ -111,6 +125,9 @@ type ScaffoldCycleNode struct {
 	Base    string    `json:"base"`
 	Kind    string    `json:"kind"`    // s0|dev|review|decision|integrate|escape|gate|accept|ship
 	Feature string    `json:"feature"` // owning feature name (empty for s0/gate/accept/ship)
+	// DerivedFromIssue is the source issue this node was linked to at create (T462),
+	// empty when the scaffold was called without a SourceIssue/feature Issue.
+	DerivedFromIssue pm.IssueID `json:"derived_from_issue,omitempty"`
 }
 
 // ScaffoldCycleEdge describes one created control-flow edge in the returned summary
@@ -156,6 +173,17 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			return zero, ErrScaffoldFeatureNameRequired
 		}
 	}
+	// Validate every referenced source issue ONCE up-front (T462): it must exist and
+	// belong to this project. derived_from_issue is set at node-create (CreateTask does
+	// NOT itself validate the link), so a bad ref here would otherwise mint N nodes
+	// with a dangling/cross-project link. Failing before any node is created keeps the
+	// "partial failure leaves a deletable draft" contract clean. Mirrors the
+	// applyDerivedFromIssue (T192) invariant used by the post-create edit path.
+	for _, issueID := range cmd.distinctSourceIssues() {
+		if err := s.validateDerivedIssue(ctx, issueID, cmd.ProjectID); err != nil {
+			return zero, err
+		}
+	}
 
 	trunk := "dev/" + version // the integration main branch for this cycle
 	maxRounds := cmd.MaxReviewRounds
@@ -179,8 +207,9 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	result := ScaffoldCyclePlanResult{PlanID: planID}
 
 	// addNode creates an UNASSIGNED task with cycle metadata + selects it into the
-	// plan, appends to the summary, and returns its id.
-	addNode := func(title, branch, base, kind, feature string, skip bool) (pm.TaskID, error) {
+	// plan, appends to the summary, and returns its id. derived is the source issue
+	// linked at create (T462; "" = no link).
+	addNode := func(title, branch, base, kind, feature string, skip bool, derived pm.IssueID) (pm.TaskID, error) {
 		tid, cerr := s.CreateTask(ctx, CreateTaskCommand{
 			ProjectID:      cmd.ProjectID,
 			Title:          title,
@@ -188,6 +217,9 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			Branch:         branch,
 			Base:           base,
 			SkipMergeCheck: skip,
+			// Link the source issue AT CREATE — derived_from_issue is immutable
+			// afterward, so it cannot be back-filled (T462). Pre-validated above.
+			DerivedFromIssue: derived,
 			// Persist the computed node kind as the cycle-node ROLE (v2.13.0 I18/F3):
 			// it is what F3's Integrate-complete merge guard + F4's board key on
 			// (Dev/Review/Integrate share branch/base — §4.2 — so role discriminates).
@@ -201,6 +233,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		}
 		result.Nodes = append(result.Nodes, ScaffoldCycleNode{
 			TaskID: tid, Title: title, Branch: branch, Base: base, Kind: kind, Feature: feature,
+			DerivedFromIssue: derived,
 		})
 		return tid, nil
 	}
@@ -224,8 +257,9 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		return addEdge(pm.Dependency{FromTaskID: from, ToTaskID: to, Kind: pm.EdgeSeq})
 	}
 
-	// 2) S0 — cut dev/<version> from main. branch=trunk, base=main.
-	s0, err := addNode("S0 开发主分支 — 切 "+trunk, trunk, "main", "s0", "", false)
+	// 2) S0 — cut dev/<version> from main. branch=trunk, base=main. Plan-level
+	// SourceIssue (T462; a feature override does not apply to the shared S0 node).
+	s0, err := addNode("S0 开发主分支 — 切 "+trunk, trunk, "main", "s0", "", false, cmd.SourceIssue)
 	if err != nil {
 		return result, err
 	}
@@ -235,10 +269,16 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	for _, f := range cmd.Features {
 		name := strings.TrimSpace(f.Name)
 		branch := strings.TrimSpace(f.Branch)
+		// The feature's chain nodes derive from its own Issue when set, else the
+		// plan-level SourceIssue (T462).
+		featIssue := cmd.SourceIssue
+		if strings.TrimSpace(string(f.Issue)) != "" {
+			featIssue = f.Issue
+		}
 
 		// Dev node. If no explicit branch, default it to the Dev node's own T<n>
 		// (F1 §4.1) — resolved after create, then applied to the whole chain.
-		devID, derr := addNode(name+" · Dev", branch, trunk, "dev", name, f.DocOnly)
+		devID, derr := addNode(name+" · Dev", branch, trunk, "dev", name, f.DocOnly, featIssue)
 		if derr != nil {
 			return result, derr
 		}
@@ -257,14 +297,14 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		terminal := devID
 		if !f.DocOnly {
 			// Dev ─seq→ Review ─seq→ Decision (the forward review chain).
-			reviewID, rerr := addNode(name+" · Review", branch, trunk, "review", name, false)
+			reviewID, rerr := addNode(name+" · Review", branch, trunk, "review", name, false, featIssue)
 			if rerr != nil {
 				return result, rerr
 			}
 			if err := dependsOn(reviewID, devID); err != nil {
 				return result, err
 			}
-			decisionID, derr := addNode(name+" · Decision（评审结论 pass/reject）", branch, trunk, "decision", name, false)
+			decisionID, derr := addNode(name+" · Decision（评审结论 pass/reject）", branch, trunk, "decision", name, false, featIssue)
 			if derr != nil {
 				return result, derr
 			}
@@ -273,7 +313,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			}
 			// Integrate is the CONDITIONAL successor of Decision on outcome=pass — the
 			// feature terminal that feeds the Gate.
-			integrateID, ierr := addNode(name+" · Integrate", branch, trunk, "integrate", name, cmd.SkipMergeCheck)
+			integrateID, ierr := addNode(name+" · Integrate", branch, trunk, "integrate", name, cmd.SkipMergeCheck, featIssue)
 			if ierr != nil {
 				return result, ierr
 			}
@@ -286,7 +326,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			// Escape node is the CONDITIONAL successor of Decision on outcome
 			// reject_exhausted — where the engine routes when the loopback exhausts (B0
 			// §4.1). A leaf (human takes over); pruned→skipped on the pass path.
-			escapeID, eerr := addNode(name+" · 逃生/人工兜底（评审打回超限）", "", trunk, "escape", name, false)
+			escapeID, eerr := addNode(name+" · 逃生/人工兜底（评审打回超限）", "", trunk, "escape", name, false, featIssue)
 			if eerr != nil {
 				return result, eerr
 			}
@@ -311,7 +351,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	}
 
 	// 4) 集成完成 Gate — barrier blocked_by every feature's terminal node.
-	gate, err := addNode("集成完成 Gate — PD 关门核对", "", trunk, "gate", "", false)
+	gate, err := addNode("集成完成 Gate — PD 关门核对", "", trunk, "gate", "", false, cmd.SourceIssue)
 	if err != nil {
 		return result, err
 	}
@@ -322,7 +362,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	}
 
 	// 5) Accept — blocked_by the Gate (verify on the integrated trunk).
-	accept, err := addNode("Accept 验收（集成后主干整体）", "", trunk, "accept", "", false)
+	accept, err := addNode("Accept 验收（集成后主干整体）", "", trunk, "accept", "", false, cmd.SourceIssue)
 	if err != nil {
 		return result, err
 	}
@@ -331,7 +371,7 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	}
 
 	// 6) Ship — blocked_by Accept. branch=trunk, base=main (trunk → main + tag).
-	ship, err := addNode("Ship "+version, trunk, "main", "ship", "", false)
+	ship, err := addNode("Ship "+version, trunk, "main", "ship", "", false, cmd.SourceIssue)
 	if err != nil {
 		return result, err
 	}
@@ -340,6 +380,44 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 	}
 
 	return result, nil
+}
+
+// distinctSourceIssues returns the unique non-empty source issues referenced by the
+// command (the plan-level SourceIssue + any per-feature Issue overrides) — the set the
+// scaffold must validate before creating nodes (T462).
+func (cmd ScaffoldCyclePlanCommand) distinctSourceIssues() []pm.IssueID {
+	seen := map[pm.IssueID]bool{}
+	var out []pm.IssueID
+	add := func(id pm.IssueID) {
+		if strings.TrimSpace(string(id)) == "" || seen[id] {
+			return
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	add(cmd.SourceIssue)
+	for _, f := range cmd.Features {
+		add(f.Issue)
+	}
+	return out
+}
+
+// validateDerivedIssue checks a source issue exists and belongs to projectID — the
+// same invariant applyDerivedFromIssue (T192) enforces on the post-create edit path,
+// applied up-front here because CreateTask sets derived_from_issue without validating
+// it (T462). Empty issueID is a no-op (no link requested).
+func (s *Service) validateDerivedIssue(ctx context.Context, issueID pm.IssueID, projectID pm.ProjectID) error {
+	if strings.TrimSpace(string(issueID)) == "" {
+		return nil
+	}
+	iss, err := s.issues.FindByID(ctx, issueID)
+	if err != nil {
+		return err // pm.ErrIssueNotFound when missing
+	}
+	if iss.ProjectID() != projectID {
+		return pm.ErrDerivedIssueProjectMismatch
+	}
+	return nil
 }
 
 // resolveDefaultBranch stamps a Dev node whose branch was left to default with its

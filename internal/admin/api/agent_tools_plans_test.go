@@ -146,6 +146,70 @@ func TestScaffoldCyclePlan_AsMember_OK(t *testing.T) {
 	}
 }
 
+// TestScaffoldCyclePlan_SourceIssue_LinksNodes asserts the T462 wiring end-to-end at
+// the tool surface: the source_issue request field reaches the command, every returned
+// node carries derived_from_issue=that issue, and it is persisted on the task.
+func TestScaffoldCyclePlan_SourceIssue_LinksNodes(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	iid, err := f.pmSvc.CreateIssue(context.Background(), pmservice.CreateIssueCommand{
+		ProjectID: pid, Title: "cycle spec", CreatedBy: pm.IdentityRef("user:owner"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/scaffold_cycle_plan", "acat_w1",
+		map[string]any{
+			"agent_id": atAgent1, "project_id": string(pid), "version": "v9.9.0",
+			"source_issue": string(iid),
+			"features":     []map[string]any{{"name": "F1", "branch": "f1"}},
+		})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	nodes, _ := body["nodes"].([]any)
+	if len(nodes) == 0 {
+		t.Fatalf("no nodes; body = %v", body)
+	}
+	for _, raw := range nodes {
+		n, _ := raw.(map[string]any)
+		if got, _ := n["derived_from_issue"].(string); got != string(iid) {
+			t.Fatalf("node %v derived_from_issue = %q, want %q", n["title"], got, iid)
+		}
+		// And it's actually persisted on the task (get_issue derive-gate would pass).
+		tk, err := f.pmSvc.GetTask(context.Background(), pm.TaskID(n["task_id"].(string)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tk.DerivedFromIssue() != iid {
+			t.Fatalf("persisted node %q derived = %q, want %q", tk.Title(), tk.DerivedFromIssue(), iid)
+		}
+	}
+}
+
+// TestScaffoldCyclePlan_UnknownSourceIssue_404 asserts a bad source_issue is rejected
+// at the tool surface (mapped via the issue-not-found domain error) rather than minting
+// dangling-linked nodes.
+func TestScaffoldCyclePlan_UnknownSourceIssue_404(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/scaffold_cycle_plan", "acat_w1",
+		map[string]any{
+			"agent_id": atAgent1, "project_id": string(pid), "version": "v9.9.0",
+			"source_issue": "issue-nope",
+			"features":     []map[string]any{{"name": "F1", "branch": "f1"}},
+		})
+	if status != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (unknown source issue); body = %v", status, body)
+	}
+}
+
 func TestScaffoldCyclePlan_NoFeatures_422(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
