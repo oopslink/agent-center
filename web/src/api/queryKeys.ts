@@ -48,6 +48,7 @@ export const qk = {
   conversationThreads: (convId: string) => o('conversationThreads', convId),
   refs: (convId: string) => o('refs', convId),
   agents: () => o('agents'),
+  invitations: () => o('invitations'),
   agent: (id: string) => o('agent', id),
   agentTasks: (id: string) => o('agentTasks', id),
   agentActivity: (id: string) => o('agentActivity', id),

@@ -155,8 +155,10 @@ type HandlerDeps struct {
 	MemberCreateUserSvc *identity.MemberCreateUserService
 	MemberRoleChangeSvc *identity.MemberRoleChangeService
 	MemberDisableSvc    *identity.MemberDisableService
+	MemberRemoveSvc     *identity.MemberRemoveService
 	AgentProvisionSvc   *identity.AgentIdentityProvisionService
 	OrgUpdateSvc        *identity.OrganizationUpdateService
+	InvitationRepo      identity.InvitationRepository
 
 	// I7-D1 (T216): the center settings store backing the wake-guardrail config
 	// endpoints (GET/PUT /api/system/wake-guardrail). Optional — nil degrades the

@@ -98,6 +98,8 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	deps.IdentityRepo = identity.NewSQLiteIdentityRepo(db)
 	deps.OrgRepo = identity.NewSQLiteOrganizationRepo(db)
 	deps.MemberRepo = identity.NewSQLiteMemberRepo(db)
+	deps.InvitationRepo = identity.NewSQLiteInvitationRepo(db)
+	deps.MemberRemoveSvc = identity.NewMemberRemoveService(db, deps.MemberRepo, identity.NewOrganizationLockManager())
 	// v2.7 B3: wire the ProjectManager service for the nested /api/projects/...
 	// routes (the pm handlers in handlers_pm.go).
 	deps.PM = pmservice.New(pmservice.Deps{

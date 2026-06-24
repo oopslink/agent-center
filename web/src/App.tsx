@@ -7,6 +7,7 @@ import { OrgGuard, OrgRedirect } from './OrgContext';
 // Auth pages render outside AppLayout (no nav/sidebar).
 const Signup = lazy(() => import('./pages/Signup'));
 const Signin = lazy(() => import('./pages/Signin'));
+const InvitationAccept = lazy(() => import('./pages/InvitationAccept'));
 
 // All pages are lazy-loaded so the initial bundle stays small and each
 // route ships as its own chunk (per F3 oversight #3). The Suspense
@@ -35,6 +36,7 @@ const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
 const WorkerDetail = lazy(() => import('./pages/WorkerDetail'));
 const Settings = lazy(() => import('./pages/Settings'));
+const OrganizationSettings = lazy(() => import('./pages/OrganizationSettings'));
 const Version = lazy(() => import('./pages/Version'));
 const Me = lazy(() => import('./pages/Me'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
@@ -51,6 +53,7 @@ export function App(): React.ReactElement {
         {/* Auth routes — rendered outside AppLayout (no nav/sidebar). */}
         <Route path="/signup" element={<Signup />} />
         <Route path="/signin" element={<Signin />} />
+        <Route path="/organizations/:slug/invitations/:token/accept" element={<InvitationAccept />} />
 
         {/* Legacy root redirect → first org home (v2.6-FE-6) */}
         <Route index element={<OrgRedirect />} />
@@ -96,6 +99,7 @@ export function App(): React.ReactElement {
           <Route path="environment" element={<Environment />} />
           <Route path="workers/:id" element={<WorkerDetail />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="organization-settings" element={<OrganizationSettings />} />
           <Route path="version" element={<Version />} />
           <Route path="me" element={<Me />} />
           <Route path="members/humans" element={<MembersHumans />} />

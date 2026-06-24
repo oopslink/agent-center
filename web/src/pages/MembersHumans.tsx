@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom';
 import {
   useMembers,
-  useAddMember,
   useChangeMemberRole,
   useDisableMember,
   useReEnableMember,
@@ -10,7 +9,6 @@ import {
   type MemberResult,
 } from '@/api/members';
 import { Link } from 'react-router-dom';
-import { ApiError } from '@/api/client';
 import { EntityRef } from '@/components/EntityRef';
 import { Avatar } from '@/components/Avatar';
 import { MembersSegmentControl } from '@/components/MembersSegmentControl';
@@ -264,129 +262,9 @@ function MemberRow({
   );
 }
 
-function AddUserModal({ onClose }: { onClose: () => void }): React.ReactElement {
-  const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState('member');
-  const [error, setError] = useState('');
-  const [tempPasscode, setTempPasscode] = useState('');
-  const [createdName, setCreatedName] = useState('');
-  const add = useAddMember();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    add.mutate(
-      { display_name: displayName.trim(), role },
-      {
-        onSuccess: (res) => {
-          if (res.temp_passcode) {
-            setTempPasscode(res.temp_passcode);
-            setCreatedName(res.display_name ?? displayName.trim());
-          } else {
-            onClose();
-          }
-        },
-        onError: (err) => {
-          if (err instanceof ApiError) setError(err.message);
-          else setError('Failed to add user');
-        },
-      },
-    );
-  };
-
-  // Success view — show temp passcode (once).
-  if (tempPasscode) {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="w-full max-w-sm rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)]">
-          <h2 className="text-base font-semibold text-text-primary mb-2">User created</h2>
-          <p className="text-sm text-text-secondary mb-3">
-            Temporary passcode for <strong>{createdName}</strong> (shown once — hand it over now):
-          </p>
-          <div className="rounded bg-bg-subtle border border-border-strong px-3 py-3 mb-4 text-center">
-            <code className="text-2xl font-mono tracking-widest text-text-primary">{tempPasscode}</code>
-          </div>
-          <p className="text-xs text-text-muted mb-4">
-            The user should change their password at /me right after first sign-in. This passcode cannot be viewed again after closing this window.
-          </p>
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-            >
-              I've saved it, close
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="w-full max-w-sm rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)]">
-        <h2 className="text-base font-semibold text-text-primary mb-4">Add user</h2>
-        <p className="text-xs text-text-muted mb-3">A new user identity will be created with a temporary passcode.</p>
-        {error && (
-          <div role="alert" className="mb-3 rounded bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
-            {error}
-          </div>
-        )}
-        <form onSubmit={handleSubmit} noValidate className="space-y-3">
-          <div className="space-y-1">
-            <label htmlFor="add-user-name" className="block text-sm text-text-primary">Display name</label>
-            <input
-              id="add-user-name"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="The user's display name"
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="add-user-role" className="block text-sm text-text-primary">Role</label>
-            <select
-              id="add-user-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full rounded border border-border px-3 py-1.5 text-sm bg-bg-elevated text-text-primary"
-            >
-              <option value="member">member</option>
-              <option value="admin">admin</option>
-              <option value="owner">owner</option>
-            </select>
-          </div>
-          <div className="flex gap-2 justify-end pt-1">
-            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">Cancel</button>
-            <button
-              type="submit"
-              disabled={add.isPending || !displayName.trim()}
-              className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-            >
-              {add.isPending ? 'Creating…' : 'Create user'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 export default function MembersHumans(): React.ReactElement {
   const members = useMembers();
   const openDm = useOpenDm();
-  const [addModalOpen, setAddModalOpen] = useState(false);
 
   // Use `kind` field from v2.6 member response; fall back to identity_id prefix for compatibility.
   const humanMembers = (members.data ?? []).filter(
@@ -397,13 +275,6 @@ export default function MembersHumans(): React.ReactElement {
     <section className="space-y-4" data-testid="page-MembersHumans">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-text-primary">Humans</h1>
-        <button
-          type="button"
-          onClick={() => setAddModalOpen(true)}
-          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-        >
-          Add user
-        </button>
       </div>
 
       {/* Mobile (col② is hidden <md): segmented Humans/Agents switch. */}
@@ -479,8 +350,6 @@ export default function MembersHumans(): React.ReactElement {
           </table>
         </div>
       )}
-
-      {addModalOpen && <AddUserModal onClose={() => setAddModalOpen(false)} />}
     </section>
   );
 }

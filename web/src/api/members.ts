@@ -106,6 +106,7 @@ export const membersApi = {
   disable: (id: string, reason?: string) =>
     api.post<void>(`/members/${id}/disable`, { reason: reason ?? '' }),
   reEnable: (id: string) => api.post<void>(`/members/${id}/reenable`),
+  drop: (id: string) => api.del<void>(`/members/${id}`),
 };
 
 export function useMembers() {
@@ -212,6 +213,14 @@ export function useReEnableMember() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => membersApi.reEnable(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
+  });
+}
+
+export function useDropMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => membersApi.drop(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: membersKey() }),
   });
 }

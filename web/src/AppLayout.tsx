@@ -16,7 +16,6 @@ import { PageSkeleton } from '@/components/Skeleton';
 import { UnreadBadge } from '@/components/UnreadBadge';
 import { CommandPalette } from '@/components/CommandPalette';
 import { WorkerEnrolledToast } from '@/components/WorkerEnrolledToast';
-import { OrgSettingsModal } from '@/components/OrgSettingsModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { useKeyShortcuts } from '@/useKeyShortcuts';
 import { readTheme, writeTheme, type Theme } from '@/theme';
@@ -252,7 +251,6 @@ export default function AppLayout(): React.ReactElement {
 
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
-  const [settingsOrgId, setSettingsOrgId] = useState<string | null>(null);
   // v2.10.1 [M1] mobile (<768) overlays: the col④ context panel is a
   // dismissible bottom sheet (default closed, opened from the top-bar ⓘ), and
   // the org/account/theme/sign-out menu is a second bottom sheet. The desktop
@@ -363,9 +361,9 @@ export default function AppLayout(): React.ReactElement {
       setOrgDropdownOpen(false);
       setCreateOrgModalOpen(true);
     },
-    onOpenSettings: (id: string) => {
+    onOpenSettings: (slug: string) => {
       setOrgDropdownOpen(false);
-      setSettingsOrgId(id);
+      navigate(`/organizations/${slug}/organization-settings`);
     },
   };
 
@@ -534,11 +532,8 @@ export default function AppLayout(): React.ReactElement {
           onSetTheme={setTheme}
         />
 
-        {/* Org create / settings modals overlay the whole app from the root. */}
+        {/* Org create modal overlays the whole app from the root. */}
         {createOrgModalOpen && <CreateOrgModal onClose={() => setCreateOrgModalOpen(false)} />}
-        {settingsOrgId && (
-          <OrgSettingsModal orgId={settingsOrgId} onClose={() => setSettingsOrgId(null)} />
-        )}
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         <WorkerEnrolledToast />
       </div>
@@ -1409,7 +1404,7 @@ interface OrgSwitcherBinding {
   onToggle: () => void;
   onClose: () => void;
   onCreateOrg: () => void;
-  onOpenSettings: (orgId: string) => void;
+  onOpenSettings: (orgSlug: string) => void;
 }
 
 interface OrgDropdownProps {
@@ -1417,7 +1412,7 @@ interface OrgDropdownProps {
   currentSlug?: string;
   onClose: () => void;
   onCreateOrg: () => void;
-  onOpenSettings: (orgId: string) => void;
+  onOpenSettings: (orgSlug: string) => void;
 }
 
 function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg, onOpenSettings }: OrgDropdownProps): React.ReactElement {
@@ -1469,7 +1464,7 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg, onOpenSettings }
             data-org-id={o.id}
             aria-label={`Settings for ${o.name}`}
             title="Organization settings"
-            onClick={() => onOpenSettings(o.id)}
+            onClick={() => onOpenSettings(o.slug)}
             className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border hover:text-text-primary"
           >
             <GearIcon />

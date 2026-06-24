@@ -427,6 +427,34 @@ func (s *Server) reEnableMemberHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// dropMemberHandler handles DELETE /api/members/{id}(org via /api/orgs/{slug} path).
+// Requires owner or admin role. The domain service currently performs a soft
+// removal so audit history remains attached to the org.
+func (s *Server) dropMemberHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.MemberRemoveSvc == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "member remove not configured")
+		return
+	}
+	caller, callerMember, orgID, ok := s.resolveCallerAndOrg(w, r, d)
+	if !ok {
+		return
+	}
+	if string(callerMember.Role()) == "member" {
+		writeError(w, http.StatusForbidden, "forbidden", "only owner or admin can drop members")
+		return
+	}
+	memberID := r.PathValue("id")
+	if _, ok := s.requireTargetMemberInOrg(w, r, d, memberID, orgID); !ok {
+		return
+	}
+	if err := d.MemberRemoveSvc.Remove(r.Context(), memberID, caller.ID()); err != nil {
+		writeError(w, mapIdentityError(err), identityErrCode(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func memberPublicMap(m *identity.Member) map[string]any {
 	// Infer kind from identity_id prefix ("user-" or "agent-").
 	kind := "user"

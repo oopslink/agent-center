@@ -151,6 +151,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/members/{id}/role", s.changeMemberRoleHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/members/{id}/disable", s.disableMemberHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/members/{id}/reenable", s.reEnableMemberHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/members/{id}", s.dropMemberHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/invitations", s.listInvitationsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/invitations", s.createInvitationHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/invitations/{id}/cancel", s.cancelInvitationHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/invitations/{token}/accept", s.acceptInvitationHandler)
 	// v2.7.1 #214: user profile detail (member-id path; Humans row → UserDetail).
 	// EXEMPT (org-agnostic): cross-org profile — lists every org the user belongs
 	// to + their per-org role; authenticated only, no requireOrgMember gate.

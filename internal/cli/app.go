@@ -194,8 +194,10 @@ type App struct {
 	IdentityMemberCreateUserSvc *identity.MemberCreateUserService
 	IdentityMemberRoleChangeSvc *identity.MemberRoleChangeService
 	IdentityMemberDisableSvc    *identity.MemberDisableService
+	IdentityMemberRemoveSvc     *identity.MemberRemoveService
 	IdentityAgentProvisionSvc   *identity.AgentIdentityProvisionService
 	IdentityOrgUpdateSvc        *identity.OrganizationUpdateService
+	IdentityInvitationRepo      identity.InvitationRepository
 
 	// Observability Phase 4
 	QuerySvc  *query.Service
@@ -311,8 +313,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	identityMemberCreateUserSvc := identity.NewMemberCreateUserServiceWithSink(db, idIdentityRepo, idMemberRepo, sink)
 	identityMemberRoleChangeSvc := identity.NewMemberRoleChangeServiceWithSink(db, idMemberRepo, identityOrgLock, sink)
 	identityMemberDisableSvc := identity.NewMemberDisableServiceWithSink(db, idMemberRepo, identityOrgLock, sink)
+	identityMemberRemoveSvc := identity.NewMemberRemoveServiceWithSink(db, idMemberRepo, identityOrgLock, sink)
 	identityAgentProvisionSvc := identity.NewAgentIdentityProvisionServiceWithSink(db, idIdentityRepo, idMemberRepo, sink)
 	identityOrgUpdateSvc := identity.NewOrganizationUpdateServiceWithSink(db, idOrgRepo, sink)
+	identityInvitationRepo := identity.NewSQLiteInvitationRepo(db)
 	var (
 		identitySigninSvc *identity.SigninService
 		identityAuthSvc   *identity.AuthService
@@ -530,8 +534,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IdentityMemberCreateUserSvc: identityMemberCreateUserSvc,
 		IdentityMemberRoleChangeSvc: identityMemberRoleChangeSvc,
 		IdentityMemberDisableSvc:    identityMemberDisableSvc,
+		IdentityMemberRemoveSvc:     identityMemberRemoveSvc,
 		IdentityAgentProvisionSvc:   identityAgentProvisionSvc,
 		IdentityOrgUpdateSvc:        identityOrgUpdateSvc,
+		IdentityInvitationRepo:      identityInvitationRepo,
 
 		AdminTokenRepo: adminTokenRepo,
 		AdminTokenSvc:  adminTokenSvc,

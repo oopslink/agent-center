@@ -103,8 +103,10 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
 		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
 		MemberDisableSvc:    a.IdentityMemberDisableSvc,
+		MemberRemoveSvc:     a.IdentityMemberRemoveSvc,
 		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
 		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
+		InvitationRepo:      a.IdentityInvitationRepo,
 		// I7-D1 (T216): center settings store backing GET/PUT /api/system/wake-guardrail
 		// (the I7-D3 Settings panel reads/writes the wake-guardrail thresholds here).
 		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
@@ -440,8 +442,10 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
 		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
 		MemberDisableSvc:    a.IdentityMemberDisableSvc,
+		MemberRemoveSvc:     a.IdentityMemberRemoveSvc,
 		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
 		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
+		InvitationRepo:      a.IdentityInvitationRepo,
 		// I7-D1 (T216) center settings store backing GET/PUT /api/system/wake-guardrail
 		// (the I7-D3 Settings panel reads/writes the wake-guardrail thresholds). This is
 		// the LIVE webconsole deps path — buildWebConsoleHandler is test-only, so without

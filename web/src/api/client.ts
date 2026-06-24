@@ -60,6 +60,10 @@ function readCurrentOrgSlug(): string | null {
   }
 }
 
+export function currentOrgSlug(): string | null {
+  return readCurrentOrgSlug();
+}
+
 // withOrgSlug splices /orgs/{currentSlug} into a path so org-scoped requests
 // hit the v2.9 path-routed backend (GET /api/orgs/{slug}/projects, …) instead
 // of the legacy ?org_slug= query form. Exported so the few raw-fetch call sites

@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"errors"
 	"time"
 )
 
@@ -45,6 +46,44 @@ func (InvitationFactory) New(
 		createdAt:           now,
 		expiresAt:           now.Add(expiresIn),
 	}, nil
+}
+
+// Cancel marks a pending invitation as revoked. The web console presents this
+// terminal state as "cancelled"; the persisted enum keeps the existing schema.
+func (inv *Invitation) Cancel() error {
+	if inv.status != InvitationPending {
+		return ErrForbidden
+	}
+	inv.status = InvitationRevoked
+	return nil
+}
+
+// Accept marks a pending invitation as accepted by the invited identity.
+func (inv *Invitation) Accept(identityID string, now time.Time) error {
+	if inv.status != InvitationPending {
+		return ErrForbidden
+	}
+	if now.UTC().After(inv.expiresAt) {
+		inv.status = InvitationExpired
+		return ErrInvitationExpired
+	}
+	if inv.inviteeHandle != identityID {
+		return ErrForbidden
+	}
+	inv.status = InvitationAccepted
+	acceptedAt := now.UTC()
+	inv.acceptedByIdentityID = &identityID
+	inv.acceptedAt = &acceptedAt
+	return nil
+}
+
+// Expire marks a pending invitation as expired.
+func (inv *Invitation) Expire() error {
+	if inv.status != InvitationPending {
+		return errors.New("invitation: not pending")
+	}
+	inv.status = InvitationExpired
+	return nil
 }
 
 // RehydrateInvitation reconstructs from DB.
