@@ -350,6 +350,18 @@ func (a *App) outboxProjectors(
 	// PlanDispatcher wired); idempotent via AppliedStore + INSERT-OR-IGNORE dispatch
 	// records (§9.3). Registered in the returned slice + guarded by the #266 class-test.
 	planOrchestratorProj := pmservice.NewPlanOrchestratorProjector(a.DB, a.PMService, appliedRepo, a.Clock)
+	// T465 (issue I34): the IMMEDIATE dispatch-wake projector — the replacement for the
+	// retired WorkItemProjector's wake side. It consumes pm.task.assigned / .reassigned /
+	// .state_changed → emits a content-free agent.work_available onto the assignee's worker
+	// stream the instant work lands (live inject / down relaunch), so dispatch/reassign/
+	// completion-handoff no longer waits 60–120s for the WakeReconcileLoop sweep. The sweep
+	// stays as the down-session fallback; DispatchRecord is untouched. Resolution closures keep
+	// the pm/agent reads in composition (BC boundary), mirroring buildSweepCandidates.
+	dispatchWakeProj := envservice.NewDispatchWakeProjector(envservice.DispatchWakeProjectorDeps{
+		ControlLog:   controlLog,
+		AssignTarget: buildAssignTarget(a.PMService, sweepAgentRepo),
+		RepushTarget: buildRepushTarget(a.PMService, sweepAgentRepo),
+	})
 	return []outbox.Projector{
 		participantProj,
 		planParticipantProj,
@@ -357,6 +369,7 @@ func (a *App) outboxProjectors(
 		agentControlProj,
 		wakeProj,
 		planOrchestratorProj,
+		dispatchWakeProj,
 	}, wakeProj
 }
 

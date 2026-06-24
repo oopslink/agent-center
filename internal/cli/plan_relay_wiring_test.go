@@ -61,6 +61,7 @@ func TestOutboxProjectors_RegistersEventConsumers(t *testing.T) {
 		"pm-participant-sync",
 		"env-agent-control",
 		"conv-agent-wake",
+		"task-dispatch-wake", // T465 (I34) — consumes pm.task.assigned/.reassigned/.state_changed → immediate agent.work_available
 	} {
 		if !got[required] {
 			t.Errorf("App.outboxProjectors() does not register %q — the outbox events it consumes would have no consumer in the production relay (this is exactly how #266 broke the Plan headline)", required)
@@ -366,6 +367,100 @@ func TestProductionRelay_AgentCreatorFailureWake(t *testing.T) {
 	}
 	if converseCount != 1 {
 		t.Fatalf("idempotency broken: %d agent.converse for the agent-creator, want 1 (P3)", converseCount)
+	}
+}
+
+// TestProductionRelay_DispatchWake_ImmediateWorkAvailable is the T465 (issue I34)
+// behavioral guard: a plan ready-set dispatch to an AGENT assignee must enqueue an
+// IMMEDIATE agent.work_available on the assignee's worker control stream — through the
+// REAL App.outboxProjectors() set — rather than waiting 60–120s for the WakeReconcileLoop
+// sweep. v2.14.0 F7 deleted the WorkItemProjector that used to consume pm.task.assigned, so
+// without the DispatchWakeProjector registered + handling that event, no wake fires here and
+// this FAILS (the exact I34 regression: dispatch-to-start latency collapses to the sweep).
+func TestProductionRelay_DispatchWake_ImmediateWorkAvailable(t *testing.T) {
+	app := newTestApp(t)
+	ctx := context.Background()
+	svc := app.PMService
+
+	// A desired-running agent bound to worker W1 — the wake must land here.
+	agents := agentsql.NewAgentRepo(app.DB)
+	at := app.Clock.Now()
+	ag, err := agentpkg.RehydrateAgent(agentpkg.RehydrateAgentInput{
+		ID: agentpkg.AgentID("WORKERBOT"), OrganizationID: "org-rel",
+		Profile: agentpkg.Profile{Name: "WORKERBOT"}, WorkerID: "W1",
+		Lifecycle: agentpkg.LifecycleRunning, CreatedBy: "system",
+		CreatedAt: at, UpdatedAt: at, Version: 1,
+	})
+	if err != nil {
+		t.Fatalf("RehydrateAgent: %v", err)
+	}
+	if err := agents.Save(ctx, ag); err != nil {
+		t.Fatalf("save agent: %v", err)
+	}
+
+	pid, err := svc.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: "org-rel", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	if _, err := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+		ProjectID: pid, IdentityID: "agent:WORKERBOT", Role: pm.RoleMember, Actor: "user:a",
+	}); err != nil {
+		t.Fatalf("AddProjectMember: %v", err)
+	}
+
+	relay, _, controlLog := productionRelayWithControlLog(t, app)
+
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "p", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatalf("CreatePlan: %v", err)
+	}
+	drainRelay(t, relay)
+
+	tid, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "do it", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	assignee := "agent:WORKERBOT"
+	if err := svc.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &assignee}, "user:a"); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, tid, "user:a"); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if err := svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	drainRelay(t, relay)
+
+	cmds, err := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wake *environment.WorkerControlEvent
+	for _, c := range cmds {
+		if c.CommandType() == "agent.work_available" {
+			wake = c
+			break
+		}
+	}
+	if wake == nil {
+		t.Fatal("production relay did NOT enqueue agent.work_available on plan dispatch to an agent — DispatchWakeProjector not handling pm.task.assigned in production (the I34 regression)")
+	}
+	if !strings.Contains(wake.Payload(), `"agent_id":"WORKERBOT"`) || !strings.Contains(wake.Payload(), `"task_id":"`+string(tid)+`"`) {
+		t.Fatalf("work_available payload = %s, want agent WORKERBOT + task %s", wake.Payload(), tid)
+	}
+
+	// Replay idempotency through the production relay: re-draining enqueues no duplicate.
+	drainRelay(t, relay)
+	cmds2, _ := controlLog.CommandsAfter(ctx, environment.WorkerID("W1"), 0)
+	n := 0
+	for _, c := range cmds2 {
+		if c.CommandType() == "agent.work_available" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("idempotency broken: %d work_available on W1, want 1", n)
 	}
 }
 

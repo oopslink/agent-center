@@ -234,6 +234,28 @@ func (s *Service) ListRunnableAgentTasks(ctx context.Context, assignee pm.Identi
 	return out, nil
 }
 
+// AgentFreedFromTask reports whether the given task no longer occupies its agent
+// assignee's single-active slot — i.e. the agent is free to start its next task.
+// True when the task is terminal (completed/discarded) OR a blocked, lease-free
+// RUNNING task (Block keeps status=running but releases the §13.B single-active
+// index, so the agent CAN start another). False for a plain running task (a fresh
+// start/claim/resume) so the dispatch-wake re-push trigger does not misfire on
+// open→running. Used by T465's re-push trigger (issue I34).
+func (s *Service) AgentFreedFromTask(ctx context.Context, taskID pm.TaskID) (bool, error) {
+	t, err := s.tasks.FindByID(ctx, taskID)
+	if err != nil {
+		return false, err
+	}
+	switch t.Status() {
+	case pm.TaskCompleted, pm.TaskDiscarded:
+		return true, nil
+	case pm.TaskRunning:
+		return t.BlockedReason() != "", nil // blocked running task frees the slot
+	default:
+		return false, nil
+	}
+}
+
 // TaskClaimableByID derives whether a single task is claimable right now (ADR-0047
 // §-1: expose `claimable` on get_task too). A backlog task (no plan) is never
 // claimable; otherwise it derives the task's node_status from its plan view and
