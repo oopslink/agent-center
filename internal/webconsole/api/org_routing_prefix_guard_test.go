@@ -22,6 +22,10 @@ func TestOrgRouting_NoBareOrgScopedRoute(t *testing.T) {
 		"/api/auth/bootstrap": true, "/api/auth/me": true, "/api/auth/me/passcode": true,
 		"/api/auth/signin": true, "/api/auth/signout": true, "/api/auth/signup": true,
 		"/api/orgs": true, "/api/orgs/{id}": true,
+		// I41 (T470): owner-only org lifecycle toggles, addressed by org {id} like
+		// the sibling PATCH/DELETE /api/orgs/{id}. The owner-RBAC + org-membership
+		// gate lives in the handler (not the path); no cross-org leak.
+		"/api/orgs/{id}/disable": true, "/api/orgs/{id}/enable": true,
 		"/api/users/{user_id}": true,
 		"/api/sse":             true, "/api/sse/subscribe": true, "/api/sse/unsubscribe": true,
 		"/api/health": true, "/api/system/version": true,

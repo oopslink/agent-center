@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { orgApi, useOrgs } from '@/api/auth';
 import {
@@ -16,49 +16,37 @@ import {
 import { invitationAcceptUrl, useCancelInvitation, useCreateInvitation, useInvitations } from '@/api/invitations';
 import { useAgents, useBatchAgentLifecycle, type AgentBatchAction } from '@/api/agents';
 import { AgentCreateModal } from '@/components/AgentCreateModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { EmptyState } from '@/components/EmptyState';
 import { useOptionalOrgContext } from '@/OrgContext';
 import { formatLocalTime } from '@/utils/time';
 
 type Section = 'profile' | 'humans' | 'agents' | 'invitations' | 'danger';
 
-const navItems: Array<{ id: Section; label: string }> = [
-  { id: 'profile', label: 'Profile' },
-  { id: 'humans', label: 'Humans' },
-  { id: 'agents', label: 'Agents' },
-  { id: 'invitations', label: 'Invitations' },
-  { id: 'danger', label: 'Danger Zone' },
-];
+const SECTIONS: ReadonlyArray<Section> = ['profile', 'humans', 'agents', 'invitations', 'danger'];
 
+// I41 (T470): the 5 sections now live in the shell's col② secondary nav
+// (OrgSettingsSecondaryNav), reached via routed sub-paths
+// organization-settings/<section>. This page renders ONLY the selected
+// section's panel in col③ — no page-internal nav (the rejected card/tab form).
 export default function OrganizationSettings(): React.ReactElement {
-  const [section, setSection] = useState<Section>('profile');
+  const navigate = useNavigate();
+  const params = useParams<{ section?: string }>();
+  const section = params.section as Section | undefined;
+  // Unknown/missing section → canonical Profile (the index route also redirects,
+  // but a hand-typed bad section lands here).
+  if (!section || !SECTIONS.includes(section)) {
+    return <Navigate to="profile" replace />;
+  }
+  const goToInvitations = (): void => navigate('../invitations');
   return (
-    <section className="min-h-full bg-bg-subtle px-4 py-5 text-text-primary md:px-6">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 md:flex-row">
-        <nav className="rounded border border-border-base bg-bg-elevated p-2 md:w-56 md:shrink-0">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setSection(item.id)}
-              className={[
-                'block w-full rounded px-3 py-2 text-left text-sm',
-                section === item.id
-                  ? 'bg-bg-subtle font-semibold text-text-primary'
-                  : 'text-text-secondary hover:bg-bg-subtle',
-              ].join(' ')}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <div className="min-w-0 flex-1 rounded border border-border-base bg-bg-elevated p-5 shadow-[var(--shadow-1)]">
-          {section === 'profile' && <ProfileSection />}
-          {section === 'humans' && <HumansSection onOpenInvitations={() => setSection('invitations')} />}
-          {section === 'agents' && <AgentsSection />}
-          {section === 'invitations' && <InvitationsSection />}
-          {section === 'danger' && <DangerSection />}
-        </div>
+    <section className="min-h-full text-text-primary">
+      <div className="mx-auto max-w-3xl">
+        {section === 'profile' && <ProfileSection />}
+        {section === 'humans' && <HumansSection onOpenInvitations={goToInvitations} />}
+        {section === 'agents' && <AgentsSection />}
+        {section === 'invitations' && <InvitationsSection />}
+        {section === 'danger' && <DangerSection />}
       </div>
     </section>
   );
@@ -86,7 +74,7 @@ function ProfileSection(): React.ReactElement {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['orgs'] });
       if (slugEditable && slug.trim() && slug.trim() !== org?.slug) {
-        navigate(`/organizations/${slug.trim()}/organization-settings`, { replace: true });
+        navigate(`/organizations/${slug.trim()}/organization-settings/profile`, { replace: true });
       }
     },
   });
@@ -102,7 +90,7 @@ function ProfileSection(): React.ReactElement {
     <div className="max-w-2xl space-y-4">
       <h1 className="text-xl font-semibold">Organization Profile</h1>
       <Field label="Organization Name">
-        <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
+        <input data-testid="org-settings-name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
       <Field label="Organization Slug">
         <div className="flex gap-2">
@@ -150,10 +138,9 @@ function HumansSection({ onOpenInvitations }: { onOpenInvitations: () => void })
   const reEnable = useReEnableMember();
   const drop = useDropMember();
   const humans = (members.data ?? []).filter((m) => m.kind === 'user' || m.identity_id.startsWith('user-'));
-  const dropMember = (m: MemberResult): void => {
-    if (!window.confirm(`Drop ${m.display_name ?? m.identity_id} from this organization?`)) return;
-    drop.mutate(m.id);
-  };
+  // I41 (T470): Drop HARD-removes the membership (no tombstone) — confirm via the
+  // accessible ConfirmModal (native window.confirm is banned, #169).
+  const [pendingDrop, setPendingDrop] = useState<MemberResult | null>(null);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -198,7 +185,7 @@ function HumansSection({ onOpenInvitations }: { onOpenInvitations: () => void })
                   ) : (
                     <button type="button" onClick={() => reEnable.mutate(m.id)} className="mr-3 text-success hover:underline">Re-enable</button>
                   )}
-                  <button type="button" onClick={() => dropMember(m)} className="text-danger hover:underline">Drop</button>
+                  <button type="button" onClick={() => setPendingDrop(m)} className="text-danger hover:underline">Drop</button>
                 </td>
               </tr>
             ))}
@@ -207,8 +194,29 @@ function HumansSection({ onOpenInvitations }: { onOpenInvitations: () => void })
       </div>
       {humans.length === 0 && <EmptyState title="No humans" body="Invite self-registered users to join this organization." />}
       <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-        Disable = keeps member identity & history but marks inactive. Drop = removes from org membership.
+        Disable = keeps member identity & history but marks inactive. Drop = permanently removes the human from this organization (no record kept).
       </div>
+      <ConfirmModal
+        open={pendingDrop !== null}
+        danger
+        busy={drop.isPending}
+        title="Drop human"
+        message={
+          pendingDrop
+            ? `Drop ${pendingDrop.display_name ?? normalizeIdentityRef(pendingDrop.identity_id)} from this organization? This permanently removes their membership — no record is kept. This cannot be undone.`
+            : undefined
+        }
+        confirmLabel="Drop"
+        onCancel={() => {
+          if (drop.isPending) return;
+          setPendingDrop(null);
+          drop.reset();
+        }}
+        onConfirm={() => {
+          if (!pendingDrop) return;
+          drop.mutate(pendingDrop.id, { onSettled: () => setPendingDrop(null) });
+        }}
+      />
     </div>
   );
 }
@@ -352,21 +360,61 @@ function InvitationModal({ onClose }: { onClose: () => void }): React.ReactEleme
 function DangerSection(): React.ReactElement {
   const orgCtx = useOptionalOrgContext();
   const orgs = useOrgs();
+  const qc = useQueryClient();
   const org = (orgs.data ?? []).find((o) => o.slug === orgCtx?.slug);
-  const del = useMutation({
-    mutationFn: () => (org ? orgApi.delete(org.id) : Promise.resolve()),
-    onSuccess: () => {
-      window.location.href = '/';
+  const isDisabled = org?.disabled ?? false;
+  // I41 (T470): "Disable" is a REVERSIBLE login gate (non-owner members can't
+  // enter; the owner keeps full access) — NOT a delete. It toggles to "Enable".
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const toggle = useMutation({
+    mutationFn: () => {
+      if (!org) return Promise.resolve();
+      return isDisabled ? orgApi.enable(org.id) : orgApi.disable(org.id);
     },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['orgs'] }),
+    onSettled: () => setConfirmOpen(false),
   });
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-danger">Danger Zone</h1>
-      <DangerCard title="Disable Organization" body="Members cannot access this organization, but data is preserved." button="Disable Org" onClick={() => {
-        if (window.confirm(`Disable organization ${org?.name ?? ''}?`)) del.mutate();
-      }} />
+      {isDisabled ? (
+        <DangerCard
+          title="Enable Organization"
+          body="This organization is currently disabled — non-owner members cannot sign in to it. Enable it to restore access for everyone."
+          button={toggle.isPending ? 'Enabling…' : 'Enable Org'}
+          disabled={!org || toggle.isPending}
+          onClick={() => setConfirmOpen(true)}
+        />
+      ) : (
+        <DangerCard
+          title="Disable Organization"
+          body="Non-owner members can no longer sign in to this organization; you (as owner) keep full access and can re-enable it any time. No data is deleted."
+          button={toggle.isPending ? 'Disabling…' : 'Disable Org'}
+          disabled={!org || toggle.isPending}
+          onClick={() => setConfirmOpen(true)}
+        />
+      )}
+      {toggle.isError && <p className="text-sm text-danger">{(toggle.error as Error).message}</p>}
       <DangerCard title="Force-Delete Organization" body="Permanently delete this organization and all associated data. This action cannot be undone." button="Force Delete" disabled />
       <DangerCard title="Audit Log" body="View all organization changes, member actions, and system events." button="View Audit Log" disabled />
+      <ConfirmModal
+        open={confirmOpen}
+        danger={!isDisabled}
+        busy={toggle.isPending}
+        title={isDisabled ? 'Enable organization' : 'Disable organization'}
+        message={
+          isDisabled
+            ? `Enable organization ${org?.name ?? ''}? All members will be able to sign in again.`
+            : `Disable organization ${org?.name ?? ''}? Non-owner members will be locked out until you re-enable it. You keep full access. No data is deleted.`
+        }
+        confirmLabel={isDisabled ? 'Enable' : 'Disable'}
+        onCancel={() => {
+          if (toggle.isPending) return;
+          setConfirmOpen(false);
+          toggle.reset();
+        }}
+        onConfirm={() => toggle.mutate()}
+      />
     </div>
   );
 }

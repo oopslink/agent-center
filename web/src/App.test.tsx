@@ -288,7 +288,10 @@ describe('App shell + route tree', () => {
     expect(window.location.pathname).toBe(`${ORG_BASE}/channels`);
   });
 
-  it('opens per-org settings as a modal from the switcher gear, no standalone entry (#186-6)', async () => {
+  // I41 (T470): the switcher gear opens Organization Settings as a routed page
+  // whose 5 sections live in the shell's col② secondary nav (NOT a page-internal
+  // card-nav, and no longer a modal). The bare path lands on the Profile section.
+  it('opens per-org settings as a col② page from the switcher gear, no standalone entry (#186-6 / T470)', async () => {
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('org-switcher'));
@@ -296,8 +299,14 @@ describe('App shell + route tree', () => {
     const gear = await screen.findByTestId('org-settings-gear');
     expect(gear).toHaveAttribute('data-org-id', 'org-test');
     fireEvent.click(gear);
-    const modal = await screen.findByTestId('org-settings-modal');
-    expect(modal).toBeInTheDocument();
+    // Navigates to the org-settings page (bare path redirects to /profile).
+    await waitFor(() =>
+      expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/profile`),
+    );
+    // The 5 sections render in the shell's col② secondary nav.
+    expect(await screen.findByTestId('org-settings-secondary-nav')).toBeInTheDocument();
+    expect(screen.getByTestId('org-settings-nav-danger')).toBeInTheDocument();
+    // Profile section (the default) shows the current org name.
     await waitFor(() =>
       expect((screen.getByTestId('org-settings-name') as HTMLInputElement).value).toBe('Test Org'),
     );

@@ -9,9 +9,11 @@ const (
 	EvtIdentityAccountDisabled  observability.EventType = "identity.account_disabled"
 	EvtIdentityAccountReEnabled observability.EventType = "identity.account_re_enabled"
 
-	EvtOrganizationCreated observability.EventType = "organization.created"
-	EvtOrganizationUpdated observability.EventType = "organization.updated"
-	EvtOrganizationDeleted observability.EventType = "organization.deleted"
+	EvtOrganizationCreated  observability.EventType = "organization.created"
+	EvtOrganizationUpdated  observability.EventType = "organization.updated"
+	EvtOrganizationDeleted  observability.EventType = "organization.deleted"
+	EvtOrganizationDisabled observability.EventType = "organization.disabled"
+	EvtOrganizationEnabled  observability.EventType = "organization.enabled"
 
 	EvtMemberAdded       observability.EventType = "member.added"
 	EvtMemberRoleChanged observability.EventType = "member.role_changed"

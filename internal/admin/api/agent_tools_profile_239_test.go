@@ -155,7 +155,7 @@ func TestGetMyProfile_Populated(t *testing.T) {
 
 	// Seed org-1 name.
 	orgRepo := identity.NewSQLiteOrganizationRepo(f.db)
-	org := identity.RehydrateOrganization(atTestOrg, "org-1-slug", "Acme Org", "", "system", atNow, atNow, nil)
+	org := identity.RehydrateOrganization(atTestOrg, "org-1-slug", "Acme Org", "", "system", atNow, atNow, nil, nil)
 	if err := orgRepo.Save(t.Context(), org); err != nil {
 		t.Fatal(err)
 	}

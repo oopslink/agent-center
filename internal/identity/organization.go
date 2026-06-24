@@ -22,6 +22,12 @@ type Organization struct {
 	createdAt           time.Time
 	updatedAt           time.Time
 	deletedAt           *time.Time
+	// disabledAt is the I41 (T470) org-login gate. A DISABLED org is distinct from
+	// a DELETED one: it is reversible (Enable) and stays resolvable by slug, so the
+	// owner can still enter it (full access) to manage / re-enable. The login gate
+	// (requireOrgMember) blocks NON-owner members of a disabled org; the owner is
+	// never affected. nil = enabled.
+	disabledAt *time.Time
 }
 
 // OrganizationFactory creates Organization instances.
@@ -54,7 +60,7 @@ func (OrganizationFactory) New(slug, name, createdByIdentityID string) (*Organiz
 func RehydrateOrganization(
 	id, slug, name, description, createdByIdentityID string,
 	createdAt, updatedAt time.Time,
-	deletedAt *time.Time,
+	deletedAt, disabledAt *time.Time,
 ) *Organization {
 	return &Organization{
 		id:                  id,
@@ -65,6 +71,7 @@ func RehydrateOrganization(
 		createdAt:           createdAt.UTC(),
 		updatedAt:           updatedAt.UTC(),
 		deletedAt:           deletedAt,
+		disabledAt:          disabledAt,
 	}
 }
 
@@ -79,6 +86,8 @@ func (o *Organization) CreatedAt() time.Time        { return o.createdAt }
 func (o *Organization) UpdatedAt() time.Time        { return o.updatedAt }
 func (o *Organization) DeletedAt() *time.Time       { return o.deletedAt }
 func (o *Organization) IsDeleted() bool             { return o.deletedAt != nil }
+func (o *Organization) DisabledAt() *time.Time      { return o.disabledAt }
+func (o *Organization) IsDisabled() bool            { return o.disabledAt != nil }
 
 // UpdateName sets the organization name (admin+).
 func (o *Organization) UpdateName(name string) error {
@@ -112,4 +121,25 @@ func (o *Organization) SoftDelete() {
 	now := time.Now().UTC()
 	o.deletedAt = &now
 	o.updatedAt = now
+}
+
+// Disable marks the organization disabled (I41 / T470). Reversible via Enable;
+// idempotent. A disabled org stays resolvable by slug (unlike SoftDelete) so the
+// owner can still enter it — the non-owner login gate lives in requireOrgMember.
+func (o *Organization) Disable() {
+	if o.disabledAt != nil {
+		return
+	}
+	now := time.Now().UTC()
+	o.disabledAt = &now
+	o.updatedAt = now
+}
+
+// Enable clears the disabled state (I41 / T470). Idempotent.
+func (o *Organization) Enable() {
+	if o.disabledAt == nil {
+		return
+	}
+	o.disabledAt = nil
+	o.updatedAt = time.Now().UTC()
 }
