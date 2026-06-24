@@ -1,4 +1,4 @@
-.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-no-stale-e2e-config lint-spa-tsc lint-spa-eslint smoke vet gen-mcp-docs tidy clean clean-dist release release-dir e2e e2e-install
+.PHONY: help build build-frontend build-backend build-fakeagent test test-install cover cover-html lint lint-gofmt lint-vendor lint-vendor-selftest lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-no-stale-e2e-config lint-spa-tsc lint-spa-eslint smoke vet fmt gen-mcp-docs tidy clean clean-dist release release-dir e2e e2e-install
 
 # Default target prints discoverable entry points. Run `make` (no
 # args) or `make help` to see what's available.
@@ -12,6 +12,7 @@ help:
 	@echo "  test-install         — offline shell tests for the source installer (task #92)"
 	@echo "  cover / cover-html   — go test with coverage report"
 	@echo "  vet                  — go vet ./..."
+	@echo "  fmt                  — gofmt -w under the go.mod-pinned toolchain (go1.25.x)"
 	@echo "  tidy                 — go mod tidy"
 	@echo "  clean                — remove ./bin and coverage artifacts"
 	@echo "  clean-dist           — remove ./dist (release tarballs)"
@@ -21,7 +22,8 @@ help:
 	@echo "  release-dir          — stage release layout (no tarball) at \$$OUT (source installer, task #92)"
 	@echo ""
 	@echo "Lint (conventions § 0.4 enforce mechanisms):"
-	@echo "  lint                       — vet + lint-vendor + lint-mock-default + lint-doc-impl-drift + lint-no-raw-colors-spa + lint-spa-tsc + lint-spa-eslint"
+	@echo "  lint                       — vet + lint-gofmt + lint-vendor + lint-mock-default + lint-doc-impl-drift + lint-no-raw-colors-spa + lint-spa-tsc + lint-spa-eslint"
+	@echo "  lint-gofmt                 — gofmt cleanliness under the go.mod-pinned go1.25.x toolchain (T458)"
 	@echo "  lint-vendor                — #v1 vendor residue grep (ADR-0031)"
 	@echo "  lint-vendor-selftest       — positive-fail check for lint-vendor"
 	@echo "  lint-mock-default          — § 0.4 #2: NoopSender/NoopKillSender prod-wiring guard"
@@ -190,7 +192,20 @@ lint-no-stale-e2e-config:
 	./scripts/lint/no-stale-e2e-config.sh
 
 # lint — composite target for all repo-level linters.
-lint: vet lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-no-stale-e2e-config lint-spa-tsc lint-spa-eslint
+lint: vet lint-gofmt lint-vendor lint-mock-default lint-doc-impl-drift lint-no-raw-colors-spa lint-no-idtail-hash lint-no-stale-e2e-config lint-spa-tsc lint-spa-eslint
+
+# fmt — gofmt -w under the go.mod-pinned toolchain (canonical go1.25.x). Use
+# this, not a bare `gofmt -w`, so the tree is formatted by the same gofmt the
+# lint gate enforces regardless of your local Go version. See T458.
+PIN_TOOLCHAIN = $(shell awk '/^toolchain /{print $$2; exit}' go.mod)
+fmt:
+	GOTOOLCHAIN=$(PIN_TOOLCHAIN) go run cmd/gofmt -w .
+
+# lint-gofmt — gofmt cleanliness gate, pinned to the go.mod toolchain (go1.25.x)
+# so a newer local Go can't silently re-drift formatting. See T458 /
+# issue-71690608 and scripts/lint/gofmt-check.sh for the rationale.
+lint-gofmt:
+	./scripts/lint/gofmt-check.sh
 
 # e2e-install — first-time setup of the Playwright e2e suite.
 # Drops chromium browser (~170MB) into Playwright's cache.

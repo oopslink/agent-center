@@ -2,6 +2,12 @@ module github.com/oopslink/agent-center
 
 go 1.25.0
 
+// Canonical toolchain pin: stay on go1.25 (升 1.26 另议 — issue-71690608 / T458).
+// Anyone on a 1.25.x local Go is pulled to exactly this patch; the gofmt gate
+// (scripts/lint/gofmt-check.sh) forces this version so a newer local Go cannot
+// silently re-format the tree with a different gofmt.
+toolchain go1.25.11
+
 require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/oklog/ulid/v2 v2.1.0
