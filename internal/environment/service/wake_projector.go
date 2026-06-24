@@ -309,6 +309,21 @@ type taskLeaseExpiredNudgePayload struct {
 	AssigneeRef string `json:"assignee_ref"`
 }
 
+// issueDerivedTasksDonePayload mirrors the JSON the PM Service writes for the T464
+// EvtIssueDerivedTasksDone outbox event (env-side copy of the unexported pm type).
+// OwnerRef is pm://issues/{id} (resolves the issue's bound conversation); OwnerIdentity
+// is the issue owner's identity ref (created_by — "agent:<member>" or "user:<id>"), the
+// @mention + converse target. Total/Completed/Discarded drive the message wording.
+type issueDerivedTasksDonePayload struct {
+	IssueID       string `json:"issue_id"`
+	ProjectID     string `json:"project_id"`
+	OwnerRef      string `json:"owner_ref"`
+	OwnerIdentity string `json:"owner_identity"`
+	Total         int    `json:"total"`
+	Completed     int    `json:"completed"`
+	Discarded     int    `json:"discarded"`
+}
+
 // Project enqueues an agent.converse / agent.wake command for the conversation's
 // @mentioned (or DM peer) agent participants when a message is added (v2.7 #185 /
 // #220), and handles the plan-creator failure wake.
@@ -324,6 +339,8 @@ func (p *WakeProjector) Project(ctx context.Context, e outbox.Event) error {
 		return p.projectPlanCreatorWake(ctx, e)
 	case pmservice.EvtTaskLeaseExpiredNudge:
 		return p.projectLeaseExpiredNudge(ctx, e)
+	case pmservice.EvtIssueDerivedTasksDone:
+		return p.projectIssueDerivedTasksDone(ctx, e)
 	default:
 		return nil
 	}
@@ -1010,6 +1027,145 @@ func (p *WakeProjector) deliverLeaseNudge(ctx context.Context, e outbox.Event, r
 		CommandType:    commandTypeAgentConverse,
 		Payload:        string(payload),
 		IdempotencyKey: "agent.converse:" + convID + ":lease-nudge:" + e.ID + ":" + entityID,
+	})
+	return err
+}
+
+// projectIssueDerivedTasksDone is the T464 path (issue-41aceddb): the PM hook emitted
+// EvtIssueDerivedTasksDone because a task's conclusion made ALL of its issue's derived
+// tasks terminal. This SANCTIONED system→agent wake (mirroring projectLeaseExpiredNudge)
+// (a) posts a visible @owner message into the issue's bound conversation and (b) — when
+// the owner is an agent — enqueues an agent.converse so the owner is woken to REVIEW and
+// close the issue (close_issue). TRIGGER-ONLY: nothing here changes the issue's status.
+// A HUMAN owner is notified by the @mention in the conversation (no converse to enqueue).
+//
+// Same-tx idempotent (IsApplied/MarkApplied), so a redelivered event posts the message
+// + wakes at most once.
+func (p *WakeProjector) projectIssueDerivedTasksDone(ctx context.Context, e outbox.Event) error {
+	var pl issueDerivedTasksDonePayload
+	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+		return err
+	}
+	if p.controlLog == nil || p.agents == nil || p.convRepo == nil {
+		return nil // wake/conversation delivery not wired (e.g. test fixtures) → no-op
+	}
+	if strings.TrimSpace(pl.IssueID) == "" || strings.TrimSpace(pl.OwnerIdentity) == "" {
+		slog.Info("wake projector: issue-derived-done skipped (missing issue id or owner)",
+			"issue_id", pl.IssueID, "owner", pl.OwnerIdentity)
+		return nil
+	}
+	now := p.clock.Now()
+	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+		if done, err := p.applied.IsApplied(txCtx, p.Name(), e.ID); err != nil {
+			return err
+		} else if done {
+			return nil
+		}
+		if err := p.deliverIssueDerivedTasksDone(txCtx, e, pl); err != nil {
+			return err
+		}
+		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
+	})
+}
+
+// deliverIssueDerivedTasksDone resolves the issue's bound conversation, posts the
+// visible @owner "all derived tasks concluded — please review and close" message
+// (systemNotify, sender=system → does NOT itself wake, the #185 loop-break), and — when
+// the owner is a RUNNING agent — enqueues an agent.converse so the owner is woken to act.
+// Runs in the caller's tx. A missing conversation / human owner / unresolved-or-stopped
+// agent owner / no worker binding is a logged skip (no error); the posted message
+// persists for the owner to read (a human via the UI unread, an agent on its next run).
+func (p *WakeProjector) deliverIssueDerivedTasksDone(ctx context.Context, e outbox.Event, pl issueDerivedTasksDonePayload) error {
+	conv, err := p.convRepo.FindByOwnerRef(ctx, conversation.NewIssueOwnerRef(pl.IssueID))
+	if err != nil {
+		if errors.Is(err, conversation.ErrConversationNotFound) {
+			slog.Info("wake projector: issue-derived-done skipped (no bound issue conversation)", "issue_id", pl.IssueID)
+			return nil
+		}
+		return err
+	}
+	convID := string(conv.ID())
+
+	ownerRef := strings.TrimSpace(pl.OwnerIdentity)
+	isAgentOwner := strings.HasPrefix(ownerRef, agentParticipantPrefix)
+	rawOwner := ownerRef
+	if i := strings.IndexByte(ownerRef, ':'); i >= 0 {
+		rawOwner = ownerRef[i+1:]
+	}
+	// Resolve the owner's display name for the @mention (agent: via the agent entity;
+	// otherwise via the identity display-name resolver; raw id as last resort).
+	var ownerAgent *agent.Agent
+	var agentOK bool
+	name := rawOwner
+	if isAgentOwner {
+		if a, ok := p.resolveAgent(ctx, rawOwner); ok {
+			ownerAgent, agentOK = a, true
+			if n, nok := p.agentDisplayName(ctx, a, rawOwner); nok {
+				name = n
+			}
+		}
+	} else if n, ok := p.displayNameOr(ctx, ownerRef, rawOwner); ok {
+		name = n
+	}
+
+	msg := "@" + name + " all " + strconv.Itoa(pl.Total) + " task(s) derived from this issue are now "
+	if pl.Discarded == 0 {
+		msg += "complete."
+	} else {
+		msg += "concluded (" + strconv.Itoa(pl.Completed) + " completed, " + strconv.Itoa(pl.Discarded) + " discarded)."
+	}
+	msg += " Please review and close the issue (close_issue) if it's resolved."
+
+	// (a) The visible, durable @owner message (sender=system). It does NOT wake by
+	// itself (system sender, #185); for an agent owner the converse below wakes it, for
+	// a human owner the @mention notifies via the UI unread.
+	if p.systemNotify != nil {
+		if err := p.systemNotify(ctx, convID, msg); err != nil {
+			return err
+		}
+	}
+
+	// (b) Wake a RUNNING agent owner. A human owner / unresolved / stopped / no-worker
+	// owner is a logged skip — the posted message already carries the signal.
+	if !isAgentOwner || !agentOK {
+		return nil
+	}
+	entityID := string(ownerAgent.ID())
+	if ownerAgent.Lifecycle() != agent.LifecycleRunning {
+		slog.Info("wake projector: issue-derived-done wake skipped (owner agent not running)", "agent_id", entityID, "issue_id", pl.IssueID)
+		return nil
+	}
+	workerID := ownerAgent.WorkerID()
+	if strings.TrimSpace(workerID) == "" {
+		slog.Info("wake projector: issue-derived-done wake skipped (owner agent has no worker binding)", "agent_id", entityID, "issue_id", pl.IssueID)
+		return nil
+	}
+	// Resolve the issue title LIVE for the converse brief header (T255 convention).
+	convName := conv.Name()
+	if p.issueTitle != nil {
+		if title, tok := p.issueTitle(ctx, pl.IssueID); tok {
+			convName = title
+		}
+	}
+	payload, err := json.Marshal(converseCommandPayload{
+		AgentID:        entityID,
+		ConversationID: convID,
+		ConvKind:       string(conv.Kind()),
+		ConvName:       convName,
+		SenderRef:      "system",
+		SenderDisplay:  "system",
+		MessageID:      e.ID, // unique per episode → distinct converse per fill-cycle
+		MessageText:    msg,
+		OwnerRef:       pl.OwnerRef,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = p.controlLog.AppendCommand(ctx, environment.AppendCommandInput{
+		WorkerID:       environment.WorkerID(workerID),
+		CommandType:    commandTypeAgentConverse,
+		Payload:        string(payload),
+		IdempotencyKey: "agent.converse:" + convID + ":issue-derived-done:" + e.ID + ":" + entityID,
 	})
 	return err
 }

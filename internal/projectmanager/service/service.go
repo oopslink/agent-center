@@ -90,6 +90,19 @@ const (
 	// wake (like EvtPlanCreatorFailureWake) — a system @mention can otherwise never wake
 	// an agent (the #185 human-only loop-break).
 	EvtTaskLeaseExpiredNudge = "pm.task.lease_expired_nudge"
+	// T464 (issue-41aceddb — issue 派生 task 全完成 → 唤醒 owner 复核关闭). Emitted by the
+	// terminal-task hook (maybeNotifyIssueDerivedTasksDone, in taskStateOp's tx) at the
+	// MOMENT a task carrying a derived_from_issue link enters a terminal state AND that
+	// makes ALL of the issue's derived tasks terminal — and only while the issue is still
+	// actionable (not resolved/closed/discarded). The (production-registered) WakeProjector
+	// consumes it and (a) posts a visible @owner message into the issue's bound conversation
+	// and (b) — when the owner is an agent — enqueues an agent.converse so the owner is woken
+	// to REVIEW and close it (close_issue). TRIGGER-ONLY: the issue's status is NEVER changed
+	// programmatically (oopslink: close is owner-only via close_issue). A HUMAN owner is
+	// notified by the @mention in the conversation (no converse). The all-terminal-on-this-
+	// transition condition is the idempotency boundary: it fires once per "fill" of the
+	// derived-task set, and again only after a NEW derived task is later added + concluded.
+	EvtIssueDerivedTasksDone = "pm.issue.derived_tasks_done"
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared verified context).
 	// EvtPlanFindingRecorded is emitted (same tx) when an agent records a finding
 	// back to a Plan; EvtPlanFindingRetracted when one is retracted. Both are pure
@@ -511,6 +524,25 @@ type taskLeaseExpiredNudgePayload struct {
 	ProjectID   string `json:"project_id"`
 	OwnerRef    string `json:"owner_ref"` // pm://tasks/{id}
 	AssigneeRef string `json:"assignee_ref"`
+}
+
+// issueDerivedTasksDonePayload is the JSON payload for EvtIssueDerivedTasksDone
+// (T464). It carries everything the WakeProjector needs to resolve the issue's bound
+// conversation and @-nudge/wake the owner — without re-reading the issue:
+//   - OwnerRef is pm://issues/{id} (the projector resolves the bound conversation by
+//     owner_ref, mirroring the task paths).
+//   - OwnerIdentity is the issue's owner identity ref (created_by: "agent:<member>"
+//     or "user:<id>") — the @mention target, and the converse target when it is an agent.
+//   - Total/Completed/Discarded summarize the derived-task set for the message wording.
+//   - IssueID/ProjectID are the locus.
+type issueDerivedTasksDonePayload struct {
+	IssueID       string `json:"issue_id"`
+	ProjectID     string `json:"project_id"`
+	OwnerRef      string `json:"owner_ref"` // pm://issues/{id}
+	OwnerIdentity string `json:"owner_identity"`
+	Total         int    `json:"total"`
+	Completed     int    `json:"completed"`
+	Discarded     int    `json:"discarded"`
 }
 
 // taskInputEventPayload is the JSON payload for the v2.14.0 I14/F6 task-input

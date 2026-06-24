@@ -674,7 +674,12 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.flushActionLogs(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, prevStatus, reason)
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
+			return err
+		}
+		// T464: if this transition just concluded a derived task and that makes ALL of
+		// its issue's derived tasks terminal, nudge the issue owner to review + close.
+		return s.maybeNotifyIssueDerivedTasksDone(txCtx, t, prevStatus)
 	})
 }
 
