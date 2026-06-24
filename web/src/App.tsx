@@ -99,7 +99,11 @@ export function App(): React.ReactElement {
           <Route path="environment" element={<Environment />} />
           <Route path="workers/:id" element={<WorkerDetail />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="organization-settings" element={<OrganizationSettings />} />
+          {/* I41 (T470): the 5 Org Settings sections are routed sub-paths so they
+              render via the shell's col② secondary nav (OrgSettingsSecondaryNav),
+              not a page-internal card-nav. The bare path redirects to Profile. */}
+          <Route path="organization-settings" element={<Navigate to="profile" replace />} />
+          <Route path="organization-settings/:section" element={<OrganizationSettings />} />
           <Route path="version" element={<Version />} />
           <Route path="me" element={<Me />} />
           <Route path="members/humans" element={<MembersHumans />} />

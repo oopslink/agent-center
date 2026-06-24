@@ -248,6 +248,22 @@ func requireOrgMember(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*i
 		writeError(w, http.StatusForbidden, "forbidden", "not a member of this organization")
 		return nil, nil, "", false
 	}
+	// I41 (T470): org-login gate. A DISABLED org is closed to its NON-owner members
+	// — they cannot enter/use it (every org-scoped API funnels through here, so
+	// this also blocks a non-owner who was already signed in when the org was
+	// disabled: their next request/refresh is rejected). The owner is never
+	// affected — full access, so they can manage / re-enable. Resolved by id
+	// (GetByID does not filter deleted/disabled); a nil/err lookup falls through
+	// (don't fail-open on the disabled gate, but also don't 500 the whole API on a
+	// transient org read — treat unknown as not-disabled, the membership check
+	// above already proved the org exists).
+	if org, oerr := d.OrgRepo.GetByID(r.Context(), orgID); oerr == nil && org != nil && org.IsDisabled() {
+		if member.Role() != identity.RoleOwner {
+			writeError(w, http.StatusForbidden, "org_disabled",
+				"this organization is disabled; contact an owner to re-enable it")
+			return nil, nil, "", false
+		}
+	}
 	return callerID, member, orgID, true
 }
 

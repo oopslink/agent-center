@@ -134,7 +134,8 @@ func MigrateV1ToV2Command() *Command {
 // I28/F3 added 0078 (agent_activity_daily rollup + rollup cursor — additive, new tables).
 // T461 added 0079 (agents.capability_tags — additive ADD COLUMN, dispatch labels).
 // T468 added 0080 (pm_plan_review_verdicts — additive new table, B3 structured verdict).
-const targetSchemaVersion = 80
+// I41/T470 added 0081 (organizations.disabled_at — additive ADD COLUMN, reversible org disable gate).
+const targetSchemaVersion = 81
 
 func runMigrateV1ToV2(
 	ctx context.Context,

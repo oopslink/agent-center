@@ -317,11 +317,12 @@ func (r *SQLiteOrganizationRepo) Save(ctx context.Context, org *Organization) er
 			org.UpdatedAt().Format(time.RFC3339Nano),
 		)
 	} else {
-		const q = `UPDATE organizations SET slug=?,name=?,description=?,updated_at=?,deleted_at=? WHERE id=?`
+		const q = `UPDATE organizations SET slug=?,name=?,description=?,updated_at=?,deleted_at=?,disabled_at=? WHERE id=?`
 		_, err = exec.ExecContext(ctx, q,
 			org.Slug(), org.Name(), org.Description(),
 			org.UpdatedAt().Format(time.RFC3339Nano),
 			nullTimeStr(org.DeletedAt()),
+			nullTimeStr(org.DisabledAt()),
 			org.ID(),
 		)
 	}
@@ -341,7 +342,7 @@ func (r *SQLiteOrganizationRepo) GetByID(ctx context.Context, id string) (*Organ
 		return nil, err
 	}
 	const q = `SELECT id, slug, name, description, created_by_identity_id,
-		created_at, updated_at, deleted_at
+		created_at, updated_at, deleted_at, disabled_at
 		FROM organizations WHERE id=?`
 	row := exec.QueryRowContext(ctx, q, id)
 	return scanOrganization(row)
@@ -353,8 +354,11 @@ func (r *SQLiteOrganizationRepo) GetBySlug(ctx context.Context, slug string) (*O
 	if err != nil {
 		return nil, err
 	}
+	// NOTE (I41/T470): filters deleted_at only — a DISABLED org MUST stay
+	// resolvable here so its owner can still enter it; the non-owner login gate
+	// lives in requireOrgMember, not in slug resolution.
 	const q = `SELECT id, slug, name, description, created_by_identity_id,
-		created_at, updated_at, deleted_at
+		created_at, updated_at, deleted_at, disabled_at
 		FROM organizations WHERE slug=? AND deleted_at IS NULL`
 	row := exec.QueryRowContext(ctx, q, slug)
 	return scanOrganization(row)
@@ -366,9 +370,12 @@ func (r *SQLiteOrganizationRepo) ListForIdentity(ctx context.Context, identityID
 	if err != nil {
 		return nil, err
 	}
+	// I41 (T470): disabled orgs ARE listed here (deleted are not). The handler
+	// decides visibility per-caller — a disabled org is shown to its owner (so they
+	// can enter + re-enable) and hidden from non-owner members.
 	const q = `
 SELECT o.id, o.slug, o.name, o.description, o.created_by_identity_id,
-	o.created_at, o.updated_at, o.deleted_at
+	o.created_at, o.updated_at, o.deleted_at, o.disabled_at
 FROM organizations o
 JOIN members m ON m.organization_id=o.id
 WHERE m.identity_id=? AND m.status='joined' AND o.deleted_at IS NULL
@@ -393,34 +400,34 @@ func scanOrganization(row *sql.Row) (*Organization, error) {
 	var (
 		id, slug, name, description, createdBy string
 		createdAtStr, updatedAtStr             string
-		deletedAtStr                           sql.NullString
+		deletedAtStr, disabledAtStr            sql.NullString
 	)
 	err := row.Scan(&id, &slug, &name, &description, &createdBy,
-		&createdAtStr, &updatedAtStr, &deletedAtStr)
+		&createdAtStr, &updatedAtStr, &deletedAtStr, &disabledAtStr)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrOrganizationNotFound
 		}
 		return nil, err
 	}
-	return buildOrganization(id, slug, name, description, createdBy, createdAtStr, updatedAtStr, deletedAtStr)
+	return buildOrganization(id, slug, name, description, createdBy, createdAtStr, updatedAtStr, deletedAtStr, disabledAtStr)
 }
 
 func scanOrganizationRow(rows *sql.Rows) (*Organization, error) {
 	var (
 		id, slug, name, description, createdBy string
 		createdAtStr, updatedAtStr             string
-		deletedAtStr                           sql.NullString
+		deletedAtStr, disabledAtStr            sql.NullString
 	)
 	err := rows.Scan(&id, &slug, &name, &description, &createdBy,
-		&createdAtStr, &updatedAtStr, &deletedAtStr)
+		&createdAtStr, &updatedAtStr, &deletedAtStr, &disabledAtStr)
 	if err != nil {
 		return nil, err
 	}
-	return buildOrganization(id, slug, name, description, createdBy, createdAtStr, updatedAtStr, deletedAtStr)
+	return buildOrganization(id, slug, name, description, createdBy, createdAtStr, updatedAtStr, deletedAtStr, disabledAtStr)
 }
 
-func buildOrganization(id, slug, name, description, createdBy, createdAtStr, updatedAtStr string, deletedAtStr sql.NullString) (*Organization, error) {
+func buildOrganization(id, slug, name, description, createdBy, createdAtStr, updatedAtStr string, deletedAtStr, disabledAtStr sql.NullString) (*Organization, error) {
 	createdAt, err := parseTime(createdAtStr)
 	if err != nil {
 		return nil, err
@@ -433,7 +440,11 @@ func buildOrganization(id, slug, name, description, createdBy, createdAtStr, upd
 	if err != nil {
 		return nil, err
 	}
-	return RehydrateOrganization(id, slug, name, description, createdBy, createdAt, updatedAt, deletedAt), nil
+	disabledAt, err := parseTimePtr(disabledAtStr)
+	if err != nil {
+		return nil, err
+	}
+	return RehydrateOrganization(id, slug, name, description, createdBy, createdAt, updatedAt, deletedAt, disabledAt), nil
 }
 
 // ============================================================

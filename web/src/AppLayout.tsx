@@ -25,6 +25,7 @@ import { useContextPanelController } from '@/shell/contextPanel';
 import { ResizeHandle } from '@/components/ResizeHandle';
 import { useResizablePanel } from '@/components/useResizablePanel';
 import { SECONDARY_NAV_REGISTRY } from '@/shell/secondaryNav';
+import { OrgSettingsSecondaryNav } from '@/shell/nav/OrgSettingsSecondaryNav';
 import { MobileTabBar } from '@/shell/MobileTabBar';
 import { BottomSheet } from '@/shell/BottomSheet';
 import { useOptionalOrgContext, orgPath } from './OrgContext';
@@ -231,6 +232,15 @@ function moduleForPath(
   return modules.find((m) => m.match.includes(seg));
 }
 
+// I41 (T470): Organization Settings is a col② area reached via the org-switcher
+// gear — NOT a top-level rail module (so no rail icon, no activeModule). When the
+// route is under organization-settings/* the shell renders the OrgSettings
+// secondary nav (the 5 sections) in col②. Mirrors moduleForPath's segment logic.
+function isOrgSettingsPath(pathname: string, base: string): boolean {
+  const rest = base && pathname.startsWith(base) ? pathname.slice(base.length) : pathname;
+  return (rest.split('/').filter(Boolean)[0] ?? '') === 'organization-settings';
+}
+
 export default function AppLayout(): React.ReactElement {
   useSSE();
   const me = useMe();
@@ -296,6 +306,8 @@ export default function AppLayout(): React.ReactElement {
 
   const modules = useMemo(() => buildModules(orgBase), [orgBase]);
   const activeModule = moduleForPath(modules, location.pathname, orgBase);
+  // I41 (T470): on Org Settings, col② shows the 5-section nav instead of a module.
+  const onOrgSettings = isOrgSettingsPath(location.pathname, orgBase);
 
   // Close the mobile context sheet + account menu on navigation (a tap that
   // routes also dismisses any open overlay — common mobile pattern).
@@ -375,11 +387,11 @@ export default function AppLayout(): React.ReactElement {
             screen title + the actions that lived in the rail/col② (search,
             col④ context ⓘ, account/org/theme/sign-out). */}
         <MobileTopBar
-          title={activeModule?.label ?? currentOrg?.name ?? me.data?.display_name ?? '…'}
+          title={onOrgSettings ? 'Organization Settings' : (activeModule?.label ?? currentOrg?.name ?? me.data?.display_name ?? '…')}
           displayName={me.data?.display_name}
           hasContextPanel={panelOpen}
           sheetOpen={sheetOpen}
-          hasNav={!!activeModule}
+          hasNav={!!activeModule || onOrgSettings}
           navSheetOpen={navSheetOpen}
           onOpenNav={() => setNavSheetOpen(true)}
           onToggleSheet={() => setSheetOpen((v) => !v)}
@@ -401,9 +413,11 @@ export default function AppLayout(): React.ReactElement {
           onOpenPalette={() => setPaletteOpen(true)}
         />
 
-        {/* col② — the active module's secondary nav (desktop). */}
+        {/* col② — the active module's secondary nav (desktop), or the Org Settings
+            section nav when on organization-settings/* (I41/T470). */}
         <SecondaryNav
           module={activeModule}
+          orgSettings={onOrgSettings}
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
           orgBase={orgBase}
@@ -515,6 +529,7 @@ export default function AppLayout(): React.ReactElement {
           open={navSheetOpen}
           onClose={() => setNavSheetOpen(false)}
           module={activeModule}
+          orgSettings={onOrgSettings}
           orgBase={orgBase}
           onOpenPalette={() => setPaletteOpen(true)}
         />
@@ -814,12 +829,14 @@ function RailUser({
 // ============================================================================
 function SecondaryNav({
   module,
+  orgSettings,
   collapsed,
   onToggleCollapsed,
   orgBase,
   onOpenPalette,
 }: {
   module?: ModuleDef;
+  orgSettings?: boolean;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   orgBase: string;
@@ -834,7 +851,7 @@ function SecondaryNav({
         collapsed ? 'hidden' : 'hidden md:flex',
       ].join(' ')}
     >
-      <SecondaryNavBody module={module} orgBase={orgBase} onOpenPalette={onOpenPalette} />
+      <SecondaryNavBody module={module} orgSettings={orgSettings} orgBase={orgBase} onOpenPalette={onOpenPalette} />
       {/* Collapse chevron embedded in the right edge (Slack/VSCode pattern). */}
       <button
         type="button"
@@ -855,10 +872,12 @@ function SecondaryNav({
 // the module header + the live nav tree + the footer.
 function SecondaryNavBody({
   module,
+  orgSettings,
   orgBase,
   onOpenPalette,
 }: {
   module?: ModuleDef;
+  orgSettings?: boolean;
   orgBase: string;
   onOpenPalette: () => void;
 }): React.ReactElement {
@@ -940,7 +959,7 @@ function SecondaryNavBody({
       {/* Module header — title + ⌘K search trigger (the col② local search). */}
       <div className="flex-shrink-0 border-b border-border-base px-3.5 pb-2.5 pt-3">
         <h2 data-testid="module-title" className="text-base font-semibold text-text-primary">
-          {module?.label ?? 'Workspace'}
+          {orgSettings ? 'Organization Settings' : (module?.label ?? 'Workspace')}
         </h2>
         <button
           type="button"
@@ -967,7 +986,9 @@ function SecondaryNavBody({
           channels + DMs) grows past the viewport and the bottom rows are
           unreachable (no scroll, no paging). @oopslink. */}
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {module && CustomNav ? (
+        {orgSettings ? (
+          <OrgSettingsSecondaryNav orgBase={orgBase} />
+        ) : module && CustomNav ? (
           <CustomNav orgBase={orgBase} />
         ) : (
           module && (
@@ -1279,16 +1300,26 @@ function MobileModuleNavSheet({
   open,
   onClose,
   module,
+  orgSettings,
   orgBase,
   onOpenPalette,
 }: {
   open: boolean;
   onClose: () => void;
   module?: ModuleDef;
+  orgSettings?: boolean;
   orgBase: string;
   onOpenPalette: () => void;
 }): React.ReactElement | null {
   const ModuleNav = module ? SECONDARY_NAV_REGISTRY[module.id] : undefined;
+  // I41 (T470): on Org Settings the sheet shows the 5-section nav (no module).
+  if (orgSettings) {
+    return (
+      <BottomSheet open={open} onClose={onClose} title="Organization Settings" testId="mobile-nav-sheet">
+        <OrgSettingsSecondaryNav orgBase={orgBase} />
+      </BottomSheet>
+    );
+  }
   return (
     <BottomSheet open={open} onClose={onClose} title={module?.label ?? 'Navigation'} testId="mobile-nav-sheet">
       {ModuleNav ? (

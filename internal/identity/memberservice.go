@@ -292,6 +292,56 @@ func (s *OrganizationLifecycleService) Delete(ctx context.Context, organizationI
 	})
 }
 
+// Disable marks an organization disabled (I41 / T470). Reversible (see Enable),
+// idempotent, and DISTINCT from Delete: it does NOT soft-delete the org and does
+// NOT touch member rows. The org stays resolvable by slug so the owner keeps full
+// access; the non-owner login gate lives in requireOrgMember. A deleted org
+// cannot be disabled.
+func (s *OrganizationLifecycleService) Disable(ctx context.Context, organizationID, byIdentityID string) error {
+	return s.lock.WithLock(organizationID, func() error {
+		return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+			org, err := s.orgs.GetByID(txCtx, organizationID)
+			if err != nil {
+				return err
+			}
+			if org.IsDeleted() {
+				return ErrOrganizationDeleted
+			}
+			if org.IsDisabled() {
+				return nil // idempotent
+			}
+			org.Disable()
+			if err := s.orgs.Save(txCtx, org); err != nil {
+				return err
+			}
+			return emitEvent(txCtx, s.sink, EvtOrganizationDisabled, observability.EventRefs{OrganizationID: organizationID}, observability.Actor("user:"+byIdentityID), nil)
+		})
+	})
+}
+
+// Enable clears an organization's disabled state (I41 / T470). Idempotent.
+func (s *OrganizationLifecycleService) Enable(ctx context.Context, organizationID, byIdentityID string) error {
+	return s.lock.WithLock(organizationID, func() error {
+		return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+			org, err := s.orgs.GetByID(txCtx, organizationID)
+			if err != nil {
+				return err
+			}
+			if org.IsDeleted() {
+				return ErrOrganizationDeleted
+			}
+			if !org.IsDisabled() {
+				return nil // idempotent
+			}
+			org.Enable()
+			if err := s.orgs.Save(txCtx, org); err != nil {
+				return err
+			}
+			return emitEvent(txCtx, s.sink, EvtOrganizationEnabled, observability.EventRefs{OrganizationID: organizationID}, observability.Actor("user:"+byIdentityID), nil)
+		})
+	})
+}
+
 // ============================================================
 // OrganizationUpdateService — update org name/slug
 // ============================================================
@@ -428,13 +478,18 @@ func (s *MemberRemoveService) Remove(ctx context.Context, memberID, removedByIde
 					return ErrCannotRemoveLastOwner
 				}
 			}
-			// Disable as removal (v2.6 uses soft-disable; full DELETE is v2.7+).
-			member.Disable("removed")
-			if err := s.members.Save(txCtx, member); err != nil {
+			// I41 (T470, @oopslink): "drop human" HARD-removes the membership row —
+			// no tombstone. The member disappears from Members + the DB row is gone
+			// (was a soft-disable("removed") tombstone, which the owner explicitly
+			// rejected: a dropped human must leave NO residual record). The audit
+			// trail survives via the member.removed event below (observability sink,
+			// a separate event table keyed by ids — NOT a FK to the members row), so
+			// dropping the row never dangles a reference. capture refs BEFORE delete.
+			refs := observability.EventRefs{MemberID: memberID, OrganizationID: member.OrganizationID(), IdentityID: member.IdentityID()}
+			if err := s.members.Delete(txCtx, memberID); err != nil {
 				return err
 			}
 			actor := observability.Actor("user:" + removedByIdentityID)
-			refs := observability.EventRefs{MemberID: memberID, OrganizationID: member.OrganizationID(), IdentityID: member.IdentityID()}
 			return emitEvent(txCtx, s.sink, EvtMemberRemoved, refs, actor, nil)
 		})
 	})

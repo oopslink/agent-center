@@ -74,6 +74,10 @@ export interface OrgResult {
   name: string;
   description?: string;
   created_at: string;
+  // I41 (T470): true when the org is disabled (login gate active for non-owners).
+  // Only the org's owner ever sees a disabled org in their list, so the Danger
+  // Zone can render the Enable toggle. Absent → enabled.
+  disabled?: boolean;
 }
 
 export interface CreateOrgPayload {
@@ -87,6 +91,9 @@ export const orgApi = {
   update: (id: string, payload: { name?: string; slug?: string; description?: string }) =>
     api.patch<void>(`/orgs/${id}`, payload),
   delete: (id: string) => api.del<void>(`/orgs/${id}`),
+  // I41 (T470): reversible org disable (owner-only) — distinct from delete.
+  disable: (id: string) => api.post<void>(`/orgs/${id}/disable`),
+  enable: (id: string) => api.post<void>(`/orgs/${id}/enable`),
 };
 
 // useOrgs lists the caller's organizations. OrgGuard / OrgRedirect gate the

@@ -235,3 +235,125 @@ func TestOrganizationLifecycleService_Delete(t *testing.T) {
 		t.Fatalf("second Delete should be idempotent: %v", err)
 	}
 }
+
+// ---- MemberRemoveService (I41 / T470: drop human HARD-removes the row) ----
+
+func TestMemberRemoveService_HardDelete(t *testing.T) {
+	db, idRepo, _, memberRepo, org, _ := setupSignedUpOrg(t)
+	defer db.Close()
+	ctx := context.Background()
+
+	// Add a second (non-owner) member to drop.
+	idf := IdentityFactory{}
+	id2, _ := idf.NewUser("Member2", "hash")
+	idRepo.Save(ctx, id2)
+	m2, _ := MemberFactory{}.New(org.ID(), id2.ID(), RoleMember, nil)
+	memberRepo.Save(ctx, m2)
+
+	lock := NewOrganizationLockManager()
+	svc := NewMemberRemoveService(db, memberRepo, lock)
+
+	if err := svc.Remove(ctx, m2.ID(), "owner-id"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	// I41: the membership row must be GONE — no soft-disable tombstone. A dropped
+	// human leaves NO residual record (was a Disable("removed") row before T470).
+	got, err := memberRepo.GetByID(ctx, m2.ID())
+	if err != ErrMemberNotFound || got != nil {
+		t.Fatalf("expected member row hard-deleted (ErrMemberNotFound), got member=%v err=%v", got, err)
+	}
+	// And it must not appear in the org's member listing.
+	members, _ := memberRepo.ListByOrganization(ctx, org.ID())
+	for _, m := range members {
+		if m.ID() == m2.ID() {
+			t.Fatalf("dropped member %s still present in ListByOrganization", m2.ID())
+		}
+	}
+}
+
+func TestMemberRemoveService_LastOwnerRejected(t *testing.T) {
+	db, _, _, memberRepo, org, _ := setupSignedUpOrg(t)
+	defer db.Close()
+	ctx := context.Background()
+
+	lock := NewOrganizationLockManager()
+	svc := NewMemberRemoveService(db, memberRepo, lock)
+
+	members, _ := memberRepo.ListByOrganization(ctx, org.ID())
+	ownerMember := members[0]
+
+	if err := svc.Remove(ctx, ownerMember.ID(), "system"); err != ErrCannotRemoveLastOwner {
+		t.Errorf("expected ErrCannotRemoveLastOwner, got %v", err)
+	}
+	// The last owner's row must survive a rejected drop.
+	if got, err := memberRepo.GetByID(ctx, ownerMember.ID()); err != nil || got == nil {
+		t.Errorf("last owner row should survive rejected drop, got err=%v", err)
+	}
+}
+
+// ---- OrganizationLifecycleService Disable/Enable (I41 / T470) ----
+
+func TestOrganizationLifecycleService_DisableEnable(t *testing.T) {
+	db, _, orgRepo, memberRepo, org, owner := setupSignedUpOrg(t)
+	defer db.Close()
+	ctx := context.Background()
+
+	lock := NewOrganizationLockManager()
+	svc := NewOrganizationLifecycleService(db, orgRepo, memberRepo, lock)
+
+	if err := svc.Disable(ctx, org.ID(), owner.ID()); err != nil {
+		t.Fatalf("Disable: %v", err)
+	}
+	got, _ := orgRepo.GetByID(ctx, org.ID())
+	if !got.IsDisabled() {
+		t.Fatal("expected org disabled")
+	}
+	if got.IsDeleted() {
+		t.Fatal("disable must NOT soft-delete the org")
+	}
+	// A disabled org stays resolvable by slug (so the owner can still enter it).
+	if bySlug, err := orgRepo.GetBySlug(ctx, org.Slug()); err != nil || bySlug == nil {
+		t.Fatalf("disabled org must remain resolvable by slug, got err=%v", err)
+	}
+	// Disable must not touch member rows (the gate is role-based at request time).
+	members, _ := memberRepo.ListByOrganization(ctx, org.ID())
+	for _, m := range members {
+		if m.Status() != MemberJoined {
+			t.Errorf("member %s should stay joined after org disable, got %s", m.ID(), m.Status())
+		}
+	}
+
+	// Idempotent.
+	if err := svc.Disable(ctx, org.ID(), owner.ID()); err != nil {
+		t.Fatalf("second Disable should be idempotent: %v", err)
+	}
+
+	if err := svc.Enable(ctx, org.ID(), owner.ID()); err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	got, _ = orgRepo.GetByID(ctx, org.ID())
+	if got.IsDisabled() {
+		t.Fatal("expected org enabled after Enable")
+	}
+	// Idempotent enable.
+	if err := svc.Enable(ctx, org.ID(), owner.ID()); err != nil {
+		t.Fatalf("second Enable should be idempotent: %v", err)
+	}
+}
+
+func TestOrganizationLifecycleService_DisableDeletedRejected(t *testing.T) {
+	db, _, orgRepo, memberRepo, org, owner := setupSignedUpOrg(t)
+	defer db.Close()
+	ctx := context.Background()
+
+	lock := NewOrganizationLockManager()
+	svc := NewOrganizationLifecycleService(db, orgRepo, memberRepo, lock)
+
+	if err := svc.Delete(ctx, org.ID()); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if err := svc.Disable(ctx, org.ID(), owner.ID()); err != ErrOrganizationDeleted {
+		t.Errorf("expected ErrOrganizationDeleted disabling a deleted org, got %v", err)
+	}
+}

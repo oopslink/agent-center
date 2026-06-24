@@ -143,6 +143,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs", s.createOrgHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{id}", s.updateOrgHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{id}", s.deleteOrgHandler)
+	// I41 (T470): reversible org disable (owner-only) — the non-owner login gate.
+	s.mux.HandleFunc("POST /api/orgs/{id}/disable", s.disableOrgHandler)
+	s.mux.HandleFunc("POST /api/orgs/{id}/enable", s.enableOrgHandler)
 
 	// v2.6-FE-4: Member management. v2.9 org-routing-explicit: org via {slug} path.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/members", s.listMembersHandler)
