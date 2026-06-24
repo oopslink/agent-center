@@ -36,6 +36,28 @@ func TestBuildSupervisorArgs_ResetEpoch(t *testing.T) {
 	}
 }
 
+// TestBuildSupervisorArgs_DisplayName (T469) proves the spawn argv carries
+// --display-name ONLY when set, so the supervisor injects it as the git author NAME
+// (② AgentEnv seam); an empty display_name omits the flag → the supervisor falls back
+// to the ULID AgentID.
+func TestBuildSupervisorArgs_DisplayName(t *testing.T) {
+	base := SpawnSupervisorCfg{AgentID: "agent-1", HomeDir: "/home/agent-1"}
+
+	// empty → flag omitted.
+	got0 := strings.Join(buildSupervisorArgs(base), " ")
+	if strings.Contains(got0, "--display-name") {
+		t.Fatalf("empty display_name must omit --display-name, got %q", got0)
+	}
+
+	// set → flag present with the value.
+	cfg := base
+	cfg.DisplayName = "agent-center-dev4"
+	got := strings.Join(buildSupervisorArgs(cfg), " ")
+	if !strings.Contains(got, "--display-name agent-center-dev4") {
+		t.Fatalf("display_name must emit --display-name agent-center-dev4, got %q", got)
+	}
+}
+
 // TestBuildSupervisorArgs_GenerationAndResumeFrom proves the spawn argv carries the
 // v2.7 GATE-7 Mode-B fork flags only when set: --generation for generation > 0 (0 =
 // the subcommand default, omitted) and --resume-from when a fork source is given.

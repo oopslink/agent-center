@@ -142,6 +142,25 @@ func GitIdentityEnv(agentID string) map[string]string {
 	}
 }
 
+// DisplayNameEnv builds the ②-seam overlay that makes the git author/committer
+// NAME human-readable — the agent's display_name (e.g. "agent-center-dev4")
+// instead of the bare ULID AgentID (T469). It sets ONLY the two NAME vars; EMAIL
+// is intentionally left to the AgentID-derived default (<agent-id>@agent-center —
+// a stable, unique 1:1 attribution anchor). Overlaid via mergeGitIdentity these
+// win over GitIdentityEnv's ULID NAME default. Empty/whitespace display_name →
+// nil (no overlay; NAME falls back to the AgentID default — never inject an empty
+// string as the author name).
+func DisplayNameEnv(displayName string) map[string]string {
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return nil
+	}
+	return map[string]string{
+		"GIT_AUTHOR_NAME":    displayName,
+		"GIT_COMMITTER_NAME": displayName,
+	}
+}
+
 // mergeGitIdentity overlays the center-injected agentEnv (② seam) ON TOP of the
 // AgentID-derived git identity, so an explicit center value (e.g. a display_name
 // in GIT_AUTHOR_NAME) wins over the derived default while everything else in

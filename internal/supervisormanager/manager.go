@@ -62,6 +62,11 @@ type SpawnSupervisorCfg struct {
 	BinaryPath string
 	// Model is an optional claude --model override.
 	Model string
+	// DisplayName is the agent's human-readable display_name (--display-name). The
+	// supervisor injects it as GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam
+	// so commit authorship reads as the display_name instead of the ULID AgentID
+	// (T469). Empty → the supervisor omits the flag → NAME falls back to the AgentID.
+	DisplayName string
 	// ClaudeBin overrides the claude binary path (--claude-bin). In tests this
 	// points at a stand-in so no real claude is required.
 	ClaudeBin string
@@ -214,6 +219,9 @@ func buildSupervisorArgs(cfg SpawnSupervisorCfg) []string {
 	}
 	if cfg.Model != "" {
 		args = append(args, "--model", cfg.Model)
+	}
+	if cfg.DisplayName != "" {
+		args = append(args, "--display-name", cfg.DisplayName)
 	}
 	if cfg.ClaudeBin != "" {
 		args = append(args, "--claude-bin", cfg.ClaudeBin)

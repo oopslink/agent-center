@@ -148,6 +148,10 @@ type reconcilePayload struct {
 	AgentID          string `json:"agent_id"`
 	DesiredLifecycle string `json:"desired_lifecycle"`
 	Model            string `json:"model,omitempty"`
+	// DisplayName is the agent's human-readable display_name, carried the SAME way as
+	// Model from the lifecycle event so the supervisor injects it as
+	// GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam (T469). Empty → ULID fallback.
+	DisplayName string `json:"display_name,omitempty"`
 	// CLI selects the per-CLI session starter ("codex" → CodexSession; empty /
 	// "claude-code" → the claude supervisor path).
 	CLI string `json:"cli,omitempty"`
@@ -417,6 +421,14 @@ type managedAgent struct {
 	// (else self-heal would silently fall back to claude's default). Guarded by mu.
 	model string
 
+	// displayName is the agent's human-readable display_name (threaded from the
+	// reconcile command). Held here for the SAME reason as model: a mid-run self-heal
+	// relaunch gets NO fresh reconcile and deletes this managedAgent on crash, so it
+	// carries displayName across the crash via selfHealEntry.displayName and spawns
+	// the re-driven supervisor with the SAME git author NAME (else self-heal would
+	// silently fall back to the ULID AgentID, T469). Guarded by mu.
+	displayName string
+
 	// cli is the agent's execution CLI ("codex" → CodexSession; empty / "claude-code"
 	// → claude supervisor). Read in onExit to route a codex agent away from the
 	// supervisor self-heal machinery (codex has no epoch/fork/reattach). Guarded by mu.
@@ -613,7 +625,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 	// (lock released), so a plain resume of the same session-id is correct. Only the
 	// Mode-B crash-relaunch paths (bootReapRelaunch) fork (the killed claude's lock
 	// is still held).
-	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model, pl.CLI); err != nil {
+	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model, pl.DisplayName, pl.CLI); err != nil {
 		// Start failure IS retryable (transient FS / launch error) — return the
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
@@ -1139,7 +1151,7 @@ const workAvailableNudge = "📥 New work is available in your queue. When you r
 // OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
-func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, cli string) error {
+func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, displayName, cli string) error {
 	home, workspace, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
@@ -1233,7 +1245,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit (which fire on the
 	// event-pump goroutine the instant the process speaks) find their entry. The
 	// session field is filled in after the starter returns.
-	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model}
+	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model, displayName: displayName}
 	c.mu.Lock()
 	c.agents[agentID] = ma
 	c.mu.Unlock()
@@ -1246,6 +1258,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		BinaryPath:          c.cfg.BinaryPath,
 		ClaudeBin:           c.cfg.ClaudeBinary,
 		Model:               model,
+		DisplayName:         displayName,
 		Epoch:               epochState.Epoch,
 		Generation:          generation,
 		ResumeFromSessionID: resumeFrom,
@@ -1776,11 +1789,12 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	}
 	detaching := ma.detaching
 	expected := ma.expectedStop
-	version := ma.appliedVersion // captured for a possible self-heal relaunch
-	hadWork := ma.hadWork        // injected work → nudge on self-heal relaunch
-	taskID := ma.currentTaskID   // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
-	model := ma.model            // agent's --model → carry across crash so self-heal re-drive uses the SAME model
-	cli := ma.cli                // codex agents skip the supervisor self-heal machinery (no epoch/fork)
+	version := ma.appliedVersion  // captured for a possible self-heal relaunch
+	hadWork := ma.hadWork         // injected work → nudge on self-heal relaunch
+	taskID := ma.currentTaskID    // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
+	model := ma.model             // agent's --model → carry across crash so self-heal re-drive uses the SAME model
+	displayName := ma.displayName // agent's display_name → carry across crash so self-heal re-drive keeps git author NAME (T469)
+	cli := ma.cli                 // codex agents skip the supervisor self-heal machinery (no epoch/fork)
 	// Clear the entry: this daemon no longer tracks the session (on detach the
 	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)
@@ -1823,7 +1837,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
 	// returns the lifecycle state to report: "error" (transient, still auto-retrying)
 	// or "failed" (terminal circuit-breaker), reported once for this crash instance.
-	state := c.recordCrashAndSchedule(agentID, version, hadWork, taskID, model, msg)
+	state := c.recordCrashAndSchedule(agentID, version, hadWork, taskID, model, displayName, msg)
 	if state != "" {
 		ma.lifecycleOnce.Do(func() {
 			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {

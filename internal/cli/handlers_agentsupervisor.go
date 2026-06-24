@@ -39,7 +39,7 @@ func AgentSupervisorCommand() *Command {
 			"killpg of the daemon group), holding claude's stdin open, and continuously " +
 			"draining claude's stdout to <home>/events.jsonl. Receives only the " +
 			"daemon-generated mcp-config FILE PATH (--mcp-config-path) — never the worker " +
-			"token. Flags: --agent-id, --home-dir, --mcp-config-path, [--workspace-dir], [--claude-bin], [--model], [--reset-epoch].",
+			"token. Flags: --agent-id, --home-dir, --mcp-config-path, [--workspace-dir], [--claude-bin], [--model], [--display-name], [--reset-epoch].",
 		Flags: func(fs *flag.FlagSet) Handler {
 			agentID := fs.String("agent-id", "", "agent id this supervisor owns (required)")
 			homeDir := fs.String("home-dir", "", "per-agent home directory for artifacts (required)")
@@ -47,11 +47,12 @@ func AgentSupervisorCommand() *Command {
 			workspaceDir := fs.String("workspace-dir", "", "claude's working directory (the agent workspace; default: inherit)")
 			claudeBin := fs.String("claude-bin", "", "override the claude binary path (default: claude on PATH)")
 			model := fs.String("model", "", "optional claude --model override")
+			displayName := fs.String("display-name", "", "agent human-readable display_name; injected as GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam (overrides the ULID default; empty → ULID). EMAIL stays <agent-id>@agent-center (T469)")
 			resetEpoch := fs.Int("reset-epoch", 0, "per-agent reset epoch; derives claude --session-id via SessionUUIDGen(agent-id, epoch, generation). 0 = initial; the daemon bumps it on a clean-slate reset and re-passes the durable value on a crash-relaunch (system; v2.7 D2-f)")
 			generation := fs.Int("generation", 0, "per-agent crash-relaunch fork generation; derives claude --session-id via SessionUUIDGen(agent-id, epoch, generation). 0 = pre-fix id (initial/normal start); the daemon bumps it per Mode-B relaunch (system; v2.7 GATE-7)")
 			resumeFrom := fs.String("resume-from", "", "Mode-B fork: prior session-id to --resume + --fork-session from (the killed session whose lock blocks re-use). Empty = plain start, no fork (system; v2.7 GATE-7)")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-				return runAgentSupervisor(ctx, errw, *agentID, *homeDir, *mcpConfigPath, *workspaceDir, *claudeBin, *model, *resetEpoch, *generation, *resumeFrom)
+				return runAgentSupervisor(ctx, errw, *agentID, *homeDir, *mcpConfigPath, *workspaceDir, *claudeBin, *model, *displayName, *resetEpoch, *generation, *resumeFrom)
 			}
 		},
 	}
@@ -62,7 +63,7 @@ func AgentSupervisorCommand() *Command {
 // process, launches the child, and runs until SIGTERM/SIGINT. Diagnostics go to
 // errw; the child's stdout is drained to events.jsonl and is NOT echoed to the
 // supervisor's stdout.
-func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, mcpConfigPath, workspaceDir, claudeBin, model string, resetEpoch, generation int, resumeFrom string) ExitCode {
+func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, mcpConfigPath, workspaceDir, claudeBin, model, displayName string, resetEpoch, generation int, resumeFrom string) ExitCode {
 	agentID = strings.TrimSpace(agentID)
 	homeDir = strings.TrimSpace(homeDir)
 	if agentID == "" {
@@ -93,6 +94,11 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		SockPath:     agentsupervisor.SockPath(agentID),
 		ChildCmd:     childCmd,
 		WorkspaceDir: strings.TrimSpace(workspaceDir),
+		// T469: inject the human-readable display_name into git author/committer NAME
+		// via the ② AgentEnv seam. mergeGitIdentity overlays this OVER the AgentID
+		// (ULID) default, keeping EMAIL=<agent-id>@agent-center. Empty display_name →
+		// nil → NAME falls back to the ULID default (no empty-author injection).
+		AgentEnv: agentsupervisor.DisplayNameEnv(displayName),
 		Logger: func(msg string) {
 			fmt.Fprintf(errw, "[agent-supervisor] %s\n", msg)
 		},

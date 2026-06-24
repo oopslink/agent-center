@@ -182,6 +182,63 @@ func TestMergeGitIdentity_CenterEnvWins(t *testing.T) {
 	}
 }
 
+// TestDisplayNameEnv_BuildsNameOnlyOverlay (T469): a non-empty display_name yields the
+// two NAME vars ONLY — EMAIL is intentionally left to the AgentID default so the merge
+// keeps <agent-id>@agent-center as the unique attribution anchor.
+func TestDisplayNameEnv_BuildsNameOnlyOverlay(t *testing.T) {
+	got := DisplayNameEnv("agent-center-dev4")
+	want := map[string]string{
+		"GIT_AUTHOR_NAME":    "agent-center-dev4",
+		"GIT_COMMITTER_NAME": "agent-center-dev4",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("DisplayNameEnv keys = %v, want exactly %v (NAME only, no EMAIL)", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Fatalf("DisplayNameEnv[%q] = %q, want %q", k, got[k], v)
+		}
+	}
+}
+
+// TestDisplayNameEnv_EmptyNoOverlay (T469): empty/whitespace display_name → nil so the
+// caller no-ops and NAME falls back to the AgentID ULID default — we never inject an
+// empty-string author name.
+func TestDisplayNameEnv_EmptyNoOverlay(t *testing.T) {
+	if got := DisplayNameEnv(""); got != nil {
+		t.Fatalf("DisplayNameEnv(\"\") = %v, want nil", got)
+	}
+	if got := DisplayNameEnv("   "); got != nil {
+		t.Fatalf("DisplayNameEnv(whitespace) = %v, want nil", got)
+	}
+}
+
+// TestBuildClaudeEnv_DisplayNameOverridesULIDName (T469) is the end-to-end assertion of
+// the ② AgentEnv seam: with the display_name overlay, claude's env has NAME=display_name
+// while EMAIL stays <agent-id>@agent-center (the ULID anchor) — both author and committer.
+func TestBuildClaudeEnv_DisplayNameOverridesULIDName(t *testing.T) {
+	source := []string{"PATH=/usr/bin"}
+	agentEnv := mergeGitIdentity("agent-35ac0e16", DisplayNameEnv("agent-center-dev4"))
+	got := envMap(BuildClaudeEnv(source, agentEnv))
+	if got["GIT_AUTHOR_NAME"] != "agent-center-dev4" || got["GIT_COMMITTER_NAME"] != "agent-center-dev4" {
+		t.Fatalf("display_name must win for git NAME (author+committer): %v", got)
+	}
+	if got["GIT_AUTHOR_EMAIL"] != "agent-35ac0e16@agent-center" || got["GIT_COMMITTER_EMAIL"] != "agent-35ac0e16@agent-center" {
+		t.Fatalf("git EMAIL must remain the <agent-id>@agent-center ULID anchor: %v", got)
+	}
+}
+
+// TestBuildClaudeEnv_EmptyDisplayNameFallsBackToULID (T469): an empty display_name leaves
+// the overlay nil, so NAME falls back to the AgentID ULID default (no empty-author).
+func TestBuildClaudeEnv_EmptyDisplayNameFallsBackToULID(t *testing.T) {
+	source := []string{"PATH=/usr/bin"}
+	agentEnv := mergeGitIdentity("agent-35ac0e16", DisplayNameEnv(""))
+	got := envMap(BuildClaudeEnv(source, agentEnv))
+	if got["GIT_AUTHOR_NAME"] != "agent-35ac0e16" || got["GIT_COMMITTER_NAME"] != "agent-35ac0e16" {
+		t.Fatalf("empty display_name must fall back to the ULID AgentID NAME: %v", got)
+	}
+}
+
 // TestMergeGitIdentity_EmptyAgentIDPassesThrough: with no AgentID there is nothing to
 // derive, so the original AgentEnv is returned unchanged (the slice-① security case
 // still gets exactly the empty/center env it had before).

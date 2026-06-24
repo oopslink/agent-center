@@ -156,6 +156,10 @@ type centerRecord struct {
 	// Model is the agent's configured claude --model (from resume-state), passed to
 	// the boot-reconcile relaunch so the spawned claude uses it. Empty → claude default.
 	Model string
+	// DisplayName is the agent's human-readable display_name (from resume-state),
+	// passed to the boot-reconcile relaunch so the supervisor injects it as
+	// GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam (T469). Empty → ULID.
+	DisplayName string
 }
 
 // wantsRunning reports whether the center desires this agent running. Anything
@@ -291,6 +295,7 @@ func toCenterRecord(ra ResumeAgent) *centerRecord {
 	rec := &centerRecord{
 		DesiredLifecycle: ra.DesiredLifecycle,
 		Model:            ra.Model,
+		DisplayName:      ra.DisplayName,
 		HasInflight:      len(ra.Tasks) > 0,
 	}
 	for _, wi := range ra.Tasks {
@@ -394,7 +399,7 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 		// Boot-reconcile treats a per-agent relaunch failure as logged-and-skip (one
 		// bad agent never stalls boot; bootReapRelaunch already logged). The error is
 		// consumed only by the SELF-HEAL caller for circuit-breaking (part A).
-		_ = c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveTaskID, rec.Model)
+		_ = c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveTaskID, rec.Model, rec.DisplayName)
 	case bootStopReap:
 		c.bootStopReap(agentID, home, pr)
 	case bootReapOnly:
@@ -461,7 +466,7 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 // Returns the startSession error (nil on success) so the SELF-HEAL caller can
 // circuit-break a relaunch that fails to come up (FINDING-3 #117 part A); the
 // boot-reconcile caller treats a per-agent failure as logged-and-skip.
-func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, taskID, model string) error {
+func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, taskID, model, displayName string) error {
 	if rerr := supervisormanager.ReapResidual(home); rerr != nil {
 		c.log("boot-reconcile agent=%s reap before relaunch: %v", agentID, rerr)
 	}
@@ -479,7 +484,7 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	// prior conversation. An IDLE relaunch (nudge==false) starts FRESH on the new id
 	// (no --resume), avoiding the no-completed-turn `--resume` →
 	// error_during_execution crash-loop.
-	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, nudge /*resume*/, model, "" /*cli: boot relaunch is claude-supervisor only; codex is guarded earlier*/); err != nil {
+	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, nudge /*resume*/, model, displayName, "" /*cli: boot relaunch is claude-supervisor only; codex is guarded earlier*/); err != nil {
 		c.log("boot-reconcile agent=%s relaunch: %v — skip", agentID, err)
 		return err
 	}
