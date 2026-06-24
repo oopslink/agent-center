@@ -83,8 +83,11 @@ func featureNodeDescriptions(spec string, issue pm.IssueID) (dev, review, decisi
 	}
 	dev = spec
 	review = "评审本 feature：对照规格逐条核对（规格见本 feature 的 Dev 节点描述" + issuePart +
-		"，如挂了 mockup 附件请 1:1 核 UI）+ 跑真实门（make build / lint / test）。"
-	decision = "评审结论 pass/reject。规格见本 feature 的 Dev 节点描述" + issuePart + "。"
+		"，如挂了 mockup 附件请 1:1 核 UI）+ 跑真实门（make build / lint / test）。" +
+		"⚠️收尾必记结构化 review_verdict：complete_task 带 review_verdict=\"pass\"/\"reject\"(+review_blocking)，" +
+		"非阻断 nit 也用 review_verdict=\"pass\", review_blocking=false——这样下游 Decision 才能自动裁决，别只在会话里写结论。"
+	decision = "评审结论 pass/reject（B3 会据「§-1 门 + 上游 Review 当前轮 review_verdict」自动裁；" +
+		"门绿+verdict=pass 非阻断→自动 pass，verdict=reject 或 blocking→自动 reject，门红/未知或本轮无 verdict→退人裁）。规格见本 feature 的 Dev 节点描述" + issuePart + "。"
 	integrate = "集成本 feature 到 trunk。规格/验收见本 feature 的 Dev 节点描述" + issuePart + "。"
 	return dev, review, decision, integrate
 }

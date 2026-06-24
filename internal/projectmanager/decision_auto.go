@@ -91,6 +91,103 @@ func AutoDecideOutcome(gate GateVerdict, openComments int) (outcome string, deci
 	}
 }
 
+// Review verdict labels (T468 / issue-f7ad5a54). A reviewer records exactly one of
+// these as the structured verdict; B3 routes pass→Integrate / reject→loopback.
+const (
+	ReviewPass   = "pass"
+	ReviewReject = "reject"
+)
+
+// ValidReviewVerdict reports whether v is a recognised review verdict label.
+func ValidReviewVerdict(v string) bool { return v == ReviewPass || v == ReviewReject }
+
+// ReviewVerdict is a Review node's structured, SINGLE-SLOT, ROUND-TAGGED verdict
+// (T468 / issue-f7ad5a54). It replaces B3's "open review comment count" proxy: a
+// reviewer records ONE verdict per review round (latest-wins overwrite, keyed by
+// plan+task), and B3 reads the CURRENT-round verdict to auto-decide — so a reviewer's
+// non-blocking nit (`pass` + `blocking=false`) no longer wedges the decision into a
+// human ruling the way a non-zero open-comment count did. `Round` defends against
+// stale: a verdict from a PRIOR loop round is ignored by B3 (→ defer) so it never
+// auto-routes on an out-of-date review.
+type ReviewVerdict struct {
+	PlanID   PlanID
+	TaskID   TaskID // the Review node the verdict is recorded on
+	Verdict  string // ReviewPass | ReviewReject
+	Blocking bool   // a blocking objection — forces reject even if Verdict==pass
+	Reason   string
+	SHA      string // the reviewed commit (audit / staleness context)
+	Round    int    // the decision's loop round this verdict was recorded for
+}
+
+// AutoDecideFromVerdict is the T468 verdict-driven B3 rule, applied ONLY on a GREEN
+// gate (red/unknown are handled by the gate floor in the service). Given the
+// CURRENT-round review verdict it returns the outcome to record:
+//
+//	verdict=pass  && !blocking → ("pass",   true)   auto-pass (a non-blocking nit no longer wedges it)
+//	verdict=reject | blocking  → ("reject", true)   auto-reject (B1 bounded loopback re-runs Dev)
+//	anything else              → ("",       false)  no verdict-based decision (caller falls back / defers)
+//
+// The no-false-pass invariant still holds: a `pass` is returned only on a positive,
+// non-blocking reviewer verdict; the service NEVER calls this on a non-green gate.
+func AutoDecideFromVerdict(verdict string, blocking bool) (outcome string, decided bool) {
+	switch verdict {
+	case ReviewPass:
+		if blocking {
+			return OutcomeReject, true
+		}
+		return OutcomePass, true
+	case ReviewReject:
+		return OutcomeReject, true
+	default:
+		return "", false
+	}
+}
+
+// DecisionForReview returns the control-flow DECISION node that is directly
+// downstream of `reviewID` — i.e. the decision node that depends_on the review via a
+// forward edge ({From: decision, To: review}). Used at verdict-write time to stamp the
+// verdict with the decision's current loop round. ("", false) when the review is not
+// directly upstream of a decision (e.g. a non-cycle node).
+func DecisionForReview(edges []Dependency, reviewID TaskID) (TaskID, bool) {
+	for _, e := range edges {
+		if e.IsLoopback() {
+			continue
+		}
+		if e.ToTaskID == reviewID && IsDecisionNode(edges, e.FromTaskID) {
+			return e.FromTaskID, true
+		}
+	}
+	return "", false
+}
+
+// ForwardUpstreams returns the forward (non-loopback) upstream task ids of `id` — the
+// nodes `id` depends_on (the To of id's forward in-edges). B3 reads review verdicts on
+// a decision's forward upstreams.
+func ForwardUpstreams(edges []Dependency, id TaskID) []TaskID {
+	var out []TaskID
+	for _, e := range edges {
+		if e.IsLoopback() {
+			continue
+		}
+		if e.FromTaskID == id {
+			out = append(out, e.ToTaskID)
+		}
+	}
+	return out
+}
+
+// LoopbackTargetOf returns the loop-target (To) of the loopback edge whose From is
+// `decisionID`, or ("", false) when the decision has no loopback edge (a single-round
+// decision). The (decisionID, target) pair keys the LoopRound counter.
+func LoopbackTargetOf(edges []Dependency, decisionID TaskID) (TaskID, bool) {
+	for _, e := range edges {
+		if e.IsLoopback() && e.FromTaskID == decisionID {
+			return e.ToTaskID, true
+		}
+	}
+	return "", false
+}
+
 // IsDecisionNode reports whether the task `id` is a control-flow DECISION node: a
 // node that ROUTES downstream by its outcome. A decision is recognised STRUCTURALLY
 // (not by a role — cycle-node-graph-spec.md has no `decision` role; Review fills the

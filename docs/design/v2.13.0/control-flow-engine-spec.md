@@ -94,8 +94,16 @@ Dependency{
   `round` 见 §4。
 - **谁给**：
   - **B1 起**：手动——complete decision 节点时带 `outcome`（MCP/AppService 增一个可选入参；见 §6）。
-  - **B3 起**：自动——§-1 gate 全绿且无阻塞 comment ⇒ `pass`，否则 `reject`；边界（无 gate / 有 comment）
-    回落人工。B3 只是 outcome 的**自动产生器**，不改本引擎契约。
+  - **B3 起**：自动——§-1 gate 红 ⇒ `reject`；gate 未知 ⇒ 回落人工（硬底，永不 auto-pass）；gate 绿 ⇒ 读上游
+    Review 的**结构化 verdict**裁决（见下）。B3 只是 outcome 的**自动产生器**，不改本引擎契约。
+  - **T468 结构化 Review verdict（issue-f7ad5a54）**：取代「open comment 计数」代理。Review 节点收尾在
+    `review_verdict` 单槽（每轮覆盖、round-tagged，落 `pm_plan_review_verdicts`，键 plan_id+task_id）记
+    `{verdict: pass|reject, blocking, reason, sha, round}`。B3 在 gate 绿时读 Decision **当前轮**（=该
+    decision loopback 边的 LoopRound）的上游 verdict：`verdict=pass && !blocking → auto-pass`（非阻断 nit 不再
+    被卡）；`verdict=reject || blocking → auto-reject`（走有界回环）；**round 闸**——只认 round==当前轮的 verdict，
+    读到旧轮（本轮还没写）⇒ defer，绝不拿旧轮 auto-route；**本轮完全无 verdict** ⇒ 回落旧 open-comment 行为
+    （0 comment→pass，否则 defer，保后向兼容）。PD 路径：B3 defer 的 @mention 内联带上 verdict，PD 不必进
+    Review 会话（亦可 list_review_verdicts 读）。写入途径：`complete_task` 带 `review_verdict`(+blocking/reason/sha)。
 
 ---
 
@@ -277,7 +285,8 @@ S0 → Dev ──seq──▶ Review ──seq──▶ Decision ──condition
 - **B1**：按 §5–§8 实现引擎 + 迁移 + 旧-plan 回归 + 新（条件路由/有界回环/skipped/AllDone）测试。
 - **B2**：`scaffold_cycle_plan` 生成 §9 控制流图（Decision 节点 + conditional/loopback 边 + MaxRounds），
   非 doc-only feature 用回环链；owner 仍留空待 PD。
-- **B3**：Decision outcome 自动判定（§-1 gate 绿+无 comment→pass，否则 reject；边界回落人工）；
+- **B3**：Decision outcome 自动判定（§-1 gate 红→reject / 未知→人工；gate 绿→读上游 Review 当前轮结构化
+  verdict：pass 非阻断→pass、reject 或 blocking→reject、旧轮/无 verdict→stale-defer/旧 comment 回退，T468）；
   只产 outcome，不改本契约。B3-Review 重点：自动判定正确、边界走人工、不误放。
 
 **留待 B1 细化的开放点**（非阻塞）：

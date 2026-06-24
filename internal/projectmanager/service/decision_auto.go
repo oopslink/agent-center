@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -55,8 +56,13 @@ type AutoDecision struct {
 	// Gate is the verdict that drove the decision (for the deferral @mention / audit).
 	Gate pm.GateVerdict
 	// OpenComments is the count of unresolved review comments consulted (only on a
-	// green gate; 0 otherwise).
+	// green gate AND only in the legacy fallback when no structured verdict exists).
 	OpenComments int
+	// Verdict is the structured review verdict B3 consulted on a green gate (T468),
+	// when one was found (current OR stale round). nil ⇒ no verdict recorded (legacy
+	// open-comment fallback path). Surfaced in the deferral @mention so the PD can read
+	// the reviewer's verdict WITHOUT entering the Review conversation.
+	Verdict *pm.ReviewVerdict
 	// Reason is a short human-readable explanation (surfaced in the deferral @mention).
 	Reason string
 }
@@ -101,25 +107,56 @@ func (s *Service) ComputeAutoDecision(ctx context.Context, taskID pm.TaskID) (Au
 			Reason: "§-1 gate failed (red) → auto-reject (re-run Dev)",
 		}, nil
 	case pm.GateGreen:
-		// Green: auto-pass ONLY if there is not a single open review comment;
-		// otherwise a human weighs the objection (no-false-pass invariant).
-		open, cerr := s.countOpenReviewComments(ctx, t.PlanID(), taskID)
-		if cerr != nil {
-			// Could not confirm "no open comments" → must not auto-pass; defer.
+		// T468: on a green gate, prefer the structured CURRENT-round review verdict.
+		// A reviewer's non-blocking nit (verdict=pass, blocking=false) now auto-passes
+		// instead of being wedged by a non-zero open-comment count.
+		vd, vstate, verr := s.currentRoundReviewVerdict(ctx, t.PlanID(), edges, taskID)
+		if verr != nil {
 			return AutoDecision{
 				IsDecision: true, Decided: false, Gate: gate,
-				Reason: "§-1 gate green but review comments could not be read → human ruling required",
+				Reason: "§-1 gate green but the review verdict could not be read → human ruling required",
 			}, nil
 		}
-		outcome, decided := pm.AutoDecideOutcome(gate, open)
-		reason := "§-1 gate green, no open review comments → auto-pass"
-		if !decided {
-			reason = fmt.Sprintf("§-1 gate green but %d open review comment(s) → human ruling required", open)
+		switch vstate {
+		case verdictCurrent:
+			outcome, decided := pm.AutoDecideFromVerdict(vd.Verdict, vd.Blocking)
+			reason := "§-1 gate green + review verdict=pass (non-blocking) → auto-pass"
+			if outcome == pm.OutcomeReject {
+				if vd.Verdict == pm.ReviewReject {
+					reason = "§-1 gate green but review verdict=reject → auto-reject (bounded loopback re-runs Dev)"
+				} else {
+					reason = "§-1 gate green but review verdict carries a BLOCKING objection → auto-reject (bounded loopback re-runs Dev)"
+				}
+			}
+			v := vd
+			return AutoDecision{
+				IsDecision: true, Decided: decided, Outcome: outcome, Gate: gate, Verdict: &v, Reason: reason,
+			}, nil
+		case verdictStale:
+			// A verdict exists but for an EARLIER review round (this round's reviewer has
+			// not re-recorded) → never auto-route on a stale review; defer.
+			v := vd
+			return AutoDecision{
+				IsDecision: true, Decided: false, Gate: gate, Verdict: &v,
+				Reason: fmt.Sprintf("§-1 gate green but the review verdict is from an earlier round (verdict round %d) → awaiting this round's verdict → human ruling required", vd.Round),
+			}, nil
+		default: // verdictNone — no structured verdict at all → legacy open-comment fallback.
+			open, cerr := s.countOpenReviewComments(ctx, t.PlanID(), taskID)
+			if cerr != nil {
+				return AutoDecision{
+					IsDecision: true, Decided: false, Gate: gate,
+					Reason: "§-1 gate green but review comments could not be read → human ruling required",
+				}, nil
+			}
+			outcome, decided := pm.AutoDecideOutcome(gate, open)
+			reason := "§-1 gate green, no review verdict + no open review comments → auto-pass"
+			if !decided {
+				reason = fmt.Sprintf("§-1 gate green but no review verdict and %d open review comment(s) → human ruling required", open)
+			}
+			return AutoDecision{
+				IsDecision: true, Decided: decided, Outcome: outcome, Gate: gate, OpenComments: open, Reason: reason,
+			}, nil
 		}
-		return AutoDecision{
-			IsDecision: true, Decided: decided, Outcome: outcome, Gate: gate, OpenComments: open,
-			Reason: reason,
-		}, nil
 	default: // GateUnknown
 		return AutoDecision{
 			IsDecision: true, Decided: false, Gate: gate,
@@ -149,6 +186,123 @@ func (s *Service) evaluateGate(ctx context.Context, t *pm.Task) pm.GateVerdict {
 		return pm.GateUnknown // gate could not run → defer (never auto pass/reject)
 	}
 	return v
+}
+
+// verdictState classifies the review-verdict lookup for a decision's current round.
+type verdictState int
+
+const (
+	verdictNone    verdictState = iota // no structured verdict recorded on any upstream
+	verdictStale                       // a verdict exists but for an EARLIER review round
+	verdictCurrent                     // a verdict for THIS round exists (authoritative)
+)
+
+// currentRoundReviewVerdict reads the structured review verdict that drives B3 for a
+// decision node (T468). It computes the decision's CURRENT loop round, then scans the
+// decision's forward upstreams (the Review node(s)) for a recorded verdict:
+//   - a verdict whose Round == current → verdictCurrent (authoritative; B3 routes by it);
+//   - else a verdict from a different (earlier) round → verdictStale (B3 defers — never
+//     auto-routes on a stale review);
+//   - no verdict at all → verdictNone (B3 falls back to the legacy open-comment rule).
+func (s *Service) currentRoundReviewVerdict(ctx context.Context, planID pm.PlanID, edges []pm.Dependency, decisionID pm.TaskID) (pm.ReviewVerdict, verdictState, error) {
+	round, err := s.currentDecisionRound(ctx, planID, edges, decisionID)
+	if err != nil {
+		return pm.ReviewVerdict{}, verdictNone, err
+	}
+	var stale pm.ReviewVerdict
+	haveStale := false
+	for _, up := range pm.ForwardUpstreams(edges, decisionID) {
+		vd, ok, gerr := s.plans.GetReviewVerdict(ctx, planID, up)
+		if gerr != nil {
+			return pm.ReviewVerdict{}, verdictNone, gerr
+		}
+		if !ok {
+			continue
+		}
+		if vd.Round == round {
+			return vd, verdictCurrent, nil
+		}
+		stale, haveStale = vd, true
+	}
+	if haveStale {
+		return stale, verdictStale, nil
+	}
+	return pm.ReviewVerdict{}, verdictNone, nil
+}
+
+// currentDecisionRound returns the decision node's current loop round — the round its
+// reviewer should record a verdict for. It is the LoopRound counter of the decision's
+// loopback edge (decision→loop-target); a decision with no loopback edge is a
+// single-round decision (round 0).
+func (s *Service) currentDecisionRound(ctx context.Context, planID pm.PlanID, edges []pm.Dependency, decisionID pm.TaskID) (int, error) {
+	target, ok := pm.LoopbackTargetOf(edges, decisionID)
+	if !ok {
+		return 0, nil
+	}
+	return s.plans.GetLoopRound(ctx, planID, decisionID, target)
+}
+
+// RecordReviewVerdict stores a Review node's structured verdict (T468), stamped with
+// the downstream decision's CURRENT loop round so B3's round gate can reject a stale
+// verdict. Single-slot latest-wins (each round overwrites). Reentrant in the caller's
+// tx (the complete_task handler records the verdict in the SAME tx as the Review
+// node's completion). The actor must be a project member; the task must be in a plan.
+// A non-pass/reject verdict is rejected; a node not upstream of any decision still
+// records (round 0) — harmless, B3 only reads verdicts on a decision's upstreams.
+func (s *Service) RecordReviewVerdict(ctx context.Context, taskID pm.TaskID, verdict string, blocking bool, reason, sha string, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	if !pm.ValidReviewVerdict(verdict) {
+		return fmt.Errorf("projectmanager: invalid review verdict %q (want %q or %q)", verdict, pm.ReviewPass, pm.ReviewReject)
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
+			return err
+		}
+		if t.PlanID() == "" {
+			return fmt.Errorf("projectmanager: task %s is not in a plan — no review verdict to record", taskID)
+		}
+		edges, err := s.plans.ListDependencies(txCtx, t.PlanID())
+		if err != nil {
+			return err
+		}
+		round := 0
+		if decisionID, ok := pm.DecisionForReview(edges, taskID); ok {
+			round, err = s.currentDecisionRound(txCtx, t.PlanID(), edges, decisionID)
+			if err != nil {
+				return err
+			}
+		}
+		return s.plans.RecordReviewVerdict(txCtx, t.PlanID(), pm.ReviewVerdict{
+			PlanID: t.PlanID(), TaskID: taskID, Verdict: verdict, Blocking: blocking, Reason: reason, SHA: sha, Round: round,
+		}, now)
+	})
+}
+
+// ListReviewVerdicts returns a plan's recorded review verdicts (T468 — the PD read
+// path: see the reviewers' structured verdicts WITHOUT entering each Review
+// conversation). Project-member gated. A nil plans repo ⇒ empty.
+func (s *Service) ListReviewVerdicts(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) ([]pm.ReviewVerdict, error) {
+	if s.plans == nil {
+		return nil, nil
+	}
+	plan, err := s.plans.FindByID(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireProjectMember(ctx, plan.ProjectID(), actor); err != nil {
+		return nil, err
+	}
+	return s.plans.ListReviewVerdicts(ctx, planID)
 }
 
 // countOpenReviewComments counts UNRESOLVED review comments on the decision node.
@@ -199,6 +353,14 @@ func (s *Service) NotifyDecisionDeferred(ctx context.Context, taskID pm.TaskID, 
 		target = string(plan.CreatorRef())
 	}
 	content := fmt.Sprintf("decision node %q completed but B3 could not auto-decide its outcome: %s. Please rule manually — re-run complete_task with outcome=\"pass\" or outcome=\"reject\".", t.Title(), ad.Reason)
+	// T468: surface the structured review verdict inline so the PD can rule WITHOUT
+	// opening the Review conversation (no more not_agents_task dead-end).
+	if ad.Verdict != nil {
+		content += fmt.Sprintf(" Latest review verdict: %s (blocking=%t, round=%d)", ad.Verdict.Verdict, ad.Verdict.Blocking, ad.Verdict.Round)
+		if r := strings.TrimSpace(ad.Verdict.Reason); r != "" {
+			content += " — " + r
+		}
+	}
 	_, err = s.planDispatcher.PostMention(ctx, plan.ConversationID(), target, content)
 	return err
 }

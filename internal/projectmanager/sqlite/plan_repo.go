@@ -451,6 +451,62 @@ func (r *PlanRepo) IncrementLoopRound(ctx context.Context, planID pm.PlanID, fro
 	return next, nil
 }
 
+// --- Review verdicts (v2.13.0 I18/B3, T468 / issue-f7ad5a54) ----------------
+
+// RecordReviewVerdict upserts a Review node's structured verdict (latest-wins per
+// plan_id,task_id — each round overwrites). INSERT-OR-REPLACE on the PK.
+func (r *PlanRepo) RecordReviewVerdict(ctx context.Context, planID pm.PlanID, v pm.ReviewVerdict, at time.Time) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`INSERT OR REPLACE INTO pm_plan_review_verdicts (plan_id, task_id, verdict, blocking, reason, sha, round, recorded_at) VALUES (?,?,?,?,?,?,?,?)`,
+		string(planID), string(v.TaskID), v.Verdict, boolToInt(v.Blocking), v.Reason, v.SHA, v.Round, ts(at))
+	return err
+}
+
+// GetReviewVerdict returns one Review node's verdict (ok=false when none recorded).
+func (r *PlanRepo) GetReviewVerdict(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) (pm.ReviewVerdict, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		`SELECT verdict, blocking, reason, sha, round FROM pm_plan_review_verdicts WHERE plan_id = ? AND task_id = ?`,
+		string(planID), string(taskID))
+	v := pm.ReviewVerdict{PlanID: planID, TaskID: taskID}
+	var blocking, round int
+	switch err := row.Scan(&v.Verdict, &blocking, &v.Reason, &v.SHA, &round); err {
+	case nil:
+		v.Blocking = blocking != 0
+		v.Round = round
+		return v, true, nil
+	case sql.ErrNoRows:
+		return pm.ReviewVerdict{}, false, nil
+	default:
+		return pm.ReviewVerdict{}, false, err
+	}
+}
+
+// ListReviewVerdicts returns one Plan's recorded review verdicts (PD read path).
+func (r *PlanRepo) ListReviewVerdicts(ctx context.Context, planID pm.PlanID) ([]pm.ReviewVerdict, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT task_id, verdict, blocking, reason, sha, round FROM pm_plan_review_verdicts WHERE plan_id = ? ORDER BY task_id`,
+		string(planID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ReviewVerdict
+	for rows.Next() {
+		v := pm.ReviewVerdict{PlanID: planID}
+		var blocking, round int
+		if err := rows.Scan(&v.TaskID, &v.Verdict, &blocking, &v.Reason, &v.SHA, &round); err != nil {
+			return nil, err
+		}
+		v.Blocking = blocking != 0
+		v.Round = round
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 const planSelect = `SELECT id, project_id, name, description, status, creator_ref, conversation_id, target_date, is_builtin, org_number, created_at, updated_at, version FROM pm_plans`
 
 // boolToInt maps a Go bool to SQLite's 0/1 integer storage convention.

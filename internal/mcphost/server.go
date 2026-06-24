@@ -302,7 +302,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "complete_task",
-		Description: "Optionally post a summary and move the task to completed.",
+		Description: "Optionally post a summary and move the task to completed. For a control-flow DECISION node, pass outcome=\"pass\"/\"reject\" to route its edges. For a REVIEW node, you MUST record your structured verdict via review_verdict=\"pass\"/\"reject\" (+ review_blocking) so the downstream Decision auto-decides — a non-blocking nit is review_verdict=\"pass\", review_blocking=false.",
 	}, makeCompleteTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{

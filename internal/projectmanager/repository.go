@@ -214,6 +214,16 @@ type PlanRepository interface {
 	// count (0 if none); IncrementLoopRound bumps it and returns the new round.
 	GetLoopRound(ctx context.Context, planID PlanID, from, to TaskID) (int, error)
 	IncrementLoopRound(ctx context.Context, planID PlanID, from, to TaskID) (int, error)
+
+	// Review verdicts (v2.13.0 I18/B3, T468 / issue-f7ad5a54) — a Review node's
+	// structured, SINGLE-SLOT, round-tagged verdict feeding B3's auto-decision.
+	// RecordReviewVerdict upserts (latest-wins per plan_id,task_id — each round
+	// overwrites); GetReviewVerdict returns one node's verdict (ok=false when none);
+	// ListReviewVerdicts returns a plan's verdicts (PD read path — see the verdict
+	// without entering the Review conversation).
+	RecordReviewVerdict(ctx context.Context, planID PlanID, v ReviewVerdict, at time.Time) error
+	GetReviewVerdict(ctx context.Context, planID PlanID, taskID TaskID) (ReviewVerdict, bool, error)
+	ListReviewVerdicts(ctx context.Context, planID PlanID) ([]ReviewVerdict, error)
 }
 
 // PlanFindingRepository persists PlanFinding ARs (v2.10, ADR-0053 — the DeLM

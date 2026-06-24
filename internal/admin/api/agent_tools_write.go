@@ -893,6 +893,16 @@ type completeTaskReq struct {
 	// "pass"/"reject") that routes its conditional/loopback out-edges. Empty for an
 	// ordinary task complete (no routing).
 	Outcome string `json:"outcome"`
+	// ReviewVerdict (v2.13.0 I18/B3, T468): for a REVIEW node, the reviewer's
+	// structured verdict recorded at completion — "pass" or "reject". Empty ⇒ no
+	// verdict recorded (an ordinary / non-review complete). ReviewBlocking marks a
+	// blocking objection (forces auto-reject even with verdict=pass); ReviewReason is
+	// a short rationale; ReviewSHA is the reviewed commit. B3 reads the CURRENT-round
+	// verdict to auto-decide the downstream Decision.
+	ReviewVerdict  string `json:"review_verdict"`
+	ReviewBlocking bool   `json:"review_blocking"`
+	ReviewReason   string `json:"review_reason"`
+	ReviewSHA      string `json:"review_sha"`
 }
 
 // completeTaskHandler optionally posts a summary to the task Conversation AND
@@ -946,6 +956,16 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if err := d.PMService.CompleteTask(txCtx, pm.TaskID(req.TaskID),
 			pm.IdentityRef(agentActor(a))); err != nil {
 			return err
+		}
+		// T468: a REVIEW node completing with a structured verdict records it (single-
+		// slot, round-tagged) in the SAME tx, so the downstream Decision's B3 reads the
+		// current-round verdict to auto-decide. No-op for an ordinary complete (empty).
+		if strings.TrimSpace(req.ReviewVerdict) != "" {
+			if err := d.PMService.RecordReviewVerdict(txCtx, pm.TaskID(req.TaskID),
+				strings.TrimSpace(req.ReviewVerdict), req.ReviewBlocking, req.ReviewReason, req.ReviewSHA,
+				pm.IdentityRef(agentActor(a))); err != nil {
+				return err
+			}
 		}
 		// Record the decision node's outcome in the SAME tx, so the subsequent
 		// auto-advance routes its conditional/loopback edges. The manual outcome (B1)

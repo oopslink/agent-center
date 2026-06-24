@@ -467,15 +467,24 @@ type completeTaskArgs struct {
 	TaskID  string `json:"task_id" jsonschema:"the task to complete"`
 	Summary string `json:"summary,omitempty" jsonschema:"optional completion summary posted to the task"`
 	Outcome string `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject') that routes its conditional/loopback edges; omit for an ordinary task"`
+	// T468 structured review verdict (Review nodes only).
+	ReviewVerdict  string `json:"review_verdict,omitempty" jsonschema:"for a REVIEW node only: your structured verdict 'pass' or 'reject'. Record it when completing a Review node so the downstream Decision auto-decides (a non-blocking nit should still be 'pass' with review_blocking=false). Omit for non-review tasks"`
+	ReviewBlocking bool   `json:"review_blocking,omitempty" jsonschema:"with review_verdict: true if your objection BLOCKS (forces the decision to reject even on a 'pass' verdict); false for a non-blocking nit"`
+	ReviewReason   string `json:"review_reason,omitempty" jsonschema:"with review_verdict: a short rationale for the verdict"`
+	ReviewSHA      string `json:"review_sha,omitempty" jsonschema:"with review_verdict: the reviewed commit SHA (audit / staleness context)"`
 }
 
 func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args completeTaskArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-			"summary":  args.Summary,
-			"outcome":  args.Outcome,
+			"agent_id":        cfg.AgentID,
+			"task_id":         args.TaskID,
+			"summary":         args.Summary,
+			"outcome":         args.Outcome,
+			"review_verdict":  args.ReviewVerdict,
+			"review_blocking": args.ReviewBlocking,
+			"review_reason":   args.ReviewReason,
+			"review_sha":      args.ReviewSHA,
 		}
 		return callAdmin(ctx, cfg, "complete_task", body)
 	}
