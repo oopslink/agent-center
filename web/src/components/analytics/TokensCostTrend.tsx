@@ -1,8 +1,15 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import type { AnalyticsModelTrendPoint, AnalyticsProjectTrendPoint } from '@/api/types';
+import { OrgLink } from '@/OrgContext';
+import { useProjects } from '@/api/projects';
 import { formatTokens, formatCostMicros } from '@/utils/format';
 import { modelColor, modelShortLabel } from './modelColors';
+
+// T472: the project dimension's legend key is the raw project_id; resolve it to
+// the project NAME and link it to the project detail page (@oopslink). "" maps to
+// the synthetic "(no project)" bucket (no link).
+const NO_PROJECT = '(no project)';
 
 // I28/F6 Tokens & Cost Trend (1:1 with the English mockup): a stacked-area trend
 // over the full series span. Two toggles realize the Build Spec's "model & project
@@ -44,7 +51,7 @@ function flatten(
   }
   return byProject.map((p) => ({
     day: p.day,
-    key: p.project_id === '' ? '(no project)' : p.project_id,
+    key: p.project_id === '' ? NO_PROJECT : p.project_id,
     value: metric === 'cost' ? p.cost_micros : p.tokens_in + p.tokens_out,
   }));
 }
@@ -151,6 +158,14 @@ export function TokensCostTrend({
 }): React.ReactElement {
   const [metric, setMetric] = useState<Metric>('tokens');
   const [dim, setDim] = useState<Dimension>('model');
+  // T472: resolve project_id → name for the project-dimension legend (links to
+  // the project detail page). Fail-soft: an unresolved id falls back to itself.
+  const projects = useProjects();
+  const projectName = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of projects.data ?? []) m.set(p.id, p.name);
+    return m;
+  }, [projects.data]);
 
   const stack = useMemo(
     () => buildStack(flatten(metric, dim, byModel, byProject)),
@@ -218,7 +233,19 @@ export function TokensCostTrend({
             {stack.keys.map((k, i) => (
               <li key={k} className="flex items-center gap-1.5 text-xs text-text-muted">
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: seriesColor(dim, k, i) }} />
-                {seriesLabel(dim, k)}
+                {dim === 'project' && k !== NO_PROJECT ? (
+                  <OrgLink
+                    to={`/projects/${encodeURIComponent(k)}`}
+                    className="text-accent hover:underline"
+                    data-testid="trend-legend-project-link"
+                    data-project-id={k}
+                    title={`Open project ${projectName.get(k) ?? k}`}
+                  >
+                    {projectName.get(k) ?? k}
+                  </OrgLink>
+                ) : (
+                  seriesLabel(dim, k)
+                )}
               </li>
             ))}
           </ul>

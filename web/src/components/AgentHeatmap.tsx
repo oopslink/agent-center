@@ -243,7 +243,11 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
                       data-testid="heatmap-cell"
                       data-date={g.date}
                       data-level={levelOf(g)}
-                      className={['h-3 w-3 rounded-[2px]', ramp[levelOf(g)]].join(' ')}
+                      // T473: a subtle inset ring outlines EVERY in-range day so the
+                      // full GitHub-style grid is visible — empty (level-0) cells
+                      // were bg-bg-subtle ≈ the card bg in dark mode and vanished
+                      // (@oopslink: 每个块都要展示出来).
+                      className={['h-3 w-3 rounded-[2px] ring-1 ring-inset ring-border-base', ramp[levelOf(g)]].join(' ')}
                       title={tip(g)}
                       aria-label={tip(g)}
                     />
@@ -263,7 +267,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
             <span
               key={lvl}
               data-testid={`heatmap-legend-${lvl}`}
-              className={['h-3 w-3 rounded-[2px]', ramp[lvl]].join(' ')}
+              className={['h-3 w-3 rounded-[2px] ring-1 ring-inset ring-border-base', ramp[lvl]].join(' ')}
               aria-hidden="true"
             />
           ))}
