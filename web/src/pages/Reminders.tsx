@@ -14,6 +14,7 @@ import { ReminderCreateModal } from '@/components/ReminderCreateModal';
 import { ReminderDetailModal } from '@/components/ReminderDetailModal';
 import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { IconPause, IconPlay, IconClose } from '@/components/icons';
+import { formatLocalTime } from '@/utils/time';
 
 // =============================================================================
 // T207 Reminder management — screen ① (list / management). 1:1 to the mockup
@@ -231,7 +232,7 @@ export default function Reminders(): React.ReactElement {
                           {r.schedule.kind === 'cron' ? (
                             <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-text-secondary">{r.schedule.cron_expr}</span>
                           ) : (
-                            <span className="text-xs text-text-secondary">{r.schedule.once_at?.slice(0, 16).replace('T', ' ')}</span>
+                            <span className="text-xs text-text-secondary">{r.schedule.once_at ? formatLocalTime(r.schedule.once_at) : '—'}</span>
                           )}
                         </div>
                       </td>
@@ -240,7 +241,7 @@ export default function Reminders(): React.ReactElement {
                           <span className="text-xs text-text-muted">— Paused</span>
                         ) : r.next_run_at ? (
                           <>
-                            <div className="text-text-secondary">{new Date(r.next_run_at).toLocaleString()}</div>
+                            <div className="text-text-secondary">{formatLocalTime(r.next_run_at)}</div>
                             <div className="text-xs text-text-muted">{relTime(r.next_run_at)}</div>
                           </>
                         ) : (
