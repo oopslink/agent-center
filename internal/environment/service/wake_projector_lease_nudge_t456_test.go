@@ -37,7 +37,8 @@ func TestWakeProjector_LeaseNudge_PostsMessageAndWakes(t *testing.T) {
 	f.saveRunningAgent(t, "BOT", "W7")
 	f.saveTaskConv(t, "task-conv-1", "T9")
 	var sysNotes []string
-	p := f.projWith(nil, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(nil, &sysNotes, &sysMessages)
 
 	e := leaseNudgeEvent("EVL1", "agent:BOT", "pm://tasks/T9", "T9")
 	if err := p.Project(f.ctx, e); err != nil {
@@ -45,11 +46,14 @@ func TestWakeProjector_LeaseNudge_PostsMessageAndWakes(t *testing.T) {
 	}
 
 	// (a) a visible @assignee message was posted into the task conversation.
-	if len(sysNotes) != 1 {
-		t.Fatalf("want 1 system nudge message, got %d (%v)", len(sysNotes), sysNotes)
+	if len(sysNotes) != 0 {
+		t.Fatalf("lease nudge must use ordinary system message, not systemNotify: %q", sysNotes)
 	}
-	if !strings.Contains(sysNotes[0], "task-conv-1: ") || !strings.Contains(sysNotes[0], "@A BOT") {
-		t.Fatalf("nudge message wrong: %q", sysNotes[0])
+	if len(sysMessages) != 1 {
+		t.Fatalf("want 1 system nudge message, got %d (%v)", len(sysMessages), sysMessages)
+	}
+	if !strings.Contains(sysMessages[0], "task-conv-1: ") || !strings.Contains(sysMessages[0], "@A BOT") {
+		t.Fatalf("nudge message wrong: %q", sysMessages[0])
 	}
 
 	// (b) exactly one agent.converse wake, keyed by the unique event id.
@@ -75,7 +79,8 @@ func TestWakeProjector_LeaseNudge_ReplayOnce(t *testing.T) {
 	f.saveRunningAgent(t, "BOT", "W7")
 	f.saveTaskConv(t, "task-conv-1", "T9")
 	var sysNotes []string
-	p := f.projWith(nil, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(nil, &sysNotes, &sysMessages)
 
 	e := leaseNudgeEvent("EVL1", "agent:BOT", "pm://tasks/T9", "T9")
 	if err := p.Project(f.ctx, e); err != nil {
@@ -84,8 +89,11 @@ func TestWakeProjector_LeaseNudge_ReplayOnce(t *testing.T) {
 	if err := p.Project(f.ctx, e); err != nil {
 		t.Fatalf("Project 2: %v", err)
 	}
-	if len(sysNotes) != 1 {
-		t.Fatalf("replay must not duplicate the nudge message: got %d", len(sysNotes))
+	if len(sysNotes) != 0 {
+		t.Fatalf("lease nudge must use ordinary system message, not systemNotify: %q", sysNotes)
+	}
+	if len(sysMessages) != 1 {
+		t.Fatalf("replay must not duplicate the nudge message: got %d", len(sysMessages))
 	}
 	if cmds := f.commandsFor(t, "W7"); len(cmds) != 1 {
 		t.Fatalf("replay must not duplicate the converse: want 1, got %d", len(cmds))
@@ -100,14 +108,18 @@ func TestWakeProjector_LeaseNudge_StoppedAgent_MessageButNoConverse(t *testing.T
 	f.saveAgent(t, "BOT", "W7") // NewAgent → LifecycleStopped
 	f.saveTaskConv(t, "task-conv-1", "T9")
 	var sysNotes []string
-	p := f.projWith(nil, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(nil, &sysNotes, &sysMessages)
 
 	e := leaseNudgeEvent("EVL1", "agent:BOT", "pm://tasks/T9", "T9")
 	if err := p.Project(f.ctx, e); err != nil {
 		t.Fatalf("Project: %v", err)
 	}
-	if len(sysNotes) != 1 {
-		t.Fatalf("stopped assignee must still get the durable message, got %d", len(sysNotes))
+	if len(sysNotes) != 0 {
+		t.Fatalf("lease nudge must use ordinary system message, not systemNotify: %q", sysNotes)
+	}
+	if len(sysMessages) != 1 {
+		t.Fatalf("stopped assignee must still get the durable message, got %d", len(sysMessages))
 	}
 	if cmds := f.commandsFor(t, "W7"); len(cmds) != 0 {
 		t.Fatalf("stopped assignee must enqueue no converse, got %d", len(cmds))
@@ -120,14 +132,15 @@ func TestWakeProjector_LeaseNudge_NoConversation_NoOp(t *testing.T) {
 	f := newWakeFixture(t)
 	f.saveRunningAgent(t, "BOT", "W7")
 	var sysNotes []string
-	p := f.projWith(nil, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(nil, &sysNotes, &sysMessages)
 
 	e := leaseNudgeEvent("EVL1", "agent:BOT", "pm://tasks/T-missing", "T-missing")
 	if err := p.Project(f.ctx, e); err != nil {
 		t.Fatalf("Project must not fail with no conversation: %v", err)
 	}
-	if len(sysNotes) != 0 {
-		t.Fatalf("no conversation → no message, got %d", len(sysNotes))
+	if len(sysNotes) != 0 || len(sysMessages) != 0 {
+		t.Fatalf("no conversation → no message, got notify=%d message=%d", len(sysNotes), len(sysMessages))
 	}
 	if cmds := f.commandsFor(t, "W7"); len(cmds) != 0 {
 		t.Fatalf("no conversation → no converse, got %d", len(cmds))
@@ -140,13 +153,14 @@ func TestWakeProjector_LeaseNudge_MalformedPayload_NoOp(t *testing.T) {
 	f := newWakeFixture(t)
 	f.saveTaskConv(t, "task-conv-1", "T9")
 	var sysNotes []string
-	p := f.projWith(nil, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(nil, &sysNotes, &sysMessages)
 
 	e := leaseNudgeEvent("EVL1", "user:alice", "pm://tasks/T9", "T9") // non-agent assignee
 	if err := p.Project(f.ctx, e); err != nil {
 		t.Fatalf("Project: %v", err)
 	}
-	if len(sysNotes) != 0 || len(f.commandsFor(t, "W7")) != 0 {
+	if len(sysNotes) != 0 || len(sysMessages) != 0 || len(f.commandsFor(t, "W7")) != 0 {
 		t.Fatalf("malformed assignee must be a no-op")
 	}
 }

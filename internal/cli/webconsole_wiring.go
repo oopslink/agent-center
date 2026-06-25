@@ -254,6 +254,20 @@ func (a *App) outboxProjectors(
 			})
 			return err
 		},
+		SystemMessage: func(ctx context.Context, convID, text string) error {
+			if a.MessageWriter == nil {
+				return nil
+			}
+			_, err := a.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+				ConversationID:   conversation.ConversationID(convID),
+				SenderIdentityID: conversation.IdentityRef("system"),
+				ContentKind:      conversation.MessageContentText,
+				Direction:        conversation.DirectionInbound,
+				Content:          text,
+				Actor:            observability.Actor("system"),
+			})
+			return err
+		},
 		// v2.7.1 #224: an issue/task conversation's @mention can target an agent that
 		// is a MEMBER of the owning project (not only an explicit participant). Resolve
 		// owner_ref (pm://issues|tasks/<id>) → owning project → its agent member-ids
@@ -572,6 +586,17 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	})
 	go planReconcileLoop.Run(planReconcileLoopCtx)
 
+	// Resolved issue lifecycle: after an issue remains resolved for the default
+	// grace period, close it automatically. The service uses durable
+	// status_changed_at, so restarts do not lose the countdown.
+	resolvedIssueCloserCtx, resolvedIssueCloserCancel := context.WithCancel(ctx)
+	resolvedIssueCloser := pmservice.NewResolvedIssueCloser(a.PMService, 0, 0, func(msg string, args ...any) {
+		logger("webconsole resolved issue closer: " + fmt.Sprintf(msg, args...))
+	})
+	go func() {
+		_ = resolvedIssueCloser.Run(resolvedIssueCloserCtx)
+	}()
+
 	// T340 (issue-b71ee81f): bring the control-event stream GC online. The
 	// worker_control_events table is append-only for every command type and had no
 	// GC → chronic growth. This slow-cadence (hourly) sweep prunes acked rows older
@@ -595,6 +620,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		gcCancel()
 		wakeLoopCancel()
 		planReconcileLoopCancel()
+		resolvedIssueCloserCancel()
 		controlEventGCCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

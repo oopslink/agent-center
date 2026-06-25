@@ -47,22 +47,40 @@ function cronHuman(expr: string): string {
   return expr;
 }
 
-interface Props {
-  onClose: () => void;
+// T474: an optional prefill so callers (e.g. the agent detail sidebar's "create
+// reminder" button) can open the modal with the remindee already selected and —
+// when an LLM session-limit reset was detected in the agent's recent activity —
+// a one-shot trigger time + content already filled in.
+export interface ReminderPrefill {
+  /** remindee agent ids to pre-select. */
+  remindeeIds?: string[];
+  /** fallback {id,name} pairs so a pre-selected remindee that isn't in the
+   *  project agents list still renders a labelled chip. */
+  remindeeOptions?: ReadonlyArray<{ id: string; name: string }>;
+  kind?: ReminderScheduleKind;
+  onceDate?: string; // YYYY-MM-DD
+  onceTime?: string; // HH:MM
+  tz?: string; // IANA tz (cron preview / payload)
+  content?: string;
 }
 
-export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
+interface Props {
+  onClose: () => void;
+  prefill?: ReminderPrefill;
+}
+
+export function ReminderCreateModal({ onClose, prefill }: Props): React.ReactElement {
   const create = useCreateReminder();
   const { data: agents } = useAgents();
-  const [kind, setKind] = useState<ReminderScheduleKind>('cron');
+  const [kind, setKind] = useState<ReminderScheduleKind>(prefill?.kind ?? 'cron');
   // Multi-select: a reminder can target several peer agents; on submit we fan out
   // one create call per remindee (the API takes a single remindee_agent_id).
-  const [remindees, setRemindees] = useState<string[]>([]);
-  const [content, setContent] = useState('');
+  const [remindees, setRemindees] = useState<string[]>(prefill?.remindeeIds ?? []);
+  const [content, setContent] = useState(prefill?.content ?? '');
   const [cronExpr, setCronExpr] = useState('0 18 * * 1-5');
-  const [tz, setTz] = useState(browserTz);
-  const [onceDate, setOnceDate] = useState('');
-  const [onceTime, setOnceTime] = useState('09:00');
+  const [tz, setTz] = useState(prefill?.tz ?? browserTz);
+  const [onceDate, setOnceDate] = useState(prefill?.onceDate ?? '');
+  const [onceTime, setOnceTime] = useState(prefill?.onceTime ?? '09:00');
   const [skipOverlap, setSkipOverlap] = useState(true);
   const [deliverAsCreator, setDeliverAsCreator] = useState(true); // F-B: default ON per mockup
   const [endKind, setEndKind] = useState<ReminderEndCondition['kind']>('never');
@@ -73,15 +91,27 @@ export function ReminderCreateModal({ onClose }: Props): React.ReactElement {
     content.trim() !== '' &&
     (kind === 'cron' ? cronExpr.trim() !== '' : onceDate !== '');
 
-  const remindeeOptions = useMemo<EntityOption[]>(
-    () =>
-      (agents ?? []).map((a) => ({
-        value: a.id,
-        label: a.name,
-        leading: <Avatar name={a.name} kind="agent" size="sm" />,
-      })),
-    [agents],
-  );
+  const remindeeOptions = useMemo<EntityOption[]>(() => {
+    const opts: EntityOption[] = (agents ?? []).map((a) => ({
+      value: a.id,
+      label: a.name,
+      leading: <Avatar name={a.name} kind="agent" size="sm" />,
+    }));
+    // Inject any prefilled remindee that the project agents list doesn't carry
+    // (so its chip still renders with a real label, not a bare id).
+    const known = new Set(opts.map((o) => o.value));
+    for (const f of prefill?.remindeeOptions ?? []) {
+      if (!known.has(f.id)) {
+        opts.push({
+          value: f.id,
+          label: f.name,
+          leading: <Avatar name={f.name} kind="agent" size="sm" />,
+        });
+        known.add(f.id);
+      }
+    }
+    return opts;
+  }, [agents, prefill]);
 
   const oncePreview = useMemo(() => {
     if (!onceDate) return '—';

@@ -82,4 +82,34 @@ func TestAPI_Invitations_CreateListCancelAcceptRejected(t *testing.T) {
 	if acceptResp.StatusCode != http.StatusGone {
 		t.Fatalf("accept cancelled invitation: status=%d, want 410", acceptResp.StatusCode)
 	}
+
+	delCreateResp := orgScopedPost(t, s.URL+"/api/invitations",
+		`{"invitee_user_id":"`+invitee.ID()+`","role":"member"}`, owner)
+	delCreateBody := responseBytes(t, delCreateResp)
+	if delCreateResp.StatusCode != http.StatusCreated {
+		t.Fatalf("create invitation to delete: status=%d body=%s", delCreateResp.StatusCode, delCreateBody)
+	}
+	var toDelete map[string]any
+	if err := json.Unmarshal(delCreateBody, &toDelete); err != nil {
+		t.Fatal(err)
+	}
+	delReq, err := http.NewRequest(http.MethodDelete,
+		s.URL+"/api/orgs/"+owner.OrgSlug+"/invitations/"+toDelete["id"].(string),
+		nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delReq.AddCookie(owner.Cookie)
+	delResp, err := http.DefaultClient.Do(delReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer delResp.Body.Close()
+	if delResp.StatusCode != http.StatusNoContent {
+		t.Fatalf("delete invitation: status=%d, want 204", delResp.StatusCode)
+	}
+	listAfterDelete := responseBytes(t, orgScopedGet(t, s.URL+"/api/invitations", owner))
+	if strings.Contains(string(listAfterDelete), toDelete["id"].(string)) {
+		t.Fatalf("deleted invitation still listed: %s", listAfterDelete)
+	}
 }

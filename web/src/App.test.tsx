@@ -276,6 +276,12 @@ describe('App shell + route tree', () => {
     await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
   });
 
+  it('organization-settings/agents renders the canonical Agents page', async () => {
+    await renderAt(`${ORG_BASE}/organization-settings/agents`);
+    await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
+    expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
+  });
+
   // v2.10.0 [T1]: ⌘1..4 jump to the four modules' default pages (org-scoped).
   it('⌘1 / ⌘2 jump to the Workspace / Conversations module defaults (org-scoped)', async () => {
     await renderAt(`${ORG_BASE}/environment`);

@@ -87,10 +87,14 @@ type WakeProjector struct {
 	// v2.7 #185 conversational-wake deps (nil → DM/channel→agent path is a
 	// no-op, like the other optional deps). displayName resolves an agent
 	// participant's identity_id → display_name for channel @mention matching;
-	// systemNotify posts a system message into a conversation (the
-	// "agent not running" signal when a DM/channel targets a stopped agent).
+	// systemNotify posts a system notification-style message into a conversation
+	// (the "agent not running" signal when a DM/channel targets a stopped agent).
 	displayName  func(ctx context.Context, identityID string) (string, bool)
 	systemNotify func(ctx context.Context, conversationID, text string) error
+	// systemMessage posts a normal text message authored by the system singleton.
+	// Use this for actionable workflow messages that humans/agents should handle as
+	// ordinary conversation content, not notification chrome.
+	systemMessage func(ctx context.Context, conversationID, text string) error
 
 	// v2.7.1 #224: resolves an issue/task conversation's owner_ref → the owning
 	// project's AGENT member-ids (stripped of the "agent:" prefix), so an agent
@@ -157,6 +161,9 @@ type WakeProjectorDeps struct {
 	// v2.7 #185 conversational-wake deps (optional; nil → DM/channel→agent no-op).
 	DisplayName  func(ctx context.Context, identityID string) (string, bool)
 	SystemNotify func(ctx context.Context, conversationID, text string) error
+	// SystemMessage posts a normal text message authored by system. If nil, callers
+	// that need ordinary message semantics fall back to SystemNotify for compatibility.
+	SystemMessage func(ctx context.Context, conversationID, text string) error
 
 	// v2.7.1 #224 (optional; nil → only conversation participants are @mention wake
 	// candidates). owner_ref → owning project's agent member-ids.
@@ -201,6 +208,7 @@ func NewWakeProjector(d WakeProjectorDeps) *WakeProjector {
 		readState:           d.ReadState,
 		displayName:         d.DisplayName,
 		systemNotify:        d.SystemNotify,
+		systemMessage:       d.SystemMessage,
 		projectAgentMembers: d.ProjectAgentMembers,
 		planName:            d.PlanName,
 		issueTitle:          d.IssueTitle,
@@ -945,13 +953,12 @@ func (p *WakeProjector) projectLeaseExpiredNudge(ctx context.Context, e outbox.E
 }
 
 // deliverLeaseNudge resolves the task's bound conversation, posts the visible
-// @assignee nudge message (systemNotify, sender=system → does NOT itself wake — the
-// #185 loop-break — which is why we ALSO enqueue the converse below), and enqueues an
-// agent.converse for a RUNNING assignee so the owner is woken to continue. Runs in the
-// caller's tx. A missing conversation / unresolved-or-stopped assignee / no worker
-// binding is a logged skip (no error — a missing wake target must not stall the
-// projector); the posted message persists for the agent to read when it next runs
-// (e.g. after self-heal relaunch).
+// @assignee nudge as a normal system-authored text message, and enqueues an
+// agent.converse for a RUNNING assignee so the owner is woken to continue. Runs in
+// the caller's tx. A missing conversation / unresolved-or-stopped assignee / no
+// worker binding is a logged skip (no error — a missing wake target must not stall
+// the projector); the posted message persists for the agent to read when it next
+// runs (e.g. after self-heal relaunch).
 func (p *WakeProjector) deliverLeaseNudge(ctx context.Context, e outbox.Event, rawID, taskID string, pl taskLeaseExpiredNudgePayload) error {
 	conv, err := p.convRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(taskID))
 	if err != nil {
@@ -975,11 +982,17 @@ func (p *WakeProjector) deliverLeaseNudge(ctx context.Context, e outbox.Event, r
 	nudgeText := "@" + name + " ⏰ your run on this task may have stalled — its execution lease lapsed. " +
 		"The task is still yours (assignee unchanged); please continue, or complete/block it if you're done."
 
-	// (a) The visible, durable @assignee nudge message (sender=system). It does NOT
-	// wake by itself (system sender, #185), so the converse below is what wakes a
-	// running agent; the message is what a stopped/relaunched agent reads later.
-	if p.systemNotify != nil {
-		if err := p.systemNotify(ctx, convID, nudgeText); err != nil {
+	// (a) The visible, durable @assignee nudge message (sender=system,
+	// content_kind=text). It does NOT wake by itself (system sender, #185), so the
+	// converse below is what wakes a running agent; the message is what a
+	// stopped/relaunched agent reads later. Fall back to the legacy SystemNotify
+	// port only for old test wiring.
+	postSystemMessage := p.systemMessage
+	if postSystemMessage == nil {
+		postSystemMessage = p.systemNotify
+	}
+	if postSystemMessage != nil {
+		if err := postSystemMessage(ctx, convID, nudgeText); err != nil {
 			return err
 		}
 	}
@@ -1069,12 +1082,12 @@ func (p *WakeProjector) projectIssueDerivedTasksDone(ctx context.Context, e outb
 }
 
 // deliverIssueDerivedTasksDone resolves the issue's bound conversation, posts the
-// visible @owner "all derived tasks concluded — please review and close" message
-// (systemNotify, sender=system → does NOT itself wake, the #185 loop-break), and — when
-// the owner is a RUNNING agent — enqueues an agent.converse so the owner is woken to act.
-// Runs in the caller's tx. A missing conversation / human owner / unresolved-or-stopped
-// agent owner / no worker binding is a logged skip (no error); the posted message
-// persists for the owner to read (a human via the UI unread, an agent on its next run).
+// visible @owner "all derived tasks concluded — please review and close" message as a
+// normal system-authored text message (NOT systemNotify), and — when the owner is a
+// RUNNING agent — enqueues an agent.converse so the owner is woken to act. Runs in the
+// caller's tx. A missing conversation / human owner / unresolved-or-stopped agent owner
+// / no worker binding is a logged skip (no error); the posted message persists for the
+// owner to read (a human via the UI unread, an agent on its next run).
 func (p *WakeProjector) deliverIssueDerivedTasksDone(ctx context.Context, e outbox.Event, pl issueDerivedTasksDonePayload) error {
 	conv, err := p.convRepo.FindByOwnerRef(ctx, conversation.NewIssueOwnerRef(pl.IssueID))
 	if err != nil {
@@ -1116,11 +1129,16 @@ func (p *WakeProjector) deliverIssueDerivedTasksDone(ctx context.Context, e outb
 	}
 	msg += " Please review and close the issue (close_issue) if it's resolved."
 
-	// (a) The visible, durable @owner message (sender=system). It does NOT wake by
-	// itself (system sender, #185); for an agent owner the converse below wakes it, for
-	// a human owner the @mention notifies via the UI unread.
-	if p.systemNotify != nil {
-		if err := p.systemNotify(ctx, convID, msg); err != nil {
+	// (a) The visible, durable @owner message (sender=system, content_kind=text).
+	// It does NOT wake by itself (system sender, #185); for an agent owner the
+	// converse below wakes it, for a human owner the @mention notifies via the UI
+	// unread. Fall back to the legacy SystemNotify port only for old test wiring.
+	postSystemMessage := p.systemMessage
+	if postSystemMessage == nil {
+		postSystemMessage = p.systemNotify
+	}
+	if postSystemMessage != nil {
+		if err := postSystemMessage(ctx, convID, msg); err != nil {
 			return err
 		}
 	}

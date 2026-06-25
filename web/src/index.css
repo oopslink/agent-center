@@ -352,6 +352,31 @@ body {
   margin: 0.5em 0;
   color: var(--color-text-secondary);
 }
+/* T479: lists need explicit markers + indent. Tailwind's preflight (@tailwind
+ * base) resets `ul, ol { list-style: none; margin: 0; padding: 0 }`, so
+ * react-markdown's <ul>/<ol>/<li> rendered as bare lines with no bullet/number
+ * (e.g. "1. a\n2. b" showed as "a\nb"). Restore standard list styling, scoped to
+ * .markdown-body so it never leaks into app chrome. Nested lists indent further
+ * and switch marker style for readability. */
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.4em 0;
+  padding-left: 1.6em;
+}
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body li { margin: 0.15em 0; }
+.markdown-body li > ul,
+.markdown-body li > ol { margin: 0.2em 0; }
+.markdown-body ul ul { list-style: circle; }
+.markdown-body ul ul ul { list-style: square; }
+/* GFM task-list items (`- [ ]`) carry their own checkbox — no bullet. */
+.markdown-body li.task-list-item,
+.markdown-body li:has(> input[type='checkbox']) {
+  list-style: none;
+  margin-left: -1.2em;
+}
+
 /* Inline code only — fenced blocks are <pre><code> (CollapsibleCodeBlock), excluded. */
 .markdown-body :not(pre) > code {
   background: var(--color-bg-subtle);

@@ -130,6 +130,35 @@ func (s *Server) cancelInvitationHandler(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, invitationPublicMap(r, d, inv))
 }
 
+// deleteInvitationHandler handles DELETE /api/orgs/{slug}/invitations/{id}.
+// Unlike cancel, delete hard-removes the invitation row regardless of lifecycle
+// status. Owner/admin only; scoped to the current organization.
+func (s *Server) deleteInvitationHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.InvitationRepo == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "invitations not configured")
+		return
+	}
+	_, callerMember, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	if !callerMember.Role().AtLeast(identity.RoleAdmin) {
+		writeError(w, http.StatusForbidden, "forbidden", "only owner or admin can delete invitations")
+		return
+	}
+	inv, err := d.InvitationRepo.GetByID(r.Context(), r.PathValue("id"))
+	if err != nil || inv == nil || inv.OrganizationID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "invitation not found")
+		return
+	}
+	if err := d.InvitationRepo.Delete(r.Context(), inv.ID()); err != nil {
+		writeError(w, http.StatusInternalServerError, "delete_failed", err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // acceptInvitationHandler handles POST /api/orgs/{slug}/invitations/{token}/accept.
 // It intentionally authenticates without requireOrgMember: the invitee is not a
 // member until this call succeeds.

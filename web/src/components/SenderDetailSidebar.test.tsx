@@ -417,4 +417,108 @@ describe('SenderDetailSidebar', () => {
       /[\u{1F300}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}\u{FE00}-\u{FE0F}]/u.test(close.textContent ?? ''),
     ).toBe(false);
   });
+
+  // T474 — the agent-only header "Create reminder" button.
+  it('renders a "Create reminder" button for an agent and opens the create modal preselecting it', async () => {
+    server.use(
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          organization_id: 'O-1',
+          name: 'builder-bot',
+          description: '',
+          model: 'claude-opus-4-8',
+          cli: 'claude-code',
+          env_vars: {},
+          skills: [],
+          worker_id: 'w-1',
+          lifecycle: 'running',
+          availability: 'busy',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+      http.get('/api/agents/:id/activity', () =>
+        HttpResponse.json({ activity: [], next_cursor: null }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:A-9'} onClose={noop} />);
+    const btn = await screen.findByTestId('sender-sidebar-reminder');
+    expect(btn.getAttribute('aria-label')).toBe('Create reminder');
+    fireEvent.click(btn);
+    // Modal opens with this agent preselected as a remindee chip.
+    expect(await screen.findByTestId('reminder-create-modal')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('reminder-remindee-chip')).toBeInTheDocument());
+  });
+
+  it('does NOT render the reminder button for a user sender', async () => {
+    server.use(
+      http.get('/api/users/:id', ({ params }) =>
+        HttpResponse.json({
+          user_id: String(params.id),
+          display_name: 'Ada',
+          email: 'ada@x.io',
+        }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'user:U-1'} onClose={noop} />);
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar-user')).toBeInTheDocument());
+    expect(screen.queryByTestId('sender-sidebar-reminder')).toBeNull();
+  });
+
+  it('prefills a one-shot reset time + content when the agent recently hit a session limit', async () => {
+    const recent = new Date(Date.now() - 3600_000).toISOString(); // ~1h ago
+    const limitText = "You've hit your session limit · resets 12:10pm (Asia/Shanghai)";
+    server.use(
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          organization_id: 'O-1',
+          name: 'builder-bot',
+          description: '',
+          model: 'claude-opus-4-8',
+          cli: 'claude-code',
+          env_vars: {},
+          skills: [],
+          worker_id: 'w-1',
+          lifecycle: 'running',
+          availability: 'busy',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-24T01:00:00Z',
+          updated_at: '2026-05-24T02:00:00Z',
+        }),
+      ),
+      http.get('/api/agents/:id/activity', ({ params }) =>
+        HttpResponse.json({
+          activity: [
+            {
+              id: 'AC-rl',
+              agent_id: String(params.id),
+              event_type: 'assistant_text',
+              payload: JSON.stringify({ text: limitText, raw: { text: limitText } }),
+              occurred_at: recent,
+            },
+          ],
+          next_cursor: null,
+        }),
+      ),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:A-9'} onClose={noop} />);
+    // Wait for the activity query to settle before clicking (the button reads its
+    // cached events at click time).
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar-activity')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByTestId('sender-sidebar-activity-loading')).toBeNull(),
+    );
+    fireEvent.click(screen.getByTestId('sender-sidebar-reminder'));
+    expect(await screen.findByTestId('reminder-create-modal')).toBeInTheDocument();
+    // Once mode is active with a (computed) date filled in, and the content
+    // references the limit reset.
+    const date = await screen.findByTestId('reminder-once-date');
+    expect((date as HTMLInputElement).value).not.toBe('');
+    expect((screen.getByTestId('reminder-content') as HTMLTextAreaElement).value).toMatch(/limit reset/i);
+  });
 });
