@@ -314,6 +314,15 @@ type AgentControllerConfig struct {
 	RateLimitMinBackoff     time.Duration
 	RateLimitMaxBackoff     time.Duration
 
+	// Transient-API-error auto-retry tuning (T475: "API Error: Connection closed
+	// mid-response"); 0 → defaults (base 2s, doubling per attempt, cap 60s, max 5
+	// retries). When a turn ends in a transient API/connection error (vs an ordinary
+	// failure), the controller schedules a bounded, exponentially backed-off resume
+	// to re-drive the SAME work instead of abandoning it. See api_error.go.
+	APIErrorBackoffBase time.Duration
+	APIErrorBackoffCap  time.Duration
+	APIErrorMaxRetries  int
+
 	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
 	// same-package _test.go can override it with a fake — production callers cannot
 	// set it, so NewAgentController always defaults it to the real supervisor-spawn
@@ -442,14 +451,26 @@ type managedAgent struct {
 	rlRetryAfterSecs int
 	rlResetAtUnix    int64
 
-	// rateLimitResumeAt is non-zero when an LLM server-side rate-limit ended the
-	// in-flight turn and an automatic resume nudge is DUE at this time (the limit
-	// window has cleared). OnTick injects DefaultResumeNudge into the still-live
-	// session when now ≥ this, then clears it — re-driving the interrupted work
-	// instead of leaving it silently abandoned (issue: LLM 服务端限流自动恢复). The
-	// session stays alive across a rate-limit (no crash), so this is the live-session
+	// rateLimitResumeAt is non-zero when a turn ended in a transient, retryable
+	// failure and an automatic resume nudge is DUE at this time. OnTick injects
+	// DefaultResumeNudge into the still-live session when now ≥ this, then clears it
+	// — re-driving the interrupted work instead of leaving it silently abandoned. It
+	// is the single resume slot SHARED by two recovery reasons (the drain is reason-
+	// agnostic — it just re-drives the live turn): an LLM server-side rate-limit
+	// (rate_limit.go, issue: LLM 服务端限流自动恢复) and a transient API/connection
+	// error (api_error.go, T475: "API Error: Connection closed mid-response"). The
+	// session stays alive across both (no crash), so this is the live-session
 	// analogue of selfHealEntry.nextRelaunchAt. Guarded by mu.
 	rateLimitResumeAt time.Time
+
+	// apiErrorRetries counts the consecutive transient-API-error resumes already
+	// scheduled for the in-flight turn (api_error.go, T475). Unlike a rate-limit —
+	// which carries a server window and re-schedules until the window clears — a
+	// connection error has no window, so the resume is bounded: after the configured
+	// max it falls through to surfaceTurnFailure rather than re-driving (and re-
+	// paying) an endlessly failing turn forever. Reset to 0 on any CLEAN (non-error)
+	// turn-end and when the cap is hit. Guarded by mu.
+	apiErrorRetries int
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -1471,6 +1492,14 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 		if c.maybeScheduleRateLimitResume(agentID, ev, rlRetryAfter, rlResetAt) {
 			return
 		}
+		// T475: a transient API/connection error ("Connection closed mid-response",
+		// 5xx, …) is retryable too — schedule a bounded, backed-off resume of the SAME
+		// work instead of abandoning it. Falls through to surfaceTurnFailure when the
+		// error is not transient, there is nothing to resume, or the retry budget is
+		// spent (so a persistently-failing turn still surfaces, never loops forever).
+		if c.maybeScheduleAPIErrorResume(agentID, ev) {
+			return
+		}
 		c.surfaceTurnFailure(agentID, ev)
 	}
 
@@ -1481,6 +1510,10 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	// non-error `result` (an is_error turn is handled above). Off the reader
 	// goroutine — the fetch is a network round-trip and must not stall the stream.
 	if ev.Type == "result" && !ev.IsError {
+		// T475: a clean turn-end clears the transient-API-error retry budget so a
+		// later, UNRELATED connection error starts fresh with the full retry count
+		// (the previous burst recovered — its budget must not carry over).
+		c.resetAPIErrorRetries(agentID)
 		go c.maybeReplyNudge(agentID)
 		// v2.15.0 I28/F2: a clean turn-end carries the result line's usage totals
 		// — report them to the center for per-turn cost accounting. Off the reader
