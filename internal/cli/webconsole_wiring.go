@@ -254,6 +254,20 @@ func (a *App) outboxProjectors(
 			})
 			return err
 		},
+		SystemMessage: func(ctx context.Context, convID, text string) error {
+			if a.MessageWriter == nil {
+				return nil
+			}
+			_, err := a.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+				ConversationID:   conversation.ConversationID(convID),
+				SenderIdentityID: conversation.IdentityRef("system"),
+				ContentKind:      conversation.MessageContentText,
+				Direction:        conversation.DirectionInbound,
+				Content:          text,
+				Actor:            observability.Actor("system"),
+			})
+			return err
+		},
 		// v2.7.1 #224: an issue/task conversation's @mention can target an agent that
 		// is a MEMBER of the owning project (not only an explicit participant). Resolve
 		// owner_ref (pm://issues|tasks/<id>) → owning project → its agent member-ids

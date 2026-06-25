@@ -60,17 +60,21 @@ func TestWakeProjector_IssueDerivedDone_AgentOwner_MessageAndWake(t *testing.T) 
 	f.saveRunningAgent(t, "BOT", "W7")
 	f.saveIssueConv(t, "issue-conv-1", "I1")
 	var sysNotes []string
-	p := f.projWith(nil, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(nil, &sysNotes, &sysMessages)
 
 	e := issueDerivedDoneEvent("EVI1", "I1", "agent:BOT", 2, 2, 0)
 	if err := p.Project(f.ctx, e); err != nil {
 		t.Fatalf("Project: %v", err)
 	}
 
-	if len(sysNotes) != 1 || !strings.Contains(sysNotes[0], "issue-conv-1: ") ||
-		!strings.Contains(sysNotes[0], "@A BOT") || !strings.Contains(sysNotes[0], "complete.") ||
-		!strings.Contains(sysNotes[0], "close_issue") {
-		t.Fatalf("owner message wrong: %q", sysNotes)
+	if len(sysNotes) != 0 {
+		t.Fatalf("issue-derived-done must use ordinary system message, not systemNotify: %q", sysNotes)
+	}
+	if len(sysMessages) != 1 || !strings.Contains(sysMessages[0], "issue-conv-1: ") ||
+		!strings.Contains(sysMessages[0], "@A BOT") || !strings.Contains(sysMessages[0], "complete.") ||
+		!strings.Contains(sysMessages[0], "close_issue") {
+		t.Fatalf("owner message wrong: %q", sysMessages)
 	}
 	cmds := f.commandsFor(t, "W7")
 	if len(cmds) != 1 || cmds[0].CommandType() != "agent.converse" {
@@ -87,15 +91,19 @@ func TestWakeProjector_IssueDerivedDone_HumanOwner_MessageOnly(t *testing.T) {
 	f := newWakeFixture(t)
 	f.saveIssueConv(t, "issue-conv-1", "I1")
 	var sysNotes []string
-	p := f.projWith(map[string]string{"user:alice": "Alice"}, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(map[string]string{"user:alice": "Alice"}, &sysNotes, &sysMessages)
 
 	e := issueDerivedDoneEvent("EVI1", "I1", "user:alice", 3, 1, 2)
 	if err := p.Project(f.ctx, e); err != nil {
 		t.Fatalf("Project: %v", err)
 	}
-	if len(sysNotes) != 1 || !strings.Contains(sysNotes[0], "@Alice") ||
-		!strings.Contains(sysNotes[0], "concluded (1 completed, 2 discarded)") {
-		t.Fatalf("human-owner message wrong: %q", sysNotes)
+	if len(sysNotes) != 0 {
+		t.Fatalf("issue-derived-done must use ordinary system message, not systemNotify: %q", sysNotes)
+	}
+	if len(sysMessages) != 1 || !strings.Contains(sysMessages[0], "@Alice") ||
+		!strings.Contains(sysMessages[0], "concluded (1 completed, 2 discarded)") {
+		t.Fatalf("human-owner message wrong: %q", sysMessages)
 	}
 	// No agent.converse anywhere (human owner → nothing to wake).
 	if cmds := f.commandsFor(t, "W7"); len(cmds) != 0 {
@@ -109,7 +117,8 @@ func TestWakeProjector_IssueDerivedDone_ReplayOnce(t *testing.T) {
 	f.saveRunningAgent(t, "BOT", "W7")
 	f.saveIssueConv(t, "issue-conv-1", "I1")
 	var sysNotes []string
-	p := f.projWith(nil, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(nil, &sysNotes, &sysMessages)
 
 	e := issueDerivedDoneEvent("EVI1", "I1", "agent:BOT", 1, 1, 0)
 	if err := p.Project(f.ctx, e); err != nil {
@@ -118,8 +127,11 @@ func TestWakeProjector_IssueDerivedDone_ReplayOnce(t *testing.T) {
 	if err := p.Project(f.ctx, e); err != nil {
 		t.Fatalf("Project 2: %v", err)
 	}
-	if len(sysNotes) != 1 {
-		t.Fatalf("replay must not duplicate the message: got %d", len(sysNotes))
+	if len(sysNotes) != 0 {
+		t.Fatalf("issue-derived-done must use ordinary system message, not systemNotify: %q", sysNotes)
+	}
+	if len(sysMessages) != 1 {
+		t.Fatalf("replay must not duplicate the message: got %d", len(sysMessages))
 	}
 	if cmds := f.commandsFor(t, "W7"); len(cmds) != 1 {
 		t.Fatalf("replay must not duplicate the converse: got %d", len(cmds))
@@ -131,13 +143,14 @@ func TestWakeProjector_IssueDerivedDone_NoConversation_NoOp(t *testing.T) {
 	f := newWakeFixture(t)
 	f.saveRunningAgent(t, "BOT", "W7")
 	var sysNotes []string
-	p := f.projWith(nil, &sysNotes)
+	var sysMessages []string
+	p := f.projWithSystemMessages(nil, &sysNotes, &sysMessages)
 
 	e := issueDerivedDoneEvent("EVI1", "I-missing", "agent:BOT", 1, 1, 0)
 	if err := p.Project(f.ctx, e); err != nil {
 		t.Fatalf("Project must not fail with no conversation: %v", err)
 	}
-	if len(sysNotes) != 0 || len(f.commandsFor(t, "W7")) != 0 {
+	if len(sysNotes) != 0 || len(sysMessages) != 0 || len(f.commandsFor(t, "W7")) != 0 {
 		t.Fatalf("no conversation → no message, no converse")
 	}
 }

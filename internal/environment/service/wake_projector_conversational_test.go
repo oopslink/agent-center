@@ -126,6 +126,10 @@ func convMessageEvent(id, convID, msgID, sender, text string) outbox.Event {
 // projWith builds a projector over the fixture's repos plus #185 conversational
 // deps (display-name resolver + a recording system-notifier).
 func (f *wakeFixture) projWith(displayName map[string]string, sysNotes *[]string) *WakeProjector {
+	return f.projWithSystemMessages(displayName, sysNotes, nil)
+}
+
+func (f *wakeFixture) projWithSystemMessages(displayName map[string]string, sysNotes, sysMessages *[]string) *WakeProjector {
 	return NewWakeProjector(WakeProjectorDeps{
 		DB: f.db, Agents: f.agents,
 		ControlLog: f.control, Applied: f.applied, Clock: f.clk,
@@ -137,6 +141,12 @@ func (f *wakeFixture) projWith(displayName map[string]string, sysNotes *[]string
 		SystemNotify: func(_ context.Context, convID, text string) error {
 			if sysNotes != nil {
 				*sysNotes = append(*sysNotes, convID+": "+text)
+			}
+			return nil
+		},
+		SystemMessage: func(_ context.Context, convID, text string) error {
+			if sysMessages != nil {
+				*sysMessages = append(*sysMessages, convID+": "+text)
 			}
 			return nil
 		},
