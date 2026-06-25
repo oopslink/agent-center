@@ -739,6 +739,16 @@ func (r *SQLiteInvitationRepo) ListByOrganization(ctx context.Context, orgID str
 	return result, rows.Err()
 }
 
+// Delete hard-removes an invitation row by id. Idempotent: absent id = no-op.
+func (r *SQLiteInvitationRepo) Delete(ctx context.Context, id string) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx, `DELETE FROM invitations WHERE id=?`, id)
+	return err
+}
+
 func scanInvitation(row *sql.Row) (*Invitation, error) {
 	var (
 		id, orgID, inviteeHandle, roleToGrant, invitedBy, status, token string

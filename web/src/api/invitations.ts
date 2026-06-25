@@ -24,6 +24,7 @@ export const invitationsApi = {
   create: (payload: { invitee_user_id: string; role: string }) =>
     api.post<InvitationResult>('/invitations', payload),
   cancel: (id: string) => api.post<InvitationResult>(`/invitations/${id}/cancel`),
+  delete: (id: string) => api.del<void>(`/invitations/${id}`),
   accept: (token: string) =>
     api.post<InvitationResult>(`/invitations/${encodeURIComponent(token)}/accept`),
 };
@@ -57,6 +58,14 @@ export function useCancelInvitation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => invitationsApi.cancel(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.invitations() }),
+  });
+}
+
+export function useDeleteInvitation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => invitationsApi.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.invitations() }),
   });
 }

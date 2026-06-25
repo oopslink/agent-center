@@ -44,4 +44,5 @@ type InvitationRepository interface {
 	GetByID(ctx context.Context, id string) (*Invitation, error)
 	GetByToken(ctx context.Context, token string) (*Invitation, error)
 	ListByOrganization(ctx context.Context, organizationID string) ([]*Invitation, error)
+	Delete(ctx context.Context, id string) error
 }

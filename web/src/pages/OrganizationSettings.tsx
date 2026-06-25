@@ -13,13 +13,19 @@ import {
   normalizeIdentityRef,
   type MemberResult,
 } from '@/api/members';
-import { invitationAcceptUrl, useCancelInvitation, useCreateInvitation, useInvitations } from '@/api/invitations';
-import { useAgents, useBatchAgentLifecycle, type AgentBatchAction } from '@/api/agents';
-import { AgentCreateModal } from '@/components/AgentCreateModal';
+import {
+  invitationAcceptUrl,
+  useCancelInvitation,
+  useCreateInvitation,
+  useDeleteInvitation,
+  useInvitations,
+  type InvitationResult,
+} from '@/api/invitations';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EmptyState } from '@/components/EmptyState';
 import { useOptionalOrgContext } from '@/OrgContext';
 import { formatLocalTime } from '@/utils/time';
+import Agents from './Agents';
 
 type Section = 'profile' | 'humans' | 'agents' | 'invitations' | 'danger';
 
@@ -45,13 +51,11 @@ export default function OrganizationSettings(): React.ReactElement {
   };
   return (
     <section className="min-h-full text-text-primary">
-      <div className="mx-auto max-w-3xl">
-        {section === 'profile' && <ProfileSection />}
-        {section === 'humans' && <HumansSection onOpenInvitations={goToInvitations} />}
-        {section === 'agents' && <AgentsSection />}
-        {section === 'invitations' && <InvitationsSection />}
-        {section === 'danger' && <DangerSection />}
-      </div>
+      {section === 'profile' && <ProfileSection />}
+      {section === 'humans' && <HumansSection onOpenInvitations={goToInvitations} />}
+      {section === 'agents' && <Agents />}
+      {section === 'invitations' && <InvitationsSection />}
+      {section === 'danger' && <DangerSection />}
     </section>
   );
 }
@@ -91,7 +95,7 @@ function ProfileSection(): React.ReactElement {
   }, [org?.id]);
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="space-y-4">
       <h1 className="text-xl font-semibold">Organization Profile</h1>
       <Field label="Organization Name">
         <input data-testid="org-settings-name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
@@ -225,60 +229,12 @@ function HumansSection({ onOpenInvitations }: { onOpenInvitations: () => void })
   );
 }
 
-function AgentsSection(): React.ReactElement {
-  const agents = useAgents();
-  const [createOpen, setCreateOpen] = useState(false);
-  const batch = useBatchAgentLifecycle();
-  const run = (ids: string[], action: AgentBatchAction): void => {
-    void batch.run(ids, action);
-  };
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Agents</h1>
-        <button type="button" onClick={() => setCreateOpen(true)} className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover">
-          Create Agent
-        </button>
-      </div>
-      {createOpen && <AgentCreateModal onClose={() => setCreateOpen(false)} />}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[42rem] text-left text-sm">
-          <thead className="text-xs uppercase text-text-muted">
-            <tr className="border-b border-border-base">
-              <th className="px-3 py-2">Name</th>
-              <th className="px-3 py-2">Lifecycle</th>
-              <th className="px-3 py-2">Availability</th>
-              <th className="px-3 py-2">Worker</th>
-              <th className="px-3 py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(agents.data ?? []).map((a) => (
-              <tr key={a.id} className="border-b border-border-base last:border-0">
-                <td className="px-3 py-2 font-medium">{a.name}</td>
-                <td className="px-3 py-2">{a.lifecycle}</td>
-                <td className="px-3 py-2">{a.availability}</td>
-                <td className="px-3 py-2 text-text-secondary">{a.worker_id || 'Not bound'}</td>
-                <td className="px-3 py-2 text-right">
-                  <button type="button" onClick={() => run([a.id], 'start')} className="mr-3 text-accent hover:underline">Start</button>
-                  <button type="button" onClick={() => run([a.id], 'stop')} className="mr-3 text-accent hover:underline">Stop</button>
-                  <button type="button" onClick={() => run([a.id], 'restart')} className="mr-3 text-accent hover:underline">Restart</button>
-                  <button type="button" onClick={() => run([a.id], 'reset')} className="text-danger hover:underline">Reset</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {agents.isSuccess && agents.data.length === 0 && <EmptyState title="No agents" body="Create an agent and bind it to a worker." />}
-    </div>
-  );
-}
-
 function InvitationsSection(): React.ReactElement {
   const invitations = useInvitations();
   const [open, setOpen] = useState(false);
   const cancel = useCancelInvitation();
+  const del = useDeleteInvitation();
+  const [pendingDelete, setPendingDelete] = useState<InvitationResult | null>(null);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -309,15 +265,39 @@ function InvitationsSection(): React.ReactElement {
               </div>
               <div className="mt-2 flex justify-between text-xs text-text-muted">
                 <span>{inv.accepted_at ? `Accepted ${formatDate(inv.accepted_at)}` : ' '}</span>
-                {inv.status === 'pending' && (
-                  <button type="button" onClick={() => cancel.mutate(inv.id)} className="text-danger hover:underline">Cancel</button>
-                )}
+                <div className="flex items-center gap-3">
+                  {inv.status === 'pending' && (
+                    <button type="button" onClick={() => cancel.mutate(inv.id)} className="text-danger hover:underline">Cancel</button>
+                  )}
+                  <button type="button" onClick={() => setPendingDelete(inv)} className="text-danger hover:underline">Delete</button>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
       {invitations.isSuccess && invitations.data.length === 0 && <EmptyState title="No invitations" body="Invite existing users by their user identity id." />}
+      <ConfirmModal
+        open={pendingDelete !== null}
+        danger
+        busy={del.isPending}
+        title="Delete invitation"
+        message={
+          pendingDelete
+            ? `Delete the invitation for ${pendingDelete.invitee_display_name ?? pendingDelete.invitee_user_id}? This removes the invitation record and its link will no longer work.`
+            : undefined
+        }
+        confirmLabel="Delete"
+        onCancel={() => {
+          if (del.isPending) return;
+          setPendingDelete(null);
+          del.reset();
+        }}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          del.mutate(pendingDelete.id, { onSettled: () => setPendingDelete(null) });
+        }}
+      />
     </div>
   );
 }
@@ -365,11 +345,13 @@ function DangerSection(): React.ReactElement {
   const orgCtx = useOptionalOrgContext();
   const orgs = useOrgs();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const org = (orgs.data ?? []).find((o) => o.slug === orgCtx?.slug);
   const isDisabled = org?.disabled ?? false;
   // I41 (T470): "Disable" is a REVERSIBLE login gate (non-owner members can't
   // enter; the owner keeps full access) — NOT a delete. It toggles to "Enable".
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const toggle = useMutation({
     mutationFn: () => {
       if (!org) return Promise.resolve();
@@ -377,6 +359,17 @@ function DangerSection(): React.ReactElement {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['orgs'] }),
     onSettled: () => setConfirmOpen(false),
+  });
+  const forceDelete = useMutation({
+    mutationFn: () => {
+      if (!org) return Promise.resolve();
+      return orgApi.delete(org.id);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['orgs'] });
+      navigate('/');
+    },
+    onSettled: () => setDeleteConfirmOpen(false),
   });
   return (
     <div className="space-y-4">
@@ -399,7 +392,14 @@ function DangerSection(): React.ReactElement {
         />
       )}
       {toggle.isError && <p className="text-sm text-danger">{(toggle.error as Error).message}</p>}
-      <DangerCard title="Force-Delete Organization" body="Permanently delete this organization and all associated data. This action cannot be undone." button="Force Delete" disabled />
+      {forceDelete.isError && <p className="text-sm text-danger">{(forceDelete.error as Error).message}</p>}
+      <DangerCard
+        title="Force-Delete Organization"
+        body="Delete this organization from the workspace and disable all joined members. This action cannot be undone from the UI."
+        button={forceDelete.isPending ? 'Deleting…' : 'Force Delete'}
+        disabled={!org || forceDelete.isPending}
+        onClick={() => setDeleteConfirmOpen(true)}
+      />
       <DangerCard title="Audit Log" body="View all organization changes, member actions, and system events." button="View Audit Log" disabled />
       <ConfirmModal
         open={confirmOpen}
@@ -418,6 +418,20 @@ function DangerSection(): React.ReactElement {
           toggle.reset();
         }}
         onConfirm={() => toggle.mutate()}
+      />
+      <ConfirmModal
+        open={deleteConfirmOpen}
+        danger
+        busy={forceDelete.isPending}
+        title="Force-delete organization"
+        message={`Force-delete organization ${org?.name ?? ''}? This removes it from the organization switcher and disables its joined members. This cannot be undone from the UI.`}
+        confirmLabel="Force Delete"
+        onCancel={() => {
+          if (forceDelete.isPending) return;
+          setDeleteConfirmOpen(false);
+          forceDelete.reset();
+        }}
+        onConfirm={() => forceDelete.mutate()}
       />
     </div>
   );

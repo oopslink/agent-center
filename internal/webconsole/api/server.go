@@ -158,6 +158,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/invitations", s.listInvitationsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/invitations", s.createInvitationHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/invitations/{id}/cancel", s.cancelInvitationHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/invitations/{id}", s.deleteInvitationHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/invitations/{token}/accept", s.acceptInvitationHandler)
 	// v2.7.1 #214: user profile detail (member-id path; Humans row → UserDetail).
 	// EXEMPT (org-agnostic): cross-org profile — lists every org the user belongs
