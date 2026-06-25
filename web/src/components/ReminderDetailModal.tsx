@@ -4,6 +4,7 @@ import { type ReminderDetail, useReminder } from '@/api/reminders';
 import { IconClose } from './icons';
 import { MarkdownMessage } from './MarkdownMessage';
 import { SenderSidebarProvider, useSenderSidebar } from './SenderSidebarContext';
+import { formatLocalTime } from '@/utils/time';
 
 // =============================================================================
 // T207 [提醒-3] — row-click detail: the reminder + its 历史触发 (reminder_firings:
@@ -88,7 +89,7 @@ function ReminderDetailBody({ data }: { data: ReminderDetail }): React.ReactElem
             {data.schedule.cron_expr} · {data.schedule.timezone}
           </span>
         ) : (
-          <span>{data.schedule.once_at}</span>
+          <span>{data.schedule.once_at ? formatLocalTime(data.schedule.once_at) : '—'}</span>
         )}
       </Row>
       {/* T286: render Content through MarkdownMessage so task/plan/issue/@mention ids
@@ -112,7 +113,7 @@ function ReminderDetailBody({ data }: { data: ReminderDetail }): React.ReactElem
                 key={f.id}
                 className="flex items-center justify-between rounded border border-border-base/60 px-2 py-1 text-xs"
               >
-                <span className="text-text-secondary">{new Date(f.fired_at).toLocaleString()}</span>
+                <span className="text-text-secondary">{formatLocalTime(f.fired_at)}</span>
                 <span
                   className={
                     f.outcome === 'delivered'
