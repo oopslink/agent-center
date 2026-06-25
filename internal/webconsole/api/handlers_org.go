@@ -36,16 +36,25 @@ func (s *Server) listOrgsHandler(w http.ResponseWriter, r *http.Request) {
 		if o.IsDeleted() {
 			continue
 		}
-		// I41 (T470): a DISABLED org is visible only to its owner (so they can enter
-		// + re-enable). Non-owner members can't use it (requireOrgMember blocks them),
-		// so it is hidden from their org list rather than dangled as a dead entry.
-		if o.IsDisabled() {
-			member, merr := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), o.ID(), id.ID())
-			if merr != nil || member == nil || member.Role() != identity.RoleOwner {
-				continue
+		// T478 (Option A): a DISABLED org is NO LONGER hidden from its non-owner
+		// members. Previously (I41/T470) it was dropped here for everyone but the
+		// owner, which made a joined org vanish from the member's switcher entirely
+		// (T478 #2) and turned direct access into a misleading "not found or no
+		// access" (T478 #3). Now every member keeps the org in their list — flagged
+		// `disabled` (orgPublicMap) so the UI can badge it and OrgGuard can show a
+		// clear "this organization is disabled" screen. The org's DATA stays closed
+		// to non-owners: requireOrgMember still returns 403 org_disabled on every
+		// org-scoped API. The owner is unaffected (full access, so they re-enable).
+		// `role` lets the SPA tell owner-bypass from the non-owner disabled screen.
+		var role string
+		if d.MemberRepo != nil {
+			if member, merr := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), o.ID(), id.ID()); merr == nil && member != nil {
+				role = string(member.Role())
 			}
 		}
-		arr = append(arr, orgPublicMap(o))
+		entry := orgPublicMap(o)
+		entry["role"] = role
+		arr = append(arr, entry)
 	}
 	writeJSON(w, http.StatusOK, arr)
 }

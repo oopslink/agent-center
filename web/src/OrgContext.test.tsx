@@ -145,6 +145,34 @@ describe('OrgGuard redirect gating (v2.9 401-retry)', () => {
     expect(screen.getByText('Organization not found or no access')).toBeInTheDocument();
     expect(screen.queryByTestId('signup-page')).not.toBeInTheDocument();
   });
+
+  // T478 (Option A): a disabled org now stays in the member's list.
+  it('disabled org + non-owner member → clear "disabled" screen (not 404, not children)', () => {
+    setOrgsState({
+      data: [{ ...ORG, disabled: true, role: 'member' }],
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+    });
+    renderGuard('acme');
+    expect(screen.getByTestId('org-disabled')).toBeInTheDocument();
+    expect(screen.getByText('This organization is disabled')).toBeInTheDocument();
+    // Not the misleading 404, and the protected children never mount.
+    expect(screen.queryByTestId('org-error')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('guard-children')).not.toBeInTheDocument();
+  });
+
+  it('disabled org + OWNER → full access (children render so they can re-enable)', () => {
+    setOrgsState({
+      data: [{ ...ORG, disabled: true, role: 'owner' }],
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+    });
+    renderGuard('acme');
+    expect(screen.getByTestId('guard-children')).toBeInTheDocument();
+    expect(screen.queryByTestId('org-disabled')).not.toBeInTheDocument();
+  });
 });
 
 describe('OrgRedirect redirect gating (v2.9 401-retry)', () => {

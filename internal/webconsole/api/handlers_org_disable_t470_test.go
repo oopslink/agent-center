@@ -130,6 +130,67 @@ func TestAPI_OrgDisable_LoginGate(t *testing.T) {
 	}
 }
 
+// TestAPI_OrgDisable_NonOwnerStillListsOrg is the T478 (Option A) acceptance
+// test: a disabled org is NO LONGER hidden from its non-owner members in the
+// GET /api/orgs list (so the "entrance" survives — T478 #2/#3). The entry is
+// flagged disabled and carries the caller's role so the SPA can badge it and
+// show a clear "disabled" screen. The org's DATA stays closed (that gate is
+// covered by TestAPI_OrgDisable_LoginGate).
+func TestAPI_OrgDisable_NonOwnerStillListsOrg(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.OrgLifecycleSvc = identity.NewOrganizationLifecycleService(
+		db, deps.OrgRepo, deps.MemberRepo, identity.NewOrganizationLockManager())
+	owner := setupTestSession(t, db, deps)
+	memberSess := addOrgMemberSession(t, db, owner, identity.RoleMember, "regular-member")
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	// Owner disables the org.
+	disableReq, _ := http.NewRequest(http.MethodPost, s.URL+"/api/orgs/"+owner.OrgID+"/disable", nil)
+	disableReq.AddCookie(owner.Cookie)
+	disableResp, err := http.DefaultClient.Do(disableReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if disableResp.StatusCode != http.StatusNoContent {
+		t.Fatalf("owner disable org: status=%d, want 204", disableResp.StatusCode)
+	}
+	disableResp.Body.Close()
+
+	// The NON-owner still sees the org in their list (T478 #2), flagged disabled
+	// with their role — not dropped as before.
+	listReq, _ := http.NewRequest(http.MethodGet, s.URL+"/api/orgs", nil)
+	listReq.AddCookie(memberSess.Cookie)
+	listResp, err := http.DefaultClient.Do(listReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("non-owner /api/orgs (disabled): status=%d, want 200", listResp.StatusCode)
+	}
+	var orgs []map[string]any
+	if err := json.NewDecoder(listResp.Body).Decode(&orgs); err != nil {
+		t.Fatal(err)
+	}
+	listResp.Body.Close()
+	var found map[string]any
+	for _, o := range orgs {
+		if o["id"] == owner.OrgID {
+			found = o
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("non-owner list must still contain the disabled org %s; got %v", owner.OrgID, orgs)
+	}
+	if found["disabled"] != true {
+		t.Errorf("disabled flag = %v, want true", found["disabled"])
+	}
+	if found["role"] != "member" {
+		t.Errorf("role = %v, want member", found["role"])
+	}
+}
+
 // TestAPI_OrgDisable_NonOwnerForbidden verifies a non-owner cannot disable the org.
 func TestAPI_OrgDisable_NonOwnerForbidden(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
