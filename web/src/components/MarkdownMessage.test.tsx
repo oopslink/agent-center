@@ -16,6 +16,23 @@ describe('MarkdownMessage (#276)', () => {
     expect(root.querySelectorAll('li')).toHaveLength(2);
   });
 
+  // T479: ordered + unordered + nested lists must render as real <ol>/<ul>/<li>
+  // so the .markdown-body list CSS (markers + indent) has a target. Tailwind
+  // preflight strips list markers, so without that CSS "1. a / 2. b" reads as
+  // bare lines — the structure here is what the stylesheet hangs off of.
+  it('renders ordered, unordered and nested lists as real ol/ul/li', () => {
+    render(
+      <MarkdownMessage content={'1. first\n2. second\n\n- a\n  - nested\n- b'} />,
+    );
+    const root = screen.getByTestId('markdown-message');
+    const ol = root.querySelector('ol');
+    expect(ol).toBeInTheDocument();
+    expect(ol?.querySelectorAll('li')).toHaveLength(2);
+    expect(root.querySelector('ul')).toBeInTheDocument();
+    // the nested bullet renders as a <ul> inside an <li>.
+    expect(root.querySelector('li > ul')).toBeInTheDocument();
+  });
+
   it('renders a fenced code block through CollapsibleCodeBlock (with language)', () => {
     const code = Array.from({ length: 25 }, (_, i) => `row ${i + 1}`).join('\n');
     render(<MarkdownMessage content={'```ts\n' + code + '\n```'} />);
