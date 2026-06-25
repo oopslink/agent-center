@@ -586,6 +586,17 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	})
 	go planReconcileLoop.Run(planReconcileLoopCtx)
 
+	// Resolved issue lifecycle: after an issue remains resolved for the default
+	// grace period, close it automatically. The service uses durable
+	// status_changed_at, so restarts do not lose the countdown.
+	resolvedIssueCloserCtx, resolvedIssueCloserCancel := context.WithCancel(ctx)
+	resolvedIssueCloser := pmservice.NewResolvedIssueCloser(a.PMService, 0, 0, func(msg string, args ...any) {
+		logger("webconsole resolved issue closer: " + fmt.Sprintf(msg, args...))
+	})
+	go func() {
+		_ = resolvedIssueCloser.Run(resolvedIssueCloserCtx)
+	}()
+
 	// T340 (issue-b71ee81f): bring the control-event stream GC online. The
 	// worker_control_events table is append-only for every command type and had no
 	// GC → chronic growth. This slow-cadence (hourly) sweep prunes acked rows older
@@ -609,6 +620,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		gcCancel()
 		wakeLoopCancel()
 		planReconcileLoopCancel()
+		resolvedIssueCloserCancel()
 		controlEventGCCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

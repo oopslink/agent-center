@@ -257,6 +257,19 @@ func ServerCommand() *Command {
 				}()
 				defer overdueReminderCancel()
 
+				// Resolved issue lifecycle: close issues automatically once they have
+				// remained resolved for the default grace period. Uses the issue's durable
+				// status_changed_at, so restarts do not lose the countdown.
+				resolvedIssueCloser := pmservice.NewResolvedIssueCloser(
+					app.PMService, 0, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[resolved-issue-closer] "+msg+"\n", a...) },
+				)
+				resolvedIssueCloserCtx, resolvedIssueCloserCancel := context.WithCancel(ctx)
+				go func() {
+					_ = resolvedIssueCloser.Run(resolvedIssueCloserCtx)
+				}()
+				defer resolvedIssueCloserCancel()
+
 				// v2.15.0 I28/F3 wiring (T471): the per-agent analytics DAILY ROLLUP.
 				// It folds raw usage_events + activity sources into agent_activity_daily,
 				// which the dashboard's overview cards / heatmap / project trend read.
