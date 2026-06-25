@@ -1,7 +1,10 @@
 import type React from 'react';
+import { useState } from 'react';
 import { useInRouterContext } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useAgent, useAgentActivity } from '@/api/agents';
+import { extractRateLimitReset } from '@/utils/rateLimitReminder';
+import { ReminderCreateModal, type ReminderPrefill } from './ReminderCreateModal';
 import { useUser } from '@/api/users';
 import {
   isResolvedName,
@@ -50,6 +53,11 @@ export function SenderDetailSidebar({
   // live app always mounts within a Router) and isolates the navigate hook in the
   // AgentDmButton child so it only runs when actually rendered.
   const inRouter = useInRouterContext();
+
+  // T474: the "create reminder" header button opens the create modal with this
+  // agent pre-selected (and a one-shot prefill when a session-limit reset is
+  // detected in its activity). Non-null prefill === modal open.
+  const [reminderPrefill, setReminderPrefill] = useState<ReminderPrefill | null>(null);
 
   const ref = senderRef ?? '';
   const kind = refKind(ref);
@@ -125,6 +133,18 @@ export function SenderDetailSidebar({
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {/* T474: agent-only "Create reminder" icon button, next to the DM
+                button. Opens the create modal with this agent pre-selected and,
+                when a session-limit reset is found in its recent activity, a
+                one-shot trigger time + content prefilled. Not router-gated (it
+                doesn't navigate). */}
+            {kind === 'agent' && (
+              <AgentReminderButton
+                agentId={id}
+                agentName={nameResolved ? resolvedName : id}
+                onOpen={setReminderPrefill}
+              />
+            )}
             {/* T136: agent-only "Open DM" icon button (no text; tooltip on hover).
                 Rendered only within a Router (see inRouter note above). */}
             {kind === 'agent' && inRouter && (
@@ -154,7 +174,67 @@ export function SenderDetailSidebar({
           )}
         </div>
       </div>
+
+      {reminderPrefill && (
+        <ReminderCreateModal prefill={reminderPrefill} onClose={() => setReminderPrefill(null)} />
+      )}
     </>
+  );
+}
+
+// AgentReminderButton — T474 header "Create reminder" icon button (agent-only).
+// On click it scans the agent's recent activity for a session-limit reset
+// (extractRateLimitReset) and opens the create modal pre-filled: this agent as
+// remindee, plus — when a reset was found — a one-shot trigger time + content.
+// Activity loads via the same useAgentActivity query the body uses (react-query
+// dedupes by key), so by click time it's usually already cached.
+function AgentReminderButton({
+  agentId,
+  agentName,
+  onOpen,
+}: {
+  agentId: string;
+  agentName: string;
+  onOpen: (prefill: ReminderPrefill) => void;
+}): React.ReactElement {
+  const activity = useAgentActivity(agentId);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const events = activity.data?.pages.flatMap((p) => p.activity) ?? [];
+        const reset = extractRateLimitReset(events);
+        const prefill: ReminderPrefill = {
+          remindeeIds: [agentId],
+          remindeeOptions: [{ id: agentId, name: agentName }],
+        };
+        if (reset) {
+          prefill.kind = 'once';
+          prefill.onceDate = reset.onceDate;
+          prefill.onceTime = reset.onceTime;
+          if (reset.timezone) prefill.tz = reset.timezone;
+          prefill.content = `Session/usage limit reset (was: "${reset.clock}"). Resume your work.`;
+        }
+        onOpen(prefill);
+      }}
+      data-testid="sender-sidebar-reminder"
+      aria-label="Create reminder"
+      title="Create reminder"
+      className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <BellIcon />
+    </button>
+  );
+}
+
+// BellIcon — T474 "Create reminder" glyph, inline SVG (NOT an emoji, per the
+// a11y guardrail). aria-hidden; the button's aria-label/title is the name.
+function BellIcon(): React.ReactElement {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
   );
 }
 

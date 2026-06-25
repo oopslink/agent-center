@@ -97,3 +97,77 @@ describe('ReminderCreateModal — remindee multi-select + toggles', () => {
     expect(targets).toEqual(['agent-1', 'agent-2']);
   });
 });
+
+// T474 — the prefill prop: open the modal with a remindee pre-selected and, for
+// a detected session-limit reset, a one-shot trigger time + content filled in.
+describe('ReminderCreateModal — T474 prefill', () => {
+  afterEach(() => {
+    cleanup();
+    mutateAsync.mockClear();
+  });
+
+  it('preselects the remindee + once trigger time + content from prefill', () => {
+    render(
+      <ReminderCreateModal
+        onClose={vi.fn()}
+        prefill={{
+          remindeeIds: ['agent-1'],
+          remindeeOptions: [{ id: 'agent-1', name: 'Dev One' }],
+          kind: 'once',
+          onceDate: '2026-06-25',
+          onceTime: '12:10',
+          content: 'Session/usage limit reset. Resume your work.',
+        }}
+      />,
+    );
+    // Once mode is active → once inputs are present and carry the prefill.
+    expect((screen.getByTestId('reminder-once-date') as HTMLInputElement).value).toBe('2026-06-25');
+    expect((screen.getByTestId('reminder-once-time') as HTMLInputElement).value).toBe('12:10');
+    expect((screen.getByTestId('reminder-content') as HTMLTextAreaElement).value).toContain('limit reset');
+    // The remindee chip is rendered (preselected).
+    expect(screen.getByTestId('reminder-remindee-chip')).toBeInTheDocument();
+    // Submit is enabled (remindee + content + once date are all set).
+    expect((screen.getByTestId('reminder-submit') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('injects a chip for a prefilled remindee absent from the project agents list', () => {
+    render(
+      <ReminderCreateModal
+        onClose={vi.fn()}
+        prefill={{
+          remindeeIds: ['agent-outside'],
+          remindeeOptions: [{ id: 'agent-outside', name: 'Outsider Bot' }],
+        }}
+      />,
+    );
+    // The synthetic option renders a labelled chip even though useAgents() (mocked
+    // to agent-1/agent-2 above) doesn't carry agent-outside.
+    expect(screen.getByTestId('reminder-remindee-chip')).toHaveTextContent('Outsider Bot');
+  });
+
+  it('submits the prefilled once schedule for the prefilled remindee', async () => {
+    render(
+      <ReminderCreateModal
+        onClose={vi.fn()}
+        prefill={{
+          remindeeIds: ['agent-1'],
+          remindeeOptions: [{ id: 'agent-1', name: 'Dev One' }],
+          kind: 'once',
+          onceDate: '2026-06-25',
+          onceTime: '12:10',
+          content: 'resume',
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('reminder-submit'));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          remindee_agent_id: 'agent-1',
+          content: 'resume',
+          schedule: expect.objectContaining({ kind: 'once' }),
+        }),
+      ),
+    );
+  });
+});
