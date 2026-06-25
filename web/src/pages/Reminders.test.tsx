@@ -8,6 +8,7 @@ import type { Reminder } from '@/api/reminders';
 // (rows / stats / filters / row actions) deterministically.
 
 const mutate = vi.fn();
+const deleteMutate = vi.fn();
 let lastListParams: unknown = null;
 
 const cron: Reminder = {
@@ -43,10 +44,20 @@ vi.mock('@/api/reminders', () => ({
     return { data: { items: [cron, once], total: 2 }, isLoading: false, isError: false };
   },
   useUpdateReminder: () => ({ mutate, isPending: false }),
+  useDeleteReminder: () => ({ mutate: deleteMutate, isPending: false, isError: false, error: null, reset: vi.fn() }),
 }));
 vi.mock('@/api/members', () => ({ useDisplayNameResolver: () => (ref: string) => ref }));
+// Mock the create modal but echo back the props the page passes (editId / whether
+// a prefill was supplied) so clone-vs-edit wiring is assertable.
 vi.mock('@/components/ReminderCreateModal', () => ({
-  ReminderCreateModal: () => <div data-testid="reminder-create-modal" />,
+  ReminderCreateModal: (props: { editId?: string; prefill?: unknown }) => (
+    <div
+      data-testid="reminder-create-modal"
+      data-edit-id={props.editId ?? ''}
+      data-has-prefill={props.prefill ? 'true' : 'false'}
+    />
+  ),
+  reminderToPrefill: (r: Reminder) => ({ remindeeIds: [r.remindee_agent_id] }),
 }));
 vi.mock('@/components/ReminderDetailModal', () => ({
   ReminderDetailModal: () => <div data-testid="reminder-detail-modal" />,
@@ -70,6 +81,7 @@ describe('Reminders page', () => {
   afterEach(() => {
     cleanup();
     mutate.mockReset();
+    deleteMutate.mockReset();
     lastListParams = null;
   });
 
@@ -130,5 +142,43 @@ describe('Reminders page', () => {
     expect(screen.queryByTestId('reminder-create-modal')).toBeNull();
     fireEvent.click(screen.getByTestId('reminder-new'));
     expect(screen.getByTestId('reminder-create-modal')).toBeTruthy();
+  });
+
+  // T477 — entry management: edit / clone / delete.
+  it('clone opens the create modal WITH a prefill and NO editId (creates new)', () => {
+    renderPage();
+    fireEvent.click(screen.getAllByTestId('reminder-clone')[0]);
+    const modal = screen.getByTestId('reminder-create-modal');
+    expect(modal.getAttribute('data-has-prefill')).toBe('true');
+    expect(modal.getAttribute('data-edit-id')).toBe('');
+  });
+
+  it('edit opens the create modal in edit mode (editId set + prefill)', () => {
+    renderPage();
+    // edit is shown only for active/paused rows; rmd-1 (active) has it.
+    fireEvent.click(screen.getAllByTestId('reminder-edit')[0]);
+    const modal = screen.getByTestId('reminder-create-modal');
+    expect(modal.getAttribute('data-edit-id')).toBe('rmd-1');
+    expect(modal.getAttribute('data-has-prefill')).toBe('true');
+  });
+
+  it('delete asks for confirmation, then fires useDeleteReminder with the row id', () => {
+    renderPage();
+    expect(screen.queryByTestId('reminder-delete-confirm')).toBeNull();
+    fireEvent.click(screen.getAllByTestId('reminder-delete')[0]);
+    // Confirm dialog appears; nothing deleted until confirmed.
+    expect(screen.getByTestId('reminder-delete-confirm')).toBeInTheDocument();
+    expect(deleteMutate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('reminder-delete-confirm-btn'));
+    expect(deleteMutate).toHaveBeenCalledWith('rmd-1', expect.any(Object));
+  });
+
+  it('delete is available on EVERY row (incl. terminal) but edit only on active/paused', () => {
+    renderPage();
+    // two rows, both deletable; only the active row is editable (paused IS editable
+    // too — both rmd-1 active and rmd-2 paused qualify → 2 edit buttons here).
+    expect(screen.getAllByTestId('reminder-delete')).toHaveLength(2);
+    expect(screen.getAllByTestId('reminder-clone')).toHaveLength(2);
+    expect(screen.getAllByTestId('reminder-edit')).toHaveLength(2);
   });
 });

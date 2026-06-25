@@ -161,3 +161,17 @@ export function useUpdateReminder() {
     },
   });
 }
+
+// useDeleteReminder — hard-delete a reminder entry (T477). DELETE /reminders/{id}
+// (204). Distinct from the 'cancel' action (a terminal status that keeps the row
+// + firing history): delete removes the entry entirely. Invalidates the list.
+export function useDeleteReminder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del(`/reminders/${id}`),
+    onSuccess: (_data, id) => {
+      void qc.invalidateQueries({ queryKey: qk.reminders() });
+      void qc.invalidateQueries({ queryKey: qk.reminder(id) });
+    },
+  });
+}
