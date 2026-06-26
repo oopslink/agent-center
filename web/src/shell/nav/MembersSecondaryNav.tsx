@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
-import { AgentLoadBadge, AgentStatusBadge } from '@/components/AgentBadges';
+import { AgentBacklogBadge, AgentLoadBadge, AgentStatusBadge } from '@/components/AgentBadges';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 
 // ============================================================================
@@ -76,6 +76,7 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
         <span className="flex items-center gap-2 text-[0.6875rem] text-text-muted" data-testid="agent-nav-status">
           <AgentStatusBadge agent={a} now={now} />
           <AgentLoadBadge agent={a} />
+          <AgentBacklogBadge agent={a} />
         </span>
       ),
     }));
