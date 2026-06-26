@@ -92,8 +92,8 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
         aria-modal="true"
         aria-label="Message thread"
         data-testid="thread-sidebar"
-        style={{ width }}
-        className="fixed inset-0 md:inset-y-0 md:right-0 md:left-auto z-40 flex h-full md:max-w-[75vw] translate-x-0 transform flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none"
+        style={{ '--thread-w': `${width}px` } as React.CSSProperties}
+        className="fixed inset-0 z-40 flex h-full w-full translate-x-0 transform flex-col bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none md:inset-y-0 md:right-0 md:left-auto md:w-[var(--thread-w)] md:border-l md:border-border-base md:max-w-[75vw]"
       >
         {/* Left-edge resize grip (desktop): drag to set the panel width. */}
         <div className="hidden md:block">

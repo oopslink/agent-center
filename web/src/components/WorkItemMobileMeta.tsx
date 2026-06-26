@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
-import { Avatar } from '@/components/Avatar';
-import { EntityRef } from '@/components/EntityRef';
 import { StatusBlock, type StatusKey } from '@/components/IssueTaskSidebar';
-import { useSenderSidebar } from '@/components/SenderSidebarContext';
 import { refLabel } from '@/components/workItemDisplay';
 import { tagColorFor } from '@/components/tagColors';
 import { formatLocalTime, formatStatusDuration } from '@/utils/time';
@@ -59,58 +56,80 @@ export function useIsMobile(): boolean {
   return isMobile;
 }
 
-// AssigneeRef — the avatar + display name for a work item's assignee. When a
-// SenderSidebarProvider is present (Task page) the name is a button that opens
-// the agent activity sidebar; otherwise it renders inert (Issue has no assignee
-// so this is Task-only in practice).
-function AssigneeRef({
-  assignee,
-  assigneeName,
-}: {
-  assignee: string;
-  assigneeName?: string;
-}): React.ReactElement {
-  const openSender = useSenderSidebar();
-  const seed = assigneeName && assigneeName.trim() ? assigneeName : assignee;
-  const name = assigneeName && assigneeName !== assignee ? assigneeName : undefined;
-  const inner = (
-    <>
-      <Avatar name={seed} size="sm" />
-      <EntityRef id={assignee} name={name} testId="wi-mobile-assignee" />
-    </>
-  );
-  return openSender ? (
-    <button
-      type="button"
-      onClick={() => openSender(assignee)}
-      className="inline-flex items-center gap-1.5 rounded hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      data-testid="wi-mobile-assignee-open"
-      title={`Open ${name ?? assignee}'s activity`}
-    >
-      {inner}
-    </button>
-  ) : (
-    <span className="inline-flex items-center gap-1.5">{inner}</span>
-  );
-}
 
-// MobileWorkItemBar (T309) — the @oopslink mobile mockup: a SINGLE compact bar
-// under the title — status + assignee inline, with [Show info] (toggles the
-// description/attachments/details panel) + [Edit] — so the CHAT below it fills
-// the rest of the screen (the core surface). md:hidden (the desktop sidebar +
-// inline description cover ≥md). showInfo is owned by the page so it can render
-// the info panel (description/attachments/details) right below this bar.
-export function MobileWorkItemBar({
+// MobileBannerMeta — inline chips rendered INSIDE the WorkItemConversation
+// banner row on mobile (status + duration + Actions dropdown). Replaces the
+// old standalone MobileWorkItemBar — no separate bar, no duplicate org_ref.
+export function MobileBannerMeta({
   status,
   statusChangedAt,
-  assignee,
-  assigneeName,
   showInfo,
   onToggleInfo,
   editable,
   onEdit,
   kind,
 }: {
+  status: StatusKey;
+  statusChangedAt?: string;
+  showInfo: boolean;
+  onToggleInfo: () => void;
+  editable: boolean;
+  onEdit: () => void;
+  kind: 'task' | 'issue';
+}): React.ReactElement {
+  const duration = formatStatusDuration(statusChangedAt);
+  const [actionsOpen, setActionsOpen] = useState(false);
+
+  return (
+    <>
+      <span className="inline-flex items-center" data-testid="wi-mobile-status">
+        <StatusBlock status={status} />
+      </span>
+      {duration && <span className="whitespace-nowrap text-xs text-text-muted">{duration}</span>}
+      <span className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => setActionsOpen((v) => !v)}
+          className="inline-flex min-h-[2.75rem] items-center gap-1 rounded-full border border-border-base bg-bg-subtle px-3 text-xs font-medium text-text-secondary whitespace-nowrap"
+          data-testid="wi-mobile-actions-toggle"
+          aria-expanded={actionsOpen}
+          aria-haspopup="true"
+        >
+          Actions <span aria-hidden="true">▾</span>
+        </button>
+        {actionsOpen && (
+          <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-border-base bg-bg-elevated shadow-2" data-testid="wi-mobile-actions-menu" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setActionsOpen(false); onToggleInfo(); }}
+              className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle"
+              data-testid="wi-mobile-showinfo"
+              aria-expanded={showInfo}
+            >
+              {showInfo ? 'Hide info' : 'Show info'}
+            </button>
+            {editable && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { setActionsOpen(false); onEdit(); }}
+                className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle"
+                data-testid="wi-mobile-edit-button"
+              >
+                {kind === 'task' ? 'Edit Task' : 'Edit Issue'}
+              </button>
+            )}
+          </div>
+        )}
+      </span>
+    </>
+  );
+}
+
+// Legacy alias — kept for backward compat with tests that render it standalone.
+// Returns null (the bar is now merged into the conversation banner).
+export function MobileWorkItemBar(_props: {
   status: StatusKey;
   statusChangedAt?: string;
   assignee?: string | null;
@@ -120,50 +139,9 @@ export function MobileWorkItemBar({
   editable: boolean;
   onEdit: () => void;
   kind: 'task' | 'issue';
+  orgRef?: string;
 }): React.ReactElement | null {
-  const isMobile = useIsMobile();
-  const duration = formatStatusDuration(statusChangedAt);
-  if (!isMobile) return null;
-  const btn =
-    'rounded border border-border-base px-2 py-1 text-xs font-medium text-text-secondary hover:bg-bg-subtle';
-  return (
-    <div
-      className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border-base bg-bg-elevated px-3 py-2"
-      data-testid="wi-mobile-bar"
-    >
-      <span className="inline-flex items-center gap-2" data-testid="wi-mobile-status">
-        <StatusBlock status={status} />
-        {duration && <span className="text-xs text-text-muted">{duration}</span>}
-      </span>
-      {assignee !== undefined && (
-        <span className="inline-flex items-center gap-1.5">
-          {assignee ? (
-            <AssigneeRef assignee={assignee} assigneeName={assigneeName} />
-          ) : (
-            <span className="text-xs text-text-muted" data-testid="wi-mobile-assignee-empty">
-              Unassigned
-            </span>
-          )}
-        </span>
-      )}
-      <span className="ml-auto flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={onToggleInfo}
-          className={btn}
-          data-testid="wi-mobile-showinfo"
-          aria-expanded={showInfo}
-        >
-          {showInfo ? 'Hide info' : 'Show info'}
-        </button>
-        {editable && (
-          <button type="button" onClick={onEdit} className={btn} data-testid="wi-mobile-edit-button">
-            {kind === 'task' ? 'Edit Task' : 'Edit Issue'}
-          </button>
-        )}
-      </span>
-    </div>
-  );
+  return null;
 }
 
 // MobileDetailsContent (T309) — the compact metadata rows (Project / ID / Created

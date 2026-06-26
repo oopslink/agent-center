@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -67,22 +67,17 @@ describe('TaskDetail page', () => {
       ),
     );
     wrap('/projects/proj-a/tasks/TS-1');
-    await waitFor(() => expect(screen.getByTestId('wi-mobile-bar')).toBeInTheDocument());
-    // status surfaced in the bar. Scope to the bar — the desktop sidebar (hidden
-    // via CSS) is still in the jsdom DOM.
-    const bar = screen.getByTestId('wi-mobile-bar');
-    expect(within(bar).getByTestId('status-block')).toHaveAttribute('data-status', 'running');
+    // Status/actions are in the page header row (mobile renders both desktop
+    // sidebar + mobile header in the DOM; scope to the first visible one).
+    await waitFor(() => expect(screen.getAllByTestId('status-block')[0]).toHaveAttribute('data-status', 'running'));
     // the info panel is collapsed by default (chat is the core surface)…
     expect(screen.queryByTestId('wi-mobile-info')).not.toBeInTheDocument();
-    // …and "Show info" reveals the details content.
-    fireEvent.click(within(bar).getByTestId('wi-mobile-showinfo'));
+    // …open Actions dropdown, then "Show info" reveals the details content.
+    fireEvent.click(screen.getByTestId('wi-mobile-actions-toggle'));
+    fireEvent.click(screen.getByTestId('wi-mobile-showinfo'));
     expect(screen.getByTestId('wi-mobile-info')).toBeInTheDocument();
     expect(screen.getByTestId('wi-mobile-details-content')).toBeInTheDocument();
-    // breadcrumb leaf = just the org_ref (title is NOT repeated there on mobile).
-    const crumb = screen.getByTestId('breadcrumb');
-    expect(crumb).toHaveTextContent('T7');
-    expect(crumb).not.toHaveTextContent('rebuild docs');
-    // the title still renders once, in the heading.
+    // Breadcrumb is hidden on mobile (md:block); the title is in the heading.
     expect(screen.getByRole('heading', { name: /rebuild docs/ })).toBeInTheDocument();
   });
 

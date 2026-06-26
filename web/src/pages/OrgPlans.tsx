@@ -8,6 +8,7 @@ import { PlanStatusChip, PlanFailedIndicator, planProgressLabel, PlanRefTag } fr
 import { shortDate } from '@/components/workItemDisplay';
 import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { ContextPanel } from '@/shell/contextPanel';
+import { normalizeIdentityRef } from '@/api/members';
 
 // OrgPlans (v2.10.0 [T6]) — the global, org-scoped, cross-project Plan list
 // (Workspace > Plan), modelled on the cross-project Tasks list. col③ = a
@@ -88,7 +89,7 @@ export default function OrgPlansPage(): React.ReactElement {
 
   return (
     <section className="space-y-4" data-testid="page-OrgPlans">
-      <header className="space-y-2 border-b border-border-base pb-3">
+      <header className="space-y-2">
         {/* v2.10.2 [T142]: "Plans" (plural) — matches the Workspace nav + the
             Projects/Issues/Tasks list-page title convention. */}
         <h1 className="text-xl font-semibold text-text-primary">Plans</h1>
@@ -185,6 +186,8 @@ export default function OrgPlansPage(): React.ReactElement {
                 <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">Project</th>
                 <th className="py-1.5 pr-3 font-medium">Progress</th>
+                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">Creator</th>
                 <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
@@ -234,6 +237,12 @@ export default function OrgPlansPage(): React.ReactElement {
                     <td className="py-1.5 pr-3">
                       <ProgressMini done={p.progress.done} total={p.progress.total} />
                     </td>
+                    <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="org-plan-created" title={p.created_at}>
+                      {shortDate(p.created_at)}
+                    </td>
+                    <td className="py-1.5 pr-3 text-text-secondary" data-testid="org-plan-creator" title={p.creator_ref}>
+                      {p.creator_ref ? normalizeIdentityRef(p.creator_ref) : '—'}
+                    </td>
                     <td className="py-1.5 tabular-nums text-text-muted" data-testid="org-plan-updated" title={p.updated_at}>
                       {shortDate(p.updated_at)}
                     </td>
@@ -282,6 +291,12 @@ export default function OrgPlansPage(): React.ReactElement {
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
                     <span className="truncate" data-testid="org-plan-card-project">{p.project.name}</span>
                     <ProgressMini done={p.progress.done} total={p.progress.total} />
+                    {p.creator_ref && (
+                      <span className="truncate" title={p.creator_ref}>
+                        by {normalizeIdentityRef(p.creator_ref)}
+                      </span>
+                    )}
+                    <span className="tabular-nums" title={p.created_at}>{shortDate(p.created_at)}</span>
                     <span className="ml-auto tabular-nums" title={p.updated_at}>{shortDate(p.updated_at)}</span>
                   </div>
                 </div>
@@ -352,6 +367,7 @@ function PlanSummaryPanel({
           <SummaryKV k="Project">{plan.project.name}</SummaryKV>
           <SummaryKV k="Nodes">{planProgressLabel(plan.progress)}</SummaryKV>
           <SummaryKV k="Created"><span className="tabular-nums">{shortDate(plan.created_at)}</span></SummaryKV>
+          <SummaryKV k="Creator">{plan.creator_ref ? normalizeIdentityRef(plan.creator_ref) : '—'}</SummaryKV>
         </div>
 
         <h2 className="px-4 pb-1 pt-3 text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">

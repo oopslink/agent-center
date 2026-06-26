@@ -119,7 +119,7 @@ function UserDetailView({
 
       {/* tab bar */}
       <nav
-        className="flex gap-1 border-b border-border-base [&>button]:min-h-[44px] md:[&>button]:min-h-0"
+        className="flex gap-1 [&>button]:min-h-[44px] md:[&>button]:min-h-0"
         role="tablist"
         aria-orientation="horizontal"
         ref={tablist.tablistRef}

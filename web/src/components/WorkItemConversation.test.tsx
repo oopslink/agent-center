@@ -75,33 +75,31 @@ describe('WorkItemConversation (#137)', () => {
     const sidebar = await screen.findByTestId('conv-embedded-sidebar');
     expect(sidebar).toHaveAttribute('data-collapsed', 'false');
     expect(within(sidebar).getByTestId('conversation-tab-threads')).toBeInTheDocument();
-    // T325: a working collapse toggle folds it to a thin strip (tabs gone).
+    // T325: collapse via the toolbar toggle inside the expanded sidebar.
     fireEvent.click(within(sidebar).getByTestId('conv-embedded-sidebar-toggle'));
     const collapsed = screen.getByTestId('conv-embedded-sidebar');
     expect(collapsed).toHaveAttribute('data-collapsed', 'true');
     expect(within(collapsed).queryByTestId('conversation-tab-threads')).toBeNull();
-    // expand again.
-    fireEvent.click(within(collapsed).getByTestId('conv-embedded-sidebar-toggle'));
+    // Expand again: the toggle is now in the banner row (not inside the collapsed sidebar).
+    const bannerToggle = screen.getByTestId('conv-embedded-sidebar-toggle');
+    fireEvent.click(bannerToggle);
     expect(screen.getByTestId('conv-embedded-sidebar')).toHaveAttribute('data-collapsed', 'false');
   });
 
-  it('keeps the work-item ID on mobile but hides the redundant "· linked <title>" (T312)', async () => {
+  it('the conversation banner is desktop-only (hidden on mobile); maximize is available', async () => {
     server.use(
       http.get('/api/conversations', () => HttpResponse.json([conv])),
       http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
     );
     wrap('pm://tasks/TS-1', 'rebuild docs', 'T280');
-    // the ID (ownerCode) is visible on every breakpoint (its wrapper is NOT hidden).
-    const code = await screen.findByTestId('conversation-owner-code');
-    expect(code).toHaveTextContent('T280');
-    const label = screen.getByTestId('conversation-owner-label');
-    expect(label.className).not.toContain('hidden');
-    // only the "· linked <title>" part is hidden on <md (it duplicates the header).
-    const title = screen.getByTestId('conversation-owner-title');
-    expect(title.className).toContain('hidden');
-    expect(title.className).toContain('md:flex');
-    // the Maximize action stays available on every breakpoint.
-    expect(screen.getByTestId('conversation-maximize-toggle')).toBeInTheDocument();
+    // The banner is present in the DOM (desktop-only via hidden md:flex).
+    const banner = await screen.findByTestId('conversation-owner-banner');
+    expect(banner.className).toContain('hidden');
+    expect(banner.className).toContain('md:flex');
+    // The ownerCode is inside the banner.
+    expect(within(banner).getByTestId('conversation-owner-code')).toHaveTextContent('T280');
+    // Maximize toggle is inside the banner (desktop control).
+    expect(within(banner).getByTestId('conversation-maximize-toggle')).toBeInTheDocument();
   });
 
   it('falls back to the "Conversation" label when no ownerCode is provided', async () => {

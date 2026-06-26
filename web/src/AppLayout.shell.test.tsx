@@ -176,23 +176,13 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     expect(screen.queryByTestId('nav-toggle')).not.toBeInTheDocument();
   });
 
-  it('mobile col④ context opens as a bottom sheet from the top-bar ⓘ (default closed)', () => {
+  it('mobile top bar does not show a context panel toggle (context panel is desktop-only)', () => {
     renderShell('/panel');
     const ctx = screen.getByTestId('context-panel');
-    // A panel is mounted (desktop column would show), but the mobile sheet is
-    // closed until the user opens it.
     expect(ctx).toHaveAttribute('data-open', 'true');
-    expect(ctx).toHaveAttribute('data-sheet-open', 'false');
-    const toggle = screen.getByTestId('mobile-context-toggle');
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(toggle);
-    expect(screen.getByTestId('context-panel')).toHaveAttribute('data-sheet-open', 'true');
-    expect(screen.getByTestId('mobile-context-toggle')).toHaveAttribute('aria-expanded', 'true');
-    // The portaled panel content lives in the col④ host either way.
-    expect(within(screen.getByTestId('context-panel')).getByTestId('panel-content')).toBeInTheDocument();
-    // The scrim dismisses the sheet.
-    fireEvent.click(screen.getByTestId('context-panel-scrim'));
-    expect(screen.getByTestId('context-panel')).toHaveAttribute('data-sheet-open', 'false');
+    // No mobile context toggle — context panel content is desktop-only;
+    // mobile pages use their own info surfaces (Actions > Show info).
+    expect(screen.queryByTestId('mobile-context-toggle')).not.toBeInTheDocument();
   });
 
   it('the top-bar ⓘ is absent when no context panel is mounted', () => {

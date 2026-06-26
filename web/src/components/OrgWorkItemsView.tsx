@@ -1,6 +1,7 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
+import { normalizeIdentityRef } from '@/api/members';
 import { ContextPanel } from '@/shell/contextPanel';
 import { WorkItemFilterBar, type DateRange } from '@/components/WorkItemFilterBar';
 import { SortHeader, Pagination, type ListControls } from '@/components/listControls';
@@ -16,7 +17,7 @@ export { STATUS_OPTIONS } from '@/components/WorkItemFilterBar';
 // per-project #242 tables, plus a Project column (the whole point: see issues/
 // tasks across all projects in one org-scoped list).
 //
-// Columns: ID / Project / Title / Status / Assigned to / Updated.
+// Columns: ID / Project / Title / Status / Assigned to / Created / Creator / Updated.
 // Default view = open only (backend excludes terminal states); an "All" toggle
 // drops the status filter.
 interface QueryShape {
@@ -89,7 +90,7 @@ export function OrgWorkItemsView({
 
   return (
     <section className="space-y-4" data-testid={`page-Org${title}`}>
-      <header className="space-y-2 border-b border-border-base pb-3">
+      <header className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-semibold text-text-primary">{title}</h1>
           <button
@@ -129,7 +130,7 @@ export function OrgWorkItemsView({
         </p>
       )}
 
-      {/* v2.10.1 [M3] desktop (≥md): the 7-column table. On mobile it would
+      {/* v2.10.1 [M3] desktop (≥md): the 8-column table. On mobile it would
           h-scroll at 375px (critical①), so it is md:-only and a card flow
           (below) replaces it. */}
       {query.data && items.length > 0 && (
@@ -143,6 +144,7 @@ export function OrgWorkItemsView({
                 <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">Assigned to</th>
                 <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">Creator</th>
                 <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
@@ -214,6 +216,9 @@ export function OrgWorkItemsView({
                   <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="org-workitem-created" title={it.created_at}>
                     {shortDate(it.created_at)}
                   </td>
+                  <td className="py-1.5 pr-3 text-text-secondary" data-testid="org-workitem-creator" title={it.creator_ref ?? ''}>
+                    {it.creator_ref ? normalizeIdentityRef(it.creator_ref) : '—'}
+                  </td>
                   <td className="py-1.5 tabular-nums text-text-muted" data-testid="org-workitem-updated" title={it.updated_at}>
                     {shortDate(it.updated_at)}
                   </td>
@@ -281,6 +286,11 @@ export function OrgWorkItemsView({
                         {it.assignee.assignee_lifecycle === 'archived' && (
                           <span className="ml-1 italic text-text-muted">(archived)</span>
                         )}
+                      </span>
+                    )}
+                    {it.creator_ref && (
+                      <span className="truncate" title={it.creator_ref}>
+                        by {normalizeIdentityRef(it.creator_ref)}
                       </span>
                     )}
                     <span className="ml-auto tabular-nums" title={it.updated_at}>

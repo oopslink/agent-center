@@ -87,7 +87,6 @@ export interface OrgResult {
 
 export interface CreateOrgPayload {
   name: string;
-  slug: string;
 }
 
 export const orgApi = {

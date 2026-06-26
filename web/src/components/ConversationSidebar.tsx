@@ -179,50 +179,25 @@ export function ConversationSidebar({
 
 // ── T324/T325: embedded (in-chat-box) variant ──────────────────────────────
 // On desktop the conversation's Participants/Threads/Files panel lives INSIDE
-// the chat box (not the shell col④). Outside the shell, useContextPanelCollapse
-// returns null, so the panel had no collapse affordance — this wrapper supplies
-// its own: a collapse toggle (passed as ConversationSidebar's `toolbar`) and a
-// thin collapsed strip with an expand button. State persists in localStorage.
-const EMBEDDED_COLLAPSE_KEY = 'ac.convsidebar.embedded.collapsed';
-function readEmbeddedCollapsed(): boolean {
-  try {
-    return window.localStorage.getItem(EMBEDDED_COLLAPSE_KEY) === '1';
-  } catch {
-    return false;
-  }
+// the chat box (not the shell col④). Collapse state is lifted to the parent
+// (WorkItemConversation) so the banner row can render the expand toggle —
+// eliminating the old w-9 strip between chat and metadata sidebar.
+
+export interface EmbeddedConversationSidebarProps extends ConversationSidebarProps {
+  collapsed: boolean;
+  onToggleCollapsed: (collapsed: boolean) => void;
 }
 
-export function EmbeddedConversationSidebar(props: ConversationSidebarProps): React.ReactElement {
-  const [collapsed, setCollapsed] = useState(readEmbeddedCollapsed);
-  const setAndPersist = (v: boolean): void => {
-    setCollapsed(v);
-    try {
-      window.localStorage.setItem(EMBEDDED_COLLAPSE_KEY, v ? '1' : '0');
-    } catch {
-      /* storage disabled */
-    }
-  };
+export function EmbeddedConversationSidebar({ collapsed, onToggleCollapsed, ...props }: EmbeddedConversationSidebarProps): React.ReactElement {
+  // Collapsed: render a zero-width marker. The expand toggle lives in the
+  // conversation banner row (rendered by WorkItemConversation).
   if (collapsed) {
     return (
       <aside
-        className="flex w-9 shrink-0 flex-col items-center border-l border-border-base py-2"
+        className="w-0 shrink-0"
         data-testid="conv-embedded-sidebar"
         data-collapsed="true"
-      >
-        <button
-          type="button"
-          onClick={() => setAndPersist(false)}
-          data-testid="conv-embedded-sidebar-toggle"
-          aria-label="Show conversation details"
-          aria-expanded={false}
-          title="Show conversation details"
-          className="inline-flex h-7 w-7 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
-        >
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12.5 5l-5 5 5 5" />
-          </svg>
-        </button>
-      </aside>
+      />
     );
   }
   return (
@@ -237,7 +212,7 @@ export function EmbeddedConversationSidebar(props: ConversationSidebarProps): Re
         toolbar={
           <button
             type="button"
-            onClick={() => setAndPersist(true)}
+            onClick={() => onToggleCollapsed(true)}
             data-testid="conv-embedded-sidebar-toggle"
             aria-label="Collapse conversation details"
             aria-expanded
@@ -251,5 +226,33 @@ export function EmbeddedConversationSidebar(props: ConversationSidebarProps): Re
         }
       />
     </aside>
+  );
+}
+
+// EmbeddedSidebarToggle — expand button rendered in the WorkItemConversation
+// banner row when the embedded sidebar is collapsed. This avoids the old w-9
+// strip between the chat and the metadata sidebar.
+export function EmbeddedSidebarToggle({
+  collapsed,
+  onExpand,
+}: {
+  collapsed: boolean;
+  onExpand: () => void;
+}): React.ReactElement | null {
+  if (!collapsed) return null;
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      data-testid="conv-embedded-sidebar-toggle"
+      aria-label="Show conversation details"
+      aria-expanded={false}
+      title="Show conversation details"
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
+    >
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12.5 5l-5 5 5 5" />
+      </svg>
+    </button>
   );
 }

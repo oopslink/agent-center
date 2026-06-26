@@ -848,9 +848,9 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const removeBtn = screen.getByTestId('plan-task-remove-n3');
     expect(removeBtn).toHaveAttribute('aria-label', 'Remove frontend list from plan');
-    await act(async () => {
-      fireEvent.click(removeBtn);
-    });
+    // First click arms the confirmation; second click actually removes.
+    await act(async () => { fireEvent.click(removeBtn); });
+    await act(async () => { fireEvent.click(removeBtn); });
     await waitFor(() => expect(deletedTaskId).toBe('n3'));
   });
 
@@ -920,9 +920,9 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('plan-task-remove-n3'));
-    });
+    // First click arms confirm, second click triggers the actual remove (which fails).
+    await act(async () => { fireEvent.click(screen.getByTestId('plan-task-remove-n3')); });
+    await act(async () => { fireEvent.click(screen.getByTestId('plan-task-remove-n3')); });
     const err = await screen.findByTestId('plan-task-remove-error-n3');
     expect(err).toHaveTextContent("Couldn't remove this task from the plan.");
     expect(err).not.toHaveTextContent('plan not draft');

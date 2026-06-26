@@ -647,6 +647,9 @@ export interface OrgWorkItem {
   priority?: string | null;
   updated_at: string;
   created_at: string;
+  // creator identity ref (user:xxx / agent:xxx). Optional — older payloads may
+  // omit it; the UI degrades to "—".
+  creator_ref?: string;
 }
 
 // CodeRepoMap — read-only project code repo entry (v2.7).

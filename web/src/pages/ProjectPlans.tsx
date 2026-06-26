@@ -128,7 +128,7 @@ export default function ProjectPlans(): React.ReactElement {
           { label: 'Work Board' },
         ]}
       />
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base pb-3">
+      <header className="flex flex-wrap items-center justify-between gap-2">
         <div>
           {/* v2.10.0 [T5]: header carries the project name (mockup
               docs/design/v2.10.0/workboard.html — "<project> · Work Board"); the

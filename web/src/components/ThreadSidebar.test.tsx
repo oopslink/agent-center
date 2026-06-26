@@ -119,13 +119,14 @@ describe('ThreadSidebar', () => {
     });
     render(<ThreadSidebar open rootMessage={root} onClose={() => {}} />);
     const panel = screen.getByTestId('thread-sidebar');
-    expect(panel).toHaveStyle({ width: '448px' }); // default
+    expect(panel.style.getPropertyValue('--thread-w')).toBe('448px'); // default
     const handle = screen.getByTestId('thread-sidebar-resize');
     expect(handle).toHaveAttribute('aria-orientation', 'vertical');
     fireEvent.mouseDown(handle, { clientX: 800 });
     fireEvent.mouseMove(window, { clientX: 750 }); // 50px left -> +50
     fireEvent.mouseUp(window, { clientX: 750 });
-    expect(panel).toHaveStyle({ width: '498px' });
+    expect(panel.style.getPropertyValue('--thread-w')).toBe('498px');
+    // width persisted as number
     expect(localStorage.getItem('ac.thread.panel.width')).toBe('498');
     vi.unstubAllGlobals();
   });

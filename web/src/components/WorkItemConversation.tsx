@@ -2,7 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
-import { EmbeddedConversationSidebar } from './ConversationSidebar';
+import { EmbeddedConversationSidebar, EmbeddedSidebarToggle } from './ConversationSidebar';
 import { SenderSidebarProvider } from './SenderSidebarContext';
 import { FollowToggle } from './FollowToggle';
 import { useIsMobile } from './WorkItemMobileMeta';
@@ -29,25 +29,32 @@ interface Props {
 // channels/DMs, uniformly. The surface (task-thread vs issue-thread) is
 // derived from the owner_ref. v2.7 #186-4: the shell's composer keeps the
 // thread interactive (a human can send in; the agent replies via #185 wake).
+// Embedded sidebar collapse state — lifted so the banner can render the toggle.
+const EMBEDDED_COLLAPSE_KEY = 'ac.convsidebar.embedded.collapsed';
+function readEmbeddedCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(EMBEDDED_COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props): React.ReactElement {
   const conv = useConversationByOwnerRef(ownerRef);
   const surface = ownerRef.includes('/issues/') ? 'issue-thread' : 'task-thread';
-  // T324: on desktop the Participants/Threads/Files panel is embedded as the
-  // chat box's right pane (below); on mobile it stays in the col④ bottom sheet
-  // (mounted by the page), so we render the embedded pane only on desktop.
   const isMobile = useIsMobile();
 
-  // T206 maximize: on mobile the embedded thread sits at the very bottom of a
-  // long scrolling detail page with only a few lines visible (you have to scroll
-  // past title + description + attachments to reach it, and the on-screen height
-  // is tiny). The maximize toggle promotes the whole conversation section to a
-  // fixed full-viewport overlay (above the bottom tab bar) so the chat — message
-  // history + composer — gets the entire screen; restore returns it inline. It is
-  // available on every breakpoint but primarily fixes the cramped mobile case.
   const [maximized, setMaximized] = useState(false);
+  // Embedded sidebar collapse — lifted here so the banner row can show the
+  // expand toggle (no more w-9 strip between chat and metadata sidebar).
+  const [embeddedCollapsed, setEmbeddedCollapsed] = useState(readEmbeddedCollapsed);
+  const toggleEmbeddedCollapsed = (v: boolean): void => {
+    setEmbeddedCollapsed(v);
+    try {
+      window.localStorage.setItem(EMBEDDED_COLLAPSE_KEY, v ? '1' : '0');
+    } catch { /* storage disabled */ }
+  };
 
-  // While maximized, lock body scroll (the overlay owns the viewport) and let
-  // Escape restore — standard full-screen-overlay affordances.
   useEffect(() => {
     if (!maximized) return;
     const prevOverflow = document.body.style.overflow;
@@ -63,50 +70,42 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
   }, [maximized]);
 
   return (
-    // #281 entry ②: the task/issue thread message surface needs a SenderSidebarProvider
-    // so @mention tokens in messages are clickable (each message surface wraps its own).
     <SenderSidebarProvider>
     <section
       className={
         maximized
           ? 'fixed inset-0 z-50 m-0 flex min-h-0 flex-col bg-bg-base p-3'
-          : // T312: tighter gap above the chat on mobile (it sits right under the
-            // compact detail bar); keep the larger desktop separation from the
-            // description/attachments above.
-            'mt-2 flex min-h-0 flex-1 flex-col md:mt-6'
+          : 'mt-0 flex min-h-0 flex-1 flex-col md:mt-6'
       }
       data-testid="work-item-conversation"
       data-maximized={maximized ? 'true' : 'false'}
     >
+      {/* Desktop: full banner with ownerCode + linked title + controls */}
       <div
-        className="flex items-center gap-2 rounded-t border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary"
+        className="hidden items-center gap-2 rounded-t border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary md:flex"
         data-testid="conversation-owner-banner"
         data-owner-ref={ownerRef}
       >
-        {/* T312: keep the task/issue ID (T123/I456) visible on every breakpoint,
-            but on mobile drop the redundant "· linked <title>" (the page header
-            above the chat already shows the title) — @oopslink. */}
         <span className="flex items-center gap-2" data-testid="conversation-owner-label">
-          <span
-            className="font-semibold uppercase tracking-wide text-text-muted"
-            data-testid="conversation-owner-code"
-          >
+          <span className="font-semibold uppercase tracking-wide text-text-muted" data-testid="conversation-owner-code">
             {ownerCode || 'Conversation'}
           </span>
-          <span className="hidden items-center gap-2 md:flex" data-testid="conversation-owner-title">
+          <span className="flex items-center gap-2" data-testid="conversation-owner-title">
             <span>· linked</span>
             <span className="font-mono text-text-primary">{bannerLabel}</span>
           </span>
         </span>
         <span className="ml-auto flex items-center gap-1">
-          {/* #264 P1 / #176 §4: follow this task/issue thread (threads default unfollowed). */}
           {conv.data && (
             <FollowToggle conversationId={conv.data.id} followed={conv.data.followed ?? false} />
+          )}
+          {embeddedCollapsed && (
+            <EmbeddedSidebarToggle collapsed={embeddedCollapsed} onExpand={() => toggleEmbeddedCollapsed(false)} />
           )}
           <button
             type="button"
             onClick={() => setMaximized((m) => !m)}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             data-testid="conversation-maximize-toggle"
             aria-pressed={maximized}
             aria-label={maximized ? 'Restore conversation' : 'Maximize conversation'}
@@ -118,31 +117,27 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
       </div>
 
       {conv.isLoading ? (
-        <p className="rounded-b border border-t-0 border-border-base p-4 text-sm text-text-muted" data-testid="conversation-loading">
+        <p className="p-4 text-sm text-text-muted md:rounded-b md:border md:border-t-0 md:border-border-base" data-testid="conversation-loading">
           Loading conversation…
         </p>
       ) : !conv.data ? (
         <p
-          className="rounded-b border border-t-0 border-border-base p-4 text-sm italic text-text-muted"
+          className="p-4 text-sm italic text-text-muted md:rounded-b md:border md:border-t-0 md:border-border-base"
           data-testid="conversation-empty"
         >
           No linked conversation yet.
         </p>
       ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-b border border-t-0 border-border-base">
-          {/* #264 P1: message body + read-cursor + SSE flow through the shared shell.
-              T327: min-w-0 lets this flex column shrink so the embedded sidebar (+ its
-              collapse toggle) stays on-screen instead of being pushed off the right. */}
+        <div className="flex min-h-0 flex-1 overflow-hidden md:rounded-b md:border md:border-t-0 md:border-border-base">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ConversationView surface={surface} conversationId={conv.data.id} />
           </div>
-          {/* T324: the conversation's Participants/Threads/Files panel is part of
-              the chat box (its right pane) on desktop; on mobile it lives in the
-              col④ bottom sheet (mounted by the page), so it's not rendered here. */}
           {!isMobile && (
             <EmbeddedConversationSidebar
               conversationId={conv.data.id}
               participants={conv.data.participants ?? []}
+              collapsed={embeddedCollapsed}
+              onToggleCollapsed={toggleEmbeddedCollapsed}
             />
           )}
         </div>

@@ -64,26 +64,20 @@ function ProfileSection(): React.ReactElement {
   const orgCtx = useOptionalOrgContext();
   const orgs = useOrgs();
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const org = (orgs.data ?? []).find((o) => o.slug === orgCtx?.slug);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
-  const [slugEditable, setSlugEditable] = useState(false);
   const update = useMutation({
     mutationFn: async () => {
       if (!org) return;
       await orgApi.update(org.id, {
         name: name.trim(),
-        slug: slugEditable ? slug.trim() : undefined,
         description: description.trim(),
       });
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['orgs'] });
-      if (slugEditable && slug.trim() && slug.trim() !== org?.slug) {
-        navigate(`/organizations/${slug.trim()}/organization-settings/profile`, { replace: true });
-      }
     },
   });
 
@@ -100,23 +94,8 @@ function ProfileSection(): React.ReactElement {
       <Field label="Organization Name">
         <input data-testid="org-settings-name" className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label="Organization Slug">
-        <div className="flex gap-2">
-          <input
-            className={inputClass}
-            value={slug}
-            disabled={!slugEditable}
-            onChange={(e) => setSlug(e.target.value)}
-          />
-          <button
-            type="button"
-            onClick={() => setSlugEditable((v) => !v)}
-            className="rounded border border-border-base px-3 text-sm hover:bg-bg-subtle"
-          >
-            Change
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-amber-700">Modifying slug affects URLs, caches, and SSE scopes</p>
+      <Field label="Organization ID">
+        <span className="inline-block rounded bg-bg-subtle px-2 py-1 font-mono text-sm text-text-muted" data-testid="org-settings-slug">{slug}</span>
       </Field>
       <Field label="Description">
         <textarea className={inputClass} rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />

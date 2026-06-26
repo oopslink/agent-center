@@ -6,10 +6,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
+
 
 // ============================================================
 // MemberRoleChangeService — DS-2 (last-owner guard)
@@ -179,7 +179,11 @@ func NewOrganizationCreateServiceWithSink(db *sql.DB, orgs OrganizationRepositor
 }
 
 // Create atomically creates an Organization + owner Member for identityID.
-func (s *OrganizationCreateService) Create(ctx context.Context, slug, name, identityID string) (*Organization, *Member, error) {
+// The slug parameter is IGNORED — the slug is always auto-generated as
+// "org-<hex>" (same format as org IDs). Existing orgs with user-chosen slugs
+// are unaffected (backward compatible).
+func (s *OrganizationCreateService) Create(ctx context.Context, _ /* slug deprecated */, name, identityID string) (*Organization, *Member, error) {
+	slug := NewOrganizationSlug()
 	if err := ValidateSlug(slug); err != nil {
 		return nil, nil, err
 	}
