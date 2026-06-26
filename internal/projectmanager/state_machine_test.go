@@ -191,6 +191,43 @@ func TestTaskDiscardAndReopen(t *testing.T) {
 	}
 }
 
+// TestTaskReopenedIsStartable pins the T477 fix: `reopened` is a re-dispatchable
+// state, so an agent can Start it directly (reopened→running) without a separate
+// open hop — and then Complete it (running→completed). Previously taskTransitions
+// only allowed reopened→open, so Start on a reopened task returned
+// ErrIllegalTransition (the bug the owner hit: start_task/complete_task both failed
+// on a reopened task).
+func TestTaskReopenedIsStartable(t *testing.T) {
+	tk := newTask(t)
+	_ = tk.Assign("agent:c", t0)
+	_ = tk.Start(t0)
+	_ = tk.Complete("agent:c", t0)
+	if err := tk.Reopen(t0); err != nil {
+		t.Fatal(err)
+	}
+	if tk.Status() != TaskReopened {
+		t.Fatalf("want reopened, got %s", tk.Status())
+	}
+	// reopened → running directly (the re-dispatch pick-up path).
+	if err := tk.Start(t0); err != nil {
+		t.Fatalf("reopened→running (Start) should be legal, got %v", err)
+	}
+	if tk.Status() != TaskRunning {
+		t.Fatalf("want running after Start, got %s", tk.Status())
+	}
+	// running → completed completes the re-run.
+	if err := tk.Complete("agent:c", t0); err != nil {
+		t.Fatalf("running→completed should be legal, got %v", err)
+	}
+	if tk.Status() != TaskCompleted {
+		t.Fatalf("want completed, got %s", tk.Status())
+	}
+	// Adjacency table reflects both forward exits from reopened.
+	if !TaskReopened.CanTransitionTo(TaskRunning) || !TaskReopened.CanTransitionTo(TaskOpen) {
+		t.Fatal("reopened must be able to transition to both running and open")
+	}
+}
+
 func TestProjectMemberRoleDefault(t *testing.T) {
 	m, err := NewProjectMember(NewProjectMemberInput{ID: "M1", ProjectID: "P1", IdentityID: "user:a", CreatedAt: t0})
 	if err != nil {
