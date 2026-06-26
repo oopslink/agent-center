@@ -80,13 +80,14 @@ export function BoardTaskCreateModal({
       data-testid="board-task-create-modal"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="board-task-create-title"
     >
       <form
         onSubmit={submit}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">New Task</h2>
+          <h2 id="board-task-create-title" className="text-lg font-semibold">New Task</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
@@ -98,8 +99,9 @@ export function BoardTaskCreateModal({
           </button>
         </div>
 
-        <Field label="Title" required>
+        <Field label="Title" required htmlFor="board-task-title-input">
           <input
+            id="board-task-title-input"
             data-testid="board-task-create-title"
             className={inputClass}
             value={title}
@@ -108,8 +110,9 @@ export function BoardTaskCreateModal({
           />
         </Field>
 
-        <Field label="Description">
+        <Field label="Description" htmlFor="board-task-desc-input">
           <textarea
+            id="board-task-desc-input"
             data-testid="board-task-create-description"
             className={inputClass}
             value={description}
@@ -122,8 +125,10 @@ export function BoardTaskCreateModal({
         <Field
           label="Destination"
           hint="Where the task starts. Only draft plans can accept a new task."
+          htmlFor="board-task-dest-input"
         >
           <select
+            id="board-task-dest-input"
             data-testid="board-task-create-destination"
             className={inputClass}
             value={destination}
@@ -180,16 +185,18 @@ function Field({
   label,
   hint,
   required,
+  htmlFor,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  htmlFor?: string;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
     <div className="mb-3">
-      <label className="mb-1 block text-xs font-medium text-text-primary">
+      <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-text-primary">
         {label}
         {required && <span className="ml-1 text-danger">*</span>}
       </label>

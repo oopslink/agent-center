@@ -29,7 +29,7 @@ export function ThreadButton({ replyCount = 0, hasActivity = false, onClick }: P
       data-testid="thread-button"
       aria-label={label}
       title={label}
-      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
+      className="inline-flex items-center gap-1 rounded-lg md:rounded px-3 py-1.5 md:px-1.5 md:py-0.5 text-xs font-medium text-text-secondary bg-bg-subtle/50 md:bg-transparent hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
     >
       {/* speech-bubble glyph (no emoji-icon per the a11y guardrail). */}
       <svg

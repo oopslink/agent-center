@@ -66,8 +66,9 @@ export function ChannelCreateModal({
         </h2>
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <div>
-            <label className="block text-xs font-medium text-text-primary">Name</label>
+            <label htmlFor="create-channel-name-input" className="block text-xs font-medium text-text-primary">Name</label>
             <input
+              id="create-channel-name-input"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -78,8 +79,9 @@ export function ChannelCreateModal({
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-text-primary">Description</label>
+            <label htmlFor="create-channel-desc-input" className="block text-xs font-medium text-text-primary">Description</label>
             <textarea
+              id="create-channel-desc-input"
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}

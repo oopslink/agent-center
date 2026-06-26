@@ -101,10 +101,11 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
       data-testid="add-worker-modal"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="add-worker-title"
     >
       <div className="w-full max-w-2xl rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Add a Worker</h2>
+          <h2 id="add-worker-title" className="text-lg font-semibold">Add a Worker</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"

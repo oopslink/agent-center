@@ -70,7 +70,7 @@ export function ConversationMobileTabs({
               data-active={active}
               onClick={() => setTab(t.id)}
               className={[
-                'flex flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold motion-safe:transition-colors',
+                'flex flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 py-1.5 min-h-[44px] text-[0.8125rem] font-semibold motion-safe:transition-colors',
                 active ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-bg-base',
               ].join(' ')}
             >

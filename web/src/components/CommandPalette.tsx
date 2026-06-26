@@ -162,7 +162,7 @@ export function CommandPalette({
                 onMouseEnter={() => setSelected(i)}
                 onClick={() => commit(i)}
                 className={[
-                  'flex cursor-pointer items-center justify-between px-4 py-2 text-sm motion-safe:transition-colors',
+                  'flex cursor-pointer items-center justify-between px-4 py-3 md:py-2 text-sm motion-safe:transition-colors',
                   i === selected ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary',
                 ].join(' ')}
                 data-testid="palette-result"

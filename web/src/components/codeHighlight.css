@@ -1,12 +1,10 @@
 /*
- * v2.8.1 (@oopslink) syntax-highlight theme — highlight.js token colors for the
- * fixed dark (#003247) CollapsibleCodeBlock. Lazy-loaded with the highlighter
- * chunk (imported from codeHighlight.ts).
+ * Hex-inspired syntax-highlight theme — highlight.js token colors for the
+ * fixed dark (#1e1a22, eggplant-dark) CollapsibleCodeBlock. Lazy-loaded with
+ * the highlighter chunk (imported from codeHighlight.ts).
  *
- * EVERY color is WCAG-AA (>= 4.5:1) against #003247 (relative luminance ~0.028),
- * verified — github-dark's default comment #8b949e is only 4.34:1 (FAIL), so
- * comments use a lighter #a0aec0 (~5.96:1). Non-token text inherits the code
- * element's slate-100 (~12.4:1). Ratios noted inline.
+ * EVERY color is WCAG-AA (>= 4.5:1) against #1e1a22 (relative luminance ~0.018).
+ * Ratios noted inline.
  */
 .hljs-comment,
 .hljs-quote {

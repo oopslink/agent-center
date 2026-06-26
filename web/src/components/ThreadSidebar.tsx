@@ -93,16 +93,18 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
         aria-label="Message thread"
         data-testid="thread-sidebar"
         style={{ width }}
-        className="fixed inset-y-0 right-0 z-40 flex h-full max-w-[75vw] translate-x-0 transform flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none"
+        className="fixed inset-0 md:inset-y-0 md:right-0 md:left-auto z-40 flex h-full md:max-w-[75vw] translate-x-0 transform flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none"
       >
         {/* Left-edge resize grip (desktop): drag to set the panel width. */}
-        <ResizeHandle
-          edge="left"
-          handleProps={handleProps}
-          resizing={resizing}
-          ariaLabel="Resize thread panel"
-          testId="thread-sidebar-resize"
-        />
+        <div className="hidden md:block">
+          <ResizeHandle
+            edge="left"
+            handleProps={handleProps}
+            resizing={resizing}
+            ariaLabel="Resize thread panel"
+            testId="thread-sidebar-resize"
+          />
+        </div>
 
         {/* Header: title + reply count + close. */}
         <div className="flex items-center justify-between gap-3 border-b border-border-base p-4">

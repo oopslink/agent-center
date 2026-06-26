@@ -119,7 +119,7 @@ function UserDetailView({
 
       {/* tab bar */}
       <nav
-        className="flex gap-1 border-b border-border-base"
+        className="flex gap-1 border-b border-border-base [&>button]:min-h-[44px] md:[&>button]:min-h-0"
         role="tablist"
         aria-orientation="horizontal"
         ref={tablist.tablistRef}
@@ -158,7 +158,7 @@ function UserDetailView({
           className="rounded-lg border border-border-base bg-bg-elevated p-4"
           data-testid="user-detail-profile"
         >
-          <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
+          <dl className="grid grid-cols-1 gap-y-2 text-sm md:grid-cols-[8rem_1fr]">
             <dt className="text-text-muted">Email</dt>
             <dd className="text-text-primary" data-testid="user-detail-email">{u.email || '—'}</dd>
             <dt className="text-text-muted">Created</dt>

@@ -365,7 +365,7 @@ export default function AgentDetail(): React.ReactElement {
 
       {/* Activity stream */}
       {tab === 'activity' && (
-      <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="agent-tabpanel-activity">
+      <section className="rounded border border-border-base bg-bg-elevated p-4" role="region" aria-label="Activity" data-testid="agent-tabpanel-activity">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Activity Diagnostics</h3>
           <button

@@ -58,7 +58,7 @@ function Field({ id, label, type = 'text', value, error, placeholder, maxLength,
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
-        className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary placeholder:text-text-muted ${
+        className={`w-full rounded-md border px-3 py-2.5 md:py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary placeholder:text-text-muted ${
           error ? 'border-danger' : 'border-border'
         }`}
         aria-describedby={error ? `${id}-err` : undefined}
@@ -228,7 +228,7 @@ export default function Signup(): React.ReactElement {
             <button
               type="submit"
               disabled={submitting || !isValid()}
-              className="w-full rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full rounded-md bg-brand px-4 py-2.5 md:py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? 'Signing up…' : 'Create account'}
             </button>
