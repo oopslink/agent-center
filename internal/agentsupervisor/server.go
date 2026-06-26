@@ -23,7 +23,13 @@ import (
 // DefaultSocketName is the legacy unix socket filename that used to live under
 // HomeDir. v2.7 #178 moved the live socket OUT of the agent home (see SockPath);
 // this name is now only used to clean up stale pre-#178 sockets on upgrade.
+// See also AgentSocketName for the design-aligned alias.
 const DefaultSocketName = "supervisor.sock"
+
+// AgentSocketName is the design §3 name for the Agent CLI socket.
+// In the current supervisor-based architecture, this is an alias for
+// the supervisor socket path.
+const AgentSocketName = "agent.sock"
 
 // SockPath returns the supervisor's unix socket path for an agent. v2.7 #178
 // (acceptance FINDING-E): the socket must NOT live under the agent home — that
