@@ -3,7 +3,9 @@ package agentsupervisor_test
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +13,22 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
 )
+
+// shortTempDir returns a temp directory short enough for Unix domain sockets
+// on macOS (sun_path max 104 bytes). t.TempDir() paths on macOS exceed this
+// when combined with "supervisor.sock".
+func shortTempDir(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS != "darwin" {
+		return t.TempDir()
+	}
+	dir, err := os.MkdirTemp("/tmp", "acsock")
+	if err != nil {
+		t.Fatalf("shortTempDir: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	return dir
+}
 
 // echoChildScript is a stand-in claude (NO real claude): it drains its own
 // stdin line-by-line and, for every injected line, emits ONE valid stream-json
@@ -125,7 +143,7 @@ func TestServer_Hello(t *testing.T) {
 // stdin: the stand-in child emits an "injected" event per stdin line, which
 // appears in events.jsonl / via read.
 func TestServer_InjectReachesStdin(t *testing.T) {
-	home := t.TempDir()
+	home := shortTempDir(t)
 	sup := startSupervisor(t, home, echoChildScript)
 	cli, _ := serveAndConnect(t, sup, home)
 
@@ -153,7 +171,7 @@ func TestServer_InjectReachesStdin(t *testing.T) {
 // TestServer_ReadFromOffset: drain produces events; ReadFrom(0) returns them,
 // next advances, eof true when caught up, reading from next returns new events.
 func TestServer_ReadFromOffset(t *testing.T) {
-	home := t.TempDir()
+	home := shortTempDir(t)
 	sup := startSupervisor(t, home, tickChildScript)
 	cli, _ := serveAndConnect(t, sup, home)
 
@@ -207,7 +225,7 @@ func TestServer_ReadFromOffset(t *testing.T) {
 // works on the SAME absolute-offset stream, ReadFrom(<N) → offset_truncated, and
 // the file does NOT grow unbounded across many ack cycles.
 func TestServer_AckTruncateOffsetStability(t *testing.T) {
-	home := t.TempDir()
+	home := shortTempDir(t)
 	sup := startSupervisor(t, home, tickChildScript)
 	cli, _ := serveAndConnect(t, sup, home)
 	eventsPath := filepath.Join(home, agentsupervisor.EventsFileName)

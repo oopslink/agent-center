@@ -186,6 +186,10 @@ func (g *GitOps) run(ctx context.Context, authorName, authorEmail string, args .
 		"GIT_OPTIONAL_LOCKS=0",
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_SYSTEM=/dev/null",
+		// Force English output so string-based error detection (e.g. "not a
+		// git repository" in IsGitRepo) works regardless of system locale.
+		"LANGUAGE=en",
+		"LC_ALL=en_US.UTF-8",
 		"PATH=" + safeDefaultPath(),
 	}
 	if g.homeOverride != "" {
