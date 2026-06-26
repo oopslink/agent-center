@@ -213,6 +213,10 @@ func (c *AgentController) OnTick(ctx context.Context) {
 	// lease for every live session's current task so a long LLM turn never lets the
 	// lease lapse. Internally rate-limited to cfg.LeaseRenewEvery. See lease_renew.go.
 	c.drainLeaseRenewals(ctx, now)
+
+	// Task directory GC (design §11.3): clean up expired aborted/done task dirs.
+	// Throttled to at most once per cfg.GCInterval. See gc_timer.go.
+	c.maybeRunGC(now)
 }
 
 // selfHealRelaunch performs ONE due relaunch on the ControlLoop goroutine: acquire

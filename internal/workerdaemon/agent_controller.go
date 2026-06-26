@@ -331,6 +331,9 @@ type AgentControllerConfig struct {
 	// TaskVerifier checks task assignment with Center for boot reconcile.
 	// Nil → boot task reconcile skipped.
 	TaskVerifier taskexec.TaskVerifier
+	// GCInterval is the minimum interval between GC sweeps (design §11.3).
+	// 0 → default 1 hour. GC is only active when TaskDirManager is non-nil.
+	GCInterval time.Duration
 
 	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
 	// same-package _test.go can override it with a fake — production callers cannot
@@ -499,6 +502,10 @@ type AgentController struct {
 	// at most every cfg.LeaseRenewEvery even though OnTick fires on the (sub-second)
 	// poll cadence. Guarded by mu. See lease_renew.go.
 	nextLeaseRenewAt time.Time
+
+	// lastGCAt is the last time a GC sweep completed. Used by maybeRunGC to
+	// throttle to at most once per cfg.GCInterval. See gc_timer.go.
+	lastGCAt time.Time
 }
 
 // compile-time: AgentController is a CommandHandler.

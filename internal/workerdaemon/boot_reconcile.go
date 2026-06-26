@@ -300,6 +300,9 @@ func (c *AgentController) ReconcileOnBoot(ctx context.Context) error {
 		}
 	}
 
+	// Run GC on boot to clean expired task directories (design §11.3).
+	c.maybeRunGC(c.now())
+
 	return nil
 }
 
