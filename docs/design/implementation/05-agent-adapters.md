@@ -31,6 +31,8 @@ internal/
 
 ## § 2. Adapter Go Interface
 
+> **v2.7+ UPDATE (2026-06-26)**: v2 G3 方法（Probe / SupportedFeatures / BuildMCPConfigArg / BuildSkillMountSetup）已从"新增扩展"晋升为核心接口方法——所有三个 adapter（claude-code / codex / opencode）均已实现完整接口。下述代码块反映实际 `internal/agentadapter/adapter.go` 的当前状态。
+
 ```go
 // internal/agentadapter/adapter.go
 package agentadapter
@@ -43,10 +45,7 @@ import (
 
 // Adapter 封装一家 agent CLI 的所有差异。
 // 实现位于 internal/agentadapter/<cli-name>/。
-// v2 G3（[ADR-0030](../decisions/0030-agentadapter-matrix-expansion.md)）扩展了 5 个方法以承载 G1/G4/G5 的 per-CLI 翻译职责。
 type Adapter interface {
-    // === v1 方法 ===
-
     // Name 返回 CLI 标识符（"claude-code" / "codex" / "opencode"）。
     Name() string
 
@@ -59,51 +58,45 @@ type Adapter interface {
     ParseEvent(line []byte) (AgentTraceEvent, error)
 
     // SupportsSession 报告本 CLI 是否支持 `--session-id` 类幂等会话标识。
-    // 不支持的 CLI 在重启 / retry 时无法恢复 session（fallback：新建 execution）。
     SupportsSession() bool
 
-    // === v2 G3 新增方法（[ADR-0030](../decisions/0030-agentadapter-matrix-expansion.md)）===
-
     // Probe 用于 capability 探测：worker daemon 每次 online 调；
-    // 返回该 CLI 是否在本机可用 + 版本字符串（如 "claude 0.4.2"）。
-    // 实现一般 = exec `<cli> --version` + 解析 stdout。
+    // 返回该 CLI 是否在本机可用 + 版本字符串。
+    // 实现 = exec `<cli> --version` + 解析 stdout。
     Probe(ctx context.Context) (available bool, version string, err error)
 
-    // SupportedFeatures 返回此 adapter 支持哪些 v2 高级特性。
-    // dispatch 校验链用之；上报 capabilities 时一同写入。
+    // SupportedFeatures 返回此 adapter 支持的 v2 高级特性。
+    // DispatchService 用之校验 agent instance 配置兼容性。
     SupportedFeatures() FeatureSet
 
     // BuildMCPConfigArg 把 canonical mcp_config.runtime.json 路径
     // 翻译为该 CLI 接受的方式（cmd args / env / copy 到固定路径）。
-    // 见 [ADR-0027 MCP per-agent](../decisions/0027-mcp-per-agent-injection.md)。
     BuildMCPConfigArg(runtimeJSONPath string) (MCPSetup, error)
 
-    // BuildSkillMountSetup 把 home_dir/skills/ 挂载给 CLI
-    // （`--skill-path` flag / setenv HOME + symlink ~/.claude/skills / 其他）。
-    // 见 [ADR-0028 Skill File Mount](../decisions/0028-skill-file-mount-lite.md)。
+    // BuildSkillMountSetup 把 home_dir/skills/ 挂载给 CLI。
     BuildSkillMountSetup(homeDirSkills, execDir string) (SkillMountSetup, error)
 }
 
 // FeatureSet 描述 adapter 对 v2 高级特性的支持情况。
 type FeatureSet struct {
-    SupportsMCP      bool
-    SupportsSkills   bool
-    SupportsSession  bool   // 跟 SupportsSession() 方法语义一致；冗余便于一次性读取
+    SupportsMCP     bool
+    SupportsSkills  bool
+    SupportsSession bool
 }
 
 // MCPSetup describes how a particular CLI consumes the canonical mcp_config.runtime.json.
 type MCPSetup struct {
     Args   []string            // 追加给 CmdSpec.Args（如 ["--mcp-config", "/path"]）
     Env    map[string]string   // 追加给 CmdSpec.Env
-    CopyTo string              // 若 CLI 只从固定路径读，spawn 前 copy runtime.json 过去；空表示不需 copy
+    CopyTo string              // 若 CLI 只从固定路径读，spawn 前 copy runtime.json 过去
 }
 
 // SkillMountSetup describes how a particular CLI sees the home_dir/skills/ directory.
 type SkillMountSetup struct {
     Mode     SkillMountMode    // CLIArg | SymlinkHomeClaude
-    Args     []string          // mode=CLIArg 时
-    Env      map[string]string // mode=SymlinkHomeClaude 时（如 HOME=<exec-dir>）
-    PreSpawn func() error      // mode=SymlinkHomeClaude 时创建 ~/.claude/skills 符号链接；nil 表无需 pre-action
+    Args     []string
+    Env      map[string]string
+    PreSpawn func() error      // nil = no pre-action
 }
 
 type SkillMountMode int
@@ -113,33 +106,25 @@ const (
 )
 
 type SpawnRequest struct {
-    ExecutionID   string         // ULID；session-id 也用它
-    Prompt        string         // 最终 prompt（worker daemon 已拼装好，§ 6）
-    WorkingDir    string         // agent CWD（per-execution worktree）
-    SkillFiles    []string       // 额外 skill 路径
-    AgentLogPath  string         // agent stdout / JSONL 落地路径
-    Env           map[string]string // AGENT_CENTER_* env 注入
-    Timeout       time.Duration  // 软超时（0 = 不限）
+    ExecutionID   string
+    Prompt        string            // 最终 prompt（worker daemon 已拼装好，§ 6）
+    SystemPrompt  string            // v2.8.1: 可选持久 system instruction（--append-system-prompt）
+    WorkingDir    string            // agent CWD（per-execution worktree）
+    SkillFiles    []string
+    AgentLogPath  string
+    Env           map[string]string
+    Timeout       time.Duration
 }
 
 type CmdSpec struct {
-    Binary   string         // CLI 二进制路径（如 "claude" / "codex"）
-    Args     []string       // flag + arg
+    Binary   string
+    Args     []string
     Env      []string       // KEY=VALUE
-    Stdin    io.Reader      // nil = 不喂 stdin（prompt 走 -p flag）
-}
-
-// Adapter 注册表：lookup by Name()。
-var adapters = map[string]Adapter{}
-
-func Register(a Adapter) { adapters[a.Name()] = a }
-func Get(name string) (Adapter, bool) {
-    a, ok := adapters[name]
-    return a, ok
+    Stdin    io.Reader      // nil = 不喂 stdin
 }
 ```
 
-子包 `init()` 自注册（如 `agentadapter/claudecode/init.go: func init() { agentadapter.Register(&Adapter{}) }`）。
+注册表使用 `Registry` struct（thread-safe `sync.RWMutex`），提供 `Register` / `Get` / `Names` 包级函数。子包 `init()` 自注册（如 `agentadapter/codex/adapter.go: func init() { agentadapter.Register(New("")) }`）。
 
 ---
 
@@ -380,28 +365,47 @@ func (a *Adapter) SupportsSession() bool { return true }
 | `end_turn` | `EventTurnEnd` | - |
 | 其它 | `EventUnknown` | `Raw = 完整行` |
 
-### 8.2 Codex（TBD）
+### 8.2 Codex（已实现 — `internal/agentadapter/codex/`）
 
-**预留 subpackage** `internal/agentadapter/codex/`；接口实现按 § 2 模板。
+> **v2.7+ UPDATE**: Codex adapter 已完整实现（validated on codex-cli 0.137.0）。BuildCommand / ParseEvent 对接 `codex exec --json` 行为。但 codex agents 仍被 `agent.cli` 白名单拒绝创建——adapter 目前仅在 tests 和 probe/discovery 中运行，未进入 runtime spawn 路径。
 
-已知差异（待 falsify / 落代码时确认）：
+**Binary**：`codex`（PATH 上找）。
 
-| 维度 | 假设 |
-|---|---|
-| Session id flag | 待验证；不支持则 `SupportsSession()` 返回 false |
-| Prompt 传递 | 可能走 stdin（不是 `-p` flag）|
-| JSONL schema | 字段名可能与 claude 不同；adapter ParseEvent 翻译 |
-| Stream mode | 待验证；不支持 stream-json 则**不能用**（[NF8](../requirements/02-non-functional.md)）|
+**BuildCommand**：
 
-落代码前的 spike：
-
-```bash
-codex --help | grep -i "stream\|json\|session"
+```go
+args := []string{
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "--dangerously-bypass-approvals-and-sandbox",
+}
+if req.WorkingDir != "" {
+    args = append(args, "-C", req.WorkingDir)
+}
+args = append(args, prompt) // prompt 是 positional argument
 ```
 
-### 8.3 OpenCode（TBD）
+**ParseEvent**（codex exec --json JSONL 行格式）：
 
-同 § 8.2 模板。预留 subpackage。
+| codex type | EventType | 字段映射 |
+|---|---|---|
+| `turn.completed` | `EventTurnEnd` | `TokensIn / TokensOut`（usage 内嵌在 turn 边界）|
+| `turn.failed` / `error` | `EventError` | - |
+| `item.started` + `command_execution` | `EventToolCall` | `ToolName="shell"`, `ToolInput={command}` |
+| `item.completed` + `command_execution` | `EventToolResult` | `ToolOutput=aggregated_output` |
+| `item.completed` + `reasoning` | `EventThinking` | `Thinking=text` |
+| 其它 | `EventUnknown` | `Raw` 保完整行 |
+
+**FeatureSet**：`SupportsMCP=false`, `SupportsSkills=false`, `SupportsSession=false`（codex 用自己的 thread_id，不接受外部 session-id 设定）。
+
+**Session 差异**：codex 自行 mint `thread_id`（thread.started event 返回），resume 走 `codex exec resume <thread_id>`——与 claude 的 `--session-id` 模式不同。捕获 thread_id + 发起 resume 属于 runtime wiring stage，不在 adapter。
+
+### 8.3 OpenCode（stub — `internal/agentadapter/opencode/`）
+
+> **v2.7+ UPDATE**: OpenCode adapter 已注册，Probe 已实现（`exec LookPath + --version`）。BuildCommand / ParseEvent 仍返回 `ErrNotImplemented`（stub）。FeatureSet 全 false。
+
+**Binary**：`opencode`（PATH 上找）。接口完整实现但 BuildCommand / ParseEvent 返回 `ErrNotImplemented`，待 CLI 行为验证后填充具体翻译逻辑。
 
 ---
 
@@ -435,11 +439,12 @@ CI 跑 `tests/agent_cli_compat/` 套件，**每家真实 CLI** 在隔离 runner 
 
 | Scenario | claude-code | codex | opencode |
 |---|---|---|---|
-| simple thinking + end_turn | ✅ | TBD | TBD |
-| single tool_call + result | ✅ | TBD | TBD |
-| usage 字段存在 | ✅ | TBD | TBD |
-| session_id 可重用 | ✅ | TBD | TBD |
-| 超时 + SIGTERM 5s 内 exit | ✅ | TBD | TBD |
+| simple thinking + end_turn | pass | pass (item.completed reasoning) | stub |
+| single tool_call + result | pass | pass (command_execution) | stub |
+| usage 字段存在 | pass | pass (turn.completed.usage) | stub |
+| session_id 可重用 | pass | N/A (codex mints own thread_id) | stub |
+| 超时 + SIGTERM 5s 内 exit | pass | TBD | stub |
+| Probe version detection | pass | pass | pass |
 
 兼容性矩阵 fail → 该 CLI 不计入支持列表。
 
@@ -460,4 +465,4 @@ CI 跑 `tests/agent_cli_compat/` 套件，**每家真实 CLI** 在隔离 runner 
 
 ---
 
-> **本文档 scope**：v1 实现层 Adapter 包定位 + 接口契约 + 进程生命周期 + 错误编码 + claude-code 主力切片 + codex / opencode 接口预留 + 测试策略。Per-CLI flag 真实细节 落代码时以**该 CLI 当时的 `--help` 输出**为准；新增 CLI 走 § 1 "加 subpackage + 注册"模式。
+> **本文档 scope**：实现层 Adapter 包定位 + 接口契约 + 进程生命周期 + 错误编码 + 三个 adapter 实现切片 + 测试策略。v2.7+ sweep (2026-06-26): § 2 接口更新为实际代码（含 SystemPrompt 字段 + Registry struct）；§ 8.2 codex 从 TBD 更新为已实现状态（validated codex-cli 0.137.0）；§ 8.3 opencode 从 TBD 更新为 stub 状态（Probe 已实现）。Per-CLI flag 真实细节以**该 CLI 当时的 `--help` 输出**为准；新增 CLI 走 § 1 "加 subpackage + 注册"模式。

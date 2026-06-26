@@ -1,4 +1,4 @@
-> 📌 **v2 update applied (P12 S6, 2026-05-24)** — v2 撤回了 Bridge BC + 飞书集成 (per [ADR-0031](../../decisions/0031-v2-drop-bridge-vendor-integration.md))；用户入口收窄到 Web Console (loopback) + CLI。下面的 ASCII 拓扑已更新为 v2 形态。
+> 📌 **v2.7 update (2026-06-26)** — v2.7 引入 ProjectManager BC 取代 TaskRuntime + Discussion；Identity BC 独立（ADR-0040）；CLI 收窄为 deployment-only ~9 命令（v2.7 #162）；Supervisor 暂停主动开发（ADR-0044）但代码骨架保留。用户主入口 = Web Console（ADR-0037）。
 
 # 系统总览
 
@@ -7,37 +7,59 @@
 ## 高层拓扑
 
 ```
-   ┌──────────────────────────────────────────────────────────────┐
-   │  agent-center server  (VPS 常驻 / 单一二进制 / 多模式)         │
-   │                                                              │
-   │   ├─ Web Console (loopback :7100)  用户主入口 (ADR-0037)      │
-   │   ├─ worker gRPC endpoint    与 worker 长连接                 │
-   │   ├─ supervisor launcher     事件触发 spawn supervisor 进程    │
-   │   ├─ admin CLI (unix sock)   人 / supervisor 调用工具         │
-   │   ├─ SQLite (events / tasks / issues / ...)                  │
-   │   └─ BlobStore (LocalDir → S3 future)                        │
-   └──────────┬──────────────────────────────┬────────────────────┘
+   ┌───────────────────────────────────────────────────────────────────┐
+   │  agent-center server  (VPS 常驻 / 单一二进制 / 多模式)              │
+   │                                                                   │
+   │   ├─ Web Console (SPA React + Go API + SSE)  用户主入口 (ADR-0037)│
+   │   │    webconsole/api + webconsole/spa + webconsole/sse           │
+   │   ├─ Admin API (admin/api + admin/clienttransport)               │
+   │   ├─ worker gRPC endpoint    与 worker 长连接                     │
+   │   ├─ supervisor launcher     事件触发 spawn supervisor 进程       │
+   │   │    (ADR-0044: 暂停主动开发，代码骨架保留)                      │
+   │   ├─ MCP Host (mcphost)      MCP server 托管                     │
+   │   │                                                               │
+   │   │  ┌─ 领域层 ─────────────────────────────────────────────┐     │
+   │   │  │ projectmanager  — Project/Issue/Task/Plan/PlanFinding│     │
+   │   │  │ cognition       — SupervisorInvocation/Memory/       │     │
+   │   │  │                   Reminder/WakeGuard                 │     │
+   │   │  │ identity        — Identity/Organization/Member/      │     │
+   │   │  │                   Invitation                         │     │
+   │   │  │ agent           — AgentInstance lifecycle             │     │
+   │   │  │ workforce       — Worker/WorkerProjectProposal       │     │
+   │   │  │ conversation    — Conversation/Message/Channel       │     │
+   │   │  │ environment     — Environment/controlstream          │     │
+   │   │  │ observability   — Event store + projections          │     │
+   │   │  │ secretmgmt      — UserSecret (AES-GCM)              │     │
+   │   │  │ files           — File upload/management             │     │
+   │   │  └──────────────────────────────────────────────────────┘     │
+   │   │                                                               │
+   │   ├─ SQLite (persistence/migrations) + outbox                    │
+   │   └─ BlobStore (blobstore — file-based, S3 future)               │
+   └──────────┬──────────────────────────────┬────────────────────────┘
               │ gRPC 长连接（worker enroll）  │ spawn 进程
               ↓                              ↓
    ┌─────────────────────┐         ┌─────────────────────┐
    │ Worker daemon       │         │ Supervisor agent    │
-   │ (你的开发机)         │         │ (claude code 实例)   │
-   │                     │         │                     │
-   │   ├─ task executor  │         │   skill: supervisor │
-   │   ├─ agent adapter  │         │   工具: Bash → CLI  │
-   │   ├─ local sock     │         └─────────────────────┘
+   │ (workerdaemon)      │         │ (agentsupervisor/   │
+   │ (你的开发机)         │         │  supervisormanager) │
+   │                     │         │ (claude code 实例)   │
+   │   ├─ agent adapter  │         │                     │
+   │   │  (agentadapter/ │         │   skill: supervisor │
+   │   │   claudecode/   │         │   工具: Bash → CLI  │
+   │   │   codex/        │         └─────────────────────┘
+   │   │   opencode/)    │
+   │   ├─ environment    │
+   │   │  controlstream  │
+   │   ├─ local sock     │
    │   │  (agent ↔ CLI) │
    │   └─ worktree mgr   │
    │       │              │
    │       ↓ spawn        │
    │  ┌──────────────┐    │
    │  │ Worker agent │    │
-   │  │ (claude code)│    │
-   │  │              │    │
-   │  │ skill:       │    │
-   │  │   worker-agt │    │
-   │  │ 工具:        │    │
-   │  │   Bash → CLI │    │
+   │  │ (claude code/│    │
+   │  │  codex/      │    │
+   │  │  opencode)   │    │
    │  │              │    │
    │  │ cwd=worktree │    │
    │  │ 读 CLAUDE.md │    │
@@ -49,47 +71,69 @@
 
 | 角色 | 部署 | 职责 |
 |---|---|---|
-| **Center server** | VPS 常驻 | 状态权威、事件流总线、~~飞书入口~~ 用户 UI 入口（v2 Web Console / CLI per ADR-0031）、worker 长连接端、ADR 的事实承载 |
-| **Supervisor agent** | VPS 同机短生命周期进程 | LLM 驱动的调度官，事件触发 spawn 一次。**它也是 agent**（claude code 进程），区别是工具集偏向调度 / 决策 |
-| **Worker daemon** | 用户的开发机 | 接派单、起 agent 子进程、维持 agent ↔ CLI 工具的本地 socket、收集 trace / 日志、上报状态 |
-| **Worker agent** | 用户的开发机短生命周期进程 | 真正干活的 agent（claude code 或其它 CLI）。spawn 进 worktree，干活 |
+| **Center server** | VPS 常驻 | 状态权威、事件流总线、用户 UI 入口（Web Console SPA + API + SSE，ADR-0037）、Admin API、worker 长连接端、MCP Host、所有领域 BC 的运行宿主 |
+| **Supervisor agent** | VPS 同机短生命周期进程 | LLM 驱动的调度官，事件触发 spawn 一次（ADR-0044 暂停主动开发，代码骨架保留）。**它也是 agent**（claude code 进程），区别是工具集偏向调度 / 决策。代码包：`agentsupervisor` / `supervisormanager` |
+| **Worker daemon** | 用户的开发机 | 接派单、起 agent 子进程（通过 `agentadapter`：claudecode / codex / opencode）、维持 agent ↔ CLI 工具的本地 socket、收集 trace / 日志、上报状态、管理 environment controlstream。代码包：`workerdaemon` |
+| **Worker agent** | 用户的开发机短生命周期进程 | 真正干活的 agent（claude code / codex / opencode）。spawn 进 worktree，干活 |
 
 ## 主要数据流
 
 | 流向 | 内容 |
 |---|---|
-| ~~飞书 → Center~~ | ~~DM / @bot 消息、card action 回调~~ (v1; v2 删 per ADR-0031) |
-| ~~Center → 飞书~~ | ~~普通消息、交互卡片、Issue 讨论回复~~ (v1; v2 删 per ADR-0031) |
-| Worker daemon → Center | 状态事件、心跳、agent trace 流、suggestion / open-issue、input-request、任务结束日志归档上传 |
-| Center → Worker daemon | 派单、input-response、控制指令（取消 / 暂停） |
+| Browser → Center | Web Console SPA HTTP API 请求（项目管理 / 会话 / agent 管理 / 文件上传等） |
+| Center → Browser | SSE 实时推送（事件流、消息更新、状态变化） |
+| Worker daemon → Center | 状态事件、心跳、agent trace 流（claudestream 解析）、控制日志、任务结束日志归档上传 |
+| Center → Worker daemon | 派单、input-response、控制指令（取消 / 暂停）、environment controlstream |
 | Worker agent → Worker daemon | CLI 调用（request-input / report-progress / open-issue / read-task-context / ...） |
 | Worker daemon → Worker agent | CLI 调用的响应（包括 input-response 解阻塞） |
-| Supervisor → Center | 通过 CLI 工具调用（dispatch / query / issue comment / conversation add-message / record-decision / ...） |
+| Supervisor → Center | 通过 CLI 工具调用（dispatch / query / conversation send / record-decision / ...）（ADR-0044 暂停，骨架保留） |
+| Admin → Center | Admin API（admin/api）：备份（admin/backup）/ 系统管理操作；admintoken 认证 |
 
-各上下文的事件类型与聚合关系见 [01-bounded-contexts.md](03-bounded-contexts.md)。
+各上下文的事件类型与聚合关系见 [03-bounded-contexts.md](03-bounded-contexts.md)。
 
 ## 单一二进制 / 多模式
 
 `agent-center` 是一个 Go binary，按子命令选择运行模式：
 
-- `agent-center server` — VPS 上的常驻
-- `agent-center supervisor` —（内部）事件触发的一次性 supervisor 子进程
+- `agent-center server` — VPS 上的常驻（含 Web Console + Admin API + gRPC endpoint + MCP Host）
+- `agent-center supervisor` —（内部）事件触发的一次性 supervisor 子进程（ADR-0044 暂停，骨架保留）
 - `agent-center worker --config=...` — 开发机上的 worker daemon
-- `agent-center <operation>` — CLI 操作命令（人用 / agent 用）
+
+> **v2.7 CLI 收窄 (#162)**：CLI 已收窄为 deployment-only 约 9 个命令（server / worker / 基础管理），日常操作全部通过 Web Console 完成。代码包 `internal/cli`（cobra 命令集）。
 
 完整 CLI 表见 [implementation/03-cli-subcommands.md](../../implementation/03-cli-subcommands.md)。
 
 ## 部署形态
 
-- VPS 一台：跑 Center + Supervisor。
+- VPS 一台：跑 Center server（含 Web Console + Admin + Supervisor skeleton）。
 - 用户开发机 N 台：每台跑一个 Worker daemon。
-- ~~飞书：作为 IO 通道，不存状态。~~ (v1; v2 撤回 per ADR-0031)
 - 项目仓库：在 Worker 本地已 clone（agent-center 不管理 git）。
 
 ## 网络方向
 
-- ~~飞书 ↔ Center：**Center 主动出站**建立 WebSocket（无需 VPS 暴露入站到飞书）~~ (v1; v2 删 per ADR-0031)
+- Browser → Center：HTTP（Web Console SPA 静态资源 + API + SSE 推送）
 - Worker → Center：**Worker 主动出站**建立 gRPC 长连接
-- 用户操作：SSH 到 VPS 跑 CLI（v1 不开远程 admin RPC）
+- Admin → Center：Admin API（可通过 admin/clienttransport 本地或远程访问，admintoken 认证）
 
-故 VPS 仅需对 Worker 暴露 gRPC 端口（一个），不需要 HTTP webhook、不需要域名。
+故 VPS 需对外暴露 HTTP 端口（Web Console + Admin API）+ gRPC 端口（Worker 连接）。
+
+## 基础设施包一览
+
+| 包 | 职责 |
+|---|---|
+| `agentadapter` | CLI agent 适配器（claudecode / codex / opencode 子包） |
+| `agentsupervisor` / `supervisormanager` | Supervisor 生命周期管理 |
+| `admin` | Admin 操作（api / backup / clienttransport 子包） |
+| `admintoken` | Admin token 认证 |
+| `blobstore` | 文件 blob 存储 |
+| `webconsole` | 嵌入式 React SPA + HTTP API + SSE（api / spa / sse 子包） |
+| `cli` | Cobra CLI 命令集（v2.7 deployment-only ~9 命令） |
+| `config` / `settings` | 配置管理 |
+| `persistence` | SQLite + migrations |
+| `workerdaemon` | Worker daemon 生命周期 |
+| `outbox` | Transactional outbox 模式 |
+| `mcphost` | MCP server 托管 |
+| `mention` | @mention 解析 |
+| `claudestream` | Claude streaming protocol 解析器 |
+| `idgen` / `clock` | ID 生成 / 时钟工具 |
+| `usage` | 用量追踪 |

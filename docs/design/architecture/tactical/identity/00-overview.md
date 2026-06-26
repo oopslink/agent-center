@@ -71,6 +71,8 @@
 |---|---|---|
 | **IdentityKind** | `identity.kind` | `user | agent`（v2.6 删 `system` per [ADR-0045](../../../decisions/0045-identity-id-format.md)）|
 | **IdentityId** | `identity.id` 等所有引用列 | `kind-<8hex>` 格式包装；validate prefix |
+| **Email** | `identity.email` | nullable `*string`；user-only；v2.7.1 #214 |
+| **LastSessionAt** | `identity.last_session_at` | nullable `*time.Time`；user-only；最后成功 signin 时间；v2.7.1 #214 |
 | **OrgSlug** | `organization.slug` | regex `^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])?$` |
 | **MemberRole** | `member.role` | `owner | admin | member`；hierarchy 比较 owner > admin > member |
 | **MemberStatus** | `member.status` | `joined | disabled` |
@@ -220,9 +222,13 @@ package identity
 
 type IdentityRepository interface {
     Save(ctx context.Context, id *Identity) error
+    Update(ctx context.Context, id *Identity) error
     GetByID(ctx context.Context, id string) (*Identity, error)
     GetByDisplayName(ctx context.Context, name string) (*Identity, error)
-    List(ctx context.Context, filter ListFilter) ([]*Identity, error)
+    List(ctx context.Context) ([]*Identity, error)
+    // Delete hard-removes an Identity row by id. v2.7 #197: used by
+    // agent-delete cascade. Idempotent: absent id = no-op.
+    Delete(ctx context.Context, id string) error
 }
 
 type OrganizationRepository interface {
@@ -230,22 +236,25 @@ type OrganizationRepository interface {
     GetByID(ctx context.Context, id string) (*Organization, error)
     GetBySlug(ctx context.Context, slug string) (*Organization, error)
     ListForIdentity(ctx context.Context, identityID string) ([]*Organization, error)
-    SoftDelete(ctx context.Context, id string) error
 }
 
 type MemberRepository interface {
     Save(ctx context.Context, m *Member) error
     GetByID(ctx context.Context, id string) (*Member, error)
-    GetByOrganizationAndIdentity(ctx context.Context, orgID, identityID string) (*Member, error)
-    ListByOrganization(ctx context.Context, orgID string) ([]*Member, error)
-    CountActiveOwners(ctx context.Context, orgID string) (int, error)
+    GetByOrganizationAndIdentity(ctx context.Context, organizationID, identityID string) (*Member, error)
+    ListByOrganization(ctx context.Context, organizationID string) ([]*Member, error)
+    CountActiveOwners(ctx context.Context, organizationID string) (int, error)
+    // Delete hard-removes a Member row by id. v2.7 #197: used by
+    // agent-delete cascade. Idempotent: absent id = no-op.
+    Delete(ctx context.Context, id string) error
 }
 
 type InvitationRepository interface {
     Save(ctx context.Context, inv *Invitation) error
     GetByID(ctx context.Context, id string) (*Invitation, error)
     GetByToken(ctx context.Context, token string) (*Invitation, error)
-    ListByOrganization(ctx context.Context, orgID string) ([]*Invitation, error)
+    ListByOrganization(ctx context.Context, organizationID string) ([]*Invitation, error)
+    Delete(ctx context.Context, id string) error
 }
 
 // Domain errors (sentinel pattern per conventions § 0.3)

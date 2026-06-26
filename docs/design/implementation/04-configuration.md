@@ -150,8 +150,8 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 
 | Mode | 必读 section |
 |---|---|
-| `server` | `server` / `blob_store` / `supervisor` / `execution` / `observability` / `secret_management` / `web_console` |
-| `worker` | `worker` / `worker_config` / `blob_store`（如需上传日志）|
+| `server` | `server` / `blob_store` / `execution` / `secret_management` / `web_console` / `peek` |
+| `worker` | `server`（sqlite_path / admin_socket_path）/ `worker`（enrollment identity）|
 | `supervisor` | 不读 config（CLI flag 注入参数）|
 
 如果 worker 配置文件里写了 `server` section，worker 启动忽略；server 启动时不会去找 worker config 文件。**这是约定，避免逐 mode 一份 YAML 的运维负担**。
@@ -166,11 +166,18 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 
 ### 7.1 `server.*`
 
+> **v2.7+ UPDATE (2026-06-26)**: `server.listen_addr` 已 DEPRECATED（v2.9 #174）— 该值从未实际绑定端口，Web Console 使用 `web_console.listen_addr`，admin 端使用 `admin_socket_path` / `admin_tcp_listen`。保留字段仅为兼容现有 config 文件的 strict decode。新增 `admin_tcp_listen` / `admin_tls_*` / `bootstrap_public_url` / `instance` 字段。
+
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
-| `server.listen_addr` | string | `:7000` | - | gRPC worker 端口（[strategic § 部署](../architecture/strategic/02-system-overview.md)）|
+| `server.listen_addr` | string | (无) | - | **DEPRECATED v2.9** — 保留仅为 strict decode 兼容，值被忽略 |
 | `server.sqlite_path` | path | `/var/lib/agent-center/agent-center.db` | [02-persistence § 1.2](02-persistence-schema.md) | SQLite 数据库文件 |
 | `server.admin_socket_path` | path | `/run/agent-center/admin.sock` | [NF5](../requirements/02-non-functional.md) | 本机 admin CLI unix socket |
+| `server.admin_tcp_listen` | string | (空=禁用) | v2.3-7a | 可选 TCP admin 监听地址（如 `0.0.0.0:7300`），启用时 auto-gen TLS cert |
+| `server.bootstrap_public_url` | string | (空=从 admin_tcp_listen 派生) | v2.7 #200 | Web Console "Add Worker" 展示的外部可达 admin host:port |
+| `server.admin_tls_cert_path` | path | (auto: `<sqlite_dir>/admin-tls.crt`) | v2.3-7a | TCP admin TLS 证书路径 |
+| `server.admin_tls_key_path` | path | (auto: `<sqlite_dir>/admin-tls.key`) | v2.3-7a | TCP admin TLS 私钥路径 |
+| `server.instance` | string | `"default"` | v2.7.1 #211 | 多 center 实例名称；`install center --instance <name>` 设定 |
 
 ### 7.2 `blob_store.*`
 
@@ -194,11 +201,13 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `supervisor.invocation_timeout_seconds` | int | 180 | [ADR-0013 § 6](../decisions/0013-supervisor-invocation-concurrency.md) | scope_kind ≠ global 的 timeout |
 | `supervisor.invocation_timeout_global_seconds` | int | 600 | 同上 | scope_kind=global 的 timeout |
 
-### 7.4 ~~`notification.*` / 7.5 `bridge.*`~~
+### 7.4 ~~`notification.*` / 7.5 `bridge.*`~~ (RETIRED)
 
 Both sections removed in v2 per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md). v2 routes user-visible
 notifications through the Web Console + SSE; there is no
 notification fallback channel and no vendor Bridge configuration.
+
+> **注**：Config struct 中 `NotificationConfig` 仍保留（`notification.default_channel`），但仅为 strict decode 兼容。实际运行中该值未被使用。
 
 ### 7.6 `execution.*`
 
@@ -214,26 +223,19 @@ notification fallback channel and no vendor Bridge configuration.
 | `execution.max_executions_per_task` | int | 3 | [task-runtime § 3.1](../architecture/tactical/task-runtime/00-overview.md) | 单 task 最大 retry |
 | `execution.kill_grace_seconds` | int | 5 | [05-agent-adapters § 4.2](05-agent-adapters.md) | SIGTERM → SIGKILL grace |
 
-### 7.7 `worker_config.*`（worker mode 专用，v2 identity-only + 本地基础设施）
+### 7.7 `worker.*`（worker mode 专用）
 
-> v2: `concurrency.*` / `discovery.*` / `agent_cli`（capabilities）已从 worker.yaml 迁到 **Worker AR 在 center DB 的字段**（[ADR-0023](../decisions/0023-worker-enroll-lightweight.md)）；worker daemon online 时通过 reconcile 拉取，`worker.config.updated` 长连推送同步变更。worker.yaml 只剩 identity + 本机文件系统 / 进程基础设施配置。
+> **v2.7.1 UPDATE (2026-06-26)**: 原 `worker_config.*` 的大部分字段（`exec_base_dir` / `agents_base_dir` / `gc_exec_retention_hours` / `heartbeat_*` / `daemon_socket_path` / `session_token_file` / `center_endpoint`）已不在 config.yaml 中配置。v2.7.1 #249 简化 worker config 为 enrollment identity 单一来源：installer 把 worker_id + token 直接写入 config.yaml（0600）。实际 Config struct 如下。
 
 | Field | Type | Default | 来源 | 用途 |
 |---|---|---|---|---|
-| `worker_config.id` | string | - | [workforce/01](../architecture/tactical/workforce/01-worker.md) | worker 唯一 ID（`agent-center join --worker-id=...` 指定）|
-| `worker_config.center_endpoint` | URL | - | 同上 | center gRPC / HTTP 地址 |
-| `worker_config.session_token_file` | path | `~/.agent-center/credentials` | [ADR-0023](../decisions/0023-worker-enroll-lightweight.md) | session token 落盘位置（mode 0600）；`agent-center join` 兑换后写入 |
-| `worker_config.exec_base_dir` | path | `~/.agent-center-worker/exec` | [ADR-0018 § 3](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 root |
-| `worker_config.agents_base_dir` | path | `~/.agent-center-worker/agents` | [ADR-0024 § 5](../decisions/0024-agent-instance-first-class.md) | AgentInstance 持久 home_dir 根（每个 agent 一个子目录 `<agent_instance_id>/`）；含 instructions.md / mcp_config.json / skills/ ([ADR-0028](../decisions/0028-skill-file-mount-lite.md)) / notes/ |
-| `worker_config.gc_exec_retention_hours` | int | 24 | [ADR-0018 § 9](../decisions/0018-detached-agent-via-per-execution-shim.md) | per-execution 目录 GC |
-| `worker_config.heartbeat_interval_seconds` | int | 10 | [task-runtime § 3.3](../architecture/tactical/task-runtime/00-overview.md) | 心跳频次（worker 端）|
-| `worker_config.heartbeat_timeout_seconds` | int | 60 | 同上 | center 端 worker offline 阈值（注：center 配置项，仅作参考列在此处） |
-| `worker_config.daemon_socket_path` | path | `~/.agent-center-worker/daemon.sock` | [NF11](../requirements/02-non-functional.md) | worker daemon unix socket（agent CLI 调用入口）|
+| `worker.worker_id` | string | - | v2.7.1 #249 | worker 唯一 ID；installer 写入，不可变 |
+| `worker.worker_name` | string | - | v2.7.1 #249 | worker 显示名 |
+| `worker.bootstrap` | string | - | v2.7.1 #249 | 一次性 bootstrap token（enroll 后消耗）|
+| `worker.token` | string | - | v2.7.1 #249 | 长期 session token（enroll 后写入）|
+| `worker.server_fingerprint` | string | - | v2.7.1 #249 | center TLS 证书指纹（TCP admin 连接校验）|
 
-> **v2 不在 worker.yaml**（迁到 center 主导，详见 [01-worker.md § 4](../architecture/tactical/workforce/01-worker.md)）：
-> - `concurrency.per_agent_type` → Worker AR `concurrency`
-> - `discovery.scan_paths` / `exclude` / `scan_interval` → Worker AR `discovery`
-> - `agent_cli` → Worker AR `capabilities`（worker 端 `which` 探测上报）
+> **注**：v2.7.1 之前的 `worker_config.*` 路径已废弃。Token 不再出现在 `ps` / systemd unit / launchd plist 中（安全改进）。`worker run` 从 config.yaml 读取这些字段；显式 CLI flag 仍可覆盖（back-compat + 高级用途）。
 
 ### 7.8 `observability.*`
 
@@ -261,13 +263,9 @@ notification fallback channel and no vendor Bridge configuration.
 
 > Master key 一旦丢失，所有 user_secret 不可解。运维需自管 key 备份；[roadmap](../roadmap.md) 接 Vault / KMS 作为可选来源。
 
-### 7.11 `agent_cli.*`（adapter binary 路径）
+### 7.11 ~~`agent_cli.*`~~ (RETIRED)
 
-| Field | Type | Default | 来源 | 用途 |
-|---|---|---|---|---|
-| `agent_cli.claude_code.binary` | path | `claude`（PATH 上查找） | [05 § 8.1](05-agent-adapters.md) | claude code CLI 路径 |
-| `agent_cli.codex.binary` | path | `codex` | [05 § 8.2](05-agent-adapters.md) | codex CLI 路径（TBD）|
-| `agent_cli.opencode.binary` | path | `opencode` | [05 § 8.3](05-agent-adapters.md) | opencode CLI 路径（TBD）|
+> **v2.7+ UPDATE**: `agent_cli.*` 配置段已不在 Config struct 中。Agent CLI binary 路径现在通过 agent adapter 的 `Probe()` 方法自动发现（PATH 查找）。Binary 名默认为 `claude` / `codex` / `opencode`；如需覆盖，通过 Agent BC 的 `cli` 字段在 Web Console 中配置。
 
 ---
 
@@ -279,24 +277,18 @@ notification fallback channel and no vendor Bridge configuration.
 
 ```yaml
 server:
-  listen_addr: ":7000"
+  # listen_addr: ":7000"  # DEPRECATED v2.9 — 值被忽略；端口由 web_console.listen_addr 控制
   sqlite_path: "/var/lib/agent-center/agent-center.db"
   admin_socket_path: "/run/agent-center/admin.sock"
+  # admin_tcp_listen: "0.0.0.0:7300"  # 可选：启用 TCP admin（auto-gen TLS cert）
+  # instance: "default"               # 多实例部署时设定
 
 blob_store:
   kind: "local"
   root: "/var/lib/agent-center/blobs"
-  retention_days: 90
 
-supervisor:
-  max_concurrent_invocations: 5
-  coalescing_window_seconds: 30
-  coalescing_max_age_minutes: 5
-  invocation_timeout_seconds: 180
-  invocation_timeout_global_seconds: 600
-
-# (v2 removed notification.* + bridge.* per ADR-0031 — Web Console
-# + SSE replaces vendor notification routing.)
+# (v2 removed notification.* + bridge.* + supervisor.* + observability.*
+# per ADR-0031 + CLI simplification — Web Console + SSE replaces.)
 
 execution:
   submitted_timeout_seconds: 300
@@ -309,38 +301,25 @@ execution:
   max_executions_per_task: 3
   kill_grace_seconds: 5
 
-observability:
-  events_retention_days: 365
-  unknown_event_alert_threshold_per_24h: 100
-  ps_watch_interval_seconds: 1
-  peek_trace_buffer_lines: 200
+web_console:
+  enabled: true
+  listen_addr: "127.0.0.1:7100"  # loopback only per ADR-0037
 ```
 
 ### 8.2 worker 模式
 
-`~/.agent-center-worker/config.yaml`（v2: identity-only + 本地基础设施；`agent-center join` 自动生成）：
+`~/.agent-center-worker/config.yaml`（v2.7.1+: enrollment identity only；`agent-center install worker` 自动生成）：
 
 ```yaml
-worker_config:
-  id: "W-laptop-hayang"
-  center_endpoint: "grpc://agent-center.example.com:7000"
-  session_token_file: "~/.agent-center/credentials"
+worker:
+  worker_id: "W-laptop-hayang"
+  worker_name: "laptop-hayang"
+  token: "<session-token>"             # install worker 写入；不再出现在 ps 中
+  server_fingerprint: "<cert-fingerprint>"  # TCP admin TLS 指纹
 
-  exec_base_dir: "~/.agent-center-worker/exec"
-  agents_base_dir: "~/.agent-center-worker/agents"
-  gc_exec_retention_hours: 24
-  heartbeat_interval_seconds: 10
-  daemon_socket_path: "~/.agent-center-worker/daemon.sock"
-
-agent_cli:
-  claude_code:
-    binary: "claude"   # PATH 上找；探测后自动上报 capability 给 center
-
-blob_store:
-  # worker 模式仅在上传 log 归档时用，根用 center 推回的 URL；
-  # 这里可省略 / 留空。
-  kind: "local"
-  root: "~/.agent-center-worker/blobs-staging"
+server:
+  sqlite_path: "~/.agent-center-worker/agent-center.db"  # worker 本地 DB
+  admin_socket_path: "~/.agent-center-worker/admin.sock"
 ```
 
 ---
@@ -364,4 +343,4 @@ blob_store:
 
 ---
 
-> **本文档 scope**：v1 配置文件 schema + 凭据 + 加载优先级 + 各 mode gating + 完整字段参考 + 范例 yaml。后续新增字段按 § 5 演进规则；secret / 凭据落部署细节见 [06-deployment](06-deployment.md)。
+> **本文档 scope**：v1 配置文件 schema + 凭据 + 加载优先级 + 各 mode gating + 完整字段参考 + 范例 yaml。后续新增字段按 § 5 演进规则；secret / 凭据落部署细节见 [06-deployment](06-deployment.md)。v2.7+ sweep (2026-06-26): § 7.1 更新 server 字段、§ 7.4 标注 RETIRED、§ 7.7 更新为 `worker.*` enrollment identity、§ 7.11 标注 RETIRED、§ 8 范例同步。实际 Config struct 以 `internal/config/config.go` 为准。

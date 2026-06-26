@@ -8,26 +8,32 @@
 
 ## § 1. 部署拓扑
 
-### 1.1 v1 拓扑（[domain-vision § B2](../architecture/strategic/00-domain-vision.md) + [system-overview § 部署形态](../architecture/strategic/02-system-overview.md)）
+### 1.1 拓扑（[domain-vision § B2](../architecture/strategic/00-domain-vision.md) + [system-overview § 部署形态](../architecture/strategic/02-system-overview.md)）
+
+> **v2.7+ UPDATE (2026-06-26)**: v2.7.1 #211 支持单机多 center 实例（`install center --instance <name>`）；每个 instance 使用独立 install prefix + service label + SQLite + admin socket。`list-local-centers` 列出本机所有 center 部署。v2.8 #255 新增 test-instance 沙箱（`install test-instance`），支持隔离的 1 center + N workers 测试环境。
 
 ```
 ┌─────────────────────────────────────────┐
-│ VPS（单台）                              │
+│ Center 机器（VPS / 本地 Mac）            │
 │                                          │
-│  agent-center server （常驻 / systemd） │
-│  agent-center supervisor （事件触发 spawn，短生命周期）
+│  agent-center server （常驻 / systemd|launchd）
+│    ├─ Web Console HTTP (:7100 loopback)  │
+│    ├─ Admin endpoint (unix socket / TCP TLS)
+│    └─ Outbox relay + timers              │
+│                                          │
+│  [可选] 多实例：instance-A, instance-B   │
+│  [可选] test-instance 沙箱               │
 │                                          │
 └─────────────────────────────────────────┘
-              ▲                ▼
-              │            ~~飞书 WebSocket~~ (v2 删 per ADR-0031)
-              │           ~~（Center 主动出站，无入站）~~
-              │
-              │ gRPC 长连接 (Worker 主动出站)
+              ▲
+              │ Admin TCP TLS / HTTP (Worker 主动出站)
               │
 ┌─────────────┴───────────────────────────┐
 │ Worker 机器（N 台，用户开发机）           │
 │                                          │
-│  agent-center worker （常驻 / user systemd）
+│  agent-center worker （常驻 / user systemd|launchd）
+│    ├─ worker mcp-host (per-agent stdio MCP server)
+│    ├─ worker agent-supervisor (per-agent persistent supervisor)
 │    └─ per-execution shim 进程 (detached / setsid)
 │         └─ agent CLI 子进程 (claude / codex / ...)
 └─────────────────────────────────────────┘
@@ -35,15 +41,21 @@
 
 | 进程 | 部署位置 | 生命周期 | 由谁起 |
 |---|---|---|---|
-| `agent-center server` | VPS | 常驻 | systemd（root / 系统级 unit） |
-| `agent-center supervisor` | VPS | 短生命周期 spawn | Center 内部 events 触发 fork+exec；不需 unit |
-| `agent-center worker` | Worker 机器 | 常驻 | user systemd（`--user`） |
+| `agent-center server` | Center 机器 | 常驻 | systemd / launchd（`install center` 安装）|
+| `agent-center worker` | Worker 机器 | 常驻 | user systemd / launchd（`install worker` 安装）|
+| `worker mcp-host` | Worker 机器 | 跟随 agent | daemon 内部 spawn |
+| `worker agent-supervisor` | Worker 机器 | 持久化 | daemon 内部 spawn（detached）|
 | per-execution shim | Worker 机器 | 跟随 execution 生命周期 | Worker daemon spawn（detached）|
 | agent CLI | Worker 机器 | 跟随 execution | shim fork+exec |
 
-### 1.2 v1 不做（[domain-vision § B2](../architecture/strategic/00-domain-vision.md)）
+### 1.2 v2.7+ 新增能力
 
-- 多 Center / 多 VPS（多用户 SaaS 是"重做项目"）
+- **单机多 Center 实例**（v2.7.1 #211）：`install center --instance <name>` 部署第二个 center，独立 DB / socket / service
+- **Test instance 沙箱**（v2.8 #255）：`install test-instance` 创建隔离测试环境
+- **macOS launchd 支持**：`install center` / `install worker` 自动检测 platform，macOS 生成 launchd plist
+
+### 1.3 仍不做
+
 - HA / failover
 - 容器化 agent CLI（[roadmap § 容器化 agent 执行](../roadmap.md)）
 
@@ -64,11 +76,12 @@ make build-frontend         # pnpm install + vite build → internal/webconsole/
 make build-backend          # go build → ./bin/agent-center
 ```
 
-CI build artifact 命名：
+CI build artifact 命名（v2.7+ 含版本号）：
 
 ```
-agent-center-<os>-<arch>-<git-sha>
-  例：agent-center-linux-amd64-c0a1771
+agent-center-<os>-<arch>-<version>-<git-sha>
+  例：agent-center-linux-amd64-v2.15.3-c0a1771
+  例：agent-center-darwin-arm64-v2.15.3-c0a1771
 ```
 
 每次 main 分支推送都触发 build；产物上传 GitHub Release。Binary 含嵌入 SPA bundle (~0.5 MB compressed)，总大小 ~17-18 MB（Go runtime + sqlite3 + SPA）。
@@ -441,10 +454,12 @@ v1 不上 Prometheus / Grafana —— 单 VPS 单用户场景**直接 SSH + jour
 
 ### 9.1 端口规划（[system-overview § 部署形态](../architecture/strategic/02-system-overview.md)）
 
+> **v2.7+ UPDATE**: gRPC 端口 7000 已不再使用（macOS AirPlay 冲突）。Worker 连接通过 Admin TCP TLS 端口（默认 7300，可配置）。Web Console 端口保持 7100。
+
 | 端口 | 协议 | 方向 | 暴露给 |
 |---|---|---|---|
-| 7000/tcp | gRPC | 入站 | Worker 机器（白名单） |
 | 7100/tcp | HTTP | 入站 (loopback only) | 本机 — Web Console 浏览器 / SSH tunnel |
+| 7300/tcp | Admin TCP TLS | 入站 | Worker 机器（`server.admin_tcp_listen` 配置）|
 | 22/tcp | SSH | 入站 | 运维人员（白名单 IP） |
 | 其它 | - | 关 | 所有 |
 
@@ -476,7 +491,7 @@ ssh -L 7100:127.0.0.1:7100 user@vps-host
 ### 9.2 firewalld 配置示例
 
 ```bash
-sudo firewall-cmd --permanent --add-port=7000/tcp --zone=public
+sudo firewall-cmd --permanent --add-port=7300/tcp --zone=public   # admin TCP TLS
 sudo firewall-cmd --permanent --add-source=<worker-ip-or-range> --zone=trusted
 sudo firewall-cmd --reload
 ```
@@ -595,4 +610,4 @@ v2 撤回 vendor 集成（per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor
 
 ---
 
-> **本文档 scope**：v1 单 VPS 部署完整流程 — 拓扑 / 二进制 / 文件布局 / systemd unit / 升级 / 备份 / 日志 / 监控 / 网络 / bootstrap。多 VPS / HA / 容器化 推 [roadmap](../roadmap.md)。
+> **本文档 scope**：部署完整流程 — 拓扑 / 二进制 / 文件布局 / systemd unit / 升级 / 备份 / 日志 / 监控 / 网络 / bootstrap。v2.7+ sweep (2026-06-26): § 1.1 更新拓扑（多实例 + test-instance + launchd 支持）；§ 9.1 端口从 7000 改为 7300（Admin TCP TLS）；§ 2.1 binary 命名含版本号。多 VPS / HA / 容器化 推 [roadmap](../roadmap.md)。

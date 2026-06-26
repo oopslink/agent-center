@@ -18,18 +18,20 @@
 
 | 维度 | 内容 |
 |---|---|
-| **聚合管理** | Conversation（AR + Message 子从属）/ Identity（AR）|
+| **聚合管理** | Conversation（AR + Message 子从属）|
 | **会话承载** | 6 种 kind：`dm` / `channel`（v2 CV1 重命名自 group_thread）/ `adhoc` / `notification` / `task` / `issue`；统一时间线存 Message |
 | **Message content_kind** | 6 种：text / system / agent_finding / supervisor_summary / conclusion_draft / task_proposal |
-| **Identity 统一** | 3 kind: user / agent / system（per [ADR-0033](../../../decisions/0033-identity-model-refactor.md)）；ID 格式 `kind:id`；权限模型 v3+ 绑 Identity |
+
+> **Identity 已迁出**：v2.6 起 Identity AR 从 Conversation BC 拆分到独立 Identity BC（BC9），详见 [ADR-0040](../../../decisions/0040-identity-bc-carve-out.md) + [tactical/identity/00-overview.md](../identity/00-overview.md)。Conversation BC 通过 `IdentityBCFacade` 校验 `sender_identity_id` 存在性（AS-2）。
 
 ### 0.2 UL 切片
 
 来自 [strategic/03-bounded-contexts § 1](../../strategic/03-bounded-contexts.md) 标 Conversation 上下文的术语：
 
 - `Conversation`（聚合根）+ `Message`（实体，从属）
-- `Identity`（聚合根，独立）
-- 行为动词：`Add-message` / `Open` / `Close`（Conversation） / `Register`（Identity）
+- 行为动词：`Add-message` / `Open` / `Close`（Conversation）
+
+> Identity 术语已迁至 Identity BC（BC9），详见 [tactical/identity/00-overview.md](../identity/00-overview.md)。
 
 ### 0.3 Context Map 位置
 
@@ -50,7 +52,8 @@
 | 聚合 | 文件 | 状态机 | 身份 / 不变性 |
 |---|---|---|---|
 | **Conversation** | [01-conversation.md](01-conversation.md) | 2 态（open / closed） | ULID/UUID；身份不变；kind 不可变 |
-| **Identity** | [02-identity.md](02-identity.md) | 无状态机（CRUD 风格） | 形式化字符串 `kind:id`（`user:hayang` / `agent:<instance-id>` / `system:<role>`）；身份不变 |
+
+> **Identity** 已迁至 Identity BC（BC9）—— 详见 [tactical/identity/01-identity.md](../identity/01-identity.md)。本 BC 内 [02-identity.md](02-identity.md) 保留为历史归档。
 
 ### 1.2 Entity（子从属）
 
@@ -78,7 +81,7 @@
 
 - **Conversation Invariants** → [01-conversation.md § 6](01-conversation.md)
 - **Message Invariants** → [01-conversation.md § 6](01-conversation.md)（Message 是 Conversation 子从属）
-- **Identity Invariants** → [02-identity.md § 4](02-identity.md)
+- **Identity Invariants** → 已迁至 Identity BC：[tactical/identity/01-identity.md § 4](../identity/01-identity.md)
 
 **跨聚合的不变量**：
 
@@ -147,16 +150,9 @@
 | HTTP | `POST /api/issues` / `POST /api/tasks` with `{source_conversation_id, source_message_ids, title, description, project_id?, agent_instance_id?}` (P11 § 3.2 endpoints) |
 | Web UI | Any conversation detail page → "Select messages" toggle → DeriveBar → "Open Issue / Open Task" modal → on success, deep link to the new `/issues/:id` or `/tasks/:id`. The child detail page renders a `CarryOverDivider` grouping carried messages by their source conversation, with a visible "Discussion below" divider before the child's own messages (P11 F8 + F9) |
 
-### 3.6 IdentityRegistrationService（[ADR-0033](../../../decisions/0033-identity-model-refactor.md)）
+### 3.6 IdentityRegistrationService
 
-**职责**：Identity CRUD + 跨聚合 invariant（Identity[kind=agent] ↔ AgentInstance 同 tx）。
-
-| 维度 | 内容 |
-|---|---|
-| 触发 | CLI `agent-center identity add`（手动 user 初始化）/ AgentInstance create 时同事务 auto-register `agent:<instance_id>` |
-| 出参 | Identity + emit identity.registered |
-| Bootstrap | `EnsureSystemIdentity` 在 center 启动时幂等 provision `system` identity |
-| v2 简化 | 单用户场景；3 kind 枚举：`user` / `agent` / `system` |
+> **已迁出**：v2.6 起 Identity 管理（Signup / Signin / Agent Provision 等）由 Identity BC（BC9）承担，详见 [tactical/identity/00-overview.md § 3](../identity/00-overview.md)。本节保留为历史记录。
 
 ---
 
@@ -181,9 +177,7 @@
 
 ### 4.3 IdentityFactory
 
-**Caller**：IdentityRegistrationService（CLI 手动 + AgentInstance 创建联动）。
-
-详见 [02-identity.md § 2 创建路径](02-identity.md)。
+> **已迁出**：Identity Factory 现归 Identity BC（BC9），详见 [tactical/identity/01-identity.md](../identity/01-identity.md)。
 
 ---
 
@@ -237,23 +231,7 @@ var (
 
 ### 5.3 IdentityRepository
 
-```go
-// IdentityID 是形式化字符串 `kind:id`（'user:hayang' / 'agent:<instance-id>' / 'system:<role>'），
-// 用 typed alias 而非裸 string 提高类型安全。
-type IdentityID string
-
-type IdentityRepository interface {
-    FindByID(ctx context.Context, id IdentityID) (*Identity, error)
-    FindByKind(ctx context.Context, kind IdentityKind) ([]*Identity, error)
-    Save(ctx context.Context, i *Identity) error
-}
-
-// Domain errors
-var (
-    ErrIdentityNotFound      = errors.New("conversation: identity not found")
-    ErrIdentityAlreadyExists = errors.New("conversation: identity id already taken")
-)
-```
+> **已迁出**：Identity Repository 现归 Identity BC（BC9），详见 [tactical/identity/00-overview.md § 5](../identity/00-overview.md)。
 
 ### 5.4 约定
 
@@ -364,7 +342,7 @@ Conversation BC 写入 Message + emit conversation.message_added
 ### 同 BC 内聚合详情
 
 - [01-conversation.md](01-conversation.md) — Conversation AR + Message 子从属（kind / content_kind / 生命周期 / Invariants）
-- [02-identity.md](02-identity.md) — Identity AR（v2 简化 3 kind）
+- [02-identity.md](02-identity.md) — Identity AR（**历史归档**；v2.6 起 Identity 迁至 Identity BC，详见 [tactical/identity/](../identity/)）
 
 ### 跨 BC 协作文档
 

@@ -184,232 +184,122 @@ human 输出格式：`Error: <reason>: <message>` 一行红字到 stderr。
 
 ---
 
-## § 8. 命令清单（按 BC 分组）
+## § 8. 命令清单
 
-每条命令带 audience 标签（U / S / A / Sys）。
+> **v2.7 #162 RETIREMENT NOTICE (2026-06-26)**：v2.7 大幅精简 CLI surface。所有数据管理 + 数据查询命令已退役，管理功能迁移至 Web Console API。CLI 仅保留**部署 / 生命周期 / 运维**命令（约 9 个顶层 + 子命令）。
 
-### 8.1 TaskRuntime
+### 8.1 当前命令清单（v2.7+）
 
-| 命令 | audience | 简述 |
-|---|---|---|
-| `task create <project_id> <title> [--description=...] [--parent=<task_id>] [--from-issue=<issue_id>]` | U / S | 创建 task；a/e 路径同事务建 task + Conversation（[ADR-0017](../decisions/0039-conversation-business-model-v2-unified.md)）<!-- v1 ref: ADR-0017 superseded by ADR-0039 -->|
-| `task bind-conversation <task_id> [--channel=...] [--auto\|--to=<conv_id>]` | U / S | 懒创建：把没有 Conversation 的 task 绑到 / 新建 Conversation |
-| `task unbind-conversation <task_id>` | U | v1 接口保留不实现（v2+ 多 channel 镜像） |
-| `request-input <execution_id> --reason=... --message=... [--options=...]` | A | execution 阻塞等用户拍板；写 InputRequest + Conversation Message |
-| `report-progress <execution_id> --kind=... --content=...` | A | worker daemon 投影摘要 push 入口（projection 列；[02-persistence-schema § 8.2.2](02-persistence-schema.md)）|
-| `report-artifact <execution_id> --kind=... --content=...` | A | append-only artifact 上报（[task-runtime § 5.4](../architecture/tactical/task-runtime/00-overview.md)） |
-| `report-failure <execution_id> --reason=... --message=...` | A | execution 终态 `failed` |
-| `read-task-context <task_id>` | A | agent 读 task 元数据 / project 信息 / 历史 conversation |
-| `dispatch <task_id> --worker=<worker_id>` | S / Sys | supervisor 派单（具体路径详见 [task-runtime/02-task-execution](../architecture/tactical/task-runtime/02-task-execution.md)） |
-| `kill-execution <execution_id> --reason=... --message=...` | S | supervisor 主动 kill |
-
-### 8.2 Discussion
+以下是 `internal/cli/build.go` 中实际注册的全部命令：
 
 | 命令 | audience | 简述 |
 |---|---|---|
-| `issue open <project_id> <title> [--description=...]` | U / S | 创建 Issue；CLI 路径懒创建 Conversation（[ADR-0021](../decisions/0039-conversation-business-model-v2-unified.md)）<!-- v1 ref: ADR-0021 superseded by ADR-0039 -->|
-| `issue comment <issue_id> --content=... [--kind=user_comment\|agent_finding\|...]` | U / S / A | 写入 IssueComment（facade，落 Conversation Message）|
-| `issue conclude <issue_id> --resolution=... [--spawn-tasks=...]` | U / S | 结案；若 `--spawn-tasks` 则在同事务批量 spawn Task |
-| `issue bind-conversation <issue_id> [--channel=...] [--auto\|--to=<conv_id>]` | U / S | 懒创建路径触发（[ADR-0021 § 1](../decisions/0039-conversation-business-model-v2-unified.md)）<!-- v1 ref: ADR-0021 superseded by ADR-0039 -->|
-| `issue link-conversation <issue_id> --conversation=<conv_id>` | S | 关联血缘 conversation（写 `issue.related_conversation_ids`，弱关联）|
-| `open-issue <project_id> <title> [--description=...]` | A | agent 主动开 Issue（[conventions § 1](../../rules/conventions.md) 单一来源；worker 不允许造 Task，只能开 Issue 走讨论）|
-
-### 8.3 Workforce
-
-| 命令 | audience | 简述 |
-|---|---|---|
-| `worker enroll [--name=...] [--capacity=...]` | U | worker 首次注册到 center；获 worker_id + token |
-| `worker run [--config=...]` | U | 启动 worker daemon（同 `agent-center worker`，便捷别名）|
-| `worker list [--status=...]` | U / S | 列所有 worker + 状态 |
-| `worker status <worker_id>` | U / S | 单个 worker 详情 |
-| `worker shim <execution_id>` | Sys | per-execution shim 进程（[ADR-0018](../decisions/0018-detached-agent-via-per-execution-shim.md)），用户不直接调 |
-| `worker proposal list [--status=pending\|...] [--worker=<id>]` | U | 列 worker 自发现的 project proposal |
-| `worker proposal show <proposal_id>` | U | proposal 详情 |
-| `worker proposal accept <proposal_id> [--project-id=<slug>] [--name=...]` | U | 接受 proposal → 创建 WorkerProjectMapping |
-| `worker proposal ignore <proposal_id>` | U | 拒绝 proposal |
-| `worker proposal unignore <proposal_id>` | U | 撤销 ignore，重新进 pending |
-| `project add <slug> --path=<path> [--default-agent=...]` | U | 用户直接登记一个 project |
-| `project list` | U / S | 全部 project |
-| `project show <project_id>` | U / S | project 详情 + mappings |
-| `project update <project_id> [--default-agent=...] [--name=...]` | U | 修改 project 元数据 |
-| `project remove <project_id>` | U | 删除 project（连带清理 mapping）|
-
-### 8.4 Conversation
-
-| 命令 | audience | 简述 |
-|---|---|---|
-| `conversation add-message <conversation_id> --kind=... --content=... [--actor=...] [--input-request-ref=<id>]` | U / S / A / Sys | 写一条 Message <!-- v1 ref: "Bridge 自动外发" v2 删 per ADR-0031 -->|
-| `conversation list [--kind=task\|issue\|dm\|...] [--owner=...]` | U / S | 列 conversation |
-| `conversation read <conversation_id> [--since=...] [--limit=...]` | U / S | 读消息时间线 |
-
-### 8.5 Cognition
-
-| 命令 | audience | 简述 |
-|---|---|---|
-| `supervisor retrigger <invocation_id>` | U | 人工重新激活失败 / 超时的 invocation（[ADR-0013](../decisions/0013-supervisor-invocation-concurrency.md)）|
-| `record-decision --invocation=<id> --rationale=... --actions=...` | S | supervisor 决策落库 + 同事务 emit events |
-| ~~`escalate-input-request <input_request_id>`~~ | ~~S~~ | ~~跨 BC 命令 — supervisor 把 agent 的 InputRequest 升级到飞书~~ (v2 删 per ADR-0031) |
-
-### 8.6 ~~Bridge~~ (v2 删 per ADR-0031)
-
-| 命令 | audience | 简述 |
-|---|---|---|
-| ~~`identity list [--vendor=...]`~~ | ~~U~~ | ~~列所有身份映射~~ (v2 删 per ADR-0031) |
-| ~~`identity bind <identity_id> --user=<user_id>`~~ | ~~U~~ | ~~修改已存在身份的归属~~ (v2 删 per ADR-0031) |
-| ~~`identity unbind <identity_id>`~~ | ~~U~~ | ~~解绑~~ (v2 删 per ADR-0031) |
-
-### 8.7 Observability — Open Host 五动词 + peek
-
-跨 BC 横扫的统一查询面（[observability § 7.1](../architecture/tactical/observability/00-overview.md)）：
-
-| 命令 | audience | 简述 |
-|---|---|---|
-| `inspect <kind> <id> [--format=...]` | U / S | 单实体详情；`kind ∈ task / execution / worker / issue / supervisor / conversation / input_request / project / worktree / decision` |
-| `query <resource> [--filter=...] [--since=...] [--limit=...] [--cursor=...]` | U / S | 列表查询；`resource ∈ tasks / events / issues / mappings / proposals / ...` |
-| `ps [--watch] [--project=...]` | U / S | fleet view 实时聚合（worker × execution × current_activity） |
-| `stats [--scope=...] [--since=...]` | U / S | 系统级统计（吞吐 / 失败率 / 平均时长 等） |
-| `logs <kind> <id> [--follow] [--since=...]` | U / S | task / execution log 流（含 BlobStore 归档）|
-| `peek-trace <execution_id> [--last=N] [--kind=tool_call\|thinking\|tool_result\|all]` | U / S | 实时窥视 agent trace（worker daemon RPC 透传；[ADR-0015 § 4](../decisions/0015-agent-trace-not-in-events-table.md)）|
-
-### 8.8 System / 运行模式
-
-非任何 BC，是 binary 的 mode + 运维入口：
-
-| 命令 | audience | 简述 |
-|---|---|---|
-| `agent-center server [--config=...]` | U | center 常驻；启动时自动 `migrate.Up`（[02-persistence-schema § 6](02-persistence-schema.md)）|
-| `agent-center supervisor --scope=<scope> [--invocation-id=...] [--trigger-events=...]` | Sys | center 内部 spawn 的 supervisor invocation；用户不直接调 |
-| `agent-center worker [--config=...]` | U | worker daemon 常驻（同 `worker run`）|
-| `agent-center migrate [--target=<version>]` | U | 手动跑 migration（fail-fast 调试用）|
-| `agent-center admin blob-migrate --from=<store> --to=<store>` | U | BlobStore 后端切换数据迁移 |
 | `agent-center version` | U | 版本号 / git commit / build time |
+| `agent-center help` | U | 显示帮助信息 |
+| `agent-center server [--config=...]` | U | center 常驻进程；启动时自动 `migrate.Up` |
+| `agent-center migrate` | U | migration 命令组 |
+| `agent-center migrate up` | U | 手动跑 migration（fail-fast 调试用）|
+| `agent-center migrate v1-to-v2` | U | v1 → v2 数据迁移工具 |
+| `agent-center admin backup` | U | SQLite 备份 |
+| `agent-center admin blob-migrate` | U | BlobStore 后端切换数据迁移 |
+| `agent-center admin token create\|list\|revoke` | U | Admin bearer token 管理（v2.3-3a）|
+| `agent-center bootstrap [check-systemd]` | U | 首次安装检查（Phase 7）|
+| `agent-center install center` | U | 安装 center（systemd/launchd + symlink，v2.4）|
+| `agent-center install worker` | U | 安装 worker daemon |
+| `agent-center install test-instance` | U | 创建隔离测试沙箱（1 center + N workers，v2.8 #255）|
+| `agent-center uninstall center` | U | 卸载 center（v2.5.1）|
+| `agent-center uninstall worker` | U | 卸载 worker daemon |
+| `agent-center uninstall test-instance` | U | 拆除测试沙箱（v2.8 #255）|
+| `agent-center upgrade center` | U | 升级 center binary（v2.5.2）|
+| `agent-center upgrade worker` | U | 升级 worker binary |
+| `agent-center worker enroll` | U | worker 首次注册到 center |
+| `agent-center worker list` | U | 列所有 worker |
+| `agent-center worker status <worker_id>` | U | 单个 worker 详情 |
+| `agent-center worker run [--config=...]` | U | 启动 worker daemon |
+| `agent-center worker shim <execution_id>` | Sys | per-execution shim 进程（用户不直接调）|
+| `agent-center worker mcp-host` | Sys | per-agent stdio MCP server（v2.7 b3-i；daemon 内部 spawn）|
+| `agent-center worker agent-supervisor` | Sys | 持久化 per-agent supervisor（v2.7 D2-f s1；daemon 内部 spawn）|
+| `agent-center list-local-centers` | U | 列出本机所有 center 部署实例（v2.7.1 #211，多实例支持）|
+| `agent-center list-local-workers` | U | 列出本机所有 worker 部署（prod + test，v2.8 #170）|
+| `agent-center list-test-instances` | U | 列出测试沙箱（v2.8 #255）|
+
+### 8.2 已退役命令（v2.7 #162）
+
+以下命令组在 v2.7 #162 中**全部退役**，数据管理 / 数据查询功能迁移至 Web Console API（`/api/*` JSON endpoint + SSE）：
+
+| 退役命令组 | 原 BC | 退役原因 |
+|---|---|---|
+| `project` (add/list/show/update/remove) | Workforce | Web Console API |
+| `conversation` (add-message/list/read) | Conversation | Web Console API |
+| `channel` | Conversation | Web Console API |
+| `message` | Conversation | Web Console API |
+| `agent` (create/list/...) | Agent | Web Console API |
+| `secret` (create/list/...) | SecretManagement | Web Console API |
+| `task create / bind-conversation / ...` | TaskRuntime | Web Console API（TaskRuntime BC 退役，由 ProjectManager BC 取代）|
+| `issue open / comment / conclude / ...` | Discussion | Web Console API |
+| `inspect / query / ps / stats / logs / peek-trace` | Observability | Web Console API |
+| `request-input / report-progress / report-artifact / report-failure` | TaskRuntime | 由 Agent BC + MCP 通道取代 |
+| `supervisor retrigger / record-decision` | Cognition | Web Console API |
+| ~~`identity` / `bridge`~~ | ~~Bridge~~ | v2 ADR-0031 删除 |
+
+> **注**：这些退役命令的 audience 含 `S` / `A` 的功能现在走 MCP server（`worker mcp-host`）和 admin HTTP endpoint，不再通过 CLI 子命令暴露。
 
 ---
 
-## § 9. 代表性详细签名（5 条）
+## § 9. 代表性详细签名
 
-详细展开 5 条**业务路径有 trick** 的命令；其余按 § 8 简述 + § 1-7 元层规则套用即可。
+> **v2.7 NOTE**: 原 § 9 的 5 条代表性签名中，`task create`、`inspect execution`、`worker proposal accept`、`peek-trace` 对应的 CLI 命令已在 v2.7 #162 退役。下面保留 `agent-center server` 启动流程（仍有效）+ `install center` 作为当前命令的代表性签名。
 
-### 9.1 `task create` — 跨聚合双写
-
-```
-agent-center task create <project_id> <title> [--description=...] [--parent=<task_id>] [--from-issue=<issue_id>] [--no-conversation]
-```
-
-| flag | 用途 |
-|---|---|
-| `--description` | task 描述 |
-| `--parent` | sub-task 时填 parent_task_id |
-| `--from-issue` | issue conclude spawn 路径填 from_issue_id |
-| `--no-conversation` | 跳过同事务建 Conversation（b/c/d 路径，[ADR-0017 § 1](../decisions/0039-conversation-business-model-v2-unified.md)）<!-- v1 ref: ADR-0017 superseded by ADR-0039 -->；默认会同事务建 |
-
-**实现路径**（同事务）：
-
-1. 应用层 `TaskService.Create` 拿 ctx → `BeginTx` → `WithTx(ctx, tx)`
-2. `taskRepo.Save(txCtx, task)` — INSERT tasks
-3. 除非 `--no-conversation`：`convRepo.Save(txCtx, conv)` + 回填 `task.conversation_id`
-4. `eventSink.Emit(txCtx, "task.created", refs={task_id, project_id, conversation_id?})`
-5. `Commit`
-
-**输出**（`--format=json`）：
-
-```json
-{"task_id":"01H...","conversation_id":"01H...","version":1}
-```
-
-### 9.2 `inspect execution <id>` — 跨表 JOIN
+### 9.1 `agent-center server` — 启动流程
 
 ```
-agent-center inspect execution <execution_id> [--include-projection] [--include-artifacts] [--format=...]
-```
-
-业务列归 TaskRuntime（`task_executions`），projection 列归 Observability（`task_execution_projections`，[02-persistence-schema § 8.2](02-persistence-schema.md)）。
-
-**实现路径**：
-
-1. `taskExecutionRepo.FindByID(ctx, id)` — SELECT task_executions
-2. 若 `--include-projection`：`projectionRepo.FindByID(ctx, id)` — SELECT task_execution_projections（PK 1:1 JOIN）
-3. 若 `--include-artifacts`：`artifactRepo.FindByExecutionID(ctx, id)`
-4. 应用层组装返回 struct
-
-> 用 multi-roundtrip 不用 SQL JOIN：保 BC 物理隔离（[conventions § 9.z](../../rules/conventions.md)），代价是 SQLite 同库多 round trip，可忽略。
-
-### 9.3 `worker proposal accept` — 跨 BC 状态推进
-
-```
-agent-center worker proposal accept <proposal_id> [--project-id=<slug>] [--name=...]
-```
-
-| flag | 用途 |
-|---|---|
-| `--project-id` | 显式指定 project slug（已存在则关联，未存在则新建）|
-| `--name` | project name（仅 `--project-id` 是新 slug 时用）|
-
-**实现路径**（跨聚合，同事务）：
-
-1. `proposalRepo.FindByID(ctx, id)` — verify proposal 在 pending
-2. 检查 / 创建 Project（若 `--project-id` 是新 slug）
-3. `mappingRepo.Save(txCtx, mapping)` — INSERT WorkerProjectMapping
-4. `proposalRepo.UpdateStatus(txCtx, id, pending→accepted, version)` — CAS
-5. `eventSink.Emit(txCtx, "worker_project_proposal.accepted", ...)` + `worker_project_mapping.created`
-6. Commit
-
-**失败 exit code**：
-
-- 16 — proposal version conflict（被其它路径改了）
-- 18 — proposal 已不在 pending（已 accept / ignore / superseded）
-- 19 — invariant 违反（同 worker + path 已有 mapping）
-
-### 9.4 `agent-center server` — 启动流程
-
-```
-agent-center server [--config=<path>] [--migrate-only]
+agent-center server [--config=<path>]
 ```
 
 启动顺序（fail-fast，任何步骤失败立即 panic 退出）：
 
 1. 解析 config（默认 `/etc/agent-center/config.yaml`）
 2. 打开 SQLite（DSN 见 [02-persistence-schema § 1.2](02-persistence-schema.md)）
-3. `migrate.Up`（自动跑 embed 的 migration FS）；`--migrate-only` 则做完退出
+3. `migrate.Up`（自动跑 embed 的 migration FS）
 4. 初始化 BlobStore（按 config）
-5. 启动 gRPC worker 端口
-6. 启动 supervisor invocation 触发器（events 驱动 spawn）
-7. ~~启动 Bridge 长连接（飞书 WebSocket）~~ (v2 删 per ADR-0031)
+5. 启动 admin endpoint（unix socket + 可选 TCP TLS）
+6. 启动 Web Console HTTP server（`:7100`，loopback only per ADR-0037）
+7. 启动 outbox relay + 定时器（reminders / GC / etc.）
 8. ready；接受请求
 
-### 9.5 `peek-trace` — agent trace 实时窥视
+### 9.2 `agent-center install center` — 部署安装
 
 ```
-agent-center peek-trace <execution_id> [--last=N] [--kind=tool_call|thinking|tool_result|all] [--follow]
+agent-center install center [--instance=<name>]
 ```
 
-- worker daemon 端 RPC 透传：center 收请求 → 转 worker daemon → 读本地 `trace.jsonl`（当前 execution shim 的） → 流回 center → 流回用户
-- 不依赖归档；execution 进行中即可窥视
-- `--follow` 模式：daemon 把后续 trace 实时推回
-- audience 主要是 supervisor 决策时按需深挖（[ADR-0015 § 4](../decisions/0015-agent-trace-not-in-events-table.md)）；用户也可用
+- 创建系统用户 / 目录 / systemd(Linux) 或 launchd(macOS) service unit
+- symlink binary 到 `/usr/local/bin/agent-center`（或 versioned path）
+- `--instance` 支持单机多实例部署（v2.7.1 #211）；不同 instance 使用不同 install prefix + service label
+- 若已安装则自动走升级路径（等效 `upgrade center`）
 
 ---
 
-## § 10. 与 P8a 各 BC Repository 的对位
+## § 10. CLI ↔ Repository / API 对位
 
-| BC | Repository（P8a） | 主要 CLI 入口（§ 8） |
+> **v2.7+ UPDATE**: 数据管理操作不再通过 CLI 子命令，而是通过 Web Console API endpoint（`/api/*`）完成。CLI 保留的命令主要对应部署 / 生命周期操作。
+
+| 操作领域 | v2.7 之前（CLI 命令）| v2.7+（当前入口）|
 |---|---|---|
-| TaskRuntime | TaskRepository | `task create / bind-conversation` / `inspect task` / `query tasks` |
-| TaskRuntime | TaskExecutionRepository | `dispatch` / `kill-execution` / `inspect execution` / `report-failure` |
-| TaskRuntime | InputRequestRepository | `request-input` / `escalate-input-request` / `inspect input_request` |
-| TaskRuntime | ArtifactRepository | `report-artifact` |
-| Discussion | IssueRepository | `issue open / comment / conclude / link-conversation` / `open-issue` |
-| Workforce | WorkerRepository | `worker enroll / run / list / status` |
-| Workforce | WorkerProjectMappingRepository | `worker proposal accept`（创建 mapping）|
-| Workforce | WorkerProjectProposalRepository | `worker proposal list / show / accept / ignore / unignore` |
-| Workforce | ProjectRepository | `project add / list / show / update / remove` |
-| Conversation | ConversationRepository | `conversation add-message / list / read` |
-| Cognition | SupervisorInvocationRepository | `supervisor retrigger` / `inspect supervisor` |
-| Cognition | DecisionRecordRepository | `record-decision` / `inspect decision` |
-| Observability | EventRepository | `query events` / `inspect <kind>` 的事件流字段 |
-| Observability | TaskExecutionProjectionRepository | `inspect execution --include-projection` / `ps` |
-| Observability | TraceArchiveRepository | `peek-trace` / `logs` 归档段 |
+| Task / Issue / Plan 管理 | `task create` / `issue open` / ... | Web Console API (`/api/...`) |
+| Conversation / Message | `conversation add-message` / `conversation read` | Web Console API + SSE |
+| Agent 管理 | `agent create` / ... | Web Console API |
+| Secret 管理 | `secret create` / ... | Web Console API |
+| Worker 注册 | `worker enroll` | **CLI 保留** |
+| Worker 状态 | `worker list` / `worker status` | **CLI 保留** + Web Console |
+| 部署安装 | `install center\|worker` | **CLI 保留** |
+| 升级 | `upgrade center\|worker` | **CLI 保留** |
+| 卸载 | `uninstall center\|worker` | **CLI 保留** |
+| Observability 查询 | `inspect` / `query` / `ps` / `stats` / `logs` / `peek-trace` | Web Console API |
+| Migration | `migrate up` / `migrate v1-to-v2` | **CLI 保留** |
+| Admin token | `admin token create\|list\|revoke` | **CLI 保留** |
+| 多实例管理 | N/A | `list-local-centers` / `list-local-workers` / `list-test-instances`（**CLI 新增**）|
 
 ---
 
-> **本文档 scope**：v1 实现层 CLI 元层规则 + 全量命令清单（按 BC 分组）+ 5 条代表性详细签名。每条命令的完整 flag / arg / 输出 schema 落代码时以 `--help` 文本 + 集成测试为准；新增 audience 含 S / A 的命令时同步更新 `supervisor.md` / `worker-agent.md` skill 文档（CI 校验）。
+> **本文档 scope**：v1 实现层 CLI 元层规则 + v2.7+ 命令清单。v2.7 #162 将 CLI 从 50+ 命令精简至约 9 个顶层部署 / 生命周期命令。数据管理功能全部迁移至 Web Console API。当前命令的完整 flag / arg / 输出 schema 以 `--help` 文本 + `internal/cli/build.go` 为准。

@@ -201,12 +201,73 @@ var migrationsFS embed.FS
 
 其余 5 BC（Cognition / Workforce / Discussion / Conversation / ~~Bridge (v2 deleted per ADR-0031)~~）的 DDL 不在 P8b 展开；落代码时按 § 1-7 套用即可。出现新 schema pattern 时回 P8b 补元层规则。
 
-### 8.1 TaskRuntime
+> **v2.7+ UPDATE (2026-06-26)**：截至 migration 0081，实际 schema 已大幅超出 P8b 首版描述。本节补充完整表清单 + 新增 BC 概览。TaskRuntime BC 表已在 v2.7 被 ProjectManager BC 取代（见 § 8.4）。
+
+### 8.0 当前表清单（截至 migration 0081）
+
+以下按 BC 分组列出所有当前 active 表。标注 `RETIRED` 的表已被后续 migration 废弃或功能取代。
+
+| BC | 表 | 首次出现 | 状态 |
+|---|---|---|---|
+| **TaskRuntime** | `tasks` | 0002 | **RETIRED** — v2.7 功能由 `pm_tasks` 取代 |
+| **TaskRuntime** | `task_executions` | 0002 | **RETIRED** — v2.7 功能由 Agent BC `agent_work_items` + `agent_activity_events` 取代 |
+| **TaskRuntime** | `input_requests` | 0002 | **RETIRED** |
+| **Observability** | `events` | 0001 | active |
+| **Observability** | `task_execution_projections` | 0004 | active |
+| **Discussion** | `issues` | 0003 | active（v2.7 前的 discussion issue；PM BC 有 `pm_issues`）|
+| **Conversation** | `conversations` | 0020 (reset) | active |
+| **Conversation** | `messages` | 0020 (reset) | active |
+| **Conversation** | `user_conversation_read_states` | 0026 | active |
+| **Conversation** | `user_conversation_follow_states` | 0050 | active |
+| **Cognition** | `supervisor_invocations` | 0006 | active |
+| **Cognition** | `reminders` | 0062 | active |
+| **Cognition** | `reminder_firings` | 0062 | active |
+| **Identity (BC9)** | `identities` | 0033 (recreated) | active — v2.7.1 新增 `email`, `last_session_at` 列 |
+| **Identity (BC9)** | `organizations` | 0033 | active — v2.15.3 新增 `disabled` 列 |
+| **Identity (BC9)** | `members` | 0033 | active |
+| **Identity (BC9)** | `invitations` | 0033 | active |
+| **Workforce** | `projects` | 0032 (simplified) | active（legacy 模型；PM BC 有 `pm_projects`）|
+| **Workforce** | `workers` | 0001 | active |
+| **SecretManagement** | `user_secrets` | 0012 | active |
+| **Admin** | `admin_tokens` | 0028 | active |
+| **ProjectManager** | `pm_projects` | 0041 | active |
+| **ProjectManager** | `pm_project_members` | 0041 | active |
+| **ProjectManager** | `pm_issues` | 0041 | active |
+| **ProjectManager** | `pm_tasks` | 0041 | active |
+| **ProjectManager** | `pm_task_subscribers` | 0041 | active |
+| **ProjectManager** | `pm_issue_subscribers` | 0041 | active |
+| **ProjectManager** | `pm_code_repo_refs` | 0041 | active |
+| **ProjectManager** | `pm_plans` | 0054 | active |
+| **ProjectManager** | `pm_task_dependencies` | 0054 | active — v2.13 新增 `kind`, `when`, `max_rounds` 列 |
+| **ProjectManager** | `pm_plan_dispatch_records` | 0055 | active |
+| **ProjectManager** | `pm_plan_decision_outcomes` | 0069 | active |
+| **ProjectManager** | `pm_plan_loop_rounds` | 0069 | active |
+| **Agent** | `agents` | 0042 | active |
+| **Agent** | `agent_work_items` | 0043 | active |
+| **Agent** | `agent_activity_events` | 0043 | active |
+| **Agent** | `agent_work_item_projections` | 0046 | active |
+| **Environment** | `env_workers` | 0044 | active |
+| **Environment** | `worker_control_events` | 0044 | active |
+| **Files** | `blob_metadata` | 0039 | active |
+| **Files** | `file_references` | 0039 | active |
+| **Files** | `file_transfer_sessions` | 0045 | active |
+| **Outbox** | `outbox_events` | 0040 | active |
+| **Outbox** | `outbox_applied` | 0040 | active |
+| **Usage** | `model_prices` | 0077 | active |
+| **Usage** | `usage_events` | 0077 | active |
+| **Usage** | `agent_activity_daily` | 0078 | active |
+| **System** | `center_settings` | 0064 | active |
+| ~~**Bridge**~~ | `feishu_delivery_ledger` | 0005 | **RETIRED** — v2 dropped (0025) per ADR-0031 |
+| ~~**Bridge**~~ | `bridge_subscription_cursors` | 0005 | **RETIRED** — v2 dropped (0025) per ADR-0031 |
+
+### 8.1 TaskRuntime (RETIRED — v2.7)
+
+> **v2.7 RETIREMENT NOTICE**: TaskRuntime BC 的 `tasks` / `task_executions` / `input_requests` 表在 v2.7 中被 ProjectManager BC（`pm_tasks` 等）和 Agent BC（`agents` / `agent_work_items`）取代。下述 DDL 保留作为历史参考。
 
 #### 8.1.1 DDL
 
 ```sql
--- tasks ---------------------------------------------------------------
+-- tasks (RETIRED v2.7 — replaced by pm_tasks) -------------------------
 CREATE TABLE tasks (
     id                       TEXT PRIMARY KEY,
     project_id               TEXT NOT NULL,
@@ -386,19 +447,42 @@ LIMIT ?;
 
 ## § 9. 与 P8a Repository 接口的对位
 
+> **v2.7+ UPDATE**: 下表同步更新以反映实际落地的全部 BC 表对位。TaskRuntime 行标注 RETIRED。
+
 | BC | Repository（P8a 接口） | 物理表（P8b） | 关键 SQL |
 |---|---|---|---|
-| TaskRuntime | TaskRepository | `tasks` | CAS UPDATE |
-| TaskRuntime | TaskExecutionRepository | `task_executions` | CAS + 状态机校验 + 终态 reason+message |
-| TaskRuntime | InputRequestRepository | `input_requests`（DDL 落代码时给） | CAS |
-| TaskRuntime | ArtifactRepository | `artifacts`（DDL 落代码时给） | append-only INSERT |
+| ~~TaskRuntime~~ | ~~TaskRepository~~ | ~~`tasks`~~ | ~~CAS UPDATE~~ (RETIRED v2.7 → `pm_tasks`) |
+| ~~TaskRuntime~~ | ~~TaskExecutionRepository~~ | ~~`task_executions`~~ | ~~CAS + 状态机校验~~ (RETIRED v2.7 → `agent_work_items`) |
+| ~~TaskRuntime~~ | ~~InputRequestRepository~~ | ~~`input_requests`~~ | (RETIRED v2.7) |
 | Observability | EventRepository | `events` | append-only INSERT |
 | Observability | TaskExecutionProjectionRepository | `task_execution_projections` | UPSERT（不走 CAS） |
 | Observability | TraceArchiveRepository | **不在 DB** | 见 [01-blob-store](01-blob-store.md) |
-| Cognition / Workforce / Discussion / Conversation / ~~Bridge (v2 删 per ADR-0031)~~ | 各 § 5 Repository | DDL 落代码时按 § 1-7 套用 | - |
+| **ProjectManager** | ProjectRepository | `pm_projects` | CAS UPDATE |
+| **ProjectManager** | IssueRepository | `pm_issues` | CAS UPDATE |
+| **ProjectManager** | TaskRepository | `pm_tasks` | CAS UPDATE |
+| **ProjectManager** | PlanRepository | `pm_plans` / `pm_task_dependencies` / `pm_plan_dispatch_records` | CAS + DAG 边管理 |
+| **Agent** | AgentRepository | `agents` | CAS UPDATE |
+| **Agent** | AgentWorkItemRepository | `agent_work_items` | CAS UPDATE |
+| **Agent** | AgentActivityEventRepository | `agent_activity_events` | append-only INSERT |
+| **Identity (BC9)** | IdentityRepository | `identities` | CAS UPDATE |
+| **Identity (BC9)** | OrganizationRepository | `organizations` | CAS UPDATE |
+| **Identity (BC9)** | MemberRepository | `members` | CAS UPDATE |
+| **Identity (BC9)** | InvitationRepository | `invitations` | CAS UPDATE |
+| **Environment** | EnvWorkerRepository | `env_workers` | CAS UPDATE |
+| **Environment** | WorkerControlEventRepository | `worker_control_events` | append-only INSERT（per-worker offset 单调递增）|
+| **Cognition** | ReminderRepository | `reminders` / `reminder_firings` | CAS + append-only |
+| **Conversation** | ConversationRepository | `conversations` / `messages` | CAS + append-only |
+| **Files** | BlobMetadataRepository | `blob_metadata` | INSERT（write-once）|
+| **Files** | FileReferenceRepository | `file_references` | INSERT + soft-delete |
+| **Files** | FileTransferSessionRepository | `file_transfer_sessions` | CAS UPDATE |
+| **Outbox** | OutboxRepository | `outbox_events` / `outbox_applied` | INSERT + dedup |
+| **Usage** | UsageEventRepository | `usage_events` / `model_prices` | INSERT + seed |
+| **SecretManagement** | UserSecretRepository | `user_secrets` | CAS UPDATE |
+| **Admin** | AdminTokenRepository | `admin_tokens` | CAS UPDATE |
+| **System** | CenterSettingsRepository | `center_settings` | UPSERT |
 
 ---
 
-> **本文档 scope**：v1 实现层规则 + 代表性 BC 切片。其余 BC 完整 DDL 落代码时以 migration SQL 为准。出现新 schema pattern（新编码 / 新锁模式 / 新 tx 边界）时回本文档补 § 1-7。
+> **本文档 scope**：v1 实现层规则 + 代表性 BC 切片。v2.7+ 新增 BC 的完整 DDL 以 `internal/persistence/migrations/*.up.sql`（截至 0081）为准。出现新 schema pattern（新编码 / 新锁模式 / 新 tx 边界）时回本文档补 § 1-7。
 >
-> **历史**：2026-05-20 P8b 首版 —— [conventions § 9.z](../../rules/conventions.md) BC 物理隔离生效，`task_execution_projections` 从 `task_executions` 拆出。
+> **历史**：2026-05-20 P8b 首版 —— [conventions § 9.z](../../rules/conventions.md) BC 物理隔离生效，`task_execution_projections` 从 `task_executions` 拆出。2026-06-26 v2.7+ sweep —— § 8.0 表清单 + § 9 对位表同步至 migration 0081。

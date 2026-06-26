@@ -36,6 +36,8 @@ identity (
   account_status  TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'disabled'
   passcode_hash   TEXT,               -- argon2id；user 必填；agent 必 NULL
   passcode_set_at TIMESTAMP,          -- user 必填
+  email           TEXT,               -- v2.7.1 #214；user-only；nullable（pre-v2.7.1 用户无此值）
+  last_session_at TIMESTAMP,          -- v2.7.1 #214；user-only；最后成功 signin 时间；nullable
   created_at      TIMESTAMP NOT NULL,
   updated_at      TIMESTAMP NOT NULL
 );
@@ -59,6 +61,8 @@ CREATE INDEX identity_kind_status_idx
 | `account_status` | enum | ✓ | `active`（默认）/ `disabled` |
 | `passcode_hash` | TEXT | user-only | argon2id（iter=3, mem=64MiB, par=4） |
 | `passcode_set_at` | TIMESTAMP | user-only | passcode 设置/修改时间 |
+| `email` | TEXT | — | v2.7.1 #214；nullable `*string`；user-only（agent 始终 nil）；轻量格式校验（非验证）；DB partial unique index 保证唯一性 |
+| `last_session_at` | TIMESTAMP | — | v2.7.1 #214；nullable `*time.Time`；user-only；记录最后一次成功 signin 时间（`SigninService` + signup auto-signin 调 `RecordSession` 写入）；首次 v2.7.1 登录前为 nil |
 | `created_at` / `updated_at` | TIMESTAMP | ✓ | 标准 audit |
 
 ---
@@ -89,7 +93,18 @@ CREATE INDEX identity_kind_status_idx
 `/me` 页（user）/ Members 页 admin 操作（agent）：
 - update + emit `identity.updated`（如有；可合并到 member.updated 事件）
 
-### 3.5 Disable / Re-enable
+### 3.5 Set Email（v2.7.1 #214，user kind only）
+
+`/me` 页或 admin API：
+- `SetEmail(email)` —— 轻量格式校验（非空、单 `@`、domain 含 `.`、长度 ≤ 254）；user-only（agent 拒 error）
+- 唯一性由 DB partial unique index 兜底，handler 映射 constraint error → 409
+- emit `identity.updated`
+
+### 3.6 Record Session（v2.7.1 #214，user kind only）
+
+`RecordSession(at)` —— 由 `SigninService` + signup auto-signin 调用，记录最后成功 signin 时间。agent kind no-op。
+
+### 3.7 Disable / Re-enable
 
 由 admin 在 Members 页操作：
 - 写 `account_status = 'disabled'` + emit `identity.account_disabled`

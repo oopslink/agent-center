@@ -1,4 +1,6 @@
-# Identity 聚合
+# Identity 聚合（RETIRED）
+
+> **RETIRED (v2.6 ADR-0040 Identity BC carve-out).** Identity 已从 Conversation BC 拆出，独立为 Identity BC。当前设计见 [architecture/tactical/identity/](../../architecture/tactical/identity/)。本文件仅保留历史记录。
 
 > **DDD 战术层** · BC: Conversation · 聚合: Identity（AR）
 >
