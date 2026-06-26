@@ -31,7 +31,7 @@ func TestCodexSession_RealCodex_EndToEnd(t *testing.T) {
 	h := newHarness()
 	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
 		AgentID:      "e2e-codex",
-		WorkspaceDir: workspace,
+		TasksDir: workspace,
 		OnEvent:      h.onEvent,
 		OnExit:       h.onExit,
 		Logger:       func(m string) { t.Log(m) },

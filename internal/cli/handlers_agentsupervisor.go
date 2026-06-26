@@ -93,7 +93,7 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		HomeDir:      homeDir,
 		SockPath:     agentsupervisor.SockPath(agentID),
 		ChildCmd:     childCmd,
-		WorkspaceDir: strings.TrimSpace(workspaceDir),
+		TasksDir: strings.TrimSpace(workspaceDir),
 		// T469: inject the human-readable display_name into git author/committer NAME
 		// via the ② AgentEnv seam. mergeGitIdentity overlays this OVER the AgentID
 		// (ULID) default, keeping EMAIL=<agent-id>@agent-center. Empty display_name →

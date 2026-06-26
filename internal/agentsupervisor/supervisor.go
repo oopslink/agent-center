@@ -83,8 +83,8 @@ type Config struct {
 	// real claude required.
 	ChildCmd []string
 
-	// WorkspaceDir is the child process cwd (empty = inherit the supervisor's).
-	WorkspaceDir string
+	// TasksDir is the child process cwd (empty = inherit the supervisor's).
+	TasksDir string
 
 	// AgentEnv is the center-injected per-agent env (Profile.EnvVars, slice ②),
 	// overlaid AS-IS on top of the allowlisted system env when building claude's
@@ -235,8 +235,8 @@ func (s *Supervisor) Start() error {
 	// IMPORTANT: plain exec.Command, NOT CommandContext bound to a cancelable
 	// ctx — the child must OUTLIVE transient things (the whole survival point).
 	s.cmd = exec.Command(s.cfg.ChildCmd[0], s.cfg.ChildCmd[1:]...)
-	if s.cfg.WorkspaceDir != "" {
-		s.cmd.Dir = s.cfg.WorkspaceDir
+	if s.cfg.TasksDir != "" {
+		s.cmd.Dir = s.cfg.TasksDir
 	}
 	// v2.7 security (C+A): build a CONTROLLED env for claude — allowlisted system
 	// env (NO worker secrets) + the AgentEnv overlay (② seam). NOT raw os.Environ()

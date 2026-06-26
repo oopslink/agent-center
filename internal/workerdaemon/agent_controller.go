@@ -1302,7 +1302,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		AgentID:             agentID,
 		HomeDir:             home,
 		MCPConfigPath:       mcpPath,
-		WorkspaceDir:        tasksDir,
+		TasksDir:            tasksDir,
 		BinaryPath:          c.cfg.BinaryPath,
 		ClaudeBin:           c.cfg.ClaudeBinary,
 		Model:               model,
@@ -1366,7 +1366,7 @@ func (c *AgentController) startCodexSession(ctx context.Context, agentID string,
 
 	sess, err := c.cfg.codexStarter(ctx, CodexSessionConfig{
 		AgentID:      agentID,
-		WorkspaceDir: workspace,
+		TasksDir: workspace,
 		Binary:       c.cfg.CodexBinary,
 		Model:        model,
 		Logger:       c.cfg.Logger,

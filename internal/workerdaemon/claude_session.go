@@ -69,11 +69,11 @@ type procLauncher interface {
 
 // ClaudeLaunchSpec carries everything needed to assemble the long-lived
 // `claude` invocation. AgentID becomes the persistent --session-id; MCPConfig
-// is the absolute path passed via --mcp-config; WorkspaceDir is the process
+// is the absolute path passed via --mcp-config; TasksDir is the process
 // cwd; Env is merged into the child env.
 type ClaudeLaunchSpec struct {
 	AgentID       string
-	WorkspaceDir  string
+	TasksDir      string
 	MCPConfigPath string
 	Env           map[string]string
 	// Binary overrides the claude binary path (empty = resolved from $PATH as
@@ -122,7 +122,7 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 		// threads the durable epoch instead.
 		ExecutionID: claudestream.SessionUUID(spec.AgentID, 0),
 		Prompt:      claudeStreamSentinelPrompt,
-		WorkingDir:  spec.WorkspaceDir,
+		WorkingDir:  spec.TasksDir,
 		Env:         spec.Env,
 	}
 	// The adapter is the single source of truth for the child ENV (skills,
@@ -142,8 +142,8 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 	}
 
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	if spec.WorkspaceDir != "" {
-		cmd.Dir = spec.WorkspaceDir
+	if spec.TasksDir != "" {
+		cmd.Dir = spec.TasksDir
 	}
 	cmd.Env = cmdSpec.Env
 	// Own process group so Stop can signal the whole tree (claude forks MCP
@@ -222,8 +222,8 @@ type ClaudeSessionConfig struct {
 	// HomeDir is the per-agent home directory; the --mcp-config file is
 	// written under it.
 	HomeDir string
-	// WorkspaceDir is the process cwd (empty = inherit).
-	WorkspaceDir string
+	// TasksDir is the process cwd (empty = inherit).
+	TasksDir string
 	// Launcher starts the process. Defaults to execLauncher when nil.
 	Launcher procLauncher
 	// MCPConfigBytes is the pre-generated --mcp-config document content. When
@@ -286,7 +286,7 @@ func StartClaudeSession(ctx context.Context, cfg ClaudeSessionConfig) (*ClaudeSe
 
 	spec := ClaudeLaunchSpec{
 		AgentID:       cfg.AgentID,
-		WorkspaceDir:  cfg.WorkspaceDir,
+		TasksDir:      cfg.TasksDir,
 		MCPConfigPath: mcpPath,
 		Env:           cfg.Env,
 		Binary:        cfg.Binary,
