@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安装指南 · 手册 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.doc { max-width: var(--maxw); margin: 0 auto; padding: 30px 24px 70px; }
+.doc h1 { font-size: 34px; font-weight: 800; margin-bottom: 8px; }
+.doc .dek { color: var(--ink-2); margin-bottom: 30px; }
+.doc h2 { font-size: 22px; font-weight: 700; margin: 36px 0 14px; padding-top: 20px; border-top: 1px solid var(--border); }
+.doc h2:first-of-type { border-top: 0; margin-top: 0; }
+.doc h3 { font-size: 17px; font-weight: 700; margin: 24px 0 10px; }
+.doc p { color: var(--ink-2); line-height: 1.7; margin: 10px 0; }
+.doc pre { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+.doc code { font-family: var(--font-mono); font-size: 13px; }
+.doc p code, .doc li code { background: var(--bg-subtle); padding: 2px 6px; border-radius: 4px; font-size: 12.5px; }
+.doc ul, .doc ol { color: var(--ink-2); line-height: 1.7; padding-left: 24px; }
+.doc table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13.5px; }
+.doc th { text-align: left; font-weight: 600; padding: 8px 12px; border-bottom: 2px solid var(--border); }
+.doc td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--ink-2); }
+.doc .note { background: var(--core-bg); border: 1px solid var(--core-bd); border-radius: var(--r-md); padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+.doc .warn { background: #fef3c7; border: 1px solid #fde68a; border-radius: var(--r-md); padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+.doc .back { font-family: var(--font-mono); font-size: 13px; color: var(--accent); margin-bottom: 16px; display: inline-block; }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a href="../../dev/v2.15.0/index.html">架构</a><a class="active" href="index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+<div class="doc">
+  <a class="back" href="index.html">← 手册首页</a>
+
+  <h1>安装指南</h1>
+  <p class="dek">Center + Worker 的完整安装、Bootstrap、升级与卸载流程。</p>
+
+  <!-- § 1 -->
+  <h2>§ 1 安装 Center</h2>
+  <p><code>agent-center</code> 是单一 Go binary（Web Console React SPA 通过 <code>go:embed</code> 内嵌），无额外依赖。</p>
+
+  <h3>1.1 从发行包安装</h3>
+  <p>下载对应平台的 release tarball（命名格式 <code>agent-center-&lt;os&gt;-&lt;arch&gt;-&lt;version&gt;-&lt;sha&gt;</code>），解压后运行：</p>
+  <pre><code>tar xzf agent-center-v2.15.0-darwin-arm64.tar.gz
+cd agent-center-v2.15.0-darwin-arm64/
+./install center</code></pre>
+  <p>默认 prefix：<code>~/.agent-center</code>（macOS / Linux user mode）或 <code>/opt/agent-center</code>（Linux system mode）。可用 <code>--prefix=&lt;dir&gt;</code> 覆盖。</p>
+
+  <h3>1.2 从源码构建</h3>
+  <pre><code>git clone https://github.com/oopslink/agent-center.git
+cd agent-center
+make build                  # = build-frontend + build-backend
+                            # 产物 → ./bin/agent-center (~17-18 MB)</code></pre>
+  <p>构建完成后手动安装：</p>
+  <pre><code>./bin/agent-center install center</code></pre>
+
+  <h3>1.3 Source guided installer</h3>
+  <pre><code># 交互式向导（询问 mode、version、prefix）
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh | bash
+
+# 固定版本安装（推荐生产使用）
+curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/v2.15.0/install.sh \
+  | bash -s -- center --version v2.15.0</code></pre>
+
+  <h3>1.4 前台 vs 后台服务</h3>
+  <p><code>install center</code> 默认只部署文件与配置，打印前台启动命令：</p>
+  <pre><code>agent-center server --config=&lt;prefix&gt;/etc/config.yaml   # 日志输出到 stdout</code></pre>
+  <p>如需注册后台服务（开机自启动），加 <code>--service</code>：</p>
+  <pre><code>./install center --service   # macOS → LaunchAgent，Linux → systemd unit</code></pre>
+  <div class="note"><code>install center</code> 是幂等且 upgrade-aware 的：重复运行相同版本会跳过；新版本会执行升级。</div>
+
+  <table>
+    <tr><th>默认端口</th><th>地址</th><th>用途</th></tr>
+    <tr><td>Web Console</td><td><code>127.0.0.1:7100</code></td><td>浏览器打开</td></tr>
+    <tr><td>Center server</td><td><code>:7050</code></td><td>内部服务端口</td></tr>
+    <tr><td>Admin TCP</td><td><code>0.0.0.0:7300</code></td><td>Worker enroll / 连接</td></tr>
+  </table>
+  <div class="warn"><strong>macOS AirPlay 注意</strong>：macOS Ventura+ 的 AirPlay Receiver 占用端口 7000，因此 center 默认使用 <code>:7050</code>。如遇端口冲突，请关闭 <em>System Settings → General → AirDrop &amp; Handoff → AirPlay Receiver</em>。</div>
+
+  <!-- § 2 -->
+  <h2>§ 2 安装 Worker</h2>
+  <p>Worker 可以部署在与 center 同一台机器，也可以部署在任意其他开发机上。</p>
+
+  <h3>2.1 通过 Web Console 生成安装命令</h3>
+  <p>在 Web Console 点击 <strong>"+ Add Worker"</strong>，输入名称，复制生成的命令（含 bootstrap URL、enroll token、server fingerprint）：</p>
+  <pre><code>./install worker \
+  --bootstrap=tcp://HOST:7300 \
+  --server-fingerprint=sha256:... \
+  --token=enroll_... \
+  --worker-id=worker-... --worker-name="my box"</code></pre>
+
+  <h3>2.2 平台自动检测</h3>
+  <p><code>install worker</code> 自动检测当前平台：</p>
+  <ul>
+    <li><strong>macOS</strong> → 生成 LaunchAgent plist（加 <code>--service</code> 时）</li>
+    <li><strong>Linux</strong> → 生成 user systemd unit（加 <code>--service</code> 时）</li>
+  </ul>
+  <p>默认前台模式，打印启动命令：</p>
+  <pre><code>agent-center worker run --config=&lt;prefix&gt;/etc/config.yaml</code></pre>
+
+  <h3>2.3 多 worker 共存</h3>
+  <p>同一台机器可安装多个 worker，每个使用独立子目录（<code>&lt;prefix&gt;/workers/&lt;worker-id&gt;/</code>）。加 <code>--service</code> 时各自获得独立的 service label（<code>com.agent-center.worker.&lt;worker-id&gt;</code>），互不冲突。</p>
+
+  <h3>2.4 Worker 文件布局</h3>
+  <pre><code>~/.agent-center-worker/
+├── config.yaml             # mode=worker 配置（v2.7.1 起为 single source of truth）
+├── session-token           # 长期 session token（enroll 后写入）
+├── daemon.sock             # worker daemon unix socket
+├── exec/                   # per-execution 目录
+│   └── &lt;execution_id&gt;/
+│       ├── envelope.json
+│       ├── status.json
+│       ├── events.jsonl
+│       └── agent.log
+└── blobs-staging/          # BlobStore 上传暂存</code></pre>
+
+  <!-- § 3 -->
+  <h2>§ 3 Bootstrap &amp; Enroll</h2>
+
+  <h3>3.1 Bootstrap token</h3>
+  <p>Center 首次启动时在 <code>&lt;sqlite_dir&gt;/bootstrap_token</code> 写入一个 <code>*</code> scope 的 system bootstrap token（mode 0600）。应尽快用它 mint 长期 scoped token 后 revoke：</p>
+  <pre><code># 用 bootstrap token mint worker daemon 的长期 token
+export AGENT_CENTER_ADMIN_TOKEN=$(cat /var/lib/agent-center/bootstrap_token)
+agent-center admin token create \
+  --owner=worker:mac-w-1 \
+  --scopes=dispatch:pull,secret:resolve,blob:put,task:*</code></pre>
+
+  <h3>3.2 Worker enroll 流程</h3>
+  <ol>
+    <li>在 Web Console 点 <strong>"+ Add Worker"</strong>，系统生成一次性 enroll token</li>
+    <li>在 worker 机器执行生成的 <code>install worker</code> 命令</li>
+    <li>Worker 启动后自动用 token 完成握手，token 用完即删</li>
+    <li>握手成功后写入长期 <code>session-token</code>，后续通信使用此 token</li>
+  </ol>
+  <div class="note"><code>--server-fingerprint</code> 在 <code>tcp://</code> 模式下必须提供（SSH-style fingerprint pinning），防止中间人攻击。</div>
+
+  <!-- § 4 -->
+  <h2>§ 4 升级</h2>
+
+  <h3>4.1 升级 center</h3>
+  <p>从源码：</p>
+  <pre><code>git pull
+make build
+./bin/agent-center upgrade center</code></pre>
+  <p>从发行包：重新解压新版本并运行 <code>./install center</code>，自动检测已有安装并执行升级。</p>
+  <p>升级流程：复制新 binary → 原子 symlink 切换（<code>current</code> → 新版本）→ health probe → 失败自动回滚。配置文件（端口、blob store、keys）跨版本保留。</p>
+  <p>启动时自动执行 DB migration。Downtime 约 2-5 秒，worker 自动重连。</p>
+
+  <h3>4.2 升级 worker</h3>
+  <p>指定 <code>--worker-id</code> 以定位正确的 worker subtree（多 worker 主机场景）：</p>
+  <pre><code>git pull && make build
+./bin/agent-center upgrade worker --worker-id=worker-...</code></pre>
+  <p>升级不中断正在运行的 agent：daemon 重启后 reconcile 扫描活跃 shim 进程并续接。</p>
+
+  <h3>4.3 手动回滚</h3>
+  <pre><code># Center 回滚到上一版本
+sudo ln -sfn /opt/agent-center/releases/&lt;previous-sha&gt; /opt/agent-center/current
+sudo systemctl restart agent-center</code></pre>
+  <div class="warn">含不可逆 schema migration 时，需先恢复 SQLite snapshot。建议升级前备份。</div>
+
+  <!-- § 5 -->
+  <h2>§ 5 卸载</h2>
+
+  <h3>5.1 卸载 center</h3>
+  <pre><code>agent-center uninstall center</code></pre>
+  <p>默认保留数据目录（SQLite、blobs、memory）。如需彻底清除：</p>
+  <pre><code>agent-center uninstall center --purge</code></pre>
+
+  <h3>5.2 卸载 worker</h3>
+  <pre><code>agent-center uninstall worker --worker-id=worker-...</code></pre>
+  <p>移除对应 worker 的子目录与 service 注册（LaunchAgent / systemd unit）。</p>
+
+  <!-- § 6 -->
+  <h2>§ 6 Test Instance（沙箱）</h2>
+  <p>v2.8 起支持 <code>install test-instance</code>，创建隔离的测试环境（独立 center + N workers），适用于功能验证与 CI：</p>
+  <pre><code>agent-center install test-instance</code></pre>
+  <p>Test instance 特性：</p>
+  <ul>
+    <li>独立 install prefix、service label、SQLite、admin socket</li>
+    <li>与生产 center 实例完全隔离，互不影响</li>
+    <li>可在同一台机器上运行多个 test instance</li>
+  </ul>
+  <div class="note">单机多 center 实例（v2.7.1）：<code>install center --instance &lt;name&gt;</code> 可部署第二个 center，各自使用独立 DB / socket / service。<code>list-local-centers</code> 列出本机所有 center 部署。</div>
+
+  <h2>命令速查</h2>
+  <table>
+    <tr><th>命令</th><th>说明</th></tr>
+    <tr><td><code>agent-center install center</code></td><td>安装 center（幂等，upgrade-aware）</td></tr>
+    <tr><td><code>agent-center install worker</code></td><td>安装 worker daemon（enroll 到运行中的 center）</td></tr>
+    <tr><td><code>agent-center upgrade center</code></td><td>升级 center（原子切换 + 自动回滚）</td></tr>
+    <tr><td><code>agent-center upgrade worker --worker-id=&lt;id&gt;</code></td><td>升级 worker</td></tr>
+    <tr><td><code>agent-center uninstall center</code></td><td>移除 center（数据保留，<code>--purge</code> 彻底清除）</td></tr>
+    <tr><td><code>agent-center uninstall worker --worker-id=&lt;id&gt;</code></td><td>移除单个 worker</td></tr>
+    <tr><td><code>agent-center install test-instance</code></td><td>创建隔离测试沙箱</td></tr>
+    <tr><td><code>agent-center server</code></td><td>前台运行 center（开发用）</td></tr>
+    <tr><td><code>agent-center help</code></td><td>完整命令树</td></tr>
+  </table>
+
+  <p style="margin-top:36px;color:var(--ink-3);font-size:13.5px">快速上手见 <a href="quickstart.html" style="color:var(--accent)">5 分钟快速开始</a>。</p>
+</div>
+<footer style="border-top:1px solid var(--border);padding:30px 0;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">手册 v2.15.0</span></div></footer>
+</body>
+</html>

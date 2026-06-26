@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>部署指南 · 手册 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.doc { max-width: var(--maxw); margin: 0 auto; padding: 30px 24px 70px; }
+.doc h1 { font-size: 34px; font-weight: 800; margin-bottom: 8px; }
+.doc .dek { color: var(--ink-2); margin-bottom: 30px; }
+.doc h2 { font-size: 22px; font-weight: 700; margin: 36px 0 14px; padding-top: 20px; border-top: 1px solid var(--border); }
+.doc h2:first-of-type { border-top: 0; margin-top: 0; }
+.doc h3 { font-size: 17px; font-weight: 700; margin: 24px 0 10px; }
+.doc p { color: var(--ink-2); line-height: 1.7; margin: 10px 0; }
+.doc pre { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+.doc code { font-family: var(--font-mono); font-size: 13px; }
+.doc p code, .doc li code { background: var(--bg-subtle); padding: 2px 6px; border-radius: 4px; font-size: 12.5px; }
+.doc ul, .doc ol { color: var(--ink-2); line-height: 1.7; padding-left: 24px; }
+.doc table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13.5px; }
+.doc th { text-align: left; font-weight: 600; padding: 8px 12px; border-bottom: 2px solid var(--border); }
+.doc td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--ink-2); }
+.doc .note { background: var(--core-bg); border: 1px solid var(--core-bd); border-radius: var(--r-md); padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+.doc .warn { background: #fef3c7; border: 1px solid #fde68a; border-radius: var(--r-md); padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+.doc .back { font-family: var(--font-mono); font-size: 13px; color: var(--accent); margin-bottom: 16px; display: inline-block; }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a href="../../dev/v2.15.0/index.html">架构</a><a class="active" href="index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+<div class="doc">
+  <a class="back" href="index.html">&larr; 手册首页</a>
+
+  <h1>部署指南</h1>
+  <p class="dek">涵盖单机部署、多机部署（TCP + TLS）、网络与防火墙、备份恢复、日志管理 —— 从开发机到生产环境的完整运维参考。</p>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 1 单机部署（Mac / Linux）</h2>
+
+  <p>单机部署是最常见的起步形态：一个 <code>agent-center server</code> + 一个或多个 <code>agent-center worker</code> 运行在同一台机器上，通过 Unix socket 通信。</p>
+
+  <h3>1.1 文件布局</h3>
+  <p>使用 <code>install center</code> 安装后，默认目录结构：</p>
+  <pre><code>~/.agent-center/
+├── current → versions/v2.15.0/     # 当前版本 symlink
+├── versions/v2.15.0/bin/
+│   └── agent-center                # 单一二进制（含嵌入 SPA）
+├── etc/config.yaml                 # 主配置文件
+├── var/
+│   ├── agent-center.db             # SQLite 数据库
+│   ├── agent-center.db-wal
+│   ├── admin.sock                  # 本机 admin Unix socket
+│   ├── bootstrap_token             # 首次启动 bootstrap token（mode 0600）
+│   ├── admin-tls.crt               # TCP TLS 证书（开启 TCP 时自动生成）
+│   ├── admin-tls.key
+│   ├── admin-tls.fingerprint
+│   └── master.key                  # SecretManagement 主密钥（mode 0600）
+├── logs/
+│   ├── stdout.log
+│   └── stderr.log
+└── workers/                        # 各 worker 子树
+    └── worker-f3c04c1d/
+        ├── current → versions/v2.15.0/
+        ├── var/{worker.db, worker-token}
+        └── logs/{stdout.log, stderr.log}</code></pre>
+
+  <p>Linux 系统模式（<code>--user-mode=false</code>）则部署到 <code>/opt/agent-center/</code>，配置放 <code>/etc/agent-center/</code>，数据放 <code>/var/lib/agent-center/</code>。</p>
+
+  <h3>1.2 最小配置</h3>
+  <pre><code># ~/.agent-center/etc/config.yaml
+server:
+  listen_addr: ":7050"
+  sqlite_path: "~/.agent-center/var/agent-center.db"
+  admin_socket_path: "~/.agent-center/var/admin.sock"
+
+identity:
+  default_user: hayang
+
+web_console:
+  enabled: true
+  listen_addr: "127.0.0.1:7100"     # loopback only (ADR-0037)</code></pre>
+
+  <h3>1.3 launchd / systemd 服务</h3>
+
+  <p><strong>macOS (launchd)</strong> -- <code>install center</code> 自动生成 plist 并加载：</p>
+  <pre><code># 查看状态
+launchctl list | grep agent-center
+
+# 手动重启
+launchctl kickstart -k gui/$(id -u)/com.agent-center.server</code></pre>
+
+  <p><strong>Linux (systemd)</strong> -- 系统级 unit 示例：</p>
+  <pre><code># /etc/systemd/system/agent-center.service
+[Unit]
+Description=agent-center server
+After=network-online.target
+
+[Service]
+Type=simple
+User=agent-center
+ExecStart=/usr/local/bin/agent-center server --config=/etc/agent-center/config.yaml
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/agent-center /run/agent-center /var/log/agent-center
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+  <pre><code>sudo systemctl enable --now agent-center
+sudo systemctl restart agent-center
+sudo journalctl -u agent-center -f</code></pre>
+
+  <p><strong>Worker daemon (user systemd)</strong>：</p>
+  <pre><code># ~/.config/systemd/user/agent-center-worker.service
+[Unit]
+Description=agent-center worker daemon
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/agent-center worker --config=%h/.agent-center-worker/config.yaml
+Restart=on-failure
+RestartSec=5s
+KillMode=process    # 必须：shim 进程需脱离 daemon 生命周期
+
+[Install]
+WantedBy=default.target</code></pre>
+  <pre><code>systemctl --user enable --now agent-center-worker
+systemctl --user restart agent-center-worker</code></pre>
+  <div class="warn"><code>KillMode=process</code> 是必须的 -- 默认的 <code>control-group</code> 模式会在 daemon 重启时杀掉正在运行的 agent 子进程。Worker daemon 重启后会自动 reconcile 存活的 shim 进程。</div>
+
+  <h3>1.4 启动 server</h3>
+  <pre><code>$ agent-center server --config=~/.agent-center/etc/config.yaml
+agent-center server: db=~/.agent-center/var/agent-center.db listen=:7050 web=127.0.0.1:7100 admin=~/.agent-center/var/admin.sock (escalator running)</code></pre>
+
+  <p>启动后打开浏览器 <code>http://127.0.0.1:7100</code> 即可访问 Web Console。</p>
+
+  <h3>1.5 安装 worker（同机）</h3>
+  <p>在 Web Console <strong>Fleet</strong> 页面点击 <strong>+ Add Worker</strong>，输入名称后复制生成的安装命令：</p>
+  <pre><code>$ ./install worker \
+    --bootstrap=unix://~/.agent-center/var/admin.sock \
+    --worker-id=worker-f3c04c1d \
+    --worker-name='my-mac' \
+    --token=acat_xxxxxxxxx
+[worker] starting: worker_id=worker-f3c04c1d socket=~/.agent-center/var/admin.sock poll=1s
+[worker] enrolled as worker_id=worker-f3c04c1d</code></pre>
+
+  <p>Worker 注册后在 Fleet 页面状态变为 <strong>online</strong>。</p>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 2 多机部署</h2>
+
+  <p>多机部署在 server 端启用 <strong>Admin TCP TLS</strong> 监听，worker 通过 TCP + 自签 TLS 连接 server，信任模型使用 SSH 风格的指纹固定（fingerprint pinning） -- 无 CA、无 mTLS。</p>
+
+  <h3>2.1 架构</h3>
+  <pre><code>┌──────────────────────┐              ┌─────────────────────────┐
+│ Host A: CENTER       │              │ Host B: WORKER          │
+│                      │              │                         │
+│ agent-center server  │   TCP + TLS  │ agent-center worker     │
+│   admin unix sock    │◄─────────────│   dials tcp://A:7300    │
+│   admin tcp :7300    │              │   + server_fingerprint  │
+│   Web Console :7100  │              │   + bearer token        │
+│       (loopback)     │              │                         │
+└──────────────────────┘              └─────────────────────────┘</code></pre>
+
+  <h3>2.2 Server 端配置</h3>
+  <pre><code># /etc/agent-center/config.yaml
+server:
+  listen_addr: ":7050"
+  sqlite_path: "/var/lib/agent-center/agent-center.db"
+  admin_socket_path: "/run/agent-center/admin.sock"    # 本机 CLI 用
+  admin_tcp_listen: "0.0.0.0:7300"                     # 跨机 worker 用
+
+identity:
+  default_user: hayang
+
+web_console:
+  enabled: true
+  listen_addr: "127.0.0.1:7100"</code></pre>
+
+  <h3>2.3 启动 server 并获取 fingerprint</h3>
+  <pre><code>$ agent-center server --config=/etc/agent-center/config.yaml
+agent-center server: db=... listen=:7050 web=127.0.0.1:7100 admin=...
+  admin tcp:  0.0.0.0:7300 (TLS, auto-generated)
+              cert valid until 2027-06-26 (364 days)
+              fingerprint: sha256:7F:4A:8C:9B:...:6F:2C</code></pre>
+
+  <p>首次启动自动生成自签证书，fingerprint 写入 <code>/var/lib/agent-center/admin-tls.fingerprint</code>。同时生成 bootstrap admin token 写入 <code>/var/lib/agent-center/bootstrap_token</code>（mode 0600）。</p>
+
+  <h3>2.4 Worker 跨机注册</h3>
+  <p>方式一：通过 Web Console <strong>+ Add Worker</strong> Modal 获取完整安装命令（推荐）：</p>
+  <pre><code>$ ./install worker \
+    --bootstrap=tcp://host-a.example.com:7300 \
+    --server-fingerprint="sha256:7F:4A:8C:9B:...:6F:2C" \
+    --worker-id=worker-de6b92eb \
+    --worker-name='vps-worker-1' \
+    --token=acat_xxxxxxxxx \
+    --capabilities=claudecode,fakeagent
+[worker] starting: worker_id=worker-de6b92eb target=tcp://host-a.example.com:7300 poll=1s
+[worker] enrolled as worker_id=worker-de6b92eb</code></pre>
+
+  <p>方式二：通过 CLI 手动 mint token + 构造命令：</p>
+  <pre><code># Host A 上 mint enroll token
+$ agent-center admintoken mint-enroll --ttl=30m
+{"id":"...","plaintext":"acat_...","expires_at":"2026-06-26T13:00:00Z"}
+
+# 复制 fingerprint
+$ cat /var/lib/agent-center/admin-tls.fingerprint
+
+# Host B 上运行
+$ ./install worker \
+    --bootstrap=tcp://host-a:7300 \
+    --server-fingerprint="sha256:..." \
+    --token=acat_... \
+    --capabilities=claudecode</code></pre>
+
+  <h3>2.5 Token 管理</h3>
+  <p>Bootstrap token 拥有 <code>*</code> scope（全权限），生产环境应为每个 worker mint 独立的 scoped token：</p>
+  <pre><code>$ agent-center admintoken create \
+    --owner=worker:W-vps-1 \
+    --scopes='dispatch:pull,secret:resolve,blob:put,task:*'
+{"id":"...","plaintext":"acat_...","owner":"worker:W-vps-1"}</code></pre>
+  <div class="note">Plaintext 仅展示一次，不会持久化。部署到 worker 后立即 revoke bootstrap token。</div>
+
+  <p>Token 轮换：mint 新 token → 部署到 worker → 重启 worker → 验证 → revoke 旧 token：</p>
+  <pre><code>$ agent-center admintoken revoke --id=&lt;old-token-id&gt; --reason="rotation"</code></pre>
+
+  <h3>2.6 证书轮换</h3>
+  <p>证书轮换是<strong>破坏性操作</strong> -- 所有 worker 会立即报 fingerprint mismatch：</p>
+  <ol>
+    <li>停止 server</li>
+    <li>删除 <code>admin-tls.{crt,key,fingerprint}</code></li>
+    <li>重启 server（自动生成新证书）</li>
+    <li>更新所有 worker 的 <code>--server-fingerprint</code>，逐一重启</li>
+  </ol>
+  <div class="warn">证书过期 30 天前会触发 <code>admin.tcp_cert_expiring</code> 事件。用 <code>agent-center events query --type=admin.tcp_cert_expiring</code> 查询。</div>
+
+  <h3>2.7 验证</h3>
+  <pre><code># Host A 上查看所有 worker
+$ agent-center worker list
+WORKER_ID         STATUS    CAPABILITIES
+worker-de6b92eb   online    claudecode, fakeagent</code></pre>
+  <p>或在 Web Console <code>/fleet</code> 页面查看。</p>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 3 网络与防火墙</h2>
+
+  <h3>3.1 端口规划</h3>
+  <table>
+    <thead><tr><th>端口</th><th>协议</th><th>方向</th><th>暴露给</th></tr></thead>
+    <tbody>
+      <tr><td><code>7100/tcp</code></td><td>HTTP</td><td>入站 (loopback only)</td><td>本机 -- Web Console 浏览器 / SSH tunnel</td></tr>
+      <tr><td><code>7300/tcp</code></td><td>Admin TCP TLS</td><td>入站</td><td>Worker 机器（跨机部署时开放）</td></tr>
+      <tr><td><code>22/tcp</code></td><td>SSH</td><td>入站</td><td>运维人员（白名单 IP）</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.2 Web Console 网络安全</h3>
+  <p>Web Console <strong>仅绑定 loopback</strong>（<code>127.0.0.1:7100</code>），server 会主动拒绝任何非 <code>127.0.0.1</code> / <code>localhost</code> 的 bind 地址。API、SSE、SPA 全在同一端口：</p>
+  <ul>
+    <li><code>/api/*</code> -- JSON endpoint（conversation / agent / secret / fleet / trace 等）</li>
+    <li><code>/api/sse</code> -- 单连接 Server-Sent Events</li>
+    <li><code>/</code>, <code>/assets/*</code>, <code>/&lt;任意路径&gt;</code> -- 嵌入的 React SPA + client-routing fallback</li>
+  </ul>
+  <p><strong>远程访问</strong>请使用 SSH 隧道：</p>
+  <pre><code>ssh -L 7100:127.0.0.1:7100 user@center-host
+# 然后浏览器打开 http://127.0.0.1:7100/</code></pre>
+  <div class="warn">不要在防火墙开放 7100 端口 -- Web Console 的安全前提是 loopback-only，无认证机制。</div>
+
+  <h3>3.3 Admin TCP TLS 端口</h3>
+  <p>端口 <code>7300</code> 是 worker 跨机连接 server 的唯一入口。建议在防火墙层做 worker IP 白名单，叠加 bearer token + 内置 rate limit（burst=200, refill=10/sec）。</p>
+  <pre><code># firewalld 示例
+sudo firewall-cmd --permanent --add-port=7300/tcp --zone=public
+sudo firewall-cmd --permanent --add-source=&lt;worker-ip&gt; --zone=trusted
+sudo firewall-cmd --reload</code></pre>
+
+  <h3>3.4 Rate limit</h3>
+  <p>Per-token rate limit 默认 burst=200, refill=10/sec。正常 worker daemon（1 poll/sec + 每次 task 约 3 次调用）远低于限额。异常触发会产生 <code>admin.rate_limit_hit</code> 事件：</p>
+  <pre><code>$ agent-center query events --type=admin.rate_limit_hit --limit=20</code></pre>
+  <p>事件包含 <code>token_id</code>、<code>client_ip</code>、<code>method</code>、<code>path</code>，可据此 revoke 可疑 token。</p>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 4 备份与恢复</h2>
+
+  <h3>4.1 备份对象</h3>
+  <table>
+    <thead><tr><th>对象</th><th>路径</th><th>体量</th><th>频次</th></tr></thead>
+    <tbody>
+      <tr><td>SQLite 数据库</td><td><code>/var/lib/agent-center/agent-center.db</code></td><td>数百 MB</td><td>每日</td></tr>
+      <tr><td>BlobStore</td><td><code>/var/lib/agent-center/blobs/</code></td><td>GB 级</td><td>每周（增量 rsync）</td></tr>
+      <tr><td>Memory git</td><td><code>/var/lib/agent-center/memory/</code></td><td>KB - MB</td><td>每日（push 远端 git）</td></tr>
+      <tr><td>master.key</td><td><code>/etc/agent-center/master.key</code></td><td>32 bytes</td><td>配置变更时</td></tr>
+    </tbody>
+  </table>
+
+  <h3>4.2 SQLite 备份脚本</h3>
+  <pre><code>#!/bin/bash
+# /usr/local/bin/agent-center-backup
+set -euo pipefail
+DEST=/var/backups/agent-center/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$DEST"
+
+# WAL checkpoint 后再拷贝，保证一致性
+sqlite3 /var/lib/agent-center/agent-center.db "PRAGMA wal_checkpoint(FULL);"
+cp /var/lib/agent-center/agent-center.db "$DEST/agent-center.db"
+
+# 保留 30 天
+find /var/backups/agent-center -mindepth 1 -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +</code></pre>
+
+  <p>用 systemd timer 自动执行：</p>
+  <pre><code># /etc/systemd/system/agent-center-backup.timer
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target</code></pre>
+
+  <h3>4.3 恢复</h3>
+  <pre><code>sudo systemctl stop agent-center
+sudo cp /var/backups/agent-center/&lt;date&gt;/agent-center.db /var/lib/agent-center/
+sudo chown agent-center:agent-center /var/lib/agent-center/agent-center.db
+sudo systemctl start agent-center</code></pre>
+  <p>BlobStore 用 <code>rsync -a</code> 恢复；blob 路径自描述，可部分恢复。</p>
+
+  <h3>4.4 master.key 运维</h3>
+  <div class="warn"><code>master.key</code> 用于加密 SecretManagement 的 UserSecret at-rest 值。<strong>丢失不可恢复</strong> -- 必须在首个 secret 创建前备份到离线安全位置（password manager / hardware token）。禁止放入 git 或未加密云盘。</div>
+  <p>生成方式：</p>
+  <pre><code>head -c 32 /dev/urandom | base64 > master.key && chmod 0600 master.key</code></pre>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 5 日志</h2>
+
+  <h3>5.1 systemd journal</h3>
+  <p><code>agent-center server</code> 和 worker daemon 的标准输出走 journald：</p>
+  <pre><code># 实时跟踪 server 日志
+sudo journalctl -u agent-center -f
+
+# 查看最近 1 小时
+sudo journalctl -u agent-center --since="1 hour ago"
+
+# worker daemon（user systemd）
+journalctl --user -u agent-center-worker -f</code></pre>
+
+  <h3>5.2 journal rotation 配置</h3>
+  <pre><code># /etc/systemd/journald.conf
+SystemMaxUse=2G
+SystemKeepFree=10G
+MaxRetentionSec=30day</code></pre>
+
+  <h3>5.3 macOS 日志</h3>
+  <p>launchd 模式下日志写入 <code>~/.agent-center/logs/stdout.log</code> 和 <code>stderr.log</code>。可用标准工具查看：</p>
+  <pre><code>tail -f ~/.agent-center/logs/stderr.log</code></pre>
+
+  <h3>5.4 Worker per-execution 日志</h3>
+  <p>Worker 的 per-execution 日志不走 logrotate，由 agent-center daemon 自管理：</p>
+  <ul>
+    <li>Execution 结束后，<code>events.jsonl</code> / <code>agent.log</code> 上传 BlobStore + 保留 24h 本地副本</li>
+    <li>24h 后整目录删除</li>
+  </ul>
+
+  <h3>5.5 BlobStore 归档</h3>
+  <p>Blob 默认 retention 90 天（可通过 <code>blob_store.retention_days</code> 配置），server 周期 GC 自动删除过期 blob。</p>
+
+  <h3>5.6 事件查询</h3>
+  <p>除日志外，agent-center 内置 event-driven 可观测性，覆盖 worker 离线、execution 失败等场景：</p>
+  <pre><code># 查最近 1 小时的失败事件
+agent-center query events --since=1h --type=*.failed
+
+# 查看系统统计
+agent-center stats</code></pre>
+
+  <p style="margin-top:36px;color:var(--ink-3);font-size:13.5px">更多排障参考见 <a href="quickstart.html" style="color:var(--accent)">快速开始</a>。部署架构图见 <a href="../../dev/v2.15.0/deployment.html" style="color:var(--accent)">架构 / 部署架构</a>。</p>
+</div>
+<footer style="border-top:1px solid var(--border);padding:30px 0;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>&copy; 2026 agent-center &middot; oopslink</span><span style="font-family:var(--font-mono)">手册 v2.15.0</span></div></footer>
+</body>
+</html>

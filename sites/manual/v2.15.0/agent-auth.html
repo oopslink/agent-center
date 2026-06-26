@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能体认证与工作队列 · agent-center 手册</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a href="../../dev/v2.15.0/index.html">架构</a><a class="active" href="../../manual/v2.15.0/index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+
+<div class="doc">
+  <p><a href="index.html">&larr; 返回手册首页</a></p>
+
+  <h1>智能体认证与工作队列 <span style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--brand);background:var(--core-bg);border:1px solid var(--core-bd);padding:3px 10px;border-radius:999px;vertical-align:middle;margin-left:8px">v2.15.0</span></h1>
+
+  <!-- § 1 Agent identity -->
+  <h2 id="agent-identity">&sect; 1 Agent 身份（一等公民）</h2>
+  <p>agent-center 将 <strong>agent</strong> 视为一等公民身份（first-class identity）。每个 AgentInstance 拥有独立的持久身份、配置和状态机，而不仅仅是一个"类型枚举"。</p>
+
+  <h3>身份标识</h3>
+  <p>系统中存在两类 identity 前缀：</p>
+  <ul>
+    <li><code>user-xxx</code> &mdash; 人类用户身份</li>
+    <li><code>agent-xxx</code> &mdash; Agent 身份（AgentInstance）</li>
+  </ul>
+  <p>每个 AgentInstance 有全局唯一的 <code>name</code>（如 <code>supervisor</code>、<code>coder-1</code>）和 ULID 主键 <code>id</code>。</p>
+
+  <h3>AgentInstance 状态机</h3>
+  <table>
+    <thead><tr><th>状态</th><th>含义</th><th>跃迁</th></tr></thead>
+    <tbody>
+      <tr><td><code>idle</code></td><td>就绪，无活跃执行</td><td>&rarr; <code>active</code>（有 execution 开始）<br>&rarr; <code>sleeping</code>（所属 worker offline）<br>&rarr; <code>archived</code>（用户软删）</td></tr>
+      <tr><td><code>active</code></td><td>有 &ge;1 个活跃 execution</td><td>&rarr; <code>idle</code>（最后一个 execution 结束）<br>&rarr; <code>sleeping</code>（所属 worker offline）</td></tr>
+      <tr><td><code>sleeping</code></td><td>所属 worker 离线，非终态</td><td>&rarr; <code>idle</code>（worker 重连）</td></tr>
+      <tr><td><code>archived</code></td><td>终态，不可逆</td><td>&mdash;</td></tr>
+    </tbody>
+  </table>
+  <p>状态跟 Worker 联动：worker offline 时该 worker 上所有 idle/active agent 自动 &rarr; sleeping；worker online 时 sleeping agent 自动 &rarr; idle。</p>
+
+  <h3>Built-in AgentInstance</h3>
+  <p>系统默认有一个 built-in agent：<code>supervisor</code>（<code>is_builtin=true</code>）。它运行在 center 进程上（<code>worker_id=NULL</code>），不允许 archive。用户可通过 Web Console 配置其 MCP config 和 instructions，但不能删除。</p>
+
+  <h3>AgentInstance 数据模型</h3>
+  <table>
+    <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>ULID</td><td>主键</td></tr>
+      <tr><td><code>name</code></td><td>string</td><td>全局唯一，用户起名 / built-in 由系统保留</td></tr>
+      <tr><td><code>agent_cli</code></td><td>enum</td><td>Agent CLI 类型：<code>claude-code</code>、<code>codex</code>、<code>opencode</code> 等</td></tr>
+      <tr><td><code>worker_id</code></td><td>FK</td><td>所属 worker（built-in 为 NULL）；创建后不可变</td></tr>
+      <tr><td><code>config</code></td><td>JSON</td><td>包含 instructions_ref、mcp_config、skills 等</td></tr>
+      <tr><td><code>max_concurrent</code></td><td>int?</td><td>并发上限；null = 不另设上限，受 Worker 层兜底</td></tr>
+      <tr><td><code>state</code></td><td>enum</td><td><code>idle</code> | <code>active</code> | <code>sleeping</code> | <code>archived</code></td></tr>
+      <tr><td><code>is_builtin</code></td><td>bool</td><td>系统 provisioned（如 supervisor）；archive 拒绝</td></tr>
+      <tr><td><code>version</code></td><td>int</td><td>乐观锁</td></tr>
+    </tbody>
+  </table>
+
+  <!-- § 2 Bootstrap & enrollment -->
+  <h2 id="bootstrap">&sect; 2 Bootstrap 与注册</h2>
+
+  <h3>Bootstrap Token 流程</h3>
+  <p>Worker 接入 center 采用 <strong>bootstrap token</strong> 机制（一次性令牌）：</p>
+  <ol>
+    <li>管理员在 center 侧签发 bootstrap token（<code>admin token create</code> 或 Web Console）</li>
+    <li>将 token 传递给 worker 机器</li>
+    <li>Worker 机器执行 <code>agent-center worker enroll &lt;token&gt;</code></li>
+    <li>Center 校验 token 有效性 &rarr; 兑换为长期 session token &rarr; Worker 入库</li>
+    <li>Session token 落盘到 <code>~/.agent-center/credentials</code>（mode 0600）</li>
+  </ol>
+
+  <h3>Bootstrap Token 状态机</h3>
+  <table>
+    <thead><tr><th>状态</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>active</code></td><td>已签发，待兑换</td></tr>
+      <tr><td><code>used</code></td><td>已成功兑换为 session token（不可 reissue）</td></tr>
+      <tr><td><code>expired</code></td><td>TTL 到期（默认 30 分钟）</td></tr>
+      <tr><td><code>revoked</code></td><td>管理员手动撤销</td></tr>
+    </tbody>
+  </table>
+  <p>DB 中只存 <code>value_hash</code>，明文 token 仅在签发时返回一次。Reissue 时旧 active token 同事务标 revoked + 新 token 入库。</p>
+
+  <h3>Admin Token 作用域</h3>
+  <p>Admin bearer token 用于 CLI 与 center admin endpoint 的认证。Token 解析优先级：</p>
+  <ol>
+    <li><code>AGENT_CENTER_ADMIN_TOKEN</code> 环境变量</li>
+    <li><code>~/.agent-center/admin_token</code> 文件</li>
+    <li><code>&lt;sqlite_dir&gt;/bootstrap_token</code> 文件（单机部署 fallback）</li>
+  </ol>
+  <p>管理命令：<code>admin token create</code>、<code>admin token list</code>、<code>admin token revoke</code>。</p>
+
+  <!-- § 3 Work queue -->
+  <h2 id="work-queue">&sect; 3 工作队列（Work Queue）</h2>
+
+  <h3>AgentWorkItem 生命周期</h3>
+  <p>任务通过 <strong>AgentWorkItem</strong> 分配给 agent 执行。工作项的生命周期：</p>
+  <table>
+    <thead><tr><th>状态</th><th>含义</th><th>跃迁</th></tr></thead>
+    <tbody>
+      <tr><td><code>queued</code></td><td>已入队，等待 agent 认领</td><td>&rarr; <code>active</code>（agent 认领）</td></tr>
+      <tr><td><code>active</code></td><td>agent 正在执行</td><td>&rarr; <code>done</code>（执行完成）</td></tr>
+      <tr><td><code>done</code></td><td>终态，执行已完成</td><td>&mdash;</td></tr>
+    </tbody>
+  </table>
+
+  <h3>任务分配机制</h3>
+  <p>Supervisor（built-in agent）负责决定将 task 分配给哪个 agent。分配时需通过校验链：</p>
+  <ol>
+    <li><strong>Agent 状态</strong> &mdash; <code>agent_instance.state</code> 必须为 <code>idle</code> 或 <code>active</code></li>
+    <li><strong>能力匹配</strong> &mdash; <code>agent_instance.agent_cli</code> 必须在 worker 的 <code>capabilities[detected &amp; enabled]</code> 中</li>
+    <li><strong>并发上限</strong> &mdash; 当前活跃 execution 数 &lt; <code>min(worker.concurrency.per_agent_type, agent_instance.max_concurrent ?? Infinity)</code></li>
+  </ol>
+  <p>全部校验通过后，创建新的 execution + work item 下发给 worker daemon。</p>
+
+  <h3>Claim from Pool</h3>
+  <p>Worker daemon 收到 work item 后，在本地 agent pool 中找到对应的 AgentInstance，spawn shim 进程执行。同一 agent 可并行处理多个 execution（受 <code>max_concurrent</code> 限制），各 execution 拥有独立的 worktree（临时沙箱）和 trace。</p>
+
+  <!-- § 4 MCP tool injection -->
+  <h2 id="mcp-injection">&sect; 4 MCP 工具注入</h2>
+
+  <h3>Per-agent MCP 配置</h3>
+  <p>每个 AgentInstance 可配置专属的 MCP server 列表，存储在 <code>config.mcp_config</code> 字段中（JSON，遵循 MCP 标准 schema）。</p>
+
+  <h3>配置文件</h3>
+  <p>Agent 的 home directory 下有两个 MCP 相关文件：</p>
+  <table>
+    <thead><tr><th>文件</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>mcp_config.json</code></td><td>用户配置的 MCP schema + SecretRef（无明文 secret）</td></tr>
+      <tr><td><code>mcp_config.runtime.json</code></td><td>Worker daemon 在派单时 just-in-time 生成（含已解析的明文 secret，mode 0600）；execution 结束后 unlink</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Secret 解析</h3>
+  <p>MCP 配置中的 secret 使用 <code>SecretRef</code> 引用（指向 SecretManagement BC 管理的加密 secret），不存明文。Worker daemon 在 execution 启动前解析 SecretRef &rarr; 从 center 拉取明文 &rarr; 写入 <code>mcp_config.runtime.json</code> &rarr; 注入给 agent 进程 &rarr; execution 结束后立即删除运行时文件。</p>
+
+  <h3>MCP Host 进程</h3>
+  <p><code>worker mcp-host</code> 是 daemon 内部 spawn 的 per-agent stdio MCP server 进程，为 agent 提供工具调用通道。Agent 通过此通道访问 center 提供的所有 MCP 工具（任务管理、消息发送、文件操作等）。</p>
+
+  <!-- § 5 Skill file mounting -->
+  <h2 id="skills">&sect; 5 Skill 文件挂载</h2>
+
+  <h3>Per-agent Skill 目录</h3>
+  <p>每个 AgentInstance 的 home directory 下有 <code>skills/</code> 子目录，用于存放用户自配的 skill 文件（遵循 Anthropic Skills 标准）：</p>
+  <pre><code>~/.agent-center-worker/agents/&lt;agent_instance_id&gt;/
+   skills/
+     &lt;skill-name&gt;/SKILL.md</code></pre>
+  <p>Built-in supervisor 同样支持 skill 文件：</p>
+  <pre><code>~/.agent-center/agents/supervisor/
+   skills/
+     &lt;skill-name&gt;/SKILL.md</code></pre>
+
+  <h3>加载机制</h3>
+  <p>Worker daemon 在 prompt-assembly 阶段将 <code>home_dir/skills/</code> 下的 SKILL.md 文件内容叠加进 agent 的 prompt 层次。Skill 文件在 execution 期间对 agent 进程<strong>只读</strong>，更新只能在 between-execution 窗口进行。</p>
+
+  <h3>Home Directory 完整结构</h3>
+  <table>
+    <thead><tr><th>路径</th><th>说明</th><th>读写</th></tr></thead>
+    <tbody>
+      <tr><td><code>instructions.md</code></td><td>Agent-level system prompt 片段</td><td>Execution 期间只读</td></tr>
+      <tr><td><code>mcp_config.json</code></td><td>MCP 配置（含 SecretRef，无明文）</td><td>Execution 期间只读</td></tr>
+      <tr><td><code>mcp_config.runtime.json</code></td><td>运行时 MCP 配置（含明文 secret，mode 0600）</td><td>Daemon just-in-time 生成 / execution 后 unlink</td></tr>
+      <tr><td><code>skills/</code></td><td>用户自配 skill 文件</td><td>Execution 期间只读</td></tr>
+      <tr><td><code>notes/</code></td><td>用户随意使用</td><td>Execution 期间只读</td></tr>
+    </tbody>
+  </table>
+  <p>Worker AgentInstance 的 home directory 位于 <code>~/.agent-center-worker/agents/&lt;id&gt;/</code>；built-in supervisor 位于 <code>~/.agent-center/agents/supervisor/</code>（用 <code>name</code> 而非 <code>id</code> 保证路径稳定可读）。</p>
+</div>
+
+<footer style="border-top:1px solid var(--border);padding:30px 0;margin-top:50px;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>&copy; 2026 agent-center &middot; oopslink</span><span style="font-family:var(--font-mono)">手册 v2.15.0</span></div></footer>
+</body>
+</html>

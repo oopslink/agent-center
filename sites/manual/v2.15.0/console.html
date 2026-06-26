@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Console 使用指南 · 手册 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.doc { max-width: var(--maxw); margin: 0 auto; padding: 30px 24px 70px; }
+.doc h1 { font-size: 34px; font-weight: 800; margin-bottom: 8px; }
+.doc .dek { color: var(--ink-2); margin-bottom: 30px; }
+.doc h2 { font-size: 22px; font-weight: 700; margin: 36px 0 14px; padding-top: 20px; border-top: 1px solid var(--border); }
+.doc h2:first-of-type { border-top: 0; margin-top: 0; }
+.doc h3 { font-size: 17px; font-weight: 700; margin: 24px 0 10px; }
+.doc p { color: var(--ink-2); line-height: 1.7; margin: 10px 0; }
+.doc pre { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+.doc code { font-family: var(--font-mono); font-size: 13px; }
+.doc p code, .doc li code { background: var(--bg-subtle); padding: 2px 6px; border-radius: 4px; font-size: 12.5px; }
+.doc ul, .doc ol { color: var(--ink-2); line-height: 1.7; padding-left: 24px; }
+.doc table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13.5px; }
+.doc th { text-align: left; font-weight: 600; padding: 8px 12px; border-bottom: 2px solid var(--border); }
+.doc td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--ink-2); }
+.doc .note { background: var(--core-bg); border: 1px solid var(--core-bd); border-radius: var(--r-md); padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+.doc .warn { background: #fef3c7; border: 1px solid #fde68a; border-radius: var(--r-md); padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+.doc .back { font-family: var(--font-mono); font-size: 13px; color: var(--accent); margin-bottom: 16px; display: inline-block; }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a href="../../dev/v2.15.0/index.html">架构</a><a class="active" href="index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+<div class="doc">
+  <a class="back" href="index.html">&larr; 手册首页</a>
+
+  <h1>Web Console 使用指南</h1>
+  <p class="dek">agent-center 的浏览器操作界面 -- 嵌入 server 单一二进制，loopback-only 访问。覆盖界面总览、任务与议题、Plan 编排、消息、Input Request 和 Work Board。</p>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 1 界面总览</h2>
+
+  <h3>1.1 三栏式 Shell</h3>
+  <p>Web Console 采用三栏式布局（v2.8.1 redesign），由左到右：</p>
+  <table>
+    <thead><tr><th>栏</th><th>位置</th><th>内容</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Module Rail</strong>（侧边栏）</td><td>左侧固定</td><td>组织切换器、页面导航（Channels / DMs / Tasks / Issues / Plans / Fleet / Agents / Secrets / Settings）、Command Palette 触发（<code>Cmd+K</code>）、主题切换、SSE 状态指示、用户信息</td></tr>
+      <tr><td><strong>List / Detail</strong>（主区域）</td><td>中央</td><td>当前页面的列表视图或详情视图 -- 如 Channel 列表、Task 详情 timeline、Plan DAG 图等</td></tr>
+      <tr><td><strong>Context Sidebar</strong>（上下文面板）</td><td>右侧可选</td><td>选中实体的元数据摘要（如 Task 状态 / 分配人 / 关联 issue / execution trace）、参与者列表、conversation sidebar</td></tr>
+    </tbody>
+  </table>
+
+  <h3>1.2 键盘快捷键</h3>
+  <table>
+    <thead><tr><th>快捷键</th><th>功能</th></tr></thead>
+    <tbody>
+      <tr><td><code>Cmd+K</code></td><td>打开 Command Palette 全局搜索</td></tr>
+      <tr><td><code>Cmd+B</code></td><td>折叠 / 展开侧边栏</td></tr>
+      <tr><td><code>Cmd+D</code></td><td>切换 Light / Dark 主题</td></tr>
+      <tr><td><code>Cmd+1..7</code></td><td>跳转到对应的顶级页面</td></tr>
+    </tbody>
+  </table>
+
+  <h3>1.3 实时更新（SSE）</h3>
+  <p>Web Console 通过 <code>/api/sse</code> 单连接接收 server 端实时事件。所有列表页面在收到相关事件后自动刷新数据 -- 不需要手动 reload。</p>
+  <p>侧边栏顶部的 <strong>SSE Indicator</strong> 圆点显示连接状态：绿色 = 在线，灰色 = 断线重连中。断线时页面仍可用（显示 react-query 缓存数据），重连后自动追赶。</p>
+  <div class="note">SSE 断线重连策略：base=1s, max=30s, jitter &plusmn;20%。30 秒无任何事件（含心跳）则强制重连（Safari / iOS half-open 保护）。</div>
+
+  <h3>1.4 访问方式</h3>
+  <p>本机直接打开 <code>http://127.0.0.1:7100</code>；远程通过 SSH tunnel：</p>
+  <pre><code>ssh -L 7100:127.0.0.1:7100 user@center-host
+# 然后浏览器打开 http://127.0.0.1:7100/</code></pre>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 2 Tasks 与 Issues</h2>
+
+  <h3>2.1 创建 Task</h3>
+  <p>创建方式有三种：</p>
+  <ol>
+    <li><strong>从消息派生</strong> -- 在 Channel / DM / Issue 对话中，点击 "Select messages" 进入多选模式，选中消息后点击 <strong>"Derive Task"</strong>，选择目标 Project 并确认。被引用的消息会以 carry-over 形式出现在 Task 的 thread 中。</li>
+    <li><strong>直接创建</strong> -- 在 Tasks 列表页或 Project 详情页点击 <strong>"+ New Task"</strong>，填写标题、描述、所属 Project。</li>
+    <li><strong>从 Work Board 创建</strong> -- 在 Board 视图的任意列点击 "+" 快速创建。</li>
+  </ol>
+
+  <h3>2.2 Task 状态生命周期</h3>
+  <table>
+    <thead><tr><th>状态</th><th>含义</th><th>流转</th></tr></thead>
+    <tbody>
+      <tr><td><code>submitted</code></td><td>已创建，等待分配</td><td>→ running / canceled</td></tr>
+      <tr><td><code>running</code></td><td>Agent 正在执行</td><td>→ paused / completed / failed</td></tr>
+      <tr><td><code>paused</code></td><td>Agent 暂停（如等待 Input Request）</td><td>→ running / canceled</td></tr>
+      <tr><td><code>completed</code></td><td>执行成功</td><td>→ reopened</td></tr>
+      <tr><td><code>failed</code></td><td>执行失败</td><td>→ reopened</td></tr>
+      <tr><td><code>reopened</code></td><td>已完成/失败的 task 被重新打开</td><td>→ running</td></tr>
+      <tr><td><code>canceled</code></td><td>已取消</td><td>终态</td></tr>
+    </tbody>
+  </table>
+
+  <h3>2.3 分配给 Agent</h3>
+  <p>Task 创建后可在详情页右侧 sidebar 的 <strong>Assignee</strong> 区域将其分配给一个 Agent。分配后 worker daemon 会自动拉取 dispatch envelope 并启动 agent CLI 执行。也可以在 Plan 编排中批量设置 assignee。</p>
+
+  <h3>2.4 创建 Issue</h3>
+  <p>Issue 是持续跟踪的议题，与 Task（一次性执行）互补。在 Issues 列表点击 <strong>"+ New Issue"</strong>，或从消息多选后点击 <strong>"Open Issue"</strong> 派生。Issue 有自己的 discussion thread，支持状态 filter（open / closed）。</p>
+
+  <h3>2.5 从 Issue 派生 Task</h3>
+  <p>在 Issue 详情的 discussion 中，同样可以多选消息 → <strong>"Derive Task"</strong>。该 Task 自动关联 parent Issue，在 Issue 详情的 sidebar 中可看到所有关联的 Tasks。</p>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 3 Plan 编排</h2>
+
+  <h3>3.1 创建 Plan</h3>
+  <p>Plan 用于编排多个 Task 的执行顺序（DAG 依赖图）。在 Project 详情页的 <strong>Plans</strong> tab 点击 <strong>"+ New Plan"</strong>，输入名称即可。新建的 Plan 处于 <code>draft</code> 状态。</p>
+
+  <h3>3.2 添加 Tasks</h3>
+  <p>在 Plan 详情页可以将 Project 下的 Task 加入 Plan。每个加入 Plan 的 Task 成为一个 Plan Node，在 DAG 视图中显示为节点。</p>
+
+  <h3>3.3 设置 DAG 依赖</h3>
+  <p>Plan 在 <code>draft</code> 状态时，DAG 依赖可编辑。在 Plan 详情页的 <strong>DAG</strong> tab 中：</p>
+  <ul>
+    <li><strong>添加依赖</strong> -- 使用节点下方的 dependency selector，选择 "from → to" 节点对来创建边。</li>
+    <li><strong>移除依赖</strong> -- 点击边列表中的 "Remove" 按钮。</li>
+    <li><strong>移除节点</strong> -- 从 Plan 中移除一个 Task node。</li>
+  </ul>
+  <div class="note">后端自动校验：禁止自环（self-dependency）和成环（cycle）；<code>running</code> / <code>done</code> 状态的 Plan 不允许编辑依赖。</div>
+
+  <h3>3.4 启动与自动调度</h3>
+  <p>Plan 编排完成后，点击 <strong>"Start Plan"</strong>。Orchestrator 自动根据 DAG 拓扑序调度：</p>
+  <ol>
+    <li>无依赖（入度为 0）的 Tasks 立即派发给 agent 执行</li>
+    <li>前置 Tasks 全部 <code>completed</code> 后，后续 Tasks 自动解锁并派发</li>
+    <li>任一 Task <code>failed</code> 时，Plan 暂停并标记 failed indicator</li>
+    <li>可在 Plan 详情页点击 <strong>"Advance"</strong> 手动推进暂停的节点，或 <strong>"Resume"</strong> 恢复 paused node</li>
+  </ol>
+
+  <h3>3.5 Plan 状态</h3>
+  <table>
+    <thead><tr><th>状态</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>draft</code></td><td>编辑中，可增删 node 和 dependency</td></tr>
+      <tr><td><code>running</code></td><td>执行中，DAG 自动推进</td></tr>
+      <tr><td><code>done</code></td><td>所有 node 完成</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.6 Plan 详情三 Tab</h3>
+  <p>Plan 详情页提供三个 tab：</p>
+  <ul>
+    <li><strong>Chat</strong> -- Plan conversation thread，可在此讨论编排策略</li>
+    <li><strong>DAG</strong> -- 拓扑图可视化，每个节点显示 Task 名称 + 派生状态（<code>pending / running / done / failed</code>）</li>
+    <li><strong>Tasks</strong> -- 平铺的 Task 列表，可快速查看状态和 assignee</li>
+  </ul>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 4 消息与文件</h2>
+
+  <h3>4.1 对话类型</h3>
+  <table>
+    <thead><tr><th>类型</th><th>路径</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>Channel</td><td><code>/channels/:name</code></td><td>团队频道，可添加人类成员和 agent 参与者</td></tr>
+      <tr><td>DM</td><td><code>/dms/:id</code></td><td>一对一私信，支持 peer + agent quick-pick</td></tr>
+      <tr><td>Task thread</td><td><code>/tasks/:id</code></td><td>Task 详情内嵌的对话 thread</td></tr>
+      <tr><td>Issue thread</td><td><code>/issues/:id</code></td><td>Issue 详情内的 discussion</td></tr>
+      <tr><td>Plan thread</td><td><code>/projects/:id/plans/:planId</code></td><td>Plan 详情的 Chat tab</td></tr>
+    </tbody>
+  </table>
+
+  <h3>4.2 发送消息</h3>
+  <p>在任意对话底部的 <strong>Composer</strong> 输入内容：</p>
+  <ul>
+    <li><code>Enter</code> -- 发送消息</li>
+    <li><code>Shift+Enter</code> -- 换行</li>
+    <li>发送失败时错误会 inline 显示，输入内容不会丢失，可直接重试</li>
+  </ul>
+
+  <h3>4.3 @mention</h3>
+  <p>输入 <code>@</code> 后出现 autocomplete 列表，可 mention 人类用户或 agent。被 mention 的实体会收到对应事件通知。</p>
+
+  <h3>4.4 文件上传</h3>
+  <p>消息 composer 支持附件上传。文件存入 BlobStore，在 timeline 中以链接形式展示。</p>
+
+  <h3>4.5 Carry-over 消息</h3>
+  <p>当从 Channel / Issue 的消息派生 Task 或 Issue 时，被选中的消息以 <strong>carry-over</strong> 形式引入目标 thread。Carry-over 消息有特殊的 <strong>Divider</strong> 标注来源 conversation，并以 "Discussion below" 分隔原始引用和后续讨论。</p>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 5 Input Request</h2>
+
+  <h3>5.1 Agent 升级请求</h3>
+  <p>当 agent 在执行 Task 过程中遇到需要人类决策的节点，会发起 <strong>Input Request</strong>（升级请求）。此时：</p>
+  <ul>
+    <li>Task 状态可能切换到 <code>paused</code>（agent 主动等待）</li>
+    <li>Web Console 导航的 Input Request badge 实时更新待回应数量</li>
+    <li>Fleet 页面的 "Open IRs" segment 显示当前所有活跃的 Input Requests</li>
+  </ul>
+
+  <h3>5.2 Input Request 收件箱</h3>
+  <p>在 <code>/inputrequests</code> 页面查看所有待回应的 Input Request 列表。每条 IR 显示：</p>
+  <ul>
+    <li>发起的 agent 和所属 Task</li>
+    <li>请求的问题描述</li>
+    <li>创建时间</li>
+  </ul>
+
+  <h3>5.3 回应流程</h3>
+  <ol>
+    <li>点击一条 Input Request 打开 <strong>Respond Modal</strong></li>
+    <li>Modal 中显示 agent 提出的问题和可选的 option chips</li>
+    <li>输入回应内容或选择预设选项，点击 <strong>"Respond"</strong> 提交</li>
+    <li>Agent 收到回应后继续执行，Task 状态恢复为 <code>running</code></li>
+  </ol>
+
+  <h3>5.4 取消 Input Request</h3>
+  <p>如果不需要回应，可以点击 <strong>"Cancel"</strong> 并在确认对话框中确认取消。取消后 agent 会收到取消信号。</p>
+
+  <h3>5.5 Adopt suggestion</h3>
+  <p>部分 Input Request 会携带 agent 建议的选项，Respond Modal 中以 chip 形式展示，点击即可快速采纳建议。</p>
+
+  <!-- ====================================================== -->
+  <h2>&sect; 6 Work Board</h2>
+
+  <h3>6.1 Kanban 视图</h3>
+  <p>Work Board 提供看板（Kanban）视图，将 Task 按状态分列展示。每列对应一个 Task 状态（submitted / running / paused / completed / failed）。</p>
+
+  <h3>6.2 操作</h3>
+  <ul>
+    <li><strong>拖拽重分配</strong> -- 将 Task 卡片从一列拖到另一列以更改状态。卡片内会显示 Task 标题、分配的 agent、所属 Project。</li>
+    <li><strong>快速创建</strong> -- 每列顶部有 "+" 按钮，点击后弹出 <strong>BoardTaskCreateModal</strong> 快速创建新 Task 到该状态列。</li>
+    <li><strong>筛选</strong> -- Work Board 支持按 Project、Assignee、状态筛选卡片。</li>
+  </ul>
+
+  <h3>6.3 移动端适配</h3>
+  <p>移动端的 Work Board 切换为纵向堆叠布局，支持触摸拖拽（<code>useBoardTouchDrag</code>）。</p>
+
+  <h3>6.4 Org 级 Work Items</h3>
+  <p>在 Organization 层级，<code>/organizations/:slug/issues</code> 和 <code>/organizations/:slug/tasks</code> 页面提供跨 Project 的 Issue / Task 聚合视图，支持：</p>
+  <ul>
+    <li>多状态 filter（multi-select）</li>
+    <li>多 Project filter</li>
+    <li>Assignee filter（人类或 agent）</li>
+    <li>创建 / 更新时间范围 filter</li>
+    <li>服务端排序 + 分页</li>
+  </ul>
+
+  <p style="margin-top:36px;color:var(--ink-3);font-size:13.5px">部署与安装参见 <a href="deploy.html" style="color:var(--accent)">部署指南</a>。CLI 命令参考见 <a href="../../dev/v2.15.0/mcp.html" style="color:var(--accent)">MCP 工具清单</a>。</p>
+</div>
+<footer style="border-top:1px solid var(--border);padding:30px 0;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>&copy; 2026 agent-center &middot; oopslink</span><span style="font-family:var(--font-mono)">手册 v2.15.0</span></div></footer>
+</body>
+</html>

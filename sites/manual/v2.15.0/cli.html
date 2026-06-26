@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLI 命令参考 · agent-center 手册</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a href="../../dev/v2.15.0/index.html">架构</a><a class="active" href="../../manual/v2.15.0/index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+
+<div class="doc">
+  <p><a href="index.html">&larr; 返回手册首页</a></p>
+
+  <h1>CLI 命令参考 <span style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--brand);background:var(--core-bg);border:1px solid var(--core-bd);padding:3px 10px;border-radius:999px;vertical-align:middle;margin-left:8px">v2.15.0</span></h1>
+
+  <!-- § 1 Overview -->
+  <h2 id="overview">&sect; 1 Overview</h2>
+  <p>自 v2.7 起，<code>agent-center</code> CLI 精简为<strong>部署 / 生命周期 / 运维专用</strong>，约 25 条命令。所有数据管理与查询功能（任务、议题、对话、Agent 管理、Observability 等）已迁移至 <strong>Web Console API</strong>（<code>/api/*</code> JSON endpoint + SSE）。</p>
+  <p>CLI 保留的职责：</p>
+  <ul>
+    <li>启动 center / worker 常驻进程</li>
+    <li>数据库 migration</li>
+    <li>安装、升级、卸载部署单元</li>
+    <li>Worker 注册与状态查询</li>
+    <li>Admin token 管理、备份、blob 迁移</li>
+    <li>本机多实例与测试沙箱管理</li>
+  </ul>
+  <p>全局 flag：</p>
+  <table>
+    <thead><tr><th>Flag</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>--config=&lt;path&gt;</code> / <code>-c</code></td><td>指定配置文件路径；默认 <code>/etc/agent-center/config.yaml</code>；也可通过 <code>AGENT_CENTER_CONFIG</code> 环境变量设置</td></tr>
+      <tr><td><code>--format=table|json|text</code></td><td>输出格式（查询类命令）；默认 <code>table</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- § 2 Server commands -->
+  <h2 id="server">&sect; 2 Server 命令</h2>
+
+  <h3><code>agent-center server</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center server [--config=&lt;path&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>启动 center 常驻进程。启动时自动执行 <code>migrate.Up</code>，按顺序完成：解析 config &rarr; 打开 SQLite &rarr; 跑 migration &rarr; 初始化 BlobStore &rarr; 启动 admin endpoint（unix socket + 可选 TCP TLS）&rarr; 启动 Web Console HTTP（<code>:7100</code>，loopback only）&rarr; 启动 outbox relay + 定时器 &rarr; ready。任何步骤失败立即 panic 退出（fail-fast）。</td></tr>
+      <tr><td><strong>关键 flag</strong></td><td><code>--config=&lt;path&gt;</code> &mdash; 配置文件路径</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center migrate</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center migrate &lt;subcommand&gt;</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>Migration 命令组。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center migrate up</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center migrate up [--config=&lt;path&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>手动执行数据库 migration（fail-fast 调试用）。通常不需要手动执行，因为 <code>server</code> 启动时会自动跑。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center migrate v1-to-v2</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center migrate v1-to-v2 [--config=&lt;path&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>v1 &rarr; v2 数据迁移工具。仅在从 v1 升级到 v2 时使用一次。</td></tr>
+    </tbody>
+  </table>
+
+  <!-- § 3 Install / Uninstall -->
+  <h2 id="install">&sect; 3 Install / Uninstall / Upgrade</h2>
+
+  <h3><code>agent-center install center</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center install center [--instance=&lt;name&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>安装 center 部署单元：创建系统用户 / 目录 / systemd（Linux）或 launchd（macOS）service unit，symlink binary 到 <code>/usr/local/bin/agent-center</code>。若已安装则自动走升级路径。</td></tr>
+      <tr><td><strong>关键 flag</strong></td><td><code>--instance=&lt;name&gt;</code> &mdash; 支持单机多实例部署（v2.7.1 #211），不同 instance 使用不同 install prefix + service label</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center install worker</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center install worker [--config=&lt;path&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>安装 worker daemon 部署单元（systemd / launchd service unit）。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center install test-instance</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center install test-instance [flags]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>创建隔离测试沙箱（1 center + N workers）。沙箱文件落在 <code>~/.agent-center-test/</code> 下。（v2.8 #255）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center uninstall center</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center uninstall center [--instance=&lt;name&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>卸载 center（移除 service unit + symlink + 数据目录）。是 <code>install center</code> 的逆操作。（v2.5.1）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center uninstall worker</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center uninstall worker</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>卸载 worker daemon。是 <code>install worker</code> 的逆操作。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center uninstall test-instance</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center uninstall test-instance [flags]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>拆除测试沙箱。是 <code>install test-instance</code> 的逆操作。（v2.8 #255）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center upgrade center</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center upgrade center [--instance=&lt;name&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>升级 center binary（swap binary + 重启 service）。要求已有安装，否则拒绝并提示先 <code>install</code>。（v2.5.2）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center upgrade worker</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center upgrade worker</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>升级 worker binary。要求已有安装。</td></tr>
+    </tbody>
+  </table>
+
+  <!-- § 4 Worker commands -->
+  <h2 id="worker">&sect; 4 Worker 命令</h2>
+
+  <h3><code>agent-center worker enroll</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center worker enroll &lt;bootstrap-token&gt; [--config=&lt;path&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>Worker 首次注册到 center。使用 bootstrap token 兑换 session token，完成 Worker 入库 + capabilities 探测上报。Session token 落盘到 <code>~/.agent-center/credentials</code>（mode 0600）。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center worker list</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center worker list [--format=table|json|text]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>列出所有已注册 worker 及其状态（online / offline）。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center worker status</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center worker status &lt;worker_id&gt; [--format=table|json|text]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>查看单个 worker 的详细信息：状态、capabilities、concurrency 配置、最后心跳时间等。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center worker run</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center worker run [--config=&lt;path&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>启动 worker daemon 常驻进程。通常由 systemd / launchd 管理，不需要手动执行。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center worker shim</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center worker shim &lt;execution_id&gt;</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>Per-execution shim 进程。<strong>系统内部命令</strong>（audience: Sys），由 worker daemon 自动 spawn，用户不直接调用。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center worker mcp-host</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center worker mcp-host</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>Per-agent stdio MCP server。<strong>系统内部命令</strong>（audience: Sys），由 daemon 内部 spawn，为每个 agent 提供 MCP 工具注入通道。（v2.7 b3-i）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center worker agent-supervisor</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center worker agent-supervisor</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>持久化 per-agent supervisor 进程。<strong>系统内部命令</strong>（audience: Sys），由 daemon 内部 spawn。（v2.7 D2-f s1）</td></tr>
+    </tbody>
+  </table>
+
+  <!-- § 5 Admin commands -->
+  <h2 id="admin">&sect; 5 Admin 命令</h2>
+
+  <h3><code>agent-center admin backup</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center admin backup [--config=&lt;path&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>执行 SQLite 数据库备份。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center admin blob-migrate</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center admin blob-migrate [--config=&lt;path&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>BlobStore 后端切换数据迁移（例如从本地文件系统迁移到 S3）。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center admin token create</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center admin token create [--scope=&lt;scope&gt;] [--ttl=&lt;duration&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>创建 admin bearer token。明文 token 仅在创建时返回一次。（v2.3-3a）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center admin token list</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center admin token list [--format=table|json|text]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>列出所有 admin bearer token（不含明文值）。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center admin token revoke</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center admin token revoke &lt;token_id&gt;</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>撤销指定 admin token，使其立即失效。</td></tr>
+    </tbody>
+  </table>
+
+  <!-- § 6 Utility -->
+  <h2 id="utility">&sect; 6 Utility 命令</h2>
+
+  <h3><code>agent-center version</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center version</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>打印版本号、git commit hash、build time。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center bootstrap</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center bootstrap [check-systemd]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>首次安装检查（Phase 7）。验证系统环境是否满足部署前置条件。<code>check-systemd</code> 子命令专门检查 systemd 配置。</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center list-local-centers</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center list-local-centers</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>列出本机所有 center 部署实例。支持多实例场景。（v2.7.1 #211）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center list-local-workers</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center list-local-workers</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>列出本机所有 worker 部署（prod + test）。（v2.8 #170）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center list-test-instances</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center list-test-instances</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>列出 <code>~/.agent-center-test/</code> 下的测试沙箱。（v2.8 #255）</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>agent-center help</code></h3>
+  <table>
+    <tbody>
+      <tr><td><strong>语法</strong></td><td><code>agent-center help [&lt;command&gt;]</code></td></tr>
+      <tr><td><strong>说明</strong></td><td>显示帮助信息。可指定具体命令名查看该命令的详细用法。</td></tr>
+    </tbody>
+  </table>
+
+  <hr>
+  <h2 id="exit-codes">附录：Exit Code 约定</h2>
+  <table>
+    <thead><tr><th>Code</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>成功</td></tr>
+      <tr><td><code>1</code></td><td>业务失败（通用）</td></tr>
+      <tr><td><code>2</code></td><td>Usage 错误（参数缺失 / unknown flag / enum 非法值）</td></tr>
+      <tr><td><code>16</code></td><td>版本冲突（乐观锁 CAS 失败）</td></tr>
+      <tr><td><code>17</code></td><td>资源 not found</td></tr>
+      <tr><td><code>18</code></td><td>状态机非法跃迁</td></tr>
+      <tr><td><code>19</code></td><td>Invariant 违反</td></tr>
+      <tr><td><code>64</code></td><td>内部错误（panic / unknown）</td></tr>
+      <tr><td><code>130</code></td><td>用户主动 cancel（SIGINT）</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="output">附录：输出格式</h2>
+  <p>所有查询类命令支持 <code>--format</code> flag：</p>
+  <ul>
+    <li><code>table</code>（默认）&mdash; 表格 / 对齐；操作型命令为单行成功信息</li>
+    <li><code>json</code> &mdash; 机器解析；snake_case key；加字段向后兼容，删/改字段视为 breaking change</li>
+    <li><code>text</code> &mdash; 一行一个 ID（脚本友好，可直接 <code>xargs</code>）</li>
+  </ul>
+  <p>stdout 输出业务数据，stderr 输出日志 / 进度 / debug 信息。<code>--format=json</code> 时 stdout 保证为合法 JSON。</p>
+</div>
+
+<footer style="border-top:1px solid var(--border);padding:30px 0;margin-top:50px;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>&copy; 2026 agent-center &middot; oopslink</span><span style="font-family:var(--font-mono)">手册 v2.15.0</span></div></footer>
+</body>
+</html>

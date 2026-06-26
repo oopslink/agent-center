@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>快速开始 · 手册 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.doc { max-width: var(--maxw); margin: 0 auto; padding: 30px 24px 70px; }
+.doc h1 { font-size: 34px; font-weight: 800; margin-bottom: 8px; }
+.doc .dek { color: var(--ink-2); margin-bottom: 30px; }
+.doc h2 { font-size: 22px; font-weight: 700; margin: 36px 0 14px; padding-top: 20px; border-top: 1px solid var(--border); }
+.doc h2:first-of-type { border-top: 0; margin-top: 0; }
+.doc h3 { font-size: 17px; font-weight: 700; margin: 24px 0 10px; }
+.doc p { color: var(--ink-2); line-height: 1.7; margin: 10px 0; }
+.doc pre { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+.doc code { font-family: var(--font-mono); font-size: 13px; }
+.doc p code, .doc li code { background: var(--bg-subtle); padding: 2px 6px; border-radius: 4px; font-size: 12.5px; }
+.doc ul, .doc ol { color: var(--ink-2); line-height: 1.7; padding-left: 24px; }
+.doc table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13.5px; }
+.doc th { text-align: left; font-weight: 600; padding: 8px 12px; border-bottom: 2px solid var(--border); }
+.doc td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--ink-2); }
+.doc .note { background: var(--core-bg); border: 1px solid var(--core-bd); border-radius: var(--r-md); padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+.doc .warn { background: #fef3c7; border: 1px solid #fde68a; border-radius: var(--r-md); padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+.doc .back { font-family: var(--font-mono); font-size: 13px; color: var(--accent); margin-bottom: 16px; display: inline-block; }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a href="../../dev/v2.15.0/index.html">架构</a><a class="active" href="index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+<div class="doc">
+  <a class="back" href="index.html">← 手册首页</a>
+
+  <h1>5 分钟快速开始</h1>
+  <p class="dek">从零到第一个 Task 完成 —— 六步走完。</p>
+
+  <h2>Prerequisites</h2>
+  <ul>
+    <li><strong>Go 1.22+</strong>（从源码构建时需要；使用发行包则不需要）</li>
+    <li><strong>macOS</strong> 或 <strong>Linux</strong>（Windows 未经测试）</li>
+    <li>磁盘空间 100 MB 以上（SQLite + 二进制 + 日志）</li>
+  </ul>
+
+  <h2>Step 1 — 安装 center</h2>
+  <h3>方式 A：从源码构建</h3>
+  <pre><code>git clone https://github.com/oopslink/agent-center.git
+cd agent-center
+make build          # 构建 frontend (vite) + backend (Go) → ./bin/agent-center</code></pre>
+  <h3>方式 B：使用发行包</h3>
+  <pre><code># 下载对应平台的 release tarball
+tar xzf agent-center-v2.15.0-darwin-arm64.tar.gz
+cd agent-center-v2.15.0-darwin-arm64/
+./install center    # 幂等，检测已有安装会跳过</code></pre>
+  <h3>方式 C：source guided installer</h3>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/oopslink/agent-center/main/install.sh | bash</code></pre>
+  <div class="note"><code>install center</code> 默认前台模式，仅部署文件与配置。如需后台服务（launchd / systemd），加 <code>--service</code>。</div>
+
+  <h2>Step 2 — 启动 center</h2>
+  <pre><code>agent-center server --config=~/.agent-center/etc/config.yaml</code></pre>
+  <p>启动后终端会输出：</p>
+  <pre><code>agent-center server: db=... listen=:7050 web=127.0.0.1:7100 admin=...</code></pre>
+  <div class="note">默认端口：Web Console <code>127.0.0.1:7100</code>，server <code>:7050</code>，Admin TCP <code>0.0.0.0:7300</code>（worker 连接用）。</div>
+
+  <h2>Step 3 — 打开 Web Console</h2>
+  <p>浏览器访问：</p>
+  <pre><code>http://localhost:7100</code></pre>
+  <p>首次打开会 mint bootstrap admin token。你将看到 agent-center SPA：Channels 列表、Fleet 页面、Task 面板。</p>
+  <div class="warn">Web Console 仅绑定 loopback（<code>127.0.0.1</code>）。远程访问请用 SSH tunnel：<code>ssh -L 7100:127.0.0.1:7100 user@host</code></div>
+
+  <h2>Step 4 — 安装 worker</h2>
+  <p>在 Web Console 点击 <strong>"+ Add Worker"</strong>，输入名称，复制生成的安装命令（含 bootstrap URL、enroll token、server fingerprint）：</p>
+  <pre><code>./install worker \
+  --bootstrap=tcp://HOST:7300 \
+  --server-fingerprint=sha256:... \
+  --token=enroll_... \
+  --worker-id=worker-... --worker-name="my box"</code></pre>
+  <p>Worker 可以与 center 同机，也可以在另一台开发机上。安装后启动：</p>
+  <pre><code>agent-center worker run --config=~/.agent-center/workers/worker-.../etc/config.yaml</code></pre>
+  <div class="note">同样默认前台模式。加 <code>--service</code> 可注册 LaunchAgent (macOS) 或 systemd unit (Linux)。</div>
+
+  <h2>Step 5 — Enroll worker</h2>
+  <p>Worker 启动时会自动使用 <code>--token</code> 完成 enroll 握手。成功后终端输出：</p>
+  <pre><code>[worker] enrolled as worker_id=worker-...</code></pre>
+  <p>在 Web Console 的 <strong>Fleet</strong> 页面可以看到 worker 状态变为 online。</p>
+
+  <h2>Step 6 — 在 Web Console 创建第一个 Task</h2>
+  <ol>
+    <li>进入 <strong>Channels</strong> → 创建一个 channel</li>
+    <li>发一条消息</li>
+    <li>点击消息 → <strong>"Derive Task"</strong> → 选择项目 → 确认</li>
+    <li>Task 出现在 <strong>Tasks</strong> 面板；状态自动流转：<code>submitted → working → completed</code></li>
+    <li>在 <strong>Fleet</strong> 页面查看 worker 的执行计数</li>
+  </ol>
+  <div class="note">也可以通过 CLI 创建 Task：<code>agent-center task new --project-id=demo --title="hello world"</code></div>
+
+  <p style="margin-top:36px;color:var(--ink-3);font-size:13.5px">更详细的安装与部署说明见 <a href="install.html" style="color:var(--accent)">安装指南</a>。</p>
+</div>
+<footer style="border-top:1px solid var(--border);padding:30px 0;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">手册 v2.15.0</span></div></footer>
+</body>
+</html>
