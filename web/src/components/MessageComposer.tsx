@@ -465,7 +465,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         <button
           type="submit"
           disabled={disabled}
-          className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+          className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded bg-btn-primary-bg text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
           data-testid="composer-send"
           title="Send (Enter)"
           aria-label="Send"

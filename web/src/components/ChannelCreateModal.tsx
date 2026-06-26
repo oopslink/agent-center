@@ -107,7 +107,7 @@ export function ChannelCreateModal({
             <button
               type="submit"
               disabled={!name.trim() || create.isPending}
-              className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+              className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="create-channel-submit"
             >
               {create.isPending ? 'Creating…' : 'Create'}

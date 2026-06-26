@@ -41,7 +41,7 @@ import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
-import { ConversationSidebar, EmbeddedConversationSidebar } from '@/components/ConversationSidebar';
+import { ConversationSidebar, EmbeddedConversationSidebar, EmbeddedSidebarToggle } from '@/components/ConversationSidebar';
 import { ContextPanel } from '@/shell/contextPanel';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
@@ -130,18 +130,20 @@ export default function PlanDetail(): React.ReactElement {
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col gap-4"
+      className="-mx-4 -mt-2 flex min-h-0 flex-1 flex-col px-4 pt-2 md:mx-0 md:mt-0 md:gap-4 md:px-0 md:pt-0"
       data-testid="page-PlanDetail"
       data-plan-id={p.id}
     >
-      <Breadcrumb
-        items={[
-          { label: 'Projects', to: '/projects' },
-          { label: projectName, to: `/projects/${encodeURIComponent(id)}` },
-          { label: 'Plans', to: `/projects/${encodeURIComponent(id)}/plans` },
-          { label: p.name },
-        ]}
-      />
+      <div className="hidden md:block">
+        <Breadcrumb
+          items={[
+            { label: 'Projects', to: '/projects' },
+            { label: projectName, to: `/projects/${encodeURIComponent(id)}` },
+            { label: 'Plans', to: `/projects/${encodeURIComponent(id)}/plans` },
+            { label: p.name },
+          ]}
+        />
+      </div>
 
       {/* T341: the card is height-bounded (flex-1) + overflow-hidden so its rounded
           border stays crisp and the CHAT fills the remaining height with its
@@ -149,7 +151,7 @@ export default function PlanDetail(): React.ReactElement {
           had pushed the composer off-screen). The chat body drops the min-h-[60vh]
           floor (which had spilled past the border) — a bounded card makes flex-1
           resolve correctly. Maximize (added on the chat) is the full-screen escape. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1" data-testid="plan-detail-card">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:rounded-lg md:border md:border-border-base md:bg-bg-elevated md:shadow-1" data-testid="plan-detail-card">
         <PlanDetailHeader projectId={id} plan={p} />
 
         {/* v2.13.0 / I18 F4 — the ship-gate board: the cycle's Integrate nodes
@@ -163,7 +165,7 @@ export default function PlanDetail(): React.ReactElement {
         {/* T328: the plan id (P27) sits on the tab row (right-aligned, into the
             empty space) — @oopslink — instead of a separate "P27 · chat" sub-header
             row inside the chat tab, saving a row (esp. on mobile). */}
-        <div className="flex items-center gap-1 px-4 pt-2" data-testid="plan-tabs">
+        <div className="flex items-center gap-1 px-3 pt-2 md:px-4" data-testid="plan-tabs">
           <div className="flex min-w-0 items-center gap-1" role="tablist">
             <TabButton id="chat" active={tab === 'chat'} onSelect={setTab}>
               Chat
@@ -186,7 +188,7 @@ export default function PlanDetail(): React.ReactElement {
                 aria-pressed={chatMaximized}
                 aria-label={chatMaximized ? 'Restore chat' : 'Maximize chat'}
                 title={chatMaximized ? 'Restore (Esc)' : 'Maximize chat'}
-                className="inline-flex h-10 w-10 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
+                className="inline-flex h-11 w-11 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
               >
                 {chatMaximized ? <PlanChatRestoreIcon /> : <PlanChatMaximizeIcon />}
               </button>
@@ -201,7 +203,7 @@ export default function PlanDetail(): React.ReactElement {
                 aria-pressed={dagCompact}
                 aria-label={dagCompact ? 'Reset DAG zoom' : 'Compact DAG (zoom to fit)'}
                 title={dagCompact ? 'Reset zoom' : 'Compact (zoom to fit)'}
-                className={`hidden h-10 w-10 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:inline-flex md:h-7 md:w-7 ${
+                className={`hidden h-11 w-11 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:inline-flex md:h-7 md:w-7 ${
                   dagCompact
                     ? 'text-accent'
                     : 'text-text-muted hover:bg-bg-subtle hover:text-text-primary'
@@ -226,7 +228,7 @@ export default function PlanDetail(): React.ReactElement {
             splitter). Chat stays mounted-but-hidden across tabs so its SSE
             subscription + scroll/composer-draft survive; DAG/Task mount lazily
             when their tab is active. */}
-        <div className="flex min-h-0 flex-1 flex-col p-4" data-testid="plan-detail-content">
+        <div className="flex min-h-0 flex-1 flex-col p-0 md:p-4" data-testid="plan-detail-content">
           {/* Chat stays mounted-but-hidden across tabs (SSE/scroll/draft survive).
               When active it must FILL the card height so the message stream scrolls
               INSIDE the viewport instead of growing the page (T180). The flex
@@ -290,12 +292,12 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   const advance = useAdvancePlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
-  // T341: mobile "Actions ▾" dropdown open-state (desktop always shows inline).
   const [actionsOpen, setActionsOpen] = useState(false);
-  // T349: the plan goal (description) is collapsible — clamped by default so a long
-  // goal doesn't eat the page (@oopslink); the toggle only shows for a long goal.
   const [goalOpen, setGoalOpen] = useState(false);
   const goalLong = plan.description.trim().length > 80 || plan.description.includes('\n');
+  const isMobile = useIsMobile();
+  // Mobile: goal is hidden behind "Show goal" in the actions dropdown.
+  const [mobileGoalOpen, setMobileGoalOpen] = useState(false);
 
   const creatorName = resolveName(plan.creator_ref);
   const creatorLabel =
@@ -310,16 +312,63 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   const canDestroy = plan.status !== 'running' && plan.status !== 'archived';
 
   return (
-    <header className="space-y-2 border-b border-border-base p-4" data-testid="plan-detail-header">
-      <div className="flex flex-wrap items-center gap-2">
-        {/* v2.10.1 [T99]: the human Plan id (P123). */}
+    <header className="space-y-2 px-3 py-2 md:border-b md:border-border-base md:p-4" data-testid="plan-detail-header">
+      {/* Mobile: single row — ref + title + status + progress + creator + actions */}
+      <div className="flex items-center gap-2">
         <PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="plan-detail-ref" />
-        <h1 className="font-heading text-xl font-semibold text-text-primary" title={plan.id}>
+        <h1 className="min-w-0 truncate font-heading text-lg font-semibold text-text-primary md:text-xl" title={plan.id}>
           {plan.name}
         </h1>
+        {isMobile && (
+          <span className="ml-auto flex items-center gap-1.5 text-xs text-text-muted">
+            <PlanStatusChip status={plan.status} />
+            <PlanFailedIndicator hasFailed={plan.has_failed} />
+            <span data-testid="plan-progress">{planProgressLabel(plan.progress)}</span>
+            <span title={plan.creator_ref}>@{creatorLabel}</span>
+            <span className="relative">
+              <button
+                type="button"
+                onClick={() => setActionsOpen((o) => !o)}
+                aria-expanded={actionsOpen}
+                data-testid="plan-actions-toggle"
+                className="inline-flex min-h-[2.75rem] items-center gap-1 rounded-full border border-border-base bg-bg-subtle px-2.5 text-xs font-medium text-text-secondary whitespace-nowrap"
+              >
+                Actions <span aria-hidden="true">▾</span>
+              </button>
+              {actionsOpen && (
+                <div className="absolute right-0 top-full z-20 mt-1 w-44 flex-col rounded-lg border border-border-base bg-bg-elevated p-1 shadow-2" data-testid="plan-actions" role="menu">
+                  {plan.description.trim() !== '' && (
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setMobileGoalOpen((v) => !v); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">
+                      {mobileGoalOpen ? 'Hide goal' : 'Show goal'}
+                    </button>
+                  )}
+                  {plan.status === 'running' && (
+                    <>
+                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); advance.mutate(); }} disabled={advance.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">Advance now</button>
+                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); stop.mutate(); }} disabled={stop.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">Stop</button>
+                    </>
+                  )}
+                  {plan.status !== 'archived' && (
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setEditing(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">Edit</button>
+                  )}
+                  {plan.status === 'draft' && (
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); start.mutate(); }} disabled={start.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">Start</button>
+                  )}
+                  {canDestroy && (
+                    <>
+                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('archive'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">Archive</button>
+                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('delete'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle">Delete</button>
+                    </>
+                  )}
+                </div>
+              )}
+            </span>
+          </span>
+        )}
+      </div>
+      {/* Row 2 (desktop only): status chips + actions */}
+      <div className={`${isMobile ? 'hidden' : 'flex'} flex-wrap items-center gap-2`}>
         <PlanStatusChip status={plan.status} />
-        {/* P2-4: a RUNNING plan IS being auto-advanced (the orchestrator
-            dispatches ready nodes by events). Subtle informational signal. */}
         {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
         <PlanFailedIndicator hasFailed={plan.has_failed} />
         <span className="flex-1" />
@@ -332,13 +381,12 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             onClick={() => setActionsOpen((o) => !o)}
             aria-expanded={actionsOpen}
             data-testid="plan-actions-toggle"
-            className="flex items-center gap-1 rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary md:hidden"
+            className="inline-flex min-h-[2.75rem] items-center gap-1 rounded-full border border-border-base bg-bg-subtle px-3 text-xs font-medium text-text-secondary whitespace-nowrap md:hidden"
           >
-            Actions
-            <span aria-hidden="true">▾</span>
+            Actions <span aria-hidden="true">▾</span>
           </button>
           <div
-            className={`${actionsOpen ? 'flex' : 'hidden'} absolute right-0 top-full z-20 mt-1 w-48 flex-col items-stretch gap-1 rounded-md border border-border-base bg-bg-elevated p-1 shadow-2 md:mt-0 md:flex md:w-auto md:flex-row md:items-center md:gap-2 md:border-0 md:bg-transparent md:p-0 md:shadow-none md:static`}
+            className={`${actionsOpen ? 'flex' : 'hidden'} absolute right-0 top-full z-20 mt-1 w-44 flex-col rounded-lg border border-border-base bg-bg-elevated p-1 shadow-2 md:relative md:mt-0 md:flex md:w-auto md:flex-row md:items-center md:gap-2 md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
           >
         {/* Lifecycle (§9.4 / §9.6): running → Advance (dispatch ready) + Stop
             (→ draft); draft → Start. Each control is rendered exactly ONCE here
@@ -353,10 +401,10 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
               type="button"
               data-testid="plan-advance-btn"
               disabled={advance.isPending}
-              onClick={() => advance.mutate()}
+              onClick={() => { setActionsOpen(false); advance.mutate(); }}
               title="Manually dispatch ready nodes now (the system already advances automatically)"
               aria-label="Manually dispatch ready nodes now (the system already advances automatically)"
-              className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base disabled:opacity-50"
+              className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base"
             >
               ▸ Advance now
             </button>
@@ -364,8 +412,8 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
               type="button"
               data-testid="plan-stop-btn"
               disabled={stop.isPending}
-              onClick={() => stop.mutate()}
-              className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base disabled:opacity-50"
+              onClick={() => { setActionsOpen(false); stop.mutate(); }}
+              className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base"
             >
               ■ Stop (→ draft)
             </button>
@@ -379,8 +427,8 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           <button
             type="button"
             data-testid="plan-edit-btn"
-            onClick={() => setEditing(true)}
-            className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary"
+            onClick={() => { setActionsOpen(false); setEditing(true); }}
+            className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base md:hover:text-text-primary"
           >
             Edit
           </button>
@@ -390,8 +438,8 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             type="button"
             data-testid="plan-start-btn"
             disabled={start.isPending}
-            onClick={() => start.mutate()}
-            className="rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            onClick={() => { setActionsOpen(false); start.mutate(); }}
+            className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border-0 md:bg-accent md:px-3 md:py-1.5 md:text-xs md:text-white md:hover:opacity-90"
           >
             ▸ Start
           </button>
@@ -406,18 +454,18 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             <button
               type="button"
               data-testid="plan-archive-btn"
-              onClick={() => setConfirming('archive')}
+              onClick={() => { setActionsOpen(false); setConfirming('archive'); }}
               title="Archive this plan and all its tasks (terminal, cannot be undone)"
-              className="rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary"
+              className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base md:hover:text-text-primary"
             >
               Archive
             </button>
             <button
               type="button"
               data-testid="plan-delete-btn"
-              onClick={() => setConfirming('delete')}
+              onClick={() => { setActionsOpen(false); setConfirming('delete'); }}
               title="Delete this plan (unloads its tasks to the Backlog, cannot be undone)"
-              className="rounded border border-danger bg-bg-subtle px-3 py-1.5 text-xs font-semibold text-danger hover:bg-bg-base"
+              className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle md:min-h-0 md:w-auto md:rounded md:border md:border-danger md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-danger md:hover:bg-bg-base"
             >
               Delete
             </button>
@@ -426,10 +474,21 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           </div>
         </div>
       </div>
-      {/* T347: surface the plan's GOAL (description) — was only editable in the
-          modal. T349: collapsible — clamped to 2 lines by default; a long goal gets
-          a Show more / less toggle so it doesn't dominate the header. */}
-      {plan.description.trim() !== '' && (
+      {isMobile && (
+        <>
+          {/* Mobile goal panel (toggled from Actions) */}
+          {mobileGoalOpen && plan.description.trim() !== '' && (
+            <div className="relative rounded-lg border border-border-base bg-bg-elevated p-3">
+              <button type="button" onClick={() => setMobileGoalOpen(false)} aria-label="Close goal" className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true"><path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" /></svg>
+              </button>
+              <p className="whitespace-pre-wrap text-sm text-text-secondary" data-testid="plan-goal">{plan.description}</p>
+            </div>
+          )}
+        </>
+      )}
+      {/* Desktop: goal + meta (hidden on mobile) */}
+      {!isMobile && plan.description.trim() !== '' && (
         <div data-testid="plan-goal-wrap">
           <p
             className={`whitespace-pre-wrap text-sm text-text-secondary ${
@@ -453,28 +512,30 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           )}
         </div>
       )}
-      <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted" data-testid="plan-detail-meta">
-        <div className="flex items-center gap-1">
-          <dt className="uppercase tracking-wide text-[0.625rem]">Progress</dt>
-          <dd className="text-text-secondary" data-testid="plan-progress">
-            {planProgressLabel(plan.progress)}
-          </dd>
-        </div>
-        {plan.target_date && (
+      {!isMobile && (
+        <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted" data-testid="plan-detail-meta">
           <div className="flex items-center gap-1">
-            <dt className="uppercase tracking-wide text-[0.625rem]">Target</dt>
-            <dd className="text-text-secondary" title={plan.target_date}>
-              {formatLocalTime(plan.target_date)}
+            <dt className="uppercase tracking-wide text-[0.625rem]">Progress</dt>
+            <dd className="text-text-secondary" data-testid="plan-progress">
+              {planProgressLabel(plan.progress)}
             </dd>
           </div>
-        )}
-        <div className="flex items-center gap-1">
-          <dt className="uppercase tracking-wide text-[0.625rem]">Creator</dt>
-          <dd className="text-text-secondary" title={plan.creator_ref} data-testid="plan-creator">
-            @{creatorLabel}
-          </dd>
-        </div>
-      </dl>
+          {plan.target_date && (
+            <div className="flex items-center gap-1">
+              <dt className="uppercase tracking-wide text-[0.625rem]">Target</dt>
+              <dd className="text-text-secondary" title={plan.target_date}>
+                {formatLocalTime(plan.target_date)}
+              </dd>
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <dt className="uppercase tracking-wide text-[0.625rem]">Creator</dt>
+            <dd className="text-text-secondary" title={plan.creator_ref} data-testid="plan-creator">
+              @{creatorLabel}
+            </dd>
+          </div>
+        </dl>
+      )}
       {(start.isError || stop.isError || advance.isError) && (
         <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
           {((start.error ?? stop.error ?? advance.error) as Error).message}
@@ -1563,16 +1624,12 @@ function PlanDag({
           </div>
         )}
         <div
-          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle md:block"
+          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle hex-dot-grid md:block"
           data-testid="plan-dag-canvas"
           data-compact={compact ? 'true' : 'false'}
           // T347: a subtle dot-grid gives the DAG a "canvas" feel instead of a flat
           // panel (@oopslink: 太素了).
-          style={{
-            maxHeight: 480,
-            backgroundImage: 'radial-gradient(var(--color-border-base) 1px, transparent 1px)',
-            backgroundSize: '16px 16px',
-          }}
+          style={{ maxHeight: 480 }}
         >
           {/* Sizing wrapper reserves the SCALED extent so the scroll area is
               correct; the inner layer keeps its natural size and is zoomed via
@@ -1963,6 +2020,30 @@ function PlanTaskRow({
   members: MemberResult[];
 }): React.ReactElement {
   const remove = useRemoveTaskFromPlan(projectId, planId);
+  // Confirmation state for the trash-icon remove button. First click arms it
+  // (shows "Confirm?" inline); second click executes; clicking elsewhere or
+  // after 3 s resets back to the icon.
+  const [confirmArmed, setConfirmArmed] = useState(false);
+  const confirmTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const armConfirm = () => {
+    setConfirmArmed(true);
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    confirmTimer.current = setTimeout(() => setConfirmArmed(false), 3000);
+  };
+  const cancelConfirm = () => {
+    setConfirmArmed(false);
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+  };
+  const handleRemoveClick = () => {
+    if (!confirmArmed) {
+      armConfirm();
+    } else {
+      cancelConfirm();
+      remove.mutate(node.task_id);
+    }
+  };
+  // Reset confirmation if the row unmounts (e.g., task removed by other means).
+  useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current); }, []);
   // T53: operator resume of a paused node (its agent set the work item aside).
   const resume = useResumePausedNode(projectId, planId);
   // T41 inline 分派: reassigning is NOT draft-gated (allowed regardless of plan
@@ -2086,17 +2167,53 @@ function PlanTaskRow({
       </td>
       {canRemove && (
         <td className="py-1.5 pl-3 text-right">
-          <button
-            type="button"
-            className="rounded border border-border-strong bg-bg-subtle px-2 py-0.5 text-[0.6875rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary disabled:opacity-50"
-            disabled={remove.isPending}
-            aria-label={`Remove ${node.title || refLabel(node.org_ref, node.task_id)} from plan`}
-            title="Remove from plan (back to backlog)"
-            data-testid={`plan-task-remove-${node.task_id}`}
-            onClick={() => remove.mutate(node.task_id)}
-          >
-            Remove
-          </button>
+          <span className="inline-flex items-center justify-end gap-1.5">
+            {confirmArmed && (
+              <span
+                className="text-[0.6875rem] font-semibold text-danger"
+                aria-live="polite"
+              >
+                Confirm?
+              </span>
+            )}
+            <button
+              type="button"
+              className={`rounded p-1 transition-colors disabled:opacity-50 ${
+                confirmArmed
+                  ? 'text-danger hover:bg-danger/10'
+                  : 'text-text-muted hover:bg-bg-subtle hover:text-text-primary'
+              }`}
+              disabled={remove.isPending}
+              aria-label={`Remove ${node.title || refLabel(node.org_ref, node.task_id)} from plan`}
+              title={confirmArmed ? 'Click again to confirm removal' : 'Remove from plan (back to backlog)'}
+              data-testid={`plan-task-remove-${node.task_id}`}
+              onClick={handleRemoveClick}
+              onBlur={cancelConfirm}
+            >
+              {/* Single-stroke trash icon, 16×16 viewBox, strokeWidth 1.5 */}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                {/* lid */}
+                <path d="M2 4h12" />
+                {/* handle */}
+                <path d="M5.5 4V2.5h5V4" />
+                {/* body */}
+                <path d="M3 4l.75 9.5h8.5L13 4" />
+                {/* inner lines */}
+                <path d="M6 7v4.5M8 7v4.5M10 7v4.5" />
+              </svg>
+            </button>
+          </span>
         </td>
       )}
     </tr>
@@ -2121,6 +2238,15 @@ function PlanConversationSide({
 }): React.ReactElement {
   const conv = useConversation(conversationId || undefined);
   const isMobile = useIsMobile(); // T324: embed the conv sidebar on desktop only
+  // Embedded sidebar collapse — lifted so the restore button can sit in the
+  // maximize header bar instead of a standalone w-9 strip.
+  const [embeddedCollapsed, setEmbeddedCollapsed] = useState(() => {
+    try { return window.localStorage.getItem('ac.convsidebar.embedded.collapsed') === '1'; } catch { return false; }
+  });
+  const toggleEmbeddedCollapsed = (v: boolean): void => {
+    setEmbeddedCollapsed(v);
+    try { window.localStorage.setItem('ac.convsidebar.embedded.collapsed', v ? '1' : '0'); } catch { /* */ }
+  };
   useEffect(() => {
     if (!maximized) return;
     const prevOverflow = document.body.style.overflow;
@@ -2150,7 +2276,10 @@ function PlanConversationSide({
         data-maximized={maximized ? 'true' : 'false'}
       >
         {maximized && (
-          <div className="mb-1 flex items-center justify-end">
+          <div className="mb-1 flex items-center justify-end gap-1">
+            {!isMobile && embeddedCollapsed && (
+              <EmbeddedSidebarToggle collapsed={embeddedCollapsed} onExpand={() => toggleEmbeddedCollapsed(false)} />
+            )}
             <button
               type="button"
               onClick={onToggleMaximize}
@@ -2173,7 +2302,7 @@ function PlanConversationSide({
         ) : (
           <div
             // T341: flex-1 fills the bounded card (composer pinned); no min-h floor.
-            className="flex min-h-0 flex-1 overflow-hidden rounded border border-border-base"
+            className="flex min-h-0 flex-1 overflow-hidden md:rounded md:border md:border-border-base"
             data-testid="plan-conversation-body"
           >
             {/* T327: min-w-0 lets the messages column shrink so the embedded
@@ -2192,12 +2321,14 @@ function PlanConversationSide({
               <EmbeddedConversationSidebar
                 conversationId={conversationId}
                 participants={conv.data.participants ?? []}
+                collapsed={embeddedCollapsed}
+                onToggleCollapsed={toggleEmbeddedCollapsed}
               />
             )}
           </div>
         )}
         {!maximized && (
-          <p className="mt-2 text-[0.6875rem] text-text-muted">
+          <p className="mt-2 hidden text-[0.6875rem] text-text-muted md:block">
             Dispatch = @assignee in this conversation (notify human / wake agent); also the place to discuss this plan.
           </p>
         )}

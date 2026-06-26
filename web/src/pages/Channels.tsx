@@ -58,7 +58,7 @@ export default function Channels(): React.ReactElement {
         <h1 className="text-xl font-semibold">Channels</h1>
         <button
           type="button"
-          className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
+          className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
           onClick={() => setCreateOpen(true)}
           data-testid="channels-new-button"
         >

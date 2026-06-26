@@ -41,7 +41,7 @@ export default function DMs(): React.ReactElement {
         <h1 className="text-xl font-semibold">DMs</h1>
         <button
           type="button"
-          className="rounded bg-text-primary px-3 py-1.5 text-sm font-medium text-bg-elevated hover:opacity-90"
+          className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
           onClick={() => setStartOpen(true)}
           data-testid="dms-new-button"
         >

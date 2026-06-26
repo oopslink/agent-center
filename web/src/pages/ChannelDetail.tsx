@@ -65,7 +65,7 @@ export default function ChannelDetail(): React.ReactElement {
     // drive the one provider sidebar). DM has its own; channel/work-item each wrap too.
     <SenderSidebarProvider>
     <section
-      className="flex h-full flex-col"
+      className="-mx-4 -mt-2 flex h-full flex-col px-4 pt-2 md:mx-0 md:mt-0 md:px-0 md:pt-0"
       data-testid="page-ChannelDetail"
       data-channel-id={ch.id}
     >

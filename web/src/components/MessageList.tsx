@@ -494,7 +494,7 @@ export function MessageList({
           type="button"
           onClick={jumpToLatest}
           data-testid="message-list-new-pill"
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-text-primary px-3 py-1 text-xs font-medium text-bg-elevated shadow-2 hover:opacity-90"
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-btn-primary-bg px-3 py-1 text-xs font-medium text-btn-primary-fg shadow-2 hover:opacity-90"
         >
           New messages ↓
         </button>

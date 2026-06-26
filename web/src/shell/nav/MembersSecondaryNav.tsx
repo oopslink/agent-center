@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
-import { AgentBacklogBadge, AgentLoadBadge, AgentStatusBadge } from '@/components/AgentBadges';
+import { AgentLoadBadge, AgentStatusBadge } from '@/components/AgentBadges';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 
 // ============================================================================
@@ -73,11 +73,9 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
       to: `${orgBase}/agents/${encodeURIComponent(a.id)}`,
       label: a.name || a.id,
       meta: (
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="agent-nav-status">
+        <span className="flex items-center gap-2 text-[0.6875rem] text-text-muted" data-testid="agent-nav-status">
           <AgentStatusBadge agent={a} now={now} />
-          {/* T342: load (doing/total) + backlog (pending count), pressure-colored. */}
           <AgentLoadBadge agent={a} />
-          <AgentBacklogBadge agent={a} />
         </span>
       ),
     }));
@@ -148,7 +146,7 @@ function NavSection({
                   not bloat the announced link name. */}
               <NavLink to={r.to} className={rowClass} aria-label={r.label}>
                 {r.meta ? (
-                  <span className="flex min-w-0 flex-col gap-1">
+                  <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="block truncate">{r.label}</span>
                     {r.meta}
                   </span>
@@ -169,7 +167,7 @@ function NavSection({
 
 function rowClass({ isActive }: { isActive: boolean }): string {
   return [
-    'block rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
-    isActive ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
+    'block rounded-lg px-2 py-1.5 text-sm motion-safe:transition-colors',
+    isActive ? 'bg-brand/10 text-brand font-semibold' : 'text-text-primary hover:bg-bg-subtle',
   ].join(' ');
 }

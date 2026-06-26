@@ -25,6 +25,7 @@ import { useResizablePanel } from '@/components/useResizablePanel';
 import { MobileTabBar, type TabBarModule } from '@/shell/MobileTabBar';
 import { BottomSheet } from '@/shell/BottomSheet';
 import { SECONDARY_NAV_REGISTRY, type ShellModuleId } from '@/shell/secondaryNav';
+import { OrgSettingsSecondaryNav } from '@/shell/nav/OrgSettingsSecondaryNav';
 
 // AppLayout v5 — v2.10.0 [T1] three-column module rail + per-module secondary
 // nav + on-demand context panel (col④). Desktop: col①(rail) | col②(secondary nav)
@@ -228,7 +229,7 @@ export default function AppLayout(): React.ReactElement {
   const [userPanelOpen, setUserPanelOpen] = useState(false);
   const [mobileNavSheetOpen, setMobileNavSheetOpen] = useState(false);
   const [mobileAccountSheetOpen, setMobileAccountSheetOpen] = useState(false);
-  const [mobileContextSheetOpen, setMobileContextSheetOpen] = useState(false);
+
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -238,7 +239,6 @@ export default function AppLayout(): React.ReactElement {
   useEffect(() => {
     setMobileNavSheetOpen(false);
     setMobileAccountSheetOpen(false);
-    setMobileContextSheetOpen(false);
   }, [location.pathname]);
 
   // Persist sidebar + theme.
@@ -259,6 +259,7 @@ export default function AppLayout(): React.ReactElement {
   // Detect active module from current route.
   const activeModuleId = detectActiveModule(location.pathname, orgBase);
   const activeModule = MODULE_DEFS.find((m) => m.id === activeModuleId);
+  const isOrgSettings = location.pathname.includes('/organization-settings');
 
   // Keyboard shortcuts.
   const shortcuts = useMemo(
@@ -336,22 +337,10 @@ export default function AppLayout(): React.ReactElement {
             onClick={() => setMobileNavSheetOpen(true)}
             className="flex-1 truncate text-left text-sm font-medium text-text-primary"
           >
-            {activeModule?.label ?? '…'}
+            {isOrgSettings ? 'Organization Settings' : activeModule?.label ?? '…'}
           </button>
-          {/* Right: optional context toggle + account toggle */}
+          {/* Right: account toggle */}
           <div className="flex items-center gap-1">
-            {ctxPanel.open && (
-              <button
-                type="button"
-                data-testid="mobile-context-toggle"
-                aria-label="Toggle context panel"
-                aria-expanded={mobileContextSheetOpen}
-                onClick={() => setMobileContextSheetOpen((v) => !v)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle"
-              >
-                <InfoIcon />
-              </button>
-            )}
             <button
               type="button"
               data-testid="mobile-account-toggle"
@@ -371,7 +360,10 @@ export default function AppLayout(): React.ReactElement {
           aria-label="modules"
           className="hidden w-14 flex-col items-center border-r border-border-base bg-rail-bg py-3 md:flex"
         >
-          <div className="flex flex-1 flex-col items-center gap-1">
+          {/* Rail top: org switcher (always visible, never collapses) */}
+          <RailOrgSwitcher orgSwitcher={orgSwitcher} />
+
+          <div className="mt-2 flex flex-1 flex-col items-center gap-1">
             {MODULE_DEFS.map((mod) => {
               const active = mod.id === activeModuleId;
               const href = mod.defaultPath ? `${orgBase}/${mod.defaultPath}` : orgBase || '/';
@@ -448,14 +440,13 @@ export default function AppLayout(): React.ReactElement {
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed((v) => !v)}
           orgBase={orgBase}
-          orgSwitcher={orgSwitcher}
           onOpenPalette={() => setPaletteOpen(true)}
         />
 
         {/* ────── col③ Content ────── */}
-        <main className="flex flex-1 overflow-hidden pt-12 md:pt-0">
+        <main className="flex flex-1 overflow-hidden pt-12 pb-14 md:pb-0 md:pt-0">
           <div
-            className="flex h-full w-full flex-col overflow-y-auto p-4 sm:p-6"
+            className="flex h-full w-full flex-col overflow-y-auto px-4 pt-2 pb-0 md:p-4 lg:p-6"
             data-testid="app-content-shell"
           >
             <Suspense fallback={<PageSkeleton />}>
@@ -464,11 +455,26 @@ export default function AppLayout(): React.ReactElement {
           </div>
         </main>
 
+        {/* ────── col④ expand toggle (when collapsed) ────── */}
+        {ctxPanel.open && ctxPanel.collapsed && (
+          <button
+            type="button"
+            data-testid="context-panel-expand"
+            aria-label="Show sidebar"
+            title="Show sidebar"
+            onClick={() => ctxPanel.value.setCollapsed(false)}
+            className="hidden shrink-0 items-center border-l border-border-base bg-bg-elevated px-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary md:flex"
+          >
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12.5 5l-5 5 5 5" />
+            </svg>
+          </button>
+        )}
+
         {/* ────── col④ Context Panel (desktop + mobile host) ────── */}
         <div
           data-testid="context-panel"
           data-open={ctxPanel.open}
-          data-sheet-open={mobileContextSheetOpen}
           style={{ '--ctx-w': `${ctxResize.width}px` } as React.CSSProperties}
           className={[
             'relative hidden flex-col border-l border-border-base bg-bg-elevated md:flex',
@@ -502,14 +508,18 @@ export default function AppLayout(): React.ReactElement {
         <BottomSheet
           open={mobileNavSheetOpen}
           onClose={() => setMobileNavSheetOpen(false)}
-          title={activeModule?.label}
+          title={isOrgSettings ? 'Organization Settings' : activeModule?.label}
           testId="mobile-nav-sheet"
         >
-          {activeModuleId && (
-            <MobileSecondaryNavContent
-              moduleId={activeModuleId}
-              orgBase={orgBase}
-            />
+          {isOrgSettings ? (
+            <OrgSettingsSecondaryNav orgBase={orgBase} />
+          ) : (
+            activeModuleId && (
+              <MobileSecondaryNavContent
+                moduleId={activeModuleId}
+                orgBase={orgBase}
+              />
+            )
           )}
         </BottomSheet>
 
@@ -521,6 +531,53 @@ export default function AppLayout(): React.ReactElement {
           testId="account-sheet"
         >
           <div className="space-y-1">
+            {/* Org switcher section */}
+            <div className="pb-1">
+              <p className="px-3 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
+                Organization
+              </p>
+              {orgSwitcher.orgs.map((o) => {
+                const isCurrent = o.slug === orgSwitcher.currentSlug;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    data-testid={isCurrent ? 'mobile-org-settings-link' : `mobile-org-switch-${o.slug}`}
+                    className={[
+                      'flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-bg-subtle',
+                      isCurrent ? 'font-medium text-brand' : 'text-text-primary',
+                    ].join(' ')}
+                    onClick={() => {
+                      if (isCurrent) {
+                        orgSwitcher.onOpenSettings(o.id);
+                      } else {
+                        navigate(`/organizations/${o.slug}`);
+                      }
+                      setMobileAccountSheetOpen(false);
+                    }}
+                  >
+                    <span aria-hidden="true" className="inline-flex h-4 w-4 shrink-0"><OrgIcon /></span>
+                    <span className="truncate">{o.name}</span>
+                    {isCurrent && (
+                      <span className="ml-auto text-[0.6875rem] text-text-muted">Settings</span>
+                    )}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                data-testid="mobile-create-org"
+                className="flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 text-sm text-accent hover:bg-bg-subtle"
+                onClick={() => {
+                  orgSwitcher.onCreateOrg();
+                  setMobileAccountSheetOpen(false);
+                }}
+              >
+                <span aria-hidden="true" className="text-base leading-none">+</span>
+                <span>Create organization</span>
+              </button>
+            </div>
+            <div className="border-t border-border-base pt-1" />
             <Link
               to={`${orgBase}/me`}
               data-testid="account-profile-link"
@@ -546,23 +603,6 @@ export default function AppLayout(): React.ReactElement {
           </div>
         </BottomSheet>
 
-        {/* ────── Mobile context panel scrim ────── */}
-        {mobileContextSheetOpen && ctxPanel.open && (
-          <div className="fixed inset-0 z-40 flex flex-col justify-end md:hidden">
-            <button
-              type="button"
-              aria-label="Close context panel"
-              data-testid="context-panel-scrim"
-              onClick={() => setMobileContextSheetOpen(false)}
-              tabIndex={-1}
-              className="absolute inset-0 bg-black/40"
-            />
-            <div className="relative max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-border-strong bg-bg-elevated p-4 shadow-2">
-              {/* Portal content already lives in the ctx host; render a copy for mobile. */}
-            </div>
-          </div>
-        )}
-
         {/* ────── Modals ────── */}
         {createOrgModalOpen && (
           <CreateOrgModal onClose={() => setCreateOrgModalOpen(false)} />
@@ -582,16 +622,17 @@ function SecondaryNavColumn({
   collapsed,
   onToggleCollapsed,
   orgBase,
-  orgSwitcher,
   onOpenPalette,
 }: {
   activeModuleId?: ShellModuleId;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   orgBase: string;
-  orgSwitcher: OrgSwitcherBinding;
   onOpenPalette: () => void;
 }): React.ReactElement {
+  const location = useLocation();
+  // Detect org-settings route to show its dedicated secondary nav.
+  const isOrgSettings = location.pathname.includes('/organization-settings');
   // Check if the active module has a registered custom nav.
   const CustomNav = activeModuleId ? SECONDARY_NAV_REGISTRY[activeModuleId] : undefined;
 
@@ -600,25 +641,30 @@ function SecondaryNavColumn({
       aria-label="primary"
       data-collapsed={collapsed}
       className={[
-        'group/sidebar relative hidden flex-col flex-shrink-0 border-r border-border-base bg-bg-subtle p-3 md:flex',
-        collapsed ? 'w-14' : 'w-60',
+        'group/sidebar relative hidden flex-shrink-0 border-r border-border-base md:flex',
+        collapsed ? 'w-0 border-r-0' : 'w-60 flex-col bg-bg-subtle p-3',
       ].join(' ')}
     >
-      <SidebarTop collapsed={collapsed} onOpenPalette={onOpenPalette} orgSwitcher={orgSwitcher} />
-      <div className="mt-3 flex-1 overflow-y-auto">
-        {CustomNav ? (
-          <CustomNav orgBase={orgBase} />
-        ) : (
-          activeModuleId && (
-            <DefaultModuleNav
-              moduleId={activeModuleId}
-              orgBase={orgBase}
-              collapsed={collapsed}
-            />
-          )
-        )}
-      </div>
-      {/* Collapse toggle */}
+      {!collapsed && (
+        <>
+          <SidebarTop onOpenPalette={onOpenPalette} />
+          <div className="mt-3 flex-1 overflow-y-auto">
+            {isOrgSettings ? (
+              <OrgSettingsSecondaryNav orgBase={orgBase} />
+            ) : CustomNav ? (
+              <CustomNav orgBase={orgBase} />
+            ) : (
+              activeModuleId && (
+                <DefaultModuleNav
+                  moduleId={activeModuleId}
+                  orgBase={orgBase}
+                />
+              )
+            )}
+          </div>
+        </>
+      )}
+      {/* Collapse toggle — sticks out to the right of the nav edge */}
       <button
         type="button"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -626,7 +672,10 @@ function SecondaryNavColumn({
         data-testid="sidebar-collapse-toggle"
         onClick={onToggleCollapsed}
         title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        className="absolute -right-3 top-4 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-secondary opacity-0 shadow-sm hover:bg-bg-subtle hover:text-text-primary focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent group-hover/sidebar:opacity-100 motion-safe:transition-all"
+        className={[
+          'absolute -right-3 top-4 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-secondary shadow-sm hover:bg-bg-subtle hover:text-text-primary focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-all',
+          collapsed ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100',
+        ].join(' ')}
       >
         <SidebarToggleIcon collapsed={collapsed} />
       </button>
@@ -640,11 +689,9 @@ function SecondaryNavColumn({
 function DefaultModuleNav({
   moduleId,
   orgBase,
-  collapsed,
 }: {
   moduleId: ShellModuleId;
   orgBase: string;
-  collapsed: boolean;
 }): React.ReactElement {
   const navSections = buildModuleNavSections(moduleId, orgBase);
   const deleteConversation = useDeleteConversation();
@@ -703,10 +750,9 @@ function DefaultModuleNav({
       <ul className="space-y-4">
         {navSections.map((section) => {
           const open = isGroupOpen(section.label);
-          const showCollapsibleHeader = !collapsed && section.items.length > 0;
           return (
             <li key={section.label}>
-              {showCollapsibleHeader ? (
+              {section.items.length > 0 ? (
                 <h2 className="px-1">
                   <button
                     type="button"
@@ -720,13 +766,11 @@ function DefaultModuleNav({
                   </button>
                 </h2>
               ) : (
-                !collapsed && (
-                  <h2 data-testid="section-label" className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
-                    {section.label}
-                  </h2>
-                )
+                <h2 data-testid="section-label" className="px-2 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
+                  {section.label}
+                </h2>
               )}
-              {(collapsed || open) && (
+              {open && (
                 <ul className="space-y-0.5">
                   {section.items.map((item) => {
                     const subChildren =
@@ -741,32 +785,28 @@ function DefaultModuleNav({
                           <NavLink
                             to={item.to}
                             end={item.end}
-                            title={collapsed ? item.label : undefined}
                             className={({ isActive }) => [
-                              'flex flex-1 items-center rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
-                              collapsed ? 'justify-center' : 'justify-between',
+                              'flex flex-1 items-center justify-between rounded px-2 py-1.5 text-sm motion-safe:transition-colors',
                               isActive ? 'bg-brand-hover text-white' : 'text-text-primary hover:bg-bg-subtle',
                             ].join(' ')}
                           >
-                            <span className={collapsed ? 'inline-flex' : 'flex items-center gap-2'}>
+                            <span className="flex items-center gap-2">
                               <span aria-hidden="true" className="inline-flex h-4 w-4"><item.Icon /></span>
-                              {!collapsed && (
-                                <span className="flex flex-1 items-center justify-between gap-1.5">
-                                  <span>{item.label}</span>
-                                  {subChildren && (
-                                    <span
-                                      data-testid={`count-badge-${item.label}`}
-                                      aria-label={`${subChildren.length} ${item.label.toLowerCase()}`}
-                                      className="rounded-full bg-bg-elevated px-1.5 text-[0.6875rem] text-text-muted tabular-nums"
-                                    >
-                                      {subChildren.length}
-                                    </span>
-                                  )}
-                                </span>
-                              )}
+                              <span className="flex flex-1 items-center justify-between gap-1.5">
+                                <span>{item.label}</span>
+                                {subChildren && (
+                                  <span
+                                    data-testid={`count-badge-${item.label}`}
+                                    aria-label={`${subChildren.length} ${item.label.toLowerCase()}`}
+                                    className="rounded-full bg-bg-elevated px-1.5 text-[0.6875rem] text-text-muted tabular-nums"
+                                  >
+                                    {subChildren.length}
+                                  </span>
+                                )}
+                              </span>
                             </span>
                           </NavLink>
-                          {!collapsed && subChildren && (
+                          {subChildren && (
                             <button
                               type="button"
                               onClick={() => toggleSubItem(item.to)}
@@ -779,7 +819,7 @@ function DefaultModuleNav({
                             </button>
                           )}
                         </div>
-                        {!collapsed && subChildren && subOpen && (
+                        {subChildren && subOpen && (
                           <ul className="ml-6 mt-0.5 space-y-0.5 border-l border-border-base pl-2" data-testid={`sidebar-subitem-list-${item.to}`}>
                             {subChildren.length === 0 && (
                               <li className="px-2 py-0.5 text-xs italic text-text-muted">(none)</li>
@@ -881,7 +921,7 @@ function MobileSecondaryNavContent({
   if (CustomNav) {
     return <CustomNav orgBase={orgBase} />;
   }
-  return <DefaultModuleNav moduleId={moduleId} orgBase={orgBase} collapsed={false} />;
+  return <DefaultModuleNav moduleId={moduleId} orgBase={orgBase} />;
 }
 
 // ============================================================================
@@ -980,7 +1020,7 @@ function RailUserPanel({
 }
 
 // ============================================================================
-// SidebarTop — org switcher + ⌘K search (in col②)
+// SidebarTop — ⌘K search (in col②). Org switcher moved to col① rail.
 // ============================================================================
 interface OrgSwitcherBinding {
   currentOrg?: { id: string; slug: string; name: string };
@@ -995,68 +1035,48 @@ interface OrgSwitcherBinding {
 }
 
 function SidebarTop({
-  collapsed,
   onOpenPalette,
-  orgSwitcher,
 }: {
-  collapsed: boolean;
   onOpenPalette: () => void;
-  orgSwitcher: OrgSwitcherBinding;
 }): React.ReactElement {
+  return (
+    <div className="flex-shrink-0">
+      <button
+        type="button"
+        onClick={onOpenPalette}
+        aria-label="Search (⌘K)"
+        data-testid="open-palette"
+        className="flex w-full items-center gap-2 rounded-md border border-border-base bg-bg-elevated px-2 py-1.5 text-sm text-text-muted hover:bg-bg-subtle motion-safe:transition-colors"
+      >
+        <span aria-hidden="true" className="inline-flex h-4 w-4"><SearchIcon /></span>
+        <span className="flex-1 text-left">Search</span>
+        <kbd className="rounded border border-border-base px-1 font-mono text-[0.6875rem] text-text-muted">⌘K</kbd>
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+// RailOrgSwitcher — org switcher in the col① rail (always visible, icon-only)
+// ============================================================================
+function RailOrgSwitcher({ orgSwitcher }: { orgSwitcher: OrgSwitcherBinding }): React.ReactElement {
   const { currentOrg, orgs, currentSlug, fallbackName, open, onToggle, onClose, onCreateOrg, onOpenSettings } = orgSwitcher;
   const orgName = currentOrg?.name ?? fallbackName ?? '…';
   return (
-    <div className="flex-shrink-0">
-      <div className="relative">
-        <button
-          type="button"
-          data-testid="org-switcher"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-haspopup="true"
-          title={collapsed ? orgName : undefined}
-          className={[
-            'flex w-full items-center rounded-md border border-border-base bg-bg-elevated text-sm text-text-primary hover:bg-bg-subtle motion-safe:transition-colors',
-            collapsed ? 'justify-center p-2' : 'gap-2 px-2 py-1.5',
-          ].join(' ')}
-        >
-          <span aria-hidden="true" className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-brand-hover text-white">
-            <OrgIcon />
-          </span>
-          {!collapsed && (
-            <>
-              <span className="min-w-0 flex-1 truncate text-left font-medium">{orgName}</span>
-              <span aria-hidden="true" className="text-text-muted"><ChevronDownIcon /></span>
-            </>
-          )}
-        </button>
-        {open && (
-          <OrgDropdown orgs={orgs} currentSlug={currentSlug} onClose={onClose} onCreateOrg={onCreateOrg} onOpenSettings={onOpenSettings} />
-        )}
-      </div>
-      {collapsed ? (
-        <button
-          type="button"
-          onClick={onOpenPalette}
-          aria-label="Search (⌘K)"
-          data-testid="open-palette"
-          title="Search (⌘K)"
-          className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-md border border-border-base bg-bg-elevated text-text-muted hover:bg-bg-subtle motion-safe:transition-colors"
-        >
-          <span aria-hidden="true" className="inline-flex h-4 w-4"><SearchIcon /></span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={onOpenPalette}
-          aria-label="Search (⌘K)"
-          data-testid="open-palette"
-          className="mt-2 flex w-full items-center gap-2 rounded-md border border-border-base bg-bg-elevated px-2 py-1.5 text-sm text-text-muted hover:bg-bg-subtle motion-safe:transition-colors"
-        >
-          <span aria-hidden="true" className="inline-flex h-4 w-4"><SearchIcon /></span>
-          <span className="flex-1 text-left">Search</span>
-          <kbd className="rounded border border-border-base px-1 font-mono text-[0.6875rem] text-text-muted">⌘K</kbd>
-        </button>
+    <div className="relative flex flex-col items-center">
+      <button
+        type="button"
+        data-testid="org-switcher"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-haspopup="true"
+        title={orgName}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-brand-hover text-white hover:opacity-90 motion-safe:transition-colors"
+      >
+        <OrgIcon />
+      </button>
+      {open && (
+        <OrgDropdown orgs={orgs} currentSlug={currentSlug} onClose={onClose} onCreateOrg={onCreateOrg} onOpenSettings={onOpenSettings} />
       )}
     </div>
   );
@@ -1090,13 +1110,26 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg, onOpenSettings }
   };
 
   return (
-    <div data-org-dropdown className="absolute left-0 top-full z-50 mt-1 w-48 rounded-md border border-border bg-bg-elevated shadow-[var(--shadow-2)]" role="menu">
+    <div data-org-dropdown className="absolute left-full top-0 z-50 ml-2 w-48 rounded-md border border-border bg-bg-elevated shadow-[var(--shadow-2)]" role="menu">
       {orgs.map((o) => (
         <div key={o.id} className={`flex w-full items-center ${o.slug === currentSlug ? 'bg-bg-subtle' : ''}`}>
-          <button type="button" role="menuitem" className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm hover:bg-bg-subtle ${o.slug === currentSlug ? 'font-medium text-brand' : 'text-text-primary'}`} onClick={() => handleSwitch(o.slug)}>
+          <button
+            type="button"
+            role="menuitem"
+            className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm hover:bg-bg-subtle ${o.slug === currentSlug ? 'font-medium text-brand' : 'text-text-primary'}`}
+            onClick={() => handleSwitch(o.slug)}
+          >
             <OrgIcon /><span className="truncate">{o.name}</span>
           </button>
-          <button type="button" data-testid="org-settings-gear" data-org-id={o.id} aria-label={`Settings for ${o.name}`} title="Organization settings" onClick={() => onOpenSettings(o.id)} className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border hover:text-text-primary">
+          <button
+            type="button"
+            data-testid="org-settings-gear"
+            data-org-id={o.id}
+            aria-label={`Settings for ${o.name}`}
+            title="Organization settings"
+            onClick={() => onOpenSettings(o.id)}
+            className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border hover:text-text-primary"
+          >
             <SettingsIcon />
           </button>
         </div>
@@ -1109,23 +1142,13 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg, onOpenSettings }
   );
 }
 
-function validateSlugLocal(v: string): string {
-  if (v.length < 3) return 'Slug must be at least 3 characters';
-  if (v.length > 40) return 'Slug must be at most 40 characters';
-  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug may only contain [a-z0-9-]';
-  if (/^-|-$/.test(v)) return 'Slug cannot start or end with a hyphen';
-  return '';
-}
-
 function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElement {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
   const [error, setError] = useState('');
-  const autoSlug = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
   const create = useMutation({
-    mutationFn: () => orgApi.create({ name: name.trim(), slug }),
+    mutationFn: () => orgApi.create({ name: name.trim() }),
     onSuccess: (newOrg) => {
       qc.invalidateQueries({ queryKey: ['orgs'] });
       onClose();
@@ -1136,8 +1159,6 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const slugErr = validateSlugLocal(slug);
-    if (slugErr) { setError(slugErr); return; }
     if (!name.trim()) { setError('Please enter an organization name'); return; }
     create.mutate();
   };
@@ -1149,11 +1170,7 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
         <form onSubmit={handleSubmit} noValidate className="space-y-3">
           <div className="space-y-1">
             <label htmlFor="new-org-name" className="block text-sm text-text-primary">Organization name</label>
-            <input id="new-org-name" type="text" value={name} onChange={(e) => { setName(e.target.value); if (!slug || slug === autoSlug(name)) setSlug(autoSlug(e.target.value)); }} className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary" placeholder="My Organization" />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="new-org-slug" className="block text-sm text-text-primary">Slug</label>
-            <input id="new-org-slug" type="text" value={slug} onChange={(e) => setSlug(e.target.value)} className="w-full rounded border border-border px-3 py-1.5 text-sm font-mono outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary" placeholder="my-org" />
+            <input id="new-org-name" type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary" placeholder="My Organization" autoFocus />
           </div>
           <div className="flex gap-2 justify-end pt-1">
             <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">Cancel</button>
@@ -1255,15 +1272,9 @@ function OrgIcon(): React.ReactElement {
 function SearchIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5" /><path d="M12.5 12.5 17 17" strokeLinecap="round" /></svg>);
 }
-function ChevronDownIcon(): React.ReactElement {
-  return (<svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>);
-}
 function SignoutIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M12.5 6.5V4.5A1.5 1.5 0 0 0 11 3H5A1.5 1.5 0 0 0 3.5 4.5v11A1.5 1.5 0 0 0 5 17h6a1.5 1.5 0 0 0 1.5-1.5v-2" strokeLinecap="round" /><path d="M9 10h8M15 7.5l2.5 2.5-2.5 2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>);
 }
 function ReminderIcon(): React.ReactElement {
-  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 2v1M10 17v1M17 10h1M2 10H1M14.95 5.05l.7-.7M4.35 15.65l.7-.7M14.95 14.95l.7.7M4.35 4.35l.7.7" strokeLinecap="round" /><circle cx="10" cy="10" r="4" /></svg>);
-}
-function InfoIcon(): React.ReactElement {
-  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v4M10 7h.01" strokeLinecap="round" /></svg>);
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 2.5V1M10 2.5C7 2.5 4.5 5 4.5 8c0 3.5-1.5 5-2 5.5h15c-.5-.5-2-2-2-5.5 0-3-2.5-5.5-5.5-5.5z" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 15.5a2 2 0 0 0 4 0" strokeLinecap="round" /></svg>);
 }

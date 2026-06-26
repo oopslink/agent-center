@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Self-hosted fonts — zero CDN dependency, GDPR compliant (Hex spec §06) */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('/fonts/plus-jakarta-sans-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-mono-400-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-mono-500-latin.woff2') format('woff2');
+}
+
 /*
  * Design tokens — v2.3 P1 (task #23). Source of truth:
  * docs/design/web-console-design-system.md. Semantic names so a
@@ -127,6 +150,10 @@
   --color-rail-bg:        #31263B;     /* was #1e1b34 — eggplant */
   --color-rail-fg:        #c0b8c8;     /* warm idle */
   --color-rail-fg-active: #ffffff;     /* unchanged */
+
+  /* Primary button surface — eggplant in light, violet-400 in dark (Hex spec §03) */
+  --color-btn-primary-bg: #31263B;
+  --color-btn-primary-fg: #f8f5f6;
 }
 
 /*
@@ -229,11 +256,15 @@
    * FIXED tokens — UNCHANGED in dark (identical to light). These surfaces
    * (#D1E3FF own bubble, #003247 code block) are fixed in both modes.
    */
-  --color-chatbubble-fg:    #14141C;    /* dark text on violet-400 bubble */
-  --color-chatbubble-link:  #6D28D9;    /* violet-700 link on violet-400 bubble */
+  --color-chatbubble-fg:    #f8f5f6;    /* warm white — SAME as light (fixed eggplant surface) */
+  --color-chatbubble-link:  #c4b5fd;    /* violet-300 — SAME as light (fixed eggplant surface) */
   --color-codeblock-fg:     #f1f5f9;
   --color-codeblock-muted:  #cbd5e1;
   --color-codeblock-link:   #7dd3fc;
+
+  /* Primary button — violet-400 on near-black in dark (Hex spec §03/§04) */
+  --color-btn-primary-bg: #a78bfa;
+  --color-btn-primary-fg: #14141C;
 }
 
 /*
@@ -243,6 +274,9 @@
 body {
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
+  /* Hex-style dot grid page texture (spec §03.5) */
+  background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 /*
@@ -399,4 +433,103 @@ body {
   padding: 0.1em 0.3em;
   border-radius: 0.25rem;
   font-size: 0.9em;
+}
+
+/*
+ * ── Hex texture utilities (spec §03.5) ──
+ * Reusable surface-quality patterns that give the UI a "physical" feel.
+ */
+
+/* 45° hatch overlay — hero / feature sections */
+.hex-hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(49, 38, 59, 0.015) 10px,
+    rgba(49, 38, 59, 0.015) 11px
+  );
+}
+:root.dark .hex-hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(255, 255, 255, 0.02) 10px,
+    rgba(255, 255, 255, 0.02) 11px
+  );
+}
+
+/*
+ * Rose gradient wash — auto-applied to all elevated card surfaces (Hex §03.5).
+ * The `bg-bg-elevated` Tailwind class sets background-color; layering
+ * background-image on top adds the subtle warmth without extra markup.
+ */
+.bg-bg-elevated {
+  background-image: linear-gradient(
+    105deg,
+    rgba(245, 192, 192, 0) 10%,
+    rgba(245, 192, 192, 0.02) 108%
+  );
+}
+:root.dark .bg-bg-elevated {
+  background-image: linear-gradient(
+    105deg,
+    rgba(167, 139, 250, 0) 10%,
+    rgba(167, 139, 250, 0.03) 108%
+  );
+}
+/* Explicit opt-in class kept for non-elevated surfaces */
+.hex-rose-wash {
+  background-image: linear-gradient(
+    105deg,
+    rgba(245, 192, 192, 0) 10%,
+    rgba(245, 192, 192, 0.02) 108%
+  );
+}
+:root.dark .hex-rose-wash {
+  background-image: linear-gradient(
+    105deg,
+    rgba(167, 139, 250, 0) 10%,
+    rgba(167, 139, 250, 0.03) 108%
+  );
+}
+
+/* Corner accent lines on hover — Hex card signature */
+.hex-corner-accent {
+  position: relative;
+}
+.hex-corner-accent::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+  background:
+    linear-gradient(var(--color-border-strong), var(--color-border-strong)) 0 0 / 20px 1px no-repeat,
+    linear-gradient(var(--color-border-strong), var(--color-border-strong)) 0 0 / 1px 20px no-repeat,
+    linear-gradient(var(--color-border-strong), var(--color-border-strong)) 100% 100% / 20px 1px no-repeat,
+    linear-gradient(var(--color-border-strong), var(--color-border-strong)) 100% 100% / 1px 20px no-repeat;
+}
+.hex-corner-accent:hover::after {
+  opacity: 0.6;
+}
+
+/* Gradient border CTA — eggplant button with rose-to-eggplant border glow */
+.hex-gradient-border {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(var(--color-btn-primary-bg), var(--color-btn-primary-bg)),
+    linear-gradient(135deg, #cda0a5, #43394c);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  box-shadow: 0 2px 8px rgba(49, 38, 59, 0.2);
+}
+
+/* Dot grid canvas — 24px grid for panel/canvas backgrounds */
+.hex-dot-grid {
+  background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
+  background-size: 24px 24px;
 }

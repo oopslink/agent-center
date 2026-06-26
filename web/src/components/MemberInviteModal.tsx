@@ -191,7 +191,7 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
             type="button"
             onClick={confirm}
             disabled={selected.size === 0 || invite.isPending}
-            className="rounded bg-text-primary px-3 py-1 text-xs font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+            className="rounded bg-btn-primary-bg px-3 py-1 text-xs font-medium text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="invite-confirm"
           >
             {invite.isPending ? 'Inviting…' : `Invite${selected.size > 0 ? ` (${selected.size})` : ''}`}

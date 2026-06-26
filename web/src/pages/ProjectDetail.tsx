@@ -357,7 +357,7 @@ function TabButton({
       className={[
         'rounded px-3 py-1 text-xs uppercase tracking-wide',
         active
-          ? 'bg-text-primary text-bg-elevated'
+          ? 'bg-btn-primary-bg text-btn-primary-fg'
           : 'bg-bg-subtle text-text-secondary hover:bg-border-base',
       ].join(' ')}
     >
@@ -417,7 +417,9 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
                 <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label="Name" sortKey="name" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 font-medium">Progress</th>
+                <th className="py-1.5 pr-3 font-medium">Progress</th>
+                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 font-medium">Creator</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -441,8 +443,14 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
                       <PlanFailedIndicator hasFailed={pl.has_failed} />
                     </span>
                   </td>
-                  <td className="py-1.5 tabular-nums text-text-muted">
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted">
                     {planProgressLabel(pl.progress)}
+                  </td>
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" title={formatLocalTime(pl.created_at)}>
+                    {shortDate(pl.created_at)}
+                  </td>
+                  <td className="py-1.5 text-text-secondary" title={pl.creator_ref}>
+                    {pl.creator_ref ? normalizeIdentityRef(pl.creator_ref) : '—'}
                   </td>
                 </tr>
               ))}
@@ -529,48 +537,61 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
       ) : data.length === 0 ? (
         <p className="py-4 text-center text-xs text-text-muted">No members yet</p>
       ) : (
-        <ul className="divide-y divide-border-base">
-          {data.map((m) => {
-            const label = resolveName(m.identity_id) === m.identity_id ? m.identity_id : resolveName(m.identity_id);
-            return (
-              <li
-                key={m.id}
-                data-testid="member-row"
-                data-member-id={m.id}
-                className="flex items-center justify-between gap-3 py-1.5"
-              >
-                <EntityRef
-                  id={m.identity_id}
-                  name={resolveName(m.identity_id) === m.identity_id ? undefined : resolveName(m.identity_id)}
-                  fallback={normalizeIdentityRef(m.identity_id)}
-                  to={memberPath(m.identity_id)}
-                  testId="project-member-ref"
-                  className="min-w-0 flex-1 truncate text-sm text-text-primary"
-                />
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                    {m.role}
-                  </span>
-                  {/* Owner-only; the owner row can't be removed (backend guards too). */}
-                  {isOwner && m.role !== 'owner' && (
-                    <button
-                      type="button"
-                      data-testid="project-member-remove"
-                      data-identity={m.identity_id}
-                      onClick={() => {
-                        remove.reset();
-                        setPendingRemove({ id: m.identity_id, label });
-                      }}
-                      className="rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" data-testid="project-members-table">
+            <thead>
+              <tr className="border-b border-border-base text-left text-[0.6875rem] uppercase tracking-wide text-text-muted">
+                <th className="py-2 pr-3 font-medium">Identity ID</th>
+                <th className="py-2 pr-3 font-medium">Display Name</th>
+                <th className="py-2 pr-3 font-medium">Joined</th>
+                <th className="py-2 pr-3 font-medium">Kind</th>
+                <th className="py-2 pr-3 font-medium">Role</th>
+                {isOwner && <th className="py-2 font-medium" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-base">
+              {data.map((m) => {
+                const displayName = resolveName(m.identity_id);
+                const label = displayName === m.identity_id ? m.identity_id : displayName;
+                const kind = m.identity_id.startsWith('agent:') || m.identity_id.startsWith('agent-') ? 'agent' : 'user';
+                return (
+                  <tr key={m.id} data-testid="member-row" data-member-id={m.id} className="text-text-secondary">
+                    <td className="py-2 pr-3 font-mono text-xs text-text-muted">{m.identity_id}</td>
+                    <td className="py-2 pr-3 text-text-primary">
+                      {memberPath(m.identity_id) ? (
+                        <OrgLink to={memberPath(m.identity_id)!} className="hover:underline" data-testid="project-member-ref" title={m.identity_id}>{displayName !== m.identity_id ? displayName : normalizeIdentityRef(m.identity_id)}</OrgLink>
+                      ) : (
+                        <span>{displayName !== m.identity_id ? displayName : normalizeIdentityRef(m.identity_id)}</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 whitespace-nowrap text-text-muted">{shortDate(m.created_at)}</td>
+                    <td className="py-2 pr-3">
+                      <span className={`rounded px-1.5 py-0.5 text-[0.6875rem] font-medium ${kind === 'agent' ? 'bg-brand/10 text-brand' : 'bg-bg-subtle text-text-muted'}`}>{kind}</span>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">{m.role}</span>
+                    </td>
+                    {isOwner && (
+                      <td className="py-2 text-right">
+                        {m.role !== 'owner' && (
+                          <button
+                            type="button"
+                            data-testid="project-member-remove"
+                            data-identity={m.identity_id}
+                            onClick={() => { remove.reset(); setPendingRemove({ id: m.identity_id, label }); }}
+                            className="rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {remove.isError && (
@@ -734,6 +755,7 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
                 <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label="Title" sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
@@ -754,6 +776,9 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
                   </td>
                   <td className="py-1.5 pr-3">
                     <StatusChip status={iss.status} />
+                  </td>
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" title={formatLocalTime(iss.created_at)}>
+                    {shortDate(iss.created_at)}
                   </td>
                   <td className="py-1.5 tabular-nums text-text-muted" title={formatLocalTime(iss.updated_at)}>
                     {shortDate(iss.updated_at)}
@@ -852,6 +877,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                 <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">Assigned to</th>
                 <th className="py-1.5 pr-3 font-medium">Priority</th>
+                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
@@ -885,6 +911,9 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                     )}
                   </td>
                   <td className="py-1.5 pr-3 text-text-muted" data-testid="task-priority">—</td>
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" title={formatLocalTime(tk.created_at)}>
+                    {shortDate(tk.created_at)}
+                  </td>
                   <td className="py-1.5 tabular-nums text-text-muted" title={formatLocalTime(tk.updated_at)}>
                     {shortDate(tk.updated_at)}
                   </td>

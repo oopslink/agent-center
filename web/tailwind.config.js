@@ -111,6 +111,10 @@ export default {
         'rail-bg':        'var(--color-rail-bg)',
         'rail-fg':        'var(--color-rail-fg)',
         'rail-fg-active': 'var(--color-rail-fg-active)',
+
+        // Primary button surface — theme-aware (eggplant light, violet-400 dark)
+        'btn-primary-bg': 'var(--color-btn-primary-bg)',
+        'btn-primary-fg': 'var(--color-btn-primary-fg)',
       },
       fontFamily: {
         sans: [

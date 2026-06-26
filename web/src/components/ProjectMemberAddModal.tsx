@@ -174,7 +174,7 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
             type="button"
             onClick={confirm}
             disabled={selected.size === 0 || add.isPending}
-            className="rounded bg-text-primary px-3 py-1 text-xs font-medium text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+            className="rounded bg-btn-primary-bg px-3 py-1 text-xs font-medium text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="project-add-confirm"
           >
             {add.isPending ? 'Adding…' : `Add${selected.size > 0 ? ` (${selected.size})` : ''}`}

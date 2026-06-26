@@ -15,7 +15,7 @@ import { IssueAttachments } from '@/components/AttachmentsSection';
 import { Skeleton } from '@/components/Skeleton';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { MobileWorkItemBar, MobileDetailsContent, useIsMobile } from '@/components/WorkItemMobileMeta';
+import { MobileBannerMeta, MobileDetailsContent, useIsMobile } from '@/components/WorkItemMobileMeta';
 
 // IssueDetail page (/projects/:projectId/issues/:id). v2.7
 // ProjectManager BC: the issue is project-scoped and driven entirely by
@@ -77,20 +77,14 @@ export default function IssueDetail(): React.ReactElement {
   const isTerminal = iss.status === 'discarded';
 
   return (
-    <section className="flex h-full flex-col" data-testid="page-IssueDetail" data-issue-id={iss.id}>
-      <div className="mb-2">
+    <section className="-mx-4 -mt-2 flex h-full flex-col px-4 pt-2 md:mx-0 md:mt-0 md:px-0 md:pt-0" data-testid="page-IssueDetail" data-issue-id={iss.id}>
+      <div className="mb-2 hidden md:block">
         <Breadcrumb
           items={[
             { label: 'Projects', to: '/projects' },
             { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(iss.project_id)}` },
             { label: 'Issues' },
-            {
-              label: isMobile
-                ? iss.org_ref || 'Issue'
-                : iss.org_ref
-                  ? `${iss.org_ref} - ${iss.title || iss.id}`
-                  : iss.title || iss.id,
-            },
+            { label: iss.org_ref ? `${iss.org_ref} - ${iss.title || iss.id}` : iss.title || iss.id },
           ]}
         />
       </div>
@@ -98,14 +92,26 @@ export default function IssueDetail(): React.ReactElement {
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row">
         {/* main column — title + description + conversation */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="border-b border-border-base pb-3">
+          <header className="px-3 md:border-b md:border-border-base md:pb-3 md:px-0">
             <div className="flex flex-wrap items-center gap-2">
-              {/* T145: clamp the title to 2 lines on mobile (full title on ≥md). */}
               <h2 className="line-clamp-2 text-lg font-semibold md:line-clamp-none md:text-xl">
                 {iss.org_ref && <span className="text-text-muted" data-testid="issue-org-ref">{iss.org_ref} · </span>}
                 {iss.title || iss.id}
               </h2>
               <TypeChip kind="issue" />
+              {isMobile && (
+                <span className="ml-auto flex items-center gap-1.5">
+                  <MobileBannerMeta
+                    kind="issue"
+                    status={iss.status}
+                    statusChangedAt={iss.status_changed_at}
+                    showInfo={showInfo}
+                    onToggleInfo={() => setShowInfo((v) => !v)}
+                    editable={!isTerminal}
+                    onEdit={() => setEditOpen(true)}
+                  />
+                </span>
+              )}
             </div>
           </header>
 
@@ -115,20 +121,20 @@ export default function IssueDetail(): React.ReactElement {
               conversation (the sidebar carries the details). */}
           {isMobile ? (
             <>
-              <MobileWorkItemBar
-                kind="issue"
-                status={iss.status}
-                statusChangedAt={iss.status_changed_at}
-                showInfo={showInfo}
-                onToggleInfo={() => setShowInfo((v) => !v)}
-                editable={!isTerminal}
-                onEdit={() => setEditOpen(true)}
-              />
               {showInfo && (
                 <div
-                  className="mb-3 rounded-lg border border-border-base bg-bg-elevated p-3"
+                  className="relative mb-3 rounded-lg border border-border-base bg-bg-elevated p-3"
                   data-testid="wi-mobile-info"
                 >
+                  <button
+                    type="button"
+                    onClick={() => setShowInfo(false)}
+                    aria-label="Close info"
+                    className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+                    data-testid="wi-mobile-info-close"
+                  >
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true"><path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" /></svg>
+                  </button>
                   {iss.description ? (
                     <CollapsibleDescription content={iss.description} testId="issue-description" ariaLabel="Issue description" />
                   ) : (

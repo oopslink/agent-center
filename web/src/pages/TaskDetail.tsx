@@ -19,7 +19,7 @@ import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskAttachments } from '@/components/AttachmentsSection';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { MobileWorkItemBar, MobileDetailsContent, useIsMobile } from '@/components/WorkItemMobileMeta';
+import { MobileBannerMeta, MobileDetailsContent, useIsMobile } from '@/components/WorkItemMobileMeta';
 
 // TaskDetail (/projects/:projectId/tasks/:id). v2.7 ProjectManager BC:
 // the task is project-scoped and driven entirely by its projection.
@@ -113,35 +113,41 @@ export default function TaskDetail(): React.ReactElement {
     // opens the shared agent activity sidebar (the conversation has its own nested
     // provider for @mentions; this serves the rest of the page).
     <SenderSidebarProvider>
-    <section className="flex h-full flex-col" data-testid="page-TaskDetail" data-task-id={tk.id}>
-      <div className="mb-2">
+    <section className="-mx-4 -mt-2 flex h-full flex-col px-4 pt-2 md:mx-0 md:mt-0 md:px-0 md:pt-0" data-testid="page-TaskDetail" data-task-id={tk.id}>
+      <div className="mb-2 hidden md:block">
         <Breadcrumb
           items={[
             { label: 'Projects', to: '/projects' },
             { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(tk.project_id)}` },
             { label: 'Tasks' },
-            {
-              label: isMobile
-                ? tk.org_ref || 'Task'
-                : tk.org_ref
-                  ? `${tk.org_ref} - ${tk.title || tk.id}`
-                  : tk.title || tk.id,
-            },
+            { label: tk.org_ref ? `${tk.org_ref} - ${tk.title || tk.id}` : tk.title || tk.id },
           ]}
         />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:flex-row">
         {/* main column — title + description + conversation */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="border-b border-border-base pb-3">
+          <header className="px-3 md:border-b md:border-border-base md:pb-3 md:px-0">
             <div className="flex flex-wrap items-center gap-2">
-              {/* T145: clamp the title to 2 lines on mobile so it doesn't fill the
-                  whole first screen (full title on ≥md). */}
               <h2 className="line-clamp-2 text-lg font-semibold md:line-clamp-none md:text-xl">
                 {tk.org_ref && <span className="text-text-muted" data-testid="task-org-ref">{tk.org_ref} · </span>}
                 {tk.title || tk.id}
               </h2>
               <TypeChip kind="task" />
+              {/* Mobile: status + duration + Actions in the title row */}
+              {isMobile && (
+                <span className="ml-auto flex items-center gap-1.5">
+                  <MobileBannerMeta
+                    kind="task"
+                    status={status}
+                    statusChangedAt={tk.status_changed_at}
+                    showInfo={showInfo}
+                    onToggleInfo={() => setShowInfo((v) => !v)}
+                    editable={!isTerminal}
+                    onEdit={() => setEditOpen(true)}
+                  />
+                </span>
+              )}
             </div>
           </header>
 
@@ -151,22 +157,20 @@ export default function TaskDetail(): React.ReactElement {
               conversation (the sidebar carries the details). */}
           {isMobile ? (
             <>
-              <MobileWorkItemBar
-                kind="task"
-                status={status}
-                statusChangedAt={tk.status_changed_at}
-                assignee={tk.assignee ?? null}
-                assigneeName={resolvedAssigneeName}
-                showInfo={showInfo}
-                onToggleInfo={() => setShowInfo((v) => !v)}
-                editable={!isTerminal}
-                onEdit={() => setEditOpen(true)}
-              />
               {showInfo && (
                 <div
-                  className="mb-3 rounded-lg border border-border-base bg-bg-elevated p-3"
+                  className="relative mb-3 rounded-lg border border-border-base bg-bg-elevated p-3"
                   data-testid="wi-mobile-info"
                 >
+                  <button
+                    type="button"
+                    onClick={() => setShowInfo(false)}
+                    aria-label="Close info"
+                    className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+                    data-testid="wi-mobile-info-close"
+                  >
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true"><path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" /></svg>
+                  </button>
                   {tk.description ? (
                     <CollapsibleDescription content={tk.description} testId="task-description" ariaLabel="Task description" />
                   ) : (

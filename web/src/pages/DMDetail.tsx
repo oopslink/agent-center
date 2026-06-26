@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useConversation } from '@/api/conversations';
@@ -49,6 +50,7 @@ function DMDetailInner(): React.ReactElement {
   const conv = useConversation(id);
   // T184: mobile collapses the col③/col④ split into one chat/threads/files tab bar.
   const isMobile = useIsMobile();
+  const [copied, setCopied] = useState(false);
   // v2.7.1 #238 fix: the DM detail GET doesn't enrich peer_display_name (only the
   // list does), so resolve the peer from participants − self for direct loads.
   const me = useAppStore((s) => s.currentUserId);
@@ -134,7 +136,7 @@ function DMDetailInner(): React.ReactElement {
 
   return (
     <section
-      className="flex h-full flex-col"
+      className="-mx-4 -mt-2 flex h-full flex-col px-4 pt-2 md:mx-0 md:mt-0 md:px-0 md:pt-0"
       data-testid="page-DMDetail"
       data-dm-id={conv.data.id}
     >
@@ -255,11 +257,14 @@ function DMDetailInner(): React.ReactElement {
                 role="menuitem"
                 data-testid="dm-overflow-copy"
                 onClick={() => {
-                  void navigator.clipboard?.writeText(window.location.href);
+                  void navigator.clipboard?.writeText(window.location.href).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  });
                 }}
                 className="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-subtle"
               >
-                Copy link to DM
+                {copied ? 'Copied!' : 'Copy link to DM'}
               </button>
             </div>
           </details>
