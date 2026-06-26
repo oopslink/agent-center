@@ -45,7 +45,7 @@ export default {
         // FIXED dark color (text-slate-900), NOT a theme token that flips light
         // in dark mode — see the own-bubble render. Tester2: #D1E3FF + dark text
         // = 13.72 AAA. Mirrors the blockedred custom-hex-token pattern.
-        chatuserbubble: '#D1E3FF',
+        chatuserbubble: '#31263B',  // was '#D1E3FF' — now eggplant
 
         // Status / chip / badge palette tokens (no-raw-colors migration).
         // CSS vars in src/index.css carry the exact light hex + dark pair so
@@ -113,44 +113,24 @@ export default {
         'rail-fg-active': 'var(--color-rail-fg-active)',
       },
       fontFamily: {
-        // @oopslink (locked): dropped the custom DM Sans + Space Grotesk pairing;
-        // both `sans` and `heading` now point at Tailwind's DEFAULT system stack
-        // (no web-font download). `heading` is kept so existing `font-heading`
-        // users still resolve — it just resolves to the same default stack.
         sans: [
-          'ui-sans-serif',
-          'system-ui',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          '"Segoe UI"',
-          'Roboto',
-          '"Helvetica Neue"',
-          'Arial',
-          '"Noto Sans"',
-          'sans-serif',
-          '"Apple Color Emoji"',
-          '"Segoe UI Emoji"',
-          '"Segoe UI Symbol"',
-          '"Noto Color Emoji"',
+          '"Plus Jakarta Sans"',
+          'ui-sans-serif', 'system-ui', '-apple-system',
+          'BlinkMacSystemFont', '"Segoe UI"', 'Roboto',
+          '"Helvetica Neue"', 'Arial', '"Noto Sans"', 'sans-serif',
+          '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"',
         ],
         heading: [
-          'ui-sans-serif',
-          'system-ui',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          '"Segoe UI"',
-          'Roboto',
-          '"Helvetica Neue"',
-          'Arial',
-          '"Noto Sans"',
-          'sans-serif',
-          '"Apple Color Emoji"',
-          '"Segoe UI Emoji"',
-          '"Segoe UI Symbol"',
-          '"Noto Color Emoji"',
+          '"Plus Jakarta Sans"',
+          'ui-sans-serif', 'system-ui', '-apple-system',
+          'BlinkMacSystemFont', '"Segoe UI"', 'Roboto',
+          '"Helvetica Neue"', 'Arial', '"Noto Sans"', 'sans-serif',
         ],
-        // IDs, timestamps, code blocks (skill: `number-tabular`).
-        mono:    ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
+      borderRadius: {
+        'lg': '12px',
+        'xl': '16px',
       },
       boxShadow: {
         '1': 'var(--shadow-1)',

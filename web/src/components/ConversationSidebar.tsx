@@ -118,7 +118,7 @@ export function ConversationSidebar({
                 aria-label="Collapse sidebar"
                 title="Collapse sidebar"
                 onClick={() => collapse.setCollapsed(true)}
-                className="hidden h-7 w-7 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary md:inline-flex"
+                className="hidden min-h-[44px] min-w-[44px] items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary md:inline-flex md:h-7 md:w-7 md:min-h-0 md:min-w-0"
               >
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" className="h-4 w-4">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 5l5 5-5 5" />

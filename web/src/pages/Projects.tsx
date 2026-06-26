@@ -297,7 +297,7 @@ function ProjectCardActions({
       <div className="relative md:hidden" ref={menuRef}>
         <button
           type="button"
-          className="inline-flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary md:h-7 md:w-7 md:min-h-0 md:min-w-0"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-label="Project actions"
@@ -318,7 +318,7 @@ function ProjectCardActions({
                   key={s.key}
                   to={s.to}
                   role="menuitem"
-                  className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-text-primary hover:bg-bg-subtle"
+                  className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-text-primary hover:bg-bg-subtle min-h-[44px] md:min-h-0"
                   data-testid={`project-shortcut-menu-${s.key}`}
                   onClick={() => setMenuOpen(false)}
                 >
@@ -330,7 +330,7 @@ function ProjectCardActions({
                   key={s.key}
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-primary hover:bg-bg-subtle"
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-primary hover:bg-bg-subtle min-h-[44px] md:min-h-0"
                   data-testid={`project-shortcut-menu-${s.key}`}
                   onClick={() => {
                     setMenuOpen(false);

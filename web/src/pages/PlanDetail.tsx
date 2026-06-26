@@ -103,7 +103,7 @@ export default function PlanDetail(): React.ReactElement {
   }
   if (plan.isError) {
     return (
-      <section className="space-y-3" data-testid="page-PlanDetail">
+      <section className="space-y-3" role="alert" data-testid="page-PlanDetail">
         <ErrorState
           message="Couldn't load this plan."
           error={plan.error}
@@ -186,7 +186,7 @@ export default function PlanDetail(): React.ReactElement {
                 aria-pressed={chatMaximized}
                 aria-label={chatMaximized ? 'Restore chat' : 'Maximize chat'}
                 title={chatMaximized ? 'Restore (Esc)' : 'Maximize chat'}
-                className="inline-flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="inline-flex h-10 w-10 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
               >
                 {chatMaximized ? <PlanChatRestoreIcon /> : <PlanChatMaximizeIcon />}
               </button>
@@ -201,7 +201,7 @@ export default function PlanDetail(): React.ReactElement {
                 aria-pressed={dagCompact}
                 aria-label={dagCompact ? 'Reset DAG zoom' : 'Compact DAG (zoom to fit)'}
                 title={dagCompact ? 'Reset zoom' : 'Compact (zoom to fit)'}
-                className={`hidden h-7 w-7 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:inline-flex ${
+                className={`hidden h-10 w-10 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:inline-flex md:h-7 md:w-7 ${
                   dagCompact
                     ? 'text-accent'
                     : 'text-text-muted hover:bg-bg-subtle hover:text-text-primary'
@@ -854,7 +854,7 @@ function TabButton({
       aria-selected={active}
       data-testid={`plan-tab-${id}`}
       onClick={() => onSelect(id)}
-      className={`rounded-t-lg border border-b-0 px-3.5 py-1.5 text-xs font-semibold ${
+      className={`min-h-[44px] rounded-t-lg border border-b-0 px-3.5 py-1.5 text-xs font-semibold md:min-h-0 ${
         active
           ? 'border-border-base bg-bg-elevated text-text-primary shadow-[inset_0_2px_0_var(--color-accent,#3b82f6)]'
           : 'border-transparent bg-bg-subtle text-text-secondary hover:text-text-primary'

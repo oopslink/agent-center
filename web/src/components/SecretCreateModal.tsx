@@ -80,8 +80,9 @@ export function SecretCreateModal({
         {createdName === null ? (
           <form className="mt-4 space-y-3" onSubmit={submit} autoComplete="off">
             <div>
-              <label className="block text-xs font-medium text-text-primary">Name</label>
+              <label htmlFor="secret-name-field" className="block text-xs font-medium text-text-primary">Name</label>
               <input
+                id="secret-name-field"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -92,8 +93,9 @@ export function SecretCreateModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-primary">Kind</label>
+              <label htmlFor="secret-kind-field" className="block text-xs font-medium text-text-primary">Kind</label>
               <select
+                id="secret-kind-field"
                 value={kind}
                 onChange={(e) => setKind(e.target.value as SecretKind)}
                 className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary focus:border-accent"
@@ -107,10 +109,11 @@ export function SecretCreateModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-primary">Value</label>
+              <label htmlFor="secret-value-field" className="block text-xs font-medium text-text-primary">Value</label>
               <input
                 // type=password keeps the value invisible in the DOM render +
                 // tells password managers to NOT autofill from history.
+                id="secret-value-field"
                 type="password"
                 autoComplete="off"
                 spellCheck={false}

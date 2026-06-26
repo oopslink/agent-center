@@ -392,14 +392,9 @@ export function MessageList({
       />
     ) : null;
 
-    // Chat UX 2 (#1+#2): own = right-aligned LIGHT-BLUE bubble (#D1E3FF), no
-    // avatar (#225). bg-chatuserbubble + FIXED dark text (text-chatbubble-fg, a
-    // light==dark token) — NOT a theme token. The bubble surface is a fixed light
-    // color in BOTH modes, so text-text-primary (which flips light in dark mode)
-    // would be light-on-light-blue = FAIL. The fixed token stays dark on #D1E3FF
-    // in both modes (Tester2
-    // 13.72 AAA). The header line (name + work-item tag + time) sits ABOVE the
-    // bubble, right-aligned; the bubble itself is content-only.
+    // Hex-inspired: own = right-aligned eggplant bubble (light: #31263B,
+    // dark: #a78bfa). bg-chatuserbubble + FIXED text (text-chatbubble-fg).
+    // The bubble surface is a fixed branded color — text tokens stay per-mode.
     if (isOwn) {
       return (
         <article
@@ -410,7 +405,7 @@ export function MessageList({
           data-own="true"
         >
           {headerLine}
-          <div className={`${bubbleWidthClass} rounded-2xl bg-chatuserbubble px-3 py-2 text-chatbubble-fg shadow-sm`}>
+          <div className={`${bubbleWidthClass} rounded-xl bg-chatuserbubble px-3 py-2 text-chatbubble-fg shadow-sm`}>
             {bubbleBody}
           </div>
           {threadAffordance}
@@ -449,16 +444,10 @@ export function MessageList({
         </button>
         <div className="flex min-w-0 flex-1 flex-col items-start">
           {headerLine}
-          {/* DM surface renders received messages as a bordered content card (per
-              the 7th-DM mockup); channel/thread surfaces keep the gray pill bubble.
-              Both use theme tokens (bg-bg-elevated/bg-bg-subtle + text-text-primary)
-              so they read AA in both modes. Own bubble (#D1E3FF) is unchanged. */}
+          {/* Hex-inspired: all "other" bubbles use bordered card style
+              (bg-subtle + border) for both DM and channel surfaces. */}
           <div
-            className={`${bubbleWidthClass} px-3 py-2 text-text-primary ${
-              surface === 'dm'
-                ? 'rounded-lg border border-border-base bg-bg-elevated'
-                : 'rounded-2xl bg-bg-subtle shadow-sm'
-            }`}
+            className={`${bubbleWidthClass} rounded-xl border border-border-base bg-bg-subtle px-3 py-2 text-text-primary`}
             data-surface={surface}
           >
             {bubbleBody}
@@ -560,7 +549,7 @@ function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           aria-controls={bodyId}
-          className="flex w-full items-center gap-1.5 text-left text-[0.625rem] font-medium uppercase tracking-wide text-text-muted"
+          className="flex w-full items-center gap-1.5 min-h-[36px] px-2 text-left text-[0.625rem] font-medium uppercase tracking-wide text-text-muted"
           data-testid="message-system-toggle"
         >
           <svg

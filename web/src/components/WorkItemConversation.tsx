@@ -106,7 +106,7 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
           <button
             type="button"
             onClick={() => setMaximized((m) => !m)}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
             data-testid="conversation-maximize-toggle"
             aria-pressed={maximized}
             aria-label={maximized ? 'Restore conversation' : 'Maximize conversation'}

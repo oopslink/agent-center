@@ -57,12 +57,12 @@ export function ConversationView({
   const body = (
     <div className="flex flex-1 flex-col overflow-hidden">
       {messages.isLoading && (
-        <p className="p-4 text-sm text-text-muted" data-testid="conversation-loading">
+        <p className="p-4 text-sm text-text-muted" role="status" data-testid="conversation-loading">
           Loading messages…
         </p>
       )}
       {messages.isError && (
-        <p className="p-4 text-sm text-danger" data-testid="conversation-error">
+        <p className="p-4 text-sm text-danger" role="alert" data-testid="conversation-error">
           {(messages.error as Error).message}
         </p>
       )}

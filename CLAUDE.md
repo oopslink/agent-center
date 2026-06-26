@@ -14,6 +14,12 @@
 
 **新功能 / 新设计提交前**：过 [项目规约 § 15 自检清单](docs/rules/conventions.md#-15-新功能--新设计自检清单)。
 
+## 质量红线
+
+- **所有提交必须通过测试。** 任何 commit 之前必须先运行 `cd web && pnpm test`（前端）或 `go test ./...`（后端），确认 0 failures 后才能 commit。不允许以 "已有失败" 为由跳过。
+- **PR 合并前必须全绿。** main 分支上不允许存在失败的测试。如果发现 main 上有失败，优先修复后再开始新功能。
+- **不允许 `--no-verify` 跳过 hooks。** pre-commit / pre-push hooks 存在即必须通过。
+
 ## 文档导航
 
 `docs/` 按四类组织：

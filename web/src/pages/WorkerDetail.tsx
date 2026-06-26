@@ -109,7 +109,7 @@ export default function WorkerDetail(): React.ReactElement {
       </header>
 
       <nav
-        className="flex gap-1 border-b border-border-base"
+        className="flex gap-1 border-b border-border-base [&>button]:min-h-[44px] md:[&>button]:min-h-0"
         role="tablist"
         aria-orientation="horizontal"
         ref={tablist.tablistRef}

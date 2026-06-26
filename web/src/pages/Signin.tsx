@@ -53,7 +53,7 @@ export default function Signin(): React.ReactElement {
                 value={displayName}
                 autoComplete="username"
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary placeholder:text-text-muted"
+                className="w-full rounded-md border border-border px-3 py-2.5 md:py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary placeholder:text-text-muted"
                 placeholder="Your name"
               />
             </div>
@@ -69,7 +69,7 @@ export default function Signin(): React.ReactElement {
                 autoComplete="current-password"
                 maxLength={128}
                 onChange={(e) => setPasscode(e.target.value)}
-                className="w-full rounded-md border border-border px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary placeholder:text-text-muted"
+                className="w-full rounded-md border border-border px-3 py-2.5 md:py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary placeholder:text-text-muted"
                 placeholder="Your password"
               />
             </div>
@@ -77,7 +77,7 @@ export default function Signin(): React.ReactElement {
             <button
               type="submit"
               disabled={submitting || !displayName.trim() || !passcode}
-              className="w-full rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full rounded-md bg-brand px-4 py-2.5 md:py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? 'Signing in…' : 'Sign in'}
             </button>

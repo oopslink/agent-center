@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useInviteParticipant } from '@/api/conversations';
 import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 import type { Participant } from '@/api/types';
+import { useModalA11y } from './useModalA11y';
 
 interface Props {
   conversationId: string;
@@ -22,6 +23,8 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [errorMsg, setErrorMsg] = useState('');
+  // a11y: Escape closes + focus-trap (rendered = open).
+  const containerRef = useModalA11y({ open: true, onClose });
 
   // identity refs already in the conversation (active OR left), normalized to the
   // bare id so a prefixed participant ref ("user:user-x") matches a bare member
@@ -87,10 +90,11 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      ref={containerRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       role="dialog"
       aria-modal="true"
-      aria-label="Invite members"
+      aria-labelledby="member-invite-title"
       data-testid="member-invite-modal"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -98,7 +102,7 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
     >
       <div className="w-full max-w-sm rounded-lg border border-border bg-bg-elevated p-4 shadow-[var(--shadow-3)]">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">Invite members</h2>
+          <h2 id="member-invite-title" className="text-sm font-semibold text-text-primary">Invite members</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
@@ -114,6 +118,7 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search members…"
+          aria-label="Search members"
           autoFocus
           className="mb-3 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
           data-testid="invite-search"

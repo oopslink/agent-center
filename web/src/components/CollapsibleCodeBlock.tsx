@@ -81,7 +81,7 @@ export function CollapsibleCodeBlock({
   return (
     <div
       className="my-1 overflow-hidden rounded border border-white/15 text-sm"
-      style={{ backgroundColor: '#003247' }}
+      style={{ backgroundColor: '#1e1a22' }}
       data-testid="collapsible-code-block"
     >
       {/* chrome row — language badge (non-interactive) + copy (sibling button).

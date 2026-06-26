@@ -371,11 +371,11 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         </ul>
       )}
       {attachments.length > 0 && (
-        <ul className="flex max-w-xs flex-wrap gap-2" data-testid="composer-attachments">
+        <ul className="flex max-w-xs max-md:max-w-full flex-wrap max-md:flex-col gap-2" data-testid="composer-attachments">
           {attachments.map((a) => (
             <li
               key={a.id}
-              className="flex w-44 flex-col gap-1 rounded border border-border-base px-2 py-1 text-xs"
+              className="flex w-44 max-md:w-full flex-col gap-1 rounded border border-border-base px-2 py-1 text-xs"
               data-testid="composer-attachment"
             >
               <div className="flex items-center gap-2">
@@ -390,7 +390,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
                     <img
                       src={a.previewUrl}
                       alt={a.file.name}
-                      className="h-8 w-8 shrink-0 rounded object-cover"
+                      className="h-8 w-8 max-md:h-12 max-md:w-12 shrink-0 rounded object-cover"
                       data-testid="composer-attachment-preview"
                     />
                   )}
@@ -444,7 +444,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           touch sizing for these two icon controls. */}
       <div className="flex items-center justify-between gap-2">
         <label
-          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle"
+          className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle"
           title="Attach file"
           aria-label="Attach file"
           data-testid="composer-attach"
@@ -465,7 +465,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         <button
           type="submit"
           disabled={disabled}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
+          className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded bg-text-primary text-bg-elevated hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
           data-testid="composer-send"
           title="Send (Enter)"
           aria-label="Send"

@@ -66,13 +66,14 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
       data-testid="agent-create-modal"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="agent-create-title"
     >
       <form
         onSubmit={submit}
         className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Add Agent</h2>
+          <h2 id="agent-create-title" className="text-lg font-semibold">Add Agent</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
@@ -84,8 +85,9 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           </button>
         </div>
 
-        <Field label="Name" required>
+        <Field label="Name" required htmlFor="agent-create-name-input">
           <input
+            id="agent-create-name-input"
             data-testid="agent-create-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -94,8 +96,9 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           />
         </Field>
 
-        <Field label="Description" hint="Optional. Shown in the agent list.">
+        <Field label="Description" hint="Optional. Shown in the agent list." htmlFor="agent-create-desc-input">
           <textarea
+            id="agent-create-desc-input"
             data-testid="agent-create-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -104,8 +107,9 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           />
         </Field>
 
-        <Field label="Model" hint="Optional.">
+        <Field label="Model" hint="Optional." htmlFor="agent-create-model-input">
           <input
+            id="agent-create-model-input"
             data-testid="agent-create-model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
@@ -113,8 +117,9 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           />
         </Field>
 
-        <Field label="CLI" hint="v2.7 runs claude-code only (codex/opencode coming in v2.8).">
+        <Field label="CLI" hint="v2.7 runs claude-code only (codex/opencode coming in v2.8)." htmlFor="agent-create-cli-input">
           <select
+            id="agent-create-cli-input"
             data-testid="agent-create-cli"
             value={cli}
             onChange={(e) => setCli(e.target.value)}
@@ -124,8 +129,9 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           </select>
         </Field>
 
-        <Field label="Skills" hint="Optional. Comma-separated.">
+        <Field label="Skills" hint="Optional. Comma-separated." htmlFor="agent-create-skills-input">
           <input
+            id="agent-create-skills-input"
             data-testid="agent-create-skills"
             value={skills}
             onChange={(e) => setSkills(e.target.value)}
@@ -190,16 +196,18 @@ function Field({
   label,
   hint,
   required,
+  htmlFor,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  htmlFor?: string;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
     <div className="mb-3">
-      <label className="mb-1 block text-xs font-medium text-text-primary">
+      <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-text-primary">
         {label}
         {required && <span className="ml-1 text-danger">*</span>}
       </label>

@@ -105,7 +105,7 @@ export default function Me(): React.ReactElement {
               value={currentPasscode}
               maxLength={6}
               onChange={(e) => setCurrentPasscode(e.target.value)}
-              className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
+              className="w-full rounded border border-border px-3 py-2 md:py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
               placeholder="••••••"
             />
           </div>
@@ -119,7 +119,7 @@ export default function Me(): React.ReactElement {
               value={newPasscode}
               maxLength={6}
               onChange={(e) => setNewPasscode(e.target.value)}
-              className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
+              className="w-full rounded border border-border px-3 py-2 md:py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
               placeholder="••••••"
             />
           </div>
@@ -133,7 +133,7 @@ export default function Me(): React.ReactElement {
               value={confirmPasscode}
               maxLength={6}
               onChange={(e) => setConfirmPasscode(e.target.value)}
-              className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
+              className="w-full rounded border border-border px-3 py-2 md:py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
               placeholder="••••••"
             />
           </div>

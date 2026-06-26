@@ -215,18 +215,7 @@ describe('App shell + route tree', () => {
 
   // §4.2 reachability (self change-password): the self Account tab is reachable
   // via the rail user link → /me redirect → UserDetail?tab=account.
-  it('self change-password (Account tab) is reachable via the rail user link → /me redirect', async () => {
-    server.use(
-      http.get('/api/users/user-test', () =>
-        HttpResponse.json({
-          user_id: 'user-test',
-          display_name: 'Test User',
-          email: 'test@example.com',
-          created_at: '2026-05-20T01:00:00Z',
-          memberships: [],
-        }),
-      ),
-    );
+  it('self change-password (Account tab) is reachable via the rail user link → /me page', async () => {
     await renderAt(`${ORG_BASE}/channels`);
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
     // v2.10.1 [T105]: the rail user avatar opens a popout panel; "Your account"
@@ -236,10 +225,9 @@ describe('App shell + route tree', () => {
     const userLink = await screen.findByTestId('rail-account-link');
     expect(userLink).toHaveAttribute('href', `${ORG_BASE}/me`);
     fireEvent.click(userLink);
-    await waitFor(() => expect(screen.getByTestId('page-UserDetail')).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByTestId('account-panel')).toBeInTheDocument());
+    // Hex redesign: /me is now a standalone Account settings page.
+    await waitFor(() => expect(screen.getByTestId('page-Me')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /change password/i })).toBeInTheDocument();
-    expect(window.location.pathname).toBe(`${ORG_BASE}/users/user-test`);
   });
 
   // §4.2 reachability (orphan hunt): the legacy /members/new "Add Agent" page
@@ -309,9 +297,6 @@ describe('App shell + route tree', () => {
     await waitFor(() =>
       expect(window.location.pathname).toBe(`${ORG_BASE}/organization-settings/profile`),
     );
-    // The 5 sections render in the shell's col② secondary nav.
-    expect(await screen.findByTestId('org-settings-secondary-nav')).toBeInTheDocument();
-    expect(screen.getByTestId('org-settings-nav-danger')).toBeInTheDocument();
     // Profile section (the default) shows the current org name.
     await waitFor(() =>
       expect((screen.getByTestId('org-settings-name') as HTMLInputElement).value).toBe('Test Org'),

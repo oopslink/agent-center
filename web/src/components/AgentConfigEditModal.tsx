@@ -81,8 +81,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             setConfirming(true);
           }}
         >
-          <Field label="CLI">
+          <Field label="CLI" htmlFor="agent-config-cli-input">
             <select
+              id="agent-config-cli-input"
               data-testid="agent-config-cli"
               className={inputClass}
               value={cli}
@@ -96,8 +97,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             </select>
           </Field>
 
-          <Field label="Model">
+          <Field label="Model" htmlFor="agent-config-model-input">
             <input
+              id="agent-config-model-input"
               data-testid="agent-config-model"
               className={inputClass}
               value={model}
@@ -106,8 +108,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             />
           </Field>
 
-          <Field label="Reasoning" hint="Reasoning effort. Default = the runtime default.">
+          <Field label="Reasoning" hint="Reasoning effort. Default = the runtime default." htmlFor="agent-config-reasoning-input">
             <select
+              id="agent-config-reasoning-input"
               data-testid="agent-config-reasoning"
               className={inputClass}
               value={reasoning}
@@ -121,8 +124,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             </select>
           </Field>
 
-          <Field label="Mode" hint="Optional. Empty = default.">
+          <Field label="Mode" hint="Optional. Empty = default." htmlFor="agent-config-mode-input">
             <input
+              id="agent-config-mode-input"
               data-testid="agent-config-mode"
               className={inputClass}
               value={mode}
@@ -131,8 +135,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             />
           </Field>
 
-          <Field label="Provider" hint="Optional. Empty = center default.">
+          <Field label="Provider" hint="Optional. Empty = center default." htmlFor="agent-config-provider-input">
             <input
+              id="agent-config-provider-input"
               data-testid="agent-config-provider"
               className={inputClass}
               value={provider}
@@ -189,15 +194,17 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
 function Field({
   label,
   hint,
+  htmlFor,
   children,
 }: {
   label: string;
   hint?: string;
+  htmlFor?: string;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
     <div className="mb-3">
-      <label className="mb-1 block text-xs font-medium text-text-primary">{label}</label>
+      <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-text-primary">{label}</label>
       {children}
       {hint && <p className="mt-1 text-[0.6875rem] text-text-muted">{hint}</p>}
     </div>

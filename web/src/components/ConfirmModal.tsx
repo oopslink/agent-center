@@ -44,7 +44,7 @@ export function ConfirmModal({
       aria-labelledby="confirm-modal-title"
       data-testid="confirm-modal"
     >
-      <div className="w-full max-w-sm rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
+      <div className="w-full max-w-sm rounded-xl border border-border-base bg-bg-elevated p-6 text-text-primary shadow-[var(--shadow-3)]">
         <h2 id="confirm-modal-title" className="text-lg font-semibold">
           {title}
         </h2>

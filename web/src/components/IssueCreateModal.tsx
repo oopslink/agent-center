@@ -45,13 +45,14 @@ export function IssueCreateModal({
       data-testid="issue-create-modal"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="issue-create-title"
     >
       <form
         onSubmit={submit}
         className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Open Issue</h2>
+          <h2 id="issue-create-title" className="text-lg font-semibold">Open Issue</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
@@ -64,10 +65,11 @@ export function IssueCreateModal({
         </div>
 
         <div className="mb-3">
-          <label className="mb-1 block text-xs font-medium text-text-primary">
+          <label htmlFor="issue-create-title-input" className="mb-1 block text-xs font-medium text-text-primary">
             Title<span className="ml-1 text-danger">*</span>
           </label>
           <input
+            id="issue-create-title-input"
             data-testid="issue-create-title"
             className={inputClass}
             value={title}
@@ -77,10 +79,11 @@ export function IssueCreateModal({
         </div>
 
         <div className="mb-3">
-          <label className="mb-1 block text-xs font-medium text-text-primary">
+          <label htmlFor="issue-create-desc-input" className="mb-1 block text-xs font-medium text-text-primary">
             Description
           </label>
           <textarea
+            id="issue-create-desc-input"
             data-testid="issue-create-description"
             className={inputClass}
             value={description}

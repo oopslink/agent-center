@@ -42,11 +42,11 @@ describe('MessageComposer', () => {
     wrap(<MessageComposer conversationId="C1" />);
     for (const id of ['composer-attach', 'composer-send']) {
       const cls = screen.getByTestId(id).className;
-      expect(cls).toContain('h-8');
-      expect(cls).toContain('w-8');
-      // no responsive split + no leftover larger sizing.
-      expect(cls).not.toContain('h-11');
-      expect(cls).not.toContain('md:h-10');
+      // Hex redesign: responsive touch targets h-11 w-11 mobile, md:h-8 md:w-8 desktop.
+      expect(cls).toContain('md:h-8');
+      expect(cls).toContain('md:w-8');
+      expect(cls).toContain('h-11');
+      expect(cls).toContain('w-11');
     }
   });
 

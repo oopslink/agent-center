@@ -135,7 +135,7 @@ export default function Channels(): React.ReactElement {
                   type="button"
                   data-testid="channel-archive-btn"
                   aria-label={`Archive ${c.name}`}
-                  className="rounded px-2 py-1 text-xs font-medium text-text-secondary motion-safe:transition-colors hover:bg-bg-subtle hover:text-text-primary disabled:opacity-50"
+                  className="rounded px-2 py-2 md:py-1 text-xs font-medium text-text-secondary motion-safe:transition-colors hover:bg-bg-subtle hover:text-text-primary disabled:opacity-50"
                   disabled={archive.isPending}
                   onClick={() => archive.mutate({ id: c.id, version: 0 })}
                 >

@@ -4,6 +4,7 @@ import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useDisplayNameResolver } from '@/api/members';
 import { CollapsibleDescription } from '@/components/CollapsibleDescription';
+import { Skeleton } from '@/components/Skeleton';
 import { TypeChip } from '@/components/TypeChip';
 import { useTask } from '@/api/tasks';
 import { useProject } from '@/api/projects';
@@ -57,14 +58,16 @@ export default function TaskDetail(): React.ReactElement {
 
   if (task.isLoading) {
     return (
-      <section className="text-sm text-text-muted" data-testid="page-TaskDetail">
-        Loading task…
+      <section className="space-y-3" role="status" data-testid="page-TaskDetail">
+        <Skeleton width="12rem" height="1.5rem" />
+        <Skeleton height="4rem" />
+        <span className="sr-only">Loading task…</span>
       </section>
     );
   }
   if (task.isError) {
     return (
-      <section className="space-y-3" data-testid="page-TaskDetail">
+      <section className="space-y-3" role="alert" data-testid="page-TaskDetail">
         <p className="text-sm text-danger" data-testid="task-not-found">
           {(task.error as Error).message}
         </p>
@@ -198,7 +201,7 @@ export default function TaskDetail(): React.ReactElement {
                   </div>
                 </div>
               )}
-              <div className="flex min-h-[60vh] flex-1 flex-col">
+              <div className="flex flex-1 flex-col">
                 <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
               </div>
             </>

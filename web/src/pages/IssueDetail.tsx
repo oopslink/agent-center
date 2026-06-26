@@ -12,6 +12,7 @@ import { ConversationSidebar } from '@/components/ConversationSidebar';
 import { ContextPanel } from '@/shell/contextPanel';
 import { IssueDetailSidebar, DerivedTasksBlock } from '@/components/IssueDetailSidebar';
 import { IssueAttachments } from '@/components/AttachmentsSection';
+import { Skeleton } from '@/components/Skeleton';
 import { TypeChip } from '@/components/TypeChip';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { MobileWorkItemBar, MobileDetailsContent, useIsMobile } from '@/components/WorkItemMobileMeta';
@@ -44,14 +45,16 @@ export default function IssueDetail(): React.ReactElement {
 
   if (issue.isLoading) {
     return (
-      <section className="text-sm text-text-muted" data-testid="page-IssueDetail">
-        Loading issue…
+      <section className="space-y-3" role="status" data-testid="page-IssueDetail">
+        <Skeleton width="12rem" height="1.5rem" />
+        <Skeleton height="4rem" />
+        <span className="sr-only">Loading issue…</span>
       </section>
     );
   }
   if (issue.isError) {
     return (
-      <section className="space-y-3" data-testid="page-IssueDetail">
+      <section className="space-y-3" role="alert" data-testid="page-IssueDetail">
         <p className="text-sm text-danger" data-testid="issue-not-found">
           {(issue.error as Error).message}
         </p>
@@ -147,7 +150,7 @@ export default function IssueDetail(): React.ReactElement {
                   </div>
                 </div>
               )}
-              <div className="flex min-h-[60vh] flex-1 flex-col">
+              <div className="flex flex-1 flex-col">
                 <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
               </div>
             </>

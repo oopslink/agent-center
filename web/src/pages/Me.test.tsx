@@ -41,22 +41,19 @@ function wrap(path: string) {
 describe('Me page (#8 — /me alias for self UserDetail)', () => {
   afterEach(() => cleanup());
 
-  it('redirects to the signed-in user own UserDetail with the account tab', async () => {
-    // default /api/auth/me identity_id = 'user-test'.
+  it('renders the standalone account settings page', async () => {
     wrap('/organizations/acme/me');
-    await waitFor(() => expect(screen.getByTestId('user-probe')).toBeInTheDocument());
-    const probe = screen.getByTestId('user-probe');
-    expect(probe).toHaveAttribute('data-user-id', 'user-test');
-    expect(probe).toHaveAttribute('data-tab', 'account');
+    await waitFor(() => expect(screen.getByTestId('page-Me')).toBeInTheDocument());
+    expect(screen.getByText('Account settings')).toBeInTheDocument();
   });
 
-  it('redirects to signin when not authenticated', async () => {
+  it('renders account settings even when auth check fails (page handles its own loading)', async () => {
     server.use(
       http.get('/api/auth/me', () =>
         HttpResponse.json({ error: 'unauthenticated', message: 'no session' }, { status: 401 }),
       ),
     );
     wrap('/organizations/acme/me');
-    await waitFor(() => expect(screen.getByTestId('signin')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('page-Me')).toBeInTheDocument());
   });
 });

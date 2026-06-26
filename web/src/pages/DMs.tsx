@@ -81,7 +81,7 @@ export default function DMs(): React.ReactElement {
               aria-selected={view === 'mine'}
               onClick={() => setView('mine')}
               data-testid="dms-tab-mine"
-              className={`rounded px-3 py-1 ${
+              className={`rounded px-3 py-1 min-h-[44px] md:min-h-0 ${
                 view === 'mine' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
@@ -93,7 +93,7 @@ export default function DMs(): React.ReactElement {
               aria-selected={view === 'agent_agent'}
               onClick={() => setView('agent_agent')}
               data-testid="dms-tab-agent-agent"
-              className={`rounded px-3 py-1 ${
+              className={`rounded px-3 py-1 min-h-[44px] md:min-h-0 ${
                 view === 'agent_agent' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
@@ -160,7 +160,7 @@ export default function DMs(): React.ReactElement {
                       del.reset();
                       setPendingDelete({ id: c.id, name: c.name || c.id });
                     }}
-                    className="mr-2 shrink-0 rounded px-2 py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
+                    className="mr-2 shrink-0 rounded px-2 py-2 md:py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
                   >
                     Delete
                   </button>

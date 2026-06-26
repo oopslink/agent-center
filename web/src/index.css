@@ -9,28 +9,26 @@
  * block; component code never touches raw slate-/blue- shades.
  */
 :root {
-  --color-bg-base:        #f8fafc;
-  --color-bg-elevated:    #ffffff;
-  --color-bg-subtle:      #f1f5f9;
-  --color-border:         #e2e8f0;
-  --color-border-strong:  #cbd5e1;
-  --color-text-primary:   #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-muted:     #64748b;
-  --color-brand:          #1e40af;
-  --color-brand-hover:    #1d4ed8;
-  --color-accent:         #2563eb;
-  --color-success:        #22c55e;
-  --color-warning:        #f59e0b;
-  --color-danger:         #dc2626;
+  --color-bg-base:        #FFFCFC;    /* was #f8fafc — warm white */
+  --color-bg-elevated:    #ffffff;     /* unchanged */
+  --color-bg-subtle:      #f8f5f6;    /* was #f1f5f9 — warm gray */
+  --color-border:         #dbd7da;    /* was #e2e8f0 — warm border */
+  --color-border-strong:  #afa9b1;    /* was #cbd5e1 */
+  --color-text-primary:   #31263B;    /* was #0f172a — eggplant */
+  --color-text-secondary: #4a4255;    /* was #475569 — warm secondary */
+  --color-text-muted:     #717A94;    /* was #64748b — warm muted */
+  --color-brand:          #7C3AED;    /* was #1e40af — violet-600 */
+  --color-brand-hover:    #6D28D9;    /* was #1d4ed8 — violet-700 */
+  --color-accent:         #7C3AED;    /* was #2563eb — violet-600 */
+  --color-success:        #5CB198;    /* was #22c55e — jade */
+  --color-warning:        #E5A000;    /* was #f59e0b */
+  --color-danger:         #D44040;    /* was #dc2626 — warm red */
 
-  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-2: 0 4px 8px rgba(15, 23, 42, 0.08);
-  --shadow-3: 0 12px 24px rgba(15, 23, 42, 0.12);
+  --shadow-1: 0 0 11px 0 rgba(0,0,0,.05) inset, 0 0 0 1px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-2: 0 0 11px 0 rgba(0,0,0,.04) inset, 0 0 0 1px rgba(0,0,0,.08), 0 4px 8px -2px rgba(0,0,0,.06);
+  --shadow-3: 0 0 0 1px rgba(0,0,0,.1), 0 24px 48px rgba(0,0,0,.15);
 
-  /* Focus ring used by `focus-visible` utilities (skill rule
-   * `focus-states`: 2-4px, must be visible). */
-  --ring-color: rgba(59, 130, 246, 0.5);
+  --ring-color: rgba(124, 58, 237, 0.4); /* violet-600 based */
 
   /*
    * Status / chip / badge palette tokens (no-raw-colors migration).
@@ -113,8 +111,8 @@
    * #D1E3FF and the code block #003247), so their text must stay constant
    * in both modes (Tester2 AA-locked — the both-mode 命门).
    */
-  --color-chatbubble-fg:    #0f172a; /* slate-900, on #D1E3FF own bubble */
-  --color-chatbubble-link:  #1d4ed8; /* blue-700, link on #D1E3FF bubble */
+  --color-chatbubble-fg:    #f8f5f6;    /* warm white text on eggplant bubble */
+  --color-chatbubble-link:  #c4b5fd;    /* violet-300 link on eggplant bubble */
   --color-codeblock-fg:     #f1f5f9; /* slate-100, code text on #003247 */
   --color-codeblock-muted:  #cbd5e1; /* slate-300, chrome text on #003247 */
   --color-codeblock-link:   #7dd3fc; /* sky-300, disclosure on #003247 */
@@ -126,9 +124,9 @@
    * the chat bubble / code block above). Idle/active foregrounds are tuned
    * for AA on #1e1b34 (rail-fg #c7c3e0 = 7.4:1; rail-fg-active #ffffff).
    */
-  --color-rail-bg:        #1e1b34; /* deep indigo activity bar */
-  --color-rail-fg:        #c7c3e0; /* idle icon/label */
-  --color-rail-fg-active: #ffffff; /* active icon/label */
+  --color-rail-bg:        #31263B;     /* was #1e1b34 — eggplant */
+  --color-rail-fg:        #c0b8c8;     /* warm idle */
+  --color-rail-fg-active: #ffffff;     /* unchanged */
 }
 
 /*
@@ -138,26 +136,26 @@
  * lighter tonal variants, not raw inversion.
  */
 :root.dark {
-  --color-bg-base:        #0f172a;
-  --color-bg-elevated:    #1e293b;
-  --color-bg-subtle:      #1e293b;
-  --color-border:         #334155;
-  --color-border-strong:  #475569;
-  --color-text-primary:   #f1f5f9;
-  --color-text-secondary: #cbd5e1;
-  --color-text-muted:     #94a3b8;
-  --color-brand:          #3b82f6;
-  --color-brand-hover:    #2563eb;
-  --color-accent:         #60a5fa;
-  --color-success:        #4ade80;
-  --color-warning:        #fbbf24;
-  --color-danger:         #f87171;
+  --color-bg-base:        #14141C;    /* was #0f172a — near-black warm */
+  --color-bg-elevated:    #1e1a22;    /* was #1e293b — warm card */
+  --color-bg-subtle:      #252128;    /* was #1e293b — warm subtle */
+  --color-border:         #3a3440;    /* was #334155 — warm border */
+  --color-border-strong:  #4d4656;    /* was #475569 */
+  --color-text-primary:   #e3dde6;    /* was #f1f5f9 — warm white */
+  --color-text-secondary: #c0b8c8;    /* was #cbd5e1 */
+  --color-text-muted:     #9e98a6;    /* was #94a3b8 */
+  --color-brand:          #a78bfa;    /* was #3b82f6 — violet-400 */
+  --color-brand-hover:    #8b5cf6;    /* was #2563eb — violet-500 */
+  --color-accent:         #a78bfa;    /* was #60a5fa — violet-400 */
+  --color-success:        #6fcfaa;    /* was #4ade80 */
+  --color-warning:        #f0c050;    /* was #fbbf24 */
+  --color-danger:         #f08080;    /* was #f87171 */
 
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-2: 0 4px 8px rgba(0, 0, 0, 0.35);
-  --shadow-3: 0 12px 24px rgba(0, 0, 0, 0.45);
+  --shadow-1: 0 0 11px 0 rgba(0,0,0,.2) inset, 0 0 0 1px rgba(255,255,255,.04), 0 1px 2px rgba(0,0,0,.3);
+  --shadow-2: 0 0 11px 0 rgba(0,0,0,.15) inset, 0 0 0 1px rgba(255,255,255,.06), 0 4px 8px rgba(0,0,0,.35);
+  --shadow-3: 0 0 0 1px rgba(0,0,0,.3), 0 24px 48px rgba(0,0,0,.45);
 
-  --ring-color: rgba(96, 165, 250, 0.6);
+  --ring-color: rgba(167, 139, 250, 0.5); /* violet-400 based */
 
   /*
    * Dark tonal pairs for the status palette. -bg → {hue}-900, -fg → {hue}-200,
@@ -231,8 +229,8 @@
    * FIXED tokens — UNCHANGED in dark (identical to light). These surfaces
    * (#D1E3FF own bubble, #003247 code block) are fixed in both modes.
    */
-  --color-chatbubble-fg:    #0f172a;
-  --color-chatbubble-link:  #1d4ed8;
+  --color-chatbubble-fg:    #14141C;    /* dark text on violet-400 bubble */
+  --color-chatbubble-link:  #6D28D9;    /* violet-700 link on violet-400 bubble */
   --color-codeblock-fg:     #f1f5f9;
   --color-codeblock-muted:  #cbd5e1;
   --color-codeblock-link:   #7dd3fc;
@@ -292,6 +290,24 @@ body {
   textarea,
   select {
     font-size: 16px !important;
+  }
+}
+
+/* v2.10.1 touch-target baseline: all interactive elements on touch devices
+ * meet the 44px minimum (WCAG 2.5.5 + Apple/Google HIG). Covers ~60% of
+ * touch-target issues; remaining are fixed per-component. */
+@media (pointer: coarse) {
+  button,
+  [role="tab"],
+  [role="menuitem"],
+  select,
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  input:not([type='checkbox']):not([type='radio']),
+  textarea {
+    min-height: 44px;
   }
 }
 

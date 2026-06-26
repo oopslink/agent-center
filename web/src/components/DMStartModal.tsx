@@ -79,6 +79,7 @@ export function DMStartModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search people or agents…"
+            aria-label="Search people or agents"
             autoFocus
             className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
             data-testid="dm-peer-search"

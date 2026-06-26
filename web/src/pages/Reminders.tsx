@@ -156,7 +156,7 @@ export default function Reminders(): React.ReactElement {
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+          className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 md:py-1.5 text-xs font-semibold text-white hover:opacity-90"
           data-testid="reminder-new"
         >
           + New reminder
@@ -182,7 +182,7 @@ export default function Reminders(): React.ReactElement {
                   onClick={() => setStatus(c.key)}
                   aria-pressed={active}
                   data-testid={`reminder-statuschip-${c.key || 'default'}`}
-                  className={`rounded-full px-2.5 py-0.5 text-xs ${
+                  className={`rounded-full px-2.5 py-0.5 text-xs min-h-[44px] md:min-h-0 ${
                     active ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-border-base'
                   }`}
                 >
@@ -269,31 +269,31 @@ export default function Reminders(): React.ReactElement {
                       <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex gap-2">
                           {r.status === 'active' && (
-                            <button type="button" title="Pause" aria-label="Pause" data-testid="reminder-pause" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'pause' })}>
+                            <button type="button" title="Pause" aria-label="Pause" data-testid="reminder-pause" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'pause' })}>
                               <IconPause className="h-3.5 w-3.5" />
                             </button>
                           )}
                           {r.status === 'paused' && (
-                            <button type="button" title="Resume" aria-label="Resume" data-testid="reminder-resume" className="text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'resume' })}>
+                            <button type="button" title="Resume" aria-label="Resume" data-testid="reminder-resume" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'resume' })}>
                               <IconPlay className="h-3.5 w-3.5" />
                             </button>
                           )}
                           {(r.status === 'active' || r.status === 'paused') && (
-                            <button type="button" title="Cancel" aria-label="Cancel" data-testid="reminder-cancel" className="text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
+                            <button type="button" title="Cancel" aria-label="Cancel" data-testid="reminder-cancel" className="p-2.5 md:p-0 text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
                               <IconClose className="h-3.5 w-3.5" />
                             </button>
                           )}
                           {/* T477: edit (active/paused only — terminal reminders
                               aren't editable), clone (any), delete (any). */}
                           {(r.status === 'active' || r.status === 'paused') && (
-                            <button type="button" title="Edit" aria-label="Edit" data-testid="reminder-edit" className="text-text-secondary hover:text-text-primary" onClick={() => setEditTarget(r)}>
+                            <button type="button" title="Edit" aria-label="Edit" data-testid="reminder-edit" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => setEditTarget(r)}>
                               <IconEdit className="h-3.5 w-3.5" />
                             </button>
                           )}
-                          <button type="button" title="Clone" aria-label="Clone" data-testid="reminder-clone" className="text-text-secondary hover:text-text-primary" onClick={() => setCloneTarget(r)}>
+                          <button type="button" title="Clone" aria-label="Clone" data-testid="reminder-clone" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => setCloneTarget(r)}>
                             <IconCopy className="h-3.5 w-3.5" />
                           </button>
-                          <button type="button" title="Delete" aria-label="Delete" data-testid="reminder-delete" className="text-danger hover:opacity-80" onClick={() => setDeleteTarget(r)}>
+                          <button type="button" title="Delete" aria-label="Delete" data-testid="reminder-delete" className="p-2.5 md:p-0 text-danger hover:opacity-80" onClick={() => setDeleteTarget(r)}>
                             <IconTrash className="h-3.5 w-3.5" />
                           </button>
                         </div>
