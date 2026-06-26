@@ -761,7 +761,9 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 
 	if c.cfg.TaskDirManager != nil {
 		_, tasksDir, _, pathErr := c.agentPaths(pl.AgentID)
-		if pathErr == nil {
+		if pathErr != nil {
+			c.log("agent=%s task=%s resolve paths: %v", pl.AgentID, pl.TaskID, pathErr)
+		} else {
 			now := c.now()
 			meta := taskexec.TaskExecutionMeta{
 				TaskID:    pl.TaskID,
