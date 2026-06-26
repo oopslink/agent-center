@@ -151,6 +151,20 @@ func (g *GitOps) AutoCommitDirty(ctx context.Context, authorName, authorEmail, m
 	return nil
 }
 
+// Push pushes the current branch to the given remote. Best-effort: returns the
+// error but callers typically log and continue (design §9.3 async push).
+func (g *GitOps) Push(ctx context.Context, remote string) error {
+	if g.memoryDir == "" {
+		return ErrMemoryDirEmpty
+	}
+	out, err := g.run(ctx, "system:push", "system:push@agent-center.local",
+		"push", remote, "main")
+	if err != nil {
+		return fmt.Errorf("%w: push: %v: %s", ErrMemoryGitOpFailed, err, out)
+	}
+	return nil
+}
+
 // LogOneline runs `git log --oneline` and returns the output (used by
 // tests and `inspect`).
 func (g *GitOps) LogOneline(ctx context.Context) (string, error) {

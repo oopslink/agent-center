@@ -228,6 +228,39 @@ func (e *fakeExit) Error() string { return e.msg }
 
 func errExit(s string) error { return &fakeExit{msg: s} }
 
+func TestGitOps_FakeRunner_PushCallsGitPush(t *testing.T) {
+	r := &fakeRunner{}
+	g := memory.NewGitOps("/mem", r, "")
+	err := g.Push(context.Background(), "origin")
+	if err != nil {
+		t.Fatalf("Push: %v", err)
+	}
+	if len(r.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(r.calls))
+	}
+	call := r.calls[0]
+	// Should contain "push", "origin", "main" in args
+	found := false
+	for _, a := range call.args {
+		if a == "push" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected push in args, got %v", call.args)
+	}
+}
+
+func TestGitOps_FakeRunner_PushEmptyDir(t *testing.T) {
+	r := &fakeRunner{}
+	g := memory.NewGitOps("", r, "")
+	err := g.Push(context.Background(), "origin")
+	if !errors.Is(err, memory.ErrMemoryDirEmpty) {
+		t.Fatalf("expected ErrMemoryDirEmpty, got %v", err)
+	}
+}
+
 func envSlice(env []string) map[string]string {
 	out := map[string]string{}
 	for _, kv := range env {
