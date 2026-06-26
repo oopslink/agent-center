@@ -46,6 +46,7 @@ import (
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
+	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
 
 // agentSession is the NARROW control surface the AgentController needs from one
@@ -323,6 +324,13 @@ type AgentControllerConfig struct {
 	APIErrorBackoffBase time.Duration
 	APIErrorBackoffCap  time.Duration
 	APIErrorMaxRetries  int
+
+	// TaskDirManager manages per-task execution directories. Nil → task
+	// directory management disabled (backwards-compatible).
+	TaskDirManager *taskexec.DirManager
+	// TaskVerifier checks task assignment with Center for boot reconcile.
+	// Nil → boot task reconcile skipped.
+	TaskVerifier taskexec.TaskVerifier
 
 	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
 	// same-package _test.go can override it with a fake — production callers cannot
@@ -749,6 +757,22 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 	if sess == nil {
 		// No running session yet — retry after the reconcile(running) lands.
 		return fmt.Errorf("agent_controller: work for agent=%s but no running session (retry after reconcile)", pl.AgentID)
+	}
+
+	if c.cfg.TaskDirManager != nil {
+		_, tasksDir, _, pathErr := c.agentPaths(pl.AgentID)
+		if pathErr == nil {
+			now := c.now()
+			meta := taskexec.TaskExecutionMeta{
+				TaskID:    pl.TaskID,
+				Status:    taskexec.StatusPending,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if createErr := c.cfg.TaskDirManager.Create(tasksDir, meta, taskexec.ExecutionContext{}); createErr != nil {
+				c.log("agent=%s task=%s create task dir: %v", pl.AgentID, pl.TaskID, createErr)
+			}
+		}
 	}
 
 	if err := sess.Inject(ctx, pl.Brief); err != nil {

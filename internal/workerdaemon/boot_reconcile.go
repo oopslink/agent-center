@@ -53,6 +53,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
 
 // DefaultResumeNudge is the message injected into a RELAUNCHED agent's session for
@@ -284,6 +285,21 @@ func (c *AgentController) ReconcileOnBoot(ctx context.Context) error {
 	for id := range union {
 		c.reconcileAgentOnBoot(ctx, id, centerByID[id], centerVersion[id])
 	}
+
+	if c.cfg.TaskDirManager != nil && c.cfg.TaskVerifier != nil {
+		for id := range union {
+			_, tasksDir, _, perr := c.agentPaths(id)
+			if perr != nil {
+				continue
+			}
+			result := taskexec.ReconcileTasksOnBoot(ctx, tasksDir, c.cfg.TaskVerifier, id, c.now())
+			if result.Aborted > 0 || len(result.Errors) > 0 {
+				c.log("boot-reconcile agent=%s tasks: kept=%d aborted=%d errors=%d",
+					id, result.Kept, result.Aborted, len(result.Errors))
+			}
+		}
+	}
+
 	return nil
 }
 
