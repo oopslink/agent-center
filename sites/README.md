@@ -35,8 +35,8 @@ python3 -m http.server -d sites 5173   # 然后访问 http://localhost:5173
 sites/
 ├── index.html              首页：四大板块入口 + 开发指引版本卡
 ├── product/index.html      产品介绍（单页，不版本化）
-├── manual/<ver>/index.html 用户手册 · 按版本（当前 v2.7.1）+ 版本切换器
-├── dev/<ver>/index.html    开发指引 · DDD 可视化 · 按版本（当前 v2.7.1，v2.7 历史）
+├── manual/<ver>/index.html 用户手册 · 按版本（当前 v2.15.0）+ 版本切换器
+├── dev/<ver>/index.html    开发指引 · DDD 可视化 · 按版本（当前 v2.15.0）
 ├── roadmap/index.html      路线图（节奏决策：已完成 / 推迟 / 愿景）
 ├── designs/<ver>/index.html 旧 URL 重定向兜底页（见下）
 ├── assets/site.css         共享设计系统（蓝图风格 + 暗色 + DDD 语义色 token）

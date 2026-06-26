@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DDD 架构浏览器 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.shell { display: grid; grid-template-columns: 248px 1fr; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; gap: 28px; align-items: start; min-height: calc(100vh - 49px); }
+/* light, contained sidebar — matches manual sidebar aesthetic */
+.rail { background: var(--bg-elevated); color: var(--ink-2); padding: 20px 16px; border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); position: sticky; top: 66px; align-self: start; margin-top: 22px; }
+.rail h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 14px; }
+.layers { list-style: none; padding: 0; margin: 0; }
+.layers li { position: relative; padding: 11px 12px 11px 30px; border-radius: 9px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; transition: .15s; }
+.layers li::before { content:""; position: absolute; left: 13px; top: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translateY(-50%); background: var(--border-strong); }
+.layers li.done { color: var(--ink); } .layers li.done::before { background: var(--essential); }
+.layers li.cur { color: var(--brand); background: var(--core-bg); } .layers li.cur::before { background: var(--accent); box-shadow: 0 0 0 4px rgba(37,99,235,.2); }
+.layers li.lock { opacity: .45; } .layers li.lock::before { background: var(--border-strong); }
+.layers .sub { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); display: block; margin-top: 2px; }
+.rail .legend { margin-top: 26px; border-top: 1px solid var(--border); padding-top: 16px; display: grid; gap: 9px; }
+.rail .legend div { font-size: 11.5px; display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.rail .legend i { width: 10px; height: 10px; border-radius: 3px; }
+
+.canvas { padding: 22px 0 60px; position: relative; min-width: 0; }
+/* architecture sub-nav (pill links) */
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; max-width: var(--maxw); margin: 0 auto; padding: 16px 24px 0; }
+.subnav a { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--bg-subtle); border: 1px solid var(--border); padding: 7px 14px; border-radius: 999px; transition: .15s; }
+.subnav a:hover { border-color: var(--accent); color: var(--brand); }
+.subnav a.on { background: var(--core-bg); border-color: var(--core-bd); color: var(--brand); }
+.crumbs { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.crumbs a { cursor: pointer; } .crumbs b { color: var(--ink); }
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 6px 0 22px; flex-wrap: wrap; }
+.head h1 { font-size: 28px; font-weight: 800; }
+.head p { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; max-width: 620px; }
+.toggle { display: inline-flex; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 11px; padding: 4px; gap: 2px; }
+.toggle button { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; border: 0; background: transparent; color: var(--ink-2); padding: 7px 14px; border-radius: 8px; cursor: pointer; }
+.toggle button.on { background: var(--bg-elevated); color: var(--brand); box-shadow: var(--shadow-1); }
+
+/* ---- context map (L0) ---- */
+.map { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.bc { position: relative; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 18px; cursor: pointer; transition: .2s; overflow: hidden; }
+.bc::before { content:""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--c); }
+.bc:hover { transform: translateY(-4px); box-shadow: var(--shadow-2); border-color: var(--c); }
+.bc .top { display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px; }
+.bc h3 { font-size: 18px; font-weight: 700; }
+.bc .zh { font-size: 12px; color: var(--ink-3); font-weight: 500; font-family: var(--font-body); }
+.bc p { margin: 0 0 14px; font-size: 13px; color: var(--ink-2); }
+.bc .ents { display: flex; flex-wrap: wrap; gap: 5px; }
+.bc .ents span { font-family: var(--font-mono); font-size: 10.5px; padding: 2px 7px; border-radius: 6px; background: var(--bg-subtle); color: var(--ink-2); border: 1px solid var(--border); }
+.bc .drill { position: absolute; right: 16px; bottom: 14px; font-family: var(--font-mono); font-size: 11px; color: var(--c); font-weight: 700; opacity: 0; transition: .2s; }
+.bc:hover .drill { opacity: 1; }
+.maphint { text-align:center; color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; margin-top: 20px; }
+
+/* ---- context detail (L1) ---- */
+.aggs { display: grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap: 14px; }
+.agg { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; cursor: pointer; transition: .2s; }
+.agg:hover { border-color: var(--accent); box-shadow: var(--shadow-2); transform: translateY(-3px); }
+.agg .st { font-family: var(--font-mono); font-size: 10px; color: var(--accent); font-weight: 700; }
+.agg h4 { font-size: 16px; margin: 4px 0 6px; }
+.agg .meta { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.agg .open { margin-top: 12px; font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--accent); }
+
+/* ---- layered architecture (L1) ---- */
+.layered { display: grid; gap: 14px; }
+.band { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-elevated); padding: 14px 16px 16px; position: relative; }
+.band > .bl { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
+.band > .bl .tag { font-size: 9.5px; padding: 2px 7px; border-radius: 999px; font-weight: 600; }
+.band.app { background: linear-gradient(0deg,var(--bg-elevated),var(--core-bg) 240%); }
+.band.app .bl { color: var(--brand); } .band.app .bl .tag { background: var(--core-bg); color: var(--brand); }
+.band.dom .bl { color: var(--essential); } .band.dom .bl .tag { background: var(--essential-bg); color: var(--essential); }
+.band.infra { background: var(--bg-subtle); } .band.infra .bl { color: var(--ink-3); } .band.infra .bl .tag { background: var(--border); color: var(--ink-2); }
+.svcrow { display: flex; flex-wrap: wrap; gap: 9px; }
+.svc { background: var(--bg-elevated); border: 1px dashed var(--border-strong); border-radius: 9px; padding: 9px 12px; min-width: 150px; }
+.svc .ster { font-family: var(--font-mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
+.svc .nm { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--ink); display: block; }
+.svc .op { font-family: var(--font-mono); font-size: 10.5px; color: var(--essential); margin-top: 2px; }
+.svc.app2 { border-style: solid; border-color: var(--core-bd); } .svc.app2 .nm { color: var(--brand); }
+.dom .domwrap { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+.dom .aggcol .cl { font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); text-transform: uppercase; letter-spacing:.08em; margin-bottom: 7px; }
+.dom .aggcol .aggs { grid-template-columns: 1fr 1fr; }
+.repochips { display: flex; flex-wrap: wrap; gap: 7px; }
+.repochips span { font-family: var(--font-mono); font-size: 10.5px; padding: 4px 9px; border-radius: 7px; background: var(--bg-elevated); border: 1px solid var(--border-strong); color: var(--ink-2); }
+.repochips span::before { content:"⛁ "; color: var(--ink-3); }
+.flowarrow { text-align: center; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; margin: -6px 0; }
+/* domain service box in class diagram */
+.cls.service { border-style: dashed; border-color: var(--essential); }
+.cls.service .ch { background: var(--essential); }
+
+/* ---- entity class diagram (L2) ---- */
+.diagram { position: relative; }
+#svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.classes { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 46px 60px; padding: 10px; }
+.cls { width: 248px; background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow-2); overflow: hidden; align-self: flex-start; }
+.cls .ch { padding: 9px 12px; background: var(--c,#2563eb); color: #fff; }
+.cls .ch .ster { font-family: var(--font-mono); font-size: 9.5px; opacity: .82; display:block; }
+.cls .ch .nm { font-family: var(--font-mono); font-weight: 700; font-size: 14px; }
+.cls .sect { padding: 8px 12px; border-top: 1px solid var(--border); }
+.cls .sect:first-of-type { border-top: 0; }
+.cls .row { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-2); padding: 1.5px 0; display: flex; justify-content: space-between; gap: 8px; }
+.cls .row .ty { color: var(--ink-3); }
+.cls .sect.state .row { color: var(--essential); }
+.cls .lab { font-family: var(--font-mono); font-size: 9px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 3px; }
+.relkey { display:flex; gap:18px; flex-wrap:wrap; margin: 22px 2px 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
+.relkey span b { color: var(--ink); }
+
+/* ---- sequence diagram ---- */
+.seq { position: relative; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 22px 10px 28px; overflow-x: auto; }
+.seq .lifelines { display: grid; gap: 0; position: relative; min-width: 720px; }
+.actorrow { display: grid; grid-template-columns: var(--cols); }
+.actor { text-align: center; }
+.actor .box { display: inline-block; font-family: var(--font-mono); font-size: 12px; font-weight: 700; background: var(--rail-bg); color: #fff; padding: 8px 12px; border-radius: 8px; }
+.actor .box.you { background: var(--brand); } .actor .box.agent { background: var(--essential); }
+.lanes { position: relative; min-width: 720px; margin-top: 8px; }
+.lane { position: absolute; top: 0; bottom: 0; width: 2px; background: repeating-linear-gradient(var(--border-strong) 0 6px, transparent 6px 12px); transform: translateX(-50%); }
+.msg { position: relative; height: 46px; }
+.msg .arrow { position: absolute; height: 2px; background: var(--accent); top: 20px; }
+.msg .arrow::after { content:""; position: absolute; right: -1px; top: -3px; border: 4px solid transparent; border-left-color: var(--accent); }
+.msg .arrow.rtl { background: var(--essential); }
+.msg .arrow.rtl::after { right: auto; left: -1px; border-left-color: transparent; border-right-color: var(--essential); }
+.msg .arrow.self { width: 26px !important; border-radius: 0 8px 8px 0; height: 22px; background: transparent; border: 2px solid var(--warning); border-left: 0; top: 8px; }
+.msg .arrow.self::after { border-left-color: var(--warning); right: -1px; top: 12px; }
+.msg .t { position: absolute; top: 2px; font-family: var(--font-mono); font-size: 11px; color: var(--ink); white-space: nowrap; transform: translateX(-50%); background: var(--bg-elevated); padding: 0 6px; }
+.msg .t small { color: var(--ink-3); }
+.seqnote { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); margin: 16px 0 0; text-align:center; }
+
+.backbtn { font-family: var(--font-mono); font-size: 12px; color: var(--accent); cursor: pointer; font-weight: 600; }
+.fade { animation: rise .4s ease forwards; }
+@keyframes rise { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+@media (max-width: 900px){ .shell{grid-template-columns:1fr} .rail{display:none} .map{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a class="active" href="#">架构</a><a href="../../manual/v2.15.0/index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+
+<nav class="subnav">
+  <a class="on" href="index.html">DDD</a>
+  <a href="storage.html">存储架构</a>
+  <a href="deployment.html">部署架构</a>
+  <a href="mcp.html">MCP 服务</a>
+</nav>
+
+<div class="shell">
+  <aside class="rail">
+    <h4>逐层探索</h4>
+    <ul class="layers" id="layers">
+      <li data-go="map"><b>① 限界上下文地图</b><span class="sub">10 BC + Memory · 战略层</span></li>
+      <li data-go="context" class="lock"><b>② 上下文 / 聚合</b><span class="sub" id="l2sub">选一个 BC 进入</span></li>
+      <li data-go="class" class="lock"><b>③ 实体类图</b><span class="sub" id="l3sub">选一个聚合进入</span></li>
+    </ul>
+    <div class="legend">
+      <div><i style="background:var(--core)"></i>Core 核心</div>
+      <div><i style="background:var(--essential)"></i>Supporting · Essential</div>
+      <div><i style="background:var(--peripheral)"></i>Supporting · Peripheral</div>
+    </div>
+    <div class="legend" style="margin-top:14px">
+      <div style="color:var(--ink-3);font-size:10px;letter-spacing:.1em">视图</div>
+      <div><i style="background:var(--accent)"></i>结构 drill-down</div>
+      <div><i style="background:var(--warning)"></i>序列图 sequence</div>
+    </div>
+  </aside>
+
+  <main class="canvas">
+    <div class="crumbs" id="crumbs"></div>
+    <div class="head">
+      <div><h1 id="title"></h1><p id="sub"></p></div>
+      <div class="toggle"><button id="mStruct" class="on" onclick="setMode('structure')">结构</button><button id="mSeq" onclick="setMode('sequence')">序列图</button></div>
+    </div>
+    <div id="body"></div>
+  </main>
+</div>
+
+<script>
+/* ---------- real domain data (from docs/design/architecture) ---------- */
+const BCS = {
+  projectmanager:{ name:"ProjectManager", zh:"项目管理", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"Project/Issue/Task/Plan(DAG 编排)/Member/Finding 的工作管理唯一真相；work-item 状态权威，不靠消息推断(ADR-0046)。",
+    aggs:["task","issue","plan","project"],
+    app:["pm Service · ~70 用例(任务/计划/池/Finding)"],
+    dom:[{n:"PlanOrchestrator(投影器)",o:"ready 节点→@mention 派发"},{n:"AgentTaskRunGate",o:"open→running 运行门"}],
+    repo:["TaskRepository","IssueRepository","PlanRepository(含 DAG 边+派发记录)","ProjectRepository","PlanFindingRepository","OrgSequenceRepository"] },
+  agent:       { name:"Agent", zh:"智能体", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"Agent 生命周期意图 + 工作队列(WorkItem) + 活动事件流；'做了什么'由事件重建，无 AgentRun(ADR-0049)。",
+    aggs:["agent","workitem"],
+    app:["Agent 运行时编排"],
+    dom:[{n:"DeriveAvailability",o:"(worker在线,生命周期,有活跃WI)→available/busy/unavailable"},{n:"OrgDirectory",o:"OrgOfAgent()"}],
+    repo:["Agent Repository","WorkItemRepository(CAS)","ActivityEventRepository(游标分页)"] },
+  conversation:{ name:"Conversation", zh:"会话", cls:"core", clsLabel:"Core", c:"var(--core)",
+    desc:"channel/dm/task/issue/plan 会话 + append-only 消息 + 深度1线程 + 参与者/已读/关注状态。",
+    aggs:["conversation"],
+    app:["MessageWriter / ParticipantManagement / FollowState 服务(service/ 子包)"],
+    dom:[{n:"ResolveReplyPlacement",o:"算 parent/root(深度1)"},{n:"FindByOwnerRef",o:"task/issue/plan 会话懒建投影"}],
+    repo:["ConversationRepository","MessageRepository(批量,无N+1)","UserConversationReadStateRepository","UserConversationFollowStateRepository"] },
+  identity:    { name:"Identity", zh:"身份", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"用户/agent 身份 + 组织 + 成员(末位 owner 守卫) + 邀请 + 认证(passcode/JWT)。",
+    aggs:["identity","organization"],
+    app:["SignupService","SigninService/AuthService","AgentIdentityProvisionService","MemberRoleChangeService","OrganizationLifecycleService"],
+    dom:[{n:"OrganizationLockManager",o:"WithLock 守 owner 计数不变式"},{n:"CountActiveOwners",o:"末位 owner 守卫"}],
+    repo:["IdentityRepository","OrganizationRepository","MemberRepository(CountActiveOwners)","InvitationRepository"] },
+  workforce:   { name:"Workforce", zh:"工作池", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"Worker 容量自动探测 + 派单配置；含旧版 AgentInstance 注册与 enroll token(ADR-0023/24/29)。",
+    aggs:["worker","agentinstance"],
+    app:["容量探测 / 配置 / enroll 编排"],
+    dom:[{n:"CheckDispatchFeatures",o:"(AgentInstance,Capability)→可派/不可派 reason"}],
+    repo:["WorkerRepository(CAS状态)","AgentInstanceRepository","BootstrapTokenRepository(SELECT FOR UPDATE)"] },
+  environment: { name:"Environment", zh:"环境 / 控制通道", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"机器 Worker 守护进程注册 + 有序可重放幂等命令流(offset 累积 ack)(ADR-0050)。",
+    aggs:["envworker"],
+    app:["控制通道服务"],
+    dom:[{n:"ControlLog",o:"AppendCommand()幂等 / Replay(worker)"}],
+    repo:["environment WorkerRepository(精简)","ControlEventRepository(UNIQUE(worker,offset/key))"] },
+  files:       { name:"Files", zh:"文件", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"业务无关 blob 模块：ULID 文件身份 + 按引用放置 + 上传/下载会话 + 引用计数 GC(ADR-0048)。",
+    aggs:["filetransfer"],
+    app:["files Service · 上传/下载/完成","GC · RunGCOnce(零活引用回收)"],
+    dom:[{n:"Resolver",o:"FileURI→分桶路径"}],
+    repo:["FileReferenceRepository(CountLiveByURI)","FileTransferSessionRepository","BlobStore"] },
+  secret:      { name:"SecretManagement", zh:"密钥管理", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"用户密钥 AES-256-GCM 加密存储，master key 来自 0600 文件，worker JIT 解密(ADR-0026)。",
+    aggs:["usersecret"],
+    app:["UserSecretService · Create/Rotate/Revoke","SecretResolutionService · JIT 解密+MarkUsed"],
+    dom:[{n:"MasterKey",o:"Encrypt/Decrypt(GCM,认证失败即报错)"}],
+    repo:["UserSecretRepository(CAS撤销)"] },
+  observability:{ name:"Observability", zh:"观测", cls:"essential", clsLabel:"Supporting · Essential", c:"var(--essential)",
+    desc:"append-only 领域事件存储，与状态变更同事务双写(ADR-0014)。",
+    aggs:["event"],
+    app:["事件投影 / escalator / peek 服务(app 层)"],
+    dom:[{n:"EventSink",o:"Emit() 构造+校验+追加,调用方持事务"}],
+    repo:["EventRepository(append-only,游标分页,Max 1000)"] },
+  usage: { name:"Usage", zh:"用量分析", cls:"peripheral", clsLabel:"Supporting · Peripheral", c:"var(--peripheral)",
+    desc:"per-agent 用量采集(token/cost) + 活动热力图 + 趋势分析(v2.15.0 I28)。",
+    aggs:["usageevent"],
+    app:["UsageService · report/query/rollup","AnalyticsService · 热力图+趋势"],
+    dom:[{n:"CostCalculator",o:"model_prices × token → cost"},{n:"DailyRollup",o:"增量聚合 activity"}],
+    repo:["UsageEventRepository","ModelPriceRepository","AgentActivityDailyRepository"] },
+  memory:      { name:"Memory（文件/git）", zh:"记忆", cls:"peripheral", clsLabel:"Supporting · Peripheral", c:"var(--peripheral)",
+    desc:"supervisor 的 scoped 笔记 = git 仓里的 CLAUDE.md 文件服务，非领域聚合(cognition/memory)。注：旧页误把 Cognition 当 BC——实无 Cognition 领域 BC，supervisor 是 OS 进程基础设施。",
+    aggs:["memory"],
+    app:["SkeletonFactory · 种子 markdown"],
+    dom:[{n:"GitOps",o:"init/commit(走真 git)"}],
+    repo:["(无 Repository——文件+git,非 DB)"] },
+};
+/* aggregate clusters → entity class boxes */
+const AGGS = {
+  task: { bc:"projectmanager", root:"Task", title:"Task 聚合", meta:"状态内联·无 TaskExecution·ADR-0046",
+    classes:[
+      { id:"Task", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","TaskID"],["projectID","FK"],["status","TaskStatus"],["assignee","IdentityRef"],["derivedFromIssue","IssueID"],["planID","PlanID"]], state:["open","running","completed","discarded","reopened"], ops:["Start()","Complete(by)","Discard()","Reopen()","Block(reason)/Unblock()","Assign()"] },
+      { id:"DispatchRecord", ster:"«Value Object»", c:"var(--accent)", fields:[["planID","FK"],["taskID","FK"],["dispatchMessageID","string"]], state:[], ops:[] },
+      { id:"Conversation", ster:"«AR · Conversation BC»", c:"var(--essential)", fields:[["kind","'task'"],["ownerRef","'pm://tasks/{id}'"]], state:[], ops:[] },
+      { id:"Issue", ster:"«AR · 来源»", c:"var(--accent)", fields:[["id","IssueID"]], state:[], ops:[] },
+    ],
+    rels:[ ["Task","Conversation","1","1","对话即审计"], ["Issue","Task","1","N","conclude 派生"], ["Task","DispatchRecord","1","N","计划派发(幂等)"] ],
+    svc:{ n:"AgentTaskRunGate", ops:["EnsureTaskRunnable()"], uses:"Task" } },
+  plan: { bc:"projectmanager", root:"Plan", title:"Plan 聚合 (DAG 编排)", meta:"ADR-0046/0047/0053",
+    classes:[
+      { id:"Plan", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","PlanID"],["projectID","FK"],["status","PlanStatus"],["builtin","bool"],["conversationID","string"]], state:["draft","running","done","archived"], ops:["Start()","Stop()","MarkDone()","Archive()"] },
+      { id:"Dependency", ster:"«Value Object»", c:"var(--accent)", fields:[["planID","FK"],["fromTaskID","FK"],["toTaskID","FK"]], state:[], ops:["ValidateNoCycle()"] },
+      { id:"PlanNodeView", ster:"«derived VO»", c:"var(--peripheral)", fields:[["taskID","FK"],["nodeStatus","derived"],["dependsOn","'[]TaskID'"]], state:["blocked","ready","dispatched","running","paused","done","failed"], ops:[] },
+      { id:"PlanFinding", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","FindingID"],["planID","FK"],["taskID","FK"],["kind","enum"],["content","'≤4000'"]], state:[], ops:["append-only"] },
+    ],
+    rels:[ ["Plan","Dependency","1","N","DAG 边"], ["Plan","PlanNodeView","1","N","节点状态(派生)"], ["Plan","PlanFinding","1","N","共享发现"] ],
+    svc:{ n:"PlanOrchestrator", ops:["ready 节点→@mention 派发","ReconcileRunningPlans()"], uses:"Plan" } },
+  issue: { bc:"projectmanager", root:"Issue", title:"Issue 聚合", meta:"状态图+org 序号",
+    classes:[
+      { id:"Issue", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","IssueID"],["projectID","FK"],["status","IssueStatus"],["tags","'[]string'"],["orgNumber","int"]], state:["open","in_progress","resolved","closed","discarded","reopened"], ops:["Transition(to)","Rename()","SetTags()"] },
+      { id:"Task", ster:"«AR · 派生»", c:"var(--accent)", fields:[["derivedFromIssue","FK"]], state:[], ops:[] },
+      { id:"Conversation", ster:"«AR · Conversation BC»", c:"var(--essential)", fields:[["kind","'issue'"]], state:[], ops:[] },
+    ],
+    rels:[ ["Issue","Conversation","1","1","议事承载"], ["Issue","Task","1","N","conclude 派生"] ] },
+  project: { bc:"projectmanager", root:"Project", title:"Project 聚合", meta:"引用式·非巨聚合 ADR-0046",
+    classes:[
+      { id:"Project", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","ProjectID"],["organizationID","FK"],["name","string"],["status","ProjectStatus"]], state:["active","archived"], ops:["Archive()","Rename()"] },
+      { id:"ProjectMember", ster:"«Entity»", c:"var(--accent)", fields:[["projectID","FK"],["identityID","IdentityRef"],["role","'member|owner'"]], state:[], ops:[] },
+      { id:"CodeRepoRef", ster:"«Entity»", c:"var(--accent)", fields:[["projectID","FK"],["url","string"],["label","string"]], state:[], ops:[] },
+    ],
+    rels:[ ["Project","ProjectMember","1","N","成员=写门"], ["Project","CodeRepoRef","1","N","仓库引用"] ] },
+  agent: { bc:"agent", root:"Agent", title:"Agent 聚合", meta:"生命周期意图 ADR-0049",
+    classes:[
+      { id:"Agent", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","AgentID"],["organizationID","FK"],["workerID","'string(不可变)'"],["lifecycle","AgentLifecycle"],["skills","'[]string'"]], state:["stopped","running","stopping","resetting","error","failed","archived"], ops:["Start()","Stop()","Reset(scope)","Archive()","MarkFailed()"] },
+      { id:"Profile", ster:"«Value Object»", c:"var(--peripheral)", fields:[["name","string"],["model","string"],["cli","string"],["envVars","map"]], state:[], ops:[] },
+      { id:"Availability", ster:"«derived VO»", c:"var(--peripheral)", fields:[["from","'worker在线+生命周期+活跃WI'"]], state:["available","busy","unavailable"], ops:[] },
+    ],
+    rels:[ ["Agent","Profile","1","1","档案"] ],
+    svc:{ n:"DeriveAvailability", ops:["(workerOnline,lifecycle,hasActiveWI)→状态"], uses:"Agent" } },
+  workitem: { bc:"agent", root:"AgentWorkItem", title:"AgentWorkItem 聚合", meta:"工作队列·引用 Task 不持有",
+    classes:[
+      { id:"AgentWorkItem", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","string"],["agentID","FK"],["taskRef","'pm://tasks/{id}'"],["status","WorkItemStatus"],["interactions","int"]], state:["queued","active","waiting_input","paused","done","failed","canceled","superseded"], ops:["Activate()","WaitInput()","Wake()","Pause()","Resume()","Done()","Fail()","Supersede()"] },
+      { id:"WorkItemTransition", ster:"«Value Object»", c:"var(--accent)", fields:[["prevStatus","_"],["status","_"],["cause","'agent_death?'"]], state:[], ops:[] },
+      { id:"AgentActivityEvent", ster:"«Entity»", c:"var(--accent)", fields:[["agentID","FK"],["workItemRef","string"],["eventType","enum"],["payload","'JSON'"]], state:[], ops:["append-only"] },
+      { id:"Task", ster:"«AR · 引用»", c:"var(--essential)", fields:[["taskRef","'pm://tasks/{id}'"]], state:[], ops:[] },
+    ],
+    rels:[ ["AgentWorkItem","WorkItemTransition","1","N","每次转移"], ["AgentWorkItem","AgentActivityEvent","1","N","活动流"], ["AgentWorkItem","Task","N","1","引用(不持有)"] ] },
+  worker: { bc:"workforce", root:"Worker", title:"Worker 聚合 (容量/派单)", meta:"fleet 域 Worker",
+    classes:[
+      { id:"Worker", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","WorkerID"],["status","WorkerStatus"],["capabilities","'[]Capability'"],["concurrency","_"],["discovery","_"]], state:["online","offline"], ops:["MarkOnline()","MarkOffline(reason)","Heartbeat()","ApplyCapabilities()"] },
+      { id:"Capability", ster:"«Value Object»", c:"var(--peripheral)", fields:[["agentCLI","string"],["detected","bool"],["supportsMCP","bool"],["supportsSkills","bool"]], state:[], ops:[] },
+      { id:"AgentInstance", ster:"«AR · 绑定»", c:"var(--accent)", fields:[["workerID","'*WorkerID'"]], state:[], ops:[] },
+    ],
+    rels:[ ["Worker","Capability","1","N","探测能力"], ["AgentInstance","Worker","N","1","绑定(可空iff builtin)"] ],
+    svc:{ n:"CheckDispatchFeatures", ops:["(AgentInstance,Capability)→可派/reason"], uses:"Worker" } },
+  agentinstance: { bc:"workforce", root:"AgentInstance", title:"AgentInstance 聚合 (v2 旧版)", meta:"ADR-0024/0029",
+    classes:[
+      { id:"AgentInstance", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["name","'全局唯一'"],["agentCLI","string"],["workerID","'*WorkerID'"],["state","_"],["isBuiltin","bool"]], state:["idle","active","sleeping","archived"], ops:["MarkActive()","MarkIdle()","MarkSleeping()","Archive()"] },
+      { id:"BootstrapToken", ster:"«Entity»", c:"var(--accent)", fields:[["workerID","FK"],["valueHash","'SHA-256'"],["status","_"],["expiresAt","time"]], state:["active","used","expired","revoked"], ops:["MarkUsed()","MarkRevoked()"] },
+    ],
+    rels:[ ["AgentInstance","BootstrapToken","1","N","enroll token"] ] },
+  envworker: { bc:"environment", root:"Worker", title:"Worker 聚合 (控制通道)", meta:"ADR-0050·窄投影",
+    classes:[
+      { id:"Worker", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","WorkerID"],["status","WorkerStatus"],["lastAckedOffset","int64"],["lastHeartbeatAt","time"]], state:["offline","online"], ops:["Connect()","Disconnect()","Heartbeat()","AckOffset(offset)"] },
+      { id:"WorkerControlEvent", ster:"«Entity»", c:"var(--accent)", fields:[["workerID","FK"],["offset","'int64(递增)'"],["idempotencyKey","string"],["commandType","string"]], state:[], ops:["append-only"] },
+    ],
+    rels:[ ["Worker","WorkerControlEvent","1","N","有序命令流"] ],
+    svc:{ n:"ControlLog", ops:["AppendCommand()幂等","Replay(worker)=从 lastAckedOffset"], uses:"Worker" } },
+  conversation: { bc:"conversation", root:"Conversation", title:"Conversation 聚合", meta:"ADR-0033/线程深度1",
+    classes:[
+      { id:"Conversation", ster:"«Aggregate Root»", c:"var(--core)", fields:[["id","_"],["kind","ConversationKind"],["ownerRef","OwnerRef"],["participants","'[]ParticipantElement'"],["status","_"]], state:["active","closed","archived"], ops:["Close()","Archive()","SetParticipants()","HasActiveParticipant()"] },
+      { id:"Message", ster:"«Entity»", c:"var(--core)", fields:[["id","_"],["conversationID","FK"],["senderIdentityID","IdentityRef"],["contentKind","enum"],["parentMessageID","_"],["rootMessageID","_"],["attachments","'[]VO'"]], state:[], ops:["IsThreadRoot()","ThreadID()"] },
+      { id:"ParticipantElement", ster:"«Value Object»", c:"var(--peripheral)", fields:[["identityID","IdentityRef"],["role","'owner|member|observer'"],["leftAt","'*time'"]], state:[], ops:["IsActive()"] },
+      { id:"IdentityRef", ster:"«Value Object»", c:"var(--peripheral)", fields:[["ref","'user:|agent:|system'"]], state:[], ops:["IsHuman()"] },
+    ],
+    rels:[ ["Conversation","Message","1","N","append-only"], ["Message","ParticipantElement","N","1","发送者"] ] },
+  identity: { bc:"identity", root:"Identity", title:"Identity 聚合", meta:"ADR-0033·用户/agent",
+    classes:[
+      { id:"Identity", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","'user-/agent- 前缀'"],["kind","'user|agent'"],["displayName","string"],["accountStatus","_"],["passcodeHash","'user-only'"]], state:["active","disabled"], ops:["SetPasscode()","Disable()","ReEnable()","Rename()","RecordSession()"] },
+      { id:"Member", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["organizationID","FK"],["identityID","FK"],["role","_"],["status","_"]], state:["joined","disabled"], ops:["ChangeRole()","Disable()","ReEnable()"] },
+      { id:"Organization", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["slug","'唯一'"],["name","_"],["deletedAt","'*time'"]], state:[], ops:["SoftDelete()","UpdateSlug()"] },
+    ],
+    rels:[ ["Organization","Member","1","N","成员"], ["Identity","Member","1","N","加入组织"] ],
+    svc:{ n:"MemberRoleChangeService", ops:["Change()——拒末位 owner 降级"], uses:"Member" } },
+  organization: { bc:"identity", root:"Organization", title:"Organization 聚合", meta:"末位 owner 守卫",
+    classes:[
+      { id:"Organization", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["slug","'^[a-z0-9-]+$'"],["createdBy","IdentityRef"],["deletedAt","'*time'"]], state:[], ops:["UpdateName()","SoftDelete()"] },
+      { id:"Member", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["role","'owner|admin|member'"],["status","'joined|disabled'"]], state:["joined","disabled"], ops:[] },
+      { id:"Invitation", ster:"«Aggregate Root»", c:"var(--accent)", fields:[["token","_"],["roleToGrant","_"],["status","_"],["expiresAt","time"]], state:["pending","accepted","expired","revoked"], ops:[] },
+    ],
+    rels:[ ["Organization","Member","1","N","≥1 joined owner"], ["Organization","Invitation","1","N","邀请"] ],
+    svc:{ n:"OrganizationLifecycleService", ops:["Delete()软删+级联停用成员(锁+事务)"], uses:"Organization" } },
+  filetransfer: { bc:"files", root:"FileTransferSession", title:"Files 聚合", meta:"ADR-0048·身份/放置/传输分离",
+    classes:[
+      { id:"FileTransferSession", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["fileURI","FileURI"],["direction","'upload|download'"],["status","_"],["scope","FileScope"]], state:["open","completed","canceled","expired"], ops:["Complete()","Cancel()","Expire()"] },
+      { id:"FileReference", ster:"«Entity»", c:"var(--accent)", fields:[["fileURI","FileURI"],["scope","FileScope"],["scopeID","string"],["deletedAt","'*time(软删)'"]], state:[], ops:["IsLive()"] },
+      { id:"BlobMetadata", ster:"«Entity»", c:"var(--peripheral)", fields:[["ulid","_"],["sizeBytes","int"],["contentSHA256","'仅完整性'"]], state:[], ops:["写一次"] },
+      { id:"FileURI", ster:"«Value Object»", c:"var(--peripheral)", fields:[["uri","'ac://files/{ulid}'"]], state:[], ops:[] },
+      { id:"FileScope", ster:"«Value Object»", c:"var(--peripheral)", fields:[["scope","'task|issue|project|conversation|agent|tmp|uploader'"]], state:[], ops:[] },
+    ],
+    rels:[ ["FileTransferSession","FileURI","1","1","身份"], ["FileReference","FileURI","N","1","放置(多引用1blob)"] ],
+    svc:{ n:"files GC", ops:["RunGCOnce()——零活引用过宽限期回收"], uses:"FileReference" } },
+  usersecret: { bc:"secret", root:"UserSecret", title:"UserSecret 聚合", meta:"AES-256-GCM·ADR-0026",
+    classes:[
+      { id:"UserSecret", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","_"],["name","'全局唯一'"],["kind","'mcp|cloud_credential|...'"],["ciphertext","'[]byte'"],["nonce","'[]byte'"],["state","_"]], state:["active","revoked"], ops:["Rotate()","Revoke()","MarkUsed()"] },
+      { id:"SecretRef", ster:"«Value Object»", c:"var(--peripheral)", fields:[["ref","'secret:<name>'"]], state:[], ops:[] },
+      { id:"MasterKey", ster:"«Value Object»", c:"var(--peripheral)", fields:[["key","'AES-256(0600文件)'"]], state:[], ops:["Encrypt()","Decrypt()"] },
+    ],
+    rels:[ ["UserSecret","SecretRef","1","N","mcp_config 引用,不存明文"] ],
+    svc:{ n:"SecretResolutionService", ops:["Resolve()——JIT 解密+MarkUsed"], uses:"UserSecret" } },
+  event: { bc:"observability", root:"Event", title:"Event 聚合", meta:"append-only·ADR-0014",
+    classes:[
+      { id:"Event", ster:"«Aggregate Root»", c:"var(--essential)", fields:[["id","EventID"],["seq","'int64单调'"],["eventType","'<bc>.<entity>.<action>'"],["refs","EventRefs"],["actor","Actor"],["payload","'map'"]], state:[], ops:["不可变·无Update/Delete"] },
+      { id:"EventRefs", ster:"«Value Object»", c:"var(--peripheral)", fields:[["keys","'task_id/worker_id/agent_id/...'"]], state:[], ops:[] },
+      { id:"Actor", ster:"«Value Object»", c:"var(--peripheral)", fields:[["actor","'system|user:|agent:|...'"]], state:[], ops:[] },
+    ],
+    rels:[ ["Event","EventRefs","1","1","跨BC join 键"] ],
+    svc:{ n:"EventSink", ops:["Emit()——构造+校验+追加,同事务双写"], uses:"Event" } },
+  usageevent: { bc:"usage", root:"UsageEvent", title:"UsageEvent 聚合", meta:"per-turn token/cost 采集 v2.15.0",
+    classes:[
+      { id:"UsageEvent", ster:"«Aggregate Root»", c:"var(--peripheral)", fields:[["id","ULID"],["agentID","FK"],["workItemRef","string"],["model","string"],["inputTokens","int"],["outputTokens","int"],["cost","decimal"]], state:[], ops:["append-only"] },
+      { id:"ModelPrice", ster:"«Entity»", c:"var(--peripheral)", fields:[["model","string"],["inputPer1M","decimal"],["outputPer1M","decimal"]], state:[], ops:["Update()"] },
+      { id:"AgentActivityDaily", ster:"«Entity»", c:"var(--peripheral)", fields:[["agentID","FK"],["date","date"],["completedTasks","int"],["totalTokens","int"],["totalCost","decimal"]], state:[], ops:["rollup(增量)"] },
+    ],
+    rels:[ ["UsageEvent","ModelPrice","N","1","定价查表"] ] },
+  memory: { bc:"memory", root:"Memory", title:"Memory (文件/git 服务)", meta:"非领域聚合·cognition/memory",
+    classes:[
+      { id:"MemoryScope", ster:"«Value Object»", c:"var(--peripheral)", fields:[["kind","'global|project|task|issue|conversation|worker|supervisor'"],["key","string"],["note","'文件+git 服务,非 DB 聚合'"]], state:[], ops:["ScopeToFSPath()"] },
+    ],
+    rels:[],
+    svc:{ n:"GitOps", ops:["init()/commit()(走真 git)","SkeletonFactory 种子 md"], uses:"MemoryScope" } },
+};
+
+let S = { view:"map", bc:null, agg:null, mode:"structure" };
+const $ = s => document.querySelector(s);
+
+function setMode(m){ S.mode = m; $("#mStruct").classList.toggle("on", m==="structure"); $("#mSeq").classList.toggle("on", m==="sequence"); render(); }
+function go(view, bc, agg){ S.view=view; if(bc!==undefined)S.bc=bc; if(agg!==undefined)S.agg=agg; render(); }
+
+function render(){
+  if(S.mode==="sequence"){ renderSeq(); updateRail(); return; }
+  if(S.view==="map") renderMap();
+  else if(S.view==="context") renderContext();
+  else renderClass();
+  updateRail();
+}
+function updateRail(){
+  const items = document.querySelectorAll("#layers li");
+  const order = {map:0, context:1, class:2};
+  const cur = S.mode==="sequence" ? -1 : order[S.view];
+  items.forEach((li,i)=>{ li.className=""; if(i<cur)li.classList.add("done"); else if(i===cur)li.classList.add("cur"); else li.classList.add("lock"); li.onclick=()=>{ if(i===0)go("map"); else if(i===1&&S.bc)go("context"); else if(i===2&&S.agg)go("class"); }; });
+  $("#l2sub").textContent = S.bc ? BCS[S.bc].name : "选一个 BC 进入";
+  $("#l3sub").textContent = S.agg ? AGGS[S.agg].root : "选一个聚合进入";
+}
+
+function renderMap(){
+  $("#title").textContent="DDD 架构浏览器";
+  $("#sub").textContent="从 10 个限界上下文(+Memory 文件服务)开始，逐层点开到聚合与实体类图。绿点=已访问，蓝点=当前。";
+  $("#crumbs").innerHTML="<b>① 限界上下文地图</b>";
+  let h='<div class="map fade">';
+  for(const k in BCS){ const b=BCS[k];
+    h+=`<div class="bc" style="--c:${b.c}" onclick="go('context','${k}')">
+      <div class="top"><div><h3>${b.name}</h3><div class="zh">${b.zh}</div></div><span class="chip ${b.cls}">${b.clsLabel}</span></div>
+      <p>${b.desc}</p>
+      <div class="ents">${b.aggs.map(a=>`<span>${AGGS[a].root}</span>`).join("")}</div>
+      <span class="drill">进入 →</span></div>`; }
+  h+='</div><div class="maphint">点任意上下文卡片 → 进入其聚合 ②</div>';
+  $("#body").innerHTML=h;
+}
+function renderContext(){
+  const b=BCS[S.bc];
+  $("#title").innerHTML=`${b.name} <span style="font-size:15px;color:var(--ink-3);font-weight:500">${b.zh}</span>`;
+  $("#sub").textContent=b.desc+" 分层：应用层编排用例 → 领域层(聚合 + 领域服务) → 基础设施层仓储。";
+  $("#crumbs").innerHTML=`<a onclick="go('map')">① 地图</a> › <b>② ${b.name} · 分层</b>`;
+  const app = b.app.map(s=>`<div class="svc app2"><span class="ster">«Application Service»</span><span class="nm">${s}</span></div>`).join("");
+  const dom = b.dom.map(s=>`<div class="svc"><span class="ster">«Domain Service»</span><span class="nm">${s.n}</span><div class="op">+ ${s.o}</div></div>`).join("");
+  const aggs = b.aggs.map(a=>{ const g=AGGS[a];
+    return `<div class="agg" onclick="go('class',undefined,'${a}')"><div class="st">«Aggregate Root»</div><h4>${g.root}</h4><div class="meta">${g.classes.length} 实体 · ${g.meta}</div><div class="open">展开类图 →</div></div>`; }).join("");
+  const repo = b.repo.map(r=>`<span>${r}</span>`).join("");
+  $("#body").innerHTML=`
+   <div style="margin-bottom:14px"><span class="chip ${b.cls}">${b.clsLabel}</span></div>
+   <div class="layered fade">
+     <div class="band app"><div class="bl"><span class="tag">应用层</span>Application Services · 用例编排 / 事务边界</div><div class="svcrow">${app}</div></div>
+     <div class="flowarrow">↓ 调用</div>
+     <div class="band dom"><div class="bl"><span class="tag">领域层</span>Domain · 聚合 + 领域服务（业务规则的家）</div>
+       <div class="domwrap">
+         <div class="aggcol"><div class="cl">聚合根 / 实体 — 点开看类图</div><div class="aggs">${aggs}</div></div>
+         <div class="svccol"><div class="cl" style="font-family:var(--font-mono);font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px">领域服务 — 跨聚合的无状态规则</div><div class="svcrow" style="flex-direction:column">${dom}</div></div>
+       </div>
+     </div>
+     <div class="flowarrow">↓ 依赖倒置（端口）</div>
+     <div class="band infra"><div class="bl"><span class="tag">基础设施层</span>Repositories · 持久化端口</div><div class="repochips">${repo}</div></div>
+   </div>`;
+}
+function renderClass(){
+  const g=AGGS[S.agg]; const b=BCS[g.bc];
+  $("#title").textContent=g.title;
+  $("#sub").textContent=`${b.name} BC · ${g.meta}。方框=实体/VO，连线=关系与重数。`;
+  $("#crumbs").innerHTML=`<a onclick="go('map')">① 地图</a> › <a onclick="go('context','${g.bc}')">② ${b.name}</a> › <b>③ ${g.root} 类图</b>`;
+  let boxes='';
+  g.classes.forEach(c=>{
+    const fields=c.fields.map(f=>`<div class="row"><span>${f[0]}</span><span class="ty">${f[1]}</span></div>`).join("");
+    const state=c.state.length?`<div class="sect state"><div class="lab">state machine</div>${c.state.map(s=>`<div class="row">● ${s}</div>`).join("")}</div>`:"";
+    const ops=c.ops.length?`<div class="sect"><div class="lab">behavior</div>${c.ops.map(o=>`<div class="row">+ ${o}</div>`).join("")}</div>`:"";
+    boxes+=`<div class="cls" id="cls-${c.id}" style="--c:${c.c}"><div class="ch"><span class="ster">${c.ster}</span><span class="nm">${c.id}</span></div><div class="sect">${fields}</div>${state}${ops}</div>`;
+  });
+  let rels = g.rels.slice();
+  if(g.svc){
+    boxes+=`<div class="cls service" id="cls-${g.svc.n}" style="--c:var(--essential)"><div class="ch"><span class="ster">«Domain Service»</span><span class="nm">${g.svc.n}</span></div><div class="sect"><div class="lab">behavior</div>${g.svc.ops.map(o=>`<div class="row">+ ${o}</div>`).join("")}</div></div>`;
+    rels.push([g.svc.n, g.svc.uses, "", "", "uses"]);
+  }
+  const key=`<div class="relkey"><span><b>──</b> 关联</span><span><b>1 — N</b> 一对多</span><span style="color:var(--essential)"><b>┄ «uses»</b> 领域服务操作聚合</span><span>虚线=跨 BC</span></div>`;
+  $("#body").innerHTML=`<div class="diagram"><svg id="svg"></svg><div class="classes fade">${boxes}</div></div>${key}<p class="seqnote">应用层用例 → 调 领域服务 + 聚合（见上一层「分层」视图）· 切「序列图」看运行时协作 ↗</p>`;
+  requestAnimationFrame(()=>drawRels(rels));
+}
+function drawRels(rels){
+  const svg=$("#svg"), wrap=svg.parentElement, wb=wrap.getBoundingClientRect();
+  svg.setAttribute("viewBox",`0 0 ${wb.width} ${wb.height}`);
+  let p="";
+  rels.forEach(r=>{
+    const a=document.getElementById("cls-"+r[0]), b=document.getElementById("cls-"+r[1]); if(!a||!b)return;
+    const ar=a.getBoundingClientRect(), br=b.getBoundingClientRect();
+    const ax=ar.left-wb.left+ar.width/2, ay=ar.bottom-wb.top, bx=br.left-wb.left+br.width/2, by=br.top-wb.top;
+    const uses = r[4]==="uses";
+    const cross = r[1]==="Conversation" || r[2]==="0";
+    const my=(ay+by)/2;
+    const col = (uses||cross)? "var(--essential)" : "var(--accent)";
+    p+=`<path d="M ${ax} ${ay} C ${ax} ${my}, ${bx} ${my}, ${bx} ${by}" fill="none" stroke="${col}" stroke-width="2" ${(cross||uses)?'stroke-dasharray="6 5"':''}/>`;
+    p+=`<circle cx="${ax}" cy="${ay}" r="3.5" fill="${col}"/>`;
+    if(uses){ const mx=(ax+bx)/2; p+=`<rect x="${mx-26}" y="${my-9}" width="52" height="17" rx="5" fill="#fff" stroke="${col}"/><text x="${mx}" y="${my+3}" font-size="10" font-family="JetBrains Mono" text-anchor="middle" fill="${col}">«uses»</text>`; }
+    else {
+      p+=`<rect x="${ax-9}" y="${ay+4}" width="18" height="15" rx="4" fill="#fff" stroke="${col}"/><text x="${ax}" y="${ay+15}" font-size="10" font-family="JetBrains Mono" text-anchor="middle" fill="${col}">${r[2]}</text>`;
+      p+=`<rect x="${bx-9}" y="${by-19}" width="18" height="15" rx="4" fill="#fff" stroke="${col}"/><text x="${bx}" y="${by-8}" font-size="10" font-family="JetBrains Mono" text-anchor="middle" fill="${col}">${r[3]}</text>`;
+    }
+  });
+  svg.innerHTML=p;
+}
+window.addEventListener("resize",()=>{ if(S.view==="class"&&S.mode==="structure"){ const g=AGGS[S.agg]; requestAnimationFrame(()=>drawRels(g.rels)); } });
+
+/* ---------- sequence diagram ---------- */
+const ACTORS=[ {k:"you",n:"You · 监督者"},{k:"",n:"Center"},{k:"",n:"Worker"},{k:"agent",n:"Agent · TaskExecution"} ];
+const MSGS=[
+  {f:0,t:1,l:"Open Issue",s:"开议题"},
+  {f:1,t:1,self:true,l:"Conclude → Spawn Task",s:"收敛拍板"},
+  {f:1,t:2,l:"Dispatch (A2A submit)",s:"派单"},
+  {f:2,t:3,l:"spawn CLI 子进程",s:"working"},
+  {f:3,t:1,rtl:true,l:"InputRequest (escalate)",s:"卡住请示"},
+  {f:1,t:0,rtl:true,l:"Escalate → Console 卡片",s:"升级到人"},
+  {f:0,t:1,l:"Adopt / Respond",s:"采纳答案"},
+  {f:1,t:3,l:"responded",s:"继续"},
+  {f:3,t:1,rtl:true,l:"trace events (SSE) + Artifact",s:"实时投影"},
+  {f:3,t:1,rtl:true,l:"completed → Task done",s:"终态"},
+];
+function renderSeq(){
+  $("#title").textContent="派单与执行 · 序列图";
+  $("#sub").textContent="一次「开议题 → 收敛 → 派单 → 执行 → 请示 → 完成」的端到端协作，跨 ProjectManager / Cognition / Workforce / Conversation。";
+  $("#crumbs").innerHTML="<b>序列图 · dispatch & execute</b>";
+  const N=ACTORS.length, cols=`repeat(${N},1fr)`;
+  const pct=i=>((i+0.5)/N*100);
+  let actors=`<div class="actorrow" style="--cols:${cols}">`+ACTORS.map(a=>`<div class="actor"><span class="box ${a.k}">${a.n}</span></div>`).join("")+`</div>`;
+  let lanes=`<div class="lanes" style="height:${MSGS.length*46+10}px">`;
+  for(let i=0;i<N;i++) lanes+=`<div class="lane" style="left:${pct(i)}%"></div>`;
+  MSGS.forEach((m,i)=>{
+    const x1=pct(m.f), x2=pct(m.t), top=i*46;
+    if(m.self){ lanes+=`<div class="msg" style="top:${top}px"><div class="arrow self" style="left:${x1}%"></div><div class="t" style="left:${x1+6}%;transform:none">${m.l} <small>${m.s}</small></div></div>`; }
+    else { const L=Math.min(x1,x2), W=Math.abs(x2-x1); const mid=(x1+x2)/2;
+      lanes+=`<div class="msg" style="top:${top}px"><div class="arrow ${m.rtl?'rtl':''}" style="left:${L}%;width:${W}%"></div><div class="t" style="left:${mid}%">${m.l} <small>${m.s}</small></div></div>`; }
+  });
+  lanes+=`</div>`;
+  $("#body").innerHTML=`<div class="seq fade">${actors}${lanes}</div><p class="seqnote">蓝色→ 下行命令 · 绿色← 上行回报/事件 · 橙框↻ 自调用 · 竖虚线=实体生命线</p>`;
+}
+
+render();
+</script>
+</body>
+</html>

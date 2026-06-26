@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>存储架构 · agent-center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/redesign.css">
+<style>
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; max-width: var(--maxw); margin: 0 auto; padding: 16px 24px 0; }
+.subnav a { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--bg-subtle); border: 1px solid var(--border); padding: 7px 14px; border-radius: 999px; transition: .15s; }
+.subnav a:hover { border-color: var(--accent); color: var(--brand); }
+.subnav a.on { background: var(--core-bg); border-color: var(--core-bd); color: var(--brand); }
+
+.page { max-width: var(--maxw); margin: 0 auto; padding: 22px 24px 70px; }
+.crumbs { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); margin-bottom: 4px; }
+.head h1 { font-size: 28px; font-weight: 800; margin: 6px 0 0; }
+.head .dek { margin: 8px 0 22px; color: var(--ink-2); font-size: 14px; max-width: 760px; }
+
+/* layered bands — reused from DDD page aesthetic */
+.layered { display: grid; gap: 14px; }
+.band { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-elevated); padding: 16px 18px 18px; position: relative; box-shadow: var(--shadow-1); }
+.band > .bl { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.band > .bl .tag { font-size: 9.5px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+.band.store .bl { color: var(--brand); } .band.store .bl .tag { background: var(--core-bg); color: var(--brand); }
+.band.evt .bl { color: var(--essential); } .band.evt .bl .tag { background: var(--essential-bg); color: var(--essential); }
+.band.peri { background: var(--bg-subtle); } .band.peri .bl { color: var(--ink-3); } .band.peri .bl .tag { background: var(--border); color: var(--ink-2); }
+.band .note { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); margin: 10px 0 0; }
+
+.boxes { display: flex; flex-wrap: wrap; gap: 10px; }
+.box { background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: 10px; padding: 11px 13px; min-width: 200px; flex: 1; }
+.box .nm { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--ink); display: block; }
+.box .nm .mono { color: var(--accent); }
+.box .d { font-size: 12px; color: var(--ink-2); margin-top: 5px; line-height: 1.45; }
+.box.dashed { border-style: dashed; }
+.box.git { border-color: var(--peripheral-bd); background: linear-gradient(0deg,var(--bg-elevated),var(--peripheral-bg) 320%); }
+.box.git .nm { color: var(--peripheral); }
+.flowarrow { text-align: center; color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; margin: -6px 0; }
+.flag { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--bg-subtle); color: var(--ink-2); border: 1px solid var(--border); margin-left: 6px; vertical-align: middle; }
+.flag.warn { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+
+/* center machine resource diagram */
+.resmap { margin-top: 30px; }
+.resmap h2 { font-size: 19px; margin-bottom: 4px; }
+.resmap .sub { color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; margin-bottom: 16px; }
+.machine { border: 1.5px solid var(--border-strong); border-radius: var(--r-lg); background: var(--bg-subtle); padding: 16px 18px 18px; }
+.machine .ml { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.machine .ml .ic { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,var(--accent),var(--brand)); display: grid; place-items: center; color: #fff; font-size: 12px; }
+.disks { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.disk { background: var(--bg-elevated); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 14px; box-shadow: var(--shadow-1); }
+.disk .ico { font-size: 22px; }
+.disk .t { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--ink); margin: 6px 0 3px; }
+.disk .p { font-family: var(--font-mono); font-size: 10.5px; color: var(--accent); }
+.disk .d { font-size: 11.5px; color: var(--ink-2); margin-top: 7px; line-height: 1.45; }
+.disk.db { border-top: 3px solid var(--core); }
+.disk.blob { border-top: 3px solid var(--essential); }
+.disk.mem { border-top: 3px solid var(--peripheral); }
+@media (max-width: 820px){ .disks{grid-template-columns:1fr} .boxes{flex-direction:column} }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="in"><span class="brand"><span class="glyph"></span>agent-center</span>
+    <nav><a href="../../index.html">首页</a><a href="../../product/index.html">产品</a><a class="active" href="index.html">架构</a><a href="../../manual/v2.15.0/index.html">手册</a><a href="../../roadmap/index.html">路线图</a><a href="https://github.com/oopslink/agent-center">GitHub ↗</a></nav>
+  </div>
+</header>
+
+<nav class="subnav">
+  <a href="index.html">DDD</a>
+  <a class="on" href="storage.html">存储架构</a>
+  <a href="deployment.html">部署架构</a>
+  <a href="mcp.html">MCP 服务</a>
+</nav>
+
+<div class="page">
+  <div class="crumbs">架构 › 存储架构</div>
+  <div class="head">
+    <h1>存储架构</h1>
+    <p class="dek">所有持久状态的物理布局 —— 单 SQLite 库 + BlobStore + 事件表 + Memory(git)，跨 BC 不共享物理表。</p>
+  </div>
+
+  <div class="layered">
+    <div class="band store">
+      <div class="bl"><span class="tag">SQLite 单库</span>agent-center.db · 每个 BC 自己的表</div>
+      <div class="boxes">
+        <div class="box"><span class="nm">单库进程模型</span><div class="d">只有 <b>server 进程</b>开库；handlers 不直接开 sqlite。CLI / worker / web 都经 <span class="mono">admin transport</span>。</div></div>
+        <div class="box"><span class="nm">跨 BC 边界</span><div class="d">跨 BC 经<b>事件 / 引用</b>，<b>不共享物理表</b>——每个 BC 拥有自己的表集合。</div></div>
+      </div>
+    </div>
+
+    <div class="flowarrow">↓ 状态变更与事件同事务双写</div>
+
+    <div class="band evt">
+      <div class="bl"><span class="tag">事件存储</span>events 表 · append-only<span class="flag">ADR-0014</span></div>
+      <div class="boxes">
+        <div class="box dashed"><span class="nm">events</span><div class="d"><b>append-only</b>、单调 <span class="mono" style="color:var(--essential)">seq</span>；与状态变更<b>同事务双写</b>（<span class="mono">EventSink.Emit</span>，调用方持事务）。</div></div>
+      </div>
+    </div>
+
+    <div class="flowarrow">↓ 文件 / blob 与 trace 归档</div>
+
+    <div class="band peri">
+      <div class="bl"><span class="tag">BlobStore (文件)</span>ULID 寻址 · 引用计数 GC</div>
+      <div class="boxes">
+        <div class="box"><span class="nm">blob</span><div class="d"><b>ULID 寻址</b> blob，<span class="mono">FileReference</span> 按 scope 放置。</div></div>
+        <div class="box"><span class="nm">引用计数 GC</span><div class="d">零活引用过宽限期回收。</div></div>
+        <div class="box"><span class="nm">FileTransferSession</span><div class="d">上传 / 下载会话（open→completed）。</div></div>
+      </div>
+      <p class="note">Trace：AgentTraceEvent → 本地 <span class="mono">trace.jsonl</span> → execution 结束<b>归档进 BlobStore</b>（不入 events 表，ADR-0015）。</p>
+    </div>
+
+    <div class="flowarrow">↓ 记忆不落库</div>
+
+    <div class="band peri">
+      <div class="bl"><span class="tag">Memory (记忆)</span>不在 DB · git 仓 · GitOps</div>
+      <div class="boxes">
+        <div class="box git"><span class="nm">scoped CLAUDE.md</span><div class="d"><b>不在 DB</b>——git 仓里的 scoped <span class="mono">CLAUDE.md</span> 文件（<span class="mono">$AGENT_CENTER_MEMORY_DIR</span>），GitOps init/commit。</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="resmap">
+    <h2>center 机器资源</h2>
+    <div class="sub">一台 center 机上持久状态的三处物理落点</div>
+    <div class="machine">
+      <div class="ml"><span class="ic">▣</span>Center 机 · 持久状态</div>
+      <div class="disks">
+        <div class="disk db">
+          <div class="ico">⛁</div>
+          <div class="t">SQLite 单库</div>
+          <div class="p">agent-center.db</div>
+          <div class="d">每 BC 自己的表 + <b>events</b> 表（同事务双写）。仅 server 进程开库。</div>
+        </div>
+        <div class="disk blob">
+          <div class="ico">▤</div>
+          <div class="t">BlobStore 目录</div>
+          <div class="p">blobs/ (ULID)</div>
+          <div class="d">文件 blob + trace 归档。引用计数 GC 回收零活引用。</div>
+        </div>
+        <div class="disk mem">
+          <div class="ico">⎇</div>
+          <div class="t">Memory git 仓</div>
+          <div class="p">$AGENT_CENTER_MEMORY_DIR</div>
+          <div class="d">scoped <span class="mono">CLAUDE.md</span> 文件，GitOps 提交。不入 DB。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer style="border-top:1px solid var(--border);padding:30px 0;margin-top:50px;color:var(--ink-3);font-size:13px"><div class="wrap" style="display:flex;justify-content:space-between"><span>© 2026 agent-center · oopslink</span><span style="font-family:var(--font-mono)">架构 · 存储 v2.15.0</span></div></footer>
+</body>
+</html>
