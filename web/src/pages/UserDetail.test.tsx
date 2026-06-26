@@ -22,7 +22,7 @@ function wrap(path: string) {
 describe('UserDetail page (#193)', () => {
   afterEach(() => cleanup());
 
-  it('renders profile + org memberships by name (raw org id on hover)', async () => {
+  it('renders profile + org memberships showing BOTH name and id (T478 #1)', async () => {
     server.use(
       http.get('/api/orgs', () =>
         HttpResponse.json([{ id: 'org-1', slug: 'acme', name: 'Acme', created_at: '2026-01-01T00:00:00Z' }]),
@@ -34,7 +34,7 @@ describe('UserDetail page (#193)', () => {
           email: 'alice@example.com',
           created_at: '2026-05-20T01:00:00Z',
           last_session_at: '2026-06-01T09:00:00Z',
-          orgs: [{ org_id: 'org-1', role: 'owner' }],
+          orgs: [{ org_id: 'org-1', org_name: 'Acme', org_slug: 'acme', role: 'owner' }],
         }),
       ),
     );
@@ -51,10 +51,35 @@ describe('UserDetail page (#193)', () => {
     // Switch to the Organizations tab to see memberships.
     fireEvent.click(screen.getByTestId('user-tab-organizations'));
     const orgRow = screen.getByTestId('user-detail-org-row');
-    expect(orgRow).toHaveTextContent('Acme'); // org shown by name (not raw org-1).
+    // T478 #1: BOTH the org name AND the id are shown (id no longer hidden).
+    expect(screen.getByTestId('user-detail-org-name')).toHaveTextContent('Acme');
+    expect(screen.getByTestId('user-detail-org-id')).toHaveTextContent('org-1');
     expect(orgRow).toHaveTextContent('owner');
-    expect(orgRow).not.toHaveTextContent('org-1');
     expect(orgRow).toHaveAttribute('data-org-id', 'org-1');
+  });
+
+  it('resolves the org name from the server even when the viewer is not a member (T478 #1)', async () => {
+    server.use(
+      // The viewer belongs to a DIFFERENT org → the old useOrgs lookup could not
+      // name org-9, so it fell back to the raw "organization-<hex>" id.
+      http.get('/api/orgs', () =>
+        HttpResponse.json([{ id: 'org-1', slug: 'acme', name: 'Acme', created_at: '2026-01-01T00:00:00Z' }]),
+      ),
+      http.get('/api/users/user-abc12345', () =>
+        HttpResponse.json({
+          user_id: 'user-abc12345',
+          display_name: 'Alice',
+          created_at: '2026-05-20T01:00:00Z',
+          orgs: [{ org_id: 'organization-9', org_name: 'Other Co', org_slug: 'org-9', role: 'member' }],
+        }),
+      ),
+    );
+    wrap('/users/user-abc12345');
+    await waitFor(() => expect(screen.getByTestId('user-detail-name')).toHaveTextContent('Alice'));
+    fireEvent.click(screen.getByTestId('user-tab-organizations'));
+    // Server-provided name wins; the raw id is shown alongside (not as the name).
+    expect(screen.getByTestId('user-detail-org-name')).toHaveTextContent('Other Co');
+    expect(screen.getByTestId('user-detail-org-id')).toHaveTextContent('organization-9');
   });
 
   it('shows the self-only Account section (change password + sign out) when viewing your own profile', async () => {

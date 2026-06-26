@@ -49,12 +49,21 @@ func (s *Server) userDetailHandler(w http.ResponseWriter, r *http.Request) {
 		"display_name": ident.DisplayName(),
 	}
 	addUserProfileFields(out, ident)
-	// Org memberships with role (frontend resolves org names via useOrgs, #192).
+	// Org memberships with role. T478 #1: emit org_name + org_slug here so the
+	// UserDetail page shows a stable "name + id" for every membership. The earlier
+	// design (#192) had the frontend resolve names via useOrgs, but that only knows
+	// the VIEWER's own orgs — viewing another user (or any org the viewer doesn't
+	// share) fell back to the raw "organization-<hex>" id. The name lives on the org
+	// row we already load here, so the server is the authoritative source.
 	orgs := make([]map[string]any, 0)
 	if d.OrgRepo != nil {
 		if list, lerr := d.OrgRepo.ListForIdentity(r.Context(), ident.ID()); lerr == nil {
 			for _, org := range list {
-				entry := map[string]any{"org_id": org.ID()}
+				entry := map[string]any{
+					"org_id":   org.ID(),
+					"org_name": org.Name(),
+					"org_slug": org.Slug(),
+				}
 				if d.MemberRepo != nil {
 					if m, merr := d.MemberRepo.GetByOrganizationAndIdentity(r.Context(), org.ID(), ident.ID()); merr == nil && m != nil {
 						entry["role"] = string(m.Role())

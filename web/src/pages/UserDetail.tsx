@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
-import { useUser, type UserDetailResult } from '@/api/users';
+import { useUser, type UserDetailResult, type UserOrgMembership } from '@/api/users';
 import { useOrgs, useMe } from '@/api/auth';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import AccountPanel from '@/components/AccountPanel';
@@ -64,8 +64,13 @@ function UserDetailView({
 }): React.ReactElement {
   const [searchParams, setSearchParams] = useSearchParams();
   const orgs = useOrgs();
-  const orgName = (id: string): string | undefined =>
-    (orgs.data ?? []).find((o) => o.id === id)?.name || undefined;
+  // T478 #1: resolve the org's display name. The server now sends org_name on the
+  // membership (authoritative, works for any org); fall back to the viewer's own
+  // org list and finally to the raw id only if neither is available.
+  const orgName = (o: UserOrgMembership): string =>
+    o.org_name?.trim() ||
+    (orgs.data ?? []).find((x) => x.id === o.org_id)?.name ||
+    o.org_id;
 
   const tabs: { key: UserTab; label: string }[] = [
     { key: 'profile', label: 'Profile' },
@@ -185,8 +190,17 @@ function UserDetailView({
                   data-org-id={o.org_id}
                   className="flex items-center justify-between py-1.5 text-sm"
                 >
-                  {/* org name (raw id on hover, #192). */}
-                  <span className="text-text-primary" title={o.org_id}>{orgName(o.org_id) || o.org_id}</span>
+                  {/* T478 #1: show org name AND id (id no longer hidden behind a
+                      hover, so members can read the org-<hex>/organization-<hex>
+                      identifiers they navigate by). */}
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-text-primary" title={o.org_id} data-testid="user-detail-org-name">
+                      {orgName(o)}
+                    </span>
+                    <span className="truncate text-[0.6875rem] text-text-muted" data-testid="user-detail-org-id">
+                      {o.org_id}
+                    </span>
+                  </span>
                   <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
                     {o.role}
                   </span>

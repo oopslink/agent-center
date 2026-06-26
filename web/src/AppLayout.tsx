@@ -1348,7 +1348,7 @@ function AccountSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  orgs: Array<{ id: string; slug: string; name: string }>;
+  orgs: Array<{ id: string; slug: string; name: string; disabled?: boolean }>;
   currentSlug?: string;
   displayName?: string;
   orgBase: string;
@@ -1385,6 +1385,12 @@ function AccountSheet({
                     <OrgIcon />
                   </span>
                   <span className="truncate">{o.name}</span>
+                  {/* T478 (Option A): badge disabled orgs in the mobile sheet too. */}
+                  {o.disabled && (
+                    <span className="ml-auto shrink-0 rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wide text-text-muted">
+                      Disabled
+                    </span>
+                  )}
                 </button>
               </li>
             ))}
@@ -1428,7 +1434,9 @@ function AccountSheet({
 // ============================================================================
 interface OrgSwitcherBinding {
   currentOrg?: { id: string; slug: string; name: string };
-  orgs: Array<{ id: string; slug: string; name: string }>;
+  // T478: orgs may be disabled — the switcher badges them so members know why a
+  // joined org is non-functional (it's listed for them now, not hidden).
+  orgs: Array<{ id: string; slug: string; name: string; disabled?: boolean }>;
   currentSlug?: string;
   fallbackName?: string;
   open: boolean;
@@ -1439,7 +1447,7 @@ interface OrgSwitcherBinding {
 }
 
 interface OrgDropdownProps {
-  orgs: Array<{ id: string; slug: string; name: string }>;
+  orgs: Array<{ id: string; slug: string; name: string; disabled?: boolean }>;
   currentSlug?: string;
   onClose: () => void;
   onCreateOrg: () => void;
@@ -1488,6 +1496,16 @@ function OrgDropdown({ orgs, currentSlug, onClose, onCreateOrg, onOpenSettings }
           >
             <OrgIcon />
             <span className="truncate">{o.name}</span>
+            {/* T478 (Option A): a disabled org stays in the switcher (no longer
+                hidden from non-owner members) but is badged so its state is clear. */}
+            {o.disabled && (
+              <span
+                data-testid="org-disabled-badge"
+                className="ml-auto shrink-0 rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wide text-text-muted"
+              >
+                Disabled
+              </span>
+            )}
           </button>
           <button
             type="button"

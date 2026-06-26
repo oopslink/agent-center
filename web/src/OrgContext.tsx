@@ -75,6 +75,34 @@ function OrgErrorScreen({ code, slug }: { code: 403 | 404; slug?: string }): Rea
   );
 }
 
+// OrgDisabledScreen (T478, Option A): a non-owner member opened an org that is
+// disabled. The org is genuinely theirs (it's in their list) but its data is
+// closed to them until an owner re-enables it — so we explain that plainly
+// instead of the misleading "not found or no access" 404 (T478 #3) or a wall of
+// 403s from the org-scoped children.
+function OrgDisabledScreen({ orgName }: { orgName: string }): React.ReactElement {
+  const orgs = useOrgs();
+  const firstEnabled = (orgs.data ?? []).find((o) => !o.disabled);
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-3 bg-bg-base px-4 text-center" data-testid="org-disabled">
+      <h1 className="text-xl font-semibold text-text-primary">This organization is disabled</h1>
+      <p className="text-sm text-text-muted">
+        "{orgName}" has been disabled by an owner. You'll be able to access it again once an owner re-enables it.
+      </p>
+      <div className="flex gap-3 pt-2">
+        {firstEnabled && (
+          <Link to={`/organizations/${firstEnabled.slug}`} className="text-accent hover:underline" data-testid="org-disabled-home">
+            Go to another organization
+          </Link>
+        )}
+        <Link to="/me" className="text-accent hover:underline">
+          Account settings
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // OrgGuard validates the :slug URL parameter against the user's org list.
 // - Loading OR not-yet-successfully-settled (incl. a transient error that React
 //   Query is still retrying): shows spinner. We must NOT treat an errored/
@@ -117,6 +145,16 @@ export function OrgGuard({ children }: { children: React.ReactNode }): React.Rea
     // is a member of, so this is "unknown to you" — show 404 (deleted/unknown)
     // rather than redirecting and hiding the problem.
     return <OrgErrorScreen code={404} slug={slug} />;
+  }
+
+  // T478 (Option A): the org is in the caller's list but DISABLED. A non-owner
+  // member keeps the entrance (so it no longer silently vanishes — T478 #2/#3)
+  // but cannot use the org's data (requireOrgMember 403s every org-scoped API),
+  // so we show a clear "this organization is disabled" screen instead of letting
+  // the children fire a wall of 403s. The OWNER falls through to full access so
+  // they can open Org Settings → Danger Zone and re-enable it.
+  if (activeOrg.disabled && activeOrg.role !== 'owner') {
+    return <OrgDisabledScreen orgName={activeOrg.name} />;
   }
 
   return (

@@ -54,6 +54,14 @@ func TestUserDetailHandler(t *testing.T) {
 	if o0["org_id"] != sess.OrgID || o0["role"] != "owner" {
 		t.Errorf("org entry = %v, want {org_id:%s, role:owner}", o0, sess.OrgID)
 	}
+	// T478 #1: org_name + org_slug are emitted so the UI shows a stable "name + id"
+	// for any membership (not just orgs the viewer happens to share).
+	if name, ok := o0["org_name"].(string); !ok || name == "" {
+		t.Errorf("org_name = %v, want non-empty string", o0["org_name"])
+	}
+	if slug, ok := o0["org_slug"].(string); !ok || slug == "" {
+		t.Errorf("org_slug = %v, want non-empty string", o0["org_slug"])
+	}
 }
 
 // v2.7.1 #214: unknown / non-user id → 404.

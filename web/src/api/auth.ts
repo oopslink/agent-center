@@ -75,9 +75,14 @@ export interface OrgResult {
   description?: string;
   created_at: string;
   // I41 (T470): true when the org is disabled (login gate active for non-owners).
-  // Only the org's owner ever sees a disabled org in their list, so the Danger
-  // Zone can render the Enable toggle. Absent → enabled.
+  // T478 (Option A): a disabled org is now listed for ALL its members (not just
+  // the owner) so a joined org never silently vanishes; the UI badges it and
+  // gates entry on `role`. Absent → enabled.
   disabled?: boolean;
+  // T478 (Option A): the caller's role in this org ('owner' | 'admin' | 'member').
+  // OrgGuard uses it to let an owner enter a disabled org (to re-enable) while
+  // showing non-owners a clear "organization is disabled" screen.
+  role?: string;
 }
 
 export interface CreateOrgPayload {
