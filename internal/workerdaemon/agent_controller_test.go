@@ -917,13 +917,21 @@ func TestAgentController_ReconcileReset_WipesWorkspaceWithContainment(t *testing
 	}
 
 	home := filepath.Join(base, "agents", "agent-1")
-	workspace := filepath.Join(home, "workspace")
-	// Plant a file inside the workspace (to be wiped).
-	if err := os.MkdirAll(workspace, 0o700); err != nil {
+	// Design §3: workspace scope now wipes tasks/ + plans/. Plant files in both.
+	tasksDir := filepath.Join(home, "tasks")
+	plansDir := filepath.Join(home, "plans")
+	if err := os.MkdirAll(tasksDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	inside := filepath.Join(workspace, "scratch.txt")
-	if err := os.WriteFile(inside, []byte("x"), 0o600); err != nil {
+	if err := os.MkdirAll(plansDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	insideTask := filepath.Join(tasksDir, "scratch.txt")
+	if err := os.WriteFile(insideTask, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	insidePlan := filepath.Join(plansDir, "plan.txt")
+	if err := os.WriteFile(insidePlan, []byte("y"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	// Plant a sibling dir OUTSIDE the agent home (must be untouched).
@@ -940,9 +948,12 @@ func TestAgentController_ReconcileReset_WipesWorkspaceWithContainment(t *testing
 		t.Fatalf("reconcile reset: %v", err)
 	}
 
-	// Workspace wiped.
-	if _, err := os.Stat(workspace); !os.IsNotExist(err) {
-		t.Fatalf("workspace not wiped: stat err=%v", err)
+	// tasks/ and plans/ wiped (workspace scope now covers both, design §3.1).
+	if _, err := os.Stat(tasksDir); !os.IsNotExist(err) {
+		t.Fatalf("tasks dir not wiped: stat err=%v", err)
+	}
+	if _, err := os.Stat(plansDir); !os.IsNotExist(err) {
+		t.Fatalf("plans dir not wiped: stat err=%v", err)
 	}
 	// Sibling untouched (containment).
 	if _, err := os.Stat(siblingFile); err != nil {
@@ -980,7 +991,7 @@ func TestAgentController_agentPaths_DedupedNoDoubleWorkers(t *testing.T) {
 	base := t.TempDir()
 	c, _, _ := newTestController(t, base)
 
-	home, workspace, err := c.agentPaths("ag-x")
+	home, tasksDir, plansDir, err := c.agentPaths("ag-x")
 	if err != nil {
 		t.Fatalf("agentPaths: %v", err)
 	}
@@ -988,8 +999,11 @@ func TestAgentController_agentPaths_DedupedNoDoubleWorkers(t *testing.T) {
 	if home != want {
 		t.Fatalf("home = %q, want %q (no redundant workers/<wid>)", home, want)
 	}
-	if workspace != filepath.Join(want, "workspace") {
-		t.Fatalf("workspace = %q", workspace)
+	if tasksDir != filepath.Join(want, "tasks") {
+		t.Fatalf("tasksDir = %q, want %q", tasksDir, filepath.Join(want, "tasks"))
+	}
+	if plansDir != filepath.Join(want, "plans") {
+		t.Fatalf("plansDir = %q, want %q", plansDir, filepath.Join(want, "plans"))
 	}
 	if strings.Contains(home, filepath.Join("workers", "w-1")) {
 		t.Fatalf("home still contains redundant workers/<wid>: %q", home)

@@ -678,7 +678,7 @@ func (c *AgentController) reconcileReset(ctx context.Context, pl reconcilePayloa
 	c.clearSelfHeal(pl.AgentID) // reset = manual clean-slate → un-latch any terminal-failed
 	c.recordVersion(pl.AgentID, pl.Version)
 
-	home, _, err := c.agentPaths(pl.AgentID)
+	home, _, _, err := c.agentPaths(pl.AgentID)
 	if err != nil {
 		// Cannot resolve the home (missing config) — settle the lifecycle so the
 		// agent does not hang in "resetting"; nothing to wipe/bump without a home.
@@ -1173,27 +1173,27 @@ const workAvailableNudge = "📥 New work is available in your queue. When you r
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
 func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, displayName, cli string) error {
-	home, workspace, err := c.agentPaths(agentID)
+	home, tasksDir, _, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(workspace, 0o700); err != nil {
-		return fmt.Errorf("agent_controller: mkdir workspace: %w", err)
+	if err := os.MkdirAll(tasksDir, 0o700); err != nil {
+		return fmt.Errorf("agent_controller: mkdir tasks: %w", err)
 	}
 	// cli=codex: a fundamentally different execution model (one-shot `codex exec`
 	// + resume, NO persistent supervisor / epoch / session-id lock). Route to the
 	// self-contained CodexSession path before any of the claude/supervisor setup
 	// below. The claude path (cli empty / "claude-code") is untouched.
 	if cli == cliCodex {
-		return c.startCodexSession(ctx, agentID, version, home, workspace, model)
+		return c.startCodexSession(ctx, agentID, version, home, tasksDir, model)
 	}
-	// v2.7 #182: claude runs with cwd=workspace and `--setting-sources user,project`,
-	// so its "project" settings source resolves to <workspace>/.claude. Create the
+	// v2.7 #182: claude runs with cwd=tasks and `--setting-sources user,project`,
+	// so its "project" settings source resolves to <tasks>/.claude. Create the
 	// directory as the agent's own project-config load point. It is left EMPTY —
 	// agent-center never pre-fills settings/hooks here (no indirect pollution); the
 	// agent (or a future feature) may drop a settings.json into it.
-	if err := os.MkdirAll(filepath.Join(workspace, ".claude"), 0o700); err != nil {
-		return fmt.Errorf("agent_controller: mkdir workspace/.claude: %w", err)
+	if err := os.MkdirAll(filepath.Join(tasksDir, ".claude"), 0o700); err != nil {
+		return fmt.Errorf("agent_controller: mkdir tasks/.claude: %w", err)
 	}
 
 	mcpBytes, err := mcphost.GenerateMCPConfig(mcphost.MCPConfigParams{
@@ -1204,7 +1204,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		AdminURL:          c.cfg.AdminURL,
 		WorkerToken:       c.cfg.WorkerToken,
 		ServerFingerprint: c.cfg.ServerFingerprint,
-		AgentRoot:         workspace,
+		AgentRoot:         tasksDir,
 	})
 	if err != nil {
 		return fmt.Errorf("agent_controller: generate mcp-config: %w", err)
@@ -1275,7 +1275,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		AgentID:             agentID,
 		HomeDir:             home,
 		MCPConfigPath:       mcpPath,
-		WorkspaceDir:        workspace,
+		WorkspaceDir:        tasksDir,
 		BinaryPath:          c.cfg.BinaryPath,
 		ClaudeBin:           c.cfg.ClaudeBinary,
 		Model:               model,
@@ -1935,9 +1935,10 @@ func (c *AgentController) recordVersion(agentID string, version int) {
 // Agent home layout + reset cleanup (containment-guarded).
 // ---------------------------------------------------------------------------
 
-// agentPaths resolves the per-agent home + workspace under the runtime home
-// layout: AgentHomeBase/agents/{agent_id}/ with a workspace/ subdir. Returns
-// (home, workspace, error).
+// agentPaths resolves the per-agent home, tasksDir, and plansDir under the
+// runtime home layout: AgentHomeBase/agents/{agent_id}/ with tasks/ and plans/
+// subdirs. Returns (home, tasksDir, plansDir, error). Design §3: workspace is
+// replaced by tasks/ + plans/.
 //
 // v2.7 #179 + #209: AgentHomeBase is ALREADY worker-scoped — it resolves to the
 // worker state dir <sqlite_dir> (= <prefix>/workers/<wid>/var), so the per-agent
@@ -1947,19 +1948,20 @@ func (c *AgentController) recordVersion(agentID string, version int) {
 // also helped overflow the macOS sun_path limit, see #178). The layout MUST stay
 // in lockstep with boot_reconcile's home scan (same base, same join) or
 // boot-reconcile can't find supervisors → reattach breaks.
-func (c *AgentController) agentPaths(agentID string) (home, workspace string, err error) {
+func (c *AgentController) agentPaths(agentID string) (home, tasksDir, plansDir string, err error) {
 	if strings.TrimSpace(c.cfg.AgentHomeBase) == "" {
-		return "", "", errors.New("agent_controller: agent_home_base required")
+		return "", "", "", errors.New("agent_controller: agent_home_base required")
 	}
 	if strings.TrimSpace(c.cfg.WorkerID) == "" {
-		return "", "", errors.New("agent_controller: worker_id required")
+		return "", "", "", errors.New("agent_controller: worker_id required")
 	}
 	if strings.TrimSpace(agentID) == "" {
-		return "", "", errors.New("agent_controller: agent_id required")
+		return "", "", "", errors.New("agent_controller: agent_id required")
 	}
 	home = filepath.Join(c.cfg.AgentHomeBase, "agents", agentID)
-	workspace = filepath.Join(home, "workspace")
-	return home, workspace, nil
+	tasksDir = filepath.Join(home, "tasks")
+	plansDir = filepath.Join(home, "plans")
+	return home, tasksDir, plansDir, nil
 }
 
 // cleanReset wipes the dirs implied by resetScope UNDER the agent home. STRICT
@@ -1970,10 +1972,10 @@ func (c *AgentController) agentPaths(agentID string) (home, workspace string, er
 //
 // Scopes (ADR-0049 reset_scope):
 //   - "memory"            → wipe <home>/memory
-//   - "workspace"         → wipe <home>/workspace
-//   - "all" / "" (default) → wipe both memory + workspace
+//   - "workspace"         → wipe <home>/tasks + <home>/plans (design §3.1)
+//   - "all" / "" (default) → wipe memory + tasks + plans
 func (c *AgentController) cleanReset(agentID, resetScope string) error {
-	home, workspace, err := c.agentPaths(agentID)
+	home, tasksDir, plansDir, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
 	}
@@ -1984,12 +1986,13 @@ func (c *AgentController) cleanReset(agentID, resetScope string) error {
 	case "memory":
 		targets = []string{memory}
 	case "workspace":
-		targets = []string{workspace}
+		// Design §3.1: workspace resets tasks/ + plans/
+		targets = []string{tasksDir, plansDir}
 	case "", "all":
-		targets = []string{memory, workspace}
+		targets = []string{memory, tasksDir, plansDir}
 	default:
 		c.log("reset agent=%s unknown scope=%q — defaulting to all", agentID, resetScope)
-		targets = []string{memory, workspace}
+		targets = []string{memory, tasksDir, plansDir}
 	}
 
 	for _, t := range targets {

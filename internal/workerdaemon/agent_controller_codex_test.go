@@ -141,7 +141,7 @@ func TestAgentController_ReconcileRunning_Codex_StartsCodexSession(t *testing.T)
 
 	// cli marker persisted so boot-recovery routes this agent away from the
 	// supervisor probe/relaunch.
-	home, _, err := c.agentPaths("agent-c")
+	home, _, _, err := c.agentPaths("agent-c")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -220,7 +220,7 @@ func (c *AgentController) OnTick(ctx context.Context) {
 // fresh supervisor (resumes the durable epoch) + nudge iff the crash interrupted
 // active work. Reuses bootReapRelaunch (same reap+resume+nudge sequence).
 func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, version int, nudge bool, taskID, model, displayName string, attempt int) {
-	home, _, err := c.agentPaths(agentID)
+	home, _, _, err := c.agentPaths(agentID)
 	if err != nil {
 		c.log("agent=%s self-heal relaunch resolve home: %v — skip", agentID, err)
 		return
