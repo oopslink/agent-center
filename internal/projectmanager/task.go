@@ -11,7 +11,15 @@ import (
 //
 //	open → running → completed
 //	open/running → discarded (terminal)
-//	completed → reopened → open
+//	completed → reopened → open | running
+//
+// `reopened` is a RE-DISPATCHABLE non-terminal state (plan_view treats it as
+// re-runnable; reopenLoopSubgraph rests a loopback node there for re-dispatch). It
+// has two forward exits: → open completes the manual ReopenTask chain
+// (completed→reopened→open, a fresh segment), and → running lets an agent pick the
+// re-dispatched node up directly via Start without a separate open hop. The latter
+// edge fixes T477: start_task on a reopened task previously hit ErrIllegalTransition
+// because `running` was unreachable from `reopened`.
 //
 // "blocked" is NO LONGER a state (ADR-0046): being stuck-with-a-reason is now a
 // `blocked_reason` ANNOTATION on a `running` task (block_task writes it; resume /
@@ -49,7 +57,9 @@ var taskTransitions = map[TaskStatus][]TaskStatus{
 	TaskRunning:   {TaskCompleted, TaskDiscarded},
 	TaskCompleted: {TaskReopened},
 	TaskDiscarded: {}, // terminal
-	TaskReopened:  {TaskOpen},
+	// reopened is re-dispatchable: → open finishes the manual ReopenTask chain,
+	// → running lets an agent Start a re-dispatched/reopened node directly (T477).
+	TaskReopened: {TaskOpen, TaskRunning},
 }
 
 // CanTransitionTo reports whether from→to is a legal Task transition.
@@ -638,9 +648,10 @@ func (t *Task) Unassign(at time.Time) error {
 	return nil
 }
 
-// Start moves open→running (the agent picked up the work; assignment is metadata,
-// not a precondition state). ADR-0046: starting/re-activating a task clears any
-// stale blocked_reason — the agent is back, so it is no longer stuck.
+// Start moves open→running, or reopened→running (the agent picked up the work, or
+// re-picked-up a reopened/loopback node; assignment is metadata, not a precondition
+// state). ADR-0046: starting/re-activating a task clears any stale blocked_reason —
+// the agent is back, so it is no longer stuck.
 func (t *Task) Start(at time.Time) error {
 	if err := t.simpleTransition(TaskRunning, at); err != nil {
 		return err
