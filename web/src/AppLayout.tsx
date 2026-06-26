@@ -1,7 +1,6 @@
 import type React from 'react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { SSEIndicator } from '@/sse/SSEIndicator';
 import { useSSE } from '@/sse/useSSE';
 import {
   conversationDeleteErrorMessage,

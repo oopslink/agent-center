@@ -1,10 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { http, HttpResponse } from 'msw';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type React from 'react';
 import { App } from './App';
-import { server } from './test/mswServer';
 import { FakeEventSource } from './sse/fakeEventSource';
 
 // AppLayout opens a single EventSource on mount via useSSE. jsdom has no
