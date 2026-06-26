@@ -20,6 +20,24 @@ type TaskDirEntry struct {
 	ExecCtx ExecutionContext
 }
 
+// validatePathComponent rejects any value that could escape the parent directory.
+// Mirrors cognition/memory.validatePathComponent.
+func validatePathComponent(name, v string) error {
+	if v == "" {
+		return fmt.Errorf("taskexec: %s required", name)
+	}
+	if strings.ContainsAny(v, "/\\:") {
+		return fmt.Errorf("taskexec: %s %q contains path separator", name, v)
+	}
+	if strings.Contains(v, "\x00") {
+		return fmt.Errorf("taskexec: %s %q contains null byte", name, v)
+	}
+	if v == "." || v == ".." || strings.Contains(v, "..") {
+		return fmt.Errorf("taskexec: %s %q contains path traversal", name, v)
+	}
+	return nil
+}
+
 // DirManager handles per-task execution directory lifecycle.
 type DirManager struct{}
 
@@ -29,6 +47,9 @@ func NewDirManager() *DirManager { return &DirManager{} }
 // Create initializes tasks/{task_id}/ with task.json + execution.json.
 func (d *DirManager) Create(tasksDir string, meta TaskExecutionMeta, execCtx ExecutionContext) error {
 	if err := meta.Validate(); err != nil {
+		return err
+	}
+	if err := validatePathComponent("task_id", meta.TaskID); err != nil {
 		return err
 	}
 	dir := filepath.Join(tasksDir, meta.TaskID)
@@ -46,6 +67,9 @@ func (d *DirManager) Create(tasksDir string, meta TaskExecutionMeta, execCtx Exe
 
 // Read loads the task.json + execution.json from tasks/{task_id}/.
 func (d *DirManager) Read(tasksDir, taskID string) (TaskDirEntry, error) {
+	if err := validatePathComponent("task_id", taskID); err != nil {
+		return TaskDirEntry{}, err
+	}
 	dir := filepath.Join(tasksDir, taskID)
 	var entry TaskDirEntry
 	if err := readJSON(filepath.Join(dir, taskMetaFile), &entry.Meta); err != nil {
@@ -58,6 +82,9 @@ func (d *DirManager) Read(tasksDir, taskID string) (TaskDirEntry, error) {
 
 // UpdateStatus updates the status field in task.json.
 func (d *DirManager) UpdateStatus(tasksDir, taskID string, status TaskExecutionStatus) error {
+	if err := validatePathComponent("task_id", taskID); err != nil {
+		return err
+	}
 	dir := filepath.Join(tasksDir, taskID)
 	var meta TaskExecutionMeta
 	if err := readJSON(filepath.Join(dir, taskMetaFile), &meta); err != nil {

@@ -1443,6 +1443,14 @@ func (c *AgentController) stopSession(ctx context.Context, agentID string, repor
 		c.log("stop agent=%s: %v", agentID, err)
 	}
 
+	// Release the session instance lease so the next AcquireInstance knows
+	// this was a clean shutdown (not a crash). Best-effort.
+	if home, _, _, pathErr := c.agentPaths(agentID); pathErr == nil {
+		if relErr := sessioninstance.ReleaseInstance(home); relErr != nil {
+			c.log("stop agent=%s release instance: %v", agentID, relErr)
+		}
+	}
+
 	if reportLifecycle {
 		c.reportLifecycleOnce(ctx, agentID, "stopped", "")
 	}
@@ -2011,7 +2019,7 @@ func (c *AgentController) agentPaths(agentID string) (home, tasksDir, plansDir s
 // Scopes (ADR-0049 reset_scope):
 //   - "memory"            → wipe <home>/memory
 //   - "workspace"         → wipe <home>/tasks + <home>/plans (design §3.1)
-//   - "all" / "" (default) → wipe memory + tasks + plans
+//   - "all" / "" (default) → wipe memory + tasks + plans + session.instance (design §3.1)
 func (c *AgentController) cleanReset(agentID, resetScope string) error {
 	home, tasksDir, plansDir, err := c.agentPaths(agentID)
 	if err != nil {
@@ -2038,6 +2046,15 @@ func (c *AgentController) cleanReset(agentID, resetScope string) error {
 			return err
 		}
 	}
+
+	// Design §3.1: "all" scope also removes session.instance (lease file).
+	if resetScope == "" || strings.EqualFold(resetScope, "all") {
+		instPath := filepath.Join(home, sessioninstance.InstanceFileName)
+		if rmErr := os.Remove(instPath); rmErr != nil && !os.IsNotExist(rmErr) {
+			c.log("reset agent=%s remove session.instance: %v", agentID, rmErr)
+		}
+	}
+
 	c.log("reset agent=%s scope=%q wiped %d dir(s) under %s", agentID, resetScope, len(targets), home)
 	return nil
 }

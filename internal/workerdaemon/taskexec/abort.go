@@ -53,6 +53,9 @@ func ParseAbortedDir(name string) (taskID string, ts time.Time, gcDeleting bool,
 //
 // Returns the aborted directory name.
 func AbortTask(tasksDir, taskID string, ts time.Time) (string, error) {
+	if err := validatePathComponent("task_id", taskID); err != nil {
+		return "", err
+	}
 	srcDir := filepath.Join(tasksDir, taskID)
 	if _, err := os.Stat(srcDir); err != nil {
 		return "", fmt.Errorf("taskexec: abort %s: source dir: %w", taskID, err)
