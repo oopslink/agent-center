@@ -58,7 +58,7 @@ describe('Agents page', () => {
   it('renders all agents with lifecycle + availability badges; the NAME links to /agents/{id} (T133, no separate Open button)', async () => {
     wrap(<Agents />);
     await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
-    expect(screen.getByText('bot-1')).toBeInTheDocument();
+    expect(screen.getAllByText('bot-1').length).toBeGreaterThanOrEqual(1);
 
     const badges = screen.getAllByTestId('agent-availability-badge');
     expect(badges[0]).toHaveAttribute('data-availability', 'busy');

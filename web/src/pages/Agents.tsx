@@ -163,25 +163,26 @@ export default function Agents(): React.ReactElement {
         />
       )}
       {agents.isSuccess && agents.data.length > 0 && (
-        // T80 (Tester2 §3.7 finding): this 9-column table lives in the narrow
-        // col③ of the three-column desktop shell. The old `w-1/12` columns were
-        // too narrow for their single-word uppercase headers ("AVAILABILITY",
-        // "LIFECYCLE"), so the header text overflowed the cell and overlapped the
-        // next one (rendered "AVAILABILITROLE"). Fix = make the table horizontally
-        // scrollable with a min-width so columns never collapse below their header
-        // width, rebalance the per-column widths so each header fits, and pin the
-        // headers to a single line. At a wide col③ the table fits without scroll;
-        // in a cramped column it scrolls instead of overlapping.
+        <>
+        {/* T80 (Tester2 §3.7 finding): this 9-column table lives in the narrow
+            col③ of the three-column desktop shell. The old `w-1/12` columns were
+            too narrow for their single-word uppercase headers ("AVAILABILITY",
+            "LIFECYCLE"), so the header text overflowed the cell and overlapped the
+            next one (rendered "AVAILABILITROLE"). Fix = make the table horizontally
+            scrollable with a min-width so columns never collapse below their header
+            width, rebalance the per-column widths so each header fits, and pin the
+            headers to a single line. At a wide col③ the table fits without scroll;
+            in a cramped column it scrolls instead of overlapping. */}
         {/* Mobile card view */}
         <ul className="space-y-2 md:hidden">
           {agents.data.map((a) => (
-            <li key={a.id} className="rounded-lg border border-border-base bg-bg-elevated p-3" data-testid="agent-card" data-agent-id={a.id}>
+            <li key={a.id} className="rounded-lg border border-border-base bg-bg-elevated p-3" data-testid="agent-card-mobile" data-agent-id={a.id}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <OrgLink
                     to={`/agents/${encodeURIComponent(a.id)}`}
                     className="text-sm font-medium text-accent hover:underline"
-                    data-testid="agent-name-link"
+                    data-testid="agent-name-link-mobile"
                   >
                     {a.name}
                   </OrgLink>
@@ -190,7 +191,7 @@ export default function Agents(): React.ReactElement {
                 </div>
                 <button
                   type="button"
-                  data-testid="agent-delete-button"
+                  data-testid="agent-delete-button-mobile"
                   data-agent-id={a.id}
                   aria-label={`Delete agent ${a.name}`}
                   title="Delete agent"
@@ -371,6 +372,7 @@ export default function Agents(): React.ReactElement {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {del.isError && (

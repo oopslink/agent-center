@@ -65,10 +65,11 @@ export default function Secrets(): React.ReactElement {
         />
       )}
       {secrets.isSuccess && secrets.data.length > 0 && (
+        <>
         {/* Mobile card view */}
         <ul className="space-y-2 md:hidden">
           {secrets.data.map((s) => (
-            <li key={s.id} className="rounded-lg border border-border-base bg-bg-elevated p-3" data-testid="secret-card" data-secret-id={s.id}>
+            <li key={s.id} className="rounded-lg border border-border-base bg-bg-elevated p-3" data-testid="secret-card-mobile" data-secret-id={s.id}>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-text-primary">{s.name}</span>
                 {s.state === 'active' && (
@@ -77,7 +78,7 @@ export default function Secrets(): React.ReactElement {
                     onClick={() => setRevokeTarget(s)}
                     disabled={revoke.isPending}
                     className="rounded px-3 py-2 text-xs text-danger hover:bg-bg-subtle disabled:opacity-50"
-                    data-testid="secret-revoke-button"
+                    data-testid="secret-revoke-button-mobile"
                   >
                     Revoke
                   </button>
@@ -144,6 +145,7 @@ export default function Secrets(): React.ReactElement {
             ))}
           </tbody>
         </table>
+        </>
       )}
 
       <SecretCreateModal

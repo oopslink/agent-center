@@ -93,13 +93,13 @@ describe('MessageList', () => {
     expect(row).toHaveAttribute('data-own', 'false');
     let bubble = row.querySelector('[data-surface="dm"]');
     expect(bubble?.className).toContain('border-border-base');
-    expect(bubble?.className).toContain('bg-bg-elevated');
-    // channel (default surface) keeps the gray pill bubble — no border card.
+    expect(bubble?.className).toContain('bg-bg-subtle');
+    // Hex redesign: channel also uses bordered card style (bg-subtle + border).
     rerender(<MessageList messages={[received]} />);
     row = screen.getByTestId('message-row');
     bubble = row.querySelector('[data-surface="channel"]');
     expect(bubble?.className).toContain('bg-bg-subtle');
-    expect(bubble?.className).not.toContain('border-border-base');
+    expect(bubble?.className).toContain('border-border-base');
   });
 
   // #276: message content renders as markdown — a long fenced code block
