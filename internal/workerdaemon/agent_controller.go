@@ -45,6 +45,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 )
 
 // agentSession is the NARROW control surface the AgentController needs from one
@@ -1305,6 +1306,17 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	c.mu.Lock()
 	ma.session = sess
 	c.mu.Unlock()
+
+	// Record the single-instance lease so crash-recovery and boot-reconcile can
+	// detect an unclean prior exit (prev_crash_at) and track session lineage
+	// (generation, prev_pid). Best-effort: a write failure is logged but does NOT
+	// abort the already-running session — the lease file is observability/recovery
+	// metadata, not a gate for the session itself.
+	sessionID := claudestream.SessionUUIDGen(agentID, epochState.Epoch, generation)
+	if _, lerr := sessioninstance.AcquireInstance(home, sessionID, os.Getpid()); lerr != nil {
+		c.log("started agent=%s: write session.instance: %v (non-fatal)", agentID, lerr)
+	}
+
 	c.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, version, epochState.Epoch, generation, forkResume, resume, home)
 	return nil
 }
