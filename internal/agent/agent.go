@@ -87,7 +87,7 @@ type ResetScope string
 
 const (
 	ResetMemory    ResetScope = "memory"    // wipe {home}/memory
-	ResetWorkspace ResetScope = "workspace" // wipe {home}/workspace
+	ResetWorkspace ResetScope = "workspace" // design §3.1: wipe {home}/tasks + {home}/plans
 	ResetAll       ResetScope = "all"       // wipe the whole runtime home
 )
 

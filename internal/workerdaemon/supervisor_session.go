@@ -50,7 +50,7 @@ type SupervisorSessionConfig struct {
 	// supervisor points claude at it; the session never holds the token.
 	MCPConfigPath string
 	// WorkspaceDir is claude's working directory (the agent workspace). Empty →
-	// inherit the supervisor's cwd. The AgentController resolves it to <home>/workspace.
+	// inherit the supervisor's cwd. The AgentController resolves it to <home>/tasks.
 	WorkspaceDir string
 	// BinaryPath is the agent-center executable to exec as the supervisor (empty
 	// → the running daemon binary). The supervisor — NOT this session — execs

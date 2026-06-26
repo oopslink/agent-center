@@ -55,7 +55,7 @@ type SpawnSupervisorCfg struct {
 	MCPConfigPath string
 	// WorkspaceDir is claude's working directory (--workspace-dir, the agent
 	// workspace). Empty → claude inherits the supervisor's cwd. The daemon resolves
-	// it to <home>/workspace.
+	// it to <home>/tasks.
 	WorkspaceDir string
 	// BinaryPath is the agent-center executable to exec as the supervisor. Empty
 	// → os.Executable() (the running daemon binary, which carries the subcommand).
