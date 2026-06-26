@@ -4,16 +4,17 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import {
   useReminders,
   useUpdateReminder,
+  useDeleteReminder,
   type Reminder,
   type ReminderListFilter,
   type ReminderStatus,
 } from '@/api/reminders';
 import { useDisplayNameResolver } from '@/api/members';
 import { Avatar } from '@/components/Avatar';
-import { ReminderCreateModal } from '@/components/ReminderCreateModal';
+import { ReminderCreateModal, reminderToPrefill } from '@/components/ReminderCreateModal';
 import { ReminderDetailModal } from '@/components/ReminderDetailModal';
 import { SortHeader, Pagination, useListControls } from '@/components/listControls';
-import { IconPause, IconPlay, IconClose } from '@/components/icons';
+import { IconPause, IconPlay, IconClose, IconEdit, IconCopy, IconTrash } from '@/components/icons';
 import { formatLocalTime } from '@/utils/time';
 
 // =============================================================================
@@ -81,6 +82,11 @@ export default function Reminders(): React.ReactElement {
   const search = params.get('q') ?? '';
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  // T477 entry management: edit (PATCH in place) / clone (prefill a new create) /
+  // delete (remove the entry). Each holds the target reminder; null = closed.
+  const [editTarget, setEditTarget] = useState<Reminder | null>(null);
+  const [cloneTarget, setCloneTarget] = useState<Reminder | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Reminder | null>(null);
   // server-side sort + pagination (per @oopslink). Default newest-first.
   const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
   const { data, isLoading, isError } = useReminders(slug, {
@@ -95,6 +101,7 @@ export default function Reminders(): React.ReactElement {
   });
   const displayName = useDisplayNameResolver();
   const update = useUpdateReminder();
+  const del = useDeleteReminder();
 
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -276,6 +283,19 @@ export default function Reminders(): React.ReactElement {
                               <IconClose className="h-3.5 w-3.5" />
                             </button>
                           )}
+                          {/* T477: edit (active/paused only — terminal reminders
+                              aren't editable), clone (any), delete (any). */}
+                          {(r.status === 'active' || r.status === 'paused') && (
+                            <button type="button" title="Edit" aria-label="Edit" data-testid="reminder-edit" className="text-text-secondary hover:text-text-primary" onClick={() => setEditTarget(r)}>
+                              <IconEdit className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button type="button" title="Clone" aria-label="Clone" data-testid="reminder-clone" className="text-text-secondary hover:text-text-primary" onClick={() => setCloneTarget(r)}>
+                            <IconCopy className="h-3.5 w-3.5" />
+                          </button>
+                          <button type="button" title="Delete" aria-label="Delete" data-testid="reminder-delete" className="text-danger hover:opacity-80" onClick={() => setDeleteTarget(r)}>
+                            <IconTrash className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -297,7 +317,98 @@ export default function Reminders(): React.ReactElement {
         </div>
 
       {createOpen && <ReminderCreateModal onClose={() => setCreateOpen(false)} />}
+      {/* T477 clone: open the create modal prefilled from the row (a NEW reminder). */}
+      {cloneTarget && (
+        <ReminderCreateModal
+          prefill={reminderToPrefill(cloneTarget, displayName(`agent:${cloneTarget.remindee_agent_id}`))}
+          onClose={() => setCloneTarget(null)}
+        />
+      )}
+      {/* T477 edit: same modal in edit mode (PATCH action=edit, remindee fixed). */}
+      {editTarget && (
+        <ReminderCreateModal
+          editId={editTarget.id}
+          prefill={reminderToPrefill(editTarget, displayName(`agent:${editTarget.remindee_agent_id}`))}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+      {/* T477 delete: confirm before hard-deleting the entry. */}
+      {deleteTarget && (
+        <ConfirmDeleteDialog
+          name={displayName(`agent:${deleteTarget.remindee_agent_id}`)}
+          pending={del.isPending}
+          error={del.isError ? (del.error as Error).message : null}
+          onCancel={() => {
+            del.reset();
+            setDeleteTarget(null);
+          }}
+          onConfirm={() =>
+            del.mutate(deleteTarget.id, {
+              onSuccess: () => setDeleteTarget(null),
+            })
+          }
+        />
+      )}
       {detailId && <ReminderDetailModal slug={slug} reminderId={detailId} onClose={() => setDetailId(null)} />}
+    </div>
+  );
+}
+
+// ConfirmDeleteDialog — a small confirm modal for the destructive hard-delete
+// (T477). Delete is distinct from Cancel: it removes the entry + its firing
+// history entirely, so it's gated behind an explicit confirm.
+function ConfirmDeleteDialog({
+  name,
+  pending,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  name: string;
+  pending: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}): React.ReactElement {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Delete reminder"
+      data-testid="reminder-delete-confirm"
+    >
+      <div className="w-full max-w-sm rounded-xl bg-bg-elevated p-5 shadow-xl">
+        <h4 className="text-base font-semibold text-text-primary">Delete reminder?</h4>
+        <p className="mt-2 text-sm text-text-secondary">
+          This permanently removes the reminder for{' '}
+          <span className="font-medium text-text-primary">{name}</span> and its firing history. This
+          can’t be undone.
+        </p>
+        {error && (
+          <p className="mt-2 text-xs text-danger" data-testid="reminder-delete-error">
+            {error}
+          </p>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onConfirm}
+            data-testid="reminder-delete-confirm-btn"
+            className="rounded-md bg-danger px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {pending ? 'Deleting…' : 'Delete'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

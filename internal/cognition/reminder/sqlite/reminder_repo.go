@@ -86,6 +86,25 @@ func (r *ReminderRepo) Get(ctx context.Context, id reminder.ReminderID) (*remind
 	return rm, err
 }
 
+// Delete hard-removes the reminder and its append-only firing history (T477).
+// Firings go first (FK-free schema, but we keep history from dangling); the
+// reminders row deletion drives the not-found signal (RowsAffected==0).
+func (r *ReminderRepo) Delete(ctx context.Context, id reminder.ReminderID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	if _, err := exec.ExecContext(ctx,
+		`DELETE FROM reminder_firings WHERE reminder_id=?`, id.String()); err != nil {
+		return err
+	}
+	res, err := exec.ExecContext(ctx, `DELETE FROM reminders WHERE id=?`, id.String())
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return reminder.ErrReminderNotFound
+	}
+	return nil
+}
+
 func (r *ReminderRepo) ListByCreator(ctx context.Context, creatorRef string, f reminder.ListFilter) ([]*reminder.Reminder, error) {
 	return r.list(ctx, `WHERE creator_ref=?`, creatorRef, f)
 }

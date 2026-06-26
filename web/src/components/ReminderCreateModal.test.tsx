@@ -9,9 +9,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 
 const mutateAsync = vi.fn().mockResolvedValue({});
 
+const updateMutateAsync = vi.fn().mockResolvedValue({});
+
 vi.mock('@/api/reminders', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api/reminders')>();
-  return { ...actual, useCreateReminder: () => ({ mutateAsync, isPending: false }) };
+  return {
+    ...actual,
+    useCreateReminder: () => ({ mutateAsync, isPending: false }),
+    useUpdateReminder: () => ({ mutateAsync: updateMutateAsync, isPending: false }),
+  };
 });
 vi.mock('@/api/agents', () => ({
   useAgents: () => ({
@@ -23,7 +29,8 @@ vi.mock('@/api/agents', () => ({
   }),
 }));
 
-import { ReminderCreateModal } from './ReminderCreateModal';
+import { ReminderCreateModal, reminderToPrefill } from './ReminderCreateModal';
+import type { Reminder } from '@/api/reminders';
 
 function renderModal() {
   return render(<ReminderCreateModal onClose={vi.fn()} />);
@@ -169,5 +176,77 @@ describe('ReminderCreateModal — T474 prefill', () => {
         }),
       ),
     );
+  });
+});
+
+// T477 — reminderToPrefill mapper (clone/edit source) + the modal's edit mode.
+const cronReminder: Reminder = {
+  id: 'rmd-1',
+  organization_id: 'org-1',
+  project_id: 'proj-1',
+  creator_ref: 'user:pd',
+  remindee_agent_id: 'agent-1',
+  content: 'run regression',
+  status: 'active',
+  skip_if_overlap: true,
+  deliver_as_creator: true,
+  fired_count: 0,
+  version: 3,
+  schedule: { kind: 'cron', cron_expr: '0 9 * * 1', timezone: 'Asia/Shanghai' },
+  next_run_at: null,
+  created_at: '2026-06-16T00:00:00Z',
+  updated_at: '2026-06-16T00:00:00Z',
+};
+
+describe('reminderToPrefill', () => {
+  it('maps a cron reminder to a cron prefill (expr + tz + content + remindee)', () => {
+    const p = reminderToPrefill(cronReminder, 'Dev One');
+    expect(p).toMatchObject({
+      remindeeIds: ['agent-1'],
+      remindeeOptions: [{ id: 'agent-1', name: 'Dev One' }],
+      kind: 'cron',
+      cronExpr: '0 9 * * 1',
+      tz: 'Asia/Shanghai',
+      content: 'run regression',
+    });
+  });
+
+  it('maps a once reminder to LOCAL date/time that round-trips to the same instant', () => {
+    const once: Reminder = { ...cronReminder, schedule: { kind: 'once', once_at: '2026-06-20T05:30:00.000Z' } };
+    const p = reminderToPrefill(once);
+    expect(p.kind).toBe('once');
+    // onceDate/onceTime, parsed as LOCAL wall time, equal the source instant.
+    expect(new Date(`${p.onceDate}T${p.onceTime}:00`).toISOString()).toBe('2026-06-20T05:30:00.000Z');
+  });
+});
+
+describe('ReminderCreateModal — T477 edit mode', () => {
+  afterEach(() => {
+    cleanup();
+    mutateAsync.mockClear();
+    updateMutateAsync.mockClear();
+  });
+
+  it('edit mode locks the remindee, titles "Edit reminder", and PATCHes via update', () => {
+    render(
+      <ReminderCreateModal
+        editId="rmd-1"
+        onClose={vi.fn()}
+        prefill={reminderToPrefill(cronReminder, 'Dev One')}
+      />,
+    );
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Edit reminder');
+    expect(screen.getByTestId('reminder-remindee-trigger')).toBeDisabled();
+    expect(screen.queryByTestId('reminder-deliver-as-creator')).toBeNull();
+    fireEvent.click(screen.getByTestId('reminder-submit'));
+    expect(updateMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'rmd-1',
+        action: 'edit',
+        content: 'run regression',
+        schedule: expect.objectContaining({ kind: 'cron', cron_expr: '0 9 * * 1' }),
+      }),
+    );
+    expect(mutateAsync).not.toHaveBeenCalled();
   });
 });

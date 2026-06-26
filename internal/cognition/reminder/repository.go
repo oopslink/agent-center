@@ -57,6 +57,9 @@ type Repository interface {
 	Update(ctx context.Context, r *Reminder) error
 	// Get loads a reminder by id; ErrReminderNotFound if absent.
 	Get(ctx context.Context, id ReminderID) (*Reminder, error)
+	// Delete hard-removes a reminder and its append-only firing history (T477).
+	// RowsAffected==0 on the reminders row → ErrReminderNotFound.
+	Delete(ctx context.Context, id ReminderID) error
 	// ListByCreator returns reminders created by creatorRef (optionally filtered).
 	ListByCreator(ctx context.Context, creatorRef string, f ListFilter) ([]*Reminder, error)
 	// ListByRemindee returns reminders targeting remindeeAgentID (optionally filtered).

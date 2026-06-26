@@ -333,3 +333,23 @@ func (s *Server) remUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, remReminderMap(rm))
 }
+
+// DELETE /api/orgs/{slug}/reminders/{reminder_id} — hard-delete the reminder +
+// its firing history (T477). Creator/owner authz (same gate as PATCH); 204 on
+// success, 404 if absent, 403 if forbidden.
+func (s *Server) remDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, caller, ok := s.remCaller(w, r, d)
+	if !ok {
+		return
+	}
+	err := d.Reminder.DeleteReminder(r.Context(), cogservice.DeleteReminderCommand{
+		ID:           reminder.ReminderID(r.PathValue("reminder_id")),
+		RequesterRef: caller,
+	})
+	if err != nil {
+		writeRemErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

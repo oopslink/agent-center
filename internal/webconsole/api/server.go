@@ -218,6 +218,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/reminders", s.remCreateHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/reminders/{reminder_id}", s.remGetHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/reminders/{reminder_id}", s.remUpdateHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/reminders/{reminder_id}", s.remDeleteHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}", s.pmGetProjectHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}", s.pmUpdateProjectHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}", s.pmArchiveProjectHandler)

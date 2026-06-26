@@ -152,6 +152,57 @@ func TestApp_Update_Authz(t *testing.T) {
 	}
 }
 
+// T477: hard-delete removes the reminder row AND its firing history, under the
+// same creator/owner authz gate as the other lifecycle ops, emitting deleted.
+func TestApp_Delete_Authz_RemovesRowAndFirings(t *testing.T) {
+	dir := sameProjectDir()
+	dir.owners = map[string]bool{"user:owner": true}
+	ctx, svc, repo, emitter := appSetup(t, dir)
+	r, _ := svc.CreateReminder(ctx, createCmd())
+	// Seed a firing so we can assert the history is cascaded on delete.
+	if err := repo.AppendFiring(ctx, reminder.Firing{
+		ID: "F1", ReminderID: r.ID().String(), FiredAt: t0, Outcome: reminder.OutcomeDelivered,
+	}); err != nil {
+		t.Fatalf("seed firing: %v", err)
+	}
+
+	// Stranger (not creator, not owner) → forbidden; nothing removed.
+	if err := svc.DeleteReminder(ctx, DeleteReminderCommand{ID: r.ID(), RequesterRef: "agent:AGX"}); !errors.Is(err, ErrReminderForbidden) {
+		t.Errorf("stranger delete: err=%v, want forbidden", err)
+	}
+	if got, _ := repo.Get(ctx, r.ID()); got == nil {
+		t.Fatal("forbidden delete must NOT remove the row")
+	}
+
+	// Creator → delete OK; reminder + firings gone; deleted event emitted.
+	if err := svc.DeleteReminder(ctx, DeleteReminderCommand{ID: r.ID(), RequesterRef: "agent:AG1"}); err != nil {
+		t.Fatalf("creator delete: %v", err)
+	}
+	if _, err := repo.Get(ctx, r.ID()); !errors.Is(err, reminder.ErrReminderNotFound) {
+		t.Errorf("after delete Get err=%v, want ErrReminderNotFound", err)
+	}
+	if fs, _ := repo.ListFirings(ctx, r.ID().String()); len(fs) != 0 {
+		t.Errorf("firings after delete=%d, want 0 (cascaded)", len(fs))
+	}
+	if emitter.count(EventReminderDeleted) != 1 {
+		t.Errorf("deleted event=%d, want 1", emitter.count(EventReminderDeleted))
+	}
+
+	// Re-deleting a now-absent reminder → ErrReminderNotFound.
+	if err := svc.DeleteReminder(ctx, DeleteReminderCommand{ID: r.ID(), RequesterRef: "agent:AG1"}); !errors.Is(err, reminder.ErrReminderNotFound) {
+		t.Errorf("re-delete: err=%v, want ErrReminderNotFound", err)
+	}
+
+	// Owner may delete another creator's reminder (owner authz).
+	r2, _ := svc.CreateReminder(ctx, createCmd())
+	if err := svc.DeleteReminder(ctx, DeleteReminderCommand{ID: r2.ID(), RequesterRef: "user:owner"}); err != nil {
+		t.Fatalf("owner delete: %v", err)
+	}
+	if _, err := repo.Get(ctx, r2.ID()); !errors.Is(err, reminder.ErrReminderNotFound) {
+		t.Errorf("owner delete left row: err=%v", err)
+	}
+}
+
 func TestApp_List_Filter(t *testing.T) {
 	ctx, svc, _, _ := appSetup(t, sameProjectDir())
 	a, _ := svc.CreateReminder(ctx, createCmd())

@@ -18,6 +18,7 @@ const (
 	EventReminderResumed  observability.EventType = "cognition.reminder.resumed"
 	EventReminderUpdated  observability.EventType = "cognition.reminder.updated"
 	EventReminderCanceled observability.EventType = "cognition.reminder.canceled"
+	EventReminderDeleted  observability.EventType = "cognition.reminder.deleted"
 )
 
 // ErrReminderForbidden is returned when a requester may not manage a reminder
@@ -253,6 +254,36 @@ func (s *ReminderAppService) UpdateReminder(ctx context.Context, cmd UpdateRemin
 		return nil, err
 	}
 	return r, nil
+}
+
+// DeleteReminderCommand identifies the reminder to hard-delete and the requester
+// (authz is the same creator-or-owner gate as UpdateReminder).
+type DeleteReminderCommand struct {
+	ID           reminder.ReminderID
+	RequesterRef string
+}
+
+// DeleteReminder hard-deletes a reminder (and its append-only firing history)
+// under the creator/owner authz gate, emitting a reminder.deleted event in the
+// same tx. Unlike Cancel (a terminal status that keeps the row + history), this
+// removes the entry entirely (T477 — "删除 reminder 条目"). Idempotency: a missing
+// reminder surfaces ErrReminderNotFound (the handler maps it to 404).
+func (s *ReminderAppService) DeleteReminder(ctx context.Context, cmd DeleteReminderCommand) error {
+	r, err := s.repo.Get(ctx, cmd.ID)
+	if err != nil {
+		return err
+	}
+	if !s.canManage(ctx, r, cmd.RequesterRef) {
+		return ErrReminderForbidden
+	}
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		// Emit first (still inside the tx) so the event's refs reflect the
+		// reminder that existed; then remove the row + its firings.
+		if err := s.emit(txCtx, EventReminderDeleted, r); err != nil {
+			return err
+		}
+		return s.repo.Delete(txCtx, cmd.ID)
+	})
 }
 
 // canManage: the creator of the reminder or an org owner may manage it.
