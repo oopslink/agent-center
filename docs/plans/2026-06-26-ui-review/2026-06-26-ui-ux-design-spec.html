@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>agent-center UI/UX Design Spec — Mobile Chat</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-deep:    #0a0a12;
+  --bg-card:    #12121e;
+  --bg-surface: #1a1a2e;
+  --bg-raised:  #222238;
+  --border:     #2a2a42;
+  --border-hi:  #3a3a58;
+  --text-1:     #e8e6f0;
+  --text-2:     #9896a8;
+  --text-3:     #6a6880;
+  --accent:     #6366f1;
+  --accent-2:   #818cf8;
+  --green:      #34d399;
+  --red:        #f87171;
+  --amber:      #fbbf24;
+  --blue-bubble:#D1E3FF;
+  --phone-bg:   #0f172a;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg-deep);
+  color: var(--text-1);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── Hero ── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 30% 20%, rgba(99,102,241,.12) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 500px at 70% 80%, rgba(52,211,153,.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-family: 'DM Mono', monospace;
+  font-size: .75rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: .4rem 1rem;
+  margin-bottom: 2rem;
+  background: rgba(99,102,241,.06);
+  animation: fadeUp .6s ease both;
+}
+.hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+.hero h1 {
+  font-size: clamp(2.4rem, 6vw, 4.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.03em;
+  max-width: 720px;
+  animation: fadeUp .6s .1s ease both;
+}
+.hero h1 em {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--accent-2), var(--green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero p {
+  font-size: 1.1rem;
+  color: var(--text-2);
+  max-width: 520px;
+  margin-top: 1.25rem;
+  animation: fadeUp .6s .2s ease both;
+}
+.hero-stats {
+  display: flex;
+  gap: 2.5rem;
+  margin-top: 3rem;
+  animation: fadeUp .6s .3s ease both;
+}
+.hero-stats .stat { text-align: center; }
+.hero-stats .stat-num {
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: 'DM Mono', monospace;
+}
+.hero-stats .stat-num.red { color: var(--red); }
+.hero-stats .stat-num.amber { color: var(--amber); }
+.hero-stats .stat-num.green { color: var(--green); }
+.hero-stats .stat-label {
+  font-size: .7rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: .25rem;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Section layout ── */
+.section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 5rem 2rem;
+}
+.section-label {
+  font-family: 'DM Mono', monospace;
+  font-size: .7rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  margin-bottom: .75rem;
+}
+.section h2 {
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  margin-bottom: 1rem;
+}
+.section h2 em { font-style: normal; color: var(--accent-2); }
+.section > p.desc {
+  color: var(--text-2);
+  max-width: 600px;
+  margin-bottom: 3rem;
+}
+
+/* ── Phone frame ── */
+.phone-row {
+  display: flex;
+  gap: 3rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 3rem 0;
+}
+.phone-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+.phone-col .tag {
+  font-family: 'DM Mono', monospace;
+  font-size: .65rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: .3rem .8rem;
+  border-radius: 100px;
+}
+.tag.before { color: var(--red); border: 1px solid rgba(248,113,113,.25); background: rgba(248,113,113,.06); }
+.tag.after  { color: var(--green); border: 1px solid rgba(52,211,153,.25); background: rgba(52,211,153,.06); }
+
+.phone {
+  width: 375px;
+  height: 720px;
+  background: var(--phone-bg);
+  border-radius: 36px;
+  border: 3px solid var(--border-hi);
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.04),
+    0 20px 60px rgba(0,0,0,.5),
+    0 0 120px rgba(99,102,241,.06);
+}
+.phone .notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  height: 28px;
+  background: #000;
+  border-radius: 0 0 18px 18px;
+  z-index: 10;
+}
+.phone .screen {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  color: #f1f5f9;
+}
+
+/* ── Phone internal components ── */
+.ph-status { height: 44px; flex-shrink: 0; }
+.ph-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+}
+.ph-back {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  color: #94a3b8;
+}
+.ph-avatar {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; color: #fff;
+}
+.ph-avatar.agent { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.ph-name { font-weight: 600; font-size: 15px; }
+.ph-sub { font-size: 11px; color: #94a3b8; }
+.ph-online { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block; margin-left: 6px; }
+.ph-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  padding: 2px 6px; border-radius: 4px;
+  background: #1e3a8a; color: #bfdbfe;
+}
+
+/* Tab bar */
+.ph-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 8px;
+  border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+}
+.ph-tab {
+  flex: 1;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: #1e293b;
+}
+.ph-tab.active { background: #1e40af; color: #fff; }
+.ph-tab .cnt {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 100px;
+  margin-left: 4px;
+}
+.ph-tab.active .cnt { background: rgba(255,255,255,.2); color: #fff; }
+.ph-tab:not(.active) .cnt { background: #334155; color: #94a3b8; }
+
+/* Tab bar — FIXED 44px version */
+.ph-tabs.fixed-height .ph-tab {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 10px;
+  font-size: 13px;
+}
+
+/* Messages */
+.ph-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ph-msg { display: flex; flex-direction: column; }
+.ph-msg.own { align-items: flex-end; }
+.ph-msg.other { align-items: flex-start; }
+.ph-msg-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #94a3b8; margin-bottom: 3px;
+  font-weight: 500;
+}
+.ph-msg.own .ph-msg-header { flex-direction: row-reverse; }
+.ph-msg-sender { color: #cbd5e1; }
+.ph-msg-time { font-size: 9px; color: #64748b; }
+.ph-msg-bubble {
+  max-width: 86%;
+  padding: 8px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ph-msg.own .ph-msg-bubble {
+  background: var(--blue-bubble);
+  color: #0f172a;
+}
+.ph-msg.other .ph-msg-bubble {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+.ph-msg-row-other {
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.ph-msg-row-other .ph-msg-avatar {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff;
+  flex-shrink: 0; margin-top: 18px;
+}
+
+/* Thread button */
+.ph-thread {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: #94a3b8; padding: 2px 6px;
+  border-radius: 4px; margin-top: 2px;
+  cursor: default;
+}
+.ph-thread .thread-icon { width: 12px; height: 12px; }
+.ph-thread .reply-chip {
+  font-size: 9px; font-weight: 700;
+  padding: 2px 6px; border-radius: 100px;
+  background: #1e293b; color: #94a3b8;
+}
+/* Thread button — FIXED 44px version */
+.ph-thread.fixed-height {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 12px;
+  background: rgba(30,41,59,.4);
+  border-radius: 8px;
+}
+.ph-thread.fixed-height .reply-chip {
+  font-size: 10px;
+  padding: 3px 8px;
+}
+
+/* Composer */
+.ph-composer {
+  border-top: 1px solid #334155;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  background: #1e293b;
+}
+.ph-composer-input {
+  width: 100%;
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #f1f5f9;
+  resize: none;
+  outline: none;
+}
+.ph-composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ph-btn-icon {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; border: 1px solid #475569;
+  color: #f1f5f9; cursor: default;
+}
+.ph-btn-icon.sm { width: 32px; height: 32px; }
+.ph-btn-icon.md { width: 44px; height: 44px; }
+.ph-btn-send {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: #f1f5f9; color: #0f172a;
+  cursor: default;
+}
+.ph-btn-send.sm { width: 32px; height: 32px; }
+.ph-btn-send.md { width: 44px; height: 44px; }
+
+/* Attachment chip */
+.ph-attachment {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid #334155; border-radius: 8px;
+  padding: 4px 8px; font-size: 11px;
+}
+.ph-att-thumb {
+  width: 32px; height: 32px; border-radius: 4px;
+  background: linear-gradient(135deg, #475569, #334155);
+  flex-shrink: 0;
+}
+.ph-att-thumb.lg {
+  width: 48px; height: 48px;
+}
+.ph-att-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
+.ph-att-size { color: #64748b; flex-shrink: 0; }
+.ph-att-remove { color: #64748b; cursor: default; font-size: 16px; }
+.ph-attachment.full-width { width: 100%; }
+
+/* Thread sidebar */
+.ph-thread-sidebar {
+  position: absolute; inset: 0; z-index: 20;
+  background: var(--phone-bg);
+  display: flex; flex-direction: column;
+}
+.ph-thread-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid #334155;
+}
+.ph-thread-header .title { font-weight: 600; font-size: 16px; }
+.ph-thread-header .sub { font-size: 12px; color: #94a3b8; }
+.ph-close {
+  width: 32px; height: 32px; display: flex;
+  align-items: center; justify-content: center;
+  color: #94a3b8; border-radius: 6px; cursor: default;
+}
+
+/* Annotations */
+.anno {
+  position: absolute;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: .04em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 30;
+  pointer-events: none;
+}
+.anno.red    { color: var(--red);   background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.25); }
+.anno.green  { color: var(--green); background: rgba(52,211,153,.1);  border: 1px solid rgba(52,211,153,.25); }
+.anno.amber  { color: var(--amber); background: rgba(251,191,36,.1);  border: 1px solid rgba(251,191,36,.25); }
+.anno-line {
+  position: absolute;
+  z-index: 29;
+  pointer-events: none;
+}
+.anno-line.red   { border-color: rgba(248,113,113,.3); }
+.anno-line.green { border-color: rgba(52,211,153,.3); }
+
+/* ── Issue cards ── */
+.issue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.25rem;
+  margin: 2rem 0;
+}
+.issue-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: border-color .2s;
+}
+.issue-card:hover { border-color: var(--border-hi); }
+.issue-card .ic-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: .75rem;
+}
+.issue-card .ic-id {
+  font-family: 'DM Mono', monospace;
+  font-size: .7rem;
+  letter-spacing: .08em;
+  color: var(--text-3);
+}
+.issue-card .ic-severity {
+  font-family: 'DM Mono', monospace;
+  font-size: .6rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: .2rem .6rem;
+  border-radius: 100px;
+}
+.ic-severity.p0 { color: var(--red);   background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.2); }
+.ic-severity.p1 { color: var(--amber); background: rgba(251,191,36,.1);  border: 1px solid rgba(251,191,36,.2); }
+.ic-severity.p2 { color: var(--accent-2); background: rgba(99,102,241,.1); border: 1px solid rgba(99,102,241,.2); }
+.issue-card .ic-title {
+  font-weight: 600;
+  font-size: .95rem;
+  margin-bottom: .5rem;
+}
+.issue-card .ic-desc {
+  font-size: .8rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.issue-card .ic-file {
+  font-family: 'DM Mono', monospace;
+  font-size: .65rem;
+  color: var(--text-3);
+  margin-top: .75rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Spec table ── */
+.spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: .85rem;
+}
+.spec-table th {
+  text-align: left;
+  font-family: 'DM Mono', monospace;
+  font-size: .65rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.spec-table td {
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+}
+.spec-table tr:hover td { background: rgba(255,255,255,.02); }
+.spec-table .val { color: var(--text-1); font-family: 'DM Mono', monospace; font-size: .8rem; }
+.spec-table .old { color: var(--red); text-decoration: line-through; }
+.spec-table .new { color: var(--green); }
+
+/* ── Divider ── */
+.divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: 1rem 0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 840px) {
+  .phone-row { flex-direction: column; align-items: center; }
+  .phone { width: 340px; height: 660px; }
+  .hero-stats { gap: 1.5rem; }
+  .issue-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ── SVG icons inline ── */
+.icon-svg { display: inline-block; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     HERO
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="hero-badge"><span class="dot"></span> Design Spec v1.0</div>
+  <h1>Mobile Chat<br><em>UI/UX Redesign</em></h1>
+  <p>agent-center SPA UI 审查设计稿 — 聚焦移动端 Chat 体验改进，涵盖触控目标、Thread 面板、Composer 交互与 Tab 导航的全量修正方案。</p>
+  <div class="hero-stats">
+    <div class="stat">
+      <div class="stat-num red">38</div>
+      <div class="stat-label">Issues Found</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num amber">8</div>
+      <div class="stat-label">Mobile Chat</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num green">11</div>
+      <div class="stat-label">Proposed Fixes</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     MC-1 + MC-4: Composer + Tab bar touch targets
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">MC-1 + MC-4</div>
+  <h2>Composer &amp; Tab Bar <em>Touch Targets</em></h2>
+  <p class="desc">Send/Attach 按钮由 32px 提升至 44px；Mobile tab bar 由 ~24px 提升至 44px。触控目标满足 WCAG 2.5.5 + Apple/Google HIG 标准。</p>
+
+  <div class="phone-row">
+    <!-- BEFORE -->
+    <div class="phone-col">
+      <span class="tag before">Before</span>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="ph-status"></div>
+          <div class="ph-header">
+            <div class="ph-back">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12.5 5 7.5 10l5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="ph-avatar agent">A</div>
+            <div>
+              <div class="ph-name">@agent-alpha<span class="ph-online"></span></div>
+              <div class="ph-sub">Direct message</div>
+            </div>
+            <div style="margin-left:auto"><span class="ph-badge">Bot</span></div>
+          </div>
+
+          <!-- Tabs: SMALL (current) -->
+          <div class="ph-tabs">
+            <div class="ph-tab active">Chat</div>
+            <div class="ph-tab">Threads<span class="cnt">3</span></div>
+            <div class="ph-tab">Files<span class="cnt">2</span></div>
+          </div>
+
+          <div class="ph-messages">
+            <div class="ph-msg other">
+              <div class="ph-msg-row-other">
+                <div class="ph-msg-avatar">A</div>
+                <div>
+                  <div class="ph-msg-header"><span class="ph-msg-sender">agent-alpha</span><span class="ph-msg-time">14:32</span></div>
+                  <div class="ph-msg-bubble">I've completed the analysis of the codebase. Here are the findings:</div>
+                  <div class="ph-thread">
+                    <svg class="thread-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-4 3v-3H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span class="reply-chip">2</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ph-msg own">
+              <div class="ph-msg-header"><span class="ph-msg-sender">You</span><span class="ph-msg-time">14:35</span></div>
+              <div class="ph-msg-bubble">Nice. Can you also check the performance metrics?</div>
+            </div>
+            <div class="ph-msg other">
+              <div class="ph-msg-row-other">
+                <div class="ph-msg-avatar">A</div>
+                <div>
+                  <div class="ph-msg-header"><span class="ph-msg-sender">agent-alpha</span><span class="ph-msg-time">14:36</span></div>
+                  <div class="ph-msg-bubble">Sure, running the benchmark suite now. Will share results shortly.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Composer: SMALL buttons (current) -->
+          <div class="ph-composer" style="position:relative">
+            <textarea class="ph-composer-input" rows="1" placeholder="Type a message — Enter to send" readonly></textarea>
+            <div class="ph-composer-bar">
+              <div class="ph-btn-icon sm">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.5 9.5l-4.8 4.8a3 3 0 0 1-4.2-4.2l5.5-5.5a2 2 0 0 1 2.8 2.8L8.3 12.7a1 1 0 0 1-1.4-1.4l4.6-4.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="ph-btn-send sm">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10l14-6-6 14-2.5-5.5L3 10z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+            <!-- Annotations -->
+            <div class="anno red" style="bottom:8px; left:50%; transform:translateX(-50%)">32 x 32px</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="phone-col">
+      <span class="tag after">After</span>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="ph-status"></div>
+          <div class="ph-header">
+            <div class="ph-back">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12.5 5 7.5 10l5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="ph-avatar agent">A</div>
+            <div>
+              <div class="ph-name">@agent-alpha<span class="ph-online"></span></div>
+              <div class="ph-sub">Direct message</div>
+            </div>
+            <div style="margin-left:auto"><span class="ph-badge">Bot</span></div>
+          </div>
+
+          <!-- Tabs: FIXED 44px height -->
+          <div class="ph-tabs fixed-height">
+            <div class="ph-tab active">Chat</div>
+            <div class="ph-tab">Threads<span class="cnt">3</span></div>
+            <div class="ph-tab">Files<span class="cnt">2</span></div>
+          </div>
+
+          <div class="ph-messages">
+            <div class="ph-msg other">
+              <div class="ph-msg-row-other">
+                <div class="ph-msg-avatar">A</div>
+                <div>
+                  <div class="ph-msg-header"><span class="ph-msg-sender">agent-alpha</span><span class="ph-msg-time">14:32</span></div>
+                  <div class="ph-msg-bubble">I've completed the analysis of the codebase. Here are the findings:</div>
+                  <div class="ph-thread fixed-height">
+                    <svg class="thread-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8l-4 3v-3H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span class="reply-chip">2 replies</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ph-msg own">
+              <div class="ph-msg-header"><span class="ph-msg-sender">You</span><span class="ph-msg-time">14:35</span></div>
+              <div class="ph-msg-bubble">Nice. Can you also check the performance metrics?</div>
+            </div>
+            <div class="ph-msg other">
+              <div class="ph-msg-row-other">
+                <div class="ph-msg-avatar">A</div>
+                <div>
+                  <div class="ph-msg-header"><span class="ph-msg-sender">agent-alpha</span><span class="ph-msg-time">14:36</span></div>
+                  <div class="ph-msg-bubble">Sure, running the benchmark suite now. Will share results shortly.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Composer: LARGE 44px buttons -->
+          <div class="ph-composer" style="position:relative">
+            <textarea class="ph-composer-input" rows="1" placeholder="Type a message — Enter to send" readonly></textarea>
+            <div class="ph-composer-bar">
+              <div class="ph-btn-icon md">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.5 9.5l-4.8 4.8a3 3 0 0 1-4.2-4.2l5.5-5.5a2 2 0 0 1 2.8 2.8L8.3 12.7a1 1 0 0 1-1.4-1.4l4.6-4.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div class="ph-btn-send md">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10l14-6-6 14-2.5-5.5L3 10z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+            <!-- Annotations -->
+            <div class="anno green" style="bottom:8px; left:50%; transform:translateX(-50%)">44 x 44px</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spec table -->
+  <table class="spec-table">
+    <thead>
+      <tr><th>Element</th><th>Before</th><th>After</th><th>Rule</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Send button</td>
+        <td><span class="val old">h-8 w-8 (32px)</span></td>
+        <td><span class="val new">h-11 w-11 (44px)</span></td>
+        <td>WCAG 2.5.5 / Apple HIG 44pt</td>
+      </tr>
+      <tr>
+        <td>Attach button</td>
+        <td><span class="val old">h-8 w-8 (32px)</span></td>
+        <td><span class="val new">h-11 w-11 (44px)</span></td>
+        <td>WCAG 2.5.5 / Apple HIG 44pt</td>
+      </tr>
+      <tr>
+        <td>Mobile tab bar</td>
+        <td><span class="val old">py-1.5 (~24px)</span></td>
+        <td><span class="val new">min-h-[44px] py-2.5</span></td>
+        <td>Core navigation, highest-freq tap</td>
+      </tr>
+      <tr>
+        <td>Thread button</td>
+        <td><span class="val old">py-0.5 (~20px)</span></td>
+        <td><span class="val new">py-1.5 min-h-[36px]</span></td>
+        <td>Expanded hit area via padding</td>
+      </tr>
+      <tr>
+        <td>Scope</td>
+        <td colspan="2"><span class="val">@media (pointer: coarse)</span> only</td>
+        <td>Desktop stays compact</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     MC-2: ThreadSidebar mobile fullscreen
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">MC-2</div>
+  <h2>Thread Sidebar <em>Mobile Fullscreen</em></h2>
+  <p class="desc">桌面端 thread sidebar 为右侧可拖拽面板（320-75vw）；移动端改为全屏覆盖，消除 minWidth/maxWidth 矛盾，提供沉浸式 thread 阅读+回复体验。</p>
+
+  <div class="phone-row">
+    <!-- BEFORE: narrow sidebar -->
+    <div class="phone-col">
+      <span class="tag before">Before: 75vw panel</span>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="ph-status"></div>
+          <!-- Underlying chat (dimmed) -->
+          <div style="flex:1; opacity:.3; padding:12px; display:flex; flex-direction:column; gap:8px; overflow:hidden">
+            <div class="ph-header" style="border:none; padding:0">
+              <div class="ph-avatar agent" style="width:28px;height:28px;font-size:11px">A</div>
+              <div><div style="font-size:13px;font-weight:600">@agent-alpha</div></div>
+            </div>
+            <div style="background:#1e293b; padding:8px 12px; border-radius:12px; font-size:12px; max-width:80%">Previous messages...</div>
+            <div style="background:#D1E3FF; color:#0f172a; padding:8px 12px; border-radius:12px; font-size:12px; max-width:70%; align-self:flex-end">Got it</div>
+          </div>
+          <!-- Thread sidebar: narrow, clipped -->
+          <div style="position:absolute; top:0; right:0; width:75%; height:100%; background:#0f172a; border-left:1px solid #334155; z-index:20; display:flex; flex-direction:column">
+            <div class="ph-status"></div>
+            <div class="ph-thread-header">
+              <div>
+                <div class="title">Thread</div>
+                <div class="sub">2 replies</div>
+              </div>
+              <div class="ph-close">X</div>
+            </div>
+            <div class="ph-messages" style="padding:8px">
+              <div class="ph-msg other">
+                <div style="display:flex;gap:6px;align-items:flex-start">
+                  <div class="ph-msg-avatar" style="width:22px;height:22px;font-size:8px;margin-top:14px;border-radius:4px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;flex-shrink:0">A</div>
+                  <div>
+                    <div class="ph-msg-header"><span class="ph-msg-sender" style="font-size:10px">agent-alpha</span></div>
+                    <div class="ph-msg-bubble" style="font-size:11px;padding:6px 10px;max-width:100%">Analysis findings from the codebase review...</div>
+                  </div>
+                </div>
+              </div>
+              <div class="ph-msg own">
+                <div class="ph-msg-bubble" style="font-size:11px;padding:6px 10px;max-width:100%">Can you elaborate?</div>
+              </div>
+            </div>
+            <div class="ph-composer" style="padding:6px 8px">
+              <textarea class="ph-composer-input" rows="1" style="font-size:11px;padding:6px 8px" placeholder="Reply..." readonly></textarea>
+              <div class="ph-composer-bar">
+                <div class="ph-btn-icon sm" style="width:28px;height:28px"><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.5 9.5l-4.8 4.8a3 3 0 0 1-4.2-4.2l5.5-5.5a2 2 0 0 1 2.8 2.8L8.3 12.7a1 1 0 0 1-1.4-1.4l4.6-4.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div class="ph-btn-send sm" style="width:28px;height:28px"><svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10l14-6-6 14-2.5-5.5L3 10z" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              </div>
+            </div>
+            <div class="anno red" style="top:50%;left:-4px;transform:translateY(-50%) rotate(-90deg)">cramped 75vw</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER: fullscreen -->
+    <div class="phone-col">
+      <span class="tag after">After: Fullscreen</span>
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="screen">
+          <div class="ph-thread-sidebar">
+            <div class="ph-status"></div>
+            <div class="ph-thread-header" style="padding-top:0">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="ph-close" style="border:1px solid #334155;border-radius:8px">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12.5 5 7.5 10l5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                  <div class="title">Thread</div>
+                  <div class="sub">2 replies</div>
+                </div>
+              </div>
+              <div></div>
+            </div>
+            <div class="ph-messages">
+              <div class="ph-msg other">
+                <div class="ph-msg-row-other">
+                  <div class="ph-msg-avatar">A</div>
+                  <div>
+                    <div class="ph-msg-header"><span class="ph-msg-sender">agent-alpha</span><span class="ph-msg-time">14:32</span></div>
+                    <div class="ph-msg-bubble">I've completed the analysis of the codebase. Here are the findings from the latest benchmark run across all modules.</div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:center;padding:4px 0">
+                <div style="font-size:10px;color:#475569;border-top:1px solid #1e293b;border-bottom:1px solid #1e293b;padding:4px 12px;letter-spacing:.06em;text-transform:uppercase">2 replies</div>
+              </div>
+              <div class="ph-msg own">
+                <div class="ph-msg-header"><span class="ph-msg-sender">You</span><span class="ph-msg-time">14:33</span></div>
+                <div class="ph-msg-bubble">Can you elaborate on the memory usage data?</div>
+              </div>
+              <div class="ph-msg other">
+                <div class="ph-msg-row-other">
+                  <div class="ph-msg-avatar">A</div>
+                  <div>
+                    <div class="ph-msg-header"><span class="ph-msg-sender">agent-alpha</span><span class="ph-msg-time">14:34</span></div>
+                    <div class="ph-msg-bubble">Sure. Peak RSS was 142MB with the new allocator vs 210MB baseline. The goroutine pool stays under 500 across all test scenarios.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ph-composer">
+              <textarea class="ph-composer-input" rows="1" placeholder="Reply in thread..." readonly></textarea>
+              <div class="ph-composer-bar">
+                <div class="ph-btn-icon md">
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.5 9.5l-4.8 4.8a3 3 0 0 1-4.2-4.2l5.5-5.5a2 2 0 0 1 2.8 2.8L8.3 12.7a1 1 0 0 1-1.4-1.4l4.6-4.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="ph-btn-send md">
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10l14-6-6 14-2.5-5.5L3 10z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="anno green" style="bottom:68px;right:12px">full viewport</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <table class="spec-table">
+    <thead><tr><th>Property</th><th>Desktop</th><th>Mobile (pointer: coarse)</th></tr></thead>
+    <tbody>
+      <tr><td>Layout</td><td><span class="val">fixed right panel, resizable</span></td><td><span class="val new">fixed inset-0, fullscreen</span></td></tr>
+      <tr><td>Width</td><td><span class="val">320px - 75vw (draggable)</span></td><td><span class="val new">100vw</span></td></tr>
+      <tr><td>ResizeHandle</td><td><span class="val">visible, draggable</span></td><td><span class="val new">hidden</span></td></tr>
+      <tr><td>Close</td><td><span class="val">X button + click overlay</span></td><td><span class="val new">Back arrow (left) + swipe right</span></td></tr>
+      <tr><td>Transition</td><td><span class="val">translateX slide-in</span></td><td><span class="val new">slide from right, fullscreen</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     MC-7: Attachment chips mobile layout
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">MC-7</div>
+  <h2>Attachment Chips <em>Mobile Layout</em></h2>
+  <p class="desc">移动端附件 chip 从 w-44 双列改为 w-full 单列，预览图从 32px 放大至 48px，文件信息更清晰可读。</p>
+
+  <div class="phone-row">
+    <!-- BEFORE -->
+    <div class="phone-col">
+      <span class="tag before">Before: w-44 cramped</span>
+      <div class="phone" style="height:320px;border-radius:20px">
+        <div class="screen" style="padding:16px">
+          <div style="font-size:11px;color:#64748b;margin-bottom:8px;font-family:'DM Mono',monospace">Composer attachments</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;max-width:320px">
+            <div class="ph-attachment" style="width:176px">
+              <div class="ph-att-thumb"></div>
+              <span class="ph-att-name">screenshot-2026.png</span>
+              <span class="ph-att-size">1.2 MB</span>
+              <span class="ph-att-remove">&times;</span>
+            </div>
+            <div class="ph-attachment" style="width:176px">
+              <div class="ph-att-thumb"></div>
+              <span class="ph-att-name">benchmark-results.csv</span>
+              <span class="ph-att-size">340 KB</span>
+              <span class="ph-att-remove">&times;</span>
+            </div>
+          </div>
+          <div class="anno red" style="position:relative;display:inline-block;margin-top:12px">w-44 = 176px, text truncated</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="phone-col">
+      <span class="tag after">After: w-full stacked</span>
+      <div class="phone" style="height:320px;border-radius:20px">
+        <div class="screen" style="padding:16px">
+          <div style="font-size:11px;color:#64748b;margin-bottom:8px;font-family:'DM Mono',monospace">Composer attachments</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div class="ph-attachment full-width" style="padding:8px 12px">
+              <div class="ph-att-thumb lg"></div>
+              <div style="flex:1;min-width:0">
+                <div class="ph-att-name" style="font-size:13px;font-weight:500">screenshot-2026.png</div>
+                <div class="ph-att-size" style="font-size:11px;margin-top:2px">1.2 MB</div>
+              </div>
+              <span class="ph-att-remove" style="font-size:20px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#1e293b">&times;</span>
+            </div>
+            <div class="ph-attachment full-width" style="padding:8px 12px">
+              <div class="ph-att-thumb lg" style="background:linear-gradient(135deg,#334155,#475569)"></div>
+              <div style="flex:1;min-width:0">
+                <div class="ph-att-name" style="font-size:13px;font-weight:500">benchmark-results.csv</div>
+                <div class="ph-att-size" style="font-size:11px;margin-top:2px">340 KB</div>
+              </div>
+              <span class="ph-att-remove" style="font-size:20px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#1e293b">&times;</span>
+            </div>
+          </div>
+          <div class="anno green" style="position:relative;display:inline-block;margin-top:12px">full-width, 48px thumb, clear info</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     Issue Index — all MC issues
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Issue Index</div>
+  <h2>Mobile Chat <em>Issue Cards</em></h2>
+  <p class="desc">所有移动端 Chat 相关问题的完整索引，含优先级、文件定位与修复方案。</p>
+
+  <div class="issue-grid">
+    <div class="issue-card">
+      <div class="ic-header">
+        <span class="ic-id">MC-1</span>
+        <span class="ic-severity p1">P1</span>
+      </div>
+      <div class="ic-title">Composer Send/Attach 按钮 32px</div>
+      <div class="ic-desc">Send 和 Attach 按钮 h-8 w-8 = 32px，低于移动端 44px 最低标准。Send 是移动端最高频操作。在 <code>@media (pointer: coarse)</code> 下提升至 h-11 w-11 (44px)。</div>
+      <div class="ic-file">MessageComposer.tsx:447, 465-468</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="ic-header">
+        <span class="ic-id">MC-2</span>
+        <span class="ic-severity p2">P2</span>
+      </div>
+      <div class="ic-title">ThreadSidebar 移动端 min/max 矛盾</div>
+      <div class="ic-desc">minWidth=320px > 75vw=281px (375px screen)。移动端改为全屏 <code>inset-0</code>，隐藏 ResizeHandle，back arrow 替代 X close。</div>
+      <div class="ic-file">ThreadSidebar.tsx:89-96</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="ic-header">
+        <span class="ic-id">MC-3</span>
+        <span class="ic-severity p1">P1</span>
+      </div>
+      <div class="ic-title">ConversationView loading 无语义角色</div>
+      <div class="ic-desc">Loading 用 &lt;p&gt; 纯文本，缺少 <code>role="status"</code>；Error 缺少 <code>role="alert"</code>。添加骨架屏替代纯文本，改善移动端视觉。</div>
+      <div class="ic-file">ConversationView.tsx:59-67</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="ic-header">
+        <span class="ic-id">MC-4</span>
+        <span class="ic-severity p1">P1</span>
+      </div>
+      <div class="ic-title">Mobile tab bar 触控目标 ~24px</div>
+      <div class="ic-desc">ConversationMobileTabs tab 按钮 px-2.5 py-1.5 text-xs 高度约 24px。移动端核心导航，需 min-h-[44px]。font-size 从 12px 提升至 13px。</div>
+      <div class="ic-file">ConversationMobileTabs.tsx:72-75</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="ic-header">
+        <span class="ic-id">MC-5</span>
+        <span class="ic-severity p2">P2</span>
+      </div>
+      <div class="ic-title">ThreadButton reply 区域偏小</div>
+      <div class="ic-desc">px-1.5 py-0.5 text-xs 高度约 20px。通过增加 padding + background 色块提升视觉权重和点击热区至 36px。</div>
+      <div class="ic-file">ThreadButton.tsx:32</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="ic-header">
+        <span class="ic-id">MC-6</span>
+        <span class="ic-severity p2">P2</span>
+      </div>
+      <div class="ic-title">MessageCopyButton 移动端可发现性</div>
+      <div class="ic-desc">Copy 按钮在 header line 中与 sender/time 挤一行。移动端无 hover 提示，考虑 long-press 菜单或移入 message action sheet。</div>
+      <div class="ic-file">MessageList.tsx:310</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="ic-header">
+        <span class="ic-id">MC-7</span>
+        <span class="ic-severity p2">P2</span>
+      </div>
+      <div class="ic-title">Attachment chip 移动端偏窄</div>
+      <div class="ic-desc">w-44 (176px) chip + max-w-xs (320px) 容器。移动端改为 w-full 单列，预览图从 h-8 w-8 (32px) 放大至 h-12 w-12 (48px)。</div>
+      <div class="ic-file">MessageComposer.tsx:374, 378</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="ic-header">
+        <span class="ic-id">MC-8</span>
+        <span class="ic-severity p2">P2</span>
+      </div>
+      <div class="ic-title">System notification 展开触控过小</div>
+      <div class="ic-desc">Toggle button text-[0.625rem] + h-3 图标 = ~20px 触控目标。增加 min-h-[36px] + padding。</div>
+      <div class="ic-file">MessageList.tsx:558-591</div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     Global touch target standard
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">Global Standard</div>
+  <h2>Touch Target <em>Utility Class</em></h2>
+  <p class="desc">建议在 Tailwind config 或 index.css 中定义全局 touch-target utility，所有交互元素在触控设备上自动满足 44px 标准。</p>
+
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:2rem;font-family:'DM Mono',monospace;font-size:.8rem;line-height:1.8;color:var(--text-2);overflow-x:auto">
+    <div style="color:var(--text-3)">/* index.css — global touch target utility */</div>
+    <div><span style="color:#c084fc">@media</span> (<span style="color:var(--accent-2)">pointer: coarse</span>) {</div>
+    <div>&nbsp;&nbsp;<span style="color:var(--green)">button</span>,</div>
+    <div>&nbsp;&nbsp;<span style="color:var(--green)">[role="tab"]</span>,</div>
+    <div>&nbsp;&nbsp;<span style="color:var(--green)">[role="menuitem"]</span>,</div>
+    <div>&nbsp;&nbsp;<span style="color:var(--green)">.touch-target</span> {</div>
+    <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--amber)">min-height</span>: <span style="color:var(--text-1)">44px</span>;</div>
+    <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--amber)">min-width</span>: <span style="color:var(--text-1)">44px</span>;</div>
+    <div>&nbsp;&nbsp;}</div>
+    <div>}</div>
+    <br>
+    <div style="color:var(--text-3)">/* tailwind.config.js — custom utility */</div>
+    <div><span style="color:var(--accent-2)">theme.extend.minHeight</span>: {</div>
+    <div>&nbsp;&nbsp;<span style="color:var(--green)">'touch'</span>: <span style="color:var(--text-1)">'44px'</span>,</div>
+    <div>}</div>
+    <div><span style="color:var(--accent-2)">theme.extend.minWidth</span>: {</div>
+    <div>&nbsp;&nbsp;<span style="color:var(--green)">'touch'</span>: <span style="color:var(--text-1)">'44px'</span>,</div>
+    <div>}</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     Implementation priority
+     ══════════════════════════════════════════════════════════════════ -->
+<div class="section" style="padding-bottom:8rem">
+  <div class="section-label">Implementation</div>
+  <h2>Priority <em>Roadmap</em></h2>
+
+  <div style="display:flex;flex-direction:column;gap:1px;margin-top:2rem">
+    <div style="display:grid;grid-template-columns:80px 1fr 100px;background:var(--bg-card);padding:1.25rem 1.5rem;border-radius:12px 12px 0 0;border:1px solid var(--border)">
+      <span style="font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--red)">Sprint 1</span>
+      <div>
+        <div style="font-weight:600;margin-bottom:.25rem">Mobile Chat 触控修复</div>
+        <div style="font-size:.8rem;color:var(--text-2)">MC-1 Composer buttons + MC-4 Tab bar + MC-5 ThreadButton + Global touch utility</div>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text-3);text-align:right">4 files</span>
+    </div>
+    <div style="display:grid;grid-template-columns:80px 1fr 100px;background:var(--bg-card);padding:1.25rem 1.5rem;border:1px solid var(--border);border-top:none">
+      <span style="font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--red)">Sprint 1</span>
+      <div>
+        <div style="font-weight:600;margin-bottom:.25rem">Modal a11y 修复</div>
+        <div style="font-size:.8rem;color:var(--text-2)">label/htmlFor + focus trap + aria-labelledby + aria-describedby</div>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text-3);text-align:right">8 files</span>
+    </div>
+    <div style="display:grid;grid-template-columns:80px 1fr 100px;background:var(--bg-card);padding:1.25rem 1.5rem;border:1px solid var(--border);border-top:none">
+      <span style="font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--amber)">Sprint 2</span>
+      <div>
+        <div style="font-weight:600;margin-bottom:.25rem">Thread Sidebar 移动全屏</div>
+        <div style="font-size:.8rem;color:var(--text-2)">MC-2 fullscreen + MC-3 loading skeleton + MC-7 attachment layout</div>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text-3);text-align:right">3 files</span>
+    </div>
+    <div style="display:grid;grid-template-columns:80px 1fr 100px;background:var(--bg-card);padding:1.25rem 1.5rem;border:1px solid var(--border);border-top:none">
+      <span style="font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--amber)">Sprint 2</span>
+      <div>
+        <div style="font-weight:600;margin-bottom:.25rem">Agents 表格移动端卡片视图</div>
+        <div style="font-size:.8rem;color:var(--text-2)">参考 MembersAgents 的 hidden md:block / md:hidden 模式</div>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text-3);text-align:right">1 file</span>
+    </div>
+    <div style="display:grid;grid-template-columns:80px 1fr 100px;background:var(--bg-card);padding:1.25rem 1.5rem;border-radius:0 0 12px 12px;border:1px solid var(--border);border-top:none">
+      <span style="font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--green)">Sprint 3</span>
+      <div>
+        <div style="font-weight:600;margin-bottom:.25rem">Static Sites + Long-term</div>
+        <div style="font-size:.8rem;color:var(--text-2)">skip-to-content + focus-visible + z-index scale + axe-core integration</div>
+      </div>
+      <span style="font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text-3);text-align:right">8+ files</span>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="text-align:center;padding:2rem;font-size:.7rem;color:var(--text-3);font-family:'DM Mono',monospace;letter-spacing:.06em">
+  agent-center UI/UX Design Spec &middot; 2026-06-26 &middot; Generated by Claude
+</div>
+
+</body>
+</html>

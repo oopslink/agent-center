@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>agent-center — Design System Migration: Hex-Inspired</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  /* Hex-inspired palette — adapted for agent-center */
+  --eggplant:     #31263B;
+  --eggplant-soft:#43394c;
+  --rose:         #F5C0C0;
+  --rose-muted:   #cda0a5;
+  --jade:         #5CB198;
+  --jade-dark:    #3d8c74;
+
+  /* Surfaces */
+  --bg-page:      #FFFCFC;
+  --bg-card:      #FFFFFF;
+  --bg-subtle:    #f8f5f6;
+  --bg-code:      #f3f0f2;
+  --bg-input:     #FFFFFF;
+
+  /* Borders */
+  --border-light: #e9e5e8;
+  --border:       #dbd7da;
+  --border-strong:#afa9b1;
+
+  /* Text */
+  --text-loud:    #01011b;
+  --text-default: #31263B;
+  --text-muted:   #717A94;
+  --text-faint:   #9e98a6;
+
+  /* Functional */
+  --accent:       #7C3AED;
+  --accent-hover: #6D28D9;
+  --success:      #5CB198;
+  --warning:      #E5A000;
+  --danger:       #D44040;
+  --info:         #5B8DEF;
+
+  /* Shadows — Hex-style multi-layer with inset */
+  --shadow-card:  0 0 11px 0 rgba(0,0,0,.05) inset, 0 0 0 1px rgba(0,0,0,.06), 0 8px 16px -4px rgba(0,0,0,.04);
+  --shadow-hover: 0 0 11px 0 rgba(0,0,0,.04) inset, 0 0 0 1px rgba(0,0,0,.08), 0 16px 24px -8px rgba(0,0,0,.06);
+  --shadow-modal: 0 0 0 1px rgba(0,0,0,.1), 0 24px 48px rgba(0,0,0,.15);
+  --shadow-dark-card: 0 0 11px 0 rgba(0,0,0,.2) inset, 0 0 0 1px rgba(255,255,255,.04), 0 8px 24px rgba(0,0,0,.3);
+  --shadow-dark-hover: 0 0 11px 0 rgba(0,0,0,.15) inset, 0 0 0 1px rgba(255,255,255,.06), 0 16px 32px rgba(0,0,0,.4);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 100px;
+
+  /* Dark theme equivalents */
+  --dark-bg-page:   #14141C;
+  --dark-bg-card:   #1e1a22;
+  --dark-bg-subtle: #252128;
+  --dark-border:    #3a3440;
+  --dark-text:      #e3dde6;
+  --dark-text-muted:#9e98a6;
+}
+
+html{scroll-behavior:smooth}
+body{
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;
+  background:var(--bg-page);
+  color:var(--text-default);
+  line-height:1.6;
+  overflow-x:hidden;
+  /* Hex-style dot grid texture */
+  background-image: radial-gradient(circle, var(--border-light) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Gradient border mixin — Hex signature */
+.gradient-border {
+  position:relative;
+  border:1px solid transparent;
+  background-clip:padding-box;
+}
+.gradient-border::before {
+  content:'';position:absolute;inset:-1px;border-radius:inherit;
+  background:linear-gradient(135deg, var(--rose-muted), var(--eggplant-soft), var(--border));
+  z-index:-1;
+  opacity:.4;
+  transition:opacity .2s;
+}
+.gradient-border:hover::before { opacity:.7; }
+
+/* Corner accent lines on hover — Hex card signature */
+.corner-accent { position:relative; }
+.corner-accent::after {
+  content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;
+  opacity:0;transition:opacity .25s;
+  background:
+    linear-gradient(var(--rose-muted), var(--rose-muted)) 0 0 / 20px 1px no-repeat,
+    linear-gradient(var(--rose-muted), var(--rose-muted)) 0 0 / 1px 20px no-repeat,
+    linear-gradient(var(--rose-muted), var(--rose-muted)) 100% 100% / 20px 1px no-repeat,
+    linear-gradient(var(--rose-muted), var(--rose-muted)) 100% 100% / 1px 20px no-repeat;
+}
+.corner-accent:hover::after { opacity:.6; }
+
+/* Inset card — Hex signature concave feel */
+.inset-card {
+  box-shadow: var(--shadow-card);
+  background: linear-gradient(105deg, rgba(245,192,192,0) 10%, rgba(245,192,192,.015) 108%), var(--bg-card);
+}
+
+/* ── Layout ── */
+.container{max-width:1100px;margin:0 auto;padding:0 2rem}
+.section{padding:5rem 0}
+.section-label{
+  font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:.75rem;
+}
+.section h2{font-size:clamp(1.5rem,3vw,2.2rem);font-weight:700;line-height:1.25;letter-spacing:-.02em;color:var(--text-loud);margin-bottom:.75rem}
+.section h2 em{font-style:normal;color:var(--accent)}
+.section>.desc{color:var(--text-muted);max-width:560px;margin-bottom:2.5rem;font-size:.95rem}
+.divider{width:100%;height:1px;background:var(--border-light);margin:0}
+
+/* ── Hero ── */
+.hero{
+  min-height:70vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;text-align:center;padding:4rem 2rem;
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 700px 500px at 35% 30%, rgba(245,192,192,.18) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 400px at 65% 70%, rgba(92,177,152,.1) 0%, transparent 70%);
+  pointer-events:none;
+}
+.hero::after{
+  content:'';position:absolute;inset:0;
+  /* Hex-style hatch texture overlay */
+  background:repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(49,38,59,.015) 10px,
+    rgba(49,38,59,.015) 11px
+  );
+  pointer-events:none;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:.5rem;
+  font-family:'IBM Plex Mono',monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--eggplant);border:1px solid var(--border);border-radius:var(--radius-pill);
+  padding:.4rem 1.2rem;margin-bottom:1.5rem;background:var(--bg-subtle);
+  animation:fadeUp .6s ease both;
+}
+.hero-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--jade)}
+.hero h1{
+  font-size:clamp(2.2rem,5vw,3.8rem);font-weight:800;line-height:1.08;
+  letter-spacing:-.03em;max-width:700px;color:var(--text-loud);
+  animation:fadeUp .6s .1s ease both;
+}
+.hero h1 em{
+  font-style:normal;
+  background:linear-gradient(135deg,var(--eggplant),var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.hero p{font-size:1.05rem;color:var(--text-muted);max-width:480px;margin-top:1.25rem;animation:fadeUp .6s .2s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Swatch row ── */
+.swatch-row{display:flex;gap:4px;flex-wrap:wrap;margin:1rem 0}
+.swatch{
+  width:64px;height:64px;border-radius:var(--radius-md);display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-end;padding:4px;font-family:'IBM Plex Mono',monospace;
+  font-size:8px;letter-spacing:.04em;border:1px solid var(--border-light);
+}
+.swatch.lg{width:96px;height:96px;font-size:9px}
+.swatch span{background:rgba(255,255,255,.85);padding:1px 4px;border-radius:3px;margin-top:2px}
+
+/* ── Comparison panels ── */
+.compare-row{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin:2rem 0}
+.compare-panel{border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)}
+.compare-panel .cp-label{
+  padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:.65rem;
+  letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--border-light);
+}
+.compare-panel.old .cp-label{color:var(--danger);background:#fef2f2}
+.compare-panel.new .cp-label{color:var(--jade-dark);background:#f0fdf6}
+.compare-panel .cp-body{padding:20px}
+
+/* ── Component demos ── */
+.demo-card{
+  background: linear-gradient(105deg, rgba(245,192,192,0) 10%, rgba(245,192,192,.02) 108%), var(--bg-card);
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:1.5rem;box-shadow:var(--shadow-card);transition:all .25s;
+  position:relative;
+}
+.demo-card::after{
+  content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;
+  opacity:0;transition:opacity .25s;
+  background:
+    linear-gradient(var(--rose-muted), var(--rose-muted)) 0 0 / 16px 1px no-repeat,
+    linear-gradient(var(--rose-muted), var(--rose-muted)) 0 0 / 1px 16px no-repeat,
+    linear-gradient(var(--rose-muted), var(--rose-muted)) 100% 100% / 16px 1px no-repeat,
+    linear-gradient(var(--rose-muted), var(--rose-muted)) 100% 100% / 1px 16px no-repeat;
+}
+.demo-card:hover{box-shadow:var(--shadow-hover);border-color:var(--rose-muted)}
+.demo-card:hover::after{opacity:.5}
+
+.demo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5rem;margin:2rem 0}
+
+.demo-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+  font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:.85rem;
+  border-radius:var(--radius-md);cursor:default;transition:all .15s;
+}
+.demo-btn.primary{
+  background:var(--eggplant);color:#fff;padding:0 20px;height:44px;
+  border:1px solid transparent;
+  background-image:linear-gradient(var(--eggplant),var(--eggplant)),linear-gradient(135deg,var(--rose-muted),var(--eggplant));
+  background-origin:border-box;background-clip:padding-box,border-box;
+  box-shadow:0 1px 3px rgba(49,38,59,.2);
+}
+.demo-btn.primary:hover{opacity:.9}
+.demo-btn.secondary{
+  background:var(--bg-card);color:var(--text-default);padding:0 16px;height:40px;
+  border:1px solid var(--border);
+  box-shadow:0 0 8px rgba(0,0,0,.03) inset;
+}
+.demo-btn.ghost{
+  background:transparent;color:var(--accent);padding:0 12px;height:36px;border:none;
+}
+.demo-btn.pill{border-radius:var(--radius-pill)}
+
+.demo-input{
+  width:100%;height:44px;padding:0 14px;border:1px solid var(--border);
+  border-radius:var(--radius-md);font-size:.9rem;color:var(--text-default);
+  background:var(--bg-input);outline:none;font-family:inherit;
+}
+.demo-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
+.demo-input::placeholder{color:var(--text-faint)}
+
+.demo-chip{
+  display:inline-flex;align-items:center;padding:4px 12px;border-radius:var(--radius-pill);
+  font-size:.75rem;font-weight:500;gap:4px;
+}
+
+/* ── Spec table ── */
+.spec-table{width:100%;border-collapse:collapse;margin:1.5rem 0;font-size:.85rem}
+.spec-table th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:.75rem 1rem;border-bottom:1px solid var(--border)}
+.spec-table td{padding:.75rem 1rem;border-bottom:1px solid var(--border-light);color:var(--text-muted)}
+.spec-table .val{color:var(--text-default);font-family:'IBM Plex Mono',monospace;font-size:.8rem}
+.spec-table .old{color:var(--danger);text-decoration:line-through}
+.spec-table .new{color:var(--jade-dark)}
+
+/* ── Chat demo ── */
+.chat-demo{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);
+  overflow:hidden;max-width:480px;margin:2rem auto;box-shadow:var(--shadow-card);
+}
+.chat-header{
+  padding:14px 20px;border-bottom:1px solid var(--border-light);
+  display:flex;align-items:center;gap:10px;font-weight:600;font-size:.9rem;
+}
+.chat-messages{padding:16px 20px;display:flex;flex-direction:column;gap:16px}
+.chat-msg{display:flex;flex-direction:column;gap:4px}
+.chat-msg.own{align-items:flex-end}
+.chat-msg-meta{font-size:.7rem;color:var(--text-faint);display:flex;align-items:center;gap:6px}
+.chat-msg.own .chat-msg-meta{flex-direction:row-reverse}
+.chat-bubble{
+  max-width:85%;padding:10px 14px;border-radius:var(--radius-lg);
+  font-size:.875rem;line-height:1.55;
+}
+.chat-msg.other .chat-bubble{background:var(--bg-subtle);color:var(--text-default);border:1px solid var(--border-light)}
+.chat-msg.own .chat-bubble{background:var(--eggplant);color:#f8f5f6}
+.chat-composer{
+  padding:12px 16px;border-top:1px solid var(--border-light);display:flex;gap:8px;align-items:center;
+}
+.chat-composer input{
+  flex:1;height:40px;border:1px solid var(--border);border-radius:var(--radius-md);
+  padding:0 12px;font-size:.85rem;outline:none;background:var(--bg-card);color:var(--text-default);font-family:inherit;
+}
+.chat-composer .send-btn{
+  width:40px;height:40px;border-radius:var(--radius-md);background:var(--eggplant);
+  border:none;display:flex;align-items:center;justify-content:center;color:#fff;cursor:default;
+}
+
+/* ── Dark panel ── */
+.dark-panel{
+  background:var(--dark-bg-page);border-radius:var(--radius-lg);padding:2rem;
+  border:1px solid var(--dark-border);color:var(--dark-text);
+}
+.dark-panel .dp-card{
+  background:var(--dark-bg-card);border:1px solid var(--dark-border);
+  border-radius:var(--radius-md);padding:1rem;margin-top:1rem;
+}
+
+/* ── Roadmap ── */
+.roadmap-item{display:grid;grid-template-columns:80px 1fr;background:var(--bg-card);padding:1.25rem 1.5rem;border:1px solid var(--border-light)}
+.roadmap-item:first-child{border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.roadmap-item:last-child{border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+.roadmap-item:not(:first-child){border-top:none}
+.roadmap-label{font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase}
+.roadmap-title{font-weight:600;margin-bottom:.25rem;color:var(--text-loud)}
+.roadmap-desc{font-size:.8rem;color:var(--text-muted)}
+
+@media(max-width:768px){
+  .compare-row{grid-template-columns:1fr}
+  .demo-grid{grid-template-columns:1fr}
+  .swatch{width:48px;height:48px}
+}
+</style>
+</head>
+<body>
+
+<!-- ════════ HERO ════════ -->
+<div class="hero">
+  <div class="hero-badge"><span class="dot"></span> Design System Migration</div>
+  <h1>Hex-Inspired <em>Visual Refresh</em></h1>
+  <p>从深色工具风格迁移到 Hex 风格的浅色、宽松、专业 SaaS 视觉体系。Light-first + 紫色品牌 + 对话式 AI 原生界面。</p>
+</div>
+
+<!-- ════════ 1. COLOR PALETTE ════════ -->
+<div class="divider"></div>
+<div class="container">
+<div class="section">
+  <div class="section-label">01 · Color</div>
+  <h2>Color <em>Palette</em></h2>
+  <p class="desc">从 Slate 冷灰深色体系迁移到 Hex 的暖紫浅色体系。Light-first 设计，dark mode 为二级主题。</p>
+
+  <h3 style="font-size:.95rem;font-weight:600;margin-bottom:1rem">Brand</h3>
+  <div class="swatch-row">
+    <div class="swatch lg" style="background:#31263B;color:#fff"><span style="color:#31263B">#31263B</span><br>Eggplant</div>
+    <div class="swatch lg" style="background:#F5C0C0"><span>#F5C0C0</span><br>Rose</div>
+    <div class="swatch lg" style="background:#5CB198;color:#fff"><span style="color:#5CB198">#5CB198</span><br>Jade</div>
+    <div class="swatch lg" style="background:#7C3AED;color:#fff"><span style="color:#7C3AED">#7C3AED</span><br>Accent</div>
+  </div>
+
+  <h3 style="font-size:.95rem;font-weight:600;margin:1.5rem 0 1rem">Surfaces (Light)</h3>
+  <div class="swatch-row">
+    <div class="swatch" style="background:#FFFCFC"><span>#FFFCFC</span></div>
+    <div class="swatch" style="background:#FFFFFF;border-color:#dbd7da"><span>#FFFFFF</span></div>
+    <div class="swatch" style="background:#f8f5f6"><span>#f8f5f6</span></div>
+    <div class="swatch" style="background:#f3f0f2"><span>#f3f0f2</span></div>
+    <div class="swatch" style="background:#e9e5e8"><span>#e9e5e8</span></div>
+    <div class="swatch" style="background:#dbd7da"><span>#dbd7da</span></div>
+  </div>
+
+  <h3 style="font-size:.95rem;font-weight:600;margin:1.5rem 0 1rem">Surfaces (Dark)</h3>
+  <div class="swatch-row">
+    <div class="swatch" style="background:#14141C;color:#fff"><span style="color:#14141C">#14141C</span></div>
+    <div class="swatch" style="background:#1e1a22;color:#fff"><span style="color:#1e1a22">#1e1a22</span></div>
+    <div class="swatch" style="background:#252128;color:#fff"><span style="color:#252128">#252128</span></div>
+    <div class="swatch" style="background:#3a3440;color:#fff"><span style="color:#3a3440">#3a3440</span></div>
+  </div>
+
+  <h3 style="font-size:.95rem;font-weight:600;margin:1.5rem 0 1rem">Text</h3>
+  <div class="swatch-row">
+    <div class="swatch" style="background:#01011b;color:#fff"><span style="color:#01011b">#01011b</span><br>Loud</div>
+    <div class="swatch" style="background:#31263B;color:#fff"><span style="color:#31263B">#31263B</span><br>Default</div>
+    <div class="swatch" style="background:#717A94;color:#fff"><span style="color:#717A94">#717A94</span><br>Muted</div>
+    <div class="swatch" style="background:#9e98a6;color:#fff"><span style="color:#9e98a6">#9e98a6</span><br>Faint</div>
+  </div>
+
+  <h3 style="font-size:.95rem;font-weight:600;margin:1.5rem 0 1rem">Functional</h3>
+  <div class="swatch-row">
+    <div class="swatch" style="background:#5CB198;color:#fff"><span style="color:#5CB198">Success</span></div>
+    <div class="swatch" style="background:#E5A000;color:#fff"><span style="color:#E5A000">Warning</span></div>
+    <div class="swatch" style="background:#D44040;color:#fff"><span style="color:#D44040">Danger</span></div>
+    <div class="swatch" style="background:#5B8DEF;color:#fff"><span style="color:#5B8DEF">Info</span></div>
+  </div>
+
+  <!-- Migration table -->
+  <table class="spec-table">
+    <thead><tr><th>Token</th><th>Current (Slate)</th><th>New (Hex-inspired)</th></tr></thead>
+    <tbody>
+      <tr><td>--color-bg-base</td><td><span class="val old">#f8fafc (slate-50)</span></td><td><span class="val new">#FFFCFC (warm white)</span></td></tr>
+      <tr><td>--color-bg-elevated</td><td><span class="val old">#ffffff</span></td><td><span class="val new">#FFFFFF (unchanged)</span></td></tr>
+      <tr><td>--color-bg-subtle</td><td><span class="val old">#f1f5f9 (slate-100)</span></td><td><span class="val new">#f8f5f6 (warm gray)</span></td></tr>
+      <tr><td>--color-border</td><td><span class="val old">#e2e8f0 (slate-200)</span></td><td><span class="val new">#dbd7da (warm border)</span></td></tr>
+      <tr><td>--color-text-primary</td><td><span class="val old">#0f172a (slate-900)</span></td><td><span class="val new">#31263B (eggplant)</span></td></tr>
+      <tr><td>--color-text-muted</td><td><span class="val old">#64748b (slate-500)</span></td><td><span class="val new">#717A94 (warm muted)</span></td></tr>
+      <tr><td>--color-brand</td><td><span class="val old">#1e40af (blue-800)</span></td><td><span class="val new">#7C3AED (violet-600)</span></td></tr>
+      <tr><td>--color-accent</td><td><span class="val old">#2563eb (blue-600)</span></td><td><span class="val new">#7C3AED (violet-600)</span></td></tr>
+      <tr><td>--color-success</td><td><span class="val old">#22c55e (green-500)</span></td><td><span class="val new">#5CB198 (jade)</span></td></tr>
+      <tr><td>--color-danger</td><td><span class="val old">#dc2626 (red-600)</span></td><td><span class="val new">#D44040 (warm red)</span></td></tr>
+      <tr><td>Own chat bubble</td><td><span class="val old">#D1E3FF (light blue)</span></td><td><span class="val new">#31263B (eggplant, white text)</span></td></tr>
+      <tr><td>Other chat bubble</td><td><span class="val old">bg-subtle (gray pill)</span></td><td><span class="val new">bg-subtle + border (bordered card)</span></td></tr>
+      <tr><td>Module rail</td><td><span class="val old">#1e1b34 (deep indigo)</span></td><td><span class="val new">#31263B (eggplant)</span></td></tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- ════════ 2. TYPOGRAPHY ════════ -->
+<div class="divider"></div>
+<div class="container">
+<div class="section">
+  <div class="section-label">02 · Typography</div>
+  <h2>Font <em>System</em></h2>
+  <p class="desc">从系统字体栈迁移到 Plus Jakarta Sans + IBM Plex Mono。Hex 使用自有 Cinetype 字体；开源替代中 Plus Jakarta Sans 气质最接近——friendly, modern, SaaS-native。</p>
+
+  <div style="margin:2rem 0">
+    <div style="font-family:'Plus Jakarta Sans';font-size:2.2rem;font-weight:800;color:var(--text-loud);letter-spacing:-.02em;line-height:1.15;margin-bottom:.5rem">
+      The analytics platform for humans and agents
+    </div>
+    <div style="font-family:'Plus Jakarta Sans';font-size:1rem;color:var(--text-muted);line-height:1.6;max-width:480px">
+      agent-center 让你的 AI Agent 团队像人类团队一样协作——带任务管理、对话频道和自动化编排。
+    </div>
+    <div style="font-family:'IBM Plex Mono';font-size:.8rem;color:var(--text-faint);margin-top:1rem;background:var(--bg-subtle);padding:8px 12px;border-radius:var(--radius-md);display:inline-block">
+      agent-01a8f3 · running · 2d 14h · load: 0.72
+    </div>
+  </div>
+
+  <table class="spec-table">
+    <thead><tr><th>Role</th><th>Current</th><th>New</th></tr></thead>
+    <tbody>
+      <tr><td>Heading</td><td><span class="val old">system-ui stack</span></td><td><span class="val new">Plus Jakarta Sans 700/800</span></td></tr>
+      <tr><td>Body</td><td><span class="val old">system-ui stack</span></td><td><span class="val new">Plus Jakarta Sans 400/500</span></td></tr>
+      <tr><td>Mono</td><td><span class="val old">JetBrains Mono</span></td><td><span class="val new">IBM Plex Mono 400/500</span></td></tr>
+      <tr><td>Body size</td><td><span class="val old">14px (text-sm)</span></td><td><span class="val new">14px (unchanged)</span></td></tr>
+      <tr><td>Body line-height</td><td><span class="val old">1.5 (leading-normal)</span></td><td><span class="val new">1.571 (Hex standard)</span></td></tr>
+      <tr><td>H1</td><td><span class="val old">text-xl (20px)</span></td><td><span class="val new">clamp(20px, 3vw, 28px) 800</span></td></tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- ════════ 3. COMPONENTS ════════ -->
+<div class="divider"></div>
+<div class="container">
+<div class="section">
+  <div class="section-label">03 · Components</div>
+  <h2>Core <em>Components</em></h2>
+  <p class="desc">按钮、输入框、卡片、标签等基础组件的新样式。圆角从 4-6px 提升到 8-12px，阴影更柔和。Light / Dark 并排对照。</p>
+
+  <div class="demo-grid">
+    <!-- Buttons -->
+    <div class="demo-card">
+      <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem">Buttons</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <span class="demo-btn primary">Start Plan</span>
+        <span class="demo-btn secondary">Edit Task</span>
+        <span class="demo-btn ghost">View Details</span>
+        <span class="demo-btn primary pill">+ New Agent</span>
+      </div>
+    </div>
+
+    <!-- Inputs -->
+    <div class="demo-card">
+      <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem">Inputs</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <input class="demo-input" placeholder="Task title..." readonly>
+        <input class="demo-input" placeholder="Search agents..." readonly style="border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.1)">
+      </div>
+    </div>
+
+    <!-- Chips / Badges -->
+    <div class="demo-card">
+      <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem">Chips & Badges</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <span class="demo-chip" style="background:rgba(92,177,152,.12);color:#3d8c74">running</span>
+        <span class="demo-chip" style="background:rgba(229,160,0,.12);color:#b07800">pending</span>
+        <span class="demo-chip" style="background:rgba(212,64,64,.12);color:#D44040">blocked</span>
+        <span class="demo-chip" style="background:rgba(124,58,237,.1);color:#7C3AED">draft</span>
+        <span class="demo-chip" style="background:var(--bg-subtle);color:var(--text-muted);border:1px solid var(--border-light)">done</span>
+        <span class="demo-chip" style="background:var(--eggplant);color:#fff">TASK</span>
+        <span class="demo-chip" style="background:var(--rose);color:var(--eggplant)">ISSUE</span>
+        <span class="demo-chip" style="background:var(--jade);color:#fff">PLAN</span>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="demo-card">
+      <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem">Card Styles</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 16px;box-shadow:var(--shadow-card)">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:4px">Default Card</div>
+          <div style="font-size:.8rem;color:var(--text-muted)">border + subtle shadow</div>
+        </div>
+        <div style="background:var(--bg-subtle);border:1px solid var(--border-light);border-radius:var(--radius-md);padding:12px 16px">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:4px">Subtle Card</div>
+          <div style="font-size:.8rem;color:var(--text-muted)">bg-subtle + light border, no shadow</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shadows -->
+    <div class="demo-card">
+      <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem">Shadows & Radius</div>
+      <div style="display:flex;gap:16px;align-items:flex-end">
+        <div style="width:60px;height:60px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-family:'IBM Plex Mono',monospace;color:var(--text-faint)">6px</div>
+        <div style="width:60px;height:60px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-card);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-family:'IBM Plex Mono',monospace;color:var(--text-faint)">8px</div>
+        <div style="width:60px;height:60px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-hover);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-family:'IBM Plex Mono',monospace;color:var(--text-faint)">12px</div>
+        <div style="width:60px;height:60px;background:var(--bg-card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-modal);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-family:'IBM Plex Mono',monospace;color:var(--text-faint)">16px</div>
+      </div>
+    </div>
+
+    <!-- Sidebar nav -->
+    <div class="demo-card">
+      <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:1rem">Sidebar Nav Item</div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="padding:8px 12px;border-radius:var(--radius-md);background:rgba(124,58,237,.08);color:var(--accent);font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:8px">
+          <span style="width:6px;height:6px;background:var(--accent);border-radius:50%"></span>
+          Agents
+        </div>
+        <div style="padding:8px 12px;border-radius:var(--radius-md);color:var(--text-muted);font-size:.85rem;font-weight:500;display:flex;align-items:center;gap:8px">
+          <span style="width:6px;height:6px;background:transparent;border-radius:50%"></span>
+          Projects
+        </div>
+        <div style="padding:8px 12px;border-radius:var(--radius-md);color:var(--text-muted);font-size:.85rem;font-weight:500;display:flex;align-items:center;gap:8px">
+          <span style="width:6px;height:6px;background:transparent;border-radius:50%"></span>
+          Channels
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dark mode component demos -->
+  <h3 style="font-size:1.1rem;font-weight:600;margin:3rem 0 1.5rem;color:var(--text-loud)">Dark Mode Components</h3>
+  <div style="background:#14141C;border-radius:var(--radius-lg);padding:2rem;border:1px solid #3a3440">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem">
+
+      <!-- Dark: Buttons -->
+      <div style="background:#1e1a22;border:1px solid #3a3440;border-radius:var(--radius-lg);padding:1.5rem">
+        <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#9e98a6;margin-bottom:1rem">Buttons (Dark)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+          <span style="display:inline-flex;align-items:center;justify-content:center;background:#a78bfa;color:#14141C;padding:0 20px;height:44px;border-radius:8px;font-weight:600;font-size:.85rem;font-family:'Plus Jakarta Sans',sans-serif">Start Plan</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;background:#1e1a22;color:#e3dde6;padding:0 16px;height:40px;border-radius:8px;font-weight:600;font-size:.85rem;border:1px solid #3a3440;font-family:'Plus Jakarta Sans',sans-serif">Edit Task</span>
+          <span style="display:inline-flex;align-items:center;justify-content:center;color:#a78bfa;padding:0 12px;height:36px;border-radius:8px;font-weight:600;font-size:.85rem;font-family:'Plus Jakarta Sans',sans-serif">View Details</span>
+        </div>
+      </div>
+
+      <!-- Dark: Inputs -->
+      <div style="background:#1e1a22;border:1px solid #3a3440;border-radius:var(--radius-lg);padding:1.5rem">
+        <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#9e98a6;margin-bottom:1rem">Inputs (Dark)</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="width:100%;height:44px;padding:0 14px;border:1px solid #3a3440;border-radius:8px;display:flex;align-items:center;font-size:.9rem;color:#9e98a6;background:#252128;font-family:inherit">Task title...</div>
+          <div style="width:100%;height:44px;padding:0 14px;border:1px solid #7C3AED;border-radius:8px;display:flex;align-items:center;font-size:.9rem;color:#9e98a6;background:#252128;box-shadow:0 0 0 3px rgba(124,58,237,.2);font-family:inherit">Search agents...</div>
+        </div>
+      </div>
+
+      <!-- Dark: Chips -->
+      <div style="background:#1e1a22;border:1px solid #3a3440;border-radius:var(--radius-lg);padding:1.5rem">
+        <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#9e98a6;margin-bottom:1rem">Chips (Dark)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:100px;font-size:.75rem;font-weight:500;background:rgba(92,177,152,.18);color:#6fcfaa">running</span>
+          <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:100px;font-size:.75rem;font-weight:500;background:rgba(229,160,0,.18);color:#f0c050">pending</span>
+          <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:100px;font-size:.75rem;font-weight:500;background:rgba(212,64,64,.18);color:#f08080">blocked</span>
+          <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:100px;font-size:.75rem;font-weight:500;background:rgba(167,139,250,.15);color:#c4b5fd">draft</span>
+        </div>
+      </div>
+
+      <!-- Dark: Cards -->
+      <div style="background:#1e1a22;border:1px solid #3a3440;border-radius:var(--radius-lg);padding:1.5rem">
+        <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#9e98a6;margin-bottom:1rem">Cards (Dark)</div>
+        <div style="background:#252128;border:1px solid #3a3440;border-radius:8px;padding:12px 16px;box-shadow:0 0 0 1px rgba(255,255,255,.03),0 8px 16px -4px rgba(0,0,0,.3)">
+          <div style="font-weight:600;font-size:.9rem;color:#e3dde6;margin-bottom:4px">Default Card</div>
+          <div style="font-size:.8rem;color:#9e98a6">border + dark shadow</div>
+        </div>
+      </div>
+
+      <!-- Dark: Sidebar -->
+      <div style="background:#1e1a22;border:1px solid #3a3440;border-radius:var(--radius-lg);padding:1.5rem">
+        <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#9e98a6;margin-bottom:1rem">Sidebar Nav (Dark)</div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <div style="padding:8px 12px;border-radius:8px;background:rgba(167,139,250,.12);color:#c4b5fd;font-size:.85rem;font-weight:600;display:flex;align-items:center;gap:8px">
+            <span style="width:6px;height:6px;background:#a78bfa;border-radius:50%"></span>Agents
+          </div>
+          <div style="padding:8px 12px;border-radius:8px;color:#9e98a6;font-size:.85rem;font-weight:500;display:flex;align-items:center;gap:8px">
+            <span style="width:6px;height:6px;border-radius:50%"></span>Projects
+          </div>
+          <div style="padding:8px 12px;border-radius:8px;color:#9e98a6;font-size:.85rem;font-weight:500;display:flex;align-items:center;gap:8px">
+            <span style="width:6px;height:6px;border-radius:50%"></span>Channels
+          </div>
+        </div>
+      </div>
+
+      <!-- Dark: Module Rail -->
+      <div style="background:#1e1a22;border:1px solid #3a3440;border-radius:var(--radius-lg);padding:1.5rem">
+        <div style="font-size:.7rem;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;text-transform:uppercase;color:#9e98a6;margin-bottom:1rem">Module Rail (Dark)</div>
+        <div style="background:#31263B;border-radius:8px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:12px;width:48px">
+          <div style="width:32px;height:32px;border-radius:6px;background:rgba(167,139,250,.2);display:flex;align-items:center;justify-content:center">
+            <div style="width:4px;height:4px;background:#a78bfa;border-radius:50%"></div>
+          </div>
+          <div style="width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center">
+            <div style="width:4px;height:4px;background:#9e98a6;border-radius:50%"></div>
+          </div>
+          <div style="width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center">
+            <div style="width:4px;height:4px;background:#9e98a6;border-radius:50%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ════════ 3.5 TEXTURE & QUALITY ════════ -->
+<div class="divider"></div>
+<div class="container">
+<div class="section">
+  <div class="section-label">03.5 · Texture</div>
+  <h2>Surface <em>Quality</em></h2>
+  <p class="desc">Hex 的质感密码——不是纯色平面，而是多层视觉纹理叠加。每个表面都有"物理感"。</p>
+
+  <div class="demo-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+
+    <!-- Dot Grid -->
+    <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
+      <div style="padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border-light)">Dot Grid Background</div>
+      <div style="height:120px;background-color:var(--bg-page);background-image:radial-gradient(circle,var(--border) 1px,transparent 1px);background-size:24px 24px;display:flex;align-items:center;justify-content:center">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--text-faint);background:var(--bg-card);padding:4px 12px;border-radius:var(--radius-sm);border:1px solid var(--border-light)">24px grid · 1px dots</span>
+      </div>
+    </div>
+
+    <!-- Hatch Pattern -->
+    <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
+      <div style="padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border-light)">45° Hatch Overlay</div>
+      <div style="height:120px;background-color:var(--bg-subtle);background-image:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(49,38,59,.025) 10px,rgba(49,38,59,.025) 11px);display:flex;align-items:center;justify-content:center">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--text-faint);background:var(--bg-card);padding:4px 12px;border-radius:var(--radius-sm);border:1px solid var(--border-light)">hero / section bg</span>
+      </div>
+    </div>
+
+    <!-- Inset Shadow Card -->
+    <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
+      <div style="padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border-light)">Inset Shadow (concave)</div>
+      <div style="height:120px;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg-subtle)">
+        <div style="width:100%;height:100%;border-radius:var(--radius-md);background:linear-gradient(105deg,rgba(245,192,192,0) 10%,rgba(245,192,192,.02) 108%),var(--bg-card);border:1px solid var(--border);box-shadow:0 0 11px 0 rgba(0,0,0,.05) inset, 0 0 0 1px rgba(0,0,0,.06), 0 8px 16px -4px rgba(0,0,0,.04);display:flex;align-items:center;justify-content:center">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:var(--text-faint)">inset 11px + outline + drop</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gradient Border -->
+    <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
+      <div style="padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border-light)">Gradient Border (CTA)</div>
+      <div style="height:120px;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg-page)">
+        <div style="background:var(--eggplant);color:#fff;padding:0 24px;height:48px;border-radius:var(--radius-md);display:flex;align-items:center;font-weight:600;font-size:.9rem;border:1px solid transparent;background-image:linear-gradient(var(--eggplant),var(--eggplant)),linear-gradient(135deg,var(--rose),var(--eggplant-soft));background-origin:border-box;background-clip:padding-box,border-box;box-shadow:0 2px 8px rgba(49,38,59,.25)">
+          Get Started
+        </div>
+      </div>
+    </div>
+
+    <!-- Corner Accents -->
+    <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
+      <div style="padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border-light)">Corner Accent (hover)</div>
+      <div style="height:120px;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg-page)">
+        <div class="demo-card corner-accent" style="width:100%;height:100%;margin:0;display:flex;align-items:center;justify-content:center;border-color:var(--rose-muted)">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:var(--text-faint)">hover me → corner lines</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rose Gradient Wash -->
+    <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
+      <div style="padding:10px 16px;font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border-light)">Rose Gradient Wash</div>
+      <div style="height:120px;background:linear-gradient(105deg,rgba(245,192,192,0) 10%,rgba(245,192,192,.06) 108%),var(--bg-card);display:flex;align-items:center;justify-content:center">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:var(--text-faint)">105° · rose @ 6% opacity</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CSS token reference -->
+  <h3 style="font-size:.95rem;font-weight:600;margin:2rem 0 1rem;color:var(--text-loud)">Quality Tokens (index.css)</h3>
+  <table class="spec-table">
+    <thead><tr><th>Token / Pattern</th><th>CSS</th><th>Usage</th></tr></thead>
+    <tbody>
+      <tr><td>Dot grid</td><td><span class="val">radial-gradient(circle, border 1px, transparent 1px) / 24px 24px</span></td><td>Page background, section fills</td></tr>
+      <tr><td>Hatch overlay</td><td><span class="val">repeating-linear-gradient(45deg, ... 10px, ... 11px)</span></td><td>Hero, feature sections</td></tr>
+      <tr><td>Inset shadow</td><td><span class="val">0 0 11px 0 rgba(0,0,0,.05) inset</span></td><td>All elevated cards (first layer)</td></tr>
+      <tr><td>Gradient border</td><td><span class="val">background-image: linear-gradient(...), linear-gradient(135deg, rose, eggplant)</span></td><td>CTA buttons, featured cards</td></tr>
+      <tr><td>Corner accent</td><td><span class="val">::after with 4× linear-gradient 20px × 1px</span></td><td>Card hover state</td></tr>
+      <tr><td>Rose wash</td><td><span class="val">linear-gradient(105deg, rgba(rose,0) 10%, rgba(rose,.02) 108%)</span></td><td>Card background subtle warmth</td></tr>
+      <tr><td>Multi-layer shadow</td><td><span class="val">inset + outline (0 0 0 1px) + drop</span></td><td>All cards, 3-layer standard</td></tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- ════════ 4. CHAT UI ════════ -->
+<div class="divider"></div>
+<div class="container">
+<div class="section">
+  <div class="section-label">04 · Chat</div>
+  <h2>Conversational <em>UI</em></h2>
+  <p class="desc">Chat 气泡从蓝色/灰色迁移到 Eggplant (own) / bordered card (other)。Light / Dark 双模式并排对照。</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:2rem;margin:2rem 0">
+
+  <!-- LIGHT chat -->
+  <div>
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--jade-dark);text-align:center;margin-bottom:.75rem">Light Mode</div>
+  <div class="chat-demo">
+    <div class="chat-header">
+      <div style="width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,var(--accent),#a78bfa);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">A</div>
+      <div>
+        <div style="font-size:.9rem">@agent-alpha</div>
+        <div style="font-size:.65rem;color:var(--text-faint);font-weight:400">Direct message</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:4px">
+        <span style="font-size:.7rem;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-pill);color:var(--accent)">Following</span>
+      </div>
+    </div>
+    <div class="chat-messages">
+      <div class="chat-msg other">
+        <div class="chat-msg-meta"><span style="font-weight:500;color:var(--text-default)">agent-alpha</span><span>14:32</span></div>
+        <div class="chat-bubble">I've completed the analysis. Here are the key findings from the codebase review — 3 critical issues identified in the memory management module.</div>
+      </div>
+      <div class="chat-msg own">
+        <div class="chat-msg-meta"><span style="font-weight:500;color:var(--text-default)">You</span><span>14:35</span></div>
+        <div class="chat-bubble">Can you elaborate on the memory leak in the goroutine pool?</div>
+      </div>
+      <div class="chat-msg other">
+        <div class="chat-msg-meta"><span style="font-weight:500;color:var(--text-default)">agent-alpha</span><span>14:36</span></div>
+        <div class="chat-bubble">Sure. Peak RSS was 142MB with the new allocator vs 210MB baseline. The goroutine pool stays under 500 across all test scenarios.</div>
+      </div>
+    </div>
+    <div class="chat-composer">
+      <input placeholder="Type a message — Enter to send" readonly>
+      <div class="send-btn">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10l14-6-6 14-2.5-5.5L3 10z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  </div>
+  </div><!-- end light col -->
+
+  <!-- DARK chat -->
+  <div>
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:#a78bfa;text-align:center;margin-bottom:.75rem">Dark Mode</div>
+  <div style="background:#14141C;border:1px solid #3a3440;border-radius:var(--radius-lg);overflow:hidden;box-shadow:0 0 0 1px rgba(255,255,255,.03),0 8px 24px rgba(0,0,0,.4)">
+    <div style="padding:14px 20px;border-bottom:1px solid #3a3440;display:flex;align-items:center;gap:10px;font-weight:600;font-size:.9rem;color:#e3dde6">
+      <div style="width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,#7C3AED,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">A</div>
+      <div>
+        <div style="font-size:.9rem;color:#e3dde6">@agent-alpha</div>
+        <div style="font-size:.65rem;color:#9e98a6;font-weight:400">Direct message</div>
+      </div>
+      <div style="margin-left:auto"><span style="font-size:.7rem;padding:4px 10px;border:1px solid #3a3440;border-radius:100px;color:#a78bfa">Following</span></div>
+    </div>
+    <div style="padding:16px 20px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:.7rem;color:#9e98a6;display:flex;align-items:center;gap:6px"><span style="font-weight:500;color:#e3dde6">agent-alpha</span><span>14:32</span></div>
+        <div style="max-width:85%;padding:10px 14px;border-radius:12px;font-size:.875rem;line-height:1.55;background:#252128;color:#e3dde6;border:1px solid #3a3440">I've completed the analysis. Here are the key findings from the codebase review — 3 critical issues identified in the memory management module.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <div style="font-size:.7rem;color:#9e98a6;display:flex;align-items:center;gap:6px;flex-direction:row-reverse"><span style="font-weight:500;color:#e3dde6">You</span><span>14:35</span></div>
+        <div style="max-width:85%;padding:10px 14px;border-radius:12px;font-size:.875rem;line-height:1.55;background:#a78bfa;color:#14141C">Can you elaborate on the memory leak in the goroutine pool?</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:.7rem;color:#9e98a6;display:flex;align-items:center;gap:6px"><span style="font-weight:500;color:#e3dde6">agent-alpha</span><span>14:36</span></div>
+        <div style="max-width:85%;padding:10px 14px;border-radius:12px;font-size:.875rem;line-height:1.55;background:#252128;color:#e3dde6;border:1px solid #3a3440">Sure. Peak RSS was 142MB with the new allocator vs 210MB baseline. The goroutine pool stays under 500 across all test scenarios.</div>
+      </div>
+    </div>
+    <div style="padding:12px 16px;border-top:1px solid #3a3440;display:flex;gap:8px;align-items:center">
+      <input style="flex:1;height:40px;border:1px solid #3a3440;border-radius:8px;padding:0 12px;font-size:.85rem;outline:none;background:#252128;color:#e3dde6;font-family:inherit" placeholder="Type a message — Enter to send" readonly>
+      <div style="width:40px;height:40px;border-radius:8px;background:#a78bfa;display:flex;align-items:center;justify-content:center;color:#14141C;flex-shrink:0">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10l14-6-6 14-2.5-5.5L3 10z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+  </div>
+  </div><!-- end dark col -->
+
+  </div><!-- end grid -->
+
+  <table class="spec-table">
+    <thead><tr><th>Element</th><th>Light</th><th>Dark</th></tr></thead>
+    <tbody>
+      <tr><td>Own bubble</td><td><span class="val">#31263B (eggplant) + #f8f5f6 text</span></td><td><span class="val">#a78bfa (violet-400) + #14141C text</span></td></tr>
+      <tr><td>Other bubble</td><td><span class="val">#f8f5f6 bg + #dbd7da border</span></td><td><span class="val">#252128 bg + #3a3440 border</span></td></tr>
+      <tr><td>Bubble radius</td><td colspan="2"><span class="val">12px (both modes)</span></td></tr>
+      <tr><td>Composer bg</td><td><span class="val">transparent + #e9e5e8 top border</span></td><td><span class="val">transparent + #3a3440 top border</span></td></tr>
+      <tr><td>Send button</td><td><span class="val">#31263B bg + white icon</span></td><td><span class="val">#a78bfa bg + #14141C icon</span></td></tr>
+      <tr><td>Input bg</td><td><span class="val">#FFFFFF</span></td><td><span class="val">#252128</span></td></tr>
+      <tr><td>Focus ring</td><td><span class="val">#7C3AED 10% opacity</span></td><td><span class="val">#7C3AED 20% opacity</span></td></tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- ════════ 5. DARK MODE ════════ -->
+<div class="divider"></div>
+<div class="container">
+<div class="section">
+  <div class="section-label">05 · Dark Mode</div>
+  <h2>Dark <em>Theme</em></h2>
+  <p class="desc">Dark mode 从 Slate 冷灰迁移到 Hex 的暖紫暗色。Eggplant 色调贯穿，不再是纯灰。</p>
+
+  <div class="dark-panel">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <div style="width:10px;height:10px;border-radius:50%;background:var(--jade)"></div>
+      <span style="font-weight:600">Dark Mode Preview</span>
+    </div>
+    <div style="font-size:.85rem;color:var(--dark-text-muted)">
+      暖紫暗色体系 — surfaces 带微妙紫色调而非纯灰
+    </div>
+    <div class="dp-card">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:24px;height:24px;border-radius:5px;background:linear-gradient(135deg,var(--accent),#a78bfa);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">A</div>
+        <span style="font-weight:600;font-size:.9rem">agent-alpha</span>
+        <span style="font-size:.7rem;padding:2px 8px;border-radius:100px;background:rgba(92,177,152,.2);color:#6fcfaa">running</span>
+      </div>
+      <div style="margin-top:8px;font-size:.8rem;color:var(--dark-text-muted)">Peak RSS: 142MB · Goroutines: 487 · Uptime: 2d 14h</div>
+    </div>
+  </div>
+
+  <table class="spec-table">
+    <thead><tr><th>Token</th><th>Current Dark</th><th>New Dark</th></tr></thead>
+    <tbody>
+      <tr><td>bg-base</td><td><span class="val old">#0f172a (slate-900)</span></td><td><span class="val new">#14141C (near-black, warm)</span></td></tr>
+      <tr><td>bg-elevated</td><td><span class="val old">#1e293b (slate-800)</span></td><td><span class="val new">#1e1a22 (warm card)</span></td></tr>
+      <tr><td>bg-subtle</td><td><span class="val old">#1e293b</span></td><td><span class="val new">#252128 (warm subtle)</span></td></tr>
+      <tr><td>border</td><td><span class="val old">#334155 (slate-700)</span></td><td><span class="val new">#3a3440 (warm border)</span></td></tr>
+      <tr><td>text-primary</td><td><span class="val old">#f1f5f9 (slate-100)</span></td><td><span class="val new">#e3dde6 (warm white)</span></td></tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- ════════ 6. MIGRATION PLAN ════════ -->
+<div class="divider"></div>
+<div class="container">
+<div class="section" style="padding-bottom:6rem">
+  <div class="section-label">06 · Migration</div>
+  <h2>Implementation <em>Plan</em></h2>
+  <p class="desc">渐进式迁移——先改 token 层（一次切换全局色彩），再改组件层（圆角/阴影/字体），最后改页面特有样式。</p>
+
+  <div style="display:flex;flex-direction:column;gap:0;margin-top:2rem">
+    <div class="roadmap-item">
+      <span class="roadmap-label" style="color:var(--danger)">Phase 1</span>
+      <div>
+        <div class="roadmap-title">Token Layer — 颜色/字体/阴影</div>
+        <div class="roadmap-desc">
+          <strong>index.css</strong>: 替换 :root + :root.dark 的全部 CSS variables（~40 个 token）<br>
+          <strong>tailwind.config.js</strong>: 更新 fontFamily (Plus Jakarta Sans + IBM Plex Mono)、boxShadow、borderRadius<br>
+          <strong>index.html</strong>: 添加 Google Fonts link<br>
+          <strong>影响</strong>: 全局生效，一次 PR 切换整体色调。组件代码零改动（全用 token）。
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <span class="roadmap-label" style="color:var(--warning)">Phase 2</span>
+      <div>
+        <div class="roadmap-title">Component Layer — 圆角/阴影/间距</div>
+        <div class="roadmap-desc">
+          <strong>AppLayout</strong>: Module rail bg → eggplant; sidebar nav item active → accent bg<br>
+          <strong>MessageList</strong>: Own bubble bg → eggplant + white text; other bubble → bordered card<br>
+          <strong>MessageComposer</strong>: Send button → eggplant bg<br>
+          <strong>All cards</strong>: border-radius 从 rounded/rounded-lg 统一到 rounded-lg (12px)<br>
+          <strong>Modals</strong>: shadow 升级到 shadow-modal; radius → 16px
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <span class="roadmap-label" style="color:var(--jade)">Phase 3</span>
+      <div>
+        <div class="roadmap-title">Page Layer — 页面特有调整</div>
+        <div class="roadmap-desc">
+          <strong>Status chips</strong>: 全部 status 色彩从 Tailwind palette 迁移到 Hex-inspired functional colors<br>
+          <strong>Chat bubble</strong>: chatuserbubble token #D1E3FF → #31263B + fixed light text<br>
+          <strong>Code blocks</strong>: bg #003247 → eggplant-dark variant<br>
+          <strong>codeHighlight.css</strong>: 重新校验 WCAG AA 对比度
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <span class="roadmap-label" style="color:var(--text-faint)">Phase 4</span>
+      <div>
+        <div class="roadmap-title">QA — 对比度校验 + 截图回归</div>
+        <div class="roadmap-desc">
+          <strong>a11y.test.tsx</strong>: 更新 raw color guardrail regex（新 palette 不再有 red-* 但可能有其他需屏蔽的）<br>
+          <strong>所有 status token</strong>: 逐个校验 WCAG AA 4.5:1 on new surfaces<br>
+          <strong>E2E 截图</strong>: 对比主要页面 before/after 确认无回归
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:1rem;font-weight:600;margin:2.5rem 0 1rem">关键决策点</h3>
+  <table class="spec-table">
+    <thead><tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Light-first or Dark-first</td>
+        <td>Light default (Hex style)</td>
+        <td>保持 Dark default (当前)</td>
+        <td><span class="val new">Light default</span> — 匹配 Hex + 多数 SaaS 习惯</td>
+      </tr>
+      <tr>
+        <td>Font loading strategy</td>
+        <td>Google Fonts CDN</td>
+        <td>Self-host woff2</td>
+        <td><span class="val new">Self-host</span> — 零外部依赖，GDPR 合规</td>
+      </tr>
+      <tr>
+        <td>Own bubble color</td>
+        <td>#31263B eggplant (Hex style)</td>
+        <td>#7C3AED accent purple</td>
+        <td><span class="val new">Eggplant</span> — 更克制，accent 留给交互</td>
+      </tr>
+      <tr>
+        <td>Migration strategy</td>
+        <td>Big bang (one PR)</td>
+        <td>Gradual (4 phases)</td>
+        <td><span class="val new">Gradual</span> — Phase 1 token swap 风险最低</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<div style="text-align:center;padding:2rem;font-size:.7rem;color:var(--text-faint);font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;border-top:1px solid var(--border-light)">
+  agent-center Design System Migration · Hex-Inspired · 2026-06-26
+</div>
+
+</body>
+</html>
