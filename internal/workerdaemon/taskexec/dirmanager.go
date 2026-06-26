@@ -2,6 +2,7 @@ package taskexec
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -75,8 +76,13 @@ func (d *DirManager) Read(tasksDir, taskID string) (TaskDirEntry, error) {
 	if err := readJSON(filepath.Join(dir, taskMetaFile), &entry.Meta); err != nil {
 		return TaskDirEntry{}, fmt.Errorf("taskexec: read task.json for %s: %w", taskID, err)
 	}
-	// execution.json is optional (may not exist for very old dirs)
-	_ = readJSON(filepath.Join(dir, execContextFile), &entry.ExecCtx)
+	// execution.json is optional (may not exist for very old dirs).
+	// Only ignore ErrNotExist; surface corruption errors.
+	if execErr := readJSON(filepath.Join(dir, execContextFile), &entry.ExecCtx); execErr != nil {
+		if !errors.Is(execErr, os.ErrNotExist) {
+			return TaskDirEntry{}, fmt.Errorf("taskexec: read execution.json for %s: %w", taskID, execErr)
+		}
+	}
 	return entry, nil
 }
 

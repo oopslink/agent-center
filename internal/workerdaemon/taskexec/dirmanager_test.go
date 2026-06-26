@@ -139,17 +139,14 @@ func TestDirManager_Read_CorruptExecJSON(t *testing.T) {
 	if err := dm.Create(tasksDir, meta, ExecutionContext{}); err != nil {
 		t.Fatal(err)
 	}
-	// Corrupt execution.json — Read should still succeed (optional file)
+	// Corrupt execution.json — Read should now return an error (§17: no swallowed errors)
 	execFile := filepath.Join(tasksDir, "t-exec", execContextFile)
 	if err := os.WriteFile(execFile, []byte("bad"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := dm.Read(tasksDir, "t-exec")
-	if err != nil {
-		t.Fatalf("Read with corrupt execution.json should not fail: %v", err)
-	}
-	if got.Meta.TaskID != "t-exec" {
-		t.Errorf("unexpected meta: %+v", got.Meta)
+	_, readErr := dm.Read(tasksDir, "t-exec")
+	if readErr == nil {
+		t.Fatal("Read with corrupt execution.json should return an error")
 	}
 }
 

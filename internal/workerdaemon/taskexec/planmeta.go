@@ -17,8 +17,8 @@ type PlanMeta struct {
 
 // WritePlanMeta persists plan metadata to plans/{plan_id}/plan.json.
 func WritePlanMeta(plansDir string, meta PlanMeta) error {
-	if meta.PlanID == "" {
-		return fmt.Errorf("taskexec: plan_id required")
+	if err := validatePathComponent("plan_id", meta.PlanID); err != nil {
+		return err
 	}
 	dir := filepath.Join(plansDir, meta.PlanID)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -29,6 +29,9 @@ func WritePlanMeta(plansDir string, meta PlanMeta) error {
 
 // ReadPlanMeta reads plan metadata from plans/{plan_id}/plan.json.
 func ReadPlanMeta(plansDir, planID string) (PlanMeta, error) {
+	if err := validatePathComponent("plan_id", planID); err != nil {
+		return PlanMeta{}, err
+	}
 	var meta PlanMeta
 	path := filepath.Join(plansDir, planID, planMetaFile)
 	if err := readJSON(path, &meta); err != nil {
