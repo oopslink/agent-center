@@ -53,6 +53,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
 
 // DefaultResumeNudge is the message injected into a RELAUNCHED agent's session for
@@ -284,6 +285,24 @@ func (c *AgentController) ReconcileOnBoot(ctx context.Context) error {
 	for id := range union {
 		c.reconcileAgentOnBoot(ctx, id, centerByID[id], centerVersion[id])
 	}
+
+	if c.cfg.TaskDirManager != nil && c.cfg.TaskVerifier != nil {
+		for id := range union {
+			_, tasksDir, _, perr := c.agentPaths(id)
+			if perr != nil {
+				continue
+			}
+			result := taskexec.ReconcileTasksOnBoot(ctx, tasksDir, c.cfg.TaskVerifier, id, c.now())
+			if result.Aborted > 0 || len(result.Errors) > 0 {
+				c.log("boot-reconcile agent=%s tasks: kept=%d aborted=%d errors=%d",
+					id, result.Kept, result.Aborted, len(result.Errors))
+			}
+		}
+	}
+
+	// Run GC on boot to clean expired task directories (design §11.3).
+	c.maybeRunGC(c.now())
+
 	return nil
 }
 
@@ -346,7 +365,7 @@ func (c *AgentController) enumerateLocalAgents() ([]string, error) {
 // lock (cross-daemon: no two daemons reattach/relaunch the same agent). Per-agent
 // errors are logged; this never panics the boot loop.
 func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID string, rec *centerRecord, version int) {
-	home, _, err := c.agentPaths(agentID)
+	home, _, _, err := c.agentPaths(agentID)
 	if err != nil {
 		c.log("boot-reconcile agent=%s resolve home: %v — skip", agentID, err)
 		return
@@ -368,12 +387,12 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 	// agent's mid-turn work across a daemon restart.
 	if readAgentCLIMarker(home) == cliCodex {
 		if rec != nil && rec.DesiredLifecycle == "running" {
-			_, workspace, werr := c.agentPaths(agentID)
+			_, tasksDir, _, werr := c.agentPaths(agentID)
 			if werr != nil {
-				c.log("boot-reconcile agent=%s (codex) resolve workspace: %v — skip", agentID, werr)
+				c.log("boot-reconcile agent=%s (codex) resolve tasks dir: %v — skip", agentID, werr)
 				return
 			}
-			if serr := c.startCodexSession(ctx, agentID, version, home, workspace, rec.Model); serr != nil {
+			if serr := c.startCodexSession(ctx, agentID, version, home, tasksDir, rec.Model); serr != nil {
 				c.log("boot-reconcile agent=%s (codex) relaunch: %v", agentID, serr)
 			}
 			return

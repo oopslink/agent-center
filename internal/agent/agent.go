@@ -87,7 +87,7 @@ type ResetScope string
 
 const (
 	ResetMemory    ResetScope = "memory"    // wipe {home}/memory
-	ResetWorkspace ResetScope = "workspace" // wipe {home}/workspace
+	ResetWorkspace ResetScope = "workspace" // design §3.1: wipe {home}/tasks + {home}/plans
 	ResetAll       ResetScope = "all"       // wipe the whole runtime home
 )
 
@@ -357,7 +357,8 @@ func (a *Agent) CapabilityTags() []string {
 // --- runtime home layout (ADR-0049 §5, plan §10 OQ7) -----------------------
 
 // HomeSubdirs are the fixed subdirectories under an Agent's runtime home.
-var HomeSubdirs = []string{"config", "logs", "tmp", "memory", "workspace"}
+// Design §3: memory, plans, tasks (no config/logs/tmp/workspace).
+var HomeSubdirs = []string{"memory", "plans", "tasks"}
 
 // HomeRel returns the worker-relative home path:
 // workers/{worker_id}/agents/{agent_id}. The Environment BC joins this under
@@ -366,10 +367,22 @@ func (a *Agent) HomeRel() string {
 	return path.Join("workers", a.workerID, "agents", string(a.id))
 }
 
-// DefaultWorkspaceRel returns the default current working directory
-// ({home}/workspace), NOT the home root (plan §10 OQ7).
-func (a *Agent) DefaultWorkspaceRel() string {
-	return path.Join(a.HomeRel(), "workspace")
+// TasksDirRel returns the worker-relative tasks directory:
+// workers/{worker_id}/agents/{agent_id}/tasks.
+func (a *Agent) TasksDirRel() string {
+	return path.Join(a.HomeRel(), "tasks")
+}
+
+// PlansDirRel returns the worker-relative plans directory:
+// workers/{worker_id}/agents/{agent_id}/plans.
+func (a *Agent) PlansDirRel() string {
+	return path.Join(a.HomeRel(), "plans")
+}
+
+// MemoryDirRel returns the worker-relative memory directory:
+// workers/{worker_id}/agents/{agent_id}/memory.
+func (a *Agent) MemoryDirRel() string {
+	return path.Join(a.HomeRel(), "memory")
 }
 
 // --- lifecycle intent transitions (ADR-0049 §5) ----------------------------

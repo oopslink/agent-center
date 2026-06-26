@@ -213,6 +213,10 @@ func (c *AgentController) OnTick(ctx context.Context) {
 	// lease for every live session's current task so a long LLM turn never lets the
 	// lease lapse. Internally rate-limited to cfg.LeaseRenewEvery. See lease_renew.go.
 	c.drainLeaseRenewals(ctx, now)
+
+	// Task directory GC (design §11.3): clean up expired aborted/done task dirs.
+	// Throttled to at most once per cfg.GCInterval. See gc_timer.go.
+	c.maybeRunGC(now)
 }
 
 // selfHealRelaunch performs ONE due relaunch on the ControlLoop goroutine: acquire
@@ -220,7 +224,7 @@ func (c *AgentController) OnTick(ctx context.Context) {
 // fresh supervisor (resumes the durable epoch) + nudge iff the crash interrupted
 // active work. Reuses bootReapRelaunch (same reap+resume+nudge sequence).
 func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, version int, nudge bool, taskID, model, displayName string, attempt int) {
-	home, _, err := c.agentPaths(agentID)
+	home, _, _, err := c.agentPaths(agentID)
 	if err != nil {
 		c.log("agent=%s self-heal relaunch resolve home: %v — skip", agentID, err)
 		return

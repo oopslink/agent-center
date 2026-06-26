@@ -60,3 +60,4 @@ sites/.vitepress/cache/
 
 # local agent worktrees (per-session, never part of the repo)
 .claude/worktrees/
+.superpowers/

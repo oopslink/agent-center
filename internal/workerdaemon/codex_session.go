@@ -55,7 +55,7 @@ type codexProc interface {
 // codexLaunchSpec carries everything needed to assemble one `codex exec` (fresh)
 // or `codex exec resume <threadID>` (continuation) invocation.
 type codexLaunchSpec struct {
-	WorkspaceDir string
+	TasksDir string
 	Binary       string // "" → "codex" on PATH
 	Model        string // "" → codex default
 	ThreadID     string // "" → fresh `exec`; else `exec resume <ThreadID>`
@@ -107,8 +107,8 @@ type execCodexLauncher struct{}
 func (execCodexLauncher) Launch(ctx context.Context, spec codexLaunchSpec) (codexProc, error) {
 	argv := buildCodexArgv(spec)
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	if spec.WorkspaceDir != "" {
-		cmd.Dir = spec.WorkspaceDir
+	if spec.TasksDir != "" {
+		cmd.Dir = spec.TasksDir
 	}
 	env := os.Environ()
 	for k, v := range spec.Env {
@@ -301,8 +301,8 @@ func cloneRaw(line []byte) json.RawMessage {
 type CodexSessionConfig struct {
 	// AgentID identifies the agent (for logging).
 	AgentID string
-	// WorkspaceDir is the codex working root (cmd.Dir for every turn).
-	WorkspaceDir string
+	// TasksDir is the codex working root (cmd.Dir for every turn).
+	TasksDir string
 	// Binary overrides the codex binary path ("" → "codex" on PATH).
 	Binary string
 	// Model is an optional `codex -m` override.
@@ -411,7 +411,7 @@ func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
 	s.mu.Unlock()
 
 	proc, err := s.launcher.Launch(ctx, codexLaunchSpec{
-		WorkspaceDir: s.cfg.WorkspaceDir,
+		TasksDir: s.cfg.TasksDir,
 		Binary:       s.cfg.Binary,
 		Model:        s.cfg.Model,
 		ThreadID:     thread,

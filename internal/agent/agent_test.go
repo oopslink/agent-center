@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -77,8 +78,55 @@ func TestNewAgent_Defaults(t *testing.T) {
 	if a.HomeRel() != "workers/W1/agents/A1" {
 		t.Fatalf("HomeRel = %s", a.HomeRel())
 	}
-	if a.DefaultWorkspaceRel() != "workers/W1/agents/A1/workspace" {
-		t.Fatalf("DefaultWorkspaceRel = %s", a.DefaultWorkspaceRel())
+}
+
+// mustNewAgent is a helper that creates an agent with specific IDs for path tests.
+func mustNewAgent(t *testing.T, id, orgID, workerID string) *Agent {
+	t.Helper()
+	a, err := NewAgent(NewAgentInput{
+		ID: AgentID(id), OrganizationID: orgID,
+		Profile:   Profile{Name: "coder", Model: "claude", CLI: "claudecode"},
+		WorkerID:  workerID,
+		CreatedBy: "user:a", CreatedAt: t0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
+}
+
+func TestAgent_HomeSubdirs_NewLayout(t *testing.T) {
+	// Design §3: memory, plans, tasks (no config/logs/tmp/workspace)
+	want := []string{"memory", "plans", "tasks"}
+	if !reflect.DeepEqual(HomeSubdirs, want) {
+		t.Errorf("HomeSubdirs = %v, want %v", HomeSubdirs, want)
+	}
+}
+
+func TestAgent_TasksDirRel(t *testing.T) {
+	a := mustNewAgent(t, "ag-1", "org-1", "w-1")
+	got := a.TasksDirRel()
+	want := "workers/w-1/agents/ag-1/tasks"
+	if got != want {
+		t.Errorf("TasksDirRel() = %q, want %q", got, want)
+	}
+}
+
+func TestAgent_PlansDirRel(t *testing.T) {
+	a := mustNewAgent(t, "ag-1", "org-1", "w-1")
+	got := a.PlansDirRel()
+	want := "workers/w-1/agents/ag-1/plans"
+	if got != want {
+		t.Errorf("PlansDirRel() = %q, want %q", got, want)
+	}
+}
+
+func TestAgent_MemoryDirRel(t *testing.T) {
+	a := mustNewAgent(t, "ag-1", "org-1", "w-1")
+	got := a.MemoryDirRel()
+	want := "workers/w-1/agents/ag-1/memory"
+	if got != want {
+		t.Errorf("MemoryDirRel() = %q, want %q", got, want)
 	}
 }
 

@@ -45,6 +45,8 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
+	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
 
 // agentSession is the NARROW control surface the AgentController needs from one
@@ -323,6 +325,16 @@ type AgentControllerConfig struct {
 	APIErrorBackoffCap  time.Duration
 	APIErrorMaxRetries  int
 
+	// TaskDirManager manages per-task execution directories. Nil → task
+	// directory management disabled (backwards-compatible).
+	TaskDirManager *taskexec.DirManager
+	// TaskVerifier checks task assignment with Center for boot reconcile.
+	// Nil → boot task reconcile skipped.
+	TaskVerifier taskexec.TaskVerifier
+	// GCInterval is the minimum interval between GC sweeps (design §11.3).
+	// 0 → default 1 hour. GC is only active when TaskDirManager is non-nil.
+	GCInterval time.Duration
+
 	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
 	// same-package _test.go can override it with a fake — production callers cannot
 	// set it, so NewAgentController always defaults it to the real supervisor-spawn
@@ -490,6 +502,10 @@ type AgentController struct {
 	// at most every cfg.LeaseRenewEvery even though OnTick fires on the (sub-second)
 	// poll cadence. Guarded by mu. See lease_renew.go.
 	nextLeaseRenewAt time.Time
+
+	// lastGCAt is the last time a GC sweep completed. Used by maybeRunGC to
+	// throttle to at most once per cfg.GCInterval. See gc_timer.go.
+	lastGCAt time.Time
 }
 
 // compile-time: AgentController is a CommandHandler.
@@ -678,7 +694,7 @@ func (c *AgentController) reconcileReset(ctx context.Context, pl reconcilePayloa
 	c.clearSelfHeal(pl.AgentID) // reset = manual clean-slate → un-latch any terminal-failed
 	c.recordVersion(pl.AgentID, pl.Version)
 
-	home, _, err := c.agentPaths(pl.AgentID)
+	home, _, _, err := c.agentPaths(pl.AgentID)
 	if err != nil {
 		// Cannot resolve the home (missing config) — settle the lifecycle so the
 		// agent does not hang in "resetting"; nothing to wipe/bump without a home.
@@ -748,6 +764,24 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 	if sess == nil {
 		// No running session yet — retry after the reconcile(running) lands.
 		return fmt.Errorf("agent_controller: work for agent=%s but no running session (retry after reconcile)", pl.AgentID)
+	}
+
+	if c.cfg.TaskDirManager != nil {
+		_, tasksDir, _, pathErr := c.agentPaths(pl.AgentID)
+		if pathErr != nil {
+			c.log("agent=%s task=%s resolve paths: %v", pl.AgentID, pl.TaskID, pathErr)
+		} else {
+			now := c.now()
+			meta := taskexec.TaskExecutionMeta{
+				TaskID:    pl.TaskID,
+				Status:    taskexec.StatusPending,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if createErr := c.cfg.TaskDirManager.Create(tasksDir, meta, taskexec.ExecutionContext{}); createErr != nil {
+				c.log("agent=%s task=%s create task dir: %v", pl.AgentID, pl.TaskID, createErr)
+			}
+		}
 	}
 
 	if err := sess.Inject(ctx, pl.Brief); err != nil {
@@ -1173,27 +1207,27 @@ const workAvailableNudge = "📥 New work is available in your queue. When you r
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
 func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, displayName, cli string) error {
-	home, workspace, err := c.agentPaths(agentID)
+	home, tasksDir, _, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(workspace, 0o700); err != nil {
-		return fmt.Errorf("agent_controller: mkdir workspace: %w", err)
+	if err := os.MkdirAll(tasksDir, 0o700); err != nil {
+		return fmt.Errorf("agent_controller: mkdir tasks: %w", err)
 	}
 	// cli=codex: a fundamentally different execution model (one-shot `codex exec`
 	// + resume, NO persistent supervisor / epoch / session-id lock). Route to the
 	// self-contained CodexSession path before any of the claude/supervisor setup
 	// below. The claude path (cli empty / "claude-code") is untouched.
 	if cli == cliCodex {
-		return c.startCodexSession(ctx, agentID, version, home, workspace, model)
+		return c.startCodexSession(ctx, agentID, version, home, tasksDir, model)
 	}
-	// v2.7 #182: claude runs with cwd=workspace and `--setting-sources user,project`,
-	// so its "project" settings source resolves to <workspace>/.claude. Create the
+	// v2.7 #182: claude runs with cwd=tasks and `--setting-sources user,project`,
+	// so its "project" settings source resolves to <tasks>/.claude. Create the
 	// directory as the agent's own project-config load point. It is left EMPTY —
 	// agent-center never pre-fills settings/hooks here (no indirect pollution); the
 	// agent (or a future feature) may drop a settings.json into it.
-	if err := os.MkdirAll(filepath.Join(workspace, ".claude"), 0o700); err != nil {
-		return fmt.Errorf("agent_controller: mkdir workspace/.claude: %w", err)
+	if err := os.MkdirAll(filepath.Join(tasksDir, ".claude"), 0o700); err != nil {
+		return fmt.Errorf("agent_controller: mkdir tasks/.claude: %w", err)
 	}
 
 	mcpBytes, err := mcphost.GenerateMCPConfig(mcphost.MCPConfigParams{
@@ -1204,7 +1238,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		AdminURL:          c.cfg.AdminURL,
 		WorkerToken:       c.cfg.WorkerToken,
 		ServerFingerprint: c.cfg.ServerFingerprint,
-		AgentRoot:         workspace,
+		AgentRoot:         tasksDir,
 	})
 	if err != nil {
 		return fmt.Errorf("agent_controller: generate mcp-config: %w", err)
@@ -1275,7 +1309,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		AgentID:             agentID,
 		HomeDir:             home,
 		MCPConfigPath:       mcpPath,
-		WorkspaceDir:        workspace,
+		TasksDir:            tasksDir,
 		BinaryPath:          c.cfg.BinaryPath,
 		ClaudeBin:           c.cfg.ClaudeBinary,
 		Model:               model,
@@ -1305,6 +1339,17 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	c.mu.Lock()
 	ma.session = sess
 	c.mu.Unlock()
+
+	// Record the single-instance lease so crash-recovery and boot-reconcile can
+	// detect an unclean prior exit (prev_crash_at) and track session lineage
+	// (generation, prev_pid). Best-effort: a write failure is logged but does NOT
+	// abort the already-running session — the lease file is observability/recovery
+	// metadata, not a gate for the session itself.
+	sessionID := claudestream.SessionUUIDGen(agentID, epochState.Epoch, generation)
+	if _, lerr := sessioninstance.AcquireInstance(home, sessionID, os.Getpid()); lerr != nil {
+		c.log("started agent=%s: write session.instance: %v (non-fatal)", agentID, lerr)
+	}
+
 	c.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, version, epochState.Epoch, generation, forkResume, resume, home)
 	return nil
 }
@@ -1328,7 +1373,7 @@ func (c *AgentController) startCodexSession(ctx context.Context, agentID string,
 
 	sess, err := c.cfg.codexStarter(ctx, CodexSessionConfig{
 		AgentID:      agentID,
-		WorkspaceDir: workspace,
+		TasksDir: workspace,
 		Binary:       c.cfg.CodexBinary,
 		Model:        model,
 		Logger:       c.cfg.Logger,
@@ -1403,6 +1448,14 @@ func (c *AgentController) stopSession(ctx context.Context, agentID string, repor
 	// Stop blocks until the event-pump joins + OnExit fired (no leak).
 	if err := sess.Stop(ctx); err != nil {
 		c.log("stop agent=%s: %v", agentID, err)
+	}
+
+	// Release the session instance lease so the next AcquireInstance knows
+	// this was a clean shutdown (not a crash). Best-effort.
+	if home, _, _, pathErr := c.agentPaths(agentID); pathErr == nil {
+		if relErr := sessioninstance.ReleaseInstance(home); relErr != nil {
+			c.log("stop agent=%s release instance: %v", agentID, relErr)
+		}
 	}
 
 	if reportLifecycle {
@@ -1935,9 +1988,10 @@ func (c *AgentController) recordVersion(agentID string, version int) {
 // Agent home layout + reset cleanup (containment-guarded).
 // ---------------------------------------------------------------------------
 
-// agentPaths resolves the per-agent home + workspace under the runtime home
-// layout: AgentHomeBase/agents/{agent_id}/ with a workspace/ subdir. Returns
-// (home, workspace, error).
+// agentPaths resolves the per-agent home, tasksDir, and plansDir under the
+// runtime home layout: AgentHomeBase/agents/{agent_id}/ with tasks/ and plans/
+// subdirs. Returns (home, tasksDir, plansDir, error). Design §3: workspace is
+// replaced by tasks/ + plans/.
 //
 // v2.7 #179 + #209: AgentHomeBase is ALREADY worker-scoped — it resolves to the
 // worker state dir <sqlite_dir> (= <prefix>/workers/<wid>/var), so the per-agent
@@ -1947,19 +2001,20 @@ func (c *AgentController) recordVersion(agentID string, version int) {
 // also helped overflow the macOS sun_path limit, see #178). The layout MUST stay
 // in lockstep with boot_reconcile's home scan (same base, same join) or
 // boot-reconcile can't find supervisors → reattach breaks.
-func (c *AgentController) agentPaths(agentID string) (home, workspace string, err error) {
+func (c *AgentController) agentPaths(agentID string) (home, tasksDir, plansDir string, err error) {
 	if strings.TrimSpace(c.cfg.AgentHomeBase) == "" {
-		return "", "", errors.New("agent_controller: agent_home_base required")
+		return "", "", "", errors.New("agent_controller: agent_home_base required")
 	}
 	if strings.TrimSpace(c.cfg.WorkerID) == "" {
-		return "", "", errors.New("agent_controller: worker_id required")
+		return "", "", "", errors.New("agent_controller: worker_id required")
 	}
 	if strings.TrimSpace(agentID) == "" {
-		return "", "", errors.New("agent_controller: agent_id required")
+		return "", "", "", errors.New("agent_controller: agent_id required")
 	}
 	home = filepath.Join(c.cfg.AgentHomeBase, "agents", agentID)
-	workspace = filepath.Join(home, "workspace")
-	return home, workspace, nil
+	tasksDir = filepath.Join(home, "tasks")
+	plansDir = filepath.Join(home, "plans")
+	return home, tasksDir, plansDir, nil
 }
 
 // cleanReset wipes the dirs implied by resetScope UNDER the agent home. STRICT
@@ -1970,10 +2025,10 @@ func (c *AgentController) agentPaths(agentID string) (home, workspace string, er
 //
 // Scopes (ADR-0049 reset_scope):
 //   - "memory"            → wipe <home>/memory
-//   - "workspace"         → wipe <home>/workspace
-//   - "all" / "" (default) → wipe both memory + workspace
+//   - "workspace"         → wipe <home>/tasks + <home>/plans (design §3.1)
+//   - "all" / "" (default) → wipe memory + tasks + plans + session.instance (design §3.1)
 func (c *AgentController) cleanReset(agentID, resetScope string) error {
-	home, workspace, err := c.agentPaths(agentID)
+	home, tasksDir, plansDir, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
 	}
@@ -1984,12 +2039,13 @@ func (c *AgentController) cleanReset(agentID, resetScope string) error {
 	case "memory":
 		targets = []string{memory}
 	case "workspace":
-		targets = []string{workspace}
+		// Design §3.1: workspace resets tasks/ + plans/
+		targets = []string{tasksDir, plansDir}
 	case "", "all":
-		targets = []string{memory, workspace}
+		targets = []string{memory, tasksDir, plansDir}
 	default:
 		c.log("reset agent=%s unknown scope=%q — defaulting to all", agentID, resetScope)
-		targets = []string{memory, workspace}
+		targets = []string{memory, tasksDir, plansDir}
 	}
 
 	for _, t := range targets {
@@ -1997,6 +2053,15 @@ func (c *AgentController) cleanReset(agentID, resetScope string) error {
 			return err
 		}
 	}
+
+	// Design §3.1: "all" scope also removes session.instance (lease file).
+	if resetScope == "" || strings.EqualFold(resetScope, "all") {
+		instPath := filepath.Join(home, sessioninstance.InstanceFileName)
+		if rmErr := os.Remove(instPath); rmErr != nil && !os.IsNotExist(rmErr) {
+			c.log("reset agent=%s remove session.instance: %v", agentID, rmErr)
+		}
+	}
+
 	c.log("reset agent=%s scope=%q wiped %d dir(s) under %s", agentID, resetScope, len(targets), home)
 	return nil
 }
