@@ -4,7 +4,16 @@
 
 ## 1. 目录与分层
 
-正式的设计文档统一在 `docs/design/` 下，按职责分层：
+`docs/` 按四类内容组织：
+
+| 类别 | 目录 | 说明 |
+|---|---|---|
+| 项目规约 | `docs/rules/` | conventions / 文档管理 / 测试规约 / 发布流程 / 验收规范 / 设计系统 |
+| 系统设计 | `docs/design/` | 需求 / 架构 / 实现 / ADR / 功能设计 / 部署 / 迁移 / 运维 |
+| 发布产物 | `docs/releases/` | 按版本归档的 release notes / 验收报告 / 截图证据 |
+| 专项计划 | `docs/plans/` | 实现计划 / 审计 / 测试报告（已完成的归 `archived/`）|
+
+设计文档（`docs/design/`）按职责分层：
 
 | 层 | 目录 | 回答 |
 |---|---|---|
@@ -12,6 +21,7 @@
 | 架构 | `docs/design/architecture/` | 概念怎么组织、组件怎么交互 |
 | 实现 | `docs/design/implementation/` | 代码侧具体怎么落（表 schema / CLI / 配置）|
 | ADR | `docs/design/decisions/` | 为什么这么定，备选方案为何不采 |
+| 功能设计 | `docs/design/features/` | 版本迭代的功能设计（UX 研究、接口契约等）|
 
 **不允许混层**：一个文档不要同时写需求 + 架构 + 实现。各自有自己的语言、读者、变更频率。
 
@@ -28,7 +38,9 @@
 
 - 设计文档不放 `docs/superpowers/`（那是 brainstorming / skill 工件目录）
 - 设计文档不放仓库根（README.md / CLAUDE.md 除外）
-- 临时草稿不进 `docs/design/`，去 `docs/drafts/` 或本地
+- 临时草稿放 `docs/design/drafts/` 或本地
+- 发布产物（验收报告、截图证据）放 `docs/releases/`，不放 `docs/design/`
+- 专项计划放 `docs/plans/`，不放 `docs/design/`
 
 ## 4. 范围决策的两种区分
 

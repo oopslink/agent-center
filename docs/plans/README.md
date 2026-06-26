@@ -29,17 +29,17 @@ v1 phase plans 全部 **v2 删除**（per 2026-05-23 用户「删干净」决定
 | ~~6~~ | ~~Cognition Supervisor~~ | v2 删 |
 | ~~7~~ | ~~Bridge Inbound + 部署收尾~~ | v2 撤回 + 删 |
 
-### v2 phases（待执行）
+### v2 phases（已完成，归档于 `archived/`）
 
 > v2 设计阶段闭环 12 议题 / 17 ADR (0023-0039)；详 [v2-kickoff archive](../design/drafts/v2-kickoff-2026-05-22.md)。
 
 | Phase | 主题 | 覆盖 ADR | 上游依赖 | 状态 |
 |---|---|---|---|---|
-| **8** | [Foundation](phase-8-foundation.md) | E1 (0023) / G1 (0024) / Supervisor 统一 (0029) / SecretManagement BC (0026) | v1 P1-6 | Draft |
-| **9** | [Agent Runtime 扩展](phase-9-agent-runtime.md) | G3 (0030) / G4 (0027) / G5 (0028) / G2 (0025) | Phase 8 | TBD |
-| **10** | [Conversation v2](phase-10-conversation-v2.md) | Meta cleanup (0031) + CV1 (0032) + CV2a (0033) + CV2b (0034) + CV3 (0035) + CV4 (0036) + 0039 | Phase 8 | TBD |
-| **11** | [入口面](phase-11-user-entry.md) | W1 (0037) + W2 (0038) | Phase 8 + 9 + 10 | TBD |
-| **12** | [Cleanup + Release](phase-12-cleanup-release.md) | 端到端测试 / 删 v1 vendor code / docs polish / release checklist | Phase 8-11 | TBD |
+| **8** | [Foundation](archived/phase-8-foundation.md) | E1 (0023) / G1 (0024) / Supervisor 统一 (0029) / SecretManagement BC (0026) | v1 P1-6 | Done |
+| **9** | [Agent Runtime 扩展](archived/phase-9-agent-runtime.md) | G3 (0030) / G4 (0027) / G5 (0028) / G2 (0025) | Phase 8 | Done |
+| **10** | [Conversation v2](archived/phase-10-conversation-v2.md) | Meta cleanup (0031) + CV1 (0032) + CV2a (0033) + CV2b (0034) + CV3 (0035) + CV4 (0036) + 0039 | Phase 8 | Done |
+| **11** | [入口面](archived/phase-11-user-entry.md) | W1 (0037) + W2 (0038) | Phase 8 + 9 + 10 | Done |
+| **12** | [Cleanup + Release](archived/phase-12-cleanup-release.md) | 端到端测试 / 删 v1 vendor code / docs polish / release checklist | Phase 8-11 | Done |
 
 ---
 

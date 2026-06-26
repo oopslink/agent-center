@@ -555,7 +555,7 @@ v2 撤回 vendor 集成（per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor
 
 ### 10.4 v1 → v2 升级（已有 v1 install 的运维路径）
 
-新装走 § 10.1-10.2 即可；如果你已有 v1 install 要升级到 v2，详步骤见 **[`docs/migration/v1-to-v2.md`](../../migration/v1-to-v2.md)**。要点：
+新装走 § 10.1-10.2 即可；如果你已有 v1 install 要升级到 v2，详步骤见 **[`docs/design/migration/v1-to-v2.md`](../migration/v1-to-v2.md)**。要点：
 
 - **stop v1 → backup sqlite → backup config → 生成 master.key**（v1 没这个文件，v2 SecretManagement BC 必备）
 - `agent-center migrate v1-to-v2 --dry-run` 先看 planned ops
@@ -566,7 +566,7 @@ v2 撤回 vendor 集成（per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor
 
 ### 10.5 Master key 运维
 
-`master.key` 加密 SecretManagement BC 的 UserSecret value（at-rest）；丢了不可恢复。**单独运维文档**：[`docs/operations/master-key.md`](../../operations/master-key.md) 覆盖 generation / backup / rotation / multi-machine sync / disaster recovery。
+`master.key` 加密 SecretManagement BC 的 UserSecret value（at-rest）；丢了不可恢复。**单独运维文档**：[`docs/design/operations/master-key.md`](../operations/master-key.md) 覆盖 generation / backup / rotation / multi-machine sync / disaster recovery。
 
 要点：
 - 生成：`head -c 32 /dev/urandom | base64 > master.key && chmod 0600 master.key`

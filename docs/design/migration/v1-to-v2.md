@@ -6,7 +6,7 @@
 > directly — none of the steps below apply.
 
 > v2 is a **major version** with breaking changes
-> ([release notes](../release/v2.0.md)). Read those first to
+> ([release notes](../../releases/v2.0/v2.0.md)). Read those first to
 > decide whether to upgrade.
 
 ---
@@ -257,11 +257,11 @@ a bug.
 
 ## § 7. References
 
-- [phase-12-audits/s12-migration-tool-audit.md](../plans/phase-12-audits/s12-migration-tool-audit.md)
+- [plans/audits/s12-migration-tool-audit.md](../../plans/audits/s12-migration-tool-audit.md)
   — design + test plan
-- [docs/operations/master-key.md](../operations/master-key.md)
+- [docs/design/operations/master-key.md](../operations/master-key.md)
   — master-key operational procedures
-- [docs/release/v2.0.md](../release/v2.0.md)
+- [docs/releases/v2.0/v2.0.md](../../releases/v2.0/v2.0.md)
   — what changed in v2
-- [docs/design/implementation/06-deployment.md](../design/implementation/06-deployment.md)
+- [docs/design/implementation/06-deployment.md](../implementation/06-deployment.md)
   — v2 deployment topology

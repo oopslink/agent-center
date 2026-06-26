@@ -17,6 +17,10 @@
 | 架构 | [architecture/README.md](architecture/README.md) |
 | 实现 | [implementation/README.md](implementation/README.md) |
 | 决策 | [decisions/README.md](decisions/README.md) |
+| 功能设计 | [features/](features/) — 版本迭代的功能设计（UX 研究、接口契约等）|
+| 部署方案 | [deployment/](deployment/) — 单机 / 多机部署指南 |
+| 迁移方案 | [migration/](migration/) — 跨版本迁移指南 |
+| 运维 | [operations/](operations/) — master-key 等运维操作 |
 | 路线图 | [roadmap.md](roadmap.md) — 推迟做的功能（节奏决策）|
 | DDD 蓝图 | [ddd-blueprint.md](ddd-blueprint.md) — DDD 设计推进的 plan & status（哪些做了 / 没做 / 下一步）|
 
@@ -25,6 +29,11 @@
 - **推迟**（v1 不做，但早晚要做）→ [roadmap.md](roadmap.md)
 
 规则见 [conventions § 6](../rules/conventions.md#-6-范围决策两分出范围-vs-推迟)。
+
+其它目录：
+- [drafts/](drafts/) — 临时草稿
+- [assets/](assets/) — 设计资源（mockup 等）
+- [retired/](retired/) — 废弃设计
 
 ## 写作规则
 

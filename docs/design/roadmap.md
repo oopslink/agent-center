@@ -347,7 +347,7 @@ v2 已有基础 deps（`task.depends_on_task_ids` JSON 数组 + 运行时可改 
   - `agent-center diagnose` 自检工具
   - 与已 parked 的 v3 主题协同：Remote CLI（admin token + TLS + TCP transport）/ Prometheus·OTel·Grafana 接入 / 云 Computer 节点支持 / 多用户·SaaS
   - 与 Multi-host TCP transport（v2.3 task #27 仍 TODO）的衔接
-  - KMS-backed master key 替代 destructive rotation（`docs/operations/master-key.md` § 4 已留 v3 候选）
+  - KMS-backed master key 替代 destructive rotation（`docs/design/operations/master-key.md` § 4 已留 v3 候选）
 - **触发条件**：本主题已被用户明确放进 v3 路线图（不依赖触发条件，是 v3 周期的既定主题之一）
 - **影响**：跨 conventions（新增 "deployment-impact assessment" 横切要求，类似 § 0.4）、跨 schema 演进、跨 release process
 

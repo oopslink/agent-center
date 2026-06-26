@@ -14,16 +14,18 @@
 
 **新功能 / 新设计提交前**：过 [项目规约 § 15 自检清单](docs/rules/conventions.md#-15-新功能--新设计自检清单)。
 
-## 设计文档
+## 文档导航
 
-正式设计文档统一在 [`docs/design/`](docs/design/) 下，分层：
+`docs/` 按四类组织：
 
-- [requirements/](docs/design/requirements/) — 需求层
-- [architecture/](docs/design/architecture/) — 架构层
-- [implementation/](docs/design/implementation/) — 实现层
-- [decisions/](docs/design/decisions/) — ADR
+| 类别 | 目录 | 说明 |
+|---|---|---|
+| 项目规约 | [`docs/rules/`](docs/rules/) | conventions / 文档管理 / 测试 / 发布流程 / 验收规范 / 设计系统 |
+| 系统设计 | [`docs/design/`](docs/design/) | requirements / architecture / implementation / decisions / features / deployment / migration |
+| 发布产物 | [`docs/releases/`](docs/releases/) | 按版本归档的 release notes / 验收报告 / 截图证据 |
+| 专项计划 | [`docs/plans/`](docs/plans/) | 实现计划 / 审计 / 测试报告（已完成的归 `archived/`）|
 
-入口：[docs/design/README.md](docs/design/README.md)。
+设计文档入口：[docs/design/README.md](docs/design/README.md)。
 
 ## 项目简介
 

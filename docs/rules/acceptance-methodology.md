@@ -9,7 +9,7 @@
 | 文档 | 管什么 | 关系 |
 |---|---|---|
 | 本文 `acceptance-methodology.md` | 验收**方法论 / 原则**（怎么独立黑盒验收一个发布） | 你在这 |
-| [`docs/release/acceptance-checklist.md`](../release/acceptance-checklist.md) | 某版本**逐域 WHAT + 验法 + 出口标准 + 真 install harness** | 本文给原则，它给逐域清单；不重复 |
+| [`docs/rules/acceptance-checklist.md`](acceptance-checklist.md) | 某版本**逐域 WHAT + 验法 + 出口标准 + 真 install harness** | 本文给原则，它给逐域清单；不重复 |
 | [`testing.md`](testing.md) | 测试**代码**规约（覆盖率 / 计划报告模板 / 三层 inventory / **构建发布门 §5** / **deployed-smoke §2.3**） | 本文 T-6 / deployed-smoke **指针引它，不复制** |
 | [`conventions.md`](conventions.md) | id 分层 / ref-vs-id / schema-change 工作单位 | 验收里涉及 id/ref 形态时引它 |
 
@@ -31,7 +31,7 @@ v2.7 / v2.7.1 周期里几乎每一个逃逸到用户手里的缺陷（`#159` fi
 
 验收跑在**真 `install` / `upgrade` 路径**上：真 launchd / systemd unit、真生成的 `config.yaml`（**不手搓 config**）、真浏览器、真目标环境、真 agent / worker 跑**用户从 Web Console 真实 copy 的那条命令**。
 
-> 具体的真 install harness（隔离 prefix、验 config 真含 `blob_store`、避 :7000 AirPlay、注册拿 session）见 [`acceptance-checklist.md` 执行指引 → 通用 harness](../release/acceptance-checklist.md)。本文不复制，只强调下面几条**净新纪律**。
+> 具体的真 install harness（隔离 prefix、验 config 真含 `blob_store`、避 :7000 AirPlay、注册拿 session）见 [`acceptance-checklist.md` 执行指引 → 通用 harness](acceptance-checklist.md)。本文不复制，只强调下面几条**净新纪律**。
 
 ### § 1.1 真浏览器 UI 断言锚 rendered/computed 真值（来源：Tester2）
 
@@ -48,7 +48,7 @@ UI 断言锚定**产品 rendered / computed 真值**，不靠 class 名 / 属性
 - **② 环境噪声（无关的真实状态/活动）**：共享机上别的 live 进程、预置状态、随时间变的文件（日志、SQLite `-wal` sidecar）、并发活动。
 - 这是「verify before claiming PASS」的镜像 —— 这里是 **verify before claiming FAIL**。两者同理：**绝不报一个自己没证实的状态**。
 - **对称适用 UI sweep**：一条 "raw-id leak" 或 "console error" 同样可能是自己的 script bug / stale selector / 无关进程，先复现 + inspect 真因再传。UI 反例（与后端 D1/E4 对仗）：sweep 报 "raw-id leak" 实为 testid selector 命中了 **#192 content-豁免的 JSON-viewer 子节点**（见 [`ux-standards.md`](ux-standards.md) raw-ID 边界）；"console error" 实为浏览器扩展 / 无关 404，非被测页产生。
-- 实例（#255 验收，见 `docs/release/evidence/v28-255-test-instance-acceptance-report.md`）：D1 整树 byte-hash "FAIL" 实为本机一个 **live prod 实例在写自己的 SQLite DB**（churn ≠ test 污染，靠"零 test 引用 / 文件数不变 / 结构内容字节稳定"证伪）；E4 "token in plist" 实为上面那条 `find -exec grep -l` 退出码 bug。两条若闻报必传 = 假安全警报误锁 PR。
+- 实例（#255 验收，见 `docs/releases/v28-255-test-instance-acceptance-report.md`）：D1 整树 byte-hash "FAIL" 实为本机一个 **live prod 实例在写自己的 SQLite DB**（churn ≠ test 污染，靠"零 test 引用 / 文件数不变 / 结构内容字节稳定"证伪）；E4 "token in plist" 实为上面那条 `find -exec grep -l` 退出码 bug。两条若闻报必传 = 假安全警报误锁 PR。
 - 警告：rule-out ≠ explain-away —— 必须查到**具体真因**（那个退出码 bug、那个持有 DB 的 PID），不是挥手"大概是噪声"。
 
 > #192 零-raw-id 的 chrome / content / id-as-content 三层边界（验收 sweep 怎么扫）见 [`ux-standards.md`](ux-standards.md) 的 raw-ID 边界节，本文不复制。
@@ -87,8 +87,8 @@ ref-vs-id 的边界判据（identity 要 `kind:` 前缀 / entity-id 裸用）见
 验收证据（报告 + 截图）**必须提交进被 tag 的那个 commit**。在声明"证据 commit-aligned `<tag>`"之前，**真跑核实**：
 
 ```bash
-git ls-tree -r <tag-or-commit> -- docs/release/evidence/<report>.md
-git ls-tree -r <tag-or-commit> -- docs/release/evidence/<screenshots-dir>/
+git ls-tree -r <tag-or-commit> -- docs/releases/<report>.md
+git ls-tree -r <tag-or-commit> -- docs/releases/<screenshots-dir>/
 ```
 
 每一个证据文件（报告 + 每个截图目录 / INDEX）都要在输出里**真实在那棵 tree 里**。"在盘上" / "我刚写完" / "untracked 在 worktree" / "在 `git stash`" **都不算**。
@@ -107,7 +107,7 @@ git ls-tree -r <tag-or-commit> -- docs/release/evidence/<screenshots-dir>/
 
 - **FE / UI 功能验收点** → inline 内嵌**真实例截图** `![模块·状态](screenshots/<name>.png)`。**both-mode 命门**（颜色 / 对比 / 主题相关的点：chips、badge、气泡、deleted-sender 降级等）附 **light + dark 两张**。
 - **后端 / data-API 验收点** → inline 内嵌**可视证据 artifact**：关键 test PASS 终端截图、部署结构证据（如 `SELECT sql FROM sqlite_master WHERE name='idx_...'` 输出）、真 endpoint API 响应 shape + 查询数（坐实 N+1 常数级）等。
-- 所有证据文件存 `docs/release/evidence/screenshots/`、**文件名与验收点小节对应**、真实例产出，并遵守 § 4 的 verify-in-tree（commit 进被 tag 的 commit + `git ls-tree` 实证）。
+- 所有证据文件存 `docs/releases/screenshots/`、**文件名与验收点小节对应**、真实例产出，并遵守 § 4 的 verify-in-tree（commit 进被 tag 的 commit + `git ls-tree` 实证）。
 - 文字结论（"§3.3 GO"）**不能替代**可视证据——结论 + 内嵌证据二者都要有。
 
 > 真实事故（v2.8.1 ship）：报告做完后 @oopslink 审 PDF 指出"验收报告里没有相关功能模块的截图，那个验收点应该有截图证据"——报告只在文字里引用了 `screenshots/` 路径、没把图嵌到验收点旁、也没覆盖每个功能模块。教训：**验收点 = 文字结论 + 内嵌可视证据**，光有结论不够。
@@ -133,7 +133,7 @@ git ls-tree -r <tag-or-commit> -- docs/release/evidence/<screenshots-dir>/
 
 - **每次发布验收必须产出**：(1) 从**用户视角端到端**走关键流程（真实例 + 真浏览器 + 真导航，**不许**直连 API / 直贴 URL）；(2) **关键步骤逐步截图**，每图配「步骤 / 期望 / 实测」，**内嵌进验收报告**。
 - **适用范围含 PD 的 release 验收报告**，不只单 feature-PR 验收。一份没有关键步骤截图的发布验收报告 = **未通过**——无可视证据不算验收（与 §5.1 run-real 硬门同理）。
-- **截图要可复现**：优先用**提交进仓库的 capture 脚本**（如 `tests/e2e/v2/capture-<ver>.mjs`：起真实例 → 用与 Web Console 同一套 `/api` 播种真实场景 → Playwright 驱动 SPA 逐步截图 → 输出 `docs/release/evidence/<ver>-screenshots/`）。脚本随证据一起 commit（§4 verify-in-tree），任何人可一键重跑复核。
+- **截图要可复现**：优先用**提交进仓库的 capture 脚本**（如 `tests/e2e/v2/capture-<ver>.mjs`：起真实例 → 用与 Web Console 同一套 `/api` 播种真实场景 → Playwright 驱动 SPA 逐步截图 → 输出 `docs/releases/<ver>-screenshots/`）。脚本随证据一起 commit（§4 verify-in-tree），任何人可一键重跑复核。
 - 证据三件套（报告 + 截图目录/INDEX + capture 脚本）按 §4 commit 进被 tag 的 commit，并 `git ls-tree` 实证在 tree 里。
 
 > 真实事故（2026-06-14 v2.9.1）：PD 首版发布验收报告是**纯文字、零截图**，@oopslink 指出"质量不行，缺少截图，从用户角度重新执行验收程序"。根因：run-real / UI 证据没留存（无截图、无 trace、无 capture 脚本），报告只剩文字结论。教训：**用户视角端到端的关键步骤截图 + 可复现 capture 脚本，是发布验收的硬交付，不是可选附件。**

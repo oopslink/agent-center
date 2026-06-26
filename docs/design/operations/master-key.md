@@ -207,7 +207,7 @@ sudo journalctl -u agent-center | grep -i 'master.key\|secret'
 
 - [ADR-0026 § 4-5](../design/decisions/0026-user-secret-management-bc.md)
   — design rationale (at-rest encryption + plaintext-never-echo)
-- [ADR-0027](../design/decisions/0027-mcp-per-agent-injection.md)
+- [ADR-0027](../decisions/0027-mcp-per-agent-injection.md)
   — how secrets feed MCP at agent runtime
 - [docs/migration/v1-to-v2.md § 1](../migration/v1-to-v2.md#-1-pre-flight-checklist)
   — first-time master-key generation during upgrade

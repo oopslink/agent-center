@@ -98,7 +98,7 @@ actually running on real prior-version data, on the canonical target
 environment). The cycle's first attempt at this happened in `E2`; from
 v2.7.1 onward it is part of the standard acceptance program.
 
-The above complements (and is consistent with) `docs/release/acceptance-checklist.md`.
+The above complements (and is consistent with) `docs/rules/acceptance-checklist.md`.
 
 ---
 
@@ -312,7 +312,7 @@ fresh install validates the schema; only a real cross-version upgrade
 validates that the migration actually ran on real prior-version data.
 
 This belongs in `docs/rules/conventions.md` and is reinforced in
-`docs/release/acceptance-checklist.md` as a release gate.
+`docs/rules/acceptance-checklist.md` as a release gate.
 
 ---
 
