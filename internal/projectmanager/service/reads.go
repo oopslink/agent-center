@@ -324,6 +324,28 @@ func (s *Service) GetPlan(ctx context.Context, id pm.PlanID) (*pm.Plan, error) {
 	return s.plans.FindByID(ctx, id)
 }
 
+// GetPlanDetailForMember loads a Plan's detail GUARDED by project membership
+// (issue I44): the actor must be a member of the plan's project, else
+// requireProjectMember's error surfaces (ErrNotMember → 403, ErrProjectNotFound →
+// 404; a missing plan → ErrPlanNotFound → 404). This backs the RELAXED get_plan
+// MCP tool — any member of the plan's project may read it. It closes the prior
+// gap where the get_plan handler enforced only a plan-in-project name match (the
+// caller's membership was never checked, so any agent on a worker could read a
+// plan whose project_id + plan_id it could name). Mirrors GetIssueForMember.
+func (s *Service) GetPlanDetailForMember(ctx context.Context, id pm.PlanID, actor pm.IdentityRef) (*PlanDetail, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	p, err := s.plans.FindByID(ctx, id)
+	if err != nil {
+		return nil, err // pm.ErrPlanNotFound when missing
+	}
+	if err := s.requireProjectMember(ctx, p.ProjectID(), actor); err != nil {
+		return nil, err
+	}
+	return s.planDetail(ctx, p)
+}
+
 // PlanDetail bundles a Plan with its selected tasks and the DERIVED view (§9.2):
 // per-node status, ready-set, has_failed, progress. The HTTP layer renders the
 // Plan DTO (nodes + ready-set + has_failed + progress) from this.

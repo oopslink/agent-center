@@ -555,11 +555,55 @@ func TestGetTask_GET_Query_OK(t *testing.T) {
 	}
 }
 
-func TestGetTask_NotOwn_403(t *testing.T) {
+// TestGetTask_MemberNonAssignee_OK: issue I44 relaxation — a project member may
+// read ANY task in its project, even one it is NOT assigned to (the read scope
+// widened from assignee-only requireOwnTask to requireTaskAccess: assignee OR
+// creator OR project member). This is the path a Decision/Gate owner needs to read
+// an upstream Review's verdict it must adjudicate; pre-I44 it was 403
+// not_agents_task and the cycle stalled on the owner asking for the verdict in chat.
+func TestGetTask_MemberNonAssignee_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t) // AG1 is a member of pid (assigned the seed task).
+	// A SECOND task in the SAME project, created by + assigned to someone else —
+	// AG1 is neither its creator nor its assignee, only a member of its project.
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	other, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: pid, Title: "sibling review", CreatedBy: owner,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.AssignTask(ctx, other, pm.IdentityRef("user:bob"), owner); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": string(other)})
+	if status != http.StatusOK || body["id"] != string(other) {
+		t.Fatalf("status = %d body=%v, want 200 id=%s (member may read any project task)", status, body, other)
+	}
+	// The adjudication fields a Decision/Gate owner reads must be in the projection.
+	for _, k := range []string{"project_id", "title", "status", "assignee"} {
+		if _, ok := body[k]; !ok {
+			t.Fatalf("task projection missing %q: %v", k, body)
+		}
+	}
+}
+
+// TestGetTask_NonMemberForeign_403: the I44 relaxation does NOT cross the
+// membership boundary — a task in a project AG1 is NOT a member of stays 403
+// not_agents_task (non-disclosure: a missing/unseeable task is the same 403 as
+// no-access). Org-isolation held as a read-gate.
+func TestGetTask_NonMemberForeign_403(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	f.seedMemberProject(t) // AG1 has a member project (so the agent resolves).
-	// A task AG1 has NO WorkItem for (not assigned to it).
+	// A task in a project AG1 is NOT a member of (neither assignee nor member).
 	pid := f.seedForeignProject(t)
 	tid, _ := f.pmSvc.CreateTask(context.Background(), pmservice.CreateTaskCommand{
 		ProjectID: pid, Title: "not mine", CreatedBy: pm.IdentityRef("user:other"),
