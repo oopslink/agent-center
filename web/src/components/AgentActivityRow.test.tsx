@@ -203,4 +203,24 @@ describe('AgentActivityRow (#228 categories)', () => {
     row(ev('assistant_text', 'not json {'));
     expect(screen.getByTestId('agent-activity-row')).toBeInTheDocument();
   });
+
+  // T500: message_delivered / message_acknowledged — two new event types for the
+  // message-consumption activity feature (docs/design/features/agent-message-consumption-activity.md).
+  it('renders message_delivered as a Received row with sender + preview', () => {
+    row(
+      ev('message_delivered', {
+        conversation_id: 'c1',
+        message_id: 'm1',
+        sender_display: 'Alice',
+        content_preview: 'hello there',
+      }),
+    );
+    expect(screen.getByText(/Received/i)).toBeInTheDocument();
+    expect(screen.getByText(/hello there/)).toBeInTheDocument();
+  });
+
+  it('renders message_acknowledged as an Acknowledged row', () => {
+    row(ev('message_acknowledged', { conversation_id: 'c1', message_id: 'm9' }));
+    expect(screen.getByText(/Acknowledged/i)).toBeInTheDocument();
+  });
 });

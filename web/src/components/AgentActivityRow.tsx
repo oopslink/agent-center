@@ -23,6 +23,11 @@ const CAT_TOOL_RESULT: Category = { key: 'tool_result', label: 'Result', cls: 't
 // folded into the "Checking messages × N" group, so operators couldn't see when
 // an agent was started/stopped/reset. Distinct blue label + dot, never grouped.
 const CAT_CONTROL: Category = { key: 'control', label: 'Control', cls: 'text-status-blue-fg', dot: 'bg-status-blue-solid' };
+// message-consumption activity (docs/design/features/agent-message-consumption-activity.md):
+// Received = inbound message entered the agent context (message_delivered — primary debug signal,
+// NEVER folded into Checking); Acknowledged = agent confirmed read via mark_seen (muted accent).
+const CAT_DELIVERED: Category = { key: 'delivered', label: 'Received', cls: 'text-status-teal-fg', dot: 'bg-status-teal-solid' };
+const CAT_ACK: Category = { key: 'acknowledged', label: 'Acknowledged', cls: 'text-text-muted', dot: 'bg-text-muted' };
 
 // search-y tool names (lowercased) → "Searching code"; otherwise tool events
 // are "Running command". These are claude's real content-block tool names
@@ -47,6 +52,10 @@ function categoryOf(eventType: string): Category {
       // T345: start / stop / restart / reset — a distinct "Control" category, NOT
       // folded into "Checking messages".
       return CAT_CONTROL;
+    case 'message_delivered':
+      return CAT_DELIVERED;
+    case 'message_acknowledged':
+      return CAT_ACK;
     default:
       // system_init, rate_limit, generic system, unknown → Checking.
       return CAT_CHECKING;
@@ -215,6 +224,13 @@ function preview(eventType: string, p: Record<string, unknown>): string {
       const scope = str(p.scope);
       return scope ? `${verb} (${scope})` : verb;
     }
+    case 'message_delivered': {
+      const who = str(p.sender_display) || str(p.sender_ref);
+      const body = str(p.content_preview);
+      return [who, truncate(body, 100)].filter(Boolean).join(': ');
+    }
+    case 'message_acknowledged':
+      return 'read confirmed';
     default:
       try {
         return truncate(JSON.stringify(p), 120);

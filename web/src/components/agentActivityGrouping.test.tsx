@@ -39,6 +39,21 @@ describe('groupActivity (#274 Checking fold)', () => {
     expect(items[0].kind).toBe('checking-group');
     if (items[0].kind === 'checking-group') expect(items[0].events).toHaveLength(3);
   });
+
+  // T500: message_delivered must NOT be folded into a checking group even when
+  // surrounded by checking events — it maps to CAT_DELIVERED (not CAT_CHECKING).
+  it('does not fold message_delivered into a checking group', () => {
+    const evt = (id: string, t: string): AgentActivityEvent => ({
+      id,
+      agent_id: 'ag1',
+      event_type: t,
+      occurred_at: '2026-06-27T00:00:00Z',
+      payload: '{}',
+    });
+    const items = groupActivity([evt('1', 'system_init'), evt('2', 'message_delivered'), evt('3', 'rate_limit')]);
+    // delivered must surface as its own 'event' item, not swallowed by a checking-group.
+    expect(items.some((i) => i.kind === 'event' && i.event.event_type === 'message_delivered')).toBe(true);
+  });
 });
 
 describe('CheckingGroup (#274)', () => {
