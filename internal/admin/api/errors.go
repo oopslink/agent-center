@@ -43,6 +43,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	// daemon can re-read + retry.
 	// v2.14.0 F7 (issue I14): the WorkItem move sentinels (ErrWorkItemIllegalMove /
 	// ErrWorkItemBadStatus) were removed — AgentWorkItem retired.
+	// ---- reset_requires_stopped (409) — v2.16 W5 (design §3.1) — a Reset
+	// issued while the agent is not settled (running/stopping/resetting). The
+	// operator must stop it first; distinct code so the surface can show a precise
+	// "stop the agent before resetting" message instead of a generic conflict.
+	case errors.Is(err, agent.ErrResetRequiresStopped):
+		writeError(w, http.StatusConflict, "reset_requires_stopped", err.Error())
+
 	case errors.Is(err, agent.ErrIllegalLifecycle):
 		writeError(w, http.StatusConflict, "illegal_transition", err.Error())
 
