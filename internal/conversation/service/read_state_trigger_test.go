@@ -35,9 +35,9 @@ func newReadStateHarness(t *testing.T) *readStateHarness {
 	}
 }
 
-// lastEventTriggerField fetches the newest outbox event whose type is
+// firstEventTriggerField fetches the first outbox event whose type is
 // "conversation.read_state.changed" and returns its "trigger" payload field.
-func (h *readStateHarness) lastEventTriggerField(t *testing.T) string {
+func (h *readStateHarness) firstEventTriggerField(t *testing.T) string {
 	t.Helper()
 	events, err := h.f.eventRepo.Find(context.Background(), observability.EventQueryFilter{Limit: 10})
 	if err != nil {
@@ -81,7 +81,7 @@ func TestMarkSeen_EmitsTrigger(t *testing.T) {
 			if err != nil {
 				t.Fatalf("MarkSeen: %v", err)
 			}
-			got := h.lastEventTriggerField(t)
+			got := h.firstEventTriggerField(t)
 			if got != tc.want {
 				t.Fatalf("trigger = %q, want %q", got, tc.want)
 			}

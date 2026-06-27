@@ -863,6 +863,7 @@ func (s *Server) markSeenHandler(w http.ResponseWriter, r *http.Request) {
 		ConversationID:    convID,
 		LastSeenMessageID: conversation.MessageID(req.LastSeenMessageID),
 		Actor:             d.Actor,
+		Trigger:           convservice.MarkSeenTriggerHuman,
 	})
 	if err != nil {
 		mapDomainError(w, err)
@@ -1260,6 +1261,7 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 				ConversationID:    id,
 				LastSeenMessageID: conversation.MessageID(res.MessageID),
 				Actor:             d.Actor,
+				Trigger:           convservice.MarkSeenTriggerHuman,
 			})
 		}
 		if d.FollowStateSvc != nil {
