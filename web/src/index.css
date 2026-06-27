@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /*
+   * Mobile viewport-aware full height for the app shell. NOT Tailwind's
+   * `h-screen h-dvh` combo: Tailwind emits `.h-dvh` BEFORE `.h-screen`, so with
+   * equal specificity `.h-screen` (100vh) wins and the dvh never applies. A
+   * single rule with two `height` declarations gives correct progressive
+   * enhancement instead — 100vh as the fallback, then 100dvh overriding it where
+   * supported. Why it matters: on mobile browsers 100vh is the LARGE viewport
+   * (taller than the visible area while the URL/toolbar shows), so the shell's
+   * fixed bottom tab bar + the chat's pinned composer get pushed below the fold
+   * and the input box becomes unreachable on long threads. 100dvh tracks the
+   * DYNAMIC viewport (resizes with browser chrome + the soft keyboard), keeping
+   * the composer just above the tab bar. On desktop dvh == vh (no change).
+   */
+  .h-screen-dvh {
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
 /* Self-hosted fonts — zero CDN dependency, GDPR compliant (Hex spec §06) */
 @font-face {
   font-family: 'Plus Jakarta Sans';
