@@ -150,6 +150,7 @@ func (s *Server) markSeenHandler(w http.ResponseWriter, r *http.Request) {
 		ConversationID:    convID,
 		LastSeenMessageID: conversation.MessageID(req.MessageID),
 		Actor:             observability.Actor(selfRef),
+		Trigger:           convservice.MarkSeenTriggerAgentTool,
 	}); err != nil {
 		mapDomainError(w, err)
 		return

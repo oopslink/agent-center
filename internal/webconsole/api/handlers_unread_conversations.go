@@ -223,6 +223,7 @@ func (s *Server) markAllUnreadConversationsSeenHandler(w http.ResponseWriter, r 
 			ConversationID:    c.ID(),
 			LastSeenMessageID: recent[0].ID(),
 			Actor:             d.Actor,
+			Trigger:           convservice.MarkSeenTriggerHuman,
 		}); merr == nil {
 			marked++
 		}

@@ -35,6 +35,14 @@ const (
 	EventTypeLifecycle     = "lifecycle"
 	EventTypeRateLimit     = "rate_limit"
 	EventTypeUnknown       = "unknown"
+	// v2.15 message-consumption activity (docs/design/features/agent-message-consumption-activity.md):
+	// EventTypeMessageDelivered — worker daemon 在 sess.Inject() 后埋点，表示一条入站消息
+	// 真正进入 agent 上下文（payload: {conversation_id, message_id, sender_ref, sender_display,
+	// content_preview, attachments_count}）。
+	// EventTypeMessageAcknowledged — agent 主动调 mark_seen 工具（PULL 路径）后由 ack projector
+	// 追加，表示 agent 确认已读（payload: {conversation_id, message_id, previous_last_seen_message_id}）。
+	EventTypeMessageDelivered    = "message_delivered"
+	EventTypeMessageAcknowledged = "message_acknowledged"
 )
 
 // AgentActivityEvent is one entry in the append-only observation stream

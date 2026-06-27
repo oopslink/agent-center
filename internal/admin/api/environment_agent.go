@@ -183,6 +183,7 @@ func (s *Server) envAgentMarkSeenHandler(w http.ResponseWriter, r *http.Request)
 		ConversationID:    conversation.ConversationID(req.ConversationID),
 		LastSeenMessageID: conversation.MessageID(req.MessageID),
 		Actor:             observability.Actor(participant),
+		Trigger:           convservice.MarkSeenTriggerDelivery,
 	}); err != nil {
 		mapDomainError(w, err) // message-not-in-conv → 422; not found → 404
 		return
