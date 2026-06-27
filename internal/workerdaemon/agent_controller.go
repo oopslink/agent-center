@@ -41,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/mcphost"
@@ -929,6 +930,16 @@ func (c *AgentController) converse(ctx context.Context, pl conversePayload) erro
 	}
 	c.recordWake(pl.AgentID, pl.MessageID)
 
+	// message_delivered (docs/design/features/agent-message-consumption-activity.md):
+	// 消息已真正注入 agent 上下文 → 埋一条一等 activity，让排障时能分清「没收到」与
+	// 「收到了卡在处理中」。best-effort：失败仅记日志，绝不影响注入。
+	if err := c.cfg.Reporter.ReportAgentActivity(
+		context.Background(), pl.AgentID, agent.EventTypeMessageDelivered,
+		messageDeliveredPayload(pl), "" /*taskRef*/, "" /*interactionRef*/, time.Now(),
+	); err != nil {
+		c.log("converse agent=%s message_delivered report: %v", pl.AgentID, err)
+	}
+
 	// L2 no-silent-failure (converse): record this as the in-flight CONVERSATION
 	// (no WorkItem) so an is_error turn surfaces a system message into it. Clear
 	// any stale WorkItem context — a converse turn is not work.
@@ -947,6 +958,28 @@ func (c *AgentController) converse(ctx context.Context, pl conversePayload) erro
 		}
 	}
 	return nil
+}
+
+// messageDeliveredPayload renders the message_delivered activity JSON payload
+// (snapshot of the moment the message was injected into the agent's context).
+// content_preview is truncated to 200 chars to avoid activity bloat.
+func messageDeliveredPayload(pl conversePayload) string {
+	preview := pl.MessageText
+	if len(preview) > 200 {
+		preview = preview[:200]
+	}
+	b, err := json.Marshal(map[string]any{
+		"conversation_id":   pl.ConversationID,
+		"message_id":        pl.MessageID,
+		"sender_ref":        pl.SenderRef,
+		"sender_display":    pl.SenderDisplay,
+		"content_preview":   preview,
+		"attachments_count": pl.AttachmentCount,
+	})
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
 }
 
 // buildConverseBrief renders the stdin brief injected for an agent.converse: who

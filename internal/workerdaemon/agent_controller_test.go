@@ -165,6 +165,19 @@ func (r *recordingReporter) activityCalls() []activityCall {
 	return out
 }
 
+// findActivity returns the first recorded activity with the given eventType,
+// and a boolean indicating whether one was found.
+func (r *recordingReporter) findActivity(eventType string) (activityCall, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, a := range r.activities {
+		if a.eventType == eventType {
+			return a, true
+		}
+	}
+	return activityCall{}, false
+}
+
 var _ feedbackReporter = (*recordingReporter)(nil)
 
 // fakeSession is the TEST-ONLY agentSession (PM s3b-2b test seam). It records
@@ -1291,5 +1304,33 @@ func TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem(t *testing.T) {
 	last := acts[len(acts)-1]
 	if last.taskRef != "WI-1" {
 		t.Fatalf("activity during an in-flight work item must carry its task_ref; want WI-1, got %q", last.taskRef)
+	}
+}
+
+// TestConverse_EmitsMessageDelivered verifies that a successful converse inject
+// produces a "message_delivered" activity event with the expected payload fields.
+func TestConverse_EmitsMessageDelivered(t *testing.T) {
+	c, rep, _ := newTestController(t, t.TempDir())
+	defer c.Shutdown(context.Background())
+
+	// Start a running session so converse can inject into it.
+	if err := c.Handle(context.Background(), reconcileCmd(t, "ag1", "running", 1, "", 1)); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Handle(context.Background(), converseCmd(t, "ag1", "conv1", "msg1", "hello there", 2)); err != nil {
+		t.Fatalf("converse: %v", err)
+	}
+
+	ev, ok := rep.findActivity("message_delivered")
+	if !ok {
+		t.Fatal("expected a message_delivered activity event")
+	}
+	if ev.agentID != "ag1" {
+		t.Fatalf("message_delivered agentID: want ag1, got %q", ev.agentID)
+	}
+	if !strings.Contains(ev.payload, `"message_id":"msg1"`) ||
+		!strings.Contains(ev.payload, `"content_preview":"hello there"`) {
+		t.Fatalf("payload missing fields: %s", ev.payload)
 	}
 }
