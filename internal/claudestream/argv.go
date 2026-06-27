@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/agentadapter"
 	"github.com/oopslink/agent-center/internal/agentadapter/claudecode"
@@ -118,9 +119,19 @@ func SessionUUIDGen(agentID string, epoch, generation int) string {
 // (possibly still-locked) prior session's conversation into the NEW --session-id —
 // the lock-sidestepping relaunch. Empty ⇒ a plain start/resume of the --session-id
 // (no fork), the unchanged initial/normal-start path.
-func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation int, resumeFromSessionID string, env map[string]string) ([]string, error) {
+// extraSystemPrompt (W2 memory): when non-empty it is appended after the
+// work-queue operating instructions in the SAME --append-system-prompt value, so
+// the agent's scoped memory harness context (layout guide + global/supervisor
+// memory; see cognition/memory.Engine.HarnessContext) rides the same idempotent,
+// re-applied-every-launch channel as the work-queue prompt. Empty ⇒ byte-for-byte
+// the pre-memory argv (every existing call site passes "").
+func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation int, resumeFromSessionID string, env map[string]string, extraSystemPrompt string) ([]string, error) {
 	if agentID == "" {
 		return nil, errors.New("claudestream: agent_id required")
+	}
+	sysPrompt := AgentWorkQueueSystemPrompt
+	if strings.TrimSpace(extraSystemPrompt) != "" {
+		sysPrompt = sysPrompt + "\n\n" + extraSystemPrompt
 	}
 	adapter := claudecode.New(binary)
 	req := agentadapter.SpawnRequest{
@@ -128,8 +139,9 @@ func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation
 		Prompt:      longLivedSentinelPrompt,
 		// v2.8.1 #278 D PR4a: the pull-model work-queue operating instructions as a
 		// persistent --append-system-prompt — re-applied every launch, idempotent
-		// (not conversation history). See agent_system_prompt.go.
-		SystemPrompt: AgentWorkQueueSystemPrompt,
+		// (not conversation history). See agent_system_prompt.go. W2 appends the
+		// memory harness context (extraSystemPrompt) to this same value.
+		SystemPrompt: sysPrompt,
 		Env:          env,
 	}
 	cmdSpec, err := adapter.BuildCommand(req)
