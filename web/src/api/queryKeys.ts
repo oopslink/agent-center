@@ -43,6 +43,16 @@ export const qk = {
   // so each open thread caches independently and a reply invalidates only its
   // own thread (plus the messages list, for the root's reply_count bump).
   threadReplies: (convId: string, rootId: string) => o('threadReplies', convId, rootId),
+  // The PREFIX key matching EVERY open thread's replies in one conversation
+  // (the rootId is the 4th tuple element; this 3-element prefix partial-matches
+  // all threadReplies(convId, *)). SSE conversation.message_added only carries
+  // the conversation_id (no root/parent id), so it invalidates this prefix to
+  // refresh the currently-open thread panel's replies — without it an agent's
+  // reply landed in the cache for messages()/conversationThreads() but the open
+  // thread panel kept reading its own un-invalidated threadReplies cache and
+  // required a manual refresh. Only one thread panel is open at a time, so the
+  // coarse prefix invalidation has no practical over-fetch.
+  threadRepliesByConversation: (convId: string) => o('threadReplies', convId),
   // v2.9.1 Threads P2: all thread summaries in a conversation
   // (GET /conversations/{convId}/threads) — drives the Participants thread list.
   conversationThreads: (convId: string) => o('conversationThreads', convId),

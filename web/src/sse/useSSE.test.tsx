@@ -82,6 +82,9 @@ describe('dispatchToQueryClient', () => {
     // v2.9.1 Threads F2: keep the Participants thread list live (new thread /
     // reply_count++ / re-sort) the same way the message badge is live.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversationThreads('C1') });
+    // A reply inside an open thread also arrives as message_added; refresh the
+    // open thread panel's replies (conversation prefix — event has no root id).
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.threadRepliesByConversation('C1') });
     // I23 (T332): the cross-source "未读会话" digest must re-fetch live too.
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.unreadConversations() });
   });

@@ -222,6 +222,14 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         // as conversation.message_added, same SSE path that keeps the per-message
         // thread badge live. (cf #318 list-refresh-on-mutation.)
         invalidate(qk.conversationThreads(ev.conversation_id));
+        // A reply inside an OPEN thread panel also arrives as
+        // conversation.message_added, but the panel reads from
+        // threadReplies(convId, rootId) — a key the branch above never touched,
+        // so the reply showed up in the main list yet the open thread stayed
+        // stale until a manual refresh. The SSE event carries only
+        // conversation_id (no root/parent id), so invalidate the conversation
+        // prefix to refresh whichever thread is open (only one at a time).
+        invalidate(qk.threadRepliesByConversation(ev.conversation_id));
         // T306: refresh the ref-resolver lists. A message often references a task/
         // issue/plan an AGENT just created; message_added had no invalidation for
         // the org task/issue/plan lists that useTaskRefResolver reads, so a fresh
