@@ -570,8 +570,11 @@ type getPlanReq struct {
 }
 
 // getPlanHandler returns the full Plan DTO (the DERIVED node read model, §9.2) for
-// a plan via pm.GetPlanDetail. It first resolves the plan and verifies it belongs
-// to project_id (the same plan-in-project check the web handler does) so a caller
+// a plan via pm.GetPlanDetailForMember — PROJECT-MEMBER read scope (issue I44): the
+// caller must be a member of the plan's project (ErrNotMember → 403), closing the
+// prior gap where only a plan-in-project name match was enforced (caller membership
+// was never checked). It then also verifies the plan belongs to the named
+// project_id (the same plan-in-project check the web handler does) so a caller
 // cannot read a plan outside the project it named.
 func (s *Server) getPlanHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -580,9 +583,8 @@ func (s *Server) getPlanHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	// The guardrail (worker-from-token + agent-bound) is the read gate; the
-	// resolved agent itself isn't needed for the project-scoped plan reads.
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.PMService == nil {
@@ -597,7 +599,7 @@ func (s *Server) getPlanHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
 		return
 	}
-	detail, err := d.PMService.GetPlanDetail(r.Context(), pm.PlanID(req.PlanID))
+	detail, err := d.PMService.GetPlanDetailForMember(r.Context(), pm.PlanID(req.PlanID), pm.IdentityRef(agentActor(a)))
 	if err != nil {
 		mapPlanToolError(w, err)
 		return

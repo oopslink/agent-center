@@ -593,6 +593,33 @@ func TestGetPlan_WrongProject_404(t *testing.T) {
 	}
 }
 
+// TestGetPlan_NonMember_403: issue I44 — get_plan now enforces caller membership
+// (GetPlanDetailForMember), closing the prior gap where only a plan-in-project name
+// match was checked (any agent on a worker could read a plan whose project_id +
+// plan_id it could name). An agent that is NOT a member of the plan's project gets
+// 403 (ErrNotMember → terminal), even when it names the plan's true project_id.
+func TestGetPlan_NonMember_403(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	f.seedMemberProject(t) // AG1 resolves (member of SOME project)…
+	// …but the plan lives in a project AG1 is NOT a member of.
+	foreign := f.seedForeignProject(t)
+	planID, err := f.pmSvc.CreatePlan(context.Background(), pmservice.CreatePlanCommand{
+		ProjectID: foreign, Name: "secret plan", CreatedBy: pm.IdentityRef("user:other"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_plan", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "project_id": string(foreign), "plan_id": string(planID)})
+	if status != http.StatusForbidden {
+		t.Fatalf("status = %d body=%v, want 403 (non-member may not read a foreign project's plan)", status, body)
+	}
+}
+
 func TestGetPlan_CrossWorker_403(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
