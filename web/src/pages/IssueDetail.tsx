@@ -156,7 +156,11 @@ export default function IssueDetail(): React.ReactElement {
                   </div>
                 </div>
               )}
-              <div className="flex flex-1 flex-col">
+              {/* min-h-0: completes the flex height chain so the message list
+                  scrolls internally instead of growing the column past the
+                  viewport — otherwise a long mobile thread pushes the pinned
+                  composer below the fold / behind the bottom tab bar. */}
+              <div className="flex min-h-0 flex-1 flex-col">
                 <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
               </div>
             </>
