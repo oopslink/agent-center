@@ -125,6 +125,11 @@ type TaskRepository interface {
 	// agent-load metric source (no per-agent N+1). Terminal tasks are excluded;
 	// unassigned rows are omitted. v2.14.0 T342.
 	CountActiveByAssignee(ctx context.Context) (map[IdentityRef]AgentTaskLoad, error)
+	// ListActiveByAssignee returns the actual task rows CountActiveByAssignee
+	// counts for one assignee (non-terminal tasks not in a terminal plan),
+	// stable-ordered (created_at, id) — the list-shaped twin of the backlog
+	// metric so the Agent Tasks panel matches the "backlog: N" badge.
+	ListActiveByAssignee(ctx context.Context, assignee IdentityRef) ([]*Task, error)
 	// ListByStatuses returns tasks whose status is in any of the given statuses,
 	// across ALL projects/orgs (global), stable-ordered (created_at, id). Empty
 	// input → empty result. v2.7 #107 Phase-2 (proj-B): observability task query

@@ -234,6 +234,19 @@ func (s *Service) ListRunnableAgentTasks(ctx context.Context, assignee pm.Identi
 	return out, nil
 }
 
+// ListAssignedAgentTasks returns ALL of an agent's active (open/running) tasks
+// that are not in a terminal plan — the same set the "backlog: N" badge counts
+// (pm.AgentTaskLoad). Unlike ListRunnableAgentTasks it does NOT drop tasks whose
+// dependencies are unsatisfied: those are pending/queued work the agent is still
+// assigned, they just are not pullable yet. The human-facing Agent-detail Tasks
+// panel uses this so the list reconciles with the backlog count (a non-zero
+// backlog with an empty Tasks tab was the @oopslink-reported mismatch); the
+// agent-facing list_my_tasks keeps using ListRunnableAgentTasks ("what can I
+// start now").
+func (s *Service) ListAssignedAgentTasks(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
+	return s.tasks.ListActiveByAssignee(ctx, assignee)
+}
+
 // AgentFreedFromTask reports whether the given task no longer occupies its agent
 // assignee's single-active slot — i.e. the agent is free to start its next task.
 // True when the task is terminal (completed/discarded) OR a blocked, lease-free

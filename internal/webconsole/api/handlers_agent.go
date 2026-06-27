@@ -632,13 +632,19 @@ func (s *Server) agentTasksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// v2.14.0 F7 (issue I14): the AgentWorkItem model was removed; an agent's
-	// "work items" are now its non-terminal assigned tasks. Source the same
-	// runnable open/running queue the MCP list_my_tasks pull uses (the panel keeps
-	// the work_items wire shape — see agentTaskExecMap).
+	// "work items" are now its non-terminal assigned tasks (the panel keeps the
+	// work_items wire shape — see agentTaskExecMap).
+	//
+	// This human-facing Tasks panel lists ALL active (open/running) assigned tasks
+	// not in a terminal plan — the SAME set the "backlog: N" badge counts. It used
+	// to source the runnable-only queue (ListRunnableAgentTasks, like MCP
+	// list_my_tasks), which dropped dependency-blocked tasks; that made an agent
+	// read "backlog: 7" yet show an empty Tasks tab (@oopslink). The agent-facing
+	// list_my_tasks still uses ListRunnableAgentTasks ("what can I start now").
 	facing := agentFacingID(a)
 	out := make([]map[string]any, 0)
 	if d.PM != nil {
-		tasks, err := d.PM.ListRunnableAgentTasks(r.Context(), pm.IdentityRef("agent:"+facing))
+		tasks, err := d.PM.ListAssignedAgentTasks(r.Context(), pm.IdentityRef("agent:"+facing))
 		if err != nil {
 			mapAgentError(w, err)
 			return

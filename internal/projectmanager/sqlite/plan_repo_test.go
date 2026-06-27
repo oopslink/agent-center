@@ -388,3 +388,73 @@ func TestTaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks(t *testing.T) 
 		t.Fatalf("got %+v, want {Running:1 Pending:2} (terminal-plan tasks excluded)", got[ag])
 	}
 }
+
+// TestTaskRepo_ListActiveByAssignee_MatchesBacklogCount pins that the list-shaped
+// twin returns EXACTLY the rows CountActiveByAssignee counts for an assignee:
+// open+running, terminal-plan tasks excluded, dependency-blocked tasks included
+// (no runnable filter). This is what reconciles the Agent Tasks panel with the
+// "backlog: N" badge.
+func TestTaskRepo_ListActiveByAssignee_MatchesBacklogCount(t *testing.T) {
+	ctx, pr, tr := planSetup(t)
+	mkPlan := func(id pm.PlanID, status pm.PlanStatus) {
+		p, err := pm.RehydratePlan(pm.RehydratePlanInput{
+			ID: id, ProjectID: "P-1", Name: "pln", Status: status,
+			CreatorRef: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := pr.Save(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mkTask := func(id pm.TaskID, plan pm.PlanID, status pm.TaskStatus, assignee string) {
+		tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+			ID: id, ProjectID: "P-1", Title: string(id), Status: status,
+			Assignee: pm.IdentityRef(assignee), PlanID: plan,
+			CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tr.Save(ctx, tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const ag = "agent:agent-b5036ea8"
+	const other = "agent:agent-cccc3333"
+	mkPlan("PL-ARCH", pm.PlanArchived)
+	mkPlan("PL-RUN", pm.PlanRunning)
+	mkTask("TR1", "PL-RUN", pm.TaskOpen, ag)      // running plan, open → listed
+	mkTask("TRr", "PL-RUN", pm.TaskRunning, ag)   // running plan, doing → listed
+	mkTask("TB1", "", pm.TaskOpen, ag)            // no plan (backlog) → listed
+	mkTask("TA1", "PL-ARCH", pm.TaskOpen, ag)     // archived plan → excluded
+	mkTask("TC1", "PL-RUN", pm.TaskCompleted, ag) // terminal task → excluded
+	mkTask("TX1", "PL-RUN", pm.TaskOpen, other)   // other assignee → excluded
+
+	got, err := tr.ListActiveByAssignee(ctx, ag)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotIDs := make([]string, 0, len(got))
+	for _, tk := range got {
+		gotIDs = append(gotIDs, string(tk.ID()))
+	}
+	want := []string{"TB1", "TR1", "TRr"} // order = (created_at, id); same t0 → id asc
+	if len(gotIDs) != len(want) {
+		t.Fatalf("got %v, want %v", gotIDs, want)
+	}
+	for i := range want {
+		if gotIDs[i] != want[i] {
+			t.Fatalf("got %v, want %v (order = created_at,id)", gotIDs, want)
+		}
+	}
+	// Reconciles with the backlog metric: list length == Running+Pending count.
+	counts, err := tr.CountActiveByAssignee(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total := counts[ag].Running + counts[ag].Pending; total != len(got) {
+		t.Fatalf("list len %d != backlog count %d", len(got), total)
+	}
+}

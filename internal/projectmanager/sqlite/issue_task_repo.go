@@ -364,6 +364,38 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 	return out, rows.Err()
 }
 
+// ListActiveByAssignee returns the actual task rows that CountActiveByAssignee
+// counts for one assignee: non-terminal (open/running) tasks that are NOT in a
+// terminal (archived/done) plan, stable-ordered (created_at, id). It is the
+// list-shaped twin of the backlog metric, so the Agent-detail Tasks panel can
+// show EXACTLY the set the "backlog: N" badge counts — including tasks whose
+// plan dependencies are not yet satisfied (these are pending/queued work, just
+// not pullable yet). Mirrors the CountActiveByAssignee predicate verbatim.
+func (r *TaskRepo) ListActiveByAssignee(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		taskSelect+` WHERE assignee = ? AND status IN (?, ?)
+		     AND (plan_id IS NULL OR plan_id = ''
+		          OR plan_id NOT IN (SELECT id FROM pm_plans WHERE status IN (?, ?)))
+		   ORDER BY created_at, id`,
+		string(assignee),
+		string(pm.TaskRunning), string(pm.TaskOpen),
+		string(pm.PlanArchived), string(pm.PlanDone))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*pm.Task
+	for rows.Next() {
+		t, err := scanTask(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // ListByStatuses returns tasks whose status is in any of the given statuses,
 // across ALL projects (global), stable-ordered (created_at, id). Empty input →
 // empty result. v2.7 #107 Phase-2 (proj-B) observability task-query repoint.
