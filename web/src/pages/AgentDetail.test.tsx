@@ -264,24 +264,43 @@ describe('AgentDetail page', () => {
   });
 
   it('lifecycle controls are icon-ified with tooltip + aria-label (#250)', async () => {
+    // Stop/Restart show for a running agent; Reset is gated to settled states
+    // (v2.16 W5) so it is checked separately below.
     stubAgent({ lifecycle: 'running' });
     wrap('/agents/A1');
     const stop = await screen.findByTestId('agent-stop-btn');
     const restart = screen.getByTestId('agent-restart-btn');
-    const reset = screen.getByTestId('agent-reset-btn');
     // icon-only (SVG, no text label) + tooltip + aria-label.
     for (const [btn, tip, aria] of [
       [stop, 'Stop', 'Stop agent'],
       [restart, 'Restart', 'Restart agent'],
-      [reset, 'Reset', 'Reset agent'],
     ] as const) {
       expect(btn.querySelector('svg')).not.toBeNull();
       expect(btn).toHaveAttribute('title', tip);
       expect(btn).toHaveAttribute('aria-label', aria);
       expect(btn).not.toHaveTextContent(tip);
     }
+    // Reset is hidden while running (W5 precondition).
+    expect(screen.queryByTestId('agent-reset-btn')).not.toBeInTheDocument();
+  });
+
+  it('Reset control is icon-ified + destructive for a settled (stopped) agent (#250 / W5)', async () => {
+    stubAgent({ lifecycle: 'stopped' });
+    wrap('/agents/A1');
+    const reset = await screen.findByTestId('agent-reset-btn');
+    expect(reset.querySelector('svg')).not.toBeNull();
+    expect(reset).toHaveAttribute('title', 'Reset');
+    expect(reset).toHaveAttribute('aria-label', 'Reset agent');
+    expect(reset).not.toHaveTextContent('Reset');
     // Reset keeps the destructive (red) color.
     expect(reset.className).toContain('text-danger');
+  });
+
+  it('Reset is hidden while running (v2.16 W5 settled-state precondition)', async () => {
+    stubAgent({ lifecycle: 'running' });
+    wrap('/agents/A1');
+    await screen.findByTestId('agent-stop-btn');
+    expect(screen.queryByTestId('agent-reset-btn')).not.toBeInTheDocument();
   });
 
   it('error agent shows Start', async () => {
@@ -299,7 +318,8 @@ describe('AgentDetail page', () => {
   });
 
   it('reset requires scope + second confirmation before firing with confirm:true', async () => {
-    stubAgent({ lifecycle: 'running' });
+    // A settled agent (error) — Reset is available per the W5 precondition.
+    stubAgent({ lifecycle: 'error', lifecycle_error: 'boom' });
     let body: Record<string, unknown> | null = null;
     server.use(
       http.post('/api/agents/:id/reset', async ({ request }) => {
