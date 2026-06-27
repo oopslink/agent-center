@@ -6,23 +6,13 @@ import (
 	"encoding/json"
 	"strings"
 
+	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
-
-// evtReadStateChanged is the conversation BC event this projector subscribes to.
-// (Mirror of the literal emitted in conversation/service/read_state.go MarkSeen.)
-const evtReadStateChanged = "conversation.read_state.changed"
-
-// markSeenTriggerAgentTool is the only trigger that yields a message_acknowledged
-// activity — i.e. an agent DELIBERATELY confirmed a message it pulled via
-// get_my_unread (PULL path). PUSH-path auto-advance (trigger=delivery) and human
-// reads (trigger=human) are skipped: the delivery moment is already shown by the
-// worker daemon's message_delivered event, so an auto-ack would be redundant noise.
-const markSeenTriggerAgentTool = "agent_tool"
 
 // MessageAckProjector turns an agent's deliberate mark_seen (conversation
 // read_state.changed, trigger=agent_tool) into a message_acknowledged entry in
@@ -60,15 +50,17 @@ type readStateChangedPayload struct {
 // Project appends a message_acknowledged activity for an agent's deliberate
 // mark_seen. Any non-matching event/trigger/user is a no-op.
 func (p *MessageAckProjector) Project(ctx context.Context, e outbox.Event) error {
-	if e.EventType != evtReadStateChanged {
+	if e.EventType != convservice.EventTypeReadStateChanged {
 		return nil
 	}
 	var pl readStateChangedPayload
 	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
-		return err
+		// Malformed payload (should never happen — system-generated). Drain rather
+		// than retry forever; a bad event must not wedge the relay.
+		return nil
 	}
 	// Whitelist: only an agent's DELIBERATE mark_seen produces an ack event.
-	if pl.Trigger != markSeenTriggerAgentTool {
+	if pl.Trigger != string(convservice.MarkSeenTriggerAgentTool) {
 		return nil
 	}
 	if !strings.HasPrefix(pl.UserID, "agent:") {

@@ -46,7 +46,7 @@
     "attachments_count": 0
   }
   ```
-- **`interaction_ref`**：用 converse 当轮的 interaction/turn ref，使 delivered 与随后的 thinking/tool/result 归于同一逻辑轮。
+- **`interaction_ref`**：用 converse 当轮的 interaction/turn ref，使 delivered 与随后的 thinking/tool/result 归于同一逻辑轮。当前实现在 `converse()` 的 `sess.Inject()` 时刻无可用的 interaction/turn id，故 `interaction_ref` 暂传空字符串；按 interaction 分组为后续迭代。
 - **PULL 不重复埋**：agent 自调 `get_my_unread` 的 receipt 已是现成的 `tool_result` activity 事件，故 `message_delivered` 仅覆盖 PUSH 注入路径。
 
 ### ② `message_acknowledged`（轻量点缀，仅 PULL，对应 (b)）

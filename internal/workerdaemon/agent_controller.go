@@ -965,8 +965,8 @@ func (c *AgentController) converse(ctx context.Context, pl conversePayload) erro
 // content_preview is truncated to 200 chars to avoid activity bloat.
 func messageDeliveredPayload(pl conversePayload) string {
 	preview := pl.MessageText
-	if len(preview) > 200 {
-		preview = preview[:200]
+	if r := []rune(preview); len(r) > 200 {
+		preview = string(r[:200])
 	}
 	b, err := json.Marshal(map[string]any{
 		"conversation_id":   pl.ConversationID,

@@ -18,6 +18,9 @@ import (
 // render a "999+" badge without an unbounded scan.
 const MaxUnreadCount = 999
 
+// EventTypeReadStateChanged is the outbox event type emitted by MarkSeen.
+const EventTypeReadStateChanged = "conversation.read_state.changed"
+
 // ReadStateService owns read-state writes (MarkSeen) and the unread
 // summary read (Unread). Per v2.1-C-2 audit § 2 the MarkSeen invariant
 // is only-forward — a stale "seen up to" never regresses the cursor.
@@ -149,7 +152,7 @@ func (s *ReadStateService) MarkSeen(ctx context.Context, cmd MarkSeenCommand) (M
 			return err
 		}
 		evID, err := s.sink.Emit(txCtx, observability.EmitCommand{
-			EventType: "conversation.read_state.changed",
+			EventType: EventTypeReadStateChanged,
 			Refs: observability.EventRefs{
 				ConversationID: string(cmd.ConversationID),
 				MessageID:      string(cmd.LastSeenMessageID),
