@@ -55,6 +55,10 @@ func mapAgentError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, agentbc.ErrAgentNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, agentbc.ErrResetRequiresStopped):
+		// v2.16 W5: Reset on a non-settled agent. 409 conflict with the current
+		// runtime state — the operator stops it first, then resets.
+		writeError(w, http.StatusConflict, "reset_requires_stopped", err.Error())
 	case errors.Is(err, agentbc.ErrIllegalLifecycle):
 		writeError(w, http.StatusConflict, "illegal_transition", err.Error())
 	case errors.Is(err, agentbc.ErrAgentNotStopped):

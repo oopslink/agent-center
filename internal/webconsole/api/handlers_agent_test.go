@@ -104,21 +104,30 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 		t.Fatalf("started lifecycle = %v, want running", started["lifecycle"])
 	}
 
-	// POST reset without confirm → 400.
+	// POST reset without confirm → 400 (confirm is checked before the precondition).
 	resp = orgScopedPost(t, s.URL+"/api/agents/"+id+"/reset", `{"scope":"memory","confirm":false}`, sess)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("reset no-confirm: got %d, want 400", resp.StatusCode)
 	}
 
-	// POST reset with confirm → 200, resetting.
+	// POST reset with confirm WHILE RUNNING → 409 reset_requires_stopped (v2.16 W5:
+	// Reset is only legal from a settled state; the operator must stop the agent first).
 	resp = orgScopedPost(t, s.URL+"/api/agents/"+id+"/reset", `{"scope":"memory","confirm":true}`, sess)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("reset confirm: got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("reset while running: got %d, want 409", resp.StatusCode)
 	}
-	var reset map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&reset)
-	if reset["lifecycle"] != "resetting" {
-		t.Fatalf("reset lifecycle = %v, want resetting", reset["lifecycle"])
+	var resetErr map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&resetErr)
+	if resetErr["error"] != "reset_requires_stopped" {
+		t.Fatalf("reset while running error = %v, want reset_requires_stopped", resetErr["error"])
+	}
+
+	// Stop → stopping; the agent leaves running. (Settling to stopped is Environment
+	// feedback not exercised here; the happy stopped→resetting reset path is covered
+	// at the service layer in TestResetAgent.)
+	resp = orgScopedPost(t, s.URL+"/api/agents/"+id+"/stop", `{}`, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("stop: got %d", resp.StatusCode)
 	}
 
 	// tasks + activity → empty collections.

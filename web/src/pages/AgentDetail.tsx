@@ -147,8 +147,11 @@ export default function AgentDetail(): React.ReactElement {
   const transient = lc === 'stopping' || lc === 'resetting';
   const canStart = lc === 'stopped' || lc === 'error';
   const canStopRestart = lc === 'running';
-  // Reset is available unless the agent is already resetting (or archived).
-  const canReset = lc !== 'resetting' && !isArchived;
+  // v2.16 W5 (design §3.1): Reset wipes runtime state, so it is only available
+  // from a SETTLED lifecycle — stopped / error / failed. A running / stopping /
+  // resetting (or archived) agent must settle first (backend also 409-guards with
+  // reset_requires_stopped). The operator stops the agent, then resets.
+  const canReset = lc === 'stopped' || lc === 'error' || lc === 'failed';
   // v2.8 #270/#272 (b strict-two-step): archive only a settled (stopped/error)
   // agent — a running agent must be stopped first (backend also 409-guards).
   const canArchive = lc === 'stopped' || lc === 'error';
