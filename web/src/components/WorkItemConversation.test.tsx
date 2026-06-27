@@ -102,6 +102,28 @@ describe('WorkItemConversation (#137)', () => {
     expect(within(banner).getByTestId('conversation-maximize-toggle')).toBeInTheDocument();
   });
 
+  // Mobile maximize: the desktop banner (and its maximize toggle) is hidden on
+  // mobile, so a separate floating toggle (md:hidden) surfaces maximize there.
+  // It shares the maximized state, so toggling it drives data-maximized too.
+  it('exposes a mobile-only maximize toggle that flips the maximized state', async () => {
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs', 'T280');
+    const section = await screen.findByTestId('work-item-conversation');
+    const mobileToggle = screen.getByTestId('conversation-maximize-toggle-mobile');
+    // mobile-only — carries md:hidden so it never doubles the desktop control.
+    expect(mobileToggle.className).toContain('md:hidden');
+    expect(section).toHaveAttribute('data-maximized', 'false');
+    fireEvent.click(mobileToggle);
+    expect(section).toHaveAttribute('data-maximized', 'true');
+    expect(section.className).toContain('fixed');
+    expect(mobileToggle).toHaveAttribute('aria-label', 'Restore conversation');
+    fireEvent.click(mobileToggle);
+    expect(section).toHaveAttribute('data-maximized', 'false');
+  });
+
   it('falls back to the "Conversation" label when no ownerCode is provided', async () => {
     server.use(
       http.get('/api/conversations', () => HttpResponse.json([conv])),

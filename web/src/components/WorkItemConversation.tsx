@@ -75,11 +75,30 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
       className={
         maximized
           ? 'fixed inset-0 z-50 m-0 flex min-h-0 flex-col bg-bg-base p-3'
-          : 'mt-0 flex min-h-0 flex-1 flex-col md:mt-6'
+          : 'relative mt-0 flex min-h-0 flex-1 flex-col md:mt-6'
       }
       data-testid="work-item-conversation"
       data-maximized={maximized ? 'true' : 'false'}
     >
+      {/* Mobile maximize/restore: the desktop banner (and its maximize button)
+          is hidden on mobile, so on small screens we surface the toggle as a
+          compact floating control in the chat's top-right corner. Maximizing
+          promotes the thread to a full-viewport overlay (fixed inset-0) — vital
+          on mobile where the inline chat shares a long detail page; restore (and
+          Esc) brings it back. Mobile-only (md:hidden); desktop uses the banner.
+          Rendered unconditionally (like the desktop banner toggle) so it is
+          available while the thread is still loading. */}
+      <button
+        type="button"
+        onClick={() => setMaximized((m) => !m)}
+        className="absolute right-2 top-2 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-muted shadow-sm hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:hidden"
+        data-testid="conversation-maximize-toggle-mobile"
+        aria-pressed={maximized}
+        aria-label={maximized ? 'Restore conversation' : 'Maximize conversation'}
+        title={maximized ? 'Restore' : 'Maximize'}
+      >
+        {maximized ? <RestoreIcon /> : <MaximizeIcon />}
+      </button>
       {/* Desktop: full banner with ownerCode + linked title + controls */}
       <div
         className="hidden items-center gap-2 rounded-t border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary md:flex"
