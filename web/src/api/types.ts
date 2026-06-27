@@ -175,6 +175,12 @@ export type AgentLifecycle =
   | 'stopping'
   | 'resetting'
   | 'error'
+  // v2.7 GATE-7 (Mode-B) terminal crash-loop circuit-breaker. Mirrors the
+  // backend agent.LifecycleFailed: the worker's self-heal exhausted its bounded
+  // relaunch attempts and stopped auto-relaunching. UNLIKE 'error' (transient —
+  // still auto-retrying), 'failed' is terminal and needs a MANUAL Start/Reset to
+  // leave (which is why AgentDetail treats it as a settled, reset-eligible state).
+  | 'failed'
   // v2.8 #272: terminal soft-archive state. Archived agents are excluded from
   // the default list (GET ?include_archived=true to include) but GET-by-id
   // still resolves (history/detail). No un-archive in v2.8.
