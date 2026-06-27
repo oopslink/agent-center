@@ -112,6 +112,12 @@ export function MessageList({
   // message arrives while the user is scrolled up; cleared on click or
   // when the user scrolls back to the bottom.
   const [hasNewBelow, setHasNewBelow] = useState(false);
+  // T500: whether the stream is scrolled to (near) the bottom. Drives a
+  // persistent "jump to bottom" affordance: any time the user has scrolled up to
+  // read history — NOT only when a new message arrived (that is the hasNewBelow
+  // pill above) — a corner chevron lets them snap back to the latest message.
+  // Mirrors stickToBottomRef but as state so the button can re-render on scroll.
+  const [atBottom, setAtBottom] = useState(true);
   // v2.8.1 7th DM increment 2: the sender-detail sidebar. Holds the clicked
   // message's sender identity ref (prefixed, e.g. "agent:A-1"); null = closed.
   // #281: PREFER the surface-level provider opener when present (so the header
@@ -178,9 +184,10 @@ export function MessageList({
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const atBottom = distFromBottom < 40;
-    stickToBottomRef.current = atBottom;
-    if (atBottom && hasNewBelow) setHasNewBelow(false);
+    const nowAtBottom = distFromBottom < 40;
+    stickToBottomRef.current = nowAtBottom;
+    setAtBottom(nowAtBottom); // T500: toggle the jump-to-bottom chevron
+    if (nowAtBottom && hasNewBelow) setHasNewBelow(false);
     // Near the top → pull the previous (older) page.
     if (el.scrollTop < 80) triggerLoadOlder();
   };
@@ -190,6 +197,7 @@ export function MessageList({
     if (!el) return;
     el.scrollTop = el.scrollHeight;
     stickToBottomRef.current = true;
+    setAtBottom(true); // T500
     setHasNewBelow(false);
   };
 
@@ -497,6 +505,33 @@ export function MessageList({
           className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-btn-primary-bg px-3 py-1 text-xs font-medium text-btn-primary-fg shadow-2 hover:opacity-90"
         >
           New messages ↓
+        </button>
+      )}
+      {/* T500: persistent "jump to bottom" affordance. Shown whenever the user
+          has scrolled up away from the latest message AND there is no new-message
+          pill already inviting them down (mutually exclusive so the two never
+          overlap). A compact corner chevron — clicking snaps to the latest. */}
+      {!atBottom && !hasNewBelow && (
+        <button
+          type="button"
+          onClick={jumpToLatest}
+          data-testid="message-list-jump-bottom"
+          title="Jump to latest messages"
+          aria-label="Jump to latest messages"
+          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-bg-subtle text-text-secondary shadow-2 hover:bg-bg-base hover:text-text-primary"
+        >
+          <svg
+            viewBox="0 0 16 16"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 6l4 4 4-4" />
+          </svg>
         </button>
       )}
       {/* v2.8.1 increment 2: a single sidebar instance at the MessageList root.

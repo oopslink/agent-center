@@ -249,6 +249,70 @@ describe('MessageList', () => {
     expect(list.scrollTop).toBe(list.scrollHeight);
     expect(screen.queryByTestId('message-list-new-pill')).not.toBeInTheDocument();
   });
+
+  // T500: persistent jump-to-bottom affordance (independent of new messages).
+  it('shows the jump-to-bottom button when scrolled up (no new message)', () => {
+    render(<MessageList messages={[sample('M1', 'a'), sample('M2', 'b')]} />);
+    const list = screen.getByTestId('message-list');
+    // No jump button while at bottom (initial).
+    expect(screen.queryByTestId('message-list-jump-bottom')).not.toBeInTheDocument();
+    // User scrolls up — button appears even though no new message arrived.
+    stubScroll(list, { scrollHeight: 1000, clientHeight: 200, scrollTop: 0 });
+    act(() => {
+      fireEvent.scroll(list);
+    });
+    expect(screen.getByTestId('message-list-jump-bottom')).toBeInTheDocument();
+    // The new-message pill is NOT shown (no new message arrived).
+    expect(screen.queryByTestId('message-list-new-pill')).not.toBeInTheDocument();
+  });
+
+  it('hides the jump-to-bottom button once back at the bottom', () => {
+    render(<MessageList messages={[sample('M1', 'a'), sample('M2', 'b')]} />);
+    const list = screen.getByTestId('message-list');
+    stubScroll(list, { scrollHeight: 1000, clientHeight: 200, scrollTop: 0 });
+    act(() => {
+      fireEvent.scroll(list);
+    });
+    expect(screen.getByTestId('message-list-jump-bottom')).toBeInTheDocument();
+    // Scroll back to the bottom → button disappears.
+    stubScroll(list, { scrollHeight: 1000, clientHeight: 200, scrollTop: 800 });
+    act(() => {
+      fireEvent.scroll(list);
+    });
+    expect(screen.queryByTestId('message-list-jump-bottom')).not.toBeInTheDocument();
+  });
+
+  it('clicking the jump-to-bottom button snaps to latest + hides the button', () => {
+    render(<MessageList messages={[sample('M1', 'a'), sample('M2', 'b')]} />);
+    const list = screen.getByTestId('message-list');
+    stubScroll(list, { scrollHeight: 1000, clientHeight: 200, scrollTop: 0 });
+    act(() => {
+      fireEvent.scroll(list);
+    });
+    const btn = screen.getByTestId('message-list-jump-bottom');
+    expect(btn).toHaveAttribute('aria-label', 'Jump to latest messages');
+    fireEvent.click(btn);
+    expect(list.scrollTop).toBe(list.scrollHeight);
+    expect(screen.queryByTestId('message-list-jump-bottom')).not.toBeInTheDocument();
+  });
+
+  // The two affordances are mutually exclusive: when a new message arrives while
+  // scrolled up, the labelled "New messages ↓" pill takes over and the plain
+  // chevron is suppressed (no overlapping buttons).
+  it('shows only the new-messages pill (not the chevron) when scrolled up + new message', () => {
+    const { rerender } = render(<MessageList messages={[sample('M1', 'a')]} />);
+    const list = screen.getByTestId('message-list');
+    stubScroll(list, { scrollHeight: 1000, clientHeight: 200, scrollTop: 0 });
+    act(() => {
+      fireEvent.scroll(list);
+    });
+    // While scrolled up with no new message, the chevron is visible.
+    expect(screen.getByTestId('message-list-jump-bottom')).toBeInTheDocument();
+    // New message arrives → pill replaces the chevron.
+    rerender(<MessageList messages={[sample('M1', 'a'), sample('M2', 'b')]} />);
+    expect(screen.getByTestId('message-list-new-pill')).toBeInTheDocument();
+    expect(screen.queryByTestId('message-list-jump-bottom')).not.toBeInTheDocument();
+  });
 });
 
 describe('MessageList attachments (#142)', () => {
