@@ -196,6 +196,7 @@ v2.7.1 多轮并行验收用的协议，固化下来：
 - **announce 协议**：开跑前在 **`#agent-center` 主频道**（不是 thread，方便 Dev/Dev2 看见避端口冲突）announce 实例 + 端口 + 预计时长；跑完 announce release。
 - **双面验**：Tester 起 backend / 数据真实例，Tester2 蹭同一实例验 UI/UX——真 install + 真 agent 预算砍半、两面证据交叉。
 - **服务态收尾**：launchd / systemd 服务测完 `bootout` + 删 unit/plist，不污染机器；不 `rm` 不是自己建的 `~/.agent-center`。
+  - **自动兜底**：忘了收尾时遗留的 `~/.agent-center-test/*` 实例会堆积、把 CPU 打满拖垮真实例（2026-06-27 load=80 事故）。`scripts/agent-center-test-janitor.sh install` 装一个每小时的 launchd 定时器，自动清理超过 5h 的测试实例（bootout + 删 plist + kill + `rm -rf` 目录）。它**只动 `~/.agent-center-test/`**，绝不碰 `~/.agent-center`。
 
 ---
 
