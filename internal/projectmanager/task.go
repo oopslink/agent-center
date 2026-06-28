@@ -230,6 +230,10 @@ type Task struct {
 	// actionLogs is the append-only lifecycle history (assign/reassign/block/unblock/
 	// lease_expired/…) that replaces the AgentWorkItem transition log (§2.4).
 	actionLogs []TaskActionLog
+	// model is the optional hard-override executor model for this task (F3 model
+	// routing, design §5 & §10). "" = unset → the executor model is selected from
+	// the agent's allowed/default models. Set at create time by the caller.
+	model string
 }
 
 // NewTaskInput captures constructor args.
@@ -252,6 +256,9 @@ type NewTaskInput struct {
 	// Role is the cycle-node role discriminator (v2.13.0 I18/F3); set at create by
 	// scaffold_cycle_plan, "" for ordinary tasks.
 	Role CycleNodeRole
+	// Model is the optional hard-override executor model (F3 model routing, design
+	// §5 & §10); "" = unset.
+	Model string
 }
 
 // NewTask constructs a fresh open Task. A Task must belong to a Project (no
@@ -290,6 +297,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		base:             in.Base,
 		skipMergeCheck:   in.SkipMergeCheck,
 		role:             in.Role,
+		model:            in.Model,
 	}, nil
 }
 
@@ -323,6 +331,8 @@ type RehydrateTaskInput struct {
 	BlockedComment          string
 	ExecutionLeaseExpiresAt *time.Time
 	ActionLogs              []TaskActionLog
+	// Model is the optional hard-override executor model (F3, design §5 & §10).
+	Model string
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -367,6 +377,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		blockedComment:          in.BlockedComment,
 		executionLeaseExpiresAt: copyTaskTimePtr(in.ExecutionLeaseExpiresAt),
 		actionLogs:              in.ActionLogs,
+		model:                   in.Model,
 	}, nil
 }
 
@@ -435,6 +446,11 @@ func (t *Task) SkipMergeCheck() bool { return t.skipMergeCheck }
 // not built by scaffold_cycle_plan. The F3 merge guard targets the role ==
 // CycleRoleIntegrate node; F4's board keys on the same field. See task struct doc.
 func (t *Task) Role() CycleNodeRole { return t.role }
+
+// Model exposes the optional hard-override executor model (F3 model routing,
+// design §5 & §10). "" = unset → the executor model is selected from the agent's
+// allowed/default models.
+func (t *Task) Model() string { return t.model }
 
 // IsArchived reports the ORTHOGONAL archived state (v2.9 P3). Independent of
 // status: a task may be archived in any status.

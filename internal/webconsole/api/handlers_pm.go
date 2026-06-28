@@ -126,6 +126,11 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		m["base"] = t.Base()
 		m["skip_merge_check"] = t.SkipMergeCheck()
 	}
+	// F3 model routing (design §5 & §10): per-task executor model override, emitted
+	// only when set so ordinary tasks stay clean.
+	if t.Model() != "" {
+		m["model"] = t.Model()
+	}
 	return m
 }
 
@@ -641,12 +646,14 @@ func (s *Server) pmCreateTaskHandler(w http.ResponseWriter, r *http.Request) {
 		Title            string `json:"title"`
 		Description      string `json:"description"`
 		DerivedFromIssue string `json:"derived_from_issue"`
+		// F3 model routing (design §5 & §10): optional per-task executor model override.
+		Model string `json:"model"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	id, err := d.PM.CreateTask(r.Context(), pmservice.CreateTaskCommand{ProjectID: p.ID(), Title: req.Title, Description: req.Description, DerivedFromIssue: pm.IssueID(req.DerivedFromIssue), CreatedBy: caller})
+	id, err := d.PM.CreateTask(r.Context(), pmservice.CreateTaskCommand{ProjectID: p.ID(), Title: req.Title, Description: req.Description, DerivedFromIssue: pm.IssueID(req.DerivedFromIssue), CreatedBy: caller, Model: strings.TrimSpace(req.Model)})
 	if err != nil {
 		mapPMError(w, err)
 		return

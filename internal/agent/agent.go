@@ -159,6 +159,32 @@ type Profile struct {
 	Mode      string            // operating mode ("" = default)
 	Provider  string            // LLM provider ("" = center default)
 	EnvVars   map[string]string // injected into the runtime process
+	// Model-routing config (F3, design §5 & §10). All optional; carried the SAME
+	// way as Model/Reasoning (domain → repo → migration → service → projector).
+	// OrchestratorModel is the orchestrator's own model (cheap/fast tier); empty =
+	// center default. DefaultExecutorModel is the fallback executor model; empty =
+	// center default. MaxConcurrentTasks caps concurrent executors for the agent
+	// (0/absent ⇒ EffectiveMaxConcurrentTasks default of 3). AllowedModels is the
+	// candidate executor-model set (empty = no restriction); persisted as a JSON
+	// array like EnvVars/skills/tags.
+	OrchestratorModel    string
+	DefaultExecutorModel string
+	MaxConcurrentTasks   int
+	AllowedModels        []string
+}
+
+// DefaultMaxConcurrentTasks is the fallback executor concurrency cap for an agent
+// whose Profile.MaxConcurrentTasks is unset/zero (F3, design §5).
+const DefaultMaxConcurrentTasks = 3
+
+// EffectiveMaxConcurrentTasks returns the agent's executor concurrency cap,
+// defaulting to DefaultMaxConcurrentTasks when MaxConcurrentTasks is unset/zero
+// (or negative). The persisted column may legitimately be 0 (= "use the default").
+func (p Profile) EffectiveMaxConcurrentTasks() int {
+	if p.MaxConcurrentTasks <= 0 {
+		return DefaultMaxConcurrentTasks
+	}
+	return p.MaxConcurrentTasks
 }
 
 // SupportedReasoningEfforts is the allowlist for Profile.Reasoning. Empty is
