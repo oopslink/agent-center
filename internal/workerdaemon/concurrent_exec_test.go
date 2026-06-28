@@ -91,7 +91,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 	}
 
 	enabled := reconcilePayload{AgentID: "a-on", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}}
-	c.maybeAttachExecutorEngine(enabled)
+	c.maybeAttachExecutorEngine(context.Background(), enabled)
 	c.mu.Lock()
 	onExec := c.agents["a-on"].exec
 	c.mu.Unlock()
@@ -101,7 +101,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 
 	// Codex agent: excluded even when concurrency fields are set.
 	codexPl := reconcilePayload{AgentID: "a-codex", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}, CLI: cliCodex}
-	c.maybeAttachExecutorEngine(codexPl)
+	c.maybeAttachExecutorEngine(context.Background(), codexPl)
 	c.mu.Lock()
 	codexExec := c.agents["a-codex"].exec
 	c.mu.Unlock()
@@ -110,7 +110,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 	}
 
 	// Concurrency not enabled: no engine (legacy inject path).
-	c.maybeAttachExecutorEngine(reconcilePayload{AgentID: "a-off", MaxConcurrentTasks: 0})
+	c.maybeAttachExecutorEngine(context.Background(), reconcilePayload{AgentID: "a-off", MaxConcurrentTasks: 0})
 	c.mu.Lock()
 	offExec := c.agents["a-off"].exec
 	c.mu.Unlock()
@@ -124,7 +124,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 	savedBase := c.cfg.AgentHomeBase
 	c.cfg.AgentHomeBase = ""
 	c.mu.Unlock()
-	c.maybeAttachExecutorEngine(reconcilePayload{AgentID: "a-badpath", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}})
+	c.maybeAttachExecutorEngine(context.Background(), reconcilePayload{AgentID: "a-badpath", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}})
 	c.mu.Lock()
 	badExec := c.agents["a-badpath"].exec
 	c.cfg.AgentHomeBase = savedBase
