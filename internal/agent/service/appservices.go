@@ -22,10 +22,15 @@ type CreateAgentCommand struct {
 	Reasoning      string // T236: reasoning effort (minimal|low|medium|high, "" = default)
 	Mode           string // T236: operating mode ("" = default)
 	Provider       string // T236: LLM provider ("" = center default)
-	EnvVars        map[string]string
-	Skills         []string
-	WorkerID       string
-	CreatedBy      agent.IdentityRef
+	// F3 model routing (design §5 & §10). All optional; carried like Model/Reasoning.
+	OrchestratorModel    string   // orchestrator's own model (cheap/fast tier; "" = center default)
+	DefaultExecutorModel string   // fallback executor model ("" = center default)
+	MaxConcurrentTasks   int      // executor concurrency cap (0 ⇒ EffectiveMaxConcurrentTasks default)
+	AllowedModels        []string // candidate executor models (empty = no restriction)
+	EnvVars              map[string]string
+	Skills               []string
+	WorkerID             string
+	CreatedBy            agent.IdentityRef
 	// IdentityMemberID (optional, v2.7 #157) — the identity-member id this
 	// execution Agent represents; set by the unified Members→Add Agent flow.
 	IdentityMemberID string
@@ -52,6 +57,8 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 		Profile: agent.Profile{
 			Name: cmd.Name, Description: cmd.Description, Model: cmd.Model,
 			CLI: cmd.CLI, Reasoning: cmd.Reasoning, Mode: cmd.Mode, Provider: cmd.Provider,
+			OrchestratorModel: cmd.OrchestratorModel, DefaultExecutorModel: cmd.DefaultExecutorModel,
+			MaxConcurrentTasks: cmd.MaxConcurrentTasks, AllowedModels: cmd.AllowedModels,
 			EnvVars: cmd.EnvVars,
 		},
 		Skills:           cmd.Skills,
@@ -158,6 +165,12 @@ type UpdateAgentConfigCommand struct {
 	Reasoning string
 	Mode      string
 	Provider  string
+	// F3 model routing (design §5 & §10). Edited alongside the LLM tuning; empty /
+	// zero stores the column as NULL/0 (= center default / EffectiveMaxConcurrentTasks).
+	OrchestratorModel    string
+	DefaultExecutorModel string
+	MaxConcurrentTasks   int
+	AllowedModels        []string
 }
 
 // UpdateAgentConfig edits an agent's LLM config (model/cli/reasoning/mode/
@@ -185,6 +198,10 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		p.Reasoning = cmd.Reasoning
 		p.Mode = cmd.Mode
 		p.Provider = cmd.Provider
+		p.OrchestratorModel = cmd.OrchestratorModel
+		p.DefaultExecutorModel = cmd.DefaultExecutorModel
+		p.MaxConcurrentTasks = cmd.MaxConcurrentTasks
+		p.AllowedModels = cmd.AllowedModels
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err
 		}

@@ -115,6 +115,10 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 	if envVars == nil {
 		envVars = map[string]string{}
 	}
+	allowedModels := p.AllowedModels
+	if allowedModels == nil {
+		allowedModels = []string{}
+	}
 	m := map[string]any{
 		// v2.7 #185: the business-layer id is the identity-member id; the
 		// execution-entity ULID is internal and must NOT appear in API responses.
@@ -122,6 +126,9 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		"name": p.Name, "description": p.Description, "model": p.Model, "cli": p.CLI,
 		// T236: real LLM tuning fields (were hardcoded placeholders in the UI).
 		"reasoning": p.Reasoning, "mode": p.Mode, "provider": p.Provider,
+		// F3 model routing (design §5 & §10).
+		"orchestrator_model": p.OrchestratorModel, "default_executor_model": p.DefaultExecutorModel,
+		"max_concurrent_tasks": p.EffectiveMaxConcurrentTasks(), "allowed_models": allowedModels,
 		"env_vars": envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
@@ -582,6 +589,11 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		Reasoning string `json:"reasoning"`
 		Mode      string `json:"mode"`
 		Provider  string `json:"provider"`
+		// F3 model routing (design §5 & §10).
+		OrchestratorModel    string   `json:"orchestrator_model"`
+		DefaultExecutorModel string   `json:"default_executor_model"`
+		MaxConcurrentTasks   int      `json:"max_concurrent_tasks"`
+		AllowedModels        []string `json:"allowed_models"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -594,6 +606,8 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 	}
 	err := d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
+		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
+		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
 	})
 	if err != nil {
 		mapAgentError(w, err)

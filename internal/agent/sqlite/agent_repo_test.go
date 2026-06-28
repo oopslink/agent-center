@@ -60,6 +60,71 @@ func TestAgentRepo_RoundTrip(t *testing.T) {
 	}
 }
 
+// F3 model routing (design §5 & §10): the new profile fields
+// (orchestrator_model / default_executor_model / max_concurrent_tasks /
+// allowed_models) round-trip through Save → FindByID with all values preserved,
+// and a non-empty AllowedModels slice survives the JSON round-trip.
+func TestAgentRepo_ModelRoutingRoundTrip(t *testing.T) {
+	r := newDB(t)
+	ctx := context.Background()
+	a, err := agent.NewAgent(agent.NewAgentInput{
+		ID: "AR1", OrganizationID: "org", WorkerID: "W1",
+		Profile: agent.Profile{
+			Name: "router", Model: "claude", CLI: "claudecode",
+			OrchestratorModel:    "claude-haiku",
+			DefaultExecutorModel: "claude-sonnet",
+			MaxConcurrentTasks:   7,
+			AllowedModels:        []string{"claude-sonnet", "claude-opus"},
+		},
+		CreatedBy: "user:a", CreatedAt: t0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Save(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.FindByID(ctx, "AR1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := got.Profile()
+	if p.OrchestratorModel != "claude-haiku" || p.DefaultExecutorModel != "claude-sonnet" {
+		t.Fatalf("orchestrator/default executor model lost: %+v", p)
+	}
+	if p.MaxConcurrentTasks != 7 || p.EffectiveMaxConcurrentTasks() != 7 {
+		t.Fatalf("max_concurrent_tasks lost: got %d", p.MaxConcurrentTasks)
+	}
+	if len(p.AllowedModels) != 2 || p.AllowedModels[0] != "claude-sonnet" || p.AllowedModels[1] != "claude-opus" {
+		t.Fatalf("allowed_models lost: %#v", p.AllowedModels)
+	}
+}
+
+// F3: an agent created without model-routing fields round-trips to a zero
+// MaxConcurrentTasks (the column DEFAULT 3 is applied at migration time for
+// pre-existing rows, but a fresh INSERT writes the domain's 0) — the domain
+// helper EffectiveMaxConcurrentTasks supplies the default of 3, and an empty
+// AllowedModels round-trips to an empty (non-error) slice.
+func TestAgentRepo_ModelRoutingDefaults(t *testing.T) {
+	r := newDB(t)
+	ctx := context.Background()
+	a := mkAgent(t, "AR2", "W1") // no model-routing fields set
+	if err := r.Save(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.FindByID(ctx, "AR2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := got.Profile()
+	if p.EffectiveMaxConcurrentTasks() != agent.DefaultMaxConcurrentTasks {
+		t.Fatalf("want default %d, got %d", agent.DefaultMaxConcurrentTasks, p.EffectiveMaxConcurrentTasks())
+	}
+	if len(p.AllowedModels) != 0 {
+		t.Fatalf("want empty allowed_models, got %#v", p.AllowedModels)
+	}
+}
+
 // v2.7 #185 FINDING-J: the member→entity bridge. An agent saved with an
 // identity_member_id is resolvable by it; an empty/absent id and a NULL
 // identity_member_id (standalone agent) both yield ErrAgentNotFound.
