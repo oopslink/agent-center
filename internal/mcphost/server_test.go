@@ -90,6 +90,8 @@ var wantTools = []string{
 	"heartbeat",
 	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention) + mark-seen
 	"get_my_unread", "mark_seen",
+	// browse a conversation's chat history (DM/channel/task/issue/plan)
+	"list_messages",
 	// v2.7 #185; T200 WS4: the single post tool (target = conversation|task|issue)
 	"post_message",
 	// agent-agent coordination: start/reuse a same-org DM and send the opener
