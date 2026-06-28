@@ -135,6 +135,11 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"worker"}, AgentSupervisorCommand()); err != nil {
 		return nil, "", err
 	}
+	// v2.17 F1: per-task isolated executor (system; spawned by the orchestrator,
+	// no mcp/credentials). Additive — NOT yet wired into the daemon launch path.
+	if err := router.Add([]string{"worker"}, ExecutorCommand()); err != nil {
+		return nil, "", err
+	}
 
 	// v2.7 #162: ALL data-management + data-read CLI command groups are retired
 	// — management/inspection is webconsole-only now. Removed: agent / secret /
