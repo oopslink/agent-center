@@ -21,6 +21,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/oopslink/agent-center/internal/clock"
@@ -39,18 +41,26 @@ var ErrAlreadyActive = errors.New("executor: id already active")
 const DefaultMaxConcurrent = 3
 
 // PoolConfig configures a Pool. The Pool is per-agent: FileExchange anchors at the
-// agent home; WorktreeProvisioner roots at the source repo the executors branch off.
+// agent home; WorktreeProvisioner (optional) roots at the source repo the executors
+// branch off.
 type PoolConfig struct {
 	// Exchange is the F2 file protocol over <agent_root>/executors/ (required).
 	Exchange *FileExchange
-	// Worktrees provisions each executor's isolated git worktree (required).
+	// Worktrees provisions each executor's isolated git worktree. OPTIONAL (W1, PD
+	// ruling): production agents do not necessarily edit a git repo — their workspace
+	// is just an isolated directory (process-group + env + path containment already
+	// isolate them). A git worktree is provisioned ONLY when both Worktrees AND BaseRef
+	// are set (the "this executor edits a source repo" case). Worktrees and BaseRef must
+	// be set together or both empty; setting one without the other is a config error.
 	Worktrees *WorktreeProvisioner
 	// Spawner forks executor processes. Nil → NewSpawner().
 	Spawner *Spawner
 	// AgentRoot is the per-agent home (the FileExchange Layout root). Used to point
 	// the forked executor at <agent_root>/executors/<id>/ (required).
 	AgentRoot string
-	// BaseRef is the git ref each executor's worktree branches from (required).
+	// BaseRef is the git ref each executor's worktree branches from. OPTIONAL — set
+	// together with Worktrees to enable git-worktree workspaces; empty ⇒ the workspace
+	// is a plain isolated directory (no git worktree). See Worktrees.
 	BaseRef string
 	// BinaryPath is the agent-center executable carrying `worker executor`. Empty →
 	// os.Executable() at spawn time.
@@ -91,14 +101,16 @@ func NewPool(cfg PoolConfig) (*Pool, error) {
 	if cfg.Exchange == nil {
 		return nil, errors.New("executor: pool exchange required")
 	}
-	if cfg.Worktrees == nil {
-		return nil, errors.New("executor: pool worktrees required")
-	}
 	if cfg.AgentRoot == "" {
 		return nil, errors.New("executor: pool agent_root required")
 	}
-	if cfg.BaseRef == "" {
-		return nil, errors.New("executor: pool base_ref required")
+	// Worktree mode is opt-in and all-or-nothing: Worktrees + BaseRef must be set
+	// together (git-worktree workspace) or both empty (plain isolated dir). A half
+	// -configured pool (one without the other) is a programming error, surfaced now.
+	hasWT := cfg.Worktrees != nil
+	hasBase := strings.TrimSpace(cfg.BaseRef) != ""
+	if hasWT != hasBase {
+		return nil, errors.New("executor: pool worktrees and base_ref must be set together (or both empty for a plain-dir workspace)")
 	}
 	max := cfg.Max
 	if max <= 0 {
@@ -201,9 +213,16 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 	if err != nil {
 		return nil, err
 	}
-	branch := executorBranch(id)
-	if err := p.cfg.Worktrees.AddNewBranch(ctx, wsPath, branch, p.cfg.BaseRef); err != nil {
-		return nil, fmt.Errorf("executor: pool worktree %s: %w", id, err)
+	// Provision the workspace: a git worktree when configured (executor edits a source
+	// repo), else a plain isolated directory (PD ruling, W1). Either way the executor's
+	// file edits are confined to wsPath by the F2 containment guard + its process group.
+	if p.cfg.Worktrees != nil && strings.TrimSpace(p.cfg.BaseRef) != "" {
+		branch := executorBranch(id)
+		if err := p.cfg.Worktrees.AddNewBranch(ctx, wsPath, branch, p.cfg.BaseRef); err != nil {
+			return nil, fmt.Errorf("executor: pool worktree %s: %w", id, err)
+		}
+	} else if err := os.MkdirAll(wsPath, 0o700); err != nil {
+		return nil, fmt.Errorf("executor: pool workspace dir %s: %w", id, err)
 	}
 	if err := p.cfg.Exchange.WriteInput(spec.Input); err != nil {
 		return nil, fmt.Errorf("executor: pool write input %s: %w", id, err)

@@ -215,4 +215,42 @@ func TestNewPool_Validation(t *testing.T) {
 			t.Errorf("case %d: expected validation error", i)
 		}
 	}
+	// Plain-dir mode: neither Worktrees nor BaseRef → valid (W1, PD ruling).
+	if _, err := NewPool(PoolConfig{Exchange: fx, AgentRoot: root}); err != nil {
+		t.Errorf("plain-dir pool (no worktrees/base) should be valid, got %v", err)
+	}
+}
+
+// TestPool_PlainDirWorkspace verifies the W1 worktree-optional path: with no
+// WorktreeProvisioner/BaseRef the Pool provisions the executor workspace as a plain
+// directory (no git), and never invokes git.
+func TestPool_PlainDirWorkspace(t *testing.T) {
+	root := t.TempDir()
+	layout, err := NewLayout(root)
+	if err != nil {
+		t.Fatalf("NewLayout: %v", err)
+	}
+	fx, err := NewFileExchange(layout, clock.NewFakeClock(time.Unix(1700000000, 0)))
+	if err != nil {
+		t.Fatalf("NewFileExchange: %v", err)
+	}
+	sp := &Spawner{
+		start:  func(cmd *exec.Cmd) error { cmd.Process = &os.Process{Pid: 5000}; return nil },
+		signal: func(int, syscall.Signal) error { return nil },
+	}
+	pool, err := NewPool(PoolConfig{Exchange: fx, Spawner: sp, AgentRoot: root, Max: 2})
+	if err != nil {
+		t.Fatalf("NewPool plain-dir: %v", err)
+	}
+	if _, err := pool.Launch(context.Background(), LaunchSpec{Input: validPoolInput("plain-1"), RunnerCmd: []string{"true"}}); err != nil {
+		t.Fatalf("Launch plain-dir: %v", err)
+	}
+	wsDir, _ := layout.WorkspaceDir("plain-1")
+	if fi, err := os.Stat(wsDir); err != nil || !fi.IsDir() {
+		t.Errorf("expected plain workspace dir at %s, err=%v", wsDir, err)
+	}
+	// No .git anywhere under the workspace (it is NOT a worktree).
+	if _, err := os.Stat(wsDir + "/.git"); err == nil {
+		t.Error("plain-dir workspace must not be a git worktree")
+	}
 }

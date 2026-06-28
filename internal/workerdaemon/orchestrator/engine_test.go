@@ -1,0 +1,231 @@
+package orchestrator
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os/exec"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
+	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
+)
+
+// fakeIDMinter hands out deterministic, path-safe ids.
+type fakeIDMinter struct {
+	mu   sync.Mutex
+	e, p int
+}
+
+func (m *fakeIDMinter) NewExecutorID() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.e++
+	return fmt.Sprintf("executor-%03d", m.e)
+}
+func (m *fakeIDMinter) NewProblemID() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.p++
+	return fmt.Sprintf("problem-%03d", m.p)
+}
+
+// fakeRunner returns a harmless argv (the engine test forks `true`, so the runner
+// content is irrelevant to process behaviour — we assert it reached input via the
+// model instead).
+type fakeRunner struct{ lastModel, lastPrompt string }
+
+func (r *fakeRunner) Build(model, prompt string) ([]string, error) {
+	r.lastModel, r.lastPrompt = model, prompt
+	return []string{"true"}, nil
+}
+
+func newTestEngine(t *testing.T, max int, rcfg modelrouter.Config, runner RunnerCmdBuilder) (*Engine, *executor.FileExchange, string) {
+	t.Helper()
+	trueBin, err := exec.LookPath("true")
+	if err != nil {
+		t.Skipf("`true` not available: %v", err)
+	}
+	root := t.TempDir()
+	layout, err := executor.NewLayout(root)
+	if err != nil {
+		t.Fatalf("NewLayout: %v", err)
+	}
+	clk := clock.NewFakeClock(time.Unix(1700000000, 0))
+	fx, err := executor.NewFileExchange(layout, clk)
+	if err != nil {
+		t.Fatalf("NewFileExchange: %v", err)
+	}
+	// Plain-dir pool (no worktrees) with a REAL spawner pointed at `true` — exercises
+	// the genuine fork path harmlessly.
+	pool, err := executor.NewPool(executor.PoolConfig{
+		Exchange: fx, Spawner: executor.NewSpawner(), AgentRoot: root, BinaryPath: trueBin, Max: max,
+	})
+	if err != nil {
+		t.Fatalf("NewPool: %v", err)
+	}
+	routing, err := executor.NewRoutingStore(root, clk)
+	if err != nil {
+		t.Fatalf("NewRoutingStore: %v", err)
+	}
+	if runner == nil {
+		runner = &fakeRunner{}
+	}
+	eng, err := NewEngine(EngineConfig{
+		Pool: pool, Routing: routing, Router: modelrouter.NewRouter(nil),
+		RouterConfig: rcfg, Runner: runner, IDs: &fakeIDMinter{}, Clock: clk,
+	})
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	return eng, fx, root
+}
+
+func reap(t *testing.T, h *executor.Handle) {
+	t.Helper()
+	if h != nil {
+		_ = h.Wait() // reap the harmless `true` process
+	}
+}
+
+func TestEngine_HandleWork_ChainsAndForks(t *testing.T) {
+	fr := &fakeRunner{}
+	eng, fx, _ := newTestEngine(t, 3, modelrouter.Config{DefaultExecutorModel: "claude-default"}, fr)
+
+	got, err := eng.HandleWork(context.Background(), WorkItem{
+		TaskID:  "task-1",
+		TaskRef: "task-1",
+		ChatID:  "channel-A",
+		Goal:    executor.Goal{Title: "fix bug", Description: "the widget breaks"},
+	})
+	if err != nil {
+		t.Fatalf("HandleWork: %v", err)
+	}
+	defer reap(t, got.Handle)
+
+	// F3: no task.model, nil judge → default fallback.
+	if got.Model != "claude-default" || got.ModelSource != modelrouter.SourceDefault {
+		t.Errorf("model = %q/%v, want claude-default/default_fallback", got.Model, got.ModelSource)
+	}
+	if fr.lastModel != "claude-default" || !strings.Contains(fr.lastPrompt, "fix bug") {
+		t.Errorf("runner saw model=%q prompt=%q", fr.lastModel, fr.lastPrompt)
+	}
+	// F2: input.json written with resolved model + goal + problem.
+	in, err := fx.ReadInput(got.ExecutorID)
+	if err != nil {
+		t.Fatalf("ReadInput: %v", err)
+	}
+	if in.Model != "claude-default" || in.Goal.Title != "fix bug" || in.ProblemID != got.ProblemID {
+		t.Errorf("input = %+v", in)
+	}
+	// F4: a new problem was registered with the chat + task ref + the executor merged.
+	tbl, err := executor.NewRoutingStore(fxRoot(t, fx), clock.NewFakeClock(time.Unix(1700000000, 0)))
+	if err != nil {
+		t.Fatalf("routing store: %v", err)
+	}
+	prob, ok := mustLoadProblem(t, tbl, got.ProblemID)
+	if !ok {
+		t.Fatal("problem not registered")
+	}
+	if !contains(prob.ChatIDs, "channel-A") || !contains(prob.TaskRefs, "task-1") || !contains(prob.ExecutorIDs, got.ExecutorID) {
+		t.Errorf("problem routing incomplete: %+v", prob)
+	}
+}
+
+func TestEngine_HandleWork_TaskModelHardOverride(t *testing.T) {
+	eng, _, _ := newTestEngine(t, 2, modelrouter.Config{DefaultExecutorModel: "claude-default"}, nil)
+	got, err := eng.HandleWork(context.Background(), WorkItem{
+		Goal: executor.Goal{Title: "t"}, TaskModel: "claude-opus-4-8", ChatID: "c1",
+	})
+	if err != nil {
+		t.Fatalf("HandleWork: %v", err)
+	}
+	defer reap(t, got.Handle)
+	if got.Model != "claude-opus-4-8" || got.ModelSource != modelrouter.SourceTaskOverride {
+		t.Errorf("expected task.model hard override, got %q/%v", got.Model, got.ModelSource)
+	}
+}
+
+func TestEngine_HandleWork_SameChatMergesProblem(t *testing.T) {
+	eng, _, _ := newTestEngine(t, 3, modelrouter.Config{DefaultExecutorModel: "m"}, nil)
+	a, err := eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "g1"}, ChatID: "chan-X"})
+	if err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	defer reap(t, a.Handle)
+	b, err := eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "g2"}, ChatID: "chan-X"})
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	defer reap(t, b.Handle)
+	if b.ProblemID != a.ProblemID {
+		t.Errorf("same chat should merge to one problem: %s vs %s", a.ProblemID, b.ProblemID)
+	}
+	if b.RouteReason != executor.MatchChatID {
+		t.Errorf("second route reason = %v, want chat_id", b.RouteReason)
+	}
+}
+
+func TestEngine_HandleWork_AtCapacityBubbles(t *testing.T) {
+	eng, _, _ := newTestEngine(t, 1, modelrouter.Config{DefaultExecutorModel: "m"}, nil)
+	first, err := eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "g1"}, ChatID: "c1"})
+	if err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	defer reap(t, first.Handle)
+	_, err = eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "g2"}, ChatID: "c2"})
+	if !errors.Is(err, executor.ErrAtCapacity) {
+		t.Fatalf("second at cap err = %v, want ErrAtCapacity", err)
+	}
+}
+
+func TestEngine_HandleWork_RejectsEmptyGoal(t *testing.T) {
+	eng, _, _ := newTestEngine(t, 2, modelrouter.Config{DefaultExecutorModel: "m"}, nil)
+	if _, err := eng.HandleWork(context.Background(), WorkItem{ChatID: "c"}); err == nil {
+		t.Error("empty goal.title must error")
+	}
+}
+
+func TestEngine_HandleWork_NoModelResolvableSurfaces(t *testing.T) {
+	// No task.model, nil judge, no default → ErrNoExecutorModel.
+	eng, _, _ := newTestEngine(t, 2, modelrouter.Config{}, nil)
+	if _, err := eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "g"}, ChatID: "c"}); err == nil {
+		t.Error("unresolvable model must surface as an error")
+	}
+}
+
+func TestNewEngine_Validation(t *testing.T) {
+	if _, err := NewEngine(EngineConfig{}); err == nil {
+		t.Error("empty config must error")
+	}
+}
+
+// --- small helpers ---
+
+func contains(xs []string, want string) bool {
+	for _, x := range xs {
+		if x == want {
+			return true
+		}
+	}
+	return false
+}
+
+func fxRoot(t *testing.T, fx *executor.FileExchange) string {
+	t.Helper()
+	// Layout's executors dir is <root>/executors; the routing.json sits at <root>.
+	return strings.TrimSuffix(fx.Layout().ExecutorsDir(), "/executors")
+}
+
+func mustLoadProblem(t *testing.T, s *executor.RoutingStore, id string) (executor.Problem, bool) {
+	t.Helper()
+	tbl, err := s.Load()
+	if err != nil {
+		t.Fatalf("routing Load: %v", err)
+	}
+	return tbl.Find(id)
+}
