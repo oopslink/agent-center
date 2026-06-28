@@ -68,6 +68,28 @@ function mockPlan(overrides: Record<string, unknown> = {}) {
   );
 }
 
+// 双栏方案 B: the DESKTOP layout is a two-pane split (slim PlanTitleBar on the
+// left, PlanInfoRail on the right) — default jsdom has no matchMedia → isMobile
+// false → desktop tree. A test opts INTO the mobile single-column header (the
+// "Actions ▾" dropdown) by stubbing matchMedia to match (max-width); afterEach
+// deletes the stub so the next test is back on desktop.
+function setMobileViewport(mobile: boolean): void {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (q: string) => ({
+      matches: mobile && q.includes('max-width'),
+      media: q,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
+
 function wrap(path = '/projects/proj-a/plans/PL-1') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
@@ -82,20 +104,53 @@ function wrap(path = '/projects/proj-a/plans/PL-1') {
 }
 
 describe('PlanDetail — v2.9 #287 execution view', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    delete (window as Partial<Window>).matchMedia;
+  });
 
-  it('renders the header: name + status + failed indicator + progress + creator', async () => {
+  it('desktop two-pane: title bar has name + ref; info rail has status + failed + progress + creator', async () => {
     mockPlan();
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
-    const hd = screen.getByTestId('plan-detail-header');
-    expect(within(hd).getByText('v3.0 release plan')).toBeInTheDocument();
-    // v2.10.1 [T99]: the human Plan id (P9) shows in the header.
-    expect(within(hd).getByTestId('plan-detail-ref')).toHaveTextContent('P9');
-    expect(within(hd).getByTestId('plan-status-chip')).toHaveTextContent('running');
-    expect(within(hd).getByTestId('plan-failed-indicator')).toBeInTheDocument();
-    expect(screen.getByTestId('plan-progress')).toHaveTextContent('2/6');
-    expect(screen.getByTestId('plan-creator')).toHaveTextContent('@owner');
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
+    const bar = screen.getByTestId('plan-title-bar');
+    expect(within(bar).getByText('v3.0 release plan')).toBeInTheDocument();
+    // v2.10.1 [T99]: the human Plan id (P9) shows in the title bar.
+    expect(within(bar).getByTestId('plan-detail-ref')).toHaveTextContent('P9');
+    // 双栏方案 B: status/failed/progress/creator now live in the right info rail.
+    const rail = screen.getByTestId('plan-info-rail');
+    expect(within(rail).getByTestId('plan-status-chip')).toHaveTextContent('running');
+    expect(within(rail).getByTestId('plan-failed-indicator')).toBeInTheDocument();
+    expect(within(rail).getByTestId('plan-progress')).toHaveTextContent('2/6');
+    expect(within(rail).getByTestId('plan-creator')).toHaveTextContent('@owner');
+  });
+
+  it('info rail: the @creator tag opens the (unchanged) agent-activity sidebar', async () => {
+    mockPlan();
+    wrap();
+    const tag = await screen.findByTestId('plan-creator-tag');
+    expect(screen.queryByTestId('sender-sidebar')).not.toBeInTheDocument();
+    await act(async () => fireEvent.click(tag));
+    expect(await screen.findByTestId('sender-sidebar')).toBeInTheDocument();
+  });
+
+  it('info rail: Progress shows a bar with the done/total label + percentage', async () => {
+    mockPlan(); // progress { done: 2, total: 6 } → 33%
+    wrap();
+    const bar = await screen.findByTestId('plan-progress-bar');
+    expect(bar).toHaveAttribute('aria-label', '33% complete');
+    expect(within(bar).getByTestId('plan-progress')).toHaveTextContent('2/6');
+  });
+
+  it('info rail: Up next lists the non-terminal nodes (excludes done/failed)', async () => {
+    mockPlan();
+    wrap();
+    const list = await screen.findByTestId('plan-upnext');
+    // running/ready/dispatched/blocked are "up next"; done (n1/n2) + failed (n4) are not.
+    expect(within(list).getByText('frontend list')).toBeInTheDocument(); // running
+    expect(within(list).getByText('orchestrator wiring')).toBeInTheDocument(); // ready
+    expect(within(list).queryByText('design schema')).not.toBeInTheDocument(); // done
+    expect(within(list).queryByText('migration')).not.toBeInTheDocument(); // failed
   });
 
   it('shows Stop (→ draft) when running and calls useStopPlan', async () => {
@@ -263,22 +318,25 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     mockPlan({ description: longGoal });
     wrap();
     const goal = await screen.findByTestId('plan-goal');
-    // clamped by default.
-    expect(goal.className).toContain('line-clamp-2');
+    // clamped by default (the info-rail goal clamps to 4 lines — 双栏方案 B).
+    expect(goal.className).toContain('line-clamp-4');
     const toggle = screen.getByTestId('plan-goal-toggle');
     expect(toggle).toHaveTextContent('Show more');
     fireEvent.click(toggle);
-    expect(screen.getByTestId('plan-goal').className).not.toContain('line-clamp-2');
+    expect(screen.getByTestId('plan-goal').className).not.toContain('line-clamp-4');
     expect(screen.getByTestId('plan-goal-toggle')).toHaveTextContent('Show less');
   });
 
   it('collapses the header actions into a mobile Actions dropdown (T341)', async () => {
+    setMobileViewport(true); // 双栏方案 B: the Actions dropdown is the MOBILE header
     mockPlan();
     wrap();
-    // The Actions toggle exists (mobile); the action buttons are still in the DOM
-    // (md: always-shown on desktop, dropdown on mobile).
-    expect(await screen.findByTestId('plan-actions-toggle')).toBeInTheDocument();
-    expect(within(screen.getByTestId('plan-actions')).getByTestId('plan-edit-btn')).toBeInTheDocument();
+    // Mobile renders the full PlanDetailHeader with the Actions ▾ dropdown. (The
+    // header keeps BOTH a mobile-row and a hidden desktop-row subtree in the DOM,
+    // so the toggle/edit testids appear more than once — assert ≥1.)
+    const hd = await screen.findByTestId('plan-detail-header');
+    expect(within(hd).getAllByTestId('plan-actions-toggle').length).toBeGreaterThanOrEqual(1);
+    expect(within(hd).getAllByTestId('plan-edit-btn').length).toBeGreaterThanOrEqual(1);
   });
 
   it('DAG renders a node per task with the 6-state chips (label + color) + Advance', async () => {
@@ -300,8 +358,6 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(legend).getByText('done').className).toContain('text-status-emerald-fg');
     expect(within(legend).getByText('failed').className).toContain('bg-status-rose-bg');
     expect(within(legend).getByText('dispatched').className).toContain('bg-status-violet-bg');
-    // Advance button present while running
-    expect(screen.getByTestId('plan-advance-btn')).toBeInTheDocument();
   });
 
   // T53: `paused` is a first-class node state — its legend chip renders with the
@@ -396,19 +452,15 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.getByTestId('plan-dag-svg').querySelector('#plan-dag-arrow')).not.toBeNull();
   });
 
-  it('Advance calls useAdvancePlan (idempotent advance-all-ready)', async () => {
-    let advanced = false;
-    mockPlan();
-    server.use(
-      http.post('/api/projects/proj-a/plans/PL-1/advance', () => {
-        advanced = true;
-        return HttpResponse.json(planWith());
-      }),
-    );
+  it('running plan exposes NO manual Advance button (auto-advance only) — @oopslink', async () => {
+    mockPlan(); // default = running
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-advance-btn')).toBeInTheDocument());
-    await act(async () => fireEvent.click(screen.getByTestId('plan-advance-btn')));
-    await waitFor(() => expect(advanced).toBe(true));
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
+    // The manual "Advance now" override was removed; the system auto-advances.
+    expect(screen.queryByTestId('plan-advance-btn')).not.toBeInTheDocument();
+    expect(screen.queryByText(/advance now/i)).not.toBeInTheDocument();
+    // Stop (→ draft) is still the running control.
+    expect(screen.getByTestId('plan-stop-btn')).toBeInTheDocument();
   });
 
   it('DAG is display-only: note never claims an edge editor, and no edge-edit control exists', async () => {
@@ -457,20 +509,20 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-edge-delete')).not.toBeInTheDocument();
   });
 
-  it('lifecycle controls (Start/Stop/Advance) each render exactly once, status-gated', async () => {
-    // running → Stop + Advance once each, no Start
+  it('lifecycle controls (Start/Stop) each render exactly once, status-gated', async () => {
+    // running → Stop once, no Start, no manual Advance (auto-advance only)
     mockPlan();
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-advance-btn')).toBeInTheDocument());
-    expect(screen.getAllByTestId('plan-advance-btn')).toHaveLength(1);
+    await waitFor(() => expect(screen.getByTestId('plan-stop-btn')).toBeInTheDocument());
     expect(screen.getAllByTestId('plan-stop-btn')).toHaveLength(1);
+    expect(screen.queryByTestId('plan-advance-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-start-btn')).not.toBeInTheDocument();
     // no duplicated DAG-footer controls
     expect(screen.queryByTestId('plan-dag-start-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-dag-stop-btn')).not.toBeInTheDocument();
     cleanup();
 
-    // draft → Start once, no Stop/Advance
+    // draft → Start once, no Stop
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
     await waitFor(() => expect(screen.getByTestId('plan-start-btn')).toBeInTheDocument());
@@ -524,7 +576,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('running plan shows the auto-advancing indicator (near the status chip)', async () => {
     mockPlan();
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     const ind = screen.getByTestId('plan-auto-advancing');
     expect(ind).toHaveTextContent(/auto-advancing/i);
     // both-mode AA token (text-text-secondary), NO alpha-tint bg
@@ -537,38 +589,15 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
   it('draft plan does NOT show the auto-advancing indicator', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-auto-advancing')).not.toBeInTheDocument();
   });
 
   it('done plan does NOT show the auto-advancing indicator', async () => {
     mockPlan({ status: 'done', has_failed: false });
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-auto-advancing')).not.toBeInTheDocument();
-  });
-
-  it('Advance button is kept (running) reframed as a manual override and still calls useAdvancePlan', async () => {
-    let advanced = false;
-    mockPlan();
-    server.use(
-      http.post('/api/projects/proj-a/plans/PL-1/advance', () => {
-        advanced = true;
-        return HttpResponse.json(planWith());
-      }),
-    );
-    wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-advance-btn')).toBeInTheDocument());
-    const btn = screen.getByTestId('plan-advance-btn');
-    // reworded label + override affordance (title/aria-label)
-    expect(btn).toHaveTextContent(/advance now/i);
-    expect(btn.getAttribute('title') ?? '').toMatch(/the system already advances automatically/i);
-    expect(btn.getAttribute('aria-label') ?? '').toMatch(/manually dispatch ready nodes/i);
-    // Stop still present alongside it
-    expect(screen.getByTestId('plan-stop-btn')).toBeInTheDocument();
-    // function unchanged → still hits useAdvancePlan
-    await act(async () => fireEvent.click(btn));
-    await waitFor(() => expect(advanced).toBe(true));
   });
 
   // ── v2.9.1 point 3: IN-GRAPH dependency editing (draft-only) ───────────────
@@ -940,13 +969,13 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     for (const status of ['draft', 'running', 'done'] as const) {
       mockPlan({ status, has_failed: false });
       wrap();
-      await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
       expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument();
       cleanup();
     }
     mockPlan({ status: 'archived', has_failed: false });
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-edit-btn')).not.toBeInTheDocument();
   });
 
@@ -1113,7 +1142,10 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
 // the task list. Distinct testids; their edges are on a separate testid so the
 // real depends_on edge count is unaffected.
 describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    delete (window as Partial<Window>).matchMedia;
+  });
 
   function mockNodes(nodes: unknown[], overrides: Record<string, unknown> = {}) {
     server.use(
@@ -1266,7 +1298,10 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
 // archived (the real boundary is the backend 409). Each opens a consequence-
 // explaining confirm modal; Cancel = no call; 409 = friendly inline, modal stays.
 describe('PlanDetail — v2.9 Stage B delete + archive', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    delete (window as Partial<Window>).matchMedia;
+  });
 
   // A wrap that surfaces the current location so navigate-away is assertable.
   function wrapLoc(path = '/projects/proj-a/plans/PL-1') {
@@ -1289,7 +1324,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   it('shows Delete + Archive entries for a DRAFT plan', async () => {
     mockPlan({ status: 'draft', has_failed: false });
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument();
     expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument();
   });
@@ -1297,7 +1332,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   it('shows Delete + Archive entries for a DONE plan', async () => {
     mockPlan({ status: 'done', has_failed: false });
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.getByTestId('plan-delete-btn')).toBeInTheDocument();
     expect(screen.getByTestId('plan-archive-btn')).toBeInTheDocument();
   });
@@ -1305,7 +1340,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   it('HIDES Delete + Archive for a RUNNING plan (entry gate; real block is the 409)', async () => {
     mockPlan({ status: 'running' });
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-delete-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-archive-btn')).not.toBeInTheDocument();
   });
@@ -1313,11 +1348,11 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   it('an ARCHIVED plan is terminal: NO Delete / Archive entries (read-only)', async () => {
     mockPlan({ status: 'archived', has_failed: false });
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-delete-btn')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-archive-btn')).not.toBeInTheDocument();
     // the archived plan still shows its status chip (read-only).
-    expect(within(screen.getByTestId('plan-detail-header')).getByTestId('plan-status-chip')).toHaveTextContent(
+    expect(within(screen.getByTestId('plan-info-rail')).getByTestId('plan-status-chip')).toHaveTextContent(
       'archived',
     );
   });
@@ -1421,7 +1456,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     expect(url).toBe('/api/projects/proj-a/plans/PL-1/archive');
     // modal closes on success; still on the detail page (plan is GET-able).
     await waitFor(() => expect(screen.queryByTestId('plan-archive-modal')).not.toBeInTheDocument());
-    expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument();
+    expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument();
   });
 
   it('Archive Cancel closes the modal WITHOUT an archive POST', async () => {
@@ -1517,8 +1552,8 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
   it('PlanStatusChip renders the archived status with a curated SOLID stone pair', async () => {
     mockPlan({ status: 'archived', has_failed: false });
     wrap();
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
-    const chip = within(screen.getByTestId('plan-detail-header')).getByTestId('plan-status-chip');
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
+    const chip = within(screen.getByTestId('plan-info-rail')).getByTestId('plan-status-chip');
     expect(chip).toHaveTextContent('archived');
     expect(chip).toHaveAttribute('data-status', 'archived');
     expect(chip.className).toContain('bg-status-stone-bg');
@@ -1670,7 +1705,10 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
 // graph + its controls are md:-only). jsdom has no CSS media queries, so BOTH
 // render in the DOM here; these specs assert the stepper's structure/order.
 describe('PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    delete (window as Partial<Window>).matchMedia;
+  });
 
   it('renders a vertical stepper with one node per task (topological order) alongside the desktop graph', async () => {
     mockPlan();
@@ -1784,7 +1822,7 @@ describe('PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper', () => {
     );
     wrap();
     // The header renders; the board does not (nothing to reconcile).
-    await waitFor(() => expect(screen.getByTestId('plan-detail-header')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-unmerged-board')).not.toBeInTheDocument();
   });
 });

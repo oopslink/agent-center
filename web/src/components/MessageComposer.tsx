@@ -291,7 +291,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
     <form
       // v2.10.2 [T148]: a vertical stack — the (auto-growing) textarea on top, the
       // action buttons in a bar at the BOTTOM (was a single inline row).
-      className="relative flex flex-col gap-2 border-t border-border-base bg-bg-elevated p-3"
+      className="relative flex flex-col gap-2 border-t border-border-base bg-bg-elevated p-3 md:px-6 md:py-4"
       data-testid="message-composer"
       onSubmit={(e) => {
         e.preventDefault();

@@ -414,7 +414,7 @@ export function MessageList({
           data-own="true"
         >
           {headerLine}
-          <div className={`${bubbleWidthClass} rounded-xl bg-chatuserbubble px-3 py-2 text-chatbubble-fg shadow-sm`}>
+          <div className={`${bubbleWidthClass} rounded-xl bg-chatuserbubble px-3.5 py-2.5 text-chatbubble-fg shadow-sm`}>
             {bubbleBody}
           </div>
           {threadAffordance}
@@ -456,7 +456,7 @@ export function MessageList({
           {/* Hex-inspired: all "other" bubbles use bordered card style
               (bg-subtle + border) for both DM and channel surfaces. */}
           <div
-            className={`${bubbleWidthClass} rounded-xl border border-border-base bg-bg-subtle px-3 py-2 text-text-primary`}
+            className={`${bubbleWidthClass} rounded-xl border border-border-base bg-bg-subtle px-3.5 py-2.5 text-text-primary`}
             data-surface={surface}
           >
             {bubbleBody}
@@ -476,7 +476,7 @@ export function MessageList({
         // scrolls only vertically, never horizontally. Long content wraps
         // (.markdown-body overflow-wrap) or scrolls INSIDE its own block (code /
         // tables), so nothing escapes to push a whole-page horizontal scroll.
-        className="min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden p-4"
+        className="min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 md:px-6 md:py-5"
         data-testid="message-list"
       >
         {/* T189 phase 2: older-history affordance at the top of the stream. Shown

@@ -7,7 +7,6 @@ import {
   usePlan,
   useStartPlan,
   useStopPlan,
-  useAdvancePlan,
   useAddDependency,
   useRemoveDependency,
   useRemoveTaskFromPlan,
@@ -44,6 +43,8 @@ import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar, EmbeddedConversationSidebar, EmbeddedSidebarToggle } from '@/components/ConversationSidebar';
 import { ContextPanel } from '@/shell/contextPanel';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
+import { SenderDetailSidebar } from '@/components/SenderDetailSidebar';
+import type { Participant } from '@/api/types';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { dependencyEdgeError, validDropTargets } from './planDagEdit';
@@ -151,8 +152,14 @@ export default function PlanDetail(): React.ReactElement {
           had pushed the composer off-screen). The chat body drops the min-h-[60vh]
           floor (which had spilled past the border) — a bounded card makes flex-1
           resolve correctly. Maximize (added on the chat) is the full-screen escape. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:rounded-lg md:border md:border-border-base md:bg-bg-elevated md:shadow-1" data-testid="plan-detail-card">
-        <PlanDetailHeader projectId={id} plan={p} />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row md:rounded-lg md:border md:border-border-base md:bg-bg-elevated md:shadow-1" data-testid="plan-detail-card">
+        {/* Two-pane (双栏方案 B): MOBILE keeps the full single-row header above one
+            column; DESKTOP splits into [left: slim title + tabs + content] | [right:
+            PlanInfoRail with status/goal/progress/up-next/participants/files]. */}
+        {isMobile && <PlanDetailHeader projectId={id} plan={p} />}
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {!isMobile && <PlanTitleBar plan={p} />}
 
         {/* v2.13.0 / I18 F4 — the ship-gate board: the cycle's Integrate nodes
             not yet merged back into the trunk. Renders only when there is unmerged
@@ -165,7 +172,7 @@ export default function PlanDetail(): React.ReactElement {
         {/* T328: the plan id (P27) sits on the tab row (right-aligned, into the
             empty space) — @oopslink — instead of a separate "P27 · chat" sub-header
             row inside the chat tab, saving a row (esp. on mobile). */}
-        <div className="flex items-center gap-1 px-3 pt-2 md:px-4" data-testid="plan-tabs">
+        <div className="flex items-center gap-1 border-b border-border-base px-3 pt-2 md:px-6" data-testid="plan-tabs">
           <div className="flex min-w-0 items-center gap-1" role="tablist">
             <TabButton id="chat" active={tab === 'chat'} onSelect={setTab}>
               Chat
@@ -228,7 +235,7 @@ export default function PlanDetail(): React.ReactElement {
             splitter). Chat stays mounted-but-hidden across tabs so its SSE
             subscription + scroll/composer-draft survive; DAG/Task mount lazily
             when their tab is active. */}
-        <div className="flex min-h-0 flex-1 flex-col p-0 md:p-4" data-testid="plan-detail-content">
+        <div className="flex min-h-0 flex-1 flex-col p-0" data-testid="plan-detail-content">
           {/* Chat stays mounted-but-hidden across tabs (SSE/scroll/draft survive).
               When active it must FILL the card height so the message stream scrolls
               INSIDE the viewport instead of growing the page (T180). The flex
@@ -254,7 +261,7 @@ export default function PlanDetail(): React.ReactElement {
             role="tabpanel"
             hidden={tab !== 'dag'}
             data-testid="plan-panel-dag"
-            className={tab === 'dag' ? 'min-h-0 flex-1 overflow-auto' : undefined}
+            className={tab === 'dag' ? 'min-h-0 flex-1 overflow-auto p-3 md:p-4' : undefined}
           >
             {tab === 'dag' && <PlanDag projectId={id} plan={p} compact={dagCompact} />}
           </div>
@@ -262,11 +269,21 @@ export default function PlanDetail(): React.ReactElement {
             role="tabpanel"
             hidden={tab !== 'tasks'}
             data-testid="plan-panel-tasks"
-            className={tab === 'tasks' ? 'min-h-0 flex-1 overflow-auto' : undefined}
+            className={tab === 'tasks' ? 'min-h-0 flex-1 overflow-auto p-3 md:p-4' : undefined}
           >
             {tab === 'tasks' && <PlanTaskList projectId={id} plan={p} />}
           </div>
         </div>
+        </div>
+
+        {!isMobile && (
+          <PlanInfoRail
+            projectId={id}
+            plan={p}
+            participants={planConv.data?.participants ?? []}
+            onOpenDag={() => setTab('dag')}
+          />
+        )}
       </div>
 
       {/* T324: MOBILE keeps the plan conversation's Participants/Threads/Files in
@@ -289,7 +306,6 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   const resolveName = useDisplayNameResolver();
   const start = useStartPlan(projectId, plan.id);
   const stop = useStopPlan(projectId, plan.id);
-  const advance = useAdvancePlan(projectId, plan.id);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -312,7 +328,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
   const canDestroy = plan.status !== 'running' && plan.status !== 'archived';
 
   return (
-    <header className="space-y-2 px-3 py-2 md:border-b md:border-border-base md:p-4" data-testid="plan-detail-header">
+    <header className="space-y-2 px-3 py-2 md:border-b md:border-border-base md:px-6 md:py-3" data-testid="plan-detail-header">
       {/* Mobile: single row — ref + title + status + progress + creator + actions */}
       <div className="flex items-center gap-2">
         <PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="plan-detail-ref" />
@@ -343,10 +359,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
                     </button>
                   )}
                   {plan.status === 'running' && (
-                    <>
-                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); advance.mutate(); }} disabled={advance.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">Advance now</button>
-                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); stop.mutate(); }} disabled={stop.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">Stop</button>
-                    </>
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); stop.mutate(); }} disabled={stop.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">Stop</button>
                   )}
                   {plan.status !== 'archived' && (
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setEditing(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">Edit</button>
@@ -366,11 +379,29 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           </span>
         )}
       </div>
-      {/* Row 2 (desktop only): status chips + actions */}
-      <div className={`${isMobile ? 'hidden' : 'flex'} flex-wrap items-center gap-2`}>
+      {/* Row 2 (desktop only): status chips + inline meta + actions. The
+          Progress/Creator meta rides on THIS row (was a separate 4th header row)
+          so the header stays to 3 rows and the chat gets the height back. */}
+      <div className={`${isMobile ? 'hidden' : 'flex'} flex-wrap items-center gap-x-3 gap-y-2`}>
         <PlanStatusChip status={plan.status} />
         {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
         <PlanFailedIndicator hasFailed={plan.has_failed} />
+        <dl className="flex items-center gap-x-3 text-xs text-text-muted" data-testid="plan-detail-meta">
+          <div className="flex items-center gap-1">
+            <dt className="uppercase tracking-wide text-[0.625rem]">Progress</dt>
+            <dd className="text-text-secondary" data-testid="plan-progress">{planProgressLabel(plan.progress)}</dd>
+          </div>
+          {plan.target_date && (
+            <div className="flex items-center gap-1">
+              <dt className="uppercase tracking-wide text-[0.625rem]">Target</dt>
+              <dd className="text-text-secondary" title={plan.target_date}>{formatLocalTime(plan.target_date)}</dd>
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <dt className="uppercase tracking-wide text-[0.625rem]">Creator</dt>
+            <dd className="text-text-secondary" title={plan.creator_ref} data-testid="plan-creator">@{creatorLabel}</dd>
+          </div>
+        </dl>
         <span className="flex-1" />
         {/* T341: on MOBILE the action buttons collapse into an "Actions ▾" dropdown
             (@oopslink); on DESKTOP the wrapper dissolves (md:contents) and the menu
@@ -392,32 +423,17 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             (→ draft); draft → Start. Each control is rendered exactly ONCE here
             (the DAG footer keeps the legend only). */}
         {plan.status === 'running' && (
-          <>
-            {/* Manual Advance is KEPT as an OVERRIDE (§9.6): the system already
-                auto-advances a running plan; this button is reframed as a "do it
-                now" override (same idempotent dispatch path, INSERT-OR-IGNORE
-                no-op if already dispatched). Function unchanged. */}
-            <button
-              type="button"
-              data-testid="plan-advance-btn"
-              disabled={advance.isPending}
-              onClick={() => { setActionsOpen(false); advance.mutate(); }}
-              title="Manually dispatch ready nodes now (the system already advances automatically)"
-              aria-label="Manually dispatch ready nodes now (the system already advances automatically)"
-              className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base"
-            >
-              ▸ Advance now
-            </button>
-            <button
-              type="button"
-              data-testid="plan-stop-btn"
-              disabled={stop.isPending}
-              onClick={() => { setActionsOpen(false); stop.mutate(); }}
-              className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base"
-            >
-              ■ Stop (→ draft)
-            </button>
-          </>
+          // §9.6: a running plan auto-advances; the manual "Advance now" override
+          // was removed (@oopslink) — Stop (→ draft) is the only running control.
+          <button
+            type="button"
+            data-testid="plan-stop-btn"
+            disabled={stop.isPending}
+            onClick={() => { setActionsOpen(false); stop.mutate(); }}
+            className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base"
+          >
+            ■ Stop (→ draft)
+          </button>
         )}
         {/* T238: name + goal are DESCRIPTIVE metadata — editable in any
             non-archived status (draft/running/done). target_date stays draft-only
@@ -492,7 +508,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
         <div data-testid="plan-goal-wrap">
           <p
             className={`whitespace-pre-wrap text-sm text-text-secondary ${
-              goalLong && !goalOpen ? 'line-clamp-2' : ''
+              goalLong && !goalOpen ? 'line-clamp-1' : ''
             }`}
             data-testid="plan-goal"
             title="Plan goal"
@@ -512,33 +528,9 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           )}
         </div>
       )}
-      {!isMobile && (
-        <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted" data-testid="plan-detail-meta">
-          <div className="flex items-center gap-1">
-            <dt className="uppercase tracking-wide text-[0.625rem]">Progress</dt>
-            <dd className="text-text-secondary" data-testid="plan-progress">
-              {planProgressLabel(plan.progress)}
-            </dd>
-          </div>
-          {plan.target_date && (
-            <div className="flex items-center gap-1">
-              <dt className="uppercase tracking-wide text-[0.625rem]">Target</dt>
-              <dd className="text-text-secondary" title={plan.target_date}>
-                {formatLocalTime(plan.target_date)}
-              </dd>
-            </div>
-          )}
-          <div className="flex items-center gap-1">
-            <dt className="uppercase tracking-wide text-[0.625rem]">Creator</dt>
-            <dd className="text-text-secondary" title={plan.creator_ref} data-testid="plan-creator">
-              @{creatorLabel}
-            </dd>
-          </div>
-        </dl>
-      )}
-      {(start.isError || stop.isError || advance.isError) && (
+      {(start.isError || stop.isError) && (
         <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
-          {((start.error ?? stop.error ?? advance.error) as Error).message}
+          {((start.error ?? stop.error) as Error).message}
         </p>
       )}
       {editing && (
@@ -551,6 +543,301 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
         <PlanArchiveModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />
       )}
     </header>
+  );
+}
+
+// PlanTitleBar — the slim DESKTOP header for the two-pane layout: just the plan
+// ref + name. All the status/actions/meta that used to crowd the header now live
+// in the right-hand PlanInfoRail (@oopslink 双栏方案 B). Mobile keeps the full
+// single-row PlanDetailHeader instead.
+function PlanTitleBar({ plan }: { plan: Plan }): React.ReactElement {
+  return (
+    <div
+      className="flex items-center gap-2 border-b border-border-base px-5 py-3"
+      data-testid="plan-title-bar"
+    >
+      <PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="plan-detail-ref" />
+      <h1
+        className="min-w-0 truncate font-heading text-lg font-semibold text-text-primary md:text-xl"
+        title={plan.id}
+      >
+        {plan.name}
+      </h1>
+    </div>
+  );
+}
+
+// PlanProgressBar — a slim horizontal bar for the rail's Progress section (saves
+// vertical/horizontal space vs a donut in the narrow rail — @oopslink). The fill
+// uses the success token so it flips per mode.
+function PlanProgressBar({ done, total }: { done: number; total: number }): React.ReactElement {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <div data-testid="plan-progress-bar" aria-label={`${pct}% complete`}>
+      <div className="mb-1.5 flex items-baseline justify-between">
+        <span className="text-sm font-bold text-text-primary" data-testid="plan-progress">
+          {planProgressLabel({ done, total })}
+        </span>
+        <span className="text-xs text-text-muted">{pct}%</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: 'var(--color-bg-subtle)' }}>
+        <div className="h-full rounded-full transition-[width]" style={{ width: `${pct}%`, background: 'var(--color-success)' }} />
+      </div>
+    </div>
+  );
+}
+
+// nodeDotColor — the status dot beside an "Up next" node row. Up next only ever
+// lists non-terminal nodes (done/failed are filtered out), so this maps the live
+// states: running/dispatched (active) → accent, ready → secondary, blocked/paused
+// → muted.
+function nodeDotColor(status: PlanNodeStatus): string {
+  switch (status) {
+    case 'running':
+    case 'dispatched':
+      return 'var(--color-accent)';
+    case 'ready':
+      return 'var(--color-text-secondary)';
+    default: // blocked | paused
+      return 'var(--color-text-muted)';
+  }
+}
+
+// PlanInfoRail — the DESKTOP right-hand information rail (双栏方案 B). It owns the
+// status + lifecycle controls + goal + progress + up-next + participants + the
+// conversation's Threads/Files panel — everything that used to live in the wide
+// header. Self-contained: it drives its own lifecycle hooks + confirm modals and
+// opens the EXISTING agent-activity sidebar (SenderDetailSidebar, unchanged) via
+// local state when the @creator tag or a participant avatar is clicked.
+function PlanInfoRail({
+  projectId,
+  plan,
+  participants,
+  onOpenDag,
+}: {
+  projectId: string;
+  plan: Plan;
+  participants: Participant[];
+  onOpenDag?: () => void;
+}): React.ReactElement {
+  const resolveName = useDisplayNameResolver();
+  const start = useStartPlan(projectId, plan.id);
+  const stop = useStopPlan(projectId, plan.id);
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
+  const [goalOpen, setGoalOpen] = useState(false);
+  // The agent-activity sidebar (SenderDetailSidebar, unchanged) — opened by the
+  // @creator tag / a participant avatar. Local state keeps the rail decoupled
+  // from the chat's own SenderSidebarProvider.
+  const [agentRef, setAgentRef] = useState<string | null>(null);
+
+  const goalLong = plan.description.trim().length > 80 || plan.description.includes('\n');
+  const canDestroy = plan.status !== 'running' && plan.status !== 'archived';
+
+  const creatorName = resolveName(plan.creator_ref);
+  const creatorLabel =
+    creatorName === plan.creator_ref ? normalizeIdentityRef(plan.creator_ref) : creatorName;
+
+  const nodes = plan.nodes ?? plan.nodes_preview ?? [];
+  const upNext = nodes
+    .filter((n) => !n.archived && n.node_status !== 'done' && n.node_status !== 'failed')
+    .slice(0, 6);
+  const upNextHidden = Math.max(
+    0,
+    nodes.filter((n) => !n.archived && n.node_status !== 'done' && n.node_status !== 'failed').length - upNext.length,
+  );
+
+  const railBtn =
+    'flex-1 rounded-lg border border-border-strong bg-bg-subtle px-3 py-2 text-center text-xs font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary disabled:opacity-50';
+
+  return (
+    <aside
+      className="hidden w-[360px] shrink-0 flex-col overflow-y-auto border-l border-border-base bg-bg-base/40 md:flex"
+      data-testid="plan-info-rail"
+    >
+      {/* Status + lifecycle */}
+      <div className="space-y-3 border-b border-border-base p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <PlanStatusChip status={plan.status} />
+          {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
+          <PlanFailedIndicator hasFailed={plan.has_failed} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {plan.status === 'running' && (
+            <button
+              type="button"
+              data-testid="plan-stop-btn"
+              disabled={stop.isPending}
+              onClick={() => stop.mutate()}
+              className={`${railBtn} text-danger hover:text-danger`}
+            >
+              ■ Stop (→ draft)
+            </button>
+          )}
+          {plan.status === 'draft' && (
+            <button
+              type="button"
+              data-testid="plan-start-btn"
+              disabled={start.isPending}
+              onClick={() => start.mutate()}
+              className="flex-1 rounded-lg border-0 bg-accent px-3 py-2 text-center text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              ▸ Start
+            </button>
+          )}
+          {plan.status !== 'archived' && (
+            <button type="button" data-testid="plan-edit-btn" onClick={() => setEditing(true)} className={railBtn}>
+              Edit
+            </button>
+          )}
+        </div>
+        {canDestroy && (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" data-testid="plan-archive-btn" onClick={() => setConfirming('archive')} className={railBtn}>
+              Archive
+            </button>
+            <button
+              type="button"
+              data-testid="plan-delete-btn"
+              onClick={() => setConfirming('delete')}
+              className={`${railBtn} border-danger text-danger hover:text-danger`}
+            >
+              Delete
+            </button>
+          </div>
+        )}
+        {(start.isError || stop.isError) && (
+          <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
+            {((start.error ?? stop.error) as Error).message}
+          </p>
+        )}
+      </div>
+
+      {/* Goal + creator tag. The section ALWAYS renders (the @creator tag — which
+          opens the agent-activity sidebar — must show even when there's no goal). */}
+      <div className="border-b border-border-base p-5" data-testid="plan-goal-wrap">
+        <div className="mb-2 flex items-center gap-2">
+          <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Goal</h3>
+          <button
+            type="button"
+            data-testid="plan-creator-tag"
+            onClick={() => setAgentRef(plan.creator_ref)}
+            title={`Open ${creatorLabel} activity`}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-border-base bg-bg-subtle py-0.5 pl-1 pr-2 text-xs font-medium text-text-secondary hover:border-accent hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Avatar name={creatorLabel} kind={refKind(plan.creator_ref) === 'agent' ? 'agent' : 'human'} size="sm" />
+            <span data-testid="plan-creator">@{creatorLabel}</span>
+            <svg viewBox="0 0 12 12" className="h-3 w-3 opacity-60" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <path d="M4.5 2.5 8 6l-3.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+        {plan.description.trim() !== '' ? (
+          <>
+            <p
+              className={`whitespace-pre-wrap text-sm text-text-secondary ${goalLong && !goalOpen ? 'line-clamp-4' : ''}`}
+              data-testid="plan-goal"
+              title="Plan goal"
+            >
+              {plan.description}
+            </p>
+            {goalLong && (
+              <button
+                type="button"
+                onClick={() => setGoalOpen((v) => !v)}
+                data-testid="plan-goal-toggle"
+                aria-expanded={goalOpen}
+                className="mt-1.5 text-xs font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {goalOpen ? 'Show less' : 'Show more'}
+              </button>
+            )}
+          </>
+        ) : (
+          <p className="text-sm italic text-text-muted">No goal set.</p>
+        )}
+      </div>
+
+      {/* Progress */}
+      <div className="border-b border-border-base p-5" data-testid="plan-detail-meta">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Progress</h3>
+          <span className="text-xs text-text-muted">nodes done</span>
+        </div>
+        <PlanProgressBar done={plan.progress.done} total={plan.progress.total} />
+        {plan.target_date && (
+          <p className="mt-3 text-xs text-text-muted">
+            <span className="uppercase tracking-wide">Target</span>{' '}
+            <span className="text-text-secondary" title={plan.target_date}>{formatLocalTime(plan.target_date)}</span>
+          </p>
+        )}
+      </div>
+
+      {/* Up next */}
+      <div className="border-b border-border-base p-5">
+        <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Up next</h3>
+        {upNext.length === 0 ? (
+          <p className="text-xs text-text-muted">No nodes queued.</p>
+        ) : (
+          <ul className="space-y-2" data-testid="plan-upnext">
+            {upNext.map((n) => (
+              <li
+                key={n.task_id}
+                className="flex items-center gap-2.5 rounded-lg border border-border-base bg-bg-subtle px-3 py-2 text-sm text-text-secondary"
+              >
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: nodeDotColor(n.node_status) }} />
+                <span className="min-w-0 truncate" title={n.title}>{n.title}</span>
+                {n.org_ref && <span className="ml-auto shrink-0 font-mono text-[0.625rem] text-text-muted">{n.org_ref}</span>}
+              </li>
+            ))}
+            {upNextHidden > 0 && (
+              <li>
+                <button type="button" onClick={onOpenDag} className="text-xs font-medium text-accent hover:underline">
+                  +{upNextHidden} more — view DAG
+                </button>
+              </li>
+            )}
+          </ul>
+        )}
+      </div>
+
+      {/* Participants — avatars open the agent-activity sidebar */}
+      {participants.length > 0 && (
+        <div className="border-b border-border-base p-5">
+          <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Participants</h3>
+          <div className="flex flex-wrap gap-2" data-testid="plan-rail-participants">
+            {participants.map((pt) => {
+              const nm = resolveName(pt.identity_id);
+              const label = nm === pt.identity_id ? normalizeIdentityRef(pt.identity_id) : nm;
+              return (
+                <button
+                  key={pt.identity_id}
+                  type="button"
+                  onClick={() => setAgentRef(pt.identity_id)}
+                  title={label}
+                  aria-label={`Open ${label} activity`}
+                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Avatar name={label} kind={(pt.kind as 'agent' | 'human') ?? (refKind(pt.identity_id) === 'agent' ? 'agent' : 'human')} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Threads / Files — kept (the embedded conv sidebar's non-participant panels) */}
+      <div className="min-h-0 flex-1 p-5" data-testid="plan-rail-threads-files">
+        <ConversationSidebar conversationId={plan.conversation_id} showParticipants={false} />
+      </div>
+
+      {/* The (unchanged) agent-activity sidebar, opened from the @creator tag / avatars. */}
+      <SenderDetailSidebar open={agentRef !== null} senderRef={agentRef} onClose={() => setAgentRef(null)} />
+
+      {editing && <PlanEditModal projectId={projectId} plan={plan} onClose={() => setEditing(false)} />}
+      {confirming === 'delete' && <PlanDeleteModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
+      {confirming === 'archive' && <PlanArchiveModal projectId={projectId} plan={plan} onClose={() => setConfirming(null)} />}
+    </aside>
   );
 }
 
@@ -915,7 +1202,7 @@ function TabButton({
       aria-selected={active}
       data-testid={`plan-tab-${id}`}
       onClick={() => onSelect(id)}
-      className={`min-h-[44px] rounded-t-lg border border-b-0 px-3.5 py-1.5 text-xs font-semibold md:min-h-0 ${
+      className={`-mb-px min-h-[44px] rounded-t-lg border border-b-0 px-3.5 py-1.5 text-xs font-semibold md:min-h-0 ${
         active
           ? 'border-border-base bg-bg-elevated text-text-primary shadow-[inset_0_2px_0_var(--color-accent,#3b82f6)]'
           : 'border-transparent bg-bg-subtle text-text-secondary hover:text-text-primary'
@@ -2302,7 +2589,10 @@ function PlanConversationSide({
         ) : (
           <div
             // T341: flex-1 fills the bounded card (composer pinned); no min-h floor.
-            className="flex min-h-0 flex-1 overflow-hidden md:rounded md:border md:border-border-base"
+            // De-nested (@oopslink "太挤"): no inner border/rounding on desktop — the
+            // chat sits flush in the card (header border-b above, composer border-t
+            // below already frame it), removing the box-in-a-box double frame.
+            className="flex min-h-0 flex-1 overflow-hidden"
             data-testid="plan-conversation-body"
           >
             {/* T327: min-w-0 lets the messages column shrink so the embedded
@@ -2315,9 +2605,12 @@ function PlanConversationSide({
                 </p>
               )}
             </div>
-            {/* T324: Participants/Threads/Files embedded as the chat's right pane
-                on desktop; mobile uses the col④ bottom sheet (mounted by PlanDetail). */}
-            {!isMobile && conv.data && (
+            {/* 双栏方案 B: in the DOCKED desktop view the right-hand PlanInfoRail
+                owns Participants/Threads/Files, so the chat no longer embeds its
+                own sidebar (that would be a 3rd column). Keep it only when the chat
+                is MAXIMIZED (full-screen overlay — the rail isn't visible then);
+                mobile still uses the col④ bottom sheet. */}
+            {!isMobile && maximized && conv.data && (
               <EmbeddedConversationSidebar
                 conversationId={conversationId}
                 participants={conv.data.participants ?? []}
