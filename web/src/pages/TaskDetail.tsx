@@ -205,7 +205,13 @@ export default function TaskDetail(): React.ReactElement {
                   </div>
                 </div>
               )}
-              <div className="flex flex-1 flex-col">
+              {/* min-h-0: without it this flex child can't shrink below the
+                  message-list's content height, so on a long mobile thread the
+                  whole column grows past the viewport and the pinned composer is
+                  pushed below the fold / behind the bottom tab bar (unreachable
+                  input). min-h-0 completes the flex height chain so the message
+                  list scrolls internally and the composer stays pinned. */}
+              <div className="flex min-h-0 flex-1 flex-col">
                 <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
               </div>
             </>

@@ -295,6 +295,10 @@ type CreateTaskCommand struct {
 	// Integrate-complete merge guard + F4's board key on (Dev/Review/Integrate share
 	// branch/base — §4.2 — so role is the only discriminator).
 	Role pm.CycleNodeRole
+	// Model is the optional hard-override executor model (F3 model routing, design
+	// §5 & §10); "" = unset → executor model selected from the agent's allowed/default
+	// models.
+	Model string
 }
 
 // CreateTask writes the Task + outbox pm.task.created. The projector (B2-b)
@@ -329,6 +333,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 			ID: taskID, ProjectID: cmd.ProjectID, Title: cmd.Title,
 			Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
 			Branch: cmd.Branch, Base: cmd.Base, SkipMergeCheck: cmd.SkipMergeCheck, Role: cmd.Role,
+			Model: cmd.Model,
 		})
 		if terr != nil {
 			return terr

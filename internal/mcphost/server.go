@@ -166,6 +166,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeMarkSeen(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_messages",
+		Description: "Read the chat history of ONE conversation you participate in — a DM, a channel, or a task/issue/plan conversation. This is how you catch up on context: get_my_unread only shows messages addressed to you (your DMs + @mentions), while list_messages returns the FULL message stream of a conversation, including messages you were never mentioned in or already marked seen. Pass conversation_id (from get_my_unread, find_org_channel, or a message you were given). Returns the most recent messages (limit, default 50, max 200) oldest→newest, plus has_more and next_before_message_id; to read OLDER history, call again with before_message_id = next_before_message_id. You must be an active participant — a channel you have not joined returns not_a_channel_member.",
+	}, makeListMessages(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "post_message",
 		Description: "Post a message to a DM/channel, a task, or an issue — ONE tool for all four, selected by target. Set target.type to \"conversation\" (a DM or channel, target.id = the conversation_id from the message you were given), \"task\" (target.id = task_id), or \"issue\" (target.id = issue_id). @mention a participant by name to notify them; reply inside a thread with parent_message_id. Keep your text focused on what you're saying — to share a file, upload it with upload_file and pass the returned file_uri in attachments (the UI renders attachments as preview cards); do not paste raw file URIs into the text.",
 	}, makePostMessage(cfg))

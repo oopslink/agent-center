@@ -65,6 +65,7 @@ var AgentFacingToolNames = []string{
 	"list_tasks",
 	"list_unmerged_branches",
 	"mark_seen",
+	"list_messages", // browse a conversation's chat history (DM/channel/task/issue/plan)
 	// T200 WS4: post_message is the single post tool (target = conversation|task|issue);
 	// the former post_task_message / post_issue_message are gone.
 	"post_message",

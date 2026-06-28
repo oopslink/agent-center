@@ -131,6 +131,12 @@ type agentEventPayload struct {
 	Reasoning string `json:"reasoning,omitempty"`
 	Mode      string `json:"mode,omitempty"`
 	Provider  string `json:"provider,omitempty"`
+	// F3 model routing (design §5 & §10), carried the SAME way as Model/Reasoning
+	// (snapshotted at the (re)start that emitted this event). All ADDITIVE.
+	OrchestratorModel    string   `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string   `json:"default_executor_model,omitempty"`
+	MaxConcurrentTasks   int      `json:"max_concurrent_tasks,omitempty"`
+	AllowedModels        []string `json:"allowed_models,omitempty"`
 }
 
 // emit appends an outbox event inside the current transaction. Mutating
@@ -138,18 +144,22 @@ type agentEventPayload struct {
 // commit atomically (OQ1).
 func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, resetScope string) error {
 	pb, err := json.Marshal(agentEventPayload{
-		AgentID:     string(a.ID()),
-		OrgID:       a.OrganizationID(),
-		WorkerID:    a.WorkerID(),
-		Lifecycle:   string(a.Lifecycle()),
-		Version:     a.Version(),
-		ResetScope:  resetScope,
-		Model:       a.Profile().Model,
-		DisplayName: a.Profile().Name,
-		CLI:         a.Profile().CLI,
-		Reasoning:   a.Profile().Reasoning,
-		Mode:        a.Profile().Mode,
-		Provider:    a.Profile().Provider,
+		AgentID:              string(a.ID()),
+		OrgID:                a.OrganizationID(),
+		WorkerID:             a.WorkerID(),
+		Lifecycle:            string(a.Lifecycle()),
+		Version:              a.Version(),
+		ResetScope:           resetScope,
+		Model:                a.Profile().Model,
+		DisplayName:          a.Profile().Name,
+		CLI:                  a.Profile().CLI,
+		Reasoning:            a.Profile().Reasoning,
+		Mode:                 a.Profile().Mode,
+		Provider:             a.Profile().Provider,
+		OrchestratorModel:    a.Profile().OrchestratorModel,
+		DefaultExecutorModel: a.Profile().DefaultExecutorModel,
+		MaxConcurrentTasks:   a.Profile().MaxConcurrentTasks,
+		AllowedModels:        a.Profile().AllowedModels,
 	})
 	if err != nil {
 		return err

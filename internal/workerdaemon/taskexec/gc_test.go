@@ -131,6 +131,61 @@ func TestDefaultGCConfig(t *testing.T) {
 	}
 }
 
+// TestRunGC_RemovesArchivedSegmentsWithDoneDir asserts W3 alignment with GC:
+// archived ".gz" segments live inside the task dir, so an expired done dir is
+// removed wholesale (archives included) under the existing DoneRetention policy
+// — no separate archive GC path, no conflict.
+func TestRunGC_RemovesArchivedSegmentsWithDoneDir(t *testing.T) {
+	tasksDir := filepath.Join(t.TempDir(), "tasks")
+	dm := NewDirManager()
+	old := time.Now().Add(-5 * 24 * time.Hour)
+	meta := TaskExecutionMeta{TaskID: "task-archived", Status: StatusDone, CreatedAt: old, UpdatedAt: old}
+	if err := dm.Create(tasksDir, meta, ExecutionContext{}); err != nil {
+		t.Fatal(err)
+	}
+	// Drop an archived segment inside the task dir.
+	gzPath := filepath.Join(tasksDir, "task-archived", "events.000001.jsonl.gz")
+	if err := os.WriteFile(gzPath, []byte("gzip-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := GCConfig{AbortedRetention: 7 * 24 * time.Hour, DoneRetention: 3 * 24 * time.Hour}
+	result := RunGC(tasksDir, cfg, time.Now())
+
+	if result.DoneCleaned != 1 {
+		t.Errorf("DoneCleaned = %d, want 1", result.DoneCleaned)
+	}
+	if _, err := os.Stat(gzPath); !os.IsNotExist(err) {
+		t.Error("archived .gz segment should be removed with its expired done dir")
+	}
+}
+
+// TestRunGC_RetainsArchivedSegmentsInRecentAborted asserts an aborted dir
+// (with archived segments) within AbortedRetention is kept — archive retention
+// follows the dir's retention, not the other way around.
+func TestRunGC_RetainsArchivedSegmentsInRecentAborted(t *testing.T) {
+	tasksDir := filepath.Join(t.TempDir(), "tasks")
+	os.MkdirAll(tasksDir, 0o700)
+	recentTs := time.Now().Add(-1 * 24 * time.Hour)
+	name := AbortedDirName("task-recent", recentTs)
+	dir := filepath.Join(tasksDir, name)
+	os.MkdirAll(dir, 0o700)
+	gzPath := filepath.Join(dir, "events.000001.jsonl.gz")
+	if err := os.WriteFile(gzPath, []byte("gzip-bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := GCConfig{AbortedRetention: 7 * 24 * time.Hour, DoneRetention: 3 * 24 * time.Hour}
+	result := RunGC(tasksDir, cfg, time.Now())
+
+	if result.AbortedCleaned != 0 {
+		t.Errorf("AbortedCleaned = %d, want 0 (within retention)", result.AbortedCleaned)
+	}
+	if _, err := os.Stat(gzPath); err != nil {
+		t.Error("archived .gz in recent aborted dir should be retained")
+	}
+}
+
 func TestRunGC_MultipleCategories(t *testing.T) {
 	tasksDir := filepath.Join(t.TempDir(), "tasks")
 	os.MkdirAll(tasksDir, 0o700)

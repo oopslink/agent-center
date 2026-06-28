@@ -110,7 +110,14 @@ var (
 	ErrInvalidLifecycle   = errors.New("agent: invalid lifecycle state")
 	ErrIllegalLifecycle   = errors.New("agent: illegal lifecycle transition")
 	ErrInvalidResetScope  = errors.New("agent: invalid reset scope")
-	ErrVersionConflict    = errors.New("agent: version conflict (optimistic lock)")
+	// ErrResetRequiresStopped rejects a Reset issued while the agent is not in a
+	// SETTLED state (v2.16 W5 / design §3.1 "Reset 前置条件"). Reset wipes runtime
+	// state (memory / plans / tasks per scope), so it is only legal from a state
+	// where nothing is executing: stopped / error / failed. A running / stopping /
+	// resetting agent must settle first. Distinct from ErrIllegalLifecycle so the
+	// API can surface a precise "stop the agent before resetting" message. Maps to 409.
+	ErrResetRequiresStopped = errors.New("agent: reset requires the agent to be stopped, errored, or failed first")
+	ErrVersionConflict      = errors.New("agent: version conflict (optimistic lock)")
 	// ErrUnsupportedCLI rejects creating an agent bound to a cli the runtime
 	// cannot execute end-to-end (#181 / FINDING-F). Only "claude-code" is
 	// runtime-dispatchable today; codex/opencode are probe-only (discovered +
@@ -152,6 +159,32 @@ type Profile struct {
 	Mode      string            // operating mode ("" = default)
 	Provider  string            // LLM provider ("" = center default)
 	EnvVars   map[string]string // injected into the runtime process
+	// Model-routing config (F3, design §5 & §10). All optional; carried the SAME
+	// way as Model/Reasoning (domain → repo → migration → service → projector).
+	// OrchestratorModel is the orchestrator's own model (cheap/fast tier); empty =
+	// center default. DefaultExecutorModel is the fallback executor model; empty =
+	// center default. MaxConcurrentTasks caps concurrent executors for the agent
+	// (0/absent ⇒ EffectiveMaxConcurrentTasks default of 3). AllowedModels is the
+	// candidate executor-model set (empty = no restriction); persisted as a JSON
+	// array like EnvVars/skills/tags.
+	OrchestratorModel    string
+	DefaultExecutorModel string
+	MaxConcurrentTasks   int
+	AllowedModels        []string
+}
+
+// DefaultMaxConcurrentTasks is the fallback executor concurrency cap for an agent
+// whose Profile.MaxConcurrentTasks is unset/zero (F3, design §5).
+const DefaultMaxConcurrentTasks = 3
+
+// EffectiveMaxConcurrentTasks returns the agent's executor concurrency cap,
+// defaulting to DefaultMaxConcurrentTasks when MaxConcurrentTasks is unset/zero
+// (or negative). The persisted column may legitimately be 0 (= "use the default").
+func (p Profile) EffectiveMaxConcurrentTasks() int {
+	if p.MaxConcurrentTasks <= 0 {
+		return DefaultMaxConcurrentTasks
+	}
+	return p.MaxConcurrentTasks
 }
 
 // SupportedReasoningEfforts is the allowlist for Profile.Reasoning. Empty is
@@ -428,12 +461,23 @@ func (a *Agent) Restart(at time.Time) error {
 
 // Reset moves the Agent to resetting for the given scope. The second
 // confirmation is enforced by the AppService/UI, not here.
+//
+// Precondition (v2.16 W5 / design §3.1): Reset wipes runtime state (memory /
+// plans / tasks, per scope), so it is only legal from a SETTLED lifecycle where
+// nothing is executing — stopped / error / failed. Issuing it on a running /
+// stopping / resetting agent returns ErrResetRequiresStopped (the operator must
+// stop it first); a fresh archived agent is rejected by IsValid-less fallthrough
+// to the same precondition. This subsumes the old "double-reset is illegal" guard
+// (resetting is simply not a settled state).
 func (a *Agent) Reset(scope ResetScope, at time.Time) error {
 	if !scope.IsValid() {
 		return ErrInvalidResetScope
 	}
-	if a.lifecycle == LifecycleResetting {
-		return ErrIllegalLifecycle
+	switch a.lifecycle {
+	case LifecycleStopped, LifecycleError, LifecycleFailed:
+		// settled — nothing executing → resettable
+	default: // running, stopping, resetting, archived
+		return ErrResetRequiresStopped
 	}
 	a.lifecycle = LifecycleResetting
 	a.touch(at)

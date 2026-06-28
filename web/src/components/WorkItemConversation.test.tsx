@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -100,6 +100,38 @@ describe('WorkItemConversation (#137)', () => {
     expect(within(banner).getByTestId('conversation-owner-code')).toHaveTextContent('T280');
     // Maximize toggle is inside the banner (desktop control).
     expect(within(banner).getByTestId('conversation-maximize-toggle')).toBeInTheDocument();
+  });
+
+  // Mobile: the chat renders through ConversationMobileTabs — the same dropdown
+  // switcher (chat/threads/files) + maximize used by DM/channel — so task/issue
+  // chat gains threads/files access on small screens. Maximize lives inside the
+  // tabs container (its own fixed-inset overlay), not the section.
+  it('renders the mobile dropdown tabs + maximize on small screens', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    }));
+    server.use(
+      http.get('/api/conversations', () => HttpResponse.json([conv])),
+      http.get('/api/conversations/conv-1/messages', () => HttpResponse.json([])),
+      http.get('/api/conversations/conv-1/threads', () => HttpResponse.json([])),
+      http.get('/api/conversations/conv-1/files', () => HttpResponse.json([])),
+    );
+    wrap('pm://tasks/TS-1', 'rebuild docs', 'T280');
+    // The mobile tabs container (with its dropdown switcher) renders in place of
+    // the desktop sidebar split.
+    const tabs = await screen.findByTestId('conversation-mobile-tabs');
+    expect(screen.getByTestId('conversation-mtab-select')).toBeInTheDocument();
+    // Maximize toggle drives the tabs container's data-maximized.
+    const toggle = screen.getByTestId('conversation-maximize-toggle-mobile');
+    expect(tabs).toHaveAttribute('data-maximized', 'false');
+    fireEvent.click(toggle);
+    expect(tabs).toHaveAttribute('data-maximized', 'true');
+    expect(tabs.className).toContain('fixed');
+    fireEvent.click(toggle);
+    expect(tabs).toHaveAttribute('data-maximized', 'false');
+    vi.unstubAllGlobals();
   });
 
   it('falls back to the "Conversation" label when no ownerCode is provided', async () => {

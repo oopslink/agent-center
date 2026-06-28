@@ -34,22 +34,27 @@ function wrap(props: Partial<React.ComponentProps<typeof ConversationMobileTabs>
   );
 }
 
-describe('ConversationMobileTabs (T184 mobile chat/threads/files)', () => {
+function optionValues(select: HTMLElement): string[] {
+  return within(select)
+    .queryAllByRole('option')
+    .map((o) => (o as HTMLOptionElement).value);
+}
+
+describe('ConversationMobileTabs (T184 mobile chat/threads/files dropdown)', () => {
   afterEach(() => cleanup());
 
-  it('defaults to the Chat tab and shows the message stream', () => {
+  it('defaults to the Chat panel and offers the panels in the dropdown', () => {
     mockApi();
     wrap();
-    expect(screen.getByTestId('conversation-mtab-chat')).toHaveAttribute('data-active', 'true');
+    const select = screen.getByTestId('conversation-mtab-select') as HTMLSelectElement;
+    expect(select.value).toBe('chat');
     // chat panel is visible (not hidden) by default.
     expect(screen.getByTestId('conversation-mpanel-chat')).not.toHaveAttribute('hidden');
-    // the other tabs exist (channel → participants present).
-    expect(screen.getByTestId('conversation-mtab-participants')).toBeInTheDocument();
-    expect(screen.getByTestId('conversation-mtab-threads')).toBeInTheDocument();
-    expect(screen.getByTestId('conversation-mtab-files')).toBeInTheDocument();
+    // the other panels are options (channel → participants present).
+    expect(optionValues(select)).toEqual(['chat', 'participants', 'threads', 'files']);
   });
 
-  it('switches to the Threads tab; chat stays mounted-but-hidden', async () => {
+  it('switches to the Threads panel via the dropdown; chat stays mounted-but-hidden', async () => {
     mockApi({
       threads: [
         {
@@ -60,15 +65,15 @@ describe('ConversationMobileTabs (T184 mobile chat/threads/files)', () => {
       ],
     });
     wrap();
-    fireEvent.click(screen.getByTestId('conversation-mtab-threads'));
-    expect(screen.getByTestId('conversation-mtab-threads')).toHaveAttribute('data-active', 'true');
+    fireEvent.change(screen.getByTestId('conversation-mtab-select'), { target: { value: 'threads' } });
+    expect((screen.getByTestId('conversation-mtab-select') as HTMLSelectElement).value).toBe('threads');
     const panel = screen.getByTestId('conversation-mpanel-threads');
     expect(await within(panel).findByTestId('thread-list')).toBeInTheDocument();
     // chat panel is still in the DOM (mounted) but hidden — SSE/scroll/draft survive.
     expect(screen.getByTestId('conversation-mpanel-chat')).toHaveAttribute('hidden');
   });
 
-  it('opens the ThreadSidebar when a thread row in the Threads tab is clicked (regression: rows were inert without a provider)', async () => {
+  it('opens the ThreadSidebar when a thread row in the Threads panel is clicked (regression: rows were inert without a provider)', async () => {
     mockApi({
       threads: [
         {
@@ -79,7 +84,7 @@ describe('ConversationMobileTabs (T184 mobile chat/threads/files)', () => {
       ],
     });
     wrap();
-    fireEvent.click(screen.getByTestId('conversation-mtab-threads'));
+    fireEvent.change(screen.getByTestId('conversation-mtab-select'), { target: { value: 'threads' } });
     const panel = screen.getByTestId('conversation-mpanel-threads');
     const row = await within(panel).findByTestId('thread-list-row');
     // before the click there is no sidebar.
@@ -89,12 +94,26 @@ describe('ConversationMobileTabs (T184 mobile chat/threads/files)', () => {
     expect(await screen.findByTestId('thread-sidebar')).toBeInTheDocument();
   });
 
-  it('DM (showParticipants=false) shows chat / threads / files only — no Participants tab', () => {
+  it('DM (showParticipants=false) offers chat / threads / files only — no Participants', () => {
     mockApi();
     wrap({ surface: 'dm', showParticipants: false });
-    expect(screen.getByTestId('conversation-mtab-chat')).toHaveAttribute('data-active', 'true');
-    expect(screen.queryByTestId('conversation-mtab-participants')).not.toBeInTheDocument();
-    expect(screen.getByTestId('conversation-mtab-threads')).toBeInTheDocument();
-    expect(screen.getByTestId('conversation-mtab-files')).toBeInTheDocument();
+    const select = screen.getByTestId('conversation-mtab-select') as HTMLSelectElement;
+    expect(select.value).toBe('chat');
+    expect(optionValues(select)).toEqual(['chat', 'threads', 'files']);
+  });
+
+  it('maximize toggle promotes the tabs to a full-viewport overlay and restores', () => {
+    mockApi();
+    wrap();
+    const root = screen.getByTestId('conversation-mobile-tabs');
+    const toggle = screen.getByTestId('conversation-maximize-toggle-mobile');
+    expect(root).toHaveAttribute('data-maximized', 'false');
+    expect(toggle).toHaveAttribute('aria-label', 'Maximize conversation');
+    fireEvent.click(toggle);
+    expect(root).toHaveAttribute('data-maximized', 'true');
+    expect(root.className).toContain('fixed');
+    expect(toggle).toHaveAttribute('aria-label', 'Restore conversation');
+    fireEvent.click(toggle);
+    expect(root).toHaveAttribute('data-maximized', 'false');
   });
 });

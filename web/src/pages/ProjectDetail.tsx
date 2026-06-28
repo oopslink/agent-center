@@ -98,6 +98,13 @@ function ProjectStatusBadge({ status }: { status: Project['status'] }): React.Re
   );
 }
 
+// Shared box model for the project-header action controls (Work Board / Edit /
+// Archive). Keeping the layout/sizing identical across the anchor and the
+// <button>s guarantees they render the same height on mobile (#1). Per-control
+// classes only add border/text/hover color.
+const headerActionBtn =
+  'inline-flex items-center rounded border px-2 py-1 text-xs leading-none';
+
 function ProjectHeader({ project: p }: { project: Project }): React.ReactElement {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -112,17 +119,20 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
         <div className="flex flex-wrap items-center gap-2">
           {/* v2.9 #286: entry to the project's Plan orchestration (the Work Board
               — parallel Plan list + DAG). Reachable here via the project detail
-              page header (§4.2). Styled to match the sibling Edit/Archive buttons. */}
+              page header (§4.2). Styled to match the sibling Edit/Archive buttons.
+              All three share headerActionBtn so their box height/size align on
+              mobile — the anchor and the <button>s must use identical box model
+              (inline-flex items-center) to render the same height. */}
           <OrgLink
             to={`/projects/${encodeURIComponent(p.id)}/plans`}
-            className="inline-flex items-center gap-1 rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+            className={`${headerActionBtn} gap-1 border-border-base text-text-primary hover:bg-bg-subtle`}
             data-testid="project-plans-link"
           >
             Work Board
           </OrgLink>
           <button
             type="button"
-            className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
+            className={`${headerActionBtn} border-border-base text-text-primary hover:bg-bg-subtle`}
             onClick={() => setEditing(true)}
             data-testid="project-edit-btn"
           >
@@ -130,7 +140,7 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
           </button>
           <button
             type="button"
-            className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10"
+            className={`${headerActionBtn} border-danger/40 text-danger hover:bg-danger/10`}
             onClick={() => setDeleting(true)}
             data-testid="project-delete-btn"
           >

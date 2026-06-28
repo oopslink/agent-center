@@ -161,18 +161,20 @@ func TestAgentLifecycle(t *testing.T) {
 
 func TestAgentReset(t *testing.T) {
 	a := newAgent(t)
+	// Scope validation runs before the precondition (from stopped).
 	if err := a.Reset("bogus", t0); err != ErrInvalidResetScope {
 		t.Fatalf("invalid scope want ErrInvalidResetScope, got %v", err)
 	}
+	// stopped → resetting (the happy path; a fresh agent is stopped).
 	if err := a.Reset(ResetAll, t0); err != nil {
 		t.Fatal(err)
 	}
 	if a.Lifecycle() != LifecycleResetting {
 		t.Fatal("should be resetting")
 	}
-	// resetting again is illegal
-	if err := a.Reset(ResetMemory, t0); err != ErrIllegalLifecycle {
-		t.Fatalf("double reset want illegal, got %v", err)
+	// resetting again is rejected by the W5 precondition (not a settled state).
+	if err := a.Reset(ResetMemory, t0); err != ErrResetRequiresStopped {
+		t.Fatalf("double reset want ErrResetRequiresStopped, got %v", err)
 	}
 	if err := a.MarkStopped(t0); err != nil {
 		t.Fatal(err)
@@ -180,6 +182,108 @@ func TestAgentReset(t *testing.T) {
 	if a.Lifecycle() != LifecycleStopped {
 		t.Fatal("reset should settle to stopped")
 	}
+}
+
+// TestAgentReset_PreconditionByState — v2.16 W5 (design §3.1): Reset is legal
+// ONLY from a settled lifecycle (stopped / error / failed); running / stopping /
+// resetting are rejected with ErrResetRequiresStopped and leave the lifecycle
+// untouched.
+func TestAgentReset_PreconditionByState(t *testing.T) {
+	// --- allowed: settled states transition to resetting -----------------
+	t.Run("stopped_ok", func(t *testing.T) {
+		a := newAgent(t) // fresh → stopped
+		if err := a.Reset(ResetAll, t0); err != nil {
+			t.Fatalf("reset from stopped: %v", err)
+		}
+		if a.Lifecycle() != LifecycleResetting {
+			t.Fatalf("want resetting, got %s", a.Lifecycle())
+		}
+	})
+	t.Run("error_ok", func(t *testing.T) {
+		a := newAgent(t)
+		a.MarkError("boom", t0)
+		if err := a.Reset(ResetMemory, t0); err != nil {
+			t.Fatalf("reset from error: %v", err)
+		}
+		if a.Lifecycle() != LifecycleResetting {
+			t.Fatalf("want resetting, got %s", a.Lifecycle())
+		}
+	})
+	t.Run("failed_ok", func(t *testing.T) {
+		a := newAgent(t)
+		// reach failed via running → failed (the terminal circuit-breaker).
+		if err := a.Start(t0); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.MarkFailed("crash-loop", t0); err != nil {
+			t.Fatal(err)
+		}
+		if a.Lifecycle() != LifecycleFailed {
+			t.Fatalf("setup: want failed, got %s", a.Lifecycle())
+		}
+		if err := a.Reset(ResetAll, t0); err != nil {
+			t.Fatalf("reset from failed: %v", err)
+		}
+		if a.Lifecycle() != LifecycleResetting {
+			t.Fatalf("want resetting, got %s", a.Lifecycle())
+		}
+	})
+
+	// --- rejected: non-settled states keep their lifecycle ----------------
+	t.Run("running_rejected", func(t *testing.T) {
+		a := newAgent(t)
+		if err := a.Start(t0); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.Reset(ResetAll, t0); err != ErrResetRequiresStopped {
+			t.Fatalf("reset from running want ErrResetRequiresStopped, got %v", err)
+		}
+		if a.Lifecycle() != LifecycleRunning {
+			t.Fatalf("lifecycle mutated on rejected reset: %s", a.Lifecycle())
+		}
+	})
+	t.Run("stopping_rejected", func(t *testing.T) {
+		a := newAgent(t)
+		if err := a.Start(t0); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.Stop(t0); err != nil {
+			t.Fatal(err)
+		}
+		if a.Lifecycle() != LifecycleStopping {
+			t.Fatalf("setup: want stopping, got %s", a.Lifecycle())
+		}
+		if err := a.Reset(ResetAll, t0); err != ErrResetRequiresStopped {
+			t.Fatalf("reset from stopping want ErrResetRequiresStopped, got %v", err)
+		}
+		if a.Lifecycle() != LifecycleStopping {
+			t.Fatalf("lifecycle mutated on rejected reset: %s", a.Lifecycle())
+		}
+	})
+	t.Run("resetting_rejected", func(t *testing.T) {
+		a := newAgent(t) // stopped
+		if err := a.Reset(ResetAll, t0); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.Reset(ResetAll, t0); err != ErrResetRequiresStopped {
+			t.Fatalf("reset from resetting want ErrResetRequiresStopped, got %v", err)
+		}
+		if a.Lifecycle() != LifecycleResetting {
+			t.Fatalf("lifecycle mutated on rejected reset: %s", a.Lifecycle())
+		}
+	})
+
+	// Invalid scope is rejected before the precondition even from a non-settled
+	// state (validation order is scope → precondition).
+	t.Run("scope_before_precondition", func(t *testing.T) {
+		a := newAgent(t)
+		if err := a.Start(t0); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.Reset("bogus", t0); err != ErrInvalidResetScope {
+			t.Fatalf("invalid scope from running want ErrInvalidResetScope, got %v", err)
+		}
+	})
 }
 
 func TestAgentError(t *testing.T) {

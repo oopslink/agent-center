@@ -364,6 +364,26 @@ func makeMarkSeen(cfg Config) mcp.ToolHandlerFor[markSeenArgs, any] {
 	}
 }
 
+// listMessagesArgs is the typed input for list_messages — browse a conversation's
+// chat history. There is NO agent_id (process-fixed, injected by the handler).
+type listMessagesArgs struct {
+	ConversationID  string `json:"conversation_id" jsonschema:"the conversation to read — a conversation_id from get_my_unread, find_org_channel, or a DM/channel/task/issue/plan you participate in"`
+	Limit           int    `json:"limit,omitempty" jsonschema:"how many of the most recent messages to return (default 50, max 200)"`
+	BeforeMessageID string `json:"before_message_id,omitempty" jsonschema:"older-history cursor: return the page of messages strictly older than this message id. Pass the previous response's next_before_message_id to walk further back. Omit for the most recent page."`
+}
+
+func makeListMessages(cfg Config) mcp.ToolHandlerFor[listMessagesArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listMessagesArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":          cfg.AgentID,
+			"conversation_id":   args.ConversationID,
+			"limit":             args.Limit,
+			"before_message_id": args.BeforeMessageID,
+		}
+		return callAdmin(ctx, cfg, "list_messages", body)
+	}
+}
+
 // --- block_task --------------------------------------------------------------
 
 type blockTaskArgs struct {

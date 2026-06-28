@@ -135,7 +135,10 @@ func MigrateV1ToV2Command() *Command {
 // T461 added 0079 (agents.capability_tags — additive ADD COLUMN, dispatch labels).
 // T468 added 0080 (pm_plan_review_verdicts — additive new table, B3 structured verdict).
 // I41/T470 added 0081 (organizations.disabled_at — additive ADD COLUMN, reversible org disable gate).
-const targetSchemaVersion = 81
+// T515/F3 added 0082 (agents model-routing config: orchestrator_model / default_executor_model /
+// max_concurrent_tasks / allowed_models — additive ADD COLUMN) and 0083 (pm_tasks.model hard-override
+// — additive ADD COLUMN).
+const targetSchemaVersion = 83
 
 func runMigrateV1ToV2(
 	ctx context.Context,

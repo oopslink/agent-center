@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
+import { ConversationMobileTabs } from './ConversationMobileTabs';
 import { EmbeddedConversationSidebar, EmbeddedSidebarToggle } from './ConversationSidebar';
 import { SenderSidebarProvider } from './SenderSidebarContext';
 import { FollowToggle } from './FollowToggle';
@@ -75,12 +76,15 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
       className={
         maximized
           ? 'fixed inset-0 z-50 m-0 flex min-h-0 flex-col bg-bg-base p-3'
-          : 'mt-0 flex min-h-0 flex-1 flex-col md:mt-6'
+          : 'relative mt-0 flex min-h-0 flex-1 flex-col md:mt-6'
       }
       data-testid="work-item-conversation"
       data-maximized={maximized ? 'true' : 'false'}
     >
-      {/* Desktop: full banner with ownerCode + linked title + controls */}
+      {/* Desktop: full banner with ownerCode + linked title + controls. On
+          mobile the chat renders through <ConversationMobileTabs> below, which
+          carries its own dropdown switcher (chat/threads/files) + maximize
+          toggle — so the legacy mobile floating maximize button is gone. */}
       <div
         className="hidden items-center gap-2 rounded-t border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary md:flex"
         data-testid="conversation-owner-banner"
@@ -127,19 +131,23 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
         >
           No linked conversation yet.
         </p>
+      ) : isMobile ? (
+        // Mobile: the same dropdown switcher (chat / threads / files) + maximize
+        // used by DM/channel — so task/issue chat gains threads/files access on
+        // small screens (owner: "task/issue/plan 的 chat 也加上"). Maximize lives
+        // inside the tabs container (its own fixed-inset overlay).
+        <ConversationMobileTabs surface={surface} conversationId={conv.data.id} />
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden md:rounded-b md:border md:border-t-0 md:border-border-base">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ConversationView surface={surface} conversationId={conv.data.id} />
           </div>
-          {!isMobile && (
-            <EmbeddedConversationSidebar
-              conversationId={conv.data.id}
-              participants={conv.data.participants ?? []}
-              collapsed={embeddedCollapsed}
-              onToggleCollapsed={toggleEmbeddedCollapsed}
-            />
-          )}
+          <EmbeddedConversationSidebar
+            conversationId={conv.data.id}
+            participants={conv.data.participants ?? []}
+            collapsed={embeddedCollapsed}
+            onToggleCollapsed={toggleEmbeddedCollapsed}
+          />
         </div>
       )}
     </section>

@@ -117,19 +117,19 @@ describe('MessageList', () => {
     expect(bubble?.className).toContain('sm:max-w-[66.666667%]');
   });
 
-  // v2.10.1 [M2] mobile: text bubbles widen to ~86% of the full-screen
-  // conversation on a narrow viewport, narrowing to 75% at the desktop column
-  // breakpoint (mockup v2.10.1-mobile .msg max-width:86%).
-  it('text bubbles are ~86% wide on mobile and 75% at md (v2.10.1 M2)', () => {
+  // mobile: text bubbles fill the FULL width of the full-screen conversation
+  // (@oopslink: 移动端聊天气泡宽度应该占 100%), narrowing to 75% at the desktop
+  // column breakpoint (≥768, where col③ is itself a column).
+  it('text bubbles are full-width on mobile and 75% at md', () => {
     // own message (default sample sender is the viewer) → blue bubble.
     const { rerender } = render(<MessageList messages={[sample('M1', 'hi')]} />);
     let bubble = screen.getByTestId('message-row').querySelector('.bg-chatuserbubble');
-    expect(bubble?.className).toContain('max-w-[86%]');
+    expect(bubble?.className).toContain('max-w-full');
     expect(bubble?.className).toContain('md:max-w-[75%]');
     // received message (other sender) carries the same width policy.
     rerender(<MessageList messages={[{ ...sample('M2', 'yo'), sender_identity_id: 'agent:arch1' }]} />);
     bubble = screen.getByTestId('message-row').querySelector('[data-surface="channel"]');
-    expect(bubble?.className).toContain('max-w-[86%]');
+    expect(bubble?.className).toContain('max-w-full');
     expect(bubble?.className).toContain('md:max-w-[75%]');
   });
 

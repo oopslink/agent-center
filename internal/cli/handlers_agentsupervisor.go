@@ -10,10 +10,18 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
 	"github.com/oopslink/agent-center/internal/claudestream"
+	"github.com/oopslink/agent-center/internal/cognition/memory"
 )
+
+// memorySyncInterval is how often the supervisor commits the agent's dirty
+// memory working-tree edits into git history (W2 "memory sync"; design §4.1).
+// AutoCommitDirty is a cheap no-op on a clean tree, so a tight-ish cadence just
+// bounds how long an edit stays uncommitted.
+const memorySyncInterval = 30 * time.Second
 
 // AgentSupervisorCommand is the v2.7 (D2-f s1) persistent per-agent SUPERVISOR
 // entry. It is a thin, long-lived process that OWNS the agent's claude (claude
@@ -75,11 +83,27 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		return ExitUsage
 	}
 
+	// W2 memory: init the agent's scoped memory repo (git init + global/supervisor
+	// skeleton, idempotent) and assemble the harness context to inject. memEngine
+	// is reused below for the periodic working-tree sync. Best-effort: a memory
+	// failure must NOT stop claude from booting — memory is augmentation, not the
+	// survival core. memoryContext "" ⇒ no memory injected (unchanged argv).
+	memEngine := memory.NewEngine(filepath.Join(homeDir, "memory"), "")
+	var memoryContext string
+	if initErr := memEngine.EnsureRootInit(ctx); initErr != nil {
+		fmt.Fprintf(errw, "[agent-supervisor] memory init: %v (continuing without memory)\n", initErr)
+	} else if mc, ctxErr := memEngine.HarnessContext(ctx); ctxErr != nil {
+		fmt.Fprintf(errw, "[agent-supervisor] memory load: %v (continuing without memory)\n", ctxErr)
+	} else {
+		memoryContext = mc
+	}
+
 	// Build the validated claude streaming argv via the claudestream pipeline
 	// (BuildCommand + rewriteForStreamingInput + SessionUUID + --mcp-config
 	// <path>). The supervisor holds only the mcp-config PATH; no token here.
-	// --model (if any) is appended as an argv flag below.
-	childCmd, err := claudestream.BuildStreamingArgv(agentID, strings.TrimSpace(claudeBin), strings.TrimSpace(mcpConfigPath), resetEpoch, generation, strings.TrimSpace(resumeFrom), nil)
+	// --model (if any) is appended as an argv flag below. memoryContext rides the
+	// same --append-system-prompt as the work-queue harness.
+	childCmd, err := claudestream.BuildStreamingArgv(agentID, strings.TrimSpace(claudeBin), strings.TrimSpace(mcpConfigPath), resetEpoch, generation, strings.TrimSpace(resumeFrom), nil, memoryContext)
 	if err != nil {
 		fmt.Fprintf(errw, "Error: agent_supervisor: build claude argv: %v\n", err)
 		return ExitBusinessError
@@ -89,10 +113,10 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 	}
 
 	sup, err := agentsupervisor.New(agentsupervisor.Config{
-		AgentID:      agentID,
-		HomeDir:      homeDir,
-		SockPath:     agentsupervisor.SockPath(agentID),
-		ChildCmd:     childCmd,
+		AgentID:  agentID,
+		HomeDir:  homeDir,
+		SockPath: agentsupervisor.SockPath(agentID),
+		ChildCmd: childCmd,
 		TasksDir: strings.TrimSpace(workspaceDir),
 		// T469: inject the human-readable display_name into git author/committer NAME
 		// via the ② AgentEnv seam. mergeGitIdentity overlays this OVER the AgentID
@@ -142,6 +166,37 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		}
 	}()
 
+	// W2 memory sync: periodically commit the agent's dirty memory working-tree
+	// edits into git history (the agent writes CLAUDE.md files via its file tools;
+	// this turns those edits into commits). Runs alongside the drain; stops on
+	// serveCtx cancel. Best-effort: a commit failure is logged, never fatal. Author
+	// is the agent's display identity so history attributes to the agent.
+	memAuthor, memEmail := memorySyncIdentity(displayName, agentID)
+	go func() {
+		ticker := time.NewTicker(memorySyncInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-serveCtx.Done():
+				return
+			case <-ticker.C:
+				if cErr := memEngine.CommitDirty(serveCtx, memAuthor, memEmail, ""); cErr != nil {
+					fmt.Fprintf(errw, "[agent-supervisor] memory sync: %v\n", cErr)
+				}
+			}
+		}
+	}()
+	// Final flush on the way out so edits made since the last tick are not lost.
+	// Uses a FRESH background ctx (not ctx/serveCtx — both are cancelled during
+	// teardown, which would kill the git child) with a short bound.
+	defer func() {
+		flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if cErr := memEngine.CommitDirty(flushCtx, memAuthor, memEmail, "memory: final sync on shutdown"); cErr != nil {
+			fmt.Fprintf(errw, "[agent-supervisor] memory final sync: %v\n", cErr)
+		}
+	}()
+
 	// SIGINT/SIGTERM → graceful Stop (clean teardown). NOTE: this is the
 	// operator-initiated shutdown path. A DAEMON death does NOT signal the
 	// supervisor (it escaped the group), which is exactly how it survives.
@@ -165,4 +220,17 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		return ExitBusinessError
 	}
 	return ExitOK
+}
+
+// memorySyncIdentity returns the git author NAME/EMAIL the memory-sync commits
+// use. It mirrors the agent's claude-commit identity (T459/T469): the
+// human-readable display_name as NAME (falling back to the agent id) and a
+// stable <agent-id>@agent-center EMAIL, so memory history attributes to the
+// agent rather than to an anonymous system actor.
+func memorySyncIdentity(displayName, agentID string) (name, email string) {
+	name = strings.TrimSpace(displayName)
+	if name == "" {
+		name = agentID
+	}
+	return name, agentID + "@agent-center"
 }

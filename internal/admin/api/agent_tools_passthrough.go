@@ -24,14 +24,18 @@ import (
 // for its own projects and gets ErrNotMember (→403) for foreign projects. No
 // extra membership check is layered on top.
 //
-// The READ tools scope per-agent STRICTLY to own work (OQ4) — #5a project
-// membership is the OQ6 WRITE gate and does NOT widen reads:
-//   - get_task  uses own-work scope (requireOwnTask: the agent must hold a
-//     WorkItem for pm://tasks/{taskID}, else 403 not_agents_task).
-//   - get_issue uses own-LINK scope: the agent must hold a WorkItem for a Task
-//     derived from the issue (task.DerivedFromIssue == issue_id), else 403
-//     not_in_issue_domain. (Membership alone does NOT grant reading arbitrary
-//     project issues.)
+// The by-id READ tools are PROJECT-MEMBER scoped — an agent that is a member of
+// the object's project may read ANY object in it (#5a project membership now
+// gates reads too, deliberately; non-members / cross-project are still rejected):
+//   - get_task  uses requireTaskAccess (issue I44): assignee OR creator OR member
+//     of the task's project, else 403. The prior own-work scope (requireOwnTask:
+//     assignee only) was too tight — a Decision/Gate owner could not read the
+//     upstream Review's verdict it must adjudicate (structural cycle break).
+//   - get_issue uses GetIssueForMember: any member may read any project issue
+//     (v2.10.3 T170 relaxation).
+//   - get_plan  uses GetPlanDetailForMember (issue I44): any member may read any
+//     project plan; the prior check verified only plan-in-project, not caller
+//     membership (a non-member could read a plan whose ids it could name).
 // =============================================================================
 
 // --- create_task -------------------------------------------------------------
@@ -46,6 +50,9 @@ type createTaskReq struct {
 	// pre-T199 default).
 	Assignee string `json:"assignee"`
 	Dispatch bool   `json:"dispatch"`
+	// Model is the optional hard-override executor model (F3 model routing, design
+	// §5 & §10); "" = unset.
+	Model string `json:"model"`
 }
 
 // createTaskHandler creates a Task via pm.CreateTask with actor=agent. The pm
@@ -91,6 +98,7 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:        pm.IdentityRef(agentActor(a)),
 		Assignee:         pm.IdentityRef(assignee),
 		Dispatch:         req.Dispatch,
+		Model:            strings.TrimSpace(req.Model),
 	})
 	if err != nil {
 		// T199/WS3 dispatch/assign error paths — clear codes (acceptance: "错误路径
@@ -228,9 +236,14 @@ func (s *Server) subscribeOp(w http.ResponseWriter, r *http.Request, subscribe b
 
 // --- get_task ----------------------------------------------------------------
 
-// getTaskHandler returns the task projection for a task the agent OWNS (own-work
-// scope: requireOwnTask — the agent must hold a WorkItem for pm://tasks/{taskID},
-// else 403 not_agents_task). Accepts GET (?agent_id=&task_id=) or POST body.
+// getTaskHandler returns the task projection for a task the agent may SEE
+// (project-member READ scope, issue I44: requireTaskAccess — assignee OR creator
+// OR member of the task's project, else 403 not_agents_task). This relaxes the
+// prior own-work scope (requireOwnTask: assignee only) so a Decision/Gate owner
+// can read the upstream Review/Dev task it must adjudicate (incl. review_verdict /
+// summary). Non-members / cross-project are still rejected (non-disclosure: a
+// missing/unseeable task is the same 403 as no-access). Writes stay assignee-
+// gated. Accepts GET (?agent_id=&task_id=) or POST body.
 func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	agentID, taskID, ok := readAgentTool2(w, r, "task_id")
@@ -245,7 +258,7 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	if !s.requireOwnTask(w, r, d, a, taskID) {
+	if !s.requireTaskAccess(w, r, d, a, taskID) {
 		return
 	}
 	t, err := d.PMService.GetTask(r.Context(), pm.TaskID(taskID))
@@ -434,6 +447,11 @@ func agentTaskMap(t *pm.Task) map[string]any {
 		m["branch"] = t.Branch()
 		m["base"] = t.Base()
 		m["skip_merge_check"] = t.SkipMergeCheck()
+	}
+	// F3 model routing (design §5 & §10): per-task executor model override, emitted
+	// only when set so ordinary tasks stay clean.
+	if t.Model() != "" {
+		m["model"] = t.Model()
 	}
 	return m
 }

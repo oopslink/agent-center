@@ -163,11 +163,18 @@ type reconcilePayload struct {
 	// loop). Model/CLI are applied at spawn today; reasoning/mode/provider are
 	// reserved here for the spawn wiring (the supervisor→claude exec flags), which
 	// lands as the CLI adapter gains flag support. Empty = runtime default.
-	Reasoning  string `json:"reasoning,omitempty"`
-	Mode       string `json:"mode,omitempty"`
-	Provider   string `json:"provider,omitempty"`
-	Version    int    `json:"version"`
-	ResetScope string `json:"reset_scope,omitempty"`
+	Reasoning string `json:"reasoning,omitempty"`
+	Mode      string `json:"mode,omitempty"`
+	Provider  string `json:"provider,omitempty"`
+	// F3 model routing (design §5 & §10) — transported from the persisted agent
+	// profile through the control loop to the daemon. The modelrouter package
+	// consumes these at executor-spawn time. Empty/zero = center default.
+	OrchestratorModel    string   `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string   `json:"default_executor_model,omitempty"`
+	MaxConcurrentTasks   int      `json:"max_concurrent_tasks,omitempty"`
+	AllowedModels        []string `json:"allowed_models,omitempty"`
+	Version              int      `json:"version"`
+	ResetScope           string   `json:"reset_scope,omitempty"`
 }
 
 // workPayload decodes an "agent.work" command payload. Matches
@@ -1405,11 +1412,11 @@ func (c *AgentController) startCodexSession(ctx context.Context, agentID string,
 	c.mu.Unlock()
 
 	sess, err := c.cfg.codexStarter(ctx, CodexSessionConfig{
-		AgentID:      agentID,
+		AgentID:  agentID,
 		TasksDir: workspace,
-		Binary:       c.cfg.CodexBinary,
-		Model:        model,
-		Logger:       c.cfg.Logger,
+		Binary:   c.cfg.CodexBinary,
+		Model:    model,
+		Logger:   c.cfg.Logger,
 		OnEvent: func(ev StreamEvent) {
 			c.onEvent(agentID, ev)
 		},

@@ -230,14 +230,15 @@ export function MessageList({
     // sides so the user:/agent: prefix never breaks the compare.
     const isOwn = meKey !== '' && normalizeIdentityRef(m.sender_identity_id) === meKey;
     const hasCodeBlock = m.content.includes('```');
-    // v2.10.1 [M2] mobile: bubbles fill ~86% of the full-screen conversation
-    // (mockup v2.10.1-mobile .msg max-width:86%) for comfortable reading on a
-    // narrow viewport, narrowing back to 75% at the desktop 3-column breakpoint
-    // (≥768, where col③ is itself a column). Code-block bubbles already go
-    // full-width on mobile (horizontal scroll guard), so they are left as-is.
+    // v2.10.1 [M2] mobile: bubbles fill the FULL width of the full-screen
+    // conversation (@oopslink: 移动端聊天气泡宽度应该占 100%) — the narrow
+    // viewport has no room to waste on side gutters — narrowing back to 75% at
+    // the desktop 3-column breakpoint (≥768, where col③ is itself a column).
+    // Code-block bubbles already go full-width on mobile (horizontal scroll
+    // guard), so they are left as-is.
     const bubbleWidthClass = hasCodeBlock
       ? 'w-full max-w-full sm:w-2/3 sm:max-w-[66.666667%]'
-      : 'max-w-[86%] md:max-w-[75%]';
+      : 'max-w-full md:max-w-[75%]';
 
     // Chat UX 2 (#3 + #5): the sender NAME (+ work-item tag) and the TIME move
     // OUT of the bubble into a small header line ABOVE the bubble; the bubble is
