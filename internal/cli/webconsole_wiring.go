@@ -378,6 +378,9 @@ func (a *App) outboxProjectors(
 		AssignTarget: buildAssignTarget(a.PMService, sweepAgentRepo),
 		RepushTarget: buildRepushTarget(a.PMService, sweepAgentRepo),
 	})
+	// message_acknowledged activity (docs/design/features/agent-message-consumption-activity.md):
+	// agent 主动 mark_seen（PULL）→ 在其 activity 流追加一条 ack，闭合「agent 确认已读」回路。
+	msgAckProj := envservice.NewMessageAckProjector(a.DB, a.AgentActivityRepo, appliedRepo, a.IDGen, a.Clock)
 	return []outbox.Projector{
 		participantProj,
 		planParticipantProj,
@@ -386,6 +389,7 @@ func (a *App) outboxProjectors(
 		wakeProj,
 		planOrchestratorProj,
 		dispatchWakeProj,
+		msgAckProj,
 	}, wakeProj
 }
 

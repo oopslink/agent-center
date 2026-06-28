@@ -18,6 +18,9 @@ import (
 // render a "999+" badge without an unbounded scan.
 const MaxUnreadCount = 999
 
+// EventTypeReadStateChanged is the outbox event type emitted by MarkSeen.
+const EventTypeReadStateChanged = "conversation.read_state.changed"
+
 // ReadStateService owns read-state writes (MarkSeen) and the unread
 // summary read (Unread). Per v2.1-C-2 audit § 2 the MarkSeen invariant
 // is only-forward — a stale "seen up to" never regresses the cursor.
@@ -49,12 +52,33 @@ func NewReadStateService(
 	}
 }
 
+// MarkSeenTrigger 标注一次 mark-seen 的来源，使下游（ack projector）能区分
+// PUSH 路径系统自动盖章（delivery）、PULL 路径 agent 主动确认（agent_tool）、
+// 人类已读（human）。仅用于事件标注，不改变 only-forward / 乐观锁语义。
+type MarkSeenTrigger string
+
+const (
+	MarkSeenTriggerHuman     MarkSeenTrigger = "human"
+	MarkSeenTriggerDelivery  MarkSeenTrigger = "delivery"
+	MarkSeenTriggerAgentTool MarkSeenTrigger = "agent_tool"
+)
+
 // MarkSeenCommand asks the service to advance the cursor.
 type MarkSeenCommand struct {
 	UserID            conversation.IdentityRef
 	ConversationID    conversation.ConversationID
 	LastSeenMessageID conversation.MessageID
 	Actor             observability.Actor
+	// Trigger 标注来源（空 → 视为 human）。透传进 conversation.read_state.changed payload。
+	Trigger MarkSeenTrigger
+}
+
+// triggerOrDefault 返回标注来源，空值落 human（保守：ack projector 只白名单 agent_tool）。
+func (c MarkSeenCommand) triggerOrDefault() MarkSeenTrigger {
+	if c.Trigger == "" {
+		return MarkSeenTriggerHuman
+	}
+	return c.Trigger
 }
 
 // MarkSeenResult reports the post-operation state. Bumped == false
@@ -128,7 +152,7 @@ func (s *ReadStateService) MarkSeen(ctx context.Context, cmd MarkSeenCommand) (M
 			return err
 		}
 		evID, err := s.sink.Emit(txCtx, observability.EmitCommand{
-			EventType: "conversation.read_state.changed",
+			EventType: EventTypeReadStateChanged,
 			Refs: observability.EventRefs{
 				ConversationID: string(cmd.ConversationID),
 				MessageID:      string(cmd.LastSeenMessageID),
@@ -139,6 +163,7 @@ func (s *ReadStateService) MarkSeen(ctx context.Context, cmd MarkSeenCommand) (M
 				"user_id":                       string(cmd.UserID),
 				"last_seen_message_id":          string(cmd.LastSeenMessageID),
 				"previous_last_seen_message_id": string(previousMsgID),
+				"trigger":                       string(cmd.triggerOrDefault()),
 			},
 		})
 		if err != nil {
