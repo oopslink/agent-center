@@ -219,6 +219,27 @@ func TestConcurrencyCap_SetStatusOverrideRespectsCap(t *testing.T) {
 	}
 }
 
+// ③ PATH batch edit (BatchUpdateTask) status→running: the free batch editor can
+// land a task in a run slot in one shot, so it is guarded too — a =1 agent's 2nd
+// task patched to running is rejected (the dropped index would have rejected it at
+// the DB). Backfills the 5th task→running entry point's per-path regression (the
+// other four — start / unblock / reassign / SetStatus — are covered above), so a
+// future refactor that drops the batch guard turns this test red.
+func TestConcurrencyCap_BatchUpdateToRunningRespectsCap(t *testing.T) {
+	svc, ctx := capHarness(t, persistence.MemoryDSN(), capAgentDir{org: "org-1"})
+	ag := pm.IdentityRef("agent:def")
+	pid := capFixture(t, svc, ctx, ag)
+	t1 := mkAssigned(t, svc, ctx, pid, "one", ag)
+	t2 := mkAssigned(t, svc, ctx, pid, "two", ag)
+	if err := svc.StartTask(ctx, t1, ag); err != nil {
+		t.Fatalf("start t1: %v", err)
+	}
+	// Batch-patch t2 → running for the already-full =1 agent → it would hold 2 → reject.
+	if err := svc.BatchUpdateTask(ctx, t2, BatchTaskPatch{Status: strptr("running")}, ag); !errors.Is(err, pm.ErrAgentHasActiveTask) {
+		t.Fatalf("BatchUpdate(t2, status=running) for full =1 agent = %v, want ErrAgentHasActiveTask", err)
+	}
+}
+
 // ④ observability: CountRunningTasks reports live run slots; a blocked task is a
 // legal pause and is NOT counted.
 func TestConcurrencyCap_RunningCountObservability(t *testing.T) {
