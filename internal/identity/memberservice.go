@@ -10,7 +10,6 @@ import (
 	"github.com/oopslink/agent-center/internal/persistence"
 )
 
-
 // ============================================================
 // MemberRoleChangeService — DS-2 (last-owner guard)
 // ============================================================

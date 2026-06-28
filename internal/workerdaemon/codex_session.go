@@ -56,11 +56,11 @@ type codexProc interface {
 // or `codex exec resume <threadID>` (continuation) invocation.
 type codexLaunchSpec struct {
 	TasksDir string
-	Binary       string // "" → "codex" on PATH
-	Model        string // "" → codex default
-	ThreadID     string // "" → fresh `exec`; else `exec resume <ThreadID>`
-	Prompt       string
-	Env          map[string]string
+	Binary   string // "" → "codex" on PATH
+	Model    string // "" → codex default
+	ThreadID string // "" → fresh `exec`; else `exec resume <ThreadID>`
+	Prompt   string
+	Env      map[string]string
 }
 
 // codexLauncher builds + starts a codexProc. execCodexLauncher is the real impl;
@@ -412,11 +412,11 @@ func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
 
 	proc, err := s.launcher.Launch(ctx, codexLaunchSpec{
 		TasksDir: s.cfg.TasksDir,
-		Binary:       s.cfg.Binary,
-		Model:        s.cfg.Model,
-		ThreadID:     thread,
-		Prompt:       msg,
-		Env:          s.cfg.Env,
+		Binary:   s.cfg.Binary,
+		Model:    s.cfg.Model,
+		ThreadID: thread,
+		Prompt:   msg,
+		Env:      s.cfg.Env,
 	})
 	if err != nil {
 		return fmt.Errorf("codex_session: launch turn: %w", err)
