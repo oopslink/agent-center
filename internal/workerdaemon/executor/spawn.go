@@ -198,3 +198,15 @@ func (h *Handle) Release() error {
 	}
 	return h.cmd.Process.Release()
 }
+
+// recoveredHandle builds a pid-only Handle for an ADOPTED orphan executor — a
+// process the orchestrator re-adopts across a restart (design §12). It carries a
+// group-signaler so the watchdog can Terminate/Kill the orphan's process group, but
+// it has NO *exec.Cmd: Wait()/Release() return an error because the orphan is NOT
+// this orchestrator's child (it was reparented when the previous orchestrator died).
+// The orphan's completion is therefore observed by POLLING liveness
+// (Monitor.CheckOrphan), never by reaping. sig is injected so the watchdog kill is
+// testable without signalling a real pid.
+func recoveredHandle(executorID string, pid int, sig groupSignaler) *Handle {
+	return &Handle{ExecutorID: executorID, PID: pid, signal: sig}
+}

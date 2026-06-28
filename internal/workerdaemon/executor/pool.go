@@ -67,6 +67,12 @@ type PoolConfig struct {
 	BinaryPath string
 	// AgentEnv is the ② per-agent overlay for executor env (git identity / profile).
 	AgentEnv map[string]string
+	// Tracker, when set, persists an orchestrator-private Record (pid + base_ref +
+	// runner_cmd) under each launched executor's dir, so a RESTARTED orchestrator
+	// can probe the orphan's liveness and re-adopt it (design §12 crash recovery).
+	// OPTIONAL: nil ⇒ no durable record is written (the executor is then invisible to
+	// post-restart recovery). Production wiring (W3) always sets it.
+	Tracker *Tracker
 	// Max is max_concurrent_tasks. <= 0 → DefaultMaxConcurrent.
 	Max int
 	// Clock is injected for deterministic tests (worktree branch naming uses ids,
@@ -236,6 +242,24 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 	})
 	if err != nil {
 		return nil, err
+	}
+	// Persist the orchestrator-private recovery Record AFTER the fork (we now know the
+	// pid) but BEFORE returning the handle, so a crash in the next instant still leaves
+	// a probe-able record (design §12: files are the durable state). If the record
+	// cannot be written the executor would be an unrecoverable orphan on restart — kill
+	// it now rather than leak an untracked process, and fail the launch (work re-queues).
+	if p.cfg.Tracker != nil {
+		rec := Record{
+			ExecutorID: id,
+			PID:        h.PID,
+			SpawnedAt:  p.clk.Now(),
+			BaseRef:    p.cfg.BaseRef,
+			RunnerCmd:  spec.RunnerCmd,
+		}
+		if werr := p.cfg.Tracker.Write(rec); werr != nil {
+			_ = h.Kill()
+			return nil, fmt.Errorf("executor: pool track %s: %w", id, werr)
+		}
 	}
 	return h, nil
 }
