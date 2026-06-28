@@ -221,6 +221,29 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 	return h, nil
 }
 
+// Adopt reserves a slot for an executor that is ALREADY running but is not
+// tracked by this Pool — the crash-recovery case (design §12): after an
+// orchestrator restart the new Pool is empty, yet reparented executors are still
+// alive and must count toward max_concurrent_tasks again. Adopt takes the slot
+// WITHOUT spawning (the process exists), tracking it as a handle-less reservation
+// (Handles() skips it; Release frees it). Returns ErrAlreadyActive if the id is
+// already tracked, or ErrAtCapacity if no slot is free.
+func (p *Pool) Adopt(executorID string) error {
+	if err := validateExecutorID(executorID); err != nil {
+		return err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, dup := p.active[executorID]; dup {
+		return ErrAlreadyActive
+	}
+	if len(p.active) >= p.max {
+		return ErrAtCapacity
+	}
+	p.active[executorID] = nil // handle-less reservation: alive but not reapable here
+	return nil
+}
+
 // Release frees the slot held by an executor (called after the orchestrator has
 // harvested output.json and torn down the worktree — that teardown is F5's job).
 // Returns whether a slot was actually held. Idempotent.
