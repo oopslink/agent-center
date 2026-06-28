@@ -157,14 +157,30 @@ func (c *AgentController) buildExecutorEngine(agentRoot string, pl reconcilePayl
 	if err != nil {
 		return nil, err
 	}
-	// Monitor with NIL Writeback (W1/W3): reap/recover + free slot + cleanup, no
-	// center write yet. W2 supplies a real Writeback so Report runs before teardown.
-	// W3 wires the Watchdog + Reconciler so Sweep/Recover/CheckOrphan are live.
+	// W2: a real center Writeback so the orchestrator (sole writer) reports each
+	// finished executor back to the center — complete_task on success / block_task on
+	// failure (both atomically relay to the task conversation). Wired only when the
+	// daemon has an agent-tool caller; without one the Monitor degrades to no center
+	// write (reap + free slot + cleanup). Orthogonal to W3's Watchdog/Reconciler:
+	// stacked together, W3's stalled-kill + recovered-orphan finalize now flow
+	// through this Writeback too (Monitor.Finalize is the single report point).
+	var wb executor.Writeback
+	if cc := newCenterClient(c.cfg.ToolCaller); cc != nil {
+		cwb, werr := orchestrator.NewCenterWriteback(cc, fx, pl.AgentID)
+		if werr != nil {
+			return nil, werr
+		}
+		wb = cwb
+	}
+	// Monitor = W1 reap + W3 Watchdog/Reconciler (Sweep/Recover/CheckOrphan) + W2
+	// Writeback: every finalize (this-process exit, stalled kill, recovered orphan)
+	// reports to the center before teardown, frees the slot, then tears down terminal dirs.
 	mon, err := executor.NewMonitor(executor.MonitorConfig{
 		Exchange:   fx,
 		Pool:       pool,
 		Watchdog:   watchdog,
 		Reconciler: reconciler,
+		Writeback:  wb,
 		Clock:      clk,
 		// Liveness defaults to SignalLiveness (real pid probe).
 	})

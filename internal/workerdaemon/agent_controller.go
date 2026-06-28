@@ -250,6 +250,12 @@ type conversePayload struct {
 type AgentControllerConfig struct {
 	// Reporter posts RESULT feedback to the center. Required.
 	Reporter feedbackReporter
+	// ToolCaller reaches the center agent-tools endpoints (complete_task / block_task
+	// / post_message) for the W2 executor writeback (the orchestrator's sole-writer
+	// result sink). Optional: nil ⇒ the concurrent-execution Monitor degrades to
+	// reap-and-free-slot with no center writeback (W1 behaviour). *AdminClient
+	// satisfies it (CallAgentTool).
+	ToolCaller agentToolCaller
 	// WorkerID is this daemon's worker id (for the agent home layout + mcp env).
 	WorkerID string
 	// AdminURL is the admin endpoint the per-agent mcp-host dials (AC_MCP_ADMIN_URL).
