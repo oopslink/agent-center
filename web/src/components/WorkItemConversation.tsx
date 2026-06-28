@@ -2,6 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
+import { ConversationMobileTabs } from './ConversationMobileTabs';
 import { EmbeddedConversationSidebar, EmbeddedSidebarToggle } from './ConversationSidebar';
 import { SenderSidebarProvider } from './SenderSidebarContext';
 import { FollowToggle } from './FollowToggle';
@@ -80,26 +81,10 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
       data-testid="work-item-conversation"
       data-maximized={maximized ? 'true' : 'false'}
     >
-      {/* Mobile maximize/restore: the desktop banner (and its maximize button)
-          is hidden on mobile, so on small screens we surface the toggle as a
-          compact floating control in the chat's top-right corner. Maximizing
-          promotes the thread to a full-viewport overlay (fixed inset-0) — vital
-          on mobile where the inline chat shares a long detail page; restore (and
-          Esc) brings it back. Mobile-only (md:hidden); desktop uses the banner.
-          Rendered unconditionally (like the desktop banner toggle) so it is
-          available while the thread is still loading. */}
-      <button
-        type="button"
-        onClick={() => setMaximized((m) => !m)}
-        className="absolute right-2 top-2 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-muted shadow-sm hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:hidden"
-        data-testid="conversation-maximize-toggle-mobile"
-        aria-pressed={maximized}
-        aria-label={maximized ? 'Restore conversation' : 'Maximize conversation'}
-        title={maximized ? 'Restore' : 'Maximize'}
-      >
-        {maximized ? <RestoreIcon /> : <MaximizeIcon />}
-      </button>
-      {/* Desktop: full banner with ownerCode + linked title + controls */}
+      {/* Desktop: full banner with ownerCode + linked title + controls. On
+          mobile the chat renders through <ConversationMobileTabs> below, which
+          carries its own dropdown switcher (chat/threads/files) + maximize
+          toggle — so the legacy mobile floating maximize button is gone. */}
       <div
         className="hidden items-center gap-2 rounded-t border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary md:flex"
         data-testid="conversation-owner-banner"
@@ -146,19 +131,23 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
         >
           No linked conversation yet.
         </p>
+      ) : isMobile ? (
+        // Mobile: the same dropdown switcher (chat / threads / files) + maximize
+        // used by DM/channel — so task/issue chat gains threads/files access on
+        // small screens (owner: "task/issue/plan 的 chat 也加上"). Maximize lives
+        // inside the tabs container (its own fixed-inset overlay).
+        <ConversationMobileTabs surface={surface} conversationId={conv.data.id} />
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden md:rounded-b md:border md:border-t-0 md:border-border-base">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ConversationView surface={surface} conversationId={conv.data.id} />
           </div>
-          {!isMobile && (
-            <EmbeddedConversationSidebar
-              conversationId={conv.data.id}
-              participants={conv.data.participants ?? []}
-              collapsed={embeddedCollapsed}
-              onToggleCollapsed={toggleEmbeddedCollapsed}
-            />
-          )}
+          <EmbeddedConversationSidebar
+            conversationId={conv.data.id}
+            participants={conv.data.participants ?? []}
+            collapsed={embeddedCollapsed}
+            onToggleCollapsed={toggleEmbeddedCollapsed}
+          />
         </div>
       )}
     </section>
