@@ -41,7 +41,14 @@ type MonitorConfig struct {
 	Watchdog   *Watchdog
 	Reconciler *Reconciler
 	Writeback  Writeback
-	Clock      clock.Clock
+	// Liveness probes whether an adopted-orphan pid is still alive (CheckOrphan).
+	// Nil → SignalLiveness (signal-0 existence check).
+	Liveness LivenessProbe
+	Clock    clock.Clock
+	// signal delivers the watchdog kill to an adopted orphan's process group. An
+	// unexported seam (tests set it to avoid signalling a real pid); nil →
+	// realGroupSignal (production killpg).
+	signal groupSignaler
 }
 
 // Monitor is the orchestrator-side lifecycle engine. Safe for the single
@@ -54,6 +61,8 @@ type Monitor struct {
 	watchdog  *Watchdog
 	recon     *Reconciler
 	wb        Writeback
+	live      LivenessProbe
+	killSig   groupSignaler
 	clk       clock.Clock
 }
 
@@ -66,6 +75,14 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 	if clk == nil {
 		clk = clock.SystemClock{}
 	}
+	live := cfg.Liveness
+	if live == nil {
+		live = SignalLiveness{}
+	}
+	killSig := cfg.signal
+	if killSig == nil {
+		killSig = realGroupSignal
+	}
 	return &Monitor{
 		fx:        cfg.Exchange,
 		worktrees: cfg.Worktrees,
@@ -73,6 +90,8 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 		watchdog:  cfg.Watchdog,
 		recon:     cfg.Reconciler,
 		wb:        cfg.Writeback,
+		live:      live,
+		killSig:   killSig,
 		clk:       clk,
 	}, nil
 }
@@ -126,6 +145,79 @@ func (m *Monitor) Sweep(ctx context.Context) ([]string, error) {
 		killed = append(killed, h.ExecutorID)
 	}
 	return killed, nil
+}
+
+// CheckOrphan runs ONE watchdog + completion tick for an ADOPTED orphan executor
+// (design §12): a process re-adopted after an orchestrator restart, for which this
+// orchestrator holds NO reapable handle (it cannot Wait a reparented non-child).
+// The orphan's completion is therefore observed by POLLING liveness, not reaping —
+// this is the gap Sweep cannot cover (Sweep only sees pool handles, and an adopted
+// orphan is a handle-less reservation). The caller ticks it until done:
+//
+//   - process gone  → harvest + dual-signal Classify + Finalize → done=true
+//   - stalled        → graceful-kill by pid + finalize as failed (§9 "按失败处理") → done=true
+//   - still running  → no-op → done=false
+//
+// done=true means the orphan reached a terminal Completion and was finalized (slot
+// released, writeback reported, dir torn down for terminal outcomes): stop polling.
+func (m *Monitor) CheckOrphan(ctx context.Context, executorID string, pid int) (Completion, bool, error) {
+	if pid <= 0 {
+		return Completion{}, false, fmt.Errorf("executor: check orphan %s: invalid pid %d", executorID, pid)
+	}
+	if m.live.Alive(pid) {
+		// Alive: the only thing that ends it early is a watchdog stall.
+		if m.watchdog != nil {
+			st, err := m.fx.ReadStatus(executorID)
+			if err == nil && m.watchdog.Check(st, m.clk.Now()).Stalled {
+				h := recoveredHandle(executorID, pid, m.killSig)
+				if kErr := m.watchdog.GracefulKill(ctx, h); kErr != nil {
+					return Completion{}, false, fmt.Errorf("executor: orphan watchdog kill %s: %w", executorID, kErr)
+				}
+				// We KNOW it stalled, so finalize as a definite failure now (design §9
+				// "按失败处理") rather than let the next tick observe the kill and
+				// (mis)classify it as a retryable crash — that would re-queue a job that
+				// just proved it hangs. GracefulKill returns after SIGKILL, so it is gone.
+				c := m.stalledCompletion(executorID, &st)
+				if fErr := m.Finalize(ctx, c); fErr != nil {
+					return c, false, fErr
+				}
+				return c, true, nil
+			}
+		}
+		return Completion{ExecutorID: executorID, Kind: OutcomeRunning}, false, nil
+	}
+	// Process gone: classify from the durable files via the same dual signal Recover
+	// uses (Exited=false, Alive=false → output/status decide succeeded/failed/crashed).
+	out, hasOut, st := m.harvest(executorID)
+	c := Classify(CompletionFacts{
+		ExecutorID: executorID,
+		Exited:     false,
+		Alive:      false,
+		Output:     out,
+		HasOutput:  hasOut,
+		Status:     st,
+	})
+	if err := m.Finalize(ctx, c); err != nil {
+		return c, false, err
+	}
+	return c, true, nil
+}
+
+// stalledCompletion synthesizes the terminal Failed Completion for a watchdog-killed
+// stalled executor (design §9 "stalled → 按失败处理"). It is non-retryable on
+// purpose: a job that stalled past the timeout should not be auto-re-queued to stall
+// again. Any harvested output is attached for the writeback's chat relay.
+func (m *Monitor) stalledCompletion(executorID string, st *Status) Completion {
+	c := Completion{
+		ExecutorID: executorID,
+		Kind:       OutcomeFailed,
+		Status:     st,
+		Error:      &ErrorDetail{Kind: "stalled", Message: "executor stalled: no progress before watchdog timeout, killed by orchestrator"},
+	}
+	if out, hasOut, _ := m.harvest(executorID); hasOut {
+		c.Output = out
+	}
+	return c
 }
 
 // Recover rebuilds in-flight state at orchestrator startup (design §12) and acts

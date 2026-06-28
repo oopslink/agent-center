@@ -519,6 +519,18 @@ type AgentController struct {
 	// lastGCAt is the last time a GC sweep completed. Used by maybeRunGC to
 	// throttle to at most once per cfg.GCInterval. See gc_timer.go.
 	lastGCAt time.Time
+
+	// lastExecWatchdogAt throttles the executor watchdog/orphan-poll sweep
+	// (maybeRunExecutorWatchdog) to at most once per defaultExecutorWatchdogInterval.
+	// Guarded by mu. See concurrent_exec.go (W3).
+	lastExecWatchdogAt time.Time
+
+	// recoveredExec records which agents have already had their executor crash
+	// recovery run in THIS daemon process (W3). Crash recovery (scan executors/ +
+	// re-adopt orphans) runs exactly ONCE per agent per process — at the first engine
+	// attach after a (re)start — because a later in-process engine rebuild's running
+	// executors are this process's own children, not orphans. Guarded by mu.
+	recoveredExec map[string]bool
 }
 
 // compile-time: AgentController is a CommandHandler.
@@ -547,9 +559,10 @@ func NewAgentController(cfg AgentControllerConfig) (*AgentController, error) {
 		cfg.BinaryPath = "agent-center"
 	}
 	return &AgentController{
-		cfg:      cfg,
-		agents:   map[string]*managedAgent{},
-		selfHeal: map[string]*selfHealEntry{},
+		cfg:           cfg,
+		agents:        map[string]*managedAgent{},
+		selfHeal:      map[string]*selfHealEntry{},
+		recoveredExec: map[string]bool{},
 	}, nil
 }
 
@@ -685,14 +698,20 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 	// concurrency). Best-effort — a build failure logs and falls back to the legacy
 	// inject path rather than failing the (already-running) session. The codex path
 	// uses a different runtime and is excluded. Replaces any prior engine on restart.
-	c.maybeAttachExecutorEngine(pl)
+	c.maybeAttachExecutorEngine(ctx, pl)
 	return nil
 }
 
 // maybeAttachExecutorEngine builds + attaches the per-agent executor engine when
 // concurrency is enabled for the agent (W1, PD decision 2). No-op otherwise, so the
 // default single-claude inject path is byte-for-byte unchanged.
-func (c *AgentController) maybeAttachExecutorEngine(pl reconcilePayload) {
+//
+// W3: the FIRST time this process attaches an agent's engine — i.e. right after a
+// daemon (re)start — it runs executor crash recovery (scan executors/ + re-adopt
+// orphans into the watchdog), so a kill+restart loses no in-flight executor and
+// double-launches none. The recoveredExec guard makes this run once per agent per
+// process; a later in-process rebuild skips it (those executors are our children).
+func (c *AgentController) maybeAttachExecutorEngine(ctx context.Context, pl reconcilePayload) {
 	if !concurrencyEnabled(pl) || pl.CLI == cliCodex {
 		return
 	}
@@ -710,8 +729,15 @@ func (c *AgentController) maybeAttachExecutorEngine(pl reconcilePayload) {
 	if cur := c.agents[pl.AgentID]; cur != nil {
 		cur.exec = ee
 	}
+	firstAttach := !c.recoveredExec[pl.AgentID]
+	c.recoveredExec[pl.AgentID] = true
 	c.mu.Unlock()
 	c.log("agent=%s concurrent-execution enabled (max=%d, models=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedModels))
+
+	// First attach this process → recover orphans from a prior process (design §12).
+	if firstAttach {
+		c.recoverExecutors(ctx, pl.AgentID, ee)
+	}
 }
 
 // reconcileStop stops the session and reports lifecycle "stopped" exactly once.

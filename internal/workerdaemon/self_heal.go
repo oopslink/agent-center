@@ -217,6 +217,11 @@ func (c *AgentController) OnTick(ctx context.Context) {
 	// Task directory GC (design §11.3): clean up expired aborted/done task dirs.
 	// Throttled to at most once per cfg.GCInterval. See gc_timer.go.
 	c.maybeRunGC(now)
+
+	// Executor watchdog (W3 / design §9 + §12): stall-kill live executors and poll
+	// adopted orphans to completion. Throttled to defaultExecutorWatchdogInterval.
+	// No-op for agents not running the concurrent path. See concurrent_exec.go.
+	c.maybeRunExecutorWatchdog(ctx, now)
 }
 
 // selfHealRelaunch performs ONE due relaunch on the ControlLoop goroutine: acquire
