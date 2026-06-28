@@ -28,6 +28,25 @@ func (d *OrgDirectory) OrgOfAgent(ctx context.Context, agentID string) (string, 
 	return a.OrganizationID(), nil
 }
 
+// ConcurrencyCapOfAgent returns the agent's effective run-slot cap
+// (Profile.EffectiveConcurrencyCap: enabled ⇒ EffectiveMaxConcurrentTasks, else 1)
+// for the center's ≤N start guard (v2.18.0 W4c). agentID is the bare id (same
+// resolution as OrgOfAgent: entity id, then identity-member id). An unknown /
+// unresolvable agent returns cap=1 with NO error — fail-safe to single-active, so a
+// directory miss can only ever be stricter, never leak extra run-slots. The cap is
+// computed from the SAME agent.Profile predicate the worker daemon's executor gate
+// uses, so center and daemon cannot drift.
+func (d *OrgDirectory) ConcurrencyCapOfAgent(ctx context.Context, agentID string) (int, error) {
+	a, err := d.resolve(ctx, agentID)
+	if err != nil {
+		if errors.Is(err, ErrAgentNotFound) {
+			return 1, nil // unresolvable ⇒ single-active (fail-safe)
+		}
+		return 0, err
+	}
+	return a.Profile().EffectiveConcurrencyCap(), nil
+}
+
 // resolve accepts either the execution-entity id or the identity-member id
 // (#185 member→entity bridge): entity-id first (cheap, no collision — member ids
 // are "agent-"-prefixed, entity ids bare ULIDs), then FindByIdentityMemberID.

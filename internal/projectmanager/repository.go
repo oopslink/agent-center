@@ -125,6 +125,19 @@ type TaskRepository interface {
 	// agent-load metric source (no per-agent N+1). Terminal tasks are excluded;
 	// unassigned rows are omitted. v2.14.0 T342.
 	CountActiveByAssignee(ctx context.Context) (map[IdentityRef]AgentTaskLoad, error)
+	// CountRunningUnblockedByAssignee counts the assignee's tasks that currently
+	// occupy a RUN SLOT — status='running' AND blocked_reason IS NULL/'' — which is
+	// the EXACT predicate of the dropped single-active partial UNIQUE index
+	// (migration 0072, removed by 0084). excludeTaskID, when non-empty, omits that
+	// one task id (the task being transitioned, so the caller counts the OTHER live
+	// run-slots). It backs the application-layer ≤max_concurrent cap
+	// (Service.enforceConcurrencyCap, v2.18.0 W4c) and the running-count
+	// observability read. Called inside the start/transition tx; race-safety comes
+	// from RunInTx's whole-tx BUSY_SNAPSHOT replay (the read snapshot + a conflicting
+	// concurrent commit forces a replay that re-reads a fresh count), mirroring the
+	// claim holding-cap. (On a Postgres backend the same guard would take a
+	// `SELECT count(*) ... FOR UPDATE` row lock in-tx; see enforceConcurrencyCap.)
+	CountRunningUnblockedByAssignee(ctx context.Context, assignee IdentityRef, excludeTaskID TaskID) (int, error)
 	// ListActiveByAssignee returns the actual task rows CountActiveByAssignee
 	// counts for one assignee (non-terminal tasks not in a terminal plan),
 	// stable-ordered (created_at, id) — the list-shaped twin of the backlog

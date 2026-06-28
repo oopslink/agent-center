@@ -114,13 +114,18 @@ var (
 	// task cannot renew its execution lease (a block is a lease-free pause).
 	ErrNotTaskAssignee = errors.New("projectmanager: actor is not the task assignee")
 	ErrTaskBlocked     = errors.New("projectmanager: task is blocked (no execution lease)")
-	// ErrAgentHasActiveTask (v2.14.0 I14/F3 §13.B/§13.F-①) — the single-active hard
-	// constraint: an agent may have at most ONE running, non-blocked Task at a time.
-	// Surfaced when start_task would make a SECOND task running for the same agent
-	// (the idx_pm_tasks_one_active_per_agent UNIQUE partial index, migration 0072,
-	// rejects the open→running UPDATE). The agent must finish, block, or yield its
-	// current running task first. A blocked task does NOT occupy the active slot.
-	ErrAgentHasActiveTask = errors.New("projectmanager: agent already has a running task (single-active: one running, non-blocked task per agent)")
+	// ErrAgentHasActiveTask (v2.14.0 I14/F3 §13.B/§13.F-①; generalized v2.18.0 W4c)
+	// — the run-slot cap: an agent may have at most EffectiveConcurrencyCap running,
+	// non-blocked Tasks at a time (1 for a default agent — single-active, no
+	// regression; EffectiveMaxConcurrentTasks for a concurrency-enabled agent).
+	// Surfaced when a task→running transition (start_task / unblock→running /
+	// reassign-of-running) would push the agent OVER its cap. Pre-v2.18 this was a DB
+	// guarantee (the idx_pm_tasks_one_active_per_agent UNIQUE partial index, migration
+	// 0072); 0084 dropped that index (UNIQUE can only express ≤1, never per-agent ≤N)
+	// and the check moved to the application layer (Service.enforceConcurrencyCap),
+	// kept race-safe by the start tx's whole-tx replay. The agent must finish, block,
+	// or yield a running task first. A blocked task does NOT occupy a run slot.
+	ErrAgentHasActiveTask = errors.New("projectmanager: agent is at its running-task cap (no free run slot; finish, block, or yield a running task first)")
 	ErrVersionConflict    = errors.New("projectmanager: version conflict (optimistic lock)")
 	ErrEmptyProjectScope  = errors.New("projectmanager: project_id required (no global work items)")
 	ErrCrossOrgAssignee   = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")

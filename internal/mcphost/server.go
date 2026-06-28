@@ -136,7 +136,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// start_task the next. Only ONE running (unblocked) task at a time (§13.B).
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_task",
-		Description: "Start working on one of your runnable tasks (open→running, sets the execution lease). Pick a task_id from list_my_tasks. Only ONE task can be running at a time — finish (complete_task) the current one before starting the next. Returns agent_busy if you already have a running task, or task_not_runnable if its dependencies aren't satisfied yet.",
+		Description: "Start working on one of your runnable tasks (open→running, sets the execution lease). Pick a task_id from list_my_tasks. You may run up to your concurrency cap at once (1 by default — single-active; more if your profile opts into concurrency); start_task past the cap returns agent_busy until you finish (complete_task), block, or yield a running task. Returns task_not_runnable if the task's dependencies aren't satisfied yet.",
 	}, makeStartTask(cfg))
 
 	// T83: claim an OPEN assignment-pool task. Pool tasks are ownerless, so they are

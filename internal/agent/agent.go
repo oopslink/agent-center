@@ -187,6 +187,33 @@ func (p Profile) EffectiveMaxConcurrentTasks() int {
 	return p.MaxConcurrentTasks
 }
 
+// ConcurrencyEnabled is the SINGLE-SOURCE opt-in predicate for an agent running
+// more than one task at a time (W1 "PD ruling, decision 2"): concurrency activates
+// only when the profile sets MaxConcurrentTasks>0 AND lists ≥1 allowed executor
+// model. A default agent (AllowedModels empty, the column DEFAULT '[]') is therefore
+// NOT enabled even though migration 0082 backfilled max_concurrent_tasks to 3 — so
+// it keeps the historical single-active behaviour and never silently jumps to ≤3.
+//
+// This is the ONE definition both the worker daemon's executor-pool gate
+// (workerdaemon/concurrent_exec.go) and the CENTER's ≤N start cap
+// (projectmanager Service.enforceConcurrencyCap, via the OrgDirectory adapter)
+// consult, so the two can never drift (v2.18.0 W4c, issue-b8687f2a §2).
+func (p Profile) ConcurrencyEnabled() bool {
+	return p.MaxConcurrentTasks > 0 && len(p.AllowedModels) > 0
+}
+
+// EffectiveConcurrencyCap is the agent's RUN-slot cap enforced by the center on
+// every task→running transition (v2.18.0 W4c): the EffectiveMaxConcurrentTasks
+// when concurrency is enabled, else 1 (single-active — no regression for default
+// agents). This replaces the per-agent single-active UNIQUE index (migration 0072,
+// dropped by 0084): a UNIQUE index can only express ≤1, never per-agent ≤N.
+func (p Profile) EffectiveConcurrencyCap() int {
+	if !p.ConcurrencyEnabled() {
+		return 1
+	}
+	return p.EffectiveMaxConcurrentTasks()
+}
+
 // SupportedReasoningEfforts is the allowlist for Profile.Reasoning. Empty is
 // always allowed (= the runtime default); a non-empty value must be one of these.
 var SupportedReasoningEfforts = map[string]struct{}{

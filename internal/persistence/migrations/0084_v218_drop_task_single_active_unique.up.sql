@@ -1,0 +1,33 @@
+-- 0084_v218_drop_task_single_active_unique.up.sql — v2.18.0 W4c (issue-b8687f2a).
+--
+-- Relax the per-agent HARD single-active rule into an application-layer
+-- ≤ max_concurrent_tasks cap (design §1/§3/§10). Migration 0072 created the
+-- partial UNIQUE index idx_pm_tasks_one_active_per_agent = UNIQUE(assignee)
+-- WHERE status='running' AND not-blocked, which enforces "≤1 running task per
+-- agent" at the DB level. A UNIQUE index can only express ≤1 — it CANNOT express
+-- per-agent ≤N — so the hard DB guarantee must be removed and the cap moved to
+-- the application layer. The check lives in PM Service.enforceConcurrencyCap,
+-- called inside the transaction on every task→running transition: it reads the
+-- assignee's effective cap (agent.Profile.EffectiveConcurrencyCap) and COUNTS the
+-- assignee's existing run-slots (TaskRepo.CountRunningUnblockedByAssignee) before
+-- the Update — a count-then-check, NOT an atomic conditional UPDATE. Race-safety
+-- comes from RunInTx replaying the WHOLE transaction on SQLite BUSY_SNAPSHOT (517):
+-- a concurrent committed start invalidates the read snapshot, the tx replays, and
+-- the count is re-read fresh, so N+1 concurrent starts admit exactly N.
+--
+-- UPGRADE SAFETY (W4c #3, PD ruling — OPT-IN, no regression): this is a PURE INDEX
+-- DROP — it touches NO task rows. In-flight running tasks are unaffected (no
+-- orphans, no lock residue). The effective cap is NOT the raw
+-- agents.max_concurrent_tasks column: per the opt-in gate (decision 2,
+-- agent.Profile.ConcurrencyEnabled), an agent runs ≤N ONLY when it has
+-- max_concurrent_tasks>0 AND a non-empty allowed_models. A DEFAULT agent
+-- (allowed_models = '[]', the column default) is therefore NOT concurrency-enabled
+-- and keeps EFFECTIVE cap 1 — i.e. it stays single-active and does NOT jump to ≤3,
+-- even though migration 0082 backfilled max_concurrent_tasks to 3. So after this
+-- drop, behaviour is unchanged for existing agents (single-active preserved); only
+-- an agent that explicitly opts in (max_concurrent_tasks>0 AND allowed_models
+-- non-empty) runs up to its EffectiveMaxConcurrentTasks. No data migration needed.
+--
+-- DIALECT NOTE: DROP INDEX IF EXISTS is in the SQLite+PG common subset.
+
+DROP INDEX IF EXISTS idx_pm_tasks_one_active_per_agent;

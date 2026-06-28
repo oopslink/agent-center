@@ -130,6 +130,16 @@ const (
 // the bare id (the `agent:` prefix already stripped by the caller).
 type AgentDirectory interface {
 	OrgOfAgent(ctx context.Context, agentID string) (orgID string, err error)
+	// ConcurrencyCapOfAgent returns the agent's effective run-slot cap — the
+	// EffectiveConcurrencyCap of its profile (enabled ⇒ EffectiveMaxConcurrentTasks,
+	// else 1). It is the SINGLE-SOURCE cap the center's ≤N start guard
+	// (enforceConcurrencyCap) consults, computed adapter-side from the same
+	// agent.Profile predicate the worker daemon's executor-pool gate uses, so the two
+	// never drift (v2.18.0 W4c). agentID is the bare id (the `agent:` prefix stripped
+	// by the Service). An unknown/unresolvable agent returns cap=1 (fail-safe to
+	// single-active), never an error, so a directory hiccup can only ever be STRICTER,
+	// never leak extra run-slots.
+	ConcurrencyCapOfAgent(ctx context.Context, agentID string) (cap int, err error)
 }
 
 // PausedTaskPort reports which of the given tasks currently have a PAUSED agent

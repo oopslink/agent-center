@@ -82,6 +82,9 @@ func setupPlanAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 type allAgentsDir struct{}
 
 func (allAgentsDir) OrgOfAgent(_ context.Context, _ string) (string, error) { return "", nil }
+func (allAgentsDir) ConcurrencyCapOfAgent(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
 
 func (f *planAPIFixture) drain(t *testing.T) {
 	t.Helper()
