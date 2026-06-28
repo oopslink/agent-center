@@ -360,6 +360,12 @@ type managedAgent struct {
 	agentID string
 	session agentSession
 
+	// exec is the W1 per-agent concurrent-execution wiring (orchestration Engine +
+	// reaping Monitor), attached by reconcileRunning ONLY when the agent's profile
+	// opts into concurrency (concurrencyEnabled). nil ⇒ the agent uses the legacy
+	// single-claude inject path. Guarded by AgentController.mu; recreated on restart.
+	exec *executorEngine
+
 	// appliedVersion is the highest reconcile version applied. A reconcile with
 	// version <= appliedVersion is a replay → no-op (no restart).
 	appliedVersion int
@@ -674,7 +680,38 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
 	}
+
+	// W1: attach the concurrent-execution engine when the agent opts in (profile
+	// concurrency). Best-effort — a build failure logs and falls back to the legacy
+	// inject path rather than failing the (already-running) session. The codex path
+	// uses a different runtime and is excluded. Replaces any prior engine on restart.
+	c.maybeAttachExecutorEngine(pl)
 	return nil
+}
+
+// maybeAttachExecutorEngine builds + attaches the per-agent executor engine when
+// concurrency is enabled for the agent (W1, PD decision 2). No-op otherwise, so the
+// default single-claude inject path is byte-for-byte unchanged.
+func (c *AgentController) maybeAttachExecutorEngine(pl reconcilePayload) {
+	if !concurrencyEnabled(pl) || pl.CLI == cliCodex {
+		return
+	}
+	home, _, _, perr := c.agentPaths(pl.AgentID)
+	if perr != nil {
+		c.log("agent=%s executor engine paths: %v (falling back to inject)", pl.AgentID, perr)
+		return
+	}
+	ee, err := c.buildExecutorEngine(home, pl)
+	if err != nil {
+		c.log("agent=%s build executor engine: %v (falling back to inject)", pl.AgentID, err)
+		return
+	}
+	c.mu.Lock()
+	if cur := c.agents[pl.AgentID]; cur != nil {
+		cur.exec = ee
+	}
+	c.mu.Unlock()
+	c.log("agent=%s concurrent-execution enabled (max=%d, models=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedModels))
 }
 
 // reconcileStop stops the session and reports lifecycle "stopped" exactly once.
@@ -763,8 +800,10 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
 	var sess agentSession
+	var exec *executorEngine
 	if ma != nil {
 		sess = ma.session
+		exec = ma.exec
 	}
 	c.mu.Unlock()
 
@@ -789,6 +828,13 @@ func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 				c.log("agent=%s task=%s create task dir: %v", pl.AgentID, pl.TaskID, createErr)
 			}
 		}
+	}
+
+	// W1 concurrent path (opt-in): when the agent has an executor engine, fork an
+	// isolated executor for this work instead of injecting the brief into the single
+	// resident claude — this is what makes "one agent runs N tasks in parallel" real.
+	if exec != nil {
+		return c.workViaExecutor(ctx, pl, exec)
 	}
 
 	if err := sess.Inject(ctx, pl.Brief); err != nil {
