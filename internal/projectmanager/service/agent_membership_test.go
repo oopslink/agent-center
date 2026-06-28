@@ -25,6 +25,13 @@ func (f fakeAgentDir) OrgOfAgent(_ context.Context, agentID string) (string, err
 	return "", errFakeAgentNotFound
 }
 
+// ConcurrencyCapOfAgent: the org-only fake has no profile, so every agent is a
+// default single-active agent (cap 1) — matching the dropped index. Tests that
+// exercise the ≤N cap use capAgentDir (see concurrency_cap_test.go) instead.
+func (f fakeAgentDir) ConcurrencyCapOfAgent(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
+
 var errFakeAgentNotFound = &agentNotFoundErr{}
 
 // allOrgDir is a permissive AgentDirectory that maps EVERY agent to one fixed
@@ -34,6 +41,11 @@ var errFakeAgentNotFound = &agentNotFoundErr{}
 type allOrgDir string
 
 func (d allOrgDir) OrgOfAgent(_ context.Context, _ string) (string, error) { return string(d), nil }
+
+// ConcurrencyCapOfAgent: permissive org fake → default single-active cap (1).
+func (d allOrgDir) ConcurrencyCapOfAgent(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
 
 type agentNotFoundErr struct{}
 

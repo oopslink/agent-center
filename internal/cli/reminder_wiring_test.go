@@ -108,6 +108,10 @@ func (f fakeAgentDir) OrgOfAgent(_ context.Context, id string) (string, error) {
 	return "", errAgentNotFound
 }
 
+func (f fakeAgentDir) ConcurrencyCapOfAgent(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
+
 type agentNotFoundErr struct{}
 
 func (*agentNotFoundErr) Error() string { return "fake: agent not found" }

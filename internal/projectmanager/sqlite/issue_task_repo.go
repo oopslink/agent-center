@@ -201,20 +201,41 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()),
 		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()), string(t.ID()))
 	if err != nil {
-		// v2.14.0 I14/F3 §13.B: the only UNIQUE index on pm_tasks is the single-active
-		// partial index idx_pm_tasks_one_active_per_agent (migration 0072). A unique
-		// violation on UPDATE therefore means this write would give the agent a SECOND
-		// running, non-blocked task — translate it to the typed sentinel so the service
-		// layer (StartTask) can surface a clean "agent already has a running task".
-		if isUnique(err) {
-			return pm.ErrAgentHasActiveTask
-		}
+		// v2.18.0 W4c: the single-active partial UNIQUE index (migration 0072) was
+		// DROPPED by 0084 — the per-agent run-slot cap is no longer a DB guarantee but
+		// an application-layer ≤max_concurrent check (Service.enforceConcurrencyCap),
+		// because a UNIQUE index can only express ≤1, never per-agent ≤N. An UPDATE no
+		// longer changes the primary key, so there is no remaining UNIQUE on pm_tasks an
+		// UPDATE can violate; surface the raw error.
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return pm.ErrTaskNotFound
 	}
 	return nil
+}
+
+// CountRunningUnblockedByAssignee counts the assignee's tasks holding a RUN SLOT —
+// the exact predicate of the dropped single-active index (migration 0072): status =
+// 'running' AND (blocked_reason IS NULL OR blocked_reason = ”). A blocked task is
+// still status='running' (ADR-0046, blocked_reason set) but is a legal pause that
+// frees its slot, so it is excluded — matching the old partial-index WHERE clause
+// verbatim. excludeTaskID, when non-empty, omits that one row (the task being
+// transitioned). NB: deliberately NO plan-terminal filter (unlike the T342 backlog
+// metric) — a running+unblocked task occupies a slot regardless of its plan's state.
+func (r *TaskRepo) CountRunningUnblockedByAssignee(ctx context.Context, assignee pm.IdentityRef, excludeTaskID pm.TaskID) (int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	var n int
+	err := exec.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM pm_tasks
+		   WHERE assignee = ? AND status = ?
+		     AND (blocked_reason IS NULL OR blocked_reason = '')
+		     AND id != ?`,
+		string(assignee), string(pm.TaskRunning), string(excludeTaskID)).Scan(&n)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 // ClaimIfUnassigned is the atomic open-claim CAS (T83 §3.3): it writes the

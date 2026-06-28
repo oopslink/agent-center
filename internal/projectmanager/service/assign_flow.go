@@ -66,6 +66,14 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 				return err
 			}
 		}
+		// v2.18.0 W4c ③: reassigning a task that is ALREADY running+unblocked (e.g.
+		// the crash-adopt / hand-off回流 path) moves its run slot onto the NEW assignee
+		// — the dropped single-active index used to reject this when the new owner was
+		// already at its slot. Re-check the cap for the post-reassign owner. Self-skips
+		// for the common assign-of-non-running case (open/blocked/terminal).
+		if err := s.enforceConcurrencyCap(txCtx, t); err != nil {
+			return err
+		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
@@ -155,11 +163,93 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		if err := t.RenewLease(DefaultExecutionLeaseTTL, now); err != nil {
 			return err
 		}
+		// v2.18.0 W4c: the application-layer ≤max_concurrent run-slot cap that
+		// replaced the dropped single-active UNIQUE index (migration 0072→0084).
+		// MUST run in THIS tx, before Update — race-safety is the whole-tx replay.
+		if err := s.enforceConcurrencyCap(txCtx, t); err != nil {
+			return err // pm.ErrAgentHasActiveTask when the agent is at its run-slot cap
+		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
-			return err // single-active UNIQUE → pm.ErrAgentHasActiveTask (§13.B)
+			return err
 		}
 		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
 	})
+}
+
+// enforceConcurrencyCap is the application-layer run-slot guard that REPLACES the
+// per-agent single-active UNIQUE index (migration 0072, dropped by 0084) — a UNIQUE
+// index can only express ≤1, never the per-agent ≤max_concurrent_tasks this feature
+// needs (v2.18.0 W4c, issue-b8687f2a). It MUST be called inside the transition tx,
+// after the in-memory state mutation (so t already carries the post-transition
+// assignee/status/blocked_reason) and immediately before s.tasks.Update — every
+// task→running entry point routes through it (start_task, unblock→running,
+// owner SetStatus→running, reassign-of-running), so no path can re-introduce a
+// second active task behind the dropped index.
+//
+// Predicate = the dropped index's WHERE verbatim: the guard applies ONLY when the
+// post-transition row occupies a RUN SLOT (status='running' AND blocked_reason
+// empty). A task that is leaving running, or staying blocked, frees/never-takes a
+// slot and is exempt (return nil). The cap is the assignee's EffectiveConcurrencyCap
+// (1 for a default/non-agent assignee — single-active, no regression; the agent's
+// EffectiveMaxConcurrentTasks when concurrency is opted in). It then counts the
+// assignee's OTHER live run-slots (excluding this task) and rejects with
+// pm.ErrAgentHasActiveTask when admitting this one would exceed the cap.
+//
+// RACE-SAFETY (dual-engine, W4c #3): on SQLite the count read + the Update write
+// share this tx; a concurrent committed start invalidates the read snapshot, SQLite
+// raises BUSY_SNAPSHOT(517), and persistence.RunInTx replays the WHOLE tx so the
+// count is re-read fresh — N+1 concurrent starts therefore admit exactly N and the
+// (N+1)th re-reads count==cap and is cleanly rejected (no cap breakthrough). This is
+// the same race-safe idiom as the claim holding-cap (ClaimPoolTask), and needs no
+// BEGIN IMMEDIATE. On a Postgres backend the identical invariant is taken with a
+// `SELECT count(*) ... FOR UPDATE` row lock in the same tx (serializing the
+// concurrent counters) rather than snapshot-replay; the count query and guard are
+// written to port cleanly to either. Only SQLite is wired today (the repo has no PG
+// driver), so the SQLite path is the implemented+tested one and the PG path is the
+// documented equivalent.
+func (s *Service) enforceConcurrencyCap(ctx context.Context, t *pm.Task) error {
+	// Only a row that WILL occupy a run slot is capped (dropped-index predicate).
+	if t.Status() != pm.TaskRunning || t.BlockedReason() != "" {
+		return nil
+	}
+	assignee := t.Assignee()
+	if assignee == "" {
+		return nil // unassigned: nothing owns a slot to cap
+	}
+	slotCap := s.concurrencyCapOf(ctx, assignee)
+	others, err := s.tasks.CountRunningUnblockedByAssignee(ctx, assignee, t.ID())
+	if err != nil {
+		return err
+	}
+	if others+1 > slotCap {
+		return pm.ErrAgentHasActiveTask
+	}
+	return nil
+}
+
+// concurrencyCapOf resolves the run-slot cap for an assignee. An AGENT assignee's
+// cap comes from the AgentDirectory (single source: Profile.EffectiveConcurrencyCap,
+// shared with the daemon gate); a non-agent (`user:`) assignee, a nil directory, or
+// any directory error fall back to 1 — single-active, matching the dropped index
+// which applied to every assignee. Fail-safe: a directory hiccup can only ever make
+// the cap STRICTER (1), never leak extra slots.
+func (s *Service) concurrencyCapOf(ctx context.Context, assignee pm.IdentityRef) int {
+	if s.agentDir == nil || !strings.HasPrefix(string(assignee), "agent:") {
+		return 1
+	}
+	slotCap, err := s.agentDir.ConcurrencyCapOfAgent(ctx, strings.TrimPrefix(string(assignee), "agent:"))
+	if err != nil || slotCap < 1 {
+		return 1
+	}
+	return slotCap
+}
+
+// CountRunningTasks reports how many RUN SLOTS the assignee currently occupies
+// (running, non-blocked tasks) — the observability counterpart of the ≤N cap
+// (v2.18.0 W4c #4): callers compare it against the agent's EffectiveConcurrencyCap
+// to see "running R / cap N". A blocked task is a legal pause and is NOT counted.
+func (s *Service) CountRunningTasks(ctx context.Context, assignee pm.IdentityRef) (int, error) {
+	return s.tasks.CountRunningUnblockedByAssignee(ctx, assignee, "")
 }
 
 // HeartbeatTask extends the running agent's execution lease (v2.14.0 I14 §2.5 / §六,
@@ -361,6 +451,14 @@ func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error
 		// the resolution as BlockedComment; the re-dispatch (EvtTaskAssigned below) is
 		// the §13.C wake.
 		if err := t.Unblock(cmd.Comment, cmd.Actor, now); err != nil {
+			return err
+		}
+		// v2.18.0 W4c ③: unblock re-enters the run-slot predicate (status stays
+		// running, blocked_reason cleared → the task re-occupies a slot), so it is a
+		// task→running transition the dropped single-active index used to guard. Re-check
+		// the cap here — a stuck task may have been unblocked while the agent filled its
+		// slots elsewhere; admitting it back must not exceed the cap.
+		if err := s.enforceConcurrencyCap(txCtx, t); err != nil {
 			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
@@ -667,6 +765,13 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := mutate(t, now); err != nil {
 			return err
 		}
+		// v2.18.0 W4c ③: an owner SetStatus→running (the free status-override menu) is
+		// also a task→running transition the dropped single-active index used to guard.
+		// The cap self-skips for any non-running / blocked / terminal mutate (Block,
+		// Complete, Discard), so this only bites when the override actually fills a slot.
+		if err := s.enforceConcurrencyCap(txCtx, t); err != nil {
+			return err
+		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
@@ -764,6 +869,13 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 			if err := s.applyDerivedFromIssue(txCtx, t, *patch.DerivedFromIssue, now); err != nil {
 				return err
 			}
+		}
+		// v2.18.0 W4c ③: a batch edit can set status→running AND/OR reassign in one
+		// shot — either lands a (possibly new) assignee in a run slot, the transition
+		// the dropped single-active index used to guard. Self-skips unless the result
+		// is running+unblocked.
+		if err := s.enforceConcurrencyCap(txCtx, t); err != nil {
+			return err
 		}
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err

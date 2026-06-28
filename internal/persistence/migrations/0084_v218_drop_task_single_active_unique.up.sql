@@ -1,0 +1,24 @@
+-- 0084_v218_drop_task_single_active_unique.up.sql — v2.18.0 W4c (issue-b8687f2a).
+--
+-- Relax the per-agent HARD single-active rule into an application-layer
+-- ≤ max_concurrent_tasks cap (design §1/§3/§10). Migration 0072 created the
+-- partial UNIQUE index idx_pm_tasks_one_active_per_agent = UNIQUE(assignee)
+-- WHERE status='running' AND not-blocked, which enforces "≤1 running task per
+-- agent" at the DB level. A UNIQUE index can only express ≤1 — it CANNOT express
+-- per-agent ≤N — so the hard DB guarantee must be removed and the cap moved to
+-- the application layer (PM Service.StartTask), where the cap value is the
+-- agent's profile.max_concurrent_tasks (default 3) and the count check is made
+-- race-safe via an atomic conditional UPDATE inside the transaction
+-- (TaskRepo.StartUnderCap) + RunInTx's whole-tx BUSY_SNAPSHOT replay.
+--
+-- UPGRADE SAFETY (W4c #3, PD ruling): this is a PURE INDEX DROP — it touches NO
+-- task rows. In-flight running tasks are unaffected (no orphans, no lock
+-- residue); existing agents' effective cap is read from the already-present
+-- agents.max_concurrent_tasks column (migration 0082, DEFAULT 3, existing rows
+-- backfilled to 3), so the behaviour shifts from single-active to ≤3 smoothly
+-- with no data migration. An agent that wants the old single-active behaviour
+-- sets max_concurrent_tasks = 1 explicitly.
+--
+-- DIALECT NOTE: DROP INDEX IF EXISTS is in the SQLite+PG common subset.
+
+DROP INDEX IF EXISTS idx_pm_tasks_one_active_per_agent;

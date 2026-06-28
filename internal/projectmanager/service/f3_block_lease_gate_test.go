@@ -60,11 +60,14 @@ func TestEnsureTaskRunnable_BlockedByUnfinishedUpstream_Rejected(t *testing.T) {
 	}
 }
 
-// §13.B/§13.F-①: the single-active hard constraint — an agent may run at most ONE
-// non-blocked task at a time. Starting a second running task for the same agent is
-// rejected by the idx_pm_tasks_one_active_per_agent UNIQUE index (migration 0072),
-// surfaced as pm.ErrAgentHasActiveTask. Holding several CLAIMED (open) pool tasks is
-// fine — only the run is capped.
+// §13.B/§13.F-①: single-active for a DEFAULT agent — it may run at most ONE
+// non-blocked task at a time. Starting a second running task for the same default
+// agent is rejected with pm.ErrAgentHasActiveTask. Pre-v2.18 this was the
+// idx_pm_tasks_one_active_per_agent UNIQUE index (migration 0072); v2.18.0 W4c
+// dropped that index (0084) and moved the check to the application-layer
+// ≤max_concurrent cap (Service.enforceConcurrencyCap), with the default cap of 1
+// preserving exactly this single-active behaviour (no regression). Holding several
+// CLAIMED (open) pool tasks is fine — only the run is capped.
 func TestStartTask_SingleActivePerAgent(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-sa", Name: "P", CreatedBy: "user:a"})

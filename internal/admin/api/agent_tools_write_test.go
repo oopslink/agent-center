@@ -66,6 +66,10 @@ func (atAllAgentsDir) OrgOfAgent(_ context.Context, _ string) (string, error) {
 	return atTestOrg, nil
 }
 
+func (atAllAgentsDir) ConcurrencyCapOfAgent(_ context.Context, _ string) (int, error) {
+	return 1, nil
+}
+
 func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 	t.Helper()
 	db, err := persistence.Open(persistence.MemoryDSN())

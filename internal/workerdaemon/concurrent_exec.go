@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
@@ -92,8 +93,16 @@ func (f funcClock) Now() time.Time {
 // concurrencyEnabled is the W1 opt-in gate (PD ruling, decision 2): the executor
 // concurrency path activates only when the profile sets MaxConcurrentTasks>0 AND
 // lists at least one allowed model. Otherwise the agent keeps the legacy inject path.
+//
+// v2.18.0 W4c: delegates to agent.Profile.ConcurrencyEnabled so the daemon's
+// executor-pool gate and the center's ≤N start cap share ONE predicate and cannot
+// drift (issue-b8687f2a §2). The reconcile payload carries the same two fields the
+// profile predicate reads.
 func concurrencyEnabled(pl reconcilePayload) bool {
-	return pl.MaxConcurrentTasks > 0 && len(pl.AllowedModels) > 0
+	return agent.Profile{
+		MaxConcurrentTasks: pl.MaxConcurrentTasks,
+		AllowedModels:      pl.AllowedModels,
+	}.ConcurrencyEnabled()
 }
 
 // buildExecutorEngine constructs the per-agent Engine + Monitor. Workspaces are
