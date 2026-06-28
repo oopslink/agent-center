@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
+	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
 
@@ -43,6 +46,91 @@ func TestFirstNonEmptyLine(t *testing.T) {
 	}
 	if got := firstNonEmptyLine("   \n  "); got != "" {
 		t.Errorf("blank got %q, want ''", got)
+	}
+	long := strings.Repeat("x", 200)
+	if got := firstNonEmptyLine(long); len(got) != 120 {
+		t.Errorf("long line len = %d, want capped 120", len(got))
+	}
+}
+
+func TestFuncClock_Now(t *testing.T) {
+	fixed := time.Unix(1700000000, 0)
+	if got := (funcClock{now: func() time.Time { return fixed }}).Now(); !got.Equal(fixed) {
+		t.Errorf("funcClock with fn = %v, want %v", got, fixed)
+	}
+	// nil now → falls back to time.Now (non-zero).
+	if (funcClock{}).Now().IsZero() {
+		t.Error("funcClock with nil now should fall back to time.Now")
+	}
+}
+
+func TestBuildExecutorEngine_ErrorOnBadRoot(t *testing.T) {
+	c, _, _ := newTestController(t, t.TempDir())
+	if _, err := c.buildExecutorEngine("", reconcilePayload{MaxConcurrentTasks: 1, AllowedModels: []string{"m"}}); err == nil {
+		t.Error("empty agent root must surface an error")
+	}
+}
+
+func TestDrainExecutor_NilGuards(t *testing.T) {
+	c, ee, _ := engineForAgent(t, "agent-nilguard")
+	c.drainExecutor(nil, nil) // must not panic
+	c.drainExecutor(ee, nil)  // nil handle → no-op
+}
+
+func TestMaybeAttachExecutorEngine(t *testing.T) {
+	trueBin := lookTrue(t)
+	base := t.TempDir()
+	c, _, _ := newTestController(t, base)
+	c.cfg.BinaryPath = trueBin
+
+	// Reserve managedAgents the way startSession does (attach targets an existing entry).
+	for _, id := range []string{"a-on", "a-codex", "a-off"} {
+		c.mu.Lock()
+		c.agents[id] = &managedAgent{agentID: id}
+		c.mu.Unlock()
+	}
+
+	enabled := reconcilePayload{AgentID: "a-on", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}}
+	c.maybeAttachExecutorEngine(context.Background(), enabled)
+	c.mu.Lock()
+	onExec := c.agents["a-on"].exec
+	c.mu.Unlock()
+	if onExec == nil {
+		t.Error("opt-in agent should get an executor engine attached")
+	}
+
+	// Codex agent: excluded even when concurrency fields are set.
+	codexPl := reconcilePayload{AgentID: "a-codex", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}, CLI: cliCodex}
+	c.maybeAttachExecutorEngine(context.Background(), codexPl)
+	c.mu.Lock()
+	codexExec := c.agents["a-codex"].exec
+	c.mu.Unlock()
+	if codexExec != nil {
+		t.Error("codex agent must NOT get an executor engine")
+	}
+
+	// Concurrency not enabled: no engine (legacy inject path).
+	c.maybeAttachExecutorEngine(context.Background(), reconcilePayload{AgentID: "a-off", MaxConcurrentTasks: 0})
+	c.mu.Lock()
+	offExec := c.agents["a-off"].exec
+	c.mu.Unlock()
+	if offExec != nil {
+		t.Error("non-opt-in agent must keep the legacy inject path (no engine)")
+	}
+
+	// Path-resolution failure (empty home base) → logs + falls back, no attach/panic.
+	c.mu.Lock()
+	c.agents["a-badpath"] = &managedAgent{agentID: "a-badpath"}
+	savedBase := c.cfg.AgentHomeBase
+	c.cfg.AgentHomeBase = ""
+	c.mu.Unlock()
+	c.maybeAttachExecutorEngine(context.Background(), reconcilePayload{AgentID: "a-badpath", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}})
+	c.mu.Lock()
+	badExec := c.agents["a-badpath"].exec
+	c.cfg.AgentHomeBase = savedBase
+	c.mu.Unlock()
+	if badExec != nil {
+		t.Error("path-resolution failure must fall back (no engine attached)")
 	}
 }
 
@@ -127,6 +215,38 @@ func TestWorkViaExecutor_ForksAndRegistersRouting(t *testing.T) {
 	c.mu.Unlock()
 	if got != "t-1" {
 		t.Errorf("currentTaskID = %q, want t-1", got)
+	}
+}
+
+// errRunnerWD makes the engine's runner build fail, exercising workViaExecutor's
+// non-capacity error branch.
+type errRunnerWD struct{}
+
+func (errRunnerWD) Build(string, string) ([]string, error) { return nil, errors.New("runner boom") }
+
+func TestWorkViaExecutor_NonCapacityErrorWraps(t *testing.T) {
+	trueBin := lookTrue(t)
+	home := t.TempDir()
+	c, _, _ := newTestController(t, t.TempDir())
+	c.cfg.BinaryPath = trueBin
+	layout, _ := executor.NewLayout(home)
+	fx, _ := executor.NewFileExchange(layout, nil)
+	pool, _ := executor.NewPool(executor.PoolConfig{Exchange: fx, Spawner: executor.NewSpawner(), AgentRoot: home, BinaryPath: trueBin, Max: 2})
+	routing, _ := executor.NewRoutingStore(home, nil)
+	eng, _ := orchestrator.NewEngine(orchestrator.EngineConfig{
+		Pool: pool, Routing: routing, Router: modelrouter.NewRouter(nil),
+		RouterConfig: modelrouter.Config{DefaultExecutorModel: "m"},
+		Runner:       errRunnerWD{}, IDs: orchestrator.NewULIDMinter(nil),
+	})
+	mon, _ := executor.NewMonitor(executor.MonitorConfig{Exchange: fx, Pool: pool})
+	ee := &executorEngine{engine: eng, monitor: mon}
+
+	err := c.workViaExecutor(context.Background(), workPayload{AgentID: "a", TaskID: "t", Brief: "do"}, ee)
+	if err == nil || errors.Is(err, executor.ErrAtCapacity) {
+		t.Fatalf("expected a non-capacity fork error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "fork executor") {
+		t.Errorf("expected wrapped fork-executor error, got %v", err)
 	}
 }
 

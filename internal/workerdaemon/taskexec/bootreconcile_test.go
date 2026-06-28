@@ -12,7 +12,7 @@ import (
 // fakeVerifier simulates Center API responses.
 type fakeVerifier struct {
 	assigned map[string]bool // taskID → still assigned to this agent
-	err      error            // error to return from IsTaskAssigned
+	err      error           // error to return from IsTaskAssigned
 }
 
 func (f *fakeVerifier) IsTaskAssigned(ctx context.Context, agentID, taskID string) (bool, error) {

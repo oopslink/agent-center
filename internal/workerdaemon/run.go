@@ -191,6 +191,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	if controller, cerr := NewAgentController(AgentControllerConfig{
 		Reporter:           client,
 		Resumer:            client,
+		ToolCaller:         client, // W2: *AdminClient.CallAgentTool → executor writeback
 		WorkerID:           opts.WorkerID,
 		AdminURL:           targetSpec,
 		WorkerToken:        token,
