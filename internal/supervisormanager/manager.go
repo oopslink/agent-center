@@ -278,6 +278,32 @@ func waitComeUp(ctx context.Context, agentID, home, sockPath string, timeout tim
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
+		// IDENTITY GUARD (mirrors ProbeAgent's PID-REUSE-SAFE check): the socket
+		// path is DETERMINISTIC per agent-id and thus SHARED across supervisor
+		// incarnations. During a rapid restart, a PREVIOUS supervisor for this
+		// agent-id can still be alive on the same sockPath (its kill/reap is async
+		// and not awaited) and answer THIS Hello while its artifacts live under a
+		// DIFFERENT home. Accepting it would hand back a ref whose HomeDir has no
+		// matching supervisor.instance — the daemon would then read a missing/foreign
+		// record (observed as the flaky "supervisor.instance: no such file" during
+		// concurrent come-ups). Require the on-disk record under THIS home to exist
+		// and self-report the SAME instance-id as the process we just spoke to.
+		// Otherwise it is not OUR supervisor: keep polling until the fresh one binds
+		// the socket — it writes its instance file BEFORE it serves (Start before
+		// Serve), so a matching record is guaranteed once it answers.
+		rec, ok := readInstance(home)
+		if !ok {
+			_ = client.Close()
+			lastErr = errors.New("supervisor.instance not yet written under home")
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if rec.InstanceID != hello.InstanceID {
+			_ = client.Close()
+			lastErr = fmt.Errorf("foreign supervisor on shared socket: home instance_id=%q hello instance_id=%q", rec.InstanceID, hello.InstanceID)
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
 		return &SupervisorRef{
 			AgentID:           agentID,
 			HomeDir:           home,
