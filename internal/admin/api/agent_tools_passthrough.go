@@ -50,6 +50,9 @@ type createTaskReq struct {
 	// pre-T199 default).
 	Assignee string `json:"assignee"`
 	Dispatch bool   `json:"dispatch"`
+	// Model is the optional hard-override executor model (F3 model routing, design
+	// §5 & §10); "" = unset.
+	Model string `json:"model"`
 }
 
 // createTaskHandler creates a Task via pm.CreateTask with actor=agent. The pm
@@ -95,6 +98,7 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:        pm.IdentityRef(agentActor(a)),
 		Assignee:         pm.IdentityRef(assignee),
 		Dispatch:         req.Dispatch,
+		Model:            strings.TrimSpace(req.Model),
 	})
 	if err != nil {
 		// T199/WS3 dispatch/assign error paths — clear codes (acceptance: "错误路径
@@ -443,6 +447,11 @@ func agentTaskMap(t *pm.Task) map[string]any {
 		m["branch"] = t.Branch()
 		m["base"] = t.Base()
 		m["skip_merge_check"] = t.SkipMergeCheck()
+	}
+	// F3 model routing (design §5 & §10): per-task executor model override, emitted
+	// only when set so ordinary tasks stay clean.
+	if t.Model() != "" {
+		m["model"] = t.Model()
 	}
 	return m
 }

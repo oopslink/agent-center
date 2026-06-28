@@ -78,6 +78,11 @@ type agentLifecycleEvtPayload struct {
 	Reasoning   string `json:"reasoning,omitempty"` // T236
 	Mode        string `json:"mode,omitempty"`      // T236
 	Provider    string `json:"provider,omitempty"`  // T236
+	// F3 model routing (design §5 & §10) — passthrough, same as Model.
+	OrchestratorModel    string   `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string   `json:"default_executor_model,omitempty"`
+	MaxConcurrentTasks   int      `json:"max_concurrent_tasks,omitempty"`
+	AllowedModels        []string `json:"allowed_models,omitempty"`
 }
 
 // reconcileCommandPayload is the declarative command payload the AgentController
@@ -95,11 +100,16 @@ type reconcileCommandPayload struct {
 	// lifecycle event, same as Model.
 	CLI string `json:"cli,omitempty"`
 	// T236 LLM tuning — passthrough to the daemon session config, same as Model/CLI.
-	Reasoning  string `json:"reasoning,omitempty"`
-	Mode       string `json:"mode,omitempty"`
-	Provider   string `json:"provider,omitempty"`
-	Version    int    `json:"version"`
-	ResetScope string `json:"reset_scope,omitempty"`
+	Reasoning string `json:"reasoning,omitempty"`
+	Mode      string `json:"mode,omitempty"`
+	Provider  string `json:"provider,omitempty"`
+	// F3 model routing (design §5 & §10) — passthrough to the daemon session config.
+	OrchestratorModel    string   `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string   `json:"default_executor_model,omitempty"`
+	MaxConcurrentTasks   int      `json:"max_concurrent_tasks,omitempty"`
+	AllowedModels        []string `json:"allowed_models,omitempty"`
+	Version              int      `json:"version"`
+	ResetScope           string   `json:"reset_scope,omitempty"`
 }
 
 // Project enqueues a reconcile command for an agent.lifecycle_changed event.
@@ -123,16 +133,20 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 	}
 
 	cmdPayload, err := json.Marshal(reconcileCommandPayload{
-		AgentID:          pl.AgentID,
-		DesiredLifecycle: pl.Lifecycle,
-		Model:            pl.Model,       // passthrough (pure event-driven; no Agent-repo read)
-		DisplayName:      pl.DisplayName, // T469 passthrough — git author NAME via ② AgentEnv seam
-		CLI:              pl.CLI,         // passthrough — per-CLI starter selection on the worker
-		Reasoning:        pl.Reasoning,   // T236 passthrough
-		Mode:             pl.Mode,        // T236 passthrough
-		Provider:         pl.Provider,    // T236 passthrough
-		Version:          pl.Version,
-		ResetScope:       pl.ResetScope,
+		AgentID:              pl.AgentID,
+		DesiredLifecycle:     pl.Lifecycle,
+		Model:                pl.Model,       // passthrough (pure event-driven; no Agent-repo read)
+		DisplayName:          pl.DisplayName, // T469 passthrough — git author NAME via ② AgentEnv seam
+		CLI:                  pl.CLI,         // passthrough — per-CLI starter selection on the worker
+		Reasoning:            pl.Reasoning,   // T236 passthrough
+		Mode:                 pl.Mode,        // T236 passthrough
+		Provider:             pl.Provider,    // T236 passthrough
+		OrchestratorModel:    pl.OrchestratorModel,
+		DefaultExecutorModel: pl.DefaultExecutorModel,
+		MaxConcurrentTasks:   pl.MaxConcurrentTasks,
+		AllowedModels:        pl.AllowedModels,
+		Version:              pl.Version,
+		ResetScope:           pl.ResetScope,
 	})
 	if err != nil {
 		return err

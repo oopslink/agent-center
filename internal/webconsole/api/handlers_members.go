@@ -194,12 +194,17 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		Model string `json:"model"`
 		CLI   string `json:"cli"`
 		// T236: optional LLM tuning at create time ("" = runtime/center default).
-		Reasoning string            `json:"reasoning"`
-		Mode      string            `json:"mode"`
-		Provider  string            `json:"provider"`
-		WorkerID  string            `json:"worker_id"`
-		EnvVars   map[string]string `json:"env_vars"`
-		Skills    []string          `json:"skills"`
+		Reasoning string `json:"reasoning"`
+		Mode      string `json:"mode"`
+		Provider  string `json:"provider"`
+		// F3 model routing (design §5 & §10), optional at create time.
+		OrchestratorModel    string            `json:"orchestrator_model"`
+		DefaultExecutorModel string            `json:"default_executor_model"`
+		MaxConcurrentTasks   int               `json:"max_concurrent_tasks"`
+		AllowedModels        []string          `json:"allowed_models"`
+		WorkerID             string            `json:"worker_id"`
+		EnvVars              map[string]string `json:"env_vars"`
+		Skills               []string          `json:"skills"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -274,19 +279,23 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		agentPhase = true
 		aid, aerr := d.AgentSvc.CreateAgent(txCtx, agentsvc.CreateAgentCommand{
-			OrganizationID:   orgID,
-			Name:             body.DisplayName,
-			Description:      body.Description,
-			Model:            body.Model,
-			CLI:              body.CLI,
-			Reasoning:        body.Reasoning,
-			Mode:             body.Mode,
-			Provider:         body.Provider,
-			EnvVars:          body.EnvVars,
-			Skills:           body.Skills,
-			WorkerID:         body.WorkerID,
-			CreatedBy:        agentCallerRef(callerID),
-			IdentityMemberID: idn.ID(),
+			OrganizationID:       orgID,
+			Name:                 body.DisplayName,
+			Description:          body.Description,
+			Model:                body.Model,
+			CLI:                  body.CLI,
+			Reasoning:            body.Reasoning,
+			Mode:                 body.Mode,
+			Provider:             body.Provider,
+			OrchestratorModel:    body.OrchestratorModel,
+			DefaultExecutorModel: body.DefaultExecutorModel,
+			MaxConcurrentTasks:   body.MaxConcurrentTasks,
+			AllowedModels:        body.AllowedModels,
+			EnvVars:              body.EnvVars,
+			Skills:               body.Skills,
+			WorkerID:             body.WorkerID,
+			CreatedBy:            agentCallerRef(callerID),
+			IdentityMemberID:     idn.ID(),
 		})
 		if aerr != nil {
 			return aerr
