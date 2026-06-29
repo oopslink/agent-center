@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -23,6 +23,13 @@ const wi = (id: string, status: AgentTaskStatus, extra: Partial<AgentTask> = {})
 function stub(items: AgentTask[]) {
   server.use(http.get('/api/agents/:id/tasks', () => HttpResponse.json({ tasks: items })));
 }
+
+// Default /concurrency handler so tests that don't care about the overlay don't
+// hit an unhandled request; overlay tests override it via stubConcurrency (a later
+// server.use wins). 404 → the overlay query errors → no summary (degrade path).
+beforeEach(() => {
+  server.use(http.get('/api/agents/:id/concurrency', () => HttpResponse.json({ message: 'no snapshot' }, { status: 404 })));
+});
 
 function wrap() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -183,6 +190,83 @@ describe('AgentTasks (#228 PR(d); v2.14.0 I14)', () => {
     fireEvent.change(screen.getByTestId('agent-workitems-filter-status'), { target: { value: 'blocked' } });
     await waitFor(() => expect(screen.getByTestId('agent-workitems-no-match')).toBeInTheDocument());
     expect(screen.queryByTestId('agent-workitem-row')).not.toBeInTheDocument();
+  });
+});
+
+// T593: live concurrency overlay on the Tasks tab.
+function stubConcurrency(data: Record<string, unknown>) {
+  server.use(http.get('/api/agents/:id/concurrency', () => HttpResponse.json(data)));
+}
+const inProg = (taskId: string) =>
+  wi('w1', 'active', { task_id: taskId, task_title: 'Build it', project_id: 'p' });
+
+describe('AgentTasks — concurrency overlay (T593)', () => {
+  afterEach(() => cleanup());
+
+  it('slots summary: active/cap occupancy + queued + snapshot age (not stale)', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({ agent_id: 'A1', cap: 3, active: 2, queued: 1, stale: false, snapshot_age_ms: 1000, executors: [] });
+    wrap();
+    const sum = await screen.findByTestId('agent-concurrency-summary');
+    expect(sum).toHaveAttribute('data-stale', 'false');
+    expect(screen.getByTestId('agent-concurrency-slots')).toHaveTextContent('2/3');
+    expect(screen.getByTestId('agent-concurrency-queued')).toHaveTextContent('1 queued');
+    expect(screen.getByTestId('agent-concurrency-age')).toHaveTextContent(/updated/i);
+  });
+
+  it('in-progress row overlays the executor joined by task_id (cli·model / slot / elapsed / heartbeat)', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({
+      agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: false, snapshot_age_ms: 1000,
+      executors: [{ executor_id: 'e1', task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'running', started_at: '2026-05-24T01:55:00Z' }],
+    });
+    wrap();
+    const overlay = await screen.findByTestId('agent-task-overlay');
+    expect(within(overlay).getByTestId('agent-task-cli-model')).toHaveTextContent('claude-code · sonnet');
+    expect(within(overlay).getByTestId('agent-task-slot')).toHaveTextContent('slot 1');
+    expect(within(overlay).getByTestId('agent-task-elapsed')).toBeInTheDocument();
+    expect(within(overlay).getByTestId('agent-task-heartbeat')).toBeInTheDocument();
+  });
+
+  it('orphan executor shows the orphan·monitored badge', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({
+      agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: false, snapshot_age_ms: 1000,
+      executors: [{ executor_id: 'e1', task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'orphan-monitored', started_at: '2026-05-24T01:55:00Z' }],
+    });
+    wrap();
+    expect(await screen.findByTestId('agent-task-orphan')).toBeInTheDocument();
+  });
+
+  it('stale snapshot: summary + row overlay marked stale; task list still visible; heartbeat hidden', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({
+      agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: true, snapshot_age_ms: 74000,
+      executors: [{ executor_id: 'e1', task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'running', started_at: '2026-05-24T01:55:00Z' }],
+    });
+    wrap();
+    const sum = await screen.findByTestId('agent-concurrency-summary');
+    expect(sum).toHaveAttribute('data-stale', 'true');
+    expect(sum).toHaveTextContent(/worker unreachable/i);
+    expect(screen.getByTestId('agent-task-overlay-stale')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-workitems-table')).toBeInTheDocument(); // list always visible
+    expect(screen.queryByTestId('agent-task-heartbeat')).toBeNull(); // no live heartbeat when stale
+  });
+
+  it('pending row shows the queued-for-slot hint', async () => {
+    stub([wi('q1', 'queued', { task_id: 't9', task_title: 'Q', project_id: 'p' })]);
+    stubConcurrency({ agent_id: 'A1', cap: 3, active: 0, queued: 1, stale: false, snapshot_age_ms: 1000, executors: [] });
+    wrap();
+    expect(await screen.findByTestId('agent-task-queued')).toHaveTextContent(/Queued for a slot/i);
+  });
+
+  it('degrades gracefully: /concurrency error → no overlay, task list intact', async () => {
+    stub([inProg('t1')]);
+    server.use(http.get('/api/agents/:id/concurrency', () => HttpResponse.json({ message: 'nope' }, { status: 500 })));
+    wrap();
+    await screen.findByTestId('agent-workitem-row');
+    expect(screen.queryByTestId('agent-concurrency-summary')).toBeNull();
+    expect(screen.queryByTestId('agent-task-overlay')).toBeNull();
   });
 });
 

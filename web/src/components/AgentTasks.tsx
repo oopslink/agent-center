@@ -2,6 +2,7 @@ import type React from 'react';
 import { useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useAgentTasks } from '@/api/agents';
+import { useAgentConcurrency, type AgentConcurrency, type ConcurrencyExecutor } from '@/api/concurrency';
 import { TypeChip } from '@/components/TypeChip';
 import { refLabel } from '@/components/workItemDisplay';
 import type { AgentTask, AgentTaskStatus } from '@/api/types';
@@ -51,6 +52,10 @@ const STATUS_FILTERS: Array<{ value: Bucket | 'all'; label: string }> = [
 
 export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement {
   const workItems = useAgentTasks(agentId);
+  // T593: live concurrency snapshot (3s poll), overlaid onto the task rows by
+  // task_id. Best-effort — if it errors / hasn't landed, the task list is unaffected.
+  const concurrency = useAgentConcurrency(agentId);
+  const concData = concurrency.data;
   const [statusFilter, setStatusFilter] = useState<Bucket | 'all'>('all');
   // v2.7.1: every task is type "task" (no schema). The filter is present
   // to match the design; "task" is the only non-"all" option.
@@ -80,6 +85,18 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
       }),
     [items, statusFilter, typeFilter],
   );
+
+  // task_id → { executor, slot }. Slots are numbered by start order (oldest = 1) —
+  // the contract carries no explicit slot index; mirrors the mockup. The overlay
+  // joins to a row when its underlying task_id matches an executor's task_id.
+  const execByTask = useMemo(() => {
+    const m = new Map<string, { exec: ConcurrencyExecutor; slot: number }>();
+    const xs = concData?.executors ?? [];
+    [...xs]
+      .sort((a, b) => (a.started_at < b.started_at ? -1 : a.started_at > b.started_at ? 1 : 0))
+      .forEach((e, i) => m.set(e.task_id, { exec: e, slot: i + 1 }));
+    return m;
+  }, [concData]);
 
   return (
     <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="agent-tabpanel-workitems">
@@ -111,6 +128,11 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
           </select>
         </div>
       </div>
+
+      {/* T593: live slots summary (active/cap + queued + heartbeat + snapshot age).
+          Shown only once the concurrency snapshot has loaded; absent on error so
+          the task list is never blocked by the overlay. */}
+      {concData && <ConcurrencySlots data={concData} />}
 
       {workItems.isLoading && (
         <p className="text-xs text-text-muted" data-testid="agent-workitems-loading">
@@ -156,9 +178,18 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-base">
-                {filtered.map((w) => (
-                  <TaskRow key={w.id} item={w} />
-                ))}
+                {filtered.map((w) => {
+                  const taskId = w.task_id || w.task_ref?.replace(/^pm:\/\/tasks\//, '') || '';
+                  return (
+                    <TaskRow
+                      key={w.id}
+                      item={w}
+                      slot={execByTask.get(taskId)}
+                      stale={concData?.stale ?? false}
+                      snapshotAgeMs={concData?.snapshot_age_ms}
+                    />
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -174,11 +205,22 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
   );
 }
 
-function TaskRow({ item: w }: { item: AgentTask }): React.ReactElement {
+function TaskRow({
+  item: w,
+  slot,
+  stale,
+  snapshotAgeMs,
+}: {
+  item: AgentTask;
+  slot?: { exec: ConcurrencyExecutor; slot: number };
+  stale?: boolean;
+  snapshotAgeMs?: number;
+}): React.ReactElement {
   // v2.7.1 #206: link the title to its task when resolved; raw pm ref on hover.
   const taskId = w.task_id || w.task_ref?.replace(/^pm:\/\/tasks\//, '') || '';
   const linkable = Boolean(w.task_title && w.project_id && taskId);
   const status = STATUS_DISPLAY[w.status] ?? { label: w.status, cls: 'bg-bg-subtle text-text-muted' };
+  const bucket = STATUS_DISPLAY[w.status]?.bucket;
 
   return (
     <tr className="align-top" data-testid="agent-workitem-row" data-workitem-id={w.id} data-status={w.status}>
@@ -189,17 +231,28 @@ function TaskRow({ item: w }: { item: AgentTask }): React.ReactElement {
       <td className="py-2 pr-3 font-mono text-text-muted" data-testid="agent-workitem-id" title={w.id}>
         {refLabel(w.org_ref, w.id)}
       </td>
-      <td className="max-w-[18rem] truncate py-2 pr-3" title={w.task_ref}>
+      <td className="max-w-[20rem] py-2 pr-3" title={w.task_ref}>
         {linkable ? (
           <OrgLink
             to={`/projects/${encodeURIComponent(w.project_id as string)}/tasks/${encodeURIComponent(taskId)}`}
-            className="text-text-secondary hover:text-accent"
+            className="block truncate text-text-secondary hover:text-accent"
             data-testid="agent-workitem-task"
           >
             {w.task_title}
           </OrgLink>
         ) : (
-          <span className="text-text-secondary">{w.task_title || 'Task'}</span>
+          <span className="block truncate text-text-secondary">{w.task_title || 'Task'}</span>
+        )}
+        {/* T593: live concurrency overlay. In-progress rows show the executor
+            (cli·model / slot / elapsed / heartbeat / orphan); pending rows show
+            the queued-for-slot hint. Done/Blocked/Paused are unchanged. */}
+        {bucket === 'in_progress' && slot && (
+          <ExecutorOverlay slot={slot} stale={stale} snapshotAgeMs={snapshotAgeMs} />
+        )}
+        {bucket === 'pending' && (
+          <p className="mt-1 text-[0.6875rem] text-text-muted" data-testid="agent-task-queued">
+            Queued for a slot{waitingFor(w.updated_at) ? ` · waiting ${waitingFor(w.updated_at)}` : ''}
+          </p>
         )}
       </td>
       <td className="py-2 pr-3" data-testid="agent-workitem-type">
@@ -231,4 +284,154 @@ function formatUpdated(iso: string): string {
   yesterday.setDate(now.getDate() - 1);
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
   return d.toLocaleDateString();
+}
+
+// ── T593: concurrency overlay ────────────────────────────────────────────────
+
+// ConcurrencySlots — the live slots summary header: active/cap occupancy bar +
+// queued count + adaptive-heartbeat label + snapshot age. When the snapshot is
+// stale (worker offline / TTL exceeded) the whole strip goes amber and shows the
+// "last known" age + unreachable note (the task list below stays visible).
+function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElement {
+  const cap = Math.max(0, data.cap);
+  const active = Math.max(0, data.active);
+  const segs = Array.from({ length: cap }, (_, i) => i < active);
+  return (
+    <div
+      className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 ${
+        data.stale ? 'border-warning/40 bg-status-amber-bg' : 'border-border-base bg-bg-subtle'
+      }`}
+      data-testid="agent-concurrency-summary"
+      data-stale={data.stale ? 'true' : 'false'}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-bold text-text-primary" data-testid="agent-concurrency-slots">
+          {data.stale ? '?' : active}
+          <span className="text-text-muted">/{cap}</span>
+        </span>
+        <span className="text-xs text-text-muted">{data.stale ? 'slots — overlay stale' : 'slots in use'}</span>
+        <span className="ml-1 inline-flex items-center gap-0.5" aria-hidden="true">
+          {segs.map((on, i) => (
+            <span
+              key={i}
+              className={`h-2 w-5 rounded-sm ${on ? (data.stale ? 'bg-warning' : 'bg-brand') : 'bg-border-strong'}`}
+            />
+          ))}
+        </span>
+        {!data.stale && data.queued > 0 && (
+          <span className="text-xs text-text-muted" data-testid="agent-concurrency-queued">· {data.queued} queued</span>
+        )}
+      </div>
+      {data.stale ? (
+        <span className="flex items-center gap-1 text-xs font-medium text-status-amber-fg" data-testid="agent-concurrency-age">
+          <WarnIcon /> snapshot {formatAge(data.snapshot_age_ms)} ago · worker unreachable
+        </span>
+      ) : (
+        <span className="flex items-center gap-2 text-xs text-text-muted" data-testid="agent-concurrency-age">
+          <span className="inline-flex items-center gap-1" title="Adaptive heartbeat cadence"><HeartIcon /> adaptive 3s</span>
+          <span>updated {formatAge(data.snapshot_age_ms)} ago</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ExecutorOverlay — the per-row in-progress overlay: cli·model chip, slot, elapsed
+// (from started_at), heartbeat age, and an orphan badge / stale marker.
+function ExecutorOverlay({
+  slot,
+  stale,
+  snapshotAgeMs,
+}: {
+  slot: { exec: ConcurrencyExecutor; slot: number };
+  stale?: boolean;
+  snapshotAgeMs?: number;
+}): React.ReactElement {
+  const { exec } = slot;
+  const starting = exec.state.toLowerCase().includes('starting');
+  const orphan = exec.state.toLowerCase().includes('orphan');
+  const elapsed = formatElapsed(exec.started_at);
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem]" data-testid="agent-task-overlay">
+      <span
+        className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-text-secondary"
+        data-testid="agent-task-cli-model"
+      >
+        {exec.cli} · {exec.model}
+      </span>
+      <span className="rounded bg-status-blue-bg px-1.5 py-0.5 font-semibold uppercase tracking-wide text-status-blue-fg" data-testid="agent-task-slot">
+        slot {slot.slot}
+      </span>
+      {elapsed && (
+        <span className="text-text-muted" data-testid="agent-task-elapsed">
+          ⏱ {elapsed}{starting ? ' starting' : ''}
+        </span>
+      )}
+      {!stale && typeof snapshotAgeMs === 'number' && (
+        <span className="inline-flex items-center gap-1 text-text-muted" data-testid="agent-task-heartbeat" title="Heartbeat age">
+          <HeartIcon /> {formatAge(snapshotAgeMs)}
+        </span>
+      )}
+      {orphan && (
+        <span className="rounded bg-status-amber-bg px-1.5 py-0.5 font-semibold uppercase tracking-wide text-status-amber-fg" data-testid="agent-task-orphan">
+          orphan · monitored
+        </span>
+      )}
+      {stale && (
+        <span className="font-medium text-status-amber-fg" data-testid="agent-task-overlay-stale">
+          overlay stale
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Heartbeat / warning glyphs as SVG (a11y: no emoji as icon).
+function HeartIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3 shrink-0" fill="currentColor" aria-hidden="true">
+      <path d="M8 14s-5-3.3-5-7a3 3 0 0 1 5-2.2A3 3 0 0 1 13 7c0 3.7-5 7-5 7z" />
+    </svg>
+  );
+}
+function WarnIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M8 2.5 14.5 13.5H1.5z" strokeLinejoin="round" />
+      <path d="M8 6.5v3.2M8 11.6v.01" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// formatAge — compact "Ns" / "Nm" from a millisecond age (snapshot/heartbeat).
+function formatAge(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '0s';
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+// formatElapsed — "4m 12s" / "6s" / "1h 3m" from an ISO start time to now. Returns
+// "" for an unparseable / future start.
+function formatElapsed(startedAt: string): string {
+  const start = new Date(startedAt).getTime();
+  if (Number.isNaN(start)) return '';
+  const s = Math.floor((Date.now() - start) / 1000);
+  if (s < 0) return '';
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
+// waitingFor — how long a pending task has been queued (since its last update).
+function waitingFor(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 0) return '';
+  return formatAge(s * 1000);
 }
