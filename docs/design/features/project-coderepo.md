@@ -33,6 +33,7 @@
 |---|---|
 | `id` / `project_id` | 既有 |
 | `label` | 既有，显示名 |
+| `description` | **新**：一句话仓库用途简介，让 agent **不 checkout 即可了解该仓功能**（oopslink 要求）。由 §4 agent 接口与 viewing/列表返回展示 |
 | `url` | 既有，clone/remote URL |
 | `provider` | **新**：`github` / `gitlab` / `git`（generic）。决定 viewing/agent-live 走哪个适配器；空/未知 → `git` 回退 |
 | `default_branch` | **新**：默认分支（viewing 默认展示、agent 取值）。空 → 运行时探测或留空 |
@@ -46,12 +47,12 @@
 
 新增两个**只读** agent 工具，作为 agent 知道「代码在哪」的标准入口，替掉约定本地路径：
 
-- `list_project_repos(project_id)` → `[{label,url,provider,default_branch,is_primary}]`（**静态配置，便宜、无需凭据**）。
+- `list_project_repos(project_id)` → `[{label,description,url,provider,default_branch,is_primary}]`（**静态配置，便宜、无需凭据**）。
 - `get_repo_info(project_id, repo_id?|primary, live?)` →
   - 默认（`live=false`）：单仓静态配置。
   - `live=true`：附带 remote 最近 commits（sha/msg/author/time）+ branches（**需凭据 + 远端调用**，见 §5/§6）。
 
-口径：默认静态、live 可选——避免每次都打远端。返回 schema 与 §3 字段一致，FE 与 agent 共用同一形状。
+口径：默认静态、live 可选——避免每次都打远端。返回 schema 与 §3 字段一致，FE 与 agent 共用同一形状。其中 `description`（§3 新增）是关键：agent 调 `list_project_repos` 即可**不 checkout** 判断「该仓是干什么的、该去哪个仓找代码」。
 
 ## 5. 用户查看 remote（commits / branches）
 
@@ -84,7 +85,7 @@
 
 ## 8. FE（见 mockup）
 
-- 项目设置 → **Code repositories**：仓列表（provider badge / default_branch / primary★ / Edit / Delete / Add）+ Add/Edit 表单（label/provider/url/default_branch/凭据 mask）。
+- 项目设置 → **Code repositories**：仓列表（provider badge / default_branch / primary★ / Edit / Delete / Add）+ Add/Edit 表单（label/**description**/provider/url/default_branch/凭据 mask）；列表每行展示一句话 description。
 - **Remote 查看**：选仓 → Commits / Branches 两 tab，commits 列 sha/msg/author/相对时间，只读，标注「live · remote，不 clone」。
 
 ## 9. 实施拆解（建议 cycle plan）

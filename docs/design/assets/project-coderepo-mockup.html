@@ -24,6 +24,7 @@
   .prov-gh{background:#ece9f6;color:#4a4255}.prov-gl{background:#fde9dd;color:#b0560f}.prov-git{background:#e3eee9;color:#2f7a64}
   .repo .meta{flex:1;min-width:0}
   .repo .label{font-weight:600;font-size:13px}
+  .repo .desc{font-size:11.5px;color:var(--text-secondary);margin:1px 0}
   .repo .url{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .repo .br{font-size:11px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-family:ui-monospace,Menlo,monospace}
   .repo .acts{display:flex;gap:6px}
@@ -62,6 +63,7 @@
           <span class="star on" title="primary">★</span>
           <span class="prov prov-gh">GitHub</span>
           <div class="meta"><div class="label">agent-center <span class="primary-pill">primary</span></div>
+            <div class="desc">多 agent 协作中心 + worker daemon（Go 后端 + React web）。流水/编排/执行引擎主仓。</div>
             <div class="url">git@github.com:oopslink/agent-center.git</div></div>
           <span class="br">main</span>
           <div class="acts"><button class="ico">Edit</button><button class="ico">Delete</button></div>
@@ -71,6 +73,7 @@
           <span class="star off" title="set primary">☆</span>
           <span class="prov prov-gh">GitHub</span>
           <div class="meta"><div class="label">web-frontend</div>
+            <div class="desc">独立前端仓（若拆分）：控制台 React/TS。</div>
             <div class="url">git@github.com:oopslink/ac-web.git</div></div>
           <span class="br">develop</span>
           <div class="acts"><button class="ico">Edit</button><button class="ico">Delete</button></div>
@@ -80,6 +83,7 @@
           <span class="star off" title="set primary">☆</span>
           <span class="prov prov-git">git</span>
           <div class="meta"><div class="label">infra (self-hosted)</div>
+            <div class="desc">部署/运维 IaC：k8s、CI、密钥与环境配置。</div>
             <div class="url">https://git.internal/ops/infra.git</div></div>
           <span class="br">master</span>
           <div class="acts"><button class="ico">Edit</button><button class="ico">Delete</button></div>
@@ -87,7 +91,7 @@
 
         <div class="agentbox">
           <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px">这份配置 = agent 的标准入口</div>
-          <div style="font-size:12px;color:var(--text-muted)">MCP 工具 <code>list_project_repos</code> / <code>get_repo_info</code> 返回上面每个仓的 <code>{label,url,provider,default_branch,primary}</code> —— agent 不再靠约定本地路径。</div>
+          <div style="font-size:12px;color:var(--text-muted)">MCP 工具 <code>list_project_repos</code> / <code>get_repo_info</code> 返回每个仓的 <code>{label,description,url,provider,default_branch,primary}</code> —— agent 凭 <b>description</b> 不 checkout 即知「哪个仓干什么」,不再靠约定本地路径。</div>
         </div>
       </div>
 
@@ -96,6 +100,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><div class="frame-label" style="margin-bottom:3px">Label</div><div class="repo" style="margin:0;padding:7px 10px"><span class="url" style="color:var(--text-primary)">agent-center</span></div></div>
           <div><div class="frame-label" style="margin-bottom:3px">Provider</div><div class="repo" style="margin:0;padding:7px 10px"><span class="prov prov-gh">GitHub ▾</span></div></div>
+          <div style="grid-column:1/3"><div class="frame-label" style="margin-bottom:3px">Description <span style="text-transform:none;color:var(--text-muted)">— 一句话用途,供 agent 不 checkout 即了解</span></div><div class="repo" style="margin:0;padding:7px 10px"><span class="url" style="color:var(--text-primary)">多 agent 协作中心 + worker daemon（Go 后端 + React web）</span></div></div>
           <div style="grid-column:1/3"><div class="frame-label" style="margin-bottom:3px">Clone URL</div><div class="repo" style="margin:0;padding:7px 10px"><span class="url" style="color:var(--text-primary)">git@github.com:oopslink/agent-center.git</span></div></div>
           <div><div class="frame-label" style="margin-bottom:3px">Default branch</div><div class="repo" style="margin:0;padding:7px 10px"><span class="br">main</span></div></div>
           <div><div class="frame-label" style="margin-bottom:3px">Read credential</div><div class="repo" style="margin:0;padding:7px 10px"><span class="url" style="color:var(--text-muted)">project token ••••••</span></div></div>
@@ -129,7 +134,7 @@
   <div class="notes">
     <h3>设计要点（详见 docs/design/features/project-coderepo.md）</h3>
     <ul>
-      <li><b>多仓</b>:每项目 N 个仓,主仓(primary)用于 Integrate merge-check;每仓 <span class="pill">{label,url,provider,default_branch,primary}</span> + 只读凭据。</li>
+      <li><b>多仓</b>:每项目 N 个仓,主仓(primary)用于 Integrate merge-check;每仓 <span class="pill">{label,description,url,provider,default_branch,primary}</span> + 只读凭据。<b>description</b> 让 agent 不 checkout 即了解仓库功能。</li>
       <li><b>agent 接口</b>:MCP <span class="pill">list_project_repos</span> / <span class="pill">get_repo_info</span> 返回静态配置(便宜免凭据);<span class="pill">get_repo_info(live=true)</span> 可选返回 remote 最近 commits/branches。</li>
       <li><b>remote 查看</b>:provider 抽象,v1 GitHub 走 <span class="pill">go-github</span>;未知 provider 回退 <span class="pill">git ls-remote</span>。不 clone。</li>
       <li><b>凭据</b>:项目级只读 token,加密落地;供 viewing + agent live 查询。</li>
