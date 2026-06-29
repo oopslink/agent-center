@@ -15,7 +15,9 @@ import (
 
 // fakeAutoAssignDir is a programmable AutoAssignDirectory: tests set the per-org
 // candidate snapshots directly, bypassing the real agent/worker repos.
-type fakeAutoAssignDir struct{ byOrg map[string][]AutoAssignCandidate }
+type fakeAutoAssignDir struct {
+	byOrg map[string][]AutoAssignCandidate
+}
 
 func (f *fakeAutoAssignDir) ListAutoAssignCandidates(_ context.Context, org string) ([]AutoAssignCandidate, error) {
 	return f.byOrg[org], nil
