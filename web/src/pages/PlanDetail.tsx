@@ -553,7 +553,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
 function PlanTitleBar({ plan }: { plan: Plan }): React.ReactElement {
   return (
     <div
-      className="flex items-center gap-2 border-b border-border-base px-5 py-3"
+      className="flex items-center gap-2 px-5 py-3"
       data-testid="plan-title-bar"
     >
       <PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="plan-detail-ref" />
@@ -662,6 +662,10 @@ function PlanInfoRail({
           {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
           <PlanFailedIndicator hasFailed={plan.has_failed} />
         </div>
+        {/* T570: all lifecycle + edit + destructive actions sit on ONE compact row
+            (was two stacked rows). flex-wrap keeps them on a single line when they
+            fit (Edit · Archive · Delete in the 360px rail) and only wraps if the
+            running/draft Start/Stop button is also present. */}
         <div className="flex flex-wrap gap-2">
           {plan.status === 'running' && (
             <button
@@ -690,22 +694,22 @@ function PlanInfoRail({
               Edit
             </button>
           )}
+          {canDestroy && (
+            <>
+              <button type="button" data-testid="plan-archive-btn" onClick={() => setConfirming('archive')} className={railBtn}>
+                Archive
+              </button>
+              <button
+                type="button"
+                data-testid="plan-delete-btn"
+                onClick={() => setConfirming('delete')}
+                className={`${railBtn} border-danger text-danger hover:text-danger`}
+              >
+                Delete
+              </button>
+            </>
+          )}
         </div>
-        {canDestroy && (
-          <div className="flex flex-wrap gap-2">
-            <button type="button" data-testid="plan-archive-btn" onClick={() => setConfirming('archive')} className={railBtn}>
-              Archive
-            </button>
-            <button
-              type="button"
-              data-testid="plan-delete-btn"
-              onClick={() => setConfirming('delete')}
-              className={`${railBtn} border-danger text-danger hover:text-danger`}
-            >
-              Delete
-            </button>
-          </div>
-        )}
         {(start.isError || stop.isError) && (
           <p className="text-xs text-danger" data-testid="plan-lifecycle-error">
             {((start.error ?? stop.error) as Error).message}
@@ -758,6 +762,32 @@ function PlanInfoRail({
         )}
       </div>
 
+      {/* Participants — avatars open the agent-activity sidebar. T570: moved ABOVE
+          Progress per @oopslink (was below Up next). */}
+      {participants.length > 0 && (
+        <div className="border-b border-border-base p-5">
+          <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Participants</h3>
+          <div className="flex flex-wrap gap-2" data-testid="plan-rail-participants">
+            {participants.map((pt) => {
+              const nm = resolveName(pt.identity_id);
+              const label = nm === pt.identity_id ? normalizeIdentityRef(pt.identity_id) : nm;
+              return (
+                <button
+                  key={pt.identity_id}
+                  type="button"
+                  onClick={() => setAgentRef(pt.identity_id)}
+                  title={label}
+                  aria-label={`Open ${label} activity`}
+                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <Avatar name={label} kind={(pt.kind as 'agent' | 'human') ?? (refKind(pt.identity_id) === 'agent' ? 'agent' : 'human')} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Progress */}
       <div className="border-b border-border-base p-5" data-testid="plan-detail-meta">
         <div className="mb-3 flex items-center justify-between">
@@ -801,35 +831,8 @@ function PlanInfoRail({
         )}
       </div>
 
-      {/* Participants — avatars open the agent-activity sidebar */}
-      {participants.length > 0 && (
-        <div className="border-b border-border-base p-5">
-          <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Participants</h3>
-          <div className="flex flex-wrap gap-2" data-testid="plan-rail-participants">
-            {participants.map((pt) => {
-              const nm = resolveName(pt.identity_id);
-              const label = nm === pt.identity_id ? normalizeIdentityRef(pt.identity_id) : nm;
-              return (
-                <button
-                  key={pt.identity_id}
-                  type="button"
-                  onClick={() => setAgentRef(pt.identity_id)}
-                  title={label}
-                  aria-label={`Open ${label} activity`}
-                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  <Avatar name={label} kind={(pt.kind as 'agent' | 'human') ?? (refKind(pt.identity_id) === 'agent' ? 'agent' : 'human')} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Threads / Files — kept (the embedded conv sidebar's non-participant panels) */}
-      <div className="min-h-0 flex-1 p-5" data-testid="plan-rail-threads-files">
-        <ConversationSidebar conversationId={plan.conversation_id} showParticipants={false} />
-      </div>
+      {/* T570: Threads / Files panel removed from the rail per @oopslink — the rail
+          is now status/goal/participants/progress/up-next only. */}
 
       {/* The (unchanged) agent-activity sidebar, opened from the @creator tag / avatars. */}
       <SenderDetailSidebar open={agentRef !== null} senderRef={agentRef} onClose={() => setAgentRef(null)} />
@@ -2423,6 +2426,17 @@ function PlanTaskRow({
       <td className="py-1.5">
         <span className="inline-flex items-center gap-1.5">
           <NodeStateChip status={node.node_status} />
+          {/* T570: a DONE node shows WHEN it completed (statusChangedAt). Rendered
+              next to the chip, muted, with the full timestamp on hover. */}
+          {node.node_status === 'done' && node.completed_at && (
+            <span
+              className="text-[0.625rem] text-text-muted"
+              data-testid="plan-row-completed-at"
+              title={node.completed_at}
+            >
+              {formatLocalTime(node.completed_at)}
+            </span>
+          )}
           {/* Stage B (#283): archive badge is ORTHOGONAL — coexists with the
               node-status chip when the plan (and thus the task) is archived. */}
           <TaskArchivedBadge archived={node.archived} taskId={node.task_id} />

@@ -81,6 +81,14 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 	if n.Dispatched && !n.DispatchedAt.IsZero() {
 		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
 	}
+	// T570: a DONE node carries its completion time (statusChangedAt of the
+	// terminal transition). Emitted only for done nodes — a live/blocked node has
+	// no meaningful "completed" moment.
+	if n.NodeStatus == pm.NodeDone {
+		if at := l.completedAtOf[n.TaskID]; at != "" {
+			node["completed_at"] = at
+		}
+	}
 	return node
 }
 
@@ -94,16 +102,21 @@ type planNodeLookup struct {
 	archivedOf   map[pm.TaskID]bool
 	archivedAtOf map[pm.TaskID]string
 	orgRefOf     map[pm.TaskID]string
+	// T570: when the node is done, statusChangedAt is the moment the task last
+	// transitioned (= its completion time) — surfaced as completed_at so the task
+	// list can show WHEN a DONE node finished.
+	completedAtOf map[pm.TaskID]string
 }
 
 func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 	l := planNodeLookup{
-		planID:       detail.Plan.ID(),
-		titleOf:      make(map[pm.TaskID]string, len(detail.Tasks)),
-		assigneeOf:   make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks)),
-		archivedOf:   make(map[pm.TaskID]bool, len(detail.Tasks)),
-		archivedAtOf: make(map[pm.TaskID]string, len(detail.Tasks)),
-		orgRefOf:     make(map[pm.TaskID]string, len(detail.Tasks)),
+		planID:        detail.Plan.ID(),
+		titleOf:       make(map[pm.TaskID]string, len(detail.Tasks)),
+		assigneeOf:    make(map[pm.TaskID]pm.IdentityRef, len(detail.Tasks)),
+		archivedOf:    make(map[pm.TaskID]bool, len(detail.Tasks)),
+		archivedAtOf:  make(map[pm.TaskID]string, len(detail.Tasks)),
+		orgRefOf:      make(map[pm.TaskID]string, len(detail.Tasks)),
+		completedAtOf: make(map[pm.TaskID]string, len(detail.Tasks)),
 	}
 	for _, t := range detail.Tasks {
 		l.titleOf[t.ID()] = t.Title()
@@ -111,6 +124,9 @@ func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 		l.archivedOf[t.ID()] = t.IsArchived()
 		l.archivedAtOf[t.ID()] = rfc3339OrEmptyPtr(t.ArchivedAt())
 		l.orgRefOf[t.ID()] = orgRefToken("T", t.OrgNumber())
+		if at := t.StatusChangedAt(); !at.IsZero() {
+			l.completedAtOf[t.ID()] = at.UTC().Format(time.RFC3339Nano)
+		}
 	}
 	return l
 }

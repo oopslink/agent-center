@@ -53,6 +53,10 @@ export interface PlanNode {
   node_status: PlanNodeStatus;
   depends_on: string[];
   dispatched_at?: string | null;
+  // T570: when node_status is 'done', the task's completion time (statusChangedAt
+  // of the terminal transition). Present only on done nodes — the task list shows
+  // it beside the DONE chip. Absent for live/blocked nodes.
+  completed_at?: string | null;
   // v2.9.2 (task-0543ece9): the human Task id ("T123", org_ref) now rides on the
   // node DTO so the Work Board card + agent-facing list show the T-number WITHOUT
   // a second task-list resolver. Omitted when unallocated (pre-allocator rows) —

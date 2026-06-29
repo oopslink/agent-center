@@ -345,6 +345,16 @@ func TestPlanAPI_ListSummaries_BoardEnrich(t *testing.T) {
 		if ref[0] != 'T' {
 			t.Fatalf("preview node org_ref=%q want T<n>", ref)
 		}
+		// T570: a DONE node carries completed_at (the terminal statusChangedAt);
+		// a non-done node must NOT (no meaningful "completed" moment).
+		_, hasCompleted := nm["completed_at"]
+		if nm["node_status"].(string) == "done" {
+			if at, ok := nm["completed_at"].(string); !ok || at == "" {
+				t.Fatalf("done node missing completed_at: %v", nm)
+			}
+		} else if hasCompleted {
+			t.Fatalf("non-done node (%s) must not emit completed_at: %v", nm["node_status"], nm)
+		}
 	}
 
 	// --- planBig: NO cap — preview carries ALL 6 nodes (task-0543ece9) ---------

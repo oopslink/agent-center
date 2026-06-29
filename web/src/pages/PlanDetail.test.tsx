@@ -545,6 +545,44 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(table).getAllByTestId('node-state-chip').length).toBe(7);
   });
 
+  // ── T570: plan detail page polish ─────────────────────────────────────────
+  it('T570: a DONE node shows its completion time; non-done nodes do not', async () => {
+    mockPlan({
+      nodes: [
+        { task_id: 'd1', title: 'done one', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [], completed_at: '2026-06-20T10:00:00Z' },
+        { task_id: 'r1', title: 'running one', assignee_ref: 'agent:dev', task_status: 'running', node_status: 'running', depends_on: [] },
+      ],
+    });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    const table = await screen.findByTestId('plan-task-list-table');
+    const completed = within(table).getAllByTestId('plan-row-completed-at');
+    expect(completed).toHaveLength(1);
+    // full RFC3339 timestamp is on hover (localized text in the body).
+    expect(completed[0]).toHaveAttribute('title', '2026-06-20T10:00:00Z');
+  });
+
+  it('T570: rail drops the Threads/Files panel; title bar has no bottom border', async () => {
+    mockPlan();
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-info-rail')).toBeInTheDocument());
+    expect(screen.queryByTestId('plan-rail-threads-files')).not.toBeInTheDocument();
+    // req 1: the line between the title bar and the tabs is gone.
+    expect(screen.getByTestId('plan-title-bar').className).not.toContain('border-b');
+  });
+
+  it('T570: Edit / Archive / Delete share one button row', async () => {
+    mockPlan({ status: 'draft', has_failed: false });
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-edit-btn')).toBeInTheDocument());
+    const edit = screen.getByTestId('plan-edit-btn');
+    const archive = screen.getByTestId('plan-archive-btn');
+    const del = screen.getByTestId('plan-delete-btn');
+    // all three are direct siblings in the same flex row (one-row layout).
+    expect(archive.parentElement).toBe(edit.parentElement);
+    expect(del.parentElement).toBe(edit.parentElement);
+  });
+
   it('conversation side renders ConversationView with the plan conversation_id', async () => {
     mockPlan();
     wrap();
