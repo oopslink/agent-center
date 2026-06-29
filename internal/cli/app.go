@@ -18,6 +18,8 @@ import (
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
+	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
+	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
 	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -102,6 +104,10 @@ type App struct {
 	// /api/projects/{project_id}/... routes + produces the outbox events the
 	// server-runtime relay projects into Conversation/Agent.
 	PMService *pmservice.Service
+
+	// CodeRepoService is the v2.18.4 BE-1 workspace CodeRepo AppService (issue-f980c8de)
+	// — workspace Repos CRUD + encrypted credential storage + the merge-check resolver.
+	CodeRepoService *coderepservice.Service
 
 	// AgentService is the v2.7 Agent BC AppService facade (C3).
 	AgentService *agentsvc.Service
@@ -339,12 +345,17 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	var (
 		userSecretSvc        *secretservice.UserSecretService
 		userSecretResolveSvc *secretservice.SecretResolutionService
+		// v2.18.4 BE-1: hoisted so the workspace CodeRepo service can AES-GCM-encrypt
+		// repo credentials with the same master key (nil when unconfigured → credential
+		// writes fail loudly via ErrMasterKeyNotLoaded).
+		masterKey *secretmgmt.MasterKey
 	)
 	if cfg.SecretManagement.MasterKeyFile != "" {
 		mk, err := secretmgmt.LoadMasterKey(cfg.SecretManagement.MasterKeyFile, cfg.SecretManagement.SkipPermsCheck)
 		if err != nil {
 			return nil, fmt.Errorf("load master key: %w", err)
 		}
+		masterKey = mk
 		userSecretSvc = secretservice.NewUserSecretService(db, userSecretRepo, gen, sink, clk, mk)
 		// v2.3-3b (task #29): SecretResolutionService is the only path that
 		// returns plaintext. Wired here so the admin endpoint can expose
@@ -368,17 +379,31 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// cross-org guard, ADR-0049/0052/OQ6).
 	agentRepo := agentsql.NewAgentRepo(db)
 
+	// v2.18.4 BE-1 (issue-f980c8de): the workspace CodeRepo service. The shared
+	// CodeRepoRefRepo doubles as the RefUnlinker (clears project refs on Repo delete);
+	// the coderepo service doubles as the pm CodeRepoResolver (merge-check primaryRepoURL).
+	codeRepoRefRepo := pmsql.NewCodeRepoRefRepo(db)
+	codeRepoSvc := coderepservice.New(coderepservice.Deps{
+		DB:        db,
+		Repos:     coderepsql.NewRepoRepo(db),
+		IDGen:     gen,
+		Clock:     clk,
+		MasterKey: masterKey,
+		Unlinker:  codeRepoRefRepo,
+	})
+
 	pmSvc := pmservice.New(pmservice.Deps{
-		DB:           db,
-		Projects:     pmsql.NewProjectRepo(db),
-		Members:      pmsql.NewProjectMemberRepo(db),
-		Issues:       pmsql.NewIssueRepo(db),
-		Tasks:        pmsql.NewTaskRepo(db),
-		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
-		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
-		Plans:        pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
-		Findings:     pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
+		DB:               db,
+		Projects:         pmsql.NewProjectRepo(db),
+		Members:          pmsql.NewProjectMemberRepo(db),
+		Issues:           pmsql.NewIssueRepo(db),
+		Tasks:            pmsql.NewTaskRepo(db),
+		TaskSubs:         pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:        pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs:     codeRepoRefRepo,
+		CodeRepoResolver: codeRepoSvc,
+		Plans:            pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
+		Findings:         pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
 		// v2.14.0 I14/F3 §7.3: persist the append-only Task lifecycle log (block/unblock/
 		// lease_expired/reassigned) to pm_task_action_logs from the log-producing flows.
 		TaskActionLogs: pmsql.NewTaskActionLogRepo(db, gen),
@@ -490,6 +515,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:              clk,
 		IDGen:              gen,
 		PMService:          pmSvc,
+		CodeRepoService:    codeRepoSvc,
 		AgentService:       agentSvc,
 		AgentRepo:          agentRepo,
 		AgentActivityRepo:  agentActivityRepo,

@@ -232,6 +232,15 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/members", s.pmAddMemberHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/members/{identity_id}", s.pmRemoveMemberHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/code-repos", s.pmListCodeReposHandler)
+	// v2.18.4 BE-1: project↔workspace-Repo references (project-member gated).
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/code-repos", s.addProjectRepoRefHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/projects/{project_id}/code-repos/{ref_id}", s.removeProjectRepoRefHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/code-repos/{ref_id}/primary", s.setPrimaryProjectRepoHandler)
+	// v2.18.4 BE-1: workspace Repos CRUD (list member-readable; create/update/delete org-admin).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/code-repos", s.listCodeReposHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/code-repos", s.createCodeRepoHandler)
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/code-repos/{repo_id}", s.updateCodeRepoHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/code-repos/{repo_id}", s.deleteCodeRepoHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/issues", s.pmListIssuesHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/issues", s.pmCreateIssueHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}", s.pmGetIssueHandler)

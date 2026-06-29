@@ -118,6 +118,11 @@ func (s *Service) ListCodeRepos(ctx context.Context, projectID pm.ProjectID) ([]
 	return s.codeRepoRefs.ListByProject(ctx, projectID)
 }
 
+// GetCodeRepoRef reads one project↔repo reference by id (v2.18.4 BE-1).
+func (s *Service) GetCodeRepoRef(ctx context.Context, id string) (*pm.CodeRepoRef, error) {
+	return s.codeRepoRefs.FindByID(ctx, id)
+}
+
 func (s *Service) ListTaskSubscribers(ctx context.Context, taskID pm.TaskID) ([]*pm.TaskSubscriber, error) {
 	return s.taskSubs.ListByTask(ctx, taskID)
 }
