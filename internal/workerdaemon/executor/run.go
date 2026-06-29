@@ -215,10 +215,18 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 		return RunResult{}, fmt.Errorf("runner command %q: %w: %s", r.cmd[0], err, strings.TrimSpace(out))
 	}
 	rc.Progress("done", "runner command completed")
-	// Parse the run's per-turn token usage from the captured stream (v2.20.0 F2 /
-	// T613). Best-effort: a runner whose output carries no parseable result line
-	// yields a zero usage, which recordSuccess omits from output.json.
-	return RunResult{Result: out, Summary: summarize(out), Usage: ParseRunnerUsage(out)}, nil
+	// Extract the run's final TEXT result + per-turn token usage from the captured
+	// stream (T613 usage; T622 result extraction). In production the runner is claude
+	// --output-format stream-json --verbose, so `out` is JSON lines — relaying it raw
+	// would post a wall of JSON as the task result. ParseRunnerStream pulls the final
+	// answer text + the usage; when the output is NOT stream-json (a codex plain run,
+	// an error transcript) result comes back empty and we relay the raw output so a
+	// non-claude runner's result is never lost.
+	result, usage := ParseRunnerStream(out)
+	if strings.TrimSpace(result) == "" {
+		result = out
+	}
+	return RunResult{Result: result, Summary: summarize(result), Usage: usage}, nil
 }
 
 // summarize takes the first non-empty line of out (trimmed) as the chat-relay

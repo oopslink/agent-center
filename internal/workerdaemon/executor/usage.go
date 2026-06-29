@@ -19,20 +19,22 @@ import (
 // usage. 4 MiB matches the daemon's other stream-line ceilings.
 const maxRunnerLineBytes = 4 * 1024 * 1024
 
-// ParseRunnerUsage extracts the aggregate per-run token usage from a runner's
-// captured stdout. The default CommandRunner runs the model-routed agent CLI in
-// claude stream-json mode; each turn ends with a `result` line carrying that
-// turn's token `usage`. This sums the usage across every result line in the run
-// (a task may span multiple turns) into one TokenUsage.
+// ParseRunnerStream extracts the run's final result TEXT and aggregate token usage
+// from a runner's captured stdout in a SINGLE pass. The default CommandRunner runs
+// the model-routed agent CLI in claude stream-json mode (--output-format
+// stream-json --verbose, T622): each turn ends with a `result` line carrying that
+// turn's final text + token `usage`. This returns the LAST non-empty result-line
+// text (the run's final answer) and the per-field usage summed across every result
+// line (a task may span multiple turns).
 //
 // It is BEST-EFFORT and format-tolerant: a line that is not a JSON object, or that
-// claudestream cannot parse (a codex CLI's output, stderr interleaved by
-// CombinedOutput, a banner) is skipped — so a runner that emits no parseable
-// result line yields a zero TokenUsage (omitted from output.json) rather than an
-// error. The executor stays pure-compute: this only reads text already captured
-// and opens no connection.
-func ParseRunnerUsage(out string) TokenUsage {
-	var u TokenUsage
+// claudestream cannot parse (a codex CLI's plain output, stderr interleaved by
+// CombinedOutput, a banner) is skipped. When no result-line text is found it falls
+// back to the accumulated assistant text; a fully non-stream output yields an empty
+// result (the caller relays the raw output instead) and a zero usage. The executor
+// stays pure-compute: this only reads text already captured and opens no connection.
+func ParseRunnerStream(out string) (result string, usage TokenUsage) {
+	var assistant strings.Builder
 	sc := bufio.NewScanner(strings.NewReader(out))
 	sc.Buffer(make([]byte, 0, 64*1024), maxRunnerLineBytes)
 	for sc.Scan() {
@@ -47,14 +49,34 @@ func ParseRunnerUsage(out string) TokenUsage {
 			continue
 		}
 		for _, ev := range evs {
-			if ev.Type != "result" {
-				continue
+			switch ev.Type {
+			case "result":
+				usage.InputTokens += ev.TokensIn
+				usage.OutputTokens += ev.TokensOut
+				usage.CacheReadTokens += ev.CacheReadTokens
+				usage.CacheWriteTokens += ev.CacheWriteTokens
+				if strings.TrimSpace(ev.Result) != "" {
+					result = ev.Result // last non-empty result-line text = the run's final answer
+				}
+			case "assistant_text":
+				if ev.Text != "" {
+					if assistant.Len() > 0 {
+						assistant.WriteString("\n")
+					}
+					assistant.WriteString(ev.Text)
+				}
 			}
-			u.InputTokens += ev.TokensIn
-			u.OutputTokens += ev.TokensOut
-			u.CacheReadTokens += ev.CacheReadTokens
-			u.CacheWriteTokens += ev.CacheWriteTokens
 		}
 	}
+	if strings.TrimSpace(result) == "" {
+		result = strings.TrimSpace(assistant.String())
+	}
+	return result, usage
+}
+
+// ParseRunnerUsage returns just the aggregate per-run token usage (the usage half
+// of ParseRunnerStream), for callers that only need accounting.
+func ParseRunnerUsage(out string) TokenUsage {
+	_, u := ParseRunnerStream(out)
 	return u
 }
