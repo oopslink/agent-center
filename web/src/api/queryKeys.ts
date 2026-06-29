@@ -89,6 +89,10 @@ export const qk = {
   taskFiles: (taskId: string) => o('taskFiles', taskId),
   issueFiles: (issueId: string) => o('issueFiles', issueId),
   codeReposByProject: (projectId: string) => o('codeReposByProject', projectId),
+  // T583 (issue-921db054 / I5): read-only agent runtime browser.
+  runtimeList: (agentId: string, path: string) => o('runtimeList', agentId, path),
+  runtimeRead: (agentId: string, path: string) => o('runtimeRead', agentId, path),
+  runtimeGitLog: (agentId: string, path: string) => o('runtimeGitLog', agentId, path),
   // T575 (issue-f980c8de): workspace-level code-repo registry + remote viewing.
   workspaceRepos: () => o('workspaceRepos'),
   repoCommits: (repoId: string, branch: string) => o('repoCommits', repoId, branch),
