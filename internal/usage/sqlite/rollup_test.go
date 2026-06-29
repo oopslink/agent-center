@@ -222,3 +222,48 @@ func TestRollupProjectBucketing(t *testing.T) {
 		t.Fatalf("p1 bucket wrong: %+v", p1)
 	}
 }
+
+// TestRollupTokenCostByTaskProject is the T580 regression: a task-scoped usage
+// event whose ingest-time project_id was lost ("" — report_usage's silent fallback)
+// is bucketed by the TASK's real project (via LEFT JOIN pm_tasks on task_id), NOT by
+// the empty usage_events.project_id. A converse event (no task_id) still lands in "".
+func TestRollupTokenCostByTaskProject(t *testing.T) {
+	env := setupRollup(t)
+	const ag = "agent:agent-t580"
+	const at = "2026-06-23T09:00:00Z"
+	insertTask(t, env.db, "task-x", "px", ag, at)
+
+	// Task-scoped usage whose project_id was wrongly stored as "" at ingest.
+	if err := env.events.Append(env.ctx, usage.UsageEvent{
+		ID: "u-task", AgentRef: ag, ProjectID: "", TaskID: "task-x", Model: "claude-opus-4-8",
+		Tokens: usage.TokenCounts{Input: 100, Output: 40}, CostMicros: 1000, TS: tm(at), Source: usage.SourceReport,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Converse usage (no task) → stays in the no-project bucket.
+	if err := env.events.Append(env.ctx, usage.UsageEvent{
+		ID: "u-conv", AgentRef: ag, ProjectID: "", TaskID: "", Model: "claude-opus-4-8",
+		Tokens: usage.TokenCounts{Input: 7}, CostMicros: 500, TS: tm(at), Source: usage.SourceReport,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := env.roll.RunIncremental(env.ctx); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := env.daily.ListByAgent(env.ctx, ag, "", "")
+	byProject := map[string]usage.AgentActivityDaily{}
+	for _, r := range rows {
+		byProject[r.ProjectID] = r
+	}
+	// The task-scoped tokens/cost reattribute to "px" (NOT "").
+	px, ok := byProject["px"]
+	if !ok || px.TokensIn != 100 || px.TokensOut != 40 || px.CostMicros != 1000 {
+		t.Fatalf("px bucket = %+v (want in=100 out=40 cost=1000)", px)
+	}
+	// The converse tokens stay in the "" bucket; the task ones must NOT leak here.
+	empty := byProject[""]
+	if empty.TokensIn != 7 || empty.CostMicros != 500 {
+		t.Fatalf("\"\" bucket = %+v (want only the converse: in=7 cost=500)", empty)
+	}
+}
