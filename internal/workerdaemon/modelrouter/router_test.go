@@ -80,6 +80,34 @@ func TestResolve_TaskModelOverride_SoleCLI(t *testing.T) {
 	}
 }
 
+// nit ① (PD review): when the SAME model appears under both CLIs, resolveCLI takes
+// the FIRST-match entry's CLI for a model-only override / default (documented
+// behavior — this pins it). claude listed first → override resolves to claude.
+func TestResolve_SameModelBothCLIs_FirstMatchWins(t *testing.T) {
+	r := NewRouter(nil)
+	cfg := Config{AllowedExecutors: []ExecutorCandidate{
+		{CLI: "claude-code", Model: "shared-model"},
+		{CLI: "codex", Model: "shared-model"},
+	}}
+	// task.model override of the shared model.
+	dec, err := r.ResolveExecutor(context.Background(), "shared-model", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if dec.CLI != "claude-code" {
+		t.Errorf("override cli = %q, want claude-code (first-match)", dec.CLI)
+	}
+	// And the default-fallback path resolves the same way.
+	cfg.DefaultExecutorModel = "shared-model"
+	dec, err = r.ResolveExecutor(context.Background(), "", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve(default): %v", err)
+	}
+	if dec.CLI != "claude-code" || dec.Source != SourceDefault {
+		t.Errorf("default got (%q,%q), want (claude-code, default) first-match", dec.CLI, dec.Source)
+	}
+}
+
 // Path 2: no task.model → judge picks a {cli,model} from allowed_executors → used.
 func TestResolve_LLMJudged(t *testing.T) {
 	j := &fakeJudge{cli: "claude-code", model: "opus-hard"}
