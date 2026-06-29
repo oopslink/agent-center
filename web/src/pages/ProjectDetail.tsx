@@ -30,6 +30,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
 import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { PlanStatusChip, planProgressLabel, PlanFailedIndicator } from '@/components/planDisplay';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
 // project hosts its Issues and Tasks as tabs/sections — there is no
@@ -168,13 +169,16 @@ function ProjectEditModal({
 }): React.ReactElement {
   const [name, setName] = useState(p.name);
   const [description, setDescription] = useState(p.description ?? '');
+  // T566: auto-assign master switch — default ON (absent ⇒ true).
+  const [autoAssign, setAutoAssign] = useState(p.auto_assign_enabled ?? true);
   const update = useUpdateProject(p.id);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fields: { name?: string; description?: string } = {};
+    const fields: { name?: string; description?: string; auto_assign_enabled?: boolean } = {};
     if (name !== p.name) fields.name = name;
     if (description !== (p.description ?? '')) fields.description = description;
+    if (autoAssign !== (p.auto_assign_enabled ?? true)) fields.auto_assign_enabled = autoAssign;
     try {
       await update.mutateAsync(fields);
       onClose();
@@ -209,6 +213,23 @@ function ProjectEditModal({
           className={editInputClass}
           data-testid="project-edit-description"
         />
+        {/* T566 (issue-577a7b0e): project-level auto-assign master switch. */}
+        <div className="mt-4 flex items-start gap-2.5">
+          <ToggleSwitch
+            checked={autoAssign}
+            onChange={setAutoAssign}
+            ariaLabel="Auto-assign pool tasks"
+            testId="project-edit-auto-assign"
+          />
+          <span className="text-xs">
+            <span className="font-medium text-text-primary">Auto-assign pool tasks</span>
+            <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
+              When on, claimable pool tasks are automatically assigned to an eligible idle
+              agent whose capabilities cover the task. Off = tasks wait for a manual
+              assign/claim.
+            </span>
+          </span>
+        </div>
         {update.isError && (
           <p className="mt-3 text-xs text-danger" data-testid="project-edit-error">
             {(update.error as Error).message}

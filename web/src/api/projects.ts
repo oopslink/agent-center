@@ -20,6 +20,8 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
+  // T566 (issue-577a7b0e): project-level auto-assign master switch (default ON).
+  auto_assign_enabled?: boolean;
 }
 
 export function useProjects() {

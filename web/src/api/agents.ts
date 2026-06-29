@@ -107,6 +107,9 @@ export interface UpdateAgentConfigInput {
   // active). Both optional so non-concurrency edits keep the legacy body shape.
   max_concurrent_tasks?: number;
   allowed_executors?: ExecutorProfile[];
+  // T566 (issue-577a7b0e): per-agent opt-out of auto-assignment (default true).
+  // Optional so a config edit that doesn't touch it preserves the server value.
+  auto_assignable?: boolean;
 }
 
 export function useUpdateAgentConfig(id: string) {

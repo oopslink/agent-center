@@ -74,6 +74,12 @@ export interface PlanNode {
   // Backend-derived; absent / false on backlog + structured-plan nodes. The Work
   // Board renders a "claimable" chip on a pool node when this is true.
   claimable?: boolean;
+  // T566 (issue-577a7b0e): set by the auto-assign reconciler (BE-2) on a
+  // claimable pool task that declares required_capabilities but has NO eligible
+  // online agent right now — it stays in the pool ("starved"). The Work Board
+  // shows a "waiting for a qualified agent" badge. Absent/false when not starved.
+  // Contract locked with PD: field name `starved` on the pool node DTO.
+  starved?: boolean;
 }
 
 // PlanEdge — a directed dependency edge. `from` (the dependent / downstream

@@ -10,6 +10,7 @@ import type { Agent, ExecutorProfile } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { ConfirmModal } from './ConfirmModal';
 import { executorBadgeClass, MODEL_SUGGESTIONS } from './executorProfiles';
+import { ToggleSwitch } from './ToggleSwitch';
 
 interface Props {
   agent: Agent;
@@ -53,6 +54,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
 
   const trulyParallel = maxConcurrent >= 2 && executors.length > 0;
 
+  // T566 (issue-577a7b0e): per-agent auto-assign opt-out (default true).
+  const [autoAssignable, setAutoAssignable] = useState(agent.auto_assignable ?? true);
+
   const update = useUpdateAgentConfig(agent.id);
   const restart = useRestartAgent(agent.id);
   const containerRef = useModalA11y({ open: true, onClose });
@@ -71,6 +75,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         provider: provider.trim(),
         max_concurrent_tasks: maxConcurrent,
         allowed_executors: executors,
+        auto_assignable: autoAssignable,
       });
       // A running agent must restart to pick up the new config; a stopped agent
       // applies it on its next start (nothing to restart now).
@@ -289,6 +294,29 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 ? `Concurrency ENABLED — up to ${maxConcurrent} tasks in parallel.`
                 : 'DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor profile to run in parallel.'}
             </p>
+          </div>
+
+          {/* T566 (issue-577a7b0e): per-agent auto-assign opt-out. */}
+          <div className="mb-3 mt-5 border-t border-border-base pt-4" data-testid="agent-config-auto-assign-section">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Auto-assignment
+            </h3>
+            <div className="flex items-start gap-2.5">
+              <ToggleSwitch
+                checked={autoAssignable}
+                onChange={setAutoAssignable}
+                ariaLabel="Auto-assignable"
+                testId="agent-config-auto-assignable"
+              />
+              <span className="text-xs">
+                <span className="font-medium text-text-primary">Auto-assignable</span>
+                <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
+                  When on, this agent may be automatically assigned matching pool tasks. Off
+                  = it is never auto-assigned, but can still be assigned manually or claim
+                  tasks itself.
+                </span>
+              </span>
+            </div>
           </div>
 
           {error && (

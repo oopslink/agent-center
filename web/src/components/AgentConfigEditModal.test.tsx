@@ -146,6 +146,26 @@ describe('AgentConfigEditModal (T236)', () => {
     });
   });
 
+  it('T566: auto_assignable toggle defaults ON and PATCHes false when turned off', async () => {
+    let patchBody: Record<string, unknown> | undefined;
+    server.use(
+      http.patch('/api/agents/:id/config', async ({ request }) => {
+        patchBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...base });
+      }),
+      http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
+    );
+    wrap(base); // base has no auto_assignable → defaults ON
+    const toggle = screen.getByTestId('agent-config-auto-assignable');
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(screen.getByTestId('agent-config-edit-save'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(patchBody).toBeDefined());
+    expect(patchBody).toMatchObject({ auto_assignable: false });
+  });
+
   it('Cancel on the confirm keeps the modal open (no PATCH)', async () => {
     let patched = false;
     server.use(

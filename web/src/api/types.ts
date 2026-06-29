@@ -243,6 +243,10 @@ export interface Agent {
   allowed_models?: string[]; // read-only legacy mirror, derived server-side.
   concurrency_enabled?: boolean;
   effective_concurrency_cap?: number;
+  // T566 (issue-577a7b0e): per-agent opt-out of auto-assignment. Default true —
+  // absent ⇒ true (assignable). When false the agent is never auto-assigned a
+  // pool task, but can still be assigned manually / claim tasks itself.
+  auto_assignable?: boolean;
 }
 
 // v2.18.1: one executor candidate = a {cli, model} pair. cli ∈ {claude-code,
@@ -557,6 +561,10 @@ export interface Project {
   issue_count?: number;
   plan_count?: number;
   repo_count?: number;
+  // T566 (issue-577a7b0e): project-level master switch for auto-assigning
+  // claimable pool tasks to eligible idle agents. Default ON — absent ⇒ true.
+  // Emitted on the single-project GET; settable via PATCH.
+  auto_assign_enabled?: boolean;
 }
 
 // Issue mirrors the v2.7 ProjectManager BC Issue projection. Issues are
@@ -635,6 +643,10 @@ export interface Task {
   // T106: the owning plan's id when the task is selected into a plan; absent for
   // a backlog task. The Task detail sidebar shows + links to the plan.
   plan_id?: string;
+  // T566 (issue-577a7b0e): canonical capability tags an agent must ALL have for
+  // this task to be auto-assigned (strict subset gate). Empty = no requirement.
+  // The DTO always emits an array ([] when none); optional for legacy payloads.
+  required_capabilities?: string[];
   version: number;
   created_at: string;
   updated_at: string;

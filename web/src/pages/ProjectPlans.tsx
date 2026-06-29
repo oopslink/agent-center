@@ -710,6 +710,35 @@ function ClaimableChip({
   );
 }
 
+// StarvedBadge — T566 (issue-577a7b0e). A claimable pool task that declares
+// required_capabilities but has NO eligible online agent right now stays in the
+// pool; the reconciler (BE-2) marks it `starved`. We surface a clear "waiting for
+// a qualified agent" badge (never color alone — label + icon) so it's visible
+// that the task is stuck on capability matching, not silently idle. Renders
+// nothing when the node is not starved.
+function StarvedBadge({
+  starved,
+  taskId,
+}: {
+  starved: boolean | undefined;
+  taskId: string;
+}): React.ReactElement | null {
+  if (!starved) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded bg-status-amber-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-amber-fg"
+      data-testid={`starved-badge-${taskId}`}
+      title="Waiting for a qualified agent — no eligible online agent covers this task's required capabilities."
+    >
+      {/* hourglass / waiting glyph */}
+      <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+        <path d="M6 3h12M6 21h12M8 3v4l4 4 4-4V3M8 21v-4l4-4 4 4v4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      Waiting for agent
+    </span>
+  );
+}
+
 // BuiltinPoolColumn — ADR-0047 segment 2: the is_builtin assignment pool, a
 // DISTINCT segment (not a generic plan column). A FLAT list of its nodes (no
 // DAG / edge editing). completed/discarded nodes are HIDDEN by default. A
@@ -887,6 +916,7 @@ function PoolTaskCard({
       <div className="flex flex-wrap items-center justify-between gap-1.5">
         <AssigneeBadge assignee={node.assignee_ref} />
         <span className="inline-flex items-center gap-1">
+          <StarvedBadge starved={node.starved} taskId={node.task_id} />
           <ClaimableChip claimable={node.claimable} taskId={node.task_id} />
           <TaskArchivedBadge archived={node.archived} taskId={node.task_id} />
           <StatusChip status={node.task_status} />

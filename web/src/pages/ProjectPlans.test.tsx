@@ -966,6 +966,33 @@ describe('ADR-0047 Work Board — 3 segments (backlog / built-in pool / structur
     expect(within(pool).queryByTestId('claimable-chip-TS-POOL2')).not.toBeInTheDocument();
   });
 
+  it('T566: a starved pool node shows the "waiting for agent" badge; others do not', async () => {
+    const plans = {
+      plans: [
+        {
+          id: 'PL-BUILTIN', project_id: 'proj-a', name: '[Built-in]', description: '',
+          status: 'running', creator_ref: 'user:owner', conversation_id: 'cb', target_date: null,
+          has_failed: false, progress: { done: 0, total: 2 }, created_at: '2026-06-01T01:00:00Z',
+          is_builtin: true, node_count: 2,
+          nodes_preview: [
+            poolNode('TS-STARVED', 'Starved task', { starved: true }),
+            poolNode('TS-OK', 'Normal pool task', {}),
+          ],
+        },
+      ],
+    };
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/proj-a/plans', () => HttpResponse.json(plans)),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('work-board')).toBeInTheDocument());
+    const pool = screen.getByTestId('builtin-pool-column');
+    const badge = within(pool).getByTestId('starved-badge-TS-STARVED');
+    expect(badge).toHaveTextContent(/waiting for agent/i);
+    expect(within(pool).queryByTestId('starved-badge-TS-OK')).not.toBeInTheDocument();
+  });
+
   it('HIDES completed/discarded in the Backlog (count + cards)', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
