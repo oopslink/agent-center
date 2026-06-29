@@ -664,13 +664,24 @@ function PlanInfoRail({
       className="hidden w-[360px] shrink-0 flex-col overflow-y-auto border-l border-border-base bg-bg-base/40 md:flex"
       data-testid="plan-info-rail"
     >
-      {/* Status + lifecycle */}
-      <div className="space-y-3 border-b border-border-base p-5">
+      {/* Status + Progress (merged, top of rail) — the plan STATUS chip and the
+          PROGRESS bar now share ONE block at the very TOP of the rail (@oopslink:
+          进度放到顶端 + plan 状态和进度合并到一起). The standalone Progress section
+          that used to sit below Participants was removed. Owns plan-detail-meta. */}
+      <div className="space-y-3 border-b border-border-base p-5" data-testid="plan-detail-meta">
         <div className="flex flex-wrap items-center gap-2">
           <PlanStatusChip status={plan.status} />
           {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
           <PlanFailedIndicator hasFailed={plan.has_failed} />
+          <span className="ml-auto text-xs text-text-muted">nodes done</span>
         </div>
+        <PlanProgressBar done={plan.progress.done} total={plan.progress.total} />
+        {plan.target_date && (
+          <p className="text-xs text-text-muted">
+            <span className="uppercase tracking-wide">Target</span>{' '}
+            <span className="text-text-secondary" title={plan.target_date}>{formatLocalTime(plan.target_date)}</span>
+          </p>
+        )}
         {/* T570: all lifecycle + edit + destructive actions sit on ONE compact row
             (was two stacked rows). flex-wrap keeps them on a single line when they
             fit (Edit · Archive · Delete in the 360px rail) and only wraps if the
@@ -771,8 +782,8 @@ function PlanInfoRail({
         )}
       </div>
 
-      {/* Participants — avatars open the agent-activity sidebar. T570: moved ABOVE
-          Progress per @oopslink (was below Up next). */}
+      {/* Participants — avatars open the agent-activity sidebar. Sits below the
+          merged Status+Progress block and Goal (Progress now lives at the top). */}
       {participants.length > 0 && (
         <div className="border-b border-border-base p-5">
           <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Participants</h3>
@@ -796,21 +807,6 @@ function PlanInfoRail({
           </div>
         </div>
       )}
-
-      {/* Progress */}
-      <div className="border-b border-border-base p-5" data-testid="plan-detail-meta">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Progress</h3>
-          <span className="text-xs text-text-muted">nodes done</span>
-        </div>
-        <PlanProgressBar done={plan.progress.done} total={plan.progress.total} />
-        {plan.target_date && (
-          <p className="mt-3 text-xs text-text-muted">
-            <span className="uppercase tracking-wide">Target</span>{' '}
-            <span className="text-text-secondary" title={plan.target_date}>{formatLocalTime(plan.target_date)}</span>
-          </p>
-        )}
-      </div>
 
       {/* Up next */}
       <div className="border-b border-border-base p-5">
