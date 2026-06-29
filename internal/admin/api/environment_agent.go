@@ -10,7 +10,6 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/runtimefs"
 )
 
 // =============================================================================
@@ -469,34 +468,4 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
-}
-
-// envAgentRuntimeFSResponseHandler — POST /admin/environment/agent/runtime-fs/response
-// (issue-921db054 / I5). The WORKER posts the correlated reply to an agent.runtime_fs
-// read command here. requireAgentOnWorker proves the posting worker (token owner) owns
-// resp.AgentID, then the in-process RuntimeFsDispatcher matches the reply to the
-// waiting Web Console request by req_id. An unmatched req_id (the waiter already timed
-// out, or a duplicate/late reply) is acknowledged with matched=false — never an error,
-// so a slow worker reply after the Center gave up is a harmless no-op.
-func (s *Server) envAgentRuntimeFSResponseHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	var resp runtimefs.Response
-	if err := decodeJSON(r, &resp); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	// Hard gate: the agent must be bound to the worker proven by the bearer token.
-	if _, ok := s.requireAgentOnWorker(w, r, d, resp.AgentID); !ok {
-		return
-	}
-	if strings.TrimSpace(resp.ReqID) == "" {
-		writeError(w, http.StatusBadRequest, "missing_req_id", "")
-		return
-	}
-	if d.RuntimeFsDispatcher == nil {
-		writeError(w, http.StatusNotImplemented, "runtime_fs_not_wired", "")
-		return
-	}
-	matched := d.RuntimeFsDispatcher.Resolve(resp)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "matched": matched})
 }

@@ -20,7 +20,6 @@ import (
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
-	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/identity"
@@ -28,7 +27,6 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
-	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/settings"
@@ -117,14 +115,6 @@ type HandlerDeps struct {
 	// v2.7 C3: the Agent BC AppService facade backs the org-scoped
 	// /api/agents + /api/agents/{id}/{start,stop,restart,reset} routes.
 	AgentSvc *agentsvc.Service
-
-	// I5 (issue-921db054) — the agent runtime file browser transport. EnvControl
-	// enqueues the `agent.runtime_fs` read command down the control-loop;
-	// RuntimeFsDispatcher (the SAME instance shared with the admin server) awaits the
-	// worker's correlated reply by req_id. Both OPTIONAL: nil → the runtime endpoints
-	// return {unavailable} (the feature degrades, never crashes).
-	EnvControl          *envservice.EnvControl
-	RuntimeFsDispatcher *runtimefs.Dispatcher
 
 	// v2.7 D3-d: the files transfer Service backs the human upload/download
 	// HTTP endpoints (/api/files...). Upload mints a session, streams bytes

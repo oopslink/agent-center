@@ -43,7 +43,6 @@ import (
 	"github.com/oopslink/agent-center/internal/projectmanager/mergecheck"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
-	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
@@ -137,12 +136,6 @@ type App struct {
 	// /admin/environment/worker/commands/stream endpoint subscribes workers to
 	// it. Same WorkerControlEvent log backs both push + poll.
 	ControlStreamBus *controlstream.Bus
-
-	// RuntimeFsDispatcher is the I5 (issue-921db054) agent-runtime-browser correlator
-	// — ONE shared instance: the webconsole runtime endpoints Register+await a req_id
-	// here, and the admin /admin/environment/agent/runtime-fs/response endpoint
-	// Resolves the worker's reply against it. Both servers must hold the SAME pointer.
-	RuntimeFsDispatcher *runtimefs.Dispatcher
 
 	MessageWriter      *convservice.MessageWriter
 	ChannelMgmtSvc     *convservice.ChannelManagementService
@@ -521,47 +514,41 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// and the stream endpoint subscribes from (admin_wiring.go → HandlerDeps).
 	controlStreamBus := controlstream.NewBus()
 
-	// I5 (issue-921db054): the agent-runtime-browser correlator — ONE instance shared
-	// by the webconsole runtime endpoints (Register+await) and the admin runtime-fs
-	// response endpoint (Resolve), wired into both HandlerDeps below.
-	runtimeFsDispatcher := runtimefs.NewDispatcher()
-
 	return &App{
-		Config:              cfg,
-		DB:                  db,
-		Clock:               clk,
-		IDGen:               gen,
-		PMService:           pmSvc,
-		CodeRepoService:     codeRepoSvc,
-		AgentService:        agentSvc,
-		AgentRepo:           agentRepo,
-		AgentActivityRepo:   agentActivityRepo,
-		EnvControlSvc:       envControlSvc,
-		ControlStreamBus:    controlStreamBus,
-		RuntimeFsDispatcher: runtimeFsDispatcher,
-		WorkerRepo:          wr,
-		PMProjectRepo:       pmProjRepo,
-		ConvRepo:            cr,
-		MsgRepo:             mgRepo,
-		EventRepo:           er,
-		Sink:                sink,
-		UsageEventRepo:      usageEventRepo,
-		ModelPriceRepo:      modelPriceRepo,
-		EnrollSvc:           enroll,
-		WorkerConfigSvc:     workerConfig,
-		MessageWriter:       writer,
-		ChannelMgmtSvc:      channelMgmt,
-		ParticipantMgmtSvc:  participantMgmt,
-		CarryOverSvc:        carryOver,
-		ConvRefRepo:         convRefRepo,
-		ReadStateRepo:       readStateRepo,
-		ReadStateSvc:        readStateSvc,
-		InboxSvc:            inboxSvc,
-		WakeGuard:           wakeGuard,
-		ReplyNudgeSvc:       replyNudgeSvc,
-		FollowStateRepo:     followStateRepo,
-		FollowStateSvc:      followStateSvc,
-		OutboxRepo:          outboxRepo,
+		Config:             cfg,
+		DB:                 db,
+		Clock:              clk,
+		IDGen:              gen,
+		PMService:          pmSvc,
+		CodeRepoService:    codeRepoSvc,
+		AgentService:       agentSvc,
+		AgentRepo:          agentRepo,
+		AgentActivityRepo:  agentActivityRepo,
+		EnvControlSvc:      envControlSvc,
+		ControlStreamBus:   controlStreamBus,
+		WorkerRepo:         wr,
+		PMProjectRepo:      pmProjRepo,
+		ConvRepo:           cr,
+		MsgRepo:            mgRepo,
+		EventRepo:          er,
+		Sink:               sink,
+		UsageEventRepo:     usageEventRepo,
+		ModelPriceRepo:     modelPriceRepo,
+		EnrollSvc:          enroll,
+		WorkerConfigSvc:    workerConfig,
+		MessageWriter:      writer,
+		ChannelMgmtSvc:     channelMgmt,
+		ParticipantMgmtSvc: participantMgmt,
+		CarryOverSvc:       carryOver,
+		ConvRefRepo:        convRefRepo,
+		ReadStateRepo:      readStateRepo,
+		ReadStateSvc:       readStateSvc,
+		InboxSvc:           inboxSvc,
+		WakeGuard:          wakeGuard,
+		ReplyNudgeSvc:      replyNudgeSvc,
+		FollowStateRepo:    followStateRepo,
+		FollowStateSvc:     followStateSvc,
+		OutboxRepo:         outboxRepo,
 
 		AgentInstanceRepo: aiRepo,
 		AgentMgmtSvc:      agentMgmt,

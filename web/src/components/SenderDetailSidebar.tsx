@@ -2,7 +2,8 @@ import type React from 'react';
 import { useState } from 'react';
 import { useInRouterContext } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
-import { useAgent, useAgentActivity } from '@/api/agents';
+import { useAgent, useAgentActivity, useAgentTasks } from '@/api/agents';
+import { refLabel } from '@/components/workItemDisplay';
 import { extractRateLimitReset } from '@/utils/rateLimitReminder';
 import { ReminderCreateModal, type ReminderPrefill } from './ReminderCreateModal';
 import { useUser } from '@/api/users';
@@ -364,8 +365,84 @@ function AgentDetailBody({
         <dd className="min-w-0 break-words text-text-primary">{agent.description || '—'}</dd>
       </dl>
 
+      {/* @oopslink: the agent's current (in-flight) tasks, listed at the top of
+          the Activity area — id / title / status. */}
+      <AgentCurrentTasks agentId={agentId} />
+
       <AgentActivitySection activity={activity} />
     </div>
+  );
+}
+
+// AgentCurrentTasks — a compact list of the agent's IN-PROGRESS work (active /
+// paused / queued / blocked-on-input), shown above the Activity feed. Terminal
+// tasks (done / canceled / superseded / failed) are excluded — this is "what the
+// agent is doing right now". Each row: human task id + title + a status label.
+const CURRENT_TASK_LABELS: Record<string, string> = {
+  active: 'In Progress',
+  paused: 'Paused',
+  queued: 'Pending',
+  waiting_input: 'Blocked',
+};
+
+function AgentCurrentTasks({ agentId }: { agentId: string }): React.ReactElement {
+  const tasks = useAgentTasks(agentId);
+  const current = (tasks.data ?? []).filter((t) => CURRENT_TASK_LABELS[t.status] !== undefined);
+
+  return (
+    <section className="border-t border-border-base pt-4" data-testid="sender-sidebar-current-tasks">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+        Current tasks{current.length > 0 ? ` (${current.length})` : ''}
+      </h3>
+      {tasks.isLoading ? (
+        <p className="text-xs text-text-muted" data-testid="sender-sidebar-current-tasks-loading">Loading…</p>
+      ) : tasks.isError ? (
+        <p className="text-xs text-danger" data-testid="sender-sidebar-current-tasks-error">
+          {(tasks.error as Error).message}
+        </p>
+      ) : current.length === 0 ? (
+        <p className="text-xs text-text-muted" data-testid="sender-sidebar-current-tasks-empty">
+          No tasks in progress.
+        </p>
+      ) : (
+        <ul className="space-y-1.5" data-testid="sender-sidebar-current-tasks-list">
+          {current.map((t) => {
+            const bareId = t.task_id ?? t.task_ref;
+            const label = refLabel(t.org_ref, bareId);
+            const title = t.task_title || bareId;
+            const linkable = Boolean(t.task_title && t.project_id && t.task_id);
+            return (
+              <li
+                key={t.id}
+                className="flex items-center gap-2 rounded border border-border-base px-2 py-1.5"
+                data-testid="sender-sidebar-current-task"
+                data-task-id={t.task_id ?? ''}
+                data-status={t.status}
+              >
+                <span
+                  className="shrink-0 rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
+                  title={bareId}
+                >
+                  {label}
+                </span>
+                {linkable ? (
+                  <OrgLink
+                    to={`/projects/${encodeURIComponent(t.project_id as string)}/tasks/${encodeURIComponent(t.task_id as string)}`}
+                    className="min-w-0 flex-1 truncate text-xs text-accent hover:underline"
+                    title={title}
+                  >
+                    {title}
+                  </OrgLink>
+                ) : (
+                  <span className="min-w-0 flex-1 truncate text-xs text-text-primary" title={title}>{title}</span>
+                )}
+                <span className="shrink-0 text-[0.625rem] font-medium text-text-muted">{CURRENT_TASK_LABELS[t.status]}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

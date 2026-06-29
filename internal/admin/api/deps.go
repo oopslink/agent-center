@@ -25,7 +25,6 @@ import (
 	"github.com/oopslink/agent-center/internal/outbox"
 	projectmanager "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
-	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/usage"
@@ -92,14 +91,6 @@ type HandlerDeps struct {
 	// SAME WorkerControlEvent log backs both; the bus is a low-latency push, not
 	// a new log.
 	ControlStreamBus *controlstream.Bus
-
-	// RuntimeFsDispatcher is the OPTIONAL in-process correlator for the agent
-	// runtime file browser (issue-921db054 / I5). The worker POSTs its read reply to
-	// /admin/environment/agent/runtime-fs/response; this matches it (by req_id) to the
-	// waiting Web Console request. The SAME *runtimefs.Dispatcher instance is shared
-	// with the webconsole server (which Registers + awaits). nil → the response
-	// endpoint returns 501.
-	RuntimeFsDispatcher *runtimefs.Dispatcher
 
 	// Agent BC (v2.7 C3 / D2-b1) — drives the per-agent MCP tool surface
 	// (/admin/agent-tools/...). The per-agent auth gate (requireAgentOnWorker)

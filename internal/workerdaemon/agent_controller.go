@@ -45,7 +45,6 @@ import (
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/mcphost"
-	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
@@ -620,13 +619,6 @@ func (c *AgentController) Handle(ctx context.Context, cmd ControlCommand) error 
 			return nil
 		}
 		return c.workAvailable(ctx, pl)
-	case cmdTypeRuntimeFs:
-		var pl runtimefs.Command
-		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
-			c.log("runtime_fs decode (offset=%d): %v — skipping", cmd.Offset, err)
-			return nil
-		}
-		return c.runtimeFs(ctx, pl)
 	default:
 		// Unknown command type: log + ack (don't wedge the cursor on a command
 		// this controller version doesn't understand).
