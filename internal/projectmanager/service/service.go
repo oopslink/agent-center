@@ -143,6 +143,18 @@ type AgentDirectory interface {
 	ConcurrencyCapOfAgent(ctx context.Context, agentID string) (cap int, err error)
 }
 
+// CodeRepoResolver resolves a workspace coderepo.Repo by id (v2.18.4 BE-1). It is
+// the narrow port the projectmanager BC uses to follow a CodeRepoRef.repo_id into
+// the coderepo BC WITHOUT importing it:
+//   - RepoURL backs the merge-check primaryRepoURL (an unknown repo returns "" so the
+//     caller falls back to the ref's own url, never failing the merge on a miss);
+//   - RepoOrg backs AddCodeRepoReference's existence + same-org guard (found=false
+//     for an unknown repo; the org isolates cross-workspace references).
+type CodeRepoResolver interface {
+	RepoURL(ctx context.Context, repoID string) (string, error)
+	RepoOrg(ctx context.Context, repoID string) (orgID string, found bool, err error)
+}
+
 // PausedTaskPort reports which of the given tasks currently have a PAUSED agent
 // work item (T53). It is an OPTIONAL, nil-safe read-port of the pm Service: when
 // wired (non-nil) the plan read model derives a `paused` node for a running task
@@ -227,6 +239,11 @@ type Service struct {
 	// agentDir is OPTIONAL (nil-safe). nil ⇒ AssignTask skips the
 	// agent-membership step entirely (preserves pre-#5a behavior).
 	agentDir AgentDirectory
+	// codeRepoResolver is OPTIONAL (nil-safe, v2.18.4 BE-1). When wired it resolves a
+	// CodeRepoRef's repo_id → the workspace coderepo.Repo URL for the merge-check
+	// primaryRepoURL. nil ⇒ the resolver is skipped and a url-only ref's own url is
+	// used (pre-0087 behaviour, fully compatible).
+	codeRepoResolver CodeRepoResolver
 	// orgSeq is OPTIONAL (nil-safe, v2.7.1 #245). nil ⇒ CreateTask/CreateIssue
 	// skip org-number allocation (org_number stays 0, org_ref omitted) — keeps
 	// pre-#245 service constructions (tests) working unchanged.
@@ -342,6 +359,9 @@ type Deps struct {
 	// AgentDir is OPTIONAL: when set, AssignTask grants an assignee agent
 	// project membership (cross-org-guarded). When nil, that step is skipped.
 	AgentDir AgentDirectory
+	// CodeRepoResolver is OPTIONAL (v2.18.4 BE-1): when set, the merge-check
+	// primaryRepoURL follows a ref's repo_id → workspace Repo url. nil ⇒ url-only refs.
+	CodeRepoResolver CodeRepoResolver
 	// OrgSeq is OPTIONAL (v2.7.1 #245): when set, CreateTask/CreateIssue allocate
 	// a per-org T<n>/I<n> number. nil ⇒ allocation skipped (org_number 0).
 	OrgSeq pm.OrgSequenceRepository
@@ -394,7 +414,7 @@ func New(d Deps) *Service {
 		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
-		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
+		agentDir: d.AgentDir, codeRepoResolver: d.CodeRepoResolver, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
 		cycleMeta: d.CycleMeta, mergeChecker: d.MergeChecker, decisionGate: d.DecisionGate,
 		actionLogs:         d.TaskActionLogs,

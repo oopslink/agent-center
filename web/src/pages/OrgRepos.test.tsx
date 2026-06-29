@@ -1,0 +1,89 @@
+// T575 (issue-f980c8de) — OrgRepos workspace page: list, add, delete (confirm),
+// and the read-only remote viewer (commits/branches with graceful degrade).
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { server } from '@/test/mswServer';
+import OrgRepos from './OrgRepos';
+import type { WorkspaceRepo } from '@/api/types';
+
+const repoA: WorkspaceRepo = {
+  id: 'repo-1', organization_id: 'org-1', label: 'agent-center', description: 'the monorepo',
+  url: 'git@github.com:o/agent-center.git', provider: 'github', default_branch: 'main',
+  has_credential: true, reference_count: 2, created_by: 'user:o', created_at: 'x', updated_at: 'x', version: 1,
+};
+
+function wrap() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return render(<QueryClientProvider client={qc}><OrgRepos /></QueryClientProvider>);
+}
+
+afterEach(() => cleanup());
+
+describe('OrgRepos (T575)', () => {
+  it('lists workspace repos with provider badge + used-by count', async () => {
+    server.use(http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })));
+    wrap();
+    const card = await screen.findByTestId('repo-card');
+    expect(within(card).getByTestId('repo-card-label')).toHaveTextContent('agent-center');
+    expect(within(card).getByTestId('repo-provider-badge')).toHaveTextContent(/github/i);
+    expect(within(card).getByTestId('repo-card-usedby')).toHaveTextContent('used by 2 projects');
+  });
+
+  it('empty state when there are no repos', async () => {
+    server.use(http.get('/api/code-repos', () => HttpResponse.json({ repos: [] })));
+    wrap();
+    expect(await screen.findByTestId('repos-empty')).toBeInTheDocument();
+  });
+
+  it('+ Add repo opens the form modal', async () => {
+    server.use(http.get('/api/code-repos', () => HttpResponse.json({ repos: [] })));
+    wrap();
+    await screen.findByTestId('repos-empty');
+    fireEvent.click(screen.getByTestId('repos-add-btn'));
+    expect(screen.getByTestId('repo-form-modal')).toBeInTheDocument();
+  });
+
+  it('Delete asks for confirmation (mentions reference count) then DELETEs', async () => {
+    let deleted = false;
+    server.use(
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })),
+      http.delete('/api/code-repos/repo-1', () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('repo-card-delete'));
+    const confirm = await screen.findByTestId('confirm-modal');
+    expect(confirm).toHaveTextContent(/2 projects/);
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(deleted).toBe(true));
+  });
+
+  it('View remote opens the viewer; commits render from the (live) API', async () => {
+    server.use(
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })),
+      http.get('/api/code-repos/repo-1/branches', () => HttpResponse.json({ branches: [{ name: 'main', is_default: true }] })),
+      http.get('/api/code-repos/repo-1/commits', () => HttpResponse.json({ commits: [{ sha: 'abcdef1234', message: 'first', author: 'o', date: '' }] })),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('repo-card-view'));
+    const viewer = await screen.findByTestId('repo-remote-viewer');
+    await waitFor(() => expect(within(viewer).getByTestId('repo-remote-commits')).toBeInTheDocument());
+    expect(within(viewer).getByTestId('repo-remote-commits')).toHaveTextContent('first');
+    expect(within(viewer).getByTestId('repo-remote-commits')).toHaveTextContent('abcdef1');
+  });
+
+  it('remote viewer degrades gracefully when BE-2 viewing is unavailable', async () => {
+    server.use(
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })),
+      http.get('/api/code-repos/repo-1/branches', () => HttpResponse.json({ message: 'not wired' }, { status: 501 })),
+      http.get('/api/code-repos/repo-1/commits', () => HttpResponse.json({ message: 'not wired' }, { status: 501 })),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('repo-card-view'));
+    expect(await screen.findByTestId('repo-remote-unavailable')).toBeInTheDocument();
+  });
+});

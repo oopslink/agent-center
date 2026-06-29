@@ -27,21 +27,57 @@
 
 ## 3. 数据模型
 
-扩展 `CodeRepoRef` 为结构化仓库实体（同表加列，迁移 0086+）：
+> **v2.18.4 模型修订（oopslink 锁定 2026-06-29，BE-1 已实现）**：Repo 提为
+> **workspace（org）级一等实体**（与 Projects/Issues/Tasks/Plans 并列），**不**隶属
+> 任何 project；凭据**只在 Repo 这层**配、加密落地。项目侧沿用 `pm.CodeRepoRef`
+> 作**引用**（本就是引用，无数据迁移），additive 加 `repo_id` + per-project
+> `is_primary`。下表的「同表加列」旧设想被这个两实体模型取代——保留作历史。
+
+**两实体（v2.18.4 BE-1，迁移 0087）**：
+
+**Repo（workspace 顶级，新表 `code_repos`）** — 凭据唯一归属层：
+
+| 字段 | 说明 |
+|---|---|
+| `id` | ULID |
+| `organization_id` | workspace/org 作用域 |
+| `label` / `description` | 显示名 + 一句话用途（agent 不 checkout 即知该仓干什么） |
+| `url` | clone/remote URL |
+| `provider` | `github` / `gitlab` / `git`（generic）枚举校验，决定 §5 viewing 适配器 |
+| `default_branch` | 默认分支，引用可 per-project 覆盖 |
+| `credential_ciphertext` / `credential_nonce` | **加密落地**（AES-GCM via secretmgmt master key，复用 user_secrets 同款）。nullable（公开仓无凭据）。API **只读 mask**（`has_credential`），**绝不返回明文**；无 master key 时凭据写入 `ErrMasterKeyNotLoaded` 失败而非存明文 |
+| `created_by` / `created_at` / `updated_at` / `version` | 元数据 |
+
+**Project ↔ Repo 引用（`pm_code_repo_refs` additive）**：
+
+| 字段 | 说明 |
+|---|---|
+| `id` / `project_id` / `url` / `label` / `added_by` / `created_at` | 既有 |
+| `repo_id` | **新**：指向 workspace `code_repos.id`，nullable。`NULL` = 旧 url-only ref（兼容、merge-check 仍可用） |
+| `is_primary` | **新**：每项目主仓（≤1，应用层 set-primary 时清旧）。merge-check 读主引用 → workspace Repo.url |
+
+约束：ref 须带 `url` **或** `repo_id`（构造期校验，rehydrate 不校验——删仓解引后可成空 ref）。每项目 `is_primary` ≤1。`provider` 枚举校验。
+
+**解析（merge-check `primaryRepoURL`，BE-1 已改）**：项目主引用（`is_primary`，无则首个 ref）→ 若有 `repo_id` 经 `CodeRepoResolver` 端口取 workspace Repo.url；解析不到（端口未接 / 仓已删）回退该 ref 自身 url；旧 url-only ref 直接用自身 url。
+
+**权限**：Repo + 凭据 CRUD = workspace/org **admin**；项目成员只能 ref / unref / set-primary。删被引用的 Repo = **强删解引**（清所有引用的 repo_id/is_primary + 清凭据，一个 tx 内），API 返回 `unlinked_projects` 计数供确认提示。
+
+**实现位置**：新 BC `internal/coderepo`（Repo AR + repo + service）；引用侧在 `internal/projectmanager`（CodeRepoRef additive + ref-flow service）；HTTP `internal/webconsole/api/handlers_coderepo.go`。**不做**（BE-2/FE）：§4 agent MCP、§5 provider viewing、FE 页面。
+
+---
+**历史（被上面 v2.18.4 两实体模型取代的项目级单表设想）**：
 
 | 字段 | 说明 |
 |---|---|
 | `id` / `project_id` | 既有 |
 | `label` | 既有，显示名 |
-| `description` | **新**：一句话仓库用途简介，让 agent **不 checkout 即可了解该仓功能**（oopslink 要求）。由 §4 agent 接口与 viewing/列表返回展示 |
-| `url` | 既有，clone/remote URL |
-| `provider` | **新**：`github` / `gitlab` / `git`（generic）。决定 viewing/agent-live 走哪个适配器；空/未知 → `git` 回退 |
-| `default_branch` | **新**：默认分支（viewing 默认展示、agent 取值）。空 → 运行时探测或留空 |
-| `is_primary` | **新**：项目主仓（唯一）。merge-check 用主仓；agent get_repo_info 默认返回主仓 |
-| `credential_ref` | **新**：指向只读凭据（见 §6），nullable（公开仓不需要） |
+| `description` | 一句话仓库用途简介 |
+| `url` | clone/remote URL |
+| `provider` | `github` / `gitlab` / `git`（generic） |
+| `default_branch` | 默认分支 |
+| `is_primary` | 项目主仓（唯一） |
+| `credential_ref` | 指向只读凭据（见 §6），nullable |
 | `added_by` / `created_at` | 既有 |
-
-约束：每项目 `is_primary` 至多一个（set-primary 时清旧）。`url` 非空。`provider` 枚举校验。
 
 ## 4. Agent 标准仓库信息接口（MCP）
 

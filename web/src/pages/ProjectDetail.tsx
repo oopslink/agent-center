@@ -31,6 +31,13 @@ import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
 import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { PlanStatusChip, planProgressLabel, PlanFailedIndicator } from '@/components/planDisplay';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
+import {
+  useWorkspaceRepos,
+  useAddProjectRepoRef,
+  useRemoveProjectRepoRef,
+  useSetPrimaryProjectRepo,
+} from '@/api/repos';
+import { ProviderBadge } from '@/components/repoDisplay';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
 // project hosts its Issues and Tasks as tabs/sections — there is no
@@ -660,47 +667,153 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
   );
 }
 
+// CodeReposPanel — T575 (issue-f980c8de): the project's "Referenced repositories"
+// referencer. A project REFERENCES workspace repos (no url/credential config
+// here — those live on the workspace Repos page). Each ref shows the joined
+// workspace-repo info (provider/description/branch), a primary marker (the
+// starred repo, used by Integrate merge-check), and an un-reference action; a selector adds a new
+// reference to any not-yet-referenced workspace repo.
 function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElement {
-  const repos = useProjectCodeRepos(projectId);
-  const data = repos.data ?? [];
+  const refs = useProjectCodeRepos(projectId);
+  const workspaceRepos = useWorkspaceRepos();
+  const addRef = useAddProjectRepoRef(projectId);
+  const removeRef = useRemoveProjectRepoRef(projectId);
+  const setPrimary = useSetPrimaryProjectRepo(projectId);
+  const [pick, setPick] = useState('');
+
+  const data = refs.data ?? [];
+  const repoById = useMemo(
+    () => new Map((workspaceRepos.data ?? []).map((r) => [r.id, r])),
+    [workspaceRepos.data],
+  );
+  // Workspace repos not yet referenced — the add-selector options.
+  const referenced = useMemo(() => new Set(data.map((r) => r.repo_id).filter(Boolean)), [data]);
+  const available = (workspaceRepos.data ?? []).filter((r) => !referenced.has(r.id));
+  const hasPrimary = data.some((r) => r.is_primary);
+
+  const onAdd = () => {
+    if (!pick) return;
+    const repo = repoById.get(pick);
+    addRef.mutate(
+      { repo_id: pick, url: repo?.url, label: repo?.label, is_primary: !hasPrimary },
+      { onSuccess: () => setPick('') },
+    );
+  };
+
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
       data-testid="project-repos-panel"
     >
-      <h2 className="mb-2 font-heading text-sm font-semibold text-text-primary">Code repos</h2>
-      {repos.isLoading ? (
+      <h2 className="mb-1 font-heading text-sm font-semibold text-text-primary">Referenced repositories</h2>
+      <p className="mb-3 text-xs text-text-muted">
+        Workspace repos this project references. The primary repo (starred) drives Integrate
+        merge-check. Configure url/credentials on the workspace Repos page.
+      </p>
+      {refs.isLoading ? (
         <div className="space-y-2 py-2">
           <Skeleton height="1.5rem" />
           <Skeleton height="1.5rem" />
         </div>
-      ) : repos.isError ? (
+      ) : refs.isError ? (
         <p className="py-2 text-xs text-danger" data-testid="project-repos-error">
-          {(repos.error as Error).message}
+          {(refs.error as Error).message}
         </p>
       ) : data.length === 0 ? (
-        <p className="py-4 text-center text-xs text-text-muted">No code repos linked</p>
+        <p className="py-3 text-center text-xs text-text-muted" data-testid="project-repos-empty">
+          No referenced repositories.
+        </p>
       ) : (
-        <ul className="divide-y divide-border-base">
-          {data.map((r) => (
-            <li
-              key={r.id}
-              data-testid="repo-row"
-              data-repo-id={r.id}
-              className="flex items-center justify-between gap-3 py-1.5"
-            >
-              <a
-                href={r.url}
-                target="_blank"
-                rel="noreferrer"
-                className="truncate text-sm text-accent hover:underline"
+        <ul className="space-y-2">
+          {data.map((r) => {
+            const repo = r.repo_id ? repoById.get(r.repo_id) : undefined;
+            return (
+              <li
+                key={r.id}
+                data-testid="repo-row"
+                data-repo-id={r.id}
+                className="flex items-start gap-2 rounded-lg border border-border-base p-2"
               >
-                {r.label || r.url}
-              </a>
-              <span className="truncate font-mono text-[0.6875rem] text-text-muted">{r.url}</span>
-            </li>
-          ))}
+                <button
+                  type="button"
+                  onClick={() => !r.is_primary && setPrimary.mutate(r.id)}
+                  disabled={r.is_primary || setPrimary.isPending}
+                  title={r.is_primary ? 'Primary repo' : 'Set as primary'}
+                  aria-label={r.is_primary ? 'Primary repo' : 'Set as primary'}
+                  data-testid="repo-row-primary"
+                  data-primary={r.is_primary ? 'true' : 'false'}
+                  className={`mt-0.5 ${r.is_primary ? 'text-warning' : 'text-text-muted hover:text-warning'}`}
+                >
+                  <svg
+                    viewBox="0 0 20 20"
+                    className="h-4 w-4"
+                    fill={r.is_primary ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    aria-hidden="true"
+                  >
+                    <path d="M10 2.5l2.35 4.76 5.25.76-3.8 3.7.9 5.23L10 14.94 5.3 16.95l.9-5.23-3.8-3.7 5.25-.76z" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    {repo && <ProviderBadge provider={repo.provider} />}
+                    <span className="truncate text-sm font-medium text-text-primary">{repo?.label || r.label || r.url}</span>
+                    {r.is_primary && (
+                      <span className="rounded bg-bg-subtle px-1 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wide text-warning">primary</span>
+                    )}
+                    {repo?.default_branch && (
+                      <span className="ml-auto rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.625rem] text-text-secondary">{repo.default_branch}</span>
+                    )}
+                  </div>
+                  {repo?.description && (
+                    <p className="truncate text-xs text-text-secondary">{repo.description}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeRef.mutate(r.id)}
+                  disabled={removeRef.isPending}
+                  className="shrink-0 rounded border border-border-base px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
+                  data-testid="repo-row-remove"
+                >
+                  Unreference
+                </button>
+              </li>
+            );
+          })}
         </ul>
+      )}
+
+      {/* Add a reference to a workspace repo (only repos not already referenced). */}
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-border-base p-2">
+        <select
+          value={pick}
+          onChange={(e) => setPick(e.target.value)}
+          className="min-w-0 flex-1 rounded border border-border-base bg-bg-elevated px-2 py-1 text-xs text-text-primary"
+          data-testid="project-repos-add-select"
+          aria-label="Reference a workspace repo"
+          disabled={available.length === 0}
+        >
+          <option value="">{available.length === 0 ? 'No more workspace repos to reference' : 'Select a workspace repo…'}</option>
+          {available.map((r) => (
+            <option key={r.id} value={r.id}>{r.label}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={!pick || addRef.isPending}
+          className="shrink-0 rounded bg-brand px-3 py-1 text-xs font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
+          data-testid="project-repos-add-btn"
+        >
+          Add reference
+        </button>
+      </div>
+      {(addRef.isError || removeRef.isError || setPrimary.isError) && (
+        <p className="mt-2 text-xs text-danger" data-testid="project-repos-mutate-error">
+          {((addRef.error || removeRef.error || setPrimary.error) as Error).message}
+        </p>
       )}
     </div>
   );
