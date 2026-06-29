@@ -187,6 +187,8 @@ func pmCodeRepoMap(c *pm.CodeRepoRef) map[string]any {
 	return map[string]any{
 		"id": c.ID(), "project_id": string(c.ProjectID()), "url": c.URL(), "label": c.Label(),
 		"added_by": string(c.AddedBy()), "created_at": c.CreatedAt().Format(time.RFC3339Nano),
+		// v2.18.4 BE-1: workspace-Repo reference fields. repo_id "" = legacy url-only ref.
+		"repo_id": c.RepoID(), "is_primary": c.IsPrimary(),
 	}
 }
 

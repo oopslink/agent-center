@@ -13,6 +13,8 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
+	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
+	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
@@ -25,6 +27,7 @@ import (
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
+	"github.com/oopslink/agent-center/internal/secretmgmt"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfsql "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
@@ -47,13 +50,14 @@ type writeToolsFixture struct {
 	deps     HandlerDeps
 	verifier *fakeVerifier
 
-	db         *sql.DB
-	pmSvc      *pmservice.Service
-	convRepo   conversation.ConversationRepository
-	msgRepo    conversation.MessageRepository
-	outboxRepo *outboxsql.OutboxRepo
-	relay      *outbox.Relay
-	clk        *clock.FakeClock
+	db          *sql.DB
+	pmSvc       *pmservice.Service
+	codeRepoSvc *coderepservice.Service
+	convRepo    conversation.ConversationRepository
+	msgRepo     conversation.MessageRepository
+	outboxRepo  *outboxsql.OutboxRepo
+	relay       *outbox.Relay
+	clk         *clock.FakeClock
 }
 
 // atAllAgentsDir maps every agent to the fixture's test org so an agent assignee
@@ -106,22 +110,33 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 	// MessageWriter) so the Plan passthrough tools' AppServices are AVAILABLE in
 	// the fixture (mirrors the webconsole plan test). allAgentsDir resolves every
 	// agent assignee into the test org so StartPlan's §9.6c assignee check passes.
+	// v2.18.4 BE-2: a workspace CodeRepo service (fake remote provider) wired as the
+	// pm CodeRepoResolver — mirrors production (cli/app.go), so AddCodeRepoReference's
+	// BE-1 existence+same-org guard (fail-closed without a resolver) is satisfied for
+	// the coderepo agent-tool tests. crMK is a throwaway key for credential encryption.
+	crMK, _ := secretmgmt.GenerateMasterKey()
+	codeRepoSvc := coderepservice.New(coderepservice.Deps{
+		DB: db, Repos: coderepsql.NewRepoRepo(db), IDGen: gen, Clock: clk,
+		MasterKey: crMK, Providers: fakeRepoProvider{},
+	})
+
 	plans := pmsql.NewPlanRepo(db)
 	pmSvc := pmservice.New(pmservice.Deps{
-		DB:           db,
-		Projects:     pmsql.NewProjectRepo(db),
-		Members:      pmsql.NewProjectMemberRepo(db),
-		Issues:       pmsql.NewIssueRepo(db),
-		Tasks:        pmsql.NewTaskRepo(db),
-		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
-		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
-		Plans:        plans,
-		Findings:     pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: shared findings
-		Outbox:       outboxsql.NewOutboxRepo(db),
-		IDGen:        gen,
-		Clock:        clk,
-		AgentDir:     atAllAgentsDir{},
+		DB:               db,
+		Projects:         pmsql.NewProjectRepo(db),
+		Members:          pmsql.NewProjectMemberRepo(db),
+		Issues:           pmsql.NewIssueRepo(db),
+		Tasks:            pmsql.NewTaskRepo(db),
+		TaskSubs:         pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:        pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs:     pmsql.NewCodeRepoRefRepo(db),
+		CodeRepoResolver: codeRepoSvc,
+		Plans:            plans,
+		Findings:         pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: shared findings
+		Outbox:           outboxsql.NewOutboxRepo(db),
+		IDGen:            gen,
+		Clock:            clk,
+		AgentDir:         atAllAgentsDir{},
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, func(_ context.Context, ref string) (string, bool) {
 			if i := strings.IndexByte(ref, ':'); i >= 0 {
 				ref = ref[i+1:]
@@ -183,10 +198,11 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		MsgRepo:       msgRepo,
 		MessageWriter: writer,
 		PMService:     pmSvc,
+		CodeRepoSvc:   codeRepoSvc,
 		OutboxRepo:    outboxRepo,
 	}
 	return &writeToolsFixture{
-		deps: deps, verifier: verifier, db: db, pmSvc: pmSvc, convRepo: convRepo,
+		deps: deps, verifier: verifier, db: db, pmSvc: pmSvc, codeRepoSvc: codeRepoSvc, convRepo: convRepo,
 		msgRepo: msgRepo, outboxRepo: outboxRepo, relay: relay, clk: clk,
 	}
 }

@@ -448,6 +448,11 @@ func (s *Server) routes() {
 	// T200 WS4: post_issue_message merged into post_message (target type "issue").
 	s.mux.HandleFunc("POST /admin/agent-tools/list_issues", s.listIssuesHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_tasks_of_issue", s.listTasksOfIssueHandler)
+	// v2.18.4 BE-2 (issue-f980c8de) — agent repo-info MCP tools (project-member
+	// scoped; credential never returned). get_repo_info(live) fetches remote
+	// commits/branches server-side via the provider abstraction.
+	s.mux.HandleFunc("POST /admin/agent-tools/list_project_repos", s.listProjectReposHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_repo_info", s.getRepoInfoHandler)
 	// v2.7 post-D3 (task #104) — agent file MCP tools. Upload/download/attach with
 	// agent-domain reachability authz (the agent's OWN enumerable scopes). The
 	// byte mechanics mirror D3-d's human transport; only the authorization model

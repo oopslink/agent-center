@@ -574,10 +574,15 @@ func (s *Service) guardIntegrateMerge(ctx context.Context, taskID pm.TaskID) err
 }
 
 // primaryRepoURL resolves the project's primary code-repo URL for the F3 merge
-// guard: it lists the project's CodeRepoRefs (the repo's stable created-order, the
-// same order ListCodeRepos returns) and returns the FIRST one's URL. "" when the
-// project has no repo configured (the caller fails closed on that). A read-only
-// helper (no tx).
+// guard (v2.18.4 BE-1, issue-f980c8de). It picks the project's PRIMARY ref (the one
+// flagged is_primary), falling back to the FIRST ref in stable created-order when no
+// primary is set (pre-0087 behaviour). For the chosen ref it resolves the URL:
+//   - a workspace-Repo ref (repo_id set) → the workspace coderepo.Repo's url via the
+//     CodeRepoResolver port; if that yields nothing (resolver absent / repo gone) it
+//     falls back to the ref's own url;
+//   - a legacy url-only ref → its own url.
+//
+// "" when the project has no repo configured (the caller fails closed). Read-only.
 func (s *Service) primaryRepoURL(ctx context.Context, projectID pm.ProjectID) (string, error) {
 	refs, err := s.codeRepoRefs.ListByProject(ctx, projectID)
 	if err != nil {
@@ -586,7 +591,19 @@ func (s *Service) primaryRepoURL(ctx context.Context, projectID pm.ProjectID) (s
 	if len(refs) == 0 {
 		return "", nil
 	}
-	return refs[0].URL(), nil
+	chosen := refs[0]
+	for _, ref := range refs {
+		if ref.IsPrimary() {
+			chosen = ref
+			break
+		}
+	}
+	if chosen.RepoID() != "" && s.codeRepoResolver != nil {
+		if url, rerr := s.codeRepoResolver.RepoURL(ctx, chosen.RepoID()); rerr == nil && url != "" {
+			return url, nil
+		}
+	}
+	return chosen.URL(), nil
 }
 
 // retainAsTaskSubscriber persists `identity` as a sticky MANUAL subscriber so a

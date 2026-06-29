@@ -222,6 +222,17 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "List the tasks derived from an issue (the reverse of create_task's derived_from_issue link) — see the executable work an issue spawned. You must be a member of the issue's project.",
 	}, makeListTasksOfIssue(cfg))
 
+	// --- workspace CodeRepo info tools (v2.18.4 BE-2) ------------------------
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_project_repos",
+		Description: "List the code repositories a project references (label, description, url, provider, default_branch, is_primary). The standard repo-info surface — credentials are NEVER returned. You must be a member of the project.",
+	}, makeListProjectRepos(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_repo_info",
+		Description: "Get one referenced repo's standard info (omit repo_id for the project's primary repo). With live=true, also fetch recent remote commits + branches (no clone). Credentials are NEVER returned. You must be a member of the project.",
+	}, makeGetRepoInfo(cfg))
+
 	// --- pm write/passthrough tools ------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_task",

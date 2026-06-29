@@ -280,6 +280,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 
 		// ProjectManager BC (v2.7 D2-b2) — block_task / complete_task.
 		PMService: a.PMService,
+		// v2.18.4 BE-2 (issue-f980c8de) — workspace CodeRepo svc backing the agent
+		// repo-info MCP tools (list_project_repos / get_repo_info live).
+		CodeRepoSvc: a.CodeRepoService,
 		// Cognition reminders (T206) — create/list/get/update_reminder tools + API.
 		ReminderSvc: buildReminderService(a),
 		// pm (new-model) project repo for the operator/admin-token project
