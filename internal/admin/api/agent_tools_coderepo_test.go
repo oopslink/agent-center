@@ -7,18 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/coderepo"
 	"github.com/oopslink/agent-center/internal/coderepo/provider"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
-	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
-	"github.com/oopslink/agent-center/internal/idgen"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
-	"github.com/oopslink/agent-center/internal/secretmgmt"
 )
 
-// fakeRepoProvider returns canned remote data for the live get_repo_info path.
+// fakeRepoProvider returns canned remote data for the live get_repo_info path. It
+// is also the provider wired into the shared writeToolsFixture's CodeRepo service.
 type fakeRepoProvider struct{}
 
 func (fakeRepoProvider) ListCommits(_ context.Context, _ provider.Target, _ string, _ int) ([]provider.Commit, error) {
@@ -28,22 +25,10 @@ func (fakeRepoProvider) ListBranches(_ context.Context, _ provider.Target) ([]pr
 	return []provider.Branch{{Name: "main", IsDefault: true}}, nil
 }
 
-// wireCodeRepo attaches a CodeRepo service (fake provider + fresh key) to the
-// fixture deps and returns it. Must be called before f.server(t).
-func wireCodeRepo(t *testing.T, f *writeToolsFixture) *coderepservice.Service {
-	t.Helper()
-	mk, _ := secretmgmt.GenerateMasterKey()
-	svc := coderepservice.New(coderepservice.Deps{
-		DB: f.db, Repos: coderepsql.NewRepoRepo(f.db), IDGen: idgen.NewGenerator(clock.SystemClock{}),
-		Clock: clock.SystemClock{}, MasterKey: mk, Providers: fakeRepoProvider{},
-	})
-	f.deps.CodeRepoSvc = svc
-	return svc
-}
-
 // seedProjectWithRepo creates a project (AG1 a member), a workspace repo (with a
-// credential), and a primary reference. Returns project + repo ids.
-func seedProjectWithRepo(t *testing.T, f *writeToolsFixture, svc *coderepservice.Service) (string, string) {
+// credential), and a primary reference. Returns project + repo ids. Uses the
+// fixture's wired CodeRepo service (which is also the pm CodeRepoResolver).
+func seedProjectWithRepo(t *testing.T, f *writeToolsFixture) (string, string) {
 	t.Helper()
 	ctx := context.Background()
 	owner := pm.IdentityRef("user:owner")
@@ -56,7 +41,7 @@ func seedProjectWithRepo(t *testing.T, f *writeToolsFixture, svc *coderepservice
 	}); err != nil {
 		t.Fatal(err)
 	}
-	repoID, err := svc.CreateRepo(ctx, coderepservice.CreateRepoCommand{
+	repoID, err := f.codeRepoSvc.CreateRepo(ctx, coderepservice.CreateRepoCommand{
 		OrgID: atTestOrg, Label: "app", Description: "the app", URL: "https://github.com/o/app",
 		Provider: coderepo.ProviderGitHub, DefaultBranch: "main", Credential: "ghp_secret", CreatedBy: "user:owner",
 	})
@@ -76,8 +61,7 @@ func jsonStr(v any) string { b, _ := json.Marshal(v); return string(b) }
 func TestListProjectRepos_ResolvesAndHidesCredential(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
-	svc := wireCodeRepo(t, f)
-	pid, repoID := seedProjectWithRepo(t, f, svc)
+	pid, repoID := seedProjectWithRepo(t, f)
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/list_project_repos", "acat_w1",
@@ -102,8 +86,7 @@ func TestListProjectRepos_ResolvesAndHidesCredential(t *testing.T) {
 func TestGetRepoInfo_PrimaryAndLive(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
-	svc := wireCodeRepo(t, f)
-	pid, _ := seedProjectWithRepo(t, f, svc)
+	pid, _ := seedProjectWithRepo(t, f)
 	srv := f.server(t)
 
 	// No repo_id → resolves the project's PRIMARY; live=true attaches remote data.
@@ -132,8 +115,7 @@ func TestGetRepoInfo_PrimaryAndLive(t *testing.T) {
 func TestGetRepoInfo_StaticDefault_NoLive(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
-	svc := wireCodeRepo(t, f)
-	pid, _ := seedProjectWithRepo(t, f, svc)
+	pid, _ := seedProjectWithRepo(t, f)
 	srv := f.server(t)
 
 	// Default (live omitted) → no remote fetch, just static info (cheap path).
@@ -150,7 +132,6 @@ func TestGetRepoInfo_StaticDefault_NoLive(t *testing.T) {
 func TestListProjectRepos_NonMember_Forbidden(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
-	wireCodeRepo(t, f)
 	srv := f.server(t)
 	// A project AG1 is NOT a member of → membership gate 403.
 	ctx := context.Background()

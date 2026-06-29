@@ -2,9 +2,12 @@ package provider
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -14,6 +17,13 @@ import (
 // commits via a throwaway SHALLOW fetch + `git log` — never a full/working clone
 // (issue-f980c8de: "不 clone"). All git invocations go through the gitRunner seam
 // so tests fake them without a network/binary.
+//
+// SECURITY (v2.18.4 BE-2 review): a private-repo token must NEVER appear in process
+// argv (/proc/<pid>/cmdline is world-readable — a forked executor could read it) nor
+// in any returned error (errors propagate to the API/agent surface). So the clean
+// URL goes in argv and the token rides an env-injected http.extraHeader
+// (GIT_CONFIG_*), and every error returned from this adapter is run through
+// redactSecrets as a defense-in-depth backstop against git echoing a credential.
 type Git struct {
 	runner gitRunner
 }
@@ -23,20 +33,21 @@ func NewGit() *Git {
 	return &Git{runner: execGitRunner{}}
 }
 
-// gitRunner is the seam over the two git operations the fallback needs.
+// gitRunner is the seam over the two git operations the fallback needs. The token
+// is passed SEPARATELY from the (clean) url so the runner can keep it out of argv.
 type gitRunner interface {
-	// LsRemoteHeads runs `git ls-remote --heads <authURL>` and returns its stdout.
-	LsRemoteHeads(ctx context.Context, authURL string) (string, error)
-	// ShallowLog shallow-fetches `branch` (depth=limit) into a throwaway dir and
-	// returns `git log` stdout in the unit-separated format gitLogFormat expects.
-	ShallowLog(ctx context.Context, authURL, branch string, limit int) (string, error)
+	// LsRemoteHeads runs `git ls-remote --heads <url>` (token via env) → stdout.
+	LsRemoteHeads(ctx context.Context, url, token string) (string, error)
+	// ShallowLog shallow-fetches `branch` (depth=limit) into a throwaway dir (token
+	// via env) and returns `git log` stdout in the gitLogFormat layout.
+	ShallowLog(ctx context.Context, url, token, branch string, limit int) (string, error)
 }
 
 // ListBranches parses `git ls-remote --heads`. Each line is "<sha>\trefs/heads/<name>".
 func (g *Git) ListBranches(ctx context.Context, t Target) ([]Branch, error) {
-	out, err := g.runner.LsRemoteHeads(ctx, injectCredential(t.URL, t.Credential))
+	out, err := g.runner.LsRemoteHeads(ctx, t.URL, t.Credential)
 	if err != nil {
-		return nil, fmt.Errorf("provider/git: ls-remote %s: %w", t.URL, err)
+		return nil, redactErr(fmt.Errorf("provider/git: ls-remote %s: %w", t.URL, err))
 	}
 	var branches []Branch
 	for _, line := range strings.Split(out, "\n") {
@@ -72,9 +83,9 @@ func (g *Git) ListCommits(ctx context.Context, t Target, branch string, limit in
 		return nil, fmt.Errorf("provider/git: no branch and no default branch to fetch commits")
 	}
 	n := ClampLimit(limit)
-	out, err := g.runner.ShallowLog(ctx, injectCredential(t.URL, t.Credential), branch, n)
+	out, err := g.runner.ShallowLog(ctx, t.URL, t.Credential, branch, n)
 	if err != nil {
-		return nil, fmt.Errorf("provider/git: shallow log %s@%s: %w", t.URL, branch, err)
+		return nil, redactErr(fmt.Errorf("provider/git: shallow log %s@%s: %w", t.URL, branch, err))
 	}
 	return parseGitLog(out, n), nil
 }
@@ -107,74 +118,111 @@ func parseGitLog(out string, limit int) []Commit {
 	return commits
 }
 
-// injectCredential embeds a token into an https URL as a basic-auth userinfo so a
-// non-interactive `git` can read a private repo. For non-https URLs (ssh / scp) or
-// an empty credential it returns the url unchanged (ssh auth rides the agent/keys).
-func injectCredential(rawURL, credential string) string {
-	cred := strings.TrimSpace(credential)
-	if cred == "" {
-		return rawURL
-	}
-	const httpsPrefix = "https://"
-	if !strings.HasPrefix(rawURL, httpsPrefix) {
-		return rawURL
-	}
-	rest := strings.TrimPrefix(rawURL, httpsPrefix)
-	if strings.Contains(rest, "@") { // url already carries userinfo — don't double it
-		return rawURL
-	}
-	// x-access-token is the conventional username for a token-as-password (GitHub/
-	// GitLab both accept it); the token is the password.
-	return httpsPrefix + "x-access-token:" + cred + "@" + rest
+// --- secret redaction (defense-in-depth) ------------------------------------
+
+var (
+	// userinfoTokenRe matches a token embedded as https userinfo (user:token@), in
+	// case a url ever carries one or git echoes one.
+	userinfoTokenRe = regexp.MustCompile(`(//[^/:@\s]+:)[^@/\s]+@`)
+	// authHeaderRe matches an Authorization header value (our extraHeader form).
+	authHeaderRe = regexp.MustCompile(`(?i)(authorization:\s*\S+\s+)\S+`)
+)
+
+// redactSecrets scrubs any credential that might have leaked into a string (a git
+// stderr echo, a misformed url). It is a backstop — the token is injected via env,
+// not argv/url, so it should not appear, but errors flow to the API/agent so we
+// never risk it.
+func redactSecrets(s string) string {
+	s = userinfoTokenRe.ReplaceAllString(s, "$1***@")
+	s = authHeaderRe.ReplaceAllString(s, "${1}***")
+	return s
 }
+
+// redactErr returns an error whose text is redacted. The redacted error is plain
+// text (the underlying chain is not errors.Is-matched by any caller — these surface
+// as messages), so flattening to a redacted string is safe.
+func redactErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.New(redactSecrets(err.Error()))
+}
+
+// --- production git runner ---------------------------------------------------
 
 // execGitRunner is the production gitRunner over real `git`.
 type execGitRunner struct{}
 
-func (execGitRunner) LsRemoteHeads(ctx context.Context, authURL string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--heads", authURL)
-	cmd.Env = gitNonInteractiveEnv()
+// argv builders — pure + token-free BY CONSTRUCTION. The token is never a parameter
+// here, so it can never reach argv (the security invariant TestGitArgs_NeverCarryToken
+// pins); auth rides gitAuthEnv (env) instead.
+func gitLsRemoteArgs(url string) []string {
+	return []string{"ls-remote", "--heads", url}
+}
+
+func gitFetchArgs(dir, url, branch string, limit int) []string {
+	return []string{"-C", dir, "fetch", "-q", "--depth", fmt.Sprint(limit), url, branch}
+}
+
+func (execGitRunner) LsRemoteHeads(ctx context.Context, url, token string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", gitLsRemoteArgs(url)...)
+	cmd.Env = gitAuthEnv(token)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", redactErr(err)
 	}
 	return string(out), nil
 }
 
-func (execGitRunner) ShallowLog(ctx context.Context, authURL, branch string, limit int) (string, error) {
+func (execGitRunner) ShallowLog(ctx context.Context, url, token, branch string, limit int) (string, error) {
 	dir, err := os.MkdirTemp("", "coderepo-shallow-*")
 	if err != nil {
 		return "", err
 	}
 	defer os.RemoveAll(dir) // throwaway: no working clone survives this call
 
+	// Fetch the branch directly from the (clean) url — no `remote add`, so the url is
+	// the only place it appears and the token is never in any argv.
 	steps := [][]string{
 		{"init", "-q", dir},
-		{"-C", dir, "remote", "add", "origin", authURL},
-		{"-C", dir, "fetch", "-q", "--depth", fmt.Sprint(limit), "origin", branch},
+		gitFetchArgs(dir, url, branch, limit),
 	}
 	for _, args := range steps {
 		cmd := exec.CommandContext(ctx, "git", args...)
-		cmd.Env = gitNonInteractiveEnv()
+		cmd.Env = gitAuthEnv(token)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+			// args carry only the CLEAN url; redact the combined output as a backstop.
+			return "", redactErr(fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out))))
 		}
 	}
 	logCmd := exec.CommandContext(ctx, "git", "-C", dir, "log",
 		"--format="+gitLogFormat, "--max-count", fmt.Sprint(limit), "FETCH_HEAD")
-	logCmd.Env = gitNonInteractiveEnv()
+	logCmd.Env = gitAuthEnv(token)
 	out, err := logCmd.Output()
 	if err != nil {
-		return "", err
+		return "", redactErr(err)
 	}
 	return string(out), nil
 }
 
-// gitNonInteractiveEnv disables credential/SSH prompts so a fetch fails fast
-// instead of hanging on a missing credential.
-func gitNonInteractiveEnv() []string {
-	return append(os.Environ(),
+// gitAuthEnv builds the child env: non-interactive (no prompts) + the token (when
+// present) injected as an http.extraHeader Authorization via GIT_CONFIG_* env. The
+// token therefore lives in the child's ENVIRONMENT (/proc/<pid>/environ — readable
+// only by the same uid), NEVER in argv (/proc/<pid>/cmdline — world-readable). The
+// header form (Basic base64("x-access-token:<token>")) is what GitHub/GitLab accept
+// for token-as-password over https.
+func gitAuthEnv(token string) []string {
+	env := append(os.Environ(),
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_SSH_COMMAND=ssh -oBatchMode=yes",
 	)
+	if strings.TrimSpace(token) != "" {
+		basic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
+		env = append(env,
+			"GIT_CONFIG_COUNT=1",
+			"GIT_CONFIG_KEY_0=http.extraHeader",
+			"GIT_CONFIG_VALUE_0=Authorization: Basic "+basic,
+		)
+	}
+	return env
 }
