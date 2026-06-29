@@ -49,6 +49,7 @@
     <div class="tabbar"><span class="t">Profile</span><span class="t">Activity</span><span class="t on">Runtime</span><span class="t">Skills</span></div>
     <div class="browser">
       <div class="tree">
+        <div style="display:flex;align-items:center;gap:6px;padding:0 8px 8px;border-bottom:1px solid var(--border);margin-bottom:8px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em"><span>Files</span><button title="折叠侧栏" style="margin-left:auto;border:1px solid var(--border);border-radius:5px;background:var(--bg-elevated);color:var(--text-muted);font-size:12px;padding:1px 7px;cursor:pointer">«</button></div>
         <div class="node"><span class="ic">📁</span>memory/ <span class="meta">git</span></div>
         <div class="node ind"><span class="ic">📄</span>CLAUDE.md <span class="meta">2.1k</span></div>
         <div class="node ind"><span class="ic">📁</span>projects/</div>
@@ -69,6 +70,22 @@
 {"type":"message","role":"assistant","ts":"..."}
 {"type":"task_completed","task":"task-2ff25c2d","ts":"..."}
 …</pre>
+      </div>
+    </div>
+  </div>
+
+  <p class="frame-label">A2 · 侧栏折叠态（预览/读取区占满宽）</p>
+  <div class="card" style="max-width:1080px">
+    <div class="browser" style="grid-template-columns:40px 1fr">
+      <div class="tree" style="padding:10px 4px;display:flex;flex-direction:column;align-items:center"><button title="展开侧栏" style="border:1px solid var(--border);border-radius:5px;background:var(--bg-elevated);color:var(--text-muted);font-size:12px;padding:1px 6px;cursor:pointer">»</button></div>
+      <div class="preview">
+        <div class="pv-h"><span class="path">memory/CLAUDE.md</span><span class="pill pill-txt">markdown · text</span><span style="margin-left:auto">侧栏已折叠 → 全宽预览</span></div>
+        <pre># project-c7073e48 — PD notes
+
+## SHIPPED
+- v2.18.4 (workspace CodeRepo) — main fd23eab8, tag v2.18.4 …
+- v2.18.3 (auto-assign reconciler) …
+…(纯文本预览,markdown 渲染 phase-2)</pre>
       </div>
     </div>
   </div>
@@ -103,6 +120,7 @@
       <li><b>安全红线</b>:<span class="kw">mcp_config.runtime.json</span>(明文凭据)**列出但内容不返回**(redacted);<span class="kw">.git/</span> 隐藏;<span class="kw">*.sock/*.lock</span> 只 metadata。路径安全复用 <span class="kw">resolveContainedPath</span>(symlink/`..`/绝对路径防逃逸)。</li>
       <li><b>鉴权</b>:org 维度——caller 是该 agent 的 org 成员。限制:目录 entries 上限 / 单文件预览 1MB / 超时。</li>
       <li><b>memory</b>:memory/ 是 git 仓 → v1 含 commit 历史(只读 git log)+ 文件预览;diff phase-2。</li>
+      <li><b>侧栏可折叠</b>:目录树左栏可 <span class="kw">« 折叠 / » 展开</span>(折叠后预览/读取区占满宽,适合看长 events.jsonl / git-log);折叠状态记忆(localStorage)。</li>
       <li><b>v1 排除</b>:jsonl 结构化渲染 / markdown 渲染 / tail-SSE / 下载 / 任何写操作。</li>
     </ul>
   </div>
