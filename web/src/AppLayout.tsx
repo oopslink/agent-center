@@ -196,6 +196,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
       return [{ label: 'System', items: [
         { to: p('environment'), label: 'Environment', Icon: FleetIcon },
         { to: p('settings'), label: 'Settings', Icon: SettingsIcon },
+        { to: p('version'), label: 'Version', Icon: VersionIcon },
       ] }];
     default:
       return [];
@@ -1270,6 +1271,9 @@ function AgentsIcon(): React.ReactElement {
 }
 function SettingsIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.05 5.05l1.4 1.4M13.55 13.55l1.4 1.4M5.05 14.95l1.4-1.4M13.55 6.45l1.4-1.4" strokeLinecap="round" /></svg>);
+}
+function VersionIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M3.5 8.5 8.5 3.5a1.5 1.5 0 0 1 2.1 0l5.9 5.9a1.5 1.5 0 0 1 0 2.1l-5 5a1.5 1.5 0 0 1-2.1 0L3.5 10.6V8.5z" strokeLinejoin="round" /><circle cx="7" cy="7" r="1.2" /></svg>);
 }
 function UsersIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="7.5" cy="7" r="2.5" /><path d="M2 16c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" /><path d="M13 8.5a2 2 0 1 0 0-4M18 16c0-2.5-2-4-4-4" strokeLinecap="round" /></svg>);
