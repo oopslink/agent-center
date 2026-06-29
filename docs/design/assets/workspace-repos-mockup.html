@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Workspace Repos — mockup (issue-f980c8de)</title>
+<style>
+  :root{--bg-base:#FFFCFC;--bg-elevated:#fff;--bg-subtle:#f8f5f6;--border:#dbd7da;--border-strong:#afa9b1;
+    --text-primary:#31263B;--text-secondary:#4a4255;--text-muted:#717A94;--brand:#7C3AED;--accent:#7C3AED;--success:#5CB198;}
+  *{box-sizing:border-box}
+  body{margin:0;background:#efe9ec;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--text-primary);padding:24px;line-height:1.45}
+  h1{font-size:18px;margin:0 0 4px}.sub{color:var(--text-muted);font-size:13px;margin:0 0 20px;max-width:1000px}
+  .frame-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:18px 0 8px}
+  .row{display:flex;gap:20px;align-items:flex-start;max-width:1200px;flex-wrap:wrap}
+  /* nav rail */
+  .nav{width:210px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:12px;flex:0 0 auto}
+  .nav .grp{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:4px 8px 8px}
+  .nav a{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:13.5px;color:var(--text-secondary);margin-bottom:2px}
+  .nav a .i{width:15px;text-align:center;opacity:.7}
+  .nav a.on{background:#f1e9fb;color:var(--brand);font-weight:600}
+  .nav a.new{background:#fdeee9;color:#c1502a;font-weight:600;border:1px dashed #e9b59f}
+  .card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:18px;flex:1;min-width:380px}
+  .card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+  .card-h h2{font-size:16px;font-weight:600;margin:0}
+  .card-sub{font-size:12px;color:var(--text-muted);margin:0 0 14px}
+  .btn{border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+  .btn-primary{border:0;background:var(--brand);color:#fff;font-weight:500}.btn-ghost{border:1px solid var(--border);background:none;color:var(--text-secondary)}
+  .repo{display:flex;gap:11px;border:1px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:9px;background:var(--bg-base)}
+  .prov{font-size:10px;font-weight:700;text-transform:uppercase;border-radius:4px;padding:2px 6px;height:fit-content}
+  .prov-gh{background:#ece9f6;color:#4a4255}.prov-git{background:#e3eee9;color:#2f7a64}
+  .repo .meta{flex:1;min-width:0}
+  .repo .label{font-weight:600;font-size:13.5px}
+  .repo .desc{font-size:11.5px;color:var(--text-secondary);margin:2px 0}
+  .repo .url{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .repo .side{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .br{font-size:11px;color:var(--text-secondary);background:var(--bg-subtle);border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-family:ui-monospace,Menlo,monospace}
+  .used{font-size:10.5px;color:var(--text-muted)}
+  .ico{border:1px solid var(--border);border-radius:5px;padding:3px 7px;font-size:11px;color:var(--text-muted);background:none;cursor:pointer}
+  .field-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:3px}
+  .inp{border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12.5px;background:var(--bg-elevated)}
+  .inp.mono{font-family:ui-monospace,Menlo,monospace}
+  .cred{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text-muted);background:var(--bg-subtle)}
+  .cred .lock{color:var(--success)}
+  /* ref picker */
+  .refrow{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:7px;background:var(--bg-base)}
+  .star{font-size:14px}.star.on{color:#E3A008}.star.off{color:var(--border-strong)}
+  .primary-pill{font-size:9px;font-weight:700;text-transform:uppercase;color:#E3A008;border:1px solid #f3e0a8;background:#fdf6e3;border-radius:4px;padding:1px 5px}
+  .picker{display:flex;gap:8px;align-items:center;border:1px dashed var(--border-strong);border-radius:8px;padding:9px 12px;background:var(--bg-subtle);font-size:12px;color:var(--text-muted)}
+  .picker select{flex:1;border:1px solid var(--border);border-radius:6px;padding:5px 9px;font-size:12px;font-family:inherit;color:var(--text-primary);background:var(--bg-elevated)}
+  /* viewer */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:4px 0 8px}
+  .tab{font-size:12px;padding:5px 9px;color:var(--text-muted);border-bottom:2px solid transparent}
+  .tab.on{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+  .commit{display:flex;gap:9px;padding:7px 2px;border-bottom:1px solid var(--bg-subtle)}
+  .sha{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--brand);background:#f4eefc;border-radius:4px;padding:1px 6px;height:fit-content}
+  .commit .msg{font-size:12.5px}.commit .who{font-size:11px;color:var(--text-muted)}
+  .live{font-size:10px;color:var(--success);border:1px solid rgba(92,177,152,.4);background:rgba(92,177,152,.1);border-radius:4px;padding:1px 6px}
+  .notes{max-width:1200px;margin-top:22px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px 20px}
+  .notes h3{font-size:12px;margin:0 0 8px;text-transform:uppercase;color:var(--text-muted)}
+  .notes li{font-size:12.5px;margin-bottom:6px;color:var(--text-secondary)}
+  .pill{display:inline-block;background:#f1e9fb;color:var(--brand);border-radius:4px;padding:0 6px;font-size:11px;font-weight:600;font-family:ui-monospace,monospace}
+</style></head><body>
+  <h1>Workspace Repos — mockup（v3，workspace 顶级）</h1>
+  <p class="sub">issue-f980c8de · Repos 提为 workspace 顶级（与 Projects/Issues/Tasks/Plans 并列），仓库属 workspace、不隶属任何 project；project 只「引用」。凭据在 workspace Repo 配一次。</p>
+
+  <p class="frame-label">A · Workspace「Repos」顶级页（侧栏新增 Repos）</p>
+  <div class="row">
+    <!-- nav rail -->
+    <div class="nav">
+      <div class="grp">Workspace</div>
+      <a><span class="i">📁</span>Projects</a>
+      <a><span class="i">◎</span>Issues</a>
+      <a><span class="i">≡</span>Tasks</a>
+      <a><span class="i">◇</span>Plans</a>
+      <a class="new"><span class="i">⛁</span>Repos　← 新增</a>
+    </div>
+    <!-- repos list -->
+    <div class="card">
+      <div class="card-h"><h2>Repositories</h2><button class="btn btn-primary">+ Add repo</button></div>
+      <p class="card-sub">Workspace 级代码仓库。项目引用它们；凭据只在此处配置。</p>
+
+      <div class="repo">
+        <span class="prov prov-gh">GitHub</span>
+        <div class="meta"><div class="label">agent-center</div>
+          <div class="desc">多 agent 协作中心 + worker daemon（Go 后端 + React web）。流水/编排/执行引擎主仓。</div>
+          <div class="url">git@github.com:oopslink/agent-center.git</div></div>
+        <div class="side"><span class="br">main</span><span class="used">used by 2 projects</span><span class="ico">Edit</span></div>
+      </div>
+      <div class="repo">
+        <span class="prov prov-gh">GitHub</span>
+        <div class="meta"><div class="label">ac-web</div>
+          <div class="desc">独立前端仓（若拆分）：控制台 React/TS。</div>
+          <div class="url">git@github.com:oopslink/ac-web.git</div></div>
+        <div class="side"><span class="br">develop</span><span class="used">used by 1 project</span><span class="ico">Edit</span></div>
+      </div>
+      <div class="repo">
+        <span class="prov prov-git">git</span>
+        <div class="meta"><div class="label">infra</div>
+          <div class="desc">部署/运维 IaC：k8s、CI、密钥与环境配置。</div>
+          <div class="url">https://git.internal/ops/infra.git</div></div>
+        <div class="side"><span class="br">master</span><span class="used">used by 0 projects</span><span class="ico">Edit</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Add/Edit repo (workspace level: holds credential) -->
+    <div class="card" style="max-width:560px">
+      <div class="card-h"><h2 style="font-size:15px">Add / Edit repo（workspace）</h2></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><div class="field-lbl">Label</div><div class="inp">agent-center</div></div>
+        <div><div class="field-lbl">Provider</div><div class="inp">GitHub ▾</div></div>
+        <div style="grid-column:1/3"><div class="field-lbl">Description（一句话用途,供 agent 不 checkout 即了解）</div><div class="inp">多 agent 协作中心 + worker daemon（Go 后端 + React web）</div></div>
+        <div style="grid-column:1/3"><div class="field-lbl">Clone URL</div><div class="inp mono">git@github.com:oopslink/agent-center.git</div></div>
+        <div><div class="field-lbl">Default branch</div><div class="inp mono">main</div></div>
+        <div><div class="field-lbl">Read credential（只在此配,加密）</div><div class="cred"><span class="lock">🔒</span>fine-grained token ••••••</div></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn btn-ghost">Cancel</button><button class="btn btn-primary">Save</button></div>
+    </div>
+    <!-- remote viewer -->
+    <div class="card" style="max-width:560px">
+      <div class="card-h"><h2 style="font-size:15px">Remote 查看（只读）</h2><span class="live">● live · remote</span></div>
+      <div class="tabs"><span class="tab on">Commits</span><span class="tab">Branches</span><span style="margin-left:auto;font-size:11px;color:var(--text-muted)">分支 main ▾</span></div>
+      <div class="commit"><span class="sha">839c6ee</span><div><div class="msg">Ship v2.18.2 — executor per-task CLI·model 并发配置</div><div class="who">agent-center-pd · 3 小时前</div></div></div>
+      <div class="commit"><span class="sha">5860e0f</span><div><div class="msg">docs(coderepo): add per-repo description field</div><div class="who">agent-center-pd · 1 小时前</div></div></div>
+      <div class="commit"><span class="sha">ec9a6f1</span><div><div class="msg">Integrate W2: Writeback 连中心回写</div><div class="who">agent-center-integration-dev · 7 小时前</div></div></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center">go-github 取自 remote,不 clone；未知/自建仓回退 git ls-remote</div>
+    </div>
+  </div>
+
+  <p class="frame-label">B · Project 详情 → Referenced repos（只引用,不配凭据）</p>
+  <div class="row">
+    <div class="card" style="max-width:760px">
+      <div class="card-h"><h2 style="font-size:15px">Referenced repositories</h2></div>
+      <p class="card-sub">本项目引用的 workspace 仓库。主仓(★)用于 Integrate merge-check。此处不配 url/凭据——那些在 workspace Repos 页。</p>
+      <div class="refrow"><span class="star on">★</span><span class="prov prov-gh">GitHub</span>
+        <div class="meta"><div class="label">agent-center <span class="primary-pill">primary</span></div><div class="desc">多 agent 协作中心 + worker daemon…</div></div>
+        <span class="br">main</span><span class="ico">取消引用</span></div>
+      <div class="refrow"><span class="star off">☆</span><span class="prov prov-gh">GitHub</span>
+        <div class="meta"><div class="label">ac-web</div><div class="desc">独立前端仓…</div></div>
+        <span class="br">develop</span><span class="ico">取消引用</span></div>
+      <div class="picker">+ 引用 workspace 仓库
+        <select><option>选择一个 workspace repo…</option><option>infra</option></select>
+        <button class="btn btn-ghost" style="padding:5px 10px">Add reference</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>模型要点（待讨论确认 → 再建 plan）</h3>
+    <ul>
+      <li><b>Repo = workspace 顶级实体</b>(侧栏与 Projects 并列):<span class="pill">{label,description,url,provider,default_branch,credential(加密)}</span>。凭据只在此配。</li>
+      <li><b>Project 引用</b>:沿用现有 <span class="pill">CodeRepoRef</span> 作引用(无需数据迁移);additive 加可空 <span class="pill">repo_id</span> 指向 workspace Repo。primary 在引用层(每项目选主仓)。</li>
+      <li><b>解析</b>:merge-check / agent <span class="pill">list_project_repos</span> / viewing 都经 项目引用 → workspace Repo。凭据永不出 API/返给 agent。</li>
+      <li><b>viewing</b>:go-github + git ls-remote 回退,不 clone。<b>agent 接口</b>:默认静态 + <span class="pill">live</span> 可选。</li>
+      <li><b>权限</b>:workspace Repo+凭据 = workspace/org admin;项目成员只能引用/取消引用。</li>
+    </ul>
+  </div>
+</body></html>
