@@ -22,6 +22,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
 import { AgentProfile } from '@/components/AgentProfile';
+import { AgentRuntime } from '@/components/AgentRuntime';
 import { AgentTasks } from '@/components/AgentTasks';
 import { AgentAnalyticsPanel } from '@/components/analytics/AgentAnalyticsPanel';
 import { AgentContextPanel } from '@/components/AgentContextPanel';
@@ -36,6 +37,8 @@ import { ContextPanel } from '@/shell/contextPanel';
 const AGENT_TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'activity', label: 'Activity' },
+  // I5 (T583): read-only runtime browser — memory/workspace tree + file preview.
+  { key: 'runtime', label: 'Runtime' },
   { key: 'workspace', label: 'Workspace' },
   { key: 'tasks', label: 'Tasks' },
   { key: 'analytics', label: 'Analytics' },
@@ -351,6 +354,9 @@ export default function AgentDetail(): React.ReactElement {
       </nav>
 
       {tab === 'profile' && <AgentProfile agent={a} />}
+
+      {/* I5 (T583): read-only runtime browser. */}
+      {tab === 'runtime' && <AgentRuntime agentId={id} />}
 
       {tab === 'workspace' && (
         <EmptyState testId="agent-tabpanel-workspace" title="Workspace" body="Coming in v2.8." />
