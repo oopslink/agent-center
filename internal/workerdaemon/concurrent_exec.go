@@ -349,18 +349,28 @@ func (c *AgentController) workViaExecutor(ctx context.Context, pl workPayload, e
 		TaskRef: pl.TaskRef,
 		Goal:    executor.Goal{Title: title, Description: pl.Brief},
 		// task.model and a structured goal/chat ref are not in workPayload yet; the
-		// §5 chain falls back to default_executor_model. Plumbing task.model from the
-		// center is a follow-up (does not block the W1 fork path).
+		// §5 chain falls back to default_executor_model. The live work_available fork
+		// path (forkOnWorkAvailable) builds a WorkItem WITH task.model from get_task.
 	}
+	return c.launchExecutor(ctx, pl.AgentID, pl.TaskID, item, ee)
+}
+
+// launchExecutor forks an executor for a fully-built WorkItem and wires the reap +
+// work-state bookkeeping. It is the shared fork tail of both the legacy agent.work
+// path (workViaExecutor) and the W4a live work_available path (forkOnWorkAvailable):
+// at capacity it returns a retryable ErrAtCapacity (the caller queues), any other
+// fork error is wrapped. On success it detaches a drain goroutine that frees the
+// pool slot when the executor exits and mirrors the inject path's hadWork/currentTaskID.
+func (c *AgentController) launchExecutor(ctx context.Context, agentID, taskID string, item orchestrator.WorkItem, ee *executorEngine) error {
 	launched, err := ee.engine.HandleWork(ctx, item)
 	if err != nil {
 		if errors.Is(err, executor.ErrAtCapacity) {
-			return fmt.Errorf("agent_controller: agent=%s at executor capacity (queue, retry next tick): %w", pl.AgentID, err)
+			return fmt.Errorf("agent_controller: agent=%s at executor capacity (queue, retry next tick): %w", agentID, err)
 		}
-		return fmt.Errorf("agent_controller: agent=%s fork executor: %w", pl.AgentID, err)
+		return fmt.Errorf("agent_controller: agent=%s fork executor: %w", agentID, err)
 	}
 	c.log("agent=%s task=%s forked executor=%s cli=%s model=%s(%s) problem=%s",
-		pl.AgentID, pl.TaskID, launched.ExecutorID, launched.CLI, launched.Model, launched.ModelSource, launched.ProblemID)
+		agentID, taskID, launched.ExecutorID, launched.CLI, launched.Model, launched.ModelSource, launched.ProblemID)
 
 	// Reap the executor when it exits, freeing its pool slot (W1). Runs detached so
 	// the work command acks immediately and the next work can launch concurrently.
@@ -368,10 +378,10 @@ func (c *AgentController) workViaExecutor(ctx context.Context, pl workPayload, e
 
 	// Mirror the inject path's work-state bookkeeping (L2 error surface / self-heal).
 	c.mu.Lock()
-	if cur := c.agents[pl.AgentID]; cur != nil {
+	if cur := c.agents[agentID]; cur != nil {
 		cur.hadWork = true
-		if pl.TaskID != "" {
-			cur.currentTaskID = pl.TaskID
+		if taskID != "" {
+			cur.currentTaskID = taskID
 			cur.currentConversationID = ""
 		}
 	}
