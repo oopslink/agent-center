@@ -257,6 +257,23 @@ func ServerCommand() *Command {
 				}()
 				defer overdueReminderCancel()
 
+				// v2.18.3 BE-2 (issue-577a7b0e): the auto-assign reconciler — the PERIODIC
+				// backstop of the dual-track trigger. It sweeps every claimable builtin-pool
+				// task and assigns each to its least-busy eligible agent (project member ∩
+				// online ∩ auto_assignable ∩ free run slot ∩ STRICT capability gate), waking
+				// it to run. The EVENT fast path is the AutoAssignTriggerProjector on the
+				// relay; this loop catches what events miss (a just-onlined agent, a freshly
+				// dependency-cleared task). No-op until the AutoAssignDirectory is wired.
+				autoAssign := pmservice.NewAutoAssignReconciler(
+					app.PMService, nil, 0,
+					func(msg string, a ...any) { fmt.Fprintf(out, "[auto-assign] "+msg+"\n", a...) },
+				)
+				autoAssignCtx, autoAssignCancel := context.WithCancel(ctx)
+				go func() {
+					_ = autoAssign.Run(autoAssignCtx)
+				}()
+				defer autoAssignCancel()
+
 				// Resolved issue lifecycle: close issues automatically once they have
 				// remained resolved for the default grace period. Uses the issue's durable
 				// status_changed_at, so restarts do not lose the countdown.

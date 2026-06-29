@@ -381,6 +381,14 @@ func (a *App) outboxProjectors(
 	// message_acknowledged activity (docs/design/features/agent-message-consumption-activity.md):
 	// agent 主动 mark_seen（PULL）→ 在其 activity 流追加一条 ack，闭合「agent 确认已读」回路。
 	msgAckProj := envservice.NewMessageAckProjector(a.DB, a.AgentActivityRepo, appliedRepo, a.IDGen, a.Clock)
+	// v2.18.3 BE-2 (issue-577a7b0e): the EVENT fast path of the auto-assign dual-track
+	// trigger. It consumes pm.task.state_changed / pm.task.created and fires a
+	// project-scoped auto-assign sweep the instant a task enters the pool or an agent
+	// frees a run slot — so an ownerless pool task is picked up in ~relay-latency, not at
+	// the next periodic AutoAssignReconciler tick. Best-effort + idempotent (CAS); the
+	// periodic loop is the completeness backstop. MUST be registered here or only the
+	// periodic path runs (a defined-but-unregistered projector has no prod consumer).
+	autoAssignTriggerProj := pmservice.NewAutoAssignTriggerProjector(a.PMService, nil)
 	return []outbox.Projector{
 		participantProj,
 		planParticipantProj,
@@ -390,6 +398,7 @@ func (a *App) outboxProjectors(
 		planOrchestratorProj,
 		dispatchWakeProj,
 		msgAckProj,
+		autoAssignTriggerProj,
 	}, wakeProj
 }
 

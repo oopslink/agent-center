@@ -67,6 +67,12 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 		// available. True iff the task can be claimed (open→running) right now: not
 		// archived, open, assigned, in this plan, node dispatched (e.g. built-in pool).
 		"claimable": pm.Claimable(l.archivedOf[n.TaskID], n.TaskStatus, l.assigneeOf[n.TaskID], l.planID, n.NodeStatus),
+		// v2.18.3 BE-2 (issue-577a7b0e): the auto-assign STARVED signal — true iff this
+		// ownerless pool task carries required_capabilities but NO eligible online agent
+		// can take it (a capability-supply gap, NOT mere transient busy-ness). FE renders
+		// a "waiting for an eligible agent" badge. Always present; false for non-pool
+		// nodes / tasks with no requirement / when no candidate gap exists.
+		"starved": l.starvedOf[n.TaskID],
 	}
 	// v2.9.2 (task-0543ece9): the human Task id (org_ref "T123") rides on the node
 	// DTO so the Work Board card + agent-facing list show it WITHOUT a second
@@ -94,6 +100,10 @@ type planNodeLookup struct {
 	archivedOf   map[pm.TaskID]bool
 	archivedAtOf map[pm.TaskID]string
 	orgRefOf     map[pm.TaskID]string
+	// starvedOf (v2.18.3 BE-2) maps a task id → true when it is auto-assign STARVED.
+	// Sourced from PlanDetail.Starved (populated by the FE-facing reads for builtin
+	// pool plans); nil/absent ⇒ false (the common case for structured-plan nodes).
+	starvedOf map[pm.TaskID]bool
 }
 
 func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
@@ -104,6 +114,7 @@ func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 		archivedOf:   make(map[pm.TaskID]bool, len(detail.Tasks)),
 		archivedAtOf: make(map[pm.TaskID]string, len(detail.Tasks)),
 		orgRefOf:     make(map[pm.TaskID]string, len(detail.Tasks)),
+		starvedOf:    detail.Starved,
 	}
 	for _, t := range detail.Tasks {
 		l.titleOf[t.ID()] = t.Title()
