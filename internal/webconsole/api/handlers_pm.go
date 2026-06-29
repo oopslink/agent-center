@@ -107,6 +107,9 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		"blocked_reason": t.BlockedReason(), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 		"tags": tags, "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
+		// T570 follow-up: authoritative completion time — set on →completed, cleared
+		// on reopen. "" when not currently completed.
+		"completed_at": rfc3339OrEmpty(t.CompletedAt()),
 		// v2.9 P3 Stage B: orthogonal archived state (independent of status) — the
 		// archive FE renders an "已归档" badge + read-only affordance off these.
 		"archived": t.IsArchived(), "archived_by": string(t.ArchivedBy()),

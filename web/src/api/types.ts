@@ -637,6 +637,9 @@ export interface Task {
   tags?: string[];
   // v2.8.1 #278: RFC3339 timestamp of the last status change; "" when never set.
   status_changed_at?: string;
+  // T570 follow-up: authoritative completion time — set when the task enters
+  // 'completed', cleared (reset) on reopen. "" / absent when not completed.
+  completed_at?: string;
   // v2.7.1 #245: org-internal display/reference token ("T1234"); hash `id`
   // (task-xxx) stays the stable internal ref. Absent → UI falls back to handle.
   org_ref?: string;
