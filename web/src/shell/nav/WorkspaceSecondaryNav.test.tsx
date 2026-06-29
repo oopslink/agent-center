@@ -26,7 +26,7 @@ function renderAt(initial: string) {
 describe('WorkspaceSecondaryNav (v2.10.0 [T4])', () => {
   afterEach(() => cleanup());
 
-  it('top-level: shows Projects / Issues / Tasks / Plans links when not in a project', () => {
+  it('top-level: shows Projects / Issues / Tasks / Plans / Repos links when not in a project', () => {
     renderAt('/projects');
     const nav = screen.getByTestId('workspace-nav-toplevel');
     expect(screen.queryByTestId('workspace-nav-project')).not.toBeInTheDocument();
@@ -36,6 +36,8 @@ describe('WorkspaceSecondaryNav (v2.10.0 [T4])', () => {
       ['Tasks', '/tasks'],
       // v2.10.2 [T142]: pluralized "Plan" → "Plans".
       ['Plans', '/plans'],
+      // workspace-level code-repo registry (route /repos → OrgRepos).
+      ['Repos', '/repos'],
     ];
     for (const [label, href] of expected) {
       const link = within(nav)

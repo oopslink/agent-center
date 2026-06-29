@@ -58,6 +58,11 @@ function TopLevelWorkspaceNav({ orgBase }: { orgBase: string }): React.ReactElem
     { to: `${orgBase}/tasks`, label: 'Tasks', Icon: TaskIcon },
     // v2.10.2 [T142]: "Plan" → "Plans" (plural, consistent with the siblings).
     { to: `${orgBase}/plans`, label: 'Plans', Icon: PlanIcon },
+    // Repos: the workspace-level code-repo registry (route /repos → OrgRepos,
+    // T575/issue-f980c8de). Present in AppLayout's default nav + the module's
+    // pathPrefixes, but was dropped when this route-aware override (T4) replaced
+    // the default → the page was sidebar-orphaned. Restored here.
+    { to: `${orgBase}/repos`, label: 'Repos', Icon: ReposIcon },
     // T207: Reminders moved OUT to a top-level module (peer of Members) — see
     // buildModules() in AppLayout. It is no longer a Workspace col② item.
   ];
