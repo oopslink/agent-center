@@ -14,6 +14,7 @@ import (
 	"github.com/oopslink/agent-center/internal/blobstore"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/environment/controlstream"
@@ -153,6 +154,11 @@ type HandlerDeps struct {
 	// workspace Repo resolution + remote viewing go through it; it NEVER returns the
 	// credential. nil → get_repo_info(live) degrades to static info only.
 	CodeRepoSvc *coderepservice.Service
+	// LiveState records the per-agent live executor snapshots the worker ships on its
+	// heartbeat (v2.19.0). The heartbeat handler writes it; the webconsole
+	// .../agents/{id}/concurrency endpoint reads the SAME store instance. nil →
+	// snapshots are dropped (feature off / not wired).
+	LiveState concurrency.LiveStateStore
 	// PMProjectRepo is the new-model (pm) project repo backing the
 	// operator/admin-token project find-* read endpoints. v2.7 #131 PR-3:
 	// repointed off the retired workforce.Project model. Operator-scoped —

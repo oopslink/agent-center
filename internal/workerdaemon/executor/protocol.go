@@ -101,13 +101,17 @@ type SourceRefs struct {
 // (design §7). It is the executor's complete starting context: it carries no
 // credentials and no center handle, by design.
 type Input struct {
-	ExecutorID string     `json:"executor_id"`
-	ProblemID  string     `json:"problem_id,omitempty"`
-	Goal       Goal       `json:"goal"`
-	Model      string     `json:"model"`
-	Context    string     `json:"context,omitempty"`
-	Source     SourceRefs `json:"source"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ExecutorID string `json:"executor_id"`
+	ProblemID  string `json:"problem_id,omitempty"`
+	Goal       Goal   `json:"goal"`
+	Model      string `json:"model"`
+	// CLI is the executor CLI the orchestrator routed (claude-code|codex), persisted
+	// for observability — the real-time concurrency snapshot reads it back from
+	// input.json (v2.19.0). Empty for pre-v2.19 launches; not required at startup.
+	CLI       string     `json:"cli,omitempty"`
+	Context   string     `json:"context,omitempty"`
+	Source    SourceRefs `json:"source"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 // Validate enforces the invariants the executor relies on at startup.

@@ -93,6 +93,8 @@ export const qk = {
   runtimeList: (agentId: string, path: string) => o('runtimeList', agentId, path),
   runtimeRead: (agentId: string, path: string) => o('runtimeRead', agentId, path),
   runtimeGitLog: (agentId: string, path: string) => o('runtimeGitLog', agentId, path),
+  // T593: per-agent live concurrency slots (3s poll), overlaid on the Tasks tab.
+  agentConcurrency: (agentId: string) => o('agentConcurrency', agentId),
   // T575 (issue-f980c8de): workspace-level code-repo registry + remote viewing.
   workspaceRepos: () => o('workspaceRepos'),
   repoCommits: (repoId: string, branch: string) => o('repoCommits', repoId, branch),

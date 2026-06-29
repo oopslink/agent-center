@@ -322,6 +322,8 @@ func (s *Server) routes() {
 	// (hard DELETE above is admin-only). Idempotent; running → 409 must-stop-first.
 	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/archive", s.agentArchiveHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/tasks", s.agentTasksHandler)
+	// v2.19.0: real-time per-agent executor concurrency view (cap/active/queued + live executors).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/concurrency", s.agentConcurrencyHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/activity", s.agentActivityHandler)
 	// I28/F4: per-agent analytics dashboard (composed read) + Top-Cost-Tasks drill-down.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/analytics", s.agentAnalyticsHandler)

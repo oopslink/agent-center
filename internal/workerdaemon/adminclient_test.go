@@ -232,7 +232,7 @@ func TestAdminClient_Enroll_EmptyWorkerIDFails(t *testing.T) {
 func TestAdminClient_Heartbeat_PostsToHeartbeatEndpoint(t *testing.T) {
 	fs, client, cleanup := newFakeServer(t)
 	defer cleanup()
-	if err := client.Heartbeat(context.Background(), "w-1", nil); err != nil {
+	if err := client.Heartbeat(context.Background(), "w-1", nil, nil); err != nil {
 		t.Fatalf("Heartbeat: %v", err)
 	}
 	reqs := fs.reqs()
@@ -251,7 +251,7 @@ func TestAdminClient_Heartbeat_PostsToHeartbeatEndpoint(t *testing.T) {
 func TestAdminClient_Heartbeat_EmptyWorkerIDFails(t *testing.T) {
 	_, client, cleanup := newFakeServer(t)
 	defer cleanup()
-	if err := client.Heartbeat(context.Background(), "  ", nil); err == nil {
+	if err := client.Heartbeat(context.Background(), "  ", nil, nil); err == nil {
 		t.Fatal("expected error for empty worker_id")
 	}
 }

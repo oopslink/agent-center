@@ -6,6 +6,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
@@ -124,6 +125,10 @@ func (s *Server) workerRenameHandler(w http.ResponseWriter, r *http.Request) {
 type heartbeatReq struct {
 	WorkerID                 string `json:"worker_id"`
 	AdditionalWorkingSeconds int64  `json:"additional_working_seconds"`
+	// AgentConcurrencySnapshots is the optional v2.19.0 per-agent live executor view
+	// (agent_id → snapshot). Absent from pre-v2.19 workers → no live state written
+	// (back-compat: the field is purely additive and a missing field is not an error).
+	AgentConcurrencySnapshots map[string]concurrency.AgentSnapshot `json:"agent_concurrency_snapshots,omitempty"`
 }
 
 func (s *Server) workerHeartbeatHandler(w http.ResponseWriter, r *http.Request) {
@@ -143,6 +148,15 @@ func (s *Server) workerHeartbeatHandler(w http.ResponseWriter, r *http.Request) 
 	}); err != nil {
 		mapDomainError(w, err)
 		return
+	}
+	// v2.19.0: record the per-agent live executor snapshots (when the store is wired
+	// and the worker sent any). Best-effort + after the liveness write — a snapshot is
+	// transient view state, never a reason to fail the heartbeat.
+	if d.LiveState != nil && len(req.AgentConcurrencySnapshots) > 0 {
+		now := time.Now()
+		for agentID, snap := range req.AgentConcurrencySnapshots {
+			d.LiveState.Put(agentID, snap, now)
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"worker_id": req.WorkerID})
 }

@@ -16,13 +16,25 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/concurrency"
 )
 
 // CenterClient is the subset of AdminClient methods Runtime needs.
 // Defined as an interface so runtime_test.go can plug a fake.
 type CenterClient interface {
 	Enroll(ctx context.Context, workerID string, capabilities []string) error
-	Heartbeat(ctx context.Context, workerID string, capabilities []string) error
+	// Heartbeat asserts liveness and ships the optional per-agent concurrency
+	// snapshots (v2.19.0; nil/empty when no agent is running the concurrent path —
+	// a back-compat-safe empty field on the wire).
+	Heartbeat(ctx context.Context, workerID string, capabilities []string, snapshots map[string]concurrency.AgentSnapshot) error
+}
+
+// concurrencySnapshotter is the ControlHandler capability the runtime uses to gather
+// the per-agent live executor view for the heartbeat (v2.19.0). The production
+// AgentController implements it; a handler that doesn't is simply skipped.
+type concurrencySnapshotter interface {
+	SnapshotConcurrency() map[string]concurrency.AgentSnapshot
 }
 
 // RuntimeConfig parameterises the daemon loop.
@@ -30,8 +42,12 @@ type RuntimeConfig struct {
 	WorkerID       string
 	Capabilities   []string
 	PollInterval   time.Duration // default 1s
-	HeartbeatEvery time.Duration // default 30s
-	ShutdownGrace  time.Duration // wait for in-flight on shutdown; default 30s
+	HeartbeatEvery time.Duration // idle heartbeat cadence; default 30s
+	// ActiveHeartbeatEvery is the FAST cadence used while any agent on this worker
+	// has a live executor (v2.19.0: keeps the real-time concurrency view fresh).
+	// Default 4s; falls back to HeartbeatEvery if set larger than it.
+	ActiveHeartbeatEvery time.Duration
+	ShutdownGrace        time.Duration // wait for in-flight on shutdown; default 30s
 	// AgentCLIOverrides → AgentRunnerConfig (e.g. fakeagent path).
 	AgentCLIOverrides map[string]string
 	// Logger receives one-line ops messages with `[worker] ` prefix.
@@ -85,6 +101,12 @@ func NewRuntime(cfg RuntimeConfig, client CenterClient) *Runtime {
 	}
 	if cfg.HeartbeatEvery <= 0 {
 		cfg.HeartbeatEvery = 30 * time.Second
+	}
+	if cfg.ActiveHeartbeatEvery <= 0 {
+		cfg.ActiveHeartbeatEvery = 4 * time.Second
+	}
+	if cfg.ActiveHeartbeatEvery > cfg.HeartbeatEvery {
+		cfg.ActiveHeartbeatEvery = cfg.HeartbeatEvery
 	}
 	if cfg.ShutdownGrace <= 0 {
 		cfg.ShutdownGrace = 30 * time.Second
@@ -152,28 +174,59 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}()
 	r.log("control loop started worker_id=%s", r.cfg.WorkerID)
 
-	hbTick := time.NewTicker(r.cfg.HeartbeatEvery)
-	defer hbTick.Stop()
-
-	// v2.7 #154: assert liveness IMMEDIATELY on startup. time.Ticker only fires
-	// after the first full interval, so without this the worker stays offline
-	// until the first HeartbeatEvery tick (default 30s) — the center marks a
-	// worker online on its first heartbeat. An immediate heartbeat brings the
-	// "online" display to ~1 RTT on both fresh start and restart.
-	if err := r.client.Heartbeat(ctx, r.cfg.WorkerID, r.cfg.Capabilities); err != nil {
-		r.log("initial heartbeat: %v", err)
-	}
+	// v2.19.0: the heartbeat cadence is ADAPTIVE — fast (ActiveHeartbeatEvery) while
+	// any agent has a live executor (keeps the real-time concurrency view fresh),
+	// idle (HeartbeatEvery) otherwise. A timer (reset per beat) replaces the fixed
+	// ticker so the interval can change between beats.
+	//
+	// v2.7 #154: assert liveness IMMEDIATELY on startup. Without this the worker
+	// stays offline until the first interval — the center marks a worker online on
+	// its first heartbeat. An immediate heartbeat brings "online" to ~1 RTT.
+	next := r.beat(ctx)
+	hbTimer := time.NewTimer(next)
+	defer hbTimer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return r.shutdown()
-		case <-hbTick.C:
-			if err := r.client.Heartbeat(ctx, r.cfg.WorkerID, r.cfg.Capabilities); err != nil {
-				r.log("heartbeat: %v", err)
-			}
+		case <-hbTimer.C:
+			hbTimer.Reset(r.beat(ctx))
 		}
 	}
+}
+
+// beat gathers the per-agent concurrency snapshots (when the ControlHandler supports
+// it), sends one heartbeat, and returns the interval until the next beat: the fast
+// active cadence when any agent has a live executor, else the idle cadence.
+func (r *Runtime) beat(ctx context.Context) time.Duration {
+	snaps := r.gatherSnapshots()
+	if err := r.client.Heartbeat(ctx, r.cfg.WorkerID, r.cfg.Capabilities, snaps); err != nil {
+		r.log("heartbeat: %v", err)
+	}
+	if anyActiveExecutor(snaps) {
+		return r.cfg.ActiveHeartbeatEvery
+	}
+	return r.cfg.HeartbeatEvery
+}
+
+// gatherSnapshots pulls the per-agent live executor view from the ControlHandler
+// (nil when the handler doesn't support it — e.g. tests / noop).
+func (r *Runtime) gatherSnapshots() map[string]concurrency.AgentSnapshot {
+	if s, ok := r.cfg.ControlHandler.(concurrencySnapshotter); ok {
+		return s.SnapshotConcurrency()
+	}
+	return nil
+}
+
+// anyActiveExecutor reports whether any agent currently has ≥1 live executor.
+func anyActiveExecutor(snaps map[string]concurrency.AgentSnapshot) bool {
+	for _, s := range snaps {
+		if s.Active > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // shutdown waits for in-flight goroutines to finish or escalates after
