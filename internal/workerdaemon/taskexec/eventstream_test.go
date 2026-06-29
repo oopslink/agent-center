@@ -75,6 +75,44 @@ func TestEventStreamWriter_Append_And_ReadAll(t *testing.T) {
 	}
 }
 
+func TestAckCurrent_AdvancesOffsetToEOF(t *testing.T) {
+	taskDir := filepath.Join(t.TempDir(), "task-1")
+	os.MkdirAll(taskDir, 0o700)
+	w := NewEventStreamWriter()
+
+	// Empty / missing segment → size 0, offset reset to current/0.
+	if size, err := w.CurrentSegmentSize(taskDir); err != nil || size != 0 {
+		t.Fatalf("CurrentSegmentSize empty = %d, %v; want 0, nil", size, err)
+	}
+
+	if err := w.Append(taskDir, RawEvent{ID: "ev-1", EventType: "x", Payload: "{}", OccurredAt: time.Now().UTC()}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	size, err := w.CurrentSegmentSize(taskDir)
+	if err != nil || size == 0 {
+		t.Fatalf("CurrentSegmentSize after append = %d, %v", size, err)
+	}
+	acked, err := w.AckCurrent(taskDir, "ev-1")
+	if err != nil {
+		t.Fatalf("AckCurrent: %v", err)
+	}
+	if acked != size {
+		t.Fatalf("AckCurrent returned %d, want segment size %d", acked, size)
+	}
+	off, err := w.ReadOffset(taskDir)
+	if err != nil {
+		t.Fatalf("ReadOffset: %v", err)
+	}
+	if off.Segment != "current" || off.ByteOffset != size || off.LastEventID != "ev-1" {
+		t.Fatalf("offset = %+v, want current/%d/ev-1", off, size)
+	}
+
+	// A fully-acked segment at/above threshold rolls; AckCurrent is what unblocks it.
+	if name, err := w.MaybeRollSegment(taskDir, 1); err != nil || name == "" {
+		t.Fatalf("MaybeRollSegment after ack = %q, %v; want a rolled segment", name, err)
+	}
+}
+
 func TestEventStreamWriter_ReadAll_MissingFile(t *testing.T) {
 	taskDir := filepath.Join(t.TempDir(), "task-1")
 	os.MkdirAll(taskDir, 0o700)

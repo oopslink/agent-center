@@ -25,6 +25,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -200,6 +201,11 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		AgentHomeBase:      agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
 		Logger:             logf,
 		DisableUsageReport: disableUsageReport,
+		// issue-5753e8fa W3/W4: wire the per-task execution-directory manager so the
+		// runtime actually creates tasks/{id}/ and the onEvent sink writes
+		// events.current.jsonl + task.log + archived segments. Nil here was the
+		// false-green bug — the taskexec/tasklog subsystems had zero runtime callers.
+		TaskDirManager:     taskexec.NewDirManager(),
 	}); cerr != nil {
 		logf("warning: agent controller not wired: " + cerr.Error())
 	} else {

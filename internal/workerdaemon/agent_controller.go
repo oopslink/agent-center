@@ -49,6 +49,7 @@ import (
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
+	"github.com/oopslink/agent-center/internal/workerdaemon/tasklog"
 )
 
 // agentSession is the NARROW control surface the AgentController needs from one
@@ -351,6 +352,20 @@ type AgentControllerConfig struct {
 	// 0 → default 1 hour. GC is only active when TaskDirManager is non-nil.
 	GCInterval time.Duration
 
+	// SegmentMaxBytes is the per-task event-stream segment roll threshold
+	// (design §8.1): once events.current.jsonl crosses it AND Center has acked the
+	// whole segment, onEvent rolls it into events.{seq}.jsonl.gz. 0 →
+	// taskexec.DefaultSegmentMaxBytes (8 MiB). A completed task always force-seals
+	// its segment regardless of this threshold. Active only when TaskDirManager is
+	// non-nil. See taskevents.go.
+	SegmentMaxBytes int64
+
+	// TaskLogMaxBytes is the per-task task.log rotation cap (design §3 / W4): the
+	// active tasks/{id}/task.log rotates aside to task.log.1 once a write would
+	// push it past this. 0 → tasklog.DefaultMaxBytes (10 MiB). Active only when
+	// TaskDirManager is non-nil. See taskevents.go.
+	TaskLogMaxBytes int64
+
 	// starter is the session factory (test seam, PM s3b-2b). Unexported so ONLY
 	// same-package _test.go can override it with a fake — production callers cannot
 	// set it, so NewAgentController always defaults it to the real supervisor-spawn
@@ -457,6 +472,26 @@ type managedAgent struct {
 	// it never grows unbounded across turns. Guarded by mu.
 	toolNames map[string]string
 
+	// taskLog / taskLogID are the W4 per-task log sink for the in-flight task: the
+	// open rotating tasks/{taskLogID}/task.log writer onEvent tees each stream event
+	// into, and the task id it belongs to. Lazily opened on the first event of a
+	// task, rotated (closed + reopened) when the in-flight task changes, and closed
+	// on task completion / session exit. eventSeq is a monotonic per-session counter
+	// that makes each local RawEvent.ID unique within a task. Guarded by mu;
+	// see taskevents.go.
+	taskLog   *tasklog.Writer
+	taskLogID string
+	eventSeq  uint64
+
+	// eventTaskID is the task the W3/W4 local sink routes stream events to. UNLIKE
+	// currentTaskID (the "last WorkItem injected" anchor, which the pull model never
+	// sets), it is derived from the agent's OWN MCP calls observed in the stream:
+	// a start_task/claim_task tool_use opens it, a complete_task/discard_task closes
+	// it. This is the real per-task output boundary in the supervisor-inline pull
+	// model — the only place the controller learns which task the resident claude is
+	// working on. Guarded by mu; see taskevents.go + onEvent.
+	eventTaskID string
+
 	// model is the agent's configured claude --model (Profile.Model, threaded from the
 	// reconcile command). Held here so a mid-run self-heal relaunch — which gets NO
 	// fresh reconcile and deletes this managedAgent on crash — can carry it across the
@@ -540,6 +575,12 @@ type AgentController struct {
 	// attach after a (re)start — because a later in-process engine rebuild's running
 	// executors are this process's own children, not orphans. Guarded by mu.
 	recoveredExec map[string]bool
+
+	// eventWriter is the stateless per-task event-stream sink (W3): onEvent appends
+	// each in-flight task's stream events to tasks/{id}/events.current.jsonl through
+	// it, acks them to events.offset, and rolls archived segments. Stateless, so a
+	// single shared instance is safe across agents. See taskevents.go.
+	eventWriter *taskexec.EventStreamWriter
 }
 
 // compile-time: AgentController is a CommandHandler.
@@ -572,6 +613,7 @@ func NewAgentController(cfg AgentControllerConfig) (*AgentController, error) {
 		agents:        map[string]*managedAgent{},
 		selfHeal:      map[string]*selfHealEntry{},
 		recoveredExec: map[string]bool{},
+		eventWriter:   taskexec.NewEventStreamWriter(),
 	}, nil
 }
 
@@ -1627,6 +1669,15 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	// clear it. Zero unless a rate_limit event preceded the result.
 	var rlRetryAfter int
 	var rlResetAt int64
+	// taskForEvent is the task this event is routed to for the LOCAL W3/W4 sink
+	// (events.current.jsonl + task.log). clearEventTask requests dropping the
+	// routing anchor AFTER this event is recorded (a terminal-tool call). See the
+	// eventTaskID field doc: in the pull model the controller has no per-task brief
+	// inject, so the in-flight task is derived from the agent's own start_task /
+	// complete_task MCP calls observed in the stream — NOT currentTaskID (which the
+	// pull path never sets).
+	var taskForEvent string
+	var clearEventTask bool
 	if ma := c.agents[agentID]; ma != nil {
 		workItemRef = ma.currentTaskID
 		// v2.7.1 #216: maintain the per-turn tool_use_id→tool_name correlation so the
@@ -1639,6 +1690,16 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 					ma.toolNames = map[string]string{}
 				}
 				ma.toolNames[ev.ToolUseID] = ev.ToolName
+			}
+			// W3/W4 routing: a start/claim tool call opens a task; a terminal tool
+			// call (complete/discard) closes it. The opening call and the closing
+			// call themselves belong to that task's segment, so set BEFORE / clear
+			// AFTER recording this event.
+			if tid := taskIDFromStartTool(ev.ToolName, ev.ToolInput); tid != "" {
+				ma.eventTaskID = tid
+			}
+			if isTaskTerminalTool(ev.ToolName) {
+				clearEventTask = true
 			}
 		case "tool_result":
 			toolName = ma.toolNames[ev.ToolUseID]
@@ -1658,19 +1719,49 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 			rlRetryAfter, rlResetAt = ma.rlRetryAfterSecs, ma.rlResetAtUnix
 			ma.rlRetryAfterSecs, ma.rlResetAtUnix = 0, 0 // turn ended → consume the window
 		}
+		taskForEvent = ma.eventTaskID
 	}
 	c.mu.Unlock()
 
 	payload, err := json.Marshal(streamActivityPayload(ev, toolName))
+	reportOK := false
 	if err != nil {
 		c.log("activity agent=%s marshal event: %v", agentID, err)
 		// Still attempt the L2 failure surface below — the activity record is
 		// best-effort, but a failed turn must not be swallowed by a marshal error.
-	} else if err := c.cfg.Reporter.ReportAgentActivity(
+	} else if rerr := c.cfg.Reporter.ReportAgentActivity(
 		context.Background(), agentID, activityEventType(ev), string(payload),
 		workItemRef, "" /*interactionRef*/, time.Now(),
-	); err != nil {
-		c.log("activity agent=%s report: %v", agentID, err)
+	); rerr != nil {
+		c.log("activity agent=%s report: %v", agentID, rerr)
+	} else {
+		reportOK = true
+	}
+
+	// W3/W4 (issue-5753e8fa): persist the SAME stream event to the in-flight task's
+	// local on-disk stream — append to tasks/{id}/events.current.jsonl, tee a line
+	// into tasks/{id}/task.log, ack+roll archived segments. The Center activity
+	// report above is the REMOTE telemetry path; this is the LOCAL audit/recovery
+	// path the design names the "唯一可信源" (§8.1/§10). reportOK gates the local ack
+	// (a delivered event is "acked"); a failed report still persists the event but
+	// leaves it un-acked so it is never archived away before delivery. taskForEvent
+	// is derived from the agent's own start_task/complete_task calls (pull model),
+	// falling back to currentTaskID for any push-injected work.
+	routeTask := taskForEvent
+	if routeTask == "" {
+		routeTask = workItemRef
+	}
+	if err == nil {
+		c.recordTaskEvent(agentID, routeTask, ev, activityEventType(ev), string(payload), reportOK)
+	}
+	// Drop the routing anchor after a terminal-tool call so post-completion idle
+	// events don't reopen the finished task's segment.
+	if clearEventTask {
+		c.mu.Lock()
+		if ma := c.agents[agentID]; ma != nil {
+			ma.eventTaskID = ""
+		}
+		c.mu.Unlock()
 	}
 
 	// L2 no-silent-failure: a `result` event with is_error=true means the turn
@@ -2024,10 +2115,18 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	model := ma.model             // agent's --model → carry across crash so self-heal re-drive uses the SAME model
 	displayName := ma.displayName // agent's display_name → carry across crash so self-heal re-drive keeps git author NAME (T469)
 	cli := ma.cli                 // codex agents skip the supervisor self-heal machinery (no epoch/fork)
+	// W4: flush+close any open per-task log writer so the session's exit doesn't
+	// leak the fd (and so a later workspace wipe isn't racing a live writer).
+	taskLog := ma.taskLog
+	ma.taskLog, ma.taskLogID = nil, ""
 	// Clear the entry: this daemon no longer tracks the session (on detach the
 	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
 	delete(c.agents, agentID)
 	c.mu.Unlock()
+
+	if taskLog != nil {
+		_ = taskLog.Close()
+	}
 
 	if detaching {
 		// Daemon-shutdown survival: claude lives on; report nothing.
