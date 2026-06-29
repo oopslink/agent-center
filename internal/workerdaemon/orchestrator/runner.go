@@ -59,6 +59,14 @@ const executorSystemPrompt = "You are an isolated executor working a single task
 //
 // codex exec carries no center credentials or mcp config (none is passed; codex has
 // no mcp by default), so the executor isolation holds.
+//
+// TODO(T622 / issue-47fe2a78): codex usage 上报未打通. The claude executor emits
+// stream-json whose `result` lines carry token usage (executor.ParseRunnerStream),
+// but `codex exec` here runs in plain-text mode (no --json) so ParseRunnerStream
+// finds no parseable usage → a codex executor's usage_event is empty (its result
+// text still relays fine via the raw-output fallback). Wiring codex usage needs a
+// codex-specific token parser over its JSONL event stream (a different shape from
+// claude's) — deferred; this fix gets claude-code's source-bound usage landing first.
 type CodexRunnerBuilder struct {
 	binary string
 }
@@ -122,13 +130,21 @@ func NewClaudeRunnerBuilder(binary string) *ClaudeRunnerBuilder {
 // Build assembles the executor's claude argv:
 //
 //	claude -p <prompt> --model <model> --append-system-prompt <executor framing>
+//	       --output-format stream-json --verbose
 //	       --setting-sources user,project
 //	       --allow-dangerously-skip-permissions --dangerously-skip-permissions
 //	       --permission-mode bypassPermissions
 //
-// NO --mcp-config (executor isolation: no center tools/credentials), NO
-// --output-format stream-json (a plain `-p` prints the final text result the
-// CommandRunner captures), NO --session-id (each executor is an ephemeral one-shot).
+// NO --mcp-config (executor isolation: no center tools/credentials), NO --session-id
+// (each executor is an ephemeral one-shot).
+//
+// v2.20.1 (T622, issue-47fe2a78 reopen): the executor runs in stream-json mode so
+// each turn's `result` line carries the token `usage` the orchestrator relays to
+// report_usage. The earlier plain `-p` text mode emitted NO usage, so
+// ParseRunnerUsage returned 0 in production and usage_event was永远 empty. claude
+// requires --verbose to emit stream-json under -p. The CommandRunner extracts the
+// final TEXT result from the stream (executor.ParseRunnerStream) for output.json /
+// chat relay — the raw JSON is never written back as the task result.
 func (b *ClaudeRunnerBuilder) Build(model, prompt string) ([]string, error) {
 	if strings.TrimSpace(model) == "" {
 		return nil, errors.New("orchestrator: runner model required")
@@ -141,6 +157,10 @@ func (b *ClaudeRunnerBuilder) Build(model, prompt string) ([]string, error) {
 		"-p", prompt,
 		"--model", model,
 		"--append-system-prompt", executorSystemPrompt,
+		// stream-json so each result line carries per-turn usage (T622); --verbose is
+		// REQUIRED by claude to emit stream-json under -p.
+		"--output-format", "stream-json",
+		"--verbose",
 		// Auth + non-interactive permissions — same rationale as the supervisor's
 		// streaming argv (claudestream): "user" setting-source loads keychain /login
 		// auth (+ "project" the workspace's own .claude); bypassPermissions is the
