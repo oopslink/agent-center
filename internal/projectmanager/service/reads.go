@@ -353,6 +353,13 @@ type PlanDetail struct {
 	Plan  *pm.Plan
 	Tasks []*pm.Task
 	View  pm.PlanView
+	// Starved (v2.18.3 BE-2) maps a builtin-pool task id → true when it is STARVED:
+	// it carries required_capabilities but no eligible online agent can take it (a
+	// capability-supply gap), so the FE renders a "waiting for an eligible agent"
+	// badge. Populated ONLY by the FE-facing reads (GetPlanDetail / plan summaries)
+	// for builtin pool plans; nil on the internal planDetail path (the reconciler /
+	// claim flow don't pay the directory read). A nil/absent entry ⇒ not starved.
+	Starved map[pm.TaskID]bool
 }
 
 // GetPlanDetail loads a Plan + its tasks + edges + dispatch records and derives
@@ -365,7 +372,14 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 	if err != nil {
 		return nil, err
 	}
-	return s.planDetail(ctx, p)
+	detail, err := s.planDetail(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.fillStarved(ctx, detail); err != nil {
+		return nil, err
+	}
+	return detail, nil
 }
 
 // planDetail loads one Plan's tasks + edges + dispatch records and derives the
@@ -644,7 +658,14 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	for _, p := range plans {
 		tasks := tasksByPlan[p.ID()]
 		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused)
-		out = append(out, &PlanDetail{Plan: p, Tasks: tasks, View: view})
+		detail := &PlanDetail{Plan: p, Tasks: tasks, View: view}
+		// v2.18.3 BE-2: the Work Board pool card shows the starved badge → fill the
+		// starved set for the builtin pool plan (a no-op for every structured plan, and
+		// at most ONE directory read per project since a project has one builtin pool).
+		if err := s.fillStarved(ctx, detail); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, detail)
 	}
 	return out, total, nil
 }
