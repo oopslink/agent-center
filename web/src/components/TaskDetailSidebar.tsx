@@ -5,7 +5,8 @@ import { Avatar } from '@/components/Avatar';
 import { EntityRef } from '@/components/EntityRef';
 import { useSenderSidebar } from '@/components/SenderSidebarContext';
 import { StatusBlock } from '@/components/IssueTaskSidebar';
-import { refLabel } from '@/components/workItemDisplay';
+import { refLabel, IssueRefTag } from '@/components/workItemDisplay';
+import { PlanRefTag } from '@/components/planDisplay';
 import { tagColorFor } from '@/components/tagColors';
 import { formatLocalTime, formatStatusDuration } from '@/utils/time';
 
@@ -55,7 +56,7 @@ interface Props {
    * resolves it (via usePlan) and omits it for a backlog task OR the built-in
    * assignment pool (the pool is not a user-facing plan).
    */
-  plan?: { id: string; name: string };
+  plan?: { id: string; name: string; org_ref?: string };
   /**
    * T193: the issue this task was DERIVED FROM (task.derived_from_issue), resolved
    * to {ref, title} by the page so the sidebar shows a clickable "Related Issue"
@@ -222,11 +223,13 @@ export function TaskDetailSidebar({
             <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Plan</p>
             <OrgLink
               to={`/projects/${encodeURIComponent(tk.project_id)}/plans/${encodeURIComponent(plan.id)}`}
-              className="text-accent hover:underline"
+              className="inline-flex items-center gap-1.5 text-accent hover:underline"
               data-testid="task-plan-link"
               data-plan-id={plan.id}
             >
-              {plan.name}
+              {/* T574 sidebar polish: show the human Plan id (P123) as a tag. */}
+              <PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="task-plan-ref-tag" />
+              <span>{plan.name}</span>
             </OrgLink>
           </div>
         )}
@@ -240,13 +243,15 @@ export function TaskDetailSidebar({
             <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Related Issue</p>
             <OrgLink
               to={`/projects/${encodeURIComponent(tk.project_id)}/issues/${encodeURIComponent(derivedIssue.id)}`}
-              className="text-accent hover:underline"
+              className="inline-flex items-center gap-1.5 text-accent hover:underline"
               data-testid="task-derived-issue-link"
               data-issue-id={derivedIssue.id}
               title={derivedIssue.title}
             >
-              <span className="font-mono text-xs">{refLabel(derivedIssue.org_ref, derivedIssue.id)}</span>{' '}
-              {derivedIssue.title}
+              {/* T574 sidebar polish: render the Issue id (I123) as a tag, matching
+                  the Plan id tag above (was an inline mono prefix). */}
+              <IssueRefTag issueId={derivedIssue.id} orgRef={derivedIssue.org_ref} testId="task-derived-issue-ref-tag" />
+              <span className="min-w-0 truncate">{derivedIssue.title}</span>
             </OrgLink>
           </div>
         )}
