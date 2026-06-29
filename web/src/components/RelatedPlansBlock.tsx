@@ -1,21 +1,20 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
-import { useProjectPlansList } from '@/api/plans';
+import { useRelatedPlans } from '@/api/plans';
 import { PlanStatusChip } from '@/components/planDisplay';
 import { refLabel } from '@/components/workItemDisplay';
 
 // RelatedPlansBlock — the plan detail rail's "Related Plans" section (T581). It is
 // the plan-side mirror of the issue sidebar's DerivedTasksBlock: a list of the OTHER
-// structured plans in the SAME project, so you can hop between a project's plans
-// without going back to the Plans board. Each row: the P-number ref + plan name +
-// status chip, linking to that plan's detail page.
+// plans derived from the SAME source issue as this plan, so you can hop between the
+// plans an issue spawned. Each row: the P-number ref + plan name + status chip,
+// linking to that plan's detail page.
 //
-// Data: useProjectPlansList (the project Plans LIST endpoint) already EXCLUDES the
-// built-in assignment pool, so the list is structured plans only; we additionally
-// drop the CURRENT plan (a plan is never "related" to itself). Plan has no issue
-// link in its DTO, so "related" is scoped to the same project (the only relation the
-// model carries) — a richer issue-derived grouping would need a backend plan→issue
-// link first.
+// Data: useRelatedPlans (GET …/plans/{id}/related-plans) — the backend resolves the
+// plan's source issue (the shared derived_from_issue of its cycle nodes, set by
+// scaffold_cycle_plan) and returns the OTHER plans whose tasks derive from that issue,
+// already EXCLUDING this plan and the built-in pool. The component renders the rows
+// as-is (no client-side filtering).
 //
 // Rendered as a bordered rail SECTION (matching the rail's Up-next / Participants
 // blocks) rather than a standalone card, so it sits flush inside PlanInfoRail.
@@ -26,8 +25,8 @@ export function RelatedPlansBlock({
   projectId: string;
   currentPlanId: string;
 }): React.ReactElement {
-  const plans = useProjectPlansList(projectId);
-  const related = (plans.data?.items ?? []).filter((p) => p.id !== currentPlanId);
+  const plans = useRelatedPlans(projectId, currentPlanId);
+  const related = plans.data ?? [];
 
   return (
     <div className="border-b border-border-base p-5" data-testid="plan-related-plans">
@@ -44,7 +43,7 @@ export function RelatedPlansBlock({
         </p>
       ) : related.length === 0 ? (
         <p className="text-xs text-text-muted" data-testid="related-plans-empty">
-          No other plans in this project.
+          No other plans from this issue.
         </p>
       ) : (
         <ul className="space-y-1" data-testid="related-plans-list">

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sort"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -89,6 +90,77 @@ func (s *Service) ListTasksDerivedFromIssueForMember(ctx context.Context, issueI
 
 func (s *Service) ListTasks(ctx context.Context, projectID pm.ProjectID) ([]*pm.Task, error) {
 	return s.tasks.ListByProject(ctx, projectID)
+}
+
+// ListRelatedPlans returns the OTHER structured plans derived from the SAME source
+// issue as planID (T581) — the data behind the plan-detail rail's "Related Plans"
+// list. A cycle plan's generated nodes all carry derived_from_issue == the plan's
+// source issue (scaffold_cycle_plan / T462), so the plan's issue is taken as the FIRST
+// non-empty derived_from_issue among its tasks (cycle-plan nodes share one issue). The
+// related set is then the DISTINCT non-builtin plans whose project tasks derive from
+// that issue, EXCLUDING this plan, ordered (created_at, id) for a stable list. Empty
+// when the plan has no source issue (no derived link) or no siblings. Membership-
+// guarded on the plan's project (mirrors GetPlanDetail's read scope).
+func (s *Service) ListRelatedPlans(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) ([]*pm.Plan, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	plan, err := s.plans.FindByID(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireProjectMember(ctx, plan.ProjectID(), actor); err != nil {
+		return nil, err
+	}
+	planTasks, err := s.tasks.ListByPlan(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	var issueID pm.IssueID
+	for _, t := range planTasks {
+		if t.DerivedFromIssue() != "" {
+			issueID = t.DerivedFromIssue()
+			break
+		}
+	}
+	if issueID == "" {
+		return []*pm.Plan{}, nil // no source issue → nothing is "related" by issue
+	}
+	// Every project task derived from that issue → the distinct plans that own them.
+	projTasks, err := s.tasks.ListByProject(ctx, plan.ProjectID())
+	if err != nil {
+		return nil, err
+	}
+	seen := map[pm.PlanID]struct{}{planID: {}} // exclude self
+	out := make([]*pm.Plan, 0)
+	for _, t := range projTasks {
+		if t.DerivedFromIssue() != issueID {
+			continue
+		}
+		pid := t.PlanID()
+		if pid == "" {
+			continue // a derived task not (yet) in a plan
+		}
+		if _, dup := seen[pid]; dup {
+			continue
+		}
+		seen[pid] = struct{}{}
+		p, ferr := s.plans.FindByID(ctx, pid)
+		if ferr != nil {
+			return nil, ferr
+		}
+		if p == nil || p.IsBuiltin() {
+			continue // the built-in pool is never a "related plan"
+		}
+		out = append(out, p)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].CreatedAt().Equal(out[j].CreatedAt()) {
+			return out[i].CreatedAt().Before(out[j].CreatedAt())
+		}
+		return out[i].ID() < out[j].ID()
+	})
+	return out, nil
 }
 
 // ListProjectTasksForMember lists a project's tasks, GUARDED by project membership

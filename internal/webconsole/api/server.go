@@ -267,6 +267,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
 	// v2.13.0 / I18 F4 — unmerged-branch board (un-done Integrate nodes).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/unmerged-branches", s.pmListUnmergedBranchesHandler)
+	// T581 — plan detail rail "Related Plans": other plans from the same source issue.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/related-plans", s.pmRelatedPlansHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmUpdatePlanHandler)
 	// v2.9 P3: hard-delete (non-running; unloads tasks to backlog + deletes the
 	// plan + its conversation) and archive (non-running; cascade-archives tasks,

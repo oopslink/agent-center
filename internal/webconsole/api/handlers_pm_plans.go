@@ -393,6 +393,30 @@ func (s *Server) pmListUnmergedBranchesHandler(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, pmUnmergedBoardMap(board))
 }
 
+// pmRelatedPlansHandler — GET …/plans/{plan_id}/related-plans (T581). The OTHER
+// structured plans derived from the SAME source issue as this plan, for the plan
+// detail rail's "Related Plans" list. Membership + plan-in-project gated like
+// pmGetPlanHandler. Response mirrors the plan list shape ({plans:[...]}); each row is
+// the base plan DTO (the rail renders ref + name + status). Empty array when the plan
+// has no source issue / no siblings.
+func (s *Server) pmRelatedPlansHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	plans, err := d.PM.ListRelatedPlans(r.Context(), pl.ID(), caller)
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	rows := make([]map[string]any, 0, len(plans))
+	for _, p := range plans {
+		rows = append(rows, pmPlanMap(p))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plans": rows})
+}
+
 func (s *Server) pmUpdatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)

@@ -257,6 +257,23 @@ export function usePlan(projectId: string | undefined, planId: string | undefine
   });
 }
 
+// GET /{id}/related-plans — T581: the OTHER structured plans derived from the SAME
+// source issue as this plan (the plan detail rail's "Related Plans" list). The backend
+// already EXCLUDES the current plan and the built-in pool, so the caller renders the
+// rows as-is. Empty array when the plan has no source issue / no siblings.
+export function useRelatedPlans(projectId: string | undefined, planId: string | undefined) {
+  return useQuery({
+    queryKey: [...qk.plan(planId ?? ''), 'related'],
+    queryFn: async () => {
+      const resp = await api.get<{ plans: Plan[] }>(
+        `${plansBase(projectId ?? '')}/${planId}/related-plans`,
+      );
+      return resp.plans ?? [];
+    },
+    enabled: !!projectId && !!planId,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // v2.13.0 / I18 F4 — unmerged-branch board (un-done Integrate nodes).
 //
