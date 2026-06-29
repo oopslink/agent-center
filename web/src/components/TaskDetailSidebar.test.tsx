@@ -88,7 +88,7 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
         <TaskDetailSidebar
           task={makeTask({ plan_id: 'plan-xyz' })}
           projectName="Project A"
-          plan={{ id: 'plan-xyz', name: 'v2.10.1 mobile' }}
+          plan={{ id: 'plan-xyz', name: 'v2.10.1 mobile', org_ref: 'P12' }}
           onEdit={() => {}}
           editable
         />
@@ -98,6 +98,8 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
     expect(link).toHaveTextContent('v2.10.1 mobile');
     expect(link).toHaveAttribute('data-plan-id', 'plan-xyz');
     expect(link.getAttribute('href')).toContain('/projects/proj-a/plans/plan-xyz');
+    // T574 sidebar polish: the human Plan id (P12) renders as a tag.
+    expect(screen.getByTestId('task-plan-ref-tag')).toHaveTextContent('P12');
   });
 
   it('hides the Plan section for a backlog task / built-in pool (no plan passed)', () => {
@@ -124,7 +126,8 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
     );
     const row = screen.getByTestId('task-sidebar-derived-issue');
     expect(row).toHaveTextContent('Login is broken');
-    expect(row).toHaveTextContent('I42');
+    // T574 sidebar polish: the Issue id (I42) renders as a tag (was inline mono).
+    expect(screen.getByTestId('task-derived-issue-ref-tag')).toHaveTextContent('I42');
     const link = screen.getByTestId('task-derived-issue-link');
     expect(link).toHaveAttribute('data-issue-id', 'issue-abc');
     expect(link.getAttribute('href')).toContain('/projects/proj-a/issues/issue-abc');

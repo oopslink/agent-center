@@ -31,6 +31,8 @@ const PlanDetail = lazy(() => import('./pages/PlanDetail'));
 const OrgWorkItems = lazy(() => import('./pages/OrgWorkItems'));
 // v2.10.0 [T6]: global cross-project Plan list (Workspace > Plan).
 const OrgPlans = lazy(() => import('./pages/OrgPlans'));
+// T575 (issue-f980c8de): workspace-level code-repo registry (Workspace > Repos).
+const OrgRepos = lazy(() => import('./pages/OrgRepos'));
 const Reminders = lazy(() => import('./pages/Reminders'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
@@ -91,6 +93,9 @@ export function App(): React.ReactElement {
           <Route path="tasks" element={<OrgWorkItems kind="task" />} />
           {/* v2.10.0 [T6]: org-scope cross-project Plan list (Workspace > Plan). */}
           <Route path="plans" element={<OrgPlans />} />
+          {/* T575 (issue-f980c8de): workspace-level Repos — top-level code-repo
+              registry (CRUD + credentials + remote viewing). */}
+          <Route path="repos" element={<OrgRepos />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
           <Route path="reminders" element={<Reminders />} />
           <Route path="secrets" element={<Secrets />} />

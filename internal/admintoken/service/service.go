@@ -42,6 +42,13 @@ type Service struct {
 	// (manifests as "database is locked (517)" on macOS).
 	muLastMark   sync.Mutex
 	lastMarkUsed map[admintoken.TokenID]time.Time
+
+	// closeOnce makes Close idempotent WITHOUT mutating markUsedCh. The field
+	// is assigned once (in New) and never reassigned, so the pump goroutine's
+	// `range markUsedCh` and MarkUsedAsync's read of it never race a writer.
+	// (The previous Close set markUsedCh=nil, which raced the pump's range —
+	// surfaced by -race in internal/cli's full-stack admin tests.)
+	closeOnce sync.Once
 }
 
 // markUsedThrottle is the minimum interval between LastUsedAt writes
@@ -102,13 +109,11 @@ func (s *Service) Close() {
 	if s == nil || s.markUsedCh == nil {
 		return
 	}
-	defer func() {
-		// Closing a closed channel panics; the guard makes Close
-		// idempotent.
-		_ = recover()
-	}()
-	close(s.markUsedCh)
-	s.markUsedCh = nil
+	// closeOnce closes the channel exactly once WITHOUT reassigning the field,
+	// so a concurrent pump `range` / MarkUsedAsync read of markUsedCh never
+	// races a writer. MarkUsedAsync's own recover() already absorbs a send on
+	// the now-closed channel, so dropping the nil sentinel is safe.
+	s.closeOnce.Do(func() { close(s.markUsedCh) })
 }
 
 // CreateCommand captures token creation parameters.

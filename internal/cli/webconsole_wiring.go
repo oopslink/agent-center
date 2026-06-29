@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
@@ -82,6 +83,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		UserSecretRepo:      a.UserSecretRepo,
 		UserSecretSvc:       a.UserSecretSvc,
 		PM:                  a.PMService,
+		CodeRepoSvc:         a.CodeRepoService,
 		Reminder:            buildReminderService(a),
 		AgentSvc:            a.AgentService,
 		FilesSvc:            buildFilesService(a),
@@ -422,6 +424,26 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 			"webconsole: auth not configured — set secret_management.master_key_file " +
 				"in the server config (the master key doubles as the JWT signing key)")
 	}
+	// Every background loop started below (server, fanout, pump, GC, wake,
+	// plan-reconcile, resolved-issue-closer, control-event GC) fans its error
+	// strings onto this single `logger`, concurrently. The fan-out makes the
+	// logger contract "may be called from many goroutines at once", so a
+	// caller's non-thread-safe sink (e.g. a test's shared []string / bytes.Buffer)
+	// would data-race. Serialize every call through one mutex here so the
+	// contract holds for ANY logger — ordering-only, no behavior change. (nil
+	// logger is normalized to a no-op; callers historically always pass non-nil.)
+	{
+		var logMu sync.Mutex
+		inner := logger
+		if inner == nil {
+			inner = func(string) {}
+		}
+		logger = func(s string) {
+			logMu.Lock()
+			defer logMu.Unlock()
+			inner(s)
+		}
+	}
 	// v2.7 D3-d/D3-c: a single files transfer Service instance backs BOTH the
 	// /api/files HTTP surface (FilesSvc) and the refcount GC loop below — built
 	// once from the configured blobstore root (nil when unconfigured).
@@ -440,6 +462,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		UserSecretRepo:      a.UserSecretRepo,
 		UserSecretSvc:       a.UserSecretSvc,
 		PM:                  a.PMService,
+		CodeRepoSvc:         a.CodeRepoService,
 		Reminder:            buildReminderService(a),
 		AgentSvc:            a.AgentService,
 		FilesSvc:            filesSvc,

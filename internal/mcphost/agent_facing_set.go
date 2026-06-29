@@ -50,6 +50,9 @@ var AgentFacingToolNames = []string{
 	// T200 WS4: post_issue_message merged into post_message (target type "issue").
 	"list_issues",
 	"list_tasks_of_issue",
+	// v2.18.4 BE-2 (issue-f980c8de) — workspace CodeRepo info tools.
+	"list_project_repos",
+	"get_repo_info",
 	"delete_plan",
 	"download_file",
 	"find_org_agent",

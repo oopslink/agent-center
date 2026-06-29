@@ -76,6 +76,30 @@ export function refLabel(orgRef: string | undefined | null, id: string): string 
   return ref !== '' ? ref : id;
 }
 
+// IssueRefTag (T574 sidebar polish) — a small monospace pill showing the human
+// Issue id (org_ref "I123"), falling back to the full id when absent. Mirrors
+// PlanRefTag (planDisplay) so the related-Plan (P123) and related-Issue (I123)
+// ids render as identical tags in the Task detail sidebar. Full id on hover.
+export function IssueRefTag({
+  issueId,
+  orgRef,
+  testId = 'issue-ref-tag',
+}: {
+  issueId: string;
+  orgRef?: string;
+  testId?: string;
+}): React.ReactElement {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
+      data-testid={testId}
+      title={issueId}
+    >
+      {refLabel(orgRef, issueId)}
+    </span>
+  );
+}
+
 // shortDate — today → time, yesterday → "Yesterday", else locale date.
 export function shortDate(iso: string): string {
   const d = new Date(iso);

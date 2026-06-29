@@ -304,9 +304,16 @@ type TaskActionLogRepository interface {
 // CodeRepoRefRepository persists CodeRepoRef records attached to a Project.
 type CodeRepoRefRepository interface {
 	Save(ctx context.Context, c *CodeRepoRef) error
+	// Update persists mutable ref fields (label, repo_id, is_primary); url/project
+	// are immutable (v2.18.4 BE-1).
+	Update(ctx context.Context, c *CodeRepoRef) error
 	FindByID(ctx context.Context, id string) (*CodeRepoRef, error)
 	ListByProject(ctx context.Context, projectID ProjectID) ([]*CodeRepoRef, error)
 	Delete(ctx context.Context, id string) error
+	// ClearPrimaryForProject unsets is_primary on all of a project's refs except
+	// exceptID — the at-most-one-primary invariant when setting a new primary
+	// (v2.18.4 BE-1).
+	ClearPrimaryForProject(ctx context.Context, projectID ProjectID, exceptID string) error
 }
 
 // OrgSequenceRepository allocates per-organization, per-entity-type monotonic

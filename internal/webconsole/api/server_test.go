@@ -15,6 +15,8 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
+	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
+	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsqlite "github.com/oopslink/agent-center/internal/conversation/sqlite"
@@ -103,18 +105,29 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	deps.MemberRemoveSvc = identity.NewMemberRemoveService(db, deps.MemberRepo, identity.NewOrganizationLockManager())
 	// v2.7 B3: wire the ProjectManager service for the nested /api/projects/...
 	// routes (the pm handlers in handlers_pm.go).
+	// v2.18.4 BE-1: workspace CodeRepo service (its own fresh master key for credential
+	// encryption) + the shared CodeRepoRefRepo doubling as the RefUnlinker; the coderepo
+	// service doubles as the pm CodeRepoResolver.
+	codeRepoRefRepo := pmsql.NewCodeRepoRefRepo(db)
+	crMK, _ := secretmgmt.GenerateMasterKey()
+	codeRepoSvc := coderepservice.New(coderepservice.Deps{
+		DB: db, Repos: coderepsql.NewRepoRepo(db), IDGen: idgen.NewGenerator(clock.SystemClock{}),
+		Clock: clock.SystemClock{}, MasterKey: crMK, Unlinker: codeRepoRefRepo,
+	})
+	deps.CodeRepoSvc = codeRepoSvc
 	deps.PM = pmservice.New(pmservice.Deps{
-		DB:           db,
-		Projects:     pmsql.NewProjectRepo(db),
-		Members:      pmsql.NewProjectMemberRepo(db),
-		Issues:       pmsql.NewIssueRepo(db),
-		Tasks:        pmsql.NewTaskRepo(db),
-		TaskSubs:     pmsql.NewTaskSubscriberRepo(db),
-		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
-		Outbox:       outboxsql.NewOutboxRepo(db),
-		IDGen:        idgen.NewGenerator(clock.SystemClock{}),
-		Clock:        clock.SystemClock{},
+		DB:               db,
+		Projects:         pmsql.NewProjectRepo(db),
+		Members:          pmsql.NewProjectMemberRepo(db),
+		Issues:           pmsql.NewIssueRepo(db),
+		Tasks:            pmsql.NewTaskRepo(db),
+		TaskSubs:         pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:        pmsql.NewIssueSubscriberRepo(db),
+		CodeRepoRefs:     codeRepoRefRepo,
+		CodeRepoResolver: codeRepoSvc,
+		Outbox:           outboxsql.NewOutboxRepo(db),
+		IDGen:            idgen.NewGenerator(clock.SystemClock{}),
+		Clock:            clock.SystemClock{},
 		// #5a: assigning a Task to an agent grants it project membership, which is
 		// cross-org-guarded via the AgentDirectory (and fail-closed when nil). Wire
 		// the real directory over the test agent repo so agent assignment works.

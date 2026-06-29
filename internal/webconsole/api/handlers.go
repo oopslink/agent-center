@@ -16,6 +16,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
+	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -102,6 +103,10 @@ type HandlerDeps struct {
 	// (work-management truth; ADR-0046). Optional — nil means the v2.7 PM
 	// endpoints are not wired (legacy/test deps).
 	PM *pmservice.Service
+
+	// CodeRepoSvc is the workspace CodeRepo app service (v2.18.4 BE-1) backing the
+	// /api/orgs/{slug}/code-repos CRUD + credential storage. Optional — nil → 501.
+	CodeRepoSvc *coderepservice.Service
 
 	// Reminder is the Cognition Reminder app service (T207) backing the human
 	// /api/orgs/{slug}/reminders CRUD. Optional — nil → 501.

@@ -33,6 +33,7 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrTaskNotFound),
 		errors.Is(err, pm.ErrProjectNotFound),
 		errors.Is(err, pm.ErrIssueNotFound),
+		errors.Is(err, pm.ErrCodeRepoRefNotFound),
 		errors.Is(err, agent.ErrAgentNotFound),
 		errors.Is(err, admintoken.ErrTokenNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())

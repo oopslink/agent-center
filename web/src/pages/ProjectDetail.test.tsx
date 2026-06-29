@@ -266,6 +266,8 @@ describe('ProjectDetail page', () => {
           ],
         }),
       ),
+      // T575: the referencer also loads workspace repos to join provider/desc.
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [] })),
     );
     wrap('/projects/proj-a');
     await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
@@ -287,6 +289,41 @@ describe('ProjectDetail page', () => {
     const repoRow = screen.getByTestId('repo-row');
     expect(repoRow).toHaveAttribute('data-repo-id', 'R-1');
     expect(repoRow).toHaveTextContent('main repo');
+  });
+
+  it('T575: Referenced repos panel joins refs to workspace repos (provider/primary) + offers unreferenced repos to add', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/projects/:pid/code-repos', () =>
+        HttpResponse.json({
+          code_repos: [
+            { id: 'ref-1', project_id: 'proj-a', url: '', label: '', added_by: 'user:o', created_at: 'x', repo_id: 'repo-1', is_primary: true },
+          ],
+        }),
+      ),
+      http.get('/api/code-repos', () =>
+        HttpResponse.json({
+          repos: [
+            { id: 'repo-1', organization_id: 'org-test', label: 'agent-center', description: 'mono', url: 'git@github.com:o/ac.git', provider: 'github', default_branch: 'main', has_credential: true, created_by: 'user:o', created_at: 'x', updated_at: 'x', version: 1 },
+            { id: 'repo-2', organization_id: 'org-test', label: 'infra', description: '', url: 'https://git/infra.git', provider: 'git', default_branch: 'master', has_credential: false, created_by: 'user:o', created_at: 'x', updated_at: 'x', version: 1 },
+          ],
+        }),
+      ),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('project-tab-repos'));
+    const row = await screen.findByTestId('repo-row');
+    // joined to workspace repo repo-1: provider badge + label + primary star.
+    expect(within(row).getByTestId('repo-provider-badge')).toHaveTextContent(/github/i);
+    expect(row).toHaveTextContent('agent-center');
+    expect(within(row).getByTestId('repo-row-primary')).toHaveAttribute('data-primary', 'true');
+    // add-selector offers only the NOT-yet-referenced repo (infra), not repo-1.
+    const select = screen.getByTestId('project-repos-add-select') as HTMLSelectElement;
+    expect(within(select).getByRole('option', { name: 'infra' })).toBeInTheDocument();
+    expect(within(select).queryByRole('option', { name: 'agent-center' })).toBeNull();
   });
 
   it('renders a Plans tab (after Tasks) listing the project plans (per @oopslink)', async () => {
@@ -431,6 +468,7 @@ describe('ProjectDetail page', () => {
       http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
       http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
       http.get('/api/projects/:pid/code-repos', () => HttpResponse.json({ code_repos: [] })),
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [] })),
       http.get('/api/projects/:pid/members', () =>
         HttpResponse.json({
           members: [

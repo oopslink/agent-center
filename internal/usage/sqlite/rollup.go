@@ -280,12 +280,24 @@ func (r *Rollup) recomputeBucket(ctx context.Context, exec persistence.SQLExecut
 	}
 
 	// --- token/cost totals (usage_events) ---
+	// Bug fix (T580): attribute token/cost to the task's REAL project, not the
+	// ingest-time usage_events.project_id. report_usage (agent_tools_usage.go) resolves
+	// the project at write time and silently falls back to "" when the task lookup fails
+	// / PM is unavailable / the turn has no task — so a task-scoped event could land in
+	// the "" bucket while its activity count landed in the right project, making
+	// by-project token/cost disagree with the activity count. We mirror TopTasks /
+	// the activity rollup: LEFT JOIN pm_tasks on the persisted task_id and bucket by
+	// COALESCE(t.project_id, ue.project_id, '') — the task's current project when known,
+	// else whatever ingest recorded, else no-project. Because task_id is stored,
+	// re-running the rollup self-heals historical rows (a task-scoped event whose
+	// ingest project_id was "" reattributes to t.project_id); converse turns (no
+	// task_id) keep falling to ue.project_id ("" → no-project bucket).
 	urows, err := exec.QueryContext(ctx,
-		`SELECT project_id,
-		        COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0),
-		        COALESCE(SUM(cache_read_tokens + cache_write_tokens),0), COALESCE(SUM(cost_micros),0)
-		   FROM usage_events
-		  WHERE agent_ref = ? AND substr(ts,1,10) = ? GROUP BY project_id`, agentRef, day)
+		`SELECT COALESCE(t.project_id, ue.project_id, '') AS pid,
+		        COALESCE(SUM(ue.input_tokens),0), COALESCE(SUM(ue.output_tokens),0),
+		        COALESCE(SUM(ue.cache_read_tokens + ue.cache_write_tokens),0), COALESCE(SUM(ue.cost_micros),0)
+		   FROM usage_events ue LEFT JOIN pm_tasks t ON ue.task_id = t.id
+		  WHERE ue.agent_ref = ? AND substr(ue.ts,1,10) = ? GROUP BY pid`, agentRef, day)
 	if err != nil {
 		return 0, err
 	}

@@ -105,6 +105,8 @@ var wantTools = []string{
 	// v2.10.3 T170: agent issue management
 	"create_issue", "update_issue", "close_issue", "reopen_issue",
 	"list_issues", "list_tasks_of_issue",
+	// v2.18.4 BE-2 (issue-f980c8de): workspace CodeRepo info tools
+	"list_project_repos", "get_repo_info",
 	// pm writes / passthrough
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe",

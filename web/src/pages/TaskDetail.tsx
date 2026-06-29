@@ -95,7 +95,7 @@ export default function TaskDetail(): React.ReactElement {
   // (exclude the built-in assignment pool — not a user-facing plan) and loaded.
   const planForSidebar =
     plan.data && plan.data.is_builtin !== true
-      ? { id: plan.data.id, name: plan.data.name }
+      ? { id: plan.data.id, name: plan.data.name, org_ref: plan.data.org_ref }
       : undefined;
   // T193: pass the resolved derived issue to the sidebar (ref + title + id for the
   // link). Only when the task carries derived_from_issue AND the issue loaded.
