@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -164,6 +164,44 @@ describe('SenderDetailSidebar', () => {
     );
     render(<SenderDetailSidebar open senderRef={'agent:A-1'} onClose={noop} />);
     await waitFor(() => expect(screen.getByTestId('sender-sidebar-activity-empty')).toBeInTheDocument());
+  });
+
+  // @oopslink: a "Current tasks" list at the top of the activity area.
+  it('lists the agent current (in-progress) tasks; terminal tasks excluded', async () => {
+    const task = (over: Record<string, unknown>) => ({
+      id: 'w?', agent_id: 'A-7', task_ref: 'pm://tasks/?', interactions: 0, version: 1,
+      created_at: 'x', updated_at: 'x', ...over,
+    });
+    server.use(
+      http.get('/api/agents/:id/tasks', () =>
+        HttpResponse.json({
+          tasks: [
+            task({ id: 'w1', task_ref: 'pm://tasks/t1', task_id: 't1', task_title: 'Build the thing', project_id: 'p1', org_ref: 'T84', status: 'active' }),
+            task({ id: 'w2', task_ref: 'pm://tasks/t2', task_id: 't2', task_title: 'Old done thing', project_id: 'p1', org_ref: 'T80', status: 'done' }),
+          ],
+        }),
+      ),
+      http.get('/api/agents/:id/activity', () => HttpResponse.json({ activity: [], next_cursor: null })),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:A-7'} onClose={noop} />);
+    const list = await screen.findByTestId('sender-sidebar-current-tasks-list');
+    const rows = within(list).getAllByTestId('sender-sidebar-current-task');
+    expect(rows).toHaveLength(1); // the active task only — done is excluded
+    expect(rows[0]).toHaveAttribute('data-status', 'active');
+    expect(rows[0]).toHaveTextContent('T84');
+    expect(rows[0]).toHaveTextContent('Build the thing');
+    expect(rows[0]).toHaveTextContent('In Progress');
+  });
+
+  it('shows an empty current-tasks state when nothing is in progress', async () => {
+    server.use(
+      http.get('/api/agents/:id/tasks', () =>
+        HttpResponse.json({ tasks: [{ id: 'w1', agent_id: 'A-1', task_ref: 'pm://tasks/t1', task_id: 't1', task_title: 'Done', status: 'done', interactions: 0, version: 1, created_at: 'x', updated_at: 'x' }] }),
+      ),
+      http.get('/api/agents/:id/activity', () => HttpResponse.json({ activity: [], next_cursor: null })),
+    );
+    render(<SenderDetailSidebar open senderRef={'agent:A-1'} onClose={noop} />);
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar-current-tasks-empty')).toBeInTheDocument());
   });
 
   it('dispatches a user: ref to the user branch (name + User label)', async () => {
