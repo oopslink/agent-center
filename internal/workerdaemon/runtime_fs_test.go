@@ -82,6 +82,52 @@ func TestRuntimeFsList_HidesGitAndFlagsSensitive(t *testing.T) {
 	}
 }
 
+func TestRuntimeFsList_RejectsGitDirTarget(t *testing.T) {
+	home := t.TempDir()
+	writeFile(t, filepath.Join(home, "memory", ".git", "config"), "[core]")
+	writeFile(t, filepath.Join(home, "memory", ".git", "refs", "heads", "main"), "deadbeef")
+
+	// Listing the .git dir directly must be refused (not_found — hidden), even though
+	// it resolves cleanly inside the home.
+	for _, p := range []string{"memory/.git", "memory/.git/refs", "memory/.git/refs/heads"} {
+		if _, opErr := runtimeFsList(home, p); opErr == nil || opErr.code != runtimefs.ErrCodeNotFound {
+			gotCode := ""
+			if opErr != nil {
+				gotCode = opErr.code
+			}
+			t.Fatalf("list %q code=%q, want not_found (.git hidden)", p, gotCode)
+		}
+	}
+}
+
+func TestRuntimeFsRead_SymlinkIntoGitRejected(t *testing.T) {
+	home := t.TempDir()
+	writeFile(t, filepath.Join(home, "memory", ".git", "config"), "url = secret")
+
+	// A direct read into .git is hidden.
+	if _, opErr := runtimeFsRead(home, "memory/.git/config"); opErr == nil || opErr.code != runtimefs.ErrCodeNotFound {
+		gotCode := ""
+		if opErr != nil {
+			gotCode = opErr.code
+		}
+		t.Fatalf("read memory/.git/config code=%q, want not_found", gotCode)
+	}
+
+	// A symlink that stays inside the home but dereferences INTO .git must also be
+	// caught by the POST-resolution guard (the pre-resolution name check would miss it).
+	link := filepath.Join(home, "sneaky")
+	if err := os.Symlink(filepath.Join(home, "memory", ".git", "config"), link); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	if _, opErr := runtimeFsRead(home, "sneaky"); opErr == nil || opErr.code != runtimefs.ErrCodeNotFound {
+		gotCode := ""
+		if opErr != nil {
+			gotCode = opErr.code
+		}
+		t.Fatalf("read symlink-into-.git code=%q, want not_found (resolved path hidden)", gotCode)
+	}
+}
+
 func TestRuntimeFsRead_RedactsCredentials(t *testing.T) {
 	home := t.TempDir()
 	writeFile(t, filepath.Join(home, "mcp_config.runtime.json"), `{"token":"PLAINTEXT-SECRET"}`)

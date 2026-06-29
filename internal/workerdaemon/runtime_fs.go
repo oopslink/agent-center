@@ -113,6 +113,11 @@ func runtimeFsList(home, userPath string) (*runtimefs.ListResult, *runtimeFsErro
 	if err != nil {
 		return nil, classifyPathErr(err)
 	}
+	// Red line, checked on the RESOLVED path (so a symlink that lands inside .git is
+	// caught too): never expose the git plumbing dir, even when it is the target.
+	if runtimeFsResolvedInGit(home, dir) {
+		return nil, &runtimeFsError{runtimefs.ErrCodeNotFound, "not found"}
+	}
 	info, err := os.Stat(dir)
 	if err != nil {
 		return nil, classifyStatErr(err)
@@ -162,13 +167,15 @@ func runtimeFsRead(home, userPath string) (*runtimefs.ReadResult, *runtimeFsErro
 	if rel == "" {
 		return nil, &runtimeFsError{runtimefs.ErrCodeNotFile, "no file path"}
 	}
-	if runtimeFsInGit(rel) {
-		// .git is hidden — treat any read into it as not-found (never expose plumbing).
-		return nil, &runtimeFsError{runtimefs.ErrCodeNotFound, "not found"}
-	}
 	full, err := resolveContainedPath(home, rel, true)
 	if err != nil {
 		return nil, classifyPathErr(err)
+	}
+	// Red line, checked on the RESOLVED path so a symlink pointing INTO .git (which
+	// stays inside the home, so it passes containment) is still hidden: never expose
+	// the git plumbing dir's contents.
+	if runtimeFsResolvedInGit(home, full) {
+		return nil, &runtimeFsError{runtimefs.ErrCodeNotFound, "not found"}
 	}
 	info, err := os.Stat(full)
 	if err != nil {
@@ -238,6 +245,9 @@ func runtimeFsGitLog(ctx context.Context, home, userPath string, limit int) (*ru
 	dir, err := resolveContainedPath(home, rel, true)
 	if err != nil {
 		return nil, classifyPathErr(err)
+	}
+	if runtimeFsResolvedInGit(home, dir) {
+		return nil, &runtimeFsError{runtimefs.ErrCodeNotFound, "not found"}
 	}
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -335,10 +345,28 @@ func runtimeFsResolveArg(rel string) string {
 	return rel
 }
 
-// runtimeFsInGit reports whether rel is the memory repo's .git dir or inside it.
-func runtimeFsInGit(rel string) bool {
-	return rel == ".git" || strings.HasPrefix(rel, ".git/") ||
-		strings.HasSuffix(rel, "/.git") || strings.Contains(rel, "/.git/")
+// runtimeFsResolvedInGit reports whether the RESOLVED path `full` (already contained
+// in home by resolveContainedPath) has a `.git` segment anywhere under the home root —
+// i.e. it is, or sits inside, a git plumbing dir. It is evaluated on the resolved path
+// (not the user-supplied rel) so a symlink that dereferences INTO .git while staying
+// within the home is still caught (the same "post-resolution" caliber as the
+// filepath.Base(full) credential check). Fail-closed: if the path can't be related to
+// home, treat it as hidden.
+func runtimeFsResolvedInGit(home, full string) bool {
+	evalHome, err := filepath.EvalSymlinks(home)
+	if err != nil {
+		evalHome = home
+	}
+	rel, err := filepath.Rel(evalHome, full)
+	if err != nil {
+		return true
+	}
+	for _, seg := range strings.Split(rel, string(os.PathSeparator)) {
+		if seg == ".git" {
+			return true
+		}
+	}
+	return false
 }
 
 // runtimeFsCredentialName flags the plaintext-credential file whose content is withheld.
