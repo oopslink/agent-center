@@ -18,6 +18,7 @@ import (
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	"github.com/oopslink/agent-center/internal/settings"
 )
 
 // Outbox event types (the OQ1 cross-BC producer set, ADR-0052 §3).
@@ -271,6 +272,15 @@ type Service struct {
 	// (the realtime annotation columns still are). When wired, the log-producing flows
 	// flush the domain's freshly-appended TaskActionLog entries to pm_task_action_logs.
 	actionLogs pm.TaskActionLogRepository
+	// autoAssignDir is OPTIONAL (nil-safe, v2.18.3 BE-2). nil ⇒ the auto-assign
+	// reconciler has no candidate source and AutoAssignSweep is a no-op (pool tasks
+	// stay claim-only, pre-BE-2 behaviour). When wired, it lists each org's agents
+	// with the online/opt-out/capability/cap snapshot the matcher consumes.
+	autoAssignDir AutoAssignDirectory
+	// autoAssignSettings is OPTIONAL (nil-safe, v2.18.3 BE-2). The center settings
+	// store backing the per-project auto_assign master switch (autoassign.Enabled). nil
+	// ⇒ the switch reads its default (ON) for every project.
+	autoAssignSettings settings.Store
 }
 
 // DefaultPoolClaimLimit is the T83 §3.6 default cap on concurrently-claimed
@@ -366,6 +376,12 @@ type Deps struct {
 	// task flows (block/unblock/lease-expiry/reassign) flush the domain's appended
 	// TaskActionLog entries to pm_task_action_logs. nil ⇒ no live log persistence.
 	TaskActionLogs pm.TaskActionLogRepository
+	// AutoAssignDir is OPTIONAL (v2.18.3 BE-2): when set, the auto-assign reconciler
+	// can list each org's candidate agents. nil ⇒ AutoAssignSweep is a no-op.
+	AutoAssignDir AutoAssignDirectory
+	// AutoAssignSettings is OPTIONAL (v2.18.3 BE-2): the center settings store backing
+	// the per-project auto_assign master switch. nil ⇒ the switch is its default (ON).
+	AutoAssignSettings settings.Store
 }
 
 // New constructs the Service.
@@ -381,7 +397,9 @@ func New(d Deps) *Service {
 		agentDir: d.AgentDir, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
 		cycleMeta: d.CycleMeta, mergeChecker: d.MergeChecker, decisionGate: d.DecisionGate,
-		actionLogs: d.TaskActionLogs,
+		actionLogs:         d.TaskActionLogs,
+		autoAssignDir:      d.AutoAssignDir,
+		autoAssignSettings: d.AutoAssignSettings,
 	}
 }
 

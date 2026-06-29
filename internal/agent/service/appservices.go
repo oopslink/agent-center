@@ -30,10 +30,13 @@ type CreateAgentCommand struct {
 	// AllowedExecutors is the authoritative {cli, model} candidate list (v2.18.1
 	// BE-1). When set it wins; otherwise AllowedModels is lifted via the agent's cli.
 	AllowedExecutors []agent.ExecutorProfile
-	EnvVars          map[string]string
-	Skills           []string
-	WorkerID         string
-	CreatedBy        agent.IdentityRef
+	// AutoAssignable opts the agent in/out of the BE-2 auto-assign reconciler
+	// (v2.18.3 BE-1). nil → the default (true = assignable).
+	AutoAssignable *bool
+	EnvVars        map[string]string
+	Skills         []string
+	WorkerID       string
+	CreatedBy      agent.IdentityRef
 	// IdentityMemberID (optional, v2.7 #157) — the identity-member id this
 	// execution Agent represents; set by the unified Members→Add Agent flow.
 	IdentityMemberID string
@@ -66,7 +69,10 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 			CLI: cmd.CLI, Reasoning: cmd.Reasoning, Mode: cmd.Mode, Provider: cmd.Provider,
 			OrchestratorModel: cmd.OrchestratorModel, DefaultExecutorModel: cmd.DefaultExecutorModel,
 			MaxConcurrentTasks: cmd.MaxConcurrentTasks, AllowedModels: models, AllowedExecutors: execs,
-			EnvVars: cmd.EnvVars,
+			// v2.18.3 BE-1: a fresh agent is auto-assignable by default (nil → true);
+			// the owner opts out by sending auto_assignable=false.
+			AutoAssignable: cmd.AutoAssignable == nil || *cmd.AutoAssignable,
+			EnvVars:        cmd.EnvVars,
 		},
 		Skills:           cmd.Skills,
 		WorkerID:         cmd.WorkerID,
@@ -181,6 +187,10 @@ type UpdateAgentConfigCommand struct {
 	// AllowedExecutors is the authoritative {cli, model} candidate list (v2.18.1
 	// BE-1); wins over AllowedModels when set.
 	AllowedExecutors []agent.ExecutorProfile
+	// AutoAssignable opts the agent in/out of the BE-2 auto-assign reconciler
+	// (v2.18.3 BE-1). nil → preserve the existing value (a config edit that omits the
+	// field must not silently flip it).
+	AutoAssignable *bool
 }
 
 // resolveAllowedExecutors canonicalizes the executor-candidate input into the
@@ -241,6 +251,11 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		p.MaxConcurrentTasks = cmd.MaxConcurrentTasks
 		p.AllowedExecutors = execs
 		p.AllowedModels = models // derived mirror (distinct models) for legacy readers
+		// v2.18.3 BE-1: a.Profile() already carries the current AutoAssignable; only
+		// override it when the PATCH explicitly sent the field (nil → preserve).
+		if cmd.AutoAssignable != nil {
+			p.AutoAssignable = *cmd.AutoAssignable
+		}
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err
 		}

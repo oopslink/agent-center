@@ -814,6 +814,9 @@ type BatchTaskPatch struct {
 	// DerivedFromIssue (T192): nil = unchanged; "" = clear the link; a non-empty id
 	// (re)links — validated to exist + same project, like UpdateTask.
 	DerivedFromIssue *pm.IssueID
+	// RequiredCapabilities (v2.18.3 BE-1): nil = unchanged; non-nil replaces the set
+	// (empty slice clears it → unrestricted). Canonicalized by the domain.
+	RequiredCapabilities *[]string
 }
 
 // BatchUpdateTask applies any subset of {status, assignee, tags} to a Task in a
@@ -862,6 +865,11 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		}
 		if patch.Tags != nil {
 			if err := t.SetTags(*patch.Tags, now); err != nil {
+				return err
+			}
+		}
+		if patch.RequiredCapabilities != nil {
+			if err := t.SetRequiredCapabilities(*patch.RequiredCapabilities, now); err != nil {
 				return err
 			}
 		}

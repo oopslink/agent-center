@@ -204,9 +204,11 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		AllowedModels        []string `json:"allowed_models"` // legacy input (converted when allowed_executors absent)
 		// v2.18.1 BE-1: authoritative {cli,model} candidate list; wins over allowed_models.
 		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
-		WorkerID         string                    `json:"worker_id"`
-		EnvVars          map[string]string         `json:"env_vars"`
-		Skills           []string                  `json:"skills"`
+		// v2.18.3 BE-1: per-agent auto-assign opt-out. nil → default (true = assignable).
+		AutoAssignable *bool             `json:"auto_assignable"`
+		WorkerID       string            `json:"worker_id"`
+		EnvVars        map[string]string `json:"env_vars"`
+		Skills         []string          `json:"skills"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -294,6 +296,7 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			MaxConcurrentTasks:   body.MaxConcurrentTasks,
 			AllowedModels:        body.AllowedModels,
 			AllowedExecutors:     body.AllowedExecutors,
+			AutoAssignable:       body.AutoAssignable,
 			EnvVars:              body.EnvVars,
 			Skills:               body.Skills,
 			WorkerID:             body.WorkerID,

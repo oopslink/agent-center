@@ -36,12 +36,12 @@ func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO agents (id, organization_id, name, description, model, cli, reasoning, mode, provider,
 			orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars, skills,
-			capability_tags, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			capability_tags, auto_assignable, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(a.ID()), a.OrganizationID(), p.Name, nullString(p.Description), nullString(p.Model),
 		nullString(p.CLI), nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
 		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors,
-		env, skills, tags, a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
+		env, skills, tags, boolToInt(p.AutoAssignable), a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
 		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), a.Version())
 	if persistence.IsUniqueViolation(err) {
 		return agent.ErrAgentExists
@@ -60,11 +60,11 @@ func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	res, err := exec.ExecContext(ctx,
 		`UPDATE agents SET name=?, description=?, model=?, cli=?, reasoning=?, mode=?, provider=?,
 			orchestrator_model=?, default_executor_model=?, max_concurrent_tasks=?, allowed_models=?, allowed_executors=?, env_vars=?, skills=?,
-			capability_tags=?, lifecycle=?, lifecycle_error=?, updated_at=?, version=? WHERE id=?`,
+			capability_tags=?, auto_assignable=?, lifecycle=?, lifecycle_error=?, updated_at=?, version=? WHERE id=?`,
 		p.Name, nullString(p.Description), nullString(p.Model), nullString(p.CLI),
 		nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
 		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors, env, skills,
-		tags, string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), a.Version(), string(a.ID()))
+		tags, boolToInt(p.AutoAssignable), string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), a.Version(), string(a.ID()))
 	if err != nil {
 		return err
 	}
@@ -179,9 +179,17 @@ func (r *AgentRepo) list(ctx context.Context, q, arg string) ([]*agent.Agent, er
 
 const agentSelect = `SELECT id, organization_id, name, description, model, cli, reasoning, mode, provider,
 	orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars, skills,
-	capability_tags, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version FROM agents`
+	capability_tags, auto_assignable, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version FROM agents`
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
+
+// boolToInt renders a bool as SQLite's 1/0 integer (v2.18.3 BE-1 auto_assignable).
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
 
 func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string, allowedModels string, allowedExecutors string, err error) {
 	p := a.Profile()
@@ -244,11 +252,12 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 		maxConcurrentTasks                                                  sql.NullInt64
 		allowedModelsJSON, allowedExecutorsJSON                             sql.NullString
 		envJSON, skillsJSON, tagsJSON                                       string
+		autoAssignable                                                      sql.NullInt64
 		version                                                             int
 	)
 	if err := scan(&id, &org, &name, &desc, &model, &cli, &reasoning, &mode, &provider,
 		&orchestratorModel, &defaultExecutorModel, &maxConcurrentTasks, &allowedModelsJSON, &allowedExecutorsJSON, &envJSON, &skillsJSON,
-		&tagsJSON, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &version); err != nil {
+		&tagsJSON, &autoAssignable, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
 	var env map[string]string
@@ -283,6 +292,8 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 			OrchestratorModel: orchestratorModel.String, DefaultExecutorModel: defaultExecutorModel.String,
 			MaxConcurrentTasks: int(maxConcurrentTasks.Int64), AllowedModels: allowedModels,
 			AllowedExecutors: allowedExecutors, EnvVars: env,
+			// NOT NULL DEFAULT 1; a defensive NULL (shouldn't occur) reads as assignable.
+			AutoAssignable: !autoAssignable.Valid || autoAssignable.Int64 != 0,
 		},
 		Skills: skills, CapabilityTags: tags, WorkerID: workerID,
 		Lifecycle: agent.AgentLifecycle(lifecycle), LifecycleError: lifecycleErr.String,

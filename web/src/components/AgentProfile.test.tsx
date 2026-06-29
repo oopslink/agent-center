@@ -122,6 +122,14 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(chips[1]).toHaveTextContent('gpt-5.5');
   });
 
+  it('T566: auto-assign tag shows On by default and Off when opted out', () => {
+    wrap(base); // no auto_assignable → defaults On
+    expect(screen.getByTestId('agent-profile-tag-auto-assignable')).toHaveTextContent('On');
+    cleanup();
+    wrap({ ...base, auto_assignable: false });
+    expect(screen.getByTestId('agent-profile-tag-auto-assignable')).toHaveTextContent('Off');
+  });
+
   it('renders skills as name cards (no path/badge), empty → placeholder', () => {
     wrap(base);
     expect(screen.getAllByTestId('agent-profile-skill')).toHaveLength(2);

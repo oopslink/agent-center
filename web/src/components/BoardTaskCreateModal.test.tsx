@@ -66,6 +66,25 @@ describe('BoardTaskCreateModal (T231)', () => {
     expect(planSelectCalled).toBe(false);
   });
 
+  it('T566: required_capabilities (canonical) flow into the create body', async () => {
+    let taskBody: Record<string, unknown> | undefined;
+    server.use(
+      http.post('/api/projects/proj-1/tasks', async ({ request }) => {
+        taskBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: 'TS-C', title: 'caps' });
+      }),
+    );
+    const onClose = vi.fn();
+    renderModal([POOL, DRAFT], onClose);
+    fireEvent.change(screen.getByTestId('board-task-create-title'), { target: { value: 'caps' } });
+    const caps = screen.getByTestId('board-task-create-caps-input');
+    fireEvent.change(caps, { target: { value: 'GO' } });
+    fireEvent.keyDown(caps, { key: 'Enter' });
+    fireEvent.click(screen.getByTestId('board-task-create-submit'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(taskBody).toMatchObject({ title: 'caps', required_capabilities: ['go'] });
+  });
+
   it('Assignment Pool destination: creates the task THEN selects it into the builtin pool', async () => {
     let selectPlanId: string | undefined;
     let selectBody: Record<string, unknown> | undefined;

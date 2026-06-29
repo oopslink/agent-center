@@ -98,6 +98,12 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
               <ConfigTag label="Reasoning" value={agent.reasoning || 'Default'} testId="agent-profile-tag-reasoning" isDefault={!agent.reasoning} />
               <ConfigTag label="Mode" value={agent.mode || 'Default'} testId="agent-profile-tag-mode" isDefault={!agent.mode} />
               <ConfigTag label="Provider" value={agent.provider || 'Default'} testId="agent-profile-tag-provider" isDefault={!agent.provider} />
+              {/* T566 (issue-577a7b0e): auto-assign opt-out (default on). */}
+              <ConfigTag
+                label="Auto-assign"
+                value={(agent.auto_assignable ?? true) ? 'On' : 'Off'}
+                testId="agent-profile-tag-auto-assignable"
+              />
             </div>
 
             {/* v2.18.1 (issue-8746a5b9): executor concurrency, read-only. */}

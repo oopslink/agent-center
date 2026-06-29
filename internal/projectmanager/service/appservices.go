@@ -299,6 +299,9 @@ type CreateTaskCommand struct {
 	// §5 & §10); "" = unset → executor model selected from the agent's allowed/default
 	// models.
 	Model string
+	// RequiredCapabilities is the optional capability set the task demands of an
+	// executor agent (v2.18.3 BE-1); canonicalized by the domain. Empty = unrestricted.
+	RequiredCapabilities []string
 }
 
 // CreateTask writes the Task + outbox pm.task.created. The projector (B2-b)
@@ -333,7 +336,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 			ID: taskID, ProjectID: cmd.ProjectID, Title: cmd.Title,
 			Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
 			Branch: cmd.Branch, Base: cmd.Base, SkipMergeCheck: cmd.SkipMergeCheck, Role: cmd.Role,
-			Model: cmd.Model,
+			Model: cmd.Model, RequiredCapabilities: cmd.RequiredCapabilities,
 		})
 		if terr != nil {
 			return terr

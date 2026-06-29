@@ -141,7 +141,9 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		// v2.18.1 BE-1: authoritative executor list + derived concurrency status.
 		"allowed_executors": allowedExecutors, "concurrency_enabled": p.ConcurrencyEnabled(),
 		"effective_concurrency_cap": p.EffectiveConcurrencyCap(),
-		"env_vars":                  envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
+		// v2.18.3 BE-1: per-agent auto-assign opt-out flag (true = assignable).
+		"auto_assignable": p.AutoAssignable,
+		"env_vars":        envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
 		// v2.7 #157: kept for back-compat (equals id now). Lets the Members page
@@ -608,6 +610,8 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		AllowedModels        []string `json:"allowed_models"` // legacy input (converted when allowed_executors absent)
 		// v2.18.1 BE-1: authoritative {cli,model} candidate list; wins over allowed_models.
 		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
+		// v2.18.3 BE-1: per-agent auto-assign opt-out. nil (field omitted) → preserve.
+		AutoAssignable *bool `json:"auto_assignable"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -622,7 +626,7 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
 		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
 		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
-		AllowedExecutors: req.AllowedExecutors,
+		AllowedExecutors: req.AllowedExecutors, AutoAssignable: req.AutoAssignable,
 	})
 	if err != nil {
 		mapAgentError(w, err)

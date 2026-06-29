@@ -386,7 +386,13 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:          gen,
 		Clock:          clk,
 		AgentDir:       agentpkg.NewOrgDirectory(agentRepo),
-		OrgSeq:         pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
+		// v2.18.3 BE-2 (issue-577a7b0e): the auto-assign reconciler's candidate source
+		// (org agents × online/opt-out/capability/cap) + the per-project master switch's
+		// settings store. Both nil-safe at the Service level; wired here in production so
+		// auto-assign is live.
+		AutoAssignDir:      pmservice.NewAgentAutoAssignDirectory(agentRepo, wr),
+		AutoAssignSettings: settingssql.NewStore(db, clk),
+		OrgSeq:             pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
 		// v2.13.0 I18/F3: wire the concrete CycleNodeMetaPort so the F4 unmerged-branch
 		// board reads each plan node's persisted role/branch/base (it was always-empty
 		// before — no adapter was wired). A fresh repo instance is fine (stateless),

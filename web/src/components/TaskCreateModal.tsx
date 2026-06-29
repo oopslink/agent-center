@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useCreateTask } from '@/api/tasks';
 import { useModalA11y } from './useModalA11y';
+import { CapabilitiesEditor } from './CapabilitiesEditor';
 
 interface Props {
   projectId: string;
@@ -16,6 +17,7 @@ export function TaskCreateModal({
 }: Props): React.ReactElement {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [requiredCaps, setRequiredCaps] = useState<string[]>([]);
   const create = useCreateTask(projectId);
   // a11y: Escape closes + focus-trap (rendered = open).
   const containerRef = useModalA11y({ open: true, onClose });
@@ -30,6 +32,7 @@ export function TaskCreateModal({
       const res = await create.mutateAsync({
         title: trimmedTitle,
         description: description.trim() || undefined,
+        required_capabilities: requiredCaps.length > 0 ? requiredCaps : undefined,
       });
       onCreated?.(res.id);
       onClose();
@@ -81,6 +84,14 @@ export function TaskCreateModal({
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
             placeholder="Optional. Context, acceptance criteria, links…"
+          />
+        </Field>
+
+        <Field label="Required capabilities">
+          <CapabilitiesEditor
+            idPrefix="task-create-caps"
+            value={requiredCaps}
+            onChange={setRequiredCaps}
           />
         </Field>
 

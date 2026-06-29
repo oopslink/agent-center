@@ -66,4 +66,25 @@ describe('TaskCreateModal', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(received).toMatchObject({ title: 'fix the bug' });
   });
+
+  it('T566: required_capabilities (canonical) flow into the create body', async () => {
+    let received: Record<string, unknown> | undefined;
+    server.use(
+      http.post('/api/projects/proj-a/tasks', async ({ request }) => {
+        received = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { id: 'TS-NEW', project_id: 'proj-a', title: 'x', description: '', status: 'open', version: 1, created_at: 'x', updated_at: 'x' },
+          { status: 201 },
+        );
+      }),
+    );
+    wrap(<TaskCreateModal projectId="proj-a" onClose={() => undefined} />);
+    fireEvent.change(screen.getByTestId('task-create-title'), { target: { value: 'needs go' } });
+    const caps = screen.getByTestId('task-create-caps-input');
+    fireEvent.change(caps, { target: { value: ' Go ' } });
+    fireEvent.keyDown(caps, { key: 'Enter' });
+    fireEvent.click(screen.getByTestId('task-create-submit'));
+    await waitFor(() => expect(received).toBeDefined());
+    expect(received).toMatchObject({ title: 'needs go', required_capabilities: ['go'] });
+  });
 });

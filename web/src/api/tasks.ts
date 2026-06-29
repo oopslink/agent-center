@@ -57,6 +57,10 @@ export interface CreateTaskInput {
   title: string;
   description?: string;
   derived_from_issue?: string;
+  // T566 (issue-577a7b0e): canonical capability tags required for STRICT
+  // auto-assignment (subset of an agent's capability_tags). Omitted/empty = no
+  // requirement. The backend canonicalizes (trim+lowercase+dedup).
+  required_capabilities?: string[];
 }
 
 export function useCreateTask(projectId: string) {
@@ -87,6 +91,9 @@ export interface UpdateTaskInput {
   status?: TaskStatus;
   assignee?: string;
   tags?: string[];
+  // T566 (issue-577a7b0e): full replacement of the canonical required-capability
+  // set (sent only when changed; omitted = unchanged). [] clears the requirement.
+  required_capabilities?: string[];
 }
 
 export function useUpdateTask(projectId: string, taskId: string) {

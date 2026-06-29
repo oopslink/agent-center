@@ -96,6 +96,21 @@ describe('TaskEditModal', () => {
     expect(cap.received()).toEqual({ title: 'new title' });
   });
 
+  it('T566: prefills required_capabilities and PATCHes the changed (canonical) set', async () => {
+    const cap = capturePatch();
+    const onClose = vi.fn();
+    wrap(<TaskEditModal projectId="proj-a" task={{ ...baseTask, required_capabilities: ['go'] }} onClose={onClose} />);
+    // prefilled chip from the task prop.
+    expect(screen.getByTestId('task-edit-caps-chip')).toHaveTextContent('go');
+    // add a second capability (canonicalized) → caps becomes dirty.
+    const caps = screen.getByTestId('task-edit-caps-input');
+    fireEvent.change(caps, { target: { value: 'RUST' } });
+    fireEvent.keyDown(caps, { key: 'Enter' });
+    fireEvent.click(screen.getByTestId('task-edit-submit'));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(cap.received()).toEqual({ required_capabilities: ['go', 'rust'] });
+  });
+
   it('routes a real (re)assignment through the assign endpoint, not the batch PATCH (F-7)', async () => {
     mockMembers();
     const cap = capturePatch();

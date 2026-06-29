@@ -174,15 +174,16 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx,
 		`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue,
-			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role, blocked_reason_type, blocked_comment, execution_lease_expires_at, model)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(t.ID()), string(t.ProjectID()), t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		string(t.CreatedBy()), ts(t.CreatedAt()), ts(t.UpdatedAt()), t.Version(), nullInt(t.OrgNumber()),
 		marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()),
-		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()))
+		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
+		marshalCaps(t.RequiredCapabilities()))
 	if isUnique(err) {
 		return pm.ErrTaskExists
 	}
@@ -193,13 +194,14 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_tasks SET title=?, description=?, status=?, assignee=?, derived_from_issue=?,
-			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, plan_id=?, archived_at=?, archived_by=?, branch=?, base=?, skip_merge_check=?, role=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=?, model=? WHERE id=?`,
+			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, plan_id=?, archived_at=?, archived_by=?, branch=?, base=?, skip_merge_check=?, role=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=?, model=?, required_capabilities=? WHERE id=?`,
 		t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()), t.Branch(), t.Base(), t.SkipMergeCheck(), string(t.Role()),
-		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()), string(t.ID()))
+		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
+		marshalCaps(t.RequiredCapabilities()), string(t.ID()))
 	if err != nil {
 		// v2.18.0 W4c: the single-active partial UNIQUE index (migration 0072) was
 		// DROPPED by 0084 — the per-agent run-slot cap is no longer a DB guarantee but
@@ -449,7 +451,7 @@ func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus)
 }
 
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
-	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role, blocked_reason_type, blocked_comment, execution_lease_expires_at, model FROM pm_tasks`
+	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, plan_id, archived_at, archived_by, branch, base, skip_merge_check, role, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities FROM pm_tasks`
 
 func scanTask(scan func(...any) error) (*pm.Task, error) {
 	var (
@@ -468,9 +470,10 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		blockedReasonType, blockedComment                             sql.NullString
 		execLeaseExpiresAt                                            sql.NullString
 		model                                                         sql.NullString
+		requiredCapabilities                                          sql.NullString
 	)
 	if err := scan(&id, &projectID, &title, &desc, &status, &assignee, &derived,
-		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &planID, &archivedAt, &archivedBy, &branch, &base, &skipMergeCheck, &role, &blockedReasonType, &blockedComment, &execLeaseExpiresAt, &model); err != nil {
+		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &planID, &archivedAt, &archivedBy, &branch, &base, &skipMergeCheck, &role, &blockedReasonType, &blockedComment, &execLeaseExpiresAt, &model, &requiredCapabilities); err != nil {
 		return nil, err
 	}
 	return pm.RehydrateTask(pm.RehydrateTaskInput{
@@ -494,7 +497,35 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		BlockedComment:          blockedComment.String,
 		ExecutionLeaseExpiresAt: parseTimePtr(execLeaseExpiresAt.String),
 		Model:                   model.String,
+		RequiredCapabilities:    unmarshalCaps(requiredCapabilities.String),
 	})
+}
+
+// marshalCaps serializes a canonical capability set as a JSON string array,
+// ALWAYS a valid array ('[]' for nil/empty, never "" or "null"), matching the
+// required_capabilities column's NOT NULL DEFAULT '[]' (v2.18.3 BE-1).
+func marshalCaps(caps []string) string {
+	if len(caps) == 0 {
+		return "[]"
+	}
+	b, err := json.Marshal(caps)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
+
+// unmarshalCaps parses a stored required_capabilities JSON array. "" (old rows) /
+// invalid → nil slice (unrestricted).
+func unmarshalCaps(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	var out []string
+	if err := json.Unmarshal([]byte(s), &out); err != nil {
+		return nil
+	}
+	return out
 }
 
 var (
