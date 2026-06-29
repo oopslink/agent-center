@@ -58,13 +58,13 @@
       <div class="slots">
         <div class="slot">
           <div class="srow"><span class="state st-run">running</span><span class="cli">claude-code · sonnet</span></div>
-          <div class="task">task-2ff25c2d</div>
+          <div class="task">T582</div>
           <div class="small">实现 runtime-fs worker 读处理器</div>
           <div class="metae"><span>⏱ 4m 12s</span><span>pid 48213</span><span>♥ 1s</span></div>
         </div>
         <div class="slot">
           <div class="srow"><span class="state st-start">starting</span><span class="cli codex">codex · gpt-5.5</span></div>
-          <div class="task">task-9a71c0e4</div>
+          <div class="task">T591</div>
           <div class="small">迁移脚本回填校验</div>
           <div class="metae"><span>⏱ 6s</span><span>pid 48227</span><span>♥ 1s</span></div>
         </div>
@@ -74,7 +74,7 @@
       </div>
       <div class="queue">
         <div class="qh">排队中（等槽位，Center 派发侧)· 1</div>
-        <div class="qitem"><span class="qdot"></span>task-1f33ab02 · 编写验收用例 <span style="margin-left:auto;color:var(--text-muted)">waiting 18s</span></div>
+        <div class="qitem"><span class="qdot"></span>T593 · 编写验收用例 <span style="margin-left:auto;color:var(--text-muted)">waiting 18s</span></div>
       </div>
     </div>
   </div>
@@ -92,7 +92,7 @@
       <div class="agenthdr"><span class="name">agent-center-tester1</span><span class="online">● online</span><span style="color:var(--text-muted)">cap 1 · single-active</span></div>
       <div class="body">
         <div class="util"><span class="big">1<span style="font-size:14px;color:var(--text-muted)">/1</span></span><span class="lbl">slots in use</span><div class="bar" style="width:120px"><span class="seg on"></span></div></div>
-        <div class="slots" style="grid-template-columns:1fr;margin-top:10px"><div class="slot"><div class="srow"><span class="state st-run">running</span><span class="cli">claude-code · sonnet</span></div><div class="task">task-6e23238c</div><div class="metae"><span>⏱ 1m 03s</span></div></div></div>
+        <div class="slots" style="grid-template-columns:1fr;margin-top:10px"><div class="slot"><div class="srow"><span class="state st-run">running</span><span class="cli">claude-code · sonnet</span></div><div class="task">T588</div><div class="metae"><span>⏱ 1m 03s</span></div></div></div>
         <p class="small" style="margin:8px 0 0">未开并发(cap 1)→ 退化为单槽,同一组件复用。</p>
       </div>
     </div>
@@ -101,7 +101,7 @@
     <div class="agenthdr"><span class="name">agent-center-dev5</span><span class="online">● online</span><span style="color:var(--text-muted)">cap 3 · 1 orphan adopted</span></div>
     <div class="body">
       <div class="util"><span class="big">1<span style="font-size:14px;color:var(--text-muted)">/3</span></span><span class="lbl">slots（含 1 orphan）</span><div class="bar"><span class="seg orph"></span><span class="seg"></span><span class="seg"></span></div></div>
-      <div class="slots" style="margin-top:10px"><div class="slot orph"><div class="srow"><span class="state st-orph">orphan · monitored</span><span class="cli">claude-code · sonnet</span></div><div class="task">task-77c1aa90</div><div class="small">监工重启后接管的 executor(无 handle,仅文件监控)</div><div class="metae"><span>pid 41002</span><span>adopted</span></div></div></div>
+      <div class="slots" style="margin-top:10px"><div class="slot orph"><div class="srow"><span class="state st-orph">orphan · monitored</span><span class="cli">claude-code · sonnet</span></div><div class="task">T577</div><div class="small">监工重启后接管的 executor(无 handle,仅文件监控)</div><div class="metae"><span>pid 41002</span><span>adopted</span></div></div></div>
       <p class="small" style="margin:8px 0 0">重启后被 adopt 的 orphan 也纳入快照(state=orphan),否则 active 数会漏。</p>
     </div>
   </div>
@@ -110,7 +110,8 @@
     <h3>技术方案要点（详见 #并发讨论2 / 技术方案）</h3>
     <ul>
       <li><b>采集(worker)</b>:监工 engine 的 executor pool 可即时快照——<span class="kw">Pool.Handles()</span>(μs 级锁)+ orphans map 合并;每 executor 出 <span class="kw">{executor_id, task_id, cli, model, started_at, state, pid, last_progress_at}</span>。<b>需小改</b>:Handle 加 `startedAt` 字段(5 行);task/model 从 input.json 读或随 Handle 缓存。</li>
-      <li><b>传输 = 快照随心跳</b>:心跳体扩展可选字段 `agent_concurrency_snapshots`(向后兼容)。<b>关键</b>:现心跳 30s,对"实时"偏慢 → 建议<b>自适应心跳:有活跃 executor 时加快到 ≈3–5s,空闲回落 30s</b>(仍是"快照随心跳",只在并发真正发生时高频,流量有界)。← <b>这点要你拍</b>。</li>
+      <li><b>传输 = 快照随心跳 + 自适应节奏(已定)</b>:心跳体扩展可选字段 `agent_concurrency_snapshots`(向后兼容)。<b>自适应心跳</b>:有活跃 executor 时心跳加快到 ≈3–5s,空闲回落 30s(仍是"快照随心跳",只在并发真正发生时高频,流量有界)。</li>
+      <li><b>展示约定</b>:UI 一律显示 <b>task ref(T123)</b>,不显示 raw task-id;快照/接口仍传 `task_id`,Center/FE 解析为 ref 展示。</li>
       <li><b>Center 存储</b>:内存 ephemeral cache(map[agent_id]Snapshot + received_at,TTL=2×心跳),抽 <span class="kw">LiveStateStore 接口</span>(in-memory 默认实现,后续可换落库/时序)。心跳 handler 写入。</li>
       <li><b>cap/queued = Center 侧</b>:cap 在 <span class="kw">enforceConcurrencyCap</span>(assign_flow)派发侧限流;queued = 该 agent open/assigned 未跑未 blocked 的 task 数。无需 worker 提供 queue。</li>
       <li><b>读取/视图</b>:新 <span class="kw">GET /api/agents/{id}/concurrency</span> 读 cache + 拼 cap/queued;web `useConcurrencySnapshot()` 轮询 3s;agent 详情新增「Concurrency」标签。stale/单活/orphan/离线四态降级。</li>

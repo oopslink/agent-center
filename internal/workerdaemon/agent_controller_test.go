@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
+	"github.com/oopslink/agent-center/internal/runtimefs"
 )
 
 // recordingReporter is a fake feedbackReporter that records every call so
@@ -33,6 +34,9 @@ type recordingReporter struct {
 
 	// F2 per-turn usage hook (v2.15.0 I28): every ReportUsage call recorded.
 	usages []usageCall
+
+	// I5 (issue-921db054): every runtime-fs response the controller posted.
+	runtimeFsResponses []runtimefs.Response
 
 	// T456 process-alive lease auto-renew: every RenewTaskLease call recorded.
 	leaseRenews []leaseRenewCall
@@ -115,6 +119,21 @@ func (r *recordingReporter) RenewTaskLease(_ context.Context, agentID, taskID st
 	defer r.mu.Unlock()
 	r.leaseRenews = append(r.leaseRenews, leaseRenewCall{agentID, taskID})
 	return nil
+}
+
+func (r *recordingReporter) ReportRuntimeFsResponse(_ context.Context, resp runtimefs.Response) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.runtimeFsResponses = append(r.runtimeFsResponses, resp)
+	return nil
+}
+
+func (r *recordingReporter) runtimeFsReplies() []runtimefs.Response {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]runtimefs.Response, len(r.runtimeFsResponses))
+	copy(out, r.runtimeFsResponses)
+	return out
 }
 
 func (r *recordingReporter) leaseRenewCalls() []leaseRenewCall {

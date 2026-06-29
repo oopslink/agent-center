@@ -29,6 +29,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/mcphost"
+	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -522,6 +523,11 @@ type feedbackReporter interface {
 	// Best-effort: a failure is logged and never affects the agent loop. agentID is
 	// the execution-entity id (the worker's view); the center maps it to the assignee.
 	RenewTaskLease(ctx context.Context, agentID, taskID string, at time.Time) error
+	// ReportRuntimeFsResponse posts the correlated reply to an agent.runtime_fs read
+	// command (issue-921db054 / I5) to the center's feedback endpoint, which matches it
+	// to the waiting Web Console request by resp.ReqID. The body IS the runtimefs
+	// Response envelope (agent_id + req_id + result|code).
+	ReportRuntimeFsResponse(ctx context.Context, resp runtimefs.Response) error
 }
 
 // UsageReport is one per-turn usage sample the worker turn-end hook reports to
@@ -662,6 +668,20 @@ func (c *AdminClient) ReportConverseError(ctx context.Context, agentID, conversa
 		body["at"] = at.UTC().Format(time.RFC3339Nano)
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/converse-error", body, nil)
+}
+
+// ReportRuntimeFsResponse POSTs the runtimefs Response envelope to
+// /admin/environment/agent/runtime-fs/response (issue-921db054 / I5). The server
+// (requireAgentOnWorker-gated on resp.AgentID) matches it to the waiting Web Console
+// request by resp.ReqID via the in-process correlator.
+func (c *AdminClient) ReportRuntimeFsResponse(ctx context.Context, resp runtimefs.Response) error {
+	if strings.TrimSpace(resp.AgentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	if strings.TrimSpace(resp.ReqID) == "" {
+		return errors.New("adminclient: req_id required")
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/runtime-fs/response", resp, nil)
 }
 
 // FetchReplyNudges POSTs to /admin/environment/agent/reply-nudges (T341). The
