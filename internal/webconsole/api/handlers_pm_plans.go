@@ -87,13 +87,11 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 	if n.Dispatched && !n.DispatchedAt.IsZero() {
 		node["dispatched_at"] = n.DispatchedAt.Format(time.RFC3339Nano)
 	}
-	// T570: a DONE node carries its completion time (statusChangedAt of the
-	// terminal transition). Emitted only for done nodes — a live/blocked node has
-	// no meaningful "completed" moment.
-	if n.NodeStatus == pm.NodeDone {
-		if at := l.completedAtOf[n.TaskID]; at != "" {
-			node["completed_at"] = at
-		}
+	// T570 (+ follow-up): a completed task carries its authoritative completion
+	// time (task.CompletedAt, set on →completed and cleared on reopen). Emitted
+	// only when present — a never-completed / reopened task has no completed_at.
+	if at := l.completedAtOf[n.TaskID]; at != "" {
+		node["completed_at"] = at
 	}
 	return node
 }
@@ -108,9 +106,10 @@ type planNodeLookup struct {
 	archivedOf   map[pm.TaskID]bool
 	archivedAtOf map[pm.TaskID]string
 	orgRefOf     map[pm.TaskID]string
-	// T570: when the node is done, statusChangedAt is the moment the task last
-	// transitioned (= its completion time) — surfaced as completed_at so the task
-	// list can show WHEN a DONE node finished.
+	// T570 (+ follow-up): the task's authoritative completion time
+	// (task.CompletedAt) — set on →completed, cleared on reopen. Surfaced as
+	// completed_at so the task list shows WHEN a DONE node finished. Empty when the
+	// task is not currently completed.
 	completedAtOf map[pm.TaskID]string
 	// starvedOf (v2.18.3 BE-2) maps a task id → true when it is auto-assign STARVED.
 	// Sourced from PlanDetail.Starved (populated by the FE-facing reads for builtin
@@ -135,7 +134,7 @@ func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 		l.archivedOf[t.ID()] = t.IsArchived()
 		l.archivedAtOf[t.ID()] = rfc3339OrEmptyPtr(t.ArchivedAt())
 		l.orgRefOf[t.ID()] = orgRefToken("T", t.OrgNumber())
-		if at := t.StatusChangedAt(); !at.IsZero() {
+		if at := t.CompletedAt(); !at.IsZero() {
 			l.completedAtOf[t.ID()] = at.UTC().Format(time.RFC3339Nano)
 		}
 	}

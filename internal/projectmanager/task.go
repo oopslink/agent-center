@@ -181,6 +181,12 @@ type Task struct {
 	// createdAt at construction; updated to `at` on every status mutation (NOT on
 	// metadata edits like rename/assign/tags).
 	statusChangedAt time.Time
+	// completedAt is the authoritative completion timestamp (T570 follow-up). Set
+	// to `at` when the task transitions INTO completed; CLEARED (zero) on any
+	// transition OUT of completed (e.g. reopen). Unlike statusChangedAt it tracks
+	// "when did this last complete" specifically — zero means not currently
+	// completed. Persisted (migration 0088) so it survives reload + later edits.
+	completedAt time.Time
 	// planID is the Plan this task is selected into (v2.9 plan orchestration
 	// #283). "" when in no plan; a task is in 0..1 Plan (design §2). Tasks are
 	// created in the backlog first (no PlanID in NewTaskInput) and selected into a
@@ -328,13 +334,16 @@ type RehydrateTaskInput struct {
 	OrgNumber        int
 	Tags             []string
 	StatusChangedAt  time.Time
-	PlanID           PlanID
-	ArchivedAt       *time.Time
-	ArchivedBy       IdentityRef
-	Branch           string
-	Base             string
-	SkipMergeCheck   bool
-	Role             CycleNodeRole
+	// CompletedAt is the persisted completion timestamp (T570 follow-up, migration
+	// 0088); zero when not currently completed.
+	CompletedAt    time.Time
+	PlanID         PlanID
+	ArchivedAt     *time.Time
+	ArchivedBy     IdentityRef
+	Branch         string
+	Base           string
+	SkipMergeCheck bool
+	Role           CycleNodeRole
 	// v2.14.0 I14 — block annotation + lease + action log (F2 round-trip).
 	BlockedReasonType       BlockReasonType
 	BlockedComment          string
@@ -378,6 +387,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		orgNumber:               in.OrgNumber,
 		tags:                    in.Tags,
 		statusChangedAt:         statusChangedAt,
+		completedAt:             in.CompletedAt.UTC(),
 		planID:                  in.PlanID,
 		archivedAt:              copyTaskTimePtr(in.ArchivedAt),
 		archivedBy:              in.ArchivedBy,
@@ -427,9 +437,13 @@ func (t *Task) UpdatedAt() time.Time               { return t.updatedAt }
 func (t *Task) Version() int                       { return t.version }
 func (t *Task) Tags() []string                     { return t.tags }
 func (t *Task) StatusChangedAt() time.Time         { return t.statusChangedAt }
-func (t *Task) PlanID() PlanID                     { return t.planID }
-func (t *Task) ArchivedAt() *time.Time             { return t.archivedAt }
-func (t *Task) ArchivedBy() IdentityRef            { return t.archivedBy }
+
+// CompletedAt is the authoritative completion timestamp (T570 follow-up); zero
+// when the task is not currently completed (never completed, or reopened since).
+func (t *Task) CompletedAt() time.Time  { return t.completedAt }
+func (t *Task) PlanID() PlanID          { return t.planID }
+func (t *Task) ArchivedAt() *time.Time  { return t.archivedAt }
+func (t *Task) ArchivedBy() IdentityRef { return t.archivedBy }
 
 // ExecutionLeaseExpiresAt returns a COPY of the running agent's lease deadline
 // (nil = no live lease), so callers cannot mutate the aggregate's pointer (v2.14.0
@@ -960,6 +974,14 @@ func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 	}
 	t.status = target
 	t.statusChangedAt = at.UTC()
+	// T570 follow-up: maintain the authoritative completed_at. Entering completed
+	// stamps it; any other transition (reopen → reopened/open, discard) clears it
+	// so a reopened task no longer advertises a stale completion time.
+	if target == TaskCompleted {
+		t.completedAt = at.UTC()
+	} else {
+		t.completedAt = time.Time{}
+	}
 	t.touch(at)
 	return nil
 }

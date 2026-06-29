@@ -34,6 +34,16 @@ func nullInt(n int) any {
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
+// tsZeroNull formats a timestamp like ts(), but a ZERO time stores SQL NULL
+// (T570 follow-up: a not-completed task's completed_at column is NULL, not an
+// epoch string). parseTime("")/scan of NULL → zero time, round-tripping cleanly.
+func tsZeroNull(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t.UTC().Format(time.RFC3339Nano)
+}
+
 func parseTime(s string) time.Time {
 	t, _ := time.Parse(time.RFC3339Nano, s)
 	return t
