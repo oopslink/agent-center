@@ -111,6 +111,45 @@ func (w *EventStreamWriter) ReadAll(taskDir string) ([]RawEvent, error) {
 	return events, nil
 }
 
+// CurrentSegmentSize returns the byte size of events.current.jsonl in taskDir.
+// A missing file is not an error — it returns 0 (nothing written yet).
+func (w *EventStreamWriter) CurrentSegmentSize(taskDir string) (int64, error) {
+	info, err := os.Stat(filepath.Join(taskDir, eventsCurrentFile))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("taskexec: stat current segment: %w", err)
+	}
+	return info.Size(), nil
+}
+
+// AckCurrent advances events.offset to the full extent of events.current.jsonl,
+// recording lastEventID (when non-empty). This is the local "Center has consumed
+// up to here" cursor (design §8.1): after the agent delivers an event to the
+// Center activity stream, the runtime acks it locally by advancing the offset to
+// the current segment's EOF. A fully-acked segment (ByteOffset >= size) is what
+// gates archival in MaybeRollSegment. Returns the acked byte size.
+func (w *EventStreamWriter) AckCurrent(taskDir, lastEventID string) (int64, error) {
+	size, err := w.CurrentSegmentSize(taskDir)
+	if err != nil {
+		return 0, err
+	}
+	off, err := w.ReadOffset(taskDir)
+	if err != nil {
+		return 0, fmt.Errorf("taskexec: read offset for ack: %w", err)
+	}
+	off.Segment = currentSegmentName
+	off.ByteOffset = size
+	if lastEventID != "" {
+		off.LastEventID = lastEventID
+	}
+	if err := w.UpdateOffset(taskDir, off); err != nil {
+		return 0, fmt.Errorf("taskexec: ack offset: %w", err)
+	}
+	return size, nil
+}
+
 // ReadOffset reads events.offset. Missing file returns zero offset.
 func (w *EventStreamWriter) ReadOffset(taskDir string) (EventOffset, error) {
 	path := filepath.Join(taskDir, eventsOffsetFile)
