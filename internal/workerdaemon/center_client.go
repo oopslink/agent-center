@@ -14,6 +14,7 @@ package workerdaemon
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
@@ -73,4 +74,53 @@ func (a *centerClientAdapter) PostMessage(ctx context.Context, agentID, conversa
 		"content":  content,
 	}
 	return a.caller.CallAgentTool(ctx, "post_message", body, nil)
+}
+
+// usageReporterAdapter implements orchestrator.UsageReporter over an agentToolCaller
+// (T613): it POSTs an executor run's aggregate token usage to the center's
+// report_usage agent-tool, the SAME endpoint + worker-bearer transport the
+// in-process per-turn hook uses. The executor never reaches here — only the
+// orchestrator (sole writer, already authed) does, so executor default-deny holds.
+type usageReporterAdapter struct {
+	caller agentToolCaller
+}
+
+// newUsageReporter wraps an agentToolCaller as an orchestrator.UsageReporter.
+// Returns nil when the caller is nil (the writeback then leaves usage reporting
+// off — graceful degrade, matching newCenterClient).
+func newUsageReporter(caller agentToolCaller) orchestrator.UsageReporter {
+	if caller == nil {
+		return nil
+	}
+	return &usageReporterAdapter{caller: caller}
+}
+
+// compile-time check.
+var _ orchestrator.UsageReporter = (*usageReporterAdapter)(nil)
+
+// ReportUsage → POST /admin/agent-tools/report_usage. The body mirrors the
+// in-process hook's shape (AdminClient.ReportUsage): task_id/cache fields are
+// omitted when empty/zero so a task-less run carries no task_id (the center keeps
+// it unattributed; acceptance ②), and a present task_id makes the center skip its
+// sole-running-task fallback (T605).
+func (a *usageReporterAdapter) ReportUsage(ctx context.Context, s orchestrator.UsageSample) error {
+	body := map[string]any{
+		"agent_id":      s.AgentID,
+		"model":         s.Model,
+		"input_tokens":  s.Usage.InputTokens,
+		"output_tokens": s.Usage.OutputTokens,
+	}
+	if s.TaskID != "" {
+		body["task_id"] = s.TaskID
+	}
+	if s.Usage.CacheReadTokens != 0 {
+		body["cache_read_tokens"] = s.Usage.CacheReadTokens
+	}
+	if s.Usage.CacheWriteTokens != 0 {
+		body["cache_write_tokens"] = s.Usage.CacheWriteTokens
+	}
+	if !s.At.IsZero() {
+		body["ts"] = s.At.UTC().Format(time.RFC3339Nano)
+	}
+	return a.caller.CallAgentTool(ctx, "report_usage", body, nil)
 }

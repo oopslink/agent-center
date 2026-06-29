@@ -134,6 +134,36 @@ func (in Input) Validate() error {
 	return nil
 }
 
+// TokenUsage is the aggregate token usage an executor observed from its runner's
+// output, summed across the run's turns (v2.20.0 F2 / T613). The executor parses
+// it from the model-routed agent CLI's stream and records it in output.json; the
+// orchestrator — the only party with center credentials (F1 isolation) — relays it
+// to the center's report_usage, tagged with input.json's Source.TaskRef. All
+// fields are non-negative; an all-zero usage means "nothing observed" and is
+// omitted from output.json (its pointer left nil).
+type TokenUsage struct {
+	InputTokens      int `json:"input_tokens"`
+	OutputTokens     int `json:"output_tokens"`
+	CacheReadTokens  int `json:"cache_read_tokens"`
+	CacheWriteTokens int `json:"cache_write_tokens"`
+}
+
+// IsZero reports whether no tokens were observed (nothing to account).
+func (u TokenUsage) IsZero() bool {
+	return u.InputTokens == 0 && u.OutputTokens == 0 &&
+		u.CacheReadTokens == 0 && u.CacheWriteTokens == 0
+}
+
+// Validate guards the shape before persistence: a token count is never negative
+// (conventions §17 — a malformed count must surface, not silently persist).
+func (u TokenUsage) Validate() error {
+	if u.InputTokens < 0 || u.OutputTokens < 0 ||
+		u.CacheReadTokens < 0 || u.CacheWriteTokens < 0 {
+		return errors.New("executor: negative token count")
+	}
+	return nil
+}
+
 // Output is output.json — written by the executor, read by the orchestrator
 // (design §7 / §9). Success drives the orchestrator's dual completion signal
 // together with the process exit code.
@@ -143,6 +173,10 @@ type Output struct {
 	Result     string       `json:"result,omitempty"`
 	Error      *ErrorDetail `json:"error,omitempty"`
 	FinishedAt time.Time    `json:"finished_at"`
+	// Usage is the run's aggregate token usage (v2.20.0 F2 / T613), nil when the
+	// executor observed none. The orchestrator's writeback relays it to the center's
+	// report_usage; nil/zero means there is nothing to account for this run.
+	Usage *TokenUsage `json:"usage,omitempty"`
 }
 
 // Validate enforces the success/error symmetry: a failure MUST carry an
@@ -154,6 +188,11 @@ func (o Output) Validate() error {
 	}
 	if o.FinishedAt.IsZero() {
 		return errors.New("executor: output.finished_at required")
+	}
+	if o.Usage != nil {
+		if err := o.Usage.Validate(); err != nil {
+			return err
+		}
 	}
 	if o.Success {
 		if o.Error != nil {

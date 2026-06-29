@@ -1228,10 +1228,26 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
 	var sess agentSession
+	var exec *executorEngine
 	if ma != nil {
 		sess = ma.session
+		exec = ma.exec
 	}
 	c.mu.Unlock()
+
+	// W4a / F1 (issue I55): a CONCURRENCY-ENABLED agent (executorEngine attached by
+	// maybeAttachExecutorEngine — opt-in, non-codex) forks an isolated executor for the
+	// queued task instead of nudging the resident claude. This is the LIVE producer
+	// that makes W1 executor concurrency fire in production. MUTUALLY EXCLUSIVE with the
+	// nudge/relaunch path below: we fork (or leave queued) and ALWAYS short-circuit
+	// return — never also Inject the pull nudge — so the executor and the resident
+	// session can't both drive the same task (防双跑). The executor is independent of
+	// the resident session, so this runs whether or not a session is live. Best-effort
+	// + non-wedging: forkOnWorkAvailable logs every failure and the wake is always acked.
+	if exec != nil {
+		c.forkOnWorkAvailable(ctx, pl.AgentID, pl.TaskID, exec)
+		return nil
+	}
 
 	// T335: a queued WorkItem arrived but this agent has NO live session
 	// (crashed-and-circuit-broken, idle-downed, or otherwise dead). The old code
