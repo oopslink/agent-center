@@ -358,6 +358,8 @@ func (s *Server) routes() {
 	// visible system message into the conversation so the human isn't left in a
 	// silent black hole. Same requireAgentOnWorker guardrail + participant check.
 	s.mux.HandleFunc("POST /admin/environment/agent/converse-error", s.envAgentConverseErrorHandler)
+	// I5 (issue-921db054): worker→center correlated reply to a runtime-fs read command.
+	s.mux.HandleFunc("POST /admin/environment/agent/runtime-fs/response", s.envAgentRuntimeFSResponseHandler)
 	// T341 reply-guardrail: controller→center at turn-end + TrueIdle. The server
 	// derives the agent's outstanding directed replies, gates agent-authored ones
 	// through the shared wake-guardrail, and returns bounded re-inject prompts the
