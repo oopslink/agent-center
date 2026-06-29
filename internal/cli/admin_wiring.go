@@ -269,6 +269,8 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		EnvControlSvc: a.EnvControlSvc,
 		// v2.7 D5 slice-1: SSE down-push bus for /admin/environment/worker/commands/stream.
 		ControlStreamBus: a.ControlStreamBus,
+		// I5 (issue-921db054): shared runtime-fs correlator (worker reply → waiting req).
+		RuntimeFsDispatcher: a.RuntimeFsDispatcher,
 
 		// Agent BC (v2.7 C3 / D2-b1) — per-agent MCP tool surface.
 		AgentSvc: a.AgentService,
