@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"sync"
 	"syscall"
 	"time"
 
@@ -64,6 +65,23 @@ func SystemCommands(buildVersion, buildCommit string) []*Command {
 	}
 }
 
+// syncWriter serializes concurrent Write calls onto an underlying writer.
+// ServerCommand hands the same `out`/`errw` to many background loops that log
+// concurrently; wrapping the writer once makes every fmt.Fprintf atomic
+// (fmt issues a single Write per call) without changing what is written.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func newSyncWriter(w io.Writer) *syncWriter { return &syncWriter{w: w} }
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
+}
+
 // ServerCommand returns the `server` mode command. It needs to construct
 // its own deps (open DB, run migrations) because it's the entry point
 // before any other command runs.
@@ -76,6 +94,16 @@ func ServerCommand() *Command {
 			listen := fs.String("listen", "", "override server.listen_addr")
 			migrateOnly := fs.Bool("migrate-only", false, "run migrations and exit")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+				// The server fans `out`/`errw` to many concurrent background
+				// loops (admin endpoint, web console, escalator, lease-checker,
+				// reminders, resolved-issue closer, usage rollup), each logging
+				// via fmt.Fprintf. The raw writers aren't guaranteed safe for
+				// concurrent Write (a test's bytes.Buffer is not), so serialize
+				// every Write through one mutex per writer. fmt.Fprintf issues a
+				// single Write per call, so lines never interleave. Ordering-only
+				// — no behavior change.
+				out = newSyncWriter(out)
+				errw = newSyncWriter(errw)
 				cfg, err := loadConfigForCLI(*cfgPath, map[string]string{
 					"server.listen_addr": *listen,
 				})
