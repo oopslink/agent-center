@@ -193,8 +193,10 @@ func runtimeFsRead(home, userPath string) (*runtimefs.ReadResult, *runtimeFsErro
 	base := filepath.Base(full)
 
 	// Credential file → redacted: list it, but its plaintext content NEVER leaves the
-	// worker (the red line).
-	if runtimeFsCredentialName(base) {
+	// worker (the red line). Matched by NAME *and* by inode identity, so a hardlink
+	// alias (which EvalSymlinks does NOT resolve — a hardlink shares the inode, not a
+	// symlink) under a different name can't smuggle the plaintext out.
+	if runtimeFsIsCredential(home, base, info) {
 		res.Redacted = true
 		res.ContentType = "application/json"
 		res.Content = nil
@@ -372,6 +374,27 @@ func runtimeFsResolvedInGit(home, full string) bool {
 // runtimeFsCredentialName flags the plaintext-credential file whose content is withheld.
 func runtimeFsCredentialName(base string) bool {
 	return base == "mcp_config.runtime.json"
+}
+
+// runtimeFsIsCredential reports whether the resolved target is the plaintext-credential
+// file — by NAME, or by INODE IDENTITY with the canonical <home>/mcp_config.runtime.json
+// (os.SameFile). The inode check closes the hardlink-rename bypass: `ln
+// mcp_config.runtime.json notes.txt` gives the secret a benign name that the name check
+// alone would let through (a hardlink is the SAME inode, and EvalSymlinks — which only
+// dereferences symlinks — does not normalise it back). The canonical file is JIT-created
+// and may be absent; when it is, there is no alias to protect (return on name only).
+func runtimeFsIsCredential(home, base string, info os.FileInfo) bool {
+	if runtimeFsCredentialName(base) {
+		return true
+	}
+	if info == nil {
+		return false
+	}
+	credInfo, err := os.Stat(filepath.Join(home, "mcp_config.runtime.json"))
+	if err != nil {
+		return false // no canonical credential file → nothing to alias
+	}
+	return os.SameFile(info, credInfo)
 }
 
 // runtimeFsSpecialName flags special files served as metadata-only.

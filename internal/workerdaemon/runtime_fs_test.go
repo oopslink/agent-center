@@ -147,6 +147,27 @@ func TestRuntimeFsRead_RedactsCredentials(t *testing.T) {
 	}
 }
 
+func TestRuntimeFsRead_HardlinkCredentialStillRedacted(t *testing.T) {
+	home := t.TempDir()
+	cred := filepath.Join(home, "mcp_config.runtime.json")
+	writeFile(t, cred, `{"token":"PLAINTEXT-SECRET"}`)
+
+	// A hardlink gives the credential file an innocuous name. EvalSymlinks does NOT
+	// normalise a hardlink (same inode, not a symlink), so the name check alone would
+	// leak it — the inode-identity (os.SameFile) check must still redact.
+	alias := filepath.Join(home, "notes.txt")
+	if err := os.Link(cred, alias); err != nil {
+		t.Skipf("hardlink unsupported: %v", err)
+	}
+	res, opErr := runtimeFsRead(home, "notes.txt")
+	if opErr != nil {
+		t.Fatalf("read hardlink alias: %v", opErr)
+	}
+	if !res.Redacted || res.Content != nil {
+		t.Fatalf("hardlink alias of the credential file must be redacted (redacted=%v content-present=%v) — plaintext must never leak", res.Redacted, res.Content != nil)
+	}
+}
+
 func TestRuntimeFsRead_SpecialAndBinaryAreMetadataOnly(t *testing.T) {
 	home := t.TempDir()
 	writeFile(t, filepath.Join(home, "supervisor.lock"), "pid 123")
