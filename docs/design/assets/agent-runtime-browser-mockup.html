@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Agent Runtime Browser — mockup (issue-921db054 / I5)</title>
+<style>
+  :root{--bg-base:#FFFCFC;--bg-elevated:#fff;--bg-subtle:#f8f5f6;--border:#dbd7da;--border-strong:#afa9b1;
+    --text-primary:#31263B;--text-secondary:#4a4255;--text-muted:#717A94;--brand:#7C3AED;--accent:#7C3AED;--success:#5CB198;--danger:#D44040;--warn:#E3A008;}
+  *{box-sizing:border-box}
+  body{margin:0;background:#efe9ec;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--text-primary);padding:24px;line-height:1.45}
+  h1{font-size:18px;margin:0 0 4px}.sub{color:var(--text-muted);font-size:13px;margin:0 0 20px;max-width:1000px}
+  .frame-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:18px 0 8px}
+  .card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;overflow:hidden;max-width:1080px}
+  .tabbar{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 14px;background:var(--bg-subtle)}
+  .tabbar .t{font-size:13px;padding:10px 12px;color:var(--text-muted);border-bottom:2px solid transparent}
+  .tabbar .t.on{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+  .agenthdr{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px}
+  .agenthdr .name{font-weight:600}
+  .online{font-size:10px;font-weight:700;text-transform:uppercase;border-radius:4px;padding:2px 6px;background:rgba(92,177,152,.12);color:#2f7a64}
+  .browser{display:grid;grid-template-columns:280px 1fr;min-height:420px}
+  .tree{border-right:1px solid var(--border);padding:10px 8px;background:var(--bg-base);font-size:13px;overflow:auto}
+  .node{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:6px;cursor:pointer;white-space:nowrap}
+  .node:hover{background:var(--bg-subtle)}
+  .node.sel{background:#f1e9fb;color:var(--brand);font-weight:600}
+  .node.ind{padding-left:24px}.node.ind2{padding-left:40px}
+  .ic{width:15px;text-align:center;opacity:.8}
+  .lock{color:var(--warn)}
+  .meta{margin-left:auto;font-size:10.5px;color:var(--text-muted);font-weight:400}
+  .preview{padding:14px 16px;overflow:auto}
+  .pv-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--text-muted)}
+  .pv-h .path{font-family:ui-monospace,Menlo,monospace;color:var(--text-secondary)}
+  .pill{font-size:10px;font-weight:700;text-transform:uppercase;border-radius:4px;padding:2px 6px}
+  .pill-txt{background:#ece9f6;color:#4a4255}.pill-redact{background:#fdf0e3;color:#b0560f}
+  pre{margin:0;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--text-primary);overflow:auto;white-space:pre-wrap}
+  .redbox{border:1px dashed #e9b59f;background:#fdf6ef;border-radius:8px;padding:16px;color:#b0560f;font-size:13px;text-align:center}
+  .gitlog .commit{display:flex;gap:10px;padding:8px 4px;border-bottom:1px solid var(--bg-subtle)}
+  .sha{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--brand);background:#f4eefc;border-radius:4px;padding:1px 6px;height:fit-content}
+  .commit .msg{font-size:13px}.commit .who{font-size:11px;color:var(--text-muted)}
+  .unavail{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;color:var(--text-muted);gap:8px}
+  .notes{max-width:1080px;margin-top:22px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px 20px}
+  .notes h3{font-size:12px;margin:0 0 8px;text-transform:uppercase;color:var(--text-muted)}.notes li{font-size:12.5px;margin-bottom:6px;color:var(--text-secondary)}
+  .mono{font-family:ui-monospace,monospace}.kw{background:#f1e9fb;color:var(--brand);border-radius:4px;padding:0 5px;font-size:11px;font-weight:600;font-family:ui-monospace,monospace}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1080px}
+</style></head><body>
+  <h1>Agent Runtime Browser — mockup（issue-921db054 / I5）</h1>
+  <p class="sub">Web Console 只读浏览某 agent 的 runtime 数据(memory/workspace/events/…)。Center→Worker 经 control-channel 请求 + 关联响应(worker 离线→unavailable)。敏感文件(凭据)内容不返回。</p>
+
+  <p class="frame-label">A · Agent 详情 → Runtime 标签：目录树 + 文件预览</p>
+  <div class="card">
+    <div class="agenthdr"><span class="name">agent-center-dev2</span><span class="online">● online</span><span style="color:var(--text-muted)">worker-edb09a0c</span></div>
+    <div class="tabbar"><span class="t">Profile</span><span class="t">Activity</span><span class="t on">Runtime</span><span class="t">Skills</span></div>
+    <div class="browser">
+      <div class="tree">
+        <div class="node"><span class="ic">📁</span>memory/ <span class="meta">git</span></div>
+        <div class="node ind"><span class="ic">📄</span>CLAUDE.md <span class="meta">2.1k</span></div>
+        <div class="node ind"><span class="ic">📁</span>projects/</div>
+        <div class="node"><span class="ic">📁</span>workspace/</div>
+        <div class="node ind"><span class="ic">📁</span>tasks/</div>
+        <div class="node ind"><span class="ic">📁</span>plans/</div>
+        <div class="node sel"><span class="ic">📄</span>events.jsonl <span class="meta">18k</span></div>
+        <div class="node"><span class="ic">📄</span>session.instance <span class="meta">285</span></div>
+        <div class="node"><span class="ic">📄</span>mcp_config.json <span class="meta">705</span></div>
+        <div class="node"><span class="ic lock">🔒</span>mcp_config.runtime.json <span class="meta">redacted</span></div>
+        <div class="node"><span class="ic lock">🔒</span>supervisor.lock <span class="meta">lock</span></div>
+        <div class="node" style="color:var(--text-muted)"><span class="ic">⊘</span>.git/ <span class="meta">hidden</span></div>
+      </div>
+      <div class="preview">
+        <div class="pv-h"><span class="path">events.jsonl</span><span class="pill pill-txt">text · 18k</span><span style="margin-left:auto">mtime 10:05 · truncated to 1MB</span></div>
+        <pre>{"type":"session_started","ts":"2026-06-29T10:00:01Z"}
+{"type":"tool_call","name":"Bash","ts":"..."}
+{"type":"message","role":"assistant","ts":"..."}
+{"type":"task_completed","task":"task-2ff25c2d","ts":"..."}
+…</pre>
+      </div>
+    </div>
+  </div>
+
+  <p class="frame-label">B · 选中敏感文件(凭据)→ 内容不返回 / C · memory git-log / D · agent 离线</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="preview">
+        <div class="pv-h"><span class="path">mcp_config.runtime.json</span><span class="pill pill-redact">🔒 redacted</span></div>
+        <div class="redbox">🔒 此文件含明文凭据,内容不予返回。<br/><span style="font-size:11px">仅展示 metadata(size/mtime)。后续如需查看:org-admin 门 + 审计。</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="preview gitlog">
+        <div class="pv-h"><span class="path">memory/</span><span class="pill pill-txt">git log</span><span style="margin-left:auto">只读</span></div>
+        <div class="commit"><span class="sha">a1b2c3d</span><div><div class="msg">project: record v2.18.4 shipped + canonical main</div><div class="who">2 小时前</div></div></div>
+        <div class="commit"><span class="sha">9f8e7d6</span><div><div class="msg">feedback: cred-non-leak must cover error path</div><div class="who">5 小时前</div></div></div>
+        <div class="commit"><span class="sha">5c4b3a2</span><div><div class="msg">project: ship convention + no auto-archive</div><div class="who">7 小时前</div></div></div>
+        <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:6px">memory 是 git 仓 · 显示最近 N 条 · diff 视图 phase-2</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px;max-width:1080px">
+    <div class="agenthdr"><span class="name">agent-center-dev3</span><span class="online" style="background:var(--bg-subtle);color:var(--text-muted)">● offline</span></div>
+    <div class="unavail"><div style="font-size:28px">⊘</div><div><b>Runtime unavailable</b></div><div style="font-size:12px">agent 当前离线 / worker 不可达——runtime 数据需 worker 在线时经 control-channel 实时读取。</div></div>
+  </div>
+
+  <div class="notes">
+    <h3>设计要点（详见 issue 描述 / docs/design/features）</h3>
+    <ul>
+      <li><b>传输</b>:Web Console → Center admin API → 下发 <span class="kw">agent.runtime_fs{req_id,op,path}</span> 命令 → Worker 读+脱敏 → POST <span class="kw">.../runtime-fs/response{req_id}</span> → Center 关联返回。**worker 必须在线**,离线/超时→unavailable。复用 control-loop + feedback,不开 Worker 监听端口。</li>
+      <li><b>安全红线</b>:<span class="kw">mcp_config.runtime.json</span>(明文凭据)**列出但内容不返回**(redacted);<span class="kw">.git/</span> 隐藏;<span class="kw">*.sock/*.lock</span> 只 metadata。路径安全复用 <span class="kw">resolveContainedPath</span>(symlink/`..`/绝对路径防逃逸)。</li>
+      <li><b>鉴权</b>:org 维度——caller 是该 agent 的 org 成员。限制:目录 entries 上限 / 单文件预览 1MB / 超时。</li>
+      <li><b>memory</b>:memory/ 是 git 仓 → v1 含 commit 历史(只读 git log)+ 文件预览;diff phase-2。</li>
+      <li><b>v1 排除</b>:jsonl 结构化渲染 / markdown 渲染 / tail-SSE / 下载 / 任何写操作。</li>
+    </ul>
+  </div>
+</body></html>
