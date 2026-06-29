@@ -22,6 +22,7 @@ import (
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
 	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/conversation"
 	"github.com/oopslink/agent-center/internal/conversation/replyguard"
@@ -110,6 +111,11 @@ type App struct {
 	// CodeRepoService is the v2.18.4 BE-1 workspace CodeRepo AppService (issue-f980c8de)
 	// — workspace Repos CRUD + encrypted credential storage + the merge-check resolver.
 	CodeRepoService *coderepservice.Service
+
+	// LiveState is the per-agent live executor snapshot store (v2.19.0): the SAME
+	// instance is wired into the admin heartbeat handler (writer) and the webconsole
+	// .../agents/{id}/concurrency endpoint (reader).
+	LiveState concurrency.LiveStateStore
 
 	// AgentService is the v2.7 Agent BC AppService facade (C3).
 	AgentService *agentsvc.Service
@@ -533,6 +539,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:               gen,
 		PMService:           pmSvc,
 		CodeRepoService:     codeRepoSvc,
+		LiveState:           concurrency.NewInMemoryStore(),
 		AgentService:        agentSvc,
 		AgentRepo:           agentRepo,
 		AgentActivityRepo:   agentActivityRepo,

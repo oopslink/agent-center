@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workforce"
@@ -197,7 +198,7 @@ func (c *AdminClient) ReportCapabilities(ctx context.Context, workerID string, c
 // by this endpoint — capabilities only mutate on enroll. If the
 // server returns 404 (worker not found, e.g. cold restart wiped state)
 // the caller should fall back to Enroll on the next tick.
-func (c *AdminClient) Heartbeat(ctx context.Context, workerID string, capabilities []string) error {
+func (c *AdminClient) Heartbeat(ctx context.Context, workerID string, capabilities []string, snapshots map[string]concurrency.AgentSnapshot) error {
 	if strings.TrimSpace(workerID) == "" {
 		return errors.New("adminclient: worker_id required")
 	}
@@ -205,6 +206,12 @@ func (c *AdminClient) Heartbeat(ctx context.Context, workerID string, capabiliti
 	body := map[string]any{
 		"worker_id":                  workerID,
 		"additional_working_seconds": 0,
+	}
+	// v2.19.0: ship the per-agent live executor snapshots when present. Omitted when
+	// empty so an idle worker's heartbeat is byte-for-byte the legacy shape (an old
+	// center ignores the field; a new center treats absence as "no live executors").
+	if len(snapshots) > 0 {
+		body["agent_concurrency_snapshots"] = snapshots
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/heartbeat", body, nil)
 }

@@ -243,6 +243,7 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 	if err != nil {
 		return nil, err
 	}
+	h.startedAt = p.clk.Now() // v2.19.0: stamp spawn time for the concurrency snapshot
 	// Persist the orchestrator-private recovery Record AFTER the fork (we now know the
 	// pid) but BEFORE returning the handle, so a crash in the next instant still leaves
 	// a probe-able record (design §12: files are the durable state). If the record

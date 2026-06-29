@@ -180,6 +180,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		ProblemID:  problemID,
 		Goal:       item.Goal,
 		Model:      modelDec.Model,
+		CLI:        modelDec.CLI, // v2.19.0: persisted for the real-time concurrency snapshot
 		Context:    item.Context,
 		Source: executor.SourceRefs{
 			ChatIDs:  refsOf(item.ChatID),

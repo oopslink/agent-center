@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // SpawnSpec is the immutable description of one executor process to fork.
@@ -160,10 +161,16 @@ func buildExecutorCommand(spec SpawnSpec) (*exec.Cmd, error) {
 type Handle struct {
 	ExecutorID string
 	PID        int
+	// startedAt is the spawn time (v2.19.0), set by the Pool after a successful fork;
+	// the real-time concurrency snapshot reports it as the executor's started_at.
+	startedAt time.Time
 
 	cmd    *exec.Cmd
 	signal groupSignaler
 }
+
+// StartedAt returns the executor's spawn time (zero if unset).
+func (h *Handle) StartedAt() time.Time { return h.startedAt }
 
 // Signal delivers sig to the executor's entire process group (killpg). Used by
 // the orchestrator's stop / watchdog paths (F5 consumes this).

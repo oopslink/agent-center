@@ -86,6 +86,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		CodeRepoSvc:         a.CodeRepoService,
 		Reminder:            buildReminderService(a),
 		AgentSvc:            a.AgentService,
+		LiveState:           a.LiveState, // v2.19.0 concurrency snapshot reader
 		EnvControl:          a.EnvControlSvc,
 		RuntimeFsDispatcher: a.RuntimeFsDispatcher,
 		FilesSvc:            buildFilesService(a),
@@ -467,6 +468,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		CodeRepoSvc:         a.CodeRepoService,
 		Reminder:            buildReminderService(a),
 		AgentSvc:            a.AgentService,
+		LiveState:           a.LiveState, // v2.19.0 concurrency snapshot reader
 		EnvControl:          a.EnvControlSvc,
 		RuntimeFsDispatcher: a.RuntimeFsDispatcher,
 		FilesSvc:            filesSvc,
