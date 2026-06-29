@@ -238,19 +238,51 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     expect(await screen.findByTestId('agent-task-orphan')).toBeInTheDocument();
   });
 
-  it('stale snapshot: summary + row overlay marked stale; task list still visible; heartbeat hidden', async () => {
+  // T606: expired snapshot (worker online, snapshot present but past TTL) → "last
+  // known", NOT "worker unreachable". Row overlay still marked stale, list visible.
+  it('expired snapshot: summary shows last-known; row overlay stale; list visible; heartbeat hidden', async () => {
     stub([inProg('t1')]);
     stubConcurrency({
-      agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: true, snapshot_age_ms: 74000,
+      agent_id: 'A1', cap: 3, active: 1, queued: 0, stale: true, reachable: true, has_snapshot: true, snapshot_age_ms: 74000,
       executors: [{ executor_id: 'e1', task_id: 't1', cli: 'claude-code', model: 'sonnet', state: 'running', started_at: '2026-05-24T01:55:00Z' }],
     });
     wrap();
     const sum = await screen.findByTestId('agent-concurrency-summary');
-    expect(sum).toHaveAttribute('data-stale', 'true');
-    expect(sum).toHaveTextContent(/worker unreachable/i);
+    expect(sum).toHaveAttribute('data-mode', 'expired');
+    expect(sum).toHaveTextContent(/last known/i);
+    expect(sum).not.toHaveTextContent(/worker unreachable/i);
     expect(screen.getByTestId('agent-task-overlay-stale')).toBeInTheDocument();
     expect(screen.getByTestId('agent-workitems-table')).toBeInTheDocument(); // list always visible
     expect(screen.queryByTestId('agent-task-heartbeat')).toBeNull(); // no live heartbeat when stale
+  });
+
+  // T606: worker truly OFFLINE → "worker offline" (the only case that blames the worker).
+  it('worker offline: summary shows offline state', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({
+      agent_id: 'A1', cap: 3, active: 0, queued: 0, stale: true, reachable: false, has_snapshot: false, snapshot_age_ms: 0, executors: [],
+    });
+    wrap();
+    const sum = await screen.findByTestId('agent-concurrency-summary');
+    expect(sum).toHaveAttribute('data-mode', 'offline');
+    expect(sum).toHaveTextContent(/worker offline/i);
+    expect(screen.getByTestId('agent-workitems-table')).toBeInTheDocument();
+  });
+
+  // T606: agent never reported a snapshot (concurrency not active) → NEUTRAL "no
+  // real-time slot data", NOT "worker unreachable" (the original I54 misreport).
+  it('no snapshot (concurrency not active): neutral no-data state, not "unreachable"', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({
+      agent_id: 'A1', cap: 3, active: 0, queued: 0, stale: true, reachable: true, has_snapshot: false, snapshot_age_ms: 0, executors: [],
+    });
+    wrap();
+    const sum = await screen.findByTestId('agent-concurrency-summary');
+    expect(sum).toHaveAttribute('data-mode', 'nodata');
+    expect(sum).toHaveTextContent(/no real-time slot data/i);
+    expect(sum).not.toHaveTextContent(/unreachable/i);
+    expect(sum).not.toHaveTextContent(/offline/i);
+    expect(screen.getByTestId('agent-workitems-table')).toBeInTheDocument();
   });
 
   it('pending row shows the queued-for-slot hint', async () => {

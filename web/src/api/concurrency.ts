@@ -26,7 +26,17 @@ export interface AgentConcurrency {
   cap: number;
   active: number;
   queued: number;
+  // stale — coarse "live view not usable" flag (no fresh snapshot). Kept for
+  // back-compat; the overlay now branches on reachable + has_snapshot below.
   stale: boolean;
+  // T606 three-state freshness (issue-af03da2f):
+  //   reachable    — is the bound worker ONLINE? false = worker truly offline.
+  //   has_snapshot — has this agent EVER reported a live snapshot? false = concurrency
+  //                  not active on the worker (the common non-concurrent-agent case).
+  // Optional so an older Center (pre-T606) degrades gracefully (treated as online +
+  // snapshot-present, i.e. the legacy stale-only behavior).
+  reachable?: boolean;
+  has_snapshot?: boolean;
   snapshot_age_ms: number;
   executors: ConcurrencyExecutor[];
 }

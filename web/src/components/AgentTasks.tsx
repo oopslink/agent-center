@@ -288,48 +288,88 @@ function formatUpdated(iso: string): string {
 
 // ── T593: concurrency overlay ────────────────────────────────────────────────
 
+// concurrencyMode resolves the T606 three-state freshness from the snapshot
+// (issue-af03da2f), replacing the single overloaded `stale` flag that mislabeled
+// every non-live case "worker unreachable":
+//   - 'live'    — a fresh snapshot: show real active/cap slots.
+//   - 'offline' — the bound worker is truly OFFLINE (reachable=false).
+//   - 'expired' — a snapshot exists but aged past the TTL (last-known, worker online).
+//   - 'nodata'  — the agent never reported a snapshot (concurrency not active on the
+//                 worker) — NEUTRAL, not an error; the common non-concurrent case.
+// reachable/has_snapshot are optional for back-compat with a pre-T606 Center: absent
+// → online + (snapshot present iff not stale), i.e. the legacy live-vs-stale split.
+type ConcurrencyMode = 'live' | 'offline' | 'expired' | 'nodata';
+function concurrencyMode(data: AgentConcurrency): ConcurrencyMode {
+  const reachable = data.reachable ?? true;
+  const hasSnapshot = data.has_snapshot ?? !data.stale;
+  if (!reachable) return 'offline';
+  if (!hasSnapshot) return 'nodata';
+  if (data.stale) return 'expired';
+  return 'live';
+}
+
 // ConcurrencySlots — the live slots summary header: active/cap occupancy bar +
-// queued count + adaptive-heartbeat label + snapshot age. When the snapshot is
-// stale (worker offline / TTL exceeded) the whole strip goes amber and shows the
-// "last known" age + unreachable note (the task list below stays visible).
+// queued count + adaptive-heartbeat label + snapshot age. Renders one of three
+// non-live states (worker offline / snapshot expired / no live data) instead of a
+// single amber "unreachable" strip; the task list below stays visible regardless.
 function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElement {
+  const mode = concurrencyMode(data);
   const cap = Math.max(0, data.cap);
   const active = Math.max(0, data.active);
   const segs = Array.from({ length: cap }, (_, i) => i < active);
+  // offline/expired are warnings (amber); nodata is neutral; live is normal.
+  const amber = mode === 'offline' || mode === 'expired';
+  const slotsLabel: Record<ConcurrencyMode, string> = {
+    live: 'slots in use',
+    offline: 'slots — worker offline',
+    expired: 'slots — snapshot expired',
+    nodata: 'no live slot data',
+  };
   return (
     <div
       className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 ${
-        data.stale ? 'border-warning/40 bg-status-amber-bg' : 'border-border-base bg-bg-subtle'
+        amber ? 'border-warning/40 bg-status-amber-bg' : 'border-border-base bg-bg-subtle'
       }`}
       data-testid="agent-concurrency-summary"
       data-stale={data.stale ? 'true' : 'false'}
+      data-mode={mode}
     >
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold text-text-primary" data-testid="agent-concurrency-slots">
-          {data.stale ? '?' : active}
+          {mode === 'live' ? active : '—'}
           <span className="text-text-muted">/{cap}</span>
         </span>
-        <span className="text-xs text-text-muted">{data.stale ? 'slots — overlay stale' : 'slots in use'}</span>
+        <span className="text-xs text-text-muted">{slotsLabel[mode]}</span>
         <span className="ml-1 inline-flex items-center gap-0.5" aria-hidden="true">
           {segs.map((on, i) => (
             <span
               key={i}
-              className={`h-2 w-5 rounded-sm ${on ? (data.stale ? 'bg-warning' : 'bg-brand') : 'bg-border-strong'}`}
+              className={`h-2 w-5 rounded-sm ${
+                mode === 'live' && on ? 'bg-brand' : amber && on ? 'bg-warning' : 'bg-border-strong'
+              }`}
             />
           ))}
         </span>
-        {!data.stale && data.queued > 0 && (
+        {mode === 'live' && data.queued > 0 && (
           <span className="text-xs text-text-muted" data-testid="agent-concurrency-queued">· {data.queued} queued</span>
         )}
       </div>
-      {data.stale ? (
-        <span className="flex items-center gap-1 text-xs font-medium text-status-amber-fg" data-testid="agent-concurrency-age">
-          <WarnIcon /> snapshot {formatAge(data.snapshot_age_ms)} ago · worker unreachable
-        </span>
-      ) : (
+      {mode === 'live' ? (
         <span className="flex items-center gap-2 text-xs text-text-muted" data-testid="agent-concurrency-age">
           <span className="inline-flex items-center gap-1" title="Adaptive heartbeat cadence"><HeartIcon /> adaptive 3s</span>
           <span>updated {formatAge(data.snapshot_age_ms)} ago</span>
+        </span>
+      ) : mode === 'offline' ? (
+        <span className="flex items-center gap-1 text-xs font-medium text-status-amber-fg" data-testid="agent-concurrency-age">
+          <WarnIcon /> worker offline
+        </span>
+      ) : mode === 'expired' ? (
+        <span className="flex items-center gap-1 text-xs font-medium text-status-amber-fg" data-testid="agent-concurrency-age">
+          <WarnIcon /> snapshot {formatAge(data.snapshot_age_ms)} ago · last known
+        </span>
+      ) : (
+        <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="agent-concurrency-age">
+          no real-time slot data · concurrency not active
         </span>
       )}
     </div>
