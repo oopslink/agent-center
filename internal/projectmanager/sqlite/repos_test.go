@@ -335,6 +335,60 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 	}
 }
 
+// TestTaskRepo_ListRunningUnblockedByAssignee pins the report_usage task-attribution
+// fallback source (issue-af03da2f / I54): the assignee's RUN-SLOT rows only —
+// status='running' AND blocked_reason empty — same predicate as the count twin.
+func TestTaskRepo_ListRunningUnblockedByAssignee(t *testing.T) {
+	ctx, _, _, _, tr, _, _, _ := setup(t)
+	save := func(id, status, assignee, blocked string) {
+		tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+			ID: pm.TaskID(id), ProjectID: "PA", Title: id,
+			Status: pm.TaskStatus(status), Assignee: pm.IdentityRef(assignee), BlockedReason: blocked,
+			CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tr.Save(ctx, tk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const a1 = "agent:agent-aaaa1111"
+	const a2 = "agent:agent-bbbb2222"
+	save("T1", "running", a1, "")        // a1 run slot — INCLUDED
+	save("T2", "running", a1, "waiting") // a1 blocked (legal pause) — EXCLUDED
+	save("T3", "open", a1, "")           // not running — EXCLUDED
+	save("T4", "running", a2, "")        // other agent — EXCLUDED
+
+	got, err := tr.ListRunningUnblockedByAssignee(ctx, a1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID() != "T1" {
+		t.Fatalf("ListRunningUnblockedByAssignee = %v, want [T1]", got)
+	}
+	// No run slots for an agent with none.
+	if l, err := tr.ListRunningUnblockedByAssignee(ctx, "agent:none"); err != nil || len(l) != 0 {
+		t.Fatalf("empty case = %v, %v, want [] nil", l, err)
+	}
+}
+
+// A closed DB surfaces the query error (defensive path) rather than panicking.
+func TestTaskRepo_ListRunningUnblockedByAssignee_QueryError(t *testing.T) {
+	d, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.NewMigrator(d).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	tr := NewTaskRepo(d)
+	_ = d.Close() // force a query failure
+	if _, err := tr.ListRunningUnblockedByAssignee(context.Background(), "agent:x"); err == nil {
+		t.Fatal("want query error on a closed DB, got nil")
+	}
+}
+
 // TestTaskRepo_CountActiveByAssignee pins the agent-load metric source (T342):
 // per-assignee Running ("doing") + Open ("pending") counts across all projects,
 // terminal + unassigned rows excluded.

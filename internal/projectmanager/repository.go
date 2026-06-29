@@ -138,6 +138,12 @@ type TaskRepository interface {
 	// claim holding-cap. (On a Postgres backend the same guard would take a
 	// `SELECT count(*) ... FOR UPDATE` row lock in-tx; see enforceConcurrencyCap.)
 	CountRunningUnblockedByAssignee(ctx context.Context, assignee IdentityRef, excludeTaskID TaskID) (int, error)
+	// ListRunningUnblockedByAssignee returns the assignee's RUN-SLOT-occupying tasks
+	// (the same status='running' AND blocked_reason IS NULL/'' predicate as the count
+	// twin) as rows. It backs the report_usage task-attribution fallback (I54): the
+	// center fills an empty usage task_id from the agent's running task ONLY when
+	// there is exactly one (the unambiguous case), so callers check len()==1.
+	ListRunningUnblockedByAssignee(ctx context.Context, assignee IdentityRef) ([]*Task, error)
 	// ListActiveByAssignee returns the actual task rows CountActiveByAssignee
 	// counts for one assignee (non-terminal tasks not in a terminal plan),
 	// stable-ordered (created_at, id) — the list-shaped twin of the backlog

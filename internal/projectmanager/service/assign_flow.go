@@ -252,6 +252,34 @@ func (s *Service) CountRunningTasks(ctx context.Context, assignee pm.IdentityRef
 	return s.tasks.CountRunningUnblockedByAssignee(ctx, assignee, "")
 }
 
+// SoleRunningTask returns the assignee's running task IFF it has EXACTLY ONE
+// running-unblocked task — otherwise (nil, nil). It is the authoritative source
+// for the report_usage task-attribution fallback (issue-af03da2f / I54): a per-turn
+// usage report that arrives with an empty task_id (the agent self-manages its queue
+// via MCP, so the daemon never learned the current task_id) is attributed to the
+// agent's running task here, where the center is the running-task authority.
+//
+// "Exactly one" is the deliberate guard. Zero running tasks → the turn is converse
+// / idle (non-task overhead) and MUST stay unattributed (empty). MORE than one (a
+// ≤max_concurrent concurrency agent, v2.18.0 W4c) → ambiguous: the center cannot
+// know which of the N the tokens belong to, so it abstains rather than mis-attribute
+// (the per-executor source binding is the correct fix for that path). A blocked task
+// is a legal pause that frees its slot and is excluded — same RUN-SLOT predicate as
+// the concurrency cap.
+func (s *Service) SoleRunningTask(ctx context.Context, assignee pm.IdentityRef) (*pm.Task, error) {
+	if strings.TrimSpace(string(assignee)) == "" {
+		return nil, nil
+	}
+	running, err := s.tasks.ListRunningUnblockedByAssignee(ctx, assignee)
+	if err != nil {
+		return nil, err
+	}
+	if len(running) != 1 {
+		return nil, nil // 0 = converse/idle; >1 = ambiguous — abstain either way
+	}
+	return running[0], nil
+}
+
 // HeartbeatTask extends the running agent's execution lease (v2.14.0 I14 §2.5 / §六,
 // MCP `heartbeat`). Only the assignee may renew, and only a RUNNING, non-blocked task
 // has a live lease to keep alive: a blocked task is a lease-free legal pause

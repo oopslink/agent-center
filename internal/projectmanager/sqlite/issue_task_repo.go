@@ -240,6 +240,36 @@ func (r *TaskRepo) CountRunningUnblockedByAssignee(ctx context.Context, assignee
 	return n, nil
 }
 
+// ListRunningUnblockedByAssignee returns the assignee's tasks that currently
+// occupy a RUN SLOT — the SAME predicate as CountRunningUnblockedByAssignee
+// (status='running' AND blocked_reason IS NULL/”), the dropped single-active
+// index's WHERE clause — but as rows, not a count. It backs the report_usage
+// task-attribution fallback (issue-af03da2f / I54): the center fills an empty
+// usage task_id from the agent's running task ONLY when there is exactly one, so
+// the caller inspects len()==1. Stable-ordered (created_at, id) so a (degenerate)
+// multi-row result is deterministic.
+func (r *TaskRepo) ListRunningUnblockedByAssignee(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		taskSelect+` WHERE assignee = ? AND status = ?
+		  AND (blocked_reason IS NULL OR blocked_reason = '')
+		  ORDER BY created_at, id`,
+		string(assignee), string(pm.TaskRunning))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*pm.Task
+	for rows.Next() {
+		t, err := scanTask(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // ClaimIfUnassigned is the atomic open-claim CAS (T83 §3.3): it writes the
 // claimed state ONLY while the stored row is still `open` AND unassigned, so two
 // concurrent claims can never both win — the second finds the row already
