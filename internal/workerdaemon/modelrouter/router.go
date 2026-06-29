@@ -5,9 +5,9 @@
 // Priority chain (design §5, authoritative):
 //
 //	task.model set   → use it verbatim (HARD override, highest priority; the LLM is
-//	                   never consulted)
+//	                   never consulted); CLI paired from profile.allowed_executors
 //	not set          → the orchestrator's LLM reads the goal, judges difficulty, and
-//	                   picks one model from profile.allowed_models
+//	                   picks one {cli, model} from profile.allowed_executors (v2.18.1 BE-2)
 //	can't judge      → profile.default_executor_model (fallback)
 //
 // The orchestrator's OWN model (used for routing / judging / aggregation — the
@@ -47,10 +47,10 @@ var (
 	// model for the goal — the router treats it as "can't judge" and falls back to
 	// the default (design §5). Exported so a judge implementation can return it.
 	ErrInconclusive = errors.New("modelrouter: difficulty judge inconclusive")
-	// ErrJudgeOutOfRange is recorded when the judge picks a model that is not in
-	// allowed_models (an LLM hallucination); the router refuses it and falls back
-	// rather than spawn an unsanctioned model.
-	ErrJudgeOutOfRange = errors.New("modelrouter: judged model not in allowed_models")
+	// ErrJudgeOutOfRange is recorded when the judge picks an executor {cli,model}
+	// that is not in allowed_executors (an LLM hallucination); the router refuses it
+	// and falls back rather than spawn an unsanctioned executor.
+	ErrJudgeOutOfRange = errors.New("modelrouter: judged executor not in allowed_executors")
 	// ErrNoExecutorModel is returned when the chain resolves to nothing: no
 	// task.model, no usable judged model, and no default. The file-exchange
 	// protocol requires a non-empty executor model before spawn, so this is fatal
@@ -61,26 +61,49 @@ var (
 	ErrNoOrchestratorModel = errors.New("modelrouter: orchestrator_model not configured")
 )
 
+// ExecutorCandidate is one {cli, model} executor candidate the router chooses among
+// (v2.18.1 BE-2). It is a decoupled mirror of agent.ExecutorProfile: this package
+// stays free of the agent bounded context (passed as primitives, no import, no
+// cycle), so the daemon maps agent.ExecutorProfile → ExecutorCandidate at the seam.
+type ExecutorCandidate struct {
+	CLI   string
+	Model string
+}
+
+// fallbackCLI is the CLI paired with a model-only override / default that does not
+// match any allowed_executors entry (and the candidate set is not single-CLI). It
+// mirrors agent.DefaultExecutorCLI ("claude-code", the historical default) without
+// importing the agent aggregate.
+const fallbackCLI = "claude-code"
+
 // Config is the per-agent model configuration the router reads (the routing fields
 // of the agent profile, design §10). It is passed as primitives so this package
 // stays decoupled from the agent bounded context (no import of the agent
 // aggregate, no cycle).
 type Config struct {
-	OrchestratorModel    string   // profile.orchestrator_model — the orchestrator's own (cheap/fast) model
-	AllowedModels        []string // profile.allowed_models — candidates the judge picks from
-	DefaultExecutorModel string   // profile.default_executor_model — fallback when unjudgeable
+	OrchestratorModel string // profile.orchestrator_model — the orchestrator's own (cheap/fast) model
+	// AllowedExecutors is the authoritative {cli,model} candidate set (v2.18.1 BE-2,
+	// from profile.allowed_executors): the judge picks one, and a model-only override
+	// / default is paired with the CLI of its matching entry.
+	AllowedExecutors     []ExecutorCandidate
+	DefaultExecutorModel string // profile.default_executor_model — fallback model when unjudgeable
+	// DefaultCLI is the CLI paired with the task.model override / default_executor_model
+	// when that model is not found in AllowedExecutors and the candidates are not
+	// single-CLI (typically the agent's own cli). Empty → fallbackCLI ("claude-code").
+	DefaultCLI string
 }
 
 // JudgeRequest is what the orchestrator hands the LLM port: the goal to size up
-// and the menu of models it may choose from.
+// and the menu of {cli,model} executors it may choose from.
 type JudgeRequest struct {
-	Goal          executor.Goal
-	AllowedModels []string
+	Goal             executor.Goal
+	AllowedExecutors []ExecutorCandidate
 }
 
-// Judgment is the judge's verdict: the chosen model (which MUST be one of the
-// request's AllowedModels — the router rejects anything else).
+// Judgment is the judge's verdict: the chosen executor (which MUST be one of the
+// request's AllowedExecutors — the router rejects anything else).
 type Judgment struct {
+	CLI   string
 	Model string
 }
 
@@ -91,11 +114,13 @@ type DifficultyJudge interface {
 	Judge(ctx context.Context, req JudgeRequest) (Judgment, error)
 }
 
-// Decision is the resolved executor model plus provenance. JudgeError is non-nil
-// when the judge was attempted but did not yield a usable model and the router
-// fell back to the default — the reason is carried here (not swallowed) for
-// observability, while Model/Source still drive the spawn.
+// Decision is the resolved executor {cli, model} plus provenance (v2.18.1 BE-2:
+// the decision now carries the CLI too, so the engine forks the right runner).
+// JudgeError is non-nil when the judge was attempted but did not yield a usable
+// executor and the router fell back to the default — the reason is carried here (not
+// swallowed) for observability, while CLI/Model/Source still drive the spawn.
 type Decision struct {
+	CLI        string
 	Model      string
 	Source     Source
 	JudgeError error
@@ -114,38 +139,44 @@ func NewRouter(judge DifficultyJudge) *Router {
 	return &Router{judge: judge}
 }
 
-// ResolveExecutorModel applies the design §5 priority chain to choose the model
-// the executor for this task will run under. taskModel is task.model ("" = unset).
+// ResolveExecutor applies the design §5 priority chain to choose the {cli, model}
+// the executor for this task will run under (v2.18.1 BE-2). taskModel is task.model
+// ("" = unset).
 //
-//  1. taskModel set            → SourceTaskOverride (judge never consulted)
-//  2. judge picks an allowed   → SourceJudged
-//  3. otherwise default set    → SourceDefault (JudgeError carries why, if a judge ran)
+//  1. taskModel set            → SourceTaskOverride (judge never consulted); CLI paired via resolveCLI
+//  2. judge picks an allowed   → SourceJudged (CLI is the chosen candidate's)
+//  3. otherwise default set    → SourceDefault (JudgeError carries why, if a judge ran); CLI paired via resolveCLI
 //  4. nothing resolvable       → ErrNoExecutorModel (wrapping the judge reason)
-func (r *Router) ResolveExecutorModel(ctx context.Context, taskModel string, goal executor.Goal, cfg Config) (Decision, error) {
+//
+// The CLI for the model-only override / default paths is paired by resolveCLI:
+// the matching candidate's CLI if the model is in allowed_executors, else the sole
+// CLI when the candidates are single-CLI (so an only-codex agent never produces a
+// claude executor and vice versa), else cfg.DefaultCLI / fallbackCLI.
+func (r *Router) ResolveExecutor(ctx context.Context, taskModel string, goal executor.Goal, cfg Config) (Decision, error) {
 	// 1. Hard override — highest priority; short-circuit before any LLM call.
 	if m := strings.TrimSpace(taskModel); m != "" {
-		return Decision{Model: m, Source: SourceTaskOverride}, nil
+		return Decision{CLI: resolveCLI(cfg, m), Model: m, Source: SourceTaskOverride}, nil
 	}
 
 	// 2. LLM difficulty judge — only when a judge is wired AND there are candidate
-	// models to choose from. A failure / inconclusive / out-of-range pick does not
+	// executors to choose from. A failure / inconclusive / out-of-range pick does not
 	// abort: it is remembered and we fall through to the default.
 	var judgeErr error
-	if r.judge != nil && len(cfg.AllowedModels) > 0 {
-		j, err := r.judge.Judge(ctx, JudgeRequest{Goal: goal, AllowedModels: cfg.AllowedModels})
+	if r.judge != nil && len(cfg.AllowedExecutors) > 0 {
+		j, err := r.judge.Judge(ctx, JudgeRequest{Goal: goal, AllowedExecutors: cfg.AllowedExecutors})
 		switch {
 		case err != nil:
 			judgeErr = err
-		case !containsModel(cfg.AllowedModels, j.Model):
-			judgeErr = fmt.Errorf("%w: judge picked %q", ErrJudgeOutOfRange, j.Model)
+		case !containsExecutor(cfg.AllowedExecutors, j.CLI, j.Model):
+			judgeErr = fmt.Errorf("%w: judge picked %q/%q", ErrJudgeOutOfRange, j.CLI, j.Model)
 		default:
-			return Decision{Model: j.Model, Source: SourceJudged}, nil
+			return Decision{CLI: j.CLI, Model: j.Model, Source: SourceJudged}, nil
 		}
 	}
 
 	// 3. Default fallback.
 	if d := strings.TrimSpace(cfg.DefaultExecutorModel); d != "" {
-		return Decision{Model: d, Source: SourceDefault, JudgeError: judgeErr}, nil
+		return Decision{CLI: resolveCLI(cfg, d), Model: d, Source: SourceDefault, JudgeError: judgeErr}, nil
 	}
 
 	// 4. Nothing resolvable — surface the judge reason (if any) alongside the
@@ -167,11 +198,47 @@ func (r *Router) OrchestratorModel(cfg Config) (string, error) {
 	return "", ErrNoOrchestratorModel
 }
 
-func containsModel(models []string, m string) bool {
-	for _, x := range models {
-		if x == m {
+// containsExecutor reports whether {cli, model} is an exact entry of execs.
+func containsExecutor(execs []ExecutorCandidate, cli, model string) bool {
+	for _, e := range execs {
+		if e.CLI == cli && e.Model == model {
 			return true
 		}
 	}
 	return false
+}
+
+// resolveCLI pairs a model-only override / default with a CLI (v2.18.1 BE-2):
+//  1. the CLI of the first allowed_executors entry with that model (exact pin); else
+//  2. the sole CLI when every candidate shares one (so an only-codex agent never
+//     produces a claude executor and vice versa — the symmetric BE-2 guard); else
+//  3. cfg.DefaultCLI, or fallbackCLI when that too is empty.
+func resolveCLI(cfg Config, model string) string {
+	for _, e := range cfg.AllowedExecutors {
+		if e.Model == model {
+			return e.CLI
+		}
+	}
+	if cli, ok := soleCLI(cfg.AllowedExecutors); ok {
+		return cli
+	}
+	if d := strings.TrimSpace(cfg.DefaultCLI); d != "" {
+		return d
+	}
+	return fallbackCLI
+}
+
+// soleCLI returns the single CLI shared by every candidate (ok=false for an empty
+// set or a mix of CLIs).
+func soleCLI(execs []ExecutorCandidate) (string, bool) {
+	if len(execs) == 0 {
+		return "", false
+	}
+	cli := execs[0].CLI
+	for _, e := range execs[1:] {
+		if e.CLI != cli {
+			return "", false
+		}
+	}
+	return cli, true
 }

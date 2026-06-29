@@ -36,8 +36,12 @@ func (m *fakeIDMinter) NewProblemID() string {
 
 // fakeRunner returns a harmless argv (the engine test forks `true`, so the runner
 // content is irrelevant to process behaviour — we assert it reached input via the
-// model instead).
-type fakeRunner struct{ lastModel, lastPrompt string }
+// model instead). cli labels which builder ran (so cli-dispatch tests can tell which
+// runner the engine selected).
+type fakeRunner struct {
+	cli                   string
+	lastModel, lastPrompt string
+}
 
 func (r *fakeRunner) Build(model, prompt string) ([]string, error) {
 	r.lastModel, r.lastPrompt = model, prompt
@@ -75,9 +79,13 @@ func newTestEngine(t *testing.T, max int, rcfg modelrouter.Config, runner Runner
 	if runner == nil {
 		runner = &fakeRunner{}
 	}
+	// Default tests route to claude-code (resolveCLI's fallback), so register the
+	// injected runner under that key.
 	eng, err := NewEngine(EngineConfig{
 		Pool: pool, Routing: routing, Router: modelrouter.NewRouter(nil),
-		RouterConfig: rcfg, Runner: runner, IDs: &fakeIDMinter{}, Clock: clk,
+		RouterConfig: rcfg,
+		Runners:      map[string]RunnerCmdBuilder{"claude-code": runner},
+		IDs:          &fakeIDMinter{}, Clock: clk,
 	})
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
@@ -147,6 +155,64 @@ func TestEngine_HandleWork_TaskModelHardOverride(t *testing.T) {
 	defer reap(t, got.Handle)
 	if got.Model != "claude-opus-4-8" || got.ModelSource != modelrouter.SourceTaskOverride {
 		t.Errorf("expected task.model hard override, got %q/%v", got.Model, got.ModelSource)
+	}
+}
+
+// BE-2: the engine forks the runner that matches the F3-decided CLI. With a codex
+// candidate whose model is the default, the codex builder (not claude) is selected.
+func TestEngine_HandleWork_DispatchesByCLI(t *testing.T) {
+	trueBin, err := exec.LookPath("true")
+	if err != nil {
+		t.Skipf("`true` not available: %v", err)
+	}
+	root := t.TempDir()
+	layout, _ := executor.NewLayout(root)
+	clk := clock.NewFakeClock(time.Unix(1700000000, 0))
+	fx, _ := executor.NewFileExchange(layout, clk)
+	pool, _ := executor.NewPool(executor.PoolConfig{Exchange: fx, Spawner: executor.NewSpawner(), AgentRoot: root, BinaryPath: trueBin, Max: 3})
+	routing, _ := executor.NewRoutingStore(root, clk)
+
+	claudeR := &fakeRunner{cli: "claude-code"}
+	codexR := &fakeRunner{cli: "codex"}
+	eng, err := NewEngine(EngineConfig{
+		Pool: pool, Routing: routing, Router: modelrouter.NewRouter(nil),
+		RouterConfig: modelrouter.Config{
+			AllowedExecutors:     []modelrouter.ExecutorCandidate{{CLI: "codex", Model: "gpt-5.5"}},
+			DefaultExecutorModel: "gpt-5.5",
+		},
+		Runners: map[string]RunnerCmdBuilder{"claude-code": claudeR, "codex": codexR},
+		IDs:     &fakeIDMinter{}, Clock: clk,
+	})
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+
+	got, err := eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "t"}, ChatID: "c1"})
+	if err != nil {
+		t.Fatalf("HandleWork: %v", err)
+	}
+	defer reap(t, got.Handle)
+	if got.CLI != "codex" {
+		t.Errorf("Launched.CLI = %q, want codex", got.CLI)
+	}
+	if codexR.lastModel != "gpt-5.5" {
+		t.Errorf("codex runner saw model %q, want gpt-5.5", codexR.lastModel)
+	}
+	if claudeR.lastModel != "" {
+		t.Errorf("claude runner must NOT have been built (model=%q)", claudeR.lastModel)
+	}
+}
+
+// BE-2: a routed CLI with no registered runner builder is a clear error, not a panic.
+func TestEngine_HandleWork_UnknownCLIErrors(t *testing.T) {
+	// Only a claude runner is registered, but routing decides codex → no builder.
+	eng, _, _ := newTestEngine(t, 2, modelrouter.Config{
+		AllowedExecutors:     []modelrouter.ExecutorCandidate{{CLI: "codex", Model: "gpt-5.5"}},
+		DefaultExecutorModel: "gpt-5.5",
+	}, nil)
+	_, err := eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "t"}, ChatID: "c1"})
+	if err == nil || !strings.Contains(err.Error(), "no runner builder for cli") {
+		t.Fatalf("err = %v, want a no-runner-builder error", err)
 	}
 }
 

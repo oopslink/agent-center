@@ -41,6 +41,61 @@ func TestClaudeRunnerBuilder_Build(t *testing.T) {
 	}
 }
 
+func TestCodexRunnerBuilder_Build(t *testing.T) {
+	b := NewCodexRunnerBuilder("")
+	argv, err := b.Build("gpt-5.5", "do the thing")
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if argv[0] != "codex" || argv[1] != "exec" {
+		t.Errorf("argv[0:2] = %q, want [codex exec]", argv[0:2])
+	}
+	joined := strings.Join(argv, " ")
+	// Auth/permission flags mirror the resident cli=codex session (buildCodexArgv).
+	for _, want := range []string{
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-m gpt-5.5",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("argv %q missing %q", joined, want)
+		}
+	}
+	// One-shot text capture: NO --json (the executor harvests plain combined output).
+	if strings.Contains(joined, "--json") {
+		t.Errorf("codex executor runner must be plain text, not --json: %q", joined)
+	}
+	// No mcp / center access.
+	if strings.Contains(joined, "mcp") {
+		t.Errorf("codex executor runner must not carry mcp config: %q", joined)
+	}
+	// The prompt argument (last) carries both the executor framing and the goal.
+	last := argv[len(argv)-1]
+	if !strings.Contains(last, "NO access to the agent-center") {
+		t.Errorf("codex prompt should prepend the executor framing: %q", last)
+	}
+	if !strings.Contains(last, "do the thing") {
+		t.Errorf("codex prompt should contain the goal: %q", last)
+	}
+}
+
+func TestCodexRunnerBuilder_CustomBinaryAndValidation(t *testing.T) {
+	b := NewCodexRunnerBuilder("/opt/codex")
+	argv, err := b.Build("gpt-5.5", "p")
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if argv[0] != "/opt/codex" {
+		t.Errorf("binary = %q, want /opt/codex", argv[0])
+	}
+	if _, err := b.Build("", "p"); err == nil {
+		t.Error("empty model must error")
+	}
+	if _, err := b.Build("m", "  "); err == nil {
+		t.Error("empty prompt must error")
+	}
+}
+
 func TestClaudeRunnerBuilder_CustomBinaryAndValidation(t *testing.T) {
 	b := NewClaudeRunnerBuilder("/opt/claude")
 	argv, err := b.Build("m", "p")
