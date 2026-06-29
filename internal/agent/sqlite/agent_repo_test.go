@@ -261,3 +261,34 @@ func TestAgentRepo_AllowedExecutorsRoundTrip(t *testing.T) {
 		t.Fatal("agent with executors + max>0 must be concurrency-enabled")
 	}
 }
+
+// TestAgentRepo_AutoAssignableRoundTrip covers v2.18.3 BE-1: auto_assignable
+// persists + rehydrates (true and false).
+func TestAgentRepo_AutoAssignableRoundTrip(t *testing.T) {
+	r := newDB(t)
+	ctx := context.Background()
+	mk := func(id agent.AgentID, assignable bool) {
+		a, err := agent.NewAgent(agent.NewAgentInput{
+			ID: id, OrganizationID: "org", WorkerID: "W1",
+			Profile:   agent.Profile{Name: "coder", AutoAssignable: assignable},
+			CreatedBy: "user:a", CreatedAt: t0,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Save(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("AY", true)
+	mk("AN", false)
+	for id, want := range map[agent.AgentID]bool{"AY": true, "AN": false} {
+		got, err := r.FindByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Profile().AutoAssignable != want {
+			t.Fatalf("%s auto_assignable = %v, want %v", id, got.Profile().AutoAssignable, want)
+		}
+	}
+}

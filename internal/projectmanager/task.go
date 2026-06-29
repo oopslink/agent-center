@@ -234,6 +234,11 @@ type Task struct {
 	// routing, design §5 & §10). "" = unset → the executor model is selected from
 	// the agent's allowed/default models. Set at create time by the caller.
 	model string
+	// requiredCapabilities is the canonical (trimmed, lowercased, deduped) set of
+	// capability labels this task demands of an executor agent (v2.18.3 BE-1,
+	// issue-577a7b0e). nil/empty = unrestricted. The BE-2 auto-assign reconciler
+	// matches it against an agent's capability_tags. Set via NewTask / SetRequiredCapabilities.
+	requiredCapabilities []string
 }
 
 // NewTaskInput captures constructor args.
@@ -259,6 +264,9 @@ type NewTaskInput struct {
 	// Model is the optional hard-override executor model (F3 model routing, design
 	// §5 & §10); "" = unset.
 	Model string
+	// RequiredCapabilities is the optional capability set a task demands (v2.18.3
+	// BE-1); canonicalized at construction. nil/empty = unrestricted.
+	RequiredCapabilities []string
 }
 
 // NewTask constructs a fresh open Task. A Task must belong to a Project (no
@@ -281,23 +289,24 @@ func NewTask(in NewTaskInput) (*Task, error) {
 	}
 	at := in.CreatedAt.UTC()
 	return &Task{
-		id:               in.ID,
-		projectID:        in.ProjectID,
-		title:            in.Title,
-		description:      in.Description,
-		status:           TaskOpen,
-		derivedFromIssue: in.DerivedFromIssue,
-		createdBy:        in.CreatedBy,
-		createdAt:        at,
-		updatedAt:        at,
-		version:          1,
-		orgNumber:        in.OrgNumber,
-		statusChangedAt:  at,
-		branch:           in.Branch,
-		base:             in.Base,
-		skipMergeCheck:   in.SkipMergeCheck,
-		role:             in.Role,
-		model:            in.Model,
+		id:                   in.ID,
+		projectID:            in.ProjectID,
+		title:                in.Title,
+		description:          in.Description,
+		status:               TaskOpen,
+		derivedFromIssue:     in.DerivedFromIssue,
+		createdBy:            in.CreatedBy,
+		createdAt:            at,
+		updatedAt:            at,
+		version:              1,
+		orgNumber:            in.OrgNumber,
+		statusChangedAt:      at,
+		branch:               in.Branch,
+		base:                 in.Base,
+		skipMergeCheck:       in.SkipMergeCheck,
+		role:                 in.Role,
+		model:                in.Model,
+		requiredCapabilities: NormalizeCapabilities(in.RequiredCapabilities),
 	}, nil
 }
 
@@ -333,6 +342,9 @@ type RehydrateTaskInput struct {
 	ActionLogs              []TaskActionLog
 	// Model is the optional hard-override executor model (F3, design §5 & §10).
 	Model string
+	// RequiredCapabilities is the persisted capability set (v2.18.3 BE-1);
+	// re-canonicalized on rehydrate (defensive against hand-edited rows).
+	RequiredCapabilities []string
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -378,6 +390,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		executionLeaseExpiresAt: copyTaskTimePtr(in.ExecutionLeaseExpiresAt),
 		actionLogs:              in.ActionLogs,
 		model:                   in.Model,
+		requiredCapabilities:    NormalizeCapabilities(in.RequiredCapabilities),
 	}, nil
 }
 
@@ -571,6 +584,59 @@ func (t *Task) SetTags(tags []string, at time.Time) error {
 	t.tags = cleaned
 	t.touch(at)
 	return nil
+}
+
+// SetRequiredCapabilities replaces the task's required-capability set (metadata
+// edit, NOT a status change; v2.18.3 BE-1). The input is canonicalized (trimmed,
+// lowercased, deduped); empty clears it (unrestricted). Does NOT touch
+// statusChangedAt.
+func (t *Task) SetRequiredCapabilities(caps []string, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	t.requiredCapabilities = NormalizeCapabilities(caps)
+	t.touch(at)
+	return nil
+}
+
+// RequiredCapabilities returns a defensive copy of the task's required-capability
+// set (v2.18.3 BE-1). nil/empty = unrestricted.
+func (t *Task) RequiredCapabilities() []string {
+	if len(t.requiredCapabilities) == 0 {
+		return nil
+	}
+	out := make([]string, len(t.requiredCapabilities))
+	copy(out, t.requiredCapabilities)
+	return out
+}
+
+// NormalizeCapabilities canonicalizes a capability-label set (v2.18.3 BE-1): each
+// label is trimmed and LOWERCASED (capability matching is case-insensitive — the
+// BE-2 reconciler compares these against an agent's capability_tags), blanks are
+// dropped, and duplicates are removed preserving first-seen order. nil/empty input
+// (or all-blank) → nil. It is the SINGLE canonicalization choke point the domain,
+// persistence, and API all run capability sets through.
+func NormalizeCapabilities(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, c := range in {
+		c = strings.ToLower(strings.TrimSpace(c))
+		if c == "" {
+			continue
+		}
+		if _, dup := seen[c]; dup {
+			continue
+		}
+		seen[c] = struct{}{}
+		out = append(out, c)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // Rename updates the display title (metadata edit, not a state transition).

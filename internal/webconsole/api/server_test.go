@@ -30,6 +30,7 @@ import (
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	secretsqlite "github.com/oopslink/agent-center/internal/secretmgmt/sqlite"
+	settingssql "github.com/oopslink/agent-center/internal/settings/sqlite"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
@@ -134,6 +135,9 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 	// v2.7 #157: agent identity-member provisioning (Members→Add Agent), incl. the
 	// unified one-step create that also spins up the execution Agent.
 	deps.AgentProvisionSvc = identity.NewAgentIdentityProvisionService(db, deps.IdentityRepo, deps.MemberRepo)
+	// v2.18.3 BE-1: the center settings store backs the project-level
+	// auto_assign_enabled master switch (and the wake.* config).
+	deps.SettingsStore = settingssql.NewStore(db, clock.SystemClock{})
 	return deps, db
 }
 
