@@ -48,6 +48,11 @@ type RunContext struct {
 type RunResult struct {
 	Result  string // full result written to output.json
 	Summary string // one-line summary written to status (chat relay)
+	// Usage is the run's aggregate token usage parsed from the runner stream
+	// (v2.20.0 F2 / T613). The zero value means none observed — recordSuccess then
+	// leaves output.json's usage nil. The orchestrator relays a non-zero usage to
+	// the center's report_usage, tagged with input.json's Source.TaskRef.
+	Usage TokenUsage
 }
 
 // RunConfig configures RunExecutor (the entrypoint).
@@ -135,6 +140,12 @@ func recordSuccess(fx *FileExchange, in Input, st *Status, clk clock.Clock, res 
 		Result:     res.Result,
 		FinishedAt: clk.Now(),
 	}
+	// Record the run's token usage when the runner observed any (v2.20.0 F2 / T613).
+	// Zero stays nil — nothing for the orchestrator's writeback to report.
+	if !res.Usage.IsZero() {
+		u := res.Usage
+		out.Usage = &u
+	}
 	if err := fx.WriteOutput(out); err != nil {
 		return fmt.Errorf("executor: write output: %w", err)
 	}
@@ -204,7 +215,10 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 		return RunResult{}, fmt.Errorf("runner command %q: %w: %s", r.cmd[0], err, strings.TrimSpace(out))
 	}
 	rc.Progress("done", "runner command completed")
-	return RunResult{Result: out, Summary: summarize(out)}, nil
+	// Parse the run's per-turn token usage from the captured stream (v2.20.0 F2 /
+	// T613). Best-effort: a runner whose output carries no parseable result line
+	// yields a zero usage, which recordSuccess omits from output.json.
+	return RunResult{Result: out, Summary: summarize(out), Usage: ParseRunnerUsage(out)}, nil
 }
 
 // summarize takes the first non-empty line of out (trimmed) as the chat-relay

@@ -310,6 +310,11 @@ func (c *AgentController) buildExecutorEngine(agentRoot string, pl reconcilePayl
 		if werr != nil {
 			return nil, werr
 		}
+		// T613: relay each executor run's token usage to the center's report_usage,
+		// tagged with the fork-time Source.TaskRef. Same authed transport as the
+		// writeback; the executor stays credential-free (it only records usage in
+		// output.json). Best-effort inside the writeback — never blocks completion.
+		cwb.WithUsageReporter(newUsageReporter(c.cfg.ToolCaller))
 		wb = cwb
 	}
 	// Monitor = W1 reap + W3 Watchdog/Reconciler (Sweep/Recover/CheckOrphan) + W2
