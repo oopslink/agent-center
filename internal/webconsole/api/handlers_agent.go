@@ -81,6 +81,9 @@ func mapAgentError(w http.ResponseWriter, err error) {
 	case errors.Is(err, agentbc.ErrUnsupportedReasoning):
 		// T236: reasoning effort outside the allowlist.
 		writeError(w, http.StatusBadRequest, "invalid_reasoning", err.Error())
+	case errors.Is(err, agentbc.ErrInvalidExecutorProfile):
+		// v2.18.1 BE-1: an allowed_executors entry has a bad cli or empty model.
+		writeError(w, http.StatusBadRequest, "invalid_executor_profile", err.Error())
 	case errors.Is(err, agentsvc.ErrResetNotConfirmed),
 		errors.Is(err, agentbc.ErrInvalidResetScope),
 		errors.Is(err, agentbc.ErrWorkerRequired),
@@ -119,6 +122,12 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 	if allowedModels == nil {
 		allowedModels = []string{}
 	}
+	// v2.18.1 BE-1: allowed_executors is the authoritative [{cli,model}] list;
+	// allowed_models is emitted as a derived read-only mirror for legacy clients.
+	allowedExecutors := p.AllowedExecutors
+	if allowedExecutors == nil {
+		allowedExecutors = []agentbc.ExecutorProfile{}
+	}
 	m := map[string]any{
 		// v2.7 #185: the business-layer id is the identity-member id; the
 		// execution-entity ULID is internal and must NOT appear in API responses.
@@ -129,7 +138,10 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		// F3 model routing (design §5 & §10).
 		"orchestrator_model": p.OrchestratorModel, "default_executor_model": p.DefaultExecutorModel,
 		"max_concurrent_tasks": p.EffectiveMaxConcurrentTasks(), "allowed_models": allowedModels,
-		"env_vars": envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
+		// v2.18.1 BE-1: authoritative executor list + derived concurrency status.
+		"allowed_executors": allowedExecutors, "concurrency_enabled": p.ConcurrencyEnabled(),
+		"effective_concurrency_cap": p.EffectiveConcurrencyCap(),
+		"env_vars":                  envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
 		// v2.7 #157: kept for back-compat (equals id now). Lets the Members page
@@ -593,7 +605,9 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		OrchestratorModel    string   `json:"orchestrator_model"`
 		DefaultExecutorModel string   `json:"default_executor_model"`
 		MaxConcurrentTasks   int      `json:"max_concurrent_tasks"`
-		AllowedModels        []string `json:"allowed_models"`
+		AllowedModels        []string `json:"allowed_models"` // legacy input (converted when allowed_executors absent)
+		// v2.18.1 BE-1: authoritative {cli,model} candidate list; wins over allowed_models.
+		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -608,6 +622,7 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
 		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
 		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
+		AllowedExecutors: req.AllowedExecutors,
 	})
 	if err != nil {
 		mapAgentError(w, err)

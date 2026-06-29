@@ -16,14 +16,17 @@ func TestNewEngine_RequiredFieldBranches(t *testing.T) {
 	eng, _, _ := newTestEngine(t, 1, modelrouter.Config{DefaultExecutorModel: "m"}, &fakeRunner{})
 	base := EngineConfig{
 		Pool: eng.pool, Routing: eng.routing, Router: eng.router,
-		Runner: &fakeRunner{}, IDs: &fakeIDMinter{},
+		Runners: map[string]RunnerCmdBuilder{"claude-code": &fakeRunner{}}, IDs: &fakeIDMinter{},
 	}
 	cases := map[string]func(c *EngineConfig){
 		"no pool":    func(c *EngineConfig) { c.Pool = nil },
 		"no routing": func(c *EngineConfig) { c.Routing = nil },
 		"no router":  func(c *EngineConfig) { c.Router = nil },
-		"no runner":  func(c *EngineConfig) { c.Runner = nil },
-		"no ids":     func(c *EngineConfig) { c.IDs = nil },
+		"no runners": func(c *EngineConfig) { c.Runners = nil },
+		"nil runner value": func(c *EngineConfig) {
+			c.Runners = map[string]RunnerCmdBuilder{"claude-code": nil}
+		},
+		"no ids": func(c *EngineConfig) { c.IDs = nil },
 	}
 	for name, mut := range cases {
 		cfg := base

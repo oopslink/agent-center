@@ -5,6 +5,7 @@ import { EntityRef } from '@/components/EntityRef';
 import { AgentConfigEditModal } from '@/components/AgentConfigEditModal';
 import { normalizeIdentityRef } from '@/api/members';
 import type { Agent } from '@/api/types';
+import { executorBadgeClass } from '@/components/executorProfiles';
 
 // AgentProfile (v2.7.1 #228 PR(b)) — the Profile tab body. Three blocks:
 //   1. Info card — Computer (bound worker name + connected status), Created,
@@ -98,6 +99,9 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
               <ConfigTag label="Mode" value={agent.mode || 'Default'} testId="agent-profile-tag-mode" isDefault={!agent.mode} />
               <ConfigTag label="Provider" value={agent.provider || 'Default'} testId="agent-profile-tag-provider" isDefault={!agent.provider} />
             </div>
+
+            {/* v2.18.1 (issue-8746a5b9): executor concurrency, read-only. */}
+            <ConcurrencyTags agent={agent} />
           </Section>
         </div>
 
@@ -178,6 +182,52 @@ function Section({
       </h3>
       {children}
     </section>
+  );
+}
+
+// v2.18.1: executor concurrency, read-only. Renders the cap, the {cli·model}
+// executor chips, and a concurrency-enabled badge. The "enabled" wording follows
+// the "truly parallel" rule (effective cap ≥ 2) — a default agent (no executors)
+// shows "single-active · cap 1".
+function ConcurrencyTags({ agent }: { agent: Agent }): React.ReactElement {
+  const cap = agent.effective_concurrency_cap ?? 1;
+  const maxConcurrent = agent.max_concurrent_tasks ?? 0;
+  const executors = agent.allowed_executors ?? [];
+  const parallel = cap >= 2;
+  return (
+    <div className="mt-3 border-t border-border-base pt-3" data-testid="agent-profile-concurrency">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium ${parallel ? 'bg-status-green-bg text-status-green-fg' : 'bg-bg-subtle text-text-muted'}`}
+          data-testid="agent-profile-concurrency-badge"
+          data-enabled={parallel}
+        >
+          {parallel ? `concurrency · cap ${cap}` : 'single-active · cap 1'}
+        </span>
+        <ConfigTag label="Max concurrent" value={String(maxConcurrent)} testId="agent-profile-tag-max-concurrent" />
+      </div>
+      <div className="flex flex-wrap gap-2" data-testid="agent-profile-executors">
+        <span className="self-center text-xs text-text-muted">Allowed executors</span>
+        {executors.length > 0 ? (
+          executors.map((e) => (
+            <span
+              key={`${e.cli}::${e.model}`}
+              className="inline-flex items-center gap-1.5 rounded border border-border-base bg-bg-subtle px-2 py-1 text-xs"
+              data-testid="agent-profile-executor-chip"
+            >
+              <span className={`rounded px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide ${executorBadgeClass(e.cli)}`}>
+                {e.cli}
+              </span>
+              <span className="font-mono text-text-primary">{e.model}</span>
+            </span>
+          ))
+        ) : (
+          <span className="self-center text-xs italic text-text-muted" data-testid="agent-profile-executors-empty">
+            none
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -8,10 +8,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
+
+// testExecs is a one-entry allowed_executors list that opts an agent into
+// concurrency (v2.18.1 BE-1: the gate reads AllowedExecutors, not AllowedModels).
+var testExecs = []agent.ExecutorProfile{{CLI: "claude-code", Model: "m"}}
 
 func lookTrue(t *testing.T) string {
 	t.Helper()
@@ -28,9 +33,9 @@ func TestConcurrencyEnabled(t *testing.T) {
 		pl   reconcilePayload
 		want bool
 	}{
-		{"both set", reconcilePayload{MaxConcurrentTasks: 2, AllowedModels: []string{"m"}}, true},
-		{"no max", reconcilePayload{AllowedModels: []string{"m"}}, false},
-		{"no models", reconcilePayload{MaxConcurrentTasks: 2}, false},
+		{"both set", reconcilePayload{MaxConcurrentTasks: 2, AllowedExecutors: testExecs}, true},
+		{"no max", reconcilePayload{AllowedExecutors: testExecs}, false},
+		{"no executors", reconcilePayload{MaxConcurrentTasks: 2}, false},
 		{"neither", reconcilePayload{}, false},
 	}
 	for _, tc := range cases {
@@ -66,7 +71,7 @@ func TestFuncClock_Now(t *testing.T) {
 
 func TestBuildExecutorEngine_ErrorOnBadRoot(t *testing.T) {
 	c, _, _ := newTestController(t, t.TempDir())
-	if _, err := c.buildExecutorEngine("", reconcilePayload{MaxConcurrentTasks: 1, AllowedModels: []string{"m"}}); err == nil {
+	if _, err := c.buildExecutorEngine("", reconcilePayload{MaxConcurrentTasks: 1, AllowedExecutors: testExecs, AllowedModels: []string{"m"}}); err == nil {
 		t.Error("empty agent root must surface an error")
 	}
 }
@@ -90,7 +95,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 		c.mu.Unlock()
 	}
 
-	enabled := reconcilePayload{AgentID: "a-on", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}}
+	enabled := reconcilePayload{AgentID: "a-on", MaxConcurrentTasks: 2, AllowedExecutors: testExecs, AllowedModels: []string{"m"}}
 	c.maybeAttachExecutorEngine(context.Background(), enabled)
 	c.mu.Lock()
 	onExec := c.agents["a-on"].exec
@@ -100,7 +105,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 	}
 
 	// Codex agent: excluded even when concurrency fields are set.
-	codexPl := reconcilePayload{AgentID: "a-codex", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}, CLI: cliCodex}
+	codexPl := reconcilePayload{AgentID: "a-codex", MaxConcurrentTasks: 2, AllowedExecutors: testExecs, AllowedModels: []string{"m"}, CLI: cliCodex}
 	c.maybeAttachExecutorEngine(context.Background(), codexPl)
 	c.mu.Lock()
 	codexExec := c.agents["a-codex"].exec
@@ -124,7 +129,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 	savedBase := c.cfg.AgentHomeBase
 	c.cfg.AgentHomeBase = ""
 	c.mu.Unlock()
-	c.maybeAttachExecutorEngine(context.Background(), reconcilePayload{AgentID: "a-badpath", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}})
+	c.maybeAttachExecutorEngine(context.Background(), reconcilePayload{AgentID: "a-badpath", MaxConcurrentTasks: 2, AllowedExecutors: testExecs, AllowedModels: []string{"m"}})
 	c.mu.Lock()
 	badExec := c.agents["a-badpath"].exec
 	c.cfg.AgentHomeBase = savedBase
@@ -236,7 +241,8 @@ func TestWorkViaExecutor_NonCapacityErrorWraps(t *testing.T) {
 	eng, _ := orchestrator.NewEngine(orchestrator.EngineConfig{
 		Pool: pool, Routing: routing, Router: modelrouter.NewRouter(nil),
 		RouterConfig: modelrouter.Config{DefaultExecutorModel: "m"},
-		Runner:       errRunnerWD{}, IDs: orchestrator.NewULIDMinter(nil),
+		Runners:      map[string]orchestrator.RunnerCmdBuilder{"claude-code": errRunnerWD{}},
+		IDs:          orchestrator.NewULIDMinter(nil),
 	})
 	mon, _ := executor.NewMonitor(executor.MonitorConfig{Exchange: fx, Pool: pool})
 	ee := &executorEngine{engine: eng, monitor: mon}

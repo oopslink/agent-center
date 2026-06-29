@@ -198,13 +198,15 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		Mode      string `json:"mode"`
 		Provider  string `json:"provider"`
 		// F3 model routing (design §5 & §10), optional at create time.
-		OrchestratorModel    string            `json:"orchestrator_model"`
-		DefaultExecutorModel string            `json:"default_executor_model"`
-		MaxConcurrentTasks   int               `json:"max_concurrent_tasks"`
-		AllowedModels        []string          `json:"allowed_models"`
-		WorkerID             string            `json:"worker_id"`
-		EnvVars              map[string]string `json:"env_vars"`
-		Skills               []string          `json:"skills"`
+		OrchestratorModel    string   `json:"orchestrator_model"`
+		DefaultExecutorModel string   `json:"default_executor_model"`
+		MaxConcurrentTasks   int      `json:"max_concurrent_tasks"`
+		AllowedModels        []string `json:"allowed_models"` // legacy input (converted when allowed_executors absent)
+		// v2.18.1 BE-1: authoritative {cli,model} candidate list; wins over allowed_models.
+		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
+		WorkerID         string                    `json:"worker_id"`
+		EnvVars          map[string]string         `json:"env_vars"`
+		Skills           []string                  `json:"skills"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -291,6 +293,7 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			DefaultExecutorModel: body.DefaultExecutorModel,
 			MaxConcurrentTasks:   body.MaxConcurrentTasks,
 			AllowedModels:        body.AllowedModels,
+			AllowedExecutors:     body.AllowedExecutors,
 			EnvVars:              body.EnvVars,
 			Skills:               body.Skills,
 			WorkerID:             body.WorkerID,

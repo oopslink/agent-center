@@ -6,9 +6,10 @@
 // action adapt to lifecycle.
 import React, { useState } from 'react';
 import { useRestartAgent, useUpdateAgentConfig } from '@/api/agents';
-import type { Agent } from '@/api/types';
+import type { Agent, ExecutorProfile } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { ConfirmModal } from './ConfirmModal';
+import { executorBadgeClass, MODEL_SUGGESTIONS } from './executorProfiles';
 
 interface Props {
   agent: Agent;
@@ -29,6 +30,29 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const [provider, setProvider] = useState(agent.provider ?? '');
   const [confirming, setConfirming] = useState(false);
 
+  // v2.18.1 concurrency config.
+  const [maxConcurrent, setMaxConcurrent] = useState(agent.max_concurrent_tasks ?? 0);
+  const [executors, setExecutors] = useState<ExecutorProfile[]>(agent.allowed_executors ?? []);
+  // The pending "add a profile" row (committed via the Add button).
+  const [draftCli, setDraftCli] = useState('claude-code');
+  const [draftModel, setDraftModel] = useState('');
+
+  const addExecutor = () => {
+    const m = draftModel.trim();
+    if (!m) return;
+    // Skip exact {cli,model} duplicates (the server dedups too).
+    if (executors.some((e) => e.cli === draftCli && e.model === m)) {
+      setDraftModel('');
+      return;
+    }
+    setExecutors((xs) => [...xs, { cli: draftCli, model: m }]);
+    setDraftModel('');
+  };
+  const removeExecutor = (i: number) =>
+    setExecutors((xs) => xs.filter((_, idx) => idx !== i));
+
+  const trulyParallel = maxConcurrent >= 2 && executors.length > 0;
+
   const update = useUpdateAgentConfig(agent.id);
   const restart = useRestartAgent(agent.id);
   const containerRef = useModalA11y({ open: true, onClose });
@@ -39,7 +63,15 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
 
   const apply = async () => {
     try {
-      await update.mutateAsync({ model: model.trim(), cli, reasoning, mode: mode.trim(), provider: provider.trim() });
+      await update.mutateAsync({
+        model: model.trim(),
+        cli,
+        reasoning,
+        mode: mode.trim(),
+        provider: provider.trim(),
+        max_concurrent_tasks: maxConcurrent,
+        allowed_executors: executors,
+      });
       // A running agent must restart to pick up the new config; a stopped agent
       // applies it on its next start (nothing to restart now).
       if (isRunning) {
@@ -145,6 +177,119 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               placeholder="default"
             />
           </Field>
+
+          {/* v2.18.1 (issue-8746a5b9): executor concurrency config. */}
+          <div className="mb-3 mt-5 border-t border-border-base pt-4" data-testid="agent-config-concurrency">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              Concurrency
+            </h3>
+
+            <Field
+              label="Max concurrent tasks"
+              hint="0 or 1 = single active (no parallelism). 2+ enables parallel executors."
+              htmlFor="agent-config-max-concurrent-input"
+            >
+              <input
+                id="agent-config-max-concurrent-input"
+                data-testid="agent-config-max-concurrent"
+                type="number"
+                min={0}
+                className={inputClass}
+                value={maxConcurrent}
+                onChange={(e) => setMaxConcurrent(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+              />
+            </Field>
+
+            <Field
+              label="Allowed executor profiles"
+              hint="The {cli·model} pairs the daemon may fork as executors. Add at least one to enable parallelism."
+            >
+              {executors.length > 0 ? (
+                <ul className="mb-2 flex flex-wrap gap-2" data-testid="agent-config-executors">
+                  {executors.map((e, i) => (
+                    <li
+                      key={`${e.cli}::${e.model}`}
+                      className="inline-flex items-center gap-1.5 rounded border border-border-base bg-bg-subtle px-2 py-1 text-xs"
+                      data-testid="agent-config-executor-chip"
+                    >
+                      <span className={`rounded px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide ${executorBadgeClass(e.cli)}`}>
+                        {e.cli}
+                      </span>
+                      <span className="font-mono text-text-primary">{e.model}</span>
+                      <button
+                        type="button"
+                        className="text-text-muted hover:text-danger"
+                        onClick={() => removeExecutor(i)}
+                        aria-label={`Remove ${e.cli} ${e.model}`}
+                        data-testid="agent-config-executor-remove"
+                      >
+                        <span aria-hidden="true">×</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mb-2 text-[0.6875rem] italic text-text-muted" data-testid="agent-config-executors-empty">
+                  No executor profiles — agent stays single-active.
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <select
+                  className={`${inputClass} w-auto`}
+                  value={draftCli}
+                  onChange={(e) => setDraftCli(e.target.value)}
+                  data-testid="agent-config-executor-cli"
+                  aria-label="Executor CLI"
+                >
+                  {CLI_OPTIONS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className={inputClass}
+                  value={draftModel}
+                  onChange={(e) => setDraftModel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addExecutor();
+                    }
+                  }}
+                  list={`executor-models-${draftCli}`}
+                  placeholder="model (e.g. opus-4-8)"
+                  data-testid="agent-config-executor-model"
+                  aria-label="Executor model"
+                />
+                <datalist id={`executor-models-${draftCli}`}>
+                  {(MODEL_SUGGESTIONS[draftCli] ?? []).map((m) => (
+                    <option key={m} value={m} />
+                  ))}
+                </datalist>
+                <button
+                  type="button"
+                  className="shrink-0 rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:cursor-not-allowed disabled:text-text-muted"
+                  onClick={addExecutor}
+                  disabled={!draftModel.trim()}
+                  data-testid="agent-config-executor-add"
+                >
+                  Add
+                </button>
+              </div>
+            </Field>
+
+            <p
+              className={`rounded px-2 py-1.5 text-xs ${trulyParallel ? 'bg-status-green-bg text-status-green-fg' : 'bg-bg-subtle text-text-muted'}`}
+              data-testid="agent-config-concurrency-status"
+              data-enabled={trulyParallel}
+            >
+              {trulyParallel
+                ? `Concurrency ENABLED — up to ${maxConcurrent} tasks in parallel.`
+                : 'DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor profile to run in parallel.'}
+            </p>
+          </div>
 
           {error && (
             <p className="mb-3 text-xs text-danger" data-testid="agent-config-edit-error">

@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Agent, AgentActivityEvent, AgentTask } from './types';
+import type { Agent, AgentActivityEvent, AgentTask, ExecutorProfile } from './types';
 
 // Agent BC (v2.7 #101). Org-scoped agents backed by /api/agents. Replaces
 // the retired workforce.AgentInstance surface. List/work-items/activity
@@ -101,6 +101,12 @@ export interface UpdateAgentConfigInput {
   reasoning: string;
   mode: string;
   provider: string;
+  // v2.18.1 (issue-8746a5b9) executor concurrency. allowed_executors is the
+  // authoritative {cli,model} candidate list (server hard-validates cli ∈
+  // {claude-code,codex}); max_concurrent_tasks gates parallelism (0/1 = single
+  // active). Both optional so non-concurrency edits keep the legacy body shape.
+  max_concurrent_tasks?: number;
+  allowed_executors?: ExecutorProfile[];
 }
 
 export function useUpdateAgentConfig(id: string) {

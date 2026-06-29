@@ -169,12 +169,13 @@ type reconcilePayload struct {
 	// F3 model routing (design §5 & §10) — transported from the persisted agent
 	// profile through the control loop to the daemon. The modelrouter package
 	// consumes these at executor-spawn time. Empty/zero = center default.
-	OrchestratorModel    string   `json:"orchestrator_model,omitempty"`
-	DefaultExecutorModel string   `json:"default_executor_model,omitempty"`
-	MaxConcurrentTasks   int      `json:"max_concurrent_tasks,omitempty"`
-	AllowedModels        []string `json:"allowed_models,omitempty"`
-	Version              int      `json:"version"`
-	ResetScope           string   `json:"reset_scope,omitempty"`
+	OrchestratorModel    string                  `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string                  `json:"default_executor_model,omitempty"`
+	MaxConcurrentTasks   int                     `json:"max_concurrent_tasks,omitempty"`
+	AllowedModels        []string                `json:"allowed_models,omitempty"`
+	AllowedExecutors     []agent.ExecutorProfile `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: authoritative {cli,model} candidates (opt-in gate reads this)
+	Version              int                     `json:"version"`
+	ResetScope           string                  `json:"reset_scope,omitempty"`
 }
 
 // workPayload decodes an "agent.work" command payload. Matches
@@ -739,7 +740,7 @@ func (c *AgentController) maybeAttachExecutorEngine(ctx context.Context, pl reco
 	firstAttach := !c.recoveredExec[pl.AgentID]
 	c.recoveredExec[pl.AgentID] = true
 	c.mu.Unlock()
-	c.log("agent=%s concurrent-execution enabled (max=%d, models=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedModels))
+	c.log("agent=%s concurrent-execution enabled (max=%d, executors=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedExecutors))
 
 	// First attach this process → recover orphans from a prior process (design §12).
 	if firstAttach {

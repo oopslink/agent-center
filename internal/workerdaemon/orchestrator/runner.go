@@ -37,6 +37,68 @@ const executorSystemPrompt = "You are an isolated executor working a single task
 	"Use your built-in tools (read/edit files, run commands) to complete the task entirely within this workspace. " +
 	"When finished, your final message must be a concise report of what you did and the outcome; that message is the result the orchestrator relays."
 
+// CodexRunnerBuilder builds the production executor runner for the codex CLI: a
+// ONE-SHOT `codex exec` invocation under the F3-selected model (v2.18.1 BE-2,
+// issue-8746a5b9 — the cross-CLI executor: a claude-code supervisor may dispatch a
+// codex executor for a given task). It mirrors the auth/permission flags of the
+// resident cli=codex session (workerdaemon/codex_session.go buildCodexArgv:
+// --skip-git-repo-check + --dangerously-bypass-approvals-and-sandbox), because the
+// worker process / workspace cwd is the real isolation boundary (same model as the
+// claude executor — codex has no internal sandbox we rely on).
+//
+// It deliberately DIFFERS from the resident session in two ways, matching the
+// ClaudeRunnerBuilder's one-shot-executor contract:
+//   - NO --json: the resident session maps codex's JSONL event stream to
+//     StreamEvents, but the executor's CommandRunner captures the command's combined
+//     output verbatim into output.json and relays it — so we want codex's plain,
+//     human-readable final transcript, not a wall of JSONL events (the codex analogue
+//     of the claude executor's bare `-p`).
+//   - the executor framing is PREPENDED to the prompt: codex exec has no
+//     --append-system-prompt flag (cf. the claude builder), so the same "no center /
+//     mcp access, report your result as the final message" framing rides in the prompt.
+//
+// codex exec carries no center credentials or mcp config (none is passed; codex has
+// no mcp by default), so the executor isolation holds.
+type CodexRunnerBuilder struct {
+	binary string
+}
+
+// NewCodexRunnerBuilder builds a CodexRunnerBuilder. An empty binary defaults to
+// "codex" on PATH (matching the codex session default).
+func NewCodexRunnerBuilder(binary string) *CodexRunnerBuilder {
+	if strings.TrimSpace(binary) == "" {
+		binary = "codex"
+	}
+	return &CodexRunnerBuilder{binary: binary}
+}
+
+// Build assembles the executor's codex argv:
+//
+//	codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox
+//	           -m <model> <executor-framed prompt>
+//
+// NO --json (plain combined output captured into output.json), NO mcp (codex carries
+// none by default), NO resume thread (each executor is an ephemeral one-shot).
+func (b *CodexRunnerBuilder) Build(model, prompt string) ([]string, error) {
+	if strings.TrimSpace(model) == "" {
+		return nil, errors.New("orchestrator: runner model required")
+	}
+	if strings.TrimSpace(prompt) == "" {
+		return nil, errors.New("orchestrator: runner prompt required")
+	}
+	return []string{
+		b.binary, "exec",
+		// Auth + autonomous permissions — same rationale + flags as the resident
+		// cli=codex session (codex_session.go buildCodexArgv): the worker/workspace is
+		// the isolation boundary, not codex's approval prompt or internal sandbox.
+		"--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox",
+		"-m", model,
+		// codex exec has no --append-system-prompt: the executor framing rides in the prompt.
+		executorSystemPrompt + "\n\n" + prompt,
+	}, nil
+}
+
 // ClaudeRunnerBuilder builds the production executor runner: a ONE-SHOT, no-mcp
 // claude invocation under the F3-selected model (design §4/§5). It mirrors the
 // supervisor's auth/permission flags (claudestream.rewriteForStreamingInput) so

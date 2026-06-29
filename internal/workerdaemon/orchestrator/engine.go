@@ -40,6 +40,7 @@ type WorkItem struct {
 type Launched struct {
 	ExecutorID  string
 	ProblemID   string
+	CLI         string // v2.18.1 BE-2: which CLI runner forked this executor (claude-code|codex)
 	Model       string
 	ModelSource modelrouter.Source
 	RouteReason executor.MatchReason
@@ -57,8 +58,11 @@ type EngineConfig struct {
 	Router *modelrouter.Router
 	// RouterConfig is this agent's profile model config (orchestrator/allowed/default).
 	RouterConfig modelrouter.Config
-	// Runner builds the executor's model-routed runner argv (required).
-	Runner RunnerCmdBuilder
+	// Runners builds the executor's model-routed runner argv, keyed by CLI (v2.18.1
+	// BE-2): the F3 decision's CLI selects the builder (e.g. "claude-code" →
+	// ClaudeRunnerBuilder, "codex" → CodexRunnerBuilder). Must be non-empty with
+	// non-nil values; HandleWork errors if the routed CLI has no registered builder.
+	Runners map[string]RunnerCmdBuilder
 	// IDs mints executor / problem ids (required).
 	IDs IDMinter
 	// Clock stamps Input.CreatedAt. Nil → SystemClock.
@@ -74,7 +78,7 @@ type Engine struct {
 	routing *executor.RoutingStore
 	router  *modelrouter.Router
 	rcfg    modelrouter.Config
-	runner  RunnerCmdBuilder
+	runners map[string]RunnerCmdBuilder
 	ids     IDMinter
 	clk     clock.Clock
 }
@@ -88,21 +92,30 @@ func NewEngine(cfg EngineConfig) (*Engine, error) {
 		return nil, errors.New("orchestrator: engine routing required")
 	case cfg.Router == nil:
 		return nil, errors.New("orchestrator: engine router required")
-	case cfg.Runner == nil:
-		return nil, errors.New("orchestrator: engine runner required")
+	case len(cfg.Runners) == 0:
+		return nil, errors.New("orchestrator: engine runners required")
 	case cfg.IDs == nil:
 		return nil, errors.New("orchestrator: engine id minter required")
+	}
+	for cli, rb := range cfg.Runners {
+		if rb == nil {
+			return nil, fmt.Errorf("orchestrator: engine runner for cli %q is nil", cli)
+		}
 	}
 	clk := cfg.Clock
 	if clk == nil {
 		clk = clock.SystemClock{}
+	}
+	runners := make(map[string]RunnerCmdBuilder, len(cfg.Runners))
+	for cli, rb := range cfg.Runners {
+		runners[cli] = rb
 	}
 	return &Engine{
 		pool:    cfg.Pool,
 		routing: cfg.Routing,
 		router:  cfg.Router,
 		rcfg:    cfg.RouterConfig,
-		runner:  cfg.Runner,
+		runners: runners,
 		ids:     cfg.IDs,
 		clk:     clk,
 	}, nil
@@ -146,14 +159,18 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		}
 	}
 
-	// 2. F3 model routing (priority chain §5).
-	modelDec, err := e.router.ResolveExecutorModel(ctx, item.TaskModel, item.Goal, e.rcfg)
+	// 2. F3 routing (priority chain §5) — resolves the executor {cli, model}.
+	modelDec, err := e.router.ResolveExecutor(ctx, item.TaskModel, item.Goal, e.rcfg)
 	if err != nil {
-		return nil, fmt.Errorf("orchestrator: resolve model: %w", err)
+		return nil, fmt.Errorf("orchestrator: resolve executor: %w", err)
 	}
 
-	// 3. build the runner argv + the F2 input.
-	runnerCmd, err := e.runner.Build(modelDec.Model, buildPrompt(item))
+	// 3. build the runner argv (per-CLI builder, BE-2) + the F2 input.
+	runner := e.runners[modelDec.CLI]
+	if runner == nil {
+		return nil, fmt.Errorf("orchestrator: no runner builder for cli %q", modelDec.CLI)
+	}
+	runnerCmd, err := runner.Build(modelDec.Model, buildPrompt(item))
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: build runner: %w", err)
 	}
@@ -188,6 +205,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		return &Launched{
 			ExecutorID:  execID,
 			ProblemID:   problemID,
+			CLI:         modelDec.CLI,
 			Model:       modelDec.Model,
 			ModelSource: modelDec.Source,
 			RouteReason: dec.Reason,
@@ -198,6 +216,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	return &Launched{
 		ExecutorID:  execID,
 		ProblemID:   problemID,
+		CLI:         modelDec.CLI,
 		Model:       modelDec.Model,
 		ModelSource: modelDec.Source,
 		RouteReason: dec.Reason,

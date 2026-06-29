@@ -87,6 +87,65 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(restarted).toBe(false);
   });
 
+  // v2.18.1 (issue-8746a5b9): executor concurrency config.
+  it('concurrency: prefills max + executor chips; status reflects "truly parallel"', () => {
+    wrap({
+      ...base,
+      max_concurrent_tasks: 3,
+      allowed_executors: [
+        { cli: 'claude-code', model: 'opus-4-8' },
+        { cli: 'codex', model: 'gpt-5.5' },
+      ],
+    });
+    expect((screen.getByTestId('agent-config-max-concurrent') as HTMLInputElement).value).toBe('3');
+    expect(screen.getAllByTestId('agent-config-executor-chip')).toHaveLength(2);
+    const status = screen.getByTestId('agent-config-concurrency-status');
+    expect(status).toHaveAttribute('data-enabled', 'true');
+    expect(status).toHaveTextContent(/up to 3/i);
+  });
+
+  it('concurrency: a default agent (no executors) shows DISABLED single-active', () => {
+    wrap(base);
+    const status = screen.getByTestId('agent-config-concurrency-status');
+    expect(status).toHaveAttribute('data-enabled', 'false');
+    expect(status).toHaveTextContent(/single-active/i);
+    expect(screen.getByTestId('agent-config-executors-empty')).toBeInTheDocument();
+  });
+
+  it('concurrency: add then remove an executor profile updates the chips', () => {
+    wrap(base);
+    expect(screen.queryAllByTestId('agent-config-executor-chip')).toHaveLength(0);
+    fireEvent.change(screen.getByTestId('agent-config-executor-cli'), { target: { value: 'codex' } });
+    fireEvent.change(screen.getByTestId('agent-config-executor-model'), { target: { value: 'gpt-5.5' } });
+    fireEvent.click(screen.getByTestId('agent-config-executor-add'));
+    expect(screen.getAllByTestId('agent-config-executor-chip')).toHaveLength(1);
+    expect(screen.getByTestId('agent-config-executor-chip')).toHaveTextContent('gpt-5.5');
+    fireEvent.click(screen.getByTestId('agent-config-executor-remove'));
+    expect(screen.queryAllByTestId('agent-config-executor-chip')).toHaveLength(0);
+  });
+
+  it('concurrency: PATCH body carries max_concurrent_tasks + allowed_executors', async () => {
+    let patchBody: Record<string, unknown> | undefined;
+    server.use(
+      http.patch('/api/agents/:id/config', async ({ request }) => {
+        patchBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...base });
+      }),
+      http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
+    );
+    wrap(base);
+    fireEvent.change(screen.getByTestId('agent-config-max-concurrent'), { target: { value: '4' } });
+    fireEvent.change(screen.getByTestId('agent-config-executor-model'), { target: { value: 'opus-4-8' } });
+    fireEvent.click(screen.getByTestId('agent-config-executor-add'));
+    fireEvent.click(screen.getByTestId('agent-config-edit-save'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(patchBody).toBeDefined());
+    expect(patchBody).toMatchObject({
+      max_concurrent_tasks: 4,
+      allowed_executors: [{ cli: 'claude-code', model: 'opus-4-8' }],
+    });
+  });
+
   it('Cancel on the confirm keeps the modal open (no PATCH)', async () => {
     let patched = false;
     server.use(

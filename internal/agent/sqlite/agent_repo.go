@@ -28,19 +28,19 @@ func nullString(s string) any {
 
 func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	env, skills, tags, allowedModels, err := marshalProfileJSON(a)
+	env, skills, tags, allowedModels, allowedExecutors, err := marshalProfileJSON(a)
 	if err != nil {
 		return err
 	}
 	p := a.Profile()
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO agents (id, organization_id, name, description, model, cli, reasoning, mode, provider,
-			orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, env_vars, skills,
+			orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars, skills,
 			capability_tags, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(a.ID()), a.OrganizationID(), p.Name, nullString(p.Description), nullString(p.Model),
 		nullString(p.CLI), nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
-		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels,
+		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors,
 		env, skills, tags, a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
 		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), a.Version())
 	if persistence.IsUniqueViolation(err) {
@@ -51,7 +51,7 @@ func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 
 func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	env, skills, tags, allowedModels, err := marshalProfileJSON(a)
+	env, skills, tags, allowedModels, allowedExecutors, err := marshalProfileJSON(a)
 	if err != nil {
 		return err
 	}
@@ -59,11 +59,11 @@ func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	// worker_id is intentionally NOT in the SET list — the binding is immutable.
 	res, err := exec.ExecContext(ctx,
 		`UPDATE agents SET name=?, description=?, model=?, cli=?, reasoning=?, mode=?, provider=?,
-			orchestrator_model=?, default_executor_model=?, max_concurrent_tasks=?, allowed_models=?, env_vars=?, skills=?,
+			orchestrator_model=?, default_executor_model=?, max_concurrent_tasks=?, allowed_models=?, allowed_executors=?, env_vars=?, skills=?,
 			capability_tags=?, lifecycle=?, lifecycle_error=?, updated_at=?, version=? WHERE id=?`,
 		p.Name, nullString(p.Description), nullString(p.Model), nullString(p.CLI),
 		nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
-		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, env, skills,
+		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors, env, skills,
 		tags, string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), a.Version(), string(a.ID()))
 	if err != nil {
 		return err
@@ -178,12 +178,12 @@ func (r *AgentRepo) list(ctx context.Context, q, arg string) ([]*agent.Agent, er
 }
 
 const agentSelect = `SELECT id, organization_id, name, description, model, cli, reasoning, mode, provider,
-	orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, env_vars, skills,
+	orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars, skills,
 	capability_tags, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version FROM agents`
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
-func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string, allowedModels string, err error) {
+func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string, allowedModels string, allowedExecutors string, err error) {
 	p := a.Profile()
 	ev := p.EnvVars
 	if ev == nil {
@@ -191,7 +191,7 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string,
 	}
 	eb, err := json.Marshal(ev)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
 	sk := a.Skills()
 	if sk == nil {
@@ -199,7 +199,7 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string,
 	}
 	sb, err := json.Marshal(sk)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
 	tg := a.CapabilityTags()
 	if tg == nil {
@@ -207,17 +207,32 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string,
 	}
 	tb, err := json.Marshal(tg)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
+	}
+	// allowed_executors is the authoritative list; allowed_models is written as its
+	// DERIVED mirror (distinct models) so legacy model-only readers (the F3 router,
+	// until BE-2) keep seeing candidates. An agent with no executors keeps its legacy
+	// allowed_models passthrough (pre-BE-1 rows not yet re-saved with executors).
+	xe := p.AllowedExecutors
+	if xe == nil {
+		xe = []agent.ExecutorProfile{}
+	}
+	xeb, err := json.Marshal(xe)
+	if err != nil {
+		return "", "", "", "", "", err
 	}
 	am := p.AllowedModels
+	if len(p.AllowedExecutors) > 0 {
+		am = agent.ModelsOf(p.AllowedExecutors)
+	}
 	if am == nil {
 		am = []string{}
 	}
 	amb, err := json.Marshal(am)
 	if err != nil {
-		return "", "", "", "", err
+		return "", "", "", "", "", err
 	}
-	return string(eb), string(sb), string(tb), string(amb), nil
+	return string(eb), string(sb), string(tb), string(amb), string(xeb), nil
 }
 
 func scanAgent(scan func(...any) error) (*agent.Agent, error) {
@@ -227,12 +242,12 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 		reasoning, mode, provider                                           sql.NullString
 		orchestratorModel, defaultExecutorModel                             sql.NullString
 		maxConcurrentTasks                                                  sql.NullInt64
-		allowedModelsJSON                                                   sql.NullString
+		allowedModelsJSON, allowedExecutorsJSON                             sql.NullString
 		envJSON, skillsJSON, tagsJSON                                       string
 		version                                                             int
 	)
 	if err := scan(&id, &org, &name, &desc, &model, &cli, &reasoning, &mode, &provider,
-		&orchestratorModel, &defaultExecutorModel, &maxConcurrentTasks, &allowedModelsJSON, &envJSON, &skillsJSON,
+		&orchestratorModel, &defaultExecutorModel, &maxConcurrentTasks, &allowedModelsJSON, &allowedExecutorsJSON, &envJSON, &skillsJSON,
 		&tagsJSON, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &version); err != nil {
 		return nil, err
 	}
@@ -254,13 +269,20 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 			return nil, err
 		}
 	}
+	var allowedExecutors []agent.ExecutorProfile
+	if allowedExecutorsJSON.Valid && allowedExecutorsJSON.String != "" {
+		if err := json.Unmarshal([]byte(allowedExecutorsJSON.String), &allowedExecutors); err != nil {
+			return nil, err
+		}
+	}
 	return agent.RehydrateAgent(agent.RehydrateAgentInput{
 		ID: agent.AgentID(id), OrganizationID: org,
 		Profile: agent.Profile{
 			Name: name, Description: desc.String, Model: model.String, CLI: cli.String,
 			Reasoning: reasoning.String, Mode: mode.String, Provider: provider.String,
 			OrchestratorModel: orchestratorModel.String, DefaultExecutorModel: defaultExecutorModel.String,
-			MaxConcurrentTasks: int(maxConcurrentTasks.Int64), AllowedModels: allowedModels, EnvVars: env,
+			MaxConcurrentTasks: int(maxConcurrentTasks.Int64), AllowedModels: allowedModels,
+			AllowedExecutors: allowedExecutors, EnvVars: env,
 		},
 		Skills: skills, CapabilityTags: tags, WorkerID: workerID,
 		Lifecycle: agent.AgentLifecycle(lifecycle), LifecycleError: lifecycleErr.String,
