@@ -77,9 +77,26 @@ func (s *Server) reportUsageHandler(w http.ResponseWriter, r *http.Request) {
 	// store "" or a real id, NEVER NULL (keep the sentinel consistent). A task
 	// lookup miss (deleted / cross-project / PM unwired) must not drop the usage
 	// record — fall back to "" and still account the tokens.
+	//
+	// task_id fallback (issue-af03da2f / I54): the worker's per-turn hook reports an
+	// empty task_id whenever it can't see the agent's current task — the production
+	// reality, since agents self-manage their queue via MCP start_task and the daemon
+	// never learns the task_id (and a converse turn explicitly clears it). That left
+	// EVERY usage_event task-less → the Top Cost Tasks panel was permanently empty.
+	// The center is the running-task authority, so when the report carries no task_id
+	// we attribute it to the agent's SOLE running task (PMService.SoleRunningTask).
+	// The "exactly one" guard keeps converse/idle turns (0 running) and concurrency
+	// agents (>1 running, ambiguous) unattributed — they stay "" (non-task overhead),
+	// matching the design's "don't force a task_id onto a non-task turn" rule.
+	taskID := strings.TrimSpace(req.TaskID)
+	if taskID == "" && d.PMService != nil {
+		if t, err := d.PMService.SoleRunningTask(r.Context(), pm.IdentityRef(agentActor(a))); err == nil && t != nil {
+			taskID = string(t.ID())
+		}
+	}
 	projectID := ""
-	if tid := strings.TrimSpace(req.TaskID); tid != "" && d.PMService != nil {
-		if t, err := d.PMService.GetTask(r.Context(), pm.TaskID(tid)); err == nil {
+	if taskID != "" && d.PMService != nil {
+		if t, err := d.PMService.GetTask(r.Context(), pm.TaskID(taskID)); err == nil {
 			projectID = string(t.ProjectID())
 		}
 	}
@@ -115,7 +132,7 @@ func (s *Server) reportUsageHandler(w http.ResponseWriter, r *http.Request) {
 		ID:         idgen.MustNewULID(),
 		AgentRef:   agentActor(a),
 		ProjectID:  projectID,
-		TaskID:     strings.TrimSpace(req.TaskID),
+		TaskID:     taskID,
 		Model:      req.Model,
 		Tokens:     tokens,
 		CostMicros: costMicros,

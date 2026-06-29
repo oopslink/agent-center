@@ -121,3 +121,83 @@ func TestReportUsage(t *testing.T) {
 		}
 	}
 }
+
+// TestReportUsage_TaskIDFallback covers the issue-af03da2f / I54 fix: a per-turn
+// usage report that arrives with an EMPTY task_id (the production reality — agents
+// self-manage their queue via MCP, so the daemon never learns the task_id) is
+// attributed to the agent's SOLE running task by the center, reviving the Top Cost
+// Tasks panel. The same report stays unattributed ("" non-task bucket) when the
+// agent has no running task.
+func TestReportUsage_TaskIDFallback(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	ueRepo := usagesql.NewUsageEventRepo(f.db)
+	mpRepo := usagesql.NewModelPriceRepo(f.db)
+	f.deps.UsageEventRepo = ueRepo
+	f.deps.ModelPriceRepo = mpRepo
+	f.addWorkerToken(t, "acat_ruf", atWorker1)
+	ctx := context.Background()
+
+	srv := f.server(t)
+	post := func(t *testing.T, body map[string]any) (int, map[string]any) {
+		t.Helper()
+		b, _ := json.Marshal(body)
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/admin/agent-tools/report_usage", bytes.NewReader(b))
+		req.Header.Set("Authorization", "Bearer acat_ruf")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		return resp.StatusCode, out
+	}
+
+	// Before any running task: a task-less report stays unattributed (converse/idle).
+	status, out := post(t, map[string]any{
+		"agent_id": atAgent1, "model": "mystery", "input_tokens": 5, "output_tokens": 5,
+	})
+	if status != http.StatusOK || out["project_id"] != "" {
+		t.Fatalf("no-running-task fallback: status=%d project_id=%v, want 200 + empty", status, out["project_id"])
+	}
+
+	// Seed exactly one running task for atAgent1, then post WITH NO task_id: the
+	// center fills it from the sole running task (id + project).
+	tid := f.seedRunningTask(t)
+	tk, err := f.pmSvc.GetTask(ctx, pm.TaskID(tid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantProj := string(tk.ProjectID())
+	status, out = post(t, map[string]any{
+		"agent_id": atAgent1, "model": "mystery", "input_tokens": 7, "output_tokens": 3,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("fallback report status=%d out=%v", status, out)
+	}
+	if out["project_id"] != wantProj {
+		t.Fatalf("fallback project_id = %v, want %q", out["project_id"], wantProj)
+	}
+
+	// Persistence: exactly one event carries the backfilled task_id; the pre-seed
+	// event stays task-less.
+	evs, err := ueRepo.ListByAgent(ctx, "agent:"+atAgent1, time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attributed, taskless int
+	for _, e := range evs {
+		switch e.TaskID {
+		case tid:
+			attributed++
+		case "":
+			taskless++
+		default:
+			t.Fatalf("unexpected event task_id %q", e.TaskID)
+		}
+	}
+	if attributed != 1 || taskless != 1 {
+		t.Fatalf("events: attributed=%d taskless=%d, want 1/1", attributed, taskless)
+	}
+}
