@@ -2,6 +2,8 @@ import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import type { Issue } from '@/api/types';
 import { useTasksOfIssue } from '@/api/tasks';
+import { useRelatedPlansForIssue } from '@/api/plans';
+import { PlanStatusChip } from '@/components/planDisplay';
 import { StatusBlock } from '@/components/IssueTaskSidebar';
 import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { taskDetailPath } from '@/components/TaskTitleLink';
@@ -221,6 +223,65 @@ export function DerivedTasksBlock({
                 <span className="min-w-0 flex-1 truncate text-text-primary">{t.title}</span>
                 <span className="shrink-0">
                   <StatusChip status={t.status} />
+                </span>
+              </OrgLink>
+            </li>
+          ))}
+        </ul>
+      )}
+    </aside>
+  );
+}
+
+// IssueRelatedPlansBlock — the plans DERIVED from this issue (the distinct non-builtin
+// plans whose tasks carry derived_from_issue == this issue), rendered as its own card
+// below DerivedTasksBlock. It is the plan-DIMENSION mirror of Derived Tasks (which lists
+// the task dimension) and the reverse of the plan rail's Related Issues. Each row:
+// org_ref (P-number) + name + status chip, linking to the plan detail page. Read-only;
+// an empty list shows a placeholder. Self-fetching (useRelatedPlansForIssue).
+export function IssueRelatedPlansBlock({
+  projectId,
+  issueId,
+}: {
+  projectId: string;
+  issueId: string;
+}): React.ReactElement {
+  const plans = useRelatedPlansForIssue(projectId, issueId);
+  const related = plans.data ?? [];
+  return (
+    <aside
+      className="mt-4 space-y-2 rounded border border-border-base bg-bg-elevated p-3 text-sm"
+      data-testid="issue-related-plans"
+      aria-label="Related plans"
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Related Plans</p>
+      {plans.isLoading ? (
+        <p className="text-xs text-text-muted" data-testid="related-plans-loading">
+          Loading…
+        </p>
+      ) : plans.isError ? (
+        <p className="text-xs text-danger" data-testid="related-plans-error">
+          {(plans.error as Error).message}
+        </p>
+      ) : related.length === 0 ? (
+        <p className="text-xs text-text-muted" data-testid="related-plans-empty">
+          No plans derived from this issue.
+        </p>
+      ) : (
+        <ul className="space-y-1" data-testid="related-plans-list">
+          {related.map((pl) => (
+            <li key={pl.id}>
+              <OrgLink
+                to={`/projects/${encodeURIComponent(pl.project_id)}/plans/${encodeURIComponent(pl.id)}`}
+                className="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-bg-subtle"
+                data-testid="related-plan-item"
+                data-plan-id={pl.id}
+                title={pl.name}
+              >
+                <span className="shrink-0 font-mono text-xs text-accent">{refLabel(pl.org_ref, pl.id)}</span>
+                <span className="min-w-0 flex-1 truncate text-text-primary">{pl.name}</span>
+                <span className="shrink-0">
+                  <PlanStatusChip status={pl.status} />
                 </span>
               </OrgLink>
             </li>

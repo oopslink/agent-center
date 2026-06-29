@@ -127,12 +127,25 @@ func (s *Service) ListRelatedPlans(ctx context.Context, planID pm.PlanID, actor 
 	if issueID == "" {
 		return []*pm.Plan{}, nil // no source issue → nothing is "related" by issue
 	}
-	// Every project task derived from that issue → the distinct plans that own them.
-	projTasks, err := s.tasks.ListByProject(ctx, plan.ProjectID())
+	// Every project task derived from that issue → the distinct plans that own them,
+	// EXCLUDING this plan (the rail lists siblings, not self).
+	return s.plansDerivedFromIssue(ctx, plan.ProjectID(), issueID, planID)
+}
+
+// plansDerivedFromIssue returns the DISTINCT non-builtin plans whose project tasks
+// derive from issueID, EXCLUDING excludePlan (pass "" to exclude none), ordered
+// (created_at, id) for a stable list. The built-in assignment pool is never counted.
+// Shared by ListRelatedPlans (plan rail, excludes self) and ListPlansForIssue (issue
+// panel, excludes none) so the issue↔plan derive relationship is resolved in one place.
+func (s *Service) plansDerivedFromIssue(ctx context.Context, projectID pm.ProjectID, issueID pm.IssueID, excludePlan pm.PlanID) ([]*pm.Plan, error) {
+	projTasks, err := s.tasks.ListByProject(ctx, projectID)
 	if err != nil {
 		return nil, err
 	}
-	seen := map[pm.PlanID]struct{}{planID: {}} // exclude self
+	seen := map[pm.PlanID]struct{}{}
+	if excludePlan != "" {
+		seen[excludePlan] = struct{}{}
+	}
 	out := make([]*pm.Plan, 0)
 	for _, t := range projTasks {
 		if t.DerivedFromIssue() != issueID {
@@ -162,6 +175,79 @@ func (s *Service) ListRelatedPlans(ctx context.Context, planID pm.PlanID, actor 
 		return out[i].ID() < out[j].ID()
 	})
 	return out, nil
+}
+
+// ListRelatedIssues returns the DISTINCT source issues this plan's tasks derive from —
+// the plan-detail rail's "Related Issues" list (the issue-side mirror of the issue
+// sidebar's Derived Tasks). A cycle plan's generated nodes carry derived_from_issue ==
+// the plan's source issue (scaffold_cycle_plan / T462); a hand-built plan may mix tasks
+// from several issues, so ALL distinct non-empty derived_from_issue values are resolved
+// to their Issue and returned, ordered (created_at, id). A derived link to a since-
+// deleted issue is skipped (not an error). Empty when no task derives from an issue.
+// Membership-guarded on the plan's project (mirrors ListRelatedPlans' read scope).
+func (s *Service) ListRelatedIssues(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) ([]*pm.Issue, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	plan, err := s.plans.FindByID(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireProjectMember(ctx, plan.ProjectID(), actor); err != nil {
+		return nil, err
+	}
+	planTasks, err := s.tasks.ListByPlan(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[pm.IssueID]struct{}{}
+	out := make([]*pm.Issue, 0)
+	for _, t := range planTasks {
+		iid := t.DerivedFromIssue()
+		if iid == "" {
+			continue
+		}
+		if _, dup := seen[iid]; dup {
+			continue
+		}
+		seen[iid] = struct{}{}
+		iss, ferr := s.issues.FindByID(ctx, iid)
+		if ferr != nil {
+			if errors.Is(ferr, pm.ErrIssueNotFound) {
+				continue // a derived link to a deleted issue → skip, don't fail the list
+			}
+			return nil, ferr
+		}
+		if iss == nil {
+			continue
+		}
+		out = append(out, iss)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if !out[i].CreatedAt().Equal(out[j].CreatedAt()) {
+			return out[i].CreatedAt().Before(out[j].CreatedAt())
+		}
+		return out[i].ID() < out[j].ID()
+	})
+	return out, nil
+}
+
+// ListPlansForIssue returns the DISTINCT non-builtin plans derived from issueID — the
+// issue-detail "Related Plans" panel (the plan-side mirror of the issue's Derived Tasks
+// list, and the reverse of ListRelatedIssues). Membership-guarded on the issue's project
+// (mirrors ListTasksDerivedFromIssueForMember). A missing issue → ErrIssueNotFound (404).
+func (s *Service) ListPlansForIssue(ctx context.Context, issueID pm.IssueID, actor pm.IdentityRef) ([]*pm.Plan, error) {
+	if s.plans == nil {
+		return nil, ErrPlansUnavailable
+	}
+	iss, err := s.issues.FindByID(ctx, issueID)
+	if err != nil {
+		return nil, err // pm.ErrIssueNotFound when missing
+	}
+	if err := s.requireProjectMember(ctx, iss.ProjectID(), actor); err != nil {
+		return nil, err
+	}
+	return s.plansDerivedFromIssue(ctx, iss.ProjectID(), issueID, "")
 }
 
 // ListProjectTasksForMember lists a project's tasks, GUARDED by project membership

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Task } from './types';
+import type { Issue, Task } from './types';
 
 // Plans — v2.9 Plan Orchestration P1 (#286 foundation + backlog→Plan selection).
 //
@@ -257,20 +257,37 @@ export function usePlan(projectId: string | undefined, planId: string | undefine
   });
 }
 
-// GET /{id}/related-plans — T581: the OTHER structured plans derived from the SAME
-// source issue as this plan (the plan detail rail's "Related Plans" list). The backend
-// already EXCLUDES the current plan and the built-in pool, so the caller renders the
-// rows as-is. Empty array when the plan has no source issue / no siblings.
-export function useRelatedPlans(projectId: string | undefined, planId: string | undefined) {
+// GET /{id}/related-issues — the source issue(s) this plan's tasks derive from (the
+// plan detail rail's "Related Issues" list, the issue-side mirror of the issue sidebar's
+// Derived Tasks). A cycle plan resolves to its one source issue; a hand-built plan may
+// span several. Empty array when no task derives from an issue.
+export function useRelatedIssues(projectId: string | undefined, planId: string | undefined) {
   return useQuery({
-    queryKey: [...qk.plan(planId ?? ''), 'related'],
+    queryKey: [...qk.plan(planId ?? ''), 'related-issues'],
+    queryFn: async () => {
+      const resp = await api.get<{ issues: Issue[] }>(
+        `${plansBase(projectId ?? '')}/${planId}/related-issues`,
+      );
+      return resp.issues ?? [];
+    },
+    enabled: !!projectId && !!planId,
+  });
+}
+
+// GET …/issues/{id}/related-plans — the structured plans derived from this issue (the
+// issue detail's "Related Plans" panel, the plan-side mirror of Derived Tasks; the
+// reverse of useRelatedIssues). The backend EXCLUDES the built-in pool, so the caller
+// renders the rows as-is. Empty array when no plan is derived from the issue.
+export function useRelatedPlansForIssue(projectId: string | undefined, issueId: string | undefined) {
+  return useQuery({
+    queryKey: [...qk.issue(issueId ?? ''), 'related-plans'],
     queryFn: async () => {
       const resp = await api.get<{ plans: Plan[] }>(
-        `${plansBase(projectId ?? '')}/${planId}/related-plans`,
+        `/projects/${projectId}/issues/${issueId}/related-plans`,
       );
       return resp.plans ?? [];
     },
-    enabled: !!projectId && !!planId,
+    enabled: !!projectId && !!issueId,
   });
 }
 

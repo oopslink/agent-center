@@ -416,6 +416,54 @@ func (s *Server) pmRelatedPlansHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"plans": rows})
 }
 
+// pmRelatedIssuesHandler — GET …/plans/{plan_id}/related-issues. The DISTINCT source
+// issues this plan's tasks derive from, for the plan detail rail's "Related Issues" list
+// (the issue-side mirror of the issue sidebar's Derived Tasks). Membership + plan-in-
+// project gated like pmGetPlanHandler. Response mirrors the issue list shape
+// ({issues:[...]}); each row is the base Issue DTO (the rail renders ref + title +
+// status). Empty array when no task derives from an issue.
+func (s *Server) pmRelatedIssuesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	issues, err := d.PM.ListRelatedIssues(r.Context(), pl.ID(), caller)
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	rows := make([]map[string]any, 0, len(issues))
+	for _, i := range issues {
+		rows = append(rows, pmIssueMap(i))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"issues": rows})
+}
+
+// pmIssueRelatedPlansHandler — GET …/issues/{issue_id}/related-plans. The DISTINCT
+// non-builtin plans derived from this issue, for the issue detail's "Related Plans"
+// panel (the plan-side mirror of Derived Tasks; the reverse of pmRelatedIssuesHandler).
+// Membership + issue-in-project gated like pmGetIssueHandler. Response mirrors the plan
+// list shape ({plans:[...]}); each row is the base plan DTO. Empty array when no plan is
+// derived from the issue.
+func (s *Server) pmIssueRelatedPlansHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	i, caller, ok := s.pmRequireIssueInProject(w, r, d)
+	if !ok {
+		return
+	}
+	plans, err := d.PM.ListPlansForIssue(r.Context(), i.ID(), caller)
+	if err != nil {
+		mapPlanError(w, err)
+		return
+	}
+	rows := make([]map[string]any, 0, len(plans))
+	for _, p := range plans {
+		rows = append(rows, pmPlanMap(p))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"plans": rows})
+}
+
 func (s *Server) pmUpdatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)

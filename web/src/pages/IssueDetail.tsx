@@ -10,7 +10,7 @@ import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
 import { ContextPanel } from '@/shell/contextPanel';
-import { IssueDetailSidebar, DerivedTasksBlock } from '@/components/IssueDetailSidebar';
+import { IssueDetailSidebar, DerivedTasksBlock, IssueRelatedPlansBlock } from '@/components/IssueDetailSidebar';
 import { IssueAttachments } from '@/components/AttachmentsSection';
 import { Skeleton } from '@/components/Skeleton';
 import { TypeChip } from '@/components/TypeChip';
@@ -200,6 +200,9 @@ export default function IssueDetail(): React.ReactElement {
           {/* T191: tasks derived from this issue (org_ref + title + status, links
               into each task). Read-only list below the metadata sidebar. */}
           <DerivedTasksBlock projectId={iss.project_id} issueId={iss.id} />
+          {/* The plans derived from this issue (P-number + name + status, links into
+              each plan). Plan-dimension mirror of Derived Tasks. */}
+          <IssueRelatedPlansBlock projectId={iss.project_id} issueId={iss.id} />
         </div>
       </div>
 

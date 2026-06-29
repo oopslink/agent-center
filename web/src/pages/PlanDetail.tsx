@@ -47,7 +47,7 @@ import { SenderDetailSidebar } from '@/components/SenderDetailSidebar';
 import type { Participant } from '@/api/types';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
-import { RelatedPlansBlock } from '@/components/RelatedPlansBlock';
+import { RelatedIssuesBlock } from '@/components/RelatedIssuesBlock';
 import { dependencyEdgeError, validDropTargets } from './planDagEdit';
 
 // PlanDetail (/projects/:id/plans/:planId) — v2.9 Plan-Orchestration EXECUTION
@@ -836,11 +836,10 @@ function PlanInfoRail({
         )}
       </div>
 
-      {/* Related Plans (T581) — the other plans derived from this plan's SAME source
-          issue, so you can hop between the plans an issue spawned. Mirrors the issue
-          sidebar's Derived Tasks list. Self-fetching (useRelatedPlans); the backend
-          excludes the current plan + the built-in pool. */}
-      <RelatedPlansBlock projectId={projectId} currentPlanId={plan.id} />
+      {/* Related Issues — the source issue(s) this plan's tasks derive from, so you
+          can hop from a plan back to the issue that spawned it. Issue-side mirror of the
+          issue sidebar's Derived Tasks list. Self-fetching (useRelatedIssues). */}
+      <RelatedIssuesBlock projectId={projectId} currentPlanId={plan.id} />
 
       {/* T570: Threads / Files panel removed from the rail per @oopslink — the rail
           is now status/goal/participants/progress/up-next only. */}

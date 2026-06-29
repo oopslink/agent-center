@@ -248,6 +248,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/issues", s.pmListIssuesHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/issues", s.pmCreateIssueHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}", s.pmGetIssueHandler)
+	// The plans derived from this issue — the issue detail's "Related Plans" panel
+	// (the plan-side mirror of Derived Tasks).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}/related-plans", s.pmIssueRelatedPlansHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}", s.pmBatchUpdateIssueHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}/transition", s.pmTransitionIssueHandler)
 	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
@@ -282,6 +285,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/unmerged-branches", s.pmListUnmergedBranchesHandler)
 	// T581 — plan detail rail "Related Plans": other plans from the same source issue.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/related-plans", s.pmRelatedPlansHandler)
+	// Plan detail rail "Related Issues": the source issue(s) this plan's tasks derive from.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/related-issues", s.pmRelatedIssuesHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmUpdatePlanHandler)
 	// v2.9 P3: hard-delete (non-running; unloads tasks to backlog + deletes the
 	// plan + its conversation) and archive (non-running; cascade-archives tasks,
