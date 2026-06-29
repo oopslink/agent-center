@@ -711,6 +711,7 @@ type scaffoldCyclePlanArgs struct {
 	MaxReviewRounds int                   `json:"max_review_rounds,omitempty" jsonschema:"max review-reject loopback rounds per feature before the escape branch (default 3)"`
 	SkipMergeCheck  bool                  `json:"skip_merge_check,omitempty" jsonschema:"set true to mark every Integrate node skip_merge_check, standing the Integrate-complete merge guard down for this whole cycle (default false = merge-check enforced). Use when the project has no code repo configured or integrates outside this server's reach"`
 	SourceIssue     string                `json:"source_issue,omitempty" jsonschema:"optional issue id (must be in this project) whose spec drives the cycle; EVERY generated node is linked to it as derived_from_issue at create, so each node's owner can get_issue the spec straight away. A feature may override it via its own 'issue'. Omit to leave nodes unlinked"`
+	Title           string                `json:"title,omitempty" jsonschema:"optional plan title — state the FEATURE this cycle delivers (what it actually does), e.g. 'auto-assign reconciler' or 'agent runtime browser', NOT a generic cycle-graph label. Omit to fall back to the version-derived default '<version> — cycle 控制流图'"`
 }
 
 // makeScaffoldCyclePlan builds the whole cycle control-flow graph in one call.
@@ -733,6 +734,7 @@ func makeScaffoldCyclePlan(cfg Config) mcp.ToolHandlerFor[scaffoldCyclePlanArgs,
 			"max_review_rounds": args.MaxReviewRounds,
 			"skip_merge_check":  args.SkipMergeCheck,
 			"source_issue":      args.SourceIssue,
+			"title":             args.Title,
 		}
 		return callAdmin(ctx, cfg, "scaffold_cycle_plan", body)
 	}

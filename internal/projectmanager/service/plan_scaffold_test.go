@@ -263,6 +263,69 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 // time so F3's Integrate-complete merge guard stands down for the whole cycle.
 // (Default false is covered by TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges,
 // which asserts the Integrate node carries skip=false.)
+// T601: a caller-supplied Title becomes the plan name; an empty Title falls back to
+// the version-derived default (backward compatible).
+func TestScaffoldCyclePlan_TitleNamesThePlan(t *testing.T) {
+	svc, plans, _, relay, ctx := scaffoldSetup(t)
+	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// With Title → the plan is named exactly that (the feature it delivers).
+	res, err := svc.ScaffoldCyclePlan(ctx, ScaffoldCyclePlanCommand{
+		ProjectID: pid, Version: "v2.13.0",
+		Features:  []CycleFeature{{Name: "F1", DocOnly: true}},
+		Title:     "auto-assign reconciler",
+		CreatedBy: "user:pd",
+	})
+	if err != nil {
+		t.Fatalf("ScaffoldCyclePlan with title: %v", err)
+	}
+	drain(t, relay, ctx)
+	p, err := plans.FindByID(ctx, res.PlanID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name() != "auto-assign reconciler" {
+		t.Fatalf("plan name = %q, want the supplied title", p.Name())
+	}
+
+	// Without Title → the version-derived default (existing behavior unchanged).
+	res2, err := svc.ScaffoldCyclePlan(ctx, ScaffoldCyclePlanCommand{
+		ProjectID: pid, Version: "v2.14.0",
+		Features:  []CycleFeature{{Name: "F1", DocOnly: true}},
+		CreatedBy: "user:pd",
+	})
+	if err != nil {
+		t.Fatalf("ScaffoldCyclePlan without title: %v", err)
+	}
+	drain(t, relay, ctx)
+	p2, err := plans.FindByID(ctx, res2.PlanID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p2.Name() != "v2.14.0 — cycle 控制流图" {
+		t.Fatalf("plan name = %q, want the version-derived default", p2.Name())
+	}
+
+	// Whitespace-only title is treated as empty → default (trimmed).
+	res3, err := svc.ScaffoldCyclePlan(ctx, ScaffoldCyclePlanCommand{
+		ProjectID: pid, Version: "v2.15.0",
+		Features:  []CycleFeature{{Name: "F1", DocOnly: true}},
+		Title:     "   ",
+		CreatedBy: "user:pd",
+	})
+	if err != nil {
+		t.Fatalf("ScaffoldCyclePlan blank title: %v", err)
+	}
+	drain(t, relay, ctx)
+	p3, _ := plans.FindByID(ctx, res3.PlanID)
+	if p3.Name() != "v2.15.0 — cycle 控制流图" {
+		t.Fatalf("blank-title plan name = %q, want the version-derived default", p3.Name())
+	}
+}
+
 func TestScaffoldCyclePlan_SkipMergeCheckFlagsIntegrate(t *testing.T) {
 	svc, _, tasks, relay, ctx := scaffoldSetup(t)
 	pid, err := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})

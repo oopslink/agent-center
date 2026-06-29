@@ -172,6 +172,10 @@ type scaffoldCyclePlanReq struct {
 	// create (T462), so each node's owner can get_issue the spec (the derive-gate is
 	// satisfied). Empty → no node carries a link (pre-T462 behavior).
 	SourceIssue string `json:"source_issue"`
+	// Title, when set, is the created plan's name (T601) — it should state the FEATURE
+	// the cycle delivers, not a generic cycle-graph label. Empty → the version-derived
+	// default is used (backward compatible).
+	Title string `json:"title"`
 }
 
 // scaffoldCyclePlanHandler builds a whole cycle CONTROL-FLOW graph (S0 → (Dev→
@@ -225,6 +229,7 @@ func (s *Server) scaffoldCyclePlanHandler(w http.ResponseWriter, r *http.Request
 		MaxReviewRounds: req.MaxReviewRounds,
 		SkipMergeCheck:  req.SkipMergeCheck,
 		SourceIssue:     pm.IssueID(strings.TrimSpace(req.SourceIssue)),
+		Title:           strings.TrimSpace(req.Title),
 		CreatedBy:       pm.IdentityRef(agentActor(a)),
 	})
 	if err != nil {

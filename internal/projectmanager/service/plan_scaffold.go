@@ -145,7 +145,12 @@ type ScaffoldCyclePlanCommand struct {
 	// after create, so it MUST be set here, not back-filled later
 	// (see [[derived-from-issue-set-at-creation]]).
 	SourceIssue pm.IssueID
-	CreatedBy   pm.IdentityRef
+	// Title, when set, is the created plan's name (T601) — it should state the FEATURE
+	// the cycle delivers (what it actually does), not a generic cycle-graph label.
+	// Empty → the version-derived default ("<version> — cycle 控制流图") is used, so
+	// existing callers are unaffected (backward compatible).
+	Title     string
+	CreatedBy pm.IdentityRef
 }
 
 // ScaffoldCycleNode describes one created node in the returned summary.
@@ -226,10 +231,15 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		maxRounds = defaultReviewRounds
 	}
 
-	// 1) draft plan.
+	// 1) draft plan. T601: prefer the caller-supplied Title (the feature this cycle
+	// delivers); fall back to the version-derived generic label when absent.
+	planName := strings.TrimSpace(cmd.Title)
+	if planName == "" {
+		planName = version + " — cycle 控制流图"
+	}
 	planID, err := s.CreatePlan(ctx, CreatePlanCommand{
 		ProjectID: cmd.ProjectID,
-		Name:      version + " — cycle 控制流图",
+		Name:      planName,
 		Description: "由 scaffold_cycle_plan 生成的 cycle 控制流图（" + version + "）。形状 " +
 			"S0→(Dev→Review→Decision{过→Integrate, 打回→回 Dev 有界})×N→集成完成 Gate→Accept→Ship。" +
 			"Decision 产出 pass/reject，reject 走有界 loopback 重做、超限走 reject_exhausted 逃生节点。" +
