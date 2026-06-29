@@ -256,12 +256,20 @@ export default function PlanDetail(): React.ReactElement {
           {/* T341: the card is overflow-hidden + height-bounded, so the DAG /
               Task-List panels (tall content) must scroll INSIDE the card — give the
               active panel min-h-0 flex-1 overflow-auto (else the content is clipped
-              and unscrollable, esp. on mobile — 'DAG 翻不了了' @oopslink). */}
+              and unscrollable, esp. on mobile — 'DAG 翻不了了' @oopslink).
+              T579: on DESKTOP the panel becomes a flex column (overflow-hidden) so the
+              DAG canvas can flex-grow to FILL the pane height (no more fixed 480px box
+              floating with dead space below — @oopslink). Mobile keeps overflow-auto
+              for the vertical stepper. */}
           <div
             role="tabpanel"
             hidden={tab !== 'dag'}
             data-testid="plan-panel-dag"
-            className={tab === 'dag' ? 'min-h-0 flex-1 overflow-auto p-3 md:p-4' : undefined}
+            className={
+              tab === 'dag'
+                ? 'min-h-0 flex-1 overflow-auto p-3 md:flex md:flex-col md:overflow-hidden md:p-4'
+                : undefined
+            }
           >
             {tab === 'dag' && <PlanDag projectId={id} plan={p} compact={dagCompact} />}
           </div>
@@ -1878,7 +1886,9 @@ function PlanDag({
   }, [start, end]);
 
   return (
-    <div data-testid="plan-dag">
+    // T579: desktop = flex column filling the panel so the canvas (flex-1 below)
+    // grows to occupy the full pane height; the legend/note stay pinned beneath it.
+    <div data-testid="plan-dag" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
       {nodes.length === 0 ? (
         <p className="py-10 text-center text-xs text-text-muted" data-testid="plan-dag-empty">
           No tasks in this plan yet. Add tasks from the Work Board.
@@ -1914,12 +1924,14 @@ function PlanDag({
           </div>
         )}
         <div
-          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle hex-dot-grid md:block"
+          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle hex-dot-grid md:block md:min-h-0 md:flex-1"
           data-testid="plan-dag-canvas"
           data-compact={compact ? 'true' : 'false'}
           // T347: a subtle dot-grid gives the DAG a "canvas" feel instead of a flat
           // panel (@oopslink: 太素了).
-          style={{ maxHeight: 480 }}
+          // T579: was a fixed maxHeight:480 box that left dead space below it; now
+          // flex-1 + min-h-0 inside the flex-column plan-dag so the canvas FILLS the
+          // pane height and scrolls internally when the graph overflows.
         >
           {/* Sizing wrapper reserves the SCALED extent so the scroll area is
               correct; the inner layer keeps its natural size and is zoomed via
