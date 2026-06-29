@@ -76,9 +76,10 @@ func (s *Server) signupHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"identity_id":     res.Identity.ID(),
-		"organization_id": res.Organization.ID(),
-		"display_name":    res.Identity.DisplayName(),
+		"identity_id":       res.Identity.ID(),
+		"organization_id":   res.Organization.ID(),
+		"organization_slug": res.Organization.Slug(),
+		"display_name":      res.Identity.DisplayName(),
 	})
 }
 

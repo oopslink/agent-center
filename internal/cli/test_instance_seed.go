@@ -53,8 +53,13 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) (*http.Client
 	}
 
 	// 1. signup → owner user + org + auto-signin (Set-Cookie captured by the jar).
+	// T237: signup IGNORES the client-supplied organization_slug and auto-generates
+	// a server-side "org-<hex>" slug. The seed must use the REAL slug returned here
+	// for all subsequent /api/orgs/{slug}/... calls — using our own `slug` yields
+	// org_required (the org-scope middleware can't resolve an unknown slug).
 	var signupResp struct {
-		OrganizationID string `json:"organization_id"`
+		OrganizationID   string `json:"organization_id"`
+		OrganizationSlug string `json:"organization_slug"`
 	}
 	if err := seedPostJSON(ctx, client, base+"/api/auth/signup", map[string]any{
 		"display_name":      signin.DisplayName,
@@ -64,6 +69,10 @@ func seedTestInstanceTenant(ctx context.Context, pack *accessPack) (*http.Client
 		"email":             signin.Email,
 	}, &signupResp); err != nil {
 		return nil, "", fmt.Errorf("signup: %w", err)
+	}
+	if signupResp.OrganizationSlug != "" {
+		slug = signupResp.OrganizationSlug // server-assigned (T237); overrides our request slug
+		signin.OrgSlug = slug
 	}
 
 	// 2. create a project (org carried by the /api/orgs/{slug} path, same as the UI).
