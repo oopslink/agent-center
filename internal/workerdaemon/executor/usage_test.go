@@ -35,6 +35,54 @@ func TestParseRunnerUsage_SumsAcrossResultLines(t *testing.T) {
 	}
 }
 
+func TestParseRunnerStream_ExtractsResultText(t *testing.T) {
+	// The final result-line text is returned as the result (not the raw JSON), and
+	// the last non-empty result line wins across turns.
+	out := strings.Join([]string{
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"thinking"}]}}`,
+		`{"type":"result","subtype":"success","is_error":false,"result":"first answer","usage":{"input_tokens":10,"output_tokens":5}}`,
+		`{"type":"result","subtype":"success","is_error":false,"result":"final answer","usage":{"input_tokens":2,"output_tokens":1}}`,
+	}, "\n")
+	result, usage := ParseRunnerStream(out)
+	if result != "final answer" {
+		t.Errorf("result = %q, want 'final answer' (last non-empty result line)", result)
+	}
+	if strings.Contains(result, "input_tokens") {
+		t.Errorf("result must be text, not raw JSON: %q", result)
+	}
+	if usage != (TokenUsage{InputTokens: 12, OutputTokens: 6}) {
+		t.Errorf("usage = %+v, want summed {12,6}", usage)
+	}
+}
+
+func TestParseRunnerStream_AssistantTextFallback(t *testing.T) {
+	// No result-line text (result field empty) → fall back to accumulated assistant
+	// text so the chat relay still gets a meaningful result.
+	out := strings.Join([]string{
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"line one"}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"line two"}]}}`,
+		`{"type":"result","subtype":"success","is_error":false,"result":"","usage":{"input_tokens":3,"output_tokens":2}}`,
+	}, "\n")
+	result, usage := ParseRunnerStream(out)
+	if result != "line one\nline two" {
+		t.Errorf("result = %q, want accumulated assistant text", result)
+	}
+	if usage.InputTokens != 3 || usage.OutputTokens != 2 {
+		t.Errorf("usage = %+v, want {3,2}", usage)
+	}
+}
+
+func TestParseRunnerStream_NonStreamYieldsEmpty(t *testing.T) {
+	// A plain (non-stream) runner output → empty result (caller relays raw) + zero usage.
+	result, usage := ParseRunnerStream("just some plain text\nno json here")
+	if result != "" {
+		t.Errorf("result = %q, want empty for non-stream output", result)
+	}
+	if !usage.IsZero() {
+		t.Errorf("usage = %+v, want zero", usage)
+	}
+}
+
 func TestParseRunnerUsage_NoResultLineIsZero(t *testing.T) {
 	// A non-stream runner (codex plain text) or output with no result line → zero.
 	for _, out := range []string{

@@ -19,6 +19,9 @@ func TestClaudeRunnerBuilder_Build(t *testing.T) {
 		"-p do the thing",
 		"--model claude-haiku-4-5",
 		"--append-system-prompt",
+		// T622: stream-json + --verbose so each result line carries token usage.
+		"--output-format stream-json",
+		"--verbose",
 		"--setting-sources user,project",
 		"--permission-mode bypassPermissions",
 		"--dangerously-skip-permissions",
@@ -27,13 +30,9 @@ func TestClaudeRunnerBuilder_Build(t *testing.T) {
 			t.Errorf("argv %q missing %q", joined, want)
 		}
 	}
-	// The executor must NEVER get an mcp config or streaming output (isolation +
-	// one-shot result capture).
+	// The executor must NEVER get an mcp config (isolation: no center tools/creds).
 	if strings.Contains(joined, "mcp-config") || strings.Contains(joined, "--mcp") {
 		t.Errorf("executor runner must not carry an mcp config: %q", joined)
-	}
-	if strings.Contains(joined, "stream-json") {
-		t.Errorf("executor runner must be one-shot text, not stream-json: %q", joined)
 	}
 	// The system prompt must frame the executor as having NO center/mcp access.
 	if !strings.Contains(joined, "NO access to the agent-center") {
