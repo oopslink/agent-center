@@ -162,6 +162,74 @@ func TestCommandRunner_RunsCommandInWorkspace(t *testing.T) {
 	}
 }
 
+func TestRunExecutor_RecordsUsageInOutput(t *testing.T) {
+	fx, root := runHarness(t, "exec-usage")
+	fr := &fakeComputeRunner{res: RunResult{
+		Result:  "all good",
+		Summary: "ok",
+		Usage:   TokenUsage{InputTokens: 100, OutputTokens: 40, CacheReadTokens: 5, CacheWriteTokens: 2},
+	}}
+	if err := RunExecutor(context.Background(), RunConfig{
+		AgentRoot:  root,
+		ExecutorID: "exec-usage",
+		Runner:     fr,
+		Clock:      clock.NewFakeClock(time.Unix(1700000000, 0)),
+	}); err != nil {
+		t.Fatalf("RunExecutor: %v", err)
+	}
+	out, err := fx.ReadOutput("exec-usage")
+	if err != nil {
+		t.Fatalf("ReadOutput: %v", err)
+	}
+	if out.Usage == nil {
+		t.Fatal("output.usage = nil, want recorded usage")
+	}
+	if *out.Usage != (TokenUsage{InputTokens: 100, OutputTokens: 40, CacheReadTokens: 5, CacheWriteTokens: 2}) {
+		t.Errorf("output.usage = %+v", *out.Usage)
+	}
+}
+
+func TestRunExecutor_ZeroUsageOmittedFromOutput(t *testing.T) {
+	fx, root := runHarness(t, "exec-nousage")
+	fr := &fakeComputeRunner{res: RunResult{Result: "x", Summary: "ok"}} // zero usage
+	if err := RunExecutor(context.Background(), RunConfig{
+		AgentRoot:  root,
+		ExecutorID: "exec-nousage",
+		Runner:     fr,
+		Clock:      clock.NewFakeClock(time.Unix(1700000000, 0)),
+	}); err != nil {
+		t.Fatalf("RunExecutor: %v", err)
+	}
+	out, err := fx.ReadOutput("exec-nousage")
+	if err != nil {
+		t.Fatalf("ReadOutput: %v", err)
+	}
+	if out.Usage != nil {
+		t.Errorf("output.usage = %+v, want nil for zero usage", out.Usage)
+	}
+}
+
+func TestCommandRunner_ParsesUsageFromStream(t *testing.T) {
+	streamOut := strings.Join([]string{
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}`,
+		`{"type":"result","subtype":"success","is_error":false,"result":"done","usage":{"input_tokens":80,"output_tokens":20,"cache_read_input_tokens":4,"cache_creation_input_tokens":1}}`,
+	}, "\n")
+	cr := &CommandRunner{
+		cmd: []string{"claude", "--stream"},
+		run: func(_ context.Context, _, _ string, _ ...string) (string, error) {
+			return streamOut, nil
+		},
+	}
+	res, err := cr.Run(context.Background(), RunContext{Progress: func(string, string) {}})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	want := TokenUsage{InputTokens: 80, OutputTokens: 20, CacheReadTokens: 4, CacheWriteTokens: 1}
+	if res.Usage != want {
+		t.Errorf("res.Usage = %+v, want %+v", res.Usage, want)
+	}
+}
+
 func TestCommandRunner_EmptyCommandErrors(t *testing.T) {
 	cr := NewCommandRunner(nil)
 	_, err := cr.Run(context.Background(), RunContext{Progress: func(string, string) {}})

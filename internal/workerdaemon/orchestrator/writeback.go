@@ -34,6 +34,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 )
@@ -65,6 +66,27 @@ type MemoryWriter interface {
 	WriteCompletion(ctx context.Context, in executor.Input, c executor.Completion) error
 }
 
+// UsageReporter is the optional seam (v2.20.0 F2 / T613) that relays a finished
+// executor run's aggregate token usage to the center's report_usage tool. The
+// executor itself never connects to the center (F1 isolation); it records the
+// usage in output.json and the orchestrator — the sole writer, already authed —
+// reports it here. nil disables usage reporting (the writeback degrades unchanged).
+type UsageReporter interface {
+	ReportUsage(ctx context.Context, s UsageSample) error
+}
+
+// UsageSample is one executor run's aggregate token usage, resolved from the run's
+// input.json + output.json. TaskID is the fork-time Source.TaskRef bound at launch
+// ("" = no task binding — kept empty, NEVER fabricated, so a task-less run is not
+// mis-attributed; T613 acceptance ②). Model is input.json's resolved model.
+type UsageSample struct {
+	AgentID string
+	TaskID  string
+	Model   string
+	Usage   executor.TokenUsage
+	At      time.Time
+}
+
 // CenterWriteback implements executor.Writeback. One per agent. Its mutex makes
 // the orchestrator the effective SOLE WRITER even though the daemon reaps each
 // executor on its own goroutine (design §3) — concurrent completions serialize, so
@@ -73,7 +95,8 @@ type CenterWriteback struct {
 	client  CenterClient
 	fx      *executor.FileExchange
 	agentID string
-	mem     MemoryWriter // optional; nil in W2
+	mem     MemoryWriter  // optional; nil in W2
+	usage   UsageReporter // optional; nil disables usage reporting (T613)
 	mu      sync.Mutex
 }
 
@@ -97,6 +120,12 @@ func (w *CenterWriteback) WithMemoryWriter(m MemoryWriter) *CenterWriteback {
 	return w
 }
 
+// WithUsageReporter attaches the optional UsageReporter (the T613 usage seam).
+func (w *CenterWriteback) WithUsageReporter(u UsageReporter) *CenterWriteback {
+	w.usage = u
+	return w
+}
+
 // Report routes one finished executor's outcome to the center (executor.Writeback).
 // It is serialized (sole writer) and reads the executor's input.json for the
 // source refs. Running is never reported (the Monitor filters it). An unknown kind
@@ -114,6 +143,11 @@ func (w *CenterWriteback) Report(ctx context.Context, c executor.Completion) err
 		// it (the Monitor keeps the dir on a Report error) rather than drop the result.
 		return fmt.Errorf("orchestrator: writeback read input %s: %w", c.ExecutorID, err)
 	}
+
+	// Relay this run's token usage (T613) BEFORE the result routing — best-effort so
+	// a usage-report failure never blocks the task completion/block (and so never
+	// stalls teardown into a re-report that would double-complete the task).
+	w.reportUsage(ctx, in, c)
 
 	switch c.Kind {
 	case executor.OutcomeSucceeded:
@@ -187,6 +221,31 @@ func (w *CenterWriteback) writeMemory(ctx context.Context, in executor.Input, c 
 		return fmt.Errorf("orchestrator: writeback memory %s: %w", c.ExecutorID, err)
 	}
 	return nil
+}
+
+// reportUsage relays the run's aggregate token usage to the center (T613). It is
+// BEST-EFFORT: with no reporter wired, no usage recorded, or an all-zero usage it
+// is a no-op; a reporter error is swallowed (the usage path must never fail the
+// writeback). The task_id is input.json's Source.TaskRef VERBATIM — empty stays
+// empty so a task-less run is never mis-attributed (acceptance ②); when present,
+// the center uses it directly and skips its sole-running-task fallback (T605:
+// "源头已带则中心不再兜底"). The model is the run's resolved input.json model.
+func (w *CenterWriteback) reportUsage(ctx context.Context, in executor.Input, c executor.Completion) {
+	if w.usage == nil || c.Output == nil || c.Output.Usage == nil || c.Output.Usage.IsZero() {
+		return
+	}
+	at := c.Output.FinishedAt // turn-time for point-in-time pricing; zero → center stamps now
+	if err := w.usage.ReportUsage(ctx, UsageSample{
+		AgentID: w.agentID,
+		TaskID:  strings.TrimSpace(in.Source.TaskRef),
+		Model:   in.Model,
+		Usage:   *c.Output.Usage,
+		At:      at,
+	}); err != nil {
+		// No logger seam here; a usage-report failure is non-fatal accounting loss,
+		// never a reason to retain the executor dir or fail the task writeback.
+		_ = err
+	}
 }
 
 // successSummary builds the chat-relay summary for a success: the executor's

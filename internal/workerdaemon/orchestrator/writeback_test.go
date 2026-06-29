@@ -324,6 +324,161 @@ func TestReport_MemoryWriter(t *testing.T) {
 	}
 }
 
+// fakeUsage records the usage samples the writeback relays and can fail.
+type fakeUsage struct {
+	samples []UsageSample
+	err     error
+}
+
+func (u *fakeUsage) ReportUsage(_ context.Context, s UsageSample) error {
+	u.samples = append(u.samples, s)
+	return u.err
+}
+
+// usageOutput is a successful output.json carrying token usage at wbNow.
+func usageOutput(id string, in, out, cr, cw int) *executor.Output {
+	return &executor.Output{
+		ExecutorID: id, Success: true, Result: "r", FinishedAt: wbNow,
+		Usage: &executor.TokenUsage{InputTokens: in, OutputTokens: out, CacheReadTokens: cr, CacheWriteTokens: cw},
+	}
+}
+
+func TestReport_Usage_ReportedWithBoundTaskID(t *testing.T) {
+	fc := &fakeCenter{}
+	fu := &fakeUsage{}
+	in := baseInput("exec-u1") // TaskRef "task-1", Model "claude-haiku-4-5"
+	wb, _ := newWB(t, fc, in)
+	wb.WithUsageReporter(fu)
+	if err := wb.Report(context.Background(), executor.Completion{
+		ExecutorID: "exec-u1", Kind: executor.OutcomeSucceeded,
+		Output: usageOutput("exec-u1", 100, 40, 5, 2),
+		Status: &executor.Status{ExecutorID: "exec-u1", State: executor.StateDone, Summary: "s", StartedAt: wbNow},
+	}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	if len(fu.samples) != 1 {
+		t.Fatalf("usage samples = %d, want 1", len(fu.samples))
+	}
+	s := fu.samples[0]
+	if s.AgentID != "agent-x" || s.TaskID != "task-1" || s.Model != "claude-haiku-4-5" {
+		t.Errorf("sample meta = %+v", s)
+	}
+	if s.Usage != (executor.TokenUsage{InputTokens: 100, OutputTokens: 40, CacheReadTokens: 5, CacheWriteTokens: 2}) {
+		t.Errorf("sample usage = %+v", s.Usage)
+	}
+	if !s.At.Equal(wbNow) {
+		t.Errorf("sample at = %v, want %v (output.FinishedAt)", s.At, wbNow)
+	}
+	// Task completion still happened (usage is orthogonal).
+	if len(fc.completes) != 1 {
+		t.Errorf("want task completed, got %v", fc.completes)
+	}
+}
+
+func TestReport_Usage_EmptyTaskRefStaysEmpty(t *testing.T) {
+	// Acceptance ②: a task-less run must NOT fabricate a task_id (kept empty so the
+	// center never mis-attributes).
+	fc := &fakeCenter{}
+	fu := &fakeUsage{}
+	in := baseInput("exec-u2")
+	in.Source = executor.SourceRefs{ChatIDs: []string{"conv-1"}} // chat, no task
+	wb, _ := newWB(t, fc, in)
+	wb.WithUsageReporter(fu)
+	if err := wb.Report(context.Background(), executor.Completion{
+		ExecutorID: "exec-u2", Kind: executor.OutcomeSucceeded,
+		Output: usageOutput("exec-u2", 7, 3, 0, 0),
+		Status: &executor.Status{ExecutorID: "exec-u2", State: executor.StateDone, Summary: "s", StartedAt: wbNow},
+	}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	if len(fu.samples) != 1 || fu.samples[0].TaskID != "" {
+		t.Fatalf("want one sample with empty task_id, got %+v", fu.samples)
+	}
+}
+
+func TestReport_Usage_ReportedOnFailure(t *testing.T) {
+	// Tokens spent on a failed run are still accounted (usage is independent of
+	// the success/failure routing).
+	fc := &fakeCenter{}
+	fu := &fakeUsage{}
+	wb, _ := newWB(t, fc, baseInput("exec-u3"))
+	wb.WithUsageReporter(fu)
+	out := usageOutput("exec-u3", 9, 9, 0, 0)
+	out.Success = false
+	out.Result = ""
+	out.Error = &executor.ErrorDetail{Kind: "runner_failed", Message: "boom"}
+	if err := wb.Report(context.Background(), executor.Completion{
+		ExecutorID: "exec-u3", Kind: executor.OutcomeFailed,
+		Output: out,
+		Error:  out.Error,
+	}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	if len(fu.samples) != 1 {
+		t.Errorf("want usage reported on failure, got %v", fu.samples)
+	}
+	if len(fc.blocks) != 1 {
+		t.Errorf("want task blocked, got %v", fc.blocks)
+	}
+}
+
+func TestReport_Usage_BestEffort(t *testing.T) {
+	// A usage-report error must NOT fail the writeback (no dir-retain / re-report).
+	fc := &fakeCenter{}
+	fu := &fakeUsage{err: errors.New("usage endpoint down")}
+	wb, _ := newWB(t, fc, baseInput("exec-u4"))
+	wb.WithUsageReporter(fu)
+	if err := wb.Report(context.Background(), executor.Completion{
+		ExecutorID: "exec-u4", Kind: executor.OutcomeSucceeded,
+		Output: usageOutput("exec-u4", 1, 1, 0, 0),
+		Status: &executor.Status{ExecutorID: "exec-u4", State: executor.StateDone, Summary: "s", StartedAt: wbNow},
+	}); err != nil {
+		t.Fatalf("usage error must be swallowed, got %v", err)
+	}
+	if len(fc.completes) != 1 {
+		t.Errorf("task must still complete despite usage error")
+	}
+}
+
+func TestReport_Usage_SkippedWhenAbsent(t *testing.T) {
+	fc := &fakeCenter{}
+	fu := &fakeUsage{}
+	wb, _ := newWB(t, fc, baseInput("exec-u5"))
+	wb.WithUsageReporter(fu)
+	// (a) no output usage → no report.
+	if err := wb.Report(context.Background(), executor.Completion{
+		ExecutorID: "exec-u5", Kind: executor.OutcomeSucceeded,
+		Output: &executor.Output{ExecutorID: "exec-u5", Success: true, Result: "r", FinishedAt: wbNow},
+		Status: &executor.Status{ExecutorID: "exec-u5", State: executor.StateDone, Summary: "s", StartedAt: wbNow},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// (b) zero usage → no report.
+	if err := wb.Report(context.Background(), executor.Completion{
+		ExecutorID: "exec-u5", Kind: executor.OutcomeSucceeded,
+		Output: usageOutput("exec-u5", 0, 0, 0, 0),
+		Status: &executor.Status{ExecutorID: "exec-u5", State: executor.StateDone, Summary: "s", StartedAt: wbNow},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fu.samples) != 0 {
+		t.Errorf("want no usage samples, got %+v", fu.samples)
+	}
+}
+
+func TestReport_Usage_NilReporterNoPanic(t *testing.T) {
+	// No reporter wired: a usage-bearing completion is a safe no-op.
+	fc := &fakeCenter{}
+	wb, _ := newWB(t, fc, baseInput("exec-u6"))
+	if err := wb.Report(context.Background(), executor.Completion{
+		ExecutorID: "exec-u6", Kind: executor.OutcomeSucceeded,
+		Output: usageOutput("exec-u6", 5, 5, 0, 0),
+		Status: &executor.Status{ExecutorID: "exec-u6", State: executor.StateDone, Summary: "s", StartedAt: wbNow},
+	}); err != nil {
+		t.Fatalf("nil reporter must be a no-op, got %v", err)
+	}
+}
+
 func TestClip(t *testing.T) {
 	if got := clip("  hi  "); got != "hi" {
 		t.Errorf("clip trim = %q", got)
