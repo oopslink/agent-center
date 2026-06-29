@@ -18,6 +18,7 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
@@ -117,6 +118,11 @@ type HandlerDeps struct {
 	// v2.7 C3: the Agent BC AppService facade backs the org-scoped
 	// /api/agents + /api/agents/{id}/{start,stop,restart,reset} routes.
 	AgentSvc *agentsvc.Service
+
+	// LiveState is the per-agent live executor snapshot store (v2.19.0), written by
+	// the admin heartbeat handler and read by GET .../agents/{id}/concurrency. Same
+	// instance as the admin API's. nil → the endpoint reports stale (no live state).
+	LiveState concurrency.LiveStateStore
 
 	// I5 (issue-921db054) — the agent runtime file browser transport. EnvControl
 	// enqueues the `agent.runtime_fs` read command down the control-loop;

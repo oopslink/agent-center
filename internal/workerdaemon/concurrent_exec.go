@@ -28,6 +28,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
@@ -44,6 +45,9 @@ import (
 type executorEngine struct {
 	engine  *orchestrator.Engine
 	monitor *executor.Monitor
+	// fx reads each executor's input.json / status.json for the real-time
+	// concurrency snapshot (v2.19.0).
+	fx *executor.FileExchange
 
 	mu      sync.Mutex
 	orphans map[string]int // adopted orphan executor_id → pid; watchdog-polled until terminal
@@ -76,6 +80,106 @@ func (ee *executorEngine) dropOrphan(id string) {
 	ee.mu.Lock()
 	defer ee.mu.Unlock()
 	delete(ee.orphans, id)
+}
+
+// SnapshotConcurrency builds the real-time per-executor view for this agent
+// (v2.19.0, #并发讨论2): it enumerates the live this-process executors from the
+// Pool (μs lock) AND merges the adopted orphans (deduped by id) — otherwise active
+// would under-report after a daemon restart. Each executor's task/cli/model come
+// from its input.json and its state/started_at/last_progress_at from status.json
+// (best-effort: a mid-write/absent file degrades to a sparse entry, never an error).
+func (ee *executorEngine) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
+	var out []concurrency.ExecutorSnapshot
+	seen := make(map[string]struct{})
+
+	for _, h := range ee.engine.Pool().Handles() {
+		seen[h.ExecutorID] = struct{}{}
+		snap := concurrency.ExecutorSnapshot{
+			ExecutorID: h.ExecutorID,
+			PID:        h.PID,
+			StartedAt:  h.StartedAt(),
+		}
+		ee.enrichFromFiles(&snap, false)
+		out = append(out, snap)
+	}
+
+	for id, pid := range ee.snapshotOrphans() {
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		snap := concurrency.ExecutorSnapshot{ExecutorID: id, PID: pid}
+		ee.enrichFromFiles(&snap, true)
+		out = append(out, snap)
+	}
+	return out
+}
+
+// enrichFromFiles fills task/cli/model from input.json and state/started_at/
+// last_progress_at from status.json. orphan forces State=orphan regardless of
+// status. The state mapping for live executors: no status yet → starting; running
+// → running; terminal (done/failed) but slot not yet freed → finishing.
+func (ee *executorEngine) enrichFromFiles(snap *concurrency.ExecutorSnapshot, orphan bool) {
+	if ee.fx == nil {
+		if orphan {
+			snap.State = concurrency.StateOrphan
+		}
+		return
+	}
+	if in, err := ee.fx.ReadInput(snap.ExecutorID); err == nil {
+		snap.TaskID = in.Source.TaskRef
+		snap.CLI = in.CLI
+		snap.Model = in.Model
+	}
+	st, stErr := ee.fx.ReadStatus(snap.ExecutorID)
+	switch {
+	case orphan:
+		snap.State = concurrency.StateOrphan
+	case stErr != nil:
+		snap.State = concurrency.StateStarting // spawned, no running status yet
+	case st.State == executor.StateRunning:
+		snap.State = concurrency.StateRunning
+	default: // StateDone / StateFailed — terminal, slot not yet freed
+		snap.State = concurrency.StateFinishing
+	}
+	if stErr == nil {
+		if snap.StartedAt.IsZero() {
+			snap.StartedAt = st.StartedAt
+		}
+		if !st.LastProgressAt.IsZero() {
+			lp := st.LastProgressAt
+			snap.LastProgressAt = &lp
+		}
+	}
+}
+
+// SnapshotConcurrency returns the per-agent live executor view for every agent on
+// this worker running the concurrent path (v2.19.0). It is what the heartbeat ships
+// to the center (agent_id → snapshot) and is read by GET .../agents/{id}/concurrency.
+// Agents with a concurrency engine but zero live executors are still emitted (active
+// 0) so the center's last-known state reflects "idle now", not a stale set.
+func (c *AgentController) SnapshotConcurrency() map[string]concurrency.AgentSnapshot {
+	c.mu.Lock()
+	type agentEng struct {
+		id string
+		ee *executorEngine
+	}
+	var engines []agentEng
+	for id, ma := range c.agents {
+		if ma != nil && ma.exec != nil {
+			engines = append(engines, agentEng{id: id, ee: ma.exec})
+		}
+	}
+	c.mu.Unlock()
+
+	if len(engines) == 0 {
+		return nil
+	}
+	out := make(map[string]concurrency.AgentSnapshot, len(engines))
+	for _, ae := range engines {
+		execs := ae.ee.SnapshotConcurrency()
+		out[ae.id] = concurrency.AgentSnapshot{Active: len(execs), Executors: execs}
+	}
+	return out
 }
 
 // funcClock adapts the controller's func() time.Time test-seam to clock.Clock (the
@@ -223,7 +327,7 @@ func (c *AgentController) buildExecutorEngine(agentRoot string, pl reconcilePayl
 	if err != nil {
 		return nil, err
 	}
-	return &executorEngine{engine: eng, monitor: mon}, nil
+	return &executorEngine{engine: eng, monitor: mon, fx: fx}, nil
 }
 
 // workViaExecutor handles an agent.work brief by forking an executor (the W1
