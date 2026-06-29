@@ -158,16 +158,15 @@ describe('AgentDetail page', () => {
     expect(posted).toMatchObject({ kind: 'dm', members: ['agent:A1'] });
   });
 
-  it('switches tabs (Profile default) + Workspace shows the v2.8 placeholder (#228)', async () => {
+  it('switches tabs (Profile default) + Workspace tab is removed (#228)', async () => {
     stubAgent();
     wrap('/agents/A1');
     // Profile is the default tab.
     await waitFor(() => expect(screen.getByTestId('agent-tabpanel-profile')).toBeInTheDocument());
     expect(screen.queryByTestId('agent-tabpanel-workitems')).not.toBeInTheDocument();
-    // Workspace = "Coming in v2.8" placeholder.
-    fireEvent.click(screen.getByTestId('agent-tab-workspace'));
-    await waitFor(() => expect(screen.getByTestId('agent-tabpanel-workspace')).toBeInTheDocument());
-    expect(screen.getByTestId('agent-tabpanel-workspace')).toHaveTextContent(/Coming in v2.8/i);
+    // Workspace tab no longer exists.
+    expect(screen.queryByTestId('agent-tab-workspace')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-tabpanel-workspace')).not.toBeInTheDocument();
   });
 
   // I28/F7 (v2.15.0): the 5th tab mounts the per-agent analytics dashboard

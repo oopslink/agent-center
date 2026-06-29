@@ -18,7 +18,6 @@ import {
 import { AgentBacklogBadge, AgentLoadBadge, AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ForceDeleteModal } from '@/components/ForceDeleteModal';
-import { EmptyState } from '@/components/EmptyState';
 import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
 import { AgentProfile } from '@/components/AgentProfile';
@@ -29,7 +28,7 @@ import { AgentContextPanel } from '@/components/AgentContextPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ContextPanel } from '@/shell/contextPanel';
 
-// v2.7.1 #228: AgentDetail is a tab surface. Workspace is a v2.8 placeholder;
+// v2.7.1 #228: AgentDetail is a tab surface.
 // Profile/Activity/WorkItems get fleshed out in follow-up PRs (b/c/d).
 // I28/F7 (v2.15.0): the 5th tab `analytics` mounts the per-agent dashboard
 // (overview cards + activity heatmap + tokens/cost trend + top cost tasks),
@@ -39,7 +38,6 @@ const AGENT_TABS = [
   { key: 'activity', label: 'Activity' },
   // I5 (T583): read-only runtime browser — memory/workspace tree + file preview.
   { key: 'runtime', label: 'Runtime' },
-  { key: 'workspace', label: 'Workspace' },
   { key: 'tasks', label: 'Tasks' },
   { key: 'analytics', label: 'Analytics' },
 ] as const;
@@ -357,10 +355,6 @@ export default function AgentDetail(): React.ReactElement {
 
       {/* I5 (T583): read-only runtime browser. */}
       {tab === 'runtime' && <AgentRuntime agentId={id} />}
-
-      {tab === 'workspace' && (
-        <EmptyState testId="agent-tabpanel-workspace" title="Workspace" body="Coming in v2.8." />
-      )}
 
       {/* I28/F7: per-agent analytics dashboard (cards + heatmap + trend + top tasks). */}
       {tab === 'analytics' && (
