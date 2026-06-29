@@ -87,7 +87,7 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     short: 'Work',
     defaultPath: 'projects',
     Icon: FolderIcon,
-    pathPrefixes: ['projects', 'issues', 'tasks', 'plans'],
+    pathPrefixes: ['projects', 'issues', 'tasks', 'plans', 'repos'],
   },
   {
     id: 'conversations',
@@ -176,6 +176,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
         { to: p('issues'), label: 'Issues', Icon: IssueIcon },
         { to: p('tasks'), label: 'Tasks', Icon: TaskIcon },
         { to: p('plans'), label: 'Plan', Icon: PlanIcon },
+        { to: p('repos'), label: 'Repos', Icon: RepoIcon },
       ] }];
     case 'conversations':
       return [{ label: 'Conversations', items: [
@@ -1253,6 +1254,10 @@ function PlanIcon(): React.ReactElement {
 }
 function HashIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M8 3 6.5 17M13.5 3 12 17M3.5 7h13M3 13h13" strokeLinecap="round" /></svg>);
+}
+// T575: workspace Repos nav icon — a git-branch glyph (two nodes joined by a fork).
+function RepoIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="6" cy="5" r="1.8" /><circle cx="6" cy="15" r="1.8" /><circle cx="14" cy="7" r="1.8" /><path d="M6 6.8v6.4M6 11a6 6 0 0 1 6-3" strokeLinecap="round" /></svg>);
 }
 function ChatIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4 5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-5l-3 3v-3H4A1.5 1.5 0 0 1 2.5 12.5v-6A1.5 1.5 0 0 1 4 5z" strokeLinejoin="round" /></svg>);

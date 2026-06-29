@@ -689,7 +689,10 @@ export interface OrgWorkItem {
   creator_ref?: string;
 }
 
-// CodeRepoMap — read-only project code repo entry (v2.7).
+// CodeRepo — a PROJECT's reference to a code repo (v2.7; T575 turns it into a
+// reference to a workspace Repo). repo_id points at the workspace Repo
+// (issue-f980c8de BE-1); "" = a legacy url-only ref. is_primary marks the
+// project's primary repo (used by Integrate merge-check).
 export interface CodeRepo {
   id: string;
   project_id: string;
@@ -697,6 +700,43 @@ export interface CodeRepo {
   label: string;
   added_by: string;
   created_at: string;
+  // T575 (issue-f980c8de) reference fields.
+  repo_id?: string;
+  is_primary?: boolean;
+}
+
+// WorkspaceRepo — a workspace/org-level code repository (T575, issue-f980c8de).
+// The authoritative repo record; projects only REFERENCE it (via CodeRepo.repo_id).
+// Credentials are configured ONLY here and never returned — has_credential is the
+// masked indicator. reference_count ("used by N projects") is emitted by the
+// backend when available.
+export interface WorkspaceRepo {
+  id: string;
+  organization_id: string;
+  label: string;
+  description: string;
+  url: string;
+  provider: string; // "github" | "git" | ...
+  default_branch: string;
+  has_credential: boolean;
+  reference_count?: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+// T575 BE-2 (provisional, contract aligned with PD): remote viewing DTOs. The
+// backend reads live from the remote (go-github / git ls-remote), never clones.
+export interface RepoCommit {
+  sha: string;
+  message: string;
+  author: string;
+  date: string;
+}
+export interface RepoBranch {
+  name: string;
+  is_default?: boolean;
 }
 
 // ProjectMember — read-only project membership entry (v2.7 ProjectManager BC).

@@ -89,6 +89,10 @@ export const qk = {
   taskFiles: (taskId: string) => o('taskFiles', taskId),
   issueFiles: (issueId: string) => o('issueFiles', issueId),
   codeReposByProject: (projectId: string) => o('codeReposByProject', projectId),
+  // T575 (issue-f980c8de): workspace-level code-repo registry + remote viewing.
+  workspaceRepos: () => o('workspaceRepos'),
+  repoCommits: (repoId: string, branch: string) => o('repoCommits', repoId, branch),
+  repoBranches: (repoId: string) => o('repoBranches', repoId),
   membersByProject: (projectId: string) => o('membersByProject', projectId),
   // Coarse no-arg list keys kept so derive.ts (deferred scope) keeps
   // compiling — it invalidates these after a derive-from-message POST.
