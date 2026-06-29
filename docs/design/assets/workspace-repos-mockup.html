@@ -81,21 +81,21 @@
         <div class="meta"><div class="label">agent-center</div>
           <div class="desc">多 agent 协作中心 + worker daemon（Go 后端 + React web）。流水/编排/执行引擎主仓。</div>
           <div class="url">git@github.com:oopslink/agent-center.git</div></div>
-        <div class="side"><span class="br">main</span><span class="used">used by 2 projects</span><span class="ico">Edit</span></div>
+        <div class="side"><span class="br">main</span><span class="used">used by 2 projects</span><span style="display:flex;gap:6px"><span class="ico">Edit</span><span class="ico" style="color:#c1502a;border-color:#e9b59f">Delete</span></span></div>
       </div>
       <div class="repo">
         <span class="prov prov-gh">GitHub</span>
         <div class="meta"><div class="label">ac-web</div>
           <div class="desc">独立前端仓（若拆分）：控制台 React/TS。</div>
           <div class="url">git@github.com:oopslink/ac-web.git</div></div>
-        <div class="side"><span class="br">develop</span><span class="used">used by 1 project</span><span class="ico">Edit</span></div>
+        <div class="side"><span class="br">develop</span><span class="used">used by 1 project</span><span style="display:flex;gap:6px"><span class="ico">Edit</span><span class="ico" style="color:#c1502a;border-color:#e9b59f">Delete</span></span></div>
       </div>
       <div class="repo">
         <span class="prov prov-git">git</span>
         <div class="meta"><div class="label">infra</div>
           <div class="desc">部署/运维 IaC：k8s、CI、密钥与环境配置。</div>
           <div class="url">https://git.internal/ops/infra.git</div></div>
-        <div class="side"><span class="br">master</span><span class="used">used by 0 projects</span><span class="ico">Edit</span></div>
+        <div class="side"><span class="br">master</span><span class="used">used by 0 projects</span><span style="display:flex;gap:6px"><span class="ico">Edit</span><span class="ico" style="color:#c1502a;border-color:#e9b59f">Delete</span></span></div>
       </div>
     </div>
   </div>
@@ -151,6 +151,7 @@
       <li><b>解析</b>:merge-check / agent <span class="pill">list_project_repos</span> / viewing 都经 项目引用 → workspace Repo。凭据永不出 API/返给 agent。</li>
       <li><b>viewing</b>:go-github + git ls-remote 回退,不 clone。<b>agent 接口</b>:默认静态 + <span class="pill">live</span> 可选。</li>
       <li><b>权限</b>:workspace Repo+凭据 = workspace/org admin;项目成员只能引用/取消引用。</li>
+      <li><b>删除 repo</b>:workspace Repos 页每行有 Edit + <b>Delete</b>。删除前若该仓「used by N projects」(被引用)→ 弹确认并提示「将解除 N 个项目的引用」(或拒绝直至先取消引用,二选一,待定);删除连带清除其凭据。</li>
     </ul>
   </div>
 </body></html>
