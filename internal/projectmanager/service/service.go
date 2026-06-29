@@ -143,13 +143,16 @@ type AgentDirectory interface {
 	ConcurrencyCapOfAgent(ctx context.Context, agentID string) (cap int, err error)
 }
 
-// CodeRepoResolver resolves a workspace coderepo.Repo's URL by id (v2.18.4 BE-1).
-// It is the narrow port the merge-check primaryRepoURL uses to follow a
-// CodeRepoRef.repo_id → the workspace Repo's url, so the projectmanager BC does not
-// import the coderepo BC. An unknown/unresolvable repo returns "" (the caller then
-// falls back to the ref's own url), never failing the merge check on a lookup miss.
+// CodeRepoResolver resolves a workspace coderepo.Repo by id (v2.18.4 BE-1). It is
+// the narrow port the projectmanager BC uses to follow a CodeRepoRef.repo_id into
+// the coderepo BC WITHOUT importing it:
+//   - RepoURL backs the merge-check primaryRepoURL (an unknown repo returns "" so the
+//     caller falls back to the ref's own url, never failing the merge on a miss);
+//   - RepoOrg backs AddCodeRepoReference's existence + same-org guard (found=false
+//     for an unknown repo; the org isolates cross-workspace references).
 type CodeRepoResolver interface {
 	RepoURL(ctx context.Context, repoID string) (string, error)
+	RepoOrg(ctx context.Context, repoID string) (orgID string, found bool, err error)
 }
 
 // PausedTaskPort reports which of the given tasks currently have a PAUSED agent

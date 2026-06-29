@@ -157,6 +157,20 @@ func (s *Service) RepoURL(ctx context.Context, repoID string) (string, error) {
 	return repo.URL(), nil
 }
 
+// RepoOrg returns the workspace Repo's owning org and whether it exists — the
+// projectmanager CodeRepoResolver port backing AddCodeRepoReference's existence +
+// same-org guard. found=false (not an error) for an unknown repo.
+func (s *Service) RepoOrg(ctx context.Context, repoID string) (string, bool, error) {
+	repo, err := s.repos.FindByID(ctx, repoID)
+	if errors.Is(err, coderepo.ErrRepoNotFound) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return repo.OrgID(), true, nil
+}
+
 // CountReferencingProjects returns how many projects reference the Repo — the
 // number the delete-confirm prompt shows ("解除 N 个项目引用"). 0 when no unlinker
 // is wired.

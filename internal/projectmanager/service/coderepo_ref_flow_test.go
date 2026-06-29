@@ -13,11 +13,21 @@ import (
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
-// fakeRepoResolver maps repo_id → url (v2.18.4 BE-1 merge-check resolver test).
-type fakeRepoResolver map[string]string
+// fakeRepoResolver maps repo_id → {url, org} (v2.18.4 BE-1 resolver test). RepoOrg
+// drives the add-time existence+same-org guard; RepoURL drives the merge-check.
+type fakeRepo struct{ url, org string }
+type fakeRepoResolver map[string]fakeRepo
 
 func (f fakeRepoResolver) RepoURL(_ context.Context, repoID string) (string, error) {
-	return f[repoID], nil
+	return f[repoID].url, nil
+}
+
+func (f fakeRepoResolver) RepoOrg(_ context.Context, repoID string) (string, bool, error) {
+	r, ok := f[repoID]
+	if !ok {
+		return "", false, nil
+	}
+	return r.org, true, nil
 }
 
 func coderepoRefSetup(t *testing.T, resolver CodeRepoResolver) (*Service, context.Context) {
@@ -51,7 +61,10 @@ func mkProject(t *testing.T, svc *Service, ctx context.Context) pm.ProjectID {
 }
 
 func TestCodeRepoReference_AddSetPrimaryRemove(t *testing.T) {
-	svc, ctx := coderepoRefSetup(t, nil)
+	svc, ctx := coderepoRefSetup(t, fakeRepoResolver{
+		"repo-A": {url: "https://ws/A", org: "org-1"},
+		"repo-B": {url: "https://ws/B", org: "org-1"},
+	})
 	pid := mkProject(t, svc, ctx)
 
 	// Add two workspace-Repo references; the first as primary.
@@ -116,7 +129,13 @@ func assertPrimary(t *testing.T, svc *Service, ctx context.Context, pid pm.Proje
 // via the resolver, falls back to a url-only ref, and to the first ref when no
 // primary is set.
 func TestPrimaryRepoURL_ResolvesViaReference(t *testing.T) {
-	resolver := fakeRepoResolver{"repo-A": "https://ws/app-A", "repo-B": "https://ws/app-B"}
+	resolver := fakeRepoResolver{
+		"repo-A": {url: "https://ws/app-A", org: "org-1"},
+		"repo-B": {url: "https://ws/app-B", org: "org-1"},
+		// "gone": exists for the add-guard (org-1) but has NO url at resolve time
+		// (repo deleted) → primaryRepoURL falls back to the ref's own url.
+		"gone": {url: "", org: "org-1"},
+	}
 	svc, ctx := coderepoRefSetup(t, resolver)
 	pid := mkProject(t, svc, ctx)
 
@@ -157,7 +176,7 @@ func TestPrimaryRepoURL_LegacyUrlOnly(t *testing.T) {
 
 // A ref belonging to ANOTHER project is never mutated/removed across projects.
 func TestCodeRepoReference_CrossProjectGuard(t *testing.T) {
-	svc, ctx := coderepoRefSetup(t, nil)
+	svc, ctx := coderepoRefSetup(t, fakeRepoResolver{"r": {url: "https://ws/r", org: "org-1"}})
 	pidA := mkProject(t, svc, ctx)
 	pidB := mkProject(t, svc, ctx)
 	refA, err := svc.AddCodeRepoReference(ctx, AddCodeRepoReferenceCommand{ProjectID: pidA, RepoID: "r", Actor: "user:a"})
@@ -174,5 +193,32 @@ func TestCodeRepoReference_CrossProjectGuard(t *testing.T) {
 	// A non-member actor is rejected by the membership gate.
 	if err := svc.RemoveCodeRepoReference(ctx, pidA, refA, "user:stranger"); err == nil {
 		t.Fatal("non-member remove must be rejected")
+	}
+}
+
+// Review regression: a project may NOT reference a workspace Repo from a DIFFERENT
+// org, nor a non-existent repo — org isolation enforced at the service layer.
+func TestCodeRepoReference_CrossOrgAndExistenceGuard(t *testing.T) {
+	// repo "B-repo" lives in org-2; the project is created in org-1 (mkProject).
+	svc, ctx := coderepoRefSetup(t, fakeRepoResolver{"B-repo": {url: "https://ws/B", org: "org-2"}})
+	pid := mkProject(t, svc, ctx) // org-1
+
+	// Cross-org reference → rejected (opaque not-found, no existence leak).
+	if _, err := svc.AddCodeRepoReference(ctx, AddCodeRepoReferenceCommand{ProjectID: pid, RepoID: "B-repo", Actor: "user:a"}); err != pm.ErrCodeRepoRefNotFound {
+		t.Fatalf("cross-org repo reference = %v, want ErrCodeRepoRefNotFound", err)
+	}
+	// Unknown repo → rejected.
+	if _, err := svc.AddCodeRepoReference(ctx, AddCodeRepoReferenceCommand{ProjectID: pid, RepoID: "ghost", Actor: "user:a"}); err != pm.ErrCodeRepoRefNotFound {
+		t.Fatalf("unknown repo reference = %v, want ErrCodeRepoRefNotFound", err)
+	}
+	// A url-only ref (no repo_id) is exempt from the repo guard.
+	if _, err := svc.AddCodeRepoReference(ctx, AddCodeRepoReferenceCommand{ProjectID: pid, URL: "https://x/legacy", Actor: "user:a"}); err != nil {
+		t.Fatalf("url-only ref must be allowed: %v", err)
+	}
+	// No resolver wired + a repo_id → fail closed (cannot validate).
+	svc2, ctx2 := coderepoRefSetup(t, nil)
+	pid2 := mkProject(t, svc2, ctx2)
+	if _, err := svc2.AddCodeRepoReference(ctx2, AddCodeRepoReferenceCommand{ProjectID: pid2, RepoID: "x", Actor: "user:a"}); err != pm.ErrCodeRepoRefNotFound {
+		t.Fatalf("repo_id with no resolver = %v, want fail-closed ErrCodeRepoRefNotFound", err)
 	}
 }

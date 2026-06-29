@@ -35,6 +35,28 @@ func (s *Service) AddCodeRepoReference(ctx context.Context, cmd AddCodeRepoRefer
 		if err := s.requireProjectMutable(txCtx, cmd.ProjectID); err != nil {
 			return err
 		}
+		// v2.18.4 BE-1 (Review): a workspace-Repo reference must point at a Repo that
+		// EXISTS and belongs to the SAME org as the project — otherwise org A's member
+		// could reference org B's Repo, breaking workspace isolation and making the
+		// merge-check resolve a foreign repo url. Validated authoritatively here (not
+		// just the handler). Unknown OR cross-org → opaque ErrCodeRepoRefNotFound (404,
+		// no cross-workspace existence leak). A url-only ref (no repo_id) is exempt.
+		if cmd.RepoID != "" {
+			proj, perr := s.projects.FindByID(txCtx, cmd.ProjectID)
+			if perr != nil {
+				return perr
+			}
+			if s.codeRepoResolver == nil {
+				return pm.ErrCodeRepoRefNotFound // cannot validate → fail closed
+			}
+			repoOrg, found, rerr := s.codeRepoResolver.RepoOrg(txCtx, cmd.RepoID)
+			if rerr != nil {
+				return rerr
+			}
+			if !found || repoOrg != proj.OrganizationID() {
+				return pm.ErrCodeRepoRefNotFound
+			}
+		}
 		ref, err := pm.NewCodeRepoRef(pm.NewCodeRepoRefInput{
 			ID: id, ProjectID: cmd.ProjectID, URL: cmd.URL, Label: cmd.Label,
 			AddedBy: cmd.Actor, CreatedAt: now, RepoID: cmd.RepoID, IsPrimary: cmd.IsPrimary,
