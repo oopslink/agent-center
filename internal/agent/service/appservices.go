@@ -26,11 +26,14 @@ type CreateAgentCommand struct {
 	OrchestratorModel    string   // orchestrator's own model (cheap/fast tier; "" = center default)
 	DefaultExecutorModel string   // fallback executor model ("" = center default)
 	MaxConcurrentTasks   int      // executor concurrency cap (0 ⇒ EffectiveMaxConcurrentTasks default)
-	AllowedModels        []string // candidate executor models (empty = no restriction)
-	EnvVars              map[string]string
-	Skills               []string
-	WorkerID             string
-	CreatedBy            agent.IdentityRef
+	AllowedModels        []string // LEGACY model-only candidates (back-compat input; converted to AllowedExecutors)
+	// AllowedExecutors is the authoritative {cli, model} candidate list (v2.18.1
+	// BE-1). When set it wins; otherwise AllowedModels is lifted via the agent's cli.
+	AllowedExecutors []agent.ExecutorProfile
+	EnvVars          map[string]string
+	Skills           []string
+	WorkerID         string
+	CreatedBy        agent.IdentityRef
 	// IdentityMemberID (optional, v2.7 #157) — the identity-member id this
 	// execution Agent represents; set by the unified Members→Add Agent flow.
 	IdentityMemberID string
@@ -49,6 +52,10 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 	if !agent.IsSupportedReasoning(cmd.Reasoning) {
 		return "", agent.ErrUnsupportedReasoning
 	}
+	execs, models, err := resolveAllowedExecutors(cmd.AllowedExecutors, cmd.AllowedModels, cmd.CLI)
+	if err != nil {
+		return "", err
+	}
 	id := agent.AgentID(s.idgen.NewULID())
 	now := s.clock.Now()
 	a, err := agent.NewAgent(agent.NewAgentInput{
@@ -58,7 +65,7 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 			Name: cmd.Name, Description: cmd.Description, Model: cmd.Model,
 			CLI: cmd.CLI, Reasoning: cmd.Reasoning, Mode: cmd.Mode, Provider: cmd.Provider,
 			OrchestratorModel: cmd.OrchestratorModel, DefaultExecutorModel: cmd.DefaultExecutorModel,
-			MaxConcurrentTasks: cmd.MaxConcurrentTasks, AllowedModels: cmd.AllowedModels,
+			MaxConcurrentTasks: cmd.MaxConcurrentTasks, AllowedModels: models, AllowedExecutors: execs,
 			EnvVars: cmd.EnvVars,
 		},
 		Skills:           cmd.Skills,
@@ -170,7 +177,34 @@ type UpdateAgentConfigCommand struct {
 	OrchestratorModel    string
 	DefaultExecutorModel string
 	MaxConcurrentTasks   int
-	AllowedModels        []string
+	AllowedModels        []string // LEGACY input (converted to AllowedExecutors via the agent's cli)
+	// AllowedExecutors is the authoritative {cli, model} candidate list (v2.18.1
+	// BE-1); wins over AllowedModels when set.
+	AllowedExecutors []agent.ExecutorProfile
+}
+
+// resolveAllowedExecutors canonicalizes the executor-candidate input into the
+// authoritative list + its derived model mirror (v2.18.1 BE-1). AllowedExecutors
+// wins when provided; otherwise the legacy AllowedModels is lifted into {cli, model}
+// via the agent's cli (the migration-0085 backfill rule). The result is validated +
+// deduped by the domain (NormalizeAllowedExecutors → ErrInvalidExecutorProfile on a
+// bad cli / empty model), and the returned models slice is the distinct-models
+// mirror persisted into the legacy column for model-only readers.
+func resolveAllowedExecutors(execs []agent.ExecutorProfile, models []string, cli string) ([]agent.ExecutorProfile, []string, error) {
+	in := execs
+	if len(in) == 0 {
+		// Back-compat: an old caller sent only the model-only allowed_models. A
+		// {cli, model} profile needs a CLI, and the model list carries none — so we
+		// pair every model with THIS agent's own cli (cmd.CLI; empty → claude-code),
+		// exactly the migration-0085 backfill rule. The agent's cli is the only
+		// defensible default: it is the runtime the supervisor already runs.
+		in = agent.ExecutorsFromModels(models, cli)
+	}
+	norm, err := agent.NormalizeAllowedExecutors(in)
+	if err != nil {
+		return nil, nil, err
+	}
+	return norm, agent.ModelsOf(norm), nil
 }
 
 // UpdateAgentConfig edits an agent's LLM config (model/cli/reasoning/mode/
@@ -185,6 +219,10 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 	}
 	if !agent.IsSupportedReasoning(cmd.Reasoning) {
 		return agent.ErrUnsupportedReasoning
+	}
+	execs, models, err := resolveAllowedExecutors(cmd.AllowedExecutors, cmd.AllowedModels, cmd.CLI)
+	if err != nil {
+		return err
 	}
 	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
@@ -201,7 +239,8 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		p.OrchestratorModel = cmd.OrchestratorModel
 		p.DefaultExecutorModel = cmd.DefaultExecutorModel
 		p.MaxConcurrentTasks = cmd.MaxConcurrentTasks
-		p.AllowedModels = cmd.AllowedModels
+		p.AllowedExecutors = execs
+		p.AllowedModels = models // derived mirror (distinct models) for legacy readers
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err
 		}

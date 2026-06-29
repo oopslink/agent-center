@@ -29,9 +29,10 @@ func TestOrgDirectory_ConcurrencyCapOfAgent(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	save("enabled", agent.Profile{MaxConcurrentTasks: 3, AllowedModels: []string{"m"}})
-	save("defaultNoModels", agent.Profile{MaxConcurrentTasks: 3}) // column-default 3 but no models → disabled → 1
-	save("explicitOne", agent.Profile{MaxConcurrentTasks: 1, AllowedModels: []string{"m"}})
+	exec := []agent.ExecutorProfile{{CLI: "claude-code", Model: "m"}}
+	save("enabled", agent.Profile{MaxConcurrentTasks: 3, AllowedExecutors: exec})
+	save("defaultNoExecutors", agent.Profile{MaxConcurrentTasks: 3}) // column-default 3 but no executors → disabled → 1
+	save("explicitOne", agent.Profile{MaxConcurrentTasks: 1, AllowedExecutors: exec})
 
 	dir := agent.NewOrgDirectory(r)
 	cases := []struct {
@@ -39,7 +40,7 @@ func TestOrgDirectory_ConcurrencyCapOfAgent(t *testing.T) {
 		want int
 	}{
 		{"enabled", 3},
-		{"defaultNoModels", 1},
+		{"defaultNoExecutors", 1},
 		{"explicitOne", 1},
 		{"unknown-agent", 1}, // unresolvable → fail-safe single-active
 	}

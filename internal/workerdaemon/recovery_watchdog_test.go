@@ -193,7 +193,7 @@ func TestMaybeAttach_RecoversOnlyOnFirstAttach(t *testing.T) {
 		executor.Status{ExecutorID: "exec-ddd444", State: executor.StateDone, Model: "m", StartedAt: now, LastProgressAt: now},
 		&executor.Output{ExecutorID: "exec-ddd444", Success: true, Result: "ok", FinishedAt: now})
 
-	pl := reconcilePayload{AgentID: "agent-once", MaxConcurrentTasks: 2, AllowedModels: []string{"m"}, DefaultExecutorModel: "d"}
+	pl := reconcilePayload{AgentID: "agent-once", MaxConcurrentTasks: 2, AllowedExecutors: testExecs, AllowedModels: []string{"m"}, DefaultExecutorModel: "d"}
 	// First attach → recovery runs → the terminal orphan is finalized (dir gone).
 	c.mu.Lock()
 	c.agents["agent-once"] = &managedAgent{agentID: "agent-once"}

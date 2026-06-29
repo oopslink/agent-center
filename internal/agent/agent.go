@@ -11,6 +11,7 @@ package agent
 
 import (
 	"errors"
+	"fmt"
 	"path"
 	"strings"
 	"time"
@@ -118,6 +119,11 @@ var (
 	// API can surface a precise "stop the agent before resetting" message. Maps to 409.
 	ErrResetRequiresStopped = errors.New("agent: reset requires the agent to be stopped, errored, or failed first")
 	ErrVersionConflict      = errors.New("agent: version conflict (optimistic lock)")
+	// ErrInvalidExecutorProfile rejects an allowed_executors entry with an
+	// unsupported cli or an empty model (v2.18.1 BE-1). Distinct sentinel so the API
+	// maps the validation failure to 400. The CLI must be in SupportedExecutorCLIs
+	// {claude-code, codex}; the model is free text but must be non-empty.
+	ErrInvalidExecutorProfile = errors.New("agent: invalid executor profile (cli must be claude-code|codex and model must be non-empty)")
 	// ErrUnsupportedCLI rejects creating an agent bound to a cli the runtime
 	// cannot execute end-to-end (#181 / FINDING-F). Only "claude-code" is
 	// runtime-dispatchable today; codex/opencode are probe-only (discovered +
@@ -164,13 +170,117 @@ type Profile struct {
 	// OrchestratorModel is the orchestrator's own model (cheap/fast tier); empty =
 	// center default. DefaultExecutorModel is the fallback executor model; empty =
 	// center default. MaxConcurrentTasks caps concurrent executors for the agent
-	// (0/absent ⇒ EffectiveMaxConcurrentTasks default of 3). AllowedModels is the
-	// candidate executor-model set (empty = no restriction); persisted as a JSON
-	// array like EnvVars/skills/tags.
+	// (0/absent ⇒ EffectiveMaxConcurrentTasks default of 3).
 	OrchestratorModel    string
 	DefaultExecutorModel string
 	MaxConcurrentTasks   int
-	AllowedModels        []string
+	// AllowedExecutors is the AUTHORITATIVE executor-candidate list (v2.18.1 BE-1,
+	// issue-8746a5b9): each entry is a {cli, model} profile, because an executor need
+	// not share the orchestrator's CLI (e.g. a claude-code supervisor dispatching a
+	// codex executor). Empty = concurrency not opted in. Persisted as a JSON array of
+	// {cli, model} objects (migration 0085).
+	AllowedExecutors []ExecutorProfile
+	// AllowedModels is the LEGACY model-only candidate set (deprecated by
+	// AllowedExecutors). It is no longer authoritative for the concurrency opt-in or
+	// the center cap; it is kept as a DERIVED mirror (the distinct models of
+	// AllowedExecutors) so the F3 model router (which still reads it until BE-2
+	// migrates routing to {cli, model}) keeps working. Persisted as a JSON string
+	// array like EnvVars/skills/tags.
+	AllowedModels []string
+}
+
+// ExecutorProfile is one executor candidate: which CLI runs it and which model it
+// runs with (v2.18.1 BE-1). The CLI is hard-validated against SupportedExecutorCLIs
+// (a closed set the daemon can actually fork); the model is free text (non-empty) —
+// provider model names rotate too often to hard-enumerate without going stale.
+type ExecutorProfile struct {
+	CLI   string `json:"cli"`
+	Model string `json:"model"`
+}
+
+// SupportedExecutorCLIs is the closed set of executor CLIs the worker daemon can
+// fork (BE-1 hard-validation; BE-2 adds the codex runner builder). claude-code is
+// the historical default; codex is the cross-CLI executor this feature unlocks.
+var SupportedExecutorCLIs = map[string]struct{}{
+	"claude-code": {}, "codex": {},
+}
+
+// DefaultExecutorCLI is the CLI assumed when an agent's own cli is unset while
+// backfilling legacy allowed_models into {cli, model} profiles (migration 0085 / the
+// API's old-input compatibility path).
+const DefaultExecutorCLI = "claude-code"
+
+// IsSupportedExecutorCLI reports whether cli is a forkable executor CLI.
+func IsSupportedExecutorCLI(cli string) bool {
+	_, ok := SupportedExecutorCLIs[cli]
+	return ok
+}
+
+// NormalizeAllowedExecutors validates + canonicalizes an executor-candidate list
+// (v2.18.1 BE-1): every entry must carry a supported CLI and a non-empty (trimmed)
+// model; exact {cli, model} duplicates are dropped, preserving first-seen order. A
+// nil/empty input returns nil (no candidates → concurrency not opted in). It is the
+// single choke point the domain, the persistence backfill, and the API all run
+// candidates through, so the validation rule lives in exactly one place.
+func NormalizeAllowedExecutors(in []ExecutorProfile) ([]ExecutorProfile, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	seen := make(map[ExecutorProfile]struct{}, len(in))
+	out := make([]ExecutorProfile, 0, len(in))
+	for _, e := range in {
+		e.Model = strings.TrimSpace(e.Model)
+		if !IsSupportedExecutorCLI(e.CLI) {
+			return nil, fmt.Errorf("%w: unsupported cli %q", ErrInvalidExecutorProfile, e.CLI)
+		}
+		if e.Model == "" {
+			return nil, fmt.Errorf("%w: empty model for cli %q", ErrInvalidExecutorProfile, e.CLI)
+		}
+		if _, dup := seen[e]; dup {
+			continue
+		}
+		seen[e] = struct{}{}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
+// ExecutorsFromModels lifts a legacy model-only list into {cli, model} profiles
+// using the SAME backfill rule as migration 0085: each model pairs with `cli` (the
+// agent's own cli; empty → DefaultExecutorCLI). It is the back-compat path for an
+// API caller that still sends allowed_models instead of allowed_executors. The
+// result is NOT yet normalized — callers run it through NormalizeAllowedExecutors.
+func ExecutorsFromModels(models []string, cli string) []ExecutorProfile {
+	if len(models) == 0 {
+		return nil
+	}
+	if cli == "" {
+		cli = DefaultExecutorCLI
+	}
+	out := make([]ExecutorProfile, 0, len(models))
+	for _, m := range models {
+		out = append(out, ExecutorProfile{CLI: cli, Model: m})
+	}
+	return out
+}
+
+// ModelsOf returns the DISTINCT models of an executor list, first-seen order — the
+// derived mirror written into the legacy allowed_models column so model-only readers
+// (the F3 router, until BE-2) still see candidates.
+func ModelsOf(execs []ExecutorProfile) []string {
+	if len(execs) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(execs))
+	out := make([]string, 0, len(execs))
+	for _, e := range execs {
+		if _, ok := seen[e.Model]; ok {
+			continue
+		}
+		seen[e.Model] = struct{}{}
+		out = append(out, e.Model)
+	}
+	return out
 }
 
 // DefaultMaxConcurrentTasks is the fallback executor concurrency cap for an agent
@@ -190,16 +300,18 @@ func (p Profile) EffectiveMaxConcurrentTasks() int {
 // ConcurrencyEnabled is the SINGLE-SOURCE opt-in predicate for an agent running
 // more than one task at a time (W1 "PD ruling, decision 2"): concurrency activates
 // only when the profile sets MaxConcurrentTasks>0 AND lists ≥1 allowed executor
-// model. A default agent (AllowedModels empty, the column DEFAULT '[]') is therefore
-// NOT enabled even though migration 0082 backfilled max_concurrent_tasks to 3 — so
-// it keeps the historical single-active behaviour and never silently jumps to ≤3.
+// (v2.18.1 BE-1: the authoritative list is now AllowedExecutors [{cli,model}], not
+// the legacy model-only AllowedModels). A default agent (AllowedExecutors empty, the
+// column DEFAULT '[]') is therefore NOT enabled even though migration 0082
+// backfilled max_concurrent_tasks to 3 — so it keeps the historical single-active
+// behaviour and never silently jumps to ≤3.
 //
 // This is the ONE definition both the worker daemon's executor-pool gate
 // (workerdaemon/concurrent_exec.go) and the CENTER's ≤N start cap
 // (projectmanager Service.enforceConcurrencyCap, via the OrgDirectory adapter)
 // consult, so the two can never drift (v2.18.0 W4c, issue-b8687f2a §2).
 func (p Profile) ConcurrencyEnabled() bool {
-	return p.MaxConcurrentTasks > 0 && len(p.AllowedModels) > 0
+	return p.MaxConcurrentTasks > 0 && len(p.AllowedExecutors) > 0
 }
 
 // EffectiveConcurrencyCap is the agent's RUN-slot cap enforced by the center on

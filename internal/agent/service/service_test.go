@@ -461,3 +461,57 @@ func TestNew_DefaultsClock(t *testing.T) {
 	}
 	_ = s.clock.Now()
 }
+
+// TestAllowedExecutors_ServiceRoundTrip covers v2.18.1 BE-1 at the service layer:
+// create-with-executors persists the authoritative list + derived model mirror; a
+// legacy allowed_models-only update is converted to {cli, model} via the agent's
+// cli; and an invalid executor is rejected with ErrInvalidExecutorProfile.
+func TestAllowedExecutors_ServiceRoundTrip(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	ctx := context.Background()
+
+	// Create with an authoritative {cli,model} list.
+	id, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
+		OrganizationID: testOrg, Name: "coder", CLI: "claude-code", WorkerID: testWorker,
+		CreatedBy: "user:a", MaxConcurrentTasks: 2,
+		AllowedExecutors: []agent.ExecutorProfile{
+			{CLI: "claude-code", Model: "opus"},
+			{CLI: "codex", Model: "gpt-5-codex"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	a, err := f.svc.GetAgent(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Profile().AllowedExecutors) != 2 || !a.Profile().ConcurrencyEnabled() {
+		t.Fatalf("create: executors=%v enabled=%v", a.Profile().AllowedExecutors, a.Profile().ConcurrencyEnabled())
+	}
+	if got := a.Profile().AllowedModels; len(got) != 2 || got[0] != "opus" || got[1] != "gpt-5-codex" {
+		t.Fatalf("create: derived allowed_models = %v, want [opus gpt-5-codex]", got)
+	}
+
+	// Legacy update: only allowed_models given, cli=codex → lifted to codex executors.
+	if err := f.svc.UpdateAgentConfig(ctx, id, UpdateAgentConfigCommand{
+		CLI: "codex", MaxConcurrentTasks: 1, AllowedModels: []string{"gpt-5", "gpt-5"}, // dup collapses
+	}); err != nil {
+		t.Fatalf("UpdateAgentConfig (legacy models): %v", err)
+	}
+	a, _ = f.svc.GetAgent(ctx, id)
+	xe := a.Profile().AllowedExecutors
+	if len(xe) != 1 || xe[0] != (agent.ExecutorProfile{CLI: "codex", Model: "gpt-5"}) {
+		t.Fatalf("legacy convert: executors = %v, want one {codex, gpt-5}", xe)
+	}
+
+	// Invalid executor → ErrInvalidExecutorProfile (maps to 400 at the API).
+	err = f.svc.UpdateAgentConfig(ctx, id, UpdateAgentConfigCommand{
+		CLI: "claude-code", MaxConcurrentTasks: 1,
+		AllowedExecutors: []agent.ExecutorProfile{{CLI: "opencode", Model: "x"}},
+	})
+	if !errors.Is(err, agent.ErrInvalidExecutorProfile) {
+		t.Fatalf("invalid executor err = %v, want ErrInvalidExecutorProfile", err)
+	}
+}
