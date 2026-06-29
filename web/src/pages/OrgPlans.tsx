@@ -8,7 +8,7 @@ import { PlanStatusChip, PlanFailedIndicator, planProgressLabel, PlanRefTag } fr
 import { shortDate } from '@/components/workItemDisplay';
 import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { ContextPanel } from '@/shell/contextPanel';
-import { normalizeIdentityRef } from '@/api/members';
+import { useCreatorLabel } from '@/api/members';
 
 // OrgPlans (v2.10.0 [T6]) — the global, org-scoped, cross-project Plan list
 // (Workspace > Plan), modelled on the cross-project Tasks list. col③ = a
@@ -48,6 +48,8 @@ export default function OrgPlansPage(): React.ReactElement {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Owner ask: surface the creator's NAME (agent / human), not the raw id.
+  const creatorLabel = useCreatorLabel();
 
   // server-side sort + pagination (per @oopslink). Default newest-first.
   const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
@@ -241,7 +243,7 @@ export default function OrgPlansPage(): React.ReactElement {
                       {shortDate(p.created_at)}
                     </td>
                     <td className="py-1.5 pr-3 text-text-secondary" data-testid="org-plan-creator" title={p.creator_ref}>
-                      {p.creator_ref ? normalizeIdentityRef(p.creator_ref) : '—'}
+                      {creatorLabel(p.creator_ref)}
                     </td>
                     <td className="py-1.5 tabular-nums text-text-muted" data-testid="org-plan-updated" title={p.updated_at}>
                       {shortDate(p.updated_at)}
@@ -293,7 +295,7 @@ export default function OrgPlansPage(): React.ReactElement {
                     <ProgressMini done={p.progress.done} total={p.progress.total} />
                     {p.creator_ref && (
                       <span className="truncate" title={p.creator_ref}>
-                        by {normalizeIdentityRef(p.creator_ref)}
+                        by {creatorLabel(p.creator_ref)}
                       </span>
                     )}
                     <span className="tabular-nums" title={p.created_at}>{shortDate(p.created_at)}</span>
@@ -341,6 +343,8 @@ function PlanSummaryPanel({
   plan: OrgPlanItem;
   onClose: () => void;
 }): React.ReactElement {
+  // Owner ask: surface the creator's NAME (agent / human), not the raw id.
+  const creatorLabel = useCreatorLabel();
   return (
     <ContextPanel>
       <div className="flex flex-col" data-testid="org-plan-meta-panel" data-id={plan.id}>
@@ -367,7 +371,7 @@ function PlanSummaryPanel({
           <SummaryKV k="Project">{plan.project.name}</SummaryKV>
           <SummaryKV k="Nodes">{planProgressLabel(plan.progress)}</SummaryKV>
           <SummaryKV k="Created"><span className="tabular-nums">{shortDate(plan.created_at)}</span></SummaryKV>
-          <SummaryKV k="Creator">{plan.creator_ref ? normalizeIdentityRef(plan.creator_ref) : '—'}</SummaryKV>
+          <SummaryKV k="Creator">{creatorLabel(plan.creator_ref)}</SummaryKV>
         </div>
 
         <h2 className="px-4 pb-1 pt-3 text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">

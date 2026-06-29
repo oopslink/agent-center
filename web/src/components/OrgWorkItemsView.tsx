@@ -1,7 +1,7 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
-import { normalizeIdentityRef } from '@/api/members';
+import { useCreatorLabel } from '@/api/members';
 import { ContextPanel } from '@/shell/contextPanel';
 import { WorkItemFilterBar, type DateRange } from '@/components/WorkItemFilterBar';
 import { SortHeader, Pagination, type ListControls } from '@/components/listControls';
@@ -79,6 +79,8 @@ export function OrgWorkItemsView({
 }): React.ReactElement {
   const title = kind === 'issue' ? 'Issues' : 'Tasks';
   const seg = kind === 'issue' ? 'issues' : 'tasks';
+  // Owner ask: surface the creator's NAME (agent / human), not the raw id.
+  const creatorLabel = useCreatorLabel();
   const items = query.data?.items ?? [];
   // v2.10.0 [T3]: the selected item (if still present in the current result set)
   // feeds the read-only col④ metadata panel.
@@ -217,7 +219,7 @@ export function OrgWorkItemsView({
                     {shortDate(it.created_at)}
                   </td>
                   <td className="py-1.5 pr-3 text-text-secondary" data-testid="org-workitem-creator" title={it.creator_ref ?? ''}>
-                    {it.creator_ref ? normalizeIdentityRef(it.creator_ref) : '—'}
+                    {creatorLabel(it.creator_ref)}
                   </td>
                   <td className="py-1.5 tabular-nums text-text-muted" data-testid="org-workitem-updated" title={it.updated_at}>
                     {shortDate(it.updated_at)}
@@ -290,7 +292,7 @@ export function OrgWorkItemsView({
                     )}
                     {it.creator_ref && (
                       <span className="truncate" title={it.creator_ref}>
-                        by {normalizeIdentityRef(it.creator_ref)}
+                        by {creatorLabel(it.creator_ref)}
                       </span>
                     )}
                     <span className="ml-auto tabular-nums" title={it.updated_at}>

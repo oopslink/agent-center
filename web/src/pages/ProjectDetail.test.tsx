@@ -346,6 +346,11 @@ describe('ProjectDetail page', () => {
           total: 1,
         }),
       ),
+      // Owner ask: the Creator cell shows the member's NAME, not the raw id —
+      // so the resolver must see the creator as a member with a display name.
+      http.get('/api/members', () =>
+        HttpResponse.json([{ identity_id: 'hayang', display_name: 'Ha Yang', kind: 'user', status: 'joined' }]),
+      ),
     );
     wrap('/projects/proj-a');
     await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
@@ -358,6 +363,10 @@ describe('ProjectDetail page', () => {
     expect(row).toHaveAttribute('data-plan-id', 'plan-1');
     expect(within(row).getByTestId('plan-id-handle')).toHaveTextContent('P7');
     expect(row).toHaveTextContent('Sprint One');
+    // Creator resolves to the display NAME ("Ha Yang"), never the raw "hayang"
+    // handle or the "user:hayang" ref.
+    await waitFor(() => expect(row).toHaveTextContent('Ha Yang'));
+    expect(row).not.toHaveTextContent('user:hayang');
   });
 
   it('member name links to its detail page (agent → AgentDetail, human → user page)', async () => {

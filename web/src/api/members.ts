@@ -166,6 +166,22 @@ export function useDisplayNameResolver(): (ref: string) => string {
   };
 }
 
+// useCreatorLabel returns a function that maps a creator / author identity ref
+// to the best HUMAN-FACING label: the member's display NAME when it resolves,
+// else a clean id-handle (scheme prefix stripped — never the raw "agent:id"),
+// and "—" for an empty ref. Owner ask: every page that surfaces a creator /
+// author must PRIORITIZE the name over the id. This is the shared
+// resolver+fallback so the plan / work-item tables all behave identically
+// (mirrors PlanDetail's inline resolveName + normalizeIdentityRef fallback).
+export function useCreatorLabel(): (ref: string | undefined | null) => string {
+  const resolve = useDisplayNameResolver();
+  return (ref) => {
+    if (!ref) return '—';
+    const name = resolve(ref);
+    return isResolvedName(ref, name) ? name : displayNameFallback(ref);
+  };
+}
+
 export function useAddMember() {
   const qc = useQueryClient();
   return useMutation({

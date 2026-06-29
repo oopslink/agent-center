@@ -17,7 +17,7 @@ import { formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
 import { buildWorkItemFilters } from '@/api/orgWorkItems';
 import { WorkItemFilterBar, EMPTY_DATE_RANGE, type DateRange } from '@/components/WorkItemFilterBar';
-import { useDisplayNameResolver, normalizeIdentityRef } from '@/api/members';
+import { useDisplayNameResolver, normalizeIdentityRef, useCreatorLabel } from '@/api/members';
 import { ApiError } from '@/api/client';
 import { useAppStore } from '@/store/app';
 import { IssueCreateModal } from '@/components/IssueCreateModal';
@@ -424,6 +424,8 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
   });
   const data = plans.data?.items ?? [];
   const total = plans.data?.total ?? 0;
+  // Owner ask: show the creator's NAME (agent / human), not the raw id.
+  const creatorLabel = useCreatorLabel();
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -491,7 +493,7 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
                     {shortDate(pl.created_at)}
                   </td>
                   <td className="py-1.5 text-text-secondary" title={pl.creator_ref}>
-                    {pl.creator_ref ? normalizeIdentityRef(pl.creator_ref) : '—'}
+                    {creatorLabel(pl.creator_ref)}
                   </td>
                 </tr>
               ))}
