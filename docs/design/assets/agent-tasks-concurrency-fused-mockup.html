@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Tasks tab + concurrency overlay — fused mockup (#并发讨论2)</title>
+<style>
+  :root{
+    --bg:#0c0b10;--panel:#131119;--panel2:#17151f;--border:#262232;--border2:#2f2a3d;
+    --tx:#e9e7ee;--tx2:#b6b1c2;--mut:#7d7790;--accent:#a78bfa;--accentdim:#8b5cf6;
+    --green:#4ade80;--amber:#fbbf24;--red:#f87171;--purple:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#070609;color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:22px;line-height:1.45}
+  h1{font-size:17px;margin:0 0 4px;color:var(--tx)}.sub{color:var(--mut);font-size:13px;margin:0 0 18px;max-width:1040px}
+  .frame-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:16px 0 8px}
+  .app{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:22px 26px;max-width:1080px}
+  .crumb{font-size:13px;color:var(--mut);margin-bottom:10px}
+  .ahdr{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .ahdr .nm{font-size:24px;font-weight:700}
+  .badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;border-radius:5px;padding:3px 8px}
+  .b-run{background:#241d33;color:#c4b5fd}.b-av{color:var(--green)}.b-load{background:#2a1518;color:var(--red)}.b-bk{background:#1a1822;color:var(--mut)}
+  .icons{margin-left:auto;display:flex;gap:8px}.ic{width:30px;height:30px;border:1px solid var(--border2);border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:13px}
+  .tabs{display:flex;gap:22px;border-bottom:1px solid var(--border);padding-bottom:0;margin-bottom:18px}
+  .tab{font-size:14px;color:var(--mut);padding-bottom:10px}
+  .tab.on{color:var(--tx);border-bottom:2px solid var(--accent);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 18px}
+  .ph{display:flex;align-items:center;margin-bottom:12px}
+  .ph h2{font-size:16px;margin:0}.ph .filters{margin-left:auto;display:flex;gap:8px}
+  .sel{border:1px solid var(--border2);border-radius:7px;background:var(--panel2);color:var(--tx2);font-size:12px;padding:5px 10px}
+  /* slots summary strip (NEW) */
+  .slots{display:flex;align-items:center;gap:14px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;margin-bottom:14px}
+  .slots .big{font-size:18px;font-weight:700}.slots .big span{font-size:12px;color:var(--mut)}
+  .slots .lbl{font-size:12px;color:var(--mut)}
+  .bar{height:8px;border-radius:5px;display:flex;gap:3px;width:160px}
+  .seg{flex:1;border-radius:2px;background:#2a2636}.seg.on{background:var(--accent)}.seg.orph{background:var(--amber)}
+  .slots .meta{margin-left:auto;font-size:11px;color:var(--mut);display:flex;gap:12px}
+  .counts{display:flex;gap:16px;font-size:12px;margin-bottom:10px}
+  .counts b{color:var(--tx)}.c-prog{color:var(--accent)}.c-mut{color:var(--mut)}.c-amber{color:var(--amber)}
+  table{width:100%;border-collapse:collapse}
+  thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border)}
+  tbody td{padding:11px 10px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:top}
+  .id{font-family:ui-monospace,Menlo,monospace;color:var(--tx2);font-size:12px}
+  .title{color:var(--tx)}
+  .ov{margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .chip{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;border-radius:4px;padding:1px 7px;background:#241d33;color:#c4b5fd}
+  .chip.codex{background:#16271f;color:#86efac}
+  .live{font-size:11px;color:var(--mut);display:inline-flex;gap:5px;align-items:center}
+  .slotbadge{font-size:9.5px;font-weight:700;text-transform:uppercase;border-radius:4px;padding:1px 6px;background:#1c2530;color:#7dd3fc}
+  .orphbadge{font-size:9.5px;font-weight:700;text-transform:uppercase;border-radius:4px;padding:1px 6px;background:#2c2410;color:#fcd34d}
+  .type{color:var(--accent);font-size:11px;font-weight:600}
+  .stat{font-size:11px;font-weight:600}.s-prog{color:var(--accent)}.s-pend{color:var(--amber)}.s-done{color:var(--mut)}
+  .upd{color:var(--mut);font-size:12px}
+  .notes{max-width:1080px;margin-top:20px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 20px}
+  .notes h3{font-size:12px;margin:0 0 8px;text-transform:uppercase;color:var(--mut)}.notes li{font-size:12.5px;margin-bottom:6px;color:var(--tx2)}
+  .kw{background:#1d1830;color:#c4b5fd;border-radius:4px;padding:0 5px;font-size:11px;font-family:ui-monospace,monospace}
+</style></head><body>
+  <h1>Tasks tab + 并发实时 overlay（融合版 · 单 agent · #并发讨论2）</h1>
+  <p class="sub">不新开 tab——把并发槽位作为现有「Tasks」tab 的实时 overlay:表头加 slots 摘要,In Progress 行叠加 cli·model/耗时/心跳/槽位,Pending=排队。task 列表来自 Center,worker 快照按 task_id join 上来;worker 离线只有 overlay 变 stale。</p>
+
+  <p class="frame-label">Agent 详情 →「Tasks」tab（含并发 overlay）</p>
+  <div class="app">
+    <div class="crumb">Members / Agents / agent-center-dev2</div>
+    <div class="ahdr">
+      <span class="nm">agent-center-dev2</span>
+      <span class="badge b-run">running</span><span class="badge b-av">available</span>
+      <span class="badge b-load">load: 0.67</span><span class="badge b-bk">backlog: 1</span>
+      <span class="icons"><span class="ic">💬</span><span class="ic">▢</span><span class="ic">⟳</span><span class="ic">🗑</span></span>
+    </div>
+    <div class="tabs"><span class="tab">Profile</span><span class="tab">Activity</span><span class="tab">Workspace</span><span class="tab on">Tasks</span><span class="tab">Analytics</span></div>
+
+    <div class="panel">
+      <div class="ph"><h2>Tasks</h2><div class="filters"><span class="sel">All Status ▾</span><span class="sel">All Types ▾</span></div></div>
+
+      <!-- NEW: concurrency slots summary strip -->
+      <div class="slots">
+        <span class="big">2<span>/3</span></span><span class="lbl">slots in use</span>
+        <div class="bar"><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+        <span class="lbl">· 1 queued</span>
+        <span class="meta"><span>♥ adaptive 3s</span><span>updated 1s ago</span></span>
+      </div>
+
+      <div class="counts"><span><b>4</b> Total</span><span class="c-prog"><b>2</b> In Progress</span><span class="c-amber"><b>1</b> Pending</span><span class="c-mut"><b>0</b> Blocked</span><span class="c-mut"><b>1</b> Done</span></div>
+
+      <table>
+        <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="id">T582</td>
+            <td><div class="title">[I5·BE] runtime-fs worker 读处理器</div>
+              <div class="ov"><span class="chip">claude-code · sonnet</span><span class="slotbadge">slot 1</span><span class="live">⏱ 4m 12s</span><span class="live">♥ 1s</span></div>
+            </td>
+            <td class="type">TASK</td><td class="upd">—</td><td class="stat s-prog">IN PROGRESS</td><td class="upd">15:47</td>
+          </tr>
+          <tr>
+            <td class="id">T591</td>
+            <td><div class="title">迁移脚本回填校验（codex 执行）</div>
+              <div class="ov"><span class="chip codex">codex · gpt-5.5</span><span class="slotbadge">slot 2</span><span class="live">⏱ 6s</span><span class="live" style="color:#c4b5fd">starting</span></div>
+            </td>
+            <td class="type">TASK</td><td class="upd">—</td><td class="stat s-prog">IN PROGRESS</td><td class="upd">15:51</td>
+          </tr>
+          <tr>
+            <td class="id">T593</td>
+            <td><div class="title">编写验收用例</div>
+              <div class="ov"><span class="live">⏳ 排队等槽位 · waiting 18s</span></div>
+            </td>
+            <td class="type">TASK</td><td class="upd">—</td><td class="stat s-pend">PENDING</td><td class="upd">15:51</td>
+          </tr>
+          <tr>
+            <td class="id">T560</td>
+            <td><div class="title">analytics by-project 归因修复</div></td>
+            <td class="type">TASK</td><td class="upd">—</td><td class="stat s-done">DONE</td><td class="upd">14:02</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="frame-label">变体：orphan 行（重启后接管）/ worker 离线（overlay stale，列表仍在）</p>
+  <div class="app" style="padding-top:16px">
+    <div class="panel">
+      <div class="slots" style="margin-bottom:12px">
+        <span class="big" style="color:var(--mut)">?<span>/3</span></span><span class="lbl">slots — overlay stale</span>
+        <div class="bar"><span class="seg orph"></span><span class="seg"></span><span class="seg"></span></div>
+        <span class="meta"><span style="color:var(--amber)">⚠ snapshot 74s ago · worker unreachable</span></span>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="id">T577</td>
+            <td><div class="title">长跑任务（监工重启后接管）</div>
+              <div class="ov"><span class="chip">claude-code · sonnet</span><span class="orphbadge">orphan · monitored</span><span class="live" style="color:var(--amber)">overlay stale</span></div>
+            </td>
+            <td class="type">TASK</td><td class="upd">—</td><td class="stat s-prog">IN PROGRESS</td><td class="upd">13:20</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:12px;color:var(--mut);margin:10px 2px 0">worker 离线/超时 → slots 摘要与行 overlay 标 stale(最后已知),但 task 列表本身来自 Center、始终可见。</p>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>融合要点</h3>
+    <ul>
+      <li><b>无新 tab</b>:并发态作为 Tasks tab 的实时 overlay——表头 slots 摘要(<span class="kw">active/cap</span> 条 + queued + 自适应心跳/快照年龄/stale)+ In Progress 行叠加 <span class="kw">cli·model / 槽位 / 耗时 / 心跳 / orphan</span>。Pending=排队,Done/Blocked 不变。</li>
+      <li><b>数据 join</b>:task 列表来自 Center(现 Tasks tab 数据源);worker 快照按 <span class="kw">task_id</span> join,仅给在跑行加 overlay;<span class="kw">cap</span> 来自 profile,<span class="kw">queued</span>=pending。后端不变(快照随心跳+自适应、LiveStateStore、/concurrency 接口),FE 落点改为 Tasks tab overlay + 3s 轮询合并。</li>
+      <li><b>降级</b>:worker 离线→只 overlay/slots stale,列表仍在。<b>口径</b>:slots active 以 worker 快照为准(fork 滞后/orphan),按 task_id 与 Center In Progress 对齐。</li>
+      <li><b>展示</b>:一律 task ref(T123)。范围单 agent;org 总览见 issue-ea949e06。</li>
+    </ul>
+  </div>
+</body></html>
