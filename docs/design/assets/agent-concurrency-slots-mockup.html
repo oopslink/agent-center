@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Agent Concurrency Slots — mockup (#并发讨论2)</title>
+<style>
+  :root{--bg-base:#FFFCFC;--bg-elevated:#fff;--bg-subtle:#f8f5f6;--border:#dbd7da;--text-primary:#31263B;--text-secondary:#4a4255;--text-muted:#717A94;--brand:#7C3AED;--accent:#7C3AED;--success:#5CB198;--warn:#E3A008;--danger:#D44040;}
+  *{box-sizing:border-box}
+  body{margin:0;background:#efe9ec;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--text-primary);padding:24px;line-height:1.45}
+  h1{font-size:18px;margin:0 0 4px}.sub{color:var(--text-muted);font-size:13px;margin:0 0 18px;max-width:1000px}
+  .frame-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin:18px 0 8px}
+  .card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;overflow:hidden;max-width:920px}
+  .tabbar{display:flex;gap:2px;border-bottom:1px solid var(--border);padding:0 14px;background:var(--bg-subtle)}
+  .tabbar .t{font-size:13px;padding:10px 12px;color:var(--text-muted);border-bottom:2px solid transparent}
+  .tabbar .t.on{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+  .agenthdr{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px}
+  .agenthdr .name{font-weight:600}
+  .online{font-size:10px;font-weight:700;text-transform:uppercase;border-radius:4px;padding:2px 6px;background:rgba(92,177,152,.12);color:#2f7a64}
+  .stale{background:rgba(227,160,8,.14);color:#9a6c04}
+  .body{padding:16px}
+  .util{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .util .big{font-size:22px;font-weight:700}.util .lbl{font-size:12px;color:var(--text-muted)}
+  .bar{height:10px;border-radius:6px;background:var(--bg-subtle);display:flex;gap:3px;padding:2px;width:240px}
+  .seg{flex:1;border-radius:3px;background:#e7e1e8}.seg.on{background:var(--brand)}.seg.orph{background:var(--warn)}
+  .age{margin-left:auto;font-size:11px;color:var(--text-muted)}
+  .slots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .slot{border:1px solid var(--border);border-radius:8px;padding:11px 13px;background:var(--bg-base)}
+  .slot.idle{border-style:dashed;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;min-height:84px}
+  .slot.orph{border-color:#eccf8f;background:#fdfaf2}
+  .srow{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .state{font-size:9.5px;font-weight:700;text-transform:uppercase;border-radius:4px;padding:2px 6px}
+  .st-run{background:rgba(92,177,152,.14);color:#2f7a64}.st-start{background:rgba(124,58,237,.12);color:#6429c4}.st-orph{background:rgba(227,160,8,.16);color:#9a6c04}
+  .task{font-size:13px;font-weight:600}
+  .cli{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#f1e9fb;color:var(--brand);border-radius:4px;padding:1px 7px}
+  .codex{background:#e7f3ef;color:#2f7a64}
+  .metae{font-size:11px;color:var(--text-muted);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+  .queue{margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+  .qh{font-size:12px;color:var(--text-muted);margin-bottom:6px}
+  .qitem{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);padding:3px 0}
+  .qdot{width:7px;height:7px;border-radius:50%;background:#cfc8d2}
+  .kw{background:#f1e9fb;color:var(--brand);border-radius:4px;padding:0 5px;font-size:11px;font-weight:600;font-family:ui-monospace,monospace}
+  .notes{max-width:920px;margin-top:22px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:16px 20px}
+  .notes h3{font-size:12px;margin:0 0 8px;text-transform:uppercase;color:var(--text-muted)}.notes li{font-size:12.5px;margin-bottom:6px;color:var(--text-secondary)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:920px}
+  .small{font-size:12px;color:var(--text-muted)}
+</style></head><body>
+  <h1>Agent Concurrency Slots — 实时槽位（#并发讨论2，单 agent）</h1>
+  <p class="sub">监工 + N executor 并发的实时运维态。快照随心跳上报 → Center 内存 ephemeral 存(可插拔 store 接口)→ web 轮询 3s。`active`+executor 明细来自 worker 快照;`cap`+`queued` 来自 Center(cap 在 center 派发侧限流)。</p>
+
+  <p class="frame-label">A · Agent 详情「Concurrency」标签：实时槽位 + 排队</p>
+  <div class="card">
+    <div class="agenthdr"><span class="name">agent-center-dev2</span><span class="online">● online</span><span style="color:var(--text-muted)">cap 3 · concurrency enabled</span></div>
+    <div class="tabbar"><span class="t">Profile</span><span class="t">Activity</span><span class="t on">Concurrency</span><span class="t">Runtime</span></div>
+    <div class="body">
+      <div class="util">
+        <span class="big">2<span style="font-size:14px;color:var(--text-muted)">/3</span></span><span class="lbl">slots in use</span>
+        <div class="bar"><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></div>
+        <span class="age">updated 2s ago · snapshot 1s</span>
+      </div>
+      <div class="slots">
+        <div class="slot">
+          <div class="srow"><span class="state st-run">running</span><span class="cli">claude-code · sonnet</span></div>
+          <div class="task">task-2ff25c2d</div>
+          <div class="small">实现 runtime-fs worker 读处理器</div>
+          <div class="metae"><span>⏱ 4m 12s</span><span>pid 48213</span><span>♥ 1s</span></div>
+        </div>
+        <div class="slot">
+          <div class="srow"><span class="state st-start">starting</span><span class="cli codex">codex · gpt-5.5</span></div>
+          <div class="task">task-9a71c0e4</div>
+          <div class="small">迁移脚本回填校验</div>
+          <div class="metae"><span>⏱ 6s</span><span>pid 48227</span><span>♥ 1s</span></div>
+        </div>
+      </div>
+      <div class="slots" style="margin-top:10px;grid-template-columns:1fr">
+        <div class="slot idle">1 个空闲槽位</div>
+      </div>
+      <div class="queue">
+        <div class="qh">排队中（等槽位，Center 派发侧)· 1</div>
+        <div class="qitem"><span class="qdot"></span>task-1f33ab02 · 编写验收用例 <span style="margin-left:auto;color:var(--text-muted)">waiting 18s</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="frame-label">B · stale（快照过期）/ C · 单活 agent（未开并发）/ D · orphan executor（重启后接管）</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="agenthdr"><span class="name">agent-center-dev3</span><span class="online stale">● stale</span></div>
+      <div class="body">
+        <div class="util"><span class="big" style="color:var(--text-muted)">?</span><span class="lbl">slots unknown</span><span class="age">snapshot 74s ago</span></div>
+        <p class="small" style="margin:8px 0 0">超过 TTL(2×心跳) 未收到快照——agent 可能离线/卡死,实时态不可信,显示最后已知 + stale 标记。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="agenthdr"><span class="name">agent-center-tester1</span><span class="online">● online</span><span style="color:var(--text-muted)">cap 1 · single-active</span></div>
+      <div class="body">
+        <div class="util"><span class="big">1<span style="font-size:14px;color:var(--text-muted)">/1</span></span><span class="lbl">slots in use</span><div class="bar" style="width:120px"><span class="seg on"></span></div></div>
+        <div class="slots" style="grid-template-columns:1fr;margin-top:10px"><div class="slot"><div class="srow"><span class="state st-run">running</span><span class="cli">claude-code · sonnet</span></div><div class="task">task-6e23238c</div><div class="metae"><span>⏱ 1m 03s</span></div></div></div>
+        <p class="small" style="margin:8px 0 0">未开并发(cap 1)→ 退化为单槽,同一组件复用。</p>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="agenthdr"><span class="name">agent-center-dev5</span><span class="online">● online</span><span style="color:var(--text-muted)">cap 3 · 1 orphan adopted</span></div>
+    <div class="body">
+      <div class="util"><span class="big">1<span style="font-size:14px;color:var(--text-muted)">/3</span></span><span class="lbl">slots（含 1 orphan）</span><div class="bar"><span class="seg orph"></span><span class="seg"></span><span class="seg"></span></div></div>
+      <div class="slots" style="margin-top:10px"><div class="slot orph"><div class="srow"><span class="state st-orph">orphan · monitored</span><span class="cli">claude-code · sonnet</span></div><div class="task">task-77c1aa90</div><div class="small">监工重启后接管的 executor(无 handle,仅文件监控)</div><div class="metae"><span>pid 41002</span><span>adopted</span></div></div></div>
+      <p class="small" style="margin:8px 0 0">重启后被 adopt 的 orphan 也纳入快照(state=orphan),否则 active 数会漏。</p>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>技术方案要点（详见 #并发讨论2 / 技术方案）</h3>
+    <ul>
+      <li><b>采集(worker)</b>:监工 engine 的 executor pool 可即时快照——<span class="kw">Pool.Handles()</span>(μs 级锁)+ orphans map 合并;每 executor 出 <span class="kw">{executor_id, task_id, cli, model, started_at, state, pid, last_progress_at}</span>。<b>需小改</b>:Handle 加 `startedAt` 字段(5 行);task/model 从 input.json 读或随 Handle 缓存。</li>
+      <li><b>传输 = 快照随心跳</b>:心跳体扩展可选字段 `agent_concurrency_snapshots`(向后兼容)。<b>关键</b>:现心跳 30s,对"实时"偏慢 → 建议<b>自适应心跳:有活跃 executor 时加快到 ≈3–5s,空闲回落 30s</b>(仍是"快照随心跳",只在并发真正发生时高频,流量有界)。← <b>这点要你拍</b>。</li>
+      <li><b>Center 存储</b>:内存 ephemeral cache(map[agent_id]Snapshot + received_at,TTL=2×心跳),抽 <span class="kw">LiveStateStore 接口</span>(in-memory 默认实现,后续可换落库/时序)。心跳 handler 写入。</li>
+      <li><b>cap/queued = Center 侧</b>:cap 在 <span class="kw">enforceConcurrencyCap</span>(assign_flow)派发侧限流;queued = 该 agent open/assigned 未跑未 blocked 的 task 数。无需 worker 提供 queue。</li>
+      <li><b>读取/视图</b>:新 <span class="kw">GET /api/agents/{id}/concurrency</span> 读 cache + 拼 cap/queued;web `useConcurrencySnapshot()` 轮询 3s;agent 详情新增「Concurrency」标签。stale/单活/orphan/离线四态降级。</li>
+      <li><b>范围</b>:单 agent。org/fleet 总览 → issue-ea949e06(后续 Insight 模块)。</li>
+    </ul>
+  </div>
+</body></html>
