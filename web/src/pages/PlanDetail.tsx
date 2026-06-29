@@ -42,7 +42,7 @@ import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchiv
 import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar, EmbeddedConversationSidebar, EmbeddedSidebarToggle } from '@/components/ConversationSidebar';
 import { ContextPanel } from '@/shell/contextPanel';
-import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
+import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSidebarContext';
 import { SenderDetailSidebar } from '@/components/SenderDetailSidebar';
 import type { Participant } from '@/api/types';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
@@ -1478,21 +1478,47 @@ function TaskIdTag({
   );
 }
 
-// assignee_ref → avatar (agent/human) + clean handle.
+// assignee_ref → avatar (agent/human) + clean handle. The name/avatar is a click
+// entry that opens the EXISTING agent-activity sidebar (the same single
+// SenderDetailSidebar the participant rail / @mentions drive), routed through the
+// DAG's SenderSidebarProvider — so clicking the assignee on a DAG node (both the
+// mobile stepper and the desktop graph reuse this tag) pops the activity panel.
+// When rendered with NO provider (e.g. an isolated unit test) `useSenderSidebar`
+// returns null and the tag degrades to a static, non-clickable span — unchanged.
 function AssigneeTag({ assigneeRef }: { assigneeRef: string }): React.ReactElement {
   const resolveName = useDisplayNameResolver();
+  const openSender = useSenderSidebar();
   if (!assigneeRef) {
     return <span className="text-text-muted">—</span>;
   }
   const kind = refKind(assigneeRef) === 'agent' ? 'agent' : 'human';
   const resolved = resolveName(assigneeRef);
   const label = resolved === assigneeRef ? normalizeIdentityRef(assigneeRef) : resolved;
-  return (
-    <span className="flex min-w-0 items-center gap-1.5 text-text-secondary" title={assigneeRef}>
+  const inner = (
+    <>
       <span className="shrink-0">
         <Avatar name={label} kind={kind} size="sm" />
       </span>
       <span className="min-w-0 truncate">{label}</span>
+    </>
+  );
+  if (openSender) {
+    return (
+      <button
+        type="button"
+        data-testid="plan-node-assignee"
+        onClick={() => openSender(assigneeRef)}
+        title={`Open ${label} activity`}
+        aria-label={`Open ${label} activity`}
+        className="flex min-w-0 items-center gap-1.5 rounded text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-text-secondary" title={assigneeRef}>
+      {inner}
     </span>
   );
 }
@@ -1889,8 +1915,13 @@ function PlanDag({
   }, [start, end]);
 
   return (
-    // T579: desktop = flex column filling the panel so the canvas (flex-1 below)
-    // grows to occupy the full pane height; the legend/note stay pinned beneath it.
+    // SenderSidebarProvider owns the ONE agent-activity sidebar for the whole DAG
+    // surface — every node's AssigneeTag (mobile stepper + desktop graph) opens it
+    // through useSenderSidebar(). Scoped to the DAG, decoupled from the rail's own
+    // sidebar and the chat's provider.
+    <SenderSidebarProvider>
+    {/* T579: desktop = flex column filling the panel so the canvas (flex-1 below)
+        grows to occupy the full pane height; the legend/note stay pinned beneath it. */}
     <div data-testid="plan-dag" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
       {nodes.length === 0 ? (
         <p className="py-10 text-center text-xs text-text-muted" data-testid="plan-dag-empty">
@@ -2157,6 +2188,7 @@ function PlanDag({
         </p>
       )}
     </div>
+    </SenderSidebarProvider>
   );
 }
 

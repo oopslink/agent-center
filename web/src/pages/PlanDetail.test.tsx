@@ -404,6 +404,20 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(row1).getByTestId('plan-row-taskid')).toHaveTextContent('T101');
   });
 
+  // Clicking a DAG node's assignee (name/avatar) opens the agent-activity
+  // sidebar — the SAME single SenderDetailSidebar the info-rail creator tag /
+  // @mentions drive, here scoped to the DAG via its own SenderSidebarProvider.
+  it('clicking a DAG node assignee opens the agent-activity sidebar', async () => {
+    mockPlan();
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    expect(screen.queryByTestId('sender-sidebar')).not.toBeInTheDocument();
+    const assignee = within(screen.getByTestId('plan-dag')).getAllByTestId('plan-node-assignee')[0];
+    await act(async () => fireEvent.click(assignee));
+    expect(await screen.findByTestId('sender-sidebar')).toBeInTheDocument();
+  });
+
   it('point 2: compact toggle zooms the DAG down so a long plan fits', async () => {
     mockPlan();
     wrap();
