@@ -187,6 +187,13 @@ type Profile struct {
 	// migrates routing to {cli, model}) keeps working. Persisted as a JSON string
 	// array like EnvVars/skills/tags.
 	AllowedModels []string
+	// AutoAssignable is the per-agent opt-OUT for the BE-2 auto-assign reconciler
+	// (v2.18.3 BE-1, issue-577a7b0e): true (the default — column DEFAULT 1) means the
+	// reconciler MAY auto-assign claimable pool tasks to this agent; false opts it out
+	// (the owner doesn't want it auto-fed work). Defaulted to true at the create
+	// boundary (CreateAgent), so a profile must be created through the service to get
+	// the right default — a hand-built Profile zero-values to false.
+	AutoAssignable bool
 }
 
 // ExecutorProfile is one executor candidate: which CLI runs it and which model it

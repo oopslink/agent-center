@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/autoassign"
 	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
@@ -110,6 +111,9 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		// archive FE renders an "已归档" badge + read-only affordance off these.
 		"archived": t.IsArchived(), "archived_by": string(t.ArchivedBy()),
 		"archived_at": rfc3339OrEmptyPtr(t.ArchivedAt()),
+		// v2.18.3 BE-1: capability requirements the BE-2 auto-assign reconciler reads
+		// (always present as an array; [] = unrestricted).
+		"required_capabilities": capsOrEmpty(t.RequiredCapabilities()),
 	}
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
@@ -132,6 +136,15 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		m["model"] = t.Model()
 	}
 	return m
+}
+
+// capsOrEmpty renders a capability slice as a non-nil JSON array ([] for nil/empty),
+// so required_capabilities always serializes as an array (v2.18.3 BE-1).
+func capsOrEmpty(caps []string) []string {
+	if caps == nil {
+		return []string{}
+	}
+	return caps
 }
 
 // orEmptyTags returns the tag slice, or a non-nil empty slice so the DTO emits
@@ -328,7 +341,18 @@ func (s *Server) pmGetProjectHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, pmProjectMap(p))
+	writeJSON(w, http.StatusOK, projectMapWithAutoAssign(r.Context(), d, p))
+}
+
+// projectMapWithAutoAssign builds the project DTO and enriches it with the
+// v2.18.3 BE-1 project-level auto-assign master switch read from the settings store
+// (absent ⇒ ON, decision 1). A settings-store hiccup defaults to ON rather than
+// failing the read.
+func projectMapWithAutoAssign(ctx context.Context, d HandlerDeps, p *pm.Project) map[string]any {
+	m := pmProjectMap(p)
+	enabled, _ := autoassign.Enabled(ctx, d.SettingsStore, string(p.ID()))
+	m["auto_assign_enabled"] = enabled
+	return m
 }
 
 func (s *Server) pmUpdateProjectHandler(w http.ResponseWriter, r *http.Request) {
@@ -340,6 +364,9 @@ func (s *Server) pmUpdateProjectHandler(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Name        *string `json:"name"`
 		Description *string `json:"description"`
+		// v2.18.3 BE-1: project-level auto-assign master switch. nil → unchanged.
+		// Persisted to the settings store (not the project row).
+		AutoAssignEnabled *bool `json:"auto_assign_enabled"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -351,8 +378,18 @@ func (s *Server) pmUpdateProjectHandler(w http.ResponseWriter, r *http.Request) 
 		mapPMError(w, err)
 		return
 	}
+	if req.AutoAssignEnabled != nil {
+		if d.SettingsStore == nil {
+			writeError(w, http.StatusNotImplemented, "not_configured", "settings store not configured")
+			return
+		}
+		if err := autoassign.SetEnabled(r.Context(), d.SettingsStore, string(p.ID()), *req.AutoAssignEnabled); err != nil {
+			writeError(w, http.StatusInternalServerError, "settings_write_failed", err.Error())
+			return
+		}
+	}
 	got, _ := d.PM.GetProject(r.Context(), p.ID())
-	writeJSON(w, http.StatusOK, pmProjectMap(got))
+	writeJSON(w, http.StatusOK, projectMapWithAutoAssign(r.Context(), d, got))
 }
 
 // pmArchiveProjectHandler handles DELETE /api/projects/{project_id} as a
@@ -648,12 +685,14 @@ func (s *Server) pmCreateTaskHandler(w http.ResponseWriter, r *http.Request) {
 		DerivedFromIssue string `json:"derived_from_issue"`
 		// F3 model routing (design §5 & §10): optional per-task executor model override.
 		Model string `json:"model"`
+		// v2.18.3 BE-1: optional capability requirements (canonicalized by the domain).
+		RequiredCapabilities []string `json:"required_capabilities"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	id, err := d.PM.CreateTask(r.Context(), pmservice.CreateTaskCommand{ProjectID: p.ID(), Title: req.Title, Description: req.Description, DerivedFromIssue: pm.IssueID(req.DerivedFromIssue), CreatedBy: caller, Model: strings.TrimSpace(req.Model)})
+	id, err := d.PM.CreateTask(r.Context(), pmservice.CreateTaskCommand{ProjectID: p.ID(), Title: req.Title, Description: req.Description, DerivedFromIssue: pm.IssueID(req.DerivedFromIssue), CreatedBy: caller, Model: strings.TrimSpace(req.Model), RequiredCapabilities: req.RequiredCapabilities})
 	if err != nil {
 		mapPMError(w, err)
 		return
@@ -727,6 +766,8 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 		Description *string   `json:"description"`
 		// DerivedFromIssue (T192): nil = unchanged; "" = clear the link; an id (re)links.
 		DerivedFromIssue *string `json:"derived_from_issue"`
+		// v2.18.3 BE-1: nil = unchanged; non-nil replaces (empty clears → unrestricted).
+		RequiredCapabilities *[]string `json:"required_capabilities"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -735,7 +776,8 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 	if err := d.PM.BatchUpdateTask(r.Context(), t.ID(), pmservice.BatchTaskPatch{
 		Status: req.Status, Assignee: req.Assignee, Tags: req.Tags,
 		Title: req.Title, Description: req.Description,
-		DerivedFromIssue: issueIDPtr(req.DerivedFromIssue),
+		DerivedFromIssue:     issueIDPtr(req.DerivedFromIssue),
+		RequiredCapabilities: req.RequiredCapabilities,
 	}, caller); err != nil {
 		mapPMError(w, err)
 		return

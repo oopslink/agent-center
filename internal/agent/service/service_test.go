@@ -515,3 +515,54 @@ func TestAllowedExecutors_ServiceRoundTrip(t *testing.T) {
 		t.Fatalf("invalid executor err = %v, want ErrInvalidExecutorProfile", err)
 	}
 }
+
+// TestAutoAssignable_ServiceDefaults covers v2.18.3 BE-1: CreateAgent defaults
+// auto_assignable to true (nil → assignable); an explicit false opts out;
+// UpdateAgentConfig preserves the value when the field is omitted (nil) and flips it
+// when present.
+func TestAutoAssignable_ServiceDefaults(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	ctx := context.Background()
+
+	// Create without the field → default true.
+	id, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
+		OrganizationID: testOrg, Name: "a", CLI: "claude-code", WorkerID: testWorker, CreatedBy: "user:a",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.svc.GetAgent(ctx, id); !a.Profile().AutoAssignable {
+		t.Fatal("create without field → want auto_assignable=true (default)")
+	}
+
+	// Create with explicit false → opted out.
+	no := false
+	id2, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
+		OrganizationID: testOrg, Name: "b", CLI: "claude-code", WorkerID: testWorker, CreatedBy: "user:a",
+		AutoAssignable: &no,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.svc.GetAgent(ctx, id2); a.Profile().AutoAssignable {
+		t.Fatal("create with false → want auto_assignable=false")
+	}
+
+	// Update omitting the field (nil) → preserve the existing false.
+	if err := f.svc.UpdateAgentConfig(ctx, id2, UpdateAgentConfigCommand{CLI: "claude-code"}); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.svc.GetAgent(ctx, id2); a.Profile().AutoAssignable {
+		t.Fatal("update nil → want preserved false")
+	}
+
+	// Update with explicit true → flips back on.
+	yes := true
+	if err := f.svc.UpdateAgentConfig(ctx, id2, UpdateAgentConfigCommand{CLI: "claude-code", AutoAssignable: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.svc.GetAgent(ctx, id2); !a.Profile().AutoAssignable {
+		t.Fatal("update true → want auto_assignable=true")
+	}
+}
