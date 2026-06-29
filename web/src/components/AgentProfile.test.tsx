@@ -91,6 +91,37 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(screen.getByTestId('agent-config-edit-modal')).toBeInTheDocument();
   });
 
+  // v2.18.1 (issue-8746a5b9): executor concurrency, read-only.
+  it('concurrency: a default agent shows single-active · cap 1 with no executors', () => {
+    wrap(base); // no concurrency fields
+    const badge = screen.getByTestId('agent-profile-concurrency-badge');
+    expect(badge).toHaveAttribute('data-enabled', 'false');
+    expect(badge).toHaveTextContent(/single-active/i);
+    expect(screen.getByTestId('agent-profile-tag-max-concurrent')).toHaveTextContent('0');
+    expect(screen.getByTestId('agent-profile-executors-empty')).toBeInTheDocument();
+  });
+
+  it('concurrency: an enabled agent (cap ≥ 2) shows the cap + {cli·model} executor chips', () => {
+    wrap({
+      ...base,
+      max_concurrent_tasks: 3,
+      effective_concurrency_cap: 3,
+      concurrency_enabled: true,
+      allowed_executors: [
+        { cli: 'claude-code', model: 'opus-4-8' },
+        { cli: 'codex', model: 'gpt-5.5' },
+      ],
+    });
+    const badge = screen.getByTestId('agent-profile-concurrency-badge');
+    expect(badge).toHaveAttribute('data-enabled', 'true');
+    expect(badge).toHaveTextContent(/cap 3/i);
+    expect(screen.getByTestId('agent-profile-tag-max-concurrent')).toHaveTextContent('3');
+    const chips = screen.getAllByTestId('agent-profile-executor-chip');
+    expect(chips).toHaveLength(2);
+    expect(chips[0]).toHaveTextContent('opus-4-8');
+    expect(chips[1]).toHaveTextContent('gpt-5.5');
+  });
+
   it('renders skills as name cards (no path/badge), empty → placeholder', () => {
     wrap(base);
     expect(screen.getAllByTestId('agent-profile-skill')).toHaveLength(2);

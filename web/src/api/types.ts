@@ -232,6 +232,25 @@ export interface Agent {
   running_tasks?: number;
   pending_tasks?: number;
   task_load?: number;
+  // v2.18.1 (issue-8746a5b9) — executor concurrency config. allowed_executors is
+  // the authoritative {cli,model} candidate list the daemon forks from; the
+  // opt-in gate is max_concurrent_tasks>0 && allowed_executors non-empty. The
+  // server derives concurrency_enabled + effective_concurrency_cap (enabled?cap:1)
+  // and emits allowed_models as a READ-ONLY legacy mirror (distinct models) — the
+  // UI never writes it. All optional (absent on older payloads / the list view).
+  max_concurrent_tasks?: number;
+  allowed_executors?: ExecutorProfile[];
+  allowed_models?: string[]; // read-only legacy mirror, derived server-side.
+  concurrency_enabled?: boolean;
+  effective_concurrency_cap?: number;
+}
+
+// v2.18.1: one executor candidate = a {cli, model} pair. cli ∈ {claude-code,
+// codex} (hard-validated server-side); model is free text (the UI offers
+// suggestions but allows custom values).
+export interface ExecutorProfile {
+  cli: string;
+  model: string;
 }
 
 // v2.7.1 #120: the bound worker's label + connected state. daemon version is
