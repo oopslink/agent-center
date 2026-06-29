@@ -128,12 +128,15 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
           {/* v2.9 #286: entry to the project's Plan orchestration (the Work Board
               — parallel Plan list + DAG). Reachable here via the project detail
               page header (§4.2). Styled to match the sibling Edit/Archive buttons.
-              All three share headerActionBtn so their box height/size align on
-              mobile — the anchor and the <button>s must use identical box model
-              (inline-flex items-center) to render the same height. */}
+              All three share headerActionBtn so their box model matches; this one
+              is an <a> (OrgLink), not a <button>, so the coarse-pointer 44px
+              touch-target baseline (index.css) does NOT auto-apply as it does to
+              the Edit/Archive <button>s. The explicit `touch-target` class opts it
+              into the SAME 44px min-height so the three align on mobile (and the
+              link meets the WCAG 2.5.5 touch target like its siblings). */}
           <OrgLink
             to={`/projects/${encodeURIComponent(p.id)}/plans`}
-            className={`${headerActionBtn} gap-1 border-border-base text-text-primary hover:bg-bg-subtle`}
+            className={`${headerActionBtn} touch-target gap-1 border-border-base text-text-primary hover:bg-bg-subtle`}
             data-testid="project-plans-link"
           >
             Work Board
