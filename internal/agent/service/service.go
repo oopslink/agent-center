@@ -133,10 +133,11 @@ type agentEventPayload struct {
 	Provider  string `json:"provider,omitempty"`
 	// F3 model routing (design §5 & §10), carried the SAME way as Model/Reasoning
 	// (snapshotted at the (re)start that emitted this event). All ADDITIVE.
-	OrchestratorModel    string   `json:"orchestrator_model,omitempty"`
-	DefaultExecutorModel string   `json:"default_executor_model,omitempty"`
-	MaxConcurrentTasks   int      `json:"max_concurrent_tasks,omitempty"`
-	AllowedModels        []string `json:"allowed_models,omitempty"`
+	OrchestratorModel    string                  `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string                  `json:"default_executor_model,omitempty"`
+	MaxConcurrentTasks   int                     `json:"max_concurrent_tasks,omitempty"`
+	AllowedModels        []string                `json:"allowed_models,omitempty"`
+	AllowedExecutors     []agent.ExecutorProfile `json:"allowed_executors,omitempty"`
 }
 
 // emit appends an outbox event inside the current transaction. Mutating
@@ -160,6 +161,7 @@ func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, re
 		DefaultExecutorModel: a.Profile().DefaultExecutorModel,
 		MaxConcurrentTasks:   a.Profile().MaxConcurrentTasks,
 		AllowedModels:        a.Profile().AllowedModels,
+		AllowedExecutors:     a.Profile().AllowedExecutors,
 	})
 	if err != nil {
 		return err

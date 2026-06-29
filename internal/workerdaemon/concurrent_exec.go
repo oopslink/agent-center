@@ -96,12 +96,15 @@ func (f funcClock) Now() time.Time {
 //
 // v2.18.0 W4c: delegates to agent.Profile.ConcurrencyEnabled so the daemon's
 // executor-pool gate and the center's ≤N start cap share ONE predicate and cannot
-// drift (issue-b8687f2a §2). The reconcile payload carries the same two fields the
+// drift (issue-b8687f2a §2). The reconcile payload carries the same fields the
 // profile predicate reads.
+//
+// v2.18.1 BE-1: the authoritative opt-in list is now AllowedExecutors [{cli,model}]
+// (issue-8746a5b9) — the predicate reads it, not the legacy model-only AllowedModels.
 func concurrencyEnabled(pl reconcilePayload) bool {
 	return agent.Profile{
 		MaxConcurrentTasks: pl.MaxConcurrentTasks,
-		AllowedModels:      pl.AllowedModels,
+		AllowedExecutors:   pl.AllowedExecutors,
 	}.ConcurrencyEnabled()
 }
 

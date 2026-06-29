@@ -214,3 +214,50 @@ func TestAgentRepo_ListScoping(t *testing.T) {
 		t.Fatalf("ListByWorker W1 = %d, want 2", len(byW1))
 	}
 }
+
+// TestAgentRepo_AllowedExecutorsRoundTrip covers v2.18.1 BE-1: allowed_executors
+// persists + rehydrates as the authoritative list, and allowed_models is written as
+// its DERIVED mirror (distinct models) for legacy model-only readers.
+func TestAgentRepo_AllowedExecutorsRoundTrip(t *testing.T) {
+	r := newDB(t)
+	ctx := context.Background()
+	a, err := agent.NewAgent(agent.NewAgentInput{
+		ID: "AX", OrganizationID: "org", WorkerID: "W1",
+		Profile: agent.Profile{
+			Name: "coder", CLI: "claude-code", MaxConcurrentTasks: 2,
+			AllowedExecutors: []agent.ExecutorProfile{
+				{CLI: "claude-code", Model: "opus"},
+				{CLI: "codex", Model: "gpt-5-codex"},
+				{CLI: "codex", Model: "opus"}, // distinct {cli,model}, same model "opus"
+			},
+			// A stale AllowedModels on input must be overwritten by the derived mirror.
+			AllowedModels: []string{"STALE"},
+		},
+		CreatedBy: "user:a", CreatedAt: t0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Save(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.FindByID(ctx, "AX")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := got.Profile()
+	if len(p.AllowedExecutors) != 3 ||
+		p.AllowedExecutors[0] != (agent.ExecutorProfile{CLI: "claude-code", Model: "opus"}) ||
+		p.AllowedExecutors[1] != (agent.ExecutorProfile{CLI: "codex", Model: "gpt-5-codex"}) ||
+		p.AllowedExecutors[2] != (agent.ExecutorProfile{CLI: "codex", Model: "opus"}) {
+		t.Fatalf("allowed_executors round-trip lost data: %+v", p.AllowedExecutors)
+	}
+	// Derived mirror = distinct models, first-seen order; NOT the stale input.
+	want := []string{"opus", "gpt-5-codex"}
+	if len(p.AllowedModels) != len(want) || p.AllowedModels[0] != want[0] || p.AllowedModels[1] != want[1] {
+		t.Fatalf("derived allowed_models = %v, want %v", p.AllowedModels, want)
+	}
+	if !p.ConcurrencyEnabled() {
+		t.Fatal("agent with executors + max>0 must be concurrency-enabled")
+	}
+}
