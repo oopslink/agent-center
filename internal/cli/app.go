@@ -18,6 +18,7 @@ import (
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/clock"
+	coderepprovider "github.com/oopslink/agent-center/internal/coderepo/provider"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
 	"github.com/oopslink/agent-center/internal/cognition/wakeguard"
@@ -390,6 +391,10 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Clock:     clk,
 		MasterKey: masterKey,
 		Unlinker:  codeRepoRefRepo,
+		// v2.18.4 BE-2: remote viewing (commits/branches) — go-github for "github",
+		// the git ls-remote fallback for everything else. No clone; credential used
+		// server-side only.
+		Providers: coderepprovider.NewFactory(coderepprovider.NewGitHub(), coderepprovider.NewGit()),
 	})
 
 	pmSvc := pmservice.New(pmservice.Deps{

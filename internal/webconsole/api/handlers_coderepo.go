@@ -3,9 +3,11 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/coderepo"
+	coderepprovider "github.com/oopslink/agent-center/internal/coderepo/provider"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	"github.com/oopslink/agent-center/internal/identity"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
@@ -14,15 +16,29 @@ import (
 // --- workspace Repos (org-admin gated) --------------------------------------
 
 // coderepoMap is the MASKED workspace-Repo DTO: the credential is NEVER serialized;
-// callers see only has_credential (v2.18.4 BE-1, issue-f980c8de).
-func coderepoMap(r *coderepo.Repo) map[string]any {
+// callers see only has_credential (v2.18.4 BE-1, issue-f980c8de). referenceCount is
+// the number of projects referencing this repo (v2.18.4 BE-2 FE contract: "used by
+// N projects" + the delete-confirm prompt).
+func coderepoMap(r *coderepo.Repo, referenceCount int) map[string]any {
 	return map[string]any{
 		"id": r.ID(), "organization_id": r.OrgID(), "label": r.Label(), "description": r.Description(),
 		"url": r.URL(), "provider": string(r.Provider()), "default_branch": r.DefaultBranch(),
-		"has_credential": r.HasCredential(),
-		"created_by":     string(r.CreatedBy()), "created_at": r.CreatedAt().Format(time.RFC3339Nano),
+		"has_credential":  r.HasCredential(),
+		"reference_count": referenceCount,
+		"created_by":      string(r.CreatedBy()), "created_at": r.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": r.UpdatedAt().Format(time.RFC3339Nano), "version": r.Version(),
 	}
+}
+
+// repoDTO builds the masked repo DTO with its live reference_count (count of
+// projects referencing it). A count error degrades to 0 rather than failing the
+// read (the count is advisory UI metadata, not the repo itself).
+func (s *Server) repoDTO(r *http.Request, d HandlerDeps, repo *coderepo.Repo) map[string]any {
+	n, err := d.CodeRepoSvc.CountReferencingProjects(r.Context(), repo.ID())
+	if err != nil {
+		n = 0
+	}
+	return coderepoMap(repo, n)
 }
 
 func mapCodeRepoError(w http.ResponseWriter, err error) {
@@ -34,6 +50,21 @@ func mapCodeRepoError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "code_repo_error", err.Error())
+	}
+}
+
+// mapViewingError maps the remote-viewing reads (BE-2): a missing viewing wiring →
+// 501, a remote fetch failure (bad credential / unreachable host / parse) → 502
+// (an upstream/gateway problem, distinct from a center fault), else fall through to
+// the shared mapper (repo-not-found, etc.).
+func mapViewingError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, coderepservice.ErrViewingNotConfigured):
+		writeError(w, http.StatusNotImplemented, "not_configured", err.Error())
+	case errors.Is(err, coderepo.ErrRepoNotFound):
+		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	default:
+		writeError(w, http.StatusBadGateway, "remote_error", err.Error())
 	}
 }
 
@@ -68,7 +99,7 @@ func (s *Server) listCodeReposHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(repos))
 	for _, repo := range repos {
-		out = append(out, coderepoMap(repo))
+		out = append(out, s.repoDTO(r, d, repo))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"repos": out})
 }
@@ -105,7 +136,7 @@ func (s *Server) createCodeRepoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repo, _ := d.CodeRepoSvc.GetRepo(r.Context(), id)
-	writeJSON(w, http.StatusCreated, coderepoMap(repo))
+	writeJSON(w, http.StatusCreated, s.repoDTO(r, d, repo))
 }
 
 func (s *Server) updateCodeRepoHandler(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +173,7 @@ func (s *Server) updateCodeRepoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repo, _ := d.CodeRepoSvc.GetRepo(r.Context(), repoID)
-	writeJSON(w, http.StatusOK, coderepoMap(repo))
+	writeJSON(w, http.StatusOK, s.repoDTO(r, d, repo))
 }
 
 func (s *Server) deleteCodeRepoHandler(w http.ResponseWriter, r *http.Request) {
@@ -237,4 +268,103 @@ func (s *Server) setPrimaryProjectRepoHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// --- remote viewing (member-readable; commits / branches, BE-2) -------------
+
+// listCodeRepoCommitsHandler serves GET .../code-repos/{repo_id}/commits?branch=&limit=
+// — recent commits from the repo's remote via the provider abstraction (go-github /
+// git fallback). Member-readable (the credential is used server-side, never returned).
+// Response shape (FE contract): {commits:[{sha,message,author,date,...}], branch, source}.
+func (s *Server) listCodeRepoCommitsHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.CodeRepoSvc == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "code repo service not wired")
+		return
+	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	repo, ok := s.codeRepoForOrg(w, r, d, r.PathValue("repo_id"), orgID)
+	if !ok {
+		return
+	}
+	branch := r.URL.Query().Get("branch")
+	commits, err := d.CodeRepoSvc.ListCommits(r.Context(), repo.ID(), branch, parseLimitQuery(r))
+	if err != nil {
+		mapViewingError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(commits))
+	for _, c := range commits {
+		out = append(out, commitWireDTO(c))
+	}
+	if branch == "" {
+		branch = repo.DefaultBranch()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"commits": out, "branch": branch, "source": string(repo.Provider())})
+}
+
+// listCodeRepoBranchesHandler serves GET .../code-repos/{repo_id}/branches.
+// Response shape (FE contract): {branches:[{name,is_default,...}], source}.
+func (s *Server) listCodeRepoBranchesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.CodeRepoSvc == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "code repo service not wired")
+		return
+	}
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	repo, ok := s.codeRepoForOrg(w, r, d, r.PathValue("repo_id"), orgID)
+	if !ok {
+		return
+	}
+	branches, err := d.CodeRepoSvc.ListBranches(r.Context(), repo.ID())
+	if err != nil {
+		mapViewingError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(branches))
+	for _, b := range branches {
+		out = append(out, branchWireDTO(b))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"branches": out, "source": string(repo.Provider())})
+}
+
+// codeRepoForOrg loads a repo and verifies it belongs to the caller's org (cross-org
+// → 404, so existence isn't leaked across workspaces), returning the repo for source/
+// default-branch use.
+func (s *Server) codeRepoForOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, repoID, orgID string) (*coderepo.Repo, bool) {
+	repo, err := d.CodeRepoSvc.GetRepo(r.Context(), repoID)
+	if err != nil || repo.OrgID() != orgID {
+		writeError(w, http.StatusNotFound, "not_found", "code repo not found")
+		return nil, false
+	}
+	return repo, true
+}
+
+// commitWireDTO is the FE-locked commit shape ({sha,message,author,date}); url +
+// author_email ride along as harmless extras.
+func commitWireDTO(c coderepprovider.Commit) map[string]any {
+	return map[string]any{
+		"sha": c.SHA, "message": c.Message, "author": c.Author,
+		"date": c.CommittedAt.Format(time.RFC3339), "author_email": c.AuthorEmail, "url": c.URL,
+	}
+}
+
+// branchWireDTO is the FE-locked branch shape ({name,is_default}); commit_sha extra.
+func branchWireDTO(b coderepprovider.Branch) map[string]any {
+	return map[string]any{"name": b.Name, "is_default": b.IsDefault, "commit_sha": b.CommitSHA}
+}
+
+// parseLimitQuery reads the optional ?limit= (invalid/absent → 0 = provider default).
+func parseLimitQuery(r *http.Request) int {
+	n, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }

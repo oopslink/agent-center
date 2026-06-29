@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
@@ -116,6 +117,44 @@ func (s *Service) GetTask(ctx context.Context, id pm.TaskID) (*pm.Task, error) {
 
 func (s *Service) ListCodeRepos(ctx context.Context, projectID pm.ProjectID) ([]*pm.CodeRepoRef, error) {
 	return s.codeRepoRefs.ListByProject(ctx, projectID)
+}
+
+// ListCodeReposForMember lists a project's repo references, PROJECT-MEMBER gated
+// (v2.18.4 BE-2 agent MCP list_project_repos). A non-member → ErrNotMember (403); a
+// missing project → ErrProjectNotFound (404).
+func (s *Service) ListCodeReposForMember(ctx context.Context, projectID pm.ProjectID, actor pm.IdentityRef) ([]*pm.CodeRepoRef, error) {
+	if err := s.requireProjectMember(ctx, projectID, actor); err != nil {
+		return nil, err
+	}
+	return s.codeRepoRefs.ListByProject(ctx, projectID)
+}
+
+// ResolveProjectRepoForMember resolves ONE of a project's repo references for the
+// agent MCP get_repo_info (v2.18.4 BE-2), PROJECT-MEMBER gated. When repoID is set,
+// it returns the reference whose repo_id matches (scoped to the project); when
+// repoID is empty it returns the project's PRIMARY reference. ErrCodeRepoRefNotFound
+// when no such reference exists.
+func (s *Service) ResolveProjectRepoForMember(ctx context.Context, projectID pm.ProjectID, repoID string, actor pm.IdentityRef) (*pm.CodeRepoRef, error) {
+	if err := s.requireProjectMember(ctx, projectID, actor); err != nil {
+		return nil, err
+	}
+	refs, err := s.codeRepoRefs.ListByProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	repoID = strings.TrimSpace(repoID)
+	for _, ref := range refs {
+		if repoID != "" {
+			if ref.RepoID() == repoID {
+				return ref, nil
+			}
+			continue
+		}
+		if ref.IsPrimary() {
+			return ref, nil
+		}
+	}
+	return nil, pm.ErrCodeRepoRefNotFound
 }
 
 // GetCodeRepoRef reads one project↔repo reference by id (v2.18.4 BE-1).

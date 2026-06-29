@@ -12,6 +12,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agent"
 	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
+	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -138,6 +139,11 @@ type HandlerDeps struct {
 	// create/list/get/update_reminder agent tools + the admin reminders API
 	// (T206). Nil until wired (handlers then return reminder_not_wired).
 	ReminderSvc *cogservice.ReminderAppService
+	// CodeRepoSvc is the workspace CodeRepo app service (v2.18.4 BE-2) backing the
+	// agent MCP repo tools (list_project_repos / get_repo_info live). The repo_id →
+	// workspace Repo resolution + remote viewing go through it; it NEVER returns the
+	// credential. nil → get_repo_info(live) degrades to static info only.
+	CodeRepoSvc *coderepservice.Service
 	// PMProjectRepo is the new-model (pm) project repo backing the
 	// operator/admin-token project find-* read endpoints. v2.7 #131 PR-3:
 	// repointed off the retired workforce.Project model. Operator-scoped —

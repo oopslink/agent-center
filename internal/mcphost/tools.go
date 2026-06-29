@@ -900,3 +900,51 @@ func makeListFindings(cfg Config) mcp.ToolHandlerFor[listFindingsArgs, any] {
 		return callAdmin(ctx, cfg, "list_findings", body)
 	}
 }
+
+// --- list_project_repos (v2.18.4 BE-2) ---------------------------------------
+
+type listProjectReposArgs struct {
+	ProjectID string `json:"project_id" jsonschema:"the project whose referenced repositories to list (required; you must be a member)"`
+}
+
+// makeListProjectRepos lists a project's referenced repositories — the standard
+// repo-info surface for agents. Each entry is public metadata (label, description,
+// url, provider, default_branch, is_primary, repo_id); the credential is NEVER
+// returned. Cheap + credential-free (static reference resolution).
+func makeListProjectRepos(cfg Config) mcp.ToolHandlerFor[listProjectReposArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listProjectReposArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+		}
+		return callAdmin(ctx, cfg, "list_project_repos", body)
+	}
+}
+
+// --- get_repo_info (v2.18.4 BE-2) --------------------------------------------
+
+type getRepoInfoArgs struct {
+	ProjectID string `json:"project_id" jsonschema:"the project the repo is referenced by (required; you must be a member)"`
+	RepoID    string `json:"repo_id,omitempty" jsonschema:"optional workspace repo id; omit to get the project's PRIMARY repo"`
+	Live      bool   `json:"live,omitempty" jsonschema:"when true, also fetch recent remote commits + branches (slower, hits the remote); default false = static info only"`
+}
+
+// makeGetRepoInfo returns one referenced repo's standard info (default the project's
+// primary). With live=true it additionally fetches recent remote commits + branches
+// via the provider abstraction (go-github / git fallback, no clone). The credential
+// is NEVER returned; a remote failure is reported alongside the static info.
+func makeGetRepoInfo(cfg Config) mcp.ToolHandlerFor[getRepoInfoArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getRepoInfoArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":   cfg.AgentID,
+			"project_id": args.ProjectID,
+		}
+		if args.RepoID != "" {
+			body["repo_id"] = args.RepoID
+		}
+		if args.Live {
+			body["live"] = true
+		}
+		return callAdmin(ctx, cfg, "get_repo_info", body)
+	}
+}
