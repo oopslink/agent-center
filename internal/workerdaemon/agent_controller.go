@@ -740,7 +740,7 @@ func (c *AgentController) maybeAttachExecutorEngine(ctx context.Context, pl reco
 	firstAttach := !c.recoveredExec[pl.AgentID]
 	c.recoveredExec[pl.AgentID] = true
 	c.mu.Unlock()
-	c.log("agent=%s concurrent-execution enabled (max=%d, models=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedModels))
+	c.log("agent=%s concurrent-execution enabled (max=%d, executors=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedExecutors))
 
 	// First attach this process → recover orphans from a prior process (design §12).
 	if firstAttach {

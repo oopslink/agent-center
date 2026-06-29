@@ -193,6 +193,11 @@ type UpdateAgentConfigCommand struct {
 func resolveAllowedExecutors(execs []agent.ExecutorProfile, models []string, cli string) ([]agent.ExecutorProfile, []string, error) {
 	in := execs
 	if len(in) == 0 {
+		// Back-compat: an old caller sent only the model-only allowed_models. A
+		// {cli, model} profile needs a CLI, and the model list carries none — so we
+		// pair every model with THIS agent's own cli (cmd.CLI; empty → claude-code),
+		// exactly the migration-0085 backfill rule. The agent's cli is the only
+		// defensible default: it is the runtime the supervisor already runs.
 		in = agent.ExecutorsFromModels(models, cli)
 	}
 	norm, err := agent.NormalizeAllowedExecutors(in)
