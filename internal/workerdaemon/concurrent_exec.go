@@ -108,6 +108,20 @@ func concurrencyEnabled(pl reconcilePayload) bool {
 	}.ConcurrencyEnabled()
 }
 
+// routerCandidates maps the authoritative agent.ExecutorProfile list onto the
+// modelrouter's decoupled {cli,model} candidate type (v2.18.1 BE-2) — the seam that
+// keeps modelrouter free of the agent bounded context.
+func routerCandidates(execs []agent.ExecutorProfile) []modelrouter.ExecutorCandidate {
+	if len(execs) == 0 {
+		return nil
+	}
+	out := make([]modelrouter.ExecutorCandidate, 0, len(execs))
+	for _, e := range execs {
+		out = append(out, modelrouter.ExecutorCandidate{CLI: e.CLI, Model: e.Model})
+	}
+	return out
+}
+
 // buildExecutorEngine constructs the per-agent Engine + Monitor. Workspaces are
 // plain isolated directories — PD ruling B: production agents have no per-agent
 // source git repo, so the F1 worktree step is skipped (process-group + env +
@@ -148,16 +162,26 @@ func (c *AgentController) buildExecutorEngine(agentRoot string, pl reconcilePayl
 		Pool:    pool,
 		Routing: routing,
 		// nil judge: §5 chain resolves task.model → default_executor_model. The LLM
-		// difficulty judge (consuming allowed_models) is a follow-up wiring.
+		// difficulty judge (consuming allowed_executors) is a follow-up wiring.
 		Router: modelrouter.NewRouter(nil),
 		RouterConfig: modelrouter.Config{
-			OrchestratorModel:    pl.OrchestratorModel,
-			AllowedModels:        pl.AllowedModels,
+			OrchestratorModel: pl.OrchestratorModel,
+			// v2.18.1 BE-2: route over the authoritative {cli,model} candidates, not the
+			// legacy model-only list. DefaultCLI = the agent's own cli, so a model-only
+			// task.model/default not found among the candidates pairs with the supervisor's
+			// CLI (matching BE-1's legacy-models backfill rule).
+			AllowedExecutors:     routerCandidates(pl.AllowedExecutors),
 			DefaultExecutorModel: pl.DefaultExecutorModel,
+			DefaultCLI:           pl.CLI,
 		},
-		Runner: orchestrator.NewClaudeRunnerBuilder(c.cfg.ClaudeBinary),
-		IDs:    orchestrator.NewULIDMinter(clk),
-		Clock:  clk,
+		// v2.18.1 BE-2: per-CLI runner builders — the F3 decision's CLI selects which
+		// one forks the executor (a claude-code supervisor may dispatch a codex executor).
+		Runners: map[string]orchestrator.RunnerCmdBuilder{
+			agent.DefaultExecutorCLI: orchestrator.NewClaudeRunnerBuilder(c.cfg.ClaudeBinary),
+			cliCodex:                 orchestrator.NewCodexRunnerBuilder(c.cfg.CodexBinary),
+		},
+		IDs:   orchestrator.NewULIDMinter(clk),
+		Clock: clk,
 	})
 	if err != nil {
 		return nil, err
@@ -226,8 +250,8 @@ func (c *AgentController) workViaExecutor(ctx context.Context, pl workPayload, e
 		}
 		return fmt.Errorf("agent_controller: agent=%s fork executor: %w", pl.AgentID, err)
 	}
-	c.log("agent=%s task=%s forked executor=%s model=%s(%s) problem=%s",
-		pl.AgentID, pl.TaskID, launched.ExecutorID, launched.Model, launched.ModelSource, launched.ProblemID)
+	c.log("agent=%s task=%s forked executor=%s cli=%s model=%s(%s) problem=%s",
+		pl.AgentID, pl.TaskID, launched.ExecutorID, launched.CLI, launched.Model, launched.ModelSource, launched.ProblemID)
 
 	// Reap the executor when it exits, freeing its pool slot (W1). Runs detached so
 	// the work command acks immediately and the next work can launch concurrently.

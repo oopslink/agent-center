@@ -241,7 +241,8 @@ func TestWorkViaExecutor_NonCapacityErrorWraps(t *testing.T) {
 	eng, _ := orchestrator.NewEngine(orchestrator.EngineConfig{
 		Pool: pool, Routing: routing, Router: modelrouter.NewRouter(nil),
 		RouterConfig: modelrouter.Config{DefaultExecutorModel: "m"},
-		Runner:       errRunnerWD{}, IDs: orchestrator.NewULIDMinter(nil),
+		Runners:      map[string]orchestrator.RunnerCmdBuilder{"claude-code": errRunnerWD{}},
+		IDs:          orchestrator.NewULIDMinter(nil),
 	})
 	mon, _ := executor.NewMonitor(executor.MonitorConfig{Exchange: fx, Pool: pool})
 	ee := &executorEngine{engine: eng, monitor: mon}
