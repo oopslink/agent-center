@@ -1,4 +1,4 @@
--- 0085_v2181_agent_allowed_executors.up.sql — v2.18.1 BE-1 (issue-8746a5b9).
+-- 0085_v2182_agent_allowed_executors.up.sql — v2.18.2 BE-1 (issue-8746a5b9).
 --
 -- Upgrade the executor-candidate config from the model-only allowed_models to the
 -- authoritative allowed_executors = JSON array of {cli, model}. An executor need not
