@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/concurrency"
+	"github.com/oopslink/agent-center/internal/workforce"
+	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
 
 // v2.19.0 GET .../agents/{id}/concurrency: the cap (profile) + queued (pm) joined
@@ -103,6 +105,66 @@ func TestAPI_AgentConcurrency_NoSnapshot_Stale(t *testing.T) {
 	}
 	if cap, _ := body["cap"].(float64); cap != 1 {
 		t.Errorf("cap = %v, want 1", body["cap"])
+	}
+}
+
+// T606 (issue-af03da2f): an ONLINE worker that never reported a snapshot →
+// has_snapshot=false + reachable=true, so the UI renders the NEUTRAL "no live data"
+// state (concurrency not active) rather than the misleading "worker unreachable".
+func TestAPI_AgentConcurrency_OnlineNoSnapshot_NoData(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerWithStatus(t, db, sess.OrgID, "w-on", workforce.WorkerOnline)
+	deps.WorkerRepo = wfsqlite.NewWorkerRepo(db)
+	deps.LiveState = concurrency.NewInMemoryStore() // empty
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"c-on","model":"claude","cli":"claude-code","worker_id":"w-on"}`, sess)
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	id, _ := created["identity_id"].(string)
+
+	resp = orgScopedGet(t, s.URL+"/api/agents/"+id+"/concurrency", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("concurrency: %d", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if hs, ok := body["has_snapshot"].(bool); !ok || hs {
+		t.Errorf("has_snapshot = %v, want false (never reported)", body["has_snapshot"])
+	}
+	if rc, ok := body["reachable"].(bool); !ok || !rc {
+		t.Errorf("reachable = %v, want true (worker online)", body["reachable"])
+	}
+}
+
+// T606: an OFFLINE worker → reachable=false, so the UI shows the distinct "worker
+// offline" state rather than the generic "unreachable".
+func TestAPI_AgentConcurrency_WorkerOffline_NotReachable(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerWithStatus(t, db, sess.OrgID, "w-off", workforce.WorkerOffline)
+	deps.WorkerRepo = wfsqlite.NewWorkerRepo(db)
+	deps.LiveState = concurrency.NewInMemoryStore() // empty
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"c-off","model":"claude","cli":"claude-code","worker_id":"w-off"}`, sess)
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	id, _ := created["identity_id"].(string)
+
+	resp = orgScopedGet(t, s.URL+"/api/agents/"+id+"/concurrency", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("concurrency: %d", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if rc, ok := body["reachable"].(bool); !ok || rc {
+		t.Errorf("reachable = %v, want false (worker offline)", body["reachable"])
 	}
 }
 

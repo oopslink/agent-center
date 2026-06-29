@@ -31,6 +31,30 @@ func saveWorkerInOrg(t *testing.T, db *sql.DB, orgID, workerID string) {
 	}
 }
 
+// saveWorkerWithStatus saves a worker with an explicit online/offline status (T606
+// reachability tests) — NewWorker always starts offline, so reaching the online
+// state needs a rehydrate with the chosen status.
+func saveWorkerWithStatus(t *testing.T, db *sql.DB, orgID, workerID string, status workforce.WorkerStatus) {
+	t.Helper()
+	enrolled := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
+	w, err := workforce.RehydrateWorker(workforce.RehydrateWorkerInput{
+		ID:             workforce.WorkerID(workerID),
+		Status:         status,
+		Capabilities:   []string{"claude-code"},
+		EnrolledAt:     enrolled,
+		CreatedAt:      enrolled,
+		UpdatedAt:      enrolled,
+		Version:        1,
+		OrganizationID: orgID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := wfsqlite.NewWorkerRepo(db).Save(context.Background(), w); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAPI_Agent_FullLifecycle(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // liveStateTTL bounds how fresh a worker snapshot must be (2× the idle heartbeat
@@ -37,12 +38,24 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	// active + executors come from the worker's last heartbeat snapshot.
+	//
+	// Three-state freshness (T606, issue-af03da2f): a single `stale` bool conflated
+	// three very different situations and the UI mislabeled all of them "worker
+	// unreachable". We now also surface:
+	//   - reachable    — is the bound worker ONLINE? (false = worker truly offline)
+	//   - has_snapshot — has this agent EVER reported a live snapshot?
+	// so the UI can tell apart (a) worker offline, (b) a snapshot that aged past the
+	// TTL, and (c) an agent that never reported one (concurrency not active on the
+	// worker — the common case for a non-concurrent agent). `stale` is retained as the
+	// coarse "live view not usable" flag (true when no fresh snapshot) for back-compat.
 	active := 0
 	stale := true
+	hasSnapshot := false
 	var snapshotAgeMs int64
 	executors := []map[string]any{}
 	if d.LiveState != nil {
 		if snap, age, found := d.LiveState.Get(agentID, time.Now()); found {
+			hasSnapshot = true
 			snapshotAgeMs = age.Milliseconds()
 			stale = age > liveStateTTL
 			active = snap.Active
@@ -63,12 +76,24 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// reachable: is the bound worker ONLINE? Default true — only a worker we can look
+	// up AND find OFFLINE flips it to false, so a missing worker record never
+	// fabricates a misleading "offline" state.
+	reachable := true
+	if wid := a.WorkerID(); wid != "" && d.WorkerRepo != nil {
+		if wk, err := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(wid)); err == nil && wk != nil {
+			reachable = wk.Status() == workforce.WorkerOnline
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agent_id":        agentID,
 		"cap":             cap,
 		"active":          active,
 		"queued":          queued,
 		"stale":           stale,
+		"reachable":       reachable,
+		"has_snapshot":    hasSnapshot,
 		"snapshot_age_ms": snapshotAgeMs,
 		"executors":       executors,
 	})
