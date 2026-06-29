@@ -12,6 +12,7 @@ import React, { useMemo, useState } from 'react';
 import { useCreateTask } from '@/api/tasks';
 import { useAddTaskToAnyPlan, type Plan } from '@/api/plans';
 import { useModalA11y } from './useModalA11y';
+import { CapabilitiesEditor } from './CapabilitiesEditor';
 
 interface Props {
   projectId: string;
@@ -32,6 +33,7 @@ export function BoardTaskCreateModal({
 }: Props): React.ReactElement {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [requiredCaps, setRequiredCaps] = useState<string[]>([]);
   const [destination, setDestination] = useState<string>(BACKLOG);
   const create = useCreateTask(projectId);
   const addToPlan = useAddTaskToAnyPlan(projectId);
@@ -60,6 +62,7 @@ export function BoardTaskCreateModal({
       const res = await create.mutateAsync({
         title: trimmedTitle,
         description: description.trim() || undefined,
+        required_capabilities: requiredCaps.length > 0 ? requiredCaps : undefined,
       });
       // … then route it to the chosen plan/pool when not staying in the Backlog.
       if (destination !== BACKLOG) {
@@ -119,6 +122,14 @@ export function BoardTaskCreateModal({
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
             placeholder="Optional. Context, acceptance criteria, links…"
+          />
+        </Field>
+
+        <Field label="Required capabilities" htmlFor="board-task-create-caps-input">
+          <CapabilitiesEditor
+            idPrefix="board-task-create-caps"
+            value={requiredCaps}
+            onChange={setRequiredCaps}
           />
         </Field>
 

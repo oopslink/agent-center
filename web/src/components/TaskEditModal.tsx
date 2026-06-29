@@ -9,10 +9,11 @@ import type { MemberResult } from '@/api/members';
 import type { Task, TaskStatus } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { MAX_TAG_RUNES, MAX_TAGS, runeLength, validateTags } from './tagValidation';
+import { CapabilitiesEditor } from './CapabilitiesEditor';
 
 interface Props {
   projectId: string;
-  task: Pick<Task, 'id' | 'title' | 'description' | 'status' | 'assignee' | 'tags'>;
+  task: Pick<Task, 'id' | 'title' | 'description' | 'status' | 'assignee' | 'tags' | 'required_capabilities'>;
   onClose: () => void;
   onSaved?: () => void;
 }
@@ -45,6 +46,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
   const [tags, setTags] = useState<string[]>(task.tags ?? []);
   const [tagDraft, setTagDraft] = useState('');
   const [tagError, setTagError] = useState<string | null>(null);
+  const [requiredCaps, setRequiredCaps] = useState<string[]>(task.required_capabilities ?? []);
 
   const update = useUpdateTask(projectId, task.id);
   // E2E finding F-7: a real (re)assignment must go through the dedicated assign
@@ -108,8 +110,11 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
   const descChanged = description.trim() !== (task.description ?? '');
   const statusChanged = status !== (task.status ?? 'open');
   const assigneeChanged = assignee !== (task.assignee ?? '');
+  const origCaps = task.required_capabilities ?? [];
+  const capsChanged =
+    requiredCaps.length !== origCaps.length || requiredCaps.some((c, i) => c !== origCaps[i]);
   const anyDirty =
-    titleChanged || descChanged || statusChanged || assigneeChanged || tagsChanged;
+    titleChanged || descChanged || statusChanged || assigneeChanged || tagsChanged || capsChanged;
 
   const hasError = !!tagError || !!tagsValidationError;
   const canSubmit =
@@ -126,10 +131,12 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
       status?: TaskStatus;
       assignee?: string;
       tags?: string[];
+      required_capabilities?: string[];
     } = {};
     if (titleChanged) body.title = trimmedTitle;
     if (descChanged) body.description = description.trim();
     if (statusChanged) body.status = status;
+    if (capsChanged) body.required_capabilities = requiredCaps;
     // F-7: route a real (re)assignment through the dedicated assign endpoint below
     // (it dispatches the agent). Only fold the assignee into the batch PATCH when
     // CLEARING it — an unassign needs no dispatch.
@@ -289,6 +296,17 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
               {tagError ?? tagsValidationError}
             </p>
           )}
+        </div>
+
+        <div className="mb-3">
+          <label htmlFor="task-edit-caps-input" className="mb-1 block text-xs font-medium text-text-primary">
+            Required capabilities
+          </label>
+          <CapabilitiesEditor
+            idPrefix="task-edit-caps"
+            value={requiredCaps}
+            onChange={setRequiredCaps}
+          />
         </div>
 
         {(update.isError || assign.isError) && (

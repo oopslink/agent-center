@@ -40,6 +40,30 @@ const projectAlpha = {
 describe('ProjectDetail page', () => {
   afterEach(() => cleanup());
 
+  // T566 (issue-577a7b0e): the project-level auto-assign master switch.
+  it('T566: auto-assign toggle defaults ON and PATCHes auto_assign_enabled:false when turned off', async () => {
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.patch('/api/projects/proj-a', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...projectAlpha, auto_assign_enabled: false });
+      }),
+    );
+    wrap('/projects/proj-a');
+    fireEvent.click(await screen.findByTestId('project-edit-btn'));
+    const toggle = await screen.findByTestId('project-edit-auto-assign');
+    // absent on the payload ⇒ defaults to ON.
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(screen.getByTestId('project-edit-save'));
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body).toEqual({ auto_assign_enabled: false });
+  });
+
   it('renders header + per-project Issues / Tasks tabs + Fleet link', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
