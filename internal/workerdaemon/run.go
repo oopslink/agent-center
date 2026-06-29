@@ -205,7 +205,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		// runtime actually creates tasks/{id}/ and the onEvent sink writes
 		// events.current.jsonl + task.log + archived segments. Nil here was the
 		// false-green bug — the taskexec/tasklog subsystems had zero runtime callers.
-		TaskDirManager:     taskexec.NewDirManager(),
+		TaskDirManager: taskexec.NewDirManager(),
 	}); cerr != nil {
 		logf("warning: agent controller not wired: " + cerr.Error())
 	} else {
