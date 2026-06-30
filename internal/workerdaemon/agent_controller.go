@@ -1817,6 +1817,32 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 		// later, UNRELATED connection error starts fresh with the full retry count
 		// (the previous burst recovered — its budget must not carry over).
 		c.resetAPIErrorRetries(agentID)
+		// 重启不丢上下文: persist that this generation has completed a clean turn,
+		// so a later boot can safely --resume this session (resuming a session that
+		// never completed a turn triggers a Claude no-completed-turn crash loop —
+		// see boot_reconcile.go). Best-effort, off the reader goroutine: this
+		// process holds the agent and serializes its instance-file writes, and the
+		// atomic temp+rename is the second-line defense, so no home flock is needed.
+		// A write failure only costs a fresh (non-resumed) relaunch next boot.
+		// SCOPED to claude-supervisor agents: a cli=codex session uses its own
+		// `codex exec` resume path and never reads session.instance on boot, so the
+		// lease write is pointless there (and would only add a stray async file
+		// write to its home).
+		var isCodex bool
+		c.mu.Lock()
+		if ma := c.agents[agentID]; ma != nil {
+			isCodex = ma.cli == cliCodex
+		}
+		c.mu.Unlock()
+		if !isCodex {
+			if home, _, _, pathErr := c.agentPaths(agentID); pathErr == nil {
+				go func() {
+					if merrr := sessioninstance.MarkCompletedTurn(home); merrr != nil {
+						c.log("restart-recovery: MarkCompletedTurn(%s) failed: %v", agentID, merrr)
+					}
+				}()
+			}
+		}
 		go c.maybeReplyNudge(agentID)
 		// v2.15.0 I28/F2: a clean turn-end carries the result line's usage totals
 		// — report them to the center for per-turn cost accounting. Off the reader

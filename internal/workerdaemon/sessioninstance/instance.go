@@ -35,6 +35,15 @@ type InstanceState struct {
 	// (not a crash). Internal bookkeeping — AcquireInstance checks this to
 	// decide whether to populate PrevCrashAt.
 	CleanRelease bool `json:"clean_release,omitempty"`
+	// CompletedTurn is true once THIS instance (this generation) has finished at
+	// least one clean conversation turn (a Claude CLI "result" event that was not
+	// an error). It is the cross-restart signal that the prior generation got far
+	// enough to be safely --resume'd: resuming a session that never completed a
+	// turn triggers a Claude no-completed-turn crash loop. AcquireInstance must
+	// NOT carry this forward — a fresh generation has, by definition, not yet
+	// completed a turn, so it is left false (its zero value) and set later via
+	// MarkCompletedTurn.
+	CompletedTurn bool `json:"completed_turn,omitempty"`
 }
 
 func instanceFilePath(home string) string {
@@ -103,6 +112,28 @@ func ReleaseInstance(home string) error {
 	}
 	st.PID = 0
 	st.CleanRelease = true
+	return writeInstanceAtomic(home, st)
+}
+
+// MarkCompletedTurn records that the current instance has finished at least one
+// clean conversation turn, persisting CompletedTurn=true so a subsequent boot
+// can safely --resume this session. It read-modify-writes the current state
+// (preserving SessionID/Generation/PID), so it must be called by the process
+// that currently holds the agent (the agent_controller serializes its writes);
+// the atomic temp-file+rename is the second-line defense. Idempotent: calling it
+// when CompletedTurn is already true rewrites the same value.
+func MarkCompletedTurn(home string) error {
+	if home == "" {
+		return errors.New("sessioninstance: home required")
+	}
+	st, err := ReadInstance(home)
+	if err != nil {
+		return err
+	}
+	if st.CompletedTurn {
+		return nil
+	}
+	st.CompletedTurn = true
 	return writeInstanceAtomic(home, st)
 }
 
