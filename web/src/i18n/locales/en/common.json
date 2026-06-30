@@ -184,6 +184,10 @@
       "label": "Alerts",
       "attention": "{{count}} tasks need your attention"
     },
+    "sidebar": {
+      "collapse": "Collapse sidebar",
+      "expand": "Expand sidebar"
+    },
     "tabbar": {
       "modulesNav": "modules mobile"
     },
