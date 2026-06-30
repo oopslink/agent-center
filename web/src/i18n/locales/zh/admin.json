@@ -66,6 +66,7 @@
     }
   },
   "systemNav": {
+    "system": "系统",
     "environment": "环境",
     "settings": "设置",
     "version": "版本",

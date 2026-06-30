@@ -2,6 +2,7 @@ import type React from 'react';
 import { ConversationsSecondaryNav } from '@/shell/nav/ConversationsSecondaryNav'; // T2/T64 (dev1)
 import { MembersSecondaryNav } from '@/shell/nav/MembersSecondaryNav'; // T7 (dev3)
 import { RemindersSecondaryNav } from '@/shell/nav/RemindersSecondaryNav'; // T248 (dev1)
+import { SystemSecondaryNav } from '@/shell/nav/SystemSecondaryNav'; // T716 (dev1) — localized System nav
 import WorkspaceSecondaryNav from '@/shell/nav/WorkspaceSecondaryNav'; // T4 (dev2)
 
 // ============================================================================
@@ -46,5 +47,7 @@ export const SECONDARY_NAV_REGISTRY: Partial<Record<ShellModuleId, ModuleSeconda
   // T248: Reminders filter rail (search + Scope + Status) lives in col②, not as
   // a page-internal aside — restores the three-column layout (issue-c438cde1).
   reminders: RemindersSecondaryNav,
-  // system:        SystemSecondaryNav,          // T8 (dev3)
+  // T716 (dev1): localized System nav — single source for the System col②,
+  // labels via admin:systemNav.* (replaces AppLayout's hardcoded-English fallback).
+  system: SystemSecondaryNav,
 };
