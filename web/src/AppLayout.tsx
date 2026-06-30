@@ -1,5 +1,6 @@
 import type React from 'react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSSE } from '@/sse/useSSE';
 import {
@@ -209,6 +210,12 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
 // ============================================================================
 export default function AppLayout(): React.ReactElement {
   useSSE();
+  const { t } = useTranslation();
+  // Display label for a top-level module. The module `id` (not the label) is
+  // the stable key used for routing/active-state, so the visible label is free
+  // to be localised at render. `short` is the mobile tab-bar label.
+  const moduleLabel = (id: ShellModuleId) => t(`nav.${id}`);
+  const moduleShort = (id: ShellModuleId) => t(`nav.short.${id}`);
   const me = useMe();
   const setCurrentUserId = useAppStore((s) => s.setCurrentUserId);
   useEffect(() => {
@@ -344,8 +351,8 @@ export default function AppLayout(): React.ReactElement {
   // Mobile tab bar module definitions.
   const tabBarModules: TabBarModule[] = MODULE_DEFS.map((m) => ({
     id: m.id,
-    label: m.label,
-    short: m.short,
+    label: moduleLabel(m.id),
+    short: moduleShort(m.id),
     defaultPath: m.defaultPath,
     Icon: m.Icon,
   }));
@@ -370,7 +377,7 @@ export default function AppLayout(): React.ReactElement {
             onClick={() => setMobileNavSheetOpen(true)}
             className="flex-1 truncate text-left text-sm font-medium text-text-primary"
           >
-            {isOrgSettings ? 'Organization Settings' : activeModule?.label ?? '…'}
+            {isOrgSettings ? t('nav.orgSettings') : activeModule ? moduleLabel(activeModule.id) : '…'}
           </button>
           {/* Right: account toggle */}
           <div className="flex items-center gap-1">
@@ -406,7 +413,7 @@ export default function AppLayout(): React.ReactElement {
                   to={href}
                   data-testid={`rail-module-${mod.id}`}
                   data-active={active}
-                  aria-label={mod.label}
+                  aria-label={moduleLabel(mod.id)}
                   aria-current={active ? 'page' : undefined}
                   className={[
                     'relative inline-flex h-10 w-10 items-center justify-center rounded-lg motion-safe:transition-colors',
@@ -572,7 +579,7 @@ export default function AppLayout(): React.ReactElement {
         <BottomSheet
           open={mobileNavSheetOpen}
           onClose={() => setMobileNavSheetOpen(false)}
-          title={isOrgSettings ? 'Organization Settings' : activeModule?.label}
+          title={isOrgSettings ? t('nav.orgSettings') : activeModule ? moduleLabel(activeModule.id) : undefined}
           testId="mobile-nav-sheet"
         >
           {isOrgSettings ? (
@@ -1346,9 +1353,10 @@ function CreateOrgModal({ onClose }: { onClose: () => void }): React.ReactElemen
 // ThemeSegmented — segmented Light | Dark control
 // ============================================================================
 function ThemeSegmented({ collapsed, theme, onSetTheme }: { collapsed: boolean; theme: Theme; onSetTheme: (t: Theme) => void }): React.ReactElement {
+  const { t } = useTranslation();
   const options: ReadonlyArray<{ value: Theme; label: string; Icon: () => React.ReactElement }> = [
-    { value: 'light', label: 'Light', Icon: SunIcon },
-    { value: 'dark', label: 'Dark', Icon: MoonIcon },
+    { value: 'light', label: t('theme.light'), Icon: SunIcon },
+    { value: 'dark', label: t('theme.dark'), Icon: MoonIcon },
   ];
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); onSetTheme('dark'); }
@@ -1357,17 +1365,17 @@ function ThemeSegmented({ collapsed, theme, onSetTheme }: { collapsed: boolean; 
   if (collapsed) {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
     return (
-      <button type="button" data-testid="theme-toggle" aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} title="Toggle theme (⌘D)" onClick={() => onSetTheme(next)} className="inline-flex h-9 w-full items-center justify-center rounded-md text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors">
+      <button type="button" data-testid="theme-toggle" aria-label={theme === 'dark' ? t('theme.switchToLight') : t('theme.switchToDark')} title={t('theme.toggleTitle')} onClick={() => onSetTheme(next)} className="inline-flex h-9 w-full items-center justify-center rounded-md text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors">
         <span aria-hidden="true" className="inline-flex h-4 w-4">{theme === 'dark' ? <SunIcon /> : <MoonIcon />}</span>
       </button>
     );
   }
   return (
-    <div role="radiogroup" aria-label="Theme" data-testid="theme-toggle" onKeyDown={onKeyDown} className="flex gap-1 rounded-md border border-border-base bg-bg-elevated p-0.5">
+    <div role="radiogroup" aria-label={t('theme.label')} data-testid="theme-toggle" onKeyDown={onKeyDown} className="flex gap-1 rounded-md border border-border-base bg-bg-elevated p-0.5">
       {options.map((opt) => {
         const selected = theme === opt.value;
         return (
-          <button key={opt.value} type="button" role="radio" aria-checked={selected} aria-label={`${opt.label} theme`} data-testid={`theme-segment-${opt.value}`} tabIndex={selected ? 0 : -1} onClick={() => onSetTheme(opt.value)} className={['flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 text-xs font-medium motion-safe:transition-colors', selected ? 'bg-brand-hover text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'].join(' ')}>
+          <button key={opt.value} type="button" role="radio" aria-checked={selected} aria-label={opt.label} data-testid={`theme-segment-${opt.value}`} tabIndex={selected ? 0 : -1} onClick={() => onSetTheme(opt.value)} className={['flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 text-xs font-medium motion-safe:transition-colors', selected ? 'bg-brand-hover text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'].join(' ')}>
             <span aria-hidden="true" className="inline-flex h-3.5 w-3.5"><opt.Icon /></span>
             <span>{opt.label}</span>
           </button>

@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSystemVersion } from '@/api/system';
 import { formatLocalTime } from '@/utils/time';
 import { SegmentedNav } from '@/shell/SegmentedNav';
@@ -10,13 +11,14 @@ import { SYSTEM_SEGMENTS } from './systemSegments';
 // the server's build identity (version = ${branch}-${git-hash}) from
 // /api/system/version — unchanged, only relocated.
 export default function Version(): React.ReactElement {
+  const { t } = useTranslation('common');
   const version = useSystemVersion();
   return (
     <section className="space-y-4" data-testid="page-Version">
       {/* v2.10.1 [M7] Mobile (<md): System module 二级段控 (Environment |
           Settings | Version) — desktop keeps the rail's col② nav. */}
       <SegmentedNav items={SYSTEM_SEGMENTS} ariaLabel="System sections" />
-      <h1 className="text-xl font-semibold">Version</h1>
+      <h1 className="text-xl font-semibold">{t('version.title')}</h1>
 
       <div
         className="max-w-md rounded-lg border border-border-base bg-bg-elevated p-4"
@@ -24,21 +26,21 @@ export default function Version(): React.ReactElement {
       >
         {version.isLoading && (
           <p className="text-xs text-text-muted" data-testid="version-loading">
-            Loading version…
+            {t('version.loading')}
           </p>
         )}
         {version.isError && (
           <p className="text-xs text-danger" data-testid="version-error">
-            Failed to load version info.
+            {t('version.error')}
           </p>
         )}
         {version.data && (
           <dl className="space-y-2 text-sm">
-            <VersionRow label="Version" value={version.data.version} mono testId="version-version" />
-            <VersionRow label="Branch" value={version.data.branch} mono testId="version-branch" />
-            <VersionRow label="Commit" value={version.data.commit} mono testId="version-commit" />
+            <VersionRow label={t('version.fields.version')} value={version.data.version} mono testId="version-version" />
+            <VersionRow label={t('version.fields.branch')} value={version.data.branch} mono testId="version-branch" />
+            <VersionRow label={t('version.fields.commit')} value={version.data.commit} mono testId="version-commit" />
             <VersionRow
-              label="Built"
+              label={t('version.fields.built')}
               value={formatLocalTime(version.data.built_at)}
               title={version.data.built_at}
               testId="version-built-at"

@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 
 export interface BreadcrumbItem {
@@ -15,10 +16,11 @@ export interface BreadcrumbItem {
 // last segment is the current page — bold, non-clickable, aria-current.
 // Callers pass display NAMES, never raw ids (#192 chrome rule).
 export function Breadcrumb({ items }: { items: BreadcrumbItem[] }): React.ReactElement {
+  const { t } = useTranslation('common');
   return (
     <nav
       className="flex flex-wrap items-center gap-1.5 text-xs text-text-muted"
-      aria-label="Breadcrumb"
+      aria-label={t('breadcrumb.ariaLabel')}
       data-testid="breadcrumb"
     >
       {items.map((item, i) => {

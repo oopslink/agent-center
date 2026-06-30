@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
@@ -51,6 +52,7 @@ function writeSectionOpen(key: string, open: boolean): void {
 }
 
 export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React.ReactElement {
+  const { t } = useTranslation('common');
   const agents = useAgents();
   const members = useMembers();
 
@@ -83,16 +85,16 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
     <div className="space-y-1" data-testid="members-secondary-nav">
       <NavSection
         sectionKey="humans"
-        title="Humans"
+        title={t('shell.members.humans')}
         allTo={`${orgBase}/members/humans`}
-        allLabel="All humans"
+        allLabel={t('shell.members.allHumans')}
         rows={humanRows}
       />
       <NavSection
         sectionKey="agents"
-        title="Agents"
+        title={t('shell.members.agents')}
         allTo={`${orgBase}/agents`}
-        allLabel="All agents"
+        allLabel={t('shell.members.allAgents')}
         rows={agentRows}
       />
     </div>
@@ -112,6 +114,7 @@ function NavSection({
   allLabel: string;
   rows: NavRow[];
 }): React.ReactElement {
+  const { t } = useTranslation('common');
   const [open, setOpen] = useState(() => readSectionOpen(sectionKey));
   useEffect(() => {
     writeSectionOpen(sectionKey, open);
@@ -156,7 +159,7 @@ function NavSection({
             </li>
           ))}
           {rows.length === 0 && (
-            <li className="px-2 py-0.5 text-xs italic text-text-muted">(none)</li>
+            <li className="px-2 py-0.5 text-xs italic text-text-muted">{t('shell.none')}</li>
           )}
         </ul>
       )}

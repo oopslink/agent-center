@@ -1,0 +1,263 @@
+{
+  "nav": {
+    "workspace": "Workspace",
+    "conversations": "Conversations",
+    "members": "Members",
+    "reminders": "Reminders",
+    "system": "System",
+    "orgSettings": "Organization Settings",
+    "short": {
+      "workspace": "Work",
+      "conversations": "Chat",
+      "members": "Team",
+      "reminders": "Remind",
+      "system": "System"
+    }
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "switchToLight": "Switch to light theme",
+    "switchToDark": "Switch to dark theme",
+    "toggleTitle": "Toggle theme (⌘D)"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": {
+      "title": "Language",
+      "description": "Choose the language for the console interface. Your choice is saved on this device.",
+      "en": "English",
+      "zh": "中文"
+    }
+  },
+  "version": {
+    "title": "Version",
+    "loading": "Loading version…",
+    "error": "Failed to load version info.",
+    "fields": {
+      "version": "Version",
+      "branch": "Branch",
+      "commit": "Commit",
+      "built": "Built"
+    }
+  },
+  "notFound": {
+    "title": "404 — Not found",
+    "description": "The page you requested does not exist.",
+    "home": "Back to home"
+  },
+  "breadcrumb": {
+    "ariaLabel": "Breadcrumb"
+  },
+  "errorState": {
+    "details": "Details"
+  },
+  "skeleton": {
+    "loading": "Loading…"
+  },
+  "unreadBadge": {
+    "unread": "{{unread}} unread",
+    "unreadMention_one": "{{unread}} unread, {{count}} mention",
+    "unreadMention_other": "{{unread}} unread, {{count}} mentions"
+  },
+  "avatar": {
+    "agentLabel": "{{name}} (agent)",
+    "online": "online",
+    "offline": "offline",
+    "onlineTitle": "Online",
+    "offlineTitle": "Offline"
+  },
+  "confirmModal": {
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
+  "forceDeleteModal": {
+    "title": "Force delete {{entityKind}}?",
+    "bodyWorker": "This <strong>irreversibly</strong> removes the center's records for the {{entityKind}} <strong>{{entityName}}</strong> and unbinds its agents. It cleans metadata only — it does not stop or kill the running process.",
+    "bodyAgent": "This <strong>irreversibly</strong> removes the center's records for the {{entityKind}} <strong>{{entityName}}</strong>. It cleans metadata only — it does not stop or kill the running process.",
+    "typeToEnable": "Type the {{entityKind}}'s name <strong>{{entityName}}</strong> below to enable the button.",
+    "workerNameLabel": "Worker name",
+    "agentNameLabel": "Agent name",
+    "inputAriaLabel": "Type {{entityName}} to confirm",
+    "cancel": "Cancel",
+    "confirm": "Force delete",
+    "deleting": "Deleting…"
+  },
+  "commandPalette": {
+    "dialogAriaLabel": "Command palette",
+    "searchPlaceholder": "Search pages, channels, DMs…",
+    "searchAriaLabel": "Search",
+    "resultsAriaLabel": "Results",
+    "noMatches": "No matches for “{{query}}”",
+    "navigate": "navigate",
+    "open": "open",
+    "close": "close"
+  },
+  "accountPanel": {
+    "changePasswordHeading": "Change password",
+    "passwordChangedSuccess": "Password changed successfully",
+    "errorCurrentPasswordIncorrect": "Current password is incorrect",
+    "errorChangeFailed": "Change failed, please try again later",
+    "errorPasscodesDoNotMatch": "Passcodes do not match",
+    "currentPasswordLabel": "Current password",
+    "currentPasswordPlaceholder": "Current password",
+    "newPasswordLabel": "New password",
+    "newPasswordPlaceholder": "New password",
+    "confirmNewPasswordLabel": "Confirm new password",
+    "confirmNewPasswordPlaceholder": "Confirm new password",
+    "changingButton": "Changing…",
+    "changePasswordButton": "Change password",
+    "signOutHeading": "Sign out",
+    "signOutButton": "Sign out",
+    "signingOutButton": "Signing out…"
+  },
+  "signin": {
+    "title": "Sign in",
+    "subtitle": "Sign in with your Agent Center account",
+    "displayNameLabel": "Display name",
+    "displayNamePlaceholder": "Your name",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Your password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "noAccount": "Don't have an account?",
+    "signupLink": "Sign up",
+    "errors": {
+      "invalidCredentials": "Incorrect display name or password",
+      "generic": "Sign-in failed, please try again later"
+    }
+  },
+  "signup": {
+    "title": "Create account",
+    "subtitle": "Set up your Agent Center account and first organization",
+    "displayNameLabel": "Display name",
+    "displayNamePlaceholder": "Your name",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "passcodeLabel": "Passcode",
+    "passcodePlaceholder": "Your passcode",
+    "confirmPasscodeLabel": "Confirm passcode",
+    "confirmPasscodePlaceholder": "Confirm passcode",
+    "orgNameLabel": "Organization name",
+    "orgNamePlaceholder": "My Organization",
+    "submit": "Create account",
+    "submitting": "Signing up…",
+    "haveAccount": "Already have an account?",
+    "signinLink": "Sign in",
+    "errors": {
+      "displayNameRequired": "Please enter a display name",
+      "displayNameTooLong": "Display name must be at most 40 characters",
+      "emailRequired": "Please enter an email",
+      "emailInvalid": "Please enter a valid email",
+      "passcodeMismatch": "Passcodes do not match",
+      "orgNameRequired": "Please enter an organization name",
+      "orgNameTooLong": "Organization name must be at most 80 characters",
+      "displayNameTaken": "That display name is already taken",
+      "emailTaken": "That email is already in use",
+      "generic": "Sign-up failed, please try again later"
+    }
+  },
+  "invitationAccept": {
+    "title": "Organization Invitation",
+    "description": "Sign in with the invited user account before accepting. Invitations cannot create new users.",
+    "accept": "Accept Invitation",
+    "accepting": "Accepting...",
+    "success": "Invitation accepted. You can now open this organization from the org switcher.",
+    "errorFallback": "Invitation could not be accepted."
+  },
+  "shell": {
+    "none": "(none)",
+    "tabbar": {
+      "modulesNav": "modules mobile"
+    },
+    "conversationsMentionBadge": "{{n}} conversations mention you",
+    "conversationsUnreadBadge": "{{n}} unread conversations",
+    "bottomSheet": {
+      "close": "Close"
+    },
+    "conv": {
+      "deletedPeer": "(deleted)",
+      "directMessageFallback": "Direct message",
+      "deleteDmLabel": "Delete DM {{name}}",
+      "deleteDmTitle": "Delete DM",
+      "channels": "Channels",
+      "newChannel": "New channel",
+      "noChannels": "No channels",
+      "directMessages": "Direct messages",
+      "newDirectMessage": "New direct message",
+      "noDirectMessages": "No direct messages",
+      "myDms": "My DMs",
+      "a2a": "A2A",
+      "deleteDmConfirm": "Delete the DM \"{{name}}\"? This permanently removes the conversation and all its messages for everyone. This cannot be undone.",
+      "deleteConfirmLabel": "Delete"
+    },
+    "members": {
+      "humans": "Humans",
+      "allHumans": "All humans",
+      "agents": "Agents",
+      "allAgents": "All agents"
+    },
+    "orgSettings": {
+      "profile": "Profile",
+      "humans": "Humans",
+      "agents": "Agents",
+      "invitations": "Invitations",
+      "danger": "Danger Zone"
+    },
+    "reminders": {
+      "searchPlaceholder": "Search reminders…",
+      "scopeLabel": "Scope",
+      "statusLabel": "Status",
+      "scope": {
+        "all": "All",
+        "created": "Created by me",
+        "remindee": "Reminding me"
+      },
+      "status": {
+        "default": "Active & Paused",
+        "allStatuses": "All statuses",
+        "active": "Active",
+        "paused": "Paused",
+        "completed": "Completed",
+        "canceled": "Canceled"
+      }
+    },
+    "unread": {
+      "header": "Unread",
+      "markAllReadTitle": "Mark all unread conversations read",
+      "marking": "Marking…",
+      "markAllRead": "Mark all read",
+      "mentionsYou": "Mentions you",
+      "noMatching": "No matching conversations",
+      "filtersGroup": "Unread filters",
+      "filter": {
+        "all": "All",
+        "mentions": "@me",
+        "unread": "Unread"
+      },
+      "source": {
+        "plan": "Plan",
+        "issue": "Issue",
+        "task": "Task",
+        "channel": "Channel",
+        "dm": "DM"
+      },
+      "badge": {
+        "mention_one": "{{unread}} unread, {{count}} mention",
+        "mention_other": "{{unread}} unread, {{count}} mentions",
+        "unread_one": "{{count}} unread",
+        "unread_other": "{{count}} unread"
+      }
+    },
+    "workspace": {
+      "projects": "Projects",
+      "issues": "Issues",
+      "tasks": "Tasks",
+      "plans": "Plans",
+      "repos": "Repos",
+      "codeRepos": "Code repos",
+      "workBoard": "Work Board"
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useConversations } from '@/api/conversations';
 import { orgPath, useOptionalOrgContext } from '@/OrgContext';
@@ -25,6 +26,7 @@ export function CommandPalette({
   open: boolean;
   onClose: () => void;
 }): React.ReactElement | null {
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
   // v2.8.1 fix: items hold app-absolute paths (/channels, …) but real routes
   // live under /organizations/{slug}; rewrite via orgPath so clicks navigate
@@ -121,7 +123,7 @@ export function CommandPalette({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Command palette"
+      aria-label={t('commandPalette.dialogAriaLabel')}
       data-testid="command-palette"
       className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
       onClick={onClose}
@@ -143,15 +145,15 @@ export function CommandPalette({
             setSelected(0);
           }}
           onKeyDown={handleKey}
-          placeholder="Search pages, channels, DMs…"
-          aria-label="Search"
+          placeholder={t('commandPalette.searchPlaceholder')}
+          aria-label={t('commandPalette.searchAriaLabel')}
           data-testid="palette-input"
           className="w-full border-b border-border-base bg-transparent px-4 py-3 text-sm text-text-primary placeholder:text-text-muted"
         />
-        <ul role="listbox" aria-label="Results" className="max-h-80 overflow-y-auto py-1">
+        <ul role="listbox" aria-label={t('commandPalette.resultsAriaLabel')} className="max-h-80 overflow-y-auto py-1">
           {filtered.length === 0 ? (
             <li className="px-4 py-6 text-center text-xs text-text-muted">
-              No matches for “{query}”
+              {t('commandPalette.noMatches', { query })}
             </li>
           ) : (
             filtered.map((it, i) => (
@@ -176,9 +178,9 @@ export function CommandPalette({
           )}
         </ul>
         <div className="border-t border-border-base bg-bg-subtle px-3 py-1.5 text-[0.6875rem] text-text-muted">
-          <kbd className="rounded bg-bg-elevated px-1">↑↓</kbd> navigate ·{' '}
-          <kbd className="rounded bg-bg-elevated px-1">↵</kbd> open ·{' '}
-          <kbd className="rounded bg-bg-elevated px-1">Esc</kbd> close
+          <kbd className="rounded bg-bg-elevated px-1">↑↓</kbd> {t('commandPalette.navigate')} ·{' '}
+          <kbd className="rounded bg-bg-elevated px-1">↵</kbd> {t('commandPalette.open')} ·{' '}
+          <kbd className="rounded bg-bg-elevated px-1">Esc</kbd> {t('commandPalette.close')}
         </div>
       </div>
     </div>

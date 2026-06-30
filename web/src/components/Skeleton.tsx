@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 
 // Skeleton — replaces the "Loading…" plain-text fallback (skill rule
 // `progressive-loading`: anything that takes >300ms should reserve
@@ -37,6 +38,7 @@ export function Skeleton({
 // lazily loaded page. Mirrors the rough shape of a "list + sidebar"
 // page so route transitions don't flash blank.
 export function PageSkeleton(): React.ReactElement {
+  const { t } = useTranslation('common');
   return (
     <div
       role="status"
@@ -51,7 +53,7 @@ export function PageSkeleton(): React.ReactElement {
         <Skeleton height="2rem" />
         <Skeleton height="2rem" />
       </div>
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">{t('skeleton.loading')}</span>
     </div>
   );
 }

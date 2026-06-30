@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { useUnreadConversations, useMarkAllConversationsRead } from '@/api/conversations';
 import type { UnreadConversationRow, UnreadConversationSource } from '@/api/types';
@@ -34,12 +35,12 @@ function readUnreadCollapsed(): boolean {
 // Source-tag presentation per source family (mockup: 来源标签着色). Colors come
 // from the design-token status palette so <html class="dark"> flips them; the
 // numeric-palette raw-color lint never matches these `status-*` tokens.
-const SOURCE_TAG: Record<UnreadConversationSource, { label: string; cls: string }> = {
-  plan: { label: 'Plan', cls: 'bg-status-purple-bg text-status-purple-fg' },
-  issue: { label: 'Issue', cls: 'bg-status-amber-bg text-status-amber-fg' },
-  task: { label: 'Task', cls: 'bg-status-teal-bg text-status-teal-fg' },
-  channel: { label: 'Channel', cls: 'bg-status-blue-bg text-status-blue-fg' },
-  dm: { label: 'DM', cls: 'bg-status-slate-bg text-status-slate-fg' },
+const SOURCE_TAG: Record<UnreadConversationSource, { labelKey: string; cls: string }> = {
+  plan: { labelKey: 'shell.unread.source.plan', cls: 'bg-status-purple-bg text-status-purple-fg' },
+  issue: { labelKey: 'shell.unread.source.issue', cls: 'bg-status-amber-bg text-status-amber-fg' },
+  task: { labelKey: 'shell.unread.source.task', cls: 'bg-status-teal-bg text-status-teal-fg' },
+  channel: { labelKey: 'shell.unread.source.channel', cls: 'bg-status-blue-bg text-status-blue-fg' },
+  dm: { labelKey: 'shell.unread.source.dm', cls: 'bg-status-slate-bg text-status-slate-fg' },
 };
 
 const MAX_BADGE = 99;
@@ -48,13 +49,14 @@ function cap(n: number): string {
 }
 
 export function SourceTag({ source }: { source: UnreadConversationSource }): React.ReactElement {
-  const t = SOURCE_TAG[source] ?? SOURCE_TAG.channel;
+  const { t } = useTranslation('common');
+  const tag = SOURCE_TAG[source] ?? SOURCE_TAG.channel;
   return (
     <span
       data-testid="unread-conv-source-tag"
-      className={`inline-flex shrink-0 items-center rounded px-1 text-[0.625rem] font-semibold uppercase leading-tight tracking-wide ${t.cls}`}
+      className={`inline-flex shrink-0 items-center rounded px-1 text-[0.625rem] font-semibold uppercase leading-tight tracking-wide ${tag.cls}`}
     >
-      {t.label}
+      {t(tag.labelKey)}
     </span>
   );
 }
@@ -64,12 +66,13 @@ export function SourceTag({ source }: { source: UnreadConversationSource }): Rea
 //   - unread > 1 → neutral count pill.
 //   - unread == 1 → small neutral dot (low count degrades to a dot).
 export function RowBadge({ unread, mention }: { unread: number; mention: number }): React.ReactElement | null {
+  const { t } = useTranslation('common');
   if (mention > 0) {
     return (
       <span
         data-testid="unread-conv-mention-badge"
         data-mention-count={mention}
-        aria-label={`${unread} unread, ${mention} ${mention === 1 ? 'mention' : 'mentions'}`}
+        aria-label={t('shell.unread.badge.mention', { unread, count: mention })}
         className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand px-1.5 text-[0.625rem] font-semibold leading-none text-white tabular-nums"
       >
         @{cap(mention)}
@@ -81,7 +84,7 @@ export function RowBadge({ unread, mention }: { unread: number; mention: number 
       <span
         data-testid="unread-conv-count-badge"
         data-unread-count={unread}
-        aria-label={`${unread} unread`}
+        aria-label={t('shell.unread.badge.unread', { count: unread })}
         className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-status-slate-bg px-1.5 text-[0.625rem] font-semibold leading-none text-status-slate-fg tabular-nums"
       >
         {cap(unread)}
@@ -93,7 +96,7 @@ export function RowBadge({ unread, mention }: { unread: number; mention: number 
       <span
         data-testid="unread-conv-dot"
         data-unread-count={unread}
-        aria-label="1 unread"
+        aria-label={t('shell.unread.badge.unread', { count: 1 })}
         className="inline-flex items-center"
       >
         <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-status-slate-solid" />
@@ -140,6 +143,7 @@ function UnreadRow({
   row: UnreadConversationRow;
   orgBase: string;
 }): React.ReactElement {
+  const { t } = useTranslation('common');
   const isMention = row.mention_count > 0;
   const preview = row.last_message_sender
     ? `${row.last_message_sender}: ${row.last_message_preview}`
@@ -172,7 +176,7 @@ function UnreadRow({
                 data-testid="unread-conv-mention-label"
                 className="shrink-0 rounded bg-brand/10 px-1 text-[0.5625rem] font-semibold uppercase tracking-wide text-brand"
               >
-                Mentions you
+                {t('shell.unread.mentionsYou')}
               </span>
             )}
             <span className="min-w-0 truncate text-xs text-text-muted">{preview}</span>
@@ -190,6 +194,7 @@ function UnreadRow({
 }
 
 export function UnreadConversationsSection({ orgBase }: { orgBase: string }): React.ReactElement | null {
+  const { t } = useTranslation('common');
   const { data } = useUnreadConversations();
   const markAllRead = useMarkAllConversationsRead();
   const [filter, setFilter] = useState<Filter>('all');
@@ -234,7 +239,7 @@ export function UnreadConversationsSection({ orgBase }: { orgBase: string }): Re
           >
             <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span>Unread</span>
+          <span>{t('shell.unread.header')}</span>
           <span className="tabular-nums opacity-70">{rows.length}</span>
         </button>
         {/* T334: mark every conversation in the digest read in one click. */}
@@ -244,31 +249,31 @@ export function UnreadConversationsSection({ orgBase }: { orgBase: string }): Re
           disabled={markAllRead.isPending}
           data-testid="unread-mark-all-read"
           className="shrink-0 rounded px-1 text-[0.625rem] font-medium text-text-muted hover:text-text-primary disabled:opacity-50"
-          title="Mark all unread conversations read"
+          title={t('shell.unread.markAllReadTitle')}
         >
-          {markAllRead.isPending ? 'Marking…' : 'Mark all read'}
+          {markAllRead.isPending ? t('shell.unread.marking') : t('shell.unread.markAllRead')}
         </button>
       </div>
       {collapsed ? null : (
       <>
-      <div className="mb-1 flex flex-wrap gap-1 px-1" role="group" aria-label="Unread filters">
+      <div className="mb-1 flex flex-wrap gap-1 px-1" role="group" aria-label={t('shell.unread.filtersGroup')}>
         <FilterChip
           active={filter === 'all'}
-          label="All"
+          label={t('shell.unread.filter.all')}
           count={rows.length}
           testId="unread-filter-all"
           onClick={() => setFilter('all')}
         />
         <FilterChip
           active={filter === 'mentions'}
-          label="@me"
+          label={t('shell.unread.filter.mentions')}
           count={mentionRows.length}
           testId="unread-filter-mentions"
           onClick={() => setFilter('mentions')}
         />
         <FilterChip
           active={filter === 'unread'}
-          label="Unread"
+          label={t('shell.unread.filter.unread')}
           count={plainUnreadRows.length}
           testId="unread-filter-unread"
           onClick={() => setFilter('unread')}
@@ -276,7 +281,7 @@ export function UnreadConversationsSection({ orgBase }: { orgBase: string }): Re
       </div>
       <ul className="space-y-0.5">
         {shown.length === 0 ? (
-          <li className="px-2 py-0.5 text-xs italic text-text-muted">No matching conversations</li>
+          <li className="px-2 py-0.5 text-xs italic text-text-muted">{t('shell.unread.noMatching')}</li>
         ) : (
           shown.map((row) => <UnreadRow key={row.conversation_id} row={row} orgBase={orgBase} />)
         )}

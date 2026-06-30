@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { authApi } from '@/api/auth';
 import { ApiError } from '@/api/client';
 import { validatePasscodeStrength, PASSCODE_RULE_HINT } from '@/lib/passcode';
 
-function validateDisplayName(v: string): string {
-  if (!v.trim()) return 'Please enter a display name';
-  if (v.length > 40) return 'Display name must be at most 40 characters';
+function validateDisplayName(v: string, t: TFunction): string {
+  if (!v.trim()) return t('signup.errors.displayNameRequired');
+  if (v.length > 40) return t('signup.errors.displayNameTooLong');
   return '';
 }
 
-function validateEmail(v: string): string {
-  if (!v.trim()) return 'Please enter an email';
+function validateEmail(v: string, t: TFunction): string {
+  if (!v.trim()) return t('signup.errors.emailRequired');
   // Lightweight format check (backend stores without verifying).
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim())) return 'Please enter a valid email';
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim())) return t('signup.errors.emailInvalid');
   return '';
 }
 
@@ -21,14 +23,14 @@ function validatePasscode(v: string): string {
   return validatePasscodeStrength(v);
 }
 
-function validateConfirm(p: string, c: string): string {
-  if (p !== c) return 'Passcodes do not match';
+function validateConfirm(p: string, c: string, t: TFunction): string {
+  if (p !== c) return t('signup.errors.passcodeMismatch');
   return '';
 }
 
-function validateOrgName(v: string): string {
-  if (!v.trim()) return 'Please enter an organization name';
-  if (v.length > 80) return 'Organization name must be at most 80 characters';
+function validateOrgName(v: string, t: TFunction): string {
+  if (!v.trim()) return t('signup.errors.orgNameRequired');
+  if (v.length > 80) return t('signup.errors.orgNameTooLong');
   return '';
 }
 
@@ -74,6 +76,7 @@ function Field({ id, label, type = 'text', value, error, placeholder, maxLength,
 }
 
 export default function Signup(): React.ReactElement {
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -105,15 +108,15 @@ export default function Signup(): React.ReactElement {
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    const e1 = validateDisplayName(displayName);
+    const e1 = validateDisplayName(displayName, t);
     if (e1) errs.displayName = e1;
-    const eEmail = validateEmail(email);
+    const eEmail = validateEmail(email, t);
     if (eEmail) errs.email = eEmail;
     const e2 = validatePasscode(passcode);
     if (e2) errs.passcode = e2;
-    const e3 = validateConfirm(passcode, confirmPasscode);
+    const e3 = validateConfirm(passcode, confirmPasscode, t);
     if (e3) errs.confirmPasscode = e3;
-    const e4 = validateOrgName(orgName);
+    const e4 = validateOrgName(orgName, t);
     if (e4) errs.orgName = e4;
     return errs;
   };
@@ -141,14 +144,14 @@ export default function Signup(): React.ReactElement {
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.code === 'display_name_taken') {
-          setErrors((prev) => ({ ...prev, displayName: 'That display name is already taken' }));
+          setErrors((prev) => ({ ...prev, displayName: t('signup.errors.displayNameTaken') }));
         } else if (err.code === 'email_taken' || err.code === 'already_exists') {
-          setErrors((prev) => ({ ...prev, email: 'That email is already in use' }));
+          setErrors((prev) => ({ ...prev, email: t('signup.errors.emailTaken') }));
         } else {
           setServerError(err.message);
         }
       } else {
-        setServerError('Sign-up failed, please try again later');
+        setServerError(t('signup.errors.generic'));
       }
     } finally {
       setSubmitting(false);
@@ -159,8 +162,8 @@ export default function Signup(): React.ReactElement {
     <div className="min-h-screen flex items-center justify-center bg-bg-base px-4">
       <div className="w-full max-w-md">
         <div className="bg-bg-elevated border border-border rounded-xl p-8 shadow-[var(--shadow-3)]">
-          <h1 className="text-2xl font-bold text-text-primary mb-1">Create account</h1>
-          <p className="text-sm text-text-muted mb-6">Set up your Agent Center account and first organization</p>
+          <h1 className="text-2xl font-bold text-text-primary mb-1">{t('signup.title')}</h1>
+          <p className="text-sm text-text-muted mb-6">{t('signup.subtitle')}</p>
 
           {serverError && (
             <div role="alert" className="mb-4 rounded-md bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
@@ -171,31 +174,31 @@ export default function Signup(): React.ReactElement {
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <Field
               id="display_name"
-              label="Display name"
+              label={t('signup.displayNameLabel')}
               value={displayName}
               error={errors.displayName ?? ''}
-              placeholder="Your name"
+              placeholder={t('signup.displayNamePlaceholder')}
               maxLength={40}
               onChange={setDisplayName}
             />
             <Field
               id="email"
-              label="Email"
+              label={t('signup.emailLabel')}
               type="email"
               value={email}
               error={errors.email ?? ''}
-              placeholder="you@example.com"
+              placeholder={t('signup.emailPlaceholder')}
               maxLength={200}
               onChange={setEmail}
             />
             <div className="space-y-1">
               <Field
                 id="passcode"
-                label="Passcode"
+                label={t('signup.passcodeLabel')}
                 type="password"
                 value={passcode}
                 error={errors.passcode ?? ''}
-                placeholder="Your passcode"
+                placeholder={t('signup.passcodePlaceholder')}
                 maxLength={128}
                 onChange={handlePasscodeChange}
                 onBlur={handlePasscodeBlur}
@@ -204,11 +207,11 @@ export default function Signup(): React.ReactElement {
             </div>
             <Field
               id="confirm_passcode"
-              label="Confirm passcode"
+              label={t('signup.confirmPasscodeLabel')}
               type="password"
               value={confirmPasscode}
               error={errors.confirmPasscode ?? ''}
-              placeholder="Confirm passcode"
+              placeholder={t('signup.confirmPasscodePlaceholder')}
               maxLength={128}
               onChange={setConfirmPasscode}
             />
@@ -217,10 +220,10 @@ export default function Signup(): React.ReactElement {
 
             <Field
               id="org_name"
-              label="Organization name"
+              label={t('signup.orgNameLabel')}
               value={orgName}
               error={errors.orgName ?? ''}
-              placeholder="My Organization"
+              placeholder={t('signup.orgNamePlaceholder')}
               maxLength={80}
               onChange={setOrgName}
             />
@@ -230,14 +233,14 @@ export default function Signup(): React.ReactElement {
               disabled={submitting || !isValid()}
               className="w-full rounded-md bg-brand px-4 py-2.5 md:py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? 'Signing up…' : 'Create account'}
+              {submitting ? t('signup.submitting') : t('signup.submit')}
             </button>
           </form>
 
           <p className="mt-4 text-center text-sm text-text-muted">
-            Already have an account?{' '}
+            {t('signup.haveAccount')}{' '}
             <Link to="/signin" className="text-accent hover:underline">
-              Sign in
+              {t('signup.signinLink')}
             </Link>
           </p>
         </div>

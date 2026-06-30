@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useModalA11y } from './useModalA11y';
 
 interface ForceDeleteModalProps {
@@ -33,6 +34,7 @@ export function ForceDeleteModal({
   onConfirm,
   onCancel,
 }: ForceDeleteModalProps): React.ReactElement | null {
+  const { t } = useTranslation('common');
   const containerRef = useModalA11y({ open, onClose: onCancel });
   const [typed, setTyped] = useState('');
   if (!open) return null;
@@ -50,18 +52,26 @@ export function ForceDeleteModal({
     >
       <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="force-delete-modal-title" className="text-lg font-semibold">
-          Force delete {entityKind}?
+          {t('forceDeleteModal.title', { entityKind })}
         </h2>
         <div className="mt-2 space-y-2 text-sm text-text-secondary" data-testid="force-delete-message">
           <p>
-            This <strong>irreversibly</strong> removes the center&apos;s records for the{' '}
-            {entityKind} <strong>{entityName}</strong>
-            {entityKind === 'worker' ? ' and unbinds its agents' : ''}. It cleans
-            metadata only — it does not stop or kill the running process.
+            <Trans
+              i18nKey={
+                entityKind === 'worker'
+                  ? 'forceDeleteModal.bodyWorker'
+                  : 'forceDeleteModal.bodyAgent'
+              }
+              values={{ entityKind, entityName }}
+              components={{ strong: <strong /> }}
+            />
           </p>
           <p>
-            Type the {entityKind}&apos;s name <strong>{entityName}</strong> below to
-            enable the button.
+            <Trans
+              i18nKey="forceDeleteModal.typeToEnable"
+              values={{ entityKind, entityName }}
+              components={{ strong: <strong /> }}
+            />
           </p>
         </div>
 
@@ -69,7 +79,9 @@ export function ForceDeleteModal({
           htmlFor="force-delete-input"
           className="mt-4 mb-1 block text-xs font-medium text-text-primary"
         >
-          {entityKind === 'worker' ? 'Worker' : 'Agent'} name
+          {entityKind === 'worker'
+            ? t('forceDeleteModal.workerNameLabel')
+            : t('forceDeleteModal.agentNameLabel')}
         </label>
         <input
           id="force-delete-input"
@@ -78,7 +90,7 @@ export function ForceDeleteModal({
           onChange={(e) => setTyped(e.target.value)}
           disabled={busy}
           autoComplete="off"
-          aria-label={`Type ${entityName} to confirm`}
+          aria-label={t('forceDeleteModal.inputAriaLabel', { entityName })}
           className="block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent disabled:opacity-50"
           data-testid="force-delete-input"
         />
@@ -97,7 +109,7 @@ export function ForceDeleteModal({
             className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50"
             data-testid="force-delete-cancel"
           >
-            Cancel
+            {t('forceDeleteModal.cancel')}
           </button>
           <button
             type="button"
@@ -106,7 +118,7 @@ export function ForceDeleteModal({
             className="rounded bg-danger px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="force-delete-confirm"
           >
-            {busy ? 'Deleting…' : 'Force delete'}
+            {busy ? t('forceDeleteModal.deleting') : t('forceDeleteModal.confirm')}
           </button>
         </div>
       </div>

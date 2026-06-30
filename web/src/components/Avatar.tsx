@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 
 // Avatar (7th DM redesign / 8th Channel redesign — shared component, built once).
 // A name-hashed gradient disc with initials. Discriminators are MULTI-LAYER so
@@ -50,6 +51,7 @@ function initialsOf(name: string): string {
 }
 
 export function Avatar({ name, kind = 'human', size = 'md', online }: AvatarProps): React.ReactElement {
+  const { t } = useTranslation('common');
   const gradient = paletteFor(name);
   const shape = kind === 'agent' ? 'rounded-lg' : 'rounded-full';
   return (
@@ -57,7 +59,7 @@ export function Avatar({ name, kind = 'human', size = 'md', online }: AvatarProp
       <span
         data-testid="avatar"
         role="img"
-        aria-label={kind === 'agent' ? `${name} (agent)` : name}
+        aria-label={kind === 'agent' ? t('avatar.agentLabel', { name }) : name}
         className={`inline-flex select-none items-center justify-center bg-gradient-to-br font-semibold text-white ${gradient} ${shape} ${SIZE[size]}`}
       >
         {initialsOf(name)}
@@ -65,8 +67,8 @@ export function Avatar({ name, kind = 'human', size = 'md', online }: AvatarProp
       {online !== undefined && (
         <span
           data-testid="avatar-status"
-          aria-label={online ? 'online' : 'offline'}
-          title={online ? 'Online' : 'Offline'}
+          aria-label={online ? t('avatar.online') : t('avatar.offline')}
+          title={online ? t('avatar.onlineTitle') : t('avatar.offlineTitle')}
           className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-bg-elevated ${
             online ? 'bg-status-green-solid-soft' : 'bg-status-slate-solid-soft'
           }`}
