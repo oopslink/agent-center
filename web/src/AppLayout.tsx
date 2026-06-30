@@ -1127,14 +1127,14 @@ function RailAlertsPanel({
       className="absolute bottom-12 left-14 z-50 max-h-[70vh] w-80 overflow-y-auto rounded-lg border border-border-base bg-bg-elevated p-3 shadow-2"
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-medium text-text-primary">需要你处理</span>
+        <span className="text-sm font-medium text-text-primary">Needs your attention</span>
         <span className="rounded-full bg-bg-subtle px-1.5 text-[0.6875rem] font-semibold tabular-nums text-text-secondary">
           {tasks.length}
         </span>
       </div>
       {tasks.length === 0 ? (
         <div data-testid="rail-alerts-empty" className="px-1 py-6 text-center text-sm text-text-muted">
-          暂无等待你处理的任务
+          No tasks waiting on you
         </div>
       ) : (
         <ul className="flex flex-col gap-1">
@@ -1158,7 +1158,7 @@ function RailAlertsPanel({
                           : 'bg-warning/15 text-warning',
                       ].join(' ')}
                     >
-                      {inputRequired ? '等你回复' : '需介入'}
+                      {inputRequired ? 'Awaiting your reply' : 'Needs intervention'}
                     </span>
                     {t.org_ref && (
                       <span className="shrink-0 font-mono text-[0.6875rem] text-text-muted">{t.org_ref}</span>

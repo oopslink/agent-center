@@ -105,8 +105,8 @@ describe('rail Alerts item — global stuck-task surfacing', () => {
     // Each alert deep-links to its task detail under the current org base.
     expect(items[0]).toHaveAttribute('href', '/organizations/acme/projects/p2/tasks/task-inp');
     expect(within(items[0]).getByText('Confirm the schema')).toBeInTheDocument();
-    expect(within(items[0]).getByText('等你回复')).toBeInTheDocument();
-    expect(within(items[1]).getByText('需介入')).toBeInTheDocument();
+    expect(within(items[0]).getByText('Awaiting your reply')).toBeInTheDocument();
+    expect(within(items[1]).getByText('Needs intervention')).toBeInTheDocument();
   });
 
   it('renders no badge when there are no stuck tasks', async () => {
