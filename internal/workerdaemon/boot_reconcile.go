@@ -53,6 +53,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
 
@@ -498,12 +499,27 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	// the relaunch spawns a fresh never-locked id and never collides with the held lock
 	// — the v2.7 GATE-7 Mode-B fix (unchanged for idle AND with-work).
 	//
-	// resume=nudge (==hadWork, FINDING-3 #117 part B): only when there is in-flight
-	// active work to recover does the fresh id `--resume <prev> --fork-session` the
-	// prior conversation. An IDLE relaunch (nudge==false) starts FRESH on the new id
-	// (no --resume), avoiding the no-completed-turn `--resume` →
-	// error_during_execution crash-loop.
-	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, nudge /*resume*/, model, displayName, "" /*cli: boot relaunch is claude-supervisor only; codex is guarded earlier*/); err != nil {
+	// 重启不丢上下文: whether the fresh id `--resume <prev> --fork-session` the prior
+	// conversation is gated on whether the PRIOR generation actually COMPLETED a clean
+	// turn (sessioninstance.CompletedTurn), NOT on hadWork. Resuming a session that
+	// never completed a turn triggers a Claude no-completed-turn → error_during_execution
+	// crash-loop, so we resume ONLY when the prior generation reached that bar. This
+	// also (a) preserves context across restart whenever the agent had conversed, even
+	// idle (no in-flight WorkItem), and (b) plugs the corner where an agent crashed
+	// mid-turn-before-first-result-but-with-work would previously --resume and hit the
+	// crash loop. Read prev BEFORE startSession — its AcquireInstance (post-starter)
+	// bumps the generation and writes a fresh instance with CompletedTurn=false.
+	prev, prevErr := sessioninstance.ReadInstance(home)
+	if prevErr != nil {
+		// A corrupt/unreadable instance file is not fatal: fall back to a FRESH
+		// (non-resumed) relaunch — the conservative choice that never risks the
+		// no-completed-turn crash loop. The resume-nudge (below) still re-drives work.
+		c.log("boot-reconcile agent=%s read session.instance: %v — relaunch fresh (no resume)", agentID, prevErr)
+		prev = sessioninstance.InstanceState{}
+	}
+	// nudge (==hadWork) still independently drives the ResumeNudge injection below —
+	// resume only governs whether the prior conversation is carried forward.
+	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, prev.CompletedTurn /*resume*/, model, displayName, "" /*cli: boot relaunch is claude-supervisor only; codex is guarded earlier*/); err != nil {
 		c.log("boot-reconcile agent=%s relaunch: %v — skip", agentID, err)
 		return err
 	}
@@ -536,6 +552,19 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 		}
 		c.mu.Unlock()
 	}
+	// 重启不漏回 (改动 B, reuses T341 reply-guardrail): a crash BEFORE the agent sent a
+	// directed reply leaves no clean turn-end, so the turn-end reply-nudge hook never
+	// fired and the obligation would sit forever (a fresh idle boot produces no turn to
+	// re-trigger it). Re-trigger the guardrail once here, now that the relaunched
+	// session is live: the center derives the still-owed directed replies independently
+	// of the read cursor (discharge = an agent message id>trigger exists), so no cursor
+	// rollback / new endpoint is needed — the owed messages are simply re-injected and
+	// the agent replies. CompletedTurn=true → it resumed and replies WITH context;
+	// otherwise it replies fresh (no history, but not dropped). Runs for EVERY relaunch,
+	// not just hadWork ones (the missed reply may belong to an otherwise-idle agent),
+	// so it sits ABOVE the nudge gate. Off-goroutine + best-effort; maybeReplyNudge's
+	// inConverse skip is a no-op on a fresh boot (currentConversationID is empty).
+	go c.maybeReplyNudge(agentID)
 	if !nudge {
 		return nil
 	}

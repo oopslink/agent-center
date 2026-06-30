@@ -282,3 +282,76 @@ func TestWriteInstanceAtomic_RenameFailure_ReturnsError(t *testing.T) {
 		t.Fatal("expected error when dir is read-only, got nil")
 	}
 }
+
+// 重启不丢上下文 改动 A: MarkCompletedTurn read-modify-writes CompletedTurn=true on the
+// CURRENT instance, preserving the rest of the lease, and is observable by ReadInstance.
+func TestMarkCompletedTurn_SetsAndPersists(t *testing.T) {
+	home := t.TempDir()
+	if _, err := AcquireInstance(home, "sess-1", 100); err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	if err := MarkCompletedTurn(home); err != nil {
+		t.Fatalf("MarkCompletedTurn: %v", err)
+	}
+	st, err := ReadInstance(home)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !st.CompletedTurn {
+		t.Fatalf("CompletedTurn = false, want true")
+	}
+	// The rest of the lease is preserved (read-modify-write, not overwrite).
+	if st.SessionID != "sess-1" || st.Generation != 1 || st.PID != 100 {
+		t.Fatalf("MarkCompletedTurn clobbered the lease: %+v", st)
+	}
+}
+
+// MarkCompletedTurn is idempotent: a second call leaves CompletedTurn true.
+func TestMarkCompletedTurn_Idempotent(t *testing.T) {
+	home := t.TempDir()
+	if _, err := AcquireInstance(home, "sess-1", 100); err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	if err := MarkCompletedTurn(home); err != nil {
+		t.Fatalf("first MarkCompletedTurn: %v", err)
+	}
+	if err := MarkCompletedTurn(home); err != nil {
+		t.Fatalf("second MarkCompletedTurn: %v", err)
+	}
+	st, _ := ReadInstance(home)
+	if !st.CompletedTurn {
+		t.Fatalf("CompletedTurn = false after idempotent re-mark, want true")
+	}
+}
+
+func TestMarkCompletedTurn_EmptyHome_ReturnsError(t *testing.T) {
+	if err := MarkCompletedTurn(""); err == nil {
+		t.Fatal("expected error for empty home, got nil")
+	}
+}
+
+// CRITICAL invariant: a fresh generation must NOT inherit the prior generation's
+// CompletedTurn — AcquireInstance leaves it false so a never-completed new gen is
+// not falsely treated as safely resumable (which would re-open the no-completed-turn
+// crash loop boot_reconcile relies on CompletedTurn to avoid).
+func TestAcquireInstance_DoesNotCarryCompletedTurn(t *testing.T) {
+	home := t.TempDir()
+	if _, err := AcquireInstance(home, "sess-1", 100); err != nil {
+		t.Fatalf("acquire gen1: %v", err)
+	}
+	if err := MarkCompletedTurn(home); err != nil {
+		t.Fatalf("mark gen1: %v", err)
+	}
+	// Next acquisition (a relaunch / new generation) must reset CompletedTurn.
+	st2, err := AcquireInstance(home, "sess-2", 200)
+	if err != nil {
+		t.Fatalf("acquire gen2: %v", err)
+	}
+	if st2.CompletedTurn {
+		t.Fatalf("gen2 carried CompletedTurn forward; want false on a fresh generation")
+	}
+	persisted, _ := ReadInstance(home)
+	if persisted.CompletedTurn {
+		t.Fatalf("persisted gen2 has CompletedTurn=true; want false")
+	}
+}

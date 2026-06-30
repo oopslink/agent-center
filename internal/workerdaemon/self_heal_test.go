@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
+	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 )
 
 // fakeClock is a deterministic clock seam for asserting the self-heal backoff curve /
@@ -69,6 +70,16 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	// AcquireHomeLock + startSession operate under the agent home; create it.
 	home := filepath.Join(base, "agents", "ag-1")
 	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// 重启不丢上下文: the relaunch (bootReapRelaunch) now gates --resume on whether the
+	// PRIOR generation completed a clean turn (sessioninstance.CompletedTurn), not on
+	// hadWork. Seed a prior instance that completed a turn so this self-heal relaunch
+	// resumes the killed session-id (the GATE-7 Mode-B fork-resume asserted below).
+	if _, err := sessioninstance.AcquireInstance(home, claudestream.SessionUUIDGen("ag-1", 0, 0), 4242); err != nil {
+		t.Fatal(err)
+	}
+	if err := sessioninstance.MarkCompletedTurn(home); err != nil {
 		t.Fatal(err)
 	}
 	clock := &fakeClock{t: time.Unix(1_000_000, 0)}

@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
+	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 )
 
 // fakeResumer is a TEST-ONLY resumeStateQuerier returning a canned ResumeState.
@@ -348,4 +350,62 @@ func TestToCenterRecord_CapturesActiveTaskID(t *testing.T) {
 	if wOnly.HasActive || wOnly.ActiveTaskID != "" {
 		t.Fatalf("waiting_input-only must yield no active id, got HasActive=%v id=%q", wOnly.HasActive, wOnly.ActiveTaskID)
 	}
+}
+
+// 重启不丢上下文 改动 A: bootReapRelaunch gates --resume on the PRIOR generation's
+// sessioninstance.CompletedTurn, NOT on hadWork. nudge (hadWork) still independently
+// drives the ResumeNudge injection. These two cases pin the decoupling.
+func TestBootReapRelaunch_ResumeGatedOnCompletedTurn(t *testing.T) {
+	resumeID := func(agentID string) string {
+		return claudestream.SessionUUIDGen(agentID, 0, 0)
+	}
+
+	t.Run("prior completed a turn → resumes (even idle)", func(t *testing.T) {
+		base := t.TempDir()
+		c, _, rs := newTestController(t, base)
+		home, _, _, err := c.agentPaths("ag-r")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := sessioninstance.AcquireInstance(home, resumeID("ag-r"), 4242); err != nil {
+			t.Fatal(err)
+		}
+		if err := sessioninstance.MarkCompletedTurn(home); err != nil {
+			t.Fatal(err)
+		}
+		// nudge=false (idle, no in-flight work): resume is governed by CompletedTurn,
+		// not hadWork, so it must STILL resume to preserve context across restart.
+		if rerr := c.bootReapRelaunch(context.Background(), "ag-r", home, 1, false /*nudge*/, "", "", ""); rerr != nil {
+			t.Fatalf("bootReapRelaunch: %v", rerr)
+		}
+		if got, want := rs.last().cfg.ResumeFromSessionID, resumeID("ag-r"); got != want {
+			t.Fatalf("ResumeFromSessionID = %q, want %q (prior completed a turn)", got, want)
+		}
+	})
+
+	t.Run("prior never completed a turn → fresh, no resume (even with work)", func(t *testing.T) {
+		base := t.TempDir()
+		c, _, rs := newTestController(t, base)
+		home, _, _, err := c.agentPaths("ag-f")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A prior generation that never completed a turn (CompletedTurn=false).
+		if _, err := sessioninstance.AcquireInstance(home, resumeID("ag-f"), 4242); err != nil {
+			t.Fatal(err)
+		}
+		// nudge=true (hadWork): the resume nudge still fires, but the session must
+		// NOT --resume — resuming a no-completed-turn session triggers the Claude
+		// crash loop, so the fresh-relaunch wins regardless of hadWork.
+		if rerr := c.bootReapRelaunch(context.Background(), "ag-f", home, 1, true /*nudge*/, "wi-1", "", ""); rerr != nil {
+			t.Fatalf("bootReapRelaunch: %v", rerr)
+		}
+		if got := rs.last().cfg.ResumeFromSessionID; got != "" {
+			t.Fatalf("ResumeFromSessionID = %q, want empty (no completed turn)", got)
+		}
+		// hadWork still drove the resume nudge (decoupled from resume).
+		if msgs := rs.last().injectedMsgs(); len(msgs) != 1 || msgs[0] != DefaultResumeNudge {
+			t.Fatalf("hadWork must still inject the resume nudge, got %v", msgs)
+		}
+	})
 }

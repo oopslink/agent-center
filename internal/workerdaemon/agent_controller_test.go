@@ -351,6 +351,12 @@ func newTestController(t *testing.T, base string) (*AgentController, *recordingR
 	}
 	// Inject the fake starter via the unexported seam (same-package test only).
 	c.cfg.starter = rs.start
+	// T672: a clean turn-end spawns best-effort background goroutines (notably
+	// MarkCompletedTurn writing session.instance into the agent home). Registered
+	// AFTER the caller's t.TempDir() — so by Cleanup LIFO this drain runs BEFORE the
+	// TempDir RemoveAll — it guarantees no goroutine is still writing into the home
+	// when the dir is torn down, even for tests that don't call Shutdown.
+	t.Cleanup(c.bg.Wait)
 	return c, rep, rs
 }
 
@@ -733,6 +739,10 @@ func newTestControllerWithResumer(t *testing.T, base string, resumer resumeState
 	}
 	rs := &recordingStarter{}
 	c.cfg.starter = rs.start
+	// T672: drain best-effort clean-turn goroutines before the caller's t.TempDir()
+	// RemoveAll (Cleanup LIFO — registered after TempDir runs first). See
+	// newTestController for the rationale.
+	t.Cleanup(c.bg.Wait)
 	return c, rs
 }
 
