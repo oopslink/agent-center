@@ -222,7 +222,7 @@ export function TokensCostTrend({
 
       {!hasData ? (
         <p className="py-8 text-center text-xs text-text-muted" data-testid="analytics-trend-empty">
-          {t('analytics.trend.empty', { metric })}
+          {t('analytics.trend.empty', { metric: t(`analytics.trend.metric.${metric}`) })}
         </p>
       ) : (
         <>
@@ -237,7 +237,7 @@ export function TokensCostTrend({
                 preserveAspectRatio="none"
                 className="h-60 w-full lg:h-72"
                 role="img"
-                aria-label={t('analytics.trend.ariaLabel', { metric, dim })}
+                aria-label={t('analytics.trend.ariaLabel', { metric: t(`analytics.trend.metric.${metric}`), dim: t(`analytics.trend.dim.${dim}`) })}
                 data-testid="analytics-trend-svg"
               >
                 {[0.25, 0.5, 0.75].map((p) => (

@@ -184,6 +184,10 @@
       "label": "告警",
       "attention": "{{count}} 个任务需要你处理"
     },
+    "sidebar": {
+      "collapse": "收起侧栏",
+      "expand": "展开侧栏"
+    },
     "tabbar": {
       "modulesNav": "移动端模块导航"
     },

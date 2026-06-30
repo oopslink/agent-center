@@ -51,13 +51,17 @@ function KindBadge({ r }: { r: Reminder }): React.ReactElement {
 }
 
 function StatusBadge({ status }: { status: ReminderStatus }): React.ReactElement {
+  // T719 defensive: was rendering the raw `status` enum (untranslated). The
+  // status words already exist as reminders.statusChip.* (active/paused/
+  // completed/canceled) — reuse them; the enum stays the tone/testid key.
+  const { t } = useTranslation('insights');
   const tone =
     status === 'active'
       ? 'bg-success/15 text-success'
       : status === 'paused'
         ? 'bg-warning/15 text-warning'
         : 'bg-bg-subtle text-text-muted';
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`} data-testid="reminder-status">{status}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`} data-testid="reminder-status">{t(`reminders.statusChip.${status}`)}</span>;
 }
 
 export default function Reminders(): React.ReactElement {

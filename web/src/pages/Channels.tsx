@@ -106,8 +106,12 @@ export default function Channels(): React.ReactElement {
                   <span className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="min-w-0 truncate font-medium">{c.name}</span>
                     <UnreadBadge unreadCount={c.unread_count} mentionCount={c.mention_count} />
-                    <span className="shrink-0 rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
-                      {c.status}
+                    {/* T719 R1: was an inline raw `{c.status}` span (rendered
+                        untranslated "ACTIVE"). Reuse ChannelStatusBadge so the
+                        status word is localized (common status.*), matching the
+                        archived list and ProjectStatusBadge — no second fork. */}
+                    <span className="shrink-0">
+                      <ChannelStatusBadge status={c.status} />
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-3">

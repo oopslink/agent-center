@@ -701,6 +701,7 @@ function SecondaryNavColumn({
   orgBase: string;
   onOpenPalette: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('common');
   const location = useLocation();
   // Detect org-settings route to show its dedicated secondary nav.
   const isOrgSettings = location.pathname.includes('/organization-settings');
@@ -738,11 +739,11 @@ function SecondaryNavColumn({
       {/* Collapse toggle — sticks out to the right of the nav edge */}
       <button
         type="button"
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-label={collapsed ? t('shell.sidebar.expand') : t('shell.sidebar.collapse')}
         aria-pressed={collapsed}
         data-testid="sidebar-collapse-toggle"
         onClick={onToggleCollapsed}
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={collapsed ? t('shell.sidebar.expand') : t('shell.sidebar.collapse')}
         className={[
           'absolute -right-3 top-4 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-secondary shadow-sm hover:bg-bg-subtle hover:text-text-primary focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-all',
           collapsed ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100',

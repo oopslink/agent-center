@@ -100,7 +100,8 @@ function ReminderDetailBody({ data }: { data: ReminderDetail }): React.ReactElem
       <Row label={t('reminders.detail.content')}>
         <MarkdownMessage content={data.content} />
       </Row>
-      <Row label={t('reminders.detail.status')}>{data.status}</Row>
+      {/* T719 defensive: was raw `data.status` enum (untranslated). */}
+      <Row label={t('reminders.detail.status')}>{t(`reminders.statusChip.${data.status}`)}</Row>
       <Row label={t('reminders.detail.fired')}>{t('reminders.detail.firedCount', { count: data.fired_count })}</Row>
 
       <div className="pt-1">
