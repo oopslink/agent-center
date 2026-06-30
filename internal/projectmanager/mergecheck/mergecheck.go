@@ -21,6 +21,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
 // GitRunner is the port the merge checker uses to invoke git. Extracted so tests
@@ -51,8 +53,21 @@ func NewExecGitRunner() GitRunner { return execGitRunner{} }
 // GitMergeChecker implements the pm service's MergeChecker over a per-repoURL bare
 // mirror cache. It is safe to share (stateless beyond the cacheDir + runner).
 type GitMergeChecker struct {
-	cacheDir string
-	runner   GitRunner
+	cacheDir       string
+	runner         GitRunner
+	commandTimeout time.Duration
+	freshness      time.Duration
+	failureTTL     time.Duration
+
+	mu      sync.Mutex
+	mirrors map[string]*mirrorState
+}
+
+type mirrorState struct {
+	mu           sync.Mutex
+	lastFetched  time.Time
+	lastFailed   time.Time
+	lastFetchErr error
 }
 
 // New constructs a GitMergeChecker that keeps its bare mirrors under cacheDir. A
@@ -61,7 +76,14 @@ func New(cacheDir string, runner GitRunner) *GitMergeChecker {
 	if runner == nil {
 		runner = NewExecGitRunner()
 	}
-	return &GitMergeChecker{cacheDir: cacheDir, runner: runner}
+	return &GitMergeChecker{
+		cacheDir:       cacheDir,
+		runner:         runner,
+		commandTimeout: 30 * time.Second,
+		freshness:      30 * time.Second,
+		failureTTL:     10 * time.Second,
+		mirrors:        map[string]*mirrorState{},
+	}
 }
 
 // BranchMergedToOrigin reports whether <branch>'s HEAD is an ancestor of
@@ -110,6 +132,18 @@ func (c *GitMergeChecker) BranchMergedToOrigin(ctx context.Context, repoURL, bra
 // Returns the mirror dir.
 func (c *GitMergeChecker) syncMirror(ctx context.Context, repoURL string) (string, error) {
 	dir := filepath.Join(c.cacheDir, mirrorSubdir(repoURL))
+	st := c.stateFor(repoURL)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	now := time.Now()
+	if !st.lastFetched.IsZero() && now.Sub(st.lastFetched) < c.freshness {
+		return dir, nil
+	}
+	if !st.lastFailed.IsZero() && now.Sub(st.lastFailed) < c.failureTTL {
+		return "", st.lastFetchErr
+	}
+
 	if _, err := os.Stat(dir); err != nil {
 		if !os.IsNotExist(err) {
 			return "", fmt.Errorf("mergecheck: stat mirror %s: %w", dir, err)
@@ -119,20 +153,45 @@ func (c *GitMergeChecker) syncMirror(ctx context.Context, repoURL string) (strin
 		}
 		// `git clone --mirror <repoURL> <dir>` runs from the cache root (no repo dir yet).
 		if out, cerr := c.run(ctx, c.cacheDir, "clone", "--mirror", repoURL, dir); cerr != nil {
-			return "", fmt.Errorf("mergecheck: clone --mirror %s: %v: %s", repoURL, cerr, out)
+			err := fmt.Errorf("mergecheck: clone --mirror %s: %v: %s", repoURL, cerr, out)
+			st.lastFailed, st.lastFetchErr = now, err
+			return "", err
 		}
+		st.lastFetched = time.Now()
+		st.lastFailed, st.lastFetchErr = time.Time{}, nil
 		return dir, nil
 	}
 	// Existing mirror: always refresh from origin (only-trust-origin).
 	if out, ferr := c.run(ctx, dir, "fetch", "--prune", "origin"); ferr != nil {
-		return "", fmt.Errorf("mergecheck: fetch --prune origin in %s: %v: %s", dir, ferr, out)
+		err := fmt.Errorf("mergecheck: fetch --prune origin in %s: %v: %s", dir, ferr, out)
+		st.lastFailed, st.lastFetchErr = now, err
+		return "", err
 	}
+	st.lastFetched = time.Now()
+	st.lastFailed, st.lastFetchErr = time.Time{}, nil
 	return dir, nil
+}
+
+func (c *GitMergeChecker) stateFor(repoURL string) *mirrorState {
+	key := mirrorSubdir(repoURL)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if st := c.mirrors[key]; st != nil {
+		return st
+	}
+	st := &mirrorState{}
+	c.mirrors[key] = st
+	return st
 }
 
 // run invokes git under workdir with a NEUTRALIZED environment so host gitconfig /
 // prompts / signing can never change the answer (mirrors cognition/memory's run).
 func (c *GitMergeChecker) run(ctx context.Context, workdir string, args ...string) (string, error) {
+	if c.commandTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.commandTimeout)
+		defer cancel()
+	}
 	env := []string{
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_OPTIONAL_LOCKS=0",

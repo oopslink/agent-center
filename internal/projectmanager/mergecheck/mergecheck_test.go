@@ -2,50 +2,85 @@ package mergecheck
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // fakeRunner records the git invocations and returns canned outputs/errors keyed
 // by the git subcommand (args[0]). It never hits the network or a real repo.
 type fakeRunner struct {
+	mu      sync.Mutex
 	calls   [][]string
 	out     map[string]string
 	errs    map[string]error
 	missing map[string]bool // refs that rev-parse --verify should fail on (the last arg)
+	delay   map[string]time.Duration
 }
 
 func newFakeRunner() *fakeRunner {
-	return &fakeRunner{out: map[string]string{}, errs: map[string]error{}, missing: map[string]bool{}}
+	return &fakeRunner{out: map[string]string{}, errs: map[string]error{}, missing: map[string]bool{}, delay: map[string]time.Duration{}}
 }
 
-func (f *fakeRunner) Run(_ context.Context, _ string, _ []string, args ...string) (string, error) {
+func (f *fakeRunner) Run(ctx context.Context, _ string, _ []string, args ...string) (string, error) {
+	f.mu.Lock()
 	f.calls = append(f.calls, args)
 	sub := ""
 	if len(args) > 0 {
 		sub = args[0]
 	}
+	delay := f.delay[sub]
+	f.mu.Unlock()
+	if delay > 0 {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(delay):
+		}
+	}
 	// rev-parse --verify --quiet <ref>: fail when the ref is registered missing.
 	if sub == "rev-parse" {
 		ref := args[len(args)-1]
-		if f.missing[ref] {
+		f.mu.Lock()
+		missing := f.missing[ref]
+		f.mu.Unlock()
+		if missing {
 			return "", &exec.ExitError{} // git rev-parse --verify exits non-zero on missing ref
 		}
 		return "deadbeef\n", nil
 	}
-	return f.out[sub], f.errs[sub]
+	f.mu.Lock()
+	out, err := f.out[sub], f.errs[sub]
+	f.mu.Unlock()
+	return out, err
 }
 
 func (f *fakeRunner) sawSub(sub string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	for _, c := range f.calls {
 		if len(c) > 0 && c[0] == sub {
 			return true
 		}
 	}
 	return false
+}
+
+func (f *fakeRunner) countSub(sub string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, c := range f.calls {
+		if len(c) > 0 && c[0] == sub {
+			n++
+		}
+	}
+	return n
 }
 
 // exitErr returns an error that errors.As-matches *exec.ExitError with the given
@@ -179,5 +214,97 @@ func TestBranchMergedToOrigin_ExistingMirrorFetches(t *testing.T) {
 	}
 	if !fr.sawSub("fetch") {
 		t.Errorf("expected a fetch on an existing mirror; calls=%v", fr.calls)
+	}
+}
+
+func TestBranchMergedToOrigin_ExistingMirrorFreshnessSkipsRepeatFetch(t *testing.T) {
+	dir := t.TempDir()
+	fr := newFakeRunner()
+	fr.errs["merge-base"] = nil
+	c := New(dir, fr)
+	c.freshness = time.Minute
+
+	if err := os.MkdirAll(filepath.Join(dir, mirrorSubdir("u")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := c.BranchMergedToOrigin(context.Background(), "u", "b", "base"); err != nil {
+			t.Fatalf("call %d unexpected err: %v", i+1, err)
+		}
+	}
+	if got := fr.countSub("fetch"); got != 1 {
+		t.Fatalf("fetch count = %d, want 1 within freshness window; calls=%v", got, fr.calls)
+	}
+	if got := fr.countSub("merge-base"); got != 2 {
+		t.Fatalf("merge-base count = %d, want 2 (ancestry still checked per branch/base)", got)
+	}
+}
+
+func TestBranchMergedToOrigin_FetchFailureTTLFailFast(t *testing.T) {
+	dir := t.TempDir()
+	fr := newFakeRunner()
+	fr.errs["fetch"] = errors.New("network timeout")
+	c := New(dir, fr)
+	c.failureTTL = time.Minute
+
+	if err := os.MkdirAll(filepath.Join(dir, mirrorSubdir("u")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		_, err := c.BranchMergedToOrigin(context.Background(), "u", "b", "base")
+		if err == nil || !strings.Contains(err.Error(), "network timeout") {
+			t.Fatalf("call %d got err=%v, want cached network timeout", i+1, err)
+		}
+	}
+	if got := fr.countSub("fetch"); got != 1 {
+		t.Fatalf("fetch count = %d, want 1 while failure TTL is active; calls=%v", got, fr.calls)
+	}
+}
+
+func TestBranchMergedToOrigin_ConcurrentSameRepoSingleFetch(t *testing.T) {
+	dir := t.TempDir()
+	fr := newFakeRunner()
+	fr.delay["fetch"] = 20 * time.Millisecond
+	c := New(dir, fr)
+	c.freshness = time.Minute
+
+	if err := os.MkdirAll(filepath.Join(dir, mirrorSubdir("u")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	errs := make(chan error, 3)
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := c.BranchMergedToOrigin(context.Background(), "u", "b", "base")
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("unexpected err: %v", err)
+		}
+	}
+	if got := fr.countSub("fetch"); got != 1 {
+		t.Fatalf("fetch count = %d, want 1 for concurrent same-repo checks; calls=%v", got, fr.calls)
+	}
+}
+
+func TestBranchMergedToOrigin_CommandTimeoutCancelsGit(t *testing.T) {
+	dir := t.TempDir()
+	fr := newFakeRunner()
+	fr.delay["fetch"] = time.Minute
+	c := New(dir, fr)
+	c.commandTimeout = 5 * time.Millisecond
+
+	if err := os.MkdirAll(filepath.Join(dir, mirrorSubdir("u")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, err := c.BranchMergedToOrigin(context.Background(), "u", "b", "base")
+	if err == nil || !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+		t.Fatalf("got err=%v, want command timeout", err)
 	}
 }

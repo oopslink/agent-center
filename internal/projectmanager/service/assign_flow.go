@@ -532,6 +532,20 @@ func (s *Service) CompleteTask(ctx context.Context, taskID pm.TaskID, by pm.Iden
 	if err := s.guardIntegrateMerge(ctx, taskID); err != nil {
 		return err
 	}
+	return s.CompleteTaskAfterPrecheck(ctx, taskID, by)
+}
+
+// PrecheckCompleteTask runs the external/read-only completion guards before a caller
+// opens its own write transaction. Agent-tools uses this so git I/O never happens
+// inside the summary+complete atomic DB transaction.
+func (s *Service) PrecheckCompleteTask(ctx context.Context, taskID pm.TaskID) error {
+	return s.guardIntegrateMerge(ctx, taskID)
+}
+
+// CompleteTaskAfterPrecheck moves running→completed without re-running external
+// guards. Use only when PrecheckCompleteTask already passed immediately before the
+// surrounding transaction. CompleteTask remains the safe default for other callers.
+func (s *Service) CompleteTaskAfterPrecheck(ctx context.Context, taskID pm.TaskID, by pm.IdentityRef) error {
 	return s.taskStateOp(ctx, taskID, by, func(t *pm.Task, now time.Time) error { return t.Complete(by, now) }, "")
 }
 

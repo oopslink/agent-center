@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -72,6 +73,17 @@ func (atAllAgentsDir) OrgOfAgent(_ context.Context, _ string) (string, error) {
 
 func (atAllAgentsDir) ConcurrencyCapOfAgent(_ context.Context, _ string) (int, error) {
 	return 1, nil
+}
+
+type atFakeMergeChecker struct {
+	merged bool
+	err    error
+	calls  int
+}
+
+func (f *atFakeMergeChecker) BranchMergedToOrigin(_ context.Context, _, _, _ string) (bool, error) {
+	f.calls++
+	return f.merged, f.err
 }
 
 func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
@@ -295,6 +307,60 @@ func (f *writeToolsFixture) seedRunningTask(t *testing.T) string {
 	f.drain(t) // assign flow grants AG1 project membership + sets the assignee.
 	// Start the task so block/complete are reachable (running state). The agent
 	// is a project member now (#5a), so it can be the actor.
+	if err := f.pmSvc.StartTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	return string(tid)
+}
+
+func (f *writeToolsFixture) seedRunningIntegrateTaskWithRepo(t *testing.T) string {
+	t.Helper()
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	pid, err := f.pmSvc.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: atTestOrg, Name: "Acme", CreatedBy: owner,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pmSvc.AddCodeRepoReference(ctx, pmservice.AddCodeRepoReferenceCommand{
+		ProjectID: pid, URL: "https://example.com/repo.git", IsPrimary: true, Actor: owner,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: pid, Title: "integrate", CreatedBy: owner,
+		Role: pm.CycleRoleIntegrate, Branch: "feat/demo", Base: "dev/demo",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	plans, err := f.pmSvc.ListPlans(ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pool pm.PlanID
+	for _, p := range plans {
+		if p.IsBuiltin() {
+			pool = p.ID()
+		}
+	}
+	if pool == "" {
+		t.Fatal("no built-in pool found for project")
+	}
+	if err := f.pmSvc.SelectTaskIntoPlan(ctx, pool, tid, owner); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.ReconcileRunningPlans(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1), owner); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
 	if err := f.pmSvc.StartTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1)); err != nil {
 		t.Fatal(err)
 	}
@@ -640,6 +706,36 @@ func TestCompleteTask_NoSummary_OK(t *testing.T) {
 	}
 	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
 		t.Fatalf("task status = %s, want completed", got)
+	}
+}
+
+func TestCompleteTask_IntegrateGuardFailureDoesNotPostSummary(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	mc := &atFakeMergeChecker{err: errors.New("git fetch timed out")}
+	f.pmSvc.SetMergeChecker(mc)
+	tid := f.seedRunningIntegrateTaskWithRepo(t)
+	before := len(f.taskMessages(t, tid))
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "should not be posted"})
+	if status == http.StatusOK {
+		t.Fatalf("status = 200, want merge-check failure; body = %v", body)
+	}
+	if mc.calls != 1 {
+		t.Fatalf("merge checker calls = %d, want 1", mc.calls)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("task status = %s, want running", got)
+	}
+	if after := len(f.taskMessages(t, tid)); after != before {
+		t.Fatalf("message count changed %d → %d; guard failure must not post summary", before, after)
+	}
+	for _, m := range f.taskMessages(t, tid) {
+		if m.Content() == "should not be posted" {
+			t.Fatalf("summary was posted before merge guard failure")
+		}
 	}
 }
 

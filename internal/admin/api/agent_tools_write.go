@@ -947,13 +947,17 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if manualOutcome == "" {
 		auto, _ = d.PMService.ComputeAutoDecision(r.Context(), pm.TaskID(req.TaskID))
 	}
+	if err := d.PMService.PrecheckCompleteTask(r.Context(), pm.TaskID(req.TaskID)); err != nil {
+		mapDomainError(w, err)
+		return
+	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
 		if strings.TrimSpace(req.Summary) != "" {
 			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Summary, ""); err != nil {
 				return err
 			}
 		}
-		if err := d.PMService.CompleteTask(txCtx, pm.TaskID(req.TaskID),
+		if err := d.PMService.CompleteTaskAfterPrecheck(txCtx, pm.TaskID(req.TaskID),
 			pm.IdentityRef(agentActor(a))); err != nil {
 			return err
 		}
