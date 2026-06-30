@@ -12,6 +12,14 @@ import { dmDisplayName, dmParticipantLabels } from '@/components/dmDisplay';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 import type { Conversation } from '@/api/types';
 import { UnreadConversationsSection } from './UnreadConversationsSection';
+import { useListOrder, rowDragClass, type ListOrder } from './useListOrder';
+
+// orderList — apply a ListOrder's saved order to the live items, dropping any id
+// the order knows about but the data no longer has.
+function orderList<T>(order: ListOrder, items: readonly T[], getId: (t: T) => string): T[] {
+  const byId = new Map(items.map((it) => [getId(it), it]));
+  return order.orderedIds.map((id) => byId.get(id)).filter((t): t is T => t !== undefined);
+}
 
 // ============================================================================
 // v2.10.0 [T2 / T64] — Conversations col② (per-module secondary-nav, registered
@@ -160,6 +168,14 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
   const agentAgentDMs = dmList.filter((d) => d.dm_type === 'agent_agent_dm');
   const myDMs = dmList.filter((d) => d.dm_type !== 'agent_agent_dm');
 
+  // Drag-reorder (per-user, persisted) for each col② list — @oopslink.
+  const channelOrder = useListOrder(`${orgBase}/conv/channels`, activeChannels.map((c) => c.id));
+  const myDMOrder = useListOrder(`${orgBase}/conv/dms.mine`, myDMs.map((d) => d.id));
+  const a2aOrder = useListOrder(`${orgBase}/conv/dms.a2a`, agentAgentDMs.map((d) => d.id));
+  const orderedChannels = orderList(channelOrder, activeChannels, (c) => c.id);
+  const orderedMyDMs = orderList(myDMOrder, myDMs, (d) => d.id);
+  const orderedA2ADMs = orderList(a2aOrder, agentAgentDMs, (d) => d.id);
+
   // A DM whose peer identity exists but whose display name is gone = a
   // deleted-peer DM; it keeps a manual delete action (same rule as the prior
   // shell default: canDelete = has peer ref but no resolvable display name).
@@ -183,11 +199,11 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
   // truncated the second name). The per-row "agent" tag is dropped — the
   // "Agent-to-agent" group header already conveys the kind, and it was eating the
   // width that caused the truncation.
-  const renderDmRow = (d: Conversation): React.ReactElement => {
+  const renderDmRow = (d: Conversation, order: ListOrder): React.ReactElement => {
     const isA2A = d.dm_type === 'agent_agent_dm';
     const a2aLabels = isA2A ? dmParticipantLabels(d) : [];
     return (
-    <li key={d.id}>
+    <li key={d.id} {...order.rowProps(d.id)} className={rowDragClass(order, d.id)}>
       <div className="flex items-center gap-1">
         <NavLink
           to={`${orgBase}/dms/${encodeURIComponent(d.id)}`}
@@ -254,8 +270,8 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
         />
         <ul className="space-y-0.5">
           {activeChannels.length === 0 && <EmptyRow text="No channels" />}
-          {activeChannels.map((c) => (
-            <li key={c.id}>
+          {orderedChannels.map((c) => (
+            <li key={c.id} {...channelOrder.rowProps(c.id)} className={rowDragClass(channelOrder, c.id)}>
               <NavLink
                 to={`${orgBase}/channels/${encodeURIComponent(c.id)}`}
                 className={rowClass}
@@ -302,7 +318,7 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
             )}
             {!(agentAgentDMs.length > 0 && isGroupCollapsed('mine')) && (
               <ul className="space-y-0.5" data-testid="conv-nav-dms-mine">
-                {myDMs.map(renderDmRow)}
+                {orderedMyDMs.map((d) => renderDmRow(d, myDMOrder))}
               </ul>
             )}
           </>
@@ -318,7 +334,7 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
             />
             {!isGroupCollapsed('a2a') && (
               <ul className="space-y-0.5" data-testid="conv-nav-dms-agent">
-                {agentAgentDMs.map(renderDmRow)}
+                {orderedA2ADMs.map((d) => renderDmRow(d, a2aOrder))}
               </ul>
             )}
           </>

@@ -5,6 +5,7 @@ import { useAgents } from '@/api/agents';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
 import { AgentStatsPill } from '@/components/AgentBadges';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
+import { useListOrder, rowDragClass } from './useListOrder';
 
 // ============================================================================
 // v2.10.0 [T7] Members — col② secondary nav (registered in
@@ -83,6 +84,7 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
     <div className="space-y-1" data-testid="members-secondary-nav">
       <NavSection
         sectionKey="humans"
+        orderKey={`${orgBase}/members/humans`}
         title="Humans"
         allTo={`${orgBase}/members/humans`}
         allLabel="All humans"
@@ -90,6 +92,7 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
       />
       <NavSection
         sectionKey="agents"
+        orderKey={`${orgBase}/members/agents`}
         title="Agents"
         allTo={`${orgBase}/agents`}
         allLabel="All agents"
@@ -101,12 +104,14 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
 
 function NavSection({
   sectionKey,
+  orderKey,
   title,
   allTo,
   allLabel,
   rows,
 }: {
   sectionKey: string;
+  orderKey: string;
   title: string;
   allTo: string;
   allLabel: string;
@@ -116,6 +121,12 @@ function NavSection({
   useEffect(() => {
     writeSectionOpen(sectionKey, open);
   }, [sectionKey, open]);
+
+  // Drag-reorder (per-user, persisted) — @oopslink. Rows are identified by their
+  // unique `to` path; the "All …" row stays pinned on top and is not draggable.
+  const order = useListOrder(orderKey, rows.map((r) => r.to));
+  const byTo = new Map(rows.map((r) => [r.to, r]));
+  const orderedRows = order.orderedIds.map((to) => byTo.get(to)).filter((r): r is NavRow => r !== undefined);
 
   return (
     <div>
@@ -138,8 +149,8 @@ function NavSection({
               {allLabel}
             </NavLink>
           </li>
-          {rows.map((r) => (
-            <li key={r.to}>
+          {orderedRows.map((r) => (
+            <li key={r.to} {...order.rowProps(r.to)} className={rowDragClass(order, r.to)}>
               {/* aria-label keeps the link's accessible name = the member name;
                   the T235 status chips are supplementary visual context and must
                   not bloat the announced link name. */}

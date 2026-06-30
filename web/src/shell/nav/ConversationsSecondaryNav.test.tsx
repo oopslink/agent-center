@@ -1,12 +1,13 @@
 // v2.10.0 [T2 / T64] — Conversations col② per-module secondary nav.
 // Mockup: docs/design/v2.10.0/shell-conversations-tasks.html 例1 (Channels /
 // Direct messages sections with rows + unread badges; deleted-peer DM delete).
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
+import { installMemoryLocalStorage } from '@/test/localStorageMock';
 import { ConversationsSecondaryNav } from './ConversationsSecondaryNav';
 
 function renderNav(initial = '/dms') {
@@ -20,6 +21,7 @@ function renderNav(initial = '/dms') {
   );
 }
 
+beforeAll(installMemoryLocalStorage);
 beforeEach(() => {
   server.use(
     http.get('/api/conversations', ({ request }) => {
@@ -170,6 +172,28 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     // re-expand A2A.
     fireEvent.click(a2aToggle);
     expect(screen.getByTestId('conv-nav-dms-agent')).toBeInTheDocument();
+  });
+
+  it('drag-reorders the Channels list and persists the order (@oopslink)', async () => {
+    renderNav();
+    await screen.findByRole('link', { name: /agent-center-dev/ });
+    const channelLis = () =>
+      screen
+        .getAllByTestId('conv-nav-channel')
+        .map((a) => (a.textContent ?? '').replace(/\d+/g, '').trim());
+    // initial natural order: dev (C1) then general (C2).
+    expect(channelLis()).toEqual(['#agent-center-dev', '#general']);
+
+    const liFor = (name: RegExp) => screen.getByRole('link', { name }).closest('li') as HTMLElement;
+    const dataTransfer = { setData: () => {}, getData: () => 'C2', effectAllowed: '', dropEffect: '' };
+    // drag "general" (C2) onto "agent-center-dev" (C1) → general lands first.
+    fireEvent.dragStart(liFor(/general/), { dataTransfer });
+    fireEvent.dragOver(liFor(/agent-center-dev/), { dataTransfer });
+    fireEvent.drop(liFor(/agent-center-dev/), { dataTransfer });
+
+    await waitFor(() => expect(channelLis()).toEqual(['#general', '#agent-center-dev']));
+    // persisted under the namespaced, org-scoped key (orgBase="" here).
+    expect(localStorage.getItem('ac.navorder./conv/channels')).toBe(JSON.stringify(['C2', 'C1']));
   });
 
   it('confirms before deleting a deleted-peer DM', async () => {
