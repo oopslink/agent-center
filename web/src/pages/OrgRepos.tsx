@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useWorkspaceRepos,
   useDeleteWorkspaceRepo,
@@ -20,6 +21,7 @@ import type { RepoCommit } from '@/api/types';
 // Credentials are configured ONLY here. Selecting a repo opens a read-only
 // remote viewer (commits / branches), served live by BE-2 (no clone).
 export default function OrgRepos(): React.ReactElement {
+  const { t } = useTranslation('admin');
   const repos = useWorkspaceRepos();
   const del = useDeleteWorkspaceRepo();
   const [formOpen, setFormOpen] = useState(false);
@@ -51,9 +53,9 @@ export default function OrgRepos(): React.ReactElement {
     <section className="space-y-4" data-testid="page-OrgRepos">
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">Repositories</h1>
+          <h1 className="font-heading text-2xl font-semibold text-text-primary">{t('repos.title')}</h1>
           <p className="text-xs text-text-muted">
-            Workspace-level code repos. Projects reference them; credentials are configured here only.
+            {t('repos.subtitle')}
           </p>
         </div>
         <button
@@ -62,7 +64,7 @@ export default function OrgRepos(): React.ReactElement {
           onClick={openAdd}
           data-testid="repos-add-btn"
         >
-          + Add repo
+          {t('repos.addRepo')}
         </button>
       </header>
 
@@ -80,8 +82,8 @@ export default function OrgRepos(): React.ReactElement {
       {repos.isSuccess && repos.data.length === 0 && (
         <EmptyState
           testId="repos-empty"
-          title="No repositories yet"
-          body="Add a workspace repository so projects can reference it. Click + Add repo to create one."
+          title={t('repos.empty.title')}
+          body={t('repos.empty.body')}
         />
       )}
       {repos.isSuccess && repos.data.length > 0 && (
@@ -107,17 +109,18 @@ export default function OrgRepos(): React.ReactElement {
 
       <ConfirmModal
         open={!!deleting}
-        title="Delete repository?"
+        title={t('repos.delete.title')}
         message={
           deleting
-            ? `Delete "${deleting.label}"? ${
-                deleting.reference_count
-                  ? `This will drop its reference from ${deleting.reference_count} project${deleting.reference_count === 1 ? '' : 's'} and `
-                  : 'This will '
-              }permanently remove its stored credential. This cannot be undone.`
+            ? deleting.reference_count
+              ? t('repos.delete.messageRefs', {
+                  label: deleting.label,
+                  count: deleting.reference_count,
+                })
+              : t('repos.delete.message', { label: deleting.label })
             : ''
         }
-        confirmLabel="Delete"
+        confirmLabel={t('repos.delete.confirm')}
         busy={del.isPending}
         onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleting(null)}
@@ -139,6 +142,7 @@ function RepoCard({
   onEdit: () => void;
   onDelete: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('admin');
   return (
     <li
       className={`rounded-lg border bg-bg-elevated p-3 shadow-1 ${selected ? 'border-accent' : 'border-border-base'}`}
@@ -170,7 +174,7 @@ function RepoCard({
           )}
           {typeof repo.reference_count === 'number' && (
             <span className="text-[0.625rem] text-text-muted" data-testid="repo-card-usedby">
-              used by {repo.reference_count} project{repo.reference_count === 1 ? '' : 's'}
+              {t('repos.card.usedBy', { count: repo.reference_count })}
             </span>
           )}
         </div>
@@ -182,7 +186,7 @@ function RepoCard({
           onClick={onView}
           data-testid="repo-card-view"
         >
-          {selected ? 'Hide remote' : 'View remote'}
+          {selected ? t('repos.card.hideRemote') : t('repos.card.viewRemote')}
         </button>
         <button
           type="button"
@@ -190,7 +194,7 @@ function RepoCard({
           onClick={onEdit}
           data-testid="repo-card-edit"
         >
-          Edit
+          {t('repos.card.edit')}
         </button>
         <button
           type="button"
@@ -198,7 +202,7 @@ function RepoCard({
           onClick={onDelete}
           data-testid="repo-card-delete"
         >
-          Delete
+          {t('repos.card.delete')}
         </button>
       </div>
     </li>
@@ -209,6 +213,7 @@ function RepoCard({
 // live by BE-2 (go-github / git ls-remote, no clone). When BE-2 isn't wired the
 // requests fail; we degrade to a friendly "unavailable" notice rather than error.
 function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const [tab, setTab] = useState<'commits' | 'branches'>('commits');
   const [branch, setBranch] = useState(repo.default_branch || '');
 
@@ -219,17 +224,17 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
     <div className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1" data-testid="repo-remote-viewer">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-text-primary">
-          Remote — <span className="font-mono">{repo.label}</span>
+          {t('repos.remote.heading')} <span className="font-mono">{repo.label}</span>
         </h2>
         <span className="inline-flex items-center gap-1 rounded bg-status-green-bg px-1.5 py-0.5 text-[0.625rem] font-semibold text-status-green-fg">
-          <span className="h-1.5 w-1.5 rounded-full bg-status-green-fg" aria-hidden="true" /> live · remote
+          <span className="h-1.5 w-1.5 rounded-full bg-status-green-fg" aria-hidden="true" /> {t('repos.remote.liveBadge')}
         </span>
       </div>
 
       <div className="mb-3 flex items-center justify-between border-b border-border-base">
         <div className="flex gap-1" role="tablist">
-          <TabBtn id="commits" active={tab === 'commits'} onClick={() => setTab('commits')}>Commits</TabBtn>
-          <TabBtn id="branches" active={tab === 'branches'} onClick={() => setTab('branches')}>Branches</TabBtn>
+          <TabBtn id="commits" active={tab === 'commits'} onClick={() => setTab('commits')}>{t('repos.remote.tabs.commits')}</TabBtn>
+          <TabBtn id="branches" active={tab === 'branches'} onClick={() => setTab('branches')}>{t('repos.remote.tabs.branches')}</TabBtn>
         </div>
         {tab === 'commits' && (
           <select
@@ -237,7 +242,7 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
             value={branch}
             onChange={(e) => setBranch(e.target.value)}
             data-testid="repo-remote-branch-select"
-            aria-label="Branch"
+            aria-label={t('repos.remote.branchLabel')}
           >
             {(branches.data?.branches ?? [{ name: branch || repo.default_branch || 'main' }]).map((b) => (
               <option key={b.name} value={b.name}>{b.name}</option>
@@ -249,13 +254,13 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
       {tab === 'commits' ? (
         <RemoteList
           query={commits}
-          empty="No commits."
+          empty={t('repos.remote.noCommits')}
           render={(data) => <CommitTimeline commits={data.commits ?? []} repo={repo} />}
         />
       ) : (
         <RemoteList
           query={branches}
-          empty="No branches."
+          empty={t('repos.remote.noBranches')}
           render={(data) => (
             <ul className="flex flex-wrap gap-2" data-testid="repo-remote-branches">
               {(data.branches ?? []).map((b) => (
@@ -264,7 +269,7 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
                   className="inline-flex items-center gap-1 rounded border border-border-base bg-bg-subtle px-2 py-1 font-mono text-xs text-text-secondary"
                 >
                   {b.name}
-                  {b.is_default && <span className="text-[0.5625rem] uppercase text-text-muted">default</span>}
+                  {b.is_default && <span className="text-[0.5625rem] uppercase text-text-muted">{t('repos.remote.defaultBranch')}</span>}
                 </li>
               ))}
             </ul>
@@ -273,7 +278,7 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
       )}
 
       <p className="mt-3 text-[0.6875rem] text-text-muted">
-        Live from the remote (go-github; falls back to git ls-remote). Never cloned.
+        {t('repos.remote.footer')}
       </p>
     </div>
   );
@@ -287,6 +292,7 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
 // the mockup's "N people / committer / real avatar" can't be sourced yet — we show
 // the single author + a generic avatar glyph rather than fabricate them.
 function CommitTimeline({ commits, repo }: { commits: RepoCommit[]; repo: WorkspaceRepo }): React.ReactElement {
+  const { t } = useTranslation('admin');
   // Group by local day, preserving the API's (newest-first) order both across and
   // within groups — a Map keeps first-seen key insertion order.
   const groups = new Map<string, RepoCommit[]>();
@@ -307,7 +313,7 @@ function CommitTimeline({ commits, repo }: { commits: RepoCommit[]; repo: Worksp
             <span className="absolute -left-[1.4rem] grid h-[11px] w-[11px] place-items-center rounded-full border-2 border-border-strong bg-bg-elevated" aria-hidden="true">
               <span className="h-1 w-1 rounded-full bg-text-muted" />
             </span>
-            Commits on {items[0]?.date ? formatDayLabel(items[0].date) : 'unknown date'}
+            {t('repos.commits.dayHeader', { day: items[0]?.date ? formatDayLabel(items[0].date) : t('repos.commits.unknownDate') })}
           </h3>
           <ul className="mb-3 divide-y divide-border-base overflow-hidden rounded-lg border border-border-base bg-bg-elevated">
             {items.map((c) => (
@@ -323,6 +329,7 @@ function CommitTimeline({ commits, repo }: { commits: RepoCommit[]; repo: Worksp
 // CommitRow — one commit card. Splits the message into a SUBJECT (first line) and an
 // optional BODY (the rest); the body collapses behind a "…" toggle (GitHub idiom).
 function CommitRow({ commit, repo }: { commit: RepoCommit; repo: WorkspaceRepo }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const [open, setOpen] = useState(false);
   const nl = commit.message.indexOf('\n');
   const subject = (nl === -1 ? commit.message : commit.message.slice(0, nl)).trim();
@@ -340,8 +347,8 @@ function CommitRow({ commit, repo }: { commit: RepoCommit; repo: WorkspaceRepo }
               type="button"
               onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
-              aria-label={open ? 'Hide commit description' : 'Show commit description'}
-              title={open ? 'Hide description' : 'Show description'}
+              aria-label={open ? t('repos.commit.hideDescriptionAria') : t('repos.commit.showDescriptionAria')}
+              title={open ? t('repos.commit.hideDescription') : t('repos.commit.showDescription')}
               data-testid="repo-commit-body-toggle"
               className={`mt-0.5 shrink-0 rounded px-1.5 leading-none text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent ${open ? 'bg-bg-subtle text-text-primary' : 'bg-bg-subtle'}`}
             >
@@ -356,9 +363,9 @@ function CommitRow({ commit, repo }: { commit: RepoCommit; repo: WorkspaceRepo }
         )}
         <p className="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
           <AvatarGlyph />
-          <span className="font-medium text-text-secondary">{commit.author || 'unknown'}</span>
+          <span className="font-medium text-text-secondary">{commit.author || t('repos.commit.unknownAuthor')}</span>
           {commit.date && (
-            <span title={formatLocalTime(commit.date)}>committed {formatRelativeTime(commit.date)}</span>
+            <span title={formatLocalTime(commit.date)}>{t('repos.commit.committed', { time: formatRelativeTime(commit.date) })}</span>
           )}
         </p>
       </div>
@@ -370,8 +377,8 @@ function CommitRow({ commit, repo }: { commit: RepoCommit; repo: WorkspaceRepo }
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`Browse the repository at ${short}`}
-            title="Browse the repository at this point"
+            aria-label={t('repos.commit.browseAria', { short })}
+            title={t('repos.commit.browseTitle')}
             data-testid="repo-commit-browse"
             className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
           >
@@ -386,6 +393,7 @@ function CommitRow({ commit, repo }: { commit: RepoCommit; repo: WorkspaceRepo }
 // CopyShaButton — copy the FULL sha (not the short form) with a brief "copied" swap,
 // mirroring the MessageCopyButton idiom (icon-only chrome; name on aria-label/title).
 function CopyShaButton({ sha }: { sha: string }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard?.writeText(sha);
@@ -396,8 +404,8 @@ function CopyShaButton({ sha }: { sha: string }): React.ReactElement {
     <button
       type="button"
       onClick={copy}
-      aria-label="Copy the full commit SHA"
-      title={copied ? 'Copied' : 'Copy full SHA'}
+      aria-label={t('repos.commit.copyAria')}
+      title={copied ? t('repos.commit.copied') : t('repos.commit.copyTitle')}
       data-testid="repo-commit-copy"
       className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-colors"
     >
@@ -463,11 +471,12 @@ function RemoteList<T extends { commits?: unknown[]; branches?: unknown[] }>({
   empty: string;
   render: (data: T) => React.ReactElement;
 }): React.ReactElement {
+  const { t } = useTranslation('admin');
   if (query.isLoading) return <Skeleton height="3rem" />;
   if (query.isError || !query.data) {
     return (
       <p className="text-xs italic text-text-muted" data-testid="repo-remote-unavailable">
-        Remote viewing isn't available right now.
+        {t('repos.remote.unavailable')}
       </p>
     );
   }

@@ -1,1 +1,337 @@
-{}
+{
+  "environment": {
+    "title": "环境",
+    "subtitle": "本组织的计算资源、绑定到这些资源的智能体、进行中的工作项以及文件传输。",
+    "addWorker": "+ 添加工作机",
+    "loading": "加载中…",
+    "partialSnapshot": "部分快照：",
+    "stats": {
+      "workersOnline": "在线工作机",
+      "agentsRunning": "运行中的智能体",
+      "tasks": "任务",
+      "pendingIssues": "待处理问题"
+    },
+    "workers": {
+      "title": "工作机",
+      "emptyTitle": "尚未连接任何工作机。",
+      "emptyHint": "工作机是真正运行智能体的机器。请至少添加一台以开始派发任务。",
+      "emptyCta": "+ 添加你的第一台工作机"
+    },
+    "worker": {
+      "active": "{{count}} 个活跃",
+      "heartbeat": "心跳 {{time}}",
+      "heartbeatNone": "心跳 —",
+      "cli": "CLI",
+      "agents": "智能体",
+      "noAgents": "没有智能体绑定到此工作机。",
+      "noCaps": "未检测到智能体 CLI。",
+      "disabledSuffix": "（已禁用）",
+      "executableNote": "可执行：仅 claude-code（codex/opencode 仅为发现 — v2.8）",
+      "showInstall": "显示安装命令",
+      "remintInstall": "重新生成安装命令",
+      "remintConfirmTitle": "重新生成安装命令？",
+      "remintConfirmMessage": "重新生成将吊销当前安装令牌并签发一个新的令牌。如果原命令已过期或丢失，请使用此操作。是否继续？",
+      "remintConfirmLabel": "重新生成",
+      "remove": "移除",
+      "removing": "移除中...",
+      "removeConfirmTitle": "移除工作机？",
+      "removeConfirmLabel": "移除",
+      "removeConfirmMessageOnline": "移除工作机“{{name}}”？\n\n此操作将吊销工作机令牌并删除该记录。工作机守护进程将在下一个周期收到 401。",
+      "removeConfirmMessageOffline": "移除工作机“{{name}}”？\n\n此操作将吊销所有有效的安装令牌并删除该记录。",
+      "openDetailsTitle": "打开 {{name}} 详情"
+    },
+    "activity": {
+      "title": "活动",
+      "tabs": {
+        "all": "全部",
+        "tasks": "任务",
+        "issues": "问题",
+        "transfers": "传输"
+      },
+      "emptyTitle": "没有进行中的操作",
+      "emptyHint": "工作项、问题和文件传输将显示在此处。",
+      "typeTask": "任务",
+      "typeIssue": "问题",
+      "typeTransfer": "传输",
+      "agentLabel": "智能体"
+    },
+    "transfers": {
+      "loading": "加载中…",
+      "columns": {
+        "direction": "方向",
+        "scope": "范围",
+        "content": "内容",
+        "size": "大小"
+      }
+    }
+  },
+  "systemNav": {
+    "environment": "环境",
+    "settings": "设置",
+    "version": "版本",
+    "aria": "系统分区"
+  },
+  "orgSettings": {
+    "profile": {
+      "title": "组织资料",
+      "nameLabel": "组织名称",
+      "idLabel": "组织 ID",
+      "descriptionLabel": "描述",
+      "logoLabel": "标志 / 头像",
+      "uploadLogo": "上传标志",
+      "saving": "保存中...",
+      "save": "保存更改"
+    },
+    "humans": {
+      "title": "成员",
+      "invite": "邀请",
+      "colName": "名称",
+      "colRole": "角色",
+      "colJoined": "加入时间",
+      "colStatus": "状态",
+      "colActions": "操作",
+      "disable": "停用",
+      "reEnable": "重新启用",
+      "drop": "移除",
+      "emptyTitle": "暂无成员",
+      "emptyBody": "邀请自助注册的用户加入此组织。",
+      "note": "停用 = 保留成员身份与历史记录，但标记为非活动。移除 = 将该成员永久从此组织中删除（不保留任何记录）。",
+      "dropConfirmTitle": "移除成员",
+      "dropConfirmMessage": "将 {{name}} 从此组织移除？此操作将永久删除其成员身份——不保留任何记录。此操作无法撤销。",
+      "dropConfirmLabel": "移除"
+    },
+    "invitations": {
+      "title": "邀请",
+      "new": "新建邀请",
+      "roleCreatedBy": "角色：{{role}} · 创建者 {{creator}}",
+      "expires": "过期时间 {{date}}",
+      "copy": "复制",
+      "accepted": "已接受 {{date}}",
+      "cancel": "取消",
+      "delete": "删除",
+      "emptyTitle": "暂无邀请",
+      "emptyBody": "通过用户身份 ID 邀请现有用户。",
+      "deleteConfirmTitle": "删除邀请",
+      "deleteConfirmMessage": "删除给 {{name}} 的邀请？此操作将移除该邀请记录，其链接将不再有效。",
+      "deleteConfirmLabel": "删除"
+    },
+    "invitationModal": {
+      "title": "新建邀请",
+      "inviteeLabel": "受邀用户 ID",
+      "inviteePlaceholder": "user-...",
+      "roleLabel": "角色",
+      "createError": "创建邀请失败",
+      "cancel": "取消",
+      "creating": "创建中...",
+      "create": "创建"
+    },
+    "danger": {
+      "title": "危险区域",
+      "enableTitle": "启用组织",
+      "enableBody": "该组织当前已停用——非所有者成员无法登录。启用后可为所有人恢复访问权限。",
+      "enabling": "启用中…",
+      "enableButton": "启用组织",
+      "disableTitle": "停用组织",
+      "disableBody": "非所有者成员将无法再登录此组织；您（作为所有者）仍保留完全访问权限，并可随时重新启用。不会删除任何数据。",
+      "disabling": "停用中…",
+      "disableButton": "停用组织",
+      "forceDeleteTitle": "强制删除组织",
+      "forceDeleteBody": "从工作区中删除此组织并停用所有已加入的成员。此操作无法从界面撤销。",
+      "deleting": "删除中…",
+      "forceDeleteButton": "强制删除",
+      "auditLogTitle": "审计日志",
+      "auditLogBody": "查看所有组织变更、成员操作和系统事件。",
+      "auditLogButton": "查看审计日志",
+      "enableConfirmTitle": "启用组织",
+      "disableConfirmTitle": "停用组织",
+      "enableConfirmMessage": "启用组织 {{name}}？所有成员将能够重新登录。",
+      "disableConfirmMessage": "停用组织 {{name}}？非所有者成员将被锁定，直到您重新启用。您仍保留完全访问权限。不会删除任何数据。",
+      "enableConfirmLabel": "启用",
+      "disableConfirmLabel": "停用",
+      "forceDeleteConfirmTitle": "强制删除组织",
+      "forceDeleteConfirmMessage": "强制删除组织 {{name}}？此操作会将其从组织切换器中移除并停用其已加入的成员。此操作无法从界面撤销。",
+      "forceDeleteConfirmLabel": "强制删除"
+    },
+    "modal": {
+      "title": "组织设置",
+      "close": "关闭",
+      "loading": "加载中…",
+      "notFound": "未找到组织。",
+      "nameLabel": "名称",
+      "slugLabel": "Slug（更改此项会更改 URL）",
+      "descriptionLabel": "描述",
+      "saving": "保存中…",
+      "save": "保存",
+      "dangerZone": "危险区域",
+      "deleteOrganization": "删除组织",
+      "deleteConfirmPrefix": "删除 ",
+      "deleteConfirmSuffix": "？此操作无法撤销，且您必须是所有者。",
+      "cancel": "取消",
+      "deleting": "删除中…",
+      "confirmDelete": "确认删除",
+      "updateSuccess": "组织信息已更新",
+      "updateError": "更新失败",
+      "deleteError": "删除失败，请重试",
+      "nameRequired": "请输入组织名称",
+      "slugTooShort": "Slug 至少需要 3 个字符",
+      "slugTooLong": "Slug 最多 40 个字符",
+      "slugInvalidChars": "Slug 只能包含 [a-z0-9-]",
+      "slugHyphenEdge": "Slug 不能以连字符开头或结尾"
+    }
+  },
+  "repos": {
+    "title": "代码仓库",
+    "subtitle": "工作区级别的代码仓库。项目引用它们；凭据仅在此处配置。",
+    "addRepo": "+ 添加仓库",
+    "empty": {
+      "title": "暂无代码仓库",
+      "body": "添加一个工作区仓库，以便项目可以引用它。点击 + 添加仓库 来创建一个。"
+    },
+    "delete": {
+      "title": "删除代码仓库？",
+      "message": "删除“{{label}}”？此操作将永久移除其存储的凭据。此操作无法撤销。",
+      "messageRefs_one": "删除“{{label}}”？此操作将解除其在 {{count}} 个项目中的引用，并永久移除其存储的凭据。此操作无法撤销。",
+      "messageRefs_other": "删除“{{label}}”？此操作将解除其在 {{count}} 个项目中的引用，并永久移除其存储的凭据。此操作无法撤销。",
+      "confirm": "删除"
+    },
+    "card": {
+      "usedBy_one": "被 {{count}} 个项目使用",
+      "usedBy_other": "被 {{count}} 个项目使用",
+      "viewRemote": "查看远程",
+      "hideRemote": "隐藏远程",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "remote": {
+      "heading": "远程 —",
+      "liveBadge": "实时 · 远程",
+      "tabs": {
+        "commits": "提交",
+        "branches": "分支"
+      },
+      "branchLabel": "分支",
+      "noCommits": "暂无提交。",
+      "noBranches": "暂无分支。",
+      "defaultBranch": "默认",
+      "footer": "实时来自远程（go-github；回退到 git ls-remote）。从不克隆。",
+      "unavailable": "远程查看当前不可用。"
+    },
+    "commits": {
+      "dayHeader": "{{day}} 的提交",
+      "unknownDate": "未知日期"
+    },
+    "commit": {
+      "hideDescriptionAria": "隐藏提交描述",
+      "showDescriptionAria": "显示提交描述",
+      "hideDescription": "隐藏描述",
+      "showDescription": "显示描述",
+      "unknownAuthor": "未知",
+      "committed": "提交于 {{time}}",
+      "browseAria": "在 {{short}} 处浏览仓库",
+      "browseTitle": "在此处浏览仓库",
+      "copyAria": "复制完整的提交 SHA",
+      "copied": "已复制",
+      "copyTitle": "复制完整 SHA"
+    },
+    "form": {
+      "editTitle": "编辑代码仓库",
+      "addTitle": "添加代码仓库",
+      "close": "关闭",
+      "label": "名称",
+      "labelPlaceholder": "agent-center",
+      "provider": "提供方",
+      "providerGithub": "GitHub",
+      "providerGit": "Git（通用）",
+      "description": "描述",
+      "descriptionHint": "用一行描述，让代理无需检出即可理解该仓库。",
+      "descriptionPlaceholder": "此仓库的用途",
+      "url": "克隆 URL",
+      "urlPlaceholder": "git@github.com:org/repo.git",
+      "defaultBranch": "默认分支",
+      "defaultBranchPlaceholder": "main",
+      "credential": "读取凭据",
+      "credentialHintEdit": "留空以保留已存储的凭据。",
+      "credentialHintCreate": "加密存储，不再显示。",
+      "credentialPlaceholderStored": "•••••• (stored)",
+      "credentialPlaceholder": "细粒度令牌",
+      "credentialHelp": "私有仓库需要只读凭据。对于 GitHub，请创建一个<tokenLink>细粒度令牌</tokenLink>，将其范围限定到此仓库，并设置 <contents>Contents: Read-only</contents>（添加 <prs>Pull requests: Read</prs> 以查看 PR）。GitHub App 安装令牌或只读部署密钥同样适用。公开仓库可以将此项留空。",
+      "cancel": "取消",
+      "saving": "保存中…",
+      "save": "保存"
+    }
+  },
+  "secrets": {
+    "title": "密钥",
+    "new": "新建密钥",
+    "revoke": "吊销",
+    "disclaimer": "密钥值以加密形式存储，创建后将不再显示。如需轮换密钥，请吊销后再创建新密钥。",
+    "empty": {
+      "title": "暂无密钥",
+      "body": "密钥用于存储智能体在运行时引用的 API 密钥和令牌。密钥值在静态存储时加密，创建后将不再显示。"
+    },
+    "column": {
+      "name": "名称",
+      "kind": "类型",
+      "state": "状态",
+      "created": "创建时间"
+    },
+    "confirm": {
+      "title": "吊销密钥？",
+      "message": "确定要吊销密钥“{{name}}”吗？此操作无法撤销。"
+    },
+    "modal": {
+      "title": "新建密钥",
+      "name": "名称",
+      "namePlaceholder": "github-token",
+      "kind": "类型",
+      "value": "密钥值",
+      "valuePlaceholder": "粘贴密钥",
+      "valueHelp": "以加密形式存储，且不会再次显示——如需轮换，请吊销此密钥并创建新密钥。",
+      "cancel": "取消",
+      "create": "创建",
+      "creating": "创建中…",
+      "done": "完成"
+    },
+    "success": {
+      "before": "密钥 ",
+      "after": " 已创建。"
+    }
+  },
+  "wakeGuardrail": {
+    "title": "唤醒护栏",
+    "description": "防止智能体之间失控的连环唤醒（链路深度 / 循环 / 速率限制 / 令牌预算）。保存后立即生效——无需重启。",
+    "loading": "正在加载护栏参数…",
+    "error": {
+      "load": "加载护栏设置失败。",
+      "retry": "重试"
+    },
+    "fields": {
+      "max_depth": {
+        "label": "最大唤醒链深度",
+        "hint": "单条唤醒链中的最大跳数；超过即触发熔断 · 默认 {{def}}"
+      },
+      "cycle_window_sec": {
+        "label": "循环检测窗口（秒）",
+        "hint": "在此滚动窗口内统计往返次数 · 默认 {{def}}"
+      },
+      "cycle_threshold": {
+        "label": "循环阈值（每窗口往返次数）",
+        "hint": "在窗口内达到此往返次数即触发熔断 · 默认 {{def}}"
+      },
+      "rate_per_min": {
+        "label": "速率限制（每分钟智能体唤醒数）",
+        "hint": "单个智能体每分钟由智能体驱动唤醒的令牌数 · 默认 {{def}}"
+      },
+      "chain_token_budget": {
+        "label": "链路令牌预算（根）",
+        "hint": "每条唤醒链的成本预算，每跳递减 · 默认 {{def}}"
+      }
+    },
+    "invalid": "所有阈值必须为正整数（> 0）。",
+    "saveError": "保存失败：{{message}}",
+    "unknownError": "未知错误",
+    "saving": "正在保存…",
+    "save": "保存",
+    "saved": "已保存并生效"
+  }
+}

@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWakeGuardrail, useUpdateWakeGuardrail, type WakeGuardrail } from '@/api/system';
 
 // I7-D3 — the wake-guardrail (唤醒护栏) params panel under System → Settings.
@@ -11,21 +12,22 @@ import { useWakeGuardrail, useUpdateWakeGuardrail, type WakeGuardrail } from '@/
 
 interface FieldSpec {
   key: keyof WakeGuardrail;
-  label: string;
-  hint: string;
   def: number;
 }
 
 // Defaults mirror wakeguard.DefaultConfig (depth 4, 5min/3, 10/min, budget 16).
+// `key` is the stable field id (used for testids + i18n key lookup); label/hint
+// copy is resolved at render time via t('wakeGuardrail.fields.<key>.label|hint').
 const FIELDS: ReadonlyArray<FieldSpec> = [
-  { key: 'max_depth', label: 'Max wake-chain depth', hint: 'Max hops in one wake chain; exceeding it trips the breaker', def: 4 },
-  { key: 'cycle_window_sec', label: 'Cycle-detection window (seconds)', hint: 'Round-trips are counted within this rolling window', def: 300 },
-  { key: 'cycle_threshold', label: 'Cycle threshold (round-trips per window)', hint: 'Reaching this many round-trips in the window trips the breaker', def: 3 },
-  { key: 'rate_per_min', label: 'Rate limit (agent wakes per minute)', hint: 'Tokens for agent-driven wakes of a single agent per minute', def: 10 },
-  { key: 'chain_token_budget', label: 'Chain token budget (root)', hint: 'Cost budget per wake chain, decremented each hop', def: 16 },
+  { key: 'max_depth', def: 4 },
+  { key: 'cycle_window_sec', def: 300 },
+  { key: 'cycle_threshold', def: 3 },
+  { key: 'rate_per_min', def: 10 },
+  { key: 'chain_token_budget', def: 16 },
 ];
 
 export function WakeGuardrailPanel(): React.ReactElement {
+  const { t } = useTranslation('admin');
   const { data, isLoading, isError, refetch } = useWakeGuardrail();
   const update = useUpdateWakeGuardrail();
   const [form, setForm] = useState<WakeGuardrail | null>(null);
@@ -53,14 +55,14 @@ export function WakeGuardrailPanel(): React.ReactElement {
         className="flex items-center justify-between gap-4 rounded-xl border border-danger/30 bg-danger/5 p-5"
         data-testid="wake-guardrail-error"
       >
-        <p className="text-sm text-danger">Failed to load guardrail settings.</p>
+        <p className="text-sm text-danger">{t('wakeGuardrail.error.load')}</p>
         <button
           type="button"
           onClick={() => void refetch()}
           className="shrink-0 rounded-md border border-border-base px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-subtle"
           data-testid="wake-guardrail-retry"
         >
-          Retry
+          {t('wakeGuardrail.error.retry')}
         </button>
       </div>
     );
@@ -68,7 +70,7 @@ export function WakeGuardrailPanel(): React.ReactElement {
   if (isLoading || !form) {
     return (
       <p className="text-sm text-text-muted" data-testid="wake-guardrail-loading">
-        Loading guardrail settings…
+        {t('wakeGuardrail.loading')}
       </p>
     );
   }
@@ -92,9 +94,9 @@ export function WakeGuardrailPanel(): React.ReactElement {
       data-testid="wake-guardrail-panel"
     >
       <div>
-        <h2 className="text-base font-semibold text-text-primary">Wake guardrails</h2>
+        <h2 className="text-base font-semibold text-text-primary">{t('wakeGuardrail.title')}</h2>
         <p className="mt-0.5 text-xs text-text-muted">
-          Prevent runaway agent-to-agent wakes (chain depth / cycles / rate limit / token budget). Applied immediately on save — no restart needed.
+          {t('wakeGuardrail.description')}
         </p>
       </div>
 
@@ -102,12 +104,13 @@ export function WakeGuardrailPanel(): React.ReactElement {
         {FIELDS.map((f) => {
           const val = form[f.key];
           const bad = !Number.isFinite(val) || val <= 0;
+          const label = t(`wakeGuardrail.fields.${f.key}.label`);
           return (
             <label key={f.key} className="flex items-center justify-between gap-4">
               <span className="text-xs text-text-secondary">
-                {f.label}
+                {label}
                 <span className="block text-text-muted">
-                  {f.hint} · default {f.def}
+                  {t(`wakeGuardrail.fields.${f.key}.hint`, { def: f.def })}
                 </span>
               </span>
               <input
@@ -116,7 +119,7 @@ export function WakeGuardrailPanel(): React.ReactElement {
                 step={1}
                 value={Number.isFinite(val) ? String(val) : ''}
                 onChange={(e) => setField(f.key, e.target.value)}
-                aria-label={f.label}
+                aria-label={label}
                 aria-invalid={bad}
                 data-testid={`wake-guardrail-${f.key}`}
                 className={`w-28 rounded-md border bg-bg-base px-3 py-1.5 text-right text-sm ${
@@ -130,12 +133,14 @@ export function WakeGuardrailPanel(): React.ReactElement {
 
       {invalid && (
         <p className="text-xs text-danger" data-testid="wake-guardrail-invalid">
-          All thresholds must be positive integers (&gt; 0).
+          {t('wakeGuardrail.invalid')}
         </p>
       )}
       {update.isError && (
         <p className="text-xs text-danger" data-testid="wake-guardrail-save-error">
-          Save failed: {update.error instanceof Error ? update.error.message : 'Unknown error'}
+          {t('wakeGuardrail.saveError', {
+            message: update.error instanceof Error ? update.error.message : t('wakeGuardrail.unknownError'),
+          })}
         </p>
       )}
 
@@ -147,7 +152,7 @@ export function WakeGuardrailPanel(): React.ReactElement {
           className="rounded-md bg-brand px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           data-testid="wake-guardrail-save"
         >
-          {update.isPending ? 'Saving…' : 'Save'}
+          {update.isPending ? t('wakeGuardrail.saving') : t('wakeGuardrail.save')}
         </button>
         {saved && !update.isPending && (
           <span
@@ -156,7 +161,7 @@ export function WakeGuardrailPanel(): React.ReactElement {
             className="inline-flex items-center rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success"
             data-testid="wake-guardrail-saved"
           >
-            Saved and applied
+            {t('wakeGuardrail.saved')}
           </span>
         )}
       </div>
