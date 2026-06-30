@@ -95,6 +95,26 @@ type SpawnSupervisorCfg struct {
 
 const defaultComeUpTimeout = 15 * time.Second
 
+// supervisorLogMaxBytes bounds the per-agent supervisor.log. The supervisor is a
+// DETACHED process the daemon never Wait()s, so a respawn churn (crash-loop) could
+// otherwise grow this file without bound. On spawn, a log already at/over the cap is
+// TRUNCATED (fresh) rather than appended — keeping the most recent crash tail.
+const supervisorLogMaxBytes = 4 << 20 // 4 MiB
+
+// openSupervisorLog opens <homeDir>/supervisor.log to capture the spawned
+// supervisor's stdout+stderr. It APPENDS so successive supervisor instances
+// accumulate behind spawn markers, unless the file has reached supervisorLogMaxBytes
+// (then it truncates to bound growth). Best-effort: the caller treats a returned
+// error as "no capture" and proceeds with the spawn.
+func openSupervisorLog(homeDir string) (*os.File, error) {
+	path := filepath.Join(homeDir, "supervisor.log")
+	flags := os.O_CREATE | os.O_WRONLY | os.O_APPEND
+	if fi, err := os.Stat(path); err == nil && fi.Size() >= supervisorLogMaxBytes {
+		flags = os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+	}
+	return os.OpenFile(path, flags, 0o600)
+}
+
 // SupervisorRef is a live handle to a supervisor the daemon spawned or attached
 // to. It carries the negotiated protocol version (PM focus #4) and, when the ref
 // owns a connection, the AttachClient. Detach closes the client without killing.
@@ -173,8 +193,33 @@ func SpawnSupervisor(ctx context.Context, cfg SpawnSupervisorCfg) (*SupervisorRe
 	// via a file path, not env), so we strip them at this hop too — not raw
 	// os.Environ().
 	cmd.Env = agentsupervisor.BuildSupervisorEnv(os.Environ())
+	// Capture the supervisor's stdout+stderr — otherwise DISCARDED — to a per-agent
+	// supervisor.log so the REAL death cause is recoverable post-mortem. Both the
+	// supervisor's own Logger diagnostics (incl. the graceful-signal it logs on the
+	// way out) AND the claude child's stderr (wired to the supervisor's os.Stderr)
+	// land here. This matters because the spawn is DETACH-SURVIVABLE: we Release the
+	// process and never Wait() it, so an exit code/signal is otherwise unobservable —
+	// when a supervisor dies between socket round-trips the daemon only sees the
+	// downstream "broken pipe" on its next write, never WHY. Best-effort: a log-open
+	// failure does not block the spawn (capture is simply skipped).
+	logf, _ := openSupervisorLog(cfg.HomeDir)
+	if logf != nil {
+		cmd.Stdout = logf
+		cmd.Stderr = logf
+		// The child inherits its own dup of the fd at Start; we close OUR copy after
+		// the come-up wait. (A SIGKILL leaves no output — that is inherent — but a
+		// panic, an OOM/SIGTERM the supervisor logs, or a claude crash all land here.)
+		defer func() { _ = logf.Close() }()
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("supervisormanager: start supervisor: %w", err)
+	}
+	if logf != nil {
+		// Spawn marker: makes each supervisor instance's output attributable in the
+		// appended log (spawn time + child PID). Written via our fd; the child appends
+		// after (O_APPEND keeps writes from both fds ordered at the OS level).
+		fmt.Fprintf(logf, "\n=== agent-center supervisor spawn agent=%s pid=%d at=%s ===\n",
+			cfg.AgentID, cmd.Process.Pid, time.Now().Format(time.RFC3339))
 	}
 	// Release the process handle so the Go runtime does not keep it as our child
 	// (and does not try to reap it). The supervisor survives our death.

@@ -179,6 +179,30 @@ func TestSpawnSupervisor_AttachHello(t *testing.T) {
 	}
 }
 
+// SpawnSupervisor captures the supervisor's stdout+stderr to <home>/supervisor.log
+// so a DETACHED supervisor's death cause is recoverable post-mortem (the daemon
+// never Wait()s it). Assert the file is created and carries the spawn marker.
+func TestSpawnSupervisor_StderrCapturedToLog(t *testing.T) {
+	bin := buildAgentCenter(t)
+	claude := standinClaude(t)
+	home := t.TempDir()
+
+	ref := spawnHelper(t, bin, claude, home, "agent-superviselog")
+	defer reapRef(ref)
+	defer supervisormanager.Detach(ref)
+
+	data, err := os.ReadFile(filepath.Join(home, "supervisor.log"))
+	if err != nil {
+		t.Fatalf("supervisor.log not created: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "agent-center supervisor spawn") ||
+		!strings.Contains(got, "agent=agent-superviselog") ||
+		!strings.Contains(got, "pid=") {
+		t.Fatalf("supervisor.log missing spawn marker; got:\n%s", got)
+	}
+}
+
 func TestProbeAgent_Reattachable(t *testing.T) {
 	bin := buildAgentCenter(t)
 	claude := standinClaude(t)
