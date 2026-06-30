@@ -665,11 +665,6 @@ function PlanInfoRail({
       className="hidden w-[360px] shrink-0 flex-col overflow-y-auto border-l border-border-base bg-bg-base/40 md:flex"
       data-testid="plan-info-rail"
     >
-      {/* @oopslink: the unmerged-branch ship-gate board moved into the rail. Sits at
-          the very top as an alert (above status/progress); renders nothing when there
-          is no unmerged work, so it costs no space on a clean plan. */}
-      <UnmergedBranchesPanel projectId={projectId} planId={plan.id} className="m-4 mb-0" />
-
       {/* Status + Progress (merged, top of rail) — the plan STATUS chip and the
           PROGRESS bar now share ONE block at the very TOP of the rail (@oopslink:
           进度放到顶端 + plan 状态和进度合并到一起). The standalone Progress section
@@ -813,6 +808,11 @@ function PlanInfoRail({
           </div>
         </div>
       )}
+
+      {/* @oopslink: the unmerged-branch ship-gate board sits in the rail, just BEFORE
+          Up next. Renders nothing when there is no unmerged work (no space on a clean
+          plan). */}
+      <UnmergedBranchesPanel projectId={projectId} planId={plan.id} className="m-4 mb-0" />
 
       {/* Up next */}
       <div className="border-b border-border-base p-5">
