@@ -162,10 +162,11 @@ export default function PlanDetail(): React.ReactElement {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && <PlanTitleBar plan={p} />}
 
-        {/* v2.13.0 / I18 F4 — the ship-gate board: the cycle's Integrate nodes
-            not yet merged back into the trunk. Renders only when there is unmerged
+        {/* v2.13.0 / I18 F4 — the ship-gate board (cycle Integrate nodes not yet
+            merged). @oopslink: on DESKTOP it now lives in the right-hand PlanInfoRail;
+            MOBILE (no rail) keeps it in-flow here. Renders only when there is unmerged
             work to reconcile (a non-cycle / fully-merged plan shows nothing). */}
-        <UnmergedBranchesPanel projectId={id} planId={p.id} />
+        {isMobile && <UnmergedBranchesPanel projectId={id} planId={p.id} />}
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
@@ -664,6 +665,11 @@ function PlanInfoRail({
       className="hidden w-[360px] shrink-0 flex-col overflow-y-auto border-l border-border-base bg-bg-base/40 md:flex"
       data-testid="plan-info-rail"
     >
+      {/* @oopslink: the unmerged-branch ship-gate board moved into the rail. Sits at
+          the very top as an alert (above status/progress); renders nothing when there
+          is no unmerged work, so it costs no space on a clean plan. */}
+      <UnmergedBranchesPanel projectId={projectId} planId={plan.id} className="m-4 mb-0" />
+
       {/* Status + Progress (merged, top of rail) — the plan STATUS chip and the
           PROGRESS bar now share ONE block at the very TOP of the rail (@oopslink:
           进度放到顶端 + plan 状态和进度合并到一起). The standalone Progress section
@@ -1356,9 +1362,13 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
 function UnmergedBranchesPanel({
   projectId,
   planId,
+  className = 'mx-4 mt-2',
 }: {
   projectId: string;
   planId: string;
+  // Outer spacing — defaults to the in-flow placement; the right-hand rail passes
+  // its own (@oopslink: unmerged branches moved into the PlanInfoRail sidebar).
+  className?: string;
 }): React.ReactElement | null {
   const board = useUnmergedBranches(projectId, planId);
   const rows = board.data?.unmerged ?? [];
@@ -1374,7 +1384,7 @@ function UnmergedBranchesPanel({
   }
   return (
     <div
-      className="mx-4 mt-2 overflow-hidden rounded-md border border-warning/40 bg-warning/5"
+      className={`overflow-hidden rounded-md border border-warning/40 bg-warning/5 ${className}`}
       data-testid="plan-unmerged-board"
       data-unmerged-count={rows.length}
     >

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAgents } from '@/api/agents';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
-import { AgentBacklogBadge, AgentLoadBadge, AgentStatusBadge } from '@/components/AgentBadges';
+import { AgentStatsPill } from '@/components/AgentBadges';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 
 // ============================================================================
@@ -73,10 +73,8 @@ export function MembersSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
       to: `${orgBase}/agents/${encodeURIComponent(a.id)}`,
       label: a.name || a.id,
       meta: (
-        <span className="flex items-center gap-2 text-[0.6875rem] text-text-muted" data-testid="agent-nav-status">
-          <AgentStatusBadge agent={a} now={now} />
-          <AgentLoadBadge agent={a} />
-          <AgentBacklogBadge agent={a} />
+        <span className="block" data-testid="agent-nav-status">
+          <AgentStatsPill agent={a} now={now} />
         </span>
       ),
     }));

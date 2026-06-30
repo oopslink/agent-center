@@ -311,6 +311,85 @@ export function AgentBacklogBadge({
   );
 }
 
+// ── @oopslink: unified status pill (one segmented tag) ─────────────────────
+// In the Members second sidebar the three separate chips (status word + load:x +
+// backlog:n) floated at their own natural widths, so rows looked ragged. This
+// collapses them into ONE rounded pill of three EQUAL-WIDTH segments — status |
+// load | backlog — so every row is the same length and the trio reads as a single
+// tidy tag (per the reference mock). Each segment keeps its own semantic colour
+// (status by state, load/backlog by pressure level) as a solid fill with white
+// text; the full breakdown stays in the hover tooltip. The per-segment testids
+// (agent-status-badge / agent-load-badge / agent-backlog-badge) are preserved so
+// existing row assertions keep working.
+
+const STATUS_PILL_BG: Record<AgentStatus, string> = {
+  idle: 'bg-status-green-solid',
+  working: 'bg-status-blue-solid',
+  busy: 'bg-status-amber-solid',
+  unavailable: 'bg-status-orange-solid',
+  stopped: 'bg-text-muted',
+  error: 'bg-danger',
+};
+
+// Pressure → solid fill, shared by the load and backlog segments (mirrors the
+// none→muted, low→green, mid→amber, high→red gradient the text colours used).
+const PRESSURE_PILL_BG: Record<AgentLoadLevel, string> = {
+  none: 'bg-text-muted',
+  low: 'bg-status-green-solid',
+  medium: 'bg-status-amber-solid',
+  high: 'bg-danger',
+};
+
+export function AgentStatsPill({
+  agent,
+  now = Date.now(),
+}: {
+  agent: Pick<
+    Agent,
+    'lifecycle' | 'availability' | 'last_activity_at' | 'running_tasks' | 'pending_tasks' | 'task_load'
+  >;
+  now?: number;
+}): React.ReactElement {
+  const status = deriveAgentStatus(agent, now);
+  const statusMeta = STATUS_META[status];
+  const load = deriveAgentLoad(agent);
+  const backlog = agent.pending_tasks ?? 0;
+  const backlogLevel = deriveBacklogLevel(backlog);
+
+  const segBase = 'flex-1 basis-0 truncate px-1.5 py-1 text-center';
+  return (
+    <span
+      className="flex w-full items-stretch overflow-hidden rounded text-[0.625rem] font-semibold leading-none text-white"
+      data-testid="agent-stats-pill"
+      title={`${agentStatusTooltip(agent, now)} · load ${load.load.toFixed(2)} · backlog ${backlog}`}
+    >
+      <span
+        className={[segBase, STATUS_PILL_BG[status]].join(' ')}
+        data-testid="agent-status-badge"
+        data-agent-status={status}
+      >
+        {statusMeta.label}
+      </span>
+      <span
+        className={[segBase, 'tabular-nums', PRESSURE_PILL_BG[load.level]].join(' ')}
+        data-testid="agent-load-badge"
+        data-load-level={load.level}
+        data-load={load.load.toFixed(2)}
+      >
+        load:{load.load.toFixed(1)}
+      </span>
+      <span
+        className={[segBase, 'tabular-nums', PRESSURE_PILL_BG[backlogLevel]].join(' ')}
+        data-testid="agent-backlog-badge"
+        data-backlog-level={backlogLevel}
+        data-backlog={backlog}
+      >
+        backlog:{backlog}
+      </span>
+    </span>
+  );
+}
+
 export function LifecycleBadge({
   lifecycle,
 }: {

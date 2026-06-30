@@ -5,6 +5,7 @@ import {
   AGENT_IDLE_MS,
   AgentBacklogBadge,
   AgentLoadBadge,
+  AgentStatsPill,
   AgentStatusBadge,
   deriveAgentActivity,
   deriveAgentLoad,
@@ -185,5 +186,53 @@ describe('agent backlog metric (T342b)', () => {
     const badge = screen.getByTestId('agent-backlog-badge');
     expect(badge).toHaveTextContent('backlog: 0');
     expect(badge).toHaveAttribute('data-backlog-level', 'none');
+  });
+});
+
+describe('AgentStatsPill (@oopslink unified pill)', () => {
+  it('groups status + load + backlog into one pill with three equal-width segments', () => {
+    render(
+      <AgentStatsPill
+        agent={{
+          lifecycle: 'running',
+          availability: 'available',
+          last_activity_at: new Date(NOW).toISOString(), // recent → working
+          running_tasks: 2,
+          pending_tasks: 3,
+          task_load: 0.4,
+        }}
+        now={NOW}
+      />,
+    );
+    const pill = screen.getByTestId('agent-stats-pill');
+    // The three per-metric segments live inside the one pill.
+    const status = screen.getByTestId('agent-status-badge');
+    const load = screen.getByTestId('agent-load-badge');
+    const backlog = screen.getByTestId('agent-backlog-badge');
+    expect(pill).toContainElement(status);
+    expect(pill).toContainElement(load);
+    expect(pill).toContainElement(backlog);
+    // Each segment is flex-1/basis-0 → equal width → rows line up.
+    for (const seg of [status, load, backlog]) {
+      expect(seg.className).toContain('flex-1');
+      expect(seg.className).toContain('basis-0');
+    }
+    expect(status).toHaveAttribute('data-agent-status', 'working');
+    expect(status).toHaveTextContent('Working');
+    expect(load).toHaveTextContent('load:0.4');
+    expect(backlog).toHaveTextContent('backlog:3');
+    expect(backlog).toHaveAttribute('data-backlog-level', 'medium');
+  });
+
+  it('reflects a stopped, idle agent', () => {
+    render(
+      <AgentStatsPill
+        agent={{ lifecycle: 'stopped', availability: 'unavailable', running_tasks: 0, pending_tasks: 0, task_load: 0 }}
+        now={NOW}
+      />,
+    );
+    expect(screen.getByTestId('agent-status-badge')).toHaveAttribute('data-agent-status', 'stopped');
+    expect(screen.getByTestId('agent-load-badge')).toHaveTextContent('load:0.0');
+    expect(screen.getByTestId('agent-backlog-badge')).toHaveAttribute('data-backlog-level', 'none');
   });
 });
