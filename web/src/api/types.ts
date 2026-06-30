@@ -617,6 +617,13 @@ export type TaskStatus =
   | 'discarded'
   | 'reopened';
 
+// BlockReasonType (v2.14.0 I14) classifies WHY a running task is blocked ("stuck"):
+//   - input_required: an agent needs a USER reply (the user answers in the task) — most urgent.
+//   - obstacle: an external blocker needs owner/PM intervention.
+//   - '' (empty): the "not blocked" sentinel.
+// Mirrors the backend pm.BlockReasonType. Drives the global Alerts rail grouping.
+export type BlockReasonType = 'input_required' | 'obstacle' | '';
+
 export interface Task {
   id: string;
   project_id: string;
@@ -630,6 +637,9 @@ export interface Task {
   // non-empty, the task is running but blocked on something; the UI surfaces a
   // "Stuck" badge gated on status === 'running' && blocked_reason.
   blocked_reason?: string;
+  // I14 classification of blocked_reason (input_required | obstacle); '' / absent
+  // when the task is not blocked. Drives the global Alerts rail prioritization.
+  blocked_reason_type?: BlockReasonType;
   // v2.8.1 edit-task #278: free-form label set (cleaned + deduped + bounded to
   // ≤16 runes each, ≤10 entries by the backend). The DTO always emits a non-nil
   // array ([] when none) — pmTaskMap normalizes nil→[]. Optional on the type so
@@ -690,6 +700,11 @@ export interface OrgWorkItem {
   // creator identity ref (user:xxx / agent:xxx). Optional — older payloads may
   // omit it; the UI degrades to "—".
   creator_ref?: string;
+  // "stuck" alert surface: a RUNNING task with a non-empty blocked_reason is
+  // blocked; blocked_reason_type classifies it (input_required | obstacle). Both
+  // '' / absent when not blocked. Only task rows carry these (issues never block).
+  blocked_reason?: string;
+  blocked_reason_type?: BlockReasonType;
 }
 
 // CodeRepo — a PROJECT's reference to a code repo (v2.7; T575 turns it into a

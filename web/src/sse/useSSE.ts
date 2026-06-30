@@ -359,6 +359,17 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'pm.task.created':
       invalidate(qk.orgTasksAll());
       return;
+    // Block / unblock lifecycle — drives the global "stuck" Alerts rail item
+    // (useStuckTasks reads qk.orgTasks). block_task emits state_changed (always)
+    // + input_requested (input_required only); unblock emits assigned (re-dispatch)
+    // + input_replied (input_required only). Refresh the org tasks aggregation so
+    // the alert badge + panel update live without polling.
+    case 'pm.task.state_changed':
+    case 'pm.task.input_requested':
+    case 'pm.task.input_replied':
+    case 'pm.task.assigned':
+      invalidate(qk.orgTasksAll());
+      return;
     case 'pm.plan.created':
       invalidate(qk.orgPlansAll());
       return;

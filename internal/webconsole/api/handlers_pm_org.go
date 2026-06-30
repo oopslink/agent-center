@@ -302,6 +302,13 @@ func (s *Server) orgTaskRow(r *http.Request, d HandlerDeps, t *pm.Task, p *pm.Pr
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 		"tags":       orEmptyTags(t.Tags()), "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
+		// "stuck" alert surface (global rail): a RUNNING task with a non-empty
+		// blocked_reason is blocked. blocked_reason_type classifies it
+		// (input_required: needs a user reply / obstacle: needs owner-PM
+		// intervention) so the global Alerts rail item can group + prioritize.
+		// "" on both when the task is not blocked.
+		"blocked_reason":      t.BlockedReason(),
+		"blocked_reason_type": string(t.BlockedReasonType()),
 	}
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref

@@ -9,6 +9,7 @@ import {
   useUnreadConversations,
 } from '@/api/conversations';
 import { useProjects } from '@/api/projects';
+import { useStuckTasks, type StuckTask } from '@/api/stuckTasks';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
 import { UnreadBadge } from '@/components/UnreadBadge';
@@ -229,6 +230,7 @@ export default function AppLayout(): React.ReactElement {
   const [theme, setTheme] = useState<Theme>(readTheme);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [mobileNavSheetOpen, setMobileNavSheetOpen] = useState(false);
   const [mobileAccountSheetOpen, setMobileAccountSheetOpen] = useState(false);
 
@@ -292,6 +294,29 @@ export default function AppLayout(): React.ReactElement {
   const unreadConvs = useUnreadConversations();
   const conversationsUnread = (unreadConvs.data ?? []).reduce((s, r) => s + (r.unread_count || 0), 0);
   const conversationsMentions = (unreadConvs.data ?? []).reduce((s, r) => s + (r.mention_count || 0), 0);
+
+  // Global "stuck" alerts for the rail Alerts item — current-user-visible tasks
+  // (running + blocked_reason of type input_required/obstacle) across the org. The
+  // panel auto-opens when a NEW stuck task appears so the user catches it on ANY
+  // page; the badge persists the count regardless.
+  const stuck = useStuckTasks(orgCtx?.slug);
+  const stuckTasks = stuck.tasks;
+  const alertCount = stuckTasks.length;
+  // seenAlertIdsRef stays null until the first resolved snapshot, then tracks the
+  // current alert set; a freshly-appearing id (re)opens the panel exactly once.
+  const seenAlertIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (stuck.isLoading) return; // wait for the first real fetch before seeding
+    const ids = stuckTasks.map((t) => t.id);
+    const prev = seenAlertIdsRef.current;
+    seenAlertIdsRef.current = new Set(ids);
+    if (prev === null) {
+      // First snapshot: surface existing alerts once on load.
+      if (ids.length > 0) setAlertsPanelOpen(true);
+      return;
+    }
+    if (ids.some((id) => !prev.has(id))) setAlertsPanelOpen(true);
+  }, [stuck.isLoading, stuckTasks]);
 
   // Org switcher binding.
   const orgSwitcher: OrgSwitcherBinding = {
@@ -415,8 +440,39 @@ export default function AppLayout(): React.ReactElement {
             })}
           </div>
 
-          {/* Rail bottom: connection status + user avatar */}
+          {/* Rail bottom: alerts + connection status + user avatar */}
           <div className="flex flex-col items-center gap-2">
+            {/* Global "stuck" alerts — a task waiting on you, visible from any page. */}
+            <button
+              type="button"
+              data-testid="rail-alerts"
+              data-count={alertCount}
+              aria-label={alertCount > 0 ? `${alertCount} tasks need your attention` : 'Alerts'}
+              onClick={() => setAlertsPanelOpen((v) => !v)}
+              className={[
+                'relative inline-flex h-10 w-10 items-center justify-center rounded-lg motion-safe:transition-colors',
+                alertCount > 0
+                  ? 'text-danger hover:bg-danger/10'
+                  : 'text-text-muted hover:bg-bg-subtle hover:text-text-primary',
+              ].join(' ')}
+            >
+              <span aria-hidden="true" className="inline-flex h-5 w-5"><AlertBellIcon /></span>
+              {alertCount > 0 && (
+                <span
+                  data-testid="rail-alerts-badge"
+                  className="absolute -right-0.5 -top-0.5 inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-danger px-1 text-[0.625rem] font-semibold leading-none tabular-nums text-white motion-safe:animate-pulse"
+                >
+                  {alertCount > 99 ? '99+' : alertCount}
+                </span>
+              )}
+            </button>
+            {alertsPanelOpen && (
+              <RailAlertsPanel
+                tasks={stuckTasks}
+                orgBase={orgBase}
+                onClose={() => setAlertsPanelOpen(false)}
+              />
+            )}
             <RailConnectionStatus />
             <button
               type="button"
@@ -1028,6 +1084,102 @@ function RailUserPanel({
 }
 
 // ============================================================================
+// RailAlertsPanel — popout panel from the rail Alerts item. Lists the current
+// "stuck" tasks (running + blocked, input_required/obstacle), input_required
+// first, each deep-linking to the task so the user can unblock it.
+// ============================================================================
+function RailAlertsPanel({
+  tasks,
+  orgBase,
+  onClose,
+}: {
+  tasks: ReadonlyArray<StuckTask>;
+  orgBase: string;
+  onClose: () => void;
+}): React.ReactElement {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        // Ignore clicks on the toggle button itself (it manages its own open state).
+        const target = e.target as HTMLElement;
+        if (target.closest('[data-testid="rail-alerts"]')) return;
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={panelRef}
+      data-testid="rail-alerts-panel"
+      className="absolute bottom-12 left-14 z-50 max-h-[70vh] w-80 overflow-y-auto rounded-lg border border-border-base bg-bg-elevated p-3 shadow-2"
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-medium text-text-primary">需要你处理</span>
+        <span className="rounded-full bg-bg-subtle px-1.5 text-[0.6875rem] font-semibold tabular-nums text-text-secondary">
+          {tasks.length}
+        </span>
+      </div>
+      {tasks.length === 0 ? (
+        <div data-testid="rail-alerts-empty" className="px-1 py-6 text-center text-sm text-text-muted">
+          暂无等待你处理的任务
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {tasks.map((t) => {
+            const inputRequired = t.reason_type === 'input_required';
+            return (
+              <li key={t.id}>
+                <Link
+                  to={`${orgBase}/projects/${encodeURIComponent(t.project_id)}/tasks/${encodeURIComponent(t.id)}`}
+                  data-testid="rail-alert-item"
+                  data-reason-type={t.reason_type}
+                  onClick={onClose}
+                  className="block rounded-md border border-border-base px-2.5 py-2 hover:bg-bg-subtle motion-safe:transition-colors"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={[
+                        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[0.625rem] font-semibold',
+                        inputRequired
+                          ? 'bg-danger/15 text-danger'
+                          : 'bg-warning/15 text-warning',
+                      ].join(' ')}
+                    >
+                      {inputRequired ? '等你回复' : '需介入'}
+                    </span>
+                    {t.org_ref && (
+                      <span className="shrink-0 font-mono text-[0.6875rem] text-text-muted">{t.org_ref}</span>
+                    )}
+                    <span className="truncate text-sm font-medium text-text-primary">{t.title}</span>
+                  </div>
+                  <div className="mt-1 truncate text-xs text-text-secondary" title={t.reason}>
+                    {t.reason}
+                  </div>
+                  <div className="mt-0.5 truncate text-[0.6875rem] text-text-muted">{t.project_name}</div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // SidebarTop — ⌘K search (in col②). Org switcher moved to col① rail.
 // ============================================================================
 interface OrgSwitcherBinding {
@@ -1292,4 +1444,9 @@ function SignoutIcon(): React.ReactElement {
 }
 function ReminderIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 2.5V1M10 2.5C7 2.5 4.5 5 4.5 8c0 3.5-1.5 5-2 5.5h15c-.5-.5-2-2-2-5.5 0-3-2.5-5.5-5.5-5.5z" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 15.5a2 2 0 0 0 4 0" strokeLinecap="round" /></svg>);
+}
+// Alerts (rail) — a bell with a "ping" to read as an attention signal distinct
+// from the Reminders bell (which has no ping).
+function AlertBellIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 3.5C7.2 3.5 5 5.7 5 8.5c0 3-1.2 4.3-1.8 4.8h13.6c-.6-.5-1.8-1.8-1.8-4.8 0-2.8-2.2-5-5-5z" strokeLinecap="round" strokeLinejoin="round" /><path d="M8.2 15.8a2 2 0 0 0 3.6 0" strokeLinecap="round" /><circle cx="14.5" cy="5.5" r="2" className="fill-current stroke-none" /></svg>);
 }

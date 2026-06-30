@@ -112,7 +112,7 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		"id": string(t.ID()), "project_id": string(t.ProjectID()), "title": t.Title(),
 		"description": t.Description(), "status": string(t.Status()), "assignee": string(t.Assignee()),
 		"derived_from_issue": string(t.DerivedFromIssue()), "completed_by": string(t.CompletedBy()),
-		"blocked_reason": t.BlockedReason(), "version": t.Version(),
+		"blocked_reason": t.BlockedReason(), "blocked_reason_type": string(t.BlockedReasonType()), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 		"tags": tags, "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
 		// T570 follow-up: authoritative completion time — set on →completed, cleared
