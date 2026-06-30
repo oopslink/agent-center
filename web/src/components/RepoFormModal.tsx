@@ -169,6 +169,23 @@ export function RepoFormModal({ repo, onClose }: Props): React.ReactElement {
           </Field>
         </div>
 
+        <p className="mb-3 -mt-1 text-xs text-text-muted" data-testid="repo-form-credential-help">
+          Private repos need a read-only credential. For GitHub, create a{' '}
+          <a
+            href="https://github.com/settings/personal-access-tokens/new"
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent hover:underline"
+          >
+            fine-grained token
+          </a>{' '}
+          scoped to this repository with{' '}
+          <span className="text-text-secondary">Contents: Read-only</span> (add{' '}
+          <span className="text-text-secondary">Pull requests: Read</span> to view PRs).
+          A GitHub App installation token or a read-only deploy key works too. Public
+          repos can leave this blank.
+        </p>
+
         {error && (
           <p className="mb-3 text-xs text-danger" data-testid="repo-form-error">
             {error.message}
