@@ -120,7 +120,64 @@ describe('ProjectDetail page', () => {
     // Switch to the Tasks tab to see the task row.
     fireEvent.click(screen.getByTestId('project-tab-tasks'));
     await waitFor(() => expect(screen.getByText('rebuild docs')).toBeInTheDocument());
-    expect(screen.getByTestId('project-fleet-link')).toBeInTheDocument();
+    // The Workers/Environment-link panel was removed; the header stats block
+    // (counts + recent activity) replaces it.
+    expect(screen.queryByTestId('project-fleet-link')).not.toBeInTheDocument();
+    expect(screen.getByTestId('project-stats-block')).toBeInTheDocument();
+    expect(screen.getByTestId('project-counts-card')).toBeInTheDocument();
+    expect(screen.getByTestId('project-activity-card')).toBeInTheDocument();
+  });
+
+  it('stats block: shows the project counts + the 3 newest work items (merged, updated_at desc)', async () => {
+    server.use(
+      http.get('/api/projects/:id', () =>
+        HttpResponse.json({ ...projectAlpha, issue_count: 7, task_count: 12, plan_count: 3, repo_count: 2 }),
+      ),
+      http.get('/api/projects/proj-a/issues', () =>
+        HttpResponse.json({
+          issues: [
+            { id: 'issue-1', project_id: 'proj-a', org_ref: 'I9', title: 'oldest issue', description: '', status: 'open', created_by: 'user:hayang', version: 1, created_at: '2026-06-10T01:00:00Z', updated_at: '2026-06-10T01:00:00Z' },
+          ],
+          total: 7,
+        }),
+      ),
+      http.get('/api/projects/proj-a/tasks', () =>
+        HttpResponse.json({
+          tasks: [
+            { id: 'task-1', project_id: 'proj-a', org_ref: 'T20', title: 'newest task', description: '', status: 'open', created_by: 'user:hayang', version: 1, created_at: '2026-06-20T01:00:00Z', updated_at: '2026-06-20T01:00:00Z' },
+          ],
+          total: 12,
+        }),
+      ),
+      http.get('/api/projects/proj-a/plans', () =>
+        HttpResponse.json({
+          plans: [
+            { id: 'plan-1', project_id: 'proj-a', org_ref: 'P5', name: 'middle plan', description: '', status: 'running', creator_ref: 'user:hayang', conversation_id: '', has_failed: false, progress: { done: 1, total: 2 }, created_at: '2026-06-15T01:00:00Z', updated_at: '2026-06-15T01:00:00Z' },
+          ],
+          total: 3,
+        }),
+      ),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-counts-card')).toBeInTheDocument());
+
+    // Counts come straight from the project DTO's *_count fields.
+    expect(screen.getByTestId('project-stat-issues-value')).toHaveTextContent('7');
+    expect(screen.getByTestId('project-stat-tasks-value')).toHaveTextContent('12');
+    expect(screen.getByTestId('project-stat-plans-value')).toHaveTextContent('3');
+    expect(screen.getByTestId('project-stat-repos-value')).toHaveTextContent('2');
+    // The count tiles deep-link to their tab.
+    expect(screen.getByTestId('project-stat-tasks')).toHaveAttribute('href', '/projects/proj-a?tab=tasks');
+
+    // Recent activity = the 3 newest-updated items merged across issues/tasks/plans,
+    // newest first: task (06-20) → plan (06-15) → issue (06-10).
+    await waitFor(() => expect(screen.getAllByTestId('project-activity-row')).toHaveLength(3));
+    const rows = screen.getAllByTestId('project-activity-row');
+    expect(rows[0]).toHaveTextContent('newest task');
+    expect(rows[1]).toHaveTextContent('middle plan');
+    expect(rows[2]).toHaveTextContent('oldest issue');
+    // The newest row links to its task detail.
+    expect(within(rows[0]).getByRole('link')).toHaveAttribute('href', '/projects/proj-a/tasks/task-1');
   });
 
   it('renders Issues/Tasks as tables: id-tail handle (+hover) / status chip / title link / task assignee+priority (#242)', async () => {

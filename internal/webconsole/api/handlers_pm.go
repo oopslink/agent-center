@@ -354,7 +354,22 @@ func (s *Server) pmGetProjectHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, projectMapWithAutoAssign(r.Context(), d, p))
+	m := projectMapWithAutoAssign(r.Context(), d, p)
+	// The project DETAIL page shows a stats block (tasks/issues/plans/repos) in its
+	// header, so — unlike the original count-free single GET (the LIST carried them
+	// for its cards, §3.4.1) — enrich the GET with the same per-project counts. The
+	// fan-out is 4 indexed project_id reads for ONE project (vs the list's N), so it
+	// is cheap here; a read error fails loudly rather than reporting a silent 0.
+	counts, err := pmProjectCounts(r.Context(), d, p.ID())
+	if err != nil {
+		mapPMError(w, err)
+		return
+	}
+	m["task_count"] = counts.tasks
+	m["issue_count"] = counts.issues
+	m["plan_count"] = counts.plans
+	m["repo_count"] = counts.repos
+	writeJSON(w, http.StatusOK, m)
 }
 
 // projectMapWithAutoAssign builds the project DTO and enriches it with the

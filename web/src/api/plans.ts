@@ -120,6 +120,10 @@ export interface Plan {
   has_failed: boolean;
   progress: { done: number; total: number };
   created_at: string;
+  // The backend plan map (pmPlanMap) serializes updated_at; the base Plan DTO had
+  // historically omitted it. Optional so older typed call sites stay valid; the
+  // project-detail "recent activity" feed reads it (falling back to created_at).
+  updated_at?: string;
   // v2.9 Stage B (#290): set when the plan reaches the terminal archived state.
   // Optional — only an archived plan carries them.
   archived_at?: string | null;

@@ -437,8 +437,8 @@ func TestPM_Gating(t *testing.T) {
 // the GET /api/projects list cards carry per-project task/issue/plan/repo
 // counts (the mockup's "12 tasks · 3 issues · …" meta). Create a project, seed
 // 2 tasks + 1 issue over the real HTTP handlers, and assert the list response
-// reports task_count=2 / issue_count=1 / plan_count=0 / repo_count=0. The
-// single-project GET stays count-free.
+// reports task_count=2 / issue_count=1 / plan_count=0 / repo_count=0, and the
+// single-project GET carries the same counts (the detail-page stats block).
 func TestPM_ListProjects_Counts(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -496,11 +496,18 @@ func TestPM_ListProjects_Counts(t *testing.T) {
 		}
 	}
 
-	// The single-project GET stays count-free (counts are a list-card concern).
+	// The single-project GET now ALSO carries the counts — the project detail page's
+	// header stats block reads them (the GET is no longer count-free).
 	resp = orgScopedGet(t, base, sess)
 	var single map[string]any
 	json.NewDecoder(resp.Body).Decode(&single)
-	if _, present := single["task_count"]; present {
-		t.Errorf("single project GET should not carry task_count: %+v", single)
+	for k, v := range want {
+		gotV, ok := single[k].(float64)
+		if !ok {
+			t.Fatalf("single GET missing %s (got %T %v): %+v", k, single[k], single[k], single)
+		}
+		if gotV != v {
+			t.Errorf("single GET %s = %v, want %v", k, gotV, v)
+		}
 	}
 }

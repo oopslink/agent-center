@@ -84,8 +84,8 @@ export default function ProjectDetail(): React.ReactElement {
     <section className="space-y-4" data-testid="page-ProjectDetail" data-project-id={p.id}>
       <Breadcrumb items={[{ label: 'Projects', to: '/projects' }, { label: p.name }]} />
       <ProjectHeader project={p} />
+      <ProjectStatsBlock project={p} />
       <ProjectWorkTabs projectId={p.id} />
-      <EnvironmentLinkSection />
     </section>
   );
 }
@@ -1077,22 +1077,148 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
   );
 }
 
-function EnvironmentLinkSection(): React.ReactElement {
+// ProjectStatsBlock — the project-detail header summary the owner asked for
+// (replaces the removed Workers/Environment-link panel): a counts row
+// (issues / tasks / plans / repos, from the GET project DTO's *_count fields) and
+// a "recent activity" feed of the 3 most-recently-updated work items merged
+// across issues / tasks / plans.
+function ProjectStatsBlock({ project: p }: { project: Project }): React.ReactElement {
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="project-stats-block">
+      <ProjectCountsCard project={p} />
+      <ProjectRecentActivityCard projectId={p.id} />
+    </div>
+  );
+}
+
+// fmtCount renders a count, degrading an absent count (older payload / not-yet-
+// loaded) to an em-dash rather than a misleading 0.
+function fmtCount(n: number | undefined): string {
+  return typeof n === 'number' ? String(n) : '—';
+}
+
+function ProjectCountsCard({ project: p }: { project: Project }): React.ReactElement {
+  const base = `/projects/${encodeURIComponent(p.id)}`;
+  const tiles: { label: string; value: number | undefined; tab: WorkTab }[] = [
+    { label: 'Issues', value: p.issue_count, tab: 'issues' },
+    { label: 'Tasks', value: p.task_count, tab: 'tasks' },
+    { label: 'Plans', value: p.plan_count, tab: 'plans' },
+    { label: 'Repos', value: p.repo_count, tab: 'repos' },
+  ];
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
-      data-testid="project-fleet-link"
+      data-testid="project-counts-card"
     >
-      <h2 className="font-heading text-sm font-semibold text-text-primary">Workers</h2>
-      <p className="mt-1 text-xs text-text-secondary">
-        Worker / execution rollups live in Environment.
-      </p>
-      <OrgLink
-        to="/environment"
-        className="mt-2 inline-block text-xs text-accent hover:underline"
-      >
-        View in Environment →
-      </OrgLink>
+      <h2 className="mb-3 font-heading text-sm font-semibold text-text-primary">Overview</h2>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {tiles.map((t) => (
+          <OrgLink
+            key={t.tab}
+            to={`${base}?tab=${t.tab}`}
+            className="flex flex-col rounded-md border border-border-base bg-bg-subtle px-3 py-2 hover:border-accent"
+            data-testid={`project-stat-${t.tab}`}
+          >
+            <span className="tabular-nums text-xl font-semibold text-text-primary" data-testid={`project-stat-${t.tab}-value`}>
+              {fmtCount(t.value)}
+            </span>
+            <span className="text-[0.6875rem] uppercase tracking-wide text-text-muted">{t.label}</span>
+          </OrgLink>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ActivityKindBadge — a tiny pill marking a recent-activity row's entity kind.
+function ActivityKindBadge({ kind }: { kind: 'issue' | 'task' | 'plan' }): React.ReactElement {
+  const label = kind === 'issue' ? 'Issue' : kind === 'task' ? 'Task' : 'Plan';
+  return (
+    <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary">
+      {label}
+    </span>
+  );
+}
+
+interface ActivityRow {
+  kind: 'issue' | 'task' | 'plan';
+  id: string;
+  title: string;
+  orgRef?: string;
+  updatedAt: string;
+  to: string;
+}
+
+// ProjectRecentActivityCard — the 3 most-recently-updated work items across the
+// project's issues / tasks / plans. There is no dedicated project activity feed,
+// so we derive it by fetching each list sorted by updated_at desc (small page)
+// and merging — a self-contained "what changed recently" without a new endpoint.
+function ProjectRecentActivityCard({ projectId }: { projectId: string }): React.ReactElement {
+  const recent = { sort: 'updated_at', dir: 'desc' as const, page: 1, page_size: 3 };
+  const issues = useIssues(projectId, recent);
+  const tasks = useTasksList(projectId, recent);
+  const plans = useProjectPlansList(projectId, recent);
+  const base = `/projects/${encodeURIComponent(projectId)}`;
+
+  const rows: ActivityRow[] = useMemo(() => {
+    const out: ActivityRow[] = [];
+    for (const it of issues.data?.items ?? []) {
+      out.push({
+        kind: 'issue', id: it.id, title: it.title, orgRef: it.org_ref, updatedAt: it.updated_at,
+        to: `${base}/issues/${encodeURIComponent(it.id)}`,
+      });
+    }
+    for (const it of tasks.data?.items ?? []) {
+      out.push({
+        kind: 'task', id: it.id, title: it.title, orgRef: it.org_ref, updatedAt: it.updated_at,
+        to: `${base}/tasks/${encodeURIComponent(it.id)}`,
+      });
+    }
+    for (const it of plans.data?.items ?? []) {
+      out.push({
+        kind: 'plan', id: it.id, title: it.name || it.id, orgRef: it.org_ref, updatedAt: it.updated_at ?? it.created_at,
+        to: `${base}/plans/${encodeURIComponent(it.id)}`,
+      });
+    }
+    // Newest-updated first; stable for equal timestamps. Take the top 3 overall.
+    out.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
+    return out.slice(0, 3);
+  }, [issues.data, tasks.data, plans.data, base]);
+
+  const isLoading = issues.isLoading || tasks.isLoading || plans.isLoading;
+
+  return (
+    <div
+      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
+      data-testid="project-activity-card"
+    >
+      <h2 className="mb-3 font-heading text-sm font-semibold text-text-primary">Recent activity</h2>
+      {isLoading ? (
+        <div className="space-y-2">
+          <Skeleton height="1.25rem" />
+          <Skeleton height="1.25rem" />
+          <Skeleton height="1.25rem" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="py-2 text-xs text-text-muted" data-testid="project-activity-empty">
+          No recent activity yet.
+        </p>
+      ) : (
+        <ul className="space-y-1.5" data-testid="project-activity-list">
+          {rows.map((r) => (
+            <li key={`${r.kind}:${r.id}`} className="flex items-center gap-2 text-xs" data-testid="project-activity-row">
+              <ActivityKindBadge kind={r.kind} />
+              {r.orgRef && <span className="shrink-0 font-mono text-[0.625rem] text-text-muted">{r.orgRef}</span>}
+              <OrgLink to={r.to} className="min-w-0 flex-1 truncate text-text-primary hover:text-accent" title={r.title}>
+                {r.title}
+              </OrgLink>
+              <span className="shrink-0 tabular-nums text-[0.6875rem] text-text-muted" title={formatLocalTime(r.updatedAt)}>
+                {shortDate(r.updatedAt)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
