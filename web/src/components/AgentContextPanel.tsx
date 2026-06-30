@@ -8,12 +8,14 @@ import { refLabel } from '@/components/workItemDisplay';
 import type { AgentTask, AgentTaskStatus } from '@/api/types';
 
 // ============================================================================
-// v2.10.0 [T7] Members — the col④ on-demand context panel for an Agent detail
-// view. Surfaces the selected agent's CURRENT work item and the PLAN that work
-// item belongs to (mockup `docs/design/v2.10.0/members.html` §①, col④ "当前工作项
-// · 归属计划"). Rendered by AgentDetail inside <ContextPanel> so it portals into
-// the shell's fourth column (and is simply absent in three-column layouts /
-// isolated tests with no shell host).
+// v2.10.0 [T7] Members — the Agent "current work" context block. Surfaces the
+// selected agent's CURRENT work item and the PLAN that work item belongs to
+// (mockup `docs/design/v2.10.0/members.html` §①, "当前工作项 · 归属计划").
+//
+// v2.24.x (@oopslink): the standalone right-hand col④ sidebar was retired as
+// redundant with the Tasks tab; this block now renders inline at the TOP of the
+// Tasks tab (AgentTasks) via the `inline` variant (a wide 2-column grid). The
+// default (sidebar/stacked) layout is kept for back-compat / isolated tests.
 //
 // Labels follow the app's English UI convention (the mockup annotates in zh-CN,
 // but every live string in the console — Profile/Activity/Work items/Humans/… —
@@ -57,7 +59,15 @@ function taskIdOf(item: AgentTask): string {
   return item.task_id || item.task_ref?.replace(/^pm:\/\/tasks\//, '') || '';
 }
 
-export function AgentContextPanel({ agentId }: { agentId: string }): React.ReactElement {
+export function AgentContextPanel({
+  agentId,
+  inline = false,
+}: {
+  agentId: string;
+  // inline: wide 2-column layout for embedding at the top of the Tasks tab.
+  // Default (false): the stacked/padded layout the old col④ sidebar used.
+  inline?: boolean;
+}): React.ReactElement {
   const workItems = useAgentTasks(agentId);
   const current = useMemo(
     () => pickCurrentTask(workItems.data ?? []),
@@ -79,7 +89,10 @@ export function AgentContextPanel({ agentId }: { agentId: string }): React.React
   }, [plans.data, current]);
 
   return (
-    <div className="flex flex-col gap-5 p-4" data-testid="agent-context-panel">
+    <div
+      className={inline ? 'grid gap-4 sm:grid-cols-2' : 'flex flex-col gap-5 p-4'}
+      data-testid="agent-context-panel"
+    >
       <section data-testid="agent-context-current">
         <h4 className="mb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
           Current task

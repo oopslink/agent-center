@@ -29,6 +29,12 @@ function stub(items: AgentTask[]) {
 // server.use wins). 404 → the overlay query errors → no summary (degrade path).
 beforeEach(() => {
   server.use(http.get('/api/agents/:id/concurrency', () => HttpResponse.json({ message: 'no snapshot' }, { status: 404 })));
+  // v2.24.x: the Tasks tab now embeds AgentContextPanel (Current task + owning
+  // Plan) at the top, which fetches /projects/:pid/plans for any task carrying a
+  // project_id. Default it to empty so these AgentTasks-focused tests don't hit an
+  // unhandled request (onUnhandledRequest:'error'); AgentContextPanel's own tests
+  // cover plan resolution.
+  server.use(http.get('/api/projects/:pid/plans', () => HttpResponse.json({ plans: [] })));
 });
 
 function wrap() {
@@ -164,6 +170,20 @@ describe('AgentTasks (#228 PR(d); v2.14.0 I14)', () => {
     const link = await screen.findByTestId('agent-workitem-task');
     expect(link).toHaveTextContent('Build login flow');
     expect(link.getAttribute('href')).toContain('/projects/proj-x/tasks/task-9');
+  });
+
+  // v2.24.x (@oopslink): the Current task + owning Plan block (formerly the
+  // right-hand col④ sidebar) now renders inline at the TOP of the Tasks tab.
+  it('embeds the Current task + Plan context block above the table', async () => {
+    stub([wi('w9', 'active', { task_id: 'task-9', task_title: 'Build login flow', project_id: 'proj-x' })]);
+    wrap();
+    // it surfaces the agent's current (active) task…
+    const card = await screen.findByTestId('agent-context-task');
+    expect(card).toHaveTextContent('Build login flow');
+    const panel = screen.getByTestId('agent-context-panel');
+    // …and sits above the task table (DOM order: panel before the table).
+    const table = await screen.findByTestId('agent-workitems-table');
+    expect(panel.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('falls back to "Task" (no link) when the task is unresolved', async () => {

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useAgentTasks } from '@/api/agents';
 import { useAgentConcurrency, type AgentConcurrency, type ConcurrencyExecutor } from '@/api/concurrency';
+import { AgentContextPanel } from '@/components/AgentContextPanel';
 import { TypeChip } from '@/components/TypeChip';
 import { refLabel } from '@/components/workItemDisplay';
 import type { AgentTask, AgentTaskStatus } from '@/api/types';
@@ -100,6 +101,14 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
 
   return (
     <section className="rounded border border-border-base bg-bg-elevated p-4" data-testid="agent-tabpanel-workitems">
+      {/* v2.24.x (@oopslink): the agent's CURRENT task + owning PLAN, moved here
+          from the retired right-hand col④ sidebar. Inline = wide 2-column block
+          above the task table, so opening Tasks shows "what is it doing now · in
+          which plan" before the full queue. */}
+      <div className="mb-4 border-b border-border-base pb-4">
+        <AgentContextPanel agentId={agentId} inline />
+      </div>
+
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-text-primary">Tasks</h3>
         <div className="flex items-center gap-2">

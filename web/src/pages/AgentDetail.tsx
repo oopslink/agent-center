@@ -24,9 +24,7 @@ import { AgentProfile } from '@/components/AgentProfile';
 import { AgentRuntime } from '@/components/AgentRuntime';
 import { AgentTasks } from '@/components/AgentTasks';
 import { AgentAnalyticsPanel } from '@/components/analytics/AgentAnalyticsPanel';
-import { AgentContextPanel } from '@/components/AgentContextPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { ContextPanel } from '@/shell/contextPanel';
 
 // v2.7.1 #228: AgentDetail is a tab surface.
 // Profile/Activity/WorkItems get fleshed out in follow-up PRs (b/c/d).
@@ -526,13 +524,6 @@ export default function AgentDetail(): React.ReactElement {
         }}
         onCancel={() => setForceDeleteOpen(false)}
       />
-
-      {/* v2.10.0 [T7] col④ — on-demand context panel: this agent's current work
-          item + the plan it belongs to. Portals into the shell's fourth column
-          (absent in a three-column layout / isolated tests with no shell host). */}
-      <ContextPanel>
-        <AgentContextPanel agentId={id} />
-      </ContextPanel>
     </section>
   );
 }
