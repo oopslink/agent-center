@@ -32,16 +32,16 @@ const (
 	CycleRoleReview    CycleNodeRole = "review"    // 评审 — code review + §-1 gate
 	CycleRoleDecision  CycleNodeRole = "decision"  // 决策/网关 — produces pass/reject outcome routing its out-edges (B2/B0 §2.1)
 	CycleRoleIntegrate CycleNodeRole = "integrate" // 集成 — merge-check landing point (F3/F4 target)
-	CycleRoleEscape    CycleNodeRole = "escape"    // 逃生/人工兜底 — reached when a Decision's bounded loopback exhausts (B0 §4.1/§9)
+	CycleRoleEscape    CycleNodeRole = "escape"    // DEPRECATED (v2.23.0, issue-624bfb53): escape demoted from a graph vertex to a Decision terminal (reject_exhausted) + escalation; new scaffolds never emit it. Kept ONLY so historical / in-flight plans' boards still recognise the role.
 	CycleRoleGate      CycleNodeRole = "gate"      // 集成完成 Gate — PD barrier
 	CycleRoleAccept    CycleNodeRole = "accept"    // 验收
 	CycleRoleShip      CycleNodeRole = "ship"      // Ship — dev/vX.Y.0 → main + tag
 )
 
 // IsValid reports enum membership (an empty/unknown role is invalid — it simply
-// never matches the Integrate filter, which is the safe default). Decision/Escape
-// (B2 control-flow nodes) are valid roles but, like every non-Integrate role, are
-// ignored by the F4 board.
+// never matches the Integrate filter, which is the safe default). Decision is a
+// valid B2 control-flow role; the deprecated Escape role stays valid so historical
+// plans validate. Like every non-Integrate role, both are ignored by the F4 board.
 func (r CycleNodeRole) IsValid() bool {
 	switch r {
 	case CycleRoleS0, CycleRoleDev, CycleRoleReview, CycleRoleDecision,

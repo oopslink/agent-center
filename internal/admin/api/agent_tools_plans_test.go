@@ -113,10 +113,12 @@ func TestScaffoldCyclePlan_AsMember_OK(t *testing.T) {
 		t.Fatalf("no plan_id in body: %v", body)
 	}
 	nodes, _ := body["nodes"].([]any)
-	// S0 + (F1 control-flow: Dev/Review/Decision/Integrate/Escape) + (F2 doc-only:
-	// Dev) + Gate + Accept + Ship = 10 (B2 control-flow graph).
-	if len(nodes) != 10 {
-		t.Fatalf("nodes = %d, want 10; body = %v", len(nodes), body)
+	// S0 + (F1 control-flow: Dev/Review/Decision/Integrate) + (F2 doc-only:
+	// Dev) + Gate + Accept + Ship = 9 (B2 control-flow graph). v2.23.0 escape
+	// redesign (issue-624bfb53): escape is NO LONGER a scaffolded vertex
+	// (downgraded to a Decision terminal state) → 9 nodes, not 10.
+	if len(nodes) != 9 {
+		t.Fatalf("nodes = %d, want 9; body = %v", len(nodes), body)
 	}
 	// Control-flow edges are surfaced: the feature has a conditional(pass) and a
 	// loopback(reject) edge — assert both kinds appear.
