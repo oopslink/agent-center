@@ -2724,11 +2724,6 @@ function PlanConversationSide({
             )}
           </div>
         )}
-        {!maximized && (
-          <p className="mt-2 hidden text-[0.6875rem] text-text-muted md:block">
-            Dispatch = @assignee in this conversation (notify human / wake agent); also the place to discuss this plan.
-          </p>
-        )}
       </section>
     </SenderSidebarProvider>
   );
