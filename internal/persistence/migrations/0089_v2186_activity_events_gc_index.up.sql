@@ -1,0 +1,16 @@
+-- 0089_v2186_activity_events_gc_index.up.sql — add a retention-GC support index on
+-- agent_activity_events.occurred_at (mirror of 0075, which added the GC index for
+-- worker_control_events).
+--
+-- WHY (incident 2026-06-30): agent_activity_events is an append-only telemetry log
+-- that — unlike worker_control_events — had NO retention GC, so it grew unbounded to
+-- ~354k rows / ~598MB (26 days), bloating the whole DB to 691MB and causing SQLITE_BUSY
+-- write-lock contention that stalled the control-flow engine (a heavy complete_task
+-- cascade could not win the writer lock). The new periodic GC (v2.18.6) prunes rows by
+-- age (`occurred_at < cutoff`). The existing indexes do NOT support that delete: the PK
+-- autoindex is on id, and idx_aae_agent's LEADING column is agent_id — neither lets a
+-- WHERE occurred_at < ? avoid a full scan. This adds the missing occurred_at index.
+--
+-- UPGRADE SAFETY: a single additive CREATE INDEX IF NOT EXISTS — no row rewrite, no
+-- column change. Idempotent. SQLite (>=3.35) + PG common subset.
+CREATE INDEX IF NOT EXISTS idx_aae_occurred_at ON agent_activity_events (occurred_at);

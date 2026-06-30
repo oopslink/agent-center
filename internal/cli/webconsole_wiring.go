@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -656,6 +657,23 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	)
 	go controlEventGC.Run(controlEventGCCtx)
 
+	// incident 2026-06-30: agent_activity_events is an append-only telemetry log that —
+	// unlike worker_control_events above — had NO GC, so it grew unbounded (~598MB / 354k
+	// rows over 26 days), bloating the DB to 691MB and causing SQLITE_BUSY write-lock
+	// contention that stalled the control-flow engine. This slow-cadence (hourly) sweep
+	// prunes events older than the retention window (default 7 days, env-overridable),
+	// same boot-then-ticker lifecycle. SAFETY: pure telemetry, no replay/ack contract, so
+	// straight age-based deletion is safe (durable aggregates live in agent_activity_daily).
+	aaeRetention, aaeInterval := activityEventGCConfig(logger)
+	activityEventGCCtx, activityEventGCCancel := context.WithCancel(ctx)
+	activityEventGC := agentservice.NewActivityEventGC(
+		agentsql.NewActivityEventRepo(a.DB), a.Clock, aaeRetention, aaeInterval,
+		func(format string, args ...any) {
+			logger("webconsole activity-event gc: " + fmt.Sprintf(format, args...))
+		},
+	)
+	go activityEventGC.Run(activityEventGCCtx)
+
 	cleanup = func() error {
 		fanoutCancel()
 		pumpCancel()
@@ -664,6 +682,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		planReconcileLoopCancel()
 		resolvedIssueCloserCancel()
 		controlEventGCCancel()
+		activityEventGCCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)
@@ -696,6 +715,34 @@ func controlEventGCConfig(logger func(string)) (retention, interval time.Duratio
 			interval = d
 		} else {
 			logger(fmt.Sprintf("webconsole control-event gc: ignoring invalid AC_CONTROL_EVENTS_GC_INTERVAL=%q (using %s)", v, interval))
+		}
+	}
+	return retention, interval
+}
+
+// activityEventGCConfig resolves the activity-event GC retention + sweep interval from
+// the environment, falling back to the service defaults (7-day retention / hourly sweep)
+// when unset or unparseable. Both accept a Go duration string (e.g. "168h", "30m"):
+//   - AC_ACTIVITY_EVENTS_RETENTION — age past which an activity event is pruned.
+//   - AC_ACTIVITY_EVENTS_GC_INTERVAL — sweep cadence.
+//
+// A non-positive or malformed value is logged once and ignored (default stands), so a
+// fat-fingered env never silently disables or thrashes the sweep.
+func activityEventGCConfig(logger func(string)) (retention, interval time.Duration) {
+	retention = agentservice.DefaultActivityEventRetention
+	interval = agentservice.DefaultActivityEventGCInterval
+	if v := strings.TrimSpace(os.Getenv("AC_ACTIVITY_EVENTS_RETENTION")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			retention = d
+		} else {
+			logger(fmt.Sprintf("webconsole activity-event gc: ignoring invalid AC_ACTIVITY_EVENTS_RETENTION=%q (using %s)", v, retention))
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("AC_ACTIVITY_EVENTS_GC_INTERVAL")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			interval = d
+		} else {
+			logger(fmt.Sprintf("webconsole activity-event gc: ignoring invalid AC_ACTIVITY_EVENTS_GC_INTERVAL=%q (using %s)", v, interval))
 		}
 	}
 	return retention, interval

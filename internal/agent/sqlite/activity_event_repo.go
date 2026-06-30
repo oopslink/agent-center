@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -139,6 +140,34 @@ func scanActivityEvents(rows *sql.Rows) ([]*agent.AgentActivityEvent, error) {
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// DeleteOlderThan prunes up to `limit` activity events with occurred_at strictly before
+// `cutoff` (oldest-first), returning the count deleted; the caller loops until it returns
+// < limit. agent_activity_events is pure append-only telemetry with no replay/ack contract
+// (unlike worker_control_events), so straight age-based retention is safe — nothing
+// downstream re-reads a pruned raw event (the durable aggregates live in
+// agent_activity_daily). Batched (id IN (SELECT ... LIMIT ?)) so a large backlog never
+// locks the table in one big transaction. occurred_at is RFC3339Nano UTC (ts()), so '<' is
+// a correct time comparison; idx_aae_occurred_at (migration 0089) supports the scan.
+func (r *ActivityEventRepo) DeleteOlderThan(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	const stmt = `DELETE FROM agent_activity_events
+		WHERE id IN (
+			SELECT id FROM agent_activity_events
+			WHERE occurred_at < ?
+			ORDER BY occurred_at
+			LIMIT ?
+		)`
+	res, err := exec.ExecContext(ctx, stmt, ts(cutoff.UTC()), limit)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 var _ agent.ActivityEventRepository = (*ActivityEventRepo)(nil)

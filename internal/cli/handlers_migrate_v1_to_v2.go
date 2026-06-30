@@ -138,7 +138,9 @@ func MigrateV1ToV2Command() *Command {
 // T515/F3 added 0082 (agents model-routing config: orchestrator_model / default_executor_model /
 // max_concurrent_tasks / allowed_models — additive ADD COLUMN) and 0083 (pm_tasks.model hard-override
 // — additive ADD COLUMN).
-const targetSchemaVersion = 88
+// incident-2026-06-30 added 0089 (idx_aae_occurred_at — additive index supporting the new
+// agent_activity_events retention GC; 0084–0088 are the intervening v2.18.x migrations).
+const targetSchemaVersion = 89
 
 func runMigrateV1ToV2(
 	ctx context.Context,
