@@ -1,4 +1,6 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { OrgLink } from '@/OrgContext';
 import { useMemo, useState } from 'react';
 
@@ -29,15 +31,15 @@ import { formatLocalTime } from '@/utils/time';
 
 // v2.7 #197: map the backend's delete-guard codes to friendly copy so the UI
 // never shows a raw error code or fails silently (Rule 9).
-function agentDeleteErrorMessage(err: unknown): string {
+function agentDeleteErrorMessage(err: unknown, t: TFunction): string {
   if (err instanceof ApiError) {
-    if (err.code === 'agent_running') return 'This agent must be stopped before it can be deleted.';
+    if (err.code === 'agent_running') return t('agents.delete.errorRunning');
     if (err.code === 'agent_has_active_work') {
-      return 'This agent has active tasks and cannot be deleted until they finish.';
+      return t('agents.delete.errorActiveWork');
     }
-    if (err.code === 'not_found') return 'This agent no longer exists.';
+    if (err.code === 'not_found') return t('agents.delete.errorNotFound');
   }
-  return err instanceof Error ? err.message : 'Delete failed, please try again.';
+  return err instanceof Error ? err.message : t('agents.delete.errorGeneric');
 }
 
 // Agents page (/agents). Agent BC (v2.7 #101) — lists org-scoped agents
@@ -45,6 +47,7 @@ function agentDeleteErrorMessage(err: unknown): string {
 // modal. Rows link to /agents/{id}. Replaces the retired
 // workforce.AgentInstance list.
 export default function Agents(): React.ReactElement {
+  const { t } = useTranslation('members');
   const agents = useAgents();
   const workers = useWorkers();
   const workerName = (id: string): string | undefined =>
@@ -113,9 +116,9 @@ export default function Agents(): React.ReactElement {
     <section className="space-y-4" data-testid="page-Agents">
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Agents</h1>
+          <h1 className="text-xl font-semibold">{t('agents.list.title')}</h1>
           <p className="text-xs text-text-muted">
-            Organization-scoped agents with a managed lifecycle.
+            {t('agents.list.subtitle')}
           </p>
         </div>
         <button
@@ -124,7 +127,7 @@ export default function Agents(): React.ReactElement {
           onClick={() => setCreateOpen(true)}
           data-testid="agents-add-btn"
         >
-          + Add Agent
+          {t('agents.list.add')}
         </button>
       </header>
 
@@ -158,8 +161,8 @@ export default function Agents(): React.ReactElement {
       {agents.isSuccess && agents.data.length === 0 && (
         <EmptyState
           testId="agents-empty"
-          title="No agents yet"
-          body="Agents are org-scoped entities with a managed lifecycle. Click + Add Agent to create one and bind it to a fleet worker."
+          title={t('agents.list.emptyTitle')}
+          body={t('agents.list.emptyBody')}
         />
       )}
       {agents.isSuccess && agents.data.length > 0 && (
@@ -193,15 +196,15 @@ export default function Agents(): React.ReactElement {
                   type="button"
                   data-testid="agent-delete-button-mobile"
                   data-agent-id={a.id}
-                  aria-label={`Delete agent ${a.name}`}
-                  title="Delete agent"
+                  aria-label={t('agents.list.deleteAgentAria', { name: a.name })}
+                  title={t('agents.list.deleteAgentTitle')}
                   onClick={() => {
                     del.reset();
                     setPendingDelete({ id: a.id, name: a.name });
                   }}
                   className="rounded px-2 py-2 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
                 >
-                  Delete
+                  {t('agents.list.delete')}
                 </button>
               </div>
             </li>
@@ -212,14 +215,14 @@ export default function Agents(): React.ReactElement {
             className="w-full min-w-[60rem] table-fixed border-separate border-spacing-0 rounded border border-border-base bg-bg-elevated text-text-primary"
             data-testid="agents-table"
           >
-            <caption className="sr-only">Agent list</caption>
+            <caption className="sr-only">{t('agents.list.tableCaption')}</caption>
             <thead>
               <tr className="whitespace-nowrap text-left text-xs uppercase tracking-wide text-text-muted">
                 {/* T232: select-all checkbox (selects every visible agent). */}
                 <th className="w-[4%] border-b border-border-base px-3 py-2">
                   <input
                     type="checkbox"
-                    aria-label="Select all agents"
+                    aria-label={t('agents.list.selectAllAria')}
                     data-testid="agents-select-all"
                     className="h-4 w-4 cursor-pointer align-middle accent-brand"
                     checked={allSelected}
@@ -231,30 +234,30 @@ export default function Agents(): React.ReactElement {
                     onChange={toggleAll}
                   />
                 </th>
-                <th className="w-[13%] border-b border-border-base px-3 py-2">Name</th>
-                <th className="w-[11%] border-b border-border-base px-3 py-2">Provider</th>
-                <th className="w-[10%] border-b border-border-base px-3 py-2">Lifecycle</th>
-                <th className="w-[11%] border-b border-border-base px-3 py-2">Availability</th>
+                <th className="w-[13%] border-b border-border-base px-3 py-2">{t('agents.list.col.name')}</th>
+                <th className="w-[11%] border-b border-border-base px-3 py-2">{t('agents.list.col.provider')}</th>
+                <th className="w-[10%] border-b border-border-base px-3 py-2">{t('agents.list.col.lifecycle')}</th>
+                <th className="w-[11%] border-b border-border-base px-3 py-2">{t('agents.list.col.availability')}</th>
                 {/* T342: agent load = doing / (doing+pending), colored by pressure. */}
                 <th
                   className="w-[9%] border-b border-border-base px-3 py-2"
-                  title="Load = doing ÷ (doing + pending) tasks; colored by pressure"
+                  title={t('agents.list.col.loadTitle')}
                 >
-                  Load
+                  {t('agents.list.col.load')}
                 </th>
                 {/* T342b: backlog = pending (queued) task count, colored by depth. */}
                 <th
                   className="w-[9%] border-b border-border-base px-3 py-2"
-                  title="Backlog — pending (queued) tasks; colored by depth"
+                  title={t('agents.list.col.backlogTitle')}
                 >
-                  Backlog
+                  {t('agents.list.col.backlog')}
                 </th>
                 {/* dev2/v281 canonical-fold: Role + Status folded from the retired
                     /members/agents page so the merge loses no information. */}
-                <th className="w-[7%] border-b border-border-base px-3 py-2">Role</th>
-                <th className="w-[9%] border-b border-border-base px-3 py-2">Status</th>
-                <th className="w-[13%] border-b border-border-base px-3 py-2">Last activity</th>
-                <th className="w-[12%] border-b border-border-base px-3 py-2">Worker</th>
+                <th className="w-[7%] border-b border-border-base px-3 py-2">{t('agents.list.col.role')}</th>
+                <th className="w-[9%] border-b border-border-base px-3 py-2">{t('agents.list.col.status')}</th>
+                <th className="w-[13%] border-b border-border-base px-3 py-2">{t('agents.list.col.lastActivity')}</th>
+                <th className="w-[12%] border-b border-border-base px-3 py-2">{t('agents.list.col.worker')}</th>
                 <th className="w-[7%] border-b border-border-base px-3 py-2 text-right" />
               </tr>
             </thead>
@@ -272,7 +275,7 @@ export default function Agents(): React.ReactElement {
                 <td className="border-b border-border-base px-3 py-2">
                   <input
                     type="checkbox"
-                    aria-label={`Select agent ${a.name}`}
+                    aria-label={t('agents.list.selectAgentAria', { name: a.name })}
                     data-testid="agent-select-checkbox"
                     data-agent-id={a.id}
                     className="h-4 w-4 cursor-pointer align-middle accent-brand"
@@ -355,15 +358,15 @@ export default function Agents(): React.ReactElement {
                       type="button"
                       data-testid="agent-delete-button"
                       data-agent-id={a.id}
-                      aria-label={`Delete agent ${a.name}`}
-                      title="Delete agent"
+                      aria-label={t('agents.list.deleteAgentAria', { name: a.name })}
+                      title={t('agents.list.deleteAgentTitle')}
                       onClick={() => {
                         del.reset();
                         setPendingDelete({ id: a.id, name: a.name });
                       }}
                       className="rounded px-2 py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
                     >
-                      Delete
+                      {t('agents.list.delete')}
                     </button>
                   </div>
                 </td>
@@ -377,7 +380,7 @@ export default function Agents(): React.ReactElement {
 
       {del.isError && (
         <p className="text-sm text-danger" data-testid="agent-delete-error" role="alert">
-          {agentDeleteErrorMessage(del.error)}
+          {agentDeleteErrorMessage(del.error, t)}
         </p>
       )}
 
@@ -385,13 +388,13 @@ export default function Agents(): React.ReactElement {
         open={pendingDelete !== null}
         danger
         busy={del.isPending}
-        title="Delete agent"
+        title={t('agents.delete.title')}
         message={
           pendingDelete
-            ? `Delete the agent "${pendingDelete.name}"? This permanently removes the agent and its membership. The agent must be stopped with no active work. This cannot be undone.`
+            ? t('agents.delete.message', { name: pendingDelete.name })
             : undefined
         }
-        confirmLabel="Delete"
+        confirmLabel={t('agents.delete.confirm')}
         onCancel={() => {
           if (del.isPending) return;
           setPendingDelete(null);
@@ -411,15 +414,15 @@ export default function Agents(): React.ReactElement {
       <ConfirmModal
         open={pendingBatch !== null}
         danger={pendingBatch === 'reset'}
-        title={pendingBatch ? `${BATCH_LABELS[pendingBatch]} ${selectedIds.length} agent(s)` : ''}
+        title={pendingBatch ? t('agents.batch.confirmTitle', { action: batchLabel(pendingBatch, t), count: selectedIds.length }) : ''}
         message={
           pendingBatch
             ? pendingBatch === 'reset'
-              ? `Reset ${selectedIds.length} selected agent(s)? This clears each agent's memory and workspace and cannot be undone.`
-              : `${BATCH_LABELS[pendingBatch]} ${selectedIds.length} selected agent(s)?`
+              ? t('agents.batch.resetMessage', { count: selectedIds.length })
+              : t('agents.batch.confirmMessage', { action: batchLabel(pendingBatch, t), count: selectedIds.length })
             : undefined
         }
-        confirmLabel={pendingBatch ? BATCH_LABELS[pendingBatch] : 'Confirm'}
+        confirmLabel={pendingBatch ? batchLabel(pendingBatch, t) : t('agents.batch.confirmFallback')}
         onCancel={() => setPendingBatch(null)}
         onConfirm={confirmBatch}
       />
@@ -428,12 +431,10 @@ export default function Agents(): React.ReactElement {
 }
 
 // T232: user-facing verb for each batch action (buttons, confirm copy, progress).
-const BATCH_LABELS: Record<AgentBatchAction, string> = {
-  start: 'Start',
-  stop: 'Stop',
-  restart: 'Restart',
-  reset: 'Reset',
-};
+// The action key is the STABLE discriminator; the label is localized at render.
+function batchLabel(action: AgentBatchAction, t: TFunction): string {
+  return t(`agents.batch.actions.${action}`);
+}
 
 // BatchToolbar — the selection action bar above the Agents table (T232). Shows
 // the selected count, the four lifecycle actions, a live progress bar while a
@@ -450,6 +451,7 @@ function BatchToolbar({
   onAction: (action: AgentBatchAction) => void;
   onClear: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const { running, total, done, results, action } = progress;
   const failed = results.filter((r) => !r.ok);
   const succeeded = results.length - failed.length;
@@ -460,7 +462,7 @@ function BatchToolbar({
       data-testid="agents-batch-toolbar"
     >
       <span className="text-sm font-medium" data-testid="agents-batch-selected-count">
-        {selectedCount} selected
+        {t('agents.batch.selectedCount', { count: selectedCount })}
       </span>
       <div className="flex flex-wrap items-center gap-2">
         {AGENT_BATCH_ACTIONS.map((act) => (
@@ -477,7 +479,7 @@ function BatchToolbar({
                 : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
             ].join(' ')}
           >
-            {BATCH_LABELS[act]}
+            {batchLabel(act, t)}
           </button>
         ))}
       </div>
@@ -491,14 +493,16 @@ function BatchToolbar({
             />
           </div>
           <span className="whitespace-nowrap text-xs text-text-muted">
-            {action ? BATCH_LABELS[action] : ''} {done}/{total}
+            {action ? batchLabel(action, t) : ''} {done}/{total}
           </span>
         </div>
       )}
 
       {!running && results.length > 0 && (
         <span className="text-xs text-text-muted" data-testid="agents-batch-summary">
-          {succeeded} succeeded{failed.length > 0 ? `, ${failed.length} failed` : ''}
+          {failed.length > 0
+            ? t('agents.batch.summaryWithFailed', { succeeded, failed: failed.length })
+            : t('agents.batch.summary', { succeeded })}
         </span>
       )}
 
@@ -509,7 +513,7 @@ function BatchToolbar({
         disabled={running}
         className="ml-auto rounded px-2 py-1 text-xs text-text-muted hover:bg-bg-elevated hover:text-text-primary disabled:opacity-50"
       >
-        Clear
+        {t('agents.batch.clear')}
       </button>
     </div>
   );
@@ -532,6 +536,7 @@ function MembershipStatus({
 }: {
   status: MemberResult['status'] | undefined;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   if (!status) {
     return (
       <span className="text-xs text-text-muted" data-testid="agent-status" data-status="unknown">
@@ -549,7 +554,7 @@ function MembershipStatus({
       data-testid="agent-status"
       data-status={status}
     >
-      {joined ? 'Joined' : 'Disabled'}
+      {joined ? t('agents.status.joined') : t('agents.status.disabled')}
     </span>
   );
 }
@@ -568,11 +573,12 @@ function AgentLastActivity({
   at: string | undefined;
   content: string | undefined;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const preview = content?.replace(/\s+/g, ' ').trim();
   if (!at && !preview) {
     return (
       <span className="text-xs italic text-text-muted" data-testid="agent-no-activity">
-        No recent activity
+        {t('agents.list.noRecentActivity')}
       </span>
     );
   }

@@ -9,6 +9,7 @@
 // eligible agent may be auto-assigned. Shared by the task create / edit / board
 // modals so the editor behaves identically everywhere.
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // canonicalCapability mirrors the backend NormalizeCapabilities per-element rule
 // (trim + lowercase). Dedup happens at the set level in commit().
@@ -26,6 +27,7 @@ export function CapabilitiesEditor({
   /** Prefixes the input id + every data-testid so multiple editors don't collide. */
   idPrefix?: string;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const [draft, setDraft] = useState('');
 
   const commit = () => {
@@ -63,7 +65,7 @@ export function CapabilitiesEditor({
                 type="button"
                 className="text-text-muted hover:text-danger"
                 onClick={() => remove(cap)}
-                aria-label={`Remove capability ${cap}`}
+                aria-label={t('humans.capabilities.removeAria', { cap })}
                 data-testid={`${idPrefix}-remove`}
               >
                 <span aria-hidden="true">×</span>
@@ -80,12 +82,11 @@ export function CapabilitiesEditor({
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={commit}
-        placeholder="Type a capability, press Enter or comma…"
+        placeholder={t('humans.capabilities.placeholder')}
         aria-describedby={`${idPrefix}-hint`}
       />
       <p id={`${idPrefix}-hint`} className="mt-1 text-[0.6875rem] text-text-muted">
-        Canonical (lowercased &amp; trimmed). Empty = no requirement — any eligible agent
-        may be auto-assigned. Non-empty applies a strict subset gate.
+        {t('humans.capabilities.hint')}
       </p>
     </div>
   );

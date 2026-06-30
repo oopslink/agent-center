@@ -1,4 +1,6 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { Agent, AgentLifecycle, Availability } from '@/api/types';
 
 // Shared status chips for the Agent BC surface (v2.7 #101). Reused by the
@@ -15,6 +17,7 @@ export function AvailabilityBadge({
 }: {
   availability: Availability;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   return (
     <span
       className={[
@@ -23,9 +26,9 @@ export function AvailabilityBadge({
       ].join(' ')}
       data-testid="agent-availability-badge"
       data-availability={availability}
-      title="Availability — whether this agent will accept new work"
+      title={t('agentRuntime.badges.availabilityTitle')}
     >
-      {availability}
+      {t(`agentRuntime.badges.availability.${availability}`)}
     </span>
   );
 }
@@ -94,16 +97,14 @@ const ACTIVITY_CLASS: Record<AgentActivityStatus, string> = {
 // availability=busy, recently-active agent read as a baffling "BUSY  BUSY"). The
 // vocabulary now disambiguates the two axes: Availability = Available/Busy
 // (schedulable state), Activity = Active/Idle (recently doing work).
-const ACTIVITY_LABEL: Record<AgentActivityStatus, string> = {
-  idle: 'Idle',
-  busy: 'Active',
-};
+// (labels are localized at render via t('agentRuntime.badges.activity.*'))
 
 export function ActivityBadge({
   status,
 }: {
   status: AgentActivityStatus;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   return (
     <span
       className={[
@@ -112,9 +113,9 @@ export function ActivityBadge({
       ].join(' ')}
       data-testid="agent-activity-status-badge"
       data-activity-status={status}
-      title="Activity — whether this running agent is actively working or idle"
+      title={t('agentRuntime.badges.activityTitle')}
     >
-      {ACTIVITY_LABEL[status]}
+      {t(`agentRuntime.badges.activity.${status}`)}
     </span>
   );
 }
@@ -146,13 +147,15 @@ export function deriveAgentStatus(
   return deriveAgentActivity(agent, now) === 'busy' ? 'working' : 'idle';
 }
 
-const STATUS_META: Record<AgentStatus, { label: string; dot: string }> = {
-  idle: { label: 'Idle', dot: 'bg-status-green-solid' },
-  working: { label: 'Working', dot: 'bg-status-blue-solid' },
-  busy: { label: 'Busy', dot: 'bg-status-amber-solid' },
-  unavailable: { label: 'Unavailable', dot: 'bg-status-orange-solid' },
-  stopped: { label: 'Stopped', dot: 'bg-text-muted' },
-  error: { label: 'Error', dot: 'bg-danger' },
+// STATUS_DOT — the colored dot per status (label is localized at render via
+// t('agentRuntime.badges.status.*')).
+const STATUS_DOT: Record<AgentStatus, string> = {
+  idle: 'bg-status-green-solid',
+  working: 'bg-status-blue-solid',
+  busy: 'bg-status-amber-solid',
+  unavailable: 'bg-status-orange-solid',
+  stopped: 'bg-text-muted',
+  error: 'bg-danger',
 };
 
 // agentStatusTooltip — the full three-axis breakdown, surfaced on hover so the
@@ -160,12 +163,25 @@ const STATUS_META: Record<AgentStatus, { label: string; dot: string }> = {
 function agentStatusTooltip(
   agent: Pick<Agent, 'lifecycle' | 'availability' | 'last_activity_at'>,
   now: number,
+  t: TFunction,
 ): string {
-  if (agent.lifecycle !== 'running') return `Lifecycle: ${agent.lifecycle}`;
+  if (agent.lifecycle !== 'running') {
+    const lifecycleLabel = t(`agentRuntime.badges.lifecycle.${agent.lifecycle}`, {
+      defaultValue: agent.lifecycle,
+    });
+    return t('agentRuntime.badges.tooltip.lifecycle', { lifecycle: lifecycleLabel });
+  }
   const activity = deriveAgentActivity(agent, now);
-  return `Lifecycle: running · Availability: ${agent.availability} · Activity: ${
-    activity === 'busy' ? 'active' : 'idle'
-  }`;
+  const availabilityLabel = t(`agentRuntime.badges.availability.${agent.availability}`, {
+    defaultValue: agent.availability,
+  });
+  return t('agentRuntime.badges.tooltip.running', {
+    availability: availabilityLabel,
+    activity:
+      activity === 'busy'
+        ? t('agentRuntime.badges.tooltip.activityActive')
+        : t('agentRuntime.badges.tooltip.activityIdle'),
+  });
 }
 
 // AgentStatusBadge — the single status indicator: a colored dot (the alive/dead
@@ -178,17 +194,17 @@ export function AgentStatusBadge({
   agent: Pick<Agent, 'lifecycle' | 'availability' | 'last_activity_at'>;
   now?: number;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const status = deriveAgentStatus(agent, now);
-  const meta = STATUS_META[status];
   return (
     <span
       className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-secondary"
       data-testid="agent-status-badge"
       data-agent-status={status}
-      title={agentStatusTooltip(agent, now)}
+      title={agentStatusTooltip(agent, now, t)}
     >
-      <span className={['h-2 w-2 shrink-0 rounded-full', meta.dot].join(' ')} aria-hidden="true" />
-      <span>{meta.label}</span>
+      <span className={['h-2 w-2 shrink-0 rounded-full', STATUS_DOT[status]].join(' ')} aria-hidden="true" />
+      <span>{t(`agentRuntime.badges.status.${status}`)}</span>
     </span>
   );
 }
@@ -238,12 +254,17 @@ export function AgentLoadBadge({
 }: {
   agent: Pick<Agent, 'running_tasks' | 'pending_tasks' | 'task_load'>;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const info = deriveAgentLoad(agent);
   const value = info.load.toFixed(1); // 0.0 … 1.0 (one decimal, matches the spec)
   const title =
     info.total === 0
-      ? 'Load — no active tasks (doing ÷ (doing + pending))'
-      : `Load = doing ${info.running} ÷ (doing + pending ${info.total}) = ${info.load.toFixed(2)}`;
+      ? t('agentRuntime.badges.load.titleNone')
+      : t('agentRuntime.badges.load.title', {
+          running: info.running,
+          total: info.total,
+          load: info.load.toFixed(2),
+        });
   return (
     <span
       className={[
@@ -255,7 +276,7 @@ export function AgentLoadBadge({
       data-load={info.load.toFixed(2)}
       title={title}
     >
-      load: {value}
+      {t('agentRuntime.badges.load.label', { value })}
     </span>
   );
 }
@@ -289,12 +310,13 @@ export function AgentBacklogBadge({
 }: {
   agent: Pick<Agent, 'pending_tasks'>;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const pending = agent.pending_tasks ?? 0;
   const level = deriveBacklogLevel(pending);
   const title =
     pending === 0
-      ? 'Backlog — no pending (queued) tasks'
-      : `Backlog — ${pending} pending (queued) task${pending === 1 ? '' : 's'}`;
+      ? t('agentRuntime.badges.backlog.titleNone')
+      : t('agentRuntime.badges.backlog.title', { count: pending });
   return (
     <span
       className={[
@@ -306,7 +328,7 @@ export function AgentBacklogBadge({
       data-backlog={pending}
       title={title}
     >
-      backlog: {pending}
+      {t('agentRuntime.badges.backlog.label', { count: pending })}
     </span>
   );
 }
@@ -350,8 +372,8 @@ export function AgentStatsPill({
   >;
   now?: number;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const status = deriveAgentStatus(agent, now);
-  const statusMeta = STATUS_META[status];
   const load = deriveAgentLoad(agent);
   const backlog = agent.pending_tasks ?? 0;
   const backlogLevel = deriveBacklogLevel(backlog);
@@ -361,14 +383,14 @@ export function AgentStatsPill({
     <span
       className="flex w-full items-stretch overflow-hidden rounded text-[0.625rem] font-semibold leading-none text-white"
       data-testid="agent-stats-pill"
-      title={`${agentStatusTooltip(agent, now)} · load ${load.load.toFixed(2)} · backlog ${backlog}`}
+      title={`${agentStatusTooltip(agent, now, t)} · ${t('agentRuntime.badges.load.pillLabel', { value: load.load.toFixed(2) })} · ${t('agentRuntime.badges.backlog.pillLabel', { count: backlog })}`}
     >
       <span
         className={[segBase, STATUS_PILL_BG[status]].join(' ')}
         data-testid="agent-status-badge"
         data-agent-status={status}
       >
-        {statusMeta.label}
+        {t(`agentRuntime.badges.status.${status}`)}
       </span>
       <span
         className={[segBase, 'tabular-nums', PRESSURE_PILL_BG[load.level]].join(' ')}
@@ -376,7 +398,7 @@ export function AgentStatsPill({
         data-load-level={load.level}
         data-load={load.load.toFixed(2)}
       >
-        load:{load.load.toFixed(1)}
+        {t('agentRuntime.badges.load.pillLabel', { value: load.load.toFixed(1) })}
       </span>
       <span
         className={[segBase, 'tabular-nums', PRESSURE_PILL_BG[backlogLevel]].join(' ')}
@@ -384,7 +406,7 @@ export function AgentStatsPill({
         data-backlog-level={backlogLevel}
         data-backlog={backlog}
       >
-        backlog:{backlog}
+        {t('agentRuntime.badges.backlog.pillLabel', { count: backlog })}
       </span>
     </span>
   );
@@ -395,6 +417,7 @@ export function LifecycleBadge({
 }: {
   lifecycle: AgentLifecycle;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   return (
     <span
       className={[
@@ -406,7 +429,7 @@ export function LifecycleBadge({
       data-testid="agent-lifecycle-badge"
       data-lifecycle={lifecycle}
     >
-      {lifecycle}
+      {t(`agentRuntime.badges.lifecycle.${lifecycle}`, { defaultValue: lifecycle })}
     </span>
   );
 }

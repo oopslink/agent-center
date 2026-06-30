@@ -6,6 +6,8 @@
 // for binary/special files. When the worker is offline the API returns
 // { unavailable: true } and the whole tab degrades to a "Runtime unavailable" notice.
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   useRuntimeList,
   useRuntimeRead,
@@ -34,6 +36,7 @@ type Selected =
   | { kind: 'gitlog'; path: string; name: string };
 
 export function AgentRuntime({ agentId }: { agentId: string }): React.ReactElement {
+  const { t } = useTranslation('members');
   const [collapsed, setCollapsed] = useState(
     () => readLocalStorage(SIDEBAR_COLLAPSE_KEY) === '1',
   );
@@ -83,9 +86,9 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
           type="button"
           onClick={toggleCollapsed}
           className="m-2 h-8 w-8 shrink-0 rounded border border-border-base text-text-muted hover:bg-bg-subtle hover:text-text-primary"
-          aria-label="Expand file tree"
+          aria-label={t('agentRuntime.runtime.expandTree')}
           data-testid="runtime-sidebar-expand"
-          title="Expand"
+          title={t('agentRuntime.runtime.expandTitle')}
         >
           <span aria-hidden="true">»</span>
         </button>
@@ -95,14 +98,14 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
           data-testid="runtime-sidebar"
         >
           <div className="mb-1 flex items-center justify-between px-1">
-            <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Files</h3>
+            <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">{t('agentRuntime.runtime.filesHeading')}</h3>
             <button
               type="button"
               onClick={toggleCollapsed}
               className="h-6 w-6 rounded border border-border-base text-text-muted hover:bg-bg-subtle hover:text-text-primary"
-              aria-label="Collapse file tree"
+              aria-label={t('agentRuntime.runtime.collapseTree')}
               data-testid="runtime-sidebar-collapse"
-              title="Collapse"
+              title={t('agentRuntime.runtime.collapseTitle')}
             >
               <span aria-hidden="true">«</span>
             </button>
@@ -114,7 +117,7 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
               <Skeleton height="1.25rem" />
             </div>
           ) : root.isError ? (
-            <RuntimeUnavailable reason="Failed to load the runtime tree." />
+            <RuntimeUnavailable reason={t('agentRuntime.runtime.treeLoadFailed')} />
           ) : (
             <ul role="tree" data-testid="runtime-tree">
               {rootEntries.map((e) => (
@@ -135,7 +138,7 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden" data-testid="runtime-preview">
         {selected === null ? (
           <p className="py-16 text-center text-xs text-text-muted" data-testid="runtime-preview-empty">
-            Select a file to preview.
+            {t('agentRuntime.runtime.previewEmpty')}
           </p>
         ) : isMemoryScoped(selected.path) ? (
           <MemoryPane agentId={agentId} selected={selected} tab={memoryTab} setTab={setMemoryTab} />
@@ -165,6 +168,7 @@ function MemoryPane({
   tab: MemoryTab;
   setTab: (t: MemoryTab) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const hasFile = selected.kind === 'file';
   // No file selected (the memory folder) → History is the only meaningful view.
   const activeTab: MemoryTab = hasFile ? tab : 'history';
@@ -174,11 +178,11 @@ function MemoryPane({
       <div className="flex shrink-0 items-center gap-1 border-b border-border-base px-3 pt-2">
         {hasFile && (
           <MemoryTabButton active={activeTab === 'content'} onClick={() => setTab('content')} testid="runtime-memory-tab-content">
-            Content
+            {t('agentRuntime.runtime.tabs.content')}
           </MemoryTabButton>
         )}
         <MemoryTabButton active={activeTab === 'history'} onClick={() => setTab('history')} testid="runtime-memory-tab-history">
-          History
+          {t('agentRuntime.runtime.tabs.history')}
         </MemoryTabButton>
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-4">
@@ -235,6 +239,7 @@ function TreeNode({
   selectedPath: string | undefined;
   onSelect: (s: Selected) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const [open, setOpen] = useState(false);
   const isDir = entry.type === 'directory';
   const isMemory = entry.path === 'memory'; // top-level git repo
@@ -280,7 +285,7 @@ function TreeNode({
           </div>
         ) : children.data && isUnavailable(children.data) ? (
           <p className="px-2 py-1 text-[0.6875rem] italic text-text-muted" style={{ paddingLeft: `${0.25 + (depth + 1) * 0.85}rem` }}>
-            unavailable
+            {t('agentRuntime.runtime.unavailable')}
           </p>
         ) : (
           <ul role="group">
@@ -313,6 +318,7 @@ function FilePreview({
   path: string;
   name: string;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const read = useRuntimeRead(agentId, path);
 
   if (read.isLoading) {
@@ -329,13 +335,13 @@ function FilePreview({
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm font-semibold text-text-primary">{name}</span>
           <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wide text-text-muted">
-            {previewTypeLabel(d)}
+            {previewTypeLabel(d, t)}
           </span>
         </div>
         <span className="text-[0.6875rem] text-text-muted">
           {formatSize(d.size)}
           {d.mtime ? ` · ${formatLocalTime(d.mtime)}` : ''}
-          {d.truncated ? ' · truncated' : ''}
+          {d.truncated ? ` · ${t('agentRuntime.runtime.preview.truncated')}` : ''}
         </span>
       </div>
 
@@ -345,11 +351,10 @@ function FilePreview({
           data-testid="runtime-file-redacted"
         >
           <p className="text-sm font-medium text-status-amber-fg">
-            Contents withheld — this file holds plaintext credentials.
+            {t('agentRuntime.runtime.preview.redactedTitle')}
           </p>
           <p className="mt-1 text-xs text-status-amber-fg">
-            Only metadata (size / mtime) is shown. Viewing the contents would require an
-            org-admin gate + audit (not available yet).
+            {t('agentRuntime.runtime.preview.redactedBody')}
           </p>
         </div>
       ) : d.image && d.content ? (
@@ -369,9 +374,9 @@ function FilePreview({
           className="rounded-lg border border-border-base bg-bg-subtle px-4 py-6 text-center"
           data-testid="runtime-file-binary"
         >
-          <p className="text-sm text-text-secondary">Not previewable.</p>
+          <p className="text-sm text-text-secondary">{t('agentRuntime.runtime.preview.notPreviewable')}</p>
           <p className="mt-1 text-xs text-text-muted">
-            Binary or special file — metadata only ({formatSize(d.size)}).
+            {t('agentRuntime.runtime.preview.binaryMeta', { size: formatSize(d.size) })}
           </p>
         </div>
       ) : (
@@ -388,6 +393,7 @@ function FilePreview({
 
 // GitLogView — read-only commit history of the memory git repo.
 function GitLogView({ agentId, path }: { agentId: string; path: string }): React.ReactElement {
+  const { t } = useTranslation('members');
   const log = useRuntimeGitLog(agentId, path);
 
   return (
@@ -395,16 +401,16 @@ function GitLogView({ agentId, path }: { agentId: string; path: string }): React
       <div className="mb-3 flex items-center gap-2">
         <span className="font-mono text-sm font-semibold text-text-primary">{path}/</span>
         <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wide text-text-muted">
-          git log
+          {t('agentRuntime.runtime.gitLog.label')}
         </span>
-        <span className="ml-auto text-[0.6875rem] text-text-muted">read-only</span>
+        <span className="ml-auto text-[0.6875rem] text-text-muted">{t('agentRuntime.runtime.gitLog.readOnly')}</span>
       </div>
       {log.isLoading ? (
         <Skeleton height="6rem" />
       ) : log.isError || !log.data || isUnavailable(log.data) ? (
         <RuntimeUnavailable reason={log.data && isUnavailable(log.data) ? log.data.reason : undefined} />
       ) : log.data.commits.length === 0 ? (
-        <p className="text-xs italic text-text-muted">No commits.</p>
+        <p className="text-xs italic text-text-muted">{t('agentRuntime.runtime.gitLog.noCommits')}</p>
       ) : (
         <ul className="space-y-1" data-testid="runtime-gitlog-list">
           {log.data.commits.map((c) => (
@@ -413,7 +419,7 @@ function GitLogView({ agentId, path }: { agentId: string; path: string }): React
         </ul>
       )}
       <p className="mt-3 text-[0.6875rem] text-text-muted">
-        memory is a git repo · most recent commits · select a commit to view its diff.
+        {t('agentRuntime.runtime.gitLog.footer')}
       </p>
     </div>
   );
@@ -469,6 +475,7 @@ function CommitDiff({
   path: string;
   sha: string;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const diff = useRuntimeGitDiff(agentId, path, sha);
 
   if (diff.isLoading) {
@@ -481,14 +488,14 @@ function CommitDiff({
   if (diff.isError || !diff.data || isUnavailable(diff.data)) {
     return (
       <p className="pb-2 pl-5 text-[0.6875rem] italic text-text-muted" data-testid="runtime-gitdiff-error">
-        {diff.data && isUnavailable(diff.data) && diff.data.reason ? diff.data.reason : 'Could not load this diff.'}
+        {diff.data && isUnavailable(diff.data) && diff.data.reason ? diff.data.reason : t('agentRuntime.runtime.diff.loadFailed')}
       </p>
     );
   }
   if (diff.data.diff.trim() === '') {
     return (
       <p className="pb-2 pl-5 text-[0.6875rem] italic text-text-muted" data-testid="runtime-gitdiff-empty">
-        No textual changes in this commit.
+        {t('agentRuntime.runtime.diff.noChanges')}
       </p>
     );
   }
@@ -498,7 +505,7 @@ function CommitDiff({
         {renderDiffLines(diff.data.diff)}
       </pre>
       {diff.data.truncated && (
-        <p className="mt-1 text-[0.625rem] italic text-text-muted">diff truncated</p>
+        <p className="mt-1 text-[0.625rem] italic text-text-muted">{t('agentRuntime.runtime.diff.truncated')}</p>
       )}
     </div>
   );
@@ -522,17 +529,18 @@ function renderDiffLines(diff: string): React.ReactNode[] {
 }
 
 function RuntimeUnavailable({ reason }: { reason?: string }): React.ReactElement {
+  const { t } = useTranslation('members');
   return (
     <div className="flex flex-col items-center justify-center px-4 py-16 text-center" data-testid="runtime-unavailable">
       <svg viewBox="0 0 24 24" className="mb-2 h-8 w-8 text-text-muted" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
         <circle cx="12" cy="12" r="9" />
         <path d="M5.6 5.6l12.8 12.8" strokeLinecap="round" />
       </svg>
-      <p className="text-sm font-semibold text-text-secondary">Runtime unavailable</p>
+      <p className="text-sm font-semibold text-text-secondary">{t('agentRuntime.runtime.unavailableTitle')}</p>
       <p className="mt-1 max-w-md text-xs text-text-muted">
         {reason && reason.trim() !== ''
           ? reason
-          : 'The agent is offline / its worker is unreachable — runtime data is read live over the control-channel while the worker is online.'}
+          : t('agentRuntime.runtime.unavailableDefault')}
       </p>
     </div>
   );
@@ -582,22 +590,23 @@ function EntryIcon({ entry }: { entry: RuntimeEntry }): React.ReactElement {
 // A trailing tag on a tree row: git for the memory repo, lock for sock/lock files,
 // redacted for other sensitive files, else the size.
 function EntryTag({ entry }: { entry: RuntimeEntry }): React.ReactElement {
+  const { t } = useTranslation('members');
   const muted = 'shrink-0 text-[0.625rem] text-text-muted';
-  if (entry.path === 'memory') return <span className={muted}>git</span>;
+  if (entry.path === 'memory') return <span className={muted}>{t('agentRuntime.runtime.tag.git')}</span>;
   if (entry.type === 'directory') return <span className="w-0" />;
-  if (/\.(sock|lock)$/.test(entry.name)) return <span className={muted}>lock</span>;
-  if (entry.sensitive) return <span className={muted}>redacted</span>;
+  if (/\.(sock|lock)$/.test(entry.name)) return <span className={muted}>{t('agentRuntime.runtime.tag.lock')}</span>;
+  if (entry.sensitive) return <span className={muted}>{t('agentRuntime.runtime.tag.redacted')}</span>;
   return <span className={`${muted} font-mono`}>{formatSize(entry.size)}</span>;
 }
 
-function previewTypeLabel(d: RuntimeReadResp): string {
-  if (d.redacted) return 'redacted';
-  if (d.image) return 'image';
-  if (d.binary) return 'binary';
+function previewTypeLabel(d: RuntimeReadResp, t: TFunction): string {
+  if (d.redacted) return t('agentRuntime.runtime.typeLabel.redacted');
+  if (d.image) return t('agentRuntime.runtime.typeLabel.image');
+  if (d.binary) return t('agentRuntime.runtime.typeLabel.binary');
   const ct = (d.content_type || '').toLowerCase();
-  if (ct.includes('markdown')) return 'markdown';
-  if (ct.includes('json')) return 'json';
-  if (ct.includes('text') || ct === '') return 'text';
+  if (ct.includes('markdown')) return t('agentRuntime.runtime.typeLabel.markdown');
+  if (ct.includes('json')) return t('agentRuntime.runtime.typeLabel.json');
+  if (ct.includes('text') || ct === '') return t('agentRuntime.runtime.typeLabel.text');
   return ct;
 }
 

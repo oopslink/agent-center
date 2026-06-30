@@ -21,6 +21,7 @@
 // arrives via the workforce.worker.added SSE event (wired in
 // useSSE).
 import React, { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useAppStore } from '@/store/app';
 import { withOrgSlug } from '@/api/client';
 
@@ -65,6 +66,7 @@ async function mintEnrollToken(name: string): Promise<MintResponse> {
 }
 
 export function AddWorkerModal({ onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('members');
   const [state, setState] = useState<ModalState>({ kind: 'name_prompt', name: '' });
 
   // The global WorkerEnrolledToast (F4) suppresses itself while
@@ -105,12 +107,12 @@ export function AddWorkerModal({ onClose }: Props): React.ReactElement {
     >
       <div className="w-full max-w-2xl rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 id="add-worker-title" className="text-lg font-semibold">Add a Worker</h2>
+          <h2 id="add-worker-title" className="text-lg font-semibold">{t('workers.addModal.title')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('workers.addModal.close')}
             data-testid="add-worker-close"
           >
             X
@@ -135,6 +137,7 @@ interface BodyProps {
 }
 
 function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): React.ReactElement {
+  const { t } = useTranslation('members');
   switch (state.kind) {
     case 'name_prompt': {
       const trimmed = state.name.trim();
@@ -151,7 +154,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
             htmlFor="add-worker-name-input"
             className="mb-1 block text-sm font-medium text-text-primary"
           >
-            Worker name
+            {t('workers.addModal.nameLabel')}
           </label>
           <input
             id="add-worker-name-input"
@@ -160,13 +163,15 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
             value={state.name}
             onChange={(e) => onNameChange(e.target.value)}
             autoFocus
-            placeholder="e.g. test-1 or tenant-foo"
+            placeholder={t('workers.addModal.namePlaceholder')}
             className="block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
           />
           <p className="mt-1 text-xs text-text-muted">
-            Use a unique name (e.g. <code className="font-mono">test-1</code>,{' '}
-            <code className="font-mono">tenant-foo</code>) so you can spot this worker in Environment.
-            You'll grab the install command from the new Environment row's Show install command action.
+            <Trans
+              i18nKey="workers.addModal.nameHint"
+              ns="members"
+              components={{ code: <code className="font-mono" /> }}
+            />
           </p>
           <div className="mt-4 flex justify-end gap-2">
             <button
@@ -175,7 +180,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
               onClick={onClose}
               data-testid="modal-name-prompt-cancel"
             >
-              Cancel
+              {t('workers.addModal.cancel')}
             </button>
             <button
               type="submit"
@@ -183,7 +188,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
               className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="modal-name-prompt-submit"
             >
-              Add worker
+              {t('workers.addModal.submit')}
             </button>
           </div>
         </form>
@@ -192,7 +197,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
     case 'minting':
       return (
         <div className="py-8 text-center" data-testid="modal-state-minting">
-          <p className="text-sm text-text-secondary">Adding worker...</p>
+          <p className="text-sm text-text-secondary">{t('workers.addModal.minting')}</p>
           <div className="mt-4 inline-block h-6 w-6 animate-spin rounded-full border-2 border-border-base border-t-brand" />
         </div>
       );
@@ -200,14 +205,15 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
       return (
         <div data-testid="modal-state-mint-error">
           <p className="mb-3 text-sm font-medium text-danger">
-            Could not add worker.
+            {t('workers.addModal.error.title')}
           </p>
           <p className="mb-3 text-sm text-text-primary">{state.message}</p>
           <p className="mb-4 text-xs text-text-muted">
-            Common causes: admin TCP listener is not enabled on the
-            center (set <code className="font-mono">server.admin_tcp_listen</code> in the config,
-            e.g. <code className="font-mono">0.0.0.0:7300</code>) or the AdminToken service is not
-            wired. Check the server logs.
+            <Trans
+              i18nKey="workers.addModal.error.hint"
+              ns="members"
+              components={{ code: <code className="font-mono" /> }}
+            />
           </p>
           <div className="flex justify-end gap-2">
             <button
@@ -216,7 +222,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
               onClick={onClose}
               data-testid="modal-mint-error-close"
             >
-              Close
+              {t('workers.addModal.error.close')}
             </button>
             <button
               type="button"
@@ -224,7 +230,7 @@ function ModalBody({ state, onSubmitName, onNameChange, onClose }: BodyProps): R
               onClick={() => onSubmitName(state.lastName)}
               data-testid="modal-mint-error-retry"
             >
-              Try again
+              {t('workers.addModal.error.retry')}
             </button>
           </div>
         </div>
