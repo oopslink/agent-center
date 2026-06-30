@@ -55,7 +55,8 @@ const (
 	// OutcomePass routes the decision's conditional(when=pass) edge → Integrate.
 	OutcomePass = "pass"
 	// OutcomeReject fires the decision's loopback(when=reject) edge → back to Dev
-	// (the B1 bounded loop), or, once rounds are exhausted, the engine's escape edge.
+	// (the B1 bounded loop); once rounds are exhausted the engine records the terminal
+	// reject_exhausted outcome + escalates (v2.23.0 — no longer an escape-vertex edge).
 	OutcomeReject = "reject"
 )
 

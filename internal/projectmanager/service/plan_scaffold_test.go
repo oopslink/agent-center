@@ -95,22 +95,30 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// S0 + (F1: Dev+Review+Decision+Integrate+Escape) + (F9 doc-only: Dev) + Gate +
-	// Accept + Ship = 10 (B2 control-flow chain).
-	if len(all) != 10 {
-		t.Fatalf("node count = %d, want 10: %v", len(all), titles(all))
+	// S0 + (F1: Dev+Review+Decision+Integrate) + (F9 doc-only: Dev) + Gate +
+	// Accept + Ship = 9 (B2 control-flow chain). v2.23.0 escape redesign (A,
+	// issue-624bfb53): escape is NO LONGER a scaffolded vertex → 9 nodes, not 10.
+	if len(all) != 9 {
+		t.Fatalf("node count = %d, want 9: %v", len(all), titles(all))
 	}
-	if len(res.Nodes) != 10 {
-		t.Fatalf("result node count = %d, want 10", len(res.Nodes))
+	if len(res.Nodes) != 9 {
+		t.Fatalf("result node count = %d, want 9", len(res.Nodes))
 	}
 	byTitle := scaffoldByTitle(t, all)
+
+	// v2.23.0: NO node carries the escape role — new scaffolds never emit the
+	// 逃生/人工兜底 vertex (exhaustion is now a Decision terminal + escalation).
+	for _, tk := range all {
+		if tk.Role() == pm.CycleRoleEscape {
+			t.Errorf("scaffold must not emit an escape-role node, found %q", tk.Title())
+		}
+	}
 
 	const (
 		f1Dev    = "F1 规格 · Dev"
 		f1Review = "F1 规格 · Review"
 		f1Dec    = "F1 规格 · Decision（评审结论 pass/reject）"
 		f1Integ  = "F1 规格 · Integrate"
-		f1Esc    = "F1 规格 · 逃生/人工兜底（评审打回超限）"
 		f9Dev    = "F9 文档 · Dev"
 		s0Title  = "S0 开发主分支 — 切 dev/v2.13.0"
 		gate     = "集成完成 Gate — PD 关门核对"
@@ -138,14 +146,13 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 	}
 
 	// v2.13.0 I18/F3+B2: every node persists its cycle ROLE (the discriminator F3's
-	// merge guard + F4's board key on). Decision/Escape are the new B2 control-flow
-	// roles. Assert the per-title role mapping survived Save+ListByPlan.
+	// merge guard + F4's board key on). Decision is the B2 control-flow role.
+	// Assert the per-title role mapping survived Save+ListByPlan.
 	wantRole := map[string]pm.CycleNodeRole{
 		f1Dev:    pm.CycleRoleDev,
 		f1Review: pm.CycleRoleReview,
 		f1Dec:    pm.CycleRoleDecision,
 		f1Integ:  pm.CycleRoleIntegrate,
-		f1Esc:    pm.CycleRoleEscape,
 		f9Dev:    pm.CycleRoleDev,
 		gate:     pm.CycleRoleGate,
 		accept:   pm.CycleRoleAccept,
@@ -162,7 +169,7 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 	}
 
 	// F1 git-chain (Dev/Review/Decision/Integrate) shares the explicit branch f1-spec,
-	// base dev/v2.13.0, no skip. (The Escape node is a human node — branch left empty.)
+	// base dev/v2.13.0, no skip.
 	for _, title := range []string{f1Dev, f1Review, f1Dec, f1Integ} {
 		n := byTitle[title]
 		if n == nil {
@@ -175,11 +182,8 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 			t.Errorf("%q skip_merge_check = true, want false", title)
 		}
 	}
-	if esc := byTitle[f1Esc]; esc == nil || esc.Branch() != "" {
-		t.Errorf("escape node branch = %q, want empty (human node, no git branch)", esc.Branch())
-	}
 
-	// F9 is doc-only: a single Dev node, no Review/Decision/Integrate/Escape,
+	// F9 is doc-only: a single Dev node, no Review/Decision/Integrate,
 	// skip_merge_check=true, and its branch defaulted to its own T<n>.
 	if byTitle["F9 文档 · Review"] != nil || byTitle["F9 文档 · Integrate"] != nil ||
 		byTitle["F9 文档 · Decision（评审结论 pass/reject）"] != nil {
@@ -230,9 +234,9 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 		{f1Dev, s0Title, "seq", "", 0},
 		{f1Review, f1Dev, "seq", "", 0},
 		{f1Dec, f1Review, "seq", "", 0},
-		{f1Integ, f1Dec, "conditional", "pass", 0},           // pass → Integrate
-		{f1Esc, f1Dec, "conditional", "reject_exhausted", 0}, // exhausted → Escape
-		{f1Dec, f1Dev, "loopback", "reject", 5},              // reject → bounded loop (max=5)
+		{f1Integ, f1Dec, "conditional", "pass", 0}, // pass → Integrate
+		// v2.23.0: NO reject_exhausted conditional edge (escape vertex removed).
+		{f1Dec, f1Dev, "loopback", "reject", 5}, // reject → bounded loop (max=5)
 		{f9Dev, s0Title, "seq", "", 0},
 		{gate, f1Integ, "seq", "", 0}, // Gate terminal = Integrate (pass path)
 		{gate, f9Dev, "seq", "", 0},   // doc-only terminal = its Dev
@@ -256,6 +260,14 @@ func TestScaffoldCyclePlan_BuildsGraphMetadataAndEdges(t *testing.T) {
 	}
 	if len(res.Edges) != len(wantEdges) {
 		t.Errorf("result edge count = %d, want %d", len(res.Edges), len(wantEdges))
+	}
+	// v2.23.0 acceptance: NO conditional reject_exhausted edge exists (escape vertex
+	// removed). Exhaustion is recorded as a Decision terminal outcome at runtime, not
+	// a scaffolded edge.
+	for _, e := range deps {
+		if e.When == "reject_exhausted" {
+			t.Errorf("scaffold must not emit a reject_exhausted edge, found %q→%q", e.FromTaskID, e.ToTaskID)
+		}
 	}
 }
 
@@ -424,8 +436,8 @@ func TestScaffoldCyclePlan_SourceIssueLinksEveryNodeAtCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(all) != 10 {
-		t.Fatalf("node count = %d, want 10", len(all))
+	if len(all) != 9 {
+		t.Fatalf("node count = %d, want 9", len(all))
 	}
 	// Every persisted node carries the source issue (the gate-satisfying link).
 	for _, tk := range all {
@@ -479,8 +491,8 @@ func TestScaffoldCyclePlan_FeatureIssueOverridesPlanSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	byTitle := scaffoldByTitle(t, all)
-	// F1's chain nodes derive from featIss.
-	for _, title := range []string{"F1 规格 · Dev", "F1 规格 · Review", "F1 规格 · Decision（评审结论 pass/reject）", "F1 规格 · Integrate", "F1 规格 · 逃生/人工兜底（评审打回超限）"} {
+	// F1's chain nodes derive from featIss (v2.23.0: no escape node in the chain).
+	for _, title := range []string{"F1 规格 · Dev", "F1 规格 · Review", "F1 规格 · Decision（评审结论 pass/reject）", "F1 规格 · Integrate"} {
 		if got := byTitle[title]; got == nil || got.DerivedFromIssue() != featIss {
 			t.Errorf("node %q derived = %q, want feature override %q", title, derivedOf(got), featIss)
 		}

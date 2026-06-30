@@ -15,8 +15,10 @@ import (
 //     loopback out-edges via ComputePlanView).
 //   - applyLoopbacks: the §4 bounded-loopback driver — when a decision completes
 //     with an outcome that fires a loopback edge, re-activate the loop target
-//     subgraph (Reopen + clear dispatch/outcome) up to MaxRounds, then take the
-//     escape branch (or notify the creator that the loop is stuck).
+//     subgraph (Reopen + clear dispatch/outcome) up to MaxRounds. On exhaustion it
+//     records the terminal reject_exhausted outcome and either routes to a HISTORICAL
+//     Escape vertex (legacy double-track) or escalates to the PD/creator (v2.23.0:
+//     escape demoted from a graph vertex to a Decision terminal + escalation).
 //
 // Both are NO-OPs for a pure DAG plan (no decision outcomes, no loopback edges), so
 // existing plans are unaffected (the back-compat anchor).
@@ -108,31 +110,45 @@ func (s *Service) applyLoopbacks(txCtx context.Context, plan *pm.Plan, changed p
 			}
 			continue
 		}
-		// Exhausted (round == MaxRounds): take the escape branch if the decision has a
-		// conditional out-edge When==<outcome>_exhausted; else notify the creator (stuck).
-		escape := outcome + "_exhausted"
-		hasEscape := false
-		for _, e := range edges {
-			// The escape edge is a conditional with To=decision (From=Escape node),
-			// per the condUp convention — match by ToTaskID, not FromTaskID. (T272 /
-			// F-T272-1: the previous FromTaskID check never matched a real escape edge,
-			// so exhaustion fell through to notifyLoopStuck instead of routing to Escape.)
-			if e.ToTaskID == changed && pm.NormalizeEdgeKind(e.Kind) == pm.EdgeConditional && e.When == escape {
-				hasEscape = true
-				break
-			}
+		// Exhausted (round == MaxRounds). Record the terminal reject_exhausted outcome
+		// — kept as the value name for backward compat (v2.23.0 escape redesign A):
+		// it is now the Decision's TERMINAL outcome semantics, no longer a routing
+		// label to an Escape vertex. Recorded for BOTH tracks so plan-view learns the
+		// Decision concluded non-pass (→ the feature's Integrate auto-skips).
+		exhausted := outcome + "_exhausted"
+		if rerr := s.plans.RecordDecisionOutcome(txCtx, plan.ID(), changed, exhausted, now); rerr != nil {
+			return rerr
 		}
-		if hasEscape {
-			if rerr := s.plans.RecordDecisionOutcome(txCtx, plan.ID(), changed, escape, now); rerr != nil {
-				return rerr
-			}
+		if hasLegacyEscapeEdge(edges, changed, exhausted) {
+			// HISTORICAL plan (§5 / Q7 double-track): a pre-scaffolded Escape vertex
+			// picks up this outcome via its conditional in-edge (When==…_exhausted) and
+			// becomes ready for a human — that IS the surfacing, so do NOT also escalate
+			// (mirrors the pre-v2.23 behaviour; T272 regression keeps this).
 			continue
 		}
-		if nerr := s.notifyLoopStuck(txCtx, plan, t); nerr != nil {
-			return nerr
+		// NEW scaffold: escape is no longer a graph vertex. The feature's Integrate
+		// in-edge (When=pass) no longer matches → it auto-skips (NodeSkipped); surface
+		// the exhaustion to a human so they rule (reopen / re-decide / abandon).
+		if eerr := s.escalateExhaustion(txCtx, plan, t); eerr != nil {
+			return eerr
 		}
 	}
 	return nil
+}
+
+// hasLegacyEscapeEdge reports whether the plan still carries a HISTORICAL Escape
+// vertex's conditional in-edge for this decision (From=Escape, To=decision,
+// When==<outcome>_exhausted, per the condUp convention — matched by ToTaskID). New
+// scaffolds no longer emit it (v2.23.0 demoted escape to a Decision terminal), but
+// the engine keeps this double-track so a plan minted before the cutover and still
+// mid-flight routes exhaustion to its Escape node exactly as before (§5 / Q7).
+func hasLegacyEscapeEdge(edges []pm.Dependency, decision pm.TaskID, exhaustedWhen string) bool {
+	for _, e := range edges {
+		if e.ToTaskID == decision && pm.NormalizeEdgeKind(e.Kind) == pm.EdgeConditional && e.When == exhaustedWhen {
+			return true
+		}
+	}
+	return false
 }
 
 // reopenLoopSubgraph re-activates every node on the forward path from `to` (the loop
@@ -167,13 +183,24 @@ func (s *Service) reopenLoopSubgraph(txCtx context.Context, planID pm.PlanID, ed
 	return nil
 }
 
-// notifyLoopStuck @mentions the plan creator that a loopback exhausted its rounds
-// with no escape edge (the §4.1 fail-safe). Best-effort: requires a dispatcher.
-func (s *Service) notifyLoopStuck(txCtx context.Context, plan *pm.Plan, decision *pm.Task) error {
+// escalateExhaustion is the v2.23.0 escape-redesign (A) terminal handler: when a
+// NEW-scaffold cycle's Decision loopback exhausts, escape is no longer a graph
+// vertex, so the engine surfaces the exhaustion by @mentioning the Decision's owner
+// (or, absent one, the plan creator) in the plan conversation — telling the human
+// the feature will NOT auto-integrate and asking them to rule. It deliberately does
+// NOT BlockTask anything: the Decision is already TaskCompleted (terminal) and the
+// feature's Integrate is blocked, neither of which BlockTask (running-only) accepts
+// (design Q6); and it leaves has_failed UNSET — an exhausted loop awaiting a human
+// ruling is not a failure (Q1). Best-effort: a nil dispatcher is a no-op.
+func (s *Service) escalateExhaustion(txCtx context.Context, plan *pm.Plan, decision *pm.Task) error {
 	if s.planDispatcher == nil {
 		return nil
 	}
-	content := fmt.Sprintf("decision %q exhausted its loopback rounds with no escape branch — the loop is stuck pending resolution.", decision.Title())
-	_, err := s.planDispatcher.PostMention(txCtx, plan.ConversationID(), string(plan.CreatorRef()), content)
+	target := string(decision.Assignee())
+	if target == "" {
+		target = string(plan.CreatorRef())
+	}
+	content := fmt.Sprintf("decision %q exhausted its review-reject loopback rounds (escalated). The feature will NOT auto-integrate — please rule: reopen for another round, re-decide the outcome, or abandon the feature.", decision.Title())
+	_, err := s.planDispatcher.PostMention(txCtx, plan.ConversationID(), target, content)
 	return err
 }
