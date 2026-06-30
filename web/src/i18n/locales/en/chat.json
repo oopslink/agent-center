@@ -1,1 +1,211 @@
-{}
+{
+  "channels": {
+    "title": "Channels",
+    "newChannel": "New channel",
+    "archive": "Archive",
+    "archiveAriaLabel": "Archive {{name}}",
+    "conversationsSectionsAriaLabel": "Conversations sections",
+    "participantCount_one": "{{count}} participant",
+    "participantCount_other": "{{count}} participants",
+    "moreOverflow": "{{count}} more",
+    "noMessagesYet": "No messages yet",
+    "deletedSenderLabel": "(deleted)",
+    "deletedSender": "deleted",
+    "empty": {
+      "title": "No channels yet",
+      "body": "Channels group humans + agents around a topic. Create one to start a conversation that anyone in this server can join."
+    },
+    "archived": {
+      "toggle": "Archived / 已归档",
+      "empty": "No archived channels."
+    },
+    "detail": {
+      "loading": "Loading channel…",
+      "backToChannels": "Back to channels",
+      "lookupFailed": "Channel lookup failed."
+    },
+    "create": {
+      "title": "New channel",
+      "nameLabel": "Name",
+      "namePlaceholder": "alpha",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "optional",
+      "cancel": "Cancel",
+      "creating": "Creating…",
+      "submit": "Create",
+      "alreadyExists": "A channel named \"{{name}}\" already exists in this organization.",
+      "failed": "Failed to create channel."
+    }
+  },
+  "dms": {
+    "segmentedNavAriaLabel": "Conversations sections",
+    "title": "DMs",
+    "startButton": "Start a DM",
+    "viewsAriaLabel": "DM views",
+    "directMessage": "Direct message",
+    "agentAgentBadge": "agent-agent",
+    "deleteButton": "Delete",
+    "deleteAriaLabel": "Delete DM {{name}}",
+    "deleteTitle": "Delete DM",
+    "empty": {
+      "title": "No DMs yet",
+      "body": "DMs are private conversations between two parties (human or agent). Start one to message someone directly."
+    },
+    "tabs": {
+      "mine": "Mine",
+      "agentToAgent": "Agent-to-agent"
+    },
+    "filterEmpty": {
+      "agent": {
+        "title": "No agent DMs",
+        "body": "Agent-to-agent DMs will appear here."
+      },
+      "personal": {
+        "title": "No personal DMs",
+        "body": "DMs involving you will appear here."
+      }
+    },
+    "deleteConfirm": {
+      "title": "Delete DM",
+      "message": "Delete the DM \"{{name}}\"? This permanently removes the conversation and all its messages for everyone. This cannot be undone.",
+      "confirmLabel": "Delete"
+    },
+    "detail": {
+      "loading": "Loading DM…",
+      "backToDMs": "Back to DMs",
+      "lookupFailed": "DM lookup failed.",
+      "deleted": "(deleted)",
+      "agentDM": "Agent DM",
+      "viewDetailsAriaLabel": "View {{name}} details",
+      "agentAgentBadge": "Agent-Agent",
+      "botBadge": "Bot",
+      "online": "Online",
+      "agentToAgentSubtitle": "Agent-to-agent conversation",
+      "moreActions": "More actions",
+      "copied": "Copied!",
+      "copyLink": "Copy link to DM"
+    },
+    "startModal": {
+      "title": "Start a DM",
+      "subtitle": "Pick one person or agent. Use channels for group conversations.",
+      "searchPlaceholder": "Search people or agents…",
+      "searchAriaLabel": "Search people or agents",
+      "noMatches": "No matching people or agents.",
+      "kindAgent": "Agent",
+      "kindHuman": "Human",
+      "cancel": "Cancel",
+      "starting": "Starting…",
+      "submit": "Start DM"
+    }
+  },
+  "unread": {
+    "sectionsAriaLabel": "Conversations sections",
+    "title": "Unread",
+    "markAllReadTitle": "Mark all unread conversations read",
+    "marking": "Marking…",
+    "markAllRead": "Mark all read",
+    "emptyTitle": "You're all caught up",
+    "emptyBody": "No unread conversations. New unread channels, DMs, and task/issue/plan threads will appear here.",
+    "filtersAriaLabel": "Unread filters",
+    "filterAll": "All",
+    "filterMentions": "@me",
+    "filterUnread": "Unread",
+    "noMatch": "No matching conversations",
+    "mentionsYou": "Mentions you"
+  },
+  "conversation": {
+    "loadingMessages": "Loading messages…",
+    "tabParticipants": "Participants",
+    "tabThreads": "Threads",
+    "tabFiles": "Files",
+    "tabChat": "Chat",
+    "sidebarAriaLabel": "Conversation sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "noSharedFiles": "No shared files yet.",
+    "collapseDetails": "Collapse conversation details",
+    "collapse": "Collapse",
+    "showDetails": "Show conversation details",
+    "threadsHeader": "Threads",
+    "loadingThreads": "Loading threads…",
+    "threadsLoadError": "Couldn't load threads.",
+    "noThreads": "No threads yet.",
+    "deletedSender": "(deleted)",
+    "panelLabel": "Conversation panel"
+  },
+  "composer": {
+    "uploadFailed": "upload failed",
+    "dropToAttach": "Drop files to attach",
+    "messageLabel": "Message",
+    "placeholder": "Type a message — Enter to send, Shift+Enter for newline",
+    "rejection": "{{name}} — {{reason}}",
+    "previewFile": "Preview {{name}}",
+    "removeFile": "Remove {{name}}",
+    "uploadingFile": "Uploading {{name}}",
+    "retry": "Retry",
+    "attachFile": "Attach file",
+    "sendTitle": "Send (Enter)",
+    "send": "Send"
+  },
+  "mention": {
+    "noMatches": "No matches",
+    "broadcastTitle": "Broadcast to everyone in this conversation (humans only)",
+    "viewDetails": "View {{name}} details",
+    "openInNewTab": "Open {{label}} in a new tab",
+    "everyone": "Everyone in this conversation"
+  },
+  "message": {
+    "copied": "Copied",
+    "copyMessage": "Copy message",
+    "empty": "No messages yet.",
+    "viewSenderDetail": "View {{name}} detail",
+    "viewSenderDetailDeleted": "View {{name}} detail (deleted sender)",
+    "deletedSender": "(deleted)",
+    "workItem": "Work item",
+    "openAttachment": "Open {{filename}}",
+    "loadingEarlier": "Loading earlier…",
+    "loadEarlier": "Load earlier messages",
+    "newMessages": "New messages ↓",
+    "jumpToLatest": "Jump to latest messages",
+    "system": "System",
+    "messageFailed": "Message failed",
+    "hide": "Hide",
+    "details": "Details"
+  },
+  "panels": {
+    "participants": {
+      "ariaLabel": "participants",
+      "remove": "remove",
+      "invite": "Invite",
+      "roleOwner": "OWNER",
+      "roleMember": "MEMBER"
+    },
+    "thread": {
+      "dialogAriaLabel": "Message thread",
+      "resizeAriaLabel": "Resize thread panel",
+      "title": "Thread",
+      "noReplies": "No replies yet",
+      "replyCount_one": "{{count}} reply",
+      "replyCount_other": "{{count}} replies",
+      "closeAriaLabel": "Close thread"
+    },
+    "threadButton": {
+      "openThread_one": "Open thread — {{count}} reply",
+      "openThread_other": "Open thread — {{count}} replies",
+      "replyInThread": "Reply in thread"
+    },
+    "sharedFiles": {
+      "ariaLabel": "shared files",
+      "heading": "Shared files"
+    },
+    "workItem": {
+      "conversationBadge": "Conversation",
+      "linked": "· linked",
+      "restoreAriaLabel": "Restore conversation",
+      "maximizeAriaLabel": "Maximize conversation",
+      "restoreTitle": "Restore",
+      "maximizeTitle": "Maximize",
+      "loading": "Loading conversation…",
+      "empty": "No linked conversation yet."
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
 import { ConversationMobileTabs } from './ConversationMobileTabs';
@@ -41,6 +42,7 @@ function readEmbeddedCollapsed(): boolean {
 }
 
 export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props): React.ReactElement {
+  const { t } = useTranslation('chat');
   const conv = useConversationByOwnerRef(ownerRef);
   const surface = ownerRef.includes('/issues/') ? 'issue-thread' : 'task-thread';
   const isMobile = useIsMobile();
@@ -92,10 +94,10 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
       >
         <span className="flex items-center gap-2" data-testid="conversation-owner-label">
           <span className="font-semibold uppercase tracking-wide text-text-muted" data-testid="conversation-owner-code">
-            {ownerCode || 'Conversation'}
+            {ownerCode || t('panels.workItem.conversationBadge')}
           </span>
           <span className="flex items-center gap-2" data-testid="conversation-owner-title">
-            <span>· linked</span>
+            <span>{t('panels.workItem.linked')}</span>
             <span className="font-mono text-text-primary">{bannerLabel}</span>
           </span>
         </span>
@@ -112,8 +114,8 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             data-testid="conversation-maximize-toggle"
             aria-pressed={maximized}
-            aria-label={maximized ? 'Restore conversation' : 'Maximize conversation'}
-            title={maximized ? 'Restore' : 'Maximize'}
+            aria-label={maximized ? t('panels.workItem.restoreAriaLabel') : t('panels.workItem.maximizeAriaLabel')}
+            title={maximized ? t('panels.workItem.restoreTitle') : t('panels.workItem.maximizeTitle')}
           >
             {maximized ? <RestoreIcon /> : <MaximizeIcon />}
           </button>
@@ -122,14 +124,14 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
 
       {conv.isLoading ? (
         <p className="p-4 text-sm text-text-muted md:rounded-b md:border md:border-t-0 md:border-border-base" data-testid="conversation-loading">
-          Loading conversation…
+          {t('panels.workItem.loading')}
         </p>
       ) : !conv.data ? (
         <p
           className="p-4 text-sm italic text-text-muted md:rounded-b md:border md:border-t-0 md:border-border-base"
           data-testid="conversation-empty"
         >
-          No linked conversation yet.
+          {t('panels.workItem.empty')}
         </p>
       ) : isMobile ? (
         // Mobile: the same dropdown switcher (chat / threads / files) + maximize

@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Message } from '@/api/types';
 import { useThreadReplies } from '@/api/conversations';
 import { useMarkSeen } from '@/api/readState';
@@ -41,6 +42,7 @@ interface Props {
 }
 
 export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.ReactElement | null {
+  const { t } = useTranslation('chat');
   const containerRef = useModalA11y({ open, onClose });
   // Desktop: a draggable left-edge handle resizes the panel (persisted, capped 75vw).
   const { width, resizing, handleProps } = useResizablePanel({
@@ -90,7 +92,7 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
         ref={containerRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Message thread"
+        aria-label={t('panels.thread.dialogAriaLabel')}
         data-testid="thread-sidebar"
         style={{ '--thread-w': `${width}px` } as React.CSSProperties}
         className="fixed inset-0 z-40 flex h-full w-full translate-x-0 transform flex-col bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none md:inset-y-0 md:right-0 md:left-auto md:w-[var(--thread-w)] md:border-l md:border-border-base md:max-w-[75vw]"
@@ -101,7 +103,7 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
             edge="left"
             handleProps={handleProps}
             resizing={resizing}
-            ariaLabel="Resize thread panel"
+            ariaLabel={t('panels.thread.resizeAriaLabel')}
             testId="thread-sidebar-resize"
           />
         </div>
@@ -110,21 +112,21 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
         <div className="flex items-center justify-between gap-3 border-b border-border-base p-4">
           <div className="min-w-0">
             <div className="text-base font-semibold" data-testid="thread-sidebar-title">
-              Thread
+              {t('panels.thread.title')}
             </div>
             {/* §-1 Finding 2: readable subtitle uses text-text-secondary (AA in
                 both modes), NOT the sub-AA text-text-muted (B2 / decision #2). */}
             <div className="text-xs text-text-secondary" data-testid="thread-sidebar-subtitle">
               {replyList.length === 0
-                ? 'No replies yet'
-                : `${replyList.length} ${replyList.length === 1 ? 'reply' : 'replies'}`}
+                ? t('panels.thread.noReplies')
+                : t('panels.thread.replyCount', { count: replyList.length })}
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             data-testid="thread-sidebar-close"
-            aria-label="Close thread"
+            aria-label={t('panels.thread.closeAriaLabel')}
             className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
           >
             {/* plain ASCII "X" (NOT U+2715) per the no-emoji-icon a11y guardrail. */}

@@ -1,1 +1,211 @@
-{}
+{
+  "channels": {
+    "title": "频道",
+    "newChannel": "新建频道",
+    "archive": "归档",
+    "archiveAriaLabel": "归档 {{name}}",
+    "conversationsSectionsAriaLabel": "会话分区",
+    "participantCount_one": "{{count}} 名成员",
+    "participantCount_other": "{{count}} 名成员",
+    "moreOverflow": "还有 {{count}} 个",
+    "noMessagesYet": "暂无消息",
+    "deletedSenderLabel": "（已删除）",
+    "deletedSender": "已删除",
+    "empty": {
+      "title": "暂无频道",
+      "body": "频道围绕某个主题汇聚成员与智能体。创建一个频道，开启一场本服务器中任何人都可加入的对话。"
+    },
+    "archived": {
+      "toggle": "已归档",
+      "empty": "暂无已归档的频道。"
+    },
+    "detail": {
+      "loading": "正在加载频道…",
+      "backToChannels": "返回频道列表",
+      "lookupFailed": "频道查询失败。"
+    },
+    "create": {
+      "title": "新建频道",
+      "nameLabel": "名称",
+      "namePlaceholder": "alpha",
+      "descriptionLabel": "描述",
+      "descriptionPlaceholder": "可选",
+      "cancel": "取消",
+      "creating": "正在创建…",
+      "submit": "创建",
+      "alreadyExists": "本组织中已存在名为“{{name}}”的频道。",
+      "failed": "创建频道失败。"
+    }
+  },
+  "dms": {
+    "segmentedNavAriaLabel": "会话分区",
+    "title": "私信",
+    "startButton": "发起私信",
+    "viewsAriaLabel": "私信视图",
+    "directMessage": "私信",
+    "agentAgentBadge": "agent-agent",
+    "deleteButton": "删除",
+    "deleteAriaLabel": "删除私信 {{name}}",
+    "deleteTitle": "删除私信",
+    "empty": {
+      "title": "暂无私信",
+      "body": "私信是双方（人类或智能体）之间的私密会话。发起一个私信即可直接给某人发消息。"
+    },
+    "tabs": {
+      "mine": "我的",
+      "agentToAgent": "智能体之间"
+    },
+    "filterEmpty": {
+      "agent": {
+        "title": "暂无智能体私信",
+        "body": "智能体之间的私信将显示在此处。"
+      },
+      "personal": {
+        "title": "暂无个人私信",
+        "body": "与你相关的私信将显示在此处。"
+      }
+    },
+    "deleteConfirm": {
+      "title": "删除私信",
+      "message": "确定删除私信“{{name}}”吗？此操作将为所有人永久移除该会话及其所有消息，且无法撤销。",
+      "confirmLabel": "删除"
+    },
+    "detail": {
+      "loading": "正在加载私信…",
+      "backToDMs": "返回私信列表",
+      "lookupFailed": "私信查找失败。",
+      "deleted": "（已删除）",
+      "agentDM": "智能体私信",
+      "viewDetailsAriaLabel": "查看 {{name}} 的详情",
+      "agentAgentBadge": "智能体-智能体",
+      "botBadge": "机器人",
+      "online": "在线",
+      "agentToAgentSubtitle": "智能体之间的会话",
+      "moreActions": "更多操作",
+      "copied": "已复制！",
+      "copyLink": "复制私信链接"
+    },
+    "startModal": {
+      "title": "发起私信",
+      "subtitle": "选择一位成员或一个智能体。群组会话请使用频道。",
+      "searchPlaceholder": "搜索成员或智能体…",
+      "searchAriaLabel": "搜索成员或智能体",
+      "noMatches": "没有匹配的成员或智能体。",
+      "kindAgent": "智能体",
+      "kindHuman": "人类",
+      "cancel": "取消",
+      "starting": "正在发起…",
+      "submit": "发起私信"
+    }
+  },
+  "unread": {
+    "sectionsAriaLabel": "会话分区",
+    "title": "未读",
+    "markAllReadTitle": "将所有未读会话标记为已读",
+    "marking": "标记中…",
+    "markAllRead": "全部标记为已读",
+    "emptyTitle": "你已全部看完",
+    "emptyBody": "没有未读会话。新的未读频道、私信以及任务/问题/计划讨论串将显示在这里。",
+    "filtersAriaLabel": "未读筛选",
+    "filterAll": "全部",
+    "filterMentions": "@我",
+    "filterUnread": "未读",
+    "noMatch": "没有匹配的会话",
+    "mentionsYou": "提及了你"
+  },
+  "conversation": {
+    "loadingMessages": "正在加载消息…",
+    "tabParticipants": "成员",
+    "tabThreads": "讨论串",
+    "tabFiles": "文件",
+    "tabChat": "聊天",
+    "sidebarAriaLabel": "会话侧边栏",
+    "collapseSidebar": "收起侧边栏",
+    "noSharedFiles": "暂无共享文件。",
+    "collapseDetails": "收起会话详情",
+    "collapse": "收起",
+    "showDetails": "显示会话详情",
+    "threadsHeader": "讨论串",
+    "loadingThreads": "正在加载讨论串…",
+    "threadsLoadError": "无法加载讨论串。",
+    "noThreads": "暂无讨论串。",
+    "deletedSender": "(已删除)",
+    "panelLabel": "会话面板"
+  },
+  "composer": {
+    "uploadFailed": "上传失败",
+    "dropToAttach": "拖放文件以添加附件",
+    "messageLabel": "消息",
+    "placeholder": "输入消息 — 回车发送，Shift+Enter 换行",
+    "rejection": "{{name}} — {{reason}}",
+    "previewFile": "预览 {{name}}",
+    "removeFile": "移除 {{name}}",
+    "uploadingFile": "正在上传 {{name}}",
+    "retry": "重试",
+    "attachFile": "添加附件",
+    "sendTitle": "发送（回车）",
+    "send": "发送"
+  },
+  "mention": {
+    "noMatches": "无匹配项",
+    "broadcastTitle": "向此会话中的所有人广播（仅限真人）",
+    "viewDetails": "查看 {{name}} 详情",
+    "openInNewTab": "在新标签页中打开 {{label}}",
+    "everyone": "此会话中的所有人"
+  },
+  "message": {
+    "copied": "已复制",
+    "copyMessage": "复制消息",
+    "empty": "暂无消息。",
+    "viewSenderDetail": "查看 {{name}} 的详情",
+    "viewSenderDetailDeleted": "查看 {{name}} 的详情（已删除的发送者）",
+    "deletedSender": "（已删除）",
+    "workItem": "工作项",
+    "openAttachment": "打开 {{filename}}",
+    "loadingEarlier": "正在加载更早的消息…",
+    "loadEarlier": "加载更早的消息",
+    "newMessages": "新消息 ↓",
+    "jumpToLatest": "跳转到最新消息",
+    "system": "系统",
+    "messageFailed": "消息发送失败",
+    "hide": "收起",
+    "details": "详情"
+  },
+  "panels": {
+    "participants": {
+      "ariaLabel": "参与者",
+      "remove": "移除",
+      "invite": "邀请",
+      "roleOwner": "所有者",
+      "roleMember": "成员"
+    },
+    "thread": {
+      "dialogAriaLabel": "消息话题",
+      "resizeAriaLabel": "调整话题面板大小",
+      "title": "话题",
+      "noReplies": "暂无回复",
+      "replyCount_one": "{{count}} 条回复",
+      "replyCount_other": "{{count}} 条回复",
+      "closeAriaLabel": "关闭话题"
+    },
+    "threadButton": {
+      "openThread_one": "打开话题 — {{count}} 条回复",
+      "openThread_other": "打开话题 — {{count}} 条回复",
+      "replyInThread": "在话题中回复"
+    },
+    "sharedFiles": {
+      "ariaLabel": "共享文件",
+      "heading": "共享文件"
+    },
+    "workItem": {
+      "conversationBadge": "会话",
+      "linked": "· 已关联",
+      "restoreAriaLabel": "还原会话",
+      "maximizeAriaLabel": "最大化会话",
+      "restoreTitle": "还原",
+      "maximizeTitle": "最大化",
+      "loading": "正在加载会话…",
+      "empty": "尚无关联的会话。"
+    }
+  }
+}

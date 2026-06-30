@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // T246 — per-message "copy" affordance. Copies the message's raw content (the
 // markdown source the sender wrote) to the clipboard, with a brief "Copied"
@@ -8,6 +9,7 @@ import { useState } from 'react';
 // the accessible name rides on aria-label/title. Holds its own per-instance
 // `copied` state so each message row's button is independent.
 export function MessageCopyButton({ content }: { content: string }): React.ReactElement {
+  const { t } = useTranslation('chat');
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
@@ -23,13 +25,13 @@ export function MessageCopyButton({ content }: { content: string }): React.React
         data-testid="message-copy-status"
         aria-live="polite"
       >
-        {copied ? 'Copied' : ''}
+        {copied ? t('message.copied') : ''}
       </span>
       <button
         type="button"
         onClick={copy}
-        aria-label="Copy message"
-        title="Copy message"
+        aria-label={t('message.copyMessage')}
+        title={t('message.copyMessage')}
         data-testid="message-copy-btn"
         className="rounded p-0.5 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-colors"
       >

@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 
 // MentionPicker — the #275 popup listbox for the #/@ picker. A dumb ARIA listbox:
 // the composer owns trigger detection, the active index, the keyboard, and the
@@ -31,6 +32,7 @@ export function MentionPicker({
   onSelect,
   onHoverActivate,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('chat');
   return (
     <ul
       role="listbox"
@@ -40,7 +42,7 @@ export function MentionPicker({
     >
       {options.length === 0 ? (
         <li className="px-3 py-1.5 text-text-muted" data-testid="mention-picker-empty">
-          No matches
+          {t('mention.noMatches')}
         </li>
       ) : (
         options.map((o) => {
