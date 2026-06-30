@@ -219,9 +219,25 @@ secret_management:
 	preRestartLogLen := len(safeRead(fcLog))
 
 	// ---- PHASE 4: restart the worker (SAME config + worker-id + home) -------
-	// On restart, CLAUDE_FAKE_RESULT_ON_START stays on; the relaunched generation
-	// is what we observe. Boot-reconcile reads the prior session.instance.
-	w2 := spawn(t, bin, workerArgs, workerEnv)
+	// CRITICAL for isolating fix B: the relaunched generation runs WITHOUT
+	// CLAUDE_FAKE_RESULT_ON_START, i.e. it is IDLE on resume (emits no turn until
+	// it receives stdin) — exactly like real `claude --resume` with no pending
+	// input. This means the ONLY thing that can re-inject the un-answered directed
+	// message is boot_reconcile's `go c.maybeReplyNudge(agentID)` (fix B, the
+	// boot-relaunch reply-guardrail re-trigger). If the relaunch auto-completed a
+	// turn, the ORIGINAL turn-end hook (agent_controller.go maybeReplyNudge) would
+	// also fire and ASSERT-3c would pass even with fix B removed — masking it.
+	// Negative control (verified by PD): disabling boot_reconcile.go:567 makes
+	// ASSERT-3c FAIL under this idle relaunch. Boot-reconcile reads the prior
+	// session.instance regardless.
+	workerEnv2 := make([]string, 0, len(workerEnv))
+	for _, e := range workerEnv {
+		if strings.HasPrefix(e, "CLAUDE_FAKE_RESULT_ON_START=") {
+			continue // idle relaunch: no auto-turn → turn-end nudge path cannot mask fix B
+		}
+		workerEnv2 = append(workerEnv2, e)
+	}
+	w2 := spawn(t, bin, workerArgs, workerEnv2)
 	t.Cleanup(func() {
 		_ = os.WriteFile(filepath.Join(sandbox, "worker2.out"), []byte(w2.out()), 0o600)
 		w2.sigkill(t)
