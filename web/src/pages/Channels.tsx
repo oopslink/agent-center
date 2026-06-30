@@ -264,6 +264,11 @@ function ArchivedChannelRow({ channel: c }: { channel: Conversation }): React.Re
 // ChannelStatusBadge — active/archived status chip (mirrors ProjectStatusBadge).
 // The uppercase label is the primary distinguisher (never color alone).
 function ChannelStatusBadge({ status }: { status: Conversation['status'] }): React.ReactElement {
+  // T716: localize the status word (was raw enum → "ACTIVE" untranslated;
+  // project badges were already localized). The enum stays the stable
+  // class/testid discriminator; only the displayed word is localized (common
+  // ns — shared status vocabulary). CSS still uppercases the en form.
+  const { t } = useTranslation('common');
   return (
     <span
       className={[
@@ -272,7 +277,7 @@ function ChannelStatusBadge({ status }: { status: Conversation['status'] }): Rea
       ].join(' ')}
       data-testid={`channel-status-${status}`}
     >
-      {status}
+      {t(`status.${status}`)}
     </span>
   );
 }

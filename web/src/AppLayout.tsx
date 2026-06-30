@@ -454,7 +454,7 @@ export default function AppLayout(): React.ReactElement {
               type="button"
               data-testid="rail-alerts"
               data-count={alertCount}
-              aria-label={alertCount > 0 ? `${alertCount} tasks need your attention` : 'Alerts'}
+              aria-label={alertCount > 0 ? t('shell.alerts.attention', { count: alertCount }) : t('shell.alerts.label')}
               onClick={() => setAlertsPanelOpen((v) => !v)}
               className={[
                 'relative inline-flex h-10 w-10 items-center justify-center rounded-lg motion-safe:transition-colors',
@@ -1206,17 +1206,18 @@ function SidebarTop({
 }: {
   onOpenPalette: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('common');
   return (
     <div className="flex-shrink-0">
       <button
         type="button"
         onClick={onOpenPalette}
-        aria-label="Search (⌘K)"
+        aria-label={t('shell.search.aria')}
         data-testid="open-palette"
         className="flex w-full items-center gap-2 rounded-md border border-border-base bg-bg-elevated px-2 py-1.5 text-sm text-text-muted hover:bg-bg-subtle motion-safe:transition-colors"
       >
         <span aria-hidden="true" className="inline-flex h-4 w-4"><SearchIcon /></span>
-        <span className="flex-1 text-left">Search</span>
+        <span className="flex-1 text-left">{t('shell.search.label')}</span>
         <kbd className="rounded border border-border-base px-1 font-mono text-[0.6875rem] text-text-muted">⌘K</kbd>
       </button>
     </div>

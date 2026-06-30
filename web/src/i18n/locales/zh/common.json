@@ -1,4 +1,8 @@
 {
+  "status": {
+    "active": "活跃",
+    "archived": "已归档"
+  },
   "nav": {
     "workspace": "工作区",
     "conversations": "会话",
@@ -73,12 +77,16 @@
     "cancel": "取消"
   },
   "forceDeleteModal": {
+    "noun": {
+      "agent": "智能体",
+      "worker": "工作节点"
+    },
     "title": "强制删除{{entityKind}}？",
-    "bodyWorker": "此操作将<strong>不可逆地</strong>删除中心中关于该{{entityKind}} <strong>{{entityName}}</strong> 的记录，并解绑其下的 agent。它仅清理元数据——不会停止或终止正在运行的进程。",
+    "bodyWorker": "此操作将<strong>不可逆地</strong>删除中心中关于该{{entityKind}} <strong>{{entityName}}</strong> 的记录，并解绑其下的智能体。它仅清理元数据——不会停止或终止正在运行的进程。",
     "bodyAgent": "此操作将<strong>不可逆地</strong>删除中心中关于该{{entityKind}} <strong>{{entityName}}</strong> 的记录。它仅清理元数据——不会停止或终止正在运行的进程。",
     "typeToEnable": "在下方输入该{{entityKind}}的名称 <strong>{{entityName}}</strong> 以启用该按钮。",
-    "workerNameLabel": "Worker 名称",
-    "agentNameLabel": "Agent 名称",
+    "workerNameLabel": "工作节点名称",
+    "agentNameLabel": "智能体名称",
     "inputAriaLabel": "输入 {{entityName}} 以确认",
     "cancel": "取消",
     "confirm": "强制删除",
@@ -168,6 +176,14 @@
   },
   "shell": {
     "none": "(无)",
+    "search": {
+      "label": "搜索",
+      "aria": "搜索 (⌘K)"
+    },
+    "alerts": {
+      "label": "告警",
+      "attention": "{{count}} 个任务需要你处理"
+    },
     "tabbar": {
       "modulesNav": "移动端模块导航"
     },

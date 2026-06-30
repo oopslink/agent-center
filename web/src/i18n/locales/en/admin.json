@@ -66,6 +66,7 @@
     }
   },
   "systemNav": {
+    "system": "System",
     "environment": "Environment",
     "settings": "Settings",
     "version": "Version",

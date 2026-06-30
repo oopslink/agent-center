@@ -1,4 +1,8 @@
 {
+  "status": {
+    "active": "Active",
+    "archived": "Archived"
+  },
   "nav": {
     "workspace": "Workspace",
     "conversations": "Conversations",
@@ -73,6 +77,10 @@
     "cancel": "Cancel"
   },
   "forceDeleteModal": {
+    "noun": {
+      "agent": "Agent",
+      "worker": "Worker"
+    },
     "title": "Force delete {{entityKind}}?",
     "bodyWorker": "This <strong>irreversibly</strong> removes the center's records for the {{entityKind}} <strong>{{entityName}}</strong> and unbinds its agents. It cleans metadata only — it does not stop or kill the running process.",
     "bodyAgent": "This <strong>irreversibly</strong> removes the center's records for the {{entityKind}} <strong>{{entityName}}</strong>. It cleans metadata only — it does not stop or kill the running process.",
@@ -168,6 +176,14 @@
   },
   "shell": {
     "none": "(none)",
+    "search": {
+      "label": "Search",
+      "aria": "Search (⌘K)"
+    },
+    "alerts": {
+      "label": "Alerts",
+      "attention": "{{count}} tasks need your attention"
+    },
     "tabbar": {
       "modulesNav": "modules mobile"
     },

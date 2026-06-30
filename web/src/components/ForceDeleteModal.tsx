@@ -40,6 +40,10 @@ export function ForceDeleteModal({
   if (!open) return null;
 
   const matches = typed === entityName;
+  // Finding D (T716): interpolate the TRANSLATED noun, not the raw 'agent'/
+  // 'worker' enum — otherwise zh rendered "强制删除agent？". The enum stays the
+  // stable discriminator; only its display form is localized here.
+  const entityNoun = t(`forceDeleteModal.noun.${entityKind}`);
 
   return (
     <div
@@ -52,7 +56,7 @@ export function ForceDeleteModal({
     >
       <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="force-delete-modal-title" className="text-lg font-semibold">
-          {t('forceDeleteModal.title', { entityKind })}
+          {t('forceDeleteModal.title', { entityKind: entityNoun })}
         </h2>
         <div className="mt-2 space-y-2 text-sm text-text-secondary" data-testid="force-delete-message">
           <p>
@@ -62,14 +66,14 @@ export function ForceDeleteModal({
                   ? 'forceDeleteModal.bodyWorker'
                   : 'forceDeleteModal.bodyAgent'
               }
-              values={{ entityKind, entityName }}
+              values={{ entityKind: entityNoun, entityName }}
               components={{ strong: <strong /> }}
             />
           </p>
           <p>
             <Trans
               i18nKey="forceDeleteModal.typeToEnable"
-              values={{ entityKind, entityName }}
+              values={{ entityKind: entityNoun, entityName }}
               components={{ strong: <strong /> }}
             />
           </p>
