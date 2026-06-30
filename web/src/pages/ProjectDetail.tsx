@@ -363,15 +363,16 @@ function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactEleme
         <TabButton label="Issues" value="issues" active={tab === 'issues'} onClick={() => setTab('issues')} />
         <TabButton label="Tasks" value="tasks" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
         <TabButton label="Plans" value="plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
-        <TabButton label="Members" value="members" active={tab === 'members'} onClick={() => setTab('members')} />
         <TabButton label="Code repos" value="repos" active={tab === 'repos'} onClick={() => setTab('repos')} />
+        {/* Members rendered LAST (per @oopslink), after Code repos. */}
+        <TabButton label="Members" value="members" active={tab === 'members'} onClick={() => setTab('members')} />
       </div>
       <div className="mt-3">
         {tab === 'issues' && <IssuesPanel projectId={projectId} />}
         {tab === 'tasks' && <TasksPanel projectId={projectId} />}
         {tab === 'plans' && <PlansPanel projectId={projectId} />}
-        {tab === 'members' && <MembersPanel projectId={projectId} />}
         {tab === 'repos' && <CodeReposPanel projectId={projectId} />}
+        {tab === 'members' && <MembersPanel projectId={projectId} />}
       </div>
     </div>
   );
@@ -763,7 +764,20 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     {repo && <ProviderBadge provider={repo.provider} />}
-                    <span className="truncate text-sm font-medium text-text-primary">{repo?.label || r.label || r.url}</span>
+                    {/* Repo name links to its detail on the workspace Repos page
+                        (per @oopslink). Only when the workspace repo is resolved;
+                        otherwise fall back to plain text. */}
+                    {r.repo_id ? (
+                      <OrgLink
+                        to={`/repos?repo=${encodeURIComponent(r.repo_id)}`}
+                        data-testid="repo-row-name-link"
+                        className="truncate text-sm font-medium text-text-primary hover:text-accent hover:underline"
+                      >
+                        {repo?.label || r.label || r.url}
+                      </OrgLink>
+                    ) : (
+                      <span className="truncate text-sm font-medium text-text-primary">{repo?.label || r.label || r.url}</span>
+                    )}
                     {r.is_primary && (
                       <span className="rounded bg-bg-subtle px-1 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wide text-warning">primary</span>
                     )}

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   useWorkspaceRepos,
   useDeleteWorkspaceRepo,
@@ -26,6 +27,25 @@ export default function OrgRepos(): React.ReactElement {
   const [editing, setEditing] = useState<WorkspaceRepo | null>(null);
   const [deleting, setDeleting] = useState<WorkspaceRepo | null>(null);
   const [selected, setSelected] = useState<WorkspaceRepo | null>(null);
+
+  // Deep-link: /repos?repo=<id> (e.g. clicking a repo name in a project's
+  // Referenced repositories list) auto-opens that repo's detail. Applied once
+  // per param value so the user can still close it manually afterwards.
+  const [searchParams] = useSearchParams();
+  const repoParam = searchParams.get('repo');
+  const appliedRepoParam = useRef<string | null>(null);
+  useEffect(() => {
+    if (!repoParam || !repos.isSuccess) return;
+    if (appliedRepoParam.current === repoParam) return;
+    const match = repos.data.find((r) => r.id === repoParam);
+    if (!match) return;
+    appliedRepoParam.current = repoParam;
+    setSelected(match);
+    const el = document.querySelector(
+      `[data-testid="repos-list"] [data-repo-id="${repoParam}"]`,
+    );
+    el?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [repoParam, repos.isSuccess, repos.data]);
 
   const openAdd = () => {
     setEditing(null);

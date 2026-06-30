@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import OrgRepos from './OrgRepos';
 import type { WorkspaceRepo } from '@/api/types';
@@ -14,9 +15,13 @@ const repoA: WorkspaceRepo = {
   has_credential: true, reference_count: 2, created_by: 'user:o', created_at: 'x', updated_at: 'x', version: 1,
 };
 
-function wrap() {
+function wrap(initialPath = '/repos') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><OrgRepos /></QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[initialPath]}><OrgRepos /></MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 afterEach(() => cleanup());
@@ -74,6 +79,19 @@ describe('OrgRepos (T575)', () => {
     await waitFor(() => expect(within(viewer).getByTestId('repo-remote-commits')).toBeInTheDocument());
     expect(within(viewer).getByTestId('repo-remote-commits')).toHaveTextContent('first');
     expect(within(viewer).getByTestId('repo-remote-commits')).toHaveTextContent('abcdef1');
+  });
+
+  it('deep-link /repos?repo=<id> auto-opens that repo\'s detail viewer', async () => {
+    server.use(
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })),
+      http.get('/api/code-repos/repo-1/branches', () => HttpResponse.json({ branches: [{ name: 'main', is_default: true }] })),
+      http.get('/api/code-repos/repo-1/commits', () => HttpResponse.json({ commits: [{ sha: 'abcdef1234', message: 'first', author: 'o', date: '' }] })),
+    );
+    wrap('/repos?repo=repo-1');
+    // without clicking View remote, the viewer opens for the linked repo
+    const viewer = await screen.findByTestId('repo-remote-viewer');
+    await waitFor(() => expect(within(viewer).getByTestId('repo-remote-commits')).toBeInTheDocument());
+    expect(within(viewer).getByTestId('repo-remote-commits')).toHaveTextContent('first');
   });
 
   it('commit list renders the GitHub-style layout: day header, body toggle, copy + browse', async () => {

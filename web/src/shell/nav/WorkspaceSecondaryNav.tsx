@@ -28,9 +28,15 @@ const PROJECT_TABS: ReadonlyArray<{ key: string; label: string; Icon: () => Reac
   // ProjectDetail's in-page tab bar (?tab=plans). Distinct from the Work Board
   // entry below, which is the /plans kanban route.
   { key: 'plans', label: 'Plans', Icon: PlanIcon },
-  { key: 'members', label: 'Members', Icon: MembersIcon },
   { key: 'repos', label: 'Code repos', Icon: ReposIcon },
+  // Members rendered LAST (per @oopslink) — see the dedicated <li> after the
+  // Work Board entry below, so it sits at the very bottom of the project nav.
 ];
+
+// Members is its own tab (?tab=members) but is rendered at the BOTTOM of the
+// project sub-nav, after Work Board — kept out of PROJECT_TABS so the map above
+// emits Issues/Tasks/Plans/Code repos and Members lands last.
+const MEMBERS_TAB = { key: 'members', label: 'Members', Icon: MembersIcon } as const;
 
 // Parse "<orgBase>/projects/<id>…" → the project id, or null when not inside a
 // specific project (the bare /projects list is NOT "inside a project").
@@ -164,6 +170,21 @@ function ProjectSubNav({ orgBase, projectId }: { orgBase: string; projectId: str
               <WorkBoardIcon />
             </span>
             <span>Work Board</span>
+          </Link>
+        </li>
+        {/* Members — rendered LAST (per @oopslink), after Work Board. Same
+            ?tab=-driven active state as the other project tabs. */}
+        <li>
+          <Link
+            to={`${base}?tab=${MEMBERS_TAB.key}`}
+            data-testid={`project-subnav-${MEMBERS_TAB.key}`}
+            aria-current={onDetail && activeTab === MEMBERS_TAB.key ? 'page' : undefined}
+            className={itemCls(onDetail && activeTab === MEMBERS_TAB.key)}
+          >
+            <span aria-hidden="true" className="inline-flex h-4 w-4">
+              <MEMBERS_TAB.Icon />
+            </span>
+            <span>{MEMBERS_TAB.label}</span>
           </Link>
         </li>
       </ul>
