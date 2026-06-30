@@ -584,3 +584,48 @@ describe('Environment page (#164 merged Fleet+Environment)', () => {
     );
   });
 });
+
+// Owner request: a worker's Agents list collapses by default once it has > 3
+// agents, with a header toggle to expand. ≤ 3 stays always-open.
+describe('Environment — collapsible Agents list (> 3 agents)', () => {
+  afterEach(() => cleanup());
+
+  const fourAgents = (workerID: string) =>
+    ['a1', 'a2', 'a3', 'a4'].map((n) => agent(n, workerID));
+
+  it('collapses the Agents list by default when a worker has more than 3 agents', async () => {
+    server.use(
+      http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([fleetWorker('w-1')]))),
+      http.get('/api/agents', () => HttpResponse.json({ agents: fourAgents('w-1') })),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+
+    const toggle = await screen.findByTestId('environment-worker-agents-toggle');
+    // Default collapsed: header shows the count, the agent grid is not rendered.
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveTextContent('(4)');
+    expect(screen.queryByTestId('environment-worker-agents')).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId('environment-agent')).toHaveLength(0);
+
+    // Clicking the header expands the full list.
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('environment-worker-agents')).toBeInTheDocument();
+    expect(screen.getAllByTestId('environment-agent')).toHaveLength(4);
+  });
+
+  it('keeps the Agents list open and non-collapsible at exactly 3 agents', async () => {
+    server.use(
+      http.get('/api/fleet', () => HttpResponse.json(fleetSnapshot([fleetWorker('w-1')]))),
+      http.get('/api/agents', () =>
+        HttpResponse.json({ agents: [agent('a1', 'w-1'), agent('a2', 'w-1'), agent('a3', 'w-1')] }),
+      ),
+      http.get('/api/files/transfers', () => HttpResponse.json({ transfer_sessions: [] })),
+    );
+    wrap(<Environment />);
+
+    await waitFor(() => expect(screen.getAllByTestId('environment-agent')).toHaveLength(3));
+    expect(screen.queryByTestId('environment-worker-agents-toggle')).not.toBeInTheDocument();
+  });
+});

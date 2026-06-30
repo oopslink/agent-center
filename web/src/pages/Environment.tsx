@@ -109,6 +109,28 @@ function ClockIcon({ className }: { className?: string }): React.ReactElement {
   );
 }
 
+function ChevronIcon({ className }: { className?: string }): React.ReactElement {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  );
+}
+
+// Above this many bound agents, a worker's Agents list collapses by default
+// (owner request) — the header becomes a toggle and the grid is hidden until
+// the user expands it. ≤ threshold keeps the list always-open & non-collapsible.
+const AGENTS_COLLAPSE_THRESHOLD = 3;
+
 export default function Environment(): React.ReactElement {
   const fleet = useFleet();
   const agents = useAgents();
@@ -325,6 +347,11 @@ function WorkerCard({
   onReMintInstall: () => void;
 }): React.ReactElement {
   const online = worker.status === 'online';
+  // Collapse the Agents list by default when it's long (> threshold). State is
+  // seeded once from the initial count; if SSE later pushes the count past the
+  // threshold the section stays in whatever state the user left it.
+  const agentsCollapsible = agents.length > AGENTS_COLLAPSE_THRESHOLD;
+  const [agentsOpen, setAgentsOpen] = useState(!agentsCollapsible);
   return (
     <li
       className={`rounded border border-border-base bg-bg-elevated p-4 ${
@@ -381,14 +408,32 @@ function WorkerCard({
 
       {/* Agents sub-section */}
       <div className="mt-3 border-t border-border-base pt-3">
-        <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
-          Agents
-        </p>
+        {agentsCollapsible ? (
+          <button
+            type="button"
+            onClick={() => setAgentsOpen((v) => !v)}
+            aria-expanded={agentsOpen}
+            className="mb-1.5 flex w-full items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted hover:text-text-secondary"
+            data-testid="environment-worker-agents-toggle"
+          >
+            <ChevronIcon
+              className={`h-3 w-3 shrink-0 transition-transform ${agentsOpen ? 'rotate-90' : ''}`}
+            />
+            <span>Agents</span>
+            <span className="font-mono normal-case tracking-normal text-text-muted">
+              ({agents.length})
+            </span>
+          </button>
+        ) : (
+          <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
+            Agents
+          </p>
+        )}
         {agents.length === 0 ? (
           <p className="text-xs text-text-muted" data-testid="environment-worker-noagents">
             No agents bound to this worker.
           </p>
-        ) : (
+        ) : agentsCollapsible && !agentsOpen ? null : (
           // T143: a SHARED grid so every row's columns line up (name / CLI /
           // model / lifecycle). Each <li> is `display:contents` so its cells join
           // the parent grid — the name column (minmax(0,max-content)) sizes to the

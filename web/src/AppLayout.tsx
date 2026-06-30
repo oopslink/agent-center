@@ -119,7 +119,7 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     short: 'System',
     defaultPath: 'environment',
     Icon: FleetIcon,
-    pathPrefixes: ['environment', 'settings'],
+    pathPrefixes: ['environment', 'settings', 'version'],
   },
 ];
 

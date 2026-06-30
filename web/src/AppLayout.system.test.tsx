@@ -23,6 +23,7 @@ function renderShell(initial = '/environment') {
           <Route element={<AppLayout />}>
             <Route path="/environment" element={<div data-testid="page-Environment">env</div>} />
             <Route path="/settings" element={<div data-testid="page-Settings">settings</div>} />
+            <Route path="/version" element={<div data-testid="page-Version">version</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -63,5 +64,18 @@ describe('col②/④ System module — three-column shell integration (v2.10.0 [
     const nav = screen.getByRole('navigation', { name: /^primary$/ });
     fireEvent.click(within(nav).getByRole('link', { name: /settings/i }));
     expect(screen.getByTestId('page-Settings')).toBeInTheDocument();
+  });
+
+  // Regression (issue: clicking Version flipped col② to the Workspace group).
+  // Root cause: 'version' was missing from the System module's pathPrefixes, so
+  // detectActiveModule fell through to its workspace default on /version.
+  it('keeps System active on /version (col② stays the System group, not Workspace)', () => {
+    renderShell('/version');
+    expect(screen.getByTestId('rail-module-system')).toHaveAttribute('data-active', 'true');
+    const nav = screen.getByRole('navigation', { name: /^primary$/ });
+    expect(within(nav).getByTestId('section-label')).toHaveTextContent('System');
+    expect(within(nav).getByRole('link', { name: /version/i })).toHaveAttribute('href', '/version');
+    // Workspace items must NOT be present in col②.
+    expect(within(nav).queryByRole('link', { name: /projects/i })).not.toBeInTheDocument();
   });
 });
