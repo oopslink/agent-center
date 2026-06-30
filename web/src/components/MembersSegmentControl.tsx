@@ -1,6 +1,7 @@
 import type React from 'react';
 import { Link } from 'react-router-dom';
 import { useOptionalOrgContext } from '@/OrgContext';
+import { useTranslation } from 'react-i18next';
 
 // MembersSegmentControl (v2.10.1 M6) — the mobile-only (md:hidden) Humans/Agents
 // switch shown atop the Members list pages. On desktop the col② secondary nav
@@ -12,10 +13,11 @@ export function MembersSegmentControl({
 }: {
   active: 'humans' | 'agents';
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const orgCtx = useOptionalOrgContext();
   const base = orgCtx ? `/organizations/${orgCtx.slug}` : '';
 
-  const seg = (id: 'humans' | 'agents', label: string, to: string): React.ReactElement => {
+  const seg = (id: 'humans' | 'agents', to: string): React.ReactElement => {
     const on = active === id;
     return (
       <Link
@@ -32,7 +34,7 @@ export function MembersSegmentControl({
             : 'text-text-secondary hover:text-text-primary',
         ].join(' ')}
       >
-        {label}
+        {t(`humans.segment.${id}`)}
       </Link>
     );
   };
@@ -41,11 +43,11 @@ export function MembersSegmentControl({
     <div
       className="flex gap-1 rounded-lg bg-bg-subtle p-1 md:hidden"
       role="tablist"
-      aria-label="Members type"
+      aria-label={t('humans.segment.ariaLabel')}
       data-testid="members-segment"
     >
-      {seg('humans', 'Humans', `${base}/members/humans`)}
-      {seg('agents', 'Agents', `${base}/agents`)}
+      {seg('humans', `${base}/members/humans`)}
+      {seg('agents', `${base}/agents`)}
     </div>
   );
 }

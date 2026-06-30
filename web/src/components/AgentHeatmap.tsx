@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { HeatmapCell } from '@/api/types';
+
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 // AgentHeatmap (I28/F5, issue-a7ff560e v2.15.0) — the GitHub-style activity
 // contribution graph for the per-agent analytics dashboard. 53 weeks × 7 days
@@ -28,15 +32,14 @@ interface AgentHeatmapProps {
 
 const WEEKS = 53;
 const DAYS_PER_WEEK = 7;
-const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // Per-口径 hue + label + the solid swatch shown in the switch (mockup: green /
 // blue / amber). The intensity ramp (level 1..4) is opacity on the same token;
 // level 0 (empty) is the neutral surface so "no activity" ≠ "low activity".
-const METRICS: { id: HeatmapMetric; label: string; swatch: string }[] = [
-  { id: 'activity', label: 'Activity', swatch: 'bg-success' },
-  { id: 'tokens', label: 'Tokens', swatch: 'bg-accent' },
-  { id: 'cost', label: 'Cost', swatch: 'bg-warning' },
+const METRICS: { id: HeatmapMetric; labelKey: string; swatch: string }[] = [
+  { id: 'activity', labelKey: 'agentRuntime.heatmap.metric.activity', swatch: 'bg-success' },
+  { id: 'tokens', labelKey: 'agentRuntime.heatmap.metric.tokens', swatch: 'bg-accent' },
+  { id: 'cost', labelKey: 'agentRuntime.heatmap.metric.cost', swatch: 'bg-warning' },
 ];
 
 // T474: the intensity ramp. Level 0 (empty) is the neutral surface TOKEN (visible
@@ -91,26 +94,30 @@ function addUTCDays(d: Date, n: number): Date {
 }
 
 /** formatValue renders the active 口径's value for the tooltip. */
-function formatValue(cell: HeatmapCell, metric: HeatmapMetric): string {
+function formatValue(cell: HeatmapCell, metric: HeatmapMetric, t: TFunction): string {
   switch (metric) {
     case 'tokens':
-      return `${(cell.tokens_in + cell.tokens_out).toLocaleString()} tokens`;
+      return t('agentRuntime.heatmap.value.tokens', {
+        count: cell.tokens_in + cell.tokens_out,
+        formattedCount: (cell.tokens_in + cell.tokens_out).toLocaleString(),
+      });
     case 'cost': {
       const usd = cell.cost_micros / 1_000_000;
       // sub-cent costs matter on a per-turn dashboard; show up to 4 decimals.
-      return `$${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+      const amount = `$${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+      return t('agentRuntime.heatmap.value.cost', { amount });
     }
     case 'activity':
     default:
-      return `${cell.events} ${cell.events === 1 ? 'event' : 'events'}`;
+      return t('agentRuntime.heatmap.value.event', { count: cell.events });
   }
 }
 
 /** prettyDay turns "YYYY-MM-DD" into "Jun 23, 2026" for the tooltip. */
-function prettyDay(day: string): string {
+function prettyDay(day: string, t: TFunction): string {
   const [y, m, d] = day.split('-').map(Number);
   if (!y || !m || !d) return day;
-  return `${MONTH_ABBR[m - 1]} ${d}, ${y}`;
+  return t('agentRuntime.heatmap.prettyDay', { month: t(`agentRuntime.heatmap.month.${MONTH_KEYS[m - 1]}`), day: d, year: y });
 }
 
 interface GridCell {
@@ -120,6 +127,7 @@ interface GridCell {
 }
 
 export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: AgentHeatmapProps): React.ReactElement {
+  const { t } = useTranslation('members');
   const [metric, setMetric] = useState<HeatmapMetric>(initialMetric);
 
   const byDay = useMemo(() => {
@@ -147,14 +155,14 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
     const firstSunday = addUTCDays(lastSunday, -(WEEKS - 1) * DAYS_PER_WEEK);
 
     const cols: GridCell[][] = [];
-    const labels: { col: number; label: string }[] = [];
+    const labels: { col: number; monthIndex: number }[] = [];
     let prevMonth = -1;
     for (let w = 0; w < WEEKS; w++) {
       const col: GridCell[] = [];
       const colSunday = addUTCDays(firstSunday, w * DAYS_PER_WEEK);
       const colMonth = colSunday.getUTCMonth();
       if (colMonth !== prevMonth) {
-        labels.push({ col: w, label: MONTH_ABBR[colMonth] });
+        labels.push({ col: w, monthIndex: colMonth });
         prevMonth = colMonth;
       }
       for (let r = 0; r < DAYS_PER_WEEK; r++) {
@@ -168,21 +176,25 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
   }, [byDay, today]);
 
   const active = METRICS.find((m) => m.id === metric) ?? METRICS[0];
+  const activeLabel = t(active.labelKey);
 
   const tip = (g: GridCell): string =>
-    `${prettyDay(g.date)}: ${formatValue(g.cell ?? emptyCell(g.date), metric)}`;
+    t('agentRuntime.heatmap.tooltip', {
+      day: prettyDay(g.date, t),
+      value: formatValue(g.cell ?? emptyCell(g.date), metric, t),
+    });
   const levelOf = (g: GridCell): number => (g.cell ? intensityLevel(metricValue(g.cell, metric), max) : 0);
 
   return (
     <section className="flex min-h-[18rem] w-full min-w-0 flex-col rounded-lg border border-border-base bg-bg-elevated p-5" data-testid="agent-heatmap">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-text-primary">
-          Activity Heatmap · last 12 months
+          {t('agentRuntime.heatmap.title')}
         </h3>
         <div
           className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1"
           role="tablist"
-          aria-label="Heatmap metric"
+          aria-label={t('agentRuntime.heatmap.metricSwitchLabel')}
           data-testid="heatmap-metric-switch"
         >
           {METRICS.map((m) => {
@@ -202,7 +214,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
                 ].join(' ')}
               >
                 <span className={['h-2.5 w-2.5 rounded-[2px]', m.swatch].join(' ')} aria-hidden="true" />
-                {m.label}
+                {t(m.labelKey)}
               </button>
             );
           })}
@@ -216,7 +228,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
             const lbl = monthLabels.find((l) => l.col === w);
             return (
               <div key={w} className="w-[15px] shrink-0 whitespace-nowrap text-[0.625rem] text-text-muted">
-                {lbl ? lbl.label : ''}
+                {lbl ? t(`agentRuntime.heatmap.month.${MONTH_KEYS[lbl.monthIndex]}`) : ''}
               </div>
             );
           })}
@@ -225,7 +237,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
         <div className="flex min-w-max">
           {/* weekday row labels: Mon / Wed / Fri (rows 1/3/5; 0=Sun) */}
           <div className="mr-1 flex w-7 flex-col gap-[3px] text-[0.625rem] text-text-muted" aria-hidden="true">
-            {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((lbl, i) => (
+            {['', t('agentRuntime.heatmap.weekday.mon'), '', t('agentRuntime.heatmap.weekday.wed'), '', t('agentRuntime.heatmap.weekday.fri'), ''].map((lbl, i) => (
               <div key={i} className="h-3 leading-3">
                 {lbl}
               </div>
@@ -233,7 +245,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
           </div>
 
           {/* the grid: one column per week */}
-          <div className="flex gap-[3px]" role="grid" aria-label={`Activity heatmap by day, coloured by ${active.label}`}>
+          <div className="flex gap-[3px]" role="grid" aria-label={t('agentRuntime.heatmap.gridLabel', { metric: activeLabel })}>
             {columns.map((col, w) => (
               <div key={w} className="flex flex-col gap-[3px]" role="row">
                 {col.map((g) =>
@@ -264,7 +276,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
 
         {/* legend: Less ▢▢▢▢▢ More — CSS squares in the active 口径's hue, no emoji */}
         <div className="mt-3 flex items-center justify-end gap-1 text-[0.625rem] text-text-muted" data-testid="heatmap-legend">
-          <span>Less</span>
+          <span>{t('agentRuntime.heatmap.less')}</span>
           {[0, 1, 2, 3, 4].map((lvl) => (
             <span
               key={lvl}
@@ -274,7 +286,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
               aria-hidden="true"
             />
           ))}
-          <span>More</span>
+          <span>{t('agentRuntime.heatmap.more')}</span>
         </div>
       </div>
     </section>

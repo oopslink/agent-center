@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { useAgents, useRestartAgent } from '@/api/agents';
 import { AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
@@ -15,6 +16,7 @@ import type { Agent } from '@/api/types';
 // lives on AgentDetail (reached by clicking the agent name). Unbind-as-such is
 // deferred (flagged to PD).
 function BoundAgentRow({ agent }: { agent: Agent }): React.ReactElement {
+  const { t } = useTranslation('members');
   const restart = useRestartAgent(agent.id);
   const canRestart = agent.lifecycle === 'running';
   return (
@@ -52,7 +54,7 @@ function BoundAgentRow({ agent }: { agent: Agent }): React.ReactElement {
               onClick={() => restart.mutate()}
               className="text-xs text-accent hover:underline disabled:text-text-muted"
             >
-              {restart.isPending ? 'Restarting…' : 'Restart'}
+              {restart.isPending ? t('agents.bound.restarting') : t('agents.bound.restart')}
             </button>
           )}
         </div>
@@ -62,11 +64,12 @@ function BoundAgentRow({ agent }: { agent: Agent }): React.ReactElement {
 }
 
 export function BoundAgents({ workerId }: { workerId: string }): React.ReactElement {
+  const { t } = useTranslation('members');
   const agents = useAgents();
   if (agents.isLoading) {
     return (
       <p className="text-sm text-text-muted" data-testid="bound-agents-loading">
-        Loading agents…
+        {t('agents.bound.loading')}
       </p>
     );
   }
@@ -82,8 +85,8 @@ export function BoundAgents({ workerId }: { workerId: string }): React.ReactElem
     return (
       <EmptyState
         testId="bound-agents-empty"
-        title="No bound agents"
-        body="No agents are bound to this worker."
+        title={t('agents.bound.emptyTitle')}
+        body={t('agents.bound.emptyBody')}
       />
     );
   }
@@ -92,14 +95,14 @@ export function BoundAgents({ workerId }: { workerId: string }): React.ReactElem
       {/* In-UI discoverability hint (PD lock): there is no unbind — to remove an
           agent from this worker, archive it from its detail page. */}
       <p className="text-xs text-text-muted" data-testid="bound-agents-remove-hint">
-        To remove an agent from this worker, open it and Archive it (there is no unbind).
+        {t('agents.bound.removeHint')}
       </p>
       <table className="w-full border-collapse" data-testid="bound-agents-table">
       <thead>
         <tr className="text-left text-xs text-text-muted">
-          <th className="border-b border-border-base px-3 py-2">Name</th>
-          <th className="border-b border-border-base px-3 py-2">Lifecycle</th>
-          <th className="border-b border-border-base px-3 py-2">Availability</th>
+          <th className="border-b border-border-base px-3 py-2">{t('agents.bound.col.name')}</th>
+          <th className="border-b border-border-base px-3 py-2">{t('agents.bound.col.lifecycle')}</th>
+          <th className="border-b border-border-base px-3 py-2">{t('agents.bound.col.availability')}</th>
           <th className="border-b border-border-base px-3 py-2 text-right" />
         </tr>
       </thead>

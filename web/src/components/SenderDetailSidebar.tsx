@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useInRouterContext } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useAgent, useAgentActivity, useAgentTasks } from '@/api/agents';
@@ -45,6 +46,7 @@ export function SenderDetailSidebar({
   senderRef,
   onClose,
 }: Props): React.ReactElement | null {
+  const { t } = useTranslation('members');
   const containerRef = useModalA11y({ open, onClose });
   const displayName = useDisplayNameResolver();
   // T136: the header "Open DM" button navigates (useOpenDm → useNavigate), which
@@ -76,7 +78,7 @@ export function SenderDetailSidebar({
   // of the raw `agent:agent-xxx`; the clean handle + raw ref stay on title=.
   const resolvedName = displayName(senderRef);
   const nameResolved = isResolvedName(senderRef, resolvedName);
-  const headerName = nameResolved ? resolvedName : '(deleted)';
+  const headerName = nameResolved ? resolvedName : t('humans.sidebar.deletedName');
   // Avatar still seeds off the clean handle so it renders a stable glyph.
   const avatarSeed = nameResolved ? resolvedName : normalizeIdentityRef(senderRef);
 
@@ -93,7 +95,7 @@ export function SenderDetailSidebar({
         ref={containerRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${headerName} detail`}
+        aria-label={t('humans.sidebar.dialogAria', { name: headerName })}
         data-testid="sender-sidebar"
         className="fixed inset-y-0 right-0 z-40 flex h-full w-80 translate-x-0 transform flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 transition-transform duration-200 ease-out motion-reduce:transition-none sm:w-96"
       >
@@ -130,7 +132,7 @@ export function SenderDetailSidebar({
               </div>
             )}
             <div className="text-xs uppercase tracking-wide text-text-muted">
-              {kind === 'agent' ? 'Agent' : 'User'}
+              {kind === 'agent' ? t('humans.kind.agent') : t('humans.kind.user')}
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -155,7 +157,7 @@ export function SenderDetailSidebar({
               type="button"
               onClick={onClose}
               data-testid="sender-sidebar-close"
-              aria-label="Close sender detail"
+              aria-label={t('humans.sidebar.close')}
               className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
             >
               {/* plain ASCII "X" close glyph (per the #208 lesson — NOT the U+2715
@@ -198,6 +200,7 @@ function AgentReminderButton({
   agentName: string;
   onOpen: (prefill: ReminderPrefill) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const activity = useAgentActivity(agentId);
   return (
     <button
@@ -214,13 +217,13 @@ function AgentReminderButton({
           prefill.onceDate = reset.onceDate;
           prefill.onceTime = reset.onceTime;
           if (reset.timezone) prefill.tz = reset.timezone;
-          prefill.content = `Session/usage limit reset (was: "${reset.clock}"). Resume your work.`;
+          prefill.content = t('humans.sidebar.reminderContent', { clock: reset.clock });
         }
         onOpen(prefill);
       }}
       data-testid="sender-sidebar-reminder"
-      aria-label="Create reminder"
-      title="Create reminder"
+      aria-label={t('humans.sidebar.createReminder')}
+      title={t('humans.sidebar.createReminder')}
       className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
     >
       <BellIcon />
@@ -251,6 +254,7 @@ function AgentDmButton({
   senderRef: string;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const openDm = useOpenDm();
   return (
     <button
@@ -262,8 +266,8 @@ function AgentDmButton({
       }}
       disabled={openDm.pending}
       data-testid="sender-sidebar-dm"
-      aria-label="Open DM"
-      title="Open DM"
+      aria-label={t('humans.sidebar.openDm')}
+      title={t('humans.sidebar.openDm')}
       className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
     >
       <ChatIcon />
@@ -320,24 +324,25 @@ function AgentDetailBody({
   agentId: string;
   query: ReturnType<typeof useAgent>;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   // Activity loads in parallel with the agent detail (both gated on the same id).
   const activity = useAgentActivity(agentId);
 
-  if (query.isLoading) return <StateMessage>Loading agent…</StateMessage>;
+  if (query.isLoading) return <StateMessage>{t('humans.sidebar.loadingAgent')}</StateMessage>;
   // F2 (v2.8.1): a force-deleted agent's GET 404s. Show a FRIENDLY deleted
   // message (not a generic "couldn't load", not a bare "not found", never
   // blank). Other (non-404) errors keep the generic load-failure message.
   if (query.isError) {
     return is404(query.error) ? (
-      <StateMessage>This agent is unavailable (deleted).</StateMessage>
+      <StateMessage>{t('humans.sidebar.agentDeleted')}</StateMessage>
     ) : (
-      <StateMessage>Couldn&apos;t load this agent.</StateMessage>
+      <StateMessage>{t('humans.sidebar.agentLoadError')}</StateMessage>
     );
   }
   const agent = query.data;
   // Defensive: if the query somehow settles with no data (e.g. a 200 tombstone
   // body), still render a friendly message rather than a blank panel.
-  if (!agent) return <StateMessage>This agent is unavailable (deleted).</StateMessage>;
+  if (!agent) return <StateMessage>{t('humans.sidebar.agentDeleted')}</StateMessage>;
 
   return (
     <div className="flex flex-col gap-4" data-testid="sender-sidebar-agent">
@@ -353,15 +358,15 @@ function AgentDetailBody({
         className="grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1 text-sm"
         data-testid="sender-sidebar-agent-info"
       >
-        <dt className="text-text-muted">CLI</dt>
+        <dt className="text-text-muted">{t('humans.sidebar.agentInfo.cli')}</dt>
         <dd className="min-w-0 break-words text-text-primary">{agent.cli || '—'}</dd>
-        <dt className="text-text-muted">Model</dt>
+        <dt className="text-text-muted">{t('humans.sidebar.agentInfo.model')}</dt>
         <dd className="min-w-0 break-words text-text-primary">{agent.model || '—'}</dd>
-        <dt className="text-text-muted">Worker</dt>
+        <dt className="text-text-muted">{t('humans.sidebar.agentInfo.worker')}</dt>
         <dd className="min-w-0 break-words text-text-primary">
           {agent.computer?.name || agent.worker_id || '—'}
         </dd>
-        <dt className="text-text-muted">Description</dt>
+        <dt className="text-text-muted">{t('humans.sidebar.agentInfo.description')}</dt>
         <dd className="min-w-0 break-words text-text-primary">{agent.description || '—'}</dd>
       </dl>
 
@@ -378,46 +383,47 @@ function AgentDetailBody({
 // paused / queued / blocked-on-input), shown above the Activity feed. Terminal
 // tasks (done / canceled / superseded / failed) are excluded — this is "what the
 // agent is doing right now". Each row: human task id + title + a status label.
-const CURRENT_TASK_LABELS: Record<string, string> = {
-  active: 'In Progress',
-  paused: 'Paused',
-  queued: 'Pending',
-  waiting_input: 'Blocked',
-};
+// CURRENT_TASK_STATUSES — the in-progress task statuses this section surfaces.
+// Status ids are stable discriminators (kept literal); the visible label for each
+// is resolved at render via t('humans.sidebar.taskStatus.<status>').
+const CURRENT_TASK_STATUSES: readonly string[] = ['active', 'paused', 'queued', 'waiting_input'];
 
 function AgentCurrentTasks({ agentId }: { agentId: string }): React.ReactElement {
+  const { t } = useTranslation('members');
   const tasks = useAgentTasks(agentId);
-  const current = (tasks.data ?? []).filter((t) => CURRENT_TASK_LABELS[t.status] !== undefined);
+  const current = (tasks.data ?? []).filter((task) => CURRENT_TASK_STATUSES.includes(task.status));
 
   return (
     <section className="border-t border-border-base pt-4" data-testid="sender-sidebar-current-tasks">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-        Current tasks{current.length > 0 ? ` (${current.length})` : ''}
+        {current.length > 0
+          ? t('humans.sidebar.currentTasksCount', { count: current.length })
+          : t('humans.sidebar.currentTasks')}
       </h3>
       {tasks.isLoading ? (
-        <p className="text-xs text-text-muted" data-testid="sender-sidebar-current-tasks-loading">Loading…</p>
+        <p className="text-xs text-text-muted" data-testid="sender-sidebar-current-tasks-loading">{t('humans.sidebar.loading')}</p>
       ) : tasks.isError ? (
         <p className="text-xs text-danger" data-testid="sender-sidebar-current-tasks-error">
           {(tasks.error as Error).message}
         </p>
       ) : current.length === 0 ? (
         <p className="text-xs text-text-muted" data-testid="sender-sidebar-current-tasks-empty">
-          No tasks in progress.
+          {t('humans.sidebar.noTasksInProgress')}
         </p>
       ) : (
         <ul className="space-y-1.5" data-testid="sender-sidebar-current-tasks-list">
-          {current.map((t) => {
-            const bareId = t.task_id ?? t.task_ref;
-            const label = refLabel(t.org_ref, bareId);
-            const title = t.task_title || bareId;
-            const linkable = Boolean(t.task_title && t.project_id && t.task_id);
+          {current.map((task) => {
+            const bareId = task.task_id ?? task.task_ref;
+            const label = refLabel(task.org_ref, bareId);
+            const title = task.task_title || bareId;
+            const linkable = Boolean(task.task_title && task.project_id && task.task_id);
             return (
               <li
-                key={t.id}
+                key={task.id}
                 className="flex items-center gap-2 rounded border border-border-base px-2 py-1.5"
                 data-testid="sender-sidebar-current-task"
-                data-task-id={t.task_id ?? ''}
-                data-status={t.status}
+                data-task-id={task.task_id ?? ''}
+                data-status={task.status}
               >
                 <span
                   className="shrink-0 rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.625rem] font-semibold text-text-secondary"
@@ -427,7 +433,7 @@ function AgentCurrentTasks({ agentId }: { agentId: string }): React.ReactElement
                 </span>
                 {linkable ? (
                   <OrgLink
-                    to={`/projects/${encodeURIComponent(t.project_id as string)}/tasks/${encodeURIComponent(t.task_id as string)}`}
+                    to={`/projects/${encodeURIComponent(task.project_id as string)}/tasks/${encodeURIComponent(task.task_id as string)}`}
                     className="min-w-0 flex-1 truncate text-xs text-accent hover:underline"
                     title={title}
                   >
@@ -436,7 +442,7 @@ function AgentCurrentTasks({ agentId }: { agentId: string }): React.ReactElement
                 ) : (
                   <span className="min-w-0 flex-1 truncate text-xs text-text-primary" title={title}>{title}</span>
                 )}
-                <span className="shrink-0 text-[0.625rem] font-medium text-text-muted">{CURRENT_TASK_LABELS[t.status]}</span>
+                <span className="shrink-0 text-[0.625rem] font-medium text-text-muted">{t(`humans.sidebar.taskStatus.${task.status}`)}</span>
               </li>
             );
           })}
@@ -453,12 +459,13 @@ function AgentActivitySection({
 }: {
   activity: ReturnType<typeof useAgentActivity>;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const events = activity.data?.pages.flatMap((p) => p.activity) ?? [];
 
   return (
     <section className="border-t border-border-base pt-4" data-testid="sender-sidebar-activity">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Activity</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('humans.sidebar.activity')}</h3>
         <button
           type="button"
           className="rounded border border-border-strong px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
@@ -467,12 +474,12 @@ function AgentActivitySection({
           disabled={activity.isFetching}
           aria-busy={activity.isFetching}
         >
-          {activity.isFetching ? 'Refreshing…' : 'Refresh'}
+          {activity.isFetching ? t('humans.sidebar.refreshing') : t('humans.sidebar.refresh')}
         </button>
       </div>
       {activity.isLoading && (
         <p className="text-xs text-text-muted" data-testid="sender-sidebar-activity-loading">
-          Loading activity…
+          {t('humans.sidebar.loadingActivity')}
         </p>
       )}
       {activity.isError && (
@@ -482,7 +489,7 @@ function AgentActivitySection({
       )}
       {activity.isSuccess && events.length === 0 && (
         <p className="text-xs text-text-muted" data-testid="sender-sidebar-activity-empty">
-          No activity yet.
+          {t('humans.sidebar.noActivity')}
         </p>
       )}
       {activity.isSuccess && events.length > 0 && (
@@ -505,7 +512,7 @@ function AgentActivitySection({
               disabled={activity.isFetchingNextPage}
               aria-busy={activity.isFetchingNextPage}
             >
-              {activity.isFetchingNextPage ? 'Loading…' : 'Load older'}
+              {activity.isFetchingNextPage ? t('humans.sidebar.loading') : t('humans.sidebar.loadOlder')}
             </button>
           )}
         </>
@@ -521,6 +528,7 @@ function UserDetailBody({
   query: ReturnType<typeof useUser>;
   memberRef: string;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   // Role is enrichment-only: looked up from the org members list (cheap, already
   // cached) keyed by the normalized identity ref. Absent => omitted.
   const members = useMembers();
@@ -529,25 +537,25 @@ function UserDetailBody({
     (m) => normalizeIdentityRef(m.identity_id) === key,
   )?.role;
 
-  if (query.isLoading) return <StateMessage>Loading user…</StateMessage>;
+  if (query.isLoading) return <StateMessage>{t('humans.sidebar.loadingUser')}</StateMessage>;
   // F2 (v2.8.1): same friendly-deleted treatment as the agent branch for a 404
   // (deleted user). Non-404 errors keep the generic load-failure message.
   if (query.isError) {
     return is404(query.error) ? (
-      <StateMessage>This user is unavailable (deleted).</StateMessage>
+      <StateMessage>{t('humans.sidebar.userDeleted')}</StateMessage>
     ) : (
-      <StateMessage>Couldn&apos;t load this user.</StateMessage>
+      <StateMessage>{t('humans.sidebar.userLoadError')}</StateMessage>
     );
   }
   const user = query.data;
-  if (!user) return <StateMessage>This user is unavailable (deleted).</StateMessage>;
+  if (!user) return <StateMessage>{t('humans.sidebar.userDeleted')}</StateMessage>;
 
   return (
     <div className="flex flex-col gap-4" data-testid="sender-sidebar-user">
-      <LabelRow label="Name" value={user.display_name} />
-      <LabelRow label="Kind" value="User" />
-      {role && <LabelRow label="Role" value={role} />}
-      {user.email && <LabelRow label="Email" value={user.email} />}
+      <LabelRow label={t('humans.sidebar.userInfo.name')} value={user.display_name} />
+      <LabelRow label={t('humans.sidebar.userInfo.kind')} value={t('humans.kind.user')} />
+      {role && <LabelRow label={t('humans.sidebar.userInfo.role')} value={t(`humans.role.${role}`, { defaultValue: role })} />}
+      {user.email && <LabelRow label={t('humans.sidebar.userInfo.email')} value={user.email} />}
     </div>
   );
 }

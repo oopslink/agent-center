@@ -6,6 +6,7 @@ import { useOrgs, useMe } from '@/api/auth';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import AccountPanel from '@/components/AccountPanel';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
+import { useTranslation } from 'react-i18next';
 
 function fmtDate(v?: string): string {
   if (!v) return '—';
@@ -21,6 +22,7 @@ type UserTab = 'profile' | 'organizations' | 'account';
 // holds change-password + sign-out). The route uses the member-id (not the
 // handle) so it survives display-name renames.
 export default function UserDetail(): React.ReactElement {
+  const { t } = useTranslation('members');
   const { userId = '' } = useParams<{ userId: string }>();
   const user = useUser(userId);
   const me = useMe();
@@ -28,7 +30,7 @@ export default function UserDetail(): React.ReactElement {
   if (user.isLoading) {
     return (
       <section className="text-sm text-text-muted" data-testid="page-UserDetail">
-        Loading user…
+        {t('humans.userDetail.loading')}
       </section>
     );
   }
@@ -36,10 +38,10 @@ export default function UserDetail(): React.ReactElement {
     return (
       <section className="space-y-3" data-testid="page-UserDetail">
         <p className="text-sm text-danger" data-testid="user-detail-not-found">
-          {user.error instanceof Error ? user.error.message : 'User not found.'}
+          {user.error instanceof Error ? user.error.message : t('humans.userDetail.notFound')}
         </p>
         <OrgLink to="/members/humans" className="text-accent hover:underline">
-          Back to Humans
+          {t('humans.userDetail.backToHumans')}
         </OrgLink>
       </section>
     );
@@ -62,6 +64,7 @@ function UserDetailView({
   user: UserDetailResult;
   isSelf: boolean;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const [searchParams, setSearchParams] = useSearchParams();
   const orgs = useOrgs();
   // T478 #1: resolve the org's display name. The server now sends org_name on the
@@ -73,9 +76,9 @@ function UserDetailView({
     o.org_id;
 
   const tabs: { key: UserTab; label: string }[] = [
-    { key: 'profile', label: 'Profile' },
-    { key: 'organizations', label: 'Organizations' },
-    ...(isSelf ? [{ key: 'account' as UserTab, label: 'Account' }] : []),
+    { key: 'profile', label: t('humans.userDetail.tabs.profile') },
+    { key: 'organizations', label: t('humans.userDetail.tabs.organizations') },
+    ...(isSelf ? [{ key: 'account' as UserTab, label: t('humans.userDetail.tabs.account') }] : []),
   ];
   // Active tab synced to ?tab= (shareable + the /me redirect lands on ?tab=account).
   // An unknown tab — or ?tab=account when viewing someone else — falls back to Profile.
@@ -97,8 +100,8 @@ function UserDetailView({
     <section className="flex h-full flex-col gap-6" data-testid="page-UserDetail" data-user-id={u.user_id}>
       <Breadcrumb
         items={[
-          { label: 'Members' },
-          { label: 'Humans', to: '/members/humans' },
+          { label: t('humans.userDetail.breadcrumb.members') },
+          { label: t('humans.userDetail.breadcrumb.humans'), to: '/members/humans' },
           { label: u.display_name || u.user_id },
         ]}
       />
@@ -112,7 +115,7 @@ function UserDetailView({
             className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted"
             data-testid="user-detail-kind-tag"
           >
-            User
+            {t('humans.userDetail.kindTag')}
           </span>
         </div>
       </header>
@@ -159,11 +162,11 @@ function UserDetailView({
           data-testid="user-detail-profile"
         >
           <dl className="grid grid-cols-1 gap-y-2 text-sm md:grid-cols-[8rem_1fr]">
-            <dt className="text-text-muted">Email</dt>
+            <dt className="text-text-muted">{t('humans.userDetail.profile.email')}</dt>
             <dd className="text-text-primary" data-testid="user-detail-email">{u.email || '—'}</dd>
-            <dt className="text-text-muted">Created</dt>
+            <dt className="text-text-muted">{t('humans.userDetail.profile.created')}</dt>
             <dd className="text-text-secondary" data-testid="user-detail-created">{fmtDate(u.created_at)}</dd>
-            <dt className="text-text-muted">Last active</dt>
+            <dt className="text-text-muted">{t('humans.userDetail.profile.lastActive')}</dt>
             <dd className="text-text-secondary" data-testid="user-detail-last-session">{fmtDate(u.last_session_at)}</dd>
           </dl>
         </section>
@@ -179,7 +182,7 @@ function UserDetailView({
         >
           {u.orgs.length === 0 ? (
             <p className="text-xs text-text-muted" data-testid="user-detail-orgs-empty">
-              Not a member of any organization.
+              {t('humans.userDetail.orgs.empty')}
             </p>
           ) : (
             <ul className="divide-y divide-border-base" data-testid="user-detail-orgs">
@@ -202,7 +205,7 @@ function UserDetailView({
                     </span>
                   </span>
                   <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                    {o.role}
+                    {t(`humans.role.${o.role}`, { defaultValue: o.role })}
                   </span>
                 </li>
               ))}

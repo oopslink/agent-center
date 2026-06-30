@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -31,13 +32,15 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 // I28/F7 (v2.15.0): the 5th tab `analytics` mounts the per-agent dashboard
 // (overview cards + activity heatmap + tokens/cost trend + top cost tasks),
 // route /agents/:id?tab=analytics. (T470: the "NEW" pill was dropped @oopslink.)
+// The tab `key` is the STABLE discriminator (route ?tab=, testids, keyboard nav);
+// the visible label is localized at render via t('agents.detail.tabs.<key>').
 const AGENT_TABS = [
-  { key: 'profile', label: 'Profile' },
-  { key: 'activity', label: 'Activity' },
+  { key: 'profile' },
+  { key: 'activity' },
   // I5 (T583): read-only runtime browser — memory/workspace tree + file preview.
-  { key: 'runtime', label: 'Runtime' },
-  { key: 'tasks', label: 'Tasks' },
-  { key: 'analytics', label: 'Analytics' },
+  { key: 'runtime' },
+  { key: 'tasks' },
+  { key: 'analytics' },
 ] as const;
 type AgentTab = (typeof AGENT_TABS)[number]['key'];
 
@@ -46,6 +49,7 @@ type AgentTab = (typeof AGENT_TABS)[number]['key'];
 // (scope + double-confirm), a WorkItem queue and an Activity stream.
 // No profile-edit (no backend update-profile endpoint in #101 scope).
 export default function AgentDetail(): React.ReactElement {
+  const { t } = useTranslation('members');
   const { id = '' } = useParams<{ id: string }>();
   const agent = useAgent(id);
   const activity = useAgentActivity(id);
@@ -114,7 +118,7 @@ export default function AgentDetail(): React.ReactElement {
   if (agent.isLoading) {
     return (
       <section className="text-sm text-text-muted" data-testid="page-AgentDetail">
-        Loading agent…
+        {t('agents.detail.loading')}
       </section>
     );
   }
@@ -125,7 +129,7 @@ export default function AgentDetail(): React.ReactElement {
           {(agent.error as Error).message}
         </p>
         <OrgLink to="/agents" className="text-accent hover:underline">
-          Back to agents
+          {t('agents.detail.backToAgents')}
         </OrgLink>
       </section>
     );
@@ -133,7 +137,7 @@ export default function AgentDetail(): React.ReactElement {
   if (!agent.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-AgentDetail">
-        Agent lookup failed.
+        {t('agents.detail.lookupFailed')}
       </section>
     );
   }
@@ -177,7 +181,7 @@ export default function AgentDetail(): React.ReactElement {
       data-lifecycle={a.lifecycle}
     >
       <Breadcrumb
-        items={[{ label: 'Members' }, { label: 'Agents', to: '/agents' }, { label: a.name }]}
+        items={[{ label: t('agents.detail.breadcrumbMembers') }, { label: t('agents.detail.breadcrumbAgents'), to: '/agents' }, { label: a.name }]}
       />
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-base pb-3">
         {/* @oopslink: worker subtitle removed — it duplicated the Profile
@@ -206,8 +210,8 @@ export default function AgentDetail(): React.ReactElement {
               disabled={createDm.isPending}
               className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
               data-testid="agent-message-btn"
-              title="Send message"
-              aria-label="Send a direct message"
+              title={t('agents.detail.controls.messageTitle')}
+              aria-label={t('agents.detail.controls.messageAria')}
               aria-busy={createDm.isPending}
             >
               <ChatBubbleIcon />
@@ -222,8 +226,8 @@ export default function AgentDetail(): React.ReactElement {
               disabled={lifecyclePending}
               className="flex items-center rounded bg-brand px-2 py-1.5 text-white hover:bg-brand-hover disabled:opacity-50"
               data-testid="agent-start-btn"
-              title="Start"
-              aria-label="Start agent"
+              title={t('agents.detail.controls.startTitle')}
+              aria-label={t('agents.detail.controls.startAria')}
             >
               <PlayIcon />
             </button>
@@ -237,8 +241,8 @@ export default function AgentDetail(): React.ReactElement {
                 disabled={lifecyclePending}
                 className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-stop-btn"
-                title="Stop"
-                aria-label="Stop agent"
+                title={t('agents.detail.controls.stopTitle')}
+                aria-label={t('agents.detail.controls.stopAria')}
               >
                 <StopIcon />
               </button>
@@ -248,8 +252,8 @@ export default function AgentDetail(): React.ReactElement {
                 disabled={lifecyclePending}
                 className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-primary hover:bg-bg-subtle disabled:opacity-50"
                 data-testid="agent-restart-btn"
-                title="Restart"
-                aria-label="Restart agent"
+                title={t('agents.detail.controls.restartTitle')}
+                aria-label={t('agents.detail.controls.restartAria')}
               >
                 <RestartIcon />
               </button>
@@ -262,8 +266,8 @@ export default function AgentDetail(): React.ReactElement {
               disabled={transient || reset.isPending}
               className="flex items-center rounded border border-danger/40 px-2 py-1.5 text-danger hover:bg-danger/10 disabled:opacity-50"
               data-testid="agent-reset-btn"
-              title="Reset"
-              aria-label="Reset agent"
+              title={t('agents.detail.controls.resetTitle')}
+              aria-label={t('agents.detail.controls.resetAria')}
             >
               <ResetIcon />
             </button>
@@ -276,8 +280,8 @@ export default function AgentDetail(): React.ReactElement {
               disabled={archive.isPending}
               className="flex items-center rounded border border-danger/40 px-2 py-1.5 text-danger hover:bg-danger/10 disabled:opacity-50"
               data-testid="agent-archive-btn"
-              title="Archive"
-              aria-label="Archive agent"
+              title={t('agents.detail.controls.archiveTitle')}
+              aria-label={t('agents.detail.controls.archiveAria')}
             >
               <ArchiveIcon />
             </button>
@@ -295,8 +299,8 @@ export default function AgentDetail(): React.ReactElement {
             disabled={forceDelete.isPending}
             className="flex items-center rounded border border-danger/40 px-2 py-1.5 text-danger hover:bg-danger/10 disabled:opacity-50"
             data-testid="agent-force-delete"
-            title="Force delete"
-            aria-label="Force delete agent"
+            title={t('agents.detail.controls.forceDeleteTitle')}
+            aria-label={t('agents.detail.controls.forceDeleteAria')}
           >
             <TrashIcon />
           </button>
@@ -334,22 +338,22 @@ export default function AgentDetail(): React.ReactElement {
         onBlur={tablist.onBlur}
         data-testid="agent-tabs"
       >
-        {AGENT_TABS.map((t) => (
+        {AGENT_TABS.map((tab2) => (
           <button
-            key={t.key}
+            key={tab2.key}
             type="button"
             role="tab"
-            aria-selected={tab === t.key}
-            tabIndex={tablist.tabIndexFor(t.key)}
-            onClick={() => setTab(t.key)}
-            data-testid={`agent-tab-${t.key}`}
+            aria-selected={tab === tab2.key}
+            tabIndex={tablist.tabIndexFor(tab2.key)}
+            onClick={() => setTab(tab2.key)}
+            data-testid={`agent-tab-${tab2.key}`}
             className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === t.key
+              tab === tab2.key
                 ? 'border-brand text-text-primary'
                 : 'border-transparent text-text-muted hover:text-text-primary'
             }`}
           >
-            {t.label}
+            {t(`agents.detail.tabs.${tab2.key}`)}
           </button>
         ))}
       </nav>
@@ -371,9 +375,9 @@ export default function AgentDetail(): React.ReactElement {
 
       {/* Activity stream */}
       {tab === 'activity' && (
-      <section className="rounded border border-border-base bg-bg-elevated p-4" role="region" aria-label="Activity" data-testid="agent-tabpanel-activity">
+      <section className="rounded border border-border-base bg-bg-elevated p-4" role="region" aria-label={t('agents.detail.activity.regionAria')} data-testid="agent-tabpanel-activity">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Activity Diagnostics</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('agents.detail.activity.diagnostics')}</h3>
           <button
             type="button"
             className="rounded border border-border-strong px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle disabled:opacity-50"
@@ -382,12 +386,12 @@ export default function AgentDetail(): React.ReactElement {
             disabled={activity.isFetching}
             aria-busy={activity.isFetching}
           >
-            {activity.isFetching ? 'Refreshing…' : 'Refresh'}
+            {activity.isFetching ? t('agents.detail.activity.refreshing') : t('agents.detail.activity.refresh')}
           </button>
         </div>
         {activity.isLoading && (
           <p className="text-xs text-text-muted" data-testid="agent-activity-loading">
-            Loading activity…
+            {t('agents.detail.activity.loading')}
           </p>
         )}
         {activity.isError && (
@@ -397,7 +401,7 @@ export default function AgentDetail(): React.ReactElement {
         )}
         {activity.isSuccess && activityEvents.length === 0 && (
           <p className="text-xs text-text-muted" data-testid="agent-activity-empty">
-            No activity yet.
+            {t('agents.detail.activity.empty')}
           </p>
         )}
         {activity.isSuccess && activityEvents.length > 0 && (
@@ -422,8 +426,8 @@ export default function AgentDetail(): React.ReactElement {
                 onClick={() => void activity.fetchNextPage()}
                 disabled={activity.isFetchingNextPage}
                 aria-busy={activity.isFetchingNextPage}
-                aria-label="Load older events"
-                title="Load older events"
+                aria-label={t('agents.detail.activity.loadOlder')}
+                title={t('agents.detail.activity.loadOlder')}
               >
                 {/* v2.8.1 UX (@oopslink): icon-only — chevron-up = "load earlier
                     from the top"; swaps to a spinner while fetching. The semantic
@@ -439,7 +443,7 @@ export default function AgentDetail(): React.ReactElement {
               </button>
             ) : (
               <p className="mt-2 text-center text-xs text-text-muted" data-testid="agent-activity-end">
-                No more activity
+                {t('agents.detail.activity.end')}
               </p>
             )}
           </>
@@ -463,21 +467,21 @@ export default function AgentDetail(): React.ReactElement {
       {/* #270: stop/restart二次确认 (disruptive — interrupts a running agent). */}
       <ConfirmModal
         open={confirmAction !== null}
-        title={confirmAction === 'restart' ? 'Restart agent?' : 'Stop agent?'}
+        title={confirmAction === 'restart' ? t('agents.detail.confirmRestart.title') : t('agents.detail.confirmStop.title')}
         message={
           confirmAction === 'restart' ? (
-            <>
-              Restart <strong>{a.name}</strong>? Its current run is interrupted and
+            <Trans i18nKey="agents.detail.confirmRestart.message" t={t} values={{ name: a.name }}>
+              Restart <strong>{{ name: a.name } as never}</strong>? Its current run is interrupted and
               the agent is started again.
-            </>
+            </Trans>
           ) : (
-            <>
-              Stop <strong>{a.name}</strong>? Any in-progress work is interrupted
+            <Trans i18nKey="agents.detail.confirmStop.message" t={t} values={{ name: a.name }}>
+              Stop <strong>{{ name: a.name } as never}</strong>? Any in-progress work is interrupted
               until it is started again.
-            </>
+            </Trans>
           )
         }
-        confirmLabel={confirmAction === 'restart' ? 'Restart' : 'Stop'}
+        confirmLabel={confirmAction === 'restart' ? t('agents.detail.controls.restartTitle') : t('agents.detail.controls.stopTitle')}
         busy={stop.isPending || restart.isPending}
         onConfirm={() => {
           const m = confirmAction === 'restart' ? restart : stop;
@@ -490,15 +494,15 @@ export default function AgentDetail(): React.ReactElement {
           preserves history (tasks/conversations); shown as "(archived)". */}
       <ConfirmModal
         open={archiveOpen}
-        title="Archive agent?"
+        title={t('agents.detail.confirmArchive.title')}
         message={
-          <>
-            Archiving <strong>{a.name}</strong> removes it from the active agent
+          <Trans i18nKey="agents.detail.confirmArchive.message" t={t} values={{ name: a.name }}>
+            Archiving <strong>{{ name: a.name } as never}</strong> removes it from the active agent
             list and releases its worker. Its history (tasks, conversations) is
             preserved and it will show as “(archived)”. This cannot be undone.
-          </>
+          </Trans>
         }
-        confirmLabel="Archive"
+        confirmLabel={t('agents.detail.confirmArchive.confirm')}
         danger
         busy={archive.isPending}
         onConfirm={() =>
@@ -544,6 +548,7 @@ function ResetModal({
   onClose: () => void;
   onConfirm: (scope: ResetScope) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const [scope, setScope] = useState<ResetScope>('memory');
   const [confirmed, setConfirmed] = useState(false);
 
@@ -555,14 +560,13 @@ function ResetModal({
       data-testid="agent-reset-modal"
     >
       <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
-        <h2 className="text-lg font-semibold">Reset agent</h2>
+        <h2 className="text-lg font-semibold">{t('agents.detail.reset.title')}</h2>
         <p className="mt-1 text-xs text-text-muted">
-          Resetting is destructive and cannot be undone. Choose a scope and
-          confirm to proceed.
+          {t('agents.detail.reset.description')}
         </p>
 
         <label className="mt-4 mb-1 block text-xs font-medium text-text-primary">
-          Scope
+          {t('agents.detail.reset.scope')}
         </label>
         <select
           value={scope}
@@ -570,9 +574,9 @@ function ResetModal({
           className="block w-full rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent"
           data-testid="agent-reset-scope"
         >
-          <option value="memory">Memory</option>
-          <option value="workspace">Workspace</option>
-          <option value="all">All</option>
+          <option value="memory">{t('agents.detail.reset.scopeMemory')}</option>
+          <option value="workspace">{t('agents.detail.reset.scopeWorkspace')}</option>
+          <option value="all">{t('agents.detail.reset.scopeAll')}</option>
         </select>
 
         <label className="mt-4 flex items-center gap-2 text-xs text-text-primary">
@@ -582,7 +586,7 @@ function ResetModal({
             onChange={(e) => setConfirmed(e.target.checked)}
             data-testid="agent-reset-confirm"
           />
-          I understand this will reset the agent&apos;s {scope}.
+          {t('agents.detail.reset.understand', { scope })}
         </label>
 
         <div className="mt-4 flex justify-end gap-2">
@@ -592,7 +596,7 @@ function ResetModal({
             className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
             data-testid="agent-reset-cancel"
           >
-            Cancel
+            {t('agents.detail.reset.cancel')}
           </button>
           <button
             type="button"
@@ -601,7 +605,7 @@ function ResetModal({
             className="rounded bg-danger px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="agent-reset-submit"
           >
-            {pending ? 'Resetting…' : 'Reset'}
+            {pending ? t('agents.detail.reset.submitting') : t('agents.detail.reset.submit')}
           </button>
         </div>
       </div>

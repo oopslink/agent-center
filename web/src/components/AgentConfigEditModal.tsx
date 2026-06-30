@@ -5,6 +5,7 @@
 // restart (the new config applies on its next start), so the confirm wording +
 // action adapt to lifecycle.
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRestartAgent, useUpdateAgentConfig } from '@/api/agents';
 import type { Agent, ExecutorProfile } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
@@ -24,6 +25,7 @@ const CLI_OPTIONS = ['claude-code', 'codex'];
 const REASONING_OPTIONS = ['', 'minimal', 'low', 'medium', 'high'];
 
 export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('members');
   const [model, setModel] = useState(agent.model ?? '');
   const [cli, setCli] = useState(agent.cli || 'claude-code');
   const [reasoning, setReasoning] = useState(agent.reasoning ?? '');
@@ -96,16 +98,16 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
       data-testid="agent-config-edit-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Edit agent LLM config"
+      aria-label={t('agentRuntime.configModal.dialogLabel')}
     >
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Edit LLM config</h2>
+          <h2 className="text-lg font-semibold">{t('agentRuntime.configModal.title')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('agentRuntime.configModal.close')}
             data-testid="agent-config-edit-close"
           >
             <span aria-hidden="true">X</span>
@@ -118,7 +120,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             setConfirming(true);
           }}
         >
-          <Field label="CLI" htmlFor="agent-config-cli-input">
+          <Field label={t('agentRuntime.configModal.fields.cli')} htmlFor="agent-config-cli-input">
             <select
               id="agent-config-cli-input"
               data-testid="agent-config-cli"
@@ -134,18 +136,18 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             </select>
           </Field>
 
-          <Field label="Model" htmlFor="agent-config-model-input">
+          <Field label={t('agentRuntime.configModal.fields.model')} htmlFor="agent-config-model-input">
             <input
               id="agent-config-model-input"
               data-testid="agent-config-model"
               className={inputClass}
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="e.g. claude-opus-4-8"
+              placeholder={t('agentRuntime.configModal.fields.modelPlaceholder')}
             />
           </Field>
 
-          <Field label="Reasoning" hint="Reasoning effort. Default = the runtime default." htmlFor="agent-config-reasoning-input">
+          <Field label={t('agentRuntime.configModal.fields.reasoning')} hint={t('agentRuntime.configModal.fields.reasoningHint')} htmlFor="agent-config-reasoning-input">
             <select
               id="agent-config-reasoning-input"
               data-testid="agent-config-reasoning"
@@ -155,43 +157,43 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             >
               {REASONING_OPTIONS.map((r) => (
                 <option key={r || 'default'} value={r}>
-                  {r || 'Default'}
+                  {r || t('agentRuntime.configModal.fields.reasoningDefault')}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="Mode" hint="Optional. Empty = default." htmlFor="agent-config-mode-input">
+          <Field label={t('agentRuntime.configModal.fields.mode')} hint={t('agentRuntime.configModal.fields.modeHint')} htmlFor="agent-config-mode-input">
             <input
               id="agent-config-mode-input"
               data-testid="agent-config-mode"
               className={inputClass}
               value={mode}
               onChange={(e) => setMode(e.target.value)}
-              placeholder="default"
+              placeholder={t('agentRuntime.configModal.fields.modePlaceholder')}
             />
           </Field>
 
-          <Field label="Provider" hint="Optional. Empty = center default." htmlFor="agent-config-provider-input">
+          <Field label={t('agentRuntime.configModal.fields.provider')} hint={t('agentRuntime.configModal.fields.providerHint')} htmlFor="agent-config-provider-input">
             <input
               id="agent-config-provider-input"
               data-testid="agent-config-provider"
               className={inputClass}
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
-              placeholder="default"
+              placeholder={t('agentRuntime.configModal.fields.providerPlaceholder')}
             />
           </Field>
 
           {/* v2.18.1 (issue-8746a5b9): executor concurrency config. */}
           <div className="mb-3 mt-5 border-t border-border-base pt-4" data-testid="agent-config-concurrency">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-              Concurrency
+              {t('agentRuntime.configModal.concurrency.heading')}
             </h3>
 
             <Field
-              label="Max concurrent tasks"
-              hint="0 or 1 = single active (no parallelism). 2+ enables parallel executors."
+              label={t('agentRuntime.configModal.concurrency.maxLabel')}
+              hint={t('agentRuntime.configModal.concurrency.maxHint')}
               htmlFor="agent-config-max-concurrent-input"
             >
               <input
@@ -206,8 +208,8 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             </Field>
 
             <Field
-              label="Allowed executor profiles"
-              hint="The {cli·model} pairs the daemon may fork as executors. Add at least one to enable parallelism."
+              label={t('agentRuntime.configModal.concurrency.executorsLabel')}
+              hint={t('agentRuntime.configModal.concurrency.executorsHint')}
             >
               {executors.length > 0 ? (
                 <ul className="mb-2 flex flex-wrap gap-2" data-testid="agent-config-executors">
@@ -225,7 +227,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                         type="button"
                         className="text-text-muted hover:text-danger"
                         onClick={() => removeExecutor(i)}
-                        aria-label={`Remove ${e.cli} ${e.model}`}
+                        aria-label={t('agentRuntime.configModal.concurrency.removeExecutor', { cli: e.cli, model: e.model })}
                         data-testid="agent-config-executor-remove"
                       >
                         <span aria-hidden="true">×</span>
@@ -235,7 +237,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 </ul>
               ) : (
                 <p className="mb-2 text-[0.6875rem] italic text-text-muted" data-testid="agent-config-executors-empty">
-                  No executor profiles — agent stays single-active.
+                  {t('agentRuntime.configModal.concurrency.executorsEmpty')}
                 </p>
               )}
 
@@ -245,7 +247,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                   value={draftCli}
                   onChange={(e) => setDraftCli(e.target.value)}
                   data-testid="agent-config-executor-cli"
-                  aria-label="Executor CLI"
+                  aria-label={t('agentRuntime.configModal.concurrency.executorCli')}
                 >
                   {CLI_OPTIONS.map((c) => (
                     <option key={c} value={c}>
@@ -264,9 +266,9 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                     }
                   }}
                   list={`executor-models-${draftCli}`}
-                  placeholder="model (e.g. opus-4-8)"
+                  placeholder={t('agentRuntime.configModal.concurrency.executorModelPlaceholder')}
                   data-testid="agent-config-executor-model"
-                  aria-label="Executor model"
+                  aria-label={t('agentRuntime.configModal.concurrency.executorModel')}
                 />
                 <datalist id={`executor-models-${draftCli}`}>
                   {(MODEL_SUGGESTIONS[draftCli] ?? []).map((m) => (
@@ -280,7 +282,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                   disabled={!draftModel.trim()}
                   data-testid="agent-config-executor-add"
                 >
-                  Add
+                  {t('agentRuntime.configModal.concurrency.add')}
                 </button>
               </div>
             </Field>
@@ -291,29 +293,27 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               data-enabled={trulyParallel}
             >
               {trulyParallel
-                ? `Concurrency ENABLED — up to ${maxConcurrent} tasks in parallel.`
-                : 'DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor profile to run in parallel.'}
+                ? t('agentRuntime.configModal.concurrency.enabled', { count: maxConcurrent })
+                : t('agentRuntime.configModal.concurrency.disabled')}
             </p>
           </div>
 
           {/* T566 (issue-577a7b0e): per-agent auto-assign opt-out. */}
           <div className="mb-3 mt-5 border-t border-border-base pt-4" data-testid="agent-config-auto-assign-section">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-              Auto-assignment
+              {t('agentRuntime.configModal.autoAssign.heading')}
             </h3>
             <div className="flex items-start gap-2.5">
               <ToggleSwitch
                 checked={autoAssignable}
                 onChange={setAutoAssignable}
-                ariaLabel="Auto-assignable"
+                ariaLabel={t('agentRuntime.configModal.autoAssign.ariaLabel')}
                 testId="agent-config-auto-assignable"
               />
               <span className="text-xs">
-                <span className="font-medium text-text-primary">Auto-assignable</span>
+                <span className="font-medium text-text-primary">{t('agentRuntime.configModal.autoAssign.label')}</span>
                 <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
-                  When on, this agent may be automatically assigned matching pool tasks. Off
-                  = it is never auto-assigned, but can still be assigned manually or claim
-                  tasks itself.
+                  {t('agentRuntime.configModal.autoAssign.description')}
                 </span>
               </span>
             </div>
@@ -332,7 +332,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               onClick={onClose}
               data-testid="agent-config-edit-cancel"
             >
-              Cancel
+              {t('agentRuntime.configModal.cancel')}
             </button>
             <button
               type="submit"
@@ -340,7 +340,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="agent-config-edit-save"
             >
-              Save
+              {t('agentRuntime.configModal.save')}
             </button>
           </div>
         </form>
@@ -349,13 +349,13 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
       {/* Second confirmation: applying config restarts a running agent. */}
       <ConfirmModal
         open={confirming}
-        title={isRunning ? 'Restart to apply changes?' : 'Save config changes?'}
+        title={isRunning ? t('agentRuntime.configModal.confirm.titleRestart') : t('agentRuntime.configModal.confirm.titleSave')}
         message={
           isRunning
-            ? 'Saving these LLM config changes will RESTART the agent so they take effect. Continue?'
-            : 'The agent is not running — the new config will apply the next time it starts.'
+            ? t('agentRuntime.configModal.confirm.messageRestart')
+            : t('agentRuntime.configModal.confirm.messageSave')
         }
-        confirmLabel={isRunning ? 'Save & restart' : 'Save'}
+        confirmLabel={isRunning ? t('agentRuntime.configModal.confirm.labelRestart') : t('agentRuntime.configModal.confirm.labelSave')}
         busy={busy}
         onConfirm={() => void apply()}
         onCancel={() => setConfirming(false)}

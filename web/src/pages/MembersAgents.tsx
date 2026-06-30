@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useMembers } from '@/api/members';
 import { useAgents } from '@/api/agents';
@@ -19,6 +20,7 @@ function dotClass(availability?: Agent['availability']): string {
 }
 
 export default function MembersAgents(): React.ReactElement {
+  const { t } = useTranslation('members');
   const members = useMembers();
   const agents = useAgents();
   const orgCtx = useOptionalOrgContext();
@@ -59,22 +61,22 @@ export default function MembersAgents(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-MembersAgents">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-text-primary">Agents</h2>
+        <h2 className="text-xl font-semibold text-text-primary">{t('agents.members.title')}</h2>
         <Link
           to={`${base}/members/new?kind=agent`}
           className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
         >
-          Add agent
+          {t('agents.members.add')}
         </Link>
       </div>
 
       {/* Mobile (col② is hidden <md): segmented Humans/Agents switch. */}
       <MembersSegmentControl active="agents" />
 
-      {members.isLoading && <p className="text-sm text-text-muted">Loading…</p>}
+      {members.isLoading && <p className="text-sm text-text-muted">{t('agents.members.loading')}</p>}
 
       {!members.isLoading && agentMembers.length === 0 && (
-        <p className="text-sm text-text-muted">No agent members yet</p>
+        <p className="text-sm text-text-muted">{t('agents.members.empty')}</p>
       )}
 
       {/* Mobile (<md): card rows — avatar (tap → DM) + name + online dot +
@@ -114,7 +116,7 @@ export default function MembersAgents(): React.ReactElement {
                   type="button"
                   onClick={() => openDm.open(m.identity_id)}
                   disabled={openDm.pending}
-                  aria-label={`Message ${name}`}
+                  aria-label={t('agents.members.messageAria', { name })}
                   data-testid="agent-card-dm"
                   className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg disabled:opacity-50"
                 >
@@ -143,10 +145,10 @@ export default function MembersAgents(): React.ReactElement {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border">
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Identity</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Role</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Running on</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('agents.members.col.identity')}</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('agents.members.col.role')}</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('agents.members.col.runningOn')}</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('agents.members.col.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -173,7 +175,7 @@ export default function MembersAgents(): React.ReactElement {
                   <td className="py-2 px-3 text-sm text-text-secondary">
                     {m.worker_id ? (
                       <span className="text-xs">
-                        running on{' '}
+                        {t('agents.members.runningOnPrefix')}{' '}
                         <EntityRef
                           id={m.worker_id}
                           name={workerNameById.get(m.worker_id)}
@@ -182,12 +184,12 @@ export default function MembersAgents(): React.ReactElement {
                         />
                       </span>
                     ) : (
-                      <span className="text-text-muted italic">Not bound to a worker</span>
+                      <span className="text-text-muted italic">{t('agents.members.notBound')}</span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-sm">
                     <span className={m.status === 'joined' ? 'text-success' : 'text-text-muted'}>
-                      {m.status === 'joined' ? 'Joined' : 'Disabled'}
+                      {m.status === 'joined' ? t('agents.status.joined') : t('agents.status.disabled')}
                     </span>
                   </td>
                 </tr>

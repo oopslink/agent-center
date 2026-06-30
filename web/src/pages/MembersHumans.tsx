@@ -13,6 +13,7 @@ import { EntityRef } from '@/components/EntityRef';
 import { Avatar } from '@/components/Avatar';
 import { MembersSegmentControl } from '@/components/MembersSegmentControl';
 import { useOpenDm } from '@/components/useOpenDm';
+import { useTranslation } from 'react-i18next';
 
 // v2.7.1 #193: short date for the Humans list columns (empty → em dash).
 function fmtDate(v?: string): string {
@@ -22,6 +23,7 @@ function fmtDate(v?: string): string {
 }
 
 function RoleBadge({ role }: { role: string }): React.ReactElement {
+  const { t } = useTranslation('members');
   const colors: Record<string, string> = {
     owner: 'bg-brand/10 text-brand',
     admin: 'bg-accent/10 text-accent',
@@ -29,7 +31,7 @@ function RoleBadge({ role }: { role: string }): React.ReactElement {
   };
   return (
     <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${colors[role] ?? colors.member}`}>
-      {role}
+      {t(`humans.role.${role}`, { defaultValue: role })}
     </span>
   );
 }
@@ -41,6 +43,7 @@ function MemberRow({
   member: MemberResult;
   currentIdentityId?: string;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<null | 'disable' | 'reenable'>(null);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
@@ -130,7 +133,7 @@ function MemberRow({
         <span
           className={member.status === 'joined' ? 'text-success' : 'text-text-muted'}
         >
-          {member.status === 'joined' ? 'Joined' : 'Disabled'}
+          {member.status === 'joined' ? t('humans.status.joined') : t('humans.status.disabled')}
         </span>
       </td>
       {/* v2.7.1 #193: email / created / last-active columns (nullable → em dash). */}
@@ -151,7 +154,7 @@ function MemberRow({
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
               className="rounded px-2 py-1 text-sm text-text-muted hover:bg-bg-subtle"
-              aria-label="Member actions"
+              aria-label={t('humans.actions.menuLabel')}
             >
               ···
             </button>
@@ -174,7 +177,7 @@ function MemberRow({
                       onClick={() => { setMenuOpen(false); setRolePickerOpen(true); }}
                       className="flex w-full px-3 py-2 text-sm text-text-primary hover:bg-bg-subtle"
                     >
-                      Change role
+                      {t('humans.actions.changeRole')}
                     </button>
                     {member.status === 'joined' ? (
                       <button
@@ -183,7 +186,7 @@ function MemberRow({
                         onClick={() => { setMenuOpen(false); setConfirmAction('disable'); }}
                         className="flex w-full px-3 py-2 text-sm text-danger hover:bg-bg-subtle"
                       >
-                        Disable
+                        {t('humans.actions.disable')}
                       </button>
                     ) : (
                       <button
@@ -192,7 +195,7 @@ function MemberRow({
                         onClick={() => { setMenuOpen(false); setConfirmAction('reenable'); }}
                         className="flex w-full px-3 py-2 text-sm text-success hover:bg-bg-subtle"
                       >
-                        Re-enable
+                        {t('humans.actions.reEnable')}
                       </button>
                     )}
                   </div>
@@ -211,7 +214,7 @@ function MemberRow({
                           member.role === r ? 'font-semibold text-brand' : 'text-text-primary'
                         }`}
                       >
-                        {r}
+                        {t(`humans.role.${r}`, { defaultValue: r })}
                       </button>
                     ))}
                     <button
@@ -219,14 +222,16 @@ function MemberRow({
                       onClick={() => setRolePickerOpen(false)}
                       className="flex w-full px-3 py-2 text-xs text-text-muted hover:bg-bg-subtle"
                     >
-                      Cancel
+                      {t('humans.actions.cancel')}
                     </button>
                   </div>
                 )}
                 {confirmAction && (
                   <div className="w-48 p-3">
                     <p className="text-sm text-text-primary mb-2">
-                      {confirmAction === 'disable' ? 'Disable this member?' : 'Re-enable this member?'}
+                      {confirmAction === 'disable'
+                        ? t('humans.confirm.disable')
+                        : t('humans.confirm.reEnable')}
                     </p>
                     <div className="flex gap-2 justify-end">
                       <button
@@ -234,7 +239,7 @@ function MemberRow({
                         onClick={() => setConfirmAction(null)}
                         className="rounded px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle"
                       >
-                        Cancel
+                        {t('humans.actions.cancel')}
                       </button>
                       <button
                         type="button"
@@ -247,7 +252,7 @@ function MemberRow({
                           confirmAction === 'disable' ? 'bg-danger' : 'bg-success'
                         }`}
                       >
-                        Confirm
+                        {t('humans.actions.confirm')}
                       </button>
                     </div>
                   </div>
@@ -263,6 +268,7 @@ function MemberRow({
 }
 
 export default function MembersHumans(): React.ReactElement {
+  const { t } = useTranslation('members');
   const members = useMembers();
   const openDm = useOpenDm();
 
@@ -274,19 +280,19 @@ export default function MembersHumans(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-MembersHumans">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-text-primary">Humans</h1>
+        <h1 className="text-xl font-semibold text-text-primary">{t('humans.list.title')}</h1>
       </div>
 
       {/* Mobile (col② is hidden <md): segmented Humans/Agents switch. */}
       <MembersSegmentControl active="humans" />
 
-      {members.isLoading && <p className="text-sm text-text-muted">Loading…</p>}
+      {members.isLoading && <p className="text-sm text-text-muted">{t('humans.list.loading')}</p>}
       {members.isError && (
-        <p className="text-sm text-danger">Failed to load: {String(members.error)}</p>
+        <p className="text-sm text-danger">{t('humans.list.loadFailed', { error: String(members.error) })}</p>
       )}
 
       {!members.isLoading && humanMembers.length === 0 && (
-        <p className="text-sm text-text-muted">No human members yet</p>
+        <p className="text-sm text-text-muted">{t('humans.list.empty')}</p>
       )}
 
       {/* Mobile (<md): card rows — avatar (tap → DM) + name + role; tap row → UserDetail. */}
@@ -305,7 +311,7 @@ export default function MembersHumans(): React.ReactElement {
                   type="button"
                   onClick={() => openDm.open(m.identity_id)}
                   disabled={openDm.pending}
-                  aria-label={`Message ${name}`}
+                  aria-label={t('humans.card.messageAria', { name })}
                   data-testid="human-card-dm"
                   className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg disabled:opacity-50"
                 >
@@ -318,7 +324,7 @@ export default function MembersHumans(): React.ReactElement {
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-text-primary">{name}</span>
-                    <span className="block truncate text-xs text-text-muted">{m.role}</span>
+                    <span className="block truncate text-xs text-text-muted">{t(`humans.role.${m.role}`, { defaultValue: m.role })}</span>
                   </span>
                 </Link>
               </li>
@@ -333,12 +339,12 @@ export default function MembersHumans(): React.ReactElement {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-border">
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Identity</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Role</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Status</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Email</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Created</th>
-                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Last active</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('humans.table.identity')}</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('humans.table.role')}</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('humans.table.status')}</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('humans.table.email')}</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('humans.table.created')}</th>
+                <th className="py-2 px-3 text-xs font-semibold text-text-muted uppercase tracking-wider">{t('humans.table.lastActive')}</th>
                 <th className="py-2 px-3 w-12" />
               </tr>
             </thead>
