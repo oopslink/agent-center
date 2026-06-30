@@ -1,11 +1,40 @@
 package service
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/conversation"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 )
+
+// assignedEventCountForTask counts UNPROCESSED pm.task.assigned outbox events that
+// reference taskID. Tests drain prior events first, so a count taken right after a
+// dispatch sweep isolates exactly the pm.task.assigned the sweep emitted — the F1
+// pool-dispatch wake (issue-ca51e07c).
+func assignedEventCountForTask(t *testing.T, h *planAdvanceHarness, taskID pm.TaskID) int {
+	t.Helper()
+	ob := outboxsql.NewOutboxRepo(h.svc.db)
+	evs, err := ob.FetchUnprocessed(h.ctx, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range evs {
+		if e.EventType != EvtTaskAssigned {
+			continue
+		}
+		var pl taskEventPayload
+		if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+			continue
+		}
+		if pl.TaskID == string(taskID) {
+			n++
+		}
+	}
+	return n
+}
 
 // findBuiltinPlan returns the project's auto-created built-in pool (ADR-0047), or
 // fails the test if absent.
@@ -115,10 +144,18 @@ func TestBuiltinPool_SelectTaskAllowedWhileRunning(t *testing.T) {
 // --- Increment 5: dispatch is PULL (no @mention, no wake) for the pool -------
 
 // TestBuiltinPool_DispatchIsPullNoWake proves the built-in pool's dispatch is a
-// pull: a task selected into the pool (assigned, open) becomes claimable after a
-// dispatch sweep (a dispatch record exists → node_status=dispatched → TaskClaimable
-// true) WITHOUT posting an @mention or emitting EvtTaskAssigned (no work-item/wake).
-// In contrast, a structured plan's ready node DOES post an @mention.
+// pull at the CONVERSATION layer: a task selected into the pool (assigned, open)
+// becomes claimable after a dispatch sweep (a dispatch record exists →
+// node_status=dispatched → TaskClaimable true) WITHOUT posting an @mention into a
+// plan conversation. In contrast, a structured plan's ready node DOES post an
+// @mention.
+//
+// F1 (issue-ca51e07c) NOTE: "pull/no-@mention" is NOT "no wake". An ASSIGNED pool
+// member still needs a PUSH wake (it will not self-claim its own task), so the
+// dispatch emits a content-free pm.task.assigned that the DispatchWakeProjector
+// turns into agent.work_available — see TestBuiltinPool_DispatchWakesAssignedMember.
+// The pull property asserted here is specifically the ABSENCE of an @mention /
+// plan-conversation message, which the wake emit preserves.
 func TestBuiltinPool_DispatchIsPullNoWake(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
@@ -254,6 +291,83 @@ func TestADR47_ArchiveProject_CascadeArchivesBuiltinPool(t *testing.T) {
 	}
 	if pool.Status() != pm.PlanArchived {
 		t.Fatalf("builtin pool status=%s, want archived after project archive", pool.Status())
+	}
+}
+
+// TestBuiltinPool_DispatchWakesAssignedMember is the F1 fix (issue-ca51e07c): an
+// ASSIGNED built-in-pool member, when dispatched (the NodeReady→NodeDispatched
+// transition that makes it runnable), emits exactly ONE pm.task.assigned so the
+// EXISTING DispatchWakeProjector pushes agent.work_available to its assignee —
+// closing the "selected into pool but the assignee is never auto-woken" gap the PD
+// hit in the v2.21.0 deployed run. Idempotent: a second dispatch sweep re-emits
+// nothing (the node has left the ready-set), so there is no double-wake loop.
+func TestBuiltinPool_DispatchWakesAssignedMember(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	pool := findBuiltinPlan(t, h, pid)
+	// seedAssignedTask assigns "agent:bot" then selects into the pool, draining — so
+	// the assign event from seeding is already processed; any pm.task.assigned counted
+	// after the sweep below is emitted BY the dispatch, not the seed.
+	tid := h.seedAssignedTask(t, pid, pool.ID(), "pool work", "agent:bot")
+	h.drain(t)
+
+	if err := h.svc.ReconcileRunningPlans(h.ctx, nil); err != nil {
+		t.Fatalf("ReconcileRunningPlans: %v", err)
+	}
+	if got := assignedEventCountForTask(t, h, tid); got != 1 {
+		t.Fatalf("pm.task.assigned emitted on pool dispatch = %d, want 1 (the assignee wake)", got)
+	}
+	// The emitted wake event carries the right assignee.
+	ob := outboxsql.NewOutboxRepo(h.svc.db)
+	evs, _ := ob.FetchUnprocessed(h.ctx, 1000)
+	for _, e := range evs {
+		if e.EventType != EvtTaskAssigned {
+			continue
+		}
+		var pl taskEventPayload
+		_ = json.Unmarshal([]byte(e.Payload), &pl)
+		if pl.TaskID == string(tid) && pl.Assignee != "agent:bot" {
+			t.Fatalf("pool-dispatch wake event assignee=%q, want agent:bot", pl.Assignee)
+		}
+	}
+	// The dispatched, assigned member is now runnable (the wake's runnable gate passes).
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); err != nil {
+		t.Fatalf("dispatched assigned pool member should be runnable: %v", err)
+	}
+	// No double-wake: drain the wake, sweep again → the node is already NodeDispatched
+	// (out of the ready-set), so nothing new is emitted.
+	h.drain(t)
+	if err := h.svc.ReconcileRunningPlans(h.ctx, nil); err != nil {
+		t.Fatalf("ReconcileRunningPlans (2nd): %v", err)
+	}
+	if got := assignedEventCountForTask(t, h, tid); got != 0 {
+		t.Fatalf("2nd dispatch sweep re-emitted %d pm.task.assigned, want 0 (no double-wake)", got)
+	}
+}
+
+// TestBuiltinPool_DispatchUnassignedMember_NoWake guards the other side: an
+// UNASSIGNED pool member must NOT emit pm.task.assigned on dispatch — there is no
+// specific assignee to push-wake. It stays claimable (pull), and the auto-assign
+// path wakes whoever it is later assigned to (that assign emits pm.task.assigned on
+// the already-dispatched, runnable member). This prevents a false wake.
+func TestBuiltinPool_DispatchUnassignedMember_NoWake(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	pool := findBuiltinPlan(t, h, pid)
+	tid, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "ownerless pool work", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SelectTaskIntoPlan(h.ctx, pool.ID(), tid, "user:a"); err != nil {
+		t.Fatalf("SelectTaskIntoPlan: %v", err)
+	}
+	h.drain(t)
+
+	if err := h.svc.ReconcileRunningPlans(h.ctx, nil); err != nil {
+		t.Fatalf("ReconcileRunningPlans: %v", err)
+	}
+	if got := assignedEventCountForTask(t, h, tid); got != 0 {
+		t.Fatalf("unassigned pool dispatch emitted %d pm.task.assigned, want 0 (no false wake)", got)
 	}
 }
 
