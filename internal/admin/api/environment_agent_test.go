@@ -741,3 +741,56 @@ func TestEnvWorkerResumeState_EmptyOK(t *testing.T) {
 		t.Fatalf("want empty agents array, got %v", body["agents"])
 	}
 }
+
+// TestEnvWorkerResumeState_CarriesConcurrencyConfig: the resume-state must carry the
+// agent's concurrency config (cli / max_concurrent_tasks / allowed_executors) so a
+// boot-reconcile relaunch can RE-ATTACH the executor engine after a worker restart —
+// without it a concurrency-enabled agent silently degrades to single-active on every
+// restart.
+func TestEnvWorkerResumeState_CarriesConcurrencyConfig(t *testing.T) {
+	f := newFBFixture(t)
+	f.addWorkerToken(t, "acat_rs_cc", atWorker1)
+
+	a, err := agent.RehydrateAgent(agent.RehydrateAgentInput{
+		ID: agent.AgentID("AG-cc"), OrganizationID: atTestOrg,
+		Profile: agent.Profile{
+			Name:               "AG-cc",
+			CLI:                "claude-code",
+			MaxConcurrentTasks: 3,
+			AllowedExecutors:   []agent.ExecutorProfile{{CLI: "claude-code", Model: "opus-4-8"}},
+		},
+		WorkerID: atWorker1, Lifecycle: agent.LifecycleRunning, CreatedBy: "system",
+		CreatedAt: atNow, UpdatedAt: atNow, Version: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.agents.Save(f.ctx, a); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := f.server(t)
+	status, body := postBearer(t, srv.URL, "/admin/environment/worker/resume-state", "acat_rs_cc",
+		map[string]any{"worker_id": atWorker1})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	row := resumeAgentsByID(t, body)["AG-cc"]
+	if row == nil {
+		t.Fatalf("AG-cc missing from resume-state: %v", body)
+	}
+	if row["cli"] != "claude-code" {
+		t.Fatalf("cli = %v, want claude-code", row["cli"])
+	}
+	if mc, _ := row["max_concurrent_tasks"].(float64); int(mc) != 3 {
+		t.Fatalf("max_concurrent_tasks = %v, want 3", row["max_concurrent_tasks"])
+	}
+	execs, ok := row["allowed_executors"].([]any)
+	if !ok || len(execs) != 1 {
+		t.Fatalf("allowed_executors = %v, want 1 entry", row["allowed_executors"])
+	}
+	e0, _ := execs[0].(map[string]any)
+	if e0["cli"] != "claude-code" || e0["model"] != "opus-4-8" {
+		t.Fatalf("allowed_executors[0] = %v, want {claude-code, opus-4-8}", e0)
+	}
+}

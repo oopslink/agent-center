@@ -597,6 +597,20 @@ type AgentController struct {
 	// executors are this process's own children, not orphans. Guarded by mu.
 	recoveredExec map[string]bool
 
+	// execConfig caches the concurrency-relevant reconcile config (CLI + the F3
+	// model-routing + executor-cap fields buildExecutorEngine reads) per agent, so the
+	// executor engine can be RE-ATTACHED on EVERY bring-up — not just the reconcile(
+	// running) command that maybeAttachExecutorEngine fires on. A concurrency-enabled
+	// agent brought up via boot-reconcile (worker restart) or self-heal relaunch gets
+	// NO fresh reconcile command, so without this its ma.exec stays nil and
+	// work_available silently falls back to the single-active nudge path — concurrency
+	// degrades to single-active after ANY restart/crash. Populated by
+	// maybeAttachExecutorEngine (reconcile path) AND seeded from the center resume-state
+	// on boot (so it survives a full worker process restart). Read by
+	// reattachExecutorEngineFromCache, called after every relaunch (bootReapRelaunch).
+	// Guarded by mu.
+	execConfig map[string]reconcilePayload
+
 	// eventWriter is the stateless per-task event-stream sink (W3): onEvent appends
 	// each in-flight task's stream events to tasks/{id}/events.current.jsonl through
 	// it, acks them to events.offset, and rolls archived segments. Stateless, so a
@@ -634,6 +648,7 @@ func NewAgentController(cfg AgentControllerConfig) (*AgentController, error) {
 		agents:        map[string]*managedAgent{},
 		selfHeal:      map[string]*selfHealEntry{},
 		recoveredExec: map[string]bool{},
+		execConfig:    map[string]reconcilePayload{},
 		eventWriter:   taskexec.NewEventStreamWriter(),
 	}, nil
 }
@@ -794,6 +809,13 @@ func (c *AgentController) maybeAttachExecutorEngine(ctx context.Context, pl reco
 	if !concurrencyEnabled(pl) || pl.CLI == cliCodex {
 		return
 	}
+	// Cache the config so a later boot-reconcile / self-heal relaunch (neither of which
+	// gets a fresh reconcile command) can RE-ATTACH the engine from it — otherwise
+	// ma.exec stays nil after a restart and concurrency silently degrades to single-active.
+	c.mu.Lock()
+	c.execConfig[pl.AgentID] = pl
+	c.mu.Unlock()
+
 	home, _, _, perr := c.agentPaths(pl.AgentID)
 	if perr != nil {
 		c.log("agent=%s executor engine paths: %v (falling back to inject)", pl.AgentID, perr)
@@ -817,6 +839,43 @@ func (c *AgentController) maybeAttachExecutorEngine(ctx context.Context, pl reco
 	if firstAttach {
 		c.recoverExecutors(ctx, pl.AgentID, ee)
 	}
+}
+
+// reattachExecutorEngineFromCache re-attaches the per-agent executor engine after a
+// relaunch (boot-reconcile / self-heal — neither carries a fresh reconcile command)
+// using the config cached by maybeAttachExecutorEngine or seeded from the center
+// resume-state on boot. This is what keeps a concurrency-enabled agent CONCURRENT
+// across restarts/crashes: without it, ma.exec on the freshly-relaunched managedAgent
+// stays nil and work_available silently falls back to the single-active nudge path.
+// No-op for an agent with no cached concurrency config (a default single-active agent).
+func (c *AgentController) reattachExecutorEngineFromCache(ctx context.Context, agentID string) {
+	pl, ok := c.cachedExecConfig(agentID)
+	if !ok || !concurrencyEnabled(pl) {
+		return
+	}
+	c.maybeAttachExecutorEngine(ctx, pl)
+}
+
+// cachedExecConfig returns the per-agent cached reconcile config (set by
+// maybeAttachExecutorEngine or seeded from the center resume-state on boot), if any.
+func (c *AgentController) cachedExecConfig(agentID string) (reconcilePayload, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	pl, ok := c.execConfig[agentID]
+	return pl, ok
+}
+
+// seedExecConfig stores a reconcile config for an agent without attaching the engine
+// — used on boot to seed the cache from the center resume-state so the subsequent
+// bootReapRelaunch can re-attach (the worker process restarted, so the in-memory
+// cache from a prior reconcile is gone). No-op for a non-concurrency config.
+func (c *AgentController) seedExecConfig(pl reconcilePayload) {
+	if !concurrencyEnabled(pl) {
+		return
+	}
+	c.mu.Lock()
+	c.execConfig[pl.AgentID] = pl
+	c.mu.Unlock()
 }
 
 // reconcileStop stops the session and reports lifecycle "stopped" exactly once.
@@ -1310,6 +1369,26 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 	if exec != nil {
 		c.forkOnWorkAvailable(ctx, pl.AgentID, pl.TaskID, exec)
 		return nil
+	}
+
+	// Defensive: a concurrency-enabled agent reaching this point with NO executor
+	// engine means its engine was not (re)attached on the current bring-up — it would
+	// silently fall through to the single-active nudge below and degrade concurrency
+	// without a trace. reattachExecutorEngineFromCache is called on every relaunch, so
+	// this should not happen; if it does, re-attach now (last-ditch self-repair) and
+	// log loudly so the regression is visible instead of silent.
+	if cfg, ok := c.cachedExecConfig(pl.AgentID); ok && concurrencyEnabled(cfg) {
+		c.log("work_available agent=%s: concurrency-enabled but no executor engine attached — re-attaching (degradation guard)", pl.AgentID)
+		c.reattachExecutorEngineFromCache(ctx, pl.AgentID)
+		c.mu.Lock()
+		if ma := c.agents[pl.AgentID]; ma != nil {
+			exec = ma.exec
+		}
+		c.mu.Unlock()
+		if exec != nil {
+			c.forkOnWorkAvailable(ctx, pl.AgentID, pl.TaskID, exec)
+			return nil
+		}
 	}
 
 	// T335: a queued WorkItem arrived but this agent has NO live session

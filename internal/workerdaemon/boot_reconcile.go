@@ -265,6 +265,18 @@ func (c *AgentController) ReconcileOnBoot(ctx context.Context) error {
 		}
 		centerByID[id] = toCenterRecord(ra)
 		centerVersion[id] = ra.Version
+		// Seed the executor-config cache from the center resume-state so a
+		// concurrency-enabled agent's bootReapRelaunch (below) can RE-ATTACH its
+		// executor engine after a full worker process restart (the in-memory cache
+		// from a prior reconcile is gone on a fresh process). No-op for default agents.
+		c.seedExecConfig(reconcilePayload{
+			AgentID:              id,
+			CLI:                  ra.CLI,
+			MaxConcurrentTasks:   ra.MaxConcurrentTasks,
+			AllowedExecutors:     ra.AllowedExecutors,
+			OrchestratorModel:    ra.OrchestratorModel,
+			DefaultExecutorModel: ra.DefaultExecutorModel,
+		})
 	}
 
 	// Union the center set with the LOCAL home enumeration so orphans (locally
@@ -524,6 +536,14 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 		return err
 	}
 	c.log("boot-reconcile agent=%s RELAUNCHED version=%d (nudge=%v)", agentID, version, nudge)
+	// Concurrency-restore: this is the SHARED relaunch routine for BOTH boot-reconcile
+	// (worker restart) and self-heal (mid-run crash) — neither carries a fresh
+	// reconcile command, so maybeAttachExecutorEngine (which only fires on
+	// reconcileRunning) never re-attached the executor engine on the freshly-relaunched
+	// managedAgent. Re-attach it here from the cached config so a concurrency-enabled
+	// agent stays CONCURRENT across the restart instead of silently degrading to the
+	// single-active nudge path. No-op for a default (single-active) agent.
+	c.reattachExecutorEngineFromCache(ctx, agentID)
 	// issue I13: a relaunch is a recovery (boot Mode-B OR mid-run self-heal via
 	// selfHealRelaunch). The session is back up → clear a lingering center `error` to
 	// running so the agent is dispatchable again + the UI reflects the recovery. No-op

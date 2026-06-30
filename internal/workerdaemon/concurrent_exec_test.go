@@ -274,3 +274,63 @@ func TestWorkViaExecutor_AtCapacityRetryable(t *testing.T) {
 		t.Errorf("expected at-capacity error, got %v", err)
 	}
 }
+
+// TestReattachExecutorEngineFromCache covers the concurrency-degradation fix: after a
+// relaunch (boot-reconcile / self-heal) the agent's managedAgent is fresh with a nil
+// executor engine (those paths never run maybeAttachExecutorEngine), so the engine
+// must be RE-ATTACHED from the cached reconcile config — otherwise work_available
+// silently falls back to single-active.
+func TestReattachExecutorEngineFromCache(t *testing.T) {
+	trueBin := lookTrue(t)
+	base := t.TempDir()
+	c, _, _ := newTestController(t, base)
+	c.cfg.BinaryPath = trueBin
+
+	// 1) First reconcile attaches the engine AND caches the config.
+	c.mu.Lock()
+	c.agents["a-cc"] = &managedAgent{agentID: "a-cc"}
+	c.mu.Unlock()
+	pl := reconcilePayload{AgentID: "a-cc", MaxConcurrentTasks: 2, AllowedExecutors: testExecs, AllowedModels: []string{"m"}}
+	c.maybeAttachExecutorEngine(context.Background(), pl)
+	if _, ok := c.cachedExecConfig("a-cc"); !ok {
+		t.Fatal("maybeAttachExecutorEngine must cache the concurrency config for later re-attach")
+	}
+
+	// 2) Simulate a relaunch: the crash deletes the managedAgent; bootReapRelaunch's
+	// startSession creates a FRESH one with exec==nil. (No reconcile command arrives.)
+	c.mu.Lock()
+	c.agents["a-cc"] = &managedAgent{agentID: "a-cc"} // fresh, exec=nil
+	c.mu.Unlock()
+
+	// 3) The relaunch path re-attaches from the cache → engine back, concurrency kept.
+	c.reattachExecutorEngineFromCache(context.Background(), "a-cc")
+	c.mu.Lock()
+	got := c.agents["a-cc"].exec
+	c.mu.Unlock()
+	if got == nil {
+		t.Fatal("reattachExecutorEngineFromCache must restore the executor engine after a relaunch (concurrency must survive restart)")
+	}
+}
+
+// TestReattachExecutorEngineFromCache_NoOpForDefaultAgent: an agent with no cached
+// concurrency config (a default single-active agent, or never reconciled) must NOT
+// get an engine — reattach is a safe no-op (no panic, exec stays nil).
+func TestReattachExecutorEngineFromCache_NoOpForDefaultAgent(t *testing.T) {
+	base := t.TempDir()
+	c, _, _ := newTestController(t, base)
+	c.mu.Lock()
+	c.agents["a-default"] = &managedAgent{agentID: "a-default"}
+	c.mu.Unlock()
+
+	// No cached config → no-op.
+	c.reattachExecutorEngineFromCache(context.Background(), "a-default")
+	if c.agents["a-default"].exec != nil {
+		t.Fatal("a default agent (no cached concurrency config) must not get an executor engine")
+	}
+
+	// seedExecConfig with a NON-concurrency config is also ignored (not cached).
+	c.seedExecConfig(reconcilePayload{AgentID: "a-default", MaxConcurrentTasks: 0})
+	if _, ok := c.cachedExecConfig("a-default"); ok {
+		t.Fatal("seedExecConfig must ignore a non-concurrency config")
+	}
+}

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
+	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/runtimefs"
@@ -423,10 +424,20 @@ type ResumeAgent struct {
 	// DisplayName is the agent's human-readable display_name (resume-state), carried
 	// like Model so a boot-reconcile relaunch injects it as GIT_{AUTHOR,COMMITTER}_NAME
 	// via the ② AgentEnv seam (T469). Empty/absent → the supervisor uses the ULID.
-	DisplayName string       `json:"display_name"`
-	Version     int          `json:"version"`
-	ResetScope  string       `json:"reset_scope"`
-	Tasks       []ResumeTask `json:"tasks"`
+	DisplayName string `json:"display_name"`
+	// Concurrency config (resume-state), carried so a boot-reconcile relaunch can
+	// RE-ATTACH the per-agent executor engine after a full worker process restart —
+	// without these the worker has no way to know a relaunched agent is
+	// concurrency-enabled and silently degrades it to single-active. Mirror the
+	// reconcile command's fields buildExecutorEngine reads. Absent/zero ⇒ single-active.
+	CLI                  string                  `json:"cli,omitempty"`
+	MaxConcurrentTasks   int                     `json:"max_concurrent_tasks,omitempty"`
+	AllowedExecutors     []agent.ExecutorProfile `json:"allowed_executors,omitempty"`
+	OrchestratorModel    string                  `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string                  `json:"default_executor_model,omitempty"`
+	Version              int                     `json:"version"`
+	ResetScope           string                  `json:"reset_scope"`
+	Tasks                []ResumeTask            `json:"tasks"`
 }
 
 // ResumeTask is one in-flight WorkItem (status ∈ {active, waiting_input}).

@@ -453,6 +453,7 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 		if lc != agent.LifecycleRunning && lc != agent.LifecycleError {
 			continue
 		}
+		p := a.Profile()
 		out = append(out, map[string]any{
 			"agent_id": string(a.ID()),
 			// Report the INTENT, not the literal lifecycle: the daemon keys on
@@ -461,14 +462,35 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			// must also map to "running" here, or boot-reconcile would fall through to
 			// stop+reap (the recovery trap above).
 			"desired_lifecycle": string(agent.LifecycleRunning),
-			"model":             a.Profile().Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
-			"display_name":      a.Profile().Name,  // T469: boot-reconcile relaunch injects it as git author NAME (② AgentEnv seam)
-			"version":           a.Version(),
-			"reset_scope":       "",                 // reserved for f-3 (rollback/reset semantics)
-			"tasks":             []map[string]any{}, // F7: always empty (AgentWorkItem retired)
+			"model":             p.Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
+			"display_name":      p.Name,  // T469: boot-reconcile relaunch injects it as git author NAME (② AgentEnv seam)
+			// Concurrency config: carried so a boot-reconcile relaunch (worker restart)
+			// can RE-ATTACH the executor engine and keep a concurrency-enabled agent
+			// CONCURRENT across the restart, instead of silently degrading to
+			// single-active (the executor engine is only attached on a fresh reconcile
+			// command, which a boot/self-heal relaunch never gets).
+			"cli":                    p.CLI,
+			"max_concurrent_tasks":   p.MaxConcurrentTasks,
+			"allowed_executors":      executorProfilesToMaps(p.AllowedExecutors),
+			"orchestrator_model":     p.OrchestratorModel,
+			"default_executor_model": p.DefaultExecutorModel,
+			"version":                a.Version(),
+			"reset_scope":            "",                 // reserved for f-3 (rollback/reset semantics)
+			"tasks":                  []map[string]any{}, // F7: always empty (AgentWorkItem retired)
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"agents": out})
+}
+
+// executorProfilesToMaps serializes the agent's allowed-executor candidates into the
+// {cli, model} JSON the worker's ResumeAgent.AllowedExecutors decodes. Returns an
+// empty (non-nil) slice for no candidates so the field is an array, never null.
+func executorProfilesToMaps(execs []agent.ExecutorProfile) []map[string]any {
+	out := make([]map[string]any, 0, len(execs))
+	for _, e := range execs {
+		out = append(out, map[string]any{"cli": e.CLI, "model": e.Model})
+	}
+	return out
 }
 
 // envAgentRuntimeFSResponseHandler — POST /admin/environment/agent/runtime-fs/response
