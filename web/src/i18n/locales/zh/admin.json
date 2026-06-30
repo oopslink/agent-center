@@ -9,7 +9,7 @@
       "workersOnline": "在线工作节点",
       "agentsRunning": "运行中的智能体",
       "tasks": "任务",
-      "pendingIssues": "待处理问题"
+      "pendingIssues": "待处理议题"
     },
     "workers": {
       "title": "工作节点",
@@ -45,13 +45,13 @@
       "tabs": {
         "all": "全部",
         "tasks": "任务",
-        "issues": "问题",
+        "issues": "议题",
         "transfers": "传输"
       },
       "emptyTitle": "没有进行中的操作",
-      "emptyHint": "工作项、问题和文件传输将显示在此处。",
+      "emptyHint": "工作项、议题和文件传输将显示在此处。",
       "typeTask": "任务",
-      "typeIssue": "问题",
+      "typeIssue": "议题",
       "typeTransfer": "传输",
       "agentLabel": "智能体",
       "status": {
