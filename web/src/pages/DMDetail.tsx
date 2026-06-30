@@ -1,5 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useConversation } from '@/api/conversations';
@@ -43,6 +45,7 @@ export default function DMDetail(): React.ReactElement {
 }
 
 function DMDetailInner(): React.ReactElement {
+  const { t } = useTranslation('chat');
   const { id = '' } = useParams<{ id: string }>();
   // #281 entry ①: open the SenderDetailSidebar for the DM peer when the header
   // avatar/@name is clicked. Provided by the wrapping SenderSidebarProvider.
@@ -86,7 +89,7 @@ function DMDetailInner(): React.ReactElement {
   if (conv.isLoading) {
     return (
       <section className="text-sm text-text-muted" data-testid="page-DMDetail">
-        Loading DM…
+        {t('dms.detail.loading')}
       </section>
     );
   }
@@ -97,7 +100,7 @@ function DMDetailInner(): React.ReactElement {
           {(conv.error as Error).message}
         </p>
         <OrgLink to="/dms" className="text-accent hover:underline">
-          Back to DMs
+          {t('dms.detail.backToDMs')}
         </OrgLink>
       </section>
     );
@@ -105,7 +108,7 @@ function DMDetailInner(): React.ReactElement {
   if (!conv.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-DMDetail">
-        DM lookup failed.
+        {t('dms.detail.lookupFailed')}
       </section>
     );
   }
@@ -119,12 +122,12 @@ function DMDetailInner(): React.ReactElement {
   // resolveName returns the ref itself on a miss → treat that as unresolved.
   const peerName = resolvedPeer && resolvedPeer !== peerRef ? resolvedPeer : '';
   const heading = isAgentAgentDM
-    ? conv.data.dm_title || agentAgentTitle(conv.data)
+    ? conv.data.dm_title || agentAgentTitle(conv.data, t)
     : peerName
       ? `@${peerName}`
       : peerRef
-        ? '(deleted)'
-        : 'Direct message';
+        ? t('dms.detail.deleted')
+        : t('dms.directMessage');
   const isDeleted = !peerName && !!peerRef;
 
   // Avatar identity: agent peers render the rounded-square (agent) avatar, users
@@ -132,7 +135,7 @@ function DMDetailInner(): React.ReactElement {
   // unresolved peer still seeds stable initials instead of "?").
   const avatarName = isAgentAgentDM
     ? heading
-    : peerName || (peerRef ? normalizeIdentityRef(peerRef) : 'Direct message');
+    : peerName || (peerRef ? normalizeIdentityRef(peerRef) : t('dms.directMessage'));
 
   return (
     <section
@@ -141,7 +144,7 @@ function DMDetailInner(): React.ReactElement {
       data-dm-id={conv.data.id}
     >
       <div className="mb-2">
-        <Breadcrumb items={[{ label: 'DMs', to: '/dms' }, { label: heading }]} />
+        <Breadcrumb items={[{ label: t('dms.title'), to: '/dms' }, { label: heading }]} />
       </div>
 
       {/* ── Header zone ─────────────────────────────────────────────────────
@@ -153,7 +156,7 @@ function DMDetailInner(): React.ReactElement {
           <OrgLink
             to="/dms"
             data-testid="dm-back"
-            aria-label="Back to DMs"
+            aria-label={t('dms.detail.backToDMs')}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
           >
             <BackIcon />
@@ -167,7 +170,7 @@ function DMDetailInner(): React.ReactElement {
             type="button"
             onClick={() => peerRef && openSender?.(peerRef)}
             disabled={!peerRef}
-            aria-label={`View ${peerName || avatarName} details`}
+            aria-label={t('dms.detail.viewDetailsAriaLabel', { name: peerName || avatarName })}
             data-testid="dm-peer-avatar-button"
             className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default enabled:cursor-pointer"
           >
@@ -193,7 +196,7 @@ function DMDetailInner(): React.ReactElement {
                   type="button"
                   onClick={() => peerRef && openSender?.(peerRef)}
                   disabled={!peerRef}
-                  aria-label={`View ${peerName || avatarName} details`}
+                  aria-label={t('dms.detail.viewDetailsAriaLabel', { name: peerName || avatarName })}
                   data-testid="dm-heading"
                   title={peerRef || undefined}
                   className="block max-w-full truncate rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent enabled:cursor-pointer enabled:hover:underline"
@@ -209,7 +212,7 @@ function DMDetailInner(): React.ReactElement {
                   data-testid="dm-bot-badge"
                   className="rounded bg-status-blue-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-blue-fg"
                 >
-                  {isAgentAgentDM ? 'Agent-Agent' : 'Bot'}
+                  {isAgentAgentDM ? t('dms.detail.agentAgentBadge') : t('dms.detail.botBadge')}
                 </span>
               )}
               {/* Online dot — only for a running/available agent. aria-label +
@@ -218,14 +221,14 @@ function DMDetailInner(): React.ReactElement {
                 <span
                   data-testid="dm-online-dot"
                   role="img"
-                  aria-label="Online"
-                  title="Online"
+                  aria-label={t('dms.detail.online')}
+                  title={t('dms.detail.online')}
                   className="inline-block h-2.5 w-2.5 rounded-full bg-status-green-solid-soft"
                 />
               )}
             </div>
             <p className="text-xs text-text-secondary" data-testid="dm-subtitle">
-              {isAgentAgentDM ? 'Agent-to-agent conversation' : 'Direct message'}
+              {isAgentAgentDM ? t('dms.detail.agentToAgentSubtitle') : t('dms.directMessage')}
             </p>
           </div>
         </div>
@@ -242,8 +245,8 @@ function DMDetailInner(): React.ReactElement {
               copy-link affordance. */}
           <details className="relative" data-testid="dm-overflow">
             <summary
-              aria-label="More actions"
-              title="More actions"
+              aria-label={t('dms.detail.moreActions')}
+              title={t('dms.detail.moreActions')}
               className="inline-flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded text-text-secondary marker:content-none hover:bg-bg-subtle hover:text-text-primary [&::-webkit-details-marker]:hidden"
             >
               <OverflowIcon />
@@ -264,7 +267,7 @@ function DMDetailInner(): React.ReactElement {
                 }}
                 className="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-bg-subtle"
               >
-                {copied ? 'Copied!' : 'Copy link to DM'}
+                {copied ? t('dms.detail.copied') : t('dms.detail.copyLink')}
               </button>
             </div>
           </details>
@@ -292,13 +295,13 @@ function DMDetailInner(): React.ReactElement {
   );
 }
 
-function agentAgentTitle(c: Conversation): string {
+function agentAgentTitle(c: Conversation, t: TFunction): string {
   if (c.dm_participants?.length) {
     return c.dm_participants
       .map((p) => (p.display_name ? `@${p.display_name}` : p.identity_id))
       .join(' ↔ ');
   }
-  return 'Agent DM';
+  return t('dms.detail.agentDM');
 }
 
 // ── Inline SVG icons (no emoji; every icon button carries its own aria-label).

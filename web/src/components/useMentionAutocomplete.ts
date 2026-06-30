@@ -4,6 +4,7 @@ import { useMembers } from '@/api/members';
 import { useConversations } from '@/api/conversations';
 import { detectTrigger, insertToken, mentionToken, type ActiveTrigger } from './mentionAutocomplete';
 import { optionElementId, type MentionOption } from './MentionPicker';
+import i18n from '@/i18n';
 
 const MAX_OPTIONS = 50; // large-list cap (Tester2 §4.3 perf gate)
 
@@ -39,7 +40,7 @@ export function useMentionAutocomplete({
       // it never hijacks the default (first) selection for an ambiguous prefix
       // like "@a" (which should still default to a member named Alice).
       const all: MentionOption[] = 'all'.startsWith(q)
-        ? [{ id: '@all', name: 'all', secondary: 'Everyone in this conversation' }]
+        ? [{ id: '@all', name: 'all', secondary: i18n.t('mention.everyone', { ns: 'chat' }) }]
         : [];
       const memberOpts: MentionOption[] = (members.data ?? [])
         .filter((m) => (m.display_name ?? '').toLowerCase().includes(q))

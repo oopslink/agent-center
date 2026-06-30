@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Participant } from '@/api/types';
 import { useConversationThreads } from '@/api/conversations';
 import { ConversationView, type ConversationSurface } from './ConversationView';
@@ -40,6 +41,7 @@ export function ConversationMobileTabs({
   participants = [],
   showParticipants = true,
 }: ConversationMobileTabsProps): React.ReactElement {
+  const { t } = useTranslation('chat');
   const threads = useConversationThreads(conversationId);
   const files = useSharedFiles(conversationId);
   const threadCount = threads.data?.length ?? 0;
@@ -47,10 +49,10 @@ export function ConversationMobileTabs({
   const { maximized, toggle } = useConversationMaximize();
 
   const tabs: ReadonlyArray<{ id: Tab; label: string; count?: number }> = [
-    { id: 'chat', label: 'Chat' },
-    ...(showParticipants ? [{ id: 'participants' as const, label: 'Participants' }] : []),
-    { id: 'threads', label: 'Threads', count: threadCount },
-    { id: 'files', label: 'Files', count: fileCount },
+    { id: 'chat', label: t('conversation.tabChat') },
+    ...(showParticipants ? [{ id: 'participants' as const, label: t('conversation.tabParticipants') }] : []),
+    { id: 'threads', label: t('conversation.tabThreads'), count: threadCount },
+    { id: 'files', label: t('conversation.tabFiles'), count: fileCount },
   ];
   const [tab, setTab] = useState<Tab>('chat');
 
@@ -68,7 +70,7 @@ export function ConversationMobileTabs({
           row instead of a full tab bar — saves vertical space on mobile. */}
       <div className="flex items-center gap-2 border-b border-border-base px-2 py-1.5">
         <label className="sr-only" htmlFor="conversation-mtab-select">
-          Conversation panel
+          {t('conversation.panelLabel')}
         </label>
         <div className="relative min-w-0 flex-1">
           <select
@@ -76,7 +78,7 @@ export function ConversationMobileTabs({
             data-testid="conversation-mtab-select"
             value={tab}
             onChange={(e) => setTab(e.target.value as Tab)}
-            aria-label="Conversation panel"
+            aria-label={t('conversation.panelLabel')}
             className="w-full appearance-none rounded-full border border-border-base bg-bg-subtle py-2 pl-3.5 pr-9 text-[0.8125rem] font-semibold text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {tabs.map((t) => (
@@ -159,7 +161,7 @@ export function ConversationMobileTabs({
               <SharedFilesPanel conversationId={conversationId} />
             ) : (
               <p className="px-4 py-3 text-xs text-text-muted" data-testid="conversation-mobile-files-empty">
-                No shared files yet.
+                {t('conversation.noSharedFiles')}
               </p>
             ))}
         </div>

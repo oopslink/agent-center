@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Participant } from '@/api/types';
 import { useConversationThreads } from '@/api/conversations';
 import { ParticipantsPanel } from './ParticipantsPanel';
@@ -51,15 +52,16 @@ export function ConversationSidebar({
   toolbar,
   showShellCollapse = true,
 }: ConversationSidebarProps): React.ReactElement {
+  const { t } = useTranslation('chat');
   const threads = useConversationThreads(conversationId);
   const files = useSharedFiles(conversationId);
   const threadCount = threads.data?.length ?? 0;
   const fileCount = files.length;
 
   const tabs: ReadonlyArray<{ id: Tab; label: string; count?: number }> = [
-    ...(showParticipants ? [{ id: 'participants' as const, label: 'Participants' }] : []),
-    { id: 'threads', label: 'Threads', count: threadCount },
-    { id: 'files', label: 'Files', count: fileCount },
+    ...(showParticipants ? [{ id: 'participants' as const, label: t('conversation.tabParticipants') }] : []),
+    { id: 'threads', label: t('conversation.tabThreads'), count: threadCount },
+    { id: 'files', label: t('conversation.tabFiles'), count: fileCount },
   ];
   // Default to the first available tab (Participants when shown, else Threads).
   const [tab, setTab] = useState<Tab>(showParticipants ? 'participants' : 'threads');
@@ -71,7 +73,7 @@ export function ConversationSidebar({
     <div className="flex min-h-0 flex-1 flex-col" data-testid="conversation-sidebar">
       <div
         role="tablist"
-        aria-label="Conversation sidebar"
+        aria-label={t('conversation.sidebarAriaLabel')}
         className="flex items-center gap-1.5 border-b border-border-base p-2.5"
       >
         {tabs.map((t) => {
@@ -115,8 +117,8 @@ export function ConversationSidebar({
               <button
                 type="button"
                 data-testid="conversation-sidebar-collapse"
-                aria-label="Collapse sidebar"
-                title="Collapse sidebar"
+                aria-label={t('conversation.collapseSidebar')}
+                title={t('conversation.collapseSidebar')}
                 onClick={() => collapse.setCollapsed(true)}
                 className="hidden min-h-[44px] min-w-[44px] items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary md:inline-flex md:h-7 md:w-7 md:min-h-0 md:min-w-0"
               >
@@ -168,7 +170,7 @@ export function ConversationSidebar({
               <SharedFilesPanel conversationId={conversationId} />
             ) : (
               <p className="px-4 py-3 text-xs text-text-muted" data-testid="conversation-files-empty">
-                No shared files yet.
+                {t('conversation.noSharedFiles')}
               </p>
             ))}
         </div>
@@ -189,6 +191,7 @@ export interface EmbeddedConversationSidebarProps extends ConversationSidebarPro
 }
 
 export function EmbeddedConversationSidebar({ collapsed, onToggleCollapsed, ...props }: EmbeddedConversationSidebarProps): React.ReactElement {
+  const { t } = useTranslation('chat');
   // Collapsed: render a zero-width marker. The expand toggle lives in the
   // conversation banner row (rendered by WorkItemConversation).
   if (collapsed) {
@@ -214,9 +217,9 @@ export function EmbeddedConversationSidebar({ collapsed, onToggleCollapsed, ...p
             type="button"
             onClick={() => onToggleCollapsed(true)}
             data-testid="conv-embedded-sidebar-toggle"
-            aria-label="Collapse conversation details"
+            aria-label={t('conversation.collapseDetails')}
             aria-expanded
-            title="Collapse"
+            title={t('conversation.collapse')}
             className="inline-flex h-7 w-7 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
           >
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true">
@@ -239,15 +242,16 @@ export function EmbeddedSidebarToggle({
   collapsed: boolean;
   onExpand: () => void;
 }): React.ReactElement | null {
+  const { t } = useTranslation('chat');
   if (!collapsed) return null;
   return (
     <button
       type="button"
       onClick={onExpand}
       data-testid="conv-embedded-sidebar-toggle"
-      aria-label="Show conversation details"
+      aria-label={t('conversation.showDetails')}
       aria-expanded={false}
-      title="Show conversation details"
+      title={t('conversation.showDetails')}
       className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded text-text-muted hover:bg-border-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
     >
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true">

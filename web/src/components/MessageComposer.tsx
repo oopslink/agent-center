@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { uploadMessageAttachment, useSendMessage } from '@/api/conversations';
 import type { MessageAttachment } from '@/api/types';
 import { useMentionAutocomplete } from './useMentionAutocomplete';
@@ -45,6 +46,7 @@ interface StagedAttachment {
 // rejection notices. Owns its own draft + attachment state (component-local —
 // not server, not Zustand).
 export function MessageComposer({ conversationId, parentMessageId }: Props): React.ReactElement {
+  const { t } = useTranslation('chat');
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
   // Files rejected by the client-side gate (oversize/empty) from the most
@@ -176,7 +178,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
     } catch (err) {
       patchAttachment(item.id, {
         status: 'error',
-        errorMsg: err instanceof Error ? err.message : 'upload failed',
+        errorMsg: err instanceof Error ? err.message : t('composer.uploadFailed'),
       });
       return null;
     }
@@ -307,7 +309,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           className="pointer-events-none absolute inset-1 z-20 flex items-center justify-center rounded border-2 border-dashed border-accent bg-bg-subtle/90 text-sm font-medium text-text-primary"
           data-testid="composer-dropzone"
         >
-          Drop files to attach
+          {t('composer.dropToAttach')}
         </div>
       )}
       <div className="relative">
@@ -330,13 +332,13 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           // 4 lines.
           className="block w-full resize-none rounded border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm leading-5 text-text-primary placeholder:text-text-muted focus:border-accent"
           rows={1}
-          aria-label="Message"
+          aria-label={t('composer.messageLabel')}
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={mention.open}
           aria-controls={mention.open ? mention.listboxId : undefined}
           aria-activedescendant={mention.activeOptionId}
-          placeholder="Type a message — Enter to send, Shift+Enter for newline"
+          placeholder={t('composer.placeholder')}
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value);
@@ -365,7 +367,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         <ul className="basis-full text-xs text-danger" data-testid="composer-rejections">
           {rejections.map((r, i) => (
             <li key={`${r.name}-${i}`} data-testid="composer-rejection">
-              {r.name} — {r.reason}
+              {t('composer.rejection', { name: r.name, reason: r.reason })}
             </li>
           ))}
         </ul>
@@ -382,7 +384,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
                 <button
                   type="button"
                   className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-80"
-                  title={`Preview ${a.file.name}`}
+                  title={t('composer.previewFile', { name: a.file.name })}
                   onClick={() => openPreview(a)}
                   data-testid="composer-attachment-open"
                 >
@@ -400,7 +402,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
                 <button
                   type="button"
                   className="shrink-0 rounded px-1 text-base leading-none text-text-muted hover:text-text-primary"
-                  aria-label={`Remove ${a.file.name}`}
+                  aria-label={t('composer.removeFile', { name: a.file.name })}
                   onClick={() => removeAttachment(a.id)}
                 >
                   ×
@@ -413,7 +415,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
                   aria-valuenow={a.progress}
                   aria-valuemin={0}
                   aria-valuemax={100}
-                  aria-label={`Uploading ${a.file.name}`}
+                  aria-label={t('composer.uploadingFile', { name: a.file.name })}
                   data-testid="composer-attachment-progress"
                 >
                   <div className="h-full bg-accent" style={{ width: `${a.progress}%` }} />
@@ -430,7 +432,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
                     data-testid="composer-attachment-retry"
                     onClick={() => void uploadOne(a)}
                   >
-                    Retry
+                    {t('composer.retry')}
                   </button>
                 </div>
               )}
@@ -445,8 +447,8 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
       <div className="flex items-center justify-between gap-2">
         <label
           className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 cursor-pointer items-center justify-center rounded border border-border-strong text-text-primary hover:bg-bg-subtle"
-          title="Attach file"
-          aria-label="Attach file"
+          title={t('composer.attachFile')}
+          aria-label={t('composer.attachFile')}
           data-testid="composer-attach"
         >
           <PaperclipIcon />
@@ -467,8 +469,8 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           disabled={disabled}
           className="flex h-11 w-11 md:h-8 md:w-8 shrink-0 items-center justify-center rounded bg-btn-primary-bg text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
           data-testid="composer-send"
-          title="Send (Enter)"
-          aria-label="Send"
+          title={t('composer.sendTitle')}
+          aria-label={t('composer.send')}
           aria-busy={send.isPending || uploading}
         >
           <SendIcon />

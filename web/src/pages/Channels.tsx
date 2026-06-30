@@ -2,6 +2,7 @@ import type React from 'react';
 import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import {
   useConversations,
@@ -34,6 +35,7 @@ const MAX_PREVIEWS = 3;
 // v2.8.1 #list-enrich: each row is enriched with created_at (local tz), a
 // participant avatar-stack + count, and ≤3 recent-message plain-text previews.
 export default function Channels(): React.ReactElement {
+  const { t } = useTranslation('chat');
   const channels = useConversations({ kind: 'channel' });
   // v2.9.1 (task-169c598d): archive a channel (active→archived). Single hook for
   // the whole list (hooks can't run inside the row .map); rows call archive.mutate.
@@ -53,16 +55,16 @@ export default function Channels(): React.ReactElement {
     <section className="space-y-4" data-testid="page-Channels">
       {/* v2.10.2 [T129] Mobile (<md): Conversations module 二级段控 (Channels |
           DMs) — desktop keeps the col② nav. */}
-      <SegmentedNav items={CONVERSATION_SEGMENTS} ariaLabel="Conversations sections" />
+      <SegmentedNav items={CONVERSATION_SEGMENTS} ariaLabel={t('channels.conversationsSectionsAriaLabel')} />
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Channels</h1>
+        <h1 className="text-xl font-semibold">{t('channels.title')}</h1>
         <button
           type="button"
           className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
           onClick={() => setCreateOpen(true)}
           data-testid="channels-new-button"
         >
-          New channel
+          {t('channels.newChannel')}
         </button>
       </header>
 
@@ -81,9 +83,9 @@ export default function Channels(): React.ReactElement {
       {channels.isSuccess && channels.data.length === 0 && (
         <EmptyState
           testId="channels-empty"
-          title="No channels yet"
-          body="Channels group humans + agents around a topic. Create one to start a conversation that anyone in this server can join."
-          action={{ label: 'New channel', onClick: () => setCreateOpen(true) }}
+          title={t('channels.empty.title')}
+          body={t('channels.empty.body')}
+          action={{ label: t('channels.newChannel'), onClick: () => setCreateOpen(true) }}
         />
       )}
       {channels.isSuccess && channels.data.length > 0 && (
@@ -134,12 +136,12 @@ export default function Channels(): React.ReactElement {
                 <button
                   type="button"
                   data-testid="channel-archive-btn"
-                  aria-label={`Archive ${c.name}`}
+                  aria-label={t('channels.archiveAriaLabel', { name: c.name })}
                   className="rounded px-2 py-2 md:py-1 text-xs font-medium text-text-secondary motion-safe:transition-colors hover:bg-bg-subtle hover:text-text-primary disabled:opacity-50"
                   disabled={archive.isPending}
                   onClick={() => archive.mutate({ id: c.id, version: 0 })}
                 >
-                  Archive
+                  {t('channels.archive')}
                 </button>
               </div>
             </li>
@@ -168,6 +170,7 @@ export default function Channels(): React.ReactElement {
 // the ARCHIVED badge shows the state, and the backend rejects mutations with 409).
 // Empty → a quiet note.
 function ArchivedChannelsGroup(): React.ReactElement {
+  const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
   const archived = useArchivedChannels(open);
 
@@ -190,7 +193,7 @@ function ArchivedChannelsGroup(): React.ReactElement {
         >
           <path d="M9 6l6 6-6 6" />
         </svg>
-        <span>Archived / 已归档</span>
+        <span>{t('channels.archived.toggle')}</span>
       </button>
 
       {open && (
@@ -208,7 +211,7 @@ function ArchivedChannelsGroup(): React.ReactElement {
           )}
           {archived.isSuccess && archived.data.length === 0 && (
             <p className="px-1 text-xs italic text-text-muted" data-testid="archived-channels-empty">
-              No archived channels.
+              {t('channels.archived.empty')}
             </p>
           )}
           {archived.isSuccess && archived.data.length > 0 && (
@@ -292,13 +295,14 @@ function ParticipantStack({
   participantCount: number | undefined;
   resolve: (ref: string) => string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('chat');
   const shown = participants ?? [];
   // Total = explicit participant_count when present, else the summary length.
   const total = participantCount ?? shown.length;
   if (shown.length === 0 && total === 0) return null;
   const visible = shown.slice(0, MAX_AVATARS);
   const overflow = Math.max(0, total - visible.length);
-  const countLabel = `${total} ${total === 1 ? 'participant' : 'participants'}`;
+  const countLabel = t('channels.participantCount', { count: total });
   return (
     <span
       className="flex items-center gap-1.5"
@@ -336,7 +340,7 @@ function ParticipantStack({
           <span
             className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-subtle text-[0.625rem] font-semibold text-text-secondary ring-2 ring-bg-elevated"
             data-testid="channel-participants-overflow"
-            aria-label={`${overflow} more`}
+            aria-label={t('channels.moreOverflow', { count: overflow })}
           >
             +{overflow}
           </span>
@@ -366,6 +370,7 @@ function RecentMessages({
   messages: RecentMessageSummary[] | undefined;
   resolve: (ref: string) => string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('chat');
   // Memoize the per-row derivation (sender resolution + plain-text flattening)
   // so re-renders (SSE badge ticks) don't re-walk every preview.
   const previews = useMemo(() => {
@@ -378,7 +383,7 @@ function RecentMessages({
       const backendName =
         m.sender_display_name !== undefined ? m.sender_display_name : resolve(m.sender_identity_id);
       const senderResolved = !!backendName && isResolvedName(m.sender_identity_id, backendName);
-      const senderLabel = senderResolved ? backendName : '(deleted)';
+      const senderLabel = senderResolved ? backendName : t('channels.deletedSenderLabel');
       // Flatten any newlines so a multi-line message stays a single-line
       // preview; the row's `truncate` + title carry the rest. PLAIN TEXT only.
       const content = m.content.replace(/\s+/g, ' ').trim();
@@ -392,7 +397,7 @@ function RecentMessages({
         content,
       };
     });
-  }, [messages, resolve]);
+  }, [messages, resolve, t]);
 
   // recent_messages absent → the field wasn't enriched; render nothing (the
   // row's name/participants still show). An explicit empty array → "No messages
@@ -401,7 +406,7 @@ function RecentMessages({
   if (previews.length === 0) {
     return (
       <p className="mt-1 text-xs italic text-text-muted" data-testid="channel-no-messages">
-        No messages yet
+        {t('channels.noMessagesYet')}
       </p>
     );
   }
@@ -412,7 +417,7 @@ function RecentMessages({
           key={p.key}
           className="flex min-w-0 items-baseline gap-1 text-xs text-text-muted"
           data-testid="channel-recent-message"
-          title={`[${p.timestamp}] [${p.senderResolved ? p.senderLabel : 'deleted'}]: ${p.content}`}
+          title={`[${p.timestamp}] [${p.senderResolved ? p.senderLabel : t('channels.deletedSender')}]: ${p.content}`}
         >
           {/* `[yyyy-MM-dd HH:mm:ss] [{User Name}]` — BOLD meta. The timestamp is
               fixed (shrink-0); the sender truncates so the meta never overflows a

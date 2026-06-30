@@ -1,6 +1,7 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useConversation } from '@/api/conversations';
 import { ConversationView } from '@/components/ConversationView';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
@@ -21,6 +22,7 @@ import type { Participant } from '@/api/types';
 // participants. The channel NAME stays the visible chrome (header/breadcrumb);
 // the hash id is only the URL segment (#195 name-uniqueness unaffected).
 export default function ChannelDetail(): React.ReactElement {
+  const { t } = useTranslation('chat');
   const { channelId = '' } = useParams<{ channelId: string }>();
   const conv = useConversation(channelId);
   const displayName = useDisplayNameResolver();
@@ -30,7 +32,7 @@ export default function ChannelDetail(): React.ReactElement {
   if (conv.isLoading) {
     return (
       <section className="text-sm text-text-muted" data-testid="page-ChannelDetail">
-        Loading channel…
+        {t('channels.detail.loading')}
       </section>
     );
   }
@@ -40,7 +42,7 @@ export default function ChannelDetail(): React.ReactElement {
       <section className="space-y-3 text-sm text-text-muted" data-testid="page-ChannelDetail">
         <p data-testid="channel-not-found">{(conv.error as Error).message}</p>
         <OrgLink to="/channels" className="text-accent hover:underline">
-          Back to channels
+          {t('channels.detail.backToChannels')}
         </OrgLink>
       </section>
     );
@@ -49,7 +51,7 @@ export default function ChannelDetail(): React.ReactElement {
   if (!conv.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-ChannelDetail">
-        Channel lookup failed.
+        {t('channels.detail.lookupFailed')}
       </section>
     );
   }
@@ -71,7 +73,7 @@ export default function ChannelDetail(): React.ReactElement {
     >
       <div className="mb-2">
         {/* #192/#247: leaf shows the channel NAME (chrome), URL carries the id. */}
-        <Breadcrumb items={[{ label: 'Channels', to: '/channels' }, { label: ch.name }]} />
+        <Breadcrumb items={[{ label: t('channels.title'), to: '/channels' }, { label: ch.name }]} />
       </div>
       <header className="flex items-center justify-between border-b border-border-base pb-3">
         <div>
@@ -89,7 +91,7 @@ export default function ChannelDetail(): React.ReactElement {
           <div className="flex items-center gap-2">
             <AvatarStack participants={active} resolve={displayName} />
             <span className="text-xs text-text-muted">
-              {activeCount} {activeCount === 1 ? 'participant' : 'participants'}
+              {t('channels.participantCount', { count: activeCount })}
             </span>
           </div>
           {/* #264 P1 / #176 §4: follow/unfollow this channel. */}
@@ -133,10 +135,11 @@ function AvatarStack({
   participants: Participant[];
   resolve: (ref: string) => string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('chat');
   if (participants.length === 0) return null;
   const shown = participants.slice(0, MAX_SHOWN);
   const overflow = participants.length - shown.length;
-  const countLabel = `${participants.length} ${participants.length === 1 ? 'participant' : 'participants'}`;
+  const countLabel = t('channels.participantCount', { count: participants.length });
   return (
     <div
       className="flex items-center -space-x-2"
@@ -165,7 +168,7 @@ function AvatarStack({
         <span
           className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-subtle text-[0.625rem] font-semibold text-text-secondary ring-2 ring-bg-elevated"
           data-testid="channel-avatar-stack-overflow"
-          aria-label={`${overflow} more`}
+          aria-label={t('channels.moreOverflow', { count: overflow })}
         >
           +{overflow}
         </span>

@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Message } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef, isSystemSender } from '@/api/members';
@@ -93,6 +94,7 @@ export function MessageList({
   hasOlder = false,
   isLoadingOlder = false,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('chat');
   const displayName = useDisplayNameResolver();
   // v2.8.1 chat-rightalign: the viewer's own messages render right-aligned
   // (iMessage/Slack style). `currentUserId` is a prefixed identity ref
@@ -207,7 +209,7 @@ export function MessageList({
         className="flex flex-1 items-center justify-center text-sm text-text-muted"
         data-testid="message-list-empty"
       >
-        No messages yet.
+        {t('message.empty')}
       </div>
     );
   }
@@ -277,8 +279,8 @@ export function MessageList({
           onClick={() => openSender(m.sender_identity_id)}
           aria-label={
             senderResolved
-              ? `View ${senderName} detail`
-              : `View ${senderHandle} detail (deleted sender)`
+              ? t('message.viewSenderDetail', { name: senderName })
+              : t('message.viewSenderDetailDeleted', { name: senderHandle })
           }
           title={senderResolved ? m.sender_identity_id : `${senderHandle} (${m.sender_identity_id})`}
           data-testid="message-sender-button"
@@ -287,7 +289,7 @@ export function MessageList({
             senderResolved ? '' : 'italic text-text-secondary'
           }`}
         >
-          {senderResolved ? senderName : '(deleted)'}
+          {senderResolved ? senderName : t('message.deletedSender')}
         </button>
         {/* #219: per-message work-item tag (only when the message carries one);
             the raw ref stays on hover (#192 chrome rule). Now always on the page
@@ -299,7 +301,7 @@ export function MessageList({
             data-work-item-ref={m.context_refs.work_item_ref}
             title={m.context_refs.work_item_ref}
           >
-            Work item
+            {t('message.workItem')}
           </span>
         )}
         {/* Chat UX 2 #4: timestamp in the header line (outside the bubble), as a
@@ -354,7 +356,7 @@ export function MessageList({
                 data-mime={att.mime_type}
               >
                 {att.mime_type.startsWith('image/') && (
-                  <a href={attachmentHref(att.uri)} target="_blank" rel="noreferrer" aria-label={`Open ${att.filename}`}>
+                  <a href={attachmentHref(att.uri)} target="_blank" rel="noreferrer" aria-label={t('message.openAttachment', { filename: att.filename })}>
                     <img
                       src={attachmentHref(att.uri)}
                       alt={att.filename}
@@ -442,7 +444,7 @@ export function MessageList({
         <button
           type="button"
           onClick={() => openSender(m.sender_identity_id)}
-          aria-label={`View ${avatarName} detail`}
+          aria-label={t('message.viewSenderDetail', { name: avatarName })}
           data-testid="message-sender-avatar-button"
           className="mt-5 shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-accent"
         >
@@ -490,7 +492,7 @@ export function MessageList({
               data-testid="message-list-load-older"
               className="rounded-full bg-bg-subtle px-3 py-1 text-xs font-medium text-text-secondary hover:bg-bg-base disabled:opacity-60"
             >
-              {isLoadingOlder ? 'Loading earlier…' : 'Load earlier messages'}
+              {isLoadingOlder ? t('message.loadingEarlier') : t('message.loadEarlier')}
             </button>
           </div>
         )}
@@ -505,7 +507,7 @@ export function MessageList({
           data-testid="message-list-new-pill"
           className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-btn-primary-bg px-3 py-1 text-xs font-medium text-btn-primary-fg shadow-2 hover:opacity-90"
         >
-          New messages ↓
+          {t('message.newMessages')}
         </button>
       )}
       {/* T500: persistent "jump to bottom" affordance. Shown whenever the user
@@ -517,8 +519,8 @@ export function MessageList({
           type="button"
           onClick={jumpToLatest}
           data-testid="message-list-jump-bottom"
-          title="Jump to latest messages"
-          aria-label="Jump to latest messages"
+          title={t('message.jumpToLatest')}
+          aria-label={t('message.jumpToLatest')}
           className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-bg-subtle text-text-secondary shadow-2 hover:bg-bg-base hover:text-text-primary"
         >
           <svg
@@ -571,6 +573,7 @@ export function MessageList({
 // SystemMessageRow, which is the terse "Message failed" notice for content_kind
 // ='system'. Full-width-ish + centered so it reads as an out-of-band notice.
 function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
+  const { t } = useTranslation('chat');
   // T316: system notices can be long (reminder/scheduler dumps) — render them
   // COLLAPSED by default (@oopslink), header + one-line preview, with the header
   // as the expand/collapse toggle (chevron rotates). Full markdown on expand.
@@ -601,7 +604,7 @@ function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
-          <span>System</span>
+          <span>{t('message.system')}</span>
           <span className="text-text-muted/70">·</span>
           <time dateTime={m.posted_at} title={m.posted_at} className="font-normal normal-case tracking-normal">
             {formatChatTime(m.posted_at)}
@@ -638,6 +641,7 @@ function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
 // the main conversation flow uninvited (@oopslink convention). The warning is an
 // SVG (no emoji-icon per the a11y guardrail) on a both-mode-safe warning token.
 function SystemMessageRow({ content }: { content: string }): React.ReactElement {
+  const { t } = useTranslation('chat');
   const [expanded, setExpanded] = useState(false);
   const detailId = useId();
   return (
@@ -658,7 +662,7 @@ function SystemMessageRow({ content }: { content: string }): React.ReactElement 
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <span>Message failed</span>
+          <span>{t('message.messageFailed')}</span>
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
@@ -667,7 +671,7 @@ function SystemMessageRow({ content }: { content: string }): React.ReactElement 
             aria-expanded={expanded}
             aria-controls={detailId}
           >
-            {expanded ? 'Hide' : 'Details'}
+            {expanded ? t('message.hide') : t('message.details')}
           </button>
         </div>
         {expanded && (

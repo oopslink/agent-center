@@ -1,5 +1,6 @@
 import type React from 'react';
 import { Fragment, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 import { useOrgWorkItems } from '@/api/orgWorkItems';
 import { useOrgPlans } from '@/api/plans';
@@ -292,6 +293,7 @@ export function MentionText({
   resolveIssue,
   resolveAgent,
 }: MentionTextProps): React.ReactElement {
+  const { t } = useTranslation('chat');
   const parts: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -320,7 +322,7 @@ export function MentionText({
           key={key++}
           data-testid="mention-all-token"
           className={`rounded font-medium ${linkClass}`}
-          title="Broadcast to everyone in this conversation (humans only)"
+          title={t('mention.broadcastTitle')}
         >
           @{handle}
         </span>
@@ -340,7 +342,7 @@ export function MentionText({
             }}
             data-testid="mention-token"
             data-mention-ref={ref}
-            aria-label={`View ${handle} details`}
+            aria-label={t('mention.viewDetails', { name: handle })}
             // both-mode: the mention reads as a link and uses the SAME context-aware
             // linkClass as MarkdownMessage's links — text-accent on theme surfaces, but a
             // FIXED-dark color (text-chatbubble-link) on the own #D1E3FF bubble (avoids the
@@ -352,12 +354,12 @@ export function MentionText({
         );
       }
     } else if (taskRef !== undefined && resolveTask) {
-      const t = resolveTask(taskRef);
-      if (t) {
+      const tk = resolveTask(taskRef);
+      if (tk) {
         node = (
           <a
             key={key++}
-            href={t.href}
+            href={tk.href}
             // New tab + opener/referrer guards, mirroring TaskTitleLink — opening
             // the task detail without losing the conversation. stopPropagation so a
             // ref click never bubbles to the message-row handlers (#281).
@@ -366,12 +368,12 @@ export function MentionText({
             onClick={(e) => e.stopPropagation()}
             data-testid="task-ref-token"
             data-task-id={taskRef}
-            title={`Open ${t.label} in a new tab`}
+            title={t('mention.openInNewTab', { label: tk.label })}
             // Same context-aware linkClass as mentions (both-mode AA on theme +
             // own-bubble surfaces); keyboard-accessible as a native anchor.
             className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
           >
-            {t.label}
+            {tk.label}
           </a>
         );
       }
@@ -387,7 +389,7 @@ export function MentionText({
             onClick={(e) => e.stopPropagation()}
             data-testid="plan-ref-token"
             data-plan-id={planRef}
-            title={`Open ${pl.label} in a new tab`}
+            title={t('mention.openInNewTab', { label: pl.label })}
             className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
           >
             {pl.label}
@@ -406,7 +408,7 @@ export function MentionText({
             onClick={(e) => e.stopPropagation()}
             data-testid="issue-ref-token"
             data-issue-id={issueRef}
-            title={`Open ${is.label} in a new tab`}
+            title={t('mention.openInNewTab', { label: is.label })}
             className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
           >
             {is.label}
@@ -430,7 +432,7 @@ export function MentionText({
             }}
             data-testid="agent-ref-token"
             data-agent-ref={a.ref}
-            aria-label={`View ${a.label} details`}
+            aria-label={t('mention.viewDetails', { name: a.label })}
             title={agentRef}
             className={`rounded font-medium ${linkClass} hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
           >

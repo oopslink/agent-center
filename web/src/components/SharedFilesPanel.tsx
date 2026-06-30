@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMessages } from '@/api/conversations';
 import { attachmentHref, attachmentKind, formatBytes } from '@/components/MessageList';
 import type { MessageAttachment } from '@/api/types';
@@ -36,18 +37,19 @@ export function SharedFilesPanel({
 }: {
   conversationId: string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('chat');
   const files = useSharedFiles(conversationId);
 
   if (files.length === 0) return null;
 
   return (
     <section
-      aria-label="shared files"
+      aria-label={t('panels.sharedFiles.ariaLabel')}
       data-testid="shared-files-panel"
       className="border-t border-border-base px-4 py-3"
     >
       <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
-        Shared files
+        {t('panels.sharedFiles.heading')}
         <span
           data-testid="shared-files-count"
           className="rounded-full bg-bg-elevated px-1.5 text-[0.6875rem] text-text-muted tabular-nums"

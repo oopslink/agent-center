@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCreateConversation } from '@/api/conversations';
 import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 import { useAppStore } from '@/store/app';
@@ -21,6 +22,7 @@ export function DMStartModal({
   onClose,
   onCreated,
 }: Props): React.ReactElement | null {
+  const { t } = useTranslation('chat');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string>('');
   const create = useCreateConversation();
@@ -68,18 +70,18 @@ export function DMStartModal({
     >
       <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="start-dm-title" className="text-lg font-semibold">
-          Start a DM
+          {t('dms.startModal.title')}
         </h2>
         <p className="mt-1 text-xs text-text-muted">
-          Pick one person or agent. Use channels for group conversations.
+          {t('dms.startModal.subtitle')}
         </p>
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search people or agents…"
-            aria-label="Search people or agents"
+            placeholder={t('dms.startModal.searchPlaceholder')}
+            aria-label={t('dms.startModal.searchAriaLabel')}
             autoFocus
             className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
             data-testid="dm-peer-search"
@@ -87,7 +89,7 @@ export function DMStartModal({
           <ul className="max-h-64 space-y-1 overflow-y-auto" data-testid="dm-peer-candidates">
             {candidates.length === 0 && (
               <li className="px-1 py-2 text-xs italic text-text-muted" data-testid="dm-peer-empty">
-                No matching people or agents.
+                {t('dms.startModal.noMatches')}
               </li>
             )}
             {candidates.map((m) => {
@@ -107,7 +109,7 @@ export function DMStartModal({
                   >
                     <span className="truncate">{m.display_name || m.identity_id}</span>
                     <span className="shrink-0 rounded bg-bg-subtle px-1.5 text-[0.625rem] uppercase text-text-muted">
-                      {m.kind === 'agent' ? 'Agent' : 'Human'}
+                      {m.kind === 'agent' ? t('dms.startModal.kindAgent') : t('dms.startModal.kindHuman')}
                     </span>
                   </button>
                 </li>
@@ -126,7 +128,7 @@ export function DMStartModal({
               className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
               data-testid="dm-start-cancel"
             >
-              Cancel
+              {t('dms.startModal.cancel')}
             </button>
             <button
               type="submit"
@@ -134,7 +136,7 @@ export function DMStartModal({
               className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="dm-start-submit"
             >
-              {create.isPending ? 'Starting…' : 'Start DM'}
+              {create.isPending ? t('dms.startModal.starting') : t('dms.startModal.submit')}
             </button>
           </div>
         </form>
