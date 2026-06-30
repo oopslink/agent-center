@@ -70,7 +70,8 @@ export function OrgWorkItemCreateModal({ kind, onClose }: Props): React.ReactEle
           </select>
         </label>
         <p className="mt-2 text-xs text-text-muted">
-          {t('workItem.create.hint', { kind })}
+          {/* pass the TRANSLATED kind label so zh renders 议题/任务, not raw en 'issue'/'task' */}
+          {t('workItem.create.hint', { kind: kind === 'issue' ? t('type.issue') : t('type.task') })}
         </p>
       </div>
     </div>

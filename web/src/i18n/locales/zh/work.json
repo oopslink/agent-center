@@ -40,32 +40,32 @@
   },
   "issue": {
     "detail": {
-      "loading": "正在加载问题…",
+      "loading": "正在加载议题…",
       "backToProject": "返回项目",
-      "lookupFailed": "问题查询失败。",
+      "lookupFailed": "议题查询失败。",
       "breadcrumb": {
         "projects": "项目",
         "project": "项目",
-        "issues": "问题"
+        "issues": "议题"
       },
       "closeInfo": "关闭信息",
-      "descriptionAria": "问题描述",
+      "descriptionAria": "议题描述",
       "noDescription": "暂无描述。"
     },
     "create": {
-      "heading": "新建问题",
+      "heading": "新建议题",
       "close": "关闭",
       "titleLabel": "标题",
       "titlePlaceholder": "需要决策或修复什么？",
       "descriptionLabel": "描述",
       "descriptionPlaceholder": "可选。背景、复现步骤、链接…",
       "cancel": "取消",
-      "submit": "新建问题",
+      "submit": "新建议题",
       "submitting": "正在创建…"
     },
     "edit": {
-      "dialogAria": "编辑问题",
-      "heading": "编辑问题",
+      "dialogAria": "编辑议题",
+      "heading": "编辑议题",
       "close": "关闭",
       "titleLabel": "标题",
       "descriptionLabel": "描述",
@@ -81,29 +81,29 @@
       "saving": "正在保存…"
     },
     "sidebar": {
-      "aria": "问题详情",
+      "aria": "议题详情",
       "details": "详情",
-      "editButton": "编辑问题",
-      "editAria": "编辑问题",
+      "editButton": "编辑议题",
+      "editAria": "编辑议题",
       "status": "状态",
       "statusDuration": "处于当前状态已 {{duration}}",
       "tags": "标签",
       "noTags": "暂无标签",
       "project": "项目",
-      "issueId": "问题 ID",
+      "issueId": "议题 ID",
       "created": "创建时间"
     },
     "derivedTasks": {
       "aria": "派生任务",
       "heading": "派生任务",
       "loading": "加载中…",
-      "empty": "暂无由此问题派生的任务。"
+      "empty": "暂无由此议题派生的任务。"
     },
     "relatedPlans": {
       "aria": "相关计划",
       "heading": "相关计划",
       "loading": "加载中…",
-      "empty": "暂无由此问题派生的计划。"
+      "empty": "暂无由此议题派生的计划。"
     },
     "taskSidebar": {
       "aria": "详情",
@@ -112,9 +112,9 @@
       "workItems": "工作项"
     },
     "relatedIssues": {
-      "heading": "相关问题",
+      "heading": "相关议题",
       "loading": "加载中…",
-      "empty": "此计划没有来源问题。"
+      "empty": "此计划没有来源议题。"
     }
   },
   "plan": {
@@ -351,8 +351,8 @@
         "title": "现在可认领 — 已分配并已派发（拉取，不唤醒）。"
       },
       "starved": {
-        "label": "等待 agent",
-        "title": "正在等待合格的 agent — 没有符合条件的在线 agent 覆盖此任务所需的能力。"
+        "label": "等待智能体",
+        "title": "正在等待合格的智能体 — 没有符合条件的在线智能体覆盖此任务所需的能力。"
       },
       "phase": {
         "planning": "规划中",
@@ -677,11 +677,11 @@
   },
   "workItem": {
     "title": {
-      "issues": "问题",
+      "issues": "议题",
       "tasks": "任务"
     },
     "titleLower": {
-      "issues": "问题",
+      "issues": "议题",
       "tasks": "任务"
     },
     "new": "+ 新建{{type}}",
@@ -721,17 +721,17 @@
       "closeGlyph": "X",
       "project": "项目",
       "selectProject": "选择一个项目…",
-      "hint": "请选择要在其中创建该 {{kind}} 的项目（问题/任务均归属于项目）。"
+      "hint": "请选择要在其中创建该 {{kind}} 的项目（议题/任务均归属于项目）。"
     },
     "mobile": {
       "actions": "操作",
       "hideInfo": "隐藏信息",
       "showInfo": "显示信息",
       "editTask": "编辑任务",
-      "editIssue": "编辑问题",
+      "editIssue": "编辑议题",
       "project": "项目",
       "taskId": "任务 ID",
-      "issueId": "问题 ID",
+      "issueId": "议题 ID",
       "created": "创建时间",
       "tags": "标签",
       "noTags": "无标签"
