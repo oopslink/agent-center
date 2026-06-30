@@ -53,7 +53,17 @@
       "typeTask": "Task",
       "typeIssue": "Issue",
       "typeTransfer": "Transfer",
-      "agentLabel": "agent"
+      "agentLabel": "agent",
+      "status": {
+        "queued": "queued",
+        "active": "active",
+        "paused": "paused",
+        "waiting_input": "waiting_input",
+        "done": "done",
+        "failed": "failed",
+        "canceled": "canceled",
+        "superseded": "superseded"
+      }
     },
     "transfers": {
       "loading": "Loading…",

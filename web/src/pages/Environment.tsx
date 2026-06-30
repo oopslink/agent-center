@@ -383,7 +383,8 @@ function WorkerCard({
               className={`inline-block h-1.5 w-1.5 rounded-full ${online ? 'bg-success' : 'bg-text-muted'}`}
               aria-hidden="true"
             />
-            {worker.status}
+            {/* localised online/offline label; data-status above keeps the raw enum */}
+            {online ? t('avatar.online', { ns: 'common' }) : t('avatar.offline', { ns: 'common' })}
           </span>
           <span className="font-mono text-xs text-text-muted" data-testid="environment-worker-active">
             {t('environment.worker.active', { count: worker.active_count })}
@@ -775,7 +776,8 @@ function TaskExecContent({
         ) : null}
       </span>
       <span className="shrink-0 rounded bg-bg-subtle px-2 py-0.5 uppercase text-text-secondary">
-        {wi.status}
+        {/* localised work-item exec status; raw value falls through for unknown statuses */}
+        {t(`environment.activity.status.${wi.status}`, { defaultValue: wi.status })}
       </span>
     </span>
   );

@@ -2,20 +2,20 @@
   "environment": {
     "title": "环境",
     "subtitle": "本组织的计算资源、绑定到这些资源的智能体、进行中的工作项以及文件传输。",
-    "addWorker": "+ 添加工作机",
+    "addWorker": "+ 添加工作节点",
     "loading": "加载中…",
     "partialSnapshot": "部分快照：",
     "stats": {
-      "workersOnline": "在线工作机",
+      "workersOnline": "在线工作节点",
       "agentsRunning": "运行中的智能体",
       "tasks": "任务",
       "pendingIssues": "待处理问题"
     },
     "workers": {
-      "title": "工作机",
-      "emptyTitle": "尚未连接任何工作机。",
-      "emptyHint": "工作机是真正运行智能体的机器。请至少添加一台以开始派发任务。",
-      "emptyCta": "+ 添加你的第一台工作机"
+      "title": "工作节点",
+      "emptyTitle": "尚未连接任何工作节点。",
+      "emptyHint": "工作节点是真正运行智能体的机器。请至少添加一台以开始派发任务。",
+      "emptyCta": "+ 添加你的第一台工作节点"
     },
     "worker": {
       "active": "{{count}} 个活跃",
@@ -23,7 +23,7 @@
       "heartbeatNone": "心跳 —",
       "cli": "CLI",
       "agents": "智能体",
-      "noAgents": "没有智能体绑定到此工作机。",
+      "noAgents": "没有智能体绑定到此工作节点。",
       "noCaps": "未检测到智能体 CLI。",
       "disabledSuffix": "（已禁用）",
       "executableNote": "可执行：仅 claude-code（codex/opencode 仅为发现 — v2.8）",
@@ -34,10 +34,10 @@
       "remintConfirmLabel": "重新生成",
       "remove": "移除",
       "removing": "移除中...",
-      "removeConfirmTitle": "移除工作机？",
+      "removeConfirmTitle": "移除工作节点？",
       "removeConfirmLabel": "移除",
-      "removeConfirmMessageOnline": "移除工作机“{{name}}”？\n\n此操作将吊销工作机令牌并删除该记录。工作机守护进程将在下一个周期收到 401。",
-      "removeConfirmMessageOffline": "移除工作机“{{name}}”？\n\n此操作将吊销所有有效的安装令牌并删除该记录。",
+      "removeConfirmMessageOnline": "移除工作节点“{{name}}”？\n\n此操作将吊销工作节点令牌并删除该记录。工作节点守护进程将在下一个周期收到 401。",
+      "removeConfirmMessageOffline": "移除工作节点“{{name}}”？\n\n此操作将吊销所有有效的安装令牌并删除该记录。",
       "openDetailsTitle": "打开 {{name}} 详情"
     },
     "activity": {
@@ -53,7 +53,17 @@
       "typeTask": "任务",
       "typeIssue": "问题",
       "typeTransfer": "传输",
-      "agentLabel": "智能体"
+      "agentLabel": "智能体",
+      "status": {
+        "queued": "排队中",
+        "active": "活跃",
+        "paused": "已暂停",
+        "waiting_input": "等待输入",
+        "done": "已完成",
+        "failed": "已失败",
+        "canceled": "已取消",
+        "superseded": "已取代"
+      }
     },
     "transfers": {
       "loading": "加载中…",
