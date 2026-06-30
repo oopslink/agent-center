@@ -1445,8 +1445,9 @@ function SignoutIcon(): React.ReactElement {
 function ReminderIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 2.5V1M10 2.5C7 2.5 4.5 5 4.5 8c0 3.5-1.5 5-2 5.5h15c-.5-.5-2-2-2-5.5 0-3-2.5-5.5-5.5-5.5z" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 15.5a2 2 0 0 0 4 0" strokeLinecap="round" /></svg>);
 }
-// Alerts (rail) — a bell with a "ping" to read as an attention signal distinct
-// from the Reminders bell (which has no ping).
+// Alerts (rail) — a warning triangle, not a bell. "Needs your attention" reads
+// as an alert/warning signal, kept visually distinct from the Reminders bell
+// (which a bell-with-ping was too easily confused with at rail size).
 function AlertBellIcon(): React.ReactElement {
-  return (<svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 3.5C7.2 3.5 5 5.7 5 8.5c0 3-1.2 4.3-1.8 4.8h13.6c-.6-.5-1.8-1.8-1.8-4.8 0-2.8-2.2-5-5-5z" strokeLinecap="round" strokeLinejoin="round" /><path d="M8.2 15.8a2 2 0 0 0 3.6 0" strokeLinecap="round" /><circle cx="14.5" cy="5.5" r="2" className="fill-current stroke-none" /></svg>);
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 3.3 17.2 16H2.8z" strokeLinejoin="round" /><path d="M10 8.5v3.2" strokeLinecap="round" /><circle cx="10" cy="13.9" r="0.6" className="fill-current stroke-none" /></svg>);
 }
