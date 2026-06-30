@@ -144,7 +144,12 @@ export default function AgentDetail(): React.ReactElement {
   // read-only history (no lifecycle actions); the LifecycleBadge shows it.
   const isArchived = lc === 'archived';
   const transient = lc === 'stopping' || lc === 'resetting';
-  const canStart = lc === 'stopped' || lc === 'error';
+  // Start moves stopped/error/failed → running. Including 'failed' is deliberate:
+  // the backend's Agent.Start explicitly allows it as the operator's MANUAL recovery
+  // out of the terminal crash-loop circuit-breaker (agent.go: "Starting a
+  // terminal-FAILED agent is the operator's MANUAL recovery"). Omitting it here hid
+  // the only recovery button on a failed agent, forcing a runtime-wiping Reset first.
+  const canStart = lc === 'stopped' || lc === 'error' || lc === 'failed';
   const canStopRestart = lc === 'running';
   // v2.16 W5 (design §3.1): Reset wipes runtime state, so it is only available
   // from a SETTLED lifecycle — stopped / error / failed. A running / stopping /

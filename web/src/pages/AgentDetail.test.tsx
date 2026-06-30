@@ -368,6 +368,17 @@ describe('AgentDetail page', () => {
     expect(startBtn).not.toHaveTextContent('Start');
   });
 
+  // A terminal-FAILED agent must surface the Start control: the backend's
+  // Agent.Start allows failed → running as the operator's MANUAL crash-loop
+  // recovery, so the UI must offer it (previously canStart omitted 'failed',
+  // leaving only Reset which wipes runtime state).
+  it('shows the Start (recovery) button on a failed agent', async () => {
+    stubAgent({ lifecycle: 'failed', lifecycle_error: 'crash-loop' });
+    wrap('/agents/A1');
+    const startBtn = await screen.findByTestId('agent-start-btn');
+    expect(startBtn).toHaveAttribute('aria-label', 'Start agent');
+  });
+
   // v2.8 #270/#272: soft-archive — the user-facing delete path. Icon button on a
   // settled (stopped/error) agent → ConfirmModal二次确认 → POST /archive.
   it('archives a stopped agent via the confirm modal (#270)', async () => {
