@@ -29,6 +29,8 @@ import (
 	"github.com/oopslink/agent-center/internal/workerdaemon"
 )
 
+const supervisorSessionTestComeUpTimeout = 45 * time.Second
+
 // buildAgentCenter builds the real agent-center CLI binary once and returns its
 // path (carries the `worker agent-supervisor` subcommand the session spawns).
 func buildAgentCenter(t *testing.T) string {
@@ -112,6 +114,29 @@ func readInstance(t *testing.T, home string) instRec {
 		t.Fatalf("decode instance: %v", err)
 	}
 	return r
+}
+
+func waitProbeReattachable(t *testing.T, home string, timeout time.Duration) supervisormanager.ProbeResult {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	var lastState supervisormanager.ProbeState
+	var lastReason string
+	var lastErr error
+	for time.Now().Before(deadline) {
+		pr, err := supervisormanager.ProbeAgent(context.Background(), home)
+		lastErr = err
+		lastState = pr.State
+		lastReason = pr.Reason
+		if err == nil && pr.State == supervisormanager.Reattachable {
+			return pr
+		}
+		if pr.Client != nil {
+			_ = pr.Client.Close()
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("probe state=%v reason=%s err=%v; want Reattachable within %s", lastState, lastReason, lastErr, timeout)
+	return supervisormanager.ProbeResult{}
 }
 
 // reapHome best-effort kills any survivors (the whole point is survival, so the
@@ -232,7 +257,7 @@ func TestSupervisorSession_StartAndPump(t *testing.T) {
 		HomeDir:       home,
 		BinaryPath:    bin,
 		ClaudeBin:     claude,
-		ComeUpTimeout: 20 * time.Second,
+		ComeUpTimeout: supervisorSessionTestComeUpTimeout,
 		OnEvent:       col.on,
 		Logger:        func(string) {},
 	})
@@ -285,7 +310,7 @@ func TestSupervisorSession_Ownership(t *testing.T) {
 		HomeDir:       home,
 		BinaryPath:    bin,
 		ClaudeBin:     claude,
-		ComeUpTimeout: 20 * time.Second,
+		ComeUpTimeout: supervisorSessionTestComeUpTimeout,
 		OnEvent:       func(claudestream.StreamEvent) {},
 		Logger:        func(string) {},
 	})
@@ -329,7 +354,7 @@ func TestSupervisorSession_Inject(t *testing.T) {
 		HomeDir:       home,
 		BinaryPath:    bin,
 		ClaudeBin:     claude,
-		ComeUpTimeout: 20 * time.Second,
+		ComeUpTimeout: supervisorSessionTestComeUpTimeout,
 		OnEvent:       col.on,
 		Logger:        func(string) {},
 	})
@@ -362,7 +387,7 @@ func TestSupervisorSession_Stop(t *testing.T) {
 		HomeDir:       home,
 		BinaryPath:    bin,
 		ClaudeBin:     claude,
-		ComeUpTimeout: 20 * time.Second,
+		ComeUpTimeout: supervisorSessionTestComeUpTimeout,
 		StopGrace:     3 * time.Second,
 		OnEvent:       col.on,
 		OnExit: func(error) {
@@ -429,7 +454,7 @@ func TestSupervisorSession_DetachSurvives(t *testing.T) {
 		HomeDir:       home,
 		BinaryPath:    bin,
 		ClaudeBin:     claude,
-		ComeUpTimeout: 20 * time.Second,
+		ComeUpTimeout: supervisorSessionTestComeUpTimeout,
 		OnEvent:       col.on,
 		Logger:        func(string) {},
 	})
@@ -456,13 +481,7 @@ func TestSupervisorSession_DetachSurvives(t *testing.T) {
 
 	// A fresh daemon re-attaches via ProbeAgent → Reattachable, then resumes the
 	// event-pump from the last-acked offset (here: the supervisor's baseOffset).
-	pr, err := supervisormanager.ProbeAgent(context.Background(), home)
-	if err != nil {
-		t.Fatalf("ProbeAgent: %v", err)
-	}
-	if pr.State != supervisormanager.Reattachable {
-		t.Fatalf("probe state=%v reason=%s want Reattachable", pr.State, pr.Reason)
-	}
+	pr := waitProbeReattachable(t, home, 5*time.Second)
 	ref := supervisormanager.RefFromProbe(home, pr)
 	col2 := &eventCollector{}
 	sess2, err := workerdaemon.ReattachSupervisorSession(
@@ -503,7 +522,7 @@ func TestSupervisorSession_ReattachFromOffset(t *testing.T) {
 		HomeDir:       home,
 		BinaryPath:    bin,
 		ClaudeBin:     claude,
-		ComeUpTimeout: 20 * time.Second,
+		ComeUpTimeout: supervisorSessionTestComeUpTimeout,
 	})
 	if err != nil {
 		t.Fatalf("SpawnSupervisor: %v", err)

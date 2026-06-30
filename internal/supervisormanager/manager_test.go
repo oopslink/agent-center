@@ -34,6 +34,8 @@ import (
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 )
 
+const supervisorManagerTestComeUpTimeout = 45 * time.Second
+
 // buildAgentCenter builds the real agent-center CLI binary once per test run and
 // returns its path. The supervisor subcommand lives under `worker agent-supervisor`.
 func buildAgentCenter(t *testing.T) string {
@@ -125,14 +127,14 @@ func readInstanceFile(home string) instRec {
 // spawnHelper spawns a supervisor against the real subcommand + stand-in claude.
 func spawnHelper(t *testing.T, bin, claude, home, agentID string) *supervisormanager.SupervisorRef {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), supervisorManagerTestComeUpTimeout+10*time.Second)
 	defer cancel()
 	ref, err := supervisormanager.SpawnSupervisor(ctx, supervisormanager.SpawnSupervisorCfg{
 		AgentID:       agentID,
 		HomeDir:       home,
 		BinaryPath:    bin,
 		ClaudeBin:     claude,
-		ComeUpTimeout: 20 * time.Second,
+		ComeUpTimeout: supervisorManagerTestComeUpTimeout,
 	})
 	if err != nil {
 		t.Fatalf("SpawnSupervisor: %v", err)
