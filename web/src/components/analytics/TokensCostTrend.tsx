@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AnalyticsModelTrendPoint, AnalyticsProjectTrendPoint } from '@/api/types';
 import { OrgLink } from '@/OrgContext';
 import { useProjects } from '@/api/projects';
@@ -173,6 +174,7 @@ export function TokensCostTrend({
   byModel: AnalyticsModelTrendPoint[];
   byProject: AnalyticsProjectTrendPoint[];
 }): React.ReactElement {
+  const { t } = useTranslation('insights');
   const [metric, setMetric] = useState<Metric>('tokens');
   const [dim, setDim] = useState<Dimension>('model');
   // T472: resolve project_id → name for the project-dimension legend (links to
@@ -195,15 +197,15 @@ export function TokensCostTrend({
   return (
     <section className="flex flex-col rounded-lg border border-border-base bg-bg-elevated p-5 lg:p-6" data-testid="analytics-trend">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-text-primary">Tokens &amp; Cost Trend</h3>
+        <h3 className="text-sm font-semibold text-text-primary">{t('analytics.trend.title')}</h3>
         <div className="flex items-center gap-2">
           <Toggle
             value={metric}
             onChange={setMetric}
             testId="trend-metric-toggle"
             options={[
-              { value: 'tokens', label: 'Tokens' },
-              { value: 'cost', label: 'Cost' },
+              { value: 'tokens', label: t('analytics.trend.metric.tokens') },
+              { value: 'cost', label: t('analytics.trend.metric.cost') },
             ]}
           />
           <Toggle
@@ -211,8 +213,8 @@ export function TokensCostTrend({
             onChange={setDim}
             testId="trend-dim-toggle"
             options={[
-              { value: 'model', label: 'Model' },
-              { value: 'project', label: 'Project' },
+              { value: 'model', label: t('analytics.trend.dim.model') },
+              { value: 'project', label: t('analytics.trend.dim.project') },
             ]}
           />
         </div>
@@ -220,7 +222,7 @@ export function TokensCostTrend({
 
       {!hasData ? (
         <p className="py-8 text-center text-xs text-text-muted" data-testid="analytics-trend-empty">
-          No {metric} data to chart.
+          {t('analytics.trend.empty', { metric })}
         </p>
       ) : (
         <>
@@ -235,7 +237,7 @@ export function TokensCostTrend({
                 preserveAspectRatio="none"
                 className="h-60 w-full lg:h-72"
                 role="img"
-                aria-label={`${metric} trend stacked by ${dim}`}
+                aria-label={t('analytics.trend.ariaLabel', { metric, dim })}
                 data-testid="analytics-trend-svg"
               >
                 {[0.25, 0.5, 0.75].map((p) => (
@@ -287,7 +289,7 @@ export function TokensCostTrend({
                     className="text-accent hover:underline"
                     data-testid="trend-legend-project-link"
                     data-project-id={k}
-                    title={`Open project ${projectName.get(k) ?? k}`}
+                    title={t('analytics.trend.openProject', { name: projectName.get(k) ?? k })}
                   >
                     {projectName.get(k) ?? k}
                   </OrgLink>

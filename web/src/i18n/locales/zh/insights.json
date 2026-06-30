@@ -1,1 +1,236 @@
-{}
+{
+  "reminders": {
+    "header": "提醒 · {{scope}}",
+    "newButton": "+ 新建提醒",
+    "loading": "加载中…",
+    "loadError": "加载提醒失败。",
+    "empty": "暂无提醒。点击“新建提醒”来创建一个。",
+    "rowHint": "点击某一行查看详情和触发历史（每次触发时间、是否投递，以及是否因重叠而被跳过）。",
+    "self": "（自己）",
+    "nextRunPaused": "— 已暂停",
+    "range": {
+      "all": "全部",
+      "created": "我创建的",
+      "remindee": "提醒我的"
+    },
+    "statusChip": {
+      "default": "活跃和已暂停",
+      "all": "全部",
+      "active": "活跃",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "canceled": "已取消"
+    },
+    "stat": {
+      "active": "活跃",
+      "paused": "已暂停",
+      "nextRun": "下次运行"
+    },
+    "col": {
+      "target": "对象",
+      "trigger": "触发",
+      "nextRun": "下次运行",
+      "content": "内容",
+      "creator": "创建者",
+      "status": "状态",
+      "actions": "操作"
+    },
+    "kind": {
+      "once": "一次性",
+      "recurring": "周期"
+    },
+    "relTime": {
+      "overdue": "已逾期",
+      "hours": "约 {{hours}} 小时后",
+      "days": "约 {{days}} 天后"
+    },
+    "action": {
+      "pause": "暂停",
+      "resume": "恢复",
+      "cancel": "取消",
+      "edit": "编辑",
+      "clone": "克隆",
+      "delete": "删除"
+    },
+    "delete": {
+      "ariaLabel": "删除提醒",
+      "title": "删除提醒？",
+      "body": "这将永久删除针对 <name>{{name}}</name> 的提醒及其触发历史。此操作无法撤销。",
+      "cancel": "取消",
+      "confirm": "删除",
+      "pending": "删除中…"
+    },
+    "create": {
+      "titleNew": "新建提醒",
+      "titleEdit": "编辑提醒",
+      "close": "关闭",
+      "remindeeLabel": "提醒对象",
+      "remindeePlaceholder": "选择同伴智能体…",
+      "remindeeSearchPlaceholder": "搜索智能体…",
+      "remindeeEmpty": "没有智能体。",
+      "remindeeHint": "选择同一项目中的一个或多个同伴智能体（约束：仅限同一项目 · 创建会被审计）。",
+      "remindeeHintEdit": "编辑时提醒对象固定不变 — 如需更换目标请改用克隆。",
+      "triggerLabel": "触发",
+      "triggerTypeAria": "触发方式",
+      "tabOnce": "一次性",
+      "tabRecurring": "周期 (cron)",
+      "cronLabel": "Cron 表达式",
+      "cronPlaceholder": "分 时 日 月 周",
+      "cronPreview": "{{human}} · 时区 {{tz}}",
+      "timezoneAria": "时区",
+      "triggerTimeLabel": "触发时间",
+      "contentLabel": "提醒内容",
+      "contentPlaceholder": "到触发时间时，这会以定向消息的方式唤醒目标智能体",
+      "skipOverlapLabel": "如果上一次运行尚未完成则跳过本次运行",
+      "skipOverlapHint": "避免周期性触发的堆积（默认开启）",
+      "endConditionLabel": "结束条件",
+      "endConditionHint": "永不结束 · 或设置结束日期或最多触发 N 次",
+      "endNever": "永不",
+      "endUntil": "截止日期",
+      "endMaxCount": "最多 N 次",
+      "sendAsSelfLabel": "以你的身份发送",
+      "sendAsSelfHint": "触发的提醒以创建者身份发送（关闭则以系统身份发送）。",
+      "footerNote": "创建者：你 · 已审计",
+      "cancel": "取消",
+      "saving": "保存中…",
+      "saveChanges": "保存更改",
+      "creating": "创建中…",
+      "createButton": "创建提醒",
+      "errFailedSave": "保存失败",
+      "errFailedCreate": "创建失败",
+      "errPartial": "{{total}} 个提醒中有 {{failed}} 个失败：{{msg}}",
+      "oncePreview": "在 {{date}} {{time}} 触发一次 · {{rel}} · 时区 {{tz}}",
+      "oncePreviewRel": "约 {{hours}} 小时后",
+      "oncePreviewOverdue": "已逾期",
+      "cronPreset": {
+        "hourly": "每小时",
+        "daily0900": "每天 09:00",
+        "weekdays1800": "工作日 18:00",
+        "mondays0900": "每周一 09:00",
+        "every30min": "每 30 分钟"
+      },
+      "cronHuman": {
+        "every30min": "每 30 分钟",
+        "everyHour": "每小时整点",
+        "daily": "每天 {{time}}",
+        "weekdays": "工作日 {{time}}",
+        "everyDay": "每{{weekday}} {{time}}",
+        "weekly": "每周 ({{dow}}) {{time}}"
+      },
+      "weekday": {
+        "sunday": "周日",
+        "monday": "周一",
+        "tuesday": "周二",
+        "wednesday": "周三",
+        "thursday": "周四",
+        "friday": "周五",
+        "saturday": "周六"
+      }
+    },
+    "detail": {
+      "ariaLabel": "提醒详情",
+      "title": "提醒详情",
+      "close": "关闭",
+      "loading": "加载中…",
+      "target": "对象",
+      "trigger": "触发",
+      "content": "内容",
+      "status": "状态",
+      "fired": "已触发",
+      "firedCount": "{{count}} 次",
+      "viewDetail": "查看 {{name}} 详情",
+      "firingHistory": "触发历史",
+      "firingsEmpty": "暂无触发记录。",
+      "outcome": {
+        "delivered": "已投递",
+        "skippedOverlap": "已跳过（重叠）",
+        "failed": "失败"
+      }
+    }
+  },
+  "analytics": {
+    "panel": {
+      "loading": "正在加载分析数据…",
+      "error": "加载分析数据失败。",
+      "loadingTopTasks": "正在加载高成本任务…"
+    },
+    "overview": {
+      "tokens": "Token - 本月",
+      "cost": "成本 - 本月",
+      "tasksDone": "已完成任务",
+      "activeDays": "活跃天数",
+      "activeRate": "活跃率 {{pct}}%",
+      "currentStreak": "当前连续天数",
+      "streakDays_one": "{{count}} 天",
+      "streakDays_other": "{{count}} 天",
+      "longest": "最长 {{count}} 天"
+    },
+    "trend": {
+      "title": "Token 与成本趋势",
+      "metric": {
+        "tokens": "Token",
+        "cost": "成本"
+      },
+      "dim": {
+        "model": "模型",
+        "project": "项目"
+      },
+      "empty": "没有可绘制的 {{metric}} 数据。",
+      "ariaLabel": "按 {{dim}} 堆叠的 {{metric}} 趋势",
+      "openProject": "打开项目 {{name}}"
+    },
+    "topTasks": {
+      "title": "高成本任务",
+      "empty": "本月没有任务级用量。",
+      "drill": {
+        "loading": "正在加载用量…",
+        "error": "加载用量事件失败。",
+        "empty": "该任务没有用量事件。",
+        "col": {
+          "when": "时间",
+          "model": "模型",
+          "tokens": "Token",
+          "cost": "成本"
+        }
+      }
+    }
+  },
+  "activity": {
+    "category": {
+      "output": "输出",
+      "thinking": "思考中",
+      "checking": "检查消息",
+      "tool": "工具",
+      "result": "结果",
+      "control": "控制",
+      "received": "已接收",
+      "acknowledged": "已确认"
+    },
+    "tool": {
+      "searching": "搜索中",
+      "searchingAria": "搜索中（工具调用）",
+      "running": "运行中",
+      "runningAria": "运行中（工具调用）",
+      "result": "结果",
+      "resultOkAria": "结果，成功",
+      "resultErrorAria": "结果，错误"
+    },
+    "row": {
+      "rateLimited": "已限流",
+      "readConfirmed": "已确认读取",
+      "failed": "失败"
+    },
+    "detail": {
+      "task": "任务",
+      "interaction": "交互"
+    },
+    "checkingGroup": {
+      "label_one": "检查消息 × {{count}}",
+      "label_other": "检查消息 × {{count}}",
+      "aria_one": "检查消息，{{count}} 个事件，{{state}}",
+      "aria_other": "检查消息，{{count}} 个事件，{{state}}",
+      "expanded": "已展开",
+      "collapsed": "已折叠"
+    }
+  }
+}

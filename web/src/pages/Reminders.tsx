@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   useReminders,
@@ -29,25 +30,22 @@ import { formatLocalTime } from '@/utils/time';
 // drive this list via the URL query (?range=&status=&q=) — this page READS them.
 // =============================================================================
 
-const RANGES: ReadonlyArray<{ key: ReminderListFilter; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'created', label: 'Created by me' },
-  { key: 'remindee', label: 'Reminding me' },
-];
+const RANGE_KEYS: ReadonlyArray<ReminderListFilter> = ['all', 'created', 'remindee'];
 
-function relTime(iso?: string | null): string {
+function relTime(t: (key: string, opts?: Record<string, unknown>) => string, iso?: string | null): string {
   if (!iso) return '';
   const hrs = Math.round((new Date(iso).getTime() - Date.now()) / 3.6e6);
-  if (hrs <= 0) return 'Overdue';
-  if (hrs < 24) return `in ~${hrs}h`;
-  return `in ~${Math.round(hrs / 24)}d`;
+  if (hrs <= 0) return t('reminders.relTime.overdue');
+  if (hrs < 24) return t('reminders.relTime.hours', { hours: hrs });
+  return t('reminders.relTime.days', { days: Math.round(hrs / 24) });
 }
 
 function KindBadge({ r }: { r: Reminder }): React.ReactElement {
+  const { t } = useTranslation('insights');
   const once = r.schedule.kind === 'once';
   return (
     <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${once ? 'bg-violet/15 text-violet' : 'bg-brand/15 text-brand'}`}>
-      {once ? 'Once' : 'Recurring'}
+      {once ? t('reminders.kind.once') : t('reminders.kind.recurring')}
     </span>
   );
 }
@@ -63,6 +61,7 @@ function StatusBadge({ status }: { status: ReminderStatus }): React.ReactElement
 }
 
 export default function Reminders(): React.ReactElement {
+  const { t } = useTranslation('insights');
   const { slug } = useParams<{ slug: string }>();
   // T248: filter state lives in the URL query, driven by col② (RemindersSecondaryNav)
   // AND the in-page status chips below (so the status filter is reachable on mobile,
@@ -127,17 +126,18 @@ export default function Reminders(): React.ReactElement {
     };
   }, [rows]);
 
-  const rangeLabel = RANGES.find((r) => r.key === range)?.label ?? 'All';
+  const rangeKey = RANGE_KEYS.find((r) => r === range) ?? 'all';
+  const rangeLabel = t(`reminders.range.${rangeKey}`);
 
   // In-page status filter (per @oopslink): the same ?status= param the col② nav
   // drives, surfaced on the page so it works on mobile (where col② is collapsed).
-  const statusChips: { key: string; label: string }[] = [
-    { key: '', label: 'Active & Paused' },
-    { key: 'all', label: 'All' },
-    { key: 'active', label: 'Active' },
-    { key: 'paused', label: 'Paused' },
-    { key: 'completed', label: 'Completed' },
-    { key: 'canceled', label: 'Canceled' },
+  const statusChips: { key: string; labelKey: string }[] = [
+    { key: '', labelKey: 'reminders.statusChip.default' },
+    { key: 'all', labelKey: 'reminders.statusChip.all' },
+    { key: 'active', labelKey: 'reminders.statusChip.active' },
+    { key: 'paused', labelKey: 'reminders.statusChip.paused' },
+    { key: 'completed', labelKey: 'reminders.statusChip.completed' },
+    { key: 'canceled', labelKey: 'reminders.statusChip.canceled' },
   ];
   const setStatus = (key: string): void => {
     const next = new URLSearchParams(params);
@@ -152,22 +152,22 @@ export default function Reminders(): React.ReactElement {
     // gives this the full screen; the filters live in the nav sheet.
     <div className="flex min-h-0 flex-1 flex-col" data-testid="reminders-page">
       <header className="flex items-center justify-between border-b border-border-base px-5 py-3">
-        <h3 className="text-base font-semibold text-text-primary">Reminders · {rangeLabel}</h3>
+        <h3 className="text-base font-semibold text-text-primary">{t('reminders.header', { scope: rangeLabel })}</h3>
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-2 md:py-1.5 text-xs font-semibold text-white hover:opacity-90"
           data-testid="reminder-new"
         >
-          + New reminder
+          {t('reminders.newButton')}
         </button>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <div className="mb-4 grid grid-cols-3 gap-3">
-            <Stat label="Active" value={String(stats.active)} testId="stat-active" />
-            <Stat label="Paused" value={String(stats.paused)} testId="stat-paused" />
-            <Stat label="Next run" value={stats.next} testId="stat-next" />
+            <Stat label={t('reminders.stat.active')} value={String(stats.active)} testId="stat-active" />
+            <Stat label={t('reminders.stat.paused')} value={String(stats.paused)} testId="stat-paused" />
+            <Stat label={t('reminders.stat.nextRun')} value={stats.next} testId="stat-next" />
           </div>
 
           {/* In-page status filter chips (mobile-reachable). Default "Active &
@@ -186,17 +186,17 @@ export default function Reminders(): React.ReactElement {
                     active ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-border-base'
                   }`}
                 >
-                  {c.label}
+                  {t(c.labelKey)}
                 </button>
               );
             })}
           </div>
 
-          {isLoading && <p className="py-6 text-sm text-text-muted">Loading…</p>}
-          {isError && <p className="py-6 text-sm text-danger">Failed to load reminders.</p>}
+          {isLoading && <p className="py-6 text-sm text-text-muted">{t('reminders.loading')}</p>}
+          {isError && <p className="py-6 text-sm text-danger">{t('reminders.loadError')}</p>}
           {!isLoading && !isError && rows.length === 0 && (
             <p className="py-6 text-sm text-text-muted" data-testid="reminders-empty">
-              No reminders yet. Click “New reminder” to create one.
+              {t('reminders.empty')}
             </p>
           )}
           {rows.length > 0 && (
@@ -207,13 +207,13 @@ export default function Reminders(): React.ReactElement {
             <table className="w-full min-w-[44rem] text-left text-sm" data-testid="reminders-table">
               <thead className="text-xs text-text-muted">
                 <tr className="border-b border-border-base">
-                  <th className="py-2 font-medium">Target</th>
-                  <th className="py-2 font-medium">Trigger</th>
-                  <SortHeader label="Next run" sortKey="next_run_at" controls={controls} className="py-2 font-medium" />
-                  <th className="py-2 font-medium">Content</th>
-                  <th className="py-2 font-medium">Creator</th>
-                  <SortHeader label="Status" sortKey="status" controls={controls} className="py-2 font-medium" />
-                  <th className="py-2 font-medium text-right">Actions</th>
+                  <th className="py-2 font-medium">{t('reminders.col.target')}</th>
+                  <th className="py-2 font-medium">{t('reminders.col.trigger')}</th>
+                  <SortHeader label={t('reminders.col.nextRun')} sortKey="next_run_at" controls={controls} className="py-2 font-medium" />
+                  <th className="py-2 font-medium">{t('reminders.col.content')}</th>
+                  <th className="py-2 font-medium">{t('reminders.col.creator')}</th>
+                  <SortHeader label={t('reminders.col.status')} sortKey="status" controls={controls} className="py-2 font-medium" />
+                  <th className="py-2 font-medium text-right">{t('reminders.col.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -245,11 +245,11 @@ export default function Reminders(): React.ReactElement {
                       </td>
                       <td className="py-2 pr-3">
                         {r.status === 'paused' ? (
-                          <span className="text-xs text-text-muted">— Paused</span>
+                          <span className="text-xs text-text-muted">{t('reminders.nextRunPaused')}</span>
                         ) : r.next_run_at ? (
                           <>
                             <div className="text-text-secondary">{formatLocalTime(r.next_run_at)}</div>
-                            <div className="text-xs text-text-muted">{relTime(r.next_run_at)}</div>
+                            <div className="text-xs text-text-muted">{relTime(t, r.next_run_at)}</div>
                           </>
                         ) : (
                           <span className="text-xs text-text-muted">—</span>
@@ -260,7 +260,7 @@ export default function Reminders(): React.ReactElement {
                         <span className="flex min-w-0 max-w-[12rem] items-center gap-1.5">
                           <Avatar name={displayName(r.creator_ref)} kind={r.creator_ref.startsWith('agent:') ? 'agent' : 'human'} size="sm" />
                           <span className="min-w-0 truncate text-xs">{displayName(r.creator_ref)}</span>
-                          {isSelf && <span className="shrink-0 text-xs text-text-muted">(self)</span>}
+                          {isSelf && <span className="shrink-0 text-xs text-text-muted">{t('reminders.self')}</span>}
                         </span>
                       </td>
                       <td className="py-2 pr-3">
@@ -269,31 +269,31 @@ export default function Reminders(): React.ReactElement {
                       <td className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex gap-2">
                           {r.status === 'active' && (
-                            <button type="button" title="Pause" aria-label="Pause" data-testid="reminder-pause" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'pause' })}>
+                            <button type="button" title={t('reminders.action.pause')} aria-label={t('reminders.action.pause')} data-testid="reminder-pause" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'pause' })}>
                               <IconPause className="h-3.5 w-3.5" />
                             </button>
                           )}
                           {r.status === 'paused' && (
-                            <button type="button" title="Resume" aria-label="Resume" data-testid="reminder-resume" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'resume' })}>
+                            <button type="button" title={t('reminders.action.resume')} aria-label={t('reminders.action.resume')} data-testid="reminder-resume" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => update.mutate({ id: r.id, action: 'resume' })}>
                               <IconPlay className="h-3.5 w-3.5" />
                             </button>
                           )}
                           {(r.status === 'active' || r.status === 'paused') && (
-                            <button type="button" title="Cancel" aria-label="Cancel" data-testid="reminder-cancel" className="p-2.5 md:p-0 text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
+                            <button type="button" title={t('reminders.action.cancel')} aria-label={t('reminders.action.cancel')} data-testid="reminder-cancel" className="p-2.5 md:p-0 text-danger hover:opacity-80" onClick={() => update.mutate({ id: r.id, action: 'cancel' })}>
                               <IconClose className="h-3.5 w-3.5" />
                             </button>
                           )}
                           {/* T477: edit (active/paused only — terminal reminders
                               aren't editable), clone (any), delete (any). */}
                           {(r.status === 'active' || r.status === 'paused') && (
-                            <button type="button" title="Edit" aria-label="Edit" data-testid="reminder-edit" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => setEditTarget(r)}>
+                            <button type="button" title={t('reminders.action.edit')} aria-label={t('reminders.action.edit')} data-testid="reminder-edit" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => setEditTarget(r)}>
                               <IconEdit className="h-3.5 w-3.5" />
                             </button>
                           )}
-                          <button type="button" title="Clone" aria-label="Clone" data-testid="reminder-clone" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => setCloneTarget(r)}>
+                          <button type="button" title={t('reminders.action.clone')} aria-label={t('reminders.action.clone')} data-testid="reminder-clone" className="p-2.5 md:p-0 text-text-secondary hover:text-text-primary" onClick={() => setCloneTarget(r)}>
                             <IconCopy className="h-3.5 w-3.5" />
                           </button>
-                          <button type="button" title="Delete" aria-label="Delete" data-testid="reminder-delete" className="p-2.5 md:p-0 text-danger hover:opacity-80" onClick={() => setDeleteTarget(r)}>
+                          <button type="button" title={t('reminders.action.delete')} aria-label={t('reminders.action.delete')} data-testid="reminder-delete" className="p-2.5 md:p-0 text-danger hover:opacity-80" onClick={() => setDeleteTarget(r)}>
                             <IconTrash className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -313,7 +313,7 @@ export default function Reminders(): React.ReactElement {
               onPageChange={controls.setPage}
             />
           )}
-          <p className="mt-3 text-xs text-text-muted">Click a row for details + firing history (each fire time, whether delivered, and whether skipped due to overlap).</p>
+          <p className="mt-3 text-xs text-text-muted">{t('reminders.rowHint')}</p>
         </div>
 
       {createOpen && <ReminderCreateModal onClose={() => setCreateOpen(false)} />}
@@ -370,20 +370,24 @@ function ConfirmDeleteDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('insights');
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Delete reminder"
+      aria-label={t('reminders.delete.ariaLabel')}
       data-testid="reminder-delete-confirm"
     >
       <div className="w-full max-w-sm rounded-xl bg-bg-elevated p-5 shadow-xl">
-        <h4 className="text-base font-semibold text-text-primary">Delete reminder?</h4>
+        <h4 className="text-base font-semibold text-text-primary">{t('reminders.delete.title')}</h4>
         <p className="mt-2 text-sm text-text-secondary">
-          This permanently removes the reminder for{' '}
-          <span className="font-medium text-text-primary">{name}</span> and its firing history. This
-          can’t be undone.
+          <Trans
+            t={t}
+            i18nKey="reminders.delete.body"
+            values={{ name }}
+            components={{ name: <span className="font-medium text-text-primary" /> }}
+          />
         </p>
         {error && (
           <p className="mt-2 text-xs text-danger" data-testid="reminder-delete-error">
@@ -396,7 +400,7 @@ function ConfirmDeleteDialog({
             onClick={onCancel}
             className="rounded-md px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
           >
-            Cancel
+            {t('reminders.delete.cancel')}
           </button>
           <button
             type="button"
@@ -405,7 +409,7 @@ function ConfirmDeleteDialog({
             data-testid="reminder-delete-confirm-btn"
             className="rounded-md bg-danger px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {pending ? 'Deleting…' : 'Delete'}
+            {pending ? t('reminders.delete.pending') : t('reminders.delete.confirm')}
           </button>
         </div>
       </div>

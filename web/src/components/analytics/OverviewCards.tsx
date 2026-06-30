@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CardData } from '@/utils/analyticsWindows';
 import { formatTokens, formatCostMicros, formatDelta } from '@/utils/format';
 
@@ -66,22 +67,23 @@ function Card({
 }
 
 export function OverviewCards({ cards }: { cards: CardData }): React.ReactElement {
+  const { t } = useTranslation('insights');
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5" data-testid="analytics-overview-cards">
       <Card
-        label="Tokens - this month"
+        label={t('analytics.overview.tokens')}
         value={formatTokens(cards.tokens)}
         meta={<DeltaChip value={cards.tokensDeltaPct} text={formatDelta(cards.tokensDeltaPct)} testId="card-tokens-delta" />}
         testId="card-tokens"
       />
       <Card
-        label="Cost - this month"
+        label={t('analytics.overview.cost')}
         value={formatCostMicros(cards.costMicros)}
         meta={<DeltaChip value={cards.costDeltaPct} text={formatDelta(cards.costDeltaPct)} testId="card-cost-delta" />}
         testId="card-cost"
       />
       <Card
-        label="Tasks done"
+        label={t('analytics.overview.tasksDone')}
         value={String(cards.tasksDone)}
         meta={
           <DeltaChip
@@ -93,15 +95,15 @@ export function OverviewCards({ cards }: { cards: CardData }): React.ReactElemen
         testId="card-tasks"
       />
       <Card
-        label="Active days"
+        label={t('analytics.overview.activeDays')}
         value={`${cards.activeDays}/${cards.activeDenom}`}
-        meta={<span data-testid="card-active-rate">{cards.activeRatePct}% active rate</span>}
+        meta={<span data-testid="card-active-rate">{t('analytics.overview.activeRate', { pct: cards.activeRatePct })}</span>}
         testId="card-active"
       />
       <Card
-        label="Current streak"
-        value={`${cards.streakCurrent} ${cards.streakCurrent === 1 ? 'day' : 'days'}`}
-        meta={<span data-testid="card-streak-longest">longest {cards.streakLongest} days</span>}
+        label={t('analytics.overview.currentStreak')}
+        value={t('analytics.overview.streakDays', { count: cards.streakCurrent })}
+        meta={<span data-testid="card-streak-longest">{t('analytics.overview.longest', { count: cards.streakLongest })}</span>}
         testId="card-streak"
       />
     </div>

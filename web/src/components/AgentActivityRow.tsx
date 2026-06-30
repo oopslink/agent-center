@@ -1,5 +1,7 @@
 import type React from 'react';
 import { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { AgentActivityEvent } from '@/api/types';
 import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
 
@@ -8,26 +10,29 @@ import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
 // 8 event_types stay visible in the expanded JSON viewer (#216). Mapping per PD.
 // PR(e): rendered as a timeline — a category-colored dot + colored label (per
 // design2), so `cls` is the label text color and `dot` the rail bullet color.
-type Category = { key: string; label: string; cls: string; dot: string };
-const CAT_OUTPUT: Category = { key: 'output', label: 'Output', cls: 'text-success', dot: 'bg-success' };
-const CAT_THINKING: Category = { key: 'thinking', label: 'Thinking', cls: 'italic text-text-muted', dot: 'bg-text-muted' };
-const CAT_CHECKING: Category = { key: 'checking', label: 'Checking messages', cls: 'text-status-orange-strong', dot: 'bg-status-orange-solid' };
+// `label` stays a STABLE English literal: it is used as the `data-category`
+// test/data hook (and as the i18n key suffix). The displayed text is localised
+// at render time via t(`activity.category.<labelKey>`).
+type Category = { key: string; label: string; labelKey: string; cls: string; dot: string };
+const CAT_OUTPUT: Category = { key: 'output', label: 'Output', labelKey: 'output', cls: 'text-success', dot: 'bg-success' };
+const CAT_THINKING: Category = { key: 'thinking', label: 'Thinking', labelKey: 'thinking', cls: 'italic text-text-muted', dot: 'bg-text-muted' };
+const CAT_CHECKING: Category = { key: 'checking', label: 'Checking messages', labelKey: 'checking', cls: 'text-status-orange-strong', dot: 'bg-status-orange-solid' };
 // v2.8 #274 increment 4: tool_use / tool_result get their own categories
 // (replacing the broad Running command / Searching code labels — Q1). The badge
 // label + icon are computed dynamically at render time (search-vs-run icon via
 // SEARCH_TOOLS — Q2; tool_result ok/error via payload.ok — Q3).
-const CAT_TOOL_USE: Category = { key: 'tool_use', label: 'Tool', cls: 'text-brand', dot: 'bg-brand' };
-const CAT_TOOL_RESULT: Category = { key: 'tool_result', label: 'Result', cls: 'text-text-secondary', dot: 'bg-text-secondary' };
+const CAT_TOOL_USE: Category = { key: 'tool_use', label: 'Tool', labelKey: 'tool', cls: 'text-brand', dot: 'bg-brand' };
+const CAT_TOOL_RESULT: Category = { key: 'tool_result', label: 'Result', labelKey: 'result', cls: 'text-text-secondary', dot: 'bg-text-secondary' };
 // T345 (@oopslink): agent control/lifecycle ops (start / stop / restart / reset)
 // get their OWN category — they were falling through to CAT_CHECKING and being
 // folded into the "Checking messages × N" group, so operators couldn't see when
 // an agent was started/stopped/reset. Distinct blue label + dot, never grouped.
-const CAT_CONTROL: Category = { key: 'control', label: 'Control', cls: 'text-status-blue-fg', dot: 'bg-status-blue-solid' };
+const CAT_CONTROL: Category = { key: 'control', label: 'Control', labelKey: 'control', cls: 'text-status-blue-fg', dot: 'bg-status-blue-solid' };
 // message-consumption activity (docs/design/features/agent-message-consumption-activity.md):
 // Received = inbound message entered the agent context (message_delivered — primary debug signal,
 // NEVER folded into Checking); Acknowledged = agent confirmed read via mark_seen (muted accent).
-const CAT_DELIVERED: Category = { key: 'delivered', label: 'Received', cls: 'text-status-teal-fg', dot: 'bg-status-teal-solid' };
-const CAT_ACK: Category = { key: 'acknowledged', label: 'Acknowledged', cls: 'text-text-muted', dot: 'bg-text-muted' };
+const CAT_DELIVERED: Category = { key: 'delivered', label: 'Received', labelKey: 'received', cls: 'text-status-teal-fg', dot: 'bg-status-teal-solid' };
+const CAT_ACK: Category = { key: 'acknowledged', label: 'Acknowledged', labelKey: 'acknowledged', cls: 'text-text-muted', dot: 'bg-text-muted' };
 
 // search-y tool names (lowercased) → "Searching code"; otherwise tool events
 // are "Running command". These are claude's real content-block tool names
@@ -104,18 +109,18 @@ interface ToolBadge {
   aria: string;
   status?: 'ok' | 'error';
 }
-function toolBadge(key: string, p: Record<string, unknown>): ToolBadge | null {
+function toolBadge(key: string, p: Record<string, unknown>, t: TFunction): ToolBadge | null {
   if (key === 'tool_use') {
     const search = SEARCH_TOOLS.has(str(p.tool_name).toLowerCase());
     return search
-      ? { Icon: SearchIcon, label: 'Searching', cls: 'text-status-purple-strong', aria: 'Searching (tool use)' }
-      : { Icon: WrenchIcon, label: 'Running', cls: 'text-brand', aria: 'Running (tool use)' };
+      ? { Icon: SearchIcon, label: t('activity.tool.searching'), cls: 'text-status-purple-strong', aria: t('activity.tool.searchingAria') }
+      : { Icon: WrenchIcon, label: t('activity.tool.running'), cls: 'text-brand', aria: t('activity.tool.runningAria') };
   }
   if (key === 'tool_result') {
     const ok = p.ok !== false && p.is_error !== true;
     return ok
-      ? { Icon: CheckIcon, label: 'Result', cls: 'text-success', aria: 'Result, ok', status: 'ok' }
-      : { Icon: XIcon, label: 'Result', cls: 'text-danger', aria: 'Result, error', status: 'error' };
+      ? { Icon: CheckIcon, label: t('activity.tool.result'), cls: 'text-success', aria: t('activity.tool.resultOkAria'), status: 'ok' }
+      : { Icon: XIcon, label: t('activity.tool.result'), cls: 'text-danger', aria: t('activity.tool.resultErrorAria'), status: 'error' };
   }
   return null;
 }
@@ -183,7 +188,7 @@ function summarizeArgs(args: unknown): string {
 // preview builds the one-line summary for a row (Phase A). It must NOT render
 // raw entity ids as the visible handle (#192) — these are content/operational
 // summaries, not entity references.
-function preview(eventType: string, p: Record<string, unknown>): string {
+function preview(eventType: string, p: Record<string, unknown>, t: TFunction): string {
   switch (eventType) {
     case 'assistant_text':
     case 'thinking':
@@ -203,7 +208,7 @@ function preview(eventType: string, p: Record<string, unknown>): string {
       return parts.join(' · ') || str(p.subtype);
     }
     case 'rate_limit':
-      return str(p.message) || 'rate limited';
+      return str(p.message) || t('activity.row.rateLimited');
     case 'tool_use':
       return `${str(p.tool_name)}(${summarizeArgs(p.args)})`;
     case 'tool_result': {
@@ -230,7 +235,7 @@ function preview(eventType: string, p: Record<string, unknown>): string {
       return [who, truncate(body, 100)].filter(Boolean).join(': ');
     }
     case 'message_acknowledged':
-      return 'read confirmed';
+      return t('activity.row.readConfirmed');
     default:
       try {
         return truncate(JSON.stringify(p), 120);
@@ -245,6 +250,7 @@ function preview(eventType: string, p: Record<string, unknown>): string {
 // from the #192 zero-raw-id sweep via data-testid="agent-activity-payload-json")
 // plus the task / interaction refs.
 export function AgentActivityRow({ event }: { event: AgentActivityEvent }): React.ReactElement {
+  const { t } = useTranslation('insights');
   const [open, setOpen] = useState(false);
   const payload = parsePayload(event.payload);
   // v2.7.1 #228 PR(c): main badge shows the user-facing category; the raw
@@ -259,7 +265,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   // #274 increment 4: tool_use / tool_result badges are computed dynamically —
   // an SVG icon (NOT emoji, ux-standards red-line) + a label that distinguishes
   // search vs run (Q2) / ok vs error (Q3).
-  const tool = toolBadge(cat.key, payload);
+  const tool = toolBadge(cat.key, payload, t);
   // tool_result inline output → the shared CollapsibleCodeBlock (contextLabel
   // 'output'): prefer the human-readable .content, else the pretty-printed
   // nested tool_result JSON (Lock 12). #192: output body is content-exempt.
@@ -311,7 +317,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
               data-testid="agent-activity-badge"
               data-category={cat.label}
             >
-              {cat.label}
+              {t(`activity.category.${cat.labelKey}`)}
             </span>
           )}
           {errored && (
@@ -319,11 +325,11 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
               className="shrink-0 rounded bg-danger/10 px-1 py-0.5 text-[0.5625rem] font-medium uppercase tracking-wide text-danger"
               data-testid="agent-activity-failed"
             >
-              failed
+              {t('activity.row.failed')}
             </span>
           )}
           <span className="min-w-0 truncate text-text-secondary" data-testid="agent-activity-preview">
-            {preview(event.event_type, payload)}
+            {preview(event.event_type, payload, t)}
           </span>
         </span>
       </button>
@@ -334,13 +340,13 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
             <dl className="grid grid-cols-[7rem_1fr] gap-x-2 text-[0.6875rem] text-text-muted">
               {event.task_ref && (
                 <>
-                  <dt>task</dt>
+                  <dt>{t('activity.detail.task')}</dt>
                   <dd className="truncate font-mono" data-testid="agent-activity-task-ref">{event.task_ref}</dd>
                 </>
               )}
               {event.interaction_ref && (
                 <>
-                  <dt>interaction</dt>
+                  <dt>{t('activity.detail.interaction')}</dt>
                   <dd className="truncate font-mono" data-testid="agent-activity-interaction-ref">{event.interaction_ref}</dd>
                 </>
               )}
@@ -380,6 +386,7 @@ function timeOf(iso: string): string {
 // disclosure (button, aria-expanded + aria-controls→the region's useId() id) is
 // NOT the list container; expanding is lossless (every original event shown).
 export function CheckingGroup({ events }: { events: AgentActivityEvent[] }): React.ReactElement {
+  const { t } = useTranslation('insights');
   const [expanded, setExpanded] = useState(false);
   const regionId = useId();
   const n = events.length;
@@ -394,12 +401,15 @@ export function CheckingGroup({ events }: { events: AgentActivityEvent[] }): Rea
         data-testid="agent-activity-checking-toggle"
         aria-expanded={expanded}
         aria-controls={regionId}
-        aria-label={`Checking messages, ${n} events, ${expanded ? 'expanded' : 'collapsed'}`}
+        aria-label={t('activity.checkingGroup.aria', {
+          count: n,
+          state: expanded ? t('activity.checkingGroup.expanded') : t('activity.checkingGroup.collapsed'),
+        })}
         onClick={() => setExpanded((e) => !e)}
       >
         <span className="flex items-center gap-2">
           <span aria-hidden="true" className="h-2 w-2 rounded-full bg-status-orange-solid" />
-          Checking messages × {n}
+          {t('activity.checkingGroup.label', { count: n })}
         </span>
         <span className="tabular-nums text-text-muted">
           {timeOf(earliest)}–{timeOf(latest)}

@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDisplayNameResolver } from '@/api/members';
 import { type ReminderDetail, useReminder } from '@/api/reminders';
 import { IconClose } from './icons';
@@ -18,10 +19,10 @@ import { formatLocalTime } from '@/utils/time';
 // and the Target link opens the provider's single SenderDetailSidebar).
 // =============================================================================
 
-const OUTCOME_LABEL: Record<string, string> = {
-  delivered: 'Delivered',
-  skipped_overlap: 'Skipped (overlap)',
-  failed: 'Failed',
+const OUTCOME_LABEL_KEY: Record<string, string> = {
+  delivered: 'reminders.detail.outcome.delivered',
+  skipped_overlap: 'reminders.detail.outcome.skippedOverlap',
+  failed: 'reminders.detail.outcome.failed',
 };
 
 interface Props {
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function ReminderDetailModal({ slug, reminderId, onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('insights');
   const { data, isLoading } = useReminder(slug, reminderId);
 
   return (
@@ -38,13 +40,13 @@ export function ReminderDetailModal({ slug, reminderId, onClose }: Props): React
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Reminder details"
+      aria-label={t('reminders.detail.ariaLabel')}
       data-testid="reminder-detail-modal"
     >
       <div className="flex max-h-[88vh] w-full max-w-md flex-col rounded-xl bg-bg-elevated shadow-xl">
         <div className="flex items-center justify-between border-b border-border-base px-5 py-3">
-          <h4 className="text-base font-semibold text-text-primary">Reminder details</h4>
-          <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
+          <h4 className="text-base font-semibold text-text-primary">{t('reminders.detail.title')}</h4>
+          <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label={t('reminders.detail.close')}>
             <IconClose className="h-4 w-4" />
           </button>
         </div>
@@ -52,7 +54,7 @@ export function ReminderDetailModal({ slug, reminderId, onClose }: Props): React
             text AND owns the single SenderDetailSidebar the Target ref opens (T286). */}
         <SenderSidebarProvider>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 text-sm">
-            {isLoading && <p className="text-text-muted">Loading…</p>}
+            {isLoading && <p className="text-text-muted">{t('reminders.detail.loading')}</p>}
             {data && <ReminderDetailBody data={data} />}
           </div>
         </SenderSidebarProvider>
@@ -64,26 +66,27 @@ export function ReminderDetailModal({ slug, reminderId, onClose }: Props): React
 // ReminderDetailBody renders the reminder fields UNDER the SenderSidebarProvider, so
 // useSenderSidebar() resolves and the Content's MarkdownMessage linkifies refs (T286).
 function ReminderDetailBody({ data }: { data: ReminderDetail }): React.ReactElement {
+  const { t } = useTranslation('insights');
   const openSender = useSenderSidebar();
   const displayName = useDisplayNameResolver();
   const remindeeRef = `agent:${data.remindee_agent_id}`;
 
   return (
     <>
-      <Row label="Target">
+      <Row label={t('reminders.detail.target')}>
         {/* T286: the raw agent id becomes a ref link → opens the sender sidebar
             (mirrors the list page's displayName(agent:<id>) rendering). */}
         <button
           type="button"
           onClick={() => openSender?.(remindeeRef)}
           className="text-accent hover:underline"
-          aria-label={`View ${displayName(remindeeRef)} detail`}
+          aria-label={t('reminders.detail.viewDetail', { name: displayName(remindeeRef) })}
           data-testid="reminder-target-link"
         >
           {displayName(remindeeRef)}
         </button>
       </Row>
-      <Row label="Trigger">
+      <Row label={t('reminders.detail.trigger')}>
         {data.schedule.kind === 'cron' ? (
           <span className="font-mono text-xs">
             {data.schedule.cron_expr} · {data.schedule.timezone}
@@ -94,17 +97,17 @@ function ReminderDetailBody({ data }: { data: ReminderDetail }): React.ReactElem
       </Row>
       {/* T286: render Content through MarkdownMessage so task/plan/issue/@mention ids
           in the text are linkified (the same renderer chat messages use). */}
-      <Row label="Content">
+      <Row label={t('reminders.detail.content')}>
         <MarkdownMessage content={data.content} />
       </Row>
-      <Row label="Status">{data.status}</Row>
-      <Row label="Fired">{data.fired_count}×</Row>
+      <Row label={t('reminders.detail.status')}>{data.status}</Row>
+      <Row label={t('reminders.detail.fired')}>{t('reminders.detail.firedCount', { count: data.fired_count })}</Row>
 
       <div className="pt-1">
-        <div className="mb-1 text-xs font-semibold text-text-secondary">Firing history</div>
+        <div className="mb-1 text-xs font-semibold text-text-secondary">{t('reminders.detail.firingHistory')}</div>
         {data.firings.length === 0 ? (
           <p className="text-xs text-text-muted" data-testid="reminder-firings-empty">
-            No firings yet.
+            {t('reminders.detail.firingsEmpty')}
           </p>
         ) : (
           <ul className="space-y-1" data-testid="reminder-firings">
@@ -123,7 +126,7 @@ function ReminderDetailBody({ data }: { data: ReminderDetail }): React.ReactElem
                         : 'text-danger'
                   }
                 >
-                  {OUTCOME_LABEL[f.outcome] ?? f.outcome}
+                  {OUTCOME_LABEL_KEY[f.outcome] ? t(OUTCOME_LABEL_KEY[f.outcome]) : f.outcome}
                 </span>
               </li>
             ))}
