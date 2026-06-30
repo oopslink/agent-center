@@ -21,8 +21,6 @@ import (
 //	        ┌──────────── loopback(when=reject, max=N) ────────────┐
 //	        ▼                                                       │
 //	S0 → Dev ─seq→ Review ─seq→ Decision ─conditional(pass)→ Integrate → (Gate)
-//	                              │
-//	                              └─conditional(reject_exhausted)→ Escape(人工兜底)
 //
 //   - every feature's Dev is blocked_by S0 (seq);
 //   - Review depends_on Dev, Decision depends_on Review (seq);
@@ -30,16 +28,16 @@ import (
 //     — it is the feature's terminal that feeds the Gate;
 //   - a bounded LOOPBACK edge Decision→Dev (when=reject, MaxRounds=N) re-runs the
 //     Dev→Review→Decision subgraph on a review reject, capped at N rounds (B0 §4);
-//   - an Escape node is the CONDITIONAL successor of Decision on outcome
-//     `reject_exhausted` — the §4.1 escape branch the engine routes to when the
-//     loopback exhausts. Scaffold ALWAYS wires it (B0 §10 "双保险": a stuck loop
-//     surfaces to a human node, not only a creator notification);
+//   - on exhaustion (round==N) escape is NOT a graph vertex (v2.23.0 escape redesign
+//     A, issue-624bfb53): the engine records the Decision's terminal `reject_exhausted`
+//     outcome — its feature's Integrate then auto-skips (When=pass no longer matches)
+//     — and escalates to the PD/creator (applyLoopbacks → escalateExhaustion);
 //   - the Gate is a barrier blocked_by EVERY feature's terminal (Integrate, or the
 //     lone Dev for a doc-only feature);
 //   - Accept is blocked_by the Gate; Ship is blocked_by Accept.
 //
 // A pure-doc feature (DocOnly) keeps the F2 collapse: a single Dev node with
-// skip_merge_check=true, no Review/Decision/Integrate/loopback/escape.
+// skip_merge_check=true, no Review/Decision/Integrate/loopback.
 //
 // It is STRUCTURE-ONLY: every node is created UNASSIGNED — the PD assigns owners
 // per node after scaffolding (oopslink 2026-06-21: "工具生成结构，指派给谁 PD 自己决定").
@@ -57,12 +55,13 @@ import (
 // =============================================================================
 
 // cycle control-flow outcome labels (B0 §9): a Decision node routes its conditional
-// out-edges by these. reject is the bounded loopback's label; reject_exhausted is
-// the escape label the engine records when the loop exhausts.
+// out-edges by these. pass routes to Integrate; reject is the bounded loopback's
+// label. The engine separately records the terminal `reject_exhausted` outcome when
+// the loopback exhausts (v2.23.0: it no longer corresponds to a scaffolded edge —
+// escape was demoted to a Decision terminal + escalation; see applyLoopbacks).
 const (
-	cycleOutcomePass            = "pass"
-	cycleOutcomeReject          = "reject"
-	cycleOutcomeRejectExhausted = "reject_exhausted"
+	cycleOutcomePass   = "pass"
+	cycleOutcomeReject = "reject"
 	// defaultReviewRounds is the loopback bound when the caller leaves MaxReviewRounds
 	// unset (B0 §4.1 suggests 3).
 	defaultReviewRounds = 3
@@ -109,7 +108,7 @@ type CycleFeature struct {
 	Branch  string
 	DocOnly bool
 	// Issue, when set, links this feature's chain nodes (Dev/Review/Decision/
-	// Integrate/Escape) to that issue as their derived_from_issue AT CREATE — it
+	// Integrate) to that issue as their derived_from_issue AT CREATE — it
 	// OVERRIDES the plan-level SourceIssue for this feature. Empty → the feature
 	// inherits the plan-level SourceIssue (T462). Must belong to the same project.
 	Issue pm.IssueID
@@ -137,7 +136,7 @@ type ScaffoldCyclePlanCommand struct {
 	// reach. Doc-only features are already exempt regardless of this flag.
 	SkipMergeCheck bool
 	// SourceIssue, when set, is the cycle's source issue: EVERY generated node
-	// (S0/Dev/Review/Decision/Integrate/Escape/Gate/Accept/Ship) is linked to it as
+	// (S0/Dev/Review/Decision/Integrate/Gate/Accept/Ship) is linked to it as
 	// derived_from_issue AT CREATE (T462), so each node's owner can get_issue the
 	// spec straight away (the get_issue derive-gate is satisfied). A feature may
 	// override it for its own chain via CycleFeature.Issue. Empty → no node carries
@@ -159,7 +158,7 @@ type ScaffoldCycleNode struct {
 	Title   string    `json:"title"`
 	Branch  string    `json:"branch"`
 	Base    string    `json:"base"`
-	Kind    string    `json:"kind"`    // s0|dev|review|decision|integrate|escape|gate|accept|ship
+	Kind    string    `json:"kind"`    // s0|dev|review|decision|integrate|gate|accept|ship (escape removed v2.23.0; only legacy plans carry it)
 	Feature string    `json:"feature"` // owning feature name (empty for s0/gate/accept/ship)
 	// DerivedFromIssue is the source issue this node was linked to at create (T462),
 	// empty when the scaffold was called without a SourceIssue/feature Issue.
@@ -242,7 +241,8 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 		Name:      planName,
 		Description: "由 scaffold_cycle_plan 生成的 cycle 控制流图（" + version + "）。形状 " +
 			"S0→(Dev→Review→Decision{过→Integrate, 打回→回 Dev 有界})×N→集成完成 Gate→Accept→Ship。" +
-			"Decision 产出 pass/reject，reject 走有界 loopback 重做、超限走 reject_exhausted 逃生节点。" +
+			"Decision 产出 pass/reject，reject 走有界 loopback 重做；超限记 reject_exhausted 终态、" +
+			"该 feature 的 Integrate 自动 skip 并升级给 PD 裁决（v2.23.0：逃生节点降为 Decision 终态）。" +
 			"节点 owner 留空待 PD 指派。规格见 docs/design/v2.13.0/control-flow-engine-spec.md。",
 		CreatedBy: cmd.CreatedBy,
 	})
@@ -371,19 +371,13 @@ func (s *Service) ScaffoldCyclePlan(ctx context.Context, cmd ScaffoldCyclePlanCo
 			}); err != nil {
 				return result, err
 			}
-			// Escape node is the CONDITIONAL successor of Decision on outcome
-			// reject_exhausted — where the engine routes when the loopback exhausts (B0
-			// §4.1). A leaf (human takes over); pruned→skipped on the pass path.
-			escapeID, eerr := addNode(name+" · 逃生/人工兜底（评审打回超限）", "", "", trunk, "escape", name, false, featIssue)
-			if eerr != nil {
-				return result, eerr
-			}
-			if err := addEdge(pm.Dependency{
-				FromTaskID: escapeID, ToTaskID: decisionID,
-				Kind: pm.EdgeConditional, When: cycleOutcomeRejectExhausted,
-			}); err != nil {
-				return result, err
-			}
+			// NOTE (v2.23.0 escape redesign A, issue-624bfb53): escape is NO LONGER a
+			// scaffolded graph vertex. When the loopback below exhausts, the engine
+			// records the terminal `reject_exhausted` outcome (→ this feature's Integrate
+			// auto-skips, its When=pass in-edge no longer matching) and escalates to the
+			// PD/creator (applyLoopbacks → escalateExhaustion). Historical plans that
+			// still carry an Escape vertex keep the legacy routing via the engine's
+			// hasLegacyEscapeEdge double-track.
 			// Bounded LOOPBACK Decision→Dev on outcome=reject — re-runs Dev→Review→
 			// Decision up to maxRounds (B0 §4). Added LAST so ValidateLoopback sees the
 			// forward chain that makes Dev a forward ancestor of Decision.

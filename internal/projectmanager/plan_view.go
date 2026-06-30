@@ -257,12 +257,12 @@ func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecor
 	//
 	// T467 (issue-f5067ad2): pruning is immune ONLY to a DONE (completed) node — a node
 	// that genuinely concluded its own work is never reclassified. A DISCARDED node is
-	// NOT immune: an untaken escape/fallback node (e.g. reject_exhausted on a feature
-	// that went pass) is often discarded as cleanup, and such a discard on a DEAD branch
-	// must converge to NodeSkipped, NOT count as a failure. A discarded node on a LIVE
-	// (taken / non-conditional) branch is not on a dead path, so pruning never reaches
-	// it and it stays NodeFailed (a real failure — dev truly failed, or the escape branch
-	// was actually taken then discarded). A FAILED/real upstream still BLOCKS (not skips)
+	// NOT immune: an untaken conditional-branch node (a node gated on an outcome the
+	// Decision did not take) is often discarded as cleanup, and such a discard on a DEAD
+	// branch must converge to NodeSkipped, NOT count as a failure. A discarded node on a
+	// LIVE (taken / non-conditional) branch is not on a dead path, so pruning never
+	// reaches it and it stays NodeFailed (a real failure — e.g. dev truly failed, or a
+	// taken branch was discarded). A FAILED/real upstream still BLOCKS (not skips)
 	// downstream (§9.7): it is not `skipped`, so the all-upstream-skipped test (b) fails.
 	pruneImmune := func(id TaskID) bool { return taskIsDone(statusOf[id]) }
 	skipped := make(map[TaskID]bool, len(tasks))
@@ -335,9 +335,12 @@ func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecor
 			}
 		case skipped[id]:
 			// §3.1 + T467 — a not-taken conditional branch (settled). Takes precedence over
-			// taskIsFailed below so a DISCARDED untaken escape/fallback node converges to
-			// NodeSkipped rather than polluting has_failed. A discarded node on a LIVE branch
-			// is not `skipped` (pruning never reached it) → it falls through to NodeFailed.
+			// taskIsFailed below so a DISCARDED untaken conditional-branch node converges to
+			// NodeSkipped rather than polluting has_failed. (This is also how a v2.23.0
+			// feature whose Decision exhausted to reject_exhausted settles: its Integrate's
+			// When=pass in-edge no longer matches → dead branch → NodeSkipped.) A discarded
+			// node on a LIVE branch is not `skipped` (pruning never reached it) → it falls
+			// through to NodeFailed.
 			ns = NodeSkipped
 		case taskIsFailed(t.Status()):
 			ns = NodeFailed
