@@ -5,18 +5,19 @@ import "testing"
 // TestMaybeReportUsage covers the v2.15.0 I28/F2 worker turn-end usage hook:
 // a clean result with token totals is reported (with the cache splits mapped
 // through), an empty turn is skipped, and the DisableUsageReport kill-switch
-// suppresses reporting.
+// suppresses reporting. taskID is now passed in by the caller (captured at the
+// `result` boundary — issue-af03da2f), not re-read from the managedAgent.
 func TestMaybeReportUsage(t *testing.T) {
 	c, rep, _ := newTestController(t, t.TempDir())
 	c.agents["agent-1"] = &managedAgent{
-		agentID: "agent-1", model: "claude-opus-4-8", currentTaskID: "task-7",
+		agentID: "agent-1", model: "claude-opus-4-8",
 	}
 
 	ev := StreamEvent{
 		Type: "result", TokensIn: 100, TokensOut: 50,
 		CacheReadTokens: 200, CacheWriteTokens: 10,
 	}
-	c.maybeReportUsage("agent-1", ev)
+	c.maybeReportUsage("agent-1", ev, "task-7")
 
 	if len(rep.usages) != 1 {
 		t.Fatalf("usages = %d, want 1", len(rep.usages))
@@ -28,22 +29,60 @@ func TestMaybeReportUsage(t *testing.T) {
 	}
 
 	// Empty turn (no tokens observed) → nothing to account.
-	c.maybeReportUsage("agent-1", StreamEvent{Type: "result"})
+	c.maybeReportUsage("agent-1", StreamEvent{Type: "result"}, "task-7")
 	if len(rep.usages) != 1 {
 		t.Fatalf("empty turn must not report; usages=%d", len(rep.usages))
 	}
 
 	// Kill-switch ON → suppressed.
 	c.cfg.DisableUsageReport = true
-	c.maybeReportUsage("agent-1", ev)
+	c.maybeReportUsage("agent-1", ev, "task-7")
 	if len(rep.usages) != 1 {
 		t.Fatalf("kill-switch must suppress reporting; usages=%d", len(rep.usages))
 	}
 
 	// Unknown agent (no managedAgent → no model) → skipped, no panic.
 	c.cfg.DisableUsageReport = false
-	c.maybeReportUsage("ghost", ev)
+	c.maybeReportUsage("ghost", ev, "task-7")
 	if len(rep.usages) != 1 {
 		t.Fatalf("unknown agent must be skipped; usages=%d", len(rep.usages))
+	}
+}
+
+// TestUsageTaskAtResult covers the issue-af03da2f attribution boundary: per-turn
+// usage must bill the task the agent was working on, derived from its own
+// start_task/complete_task MCP calls (the pull model never sets currentTaskID).
+// The tricky case is a single-turn task: complete_task clears eventTaskID BEFORE
+// the turn-end `result`, so without lastEventTaskID the completing turn would bill
+// no task and the Top Cost Tasks panel stays empty.
+func TestUsageTaskAtResult(t *testing.T) {
+	ma := &managedAgent{agentID: "agent-1"}
+
+	// Converse/idle turn — no task in flight → unattributed (non-task overhead).
+	if got := ma.usageTaskAtResult(); got != "" {
+		t.Fatalf("idle turn: got %q, want \"\"", got)
+	}
+
+	// Mid-task turn — start_task opened eventTaskID, not yet completed.
+	ma.eventTaskID = "task-A"
+	if got := ma.usageTaskAtResult(); got != "task-A" {
+		t.Fatalf("mid-task turn: got %q, want task-A", got)
+	}
+	// A second mid-task result still attributes (eventTaskID persists across turns).
+	if got := ma.usageTaskAtResult(); got != "task-A" {
+		t.Fatalf("mid-task turn 2: got %q, want task-A", got)
+	}
+
+	// Completing turn — complete_task cleared eventTaskID and stashed lastEventTaskID.
+	ma.eventTaskID = ""
+	ma.lastEventTaskID = "task-A"
+	if got := ma.usageTaskAtResult(); got != "task-A" {
+		t.Fatalf("completing turn: got %q, want task-A (from lastEventTaskID)", got)
+	}
+
+	// The NEXT turn (converse after completion) must NOT bill the finished task —
+	// lastEventTaskID was consumed above.
+	if got := ma.usageTaskAtResult(); got != "" {
+		t.Fatalf("post-completion converse turn: got %q, want \"\" (no leak)", got)
 	}
 }

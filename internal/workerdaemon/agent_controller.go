@@ -492,6 +492,16 @@ type managedAgent struct {
 	// working on. Guarded by mu; see taskevents.go + onEvent.
 	eventTaskID string
 
+	// lastEventTaskID preserves the task a terminal tool (complete_task/discard_task)
+	// just closed, ONLY until that same turn's `result` event is processed. It exists
+	// because a single-turn task (start_task..complete_task in one turn) clears
+	// eventTaskID at the complete_task tool_use — BEFORE the turn-end `result` fires —
+	// so per-turn usage accounting (maybeReportUsage, on `result`) would see "" and
+	// attribute the cost to no task (issue-af03da2f: Top Cost Tasks 永远空). The result
+	// handler reads eventTaskID||lastEventTaskID then clears this, so it never leaks
+	// into a later converse/idle turn. Guarded by mu.
+	lastEventTaskID string
+
 	// model is the agent's configured claude --model (Profile.Model, threaded from the
 	// reconcile command). Held here so a mid-run self-heal relaunch — which gets NO
 	// fresh reconcile and deletes this managedAgent on crash — can carry it across the
@@ -1759,6 +1769,12 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	if clearEventTask {
 		c.mu.Lock()
 		if ma := c.agents[agentID]; ma != nil {
+			// Preserve the just-closed task for THIS turn's usage accounting
+			// (issue-af03da2f): the turn-end `result` (maybeReportUsage) fires after
+			// this clear, so without this it would attribute the completing turn's
+			// cost to no task. The result handler consumes + clears lastEventTaskID,
+			// so it never survives into a later turn.
+			ma.lastEventTaskID = ma.eventTaskID
 			ma.eventTaskID = ""
 		}
 		c.mu.Unlock()
@@ -1805,7 +1821,18 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 		// v2.15.0 I28/F2: a clean turn-end carries the result line's usage totals
 		// — report them to the center for per-turn cost accounting. Off the reader
 		// goroutine (network round-trip) and best-effort (failures only logged).
-		go c.maybeReportUsage(agentID, ev)
+		// issue-af03da2f: capture the in-flight task SYNCHRONOUSLY here (the only
+		// place ordered w.r.t. the eventTaskID clear) — eventTaskID for a still-open
+		// task, else lastEventTaskID for one this turn just completed — then clear
+		// lastEventTaskID so it never bills a later converse turn. Pass it in rather
+		// than letting the goroutine re-read (which would race the clear).
+		var usageTaskID string
+		c.mu.Lock()
+		if ma := c.agents[agentID]; ma != nil {
+			usageTaskID = ma.usageTaskAtResult()
+		}
+		c.mu.Unlock()
+		go c.maybeReportUsage(agentID, ev, usageTaskID)
 	}
 }
 
@@ -1859,14 +1886,32 @@ func (c *AgentController) maybeReplyNudge(agentID string) {
 	}
 }
 
+// usageTaskAtResult returns the task this turn's usage should be billed to and
+// consumes the just-completed-task carry-over (issue-af03da2f). A still-open task
+// (eventTaskID) wins; otherwise a task this same turn just completed
+// (lastEventTaskID, set when the terminal tool cleared eventTaskID). Clearing
+// lastEventTaskID here guarantees it bills exactly the completing turn and never a
+// later converse/idle turn. The CALLER must hold c.mu.
+func (ma *managedAgent) usageTaskAtResult() string {
+	t := ma.eventTaskID
+	if t == "" {
+		t = ma.lastEventTaskID
+	}
+	ma.lastEventTaskID = ""
+	return t
+}
+
 // maybeReportUsage is the worker half of the F2 per-turn usage hook (v2.15.0
 // I28). On a clean turn-end it ships the result line's token totals (input /
 // output / cache read / cache write) to the center's report_usage tool, tagged
-// with the agent's model and current task (if any). It is deliberately thin and
+// with the agent's model and the in-flight task. It is deliberately thin and
 // best-effort: gated by the DisableUsageReport kill-switch, it skips empty turns,
-// resolves model/task under the lock, and logs (never surfaces) any error so a
-// failed report can never stall or fail the agent loop.
-func (c *AgentController) maybeReportUsage(agentID string, ev StreamEvent) {
+// resolves model under the lock, and logs (never surfaces) any error so a failed
+// report can never stall or fail the agent loop. taskID is captured by the caller
+// at the `result` boundary (issue-af03da2f): the pull model never sets
+// currentTaskID, so usage is attributed to the agent-derived eventTaskID /
+// lastEventTaskID instead — empty on a converse/idle turn (non-task overhead).
+func (c *AgentController) maybeReportUsage(agentID string, ev StreamEvent, taskID string) {
 	if c.cfg.DisableUsageReport || c.cfg.Reporter == nil {
 		return
 	}
@@ -1875,10 +1920,9 @@ func (c *AgentController) maybeReportUsage(agentID string, ev StreamEvent) {
 		return
 	}
 	c.mu.Lock()
-	var model, taskID string
+	var model string
 	if ma := c.agents[agentID]; ma != nil {
 		model = ma.model
-		taskID = ma.currentTaskID
 	}
 	c.mu.Unlock()
 	if model == "" {
