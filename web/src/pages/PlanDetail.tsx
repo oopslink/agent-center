@@ -2318,7 +2318,13 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
               No tasks match your filter.
             </p>
           ) : (
-            <div className="max-h-[28rem] overflow-x-auto overflow-y-auto">
+            // No inner max-height: the table flows to its full height and the
+            // enclosing tab panel (min-h-0 flex-1 overflow-auto) owns vertical
+            // scroll, so the WHOLE list is reachable and fills the pane instead of a
+            // fixed ~28rem box clipping it with dead space below (same fix as the
+            // T579 DAG canvas — @oopslink). overflow-x-auto keeps the wide table
+            // horizontally scrollable on narrow screens.
+            <div className="overflow-x-auto">
               <table className="w-full text-left text-xs" data-testid="plan-task-list-table">
                 <thead>
                   <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
