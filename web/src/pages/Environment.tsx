@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useFleet } from '@/api/fleet';
 import { formatLocalTime } from '@/utils/time';
@@ -15,7 +16,7 @@ import { AddWorkerModal } from '@/components/AddWorkerModal';
 import { InstallCommandModal } from '@/components/InstallCommandModal';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { SegmentedNav } from '@/shell/SegmentedNav';
-import { SYSTEM_SEGMENTS } from './systemSegments';
+import { useSystemSegments } from './useSystemSegments';
 
 // Environment page (/environment). v2.7 #164: Fleet merged into Environment — this
 // is the single operational page for the organization's workers + agents + work
@@ -132,6 +133,8 @@ function ChevronIcon({ className }: { className?: string }): React.ReactElement 
 const AGENTS_COLLAPSE_THRESHOLD = 3;
 
 export default function Environment(): React.ReactElement {
+  const { t } = useTranslation('admin');
+  const systemSegments = useSystemSegments();
   const fleet = useFleet();
   const agents = useAgents();
   const transfers = useTransferSessions();
@@ -176,13 +179,12 @@ export default function Environment(): React.ReactElement {
     <section className="space-y-6" data-testid="page-Environment">
       {/* v2.10.1 [M7] Mobile (<md): System module 二级段控 (Environment |
           Settings) — desktop keeps the col② nav. */}
-      <SegmentedNav items={SYSTEM_SEGMENTS} ariaLabel="System sections" />
+      <SegmentedNav items={systemSegments.segments} ariaLabel={systemSegments.ariaLabel} />
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Environment</h1>
+          <h1 className="text-xl font-semibold">{t('environment.title')}</h1>
           <p className="text-xs text-text-muted">
-            Compute resources in this organization, the agents bound to them,
-            in-flight work items, and file transfers.
+            {t('environment.subtitle')}
           </p>
         </div>
         <button
@@ -191,7 +193,7 @@ export default function Environment(): React.ReactElement {
           onClick={() => setModalOpen(true)}
           data-testid="environment-add-worker-btn"
         >
-          + Add Worker
+          {t('environment.addWorker')}
         </button>
       </header>
 
@@ -211,29 +213,29 @@ export default function Environment(): React.ReactElement {
         <StatCell
           testId="environment-stat-workers-online"
           value={workersOnline}
-          label="Workers Online"
+          label={t('environment.stats.workersOnline')}
         />
         <StatCell
           testId="environment-stat-agents-running"
           value={agentsRunning}
-          label="Agents Running"
+          label={t('environment.stats.agentsRunning')}
           valueClassName={agentsRunning > 0 ? 'text-success' : 'text-text-muted'}
         />
         <StatCell
           testId="environment-stat-tasks"
           value={workItems.length}
-          label="Tasks"
+          label={t('environment.stats.tasks')}
         />
         <StatCell
           testId="environment-stat-pending-issues"
           value={pendingIssues.length}
-          label="Pending Issues"
+          label={t('environment.stats.pendingIssues')}
         />
       </div>
 
       {fleet.isLoading && (
         <p className="text-sm text-text-muted" data-testid="environment-loading">
-          Loading…
+          {t('environment.loading')}
         </p>
       )}
       {fleet.isError && (
@@ -247,7 +249,7 @@ export default function Environment(): React.ReactElement {
           className="rounded border border-warning/40 bg-warning/10 p-3 text-sm text-warning"
           data-testid="environment-warnings"
         >
-          <p className="font-medium">Partial snapshot:</p>
+          <p className="font-medium">{t('environment.partialSnapshot')}</p>
           <ul className="ml-4 list-disc text-xs">
             {fleet.data.warnings.map((w) => (
               <li key={w}>{w}</li>
@@ -257,16 +259,15 @@ export default function Environment(): React.ReactElement {
       )}
 
       {fleet.isSuccess && (
-        <Section title="Workers">
+        <Section title={t('environment.workers.title')}>
           {fleet.data.workers.length === 0 ? (
             <div
               className="rounded border border-dashed border-border-strong bg-bg-subtle p-6 text-center"
               data-testid="environment-workers-empty"
             >
-              <p className="text-sm text-text-secondary">No workers connected yet.</p>
+              <p className="text-sm text-text-secondary">{t('environment.workers.emptyTitle')}</p>
               <p className="mt-2 text-xs text-text-muted">
-                A worker is a machine where agents actually run. Add at least one to
-                start dispatching tasks.
+                {t('environment.workers.emptyHint')}
               </p>
               <button
                 type="button"
@@ -274,7 +275,7 @@ export default function Environment(): React.ReactElement {
                 onClick={() => setModalOpen(true)}
                 data-testid="environment-workers-empty-cta"
               >
-                + Add your first worker
+                {t('environment.workers.emptyCta')}
               </button>
             </div>
           ) : (
@@ -346,6 +347,7 @@ function WorkerCard({
   onShowInstall: () => void;
   onReMintInstall: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const online = worker.status === 'online';
   // Collapse the Agents list by default when it's long (> threshold). State is
   // seeded once from the initial count; if SSE later pushes the count past the
@@ -384,10 +386,12 @@ function WorkerCard({
             {worker.status}
           </span>
           <span className="font-mono text-xs text-text-muted" data-testid="environment-worker-active">
-            {worker.active_count} active
+            {t('environment.worker.active', { count: worker.active_count })}
           </span>
           <span className="text-xs text-text-muted">
-            {worker.last_heartbeat_at ? `hb ${formatLocalTime(worker.last_heartbeat_at)}` : 'hb —'}
+            {worker.last_heartbeat_at
+              ? t('environment.worker.heartbeat', { time: formatLocalTime(worker.last_heartbeat_at) })
+              : t('environment.worker.heartbeatNone')}
           </span>
           <RemoveWorkerButton worker={worker} />
         </div>
@@ -396,7 +400,7 @@ function WorkerCard({
       {/* CLI sub-section */}
       <div className="mt-3 border-t border-border-base pt-3">
         <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
-          CLI
+          {t('environment.worker.cli')}
         </p>
         <WorkerCapabilities worker={worker} />
         <WorkerInstallActions
@@ -419,19 +423,19 @@ function WorkerCard({
             <ChevronIcon
               className={`h-3 w-3 shrink-0 transition-transform ${agentsOpen ? 'rotate-90' : ''}`}
             />
-            <span>Agents</span>
+            <span>{t('environment.worker.agents')}</span>
             <span className="font-mono normal-case tracking-normal text-text-muted">
               ({agents.length})
             </span>
           </button>
         ) : (
           <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
-            Agents
+            {t('environment.worker.agents')}
           </p>
         )}
         {agents.length === 0 ? (
           <p className="text-xs text-text-muted" data-testid="environment-worker-noagents">
-            No agents bound to this worker.
+            {t('environment.worker.noAgents')}
           </p>
         ) : agentsCollapsible && !agentsOpen ? null : (
           // T143: a SHARED grid so every row's columns line up (name / CLI /
@@ -505,10 +509,10 @@ function WorkerCard({
 // manual-activation keyboard nav via useTablistKeyboard (mirrors WorkerDetail).
 // ---------------------------------------------------------------------------
 const ACTIVITY_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'tasks', label: 'Tasks' },
-  { key: 'issues', label: 'Issues' },
-  { key: 'transfers', label: 'Transfers' },
+  { key: 'all' },
+  { key: 'tasks' },
+  { key: 'issues' },
+  { key: 'transfers' },
 ] as const;
 type ActivityTab = (typeof ACTIVITY_TABS)[number]['key'];
 
@@ -523,6 +527,7 @@ function ActivitySection({
   issues: FleetIssueRow[];
   transfers: ReturnType<typeof useTransferSessions>;
 }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const [tab, setTab] = useState<ActivityTab>('all');
   const tablist = useTablistKeyboard({ keys: ACTIVITY_TABS.map((t) => t.key), active: tab });
   const transferRows = transfers.data ?? [];
@@ -538,7 +543,7 @@ function ActivitySection({
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-text-primary">Activity</h3>
+        <h3 className="text-sm font-semibold text-text-primary">{t('environment.activity.title')}</h3>
         <nav
           className="flex gap-1"
           role="tablist"
@@ -548,24 +553,24 @@ function ActivitySection({
           onBlur={tablist.onBlur}
           data-testid="environment-activity-tabs"
         >
-          {ACTIVITY_TABS.map((t) => (
+          {ACTIVITY_TABS.map((t_) => (
             <button
-              key={t.key}
+              key={t_.key}
               type="button"
               role="tab"
-              id={`environment-activity-tab-${t.key}`}
-              aria-selected={tab === t.key}
-              aria-controls={`environment-activity-panel-${t.key}`}
-              tabIndex={tablist.tabIndexFor(t.key)}
-              onClick={() => setTab(t.key)}
-              data-testid={`environment-activity-tab-${t.key}`}
+              id={`environment-activity-tab-${t_.key}`}
+              aria-selected={tab === t_.key}
+              aria-controls={`environment-activity-panel-${t_.key}`}
+              tabIndex={tablist.tabIndexFor(t_.key)}
+              onClick={() => setTab(t_.key)}
+              data-testid={`environment-activity-tab-${t_.key}`}
               className={`rounded px-2.5 py-1 text-xs font-medium ${
-                tab === t.key
+                tab === t_.key
                   ? 'bg-bg-subtle text-text-primary'
                   : 'text-text-muted hover:text-text-primary'
               }`}
             >
-              {t.label}
+              {t(`environment.activity.tabs.${t_.key}`)}
             </button>
           ))}
         </nav>
@@ -596,15 +601,16 @@ function ActivitySection({
 }
 
 function ActivityEmpty(): React.ReactElement {
+  const { t } = useTranslation('admin');
   return (
     <div
       className="flex flex-col items-center gap-2 rounded border border-dashed border-border-base bg-bg-subtle p-8 text-center"
       data-testid="environment-activity-empty"
     >
       <ClockIcon className="h-8 w-8 text-text-muted" />
-      <p className="text-sm font-medium text-text-secondary">No active operations</p>
+      <p className="text-sm font-medium text-text-secondary">{t('environment.activity.emptyTitle')}</p>
       <p className="text-xs text-text-muted">
-        Work items, issues, and file transfers will appear here.
+        {t('environment.activity.emptyHint')}
       </p>
     </div>
   );
@@ -637,6 +643,7 @@ function AllStream({
   issues: FleetIssueRow[];
   transfers: TransferSession[];
 }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const resolveAgent = useWorkItemAgentResolver(base);
   return (
     <ul
@@ -650,7 +657,7 @@ function AllStream({
           data-testid="environment-activity-all-row"
           data-kind="task"
         >
-          <TypeTag label="Task" testId="environment-activity-all-type" />
+          <TypeTag label={t('environment.activity.typeTask')} testId="environment-activity-all-type" />
           <TaskExecContent base={base} wi={wi} agent={resolveAgent(wi.agent_id)} />
         </li>
       ))}
@@ -661,7 +668,7 @@ function AllStream({
           data-testid="environment-activity-all-row"
           data-kind="issue"
         >
-          <TypeTag label="Issue" testId="environment-activity-all-type" />
+          <TypeTag label={t('environment.activity.typeIssue')} testId="environment-activity-all-type" />
           <IssueContent base={base} issue={i} />
         </li>
       ))}
@@ -672,7 +679,7 @@ function AllStream({
           data-testid="environment-activity-all-row"
           data-kind="transfer"
         >
-          <TypeTag label="Transfer" testId="environment-activity-all-type" />
+          <TypeTag label={t('environment.activity.typeTransfer')} testId="environment-activity-all-type" />
           <TransferContent tr={tr} />
         </li>
       ))}
@@ -724,6 +731,7 @@ function TaskExecContent({
   wi: TaskExecRow;
   agent: { name: string; href: string | null };
 }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const ref = refLabel(wi.task_org_ref, wi.task_id ?? '');
   const label = [ref, wi.task_title].filter(Boolean).join(' · ') || wi.task_id;
   const taskHref =
@@ -747,7 +755,7 @@ function TaskExecContent({
             {label}
           </span>
         )}{' '}
-        <span className="text-text-muted">agent</span>{' '}
+        <span className="text-text-muted">{t('environment.activity.agentLabel')}</span>{' '}
         {agent.href ? (
           <Link
             to={agent.href}
@@ -843,11 +851,12 @@ function TransfersPanel({
 }: {
   transfers: ReturnType<typeof useTransferSessions>;
 }): React.ReactElement {
+  const { t } = useTranslation('admin');
   return (
     <>
       {transfers.isLoading && (
         <div data-testid="transfers-loading">
-          <p className="text-xs text-text-muted">Loading…</p>
+          <p className="text-xs text-text-muted">{t('environment.transfers.loading')}</p>
         </div>
       )}
       {transfers.isError && (
@@ -883,10 +892,10 @@ function TransfersPanel({
         >
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
-              <th className="w-1/5 border-b border-border-base px-3 py-2">Direction</th>
-              <th className="w-1/5 border-b border-border-base px-3 py-2">Scope</th>
-              <th className="w-2/5 border-b border-border-base px-3 py-2">Content</th>
-              <th className="border-b border-border-base px-3 py-2 text-right">Size</th>
+              <th className="w-1/5 border-b border-border-base px-3 py-2">{t('environment.transfers.columns.direction')}</th>
+              <th className="w-1/5 border-b border-border-base px-3 py-2">{t('environment.transfers.columns.scope')}</th>
+              <th className="w-2/5 border-b border-border-base px-3 py-2">{t('environment.transfers.columns.content')}</th>
+              <th className="border-b border-border-base px-3 py-2 text-right">{t('environment.transfers.columns.size')}</th>
             </tr>
           </thead>
           <tbody>
@@ -930,13 +939,14 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // rename moved to the detail Management tab (single-directional convergence per
 // PD — no inline-rename here, no duplicate-rename middle state).
 function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const displayName = worker.name || worker.worker_id;
   return (
     <div className="flex flex-col">
       <OrgLink
         to={`/workers/${worker.worker_id}`}
         className="text-left text-sm font-medium text-text-primary hover:text-accent hover:underline"
-        title={`Open ${displayName} details`}
+        title={t('environment.worker.openDetailsTitle', { name: displayName })}
         data-testid="environment-worker-name"
       >
         {displayName}
@@ -958,11 +968,12 @@ function WorkerNameCell({ worker }: { worker: FleetWorkerRow }): React.ReactElem
 // worker can actually run); a worker that has reported none shows an empty
 // hint. This is the §5 "Environment 可见" exit surface.
 function WorkerCapabilities({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const detected = (worker.capabilities ?? []).filter((c) => c.detected);
   if (detected.length === 0) {
     return (
       <p className="text-xs text-text-muted" data-testid="environment-worker-nocaps">
-        No agent CLIs detected.
+        {t('environment.worker.noCaps')}
       </p>
     );
   }
@@ -982,14 +993,14 @@ function WorkerCapabilities({ worker }: { worker: FleetWorkerRow }): React.React
         >
           {c.agent_cli}
           {c.version ? ` ${c.version}` : ''}
-          {c.enabled ? '' : ' (disabled)'}
+          {c.enabled ? '' : t('environment.worker.disabledSuffix')}
         </span>
       ))}
       {/* v2.7 #181 / FINDING-F: detected ≠ runnable. Only claude-code executes
           in v2.7; codex/opencode are discovery-only until v2.8 (#180). Be
           explicit so the list isn't read as "all runnable". */}
       <span className="text-xs italic text-text-muted" data-testid="environment-worker-executable-note">
-        Executable: claude-code only (codex/opencode discovery only — v2.8)
+        {t('environment.worker.executableNote')}
       </span>
     </div>
   );
@@ -1008,6 +1019,7 @@ function WorkerInstallActions({
   onShowInstall: () => void;
   onReMintInstall: () => void;
 }): React.ReactElement | null {
+  const { t } = useTranslation('admin');
   const [confirmReMint, setConfirmReMint] = useState(false);
   if (worker.status !== 'offline') return null;
   return (
@@ -1018,7 +1030,7 @@ function WorkerInstallActions({
         onClick={onShowInstall}
         data-testid="environment-worker-show-install"
       >
-        Show install command
+        {t('environment.worker.showInstall')}
       </button>
       <button
         type="button"
@@ -1026,16 +1038,13 @@ function WorkerInstallActions({
         onClick={() => setConfirmReMint(true)}
         data-testid="environment-worker-remint-install"
       >
-        Re-mint install command
+        {t('environment.worker.remintInstall')}
       </button>
       <ConfirmModal
         open={confirmReMint}
-        title="Re-mint install command?"
-        message={
-          'Re-mint will revoke the current install token and issue a fresh one. ' +
-          'Use this if the original command expired or got lost. Continue?'
-        }
-        confirmLabel="Re-mint"
+        title={t('environment.worker.remintConfirmTitle')}
+        message={t('environment.worker.remintConfirmMessage')}
+        confirmLabel={t('environment.worker.remintConfirmLabel')}
         onConfirm={() => {
           setConfirmReMint(false);
           onReMintInstall();
@@ -1049,16 +1058,14 @@ function WorkerInstallActions({
 // RemoveWorkerButton: DELETE /api/workers/{id} after confirm. Ported from Fleet
 // (#164). #169: native window.confirm replaced with ConfirmModal.
 function RemoveWorkerButton({ worker }: { worker: FleetWorkerRow }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const confirmMessage =
     worker.status === 'online'
-      ? `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
-        'This will revoke the worker token and remove the record. ' +
-        'The worker daemon will hit 401 next cycle.'
-      : `Remove worker "${worker.name || worker.worker_id}"?\n\n` +
-        'This will revoke any active install token and remove the record.';
+      ? t('environment.worker.removeConfirmMessageOnline', { name: worker.name || worker.worker_id })
+      : t('environment.worker.removeConfirmMessageOffline', { name: worker.name || worker.worker_id });
   const handleRemove = async () => {
     setBusy(true);
     setError(null);
@@ -1098,13 +1105,13 @@ function RemoveWorkerButton({ worker }: { worker: FleetWorkerRow }): React.React
         onClick={() => setConfirmOpen(true)}
         data-testid="environment-worker-remove"
       >
-        {busy ? 'Removing...' : 'Remove'}
+        {busy ? t('environment.worker.removing') : t('environment.worker.remove')}
       </button>
       <ConfirmModal
         open={confirmOpen}
-        title="Remove worker?"
+        title={t('environment.worker.removeConfirmTitle')}
         message={confirmMessage}
-        confirmLabel="Remove"
+        confirmLabel={t('environment.worker.removeConfirmLabel')}
         danger
         busy={busy}
         onConfirm={() => void handleRemove()}

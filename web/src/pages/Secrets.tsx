@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRevokeSecret, useSecrets } from '@/api/secrets';
 import { formatLocalTime } from '@/utils/time';
 import type { Secret } from '@/api/types';
@@ -16,6 +17,7 @@ import { Skeleton } from '@/components/Skeleton';
 //   - revoke is the only mutation on existing rows; rotation = revoke
 //     + create new.
 export default function Secrets(): React.ReactElement {
+  const { t } = useTranslation('admin');
   const [createOpen, setCreateOpen] = useState(false);
   const [revokeTarget, setRevokeTarget] = useState<Secret | null>(null);
   const secrets = useSecrets();
@@ -29,20 +31,19 @@ export default function Secrets(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-Secrets">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Secrets</h1>
+        <h1 className="text-xl font-semibold">{t('secrets.title')}</h1>
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
           className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
           data-testid="secrets-new-button"
         >
-          New secret
+          {t('secrets.new')}
         </button>
       </header>
 
       <p className="text-xs text-text-muted" data-testid="secrets-disclaimer">
-        Values are stored encrypted and never displayed after creation. To
-        rotate a secret, revoke and create a new one.
+        {t('secrets.disclaimer')}
       </p>
 
       {secrets.isLoading && (
@@ -59,9 +60,9 @@ export default function Secrets(): React.ReactElement {
       {secrets.isSuccess && secrets.data.length === 0 && (
         <EmptyState
           testId="secrets-empty"
-          title="No secrets yet"
-          body="Secrets store API keys + tokens that agents reference at runtime. Values are encrypted at rest and never displayed after creation."
-          action={{ label: 'New secret', onClick: () => setCreateOpen(true) }}
+          title={t('secrets.empty.title')}
+          body={t('secrets.empty.body')}
+          action={{ label: t('secrets.new'), onClick: () => setCreateOpen(true) }}
         />
       )}
       {secrets.isSuccess && secrets.data.length > 0 && (
@@ -80,7 +81,7 @@ export default function Secrets(): React.ReactElement {
                     className="rounded px-3 py-2 text-xs text-danger hover:bg-bg-subtle disabled:opacity-50"
                     data-testid="secret-revoke-button-mobile"
                   >
-                    Revoke
+                    {t('secrets.revoke')}
                   </button>
                 )}
               </div>
@@ -93,10 +94,10 @@ export default function Secrets(): React.ReactElement {
         >
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-text-muted">
-              <th className="w-1/4 border-b border-border-base px-3 py-2">Name</th>
-              <th className="w-1/6 border-b border-border-base px-3 py-2">Kind</th>
-              <th className="w-1/6 border-b border-border-base px-3 py-2">State</th>
-              <th className="w-1/4 border-b border-border-base px-3 py-2">Created</th>
+              <th className="w-1/4 border-b border-border-base px-3 py-2">{t('secrets.column.name')}</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">{t('secrets.column.kind')}</th>
+              <th className="w-1/6 border-b border-border-base px-3 py-2">{t('secrets.column.state')}</th>
+              <th className="w-1/4 border-b border-border-base px-3 py-2">{t('secrets.column.created')}</th>
               <th className="border-b border-border-base px-3 py-2 text-right" />
             </tr>
           </thead>
@@ -137,7 +138,7 @@ export default function Secrets(): React.ReactElement {
                       className="rounded px-3 py-1 text-xs text-danger hover:bg-bg-subtle disabled:opacity-50"
                       data-testid="secret-revoke-button"
                     >
-                      Revoke
+                      {t('secrets.revoke')}
                     </button>
                   )}
                 </td>
@@ -155,13 +156,13 @@ export default function Secrets(): React.ReactElement {
 
       <ConfirmModal
         open={revokeTarget !== null}
-        title="Revoke secret?"
+        title={t('secrets.confirm.title')}
         message={
           revokeTarget
-            ? `Revoke secret "${revokeTarget.name}"? This cannot be undone.`
+            ? t('secrets.confirm.message', { name: revokeTarget.name })
             : undefined
         }
-        confirmLabel="Revoke"
+        confirmLabel={t('secrets.revoke')}
         danger
         busy={revoke.isPending}
         onConfirm={confirmRevoke}

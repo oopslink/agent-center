@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useSystemVersion } from '@/api/system';
 import { formatLocalTime } from '@/utils/time';
 import { SegmentedNav } from '@/shell/SegmentedNav';
-import { SYSTEM_SEGMENTS } from './systemSegments';
+import { useSystemSegments } from './useSystemSegments';
 
 // Version page (/version). I7-D3: the build/version-identity panel is hoisted
 // out of Settings into its own System-level page, sibling to Environment /
@@ -13,11 +13,12 @@ import { SYSTEM_SEGMENTS } from './systemSegments';
 export default function Version(): React.ReactElement {
   const { t } = useTranslation('common');
   const version = useSystemVersion();
+  const systemSegments = useSystemSegments();
   return (
     <section className="space-y-4" data-testid="page-Version">
       {/* v2.10.1 [M7] Mobile (<md): System module 二级段控 (Environment |
           Settings | Version) — desktop keeps the rail's col② nav. */}
-      <SegmentedNav items={SYSTEM_SEGMENTS} ariaLabel="System sections" />
+      <SegmentedNav items={systemSegments.segments} ariaLabel={systemSegments.ariaLabel} />
       <h1 className="text-xl font-semibold">{t('version.title')}</h1>
 
       <div
