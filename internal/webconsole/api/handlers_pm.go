@@ -41,6 +41,14 @@ func mapPMError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, pmservice.ErrNotMember), errors.Is(err, pmservice.ErrNotOwner):
 		writeError(w, http.StatusForbidden, "forbidden", err.Error())
+	case errors.Is(err, pm.ErrCrossOrgAssignee):
+		// T199/WS3 one-step create→assign: a cross-org agent assignee is a clear 422
+		// (not the opaque default 500), mirroring the agent create_task tool.
+		writeError(w, http.StatusUnprocessableEntity, "cross_org_assignee", err.Error())
+	case errors.Is(err, pmservice.ErrBuiltinPoolMissing):
+		// dispatch=true into a project missing its built-in pool is a server-invariant
+		// breach (ADR-0047), surfaced as 501 (pm_not_wired class), not a user error.
+		writeError(w, http.StatusNotImplemented, "builtin_pool_missing", err.Error())
 	case errors.Is(err, pmservice.ErrCannotRemoveOwner):
 		writeError(w, http.StatusConflict, "cannot_remove_owner", err.Error())
 	case errors.Is(err, pm.ErrProjectArchived):
@@ -688,6 +696,18 @@ func (s *Server) pmCreateTaskHandler(w http.ResponseWriter, r *http.Request) {
 		Title            string `json:"title"`
 		Description      string `json:"description"`
 		DerivedFromIssue string `json:"derived_from_issue"`
+		// T199/WS3: optional one-step create→assign→dispatch (parity with the agent
+		// create_task tool). Both omitted ⇒ backlog (the pre-T199 default):
+		//   - assignee     → assign on create (an agent assignee is granted project
+		//     membership, cross-org guarded).
+		//   - dispatch=true → select into the project's built-in Assignment Pool +
+		//     record the dispatch in the SAME tx, so the task is immediately
+		//     runnable (assigned) / claimable (unassigned) — no reconcile wait.
+		// This makes `install test-instance --with-agent` (and any UI create) able to
+		// land a seeded task as RUNNABLE in one call (issue-ca51e07c F2), instead of an
+		// assign-only task that stays task_not_runnable in the backlog.
+		Assignee string `json:"assignee"`
+		Dispatch bool   `json:"dispatch"`
 		// F3 model routing (design §5 & §10): optional per-task executor model override.
 		Model string `json:"model"`
 		// v2.18.3 BE-1: optional capability requirements (canonicalized by the domain).
@@ -697,7 +717,16 @@ func (s *Server) pmCreateTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	id, err := d.PM.CreateTask(r.Context(), pmservice.CreateTaskCommand{ProjectID: p.ID(), Title: req.Title, Description: req.Description, DerivedFromIssue: pm.IssueID(req.DerivedFromIssue), CreatedBy: caller, Model: strings.TrimSpace(req.Model), RequiredCapabilities: req.RequiredCapabilities})
+	// Validate the optional assignee ref shape HERE so a malformed ref is a clear
+	// 400 (not an opaque domain 500). Empty = unassigned (no-op).
+	assignee := strings.TrimSpace(req.Assignee)
+	if assignee != "" {
+		if err := pm.IdentityRef(assignee).Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_assignee", err.Error())
+			return
+		}
+	}
+	id, err := d.PM.CreateTask(r.Context(), pmservice.CreateTaskCommand{ProjectID: p.ID(), Title: req.Title, Description: req.Description, DerivedFromIssue: pm.IssueID(req.DerivedFromIssue), CreatedBy: caller, Assignee: pm.IdentityRef(assignee), Dispatch: req.Dispatch, Model: strings.TrimSpace(req.Model), RequiredCapabilities: req.RequiredCapabilities})
 	if err != nil {
 		mapPMError(w, err)
 		return
