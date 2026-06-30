@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useProjects } from '@/api/projects';
 import { useModalA11y } from './useModalA11y';
 import { IssueCreateModal } from './IssueCreateModal';
@@ -15,6 +16,7 @@ interface Props {
 // delegate to the per-project IssueCreateModal / TaskCreateModal, which own the
 // title/description form + create mutation (reuse, no duplicated create logic).
 export function OrgWorkItemCreateModal({ kind, onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const projects = useProjects();
   const [projectId, setProjectId] = useState('');
   // a11y: Escape closes + focus-trap on the project-picker phase. Active only
@@ -40,26 +42,26 @@ export function OrgWorkItemCreateModal({ kind, onClose }: Props): React.ReactEle
     >
       <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">New {kind === 'issue' ? 'Issue' : 'Task'}</h2>
+          <h2 className="text-lg font-semibold">{t('workItem.create.title', { type: kind === 'issue' ? t('type.issue') : t('type.task') })}</h2>
           <button
             type="button"
             onClick={onClose}
             className="text-text-muted hover:text-text-primary"
-            aria-label="Close"
+            aria-label={t('workItem.create.close')}
             data-testid="org-create-close"
           >
-            X
+            {t('workItem.create.closeGlyph')}
           </button>
         </div>
         <label className="block text-sm">
-          <span className="mb-1 block text-text-secondary">Project</span>
+          <span className="mb-1 block text-text-secondary">{t('workItem.create.project')}</span>
           <select
             data-testid="org-create-project-select"
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
             className="w-full rounded border border-border-base bg-bg-base px-2 py-1.5 text-sm"
           >
-            <option value="">Select a project…</option>
+            <option value="">{t('workItem.create.selectProject')}</option>
             {projects.data?.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -68,7 +70,7 @@ export function OrgWorkItemCreateModal({ kind, onClose }: Props): React.ReactEle
           </select>
         </label>
         <p className="mt-2 text-xs text-text-muted">
-          Pick a project to create the {kind} in (issues/tasks are project-scoped).
+          {t('workItem.create.hint', { kind })}
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 
 import {
@@ -17,6 +18,7 @@ import { ProjectEditModal } from '@/components/ProjectEditModal';
 // the Web Console (previously CLI-only per ADR-0037 W1.4, retired in
 // v2.5.x trajectory). Mirrors the structure of pages/Agents.tsx.
 export default function Projects(): React.ReactElement {
+  const { t } = useTranslation('work');
   const projects = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -24,9 +26,9 @@ export default function Projects(): React.ReactElement {
     <section className="space-y-4" data-testid="page-Projects">
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">Projects</h1>
+          <h1 className="font-heading text-2xl font-semibold text-text-primary">{t('project.list.title')}</h1>
           <p className="text-xs text-text-muted">
-            Projects organize Issues and Tasks.
+            {t('project.list.subtitle')}
           </p>
         </div>
         <button
@@ -35,7 +37,7 @@ export default function Projects(): React.ReactElement {
           onClick={() => setCreateOpen(true)}
           data-testid="projects-add-btn"
         >
-          + Add Project
+          {t('project.list.addProject')}
         </button>
       </header>
 
@@ -56,8 +58,8 @@ export default function Projects(): React.ReactElement {
       {projects.isSuccess && projects.data.length === 0 && (
         <EmptyState
           testId="projects-empty"
-          title="No projects yet"
-          body="Projects organize work — Issues and Tasks live inside a project. Click + Add Project to create one."
+          title={t('project.list.empty.title')}
+          body={t('project.list.empty.body')}
         />
       )}
       {projects.isSuccess && projects.data.length > 0 && (
@@ -85,6 +87,7 @@ export default function Projects(): React.ReactElement {
 // active page load stays a single request. Renders read-only rows (an
 // "Archived" badge already shows via ProjectStatusBadge); empty → a quiet note.
 function ArchivedProjectsGroup(): React.ReactElement {
+  const { t } = useTranslation('work');
   const [open, setOpen] = useState(false);
   // Defer the archived fetch until the group is first opened.
   const archived = useArchivedProjects(open);
@@ -111,7 +114,7 @@ function ArchivedProjectsGroup(): React.ReactElement {
         >
           <path d="M9 6l6 6-6 6" />
         </svg>
-        <span>Archived</span>
+        <span>{t('shared.archived')}</span>
       </button>
 
       {open && (
@@ -135,7 +138,7 @@ function ArchivedProjectsGroup(): React.ReactElement {
               className="px-1 text-xs italic text-text-muted"
               data-testid="archived-projects-empty"
             >
-              No archived projects.
+              {t('project.list.archived.empty')}
             </p>
           )}
           {archived.isSuccess && archived.data.length > 0 && (
@@ -162,6 +165,7 @@ function ArchivedProjectsGroup(): React.ReactElement {
 // The card body stays a single link to the project detail; the actions are a
 // SIBLING block (not nested in the link — that would be invalid anchor markup).
 function ProjectRow({ project: p }: { project: Project }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [editing, setEditing] = useState(false);
   return (
     <li data-testid="project-row" data-project-id={p.id}>
@@ -188,10 +192,10 @@ function ProjectRow({ project: p }: { project: Project }): React.ReactElement {
           <ProjectCounts project={p} />
           <div className="flex items-center justify-between gap-3">
             <span className="max-w-[60ch] truncate text-xs text-text-secondary">
-              {p.description || <span className="italic text-text-muted">no description</span>}
+              {p.description || <span className="italic text-text-muted">{t('project.list.noDescription')}</span>}
             </span>
             <span className="text-xs tabular-nums text-text-muted">
-              {formatRelative(p.created_at)}
+              {formatRelative(p.created_at, t)}
             </span>
           </div>
         </OrgLink>
@@ -216,14 +220,18 @@ interface ProjectShortcut {
 // Codebase deep-link into the ProjectDetail tabs (?tab=…, the URL-param tab
 // scheme owned by ProjectDetail); Work Board is its own route; Edit opens the
 // shared edit modal at the row level.
-function projectShortcuts(p: Project, onEdit: () => void): ProjectShortcut[] {
+function projectShortcuts(
+  p: Project,
+  onEdit: () => void,
+  t: (key: string) => string,
+): ProjectShortcut[] {
   const base = `/projects/${encodeURIComponent(p.id)}`;
   return [
-    { key: 'edit', label: 'Edit', icon: <EditIcon />, onSelect: onEdit },
-    { key: 'board', label: 'Work Board', icon: <BoardIcon />, to: `${base}/plans` },
-    { key: 'tasks', label: 'Tasks', icon: <TasksIcon />, to: `${base}?tab=tasks` },
-    { key: 'issues', label: 'Issues', icon: <IssuesIcon />, to: `${base}?tab=issues` },
-    { key: 'codebase', label: 'Codebase', icon: <CodebaseIcon />, to: `${base}?tab=repos` },
+    { key: 'edit', label: t('project.shortcut.edit'), icon: <EditIcon />, onSelect: onEdit },
+    { key: 'board', label: t('project.shortcut.board'), icon: <BoardIcon />, to: `${base}/plans` },
+    { key: 'tasks', label: t('project.shortcut.tasks'), icon: <TasksIcon />, to: `${base}?tab=tasks` },
+    { key: 'issues', label: t('project.shortcut.issues'), icon: <IssuesIcon />, to: `${base}?tab=issues` },
+    { key: 'codebase', label: t('project.shortcut.codebase'), icon: <CodebaseIcon />, to: `${base}?tab=repos` },
   ];
 }
 
@@ -240,7 +248,8 @@ function ProjectCardActions({
   project: Project;
   onEdit: () => void;
 }): React.ReactElement {
-  const shortcuts = projectShortcuts(p, onEdit);
+  const { t } = useTranslation('work');
+  const shortcuts = projectShortcuts(p, onEdit, t);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -300,7 +309,7 @@ function ProjectCardActions({
           className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary md:h-7 md:w-7 md:min-h-0 md:min-w-0"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          aria-label="Project actions"
+          aria-label={t('project.actions.menuLabel')}
           data-testid="project-actions-menu-btn"
           onClick={() => setMenuOpen((v) => !v)}
         >
@@ -354,11 +363,12 @@ function ProjectCardActions({
 // optional — present only on the LIST response — so a chip is rendered only
 // when its value is a number, and the whole row is omitted when none are.
 function ProjectCounts({ project: p }: { project: Project }): React.ReactElement | null {
-  const chips: Array<{ key: string; n: number; singular: string }> = [];
-  if (typeof p.task_count === 'number') chips.push({ key: 'tasks', n: p.task_count, singular: 'task' });
-  if (typeof p.issue_count === 'number') chips.push({ key: 'issues', n: p.issue_count, singular: 'issue' });
-  if (typeof p.plan_count === 'number') chips.push({ key: 'plans', n: p.plan_count, singular: 'plan' });
-  if (typeof p.repo_count === 'number') chips.push({ key: 'repos', n: p.repo_count, singular: 'repo' });
+  const { t } = useTranslation('work');
+  const chips: Array<{ key: string; n: number; i18nKey: string }> = [];
+  if (typeof p.task_count === 'number') chips.push({ key: 'tasks', n: p.task_count, i18nKey: 'project.counts.task' });
+  if (typeof p.issue_count === 'number') chips.push({ key: 'issues', n: p.issue_count, i18nKey: 'project.counts.issue' });
+  if (typeof p.plan_count === 'number') chips.push({ key: 'plans', n: p.plan_count, i18nKey: 'project.counts.plan' });
+  if (typeof p.repo_count === 'number') chips.push({ key: 'repos', n: p.repo_count, i18nKey: 'project.counts.repo' });
   if (chips.length === 0) return null;
   return (
     <div
@@ -367,8 +377,7 @@ function ProjectCounts({ project: p }: { project: Project }): React.ReactElement
     >
       {chips.map((c) => (
         <span key={c.key} data-testid={`project-count-${c.key}`}>
-          {c.n} {c.singular}
-          {c.n === 1 ? '' : 's'}
+          {t(c.i18nKey, { count: c.n })}
         </span>
       ))}
     </div>
@@ -377,6 +386,7 @@ function ProjectCounts({ project: p }: { project: Project }): React.ReactElement
 
 // ProjectStatusBadge renders the active/archived status chip.
 function ProjectStatusBadge({ status }: { status: Project['status'] }): React.ReactElement {
+  const { t } = useTranslation('work');
   return (
     <span
       className={[
@@ -387,7 +397,7 @@ function ProjectStatusBadge({ status }: { status: Project['status'] }): React.Re
       ].join(' ')}
       data-testid={`project-status-${status}`}
     >
-      {status}
+      {t(`project.status.${status}`)}
     </span>
   );
 }
@@ -463,12 +473,12 @@ function KebabIcon(): React.ReactElement {
 
 // Tiny inline relative-time helper (matches Home.tsx). Avoids a new
 // date-fns dep for "Xs / Xm / Xh / Xd ago" precision.
-function formatRelative(iso: string): string {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return '—';
-  const delta = Math.max(0, Math.floor((Date.now() - t) / 1000));
-  if (delta < 60) return `${delta}s ago`;
-  if (delta < 3600) return `${Math.floor(delta / 60)}m ago`;
-  if (delta < 86400) return `${Math.floor(delta / 3600)}h ago`;
-  return `${Math.floor(delta / 86400)}d ago`;
+function formatRelative(iso: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return '—';
+  const delta = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+  if (delta < 60) return t('project.relativeTime.seconds', { count: delta });
+  if (delta < 3600) return t('project.relativeTime.minutes', { count: Math.floor(delta / 60) });
+  if (delta < 86400) return t('project.relativeTime.hours', { count: Math.floor(delta / 3600) });
+  return t('project.relativeTime.days', { count: Math.floor(delta / 86400) });
 }

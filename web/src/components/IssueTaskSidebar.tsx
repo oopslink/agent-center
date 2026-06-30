@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { IssueStatus, TaskStatus } from '@/api/types';
 import { tagColorFor } from '@/components/tagColors';
 
@@ -33,6 +34,7 @@ const STATUS_BLOCK: Record<StatusKey, { label: string; cls: string }> = {
 };
 
 export function StatusBlock({ status }: { status: StatusKey }): React.ReactElement {
+  const { t } = useTranslation('work');
   const s = STATUS_BLOCK[status] ?? { label: status, cls: 'bg-status-slate-solid text-white' };
   return (
     <div
@@ -40,7 +42,7 @@ export function StatusBlock({ status }: { status: StatusKey }): React.ReactEleme
       data-testid="status-block"
       data-status={status}
     >
-      {s.label}
+      {t(`status.${status}`, { defaultValue: s.label })}
     </div>
   );
 }
@@ -72,11 +74,12 @@ export function IssueTaskSidebar({
   tags,
   workItemsSummary,
 }: IssueTaskSidebarProps): React.ReactElement {
+  const { t } = useTranslation('work');
   return (
     <aside
       className="space-y-3 rounded border border-border-base bg-bg-elevated p-3 text-sm"
       data-testid="issuetask-sidebar"
-      aria-label="Details"
+      aria-label={t('issue.taskSidebar.aria')}
     >
       <StatusBlock status={status} />
 
@@ -101,7 +104,7 @@ export function IssueTaskSidebar({
 
       {tags && (
         <div data-testid="sidebar-tags">
-          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Tags</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('issue.taskSidebar.tags')}</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {tags.map((tag) => {
               const c = tagColorFor(tag);
@@ -118,7 +121,7 @@ export function IssueTaskSidebar({
             })}
             {tags.length === 0 && (
               <span className="text-xs text-text-muted" data-testid="sidebar-tags-empty">
-                No tags
+                {t('issue.taskSidebar.noTags')}
               </span>
             )}
           </div>
@@ -127,7 +130,7 @@ export function IssueTaskSidebar({
 
       {workItemsSummary && (
         <div data-testid="sidebar-workitems-summary">
-          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Work items</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('issue.taskSidebar.workItems')}</p>
           {workItemsSummary}
         </div>
       )}

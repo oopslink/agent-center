@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFollowConversation } from '@/api/conversations';
 
 // v2.8 #264 P1 / #176 §4: a conversation-header follow/unfollow control.
@@ -13,9 +14,12 @@ export function FollowToggle({
   conversationId: string;
   followed: boolean;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const follow = useFollowConversation();
-  const label = followed ? 'Following' : 'Follow';
-  const aria = followed ? 'Unfollow this conversation' : 'Follow this conversation';
+  const label = followed ? t('widgets.followToggle.following') : t('widgets.followToggle.follow');
+  const aria = followed
+    ? t('widgets.followToggle.unfollowAria')
+    : t('widgets.followToggle.followAria');
   return (
     <button
       type="button"

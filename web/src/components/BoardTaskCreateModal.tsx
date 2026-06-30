@@ -9,6 +9,7 @@
 // destination — selects it into the target plan via the same add endpoint the
 // board's drag-and-drop uses, so the board refetch converges identically.
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCreateTask } from '@/api/tasks';
 import { useAddTaskToAnyPlan, type Plan } from '@/api/plans';
 import { useModalA11y } from './useModalA11y';
@@ -31,6 +32,7 @@ export function BoardTaskCreateModal({
   onClose,
   onCreated,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [requiredCaps, setRequiredCaps] = useState<string[]>([]);
@@ -90,30 +92,30 @@ export function BoardTaskCreateModal({
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 id="board-task-create-title" className="text-lg font-semibold">New Task</h2>
+          <h2 id="board-task-create-title" className="text-lg font-semibold">{t('task.create.heading')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('task.create.close')}
             data-testid="board-task-create-close"
           >
             X
           </button>
         </div>
 
-        <Field label="Title" required htmlFor="board-task-title-input">
+        <Field label={t('task.create.titleLabel')} required htmlFor="board-task-title-input">
           <input
             id="board-task-title-input"
             data-testid="board-task-create-title"
             className={inputClass}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="What should happen?"
+            placeholder={t('task.create.titlePlaceholder')}
           />
         </Field>
 
-        <Field label="Description" htmlFor="board-task-desc-input">
+        <Field label={t('task.create.descriptionLabel')} htmlFor="board-task-desc-input">
           <textarea
             id="board-task-desc-input"
             data-testid="board-task-create-description"
@@ -121,11 +123,11 @@ export function BoardTaskCreateModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            placeholder="Optional. Context, acceptance criteria, links…"
+            placeholder={t('task.create.descriptionPlaceholder')}
           />
         </Field>
 
-        <Field label="Required capabilities" htmlFor="board-task-create-caps-input">
+        <Field label={t('task.create.capabilitiesLabel')} htmlFor="board-task-create-caps-input">
           <CapabilitiesEditor
             idPrefix="board-task-create-caps"
             value={requiredCaps}
@@ -134,8 +136,8 @@ export function BoardTaskCreateModal({
         </Field>
 
         <Field
-          label="Destination"
-          hint="Where the task starts. Only draft plans can accept a new task."
+          label={t('task.create.destinationLabel')}
+          hint={t('task.create.destinationHint')}
           htmlFor="board-task-dest-input"
         >
           <select
@@ -145,14 +147,14 @@ export function BoardTaskCreateModal({
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
           >
-            <option value={BACKLOG}>Backlog (unscheduled)</option>
+            <option value={BACKLOG}>{t('task.create.destinationBacklog')}</option>
             {pool && (
               <option value={pool.id} data-testid="board-task-create-dest-pool">
-                Assignment Pool (claimable)
+                {t('task.create.destinationPool')}
               </option>
             )}
             {draftPlans.length > 0 && (
-              <optgroup label="Plans (draft)">
+              <optgroup label={t('task.create.destinationPlansGroup')}>
                 {draftPlans.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -176,7 +178,7 @@ export function BoardTaskCreateModal({
             onClick={onClose}
             data-testid="board-task-create-cancel"
           >
-            Cancel
+            {t('task.create.cancel')}
           </button>
           <button
             type="submit"
@@ -184,7 +186,7 @@ export function BoardTaskCreateModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="board-task-create-submit"
           >
-            {pending ? 'Creating…' : 'Create Task'}
+            {pending ? t('task.create.submitting') : t('task.create.submit')}
           </button>
         </div>
       </form>

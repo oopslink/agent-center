@@ -1,6 +1,7 @@
 // ProjectCreateModal — v2.7 Add Project form. id is server-generated;
 // `tags` was retired. Submission only requires `name`.
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCreateProject } from '@/api/projects';
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function ProjectCreateModal({ onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const create = useCreateProject();
@@ -41,29 +43,29 @@ export function ProjectCreateModal({ onClose }: Props): React.ReactElement {
         className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Add Project</h2>
+          <h2 className="text-lg font-semibold">{t('project.create.title')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('project.create.close')}
             data-testid="project-create-close"
           >
             X
           </button>
         </div>
 
-        <Field label="Name" required>
+        <Field label={t('project.create.nameLabel')} required>
           <input
             data-testid="project-create-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="My Project"
+            placeholder={t('project.create.namePlaceholder')}
             className={inputClass}
           />
         </Field>
 
-        <Field label="Description" hint="Optional. Shown in the project list.">
+        <Field label={t('project.create.descriptionLabel')} hint={t('project.create.descriptionHint')}>
           <textarea
             data-testid="project-create-description"
             value={description}
@@ -86,7 +88,7 @@ export function ProjectCreateModal({ onClose }: Props): React.ReactElement {
             onClick={onClose}
             data-testid="project-create-cancel"
           >
-            Cancel
+            {t('project.create.cancel')}
           </button>
           <button
             type="submit"
@@ -94,7 +96,7 @@ export function ProjectCreateModal({ onClose }: Props): React.ReactElement {
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="project-create-submit"
           >
-            {create.isPending ? 'Creating...' : 'Create project'}
+            {create.isPending ? t('project.create.submitting') : t('project.create.submit')}
           </button>
         </div>
       </form>

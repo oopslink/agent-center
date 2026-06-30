@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useOptionalOrgContext, orgPath } from '@/OrgContext';
 
 // TaskTitleLink (v2.9 Stage A6) — renders a task title as a link that opens the
@@ -34,6 +35,7 @@ export function TaskTitleLink({
   title: React.ReactNode;
   className?: string;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const ctx = useOptionalOrgContext();
   const href = orgPath(taskDetailPath(projectId, taskId), ctx?.slug);
   return (
@@ -46,7 +48,7 @@ export function TaskTitleLink({
       draggable={false}
       className={`group inline-flex max-w-full items-center gap-1 text-text-primary hover:text-accent hover:underline focus-visible:underline ${className ?? ''}`}
       data-testid={`task-open-link-${taskId}`}
-      title="Open task in a new tab"
+      title={t('widgets.taskTitleLink.openInNewTab')}
     >
       <span className="truncate">{title}</span>
       <OpenInNewTabIcon />

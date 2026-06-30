@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 
 interface EntityRefProps {
@@ -32,10 +33,12 @@ export function EntityRef({
   name,
   to,
   fallback,
-  deletedLabel = '(deleted)',
+  deletedLabel,
   className,
   testId = 'entity-ref',
 }: EntityRefProps): React.ReactElement {
+  const { t } = useTranslation('work');
+  const deletedText = deletedLabel ?? t('widgets.entityRef.deleted');
   const resolved = typeof name === 'string' && name.trim().length > 0;
   // A dangling reference: not resolved AND no fallback → "(deleted)", never linked.
   const deleted = !resolved && fallback === undefined;
@@ -49,7 +52,7 @@ export function EntityRef({
         title={id}
         className={`italic text-text-muted ${className ?? ''}`}
       >
-        {deletedLabel}
+        {deletedText}
       </span>
     );
   }

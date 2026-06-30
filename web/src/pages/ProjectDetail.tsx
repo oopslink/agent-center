@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -44,6 +45,7 @@ import { ProviderBadge } from '@/components/repoDisplay';
 // global Issues/Tasks page and no cross-project aggregation. Worker /
 // project mapping was retired.
 export default function ProjectDetail(): React.ReactElement {
+  const { t } = useTranslation('work');
   const { id = '' } = useParams<{ id: string }>();
   const project = useProject(id);
 
@@ -66,7 +68,7 @@ export default function ProjectDetail(): React.ReactElement {
           {(project.error as Error).message}
         </p>
         <OrgLink to="/projects" className="text-xs text-accent hover:underline">
-          ← Back to projects
+          {t('project.detail.backToProjects')}
         </OrgLink>
       </section>
     );
@@ -74,7 +76,7 @@ export default function ProjectDetail(): React.ReactElement {
   if (!project.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-ProjectDetail">
-        Project lookup failed.
+        {t('project.detail.lookupFailed')}
       </section>
     );
   }
@@ -82,7 +84,7 @@ export default function ProjectDetail(): React.ReactElement {
   const p = project.data;
   return (
     <section className="space-y-4" data-testid="page-ProjectDetail" data-project-id={p.id}>
-      <Breadcrumb items={[{ label: 'Projects', to: '/projects' }, { label: p.name }]} />
+      <Breadcrumb items={[{ label: t('project.detail.breadcrumb'), to: '/projects' }, { label: p.name }]} />
       <ProjectHeader project={p} />
       <ProjectStatsBlock project={p} />
       <ProjectWorkTabs projectId={p.id} />
@@ -91,6 +93,7 @@ export default function ProjectDetail(): React.ReactElement {
 }
 
 function ProjectStatusBadge({ status }: { status: Project['status'] }): React.ReactElement {
+  const { t } = useTranslation('work');
   return (
     <span
       className={[
@@ -101,7 +104,7 @@ function ProjectStatusBadge({ status }: { status: Project['status'] }): React.Re
       ].join(' ')}
       data-testid={`project-status-${status}`}
     >
-      {status}
+      {t(`project.status.${status}`)}
     </span>
   );
 }
@@ -114,6 +117,7 @@ const headerActionBtn =
   'inline-flex items-center rounded border px-2 py-1 text-xs leading-none';
 
 function ProjectHeader({ project: p }: { project: Project }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   return (
@@ -139,7 +143,7 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
             className={`${headerActionBtn} touch-target gap-1 border-border-base text-text-primary hover:bg-bg-subtle`}
             data-testid="project-plans-link"
           >
-            Work Board
+            {t('project.detail.workBoard')}
           </OrgLink>
           <button
             type="button"
@@ -147,7 +151,7 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
             onClick={() => setEditing(true)}
             data-testid="project-edit-btn"
           >
-            Edit
+            {t('project.detail.edit')}
           </button>
           <button
             type="button"
@@ -155,7 +159,7 @@ function ProjectHeader({ project: p }: { project: Project }): React.ReactElement
             onClick={() => setDeleting(true)}
             data-testid="project-delete-btn"
           >
-            Archive
+            {t('project.detail.archive')}
           </button>
         </div>
       </div>
@@ -177,6 +181,7 @@ function ProjectEditModal({
   project: Project;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [name, setName] = useState(p.name);
   const [description, setDescription] = useState(p.description ?? '');
   // T566: auto-assign master switch — default ON (absent ⇒ true).
@@ -207,15 +212,15 @@ function ProjectEditModal({
         onSubmit={submit}
         className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
-        <h2 className="mb-4 text-lg font-semibold">Edit Project</h2>
-        <label className="mb-2 block text-xs font-medium">Name</label>
+        <h2 className="mb-4 text-lg font-semibold">{t('project.edit.title')}</h2>
+        <label className="mb-2 block text-xs font-medium">{t('project.edit.nameLabel')}</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           className={editInputClass}
           data-testid="project-edit-name"
         />
-        <label className="mb-2 mt-3 block text-xs font-medium">Description</label>
+        <label className="mb-2 mt-3 block text-xs font-medium">{t('project.edit.descriptionLabel')}</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -228,15 +233,13 @@ function ProjectEditModal({
           <ToggleSwitch
             checked={autoAssign}
             onChange={setAutoAssign}
-            ariaLabel="Auto-assign pool tasks"
+            ariaLabel={t('project.edit.autoAssign.label')}
             testId="project-edit-auto-assign"
           />
           <span className="text-xs">
-            <span className="font-medium text-text-primary">Auto-assign pool tasks</span>
+            <span className="font-medium text-text-primary">{t('project.edit.autoAssign.label')}</span>
             <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
-              When on, claimable pool tasks are automatically assigned to an eligible idle
-              agent whose capabilities cover the task. Off = tasks wait for a manual
-              assign/claim.
+              {t('project.edit.autoAssign.hint')}
             </span>
           </span>
         </div>
@@ -251,7 +254,7 @@ function ProjectEditModal({
             className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
             onClick={onClose}
           >
-            Cancel
+            {t('project.edit.cancel')}
           </button>
           <button
             type="submit"
@@ -259,7 +262,7 @@ function ProjectEditModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="project-edit-save"
           >
-            {update.isPending ? 'Saving...' : 'Save'}
+            {update.isPending ? t('project.edit.saving') : t('project.edit.save')}
           </button>
         </div>
       </form>
@@ -274,6 +277,7 @@ function ProjectDeleteModal({
   project: Project;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const navigate = useNavigate();
   const del = useDeleteProject(p.id);
   const handleDelete = async () => {
@@ -292,13 +296,12 @@ function ProjectDeleteModal({
       aria-modal="true"
     >
       <div className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
-        <h2 className="mb-4 text-lg font-semibold text-danger">Archive project?</h2>
+        <h2 className="mb-4 text-lg font-semibold text-danger">{t('project.delete.title')}</h2>
         <p className="mb-3 text-sm text-text-secondary">
-          Archive <span className="font-mono">{p.name}</span> ({p.id})?
+          {t('project.delete.confirmPrefix')} <span className="font-mono">{p.name}</span>{t('project.delete.confirmSuffix', { id: p.id })}
         </p>
         <p className="mb-4 text-xs text-text-muted">
-          Archiving hides the project from the active list. Its Issues and Tasks
-          remain but the project is marked archived.
+          {t('project.delete.note')}
         </p>
         {del.isError && (
           <p className="mb-3 text-xs text-danger" data-testid="project-delete-error">
@@ -311,7 +314,7 @@ function ProjectDeleteModal({
             className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
             onClick={onClose}
           >
-            Cancel
+            {t('project.delete.cancel')}
           </button>
           <button
             type="button"
@@ -320,7 +323,7 @@ function ProjectDeleteModal({
             onClick={() => void handleDelete()}
             data-testid="project-delete-confirm"
           >
-            {del.isPending ? 'Archiving…' : 'Archive'}
+            {del.isPending ? t('project.delete.archiving') : t('project.delete.archive')}
           </button>
         </div>
       </div>
@@ -346,6 +349,7 @@ function isWorkTab(v: string | null): v is WorkTab {
 }
 
 function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [searchParams, setSearchParams] = useSearchParams();
   const raw = searchParams.get('tab');
   const tab: WorkTab = isWorkTab(raw) ? raw : 'issues';
@@ -359,12 +363,12 @@ function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactEleme
     );
   return (
     <div data-testid="project-work-tabs">
-      <div className="flex gap-1" role="tablist" aria-label="project work">
-        <TabButton label="Issues" value="issues" active={tab === 'issues'} onClick={() => setTab('issues')} />
-        <TabButton label="Tasks" value="tasks" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
-        <TabButton label="Plans" value="plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
-        <TabButton label="Members" value="members" active={tab === 'members'} onClick={() => setTab('members')} />
-        <TabButton label="Code repos" value="repos" active={tab === 'repos'} onClick={() => setTab('repos')} />
+      <div className="flex gap-1" role="tablist" aria-label={t('project.detail.tabs.aria')}>
+        <TabButton label={t('project.detail.tabs.issues')} value="issues" active={tab === 'issues'} onClick={() => setTab('issues')} />
+        <TabButton label={t('project.detail.tabs.tasks')} value="tasks" active={tab === 'tasks'} onClick={() => setTab('tasks')} />
+        <TabButton label={t('project.detail.tabs.plans')} value="plans" active={tab === 'plans'} onClick={() => setTab('plans')} />
+        <TabButton label={t('project.detail.tabs.members')} value="members" active={tab === 'members'} onClick={() => setTab('members')} />
+        <TabButton label={t('project.detail.tabs.repos')} value="repos" active={tab === 'repos'} onClick={() => setTab('repos')} />
       </div>
       <div className="mt-3">
         {tab === 'issues' && <IssuesPanel projectId={projectId} />}
@@ -412,6 +416,7 @@ function TabButton({
 // panels; each name links to the plan detail page. Plans are created/edited on
 // the Work Board, so there is no create button here.
 function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   // T302: the project plans endpoint with page params → SQL-paginated, builtin
   // pool excluded, returns { items, total }. usePlans (Work Board) stays
   // unpaginated + includes builtin.
@@ -432,13 +437,13 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
       data-testid="project-plans-panel"
     >
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold text-text-primary">Plans</h2>
+        <h2 className="font-heading text-sm font-semibold text-text-primary">{t('project.plans.title')}</h2>
         <OrgLink
           to={`/projects/${encodeURIComponent(projectId)}/plans`}
           className="rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-secondary hover:bg-border-base"
           data-testid="project-plans-board-link"
         >
-          Work Board
+          {t('project.detail.workBoard')}
         </OrgLink>
       </div>
       {plans.isLoading ? (
@@ -451,18 +456,18 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
           {(plans.error as Error).message}
         </p>
       ) : data.length === 0 ? (
-        <p className="py-4 text-center text-xs text-text-muted">No plans yet</p>
+        <p className="py-4 text-center text-xs text-text-muted">{t('project.plans.empty')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs" data-testid="project-plans-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Name" sortKey="name" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 pr-3 font-medium">Progress</th>
-                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 font-medium">Creator</th>
+                <SortHeader label={t('project.table.id')} sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.name')} sortKey="name" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.status')} sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('project.table.progress')}</th>
+                <SortHeader label={t('project.table.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 font-medium">{t('project.table.creator')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -507,15 +512,19 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
 }
 
 // v2.7 #207: map the RemoveProjectMember guard codes to friendly copy (Rule 9).
-function removeMemberErrorMessage(err: unknown): string {
+function removeMemberErrorMessage(
+  err: unknown,
+  t: (key: string) => string,
+): string {
   if (err instanceof ApiError) {
-    if (err.code === 'cannot_remove_owner') return "The project owner can't be removed.";
-    if (err.code === 'not_member') return 'This member is no longer in the project.';
+    if (err.code === 'cannot_remove_owner') return t('project.members.removeError.cannotRemoveOwner');
+    if (err.code === 'not_member') return t('project.members.removeError.notMember');
   }
-  return err instanceof Error ? err.message : 'Remove failed, please try again.';
+  return err instanceof Error ? err.message : t('project.members.removeError.generic');
 }
 
 function MembersPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   const members = useProjectMembers(projectId);
   // v2.7 #192: show member display names (raw identity id on hover).
   const resolveName = useDisplayNameResolver();
@@ -556,7 +565,7 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
       data-testid="project-members-panel"
     >
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold text-text-primary">Members</h2>
+        <h2 className="font-heading text-sm font-semibold text-text-primary">{t('project.members.title')}</h2>
         {isOwner && (
           <button
             type="button"
@@ -564,7 +573,7 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
             data-testid="project-add-member-button"
             className="rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
           >
-            + Add
+            {t('project.members.add')}
           </button>
         )}
       </div>
@@ -578,17 +587,17 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
           {(members.error as Error).message}
         </p>
       ) : data.length === 0 ? (
-        <p className="py-4 text-center text-xs text-text-muted">No members yet</p>
+        <p className="py-4 text-center text-xs text-text-muted">{t('project.members.empty')}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm" data-testid="project-members-table">
             <thead>
               <tr className="border-b border-border-base text-left text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                <th className="py-2 pr-3 font-medium">Identity ID</th>
-                <th className="py-2 pr-3 font-medium">Display Name</th>
-                <th className="py-2 pr-3 font-medium">Joined</th>
-                <th className="py-2 pr-3 font-medium">Kind</th>
-                <th className="py-2 pr-3 font-medium">Role</th>
+                <th className="py-2 pr-3 font-medium">{t('project.members.cols.identityId')}</th>
+                <th className="py-2 pr-3 font-medium">{t('project.members.cols.displayName')}</th>
+                <th className="py-2 pr-3 font-medium">{t('project.members.cols.joined')}</th>
+                <th className="py-2 pr-3 font-medium">{t('project.members.cols.kind')}</th>
+                <th className="py-2 pr-3 font-medium">{t('project.members.cols.role')}</th>
                 {isOwner && <th className="py-2 font-medium" />}
               </tr>
             </thead>
@@ -609,10 +618,10 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
                     </td>
                     <td className="py-2 pr-3 whitespace-nowrap text-text-muted">{shortDate(m.created_at)}</td>
                     <td className="py-2 pr-3">
-                      <span className={`rounded px-1.5 py-0.5 text-[0.6875rem] font-medium ${kind === 'agent' ? 'bg-brand/10 text-brand' : 'bg-bg-subtle text-text-muted'}`}>{kind}</span>
+                      <span className={`rounded px-1.5 py-0.5 text-[0.6875rem] font-medium ${kind === 'agent' ? 'bg-brand/10 text-brand' : 'bg-bg-subtle text-text-muted'}`}>{t(`project.members.kind.${kind}`)}</span>
                     </td>
                     <td className="py-2 pr-3">
-                      <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">{m.role}</span>
+                      <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-text-muted">{t(`project.members.role.${m.role}`, { defaultValue: m.role })}</span>
                     </td>
                     {isOwner && (
                       <td className="py-2 text-right">
@@ -624,7 +633,7 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
                             onClick={() => { remove.reset(); setPendingRemove({ id: m.identity_id, label }); }}
                             className="rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
                           >
-                            Remove
+                            {t('project.members.remove')}
                           </button>
                         )}
                       </td>
@@ -639,7 +648,7 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
 
       {remove.isError && (
         <p className="mt-2 text-xs text-danger" data-testid="project-member-remove-error" role="alert">
-          {removeMemberErrorMessage(remove.error)}
+          {removeMemberErrorMessage(remove.error, t)}
         </p>
       )}
 
@@ -651,13 +660,13 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
         open={pendingRemove !== null}
         danger
         busy={remove.isPending}
-        title="Remove member"
+        title={t('project.members.confirm.title')}
         message={
           pendingRemove
-            ? `Remove ${pendingRemove.label} from this project? They lose access to the project's tasks and issues.`
+            ? t('project.members.confirm.message', { label: pendingRemove.label })
             : undefined
         }
-        confirmLabel="Remove"
+        confirmLabel={t('project.members.confirm.confirmLabel')}
         onCancel={() => {
           if (remove.isPending) return;
           setPendingRemove(null);
@@ -679,6 +688,7 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
 // starred repo, used by Integrate merge-check), and an un-reference action; a selector adds a new
 // reference to any not-yet-referenced workspace repo.
 function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   const refs = useProjectCodeRepos(projectId);
   const workspaceRepos = useWorkspaceRepos();
   const addRef = useAddProjectRepoRef(projectId);
@@ -710,10 +720,9 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
       data-testid="project-repos-panel"
     >
-      <h2 className="mb-1 font-heading text-sm font-semibold text-text-primary">Referenced repositories</h2>
+      <h2 className="mb-1 font-heading text-sm font-semibold text-text-primary">{t('project.repos.title')}</h2>
       <p className="mb-3 text-xs text-text-muted">
-        Workspace repos this project references. The primary repo (starred) drives Integrate
-        merge-check. Configure url/credentials on the workspace Repos page.
+        {t('project.repos.subtitle')}
       </p>
       {refs.isLoading ? (
         <div className="space-y-2 py-2">
@@ -726,7 +735,7 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
         </p>
       ) : data.length === 0 ? (
         <p className="py-3 text-center text-xs text-text-muted" data-testid="project-repos-empty">
-          No referenced repositories.
+          {t('project.repos.empty')}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -743,8 +752,8 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
                   type="button"
                   onClick={() => !r.is_primary && setPrimary.mutate(r.id)}
                   disabled={r.is_primary || setPrimary.isPending}
-                  title={r.is_primary ? 'Primary repo' : 'Set as primary'}
-                  aria-label={r.is_primary ? 'Primary repo' : 'Set as primary'}
+                  title={r.is_primary ? t('project.repos.primaryRepo') : t('project.repos.setPrimary')}
+                  aria-label={r.is_primary ? t('project.repos.primaryRepo') : t('project.repos.setPrimary')}
                   data-testid="repo-row-primary"
                   data-primary={r.is_primary ? 'true' : 'false'}
                   className={`mt-0.5 ${r.is_primary ? 'text-warning' : 'text-text-muted hover:text-warning'}`}
@@ -765,7 +774,7 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
                     {repo && <ProviderBadge provider={repo.provider} />}
                     <span className="truncate text-sm font-medium text-text-primary">{repo?.label || r.label || r.url}</span>
                     {r.is_primary && (
-                      <span className="rounded bg-bg-subtle px-1 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wide text-warning">primary</span>
+                      <span className="rounded bg-bg-subtle px-1 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wide text-warning">{t('project.repos.primaryBadge')}</span>
                     )}
                     {repo?.default_branch && (
                       <span className="ml-auto rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.625rem] text-text-secondary">{repo.default_branch}</span>
@@ -782,7 +791,7 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
                   className="shrink-0 rounded border border-border-base px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
                   data-testid="repo-row-remove"
                 >
-                  Unreference
+                  {t('project.repos.unreference')}
                 </button>
               </li>
             );
@@ -797,10 +806,10 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
           onChange={(e) => setPick(e.target.value)}
           className="min-w-0 flex-1 rounded border border-border-base bg-bg-elevated px-2 py-1 text-xs text-text-primary"
           data-testid="project-repos-add-select"
-          aria-label="Reference a workspace repo"
+          aria-label={t('project.repos.selectAria')}
           disabled={available.length === 0}
         >
-          <option value="">{available.length === 0 ? 'No more workspace repos to reference' : 'Select a workspace repo…'}</option>
+          <option value="">{available.length === 0 ? t('project.repos.noMoreRepos') : t('project.repos.selectPlaceholder')}</option>
           {available.map((r) => (
             <option key={r.id} value={r.id}>{r.label}</option>
           ))}
@@ -812,7 +821,7 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
           className="shrink-0 rounded bg-brand px-3 py-1 text-xs font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
           data-testid="project-repos-add-btn"
         >
-          Add reference
+          {t('project.repos.addReference')}
         </button>
       </div>
       {(addRef.isError || removeRef.isError || setPrimary.isError) && (
@@ -827,6 +836,7 @@ function CodeReposPanel({ projectId }: { projectId: string }): React.ReactElemen
 // T131: the project Issue list reuses the global FilterBar (project dimension
 // fixed/hidden) and sends the same filter params to the project-scoped endpoint.
 function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [assignee, setAssignee] = useState<string>('');
   const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
@@ -854,14 +864,14 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
       data-testid="project-issues-panel"
     >
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold text-text-primary">Issues</h2>
+        <h2 className="font-heading text-sm font-semibold text-text-primary">{t('project.issues.title')}</h2>
         <button
           type="button"
           className="rounded bg-brand px-2 py-1 text-xs font-medium text-white hover:bg-brand-hover"
           onClick={() => setCreateOpen(true)}
           data-testid="project-issue-create-btn"
         >
-          + Open Issue
+          {t('project.issues.create')}
         </button>
       </div>
       <div className="mb-3">
@@ -892,7 +902,7 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
         </p>
       ) : data.length === 0 ? (
         <p className="py-4 text-center text-xs text-text-muted">
-          {selectedStatuses.length > 0 || assignee ? 'No matching issues' : 'No issues yet'}
+          {selectedStatuses.length > 0 || assignee ? t('project.issues.emptyFiltered') : t('project.issues.empty')}
         </p>
       ) : (
         // v2.7.1 #242: table layout (ID / Title / Status / Updated). ID-first so
@@ -901,11 +911,11 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
           <table className="w-full text-left text-xs" data-testid="project-issues-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Title" sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
+                <SortHeader label={t('project.table.id')} sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.title')} sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.status')} sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.updated')} sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -946,6 +956,7 @@ function IssuesPanel({ projectId }: { projectId: string }): React.ReactElement {
 // T131: the project Task list reuses the global FilterBar (project dimension
 // fixed/hidden) and sends the same filter params to the project-scoped endpoint.
 function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [assignee, setAssignee] = useState<string>('');
   const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
@@ -974,14 +985,14 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
       data-testid="project-tasks-panel"
     >
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-heading text-sm font-semibold text-text-primary">Tasks</h2>
+        <h2 className="font-heading text-sm font-semibold text-text-primary">{t('project.tasks.title')}</h2>
         <button
           type="button"
           className="rounded bg-brand px-2 py-1 text-xs font-medium text-white hover:bg-brand-hover"
           onClick={() => setCreateOpen(true)}
           data-testid="project-task-create-btn"
         >
-          + New Task
+          {t('project.tasks.create')}
         </button>
       </div>
       <div className="mb-3">
@@ -1012,7 +1023,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
         </p>
       ) : data.length === 0 ? (
         <p className="py-4 text-center text-xs text-text-muted">
-          {selectedStatuses.length > 0 || assignee ? 'No matching tasks' : 'No tasks yet'}
+          {selectedStatuses.length > 0 || assignee ? t('project.tasks.emptyFiltered') : t('project.tasks.empty')}
         </p>
       ) : (
         // v2.7.1 #242: table (ID / Title / Status / Assigned to / Priority / Updated).
@@ -1021,13 +1032,13 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
           <table className="w-full text-left text-xs" data-testid="project-tasks-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Title" sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 pr-3 font-medium">Assigned to</th>
-                <th className="py-1.5 pr-3 font-medium">Priority</th>
-                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
+                <SortHeader label={t('project.table.id')} sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.title')} sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.status')} sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('project.table.assignedTo')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('project.table.priority')}</th>
+                <SortHeader label={t('project.table.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('project.table.updated')} sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -1098,19 +1109,20 @@ function fmtCount(n: number | undefined): string {
 }
 
 function ProjectCountsCard({ project: p }: { project: Project }): React.ReactElement {
+  const { t } = useTranslation('work');
   const base = `/projects/${encodeURIComponent(p.id)}`;
   const tiles: { label: string; value: number | undefined; tab: WorkTab }[] = [
-    { label: 'Issues', value: p.issue_count, tab: 'issues' },
-    { label: 'Tasks', value: p.task_count, tab: 'tasks' },
-    { label: 'Plans', value: p.plan_count, tab: 'plans' },
-    { label: 'Repos', value: p.repo_count, tab: 'repos' },
+    { label: t('project.overview.issues'), value: p.issue_count, tab: 'issues' },
+    { label: t('project.overview.tasks'), value: p.task_count, tab: 'tasks' },
+    { label: t('project.overview.plans'), value: p.plan_count, tab: 'plans' },
+    { label: t('project.overview.repos'), value: p.repo_count, tab: 'repos' },
   ];
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
       data-testid="project-counts-card"
     >
-      <h2 className="mb-3 font-heading text-sm font-semibold text-text-primary">Overview</h2>
+      <h2 className="mb-3 font-heading text-sm font-semibold text-text-primary">{t('project.overview.title')}</h2>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {tiles.map((t) => (
           <OrgLink
@@ -1132,7 +1144,8 @@ function ProjectCountsCard({ project: p }: { project: Project }): React.ReactEle
 
 // ActivityKindBadge — a tiny pill marking a recent-activity row's entity kind.
 function ActivityKindBadge({ kind }: { kind: 'issue' | 'task' | 'plan' }): React.ReactElement {
-  const label = kind === 'issue' ? 'Issue' : kind === 'task' ? 'Task' : 'Plan';
+  const { t } = useTranslation('work');
+  const label = kind === 'issue' ? t('type.issue') : kind === 'task' ? t('type.task') : t('project.activity.kind.plan');
   return (
     <span className="shrink-0 rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary">
       {label}
@@ -1154,6 +1167,7 @@ interface ActivityRow {
 // so we derive it by fetching each list sorted by updated_at desc (small page)
 // and merging — a self-contained "what changed recently" without a new endpoint.
 function ProjectRecentActivityCard({ projectId }: { projectId: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   const recent = { sort: 'updated_at', dir: 'desc' as const, page: 1, page_size: 3 };
   const issues = useIssues(projectId, recent);
   const tasks = useTasksList(projectId, recent);
@@ -1192,7 +1206,7 @@ function ProjectRecentActivityCard({ projectId }: { projectId: string }): React.
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
       data-testid="project-activity-card"
     >
-      <h2 className="mb-3 font-heading text-sm font-semibold text-text-primary">Recent activity</h2>
+      <h2 className="mb-3 font-heading text-sm font-semibold text-text-primary">{t('project.activity.title')}</h2>
       {isLoading ? (
         <div className="space-y-2">
           <Skeleton height="1.25rem" />
@@ -1201,7 +1215,7 @@ function ProjectRecentActivityCard({ projectId }: { projectId: string }): React.
         </div>
       ) : rows.length === 0 ? (
         <p className="py-2 text-xs text-text-muted" data-testid="project-activity-empty">
-          No recent activity yet.
+          {t('project.activity.empty')}
         </p>
       ) : (
         <ul className="space-y-1.5" data-testid="project-activity-list">

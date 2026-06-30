@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useUpdateProject, type Project } from '@/api/projects';
 
@@ -17,6 +18,7 @@ export function ProjectEditModal({
   project: Project;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [name, setName] = useState(p.name);
   const [description, setDescription] = useState(p.description ?? '');
   const update = useUpdateProject(p.id);
@@ -40,14 +42,14 @@ export function ProjectEditModal({
       data-testid="project-edit-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Edit project"
+      aria-label={t('project.edit.ariaLabel')}
     >
       <form
         onSubmit={submit}
         className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
-        <h2 className="mb-4 text-lg font-semibold">Edit Project</h2>
-        <label className="mb-2 block text-xs font-medium">Name</label>
+        <h2 className="mb-4 text-lg font-semibold">{t('project.edit.title')}</h2>
+        <label className="mb-2 block text-xs font-medium">{t('project.edit.nameLabel')}</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -55,7 +57,7 @@ export function ProjectEditModal({
           data-testid="project-edit-name"
           autoFocus
         />
-        <label className="mb-2 mt-3 block text-xs font-medium">Description</label>
+        <label className="mb-2 mt-3 block text-xs font-medium">{t('project.edit.descriptionLabel')}</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -74,7 +76,7 @@ export function ProjectEditModal({
             className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
             onClick={onClose}
           >
-            Cancel
+            {t('project.edit.cancel')}
           </button>
           <button
             type="submit"
@@ -82,7 +84,7 @@ export function ProjectEditModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="project-edit-save"
           >
-            {update.isPending ? 'Saving...' : 'Save'}
+            {update.isPending ? t('project.edit.saving') : t('project.edit.save')}
           </button>
         </div>
       </form>

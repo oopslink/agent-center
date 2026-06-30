@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useProjects } from '@/api/projects';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
 import { statusSolidClass, statusDotClass } from '@/components/workItemDisplay';
@@ -64,11 +65,13 @@ const DATE_KEYS: (keyof DateRange)[] = [
 
 // Per-field a11y label + stable testid (kept identical to the old layout so the
 // existing date hooks/tests don't churn).
-const DATE_META: Record<keyof DateRange, { label: string; testid: string }> = {
-  created_after: { label: 'Created after', testid: 'org-filter-created-after' },
-  created_before: { label: 'Created before', testid: 'org-filter-created-before' },
-  updated_after: { label: 'Updated after', testid: 'org-filter-updated-after' },
-  updated_before: { label: 'Updated before', testid: 'org-filter-updated-before' },
+// `labelKey` resolves (via t()) to the per-field a11y label at render time; the
+// testid stays a stable literal.
+const DATE_META: Record<keyof DateRange, { labelKey: string; testid: string }> = {
+  created_after: { labelKey: 'filter.date.createdAfter', testid: 'org-filter-created-after' },
+  created_before: { labelKey: 'filter.date.createdBefore', testid: 'org-filter-created-before' },
+  updated_after: { labelKey: 'filter.date.updatedAfter', testid: 'org-filter-updated-after' },
+  updated_before: { labelKey: 'filter.date.updatedBefore', testid: 'org-filter-updated-before' },
 };
 
 // One native date input. lang="en" → the browser shows the `yyyy-mm-dd`
@@ -84,13 +87,14 @@ function DateInput({
   dateRange: DateRange;
   onDateRangeChange: (d: DateRange) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const meta = DATE_META[field];
   return (
     <input
       type="date"
       lang="en"
       data-testid={meta.testid}
-      aria-label={meta.label}
+      aria-label={t(meta.labelKey)}
       value={dateRange[field]}
       onChange={(e) => onDateRangeChange({ ...dateRange, [field]: e.target.value })}
       className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
@@ -100,18 +104,20 @@ function DateInput({
 
 // An inline "Label [start] → [end]" date pair (Created or Updated).
 function DatePair({
-  groupLabel,
+  groupLabelKey,
   startKey,
   endKey,
   dateRange,
   onDateRangeChange,
 }: {
-  groupLabel: string;
+  groupLabelKey: string;
   startKey: keyof DateRange;
   endKey: keyof DateRange;
   dateRange: DateRange;
   onDateRangeChange: (d: DateRange) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
+  const groupLabel = t(groupLabelKey);
   return (
     <span role="group" aria-label={groupLabel} className="inline-flex items-center gap-1.5">
       <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">{groupLabel}</span>
@@ -149,6 +155,7 @@ export function WorkItemFilterBar({
   // (the per-project Workspace lists). The ONLY difference from the global list.
   hideProject?: boolean;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   // Project picker source (multi-select) — each Project has id + name.
   const projects = useProjects();
   const projectList = projects.data ?? [];
@@ -226,7 +233,7 @@ export function WorkItemFilterBar({
           >
             <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span>Filters</span>
+          <span>{t('filter.title')}</span>
           {activeCount > 0 && (
             <span
               data-testid="org-filter-active-count"
@@ -246,7 +253,7 @@ export function WorkItemFilterBar({
           className="ml-auto inline-flex items-center gap-1 text-xs text-accent hover:underline disabled:text-text-muted disabled:no-underline disabled:opacity-60"
         >
           <span aria-hidden="true">&times;</span>
-          Clear filters
+          {t('filter.clear')}
         </button>
       </div>
       {!open ? null : (
@@ -254,7 +261,7 @@ export function WorkItemFilterBar({
       {/* Row 1 — status chips, then the two single-selects (right-aligned). */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">Status</span>
+          <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">{t('filter.status.label')}</span>
           {STATUS_OPTIONS[kind].map((s) => {
             const on = selectedStatuses.includes(s);
             // SELECTED = solid REV4 fill + white text; UNSELECTED = light bg + a
@@ -279,7 +286,7 @@ export function WorkItemFilterBar({
                     className={`h-2 w-2 rounded-full ${statusDotClass(s)}`}
                   />
                 )}
-                {s.replace(/_/g, ' ')}
+                {t(`status.${s}`)}
               </button>
             );
           })}
@@ -288,15 +295,15 @@ export function WorkItemFilterBar({
             fixes the project (T131 per-project lists). */}
         {!hideProject && (
           <label className="flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
-            <span>Project</span>
+            <span>{t('filter.project.label')}</span>
             <select
               data-testid="org-filter-project"
-              aria-label="Project"
+              aria-label={t('filter.project.label')}
               value={selectedProject}
               onChange={(e) => onProjectChange(e.target.value)}
               className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
             >
-              <option value="">All projects</option>
+              <option value="">{t('filter.project.all')}</option>
               {projectList.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -310,21 +317,21 @@ export function WorkItemFilterBar({
             users are distinguishable without color (Avatar #211 discipline).
             Value = the prefixed identity ref ("<kind>:<id>"); '' = Any. */}
         <label className="flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
-          <span>Assignee</span>
+          <span>{t('filter.assignee.label')}</span>
           <select
             data-testid="org-filter-assignee"
-            aria-label="Assignee"
+            aria-label={t('filter.assignee.label')}
             value={assignee}
             onChange={(e) => onAssigneeChange(e.target.value)}
             className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
           >
-            <option value="">Any</option>
+            <option value="">{t('filter.assignee.any')}</option>
             {memberList.map((m) => {
               const ref = memberRef(m);
               const name = m.display_name || normalizeIdentityRef(m.identity_id);
               return (
                 <option key={ref} value={ref}>
-                  {name} · {memberKind(m)}
+                  {name} · {t(`filter.assignee.kind.${memberKind(m)}`)}
                 </option>
               );
             })}
@@ -335,9 +342,9 @@ export function WorkItemFilterBar({
           the always-visible Clear pushed to the right. All 4 pickers stay
           functional + lang="en" (native yyyy-mm-dd placeholder, not 年/月/日). */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">Date range</span>
+        <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">{t('filter.date.label')}</span>
         <DatePair
-          groupLabel="Created"
+          groupLabelKey="filter.date.created"
           startKey="created_after"
           endKey="created_before"
           dateRange={dateRange}
@@ -345,7 +352,7 @@ export function WorkItemFilterBar({
         />
         <span aria-hidden="true" className="text-text-muted">|</span>
         <DatePair
-          groupLabel="Updated"
+          groupLabelKey="filter.date.updated"
           startKey="updated_after"
           endKey="updated_before"
           dateRange={dateRange}

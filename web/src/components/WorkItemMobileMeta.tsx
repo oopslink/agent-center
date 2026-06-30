@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { StatusBlock, type StatusKey } from '@/components/IssueTaskSidebar';
 import { refLabel } from '@/components/workItemDisplay';
@@ -77,6 +78,7 @@ export function MobileBannerMeta({
   onEdit: () => void;
   kind: 'task' | 'issue';
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const duration = formatStatusDuration(statusChangedAt);
   const [actionsOpen, setActionsOpen] = useState(false);
 
@@ -95,7 +97,7 @@ export function MobileBannerMeta({
           aria-expanded={actionsOpen}
           aria-haspopup="true"
         >
-          Actions <span aria-hidden="true">▾</span>
+          {t('workItem.mobile.actions')} <span aria-hidden="true">▾</span>
         </button>
         {actionsOpen && (
           <div className="absolute right-0 top-full z-20 mt-1 w-36 rounded-lg border border-border-base bg-bg-elevated shadow-2" data-testid="wi-mobile-actions-menu" role="menu">
@@ -107,7 +109,7 @@ export function MobileBannerMeta({
               data-testid="wi-mobile-showinfo"
               aria-expanded={showInfo}
             >
-              {showInfo ? 'Hide info' : 'Show info'}
+              {showInfo ? t('workItem.mobile.hideInfo') : t('workItem.mobile.showInfo')}
             </button>
             {editable && (
               <button
@@ -117,7 +119,7 @@ export function MobileBannerMeta({
                 className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle"
                 data-testid="wi-mobile-edit-button"
               >
-                {kind === 'task' ? 'Edit Task' : 'Edit Issue'}
+                {kind === 'task' ? t('workItem.mobile.editTask') : t('workItem.mobile.editIssue')}
               </button>
             )}
           </div>
@@ -164,10 +166,11 @@ export function MobileDetailsContent({
   createdAt: string;
   tags: string[];
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   return (
     <div className="space-y-1" data-testid="wi-mobile-details-content">
       {projectId && (
-        <Row label="Project">
+        <Row label={t('workItem.mobile.project')}>
           <OrgLink
             to={`/projects/${encodeURIComponent(projectId)}`}
             className="text-accent hover:underline"
@@ -177,7 +180,7 @@ export function MobileDetailsContent({
           </OrgLink>
         </Row>
       )}
-      <Row label={kind === 'task' ? 'Task ID' : 'Issue ID'}>
+      <Row label={kind === 'task' ? t('workItem.mobile.taskId') : t('workItem.mobile.issueId')}>
         <span
           className="inline-block rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-text-secondary"
           data-testid="wi-mobile-id-pill"
@@ -186,9 +189,9 @@ export function MobileDetailsContent({
           {refLabel(orgRef, itemId)}
         </span>
       </Row>
-      <Row label="Created">{formatLocalTime(createdAt)}</Row>
+      <Row label={t('workItem.mobile.created')}>{formatLocalTime(createdAt)}</Row>
       <div className={`flex items-center justify-between gap-3 ${TOUCH_ROW}`}>
-        <span className={MOBILE_LABEL}>Tags</span>
+        <span className={MOBILE_LABEL}>{t('workItem.mobile.tags')}</span>
         <span className="flex flex-wrap items-center justify-end gap-1.5">
           {tags.length > 0 ? (
             tags.map((tag) => {
@@ -205,7 +208,7 @@ export function MobileDetailsContent({
               );
             })
           ) : (
-            <span className="text-xs text-text-muted">No tags</span>
+            <span className="text-xs text-text-muted">{t('workItem.mobile.noTags')}</span>
           )}
         </span>
       </div>

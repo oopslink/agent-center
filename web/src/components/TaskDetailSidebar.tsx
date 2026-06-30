@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import type { Task } from '@/api/types';
 import { Avatar } from '@/components/Avatar';
@@ -79,6 +80,7 @@ export function TaskDetailSidebar({
   onEdit,
   editable,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const tk = task;
   // Hoist to a const so the truthy-narrowing below survives into the
   // openSender closure (T102) — TS re-widens a mutable property (tk.assignee)
@@ -96,37 +98,37 @@ export function TaskDetailSidebar({
     <aside
       className="space-y-4 rounded border border-border-base bg-bg-elevated p-3 text-sm"
       data-testid="task-detail-sidebar"
-      aria-label="Task details"
+      aria-label={t('task.sidebar.ariaLabel')}
     >
       {/* ───────── TOP: display (edit only via the modal) ───────── */}
       <section className="space-y-3" data-testid="task-sidebar-editable">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Details</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('task.sidebar.details')}</p>
           {editable && (
             <button
               type="button"
               onClick={onEdit}
               className="inline-flex items-center gap-1 rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
               data-testid="task-edit-button"
-              aria-label="Edit task"
+              aria-label={t('task.sidebar.editTaskAria')}
             >
               <PencilIcon />
-              Edit Task
+              {t('task.sidebar.editTask')}
             </button>
           )}
         </div>
 
         {/* STATUS + in-status duration — display only */}
         <div data-testid="task-sidebar-status">
-          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Status</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.status')}</p>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBlock status={tk.status} />
             {duration && (
               <span
                 className="text-xs text-text-muted"
                 data-testid="task-status-duration"
-                aria-label={`In current status for ${duration}`}
-                title={`In current status for ${duration}`}
+                aria-label={t('task.sidebar.inStatusFor', { duration })}
+                title={t('task.sidebar.inStatusFor', { duration })}
               >
                 {duration}
               </span>
@@ -136,7 +138,7 @@ export function TaskDetailSidebar({
 
         {/* ASSIGNEE — avatar + name, display only */}
         <div data-testid="task-sidebar-assignee">
-          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Assignee</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.assignee')}</p>
           <div className="flex flex-wrap items-center gap-2">
             {assignee ? (
               openSender ? (
@@ -144,7 +146,7 @@ export function TaskDetailSidebar({
                   type="button"
                   onClick={() => openSender(assignee)}
                   data-testid="task-assignee-open"
-                  title={`Open ${assigneeName && assigneeName !== assignee ? assigneeName : assignee}'s activity`}
+                  title={t('task.sidebar.openActivity', { name: assigneeName && assigneeName !== assignee ? assigneeName : assignee })}
                   className="inline-flex items-center gap-2 rounded hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <Avatar name={assigneeName && assigneeName.trim() ? assigneeName : assignee} size="sm" />
@@ -166,7 +168,7 @@ export function TaskDetailSidebar({
               )
             ) : (
               <span className="text-text-muted" data-testid="task-assignee-empty">
-                Unassigned
+                {t('task.sidebar.unassigned')}
               </span>
             )}
           </div>
@@ -174,7 +176,7 @@ export function TaskDetailSidebar({
 
         {/* TAGS — hashed (both-mode-AA) chips, display only */}
         <div data-testid="task-sidebar-tags">
-          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Tags</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.tags')}</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {tags.map((tag) => {
               const c = tagColorFor(tag);
@@ -191,7 +193,7 @@ export function TaskDetailSidebar({
             })}
             {tags.length === 0 && (
               <span className="text-xs text-text-muted" data-testid="task-tags-empty">
-                No tags
+                {t('task.sidebar.noTags')}
               </span>
             )}
           </div>
@@ -204,7 +206,7 @@ export function TaskDetailSidebar({
       <section className="space-y-3" data-testid="task-sidebar-readonly">
         {tk.project_id && (
           <div>
-            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Project</p>
+            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.project')}</p>
             <OrgLink
               to={`/projects/${encodeURIComponent(tk.project_id)}`}
               className="text-accent hover:underline"
@@ -220,7 +222,7 @@ export function TaskDetailSidebar({
             page passes no `plan` then). */}
         {plan && (
           <div data-testid="task-sidebar-plan">
-            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Plan</p>
+            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.plan')}</p>
             <OrgLink
               to={`/projects/${encodeURIComponent(tk.project_id)}/plans/${encodeURIComponent(plan.id)}`}
               className="inline-flex items-center gap-1.5 text-accent hover:underline"
@@ -240,7 +242,7 @@ export function TaskDetailSidebar({
             shown when the page resolved the derived issue. */}
         {derivedIssue && (
           <div data-testid="task-sidebar-derived-issue">
-            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Related Issue</p>
+            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.relatedIssue')}</p>
             <OrgLink
               to={`/projects/${encodeURIComponent(tk.project_id)}/issues/${encodeURIComponent(derivedIssue.id)}`}
               className="inline-flex items-center gap-1.5 text-accent hover:underline"
@@ -257,7 +259,7 @@ export function TaskDetailSidebar({
         )}
 
         <div>
-          <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Task ID</p>
+          <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.taskId')}</p>
           {/* #192 chrome rule: id-as-content → a clean handle pill (tail), full id on hover. */}
           <span
             className="inline-block rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-text-secondary"
@@ -269,7 +271,7 @@ export function TaskDetailSidebar({
         </div>
 
         <div>
-          <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Created</p>
+          <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.created')}</p>
           <span className="text-text-secondary" data-testid="task-created">
             {formatLocalTime(tk.created_at)}
           </span>

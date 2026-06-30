@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -30,6 +31,7 @@ import { MobileBannerMeta, MobileDetailsContent, useIsMobile } from '@/component
 // pencil → IssueEditModal. v2.8.1 sidebar-align: this mirrors TaskDetailSidebar
 // (minus assignee — Issues have none), symmetric with TaskDetail.
 export default function IssueDetail(): React.ReactElement {
+  const { t } = useTranslation('work');
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const issue = useIssue(projectId, id);
   // v2.7 #192: parent project shown by name (raw id on hover), not raw project id.
@@ -48,7 +50,7 @@ export default function IssueDetail(): React.ReactElement {
       <section className="space-y-3" role="status" data-testid="page-IssueDetail">
         <Skeleton width="12rem" height="1.5rem" />
         <Skeleton height="4rem" />
-        <span className="sr-only">Loading issue…</span>
+        <span className="sr-only">{t('issue.detail.loading')}</span>
       </section>
     );
   }
@@ -59,7 +61,7 @@ export default function IssueDetail(): React.ReactElement {
           {(issue.error as Error).message}
         </p>
         <OrgLink to={`/projects/${encodeURIComponent(projectId)}`} className="text-accent hover:underline">
-          Back to project
+          {t('issue.detail.backToProject')}
         </OrgLink>
       </section>
     );
@@ -67,7 +69,7 @@ export default function IssueDetail(): React.ReactElement {
   if (!issue.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-IssueDetail">
-        Issue lookup failed.
+        {t('issue.detail.lookupFailed')}
       </section>
     );
   }
@@ -81,9 +83,9 @@ export default function IssueDetail(): React.ReactElement {
       <div className="mb-2 hidden md:block">
         <Breadcrumb
           items={[
-            { label: 'Projects', to: '/projects' },
-            { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(iss.project_id)}` },
-            { label: 'Issues' },
+            { label: t('issue.detail.breadcrumb.projects'), to: '/projects' },
+            { label: project.data?.name || t('issue.detail.breadcrumb.project'), to: `/projects/${encodeURIComponent(iss.project_id)}` },
+            { label: t('issue.detail.breadcrumb.issues') },
             { label: iss.org_ref ? `${iss.org_ref} - ${iss.title || iss.id}` : iss.title || iss.id },
           ]}
         />
@@ -129,16 +131,16 @@ export default function IssueDetail(): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => setShowInfo(false)}
-                    aria-label="Close info"
+                    aria-label={t('issue.detail.closeInfo')}
                     className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary"
                     data-testid="wi-mobile-info-close"
                   >
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true"><path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" /></svg>
                   </button>
                   {iss.description ? (
-                    <CollapsibleDescription content={iss.description} testId="issue-description" ariaLabel="Issue description" />
+                    <CollapsibleDescription content={iss.description} testId="issue-description" ariaLabel={t('issue.detail.descriptionAria')} />
                   ) : (
-                    <p className="text-sm italic text-text-muted">No description.</p>
+                    <p className="text-sm italic text-text-muted">{t('issue.detail.noDescription')}</p>
                   )}
                   <div className="mt-3 border-t border-border-base pt-3">
                     <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
@@ -169,9 +171,9 @@ export default function IssueDetail(): React.ReactElement {
               {iss.description ? (
                 // T179: long descriptions default-collapse (Show more) so they don't
                 // push the conversation off-screen; expanding reveals the full markdown.
-                <CollapsibleDescription content={iss.description} testId="issue-description" ariaLabel="Issue description" />
+                <CollapsibleDescription content={iss.description} testId="issue-description" ariaLabel={t('issue.detail.descriptionAria')} />
               ) : (
-                <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+                <p className="mt-4 text-sm italic text-text-muted">{t('issue.detail.noDescription')}</p>
               )}
               <div className="mt-4 border-t border-border-base pt-3">
                 <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
