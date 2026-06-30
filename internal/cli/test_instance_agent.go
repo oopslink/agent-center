@@ -128,6 +128,15 @@ func seedAndEnrollWithAgent(ctx context.Context, pack *accessPack, layout testIn
 	//    tool_use/result events. Concrete prompt (Tester #255 A5: agents are
 	//    cautious with vague "acceptance test" wording → a clear task elicits
 	//    real tool use). Assignee uses the agent's member-id (agent:<member-id>).
+	//
+	//    issue-ca51e07c F2: this is ONE atomic create→assign→dispatch (assignee +
+	//    dispatch=true), NOT the former create-then-assign. assign ALONE leaves the
+	//    task in the BACKLOG (decoupled from runnability, T130): it is never a
+	//    built-in-pool member, so the agent's start_task returns task_not_runnable
+	//    and the agent never actually runs. dispatch=true selects the task into the
+	//    project's built-in Assignment Pool and records the dispatch in the same tx,
+	//    so the seeded task lands RUNNABLE — making the CLI's "dispatches a task so
+	//    it produces tool events" claim true (no manual pool-select / wake needed).
 	assignee := "agent:" + agentMemberID
 	projectID := ""
 	if pack.Entities != nil {
@@ -142,13 +151,10 @@ func seedAndEnrollWithAgent(ctx context.Context, pack *accessPack, layout testIn
 	if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/projects/"+projectID+"/tasks", map[string]any{
 		"title":       "List the files in the project root",
 		"description": "Run `ls` in the project root directory and report the file names you see.",
+		"assignee":    assignee,
+		"dispatch":    true,
 	}, &taskResp); err != nil {
-		return fmt.Errorf("create dispatch task: %w", err)
-	}
-	if err := seedPostJSON(ctx, client, base+"/api/orgs/"+slug+"/projects/"+projectID+"/tasks/"+taskResp.ID+"/assign", map[string]any{
-		"assignee": assignee,
-	}, nil); err != nil {
-		return fmt.Errorf("assign task to agent: %w", err)
+		return fmt.Errorf("create+dispatch task: %w", err)
 	}
 	pack.Agent.DispatchedTaskID = taskResp.ID
 	return nil
