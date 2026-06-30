@@ -11,7 +11,8 @@ import { Skeleton } from '@/components/Skeleton';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { RepoFormModal } from '@/components/RepoFormModal';
 import { ProviderBadge } from '@/components/repoDisplay';
-import { formatLocalTime } from '@/utils/time';
+import { formatDayLabel, formatLocalTime, formatRelativeTime, localDayKey } from '@/utils/time';
+import type { RepoCommit } from '@/api/types';
 
 // OrgRepos (/repos) — the workspace-level code-repo registry (T575,
 // issue-f980c8de). Repos are top-level workspace entities; projects only
@@ -249,21 +250,7 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
         <RemoteList
           query={commits}
           empty="No commits."
-          render={(data) => (
-            <ul className="space-y-2" data-testid="repo-remote-commits">
-              {(data.commits ?? []).map((c) => (
-                <li key={c.sha} className="border-b border-border-base pb-2 last:border-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.625rem] text-accent">{c.sha.slice(0, 7)}</span>
-                    <span className="text-sm text-text-primary">{c.message}</span>
-                  </div>
-                  <p className="mt-0.5 text-[0.6875rem] text-text-muted">
-                    {c.author}{c.date ? ` · ${formatLocalTime(c.date)}` : ''}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
+          render={(data) => <CommitTimeline commits={data.commits ?? []} repo={repo} />}
         />
       ) : (
         <RemoteList
@@ -289,6 +276,179 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
         Live from the remote (go-github; falls back to git ls-remote). Never cloned.
       </p>
     </div>
+  );
+}
+
+// CommitTimeline — GitHub-style commit list (@oopslink mockup): commits grouped by
+// LOCAL calendar day under a "Commits on {day}" header with a left timeline rail,
+// each commit a bordered card (subject + optional body toggle, author line with a
+// relative "committed … ago", and a right-aligned short SHA + copy + browse-code).
+// Data note: the BE-2 /commits contract exposes only {sha,message,author,date}, so
+// the mockup's "N people / committer / real avatar" can't be sourced yet — we show
+// the single author + a generic avatar glyph rather than fabricate them.
+function CommitTimeline({ commits, repo }: { commits: RepoCommit[]; repo: WorkspaceRepo }): React.ReactElement {
+  // Group by local day, preserving the API's (newest-first) order both across and
+  // within groups — a Map keeps first-seen key insertion order.
+  const groups = new Map<string, RepoCommit[]>();
+  for (const c of commits) {
+    const key = localDayKey(c.date) || 'unknown';
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(c);
+    else groups.set(key, [c]);
+  }
+
+  return (
+    <div className="flex flex-col" data-testid="repo-remote-commits">
+      {[...groups.entries()].map(([key, items]) => (
+        <section key={key} className="relative pl-6">
+          {/* timeline rail + node */}
+          <span className="absolute left-[5px] top-2 bottom-0 w-px bg-border-base" aria-hidden="true" />
+          <h3 className="relative mb-2 mt-1 flex items-center text-xs font-medium text-text-muted">
+            <span className="absolute -left-[1.4rem] grid h-[11px] w-[11px] place-items-center rounded-full border-2 border-border-strong bg-bg-elevated" aria-hidden="true">
+              <span className="h-1 w-1 rounded-full bg-text-muted" />
+            </span>
+            Commits on {items[0]?.date ? formatDayLabel(items[0].date) : 'unknown date'}
+          </h3>
+          <ul className="mb-3 divide-y divide-border-base overflow-hidden rounded-lg border border-border-base bg-bg-elevated">
+            {items.map((c) => (
+              <CommitRow key={c.sha} commit={c} repo={repo} />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+// CommitRow — one commit card. Splits the message into a SUBJECT (first line) and an
+// optional BODY (the rest); the body collapses behind a "…" toggle (GitHub idiom).
+function CommitRow({ commit, repo }: { commit: RepoCommit; repo: WorkspaceRepo }): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const nl = commit.message.indexOf('\n');
+  const subject = (nl === -1 ? commit.message : commit.message.slice(0, nl)).trim();
+  const body = nl === -1 ? '' : commit.message.slice(nl + 1).trim();
+  const short = commit.sha.slice(0, 7);
+  const href = commitUrl(repo, commit.sha);
+
+  return (
+    <li className="flex items-start gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-2">
+          <span className="break-words text-sm font-semibold leading-snug text-text-primary">{subject}</span>
+          {body && (
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-label={open ? 'Hide commit description' : 'Show commit description'}
+              title={open ? 'Hide description' : 'Show description'}
+              data-testid="repo-commit-body-toggle"
+              className={`mt-0.5 shrink-0 rounded px-1.5 leading-none text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent ${open ? 'bg-bg-subtle text-text-primary' : 'bg-bg-subtle'}`}
+            >
+              <span className="text-sm font-bold tracking-tight" aria-hidden="true">…</span>
+            </button>
+          )}
+        </div>
+        {body && open && (
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded border border-border-base bg-bg-subtle px-3 py-2 font-mono text-xs text-text-secondary" data-testid="repo-commit-body">
+            {body}
+          </pre>
+        )}
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
+          <AvatarGlyph />
+          <span className="font-medium text-text-secondary">{commit.author || 'unknown'}</span>
+          {commit.date && (
+            <span title={formatLocalTime(commit.date)}>committed {formatRelativeTime(commit.date)}</span>
+          )}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <span className="font-mono text-xs text-text-muted">{short}</span>
+        <CopyShaButton sha={commit.sha} />
+        {href && (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Browse the repository at ${short}`}
+            title="Browse the repository at this point"
+            data-testid="repo-commit-browse"
+            className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <CodeIcon />
+          </a>
+        )}
+      </div>
+    </li>
+  );
+}
+
+// CopyShaButton — copy the FULL sha (not the short form) with a brief "copied" swap,
+// mirroring the MessageCopyButton idiom (icon-only chrome; name on aria-label/title).
+function CopyShaButton({ sha }: { sha: string }): React.ReactElement {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(sha);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label="Copy the full commit SHA"
+      title={copied ? 'Copied' : 'Copy full SHA'}
+      data-testid="repo-commit-copy"
+      className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-colors"
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+    </button>
+  );
+}
+
+// commitUrl — best-effort browse link to a commit on the remote host. We only have
+// the repo's clone url; normalise it (drop a trailing ".git" / user@host scp form)
+// and append the GitHub/GitLab "/commit/<sha>" path. Returns '' for non-http remotes
+// so the caller omits the affordance rather than emit a broken link.
+function commitUrl(repo: WorkspaceRepo, sha: string): string {
+  const raw = (repo.url || '').trim();
+  if (!/^https?:\/\//i.test(raw)) return '';
+  const base = raw.replace(/\.git$/i, '').replace(/\/+$/, '');
+  return `${base}/commit/${sha}`;
+}
+
+function AvatarGlyph(): React.ReactElement {
+  return (
+    <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-bg-subtle text-text-muted" aria-hidden="true">
+      <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3">
+        <path d="M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 1.5c-2.7 0-5 1.4-5 3.2V16h10v-1.3c0-1.8-2.3-3.2-5-3.2Z" />
+      </svg>
+    </span>
+  );
+}
+
+function CodeIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.6" aria-hidden="true">
+      <path d="M7 6 3.5 10 7 14M13 6l3.5 4-3.5 4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CopyIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="7" y="7" width="9" height="9" rx="1.5" strokeLinejoin="round" />
+      <path d="M13 4.5H5.5A1.5 1.5 0 0 0 4 6v7.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="2" aria-hidden="true">
+      <path d="M4.5 10.5l3.5 3.5 7.5-8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

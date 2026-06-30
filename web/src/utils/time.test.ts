@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatChatDate, formatChatTime, formatLocalDateTimeSeconds, formatLocalTime, formatStatusDuration, localDateToRFC3339 } from './time';
+import { formatChatDate, formatChatTime, formatDayLabel, formatLocalDateTimeSeconds, formatLocalTime, formatRelativeTime, formatStatusDuration, localDateToRFC3339, localDayKey } from './time';
 
 describe('formatLocalTime', () => {
   const iso = '2026-06-04T07:34:21.874846Z';
@@ -181,5 +181,60 @@ describe('formatStatusDuration', () => {
   it('clamps clock skew (future timestamp) to "<1m" not a negative duration', () => {
     const future = new Date(now + 60 * 1000).toISOString();
     expect(formatStatusDuration(future, now)).toBe('<1m');
+  });
+});
+
+// formatRelativeTime — GitHub-style coarse "time ago" for the commit list.
+describe('formatRelativeTime', () => {
+  const now = new Date('2026-06-30T12:00:00Z').getTime();
+  const ago = (s: number) => new Date(now - s * 1000).toISOString();
+
+  it('renders the coarse buckets with correct singular/plural', () => {
+    expect(formatRelativeTime(ago(10), now)).toBe('just now');
+    expect(formatRelativeTime(ago(60), now)).toBe('1 minute ago');
+    expect(formatRelativeTime(ago(6 * 60), now)).toBe('6 minutes ago');
+    expect(formatRelativeTime(ago(3600), now)).toBe('1 hour ago');
+    expect(formatRelativeTime(ago(5 * 3600), now)).toBe('5 hours ago');
+    expect(formatRelativeTime(ago(86400), now)).toBe('yesterday');
+    expect(formatRelativeTime(ago(3 * 86400), now)).toBe('3 days ago');
+  });
+
+  it('falls back to an absolute day label past ~30 days', () => {
+    const out = formatRelativeTime(ago(60 * 86400), now);
+    expect(out).not.toMatch(/ago|yesterday/);
+    expect(out).toContain('2026');
+  });
+
+  it('clamps a future instant (clock skew) to "just now"', () => {
+    expect(formatRelativeTime(new Date(now + 5000).toISOString(), now)).toBe('just now');
+  });
+
+  it('returns "" for missing / invalid input (caller omits gracefully)', () => {
+    expect(formatRelativeTime(undefined, now)).toBe('');
+    expect(formatRelativeTime('', now)).toBe('');
+    expect(formatRelativeTime('not-a-date', now)).toBe('');
+  });
+});
+
+describe('formatDayLabel / localDayKey', () => {
+  const iso = '2026-06-30T12:00:00Z';
+
+  it('formatDayLabel renders an absolute no-time local day label', () => {
+    const out = formatDayLabel(iso);
+    expect(out).toContain('2026');
+    expect(out).not.toMatch(/T\d\d:\d\d|:\d\d/); // no time component
+  });
+
+  it('localDayKey yields a sortable YYYY-MM-DD local key', () => {
+    expect(localDayKey(iso)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('two instants on the same local day share a key (group together)', () => {
+    expect(localDayKey('2026-06-30T01:00:00Z')).toBe(localDayKey('2026-06-30T09:00:00Z'));
+  });
+
+  it('fail-safe on bad input', () => {
+    expect(formatDayLabel('nope')).toBe('nope');
+    expect(localDayKey('nope')).toBe('');
   });
 });

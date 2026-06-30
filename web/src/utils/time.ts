@@ -123,6 +123,55 @@ export function formatStatusDuration(
   return `${mins}m`;
 }
 
+// formatRelativeTime — a GitHub-style coarse "time ago" label for a past instant,
+// computed FE-side as (now − iso): "just now", "N minutes ago", "N hours ago",
+// "yesterday", "N days ago", then falls back to an absolute local date ("Jun 30,
+// 2026") once it is older than ~30 days. Singular/plural handled ("1 minute ago").
+// A FUTURE instant (clock skew) clamps to "just now". Invalid/empty input → '' so
+// the caller can omit it gracefully. now is injectable for deterministic tests.
+export function formatRelativeTime(iso: string | undefined | null, now: number = Date.now()): string {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  let secs = Math.floor((now - t) / 1000);
+  if (secs < 0) secs = 0; // future / clock skew → "just now"
+  if (secs < 45) return 'just now';
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} ${mins === 1 ? 'minute' : 'minutes'} ago`;
+  const hours = Math.round(secs / 3600);
+  if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+  const days = Math.round(secs / 86400);
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days} days ago`;
+  return formatDayLabel(iso);
+}
+
+// formatDayLabel — an absolute, no-time day label in the viewer's LOCAL timezone,
+// e.g. "Jun 30, 2026". Used for the commit-list date-group headers ("Commits on
+// {label}") and as formatRelativeTime's old-instant fallback. Invalid/empty input
+// is returned unchanged (fail-safe — never throw on bad data).
+export function formatDayLabel(iso: string): string {
+  if (!iso) return iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(d);
+}
+
+// localDayKey — a stable, sortable "YYYY-MM-DD" key for the viewer's LOCAL calendar
+// day of an instant (en-CA yields that shape directly). Used to GROUP a commit list
+// by day before rendering each group's header. Invalid/empty input → '' (its own
+// bucket; the header then renders the raw value via formatDayLabel's fail-safe).
+export function localDayKey(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
 // localDateToRFC3339 — convert a `<input type="date">` value ("YYYY-MM-DD") into
 // an RFC3339 ABSOLUTE instant in the viewer's LOCAL timezone (#258 date-range
 // filter, PR #224 backend). This is the off-by-one 命门: the backend compares

@@ -76,6 +76,52 @@ describe('OrgRepos (T575)', () => {
     expect(within(viewer).getByTestId('repo-remote-commits')).toHaveTextContent('abcdef1');
   });
 
+  it('commit list renders the GitHub-style layout: day header, body toggle, copy + browse', async () => {
+    const httpRepo: WorkspaceRepo = { ...repoA, url: 'https://github.com/o/agent-center' };
+    server.use(
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [httpRepo] })),
+      http.get('/api/code-repos/repo-1/branches', () => HttpResponse.json({ branches: [{ name: 'main', is_default: true }] })),
+      http.get('/api/code-repos/repo-1/commits', () =>
+        HttpResponse.json({
+          commits: [
+            { sha: 'abcdef1234567', message: 'fix(web): tidy header\n\nbody line explaining why', author: 'agent-center-pd', date: '2026-06-30T03:00:00Z' },
+          ],
+        }),
+      ),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('repo-card-view'));
+    const list = await screen.findByTestId('repo-remote-commits');
+    // grouped under a "Commits on …" day header
+    expect(list).toHaveTextContent(/Commits on/);
+    // subject shown, body hidden until toggled
+    expect(list).toHaveTextContent('fix(web): tidy header');
+    expect(within(list).queryByTestId('repo-commit-body')).toBeNull();
+    fireEvent.click(within(list).getByTestId('repo-commit-body-toggle'));
+    expect(within(list).getByTestId('repo-commit-body')).toHaveTextContent('body line explaining why');
+    // short sha + copy affordance + browse link (http remote → /commit/<sha>)
+    expect(list).toHaveTextContent('abcdef1');
+    expect(within(list).getByTestId('repo-commit-copy')).toBeInTheDocument();
+    expect(within(list).getByTestId('repo-commit-browse')).toHaveAttribute(
+      'href',
+      'https://github.com/o/agent-center/commit/abcdef1234567',
+    );
+  });
+
+  it('omits the browse link for a non-http (scp-form) remote', async () => {
+    server.use(
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })), // url = git@github.com:...
+      http.get('/api/code-repos/repo-1/branches', () => HttpResponse.json({ branches: [{ name: 'main', is_default: true }] })),
+      http.get('/api/code-repos/repo-1/commits', () =>
+        HttpResponse.json({ commits: [{ sha: 'abcdef1234', message: 'first', author: 'o', date: '2026-06-30T03:00:00Z' }] }),
+      ),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('repo-card-view'));
+    const list = await screen.findByTestId('repo-remote-commits');
+    expect(within(list).queryByTestId('repo-commit-browse')).toBeNull();
+  });
+
   it('remote viewer degrades gracefully when BE-2 viewing is unavailable', async () => {
     server.use(
       http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })),
