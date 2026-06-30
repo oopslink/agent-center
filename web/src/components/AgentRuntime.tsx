@@ -10,6 +10,7 @@ import {
   useRuntimeList,
   useRuntimeRead,
   useRuntimeGitLog,
+  useRuntimeGitDiff,
   isUnavailable,
   type RuntimeEntry,
   type RuntimeReadResp,
@@ -18,6 +19,15 @@ import { Skeleton } from '@/components/Skeleton';
 import { formatLocalTime } from '@/utils/time';
 
 const SIDEBAR_COLLAPSE_KEY = 'agent-runtime-sidebar-collapsed';
+
+// The memory/ git repo is the only versioned subtree — a path is "memory-scoped"
+// (gets the Content / History tabs) when it is the repo dir itself or sits under it.
+const MEMORY_ROOT = 'memory';
+function isMemoryScoped(path: string): boolean {
+  return path === MEMORY_ROOT || path.startsWith(MEMORY_ROOT + '/');
+}
+
+type MemoryTab = 'content' | 'history';
 
 type Selected =
   | { kind: 'file'; path: string; name: string; sensitive?: boolean }
@@ -28,6 +38,16 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
     () => readLocalStorage(SIDEBAR_COLLAPSE_KEY) === '1',
   );
   const [selected, setSelected] = useState<Selected | null>(null);
+  // Which tab the memory pane shows. Driven by the selection (a file → its Content,
+  // the repo folder → History) but user-overridable, so the git log is ALWAYS one
+  // click away instead of being replaced when a file is opened.
+  const [memoryTab, setMemoryTab] = useState<MemoryTab>('history');
+
+  const handleSelect = (s: Selected) => {
+    setSelected(s);
+    if (s.kind === 'gitlog') setMemoryTab('history');
+    else if (isMemoryScoped(s.path)) setMemoryTab('content');
+  };
 
   // The root listing drives the whole-tab availability: worker offline → the root
   // itself is unavailable.
@@ -55,7 +75,7 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
 
   return (
     <div
-      className="flex min-h-[28rem] gap-3 rounded-lg border border-border-base bg-bg-elevated"
+      className="runtime-fill-height flex gap-3 overflow-hidden rounded-lg border border-border-base bg-bg-elevated"
       data-testid="agent-tabpanel-runtime"
     >
       {collapsed ? (
@@ -71,7 +91,7 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
         </button>
       ) : (
         <aside
-          className="w-64 shrink-0 overflow-y-auto border-r border-border-base p-2"
+          className="flex w-64 shrink-0 flex-col overflow-y-auto border-r border-border-base p-2"
           data-testid="runtime-sidebar"
         >
           <div className="mb-1 flex items-center justify-between px-1">
@@ -104,7 +124,7 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
                   entry={e}
                   depth={0}
                   selectedPath={selected?.path}
-                  onSelect={setSelected}
+                  onSelect={handleSelect}
                 />
               ))}
             </ul>
@@ -112,18 +132,90 @@ export function AgentRuntime({ agentId }: { agentId: string }): React.ReactEleme
         </aside>
       )}
 
-      <section className="min-w-0 flex-1 overflow-auto p-4" data-testid="runtime-preview">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden" data-testid="runtime-preview">
         {selected === null ? (
           <p className="py-16 text-center text-xs text-text-muted" data-testid="runtime-preview-empty">
             Select a file to preview.
           </p>
-        ) : selected.kind === 'gitlog' ? (
-          <GitLogView agentId={agentId} path={selected.path} />
+        ) : isMemoryScoped(selected.path) ? (
+          <MemoryPane agentId={agentId} selected={selected} tab={memoryTab} setTab={setMemoryTab} />
         ) : (
-          <FilePreview agentId={agentId} path={selected.path} name={selected.name} />
+          <div className="min-h-0 flex-1 overflow-auto p-4">
+            <FilePreview agentId={agentId} path={selected.path} name={selected.name} />
+          </div>
         )}
       </section>
     </div>
+  );
+}
+
+// MemoryPane — the right pane for any selection inside the memory git repo. A
+// persistent tab bar keeps BOTH views reachable (the original UI replaced the git
+// log with file content the moment a file was clicked, with no way back):
+//   • Content  — the selected file's preview (hidden when the repo folder is selected)
+//   • History  — the repo git log, each commit expandable to its diff
+function MemoryPane({
+  agentId,
+  selected,
+  tab,
+  setTab,
+}: {
+  agentId: string;
+  selected: Selected;
+  tab: MemoryTab;
+  setTab: (t: MemoryTab) => void;
+}): React.ReactElement {
+  const hasFile = selected.kind === 'file';
+  // No file selected (the memory folder) → History is the only meaningful view.
+  const activeTab: MemoryTab = hasFile ? tab : 'history';
+
+  return (
+    <div className="flex h-full flex-col" data-testid="runtime-memory-pane">
+      <div className="flex shrink-0 items-center gap-1 border-b border-border-base px-3 pt-2">
+        {hasFile && (
+          <MemoryTabButton active={activeTab === 'content'} onClick={() => setTab('content')} testid="runtime-memory-tab-content">
+            Content
+          </MemoryTabButton>
+        )}
+        <MemoryTabButton active={activeTab === 'history'} onClick={() => setTab('history')} testid="runtime-memory-tab-history">
+          History
+        </MemoryTabButton>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto p-4">
+        {activeTab === 'content' && hasFile ? (
+          <FilePreview agentId={agentId} path={selected.path} name={selected.name} />
+        ) : (
+          <GitLogView agentId={agentId} path={MEMORY_ROOT} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MemoryTabButton({
+  active,
+  onClick,
+  testid,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  testid: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      data-testid={testid}
+      className={`-mb-px border-b-2 px-3 py-1.5 text-xs font-medium ${
+        active ? 'border-accent text-text-primary' : 'border-transparent text-text-muted hover:text-text-primary'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -260,6 +352,18 @@ function FilePreview({
             org-admin gate + audit (not available yet).
           </p>
         </div>
+      ) : d.image && d.content ? (
+        <div
+          className="overflow-auto rounded-lg border border-border-base bg-bg-subtle p-3"
+          data-testid="runtime-file-image"
+        >
+          <img
+            src={`data:${d.content_type};base64,${d.content}`}
+            alt={name}
+            className="mx-auto max-w-full rounded"
+            data-testid="runtime-file-image-img"
+          />
+        </div>
       ) : d.binary || d.content === null ? (
         <div
           className="rounded-lg border border-border-base bg-bg-subtle px-4 py-6 text-center"
@@ -272,7 +376,7 @@ function FilePreview({
         </div>
       ) : (
         <pre
-          className="max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border-base bg-bg-subtle p-3 font-mono text-xs text-text-primary"
+          className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border-base bg-bg-subtle p-3 font-mono text-xs text-text-primary"
           data-testid="runtime-file-content"
         >
           {d.content}
@@ -302,25 +406,119 @@ function GitLogView({ agentId, path }: { agentId: string; path: string }): React
       ) : log.data.commits.length === 0 ? (
         <p className="text-xs italic text-text-muted">No commits.</p>
       ) : (
-        <ul className="space-y-2" data-testid="runtime-gitlog-list">
+        <ul className="space-y-1" data-testid="runtime-gitlog-list">
           {log.data.commits.map((c) => (
-            <li key={c.sha} className="border-b border-border-base pb-2 last:border-0">
-              <div className="flex items-baseline gap-2">
-                <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.625rem] text-accent">{c.sha.slice(0, 7)}</span>
-                <span className="min-w-0 text-sm text-text-primary">{c.message}</span>
-              </div>
-              <p className="mt-0.5 text-[0.6875rem] text-text-muted">
-                {c.author}{c.date ? ` · ${formatLocalTime(c.date)}` : ''}
-              </p>
-            </li>
+            <CommitRow key={c.sha} agentId={agentId} path={path} commit={c} />
           ))}
         </ul>
       )}
       <p className="mt-3 text-[0.6875rem] text-text-muted">
-        memory is a git repo · most recent commits · diff view in a later phase.
+        memory is a git repo · most recent commits · select a commit to view its diff.
       </p>
     </div>
   );
+}
+
+// CommitRow — one git-log entry, expandable to its unified diff (lazy-loaded on first
+// open via the gitdiff op, then cached by react-query).
+function CommitRow({
+  agentId,
+  path,
+  commit,
+}: {
+  agentId: string;
+  path: string;
+  commit: { sha: string; message: string; author: string; date: string };
+}): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <li className="border-b border-border-base last:border-0" data-testid="runtime-gitlog-row">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-start gap-2 py-2 text-left hover:bg-bg-subtle"
+        data-testid="runtime-gitlog-row-toggle"
+        data-sha={commit.sha}
+      >
+        <Chevron open={open} />
+        <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.625rem] text-accent">
+          {commit.sha.slice(0, 7)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm text-text-primary">{commit.message}</span>
+          <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
+            {commit.author}
+            {commit.date ? ` · ${formatLocalTime(commit.date)}` : ''}
+          </span>
+        </span>
+      </button>
+      {open && <CommitDiff agentId={agentId} path={path} sha={commit.sha} />}
+    </li>
+  );
+}
+
+// CommitDiff — the unified diff of a single commit (`git show`). Fetched only when the
+// row is first expanded.
+function CommitDiff({
+  agentId,
+  path,
+  sha,
+}: {
+  agentId: string;
+  path: string;
+  sha: string;
+}): React.ReactElement {
+  const diff = useRuntimeGitDiff(agentId, path, sha);
+
+  if (diff.isLoading) {
+    return (
+      <div className="pb-2 pl-5">
+        <Skeleton height="4rem" />
+      </div>
+    );
+  }
+  if (diff.isError || !diff.data || isUnavailable(diff.data)) {
+    return (
+      <p className="pb-2 pl-5 text-[0.6875rem] italic text-text-muted" data-testid="runtime-gitdiff-error">
+        {diff.data && isUnavailable(diff.data) && diff.data.reason ? diff.data.reason : 'Could not load this diff.'}
+      </p>
+    );
+  }
+  if (diff.data.diff.trim() === '') {
+    return (
+      <p className="pb-2 pl-5 text-[0.6875rem] italic text-text-muted" data-testid="runtime-gitdiff-empty">
+        No textual changes in this commit.
+      </p>
+    );
+  }
+  return (
+    <div className="pb-2 pl-5" data-testid="runtime-gitdiff">
+      <pre className="overflow-x-auto whitespace-pre rounded-lg border border-border-base bg-bg-base p-3 font-mono text-[0.6875rem] leading-relaxed text-text-secondary">
+        {renderDiffLines(diff.data.diff)}
+      </pre>
+      {diff.data.truncated && (
+        <p className="mt-1 text-[0.625rem] italic text-text-muted">diff truncated</p>
+      )}
+    </div>
+  );
+}
+
+// renderDiffLines colourises a unified diff (added/removed/hunk header) for readability.
+function renderDiffLines(diff: string): React.ReactNode[] {
+  return diff.split('\n').map((line, i) => {
+    let cls = 'text-text-secondary';
+    if (line.startsWith('+') && !line.startsWith('+++')) cls = 'text-status-green-fg';
+    else if (line.startsWith('-') && !line.startsWith('---')) cls = 'text-danger';
+    else if (line.startsWith('@@')) cls = 'text-accent';
+    else if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('+++') || line.startsWith('---'))
+      cls = 'text-text-muted';
+    return (
+      <span key={i} className={`block ${cls}`}>
+        {line || ' '}
+      </span>
+    );
+  });
 }
 
 function RuntimeUnavailable({ reason }: { reason?: string }): React.ReactElement {
@@ -394,6 +592,7 @@ function EntryTag({ entry }: { entry: RuntimeEntry }): React.ReactElement {
 
 function previewTypeLabel(d: RuntimeReadResp): string {
   if (d.redacted) return 'redacted';
+  if (d.image) return 'image';
   if (d.binary) return 'binary';
   const ct = (d.content_type || '').toLowerCase();
   if (ct.includes('markdown')) return 'markdown';

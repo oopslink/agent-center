@@ -1,7 +1,9 @@
 package workerdaemon
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -323,6 +325,118 @@ func TestRuntimeFsGitLog(t *testing.T) {
 	}
 	if len(non.Commits) != 0 {
 		t.Fatalf("non-repo commits=%d want 0", len(non.Commits))
+	}
+}
+
+// A minimal 1x1 transparent PNG (valid header so http.DetectContentType → image/png).
+var onePxPNG = []byte{
+	0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+	0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+	0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+	0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+	0x42, 0x60, 0x82,
+}
+
+func writeBytes(t *testing.T, p string, b []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRuntimeFsRead_ImageInlinedAsBase64(t *testing.T) {
+	home := t.TempDir()
+	writeBytes(t, filepath.Join(home, "workspace", "pic.png"), onePxPNG)
+
+	res, opErr := runtimeFsRead(home, "workspace/pic.png")
+	if opErr != nil {
+		t.Fatalf("read image: %v", opErr)
+	}
+	if !res.Image || res.Binary {
+		t.Fatalf("image flags: image=%v binary=%v, want image=true binary=false", res.Image, res.Binary)
+	}
+	if res.Encoding != "base64" || res.Content == nil {
+		t.Fatalf("encoding=%q content==nil:%v, want base64 + content", res.Encoding, res.Content == nil)
+	}
+	if res.ContentType != "image/png" {
+		t.Fatalf("content_type=%q want image/png", res.ContentType)
+	}
+	dec, err := base64.StdEncoding.DecodeString(*res.Content)
+	if err != nil {
+		t.Fatalf("content is not valid base64: %v", err)
+	}
+	if !bytes.Equal(dec, onePxPNG) {
+		t.Fatalf("decoded image bytes differ from source (%d vs %d)", len(dec), len(onePxPNG))
+	}
+}
+
+func TestRuntimeFsRead_OversizedImageIsMetadataOnly(t *testing.T) {
+	home := t.TempDir()
+	// PNG header + padding past the image cap → not inlined (binary, content null).
+	big := append(append([]byte{}, onePxPNG...), make([]byte, runtimeFsMaxImageSize+1)...)
+	writeBytes(t, filepath.Join(home, "huge.png"), big)
+
+	res, opErr := runtimeFsRead(home, "huge.png")
+	if opErr != nil {
+		t.Fatalf("read oversized image: %v", opErr)
+	}
+	if res.Image || !res.Binary || res.Content != nil {
+		t.Fatalf("oversized image: image=%v binary=%v content!=nil:%v, want metadata-only", res.Image, res.Binary, res.Content != nil)
+	}
+}
+
+func TestRuntimeFsGitDiff(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	home := t.TempDir()
+	mem := filepath.Join(home, "memory")
+	if err := os.MkdirAll(mem, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitInit(t, mem)
+	gitCommit(t, mem, "first commit")
+
+	log, opErr := runtimeFsGitLog(context.Background(), home, "memory", 10)
+	if opErr != nil || len(log.Commits) != 1 {
+		t.Fatalf("setup gitlog: %v commits=%d", opErr, len(log.Commits))
+	}
+	sha := log.Commits[0].SHA
+
+	diff, opErr := runtimeFsGitDiff(context.Background(), home, "memory", sha)
+	if opErr != nil {
+		t.Fatalf("gitdiff: %v", opErr)
+	}
+	if diff.SHA != sha {
+		t.Fatalf("diff.SHA=%q want %q", diff.SHA, sha)
+	}
+	if !strings.Contains(diff.Diff, "first commit") || !strings.Contains(diff.Diff, "f.txt") {
+		t.Fatalf("diff missing expected content:\n%s", diff.Diff)
+	}
+
+	// Unknown commit → not_found.
+	if _, opErr := runtimeFsGitDiff(context.Background(), home, "memory", "0000000000000000000000000000000000000000"); opErr == nil || opErr.code != runtimefs.ErrCodeNotFound {
+		got := "nil"
+		if opErr != nil {
+			got = opErr.code
+		}
+		t.Fatalf("unknown commit code=%q want not_found", got)
+	}
+}
+
+func TestRuntimeFsGitDiff_RejectsNonSHARef(t *testing.T) {
+	// Injection guard: a ref that is not a bare hex object name never reaches git.
+	for _, bad := range []string{"", "abc", "HEAD", "--output=/tmp/x", "deadbeef..cafe", "main; rm -rf /"} {
+		if _, opErr := runtimeFsGitDiff(context.Background(), t.TempDir(), "memory", bad); opErr == nil || opErr.code != runtimefs.ErrCodeNotFound {
+			got := "nil"
+			if opErr != nil {
+				got = opErr.code
+			}
+			t.Fatalf("ref %q code=%q, want not_found (rejected before git)", bad, got)
+		}
 	}
 }
 

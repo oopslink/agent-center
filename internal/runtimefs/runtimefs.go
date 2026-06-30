@@ -25,9 +25,10 @@ const CommandType = "agent.runtime_fs"
 
 // Operation codes carried in a Command.Op.
 const (
-	OpList   = "list"
-	OpRead   = "read"
-	OpGitLog = "gitlog"
+	OpList    = "list"
+	OpRead    = "read"
+	OpGitLog  = "gitlog"
+	OpGitDiff = "gitdiff"
 )
 
 // Error codes a worker may return when an op cannot be served. The Web Console
@@ -50,6 +51,8 @@ type Command struct {
 	Op      string `json:"op"`
 	Path    string `json:"path"`
 	Limit   int    `json:"limit,omitempty"`
+	// Ref is the commit SHA the gitdiff op renders (ignored by the other ops).
+	Ref string `json:"ref,omitempty"`
 }
 
 // Response is the worker→center reply, POSTed to the admin feedback endpoint and
@@ -91,16 +94,25 @@ type ListResult struct {
 
 // ReadResult is the `read` op DTO. Content is nil (JSON null) for a binary or a
 // redacted (credential / special) file — only metadata is returned in those cases.
+//
+// Image files are an exception to the binary rule: a previewable image (png/jpeg/
+// gif/webp) under the image cap is returned with Image=true and Content holding the
+// base64-encoded bytes (Encoding="base64") so the FE can render it inline. An image
+// over the cap falls back to Binary=true / Content=nil (metadata only).
 type ReadResult struct {
-	Path        string  `json:"path"`
-	Type        string  `json:"type"` // always "file"
-	Size        int64   `json:"size"`
-	Mtime       string  `json:"mtime"`
-	ContentType string  `json:"content_type"`
-	Binary      bool    `json:"binary"`
-	Redacted    bool    `json:"redacted,omitempty"`
-	Truncated   bool    `json:"truncated"`
-	Content     *string `json:"content"`
+	Path        string `json:"path"`
+	Type        string `json:"type"` // always "file"
+	Size        int64  `json:"size"`
+	Mtime       string `json:"mtime"`
+	ContentType string `json:"content_type"`
+	Binary      bool   `json:"binary"`
+	Redacted    bool   `json:"redacted,omitempty"`
+	// Image marks a base64-previewable image; Encoding is "base64" when Content is
+	// not plain UTF-8 text (i.e. an image). Both are omitted for ordinary text files.
+	Image     bool    `json:"image,omitempty"`
+	Encoding  string  `json:"encoding,omitempty"`
+	Truncated bool    `json:"truncated"`
+	Content   *string `json:"content"`
 }
 
 // Commit is one entry in a GitLogResult.
@@ -115,6 +127,14 @@ type Commit struct {
 type GitLogResult struct {
 	Commits   []Commit `json:"commits"`
 	Truncated bool     `json:"truncated"`
+}
+
+// GitDiffResult is the `gitdiff` op DTO — the unified diff of a single commit
+// (`git show <sha>`) in the memory repo. Diff is capped; Truncated marks a cut.
+type GitDiffResult struct {
+	SHA       string `json:"sha"`
+	Diff      string `json:"diff"`
+	Truncated bool   `json:"truncated"`
 }
 
 // Dispatcher is the Center-process-global correlator between a Web Console read

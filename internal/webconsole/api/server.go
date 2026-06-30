@@ -333,11 +333,12 @@ func (s *Server) routes() {
 	// I28/F4: per-agent analytics dashboard (composed read) + Top-Cost-Tasks drill-down.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/analytics", s.agentAnalyticsHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/analytics/tasks/{taskId}", s.agentAnalyticsTaskHandler)
-	// I5 (issue-921db054): read-only agent runtime file browser (list/read/gitlog),
-	// served over the control-loop request→correlated-response transport.
+	// I5 (issue-921db054): read-only agent runtime file browser (list/read/gitlog/
+	// gitdiff), served over the control-loop request→correlated-response transport.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/runtime/list", s.agentRuntimeListHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/runtime/read", s.agentRuntimeReadHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/runtime/gitlog", s.agentRuntimeGitlogHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/runtime/gitdiff", s.agentRuntimeGitdiffHandler)
 
 	// Secrets (metadata only — plaintext only at create time). Org via {slug} path.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/secrets", s.listSecretsHandler)

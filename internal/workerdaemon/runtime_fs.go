@@ -3,6 +3,7 @@ package workerdaemon
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -37,10 +38,12 @@ import (
 const cmdTypeRuntimeFs = runtimefs.CommandType
 
 const (
-	runtimeFsMaxEntries  = 1000
-	runtimeFsMaxFileSize = 1 << 20 // 1 MiB preview cap
-	runtimeFsGitLogDef   = 50
-	runtimeFsGitLogMax   = 200
+	runtimeFsMaxEntries   = 1000
+	runtimeFsMaxFileSize  = 1 << 20 // 1 MiB text preview cap
+	runtimeFsMaxImageSize = 4 << 20 // 4 MiB image preview cap (base64 inlined to the FE)
+	runtimeFsGitLogDef    = 50
+	runtimeFsGitLogMax    = 200
+	runtimeFsMaxDiffSize  = 1 << 20 // 1 MiB unified-diff cap
 )
 
 // runtimeFsError carries a structured op failure (a contract error code + message).
@@ -77,6 +80,8 @@ func (c *AgentController) runtimeFs(ctx context.Context, pl runtimefs.Command) e
 		result, opErr = runtimeFsRead(home, pl.Path)
 	case runtimefs.OpGitLog:
 		result, opErr = runtimeFsGitLog(ctx, home, pl.Path, pl.Limit)
+	case runtimefs.OpGitDiff:
+		result, opErr = runtimeFsGitDiff(ctx, home, pl.Path, pl.Ref)
 	default:
 		opErr = &runtimeFsError{runtimefs.ErrCodeInternal, "unknown op " + pl.Op}
 	}
@@ -212,6 +217,27 @@ func runtimeFsRead(home, userPath string) (*runtimefs.ReadResult, *runtimeFsErro
 
 	res.ContentType = sniffContentType(full)
 
+	// Previewable image under the cap → inline it as base64 so the FE can render it
+	// (an image over the cap, or an unsupported subtype, falls through to the binary
+	// path below: metadata only). The whole-file cap means we never base64 a huge
+	// blob across the control channel.
+	if runtimeFsPreviewableImage(res.ContentType) {
+		if info.Size() > runtimeFsMaxImageSize {
+			res.Binary = true
+			res.Content = nil
+			return res, nil
+		}
+		data, err := os.ReadFile(full)
+		if err != nil {
+			return nil, classifyStatErr(err)
+		}
+		b64 := base64.StdEncoding.EncodeToString(data)
+		res.Image = true
+		res.Encoding = "base64"
+		res.Content = &b64
+		return res, nil
+	}
+
 	f, err := os.Open(full)
 	if err != nil {
 		return nil, classifyStatErr(err)
@@ -234,6 +260,18 @@ func runtimeFsRead(home, userPath string) (*runtimefs.ReadResult, *runtimeFsErro
 		res.Content = &s
 	}
 	return res, nil
+}
+
+// runtimeFsPreviewableImage reports whether a sniffed content-type is an image the
+// FE renders inline (base64 data URL). Kept to the lossless/common web-renderable
+// raster types http.DetectContentType emits; SVG is intentionally excluded (it is
+// XML the binary sniffer reports as text and could carry active content).
+func runtimeFsPreviewableImage(ct string) bool {
+	switch strings.SplitN(ct, ";", 2)[0] {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return true
+	}
+	return false
 }
 
 // runtimeFsGitLog returns the read-only commit history of the agent's memory git repo
@@ -297,6 +335,70 @@ func runtimeFsGitLog(ctx context.Context, home, userPath string, limit int) (*ru
 		})
 	}
 	return res, nil
+}
+
+// runtimeFsGitDiff returns the unified diff of a single commit (`git show <sha>`) in
+// the repo userPath resolves to (default: the memory repo). The sha is validated to a
+// bare hex object name BEFORE it reaches git so it can never smuggle an option or a
+// revision range; the diff is capped at runtimeFsMaxDiffSize.
+func runtimeFsGitDiff(ctx context.Context, home, userPath, ref string) (*runtimefs.GitDiffResult, *runtimeFsError) {
+	if !runtimeFsValidSHA(ref) {
+		return nil, &runtimeFsError{runtimefs.ErrCodeNotFound, "invalid ref"}
+	}
+	rel := runtimeFsCleanRel(userPath)
+	if rel == "" {
+		rel = "memory" // default target is the memory repo
+	}
+	dir, err := resolveContainedPath(home, rel, true)
+	if err != nil {
+		return nil, classifyPathErr(err)
+	}
+	if runtimeFsResolvedInGit(home, dir) {
+		return nil, &runtimeFsError{runtimefs.ErrCodeNotFound, "not found"}
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return nil, classifyStatErr(err)
+	}
+	if !info.IsDir() {
+		return nil, &runtimeFsError{runtimefs.ErrCodeNotDir, "not a directory"}
+	}
+	// --format=fuller-less: keep the patch only (the FE already shows commit metadata
+	// from the git-log row). `--` ends options so a (validated-hex) sha is unambiguous.
+	out, runErr := runtimeFsGit(ctx, dir, "show", "--no-color", "--format=", ref, "--")
+	if runErr != nil {
+		if strings.Contains(out, "not a git repository") {
+			return nil, &runtimeFsError{runtimefs.ErrCodeNotFound, "not a git repository"}
+		}
+		if strings.Contains(out, "unknown revision") || strings.Contains(out, "bad object") || strings.Contains(out, "ambiguous argument") {
+			return nil, &runtimeFsError{runtimefs.ErrCodeNotFound, "unknown commit"}
+		}
+		return nil, &runtimeFsError{runtimefs.ErrCodeInternal, strings.TrimSpace(out)}
+	}
+	res := &runtimefs.GitDiffResult{SHA: ref}
+	out = strings.TrimLeft(out, "\n")
+	if len(out) > runtimeFsMaxDiffSize {
+		out = out[:runtimeFsMaxDiffSize]
+		res.Truncated = true
+	}
+	res.Diff = out
+	return res, nil
+}
+
+// runtimeFsValidSHA reports whether ref is a bare hex git object name (4–40 chars).
+// This is the injection guard: only [0-9a-f] passes, so ref can never begin with '-'
+// (an option) or contain '..' / spaces (a range or extra args).
+func runtimeFsValidSHA(ref string) bool {
+	ref = strings.TrimSpace(ref)
+	if len(ref) < 4 || len(ref) > 40 {
+		return false
+	}
+	for _, r := range ref {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // runtimeFsGit runs a read-only git command in dir with a hardened, config-free env

@@ -128,6 +128,81 @@ describe('AgentRuntime (T583)', () => {
     expect(list).toHaveTextContent('a1b2c3d'); // short sha
   });
 
+  it('renders an image file inline (base64 data URL)', async () => {
+    server.use(
+      http.get('/api/agents/:id/runtime/list', ({ request }) => {
+        const path = new URL(request.url).searchParams.get('path') ?? '';
+        if (path === '') {
+          return HttpResponse.json({ path: '', type: 'directory', entries: rootEntries, truncated: false });
+        }
+        if (path === 'workspace') {
+          return HttpResponse.json({
+            path, type: 'directory', truncated: false,
+            entries: [{ name: 'pic.png', path: 'workspace/pic.png', type: 'file', size: 81000, mtime: 'x' }],
+          });
+        }
+        return HttpResponse.json({ path, type: 'directory', entries: [], truncated: false });
+      }),
+      http.get('/api/agents/:id/runtime/read', ({ request }) => {
+        expect(new URL(request.url).searchParams.get('path')).toBe('workspace/pic.png');
+        return HttpResponse.json({
+          type: 'file', size: 81000, mtime: 'x', content_type: 'image/png',
+          binary: false, image: true, encoding: 'base64', truncated: false, content: 'iVBORw0KGgo=',
+        });
+      }),
+    );
+    wrap();
+    fireEvent.click(await within(await screen.findByTestId('runtime-tree')).findByText('workspace/'));
+    fireEvent.click(await screen.findByText('pic.png'));
+    const img = await screen.findByTestId('runtime-file-image-img');
+    expect(img.getAttribute('src')).toBe('data:image/png;base64,iVBORw0KGgo=');
+  });
+
+  it('keeps the git log reachable from a memory file via the History tab + shows a commit diff', async () => {
+    server.use(
+      http.get('/api/agents/:id/runtime/list', ({ request }) => {
+        const path = new URL(request.url).searchParams.get('path') ?? '';
+        if (path === '') {
+          return HttpResponse.json({ path: '', type: 'directory', entries: rootEntries, truncated: false });
+        }
+        if (path === 'memory') {
+          return HttpResponse.json({
+            path, type: 'directory', truncated: false,
+            entries: [{ name: 'CLAUDE.md', path: 'memory/CLAUDE.md', type: 'file', size: 254, mtime: 'x' }],
+          });
+        }
+        return HttpResponse.json({ path, type: 'directory', entries: [], truncated: false });
+      }),
+      http.get('/api/agents/:id/runtime/read', () =>
+        HttpResponse.json({
+          type: 'file', size: 254, mtime: 'x', content_type: 'text/markdown',
+          binary: false, truncated: false, content: '# agent-center Memory',
+        }),
+      ),
+      http.get('/api/agents/:id/runtime/gitlog', () =>
+        HttpResponse.json({ commits: [{ sha: 'a1b2c3d4e5', message: 'sync working tree', author: 'pd', date: 'x' }], truncated: false }),
+      ),
+      http.get('/api/agents/:id/runtime/gitdiff', ({ request }) => {
+        expect(new URL(request.url).searchParams.get('ref')).toBe('a1b2c3d4e5');
+        return HttpResponse.json({ sha: 'a1b2c3d4e5', diff: 'diff --git a/CLAUDE.md\n+added line\n-removed line', truncated: false });
+      }),
+    );
+    wrap();
+    // Select a file under memory → Content tab shows the file.
+    fireEvent.click(await within(await screen.findByTestId('runtime-tree')).findByText('memory/'));
+    fireEvent.click(await screen.findByText('CLAUDE.md'));
+    expect(await screen.findByTestId('runtime-file-content')).toHaveTextContent('# agent-center Memory');
+    // History tab is still reachable (the old UI replaced the log entirely).
+    fireEvent.click(screen.getByTestId('runtime-memory-tab-history'));
+    const list = await screen.findByTestId('runtime-gitlog-list');
+    expect(list).toHaveTextContent('sync working tree');
+    // Expanding a commit loads its diff.
+    fireEvent.click(screen.getByTestId('runtime-gitlog-row-toggle'));
+    const diff = await screen.findByTestId('runtime-gitdiff');
+    expect(diff).toHaveTextContent('added line');
+    expect(diff).toHaveTextContent('removed line');
+  });
+
   it('degrades to "Runtime unavailable" when the worker is offline', async () => {
     server.use(
       http.get('/api/agents/:id/runtime/list', () => HttpResponse.json({ unavailable: true, reason: 'worker offline' })),

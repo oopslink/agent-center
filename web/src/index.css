@@ -20,6 +20,21 @@
     height: 100vh;
     height: 100dvh;
   }
+
+  /*
+   * Agent Runtime browser fill-height. The file viewer is a fixed-height frame so
+   * the file tree and the preview pane scroll INTERNALLY (independently) rather than
+   * growing the page — the panel fills the viewport below the page header/tabs
+   * instead of sitting in a short box with dead space beneath it. The subtracted
+   * offset approximates the breadcrumb + agent header + tab bar above it; min-height
+   * keeps it usable on short viewports (where the page scroll takes over). dvh tracks
+   * mobile browser chrome, same rationale as .h-screen-dvh above.
+   */
+  .runtime-fill-height {
+    height: calc(100vh - 13rem);
+    height: calc(100dvh - 13rem);
+    min-height: 28rem;
+  }
 }
 
 /* Self-hosted fonts — zero CDN dependency, GDPR compliant (Hex spec §06) */

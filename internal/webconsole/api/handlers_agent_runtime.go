@@ -44,6 +44,10 @@ func (s *Server) agentRuntimeGitlogHandler(w http.ResponseWriter, r *http.Reques
 	s.agentRuntimeOp(w, r, runtimefs.OpGitLog)
 }
 
+func (s *Server) agentRuntimeGitdiffHandler(w http.ResponseWriter, r *http.Request) {
+	s.agentRuntimeOp(w, r, runtimefs.OpGitDiff)
+}
+
 // agentRuntimeOp is the shared request→correlated-response flow for the three ops.
 func (s *Server) agentRuntimeOp(w http.ResponseWriter, r *http.Request, op string) {
 	d := hd(r)
@@ -94,6 +98,7 @@ func (s *Server) agentRuntimeOp(w http.ResponseWriter, r *http.Request, op strin
 		Op:      op,
 		Path:    r.URL.Query().Get("path"),
 		Limit:   limit,
+		Ref:     r.URL.Query().Get("ref"),
 	}
 	payload, err := json.Marshal(cmd)
 	if err != nil {

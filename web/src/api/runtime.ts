@@ -35,6 +35,11 @@ export interface RuntimeReadResp {
   // redacted = a sensitive file (plaintext credentials); content is null and never
   // leaves the worker. binary likewise carries content: null (metadata-only).
   redacted?: boolean;
+  // image = a previewable image; content holds base64 bytes (encoding: 'base64') the
+  // FE renders inline via a data URL. An image over the worker cap falls back to
+  // binary:true / content:null.
+  image?: boolean;
+  encoding?: string;
   truncated: boolean;
   content: string | null;
 }
@@ -48,6 +53,12 @@ export interface RuntimeCommit {
 
 export interface RuntimeGitLogResp {
   commits: RuntimeCommit[];
+  truncated: boolean;
+}
+
+export interface RuntimeGitDiffResp {
+  sha: string;
+  diff: string;
   truncated: boolean;
 }
 
@@ -91,6 +102,18 @@ export function useRuntimeGitLog(agentId: string, path: string, limit = 30, enab
         `${base(agentId)}/gitlog?path=${encodeURIComponent(path)}&limit=${limit}`,
       ),
     enabled: !!agentId && enabled,
+    retry: false,
+  });
+}
+
+export function useRuntimeGitDiff(agentId: string, path: string, ref: string, enabled = true) {
+  return useQuery({
+    queryKey: qk.runtimeGitDiff(agentId, path, ref),
+    queryFn: () =>
+      api.get<RuntimeGitDiffResp | RuntimeUnavailable>(
+        `${base(agentId)}/gitdiff?path=${encodeURIComponent(path)}&ref=${encodeURIComponent(ref)}`,
+      ),
+    enabled: !!agentId && !!ref && enabled,
     retry: false,
   });
 }
