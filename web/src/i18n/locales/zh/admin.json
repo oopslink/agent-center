@@ -252,7 +252,7 @@
       "credential": "读取凭据",
       "credentialHintEdit": "留空以保留已存储的凭据。",
       "credentialHintCreate": "加密存储，不再显示。",
-      "credentialPlaceholderStored": "•••••• (stored)",
+      "credentialPlaceholderStored": "•••••• (已存储)",
       "credentialPlaceholder": "细粒度令牌",
       "credentialHelp": "私有仓库需要只读凭据。对于 GitHub，请创建一个<tokenLink>细粒度令牌</tokenLink>，将其范围限定到此仓库，并设置 <contents>Contents: Read-only</contents>（添加 <prs>Pull requests: Read</prs> 以查看 PR）。GitHub App 安装令牌或只读部署密钥同样适用。公开仓库可以将此项留空。",
       "cancel": "取消",
