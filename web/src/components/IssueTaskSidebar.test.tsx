@@ -13,15 +13,19 @@ describe('IssueTaskSidebar + StatusBlock (#5th)', () => {
     // @oopslink REVISION 4 palette lock: bg-<color> text-white. open=sky,
     // in_progress/running=blue-600, closed=slate-500, discarded=zinc-700,
     // reopened=amber. ADR-0046: blocked + verified are no longer statuses.
+    // v2.25 i18n: StatusBlock now renders the shared work:status.<value> label
+    // (same source as StatusChip) — lowercase DOM text, displayed uppercase via
+    // the `uppercase` CSS class (visually unchanged). data-status stays the
+    // stable enum discriminator.
     const cases: Array<[SK, string, string]> = [
-      ['open', 'Open', 'bg-status-sky-solid text-white'],
-      ['in_progress', 'In Progress', 'bg-status-blue-solid text-white'],
-      ['running', 'Running', 'bg-status-blue-solid text-white'],
-      ['resolved', 'Resolved', 'bg-status-green-solid text-white'],
-      ['completed', 'Completed', 'bg-status-green-solid text-white'],
-      ['closed', 'Closed', 'bg-status-slate-solid text-white'], // slate (terminal Issue)
-      ['discarded', 'Discarded', 'bg-status-zinc-solid text-white'], // zinc (terminal, replaces canceled/withdrawn)
-      ['reopened', 'Reopened', 'bg-status-amber-solid text-white'],
+      ['open', 'open', 'bg-status-sky-solid text-white'],
+      ['in_progress', 'in progress', 'bg-status-blue-solid text-white'],
+      ['running', 'running', 'bg-status-blue-solid text-white'],
+      ['resolved', 'resolved', 'bg-status-green-solid text-white'],
+      ['completed', 'completed', 'bg-status-green-solid text-white'],
+      ['closed', 'closed', 'bg-status-slate-solid text-white'], // slate (terminal Issue)
+      ['discarded', 'discarded', 'bg-status-zinc-solid text-white'], // zinc (terminal, replaces canceled/withdrawn)
+      ['reopened', 'reopened', 'bg-status-amber-solid text-white'],
     ];
     for (const [status, label, cls] of cases) {
       cleanup();
@@ -42,7 +46,7 @@ describe('IssueTaskSidebar + StatusBlock (#5th)', () => {
         workItemsSummary={<span>2 In Progress · 1 Paused</span>}
       />,
     );
-    expect(screen.getByTestId('status-block')).toHaveTextContent('Running');
+    expect(screen.getByTestId('status-block')).toHaveTextContent('running');
     expect(screen.getByTestId('sidebar-actions')).toHaveTextContent('Edit');
     expect(screen.getByTestId('meta-created-by')).toHaveTextContent('alice');
     // Paused is part of the Task WorkItems summary (cross-PR consistency with #199).

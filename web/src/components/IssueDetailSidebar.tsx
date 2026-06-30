@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import type { Issue } from '@/api/types';
 import { useTasksOfIssue } from '@/api/tasks';
@@ -62,6 +63,7 @@ export function IssueDetailSidebar({
   onEdit,
   editable,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const iss = issue;
   const tags = iss.tags ?? [];
   const duration = formatStatusDuration(iss.status_changed_at);
@@ -70,37 +72,37 @@ export function IssueDetailSidebar({
     <aside
       className="space-y-4 rounded border border-border-base bg-bg-elevated p-3 text-sm"
       data-testid="issue-detail-sidebar"
-      aria-label="Issue details"
+      aria-label={t('issue.sidebar.aria')}
     >
       {/* ───────── TOP: display (edit only via the modal) ───────── */}
       <section className="space-y-3" data-testid="issue-sidebar-editable">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Details</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('issue.sidebar.details')}</p>
           {editable && (
             <button
               type="button"
               onClick={onEdit}
               className="inline-flex items-center gap-1 rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
               data-testid="issue-edit-button"
-              aria-label="Edit issue"
+              aria-label={t('issue.sidebar.editAria')}
             >
               <PencilIcon />
-              Edit Issue
+              {t('issue.sidebar.editButton')}
             </button>
           )}
         </div>
 
         {/* STATUS + in-status duration — display only */}
         <div data-testid="issue-sidebar-status">
-          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Status</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('issue.sidebar.status')}</p>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBlock status={iss.status} />
             {duration && (
               <span
                 className="text-xs text-text-muted"
                 data-testid="issue-status-duration"
-                aria-label={`In current status for ${duration}`}
-                title={`In current status for ${duration}`}
+                aria-label={t('issue.sidebar.statusDuration', { duration })}
+                title={t('issue.sidebar.statusDuration', { duration })}
               >
                 {duration}
               </span>
@@ -110,7 +112,7 @@ export function IssueDetailSidebar({
 
         {/* TAGS — hashed (both-mode-AA) chips, display only */}
         <div data-testid="issue-sidebar-tags">
-          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">Tags</p>
+          <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('issue.sidebar.tags')}</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {tags.map((tag) => {
               const c = tagColorFor(tag);
@@ -127,7 +129,7 @@ export function IssueDetailSidebar({
             })}
             {tags.length === 0 && (
               <span className="text-xs text-text-muted" data-testid="issue-tags-empty">
-                No tags
+                {t('issue.sidebar.noTags')}
               </span>
             )}
           </div>
@@ -140,7 +142,7 @@ export function IssueDetailSidebar({
       <section className="space-y-3" data-testid="issue-sidebar-readonly">
         {iss.project_id && (
           <div>
-            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Project</p>
+            <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('issue.sidebar.project')}</p>
             <OrgLink
               to={`/projects/${encodeURIComponent(iss.project_id)}`}
               className="text-accent hover:underline"
@@ -153,7 +155,7 @@ export function IssueDetailSidebar({
         )}
 
         <div>
-          <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Issue ID</p>
+          <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('issue.sidebar.issueId')}</p>
           {/* #192 chrome rule: id-as-content → a clean handle pill (tail), full id on hover. */}
           <span
             className="inline-block rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-text-secondary"
@@ -165,7 +167,7 @@ export function IssueDetailSidebar({
         </div>
 
         <div>
-          <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">Created</p>
+          <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('issue.sidebar.created')}</p>
           <span className="text-text-secondary" data-testid="issue-created">
             {formatLocalTime(iss.created_at)}
           </span>
@@ -188,17 +190,18 @@ export function DerivedTasksBlock({
   projectId: string;
   issueId: string;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const tasks = useTasksOfIssue(projectId, issueId);
   return (
     <aside
       className="mt-4 space-y-2 rounded border border-border-base bg-bg-elevated p-3 text-sm"
       data-testid="issue-derived-tasks"
-      aria-label="Derived tasks"
+      aria-label={t('issue.derivedTasks.aria')}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Derived Tasks</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('issue.derivedTasks.heading')}</p>
       {tasks.isLoading ? (
         <p className="text-xs text-text-muted" data-testid="derived-tasks-loading">
-          Loading…
+          {t('issue.derivedTasks.loading')}
         </p>
       ) : tasks.isError ? (
         <p className="text-xs text-danger" data-testid="derived-tasks-error">
@@ -206,7 +209,7 @@ export function DerivedTasksBlock({
         </p>
       ) : tasks.data.length === 0 ? (
         <p className="text-xs text-text-muted" data-testid="derived-tasks-empty">
-          No tasks derived from this issue.
+          {t('issue.derivedTasks.empty')}
         </p>
       ) : (
         <ul className="space-y-1" data-testid="derived-tasks-list">
@@ -246,18 +249,19 @@ export function IssueRelatedPlansBlock({
   projectId: string;
   issueId: string;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const plans = useRelatedPlansForIssue(projectId, issueId);
   const related = plans.data ?? [];
   return (
     <aside
       className="mt-4 space-y-2 rounded border border-border-base bg-bg-elevated p-3 text-sm"
       data-testid="issue-related-plans"
-      aria-label="Related plans"
+      aria-label={t('issue.relatedPlans.aria')}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Related Plans</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('issue.relatedPlans.heading')}</p>
       {plans.isLoading ? (
         <p className="text-xs text-text-muted" data-testid="related-plans-loading">
-          Loading…
+          {t('issue.relatedPlans.loading')}
         </p>
       ) : plans.isError ? (
         <p className="text-xs text-danger" data-testid="related-plans-error">
@@ -265,7 +269,7 @@ export function IssueRelatedPlansBlock({
         </p>
       ) : related.length === 0 ? (
         <p className="text-xs text-text-muted" data-testid="related-plans-empty">
-          No plans derived from this issue.
+          {t('issue.relatedPlans.empty')}
         </p>
       ) : (
         <ul className="space-y-1" data-testid="related-plans-list">

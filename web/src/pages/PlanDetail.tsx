@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { OrgLink, orgPath, useOptionalOrgContext } from '@/OrgContext';
 import { useProject } from '@/api/projects';
@@ -77,6 +79,7 @@ type Tab = 'chat' | 'dag' | 'tasks';
 // chat-width state / localStorage persistence / lg-breakpoint splitter are gone.
 
 export default function PlanDetail(): React.ReactElement {
+  const { t } = useTranslation('work');
   const { id = '', planId = '' } = useParams<{ id: string; planId: string }>();
   const project = useProject(id);
   const plan = usePlan(id, planId);
@@ -107,7 +110,7 @@ export default function PlanDetail(): React.ReactElement {
     return (
       <section className="space-y-3" role="alert" data-testid="page-PlanDetail">
         <ErrorState
-          message="Couldn't load this plan."
+          message={t('plan.detail.loadError')}
           error={plan.error}
           testId="plan-not-found"
         />
@@ -115,7 +118,7 @@ export default function PlanDetail(): React.ReactElement {
           to={`/projects/${encodeURIComponent(id)}/plans`}
           className="text-xs text-accent hover:underline"
         >
-          ← Back to plans
+          {t('plan.detail.backToPlans')}
         </OrgLink>
       </section>
     );
@@ -123,7 +126,7 @@ export default function PlanDetail(): React.ReactElement {
   if (!plan.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-PlanDetail">
-        Plan lookup failed.
+        {t('plan.detail.lookupFailed')}
       </section>
     );
   }
@@ -139,9 +142,9 @@ export default function PlanDetail(): React.ReactElement {
       <div className="hidden md:block">
         <Breadcrumb
           items={[
-            { label: 'Projects', to: '/projects' },
+            { label: t('plan.detail.breadcrumb.projects'), to: '/projects' },
             { label: projectName, to: `/projects/${encodeURIComponent(id)}` },
-            { label: 'Plans', to: `/projects/${encodeURIComponent(id)}/plans` },
+            { label: t('plan.detail.breadcrumb.plans'), to: `/projects/${encodeURIComponent(id)}/plans` },
             { label: p.name },
           ]}
         />
@@ -177,13 +180,13 @@ export default function PlanDetail(): React.ReactElement {
         <div className="flex items-center gap-1 border-b border-border-base px-3 pt-2 md:px-6" data-testid="plan-tabs">
           <div className="flex min-w-0 items-center gap-1" role="tablist">
             <TabButton id="chat" active={tab === 'chat'} onSelect={setTab}>
-              Chat
+              {t('plan.detail.tabs.chat')}
             </TabButton>
             <TabButton id="dag" active={tab === 'dag'} onSelect={setTab}>
-              DAG
+              {t('plan.detail.tabs.dag')}
             </TabButton>
             <TabButton id="tasks" active={tab === 'tasks'} onSelect={setTab}>
-              Task List
+              {t('plan.detail.tabs.tasks')}
             </TabButton>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2 pl-2">
@@ -195,8 +198,8 @@ export default function PlanDetail(): React.ReactElement {
                 onClick={() => setChatMaximized((m) => !m)}
                 data-testid="plan-chat-maximize"
                 aria-pressed={chatMaximized}
-                aria-label={chatMaximized ? 'Restore chat' : 'Maximize chat'}
-                title={chatMaximized ? 'Restore (Esc)' : 'Maximize chat'}
+                aria-label={chatMaximized ? t('plan.detail.chat.restore') : t('plan.detail.chat.maximize')}
+                title={chatMaximized ? t('plan.detail.chat.restoreEsc') : t('plan.detail.chat.maximize')}
                 className="inline-flex h-11 w-11 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-7 md:w-7"
               >
                 {chatMaximized ? <PlanChatRestoreIcon /> : <PlanChatMaximizeIcon />}
@@ -210,8 +213,8 @@ export default function PlanDetail(): React.ReactElement {
                 onClick={() => setDagCompact((c) => !c)}
                 data-testid="plan-dag-compact-toggle"
                 aria-pressed={dagCompact}
-                aria-label={dagCompact ? 'Reset DAG zoom' : 'Compact DAG (zoom to fit)'}
-                title={dagCompact ? 'Reset zoom' : 'Compact (zoom to fit)'}
+                aria-label={dagCompact ? t('plan.detail.dag.resetZoomAria') : t('plan.detail.dag.compactAria')}
+                title={dagCompact ? t('plan.detail.dag.resetZoom') : t('plan.detail.dag.compact')}
                 className={`hidden h-11 w-11 items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:inline-flex md:h-7 md:w-7 ${
                   dagCompact
                     ? 'text-accent'
@@ -313,6 +316,7 @@ export default function PlanDetail(): React.ReactElement {
 
 // ── Header ────────────────────────────────────────────────────────────────
 function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
+  const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
   const start = useStartPlan(projectId, plan.id);
   const stop = useStopPlan(projectId, plan.id);
@@ -359,28 +363,28 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
                 data-testid="plan-actions-toggle"
                 className="inline-flex min-h-[2.75rem] items-center gap-1 rounded-full border border-border-base bg-bg-subtle px-2.5 text-xs font-medium text-text-secondary whitespace-nowrap"
               >
-                Actions <span aria-hidden="true">▾</span>
+                {t('plan.detail.actions.menu')} <span aria-hidden="true">▾</span>
               </button>
               {actionsOpen && (
                 <div className="absolute right-0 top-full z-20 mt-1 w-44 flex-col rounded-lg border border-border-base bg-bg-elevated p-1 shadow-2" data-testid="plan-actions" role="menu">
                   {plan.description.trim() !== '' && (
                     <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setMobileGoalOpen((v) => !v); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">
-                      {mobileGoalOpen ? 'Hide goal' : 'Show goal'}
+                      {mobileGoalOpen ? t('plan.detail.actions.hideGoal') : t('plan.detail.actions.showGoal')}
                     </button>
                   )}
                   {plan.status === 'running' && (
-                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); stop.mutate(); }} disabled={stop.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">Stop</button>
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); stop.mutate(); }} disabled={stop.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.actions.stop')}</button>
                   )}
                   {plan.status !== 'archived' && (
-                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setEditing(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">Edit</button>
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setEditing(true); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">{t('plan.detail.actions.edit')}</button>
                   )}
                   {plan.status === 'draft' && (
-                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); start.mutate(); }} disabled={start.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">Start</button>
+                    <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); start.mutate(); }} disabled={start.isPending} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50">{t('plan.detail.actions.start')}</button>
                   )}
                   {canDestroy && (
                     <>
-                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('archive'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">Archive</button>
-                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('delete'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle">Delete</button>
+                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('archive'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle">{t('plan.detail.actions.archive')}</button>
+                      <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); setConfirming('delete'); }} className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle">{t('plan.detail.actions.delete')}</button>
                     </>
                   )}
                 </div>
@@ -398,17 +402,17 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
         <PlanFailedIndicator hasFailed={plan.has_failed} />
         <dl className="flex items-center gap-x-3 text-xs text-text-muted" data-testid="plan-detail-meta">
           <div className="flex items-center gap-1">
-            <dt className="uppercase tracking-wide text-[0.625rem]">Progress</dt>
+            <dt className="uppercase tracking-wide text-[0.625rem]">{t('plan.detail.meta.progress')}</dt>
             <dd className="text-text-secondary" data-testid="plan-progress">{planProgressLabel(plan.progress)}</dd>
           </div>
           {plan.target_date && (
             <div className="flex items-center gap-1">
-              <dt className="uppercase tracking-wide text-[0.625rem]">Target</dt>
+              <dt className="uppercase tracking-wide text-[0.625rem]">{t('plan.detail.meta.target')}</dt>
               <dd className="text-text-secondary" title={plan.target_date}>{formatLocalTime(plan.target_date)}</dd>
             </div>
           )}
           <div className="flex items-center gap-1">
-            <dt className="uppercase tracking-wide text-[0.625rem]">Creator</dt>
+            <dt className="uppercase tracking-wide text-[0.625rem]">{t('plan.detail.meta.creator')}</dt>
             <dd className="text-text-secondary" title={plan.creator_ref} data-testid="plan-creator">@{creatorLabel}</dd>
           </div>
         </dl>
@@ -424,7 +428,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             data-testid="plan-actions-toggle"
             className="inline-flex min-h-[2.75rem] items-center gap-1 rounded-full border border-border-base bg-bg-subtle px-3 text-xs font-medium text-text-secondary whitespace-nowrap md:hidden"
           >
-            Actions <span aria-hidden="true">▾</span>
+            {t('plan.detail.actions.menu')} <span aria-hidden="true">▾</span>
           </button>
           <div
             className={`${actionsOpen ? 'flex' : 'hidden'} absolute right-0 top-full z-20 mt-1 w-44 flex-col rounded-lg border border-border-base bg-bg-elevated p-1 shadow-2 md:relative md:mt-0 md:flex md:w-auto md:flex-row md:items-center md:gap-2 md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
@@ -442,7 +446,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             onClick={() => { setActionsOpen(false); stop.mutate(); }}
             className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base"
           >
-            ■ Stop (→ draft)
+            {t('plan.detail.lifecycle.stop')}
           </button>
         )}
         {/* T238: name + goal are DESCRIPTIVE metadata — editable in any
@@ -456,7 +460,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             onClick={() => { setActionsOpen(false); setEditing(true); }}
             className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base md:hover:text-text-primary"
           >
-            Edit
+            {t('plan.detail.actions.edit')}
           </button>
         )}
         {plan.status === 'draft' && (
@@ -467,7 +471,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             onClick={() => { setActionsOpen(false); start.mutate(); }}
             className="flex min-h-[2.75rem] w-full items-center px-3 text-sm font-semibold text-accent hover:bg-bg-subtle disabled:opacity-50 md:min-h-0 md:w-auto md:rounded md:border-0 md:bg-accent md:px-3 md:py-1.5 md:text-xs md:text-white md:hover:opacity-90"
           >
-            ▸ Start
+            {t('plan.detail.lifecycle.start')}
           </button>
         )}
         {/* Destructive lifecycle (v2.9 Stage B): Archive + Delete. Exposed only
@@ -481,19 +485,19 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
               type="button"
               data-testid="plan-archive-btn"
               onClick={() => { setActionsOpen(false); setConfirming('archive'); }}
-              title="Archive this plan and all its tasks (terminal, cannot be undone)"
+              title={t('plan.detail.actions.archiveTitle')}
               className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-text-primary hover:bg-bg-subtle md:min-h-0 md:w-auto md:rounded md:border md:border-border-strong md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-text-secondary md:hover:bg-bg-base md:hover:text-text-primary"
             >
-              Archive
+              {t('plan.detail.actions.archive')}
             </button>
             <button
               type="button"
               data-testid="plan-delete-btn"
               onClick={() => { setActionsOpen(false); setConfirming('delete'); }}
-              title="Delete this plan (unloads its tasks to the Backlog, cannot be undone)"
+              title={t('plan.detail.actions.deleteTitle')}
               className="flex min-h-[2.75rem] w-full items-center px-3 text-sm text-danger hover:bg-bg-subtle md:min-h-0 md:w-auto md:rounded md:border md:border-danger md:bg-bg-subtle md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-danger md:hover:bg-bg-base"
             >
-              Delete
+              {t('plan.detail.actions.delete')}
             </button>
           </>
         )}
@@ -505,7 +509,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
           {/* Mobile goal panel (toggled from Actions) */}
           {mobileGoalOpen && plan.description.trim() !== '' && (
             <div className="relative rounded-lg border border-border-base bg-bg-elevated p-3">
-              <button type="button" onClick={() => setMobileGoalOpen(false)} aria-label="Close goal" className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary">
+              <button type="button" onClick={() => setMobileGoalOpen(false)} aria-label={t('plan.detail.goal.close')} className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary">
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true"><path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" /></svg>
               </button>
               <p className="whitespace-pre-wrap text-sm text-text-secondary" data-testid="plan-goal">{plan.description}</p>
@@ -521,7 +525,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
               goalLong && !goalOpen ? 'line-clamp-1' : ''
             }`}
             data-testid="plan-goal"
-            title="Plan goal"
+            title={t('plan.detail.goal.title')}
           >
             {plan.description}
           </p>
@@ -533,7 +537,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
               aria-expanded={goalOpen}
               className="mt-0.5 text-xs font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              {goalOpen ? 'Show less' : 'Show more'}
+              {goalOpen ? t('plan.detail.goal.showLess') : t('plan.detail.goal.showMore')}
             </button>
           )}
         </div>
@@ -581,9 +585,10 @@ function PlanTitleBar({ plan }: { plan: Plan }): React.ReactElement {
 // vertical/horizontal space vs a donut in the narrow rail — @oopslink). The fill
 // uses the success token so it flips per mode.
 function PlanProgressBar({ done, total }: { done: number; total: number }): React.ReactElement {
+  const { t } = useTranslation('work');
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
-    <div data-testid="plan-progress-bar" aria-label={`${pct}% complete`}>
+    <div data-testid="plan-progress-bar" aria-label={t('plan.detail.progressComplete', { pct })}>
       <div className="mb-1.5 flex items-baseline justify-between">
         <span className="text-sm font-bold text-text-primary" data-testid="plan-progress">
           {planProgressLabel({ done, total })}
@@ -630,6 +635,7 @@ function PlanInfoRail({
   participants: Participant[];
   onOpenDag?: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
   const start = useStartPlan(projectId, plan.id);
   const stop = useStopPlan(projectId, plan.id);
@@ -677,12 +683,12 @@ function PlanInfoRail({
           <PlanStatusChip status={plan.status} />
           {plan.status === 'running' && <AutoAdvancingIndicator variant="detail" />}
           <PlanFailedIndicator hasFailed={plan.has_failed} />
-          <span className="ml-auto text-xs text-text-muted">nodes done</span>
+          <span className="ml-auto text-xs text-text-muted">{t('plan.detail.rail.nodesDone')}</span>
         </div>
         <PlanProgressBar done={plan.progress.done} total={plan.progress.total} />
         {plan.target_date && (
           <p className="text-xs text-text-muted">
-            <span className="uppercase tracking-wide">Target</span>{' '}
+            <span className="uppercase tracking-wide">{t('plan.detail.meta.target')}</span>{' '}
             <span className="text-text-secondary" title={plan.target_date}>{formatLocalTime(plan.target_date)}</span>
           </p>
         )}
@@ -699,7 +705,7 @@ function PlanInfoRail({
               onClick={() => stop.mutate()}
               className={`${railBtn} text-danger hover:text-danger`}
             >
-              ■ Stop (→ draft)
+              {t('plan.detail.lifecycle.stop')}
             </button>
           )}
           {plan.status === 'draft' && (
@@ -710,18 +716,18 @@ function PlanInfoRail({
               onClick={() => start.mutate()}
               className="flex-1 rounded-lg border-0 bg-accent px-3 py-2 text-center text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
             >
-              ▸ Start
+              {t('plan.detail.lifecycle.start')}
             </button>
           )}
           {plan.status !== 'archived' && (
             <button type="button" data-testid="plan-edit-btn" onClick={() => setEditing(true)} className={railBtn}>
-              Edit
+              {t('plan.detail.actions.edit')}
             </button>
           )}
           {canDestroy && (
             <>
               <button type="button" data-testid="plan-archive-btn" onClick={() => setConfirming('archive')} className={railBtn}>
-                Archive
+                {t('plan.detail.actions.archive')}
               </button>
               <button
                 type="button"
@@ -729,7 +735,7 @@ function PlanInfoRail({
                 onClick={() => setConfirming('delete')}
                 className={`${railBtn} border-danger text-danger hover:text-danger`}
               >
-                Delete
+                {t('plan.detail.actions.delete')}
               </button>
             </>
           )}
@@ -745,12 +751,12 @@ function PlanInfoRail({
           opens the agent-activity sidebar — must show even when there's no goal). */}
       <div className="border-b border-border-base p-5" data-testid="plan-goal-wrap">
         <div className="mb-2 flex items-center gap-2">
-          <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Goal</h3>
+          <h3 className="text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.goal.heading')}</h3>
           <button
             type="button"
             data-testid="plan-creator-tag"
             onClick={() => setAgentRef(plan.creator_ref)}
-            title={`Open ${creatorLabel} activity`}
+            title={t('plan.detail.openActivity', { name: creatorLabel })}
             className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-border-base bg-bg-subtle py-0.5 pl-1 pr-2 text-xs font-medium text-text-secondary hover:border-accent hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <Avatar name={creatorLabel} kind={refKind(plan.creator_ref) === 'agent' ? 'agent' : 'human'} size="sm" />
@@ -765,7 +771,7 @@ function PlanInfoRail({
             <p
               className={`whitespace-pre-wrap text-sm text-text-secondary ${goalLong && !goalOpen ? 'line-clamp-4' : ''}`}
               data-testid="plan-goal"
-              title="Plan goal"
+              title={t('plan.detail.goal.title')}
             >
               {plan.description}
             </p>
@@ -777,12 +783,12 @@ function PlanInfoRail({
                 aria-expanded={goalOpen}
                 className="mt-1.5 text-xs font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                {goalOpen ? 'Show less' : 'Show more'}
+                {goalOpen ? t('plan.detail.goal.showLess') : t('plan.detail.goal.showMore')}
               </button>
             )}
           </>
         ) : (
-          <p className="text-sm italic text-text-muted">No goal set.</p>
+          <p className="text-sm italic text-text-muted">{t('plan.detail.goal.empty')}</p>
         )}
       </div>
 
@@ -790,7 +796,7 @@ function PlanInfoRail({
           merged Status+Progress block and Goal (Progress now lives at the top). */}
       {participants.length > 0 && (
         <div className="border-b border-border-base p-5">
-          <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Participants</h3>
+          <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">{t('plan.detail.participants')}</h3>
           <div className="flex flex-wrap gap-2" data-testid="plan-rail-participants">
             {participants.map((pt) => {
               const nm = resolveName(pt.identity_id);
@@ -801,7 +807,7 @@ function PlanInfoRail({
                   type="button"
                   onClick={() => setAgentRef(pt.identity_id)}
                   title={label}
-                  aria-label={`Open ${label} activity`}
+                  aria-label={t('plan.detail.openActivity', { name: label })}
                   className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <Avatar name={label} kind={(pt.kind as 'agent' | 'human') ?? (refKind(pt.identity_id) === 'agent' ? 'agent' : 'human')} />
@@ -833,7 +839,7 @@ function PlanInfoRail({
           >
             <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span>Up next</span>
+          <span>{t('plan.detail.upNext.title')}</span>
           {upNext.length > 0 && (
             <span className="inline-flex items-center rounded-full bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-bold text-text-secondary">
               {upNext.length}
@@ -841,7 +847,7 @@ function PlanInfoRail({
           )}
         </button>
         {upNextOpen && (upNext.length === 0 ? (
-          <p className="text-xs text-text-muted">No nodes queued.</p>
+          <p className="text-xs text-text-muted">{t('plan.detail.upNext.empty')}</p>
         ) : (
           <ul className="space-y-2" data-testid="plan-upnext">
             {upNext.map((n) => (
@@ -857,7 +863,7 @@ function PlanInfoRail({
             {upNextHidden > 0 && (
               <li>
                 <button type="button" onClick={onOpenDag} className="text-xs font-medium text-accent hover:underline">
-                  +{upNextHidden} more — view DAG
+                  {t('plan.detail.upNext.more', { count: upNextHidden })}
                 </button>
               </li>
             )}
@@ -902,6 +908,7 @@ function PlanDeleteModal({
   plan: Plan;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const navigate = useNavigate();
   const org = useOptionalOrgContext();
   const del = useDeletePlan(projectId, plan.id);
@@ -920,11 +927,11 @@ function PlanDeleteModal({
   return (
     <DestructiveConfirmModal
       testId="plan-delete-modal"
-      title="Delete this plan?"
+      title={t('plan.detail.deleteModal.title')}
       planName={plan.name}
-      body="This unloads all this plan's tasks back to the Backlog, permanently deletes the plan's conversation, and deletes the plan. This cannot be undone."
-      confirmLabel="Delete plan"
-      pendingLabel="Deleting…"
+      body={t('plan.detail.deleteModal.body')}
+      confirmLabel={t('plan.detail.deleteModal.confirm')}
+      pendingLabel={t('plan.detail.deleteModal.pending')}
       pending={del.isPending}
       error={del.isError ? friendlyDestructivePlanError(del.error) : null}
       errorTestId="plan-delete-error"
@@ -948,6 +955,7 @@ function PlanArchiveModal({
   plan: Plan;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const archive = useArchivePlan(projectId, plan.id);
 
   const onConfirm = async () => {
@@ -962,11 +970,11 @@ function PlanArchiveModal({
   return (
     <DestructiveConfirmModal
       testId="plan-archive-modal"
-      title="Archive this plan?"
+      title={t('plan.detail.archiveModal.title')}
       planName={plan.name}
-      body="This archives the plan and all its tasks (a terminal state). This cannot be undone."
-      confirmLabel="Archive plan"
-      pendingLabel="Archiving…"
+      body={t('plan.detail.archiveModal.body')}
+      confirmLabel={t('plan.detail.archiveModal.confirm')}
+      pendingLabel={t('plan.detail.archiveModal.pending')}
       pending={archive.isPending}
       error={archive.isError ? friendlyDestructivePlanError(archive.error) : null}
       errorTestId="plan-archive-error"
@@ -1011,6 +1019,7 @@ function DestructiveConfirmModal({
   onCancel: () => void;
   onConfirm: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -1037,7 +1046,7 @@ function DestructiveConfirmModal({
             onClick={onCancel}
             data-testid={cancelTestId}
           >
-            Cancel
+            {t('plan.detail.cancel')}
           </button>
           <button
             type="button"
@@ -1086,17 +1095,17 @@ function instantToDateInput(instant: string | null | undefined): string {
   return `${y}-${m}-${day}`;
 }
 
-function friendlyPatchError(error: unknown): string {
+function friendlyPatchError(error: unknown, t: TFunction): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const lower = raw.toLowerCase();
   if (lower.includes('archived')) {
-    return 'This plan is archived and can no longer be edited.';
+    return t('plan.detail.editModal.errorArchived');
   }
   if (lower.includes('draft')) {
     // T238: name/goal edit any time; only the target date is draft-only.
-    return 'The target date can only be changed while the plan is a draft.';
+    return t('plan.detail.editModal.errorDraft');
   }
-  return "Couldn't save your changes. Please try again.";
+  return t('plan.detail.editModal.errorGeneric');
 }
 
 function PlanEditModal({
@@ -1108,6 +1117,7 @@ function PlanEditModal({
   plan: Plan;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [name, setName] = useState(plan.name);
   const [description, setDescription] = useState(plan.description ?? '');
   const [targetDate, setTargetDate] = useState(() => instantToDateInput(plan.target_date));
@@ -1156,12 +1166,12 @@ function PlanEditModal({
       data-testid="plan-edit-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Edit plan"
+      aria-label={t('plan.detail.editModal.aria')}
     >
       <form onSubmit={submit} className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
-        <h2 className="mb-4 text-lg font-semibold">Edit Plan</h2>
+        <h2 className="mb-4 text-lg font-semibold">{t('plan.detail.editModal.title')}</h2>
         <label className="block text-xs font-medium" htmlFor="plan-edit-name">
-          Name
+          {t('plan.detail.editModal.name')}
         </label>
         <input
           id="plan-edit-name"
@@ -1172,7 +1182,7 @@ function PlanEditModal({
           autoFocus
         />
         <label className="mt-3 block text-xs font-medium" htmlFor="plan-edit-description">
-          Goal
+          {t('plan.detail.editModal.goal')}
         </label>
         <textarea
           id="plan-edit-description"
@@ -1185,7 +1195,7 @@ function PlanEditModal({
         {isDraft && (
           <>
             <label className="mt-3 block text-xs font-medium" htmlFor="plan-edit-target-date">
-              Target date
+              {t('plan.detail.editModal.targetDate')}
             </label>
             <input
               id="plan-edit-target-date"
@@ -1200,7 +1210,7 @@ function PlanEditModal({
         )}
         {patch.isError && (
           <p className="mt-3 text-xs font-medium text-danger" role="alert" data-testid="plan-edit-error">
-            {friendlyPatchError(patch.error)}
+            {friendlyPatchError(patch.error, t)}
           </p>
         )}
         <div className="mt-4 flex justify-end gap-2">
@@ -1210,7 +1220,7 @@ function PlanEditModal({
             onClick={onClose}
             data-testid="plan-edit-cancel"
           >
-            Cancel
+            {t('plan.detail.cancel')}
           </button>
           <button
             type="submit"
@@ -1218,7 +1228,7 @@ function PlanEditModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="plan-edit-submit"
           >
-            {patch.isPending ? 'Saving…' : 'Save changes'}
+            {patch.isPending ? t('plan.detail.editModal.saving') : t('plan.detail.editModal.save')}
           </button>
         </div>
       </form>
@@ -1357,7 +1367,9 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
 const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'paused', 'done', 'failed'];
 
 function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactElement {
+  const { t } = useTranslation('work');
   const s = NODE_STATE[status] ?? NODE_STATE.blocked;
+  const known = status in NODE_STATE ? status : 'blocked';
   return (
     <span
       className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide ${s.cls}`}
@@ -1365,7 +1377,7 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
       data-node-status={status}
     >
       {s.icon}
-      {s.label}
+      {t(`plan.detail.nodeStatus.${known}`)}
     </span>
   );
 }
@@ -1394,6 +1406,7 @@ function UnmergedBranchesPanel({
   // call sites no longer need to pass margins.
   className?: string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('work');
   const board = useUnmergedBranches(projectId, planId);
   const rows = board.data?.unmerged ?? [];
   // T315: the panel is collapsible (the PD asked) — a long unmerged list was a
@@ -1432,7 +1445,7 @@ function UnmergedBranchesPanel({
         >
           <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span>Unmerged branches</span>
+        <span>{t('plan.detail.unmerged.title')}</span>
         <span
           className="inline-flex items-center rounded-full bg-warning/15 px-1.5 py-0.5 text-[0.625rem] font-bold text-warning"
           data-testid="plan-unmerged-count"
@@ -1440,7 +1453,7 @@ function UnmergedBranchesPanel({
           {rows.length}
         </span>
         <span className="min-w-0 flex-1 truncate text-left font-normal normal-case tracking-normal text-text-muted">
-          — clear before Ship
+          {t('plan.detail.unmerged.clearBeforeShip')}
         </span>
       </button>
       {open && (
@@ -1464,9 +1477,9 @@ function UnmergedBranchesPanel({
                   <span
                     className="inline-flex shrink-0 items-center rounded bg-bg-base px-1 py-0.5 text-[0.625rem] font-medium text-text-muted"
                     data-testid="plan-unmerged-skipcheck"
-                    title="merge check structurally skipped (no-code feature); still counts until done"
+                    title={t('plan.detail.unmerged.skipCheckTitle')}
                   >
-                    skip-check
+                    {t('plan.detail.unmerged.skipCheck')}
                   </span>
                 )}
                 <NodeStateChip status={u.node_status} />
@@ -1523,6 +1536,7 @@ function TaskIdTag({
 // When rendered with NO provider (e.g. an isolated unit test) `useSenderSidebar`
 // returns null and the tag degrades to a static, non-clickable span — unchanged.
 function AssigneeTag({ assigneeRef }: { assigneeRef: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
   const openSender = useSenderSidebar();
   if (!assigneeRef) {
@@ -1545,8 +1559,8 @@ function AssigneeTag({ assigneeRef }: { assigneeRef: string }): React.ReactEleme
         type="button"
         data-testid="plan-node-assignee"
         onClick={() => openSender(assigneeRef)}
-        title={`Open ${label} activity`}
-        aria-label={`Open ${label} activity`}
+        title={t('plan.detail.openActivity', { name: label })}
+        aria-label={t('plan.detail.openActivity', { name: label })}
         className="flex min-w-0 items-center gap-1.5 rounded text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         {inner}
@@ -1708,7 +1722,8 @@ function SyntheticAnchorMarker({
   kind: 'start' | 'end';
   anchor: SyntheticAnchor;
 }): React.ReactElement {
-  const label = kind === 'start' ? 'Start' : 'End';
+  const { t } = useTranslation('work');
+  const label = kind === 'start' ? t('plan.detail.dag.anchorStart') : t('plan.detail.dag.anchorEnd');
   return (
     <div
       // T347: Start gets a solid accent BORDER (the entry point); End keeps the
@@ -1817,6 +1832,7 @@ function PlanDag({
   // T348: compact (zoom-to-fit) is controlled by the tab-row icon in PlanDetail.
   compact: boolean;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
   // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
@@ -1962,7 +1978,7 @@ function PlanDag({
     <div data-testid="plan-dag" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
       {nodes.length === 0 ? (
         <p className="py-10 text-center text-xs text-text-muted" data-testid="plan-dag-empty">
-          No tasks in this plan yet. Add tasks from the Work Board.
+          {t('plan.detail.dag.empty')}
         </p>
       ) : (
         <>
@@ -1979,17 +1995,21 @@ function PlanDag({
               role="status"
             >
               <span className="min-w-0 truncate">
-                Pick a highlighted task that{' '}
-                <span className="font-semibold text-text-primary">{titleOf(connectFrom)}</span> depends on.
+                <Trans
+                  t={t}
+                  i18nKey="plan.detail.dag.connectBanner"
+                  values={{ title: titleOf(connectFrom) }}
+                  components={{ b: <span className="font-semibold text-text-primary" /> }}
+                />
               </span>
               <button
                 type="button"
                 data-testid="plan-connect-cancel"
                 onClick={exitConnect}
-                aria-label="Cancel adding dependency"
+                aria-label={t('plan.detail.dag.cancelAddDependency')}
                 className="ml-auto shrink-0 rounded border border-border-strong bg-bg-subtle px-2 py-0.5 font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                Cancel
+                {t('plan.detail.cancel')}
               </button>
             </div>
           </div>
@@ -2077,8 +2097,8 @@ function PlanDag({
                   data-edge={`${e.from}->${e.to}`}
                   disabled={removeDep.isPending}
                   onClick={() => removeDep.mutate({ from_task_id: e.from, to_task_id: e.to })}
-                  aria-label={`Remove dependency: ${titleOf(e.from)} depends on ${titleOf(e.to)}`}
-                  title={`Remove dependency: ${titleOf(e.from)} depends on ${titleOf(e.to)}`}
+                  aria-label={t('plan.detail.dag.removeDependency', { from: titleOf(e.from), to: titleOf(e.to) })}
+                  title={t('plan.detail.dag.removeDependency', { from: titleOf(e.from), to: titleOf(e.to) })}
                   className="absolute z-10 flex h-5 w-5 items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-xs font-bold leading-none text-text-secondary shadow-1 hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                   // centered on the edge midpoint (button is 20px = w-5/h-5).
                   style={{ left: e.mx - 10, top: e.my - 10 }}
@@ -2138,11 +2158,11 @@ function PlanDag({
                           data-testid="plan-node-connect"
                           data-task-id={taskId}
                           onClick={() => setConnectFrom(taskId)}
-                          aria-label={`Add dependency from ${titleOf(taskId)}`}
-                          title={`Add a dependency from ${titleOf(taskId)} (pick the task it depends on)`}
+                          aria-label={t('plan.detail.dag.addDependencyAria', { title: titleOf(taskId) })}
+                          title={t('plan.detail.dag.addDependencyTitle', { title: titleOf(taskId) })}
                           className="shrink-0 rounded border border-border-strong bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                         >
-                          + Dep
+                          {t('plan.detail.dag.addDep')}
                         </button>
                       )}
                     </span>
@@ -2168,8 +2188,8 @@ function PlanDag({
                       data-testid="plan-connect-target"
                       data-task-id={taskId}
                       onClick={() => onTargetActivate(taskId)}
-                      aria-label={`Make ${titleOf(connectFrom!)} depend on ${titleOf(taskId)}`}
-                      title={`Make ${titleOf(connectFrom!)} depend on ${titleOf(taskId)}`}
+                      aria-label={t('plan.detail.dag.makeDependOn', { from: titleOf(connectFrom!), to: titleOf(taskId) })}
+                      title={t('plan.detail.dag.makeDependOn', { from: titleOf(connectFrom!), to: titleOf(taskId) })}
                       className="absolute inset-0 rounded-lg border-2 border-accent bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                     />
                   )}
@@ -2202,26 +2222,15 @@ function PlanDag({
           running/done the graph is DISPLAY-ONLY (backend rejects with
           ErrPlanNotDraft). */}
       <p className="mt-2 text-[0.6875rem] text-text-muted" data-testid="plan-dag-note">
-        Node status is derived (= f(task status, all upstream done, dispatch record)) and shown, not edited.{' '}
-        {isDraft ? (
-          <>
-            This plan is a draft, so its dependencies are editable right on the graph — use a node's "+ Dep"
-            button to add an edge, or an edge's "×" to remove one.
-          </>
-        ) : (
-          <>
-            Display-only graph: a running plan auto-advances (the system dispatches ready nodes as upstream
-            tasks complete) and "Advance now" is a manual override. Dependencies can only be edited while the
-            plan is a draft.
-          </>
-        )}
+        {t('plan.detail.dag.noteDerived')}{' '}
+        {isDraft ? t('plan.detail.dag.noteDraft') : t('plan.detail.dag.noteDisplayOnly')}
       </p>
 
       {/* #218 friendly add/remove error (never the raw API message). The
           single in-graph entry point (§21) — no separate editor box. */}
       {isDraft && mutationError && (
         <p className="mt-2 text-xs font-medium text-danger" role="alert" data-testid="plan-edge-error">
-          {friendlyDependencyError(mutationError)}
+          {friendlyDependencyError(mutationError, t)}
         </p>
       )}
     </div>
@@ -2239,19 +2248,19 @@ function PlanDag({
 // #218: add/remove failures map the backend Go error message (all surface as a
 // 400 invalid_request, distinguished by the message text) to a FRIENDLY string;
 // the raw error is never shown.
-function friendlyDependencyError(error: unknown): string {
+function friendlyDependencyError(error: unknown, t: TFunction): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
   const lower = raw.toLowerCase();
   if (lower.includes('itself') || lower.includes('self')) {
-    return "A task can't depend on itself.";
+    return t('plan.detail.depError.self');
   }
   if (lower.includes('cycle')) {
-    return 'That would create a cycle in the plan.';
+    return t('plan.detail.depError.cycle');
   }
   if (lower.includes('draft')) {
-    return 'Dependencies can only be edited while the plan is a draft.';
+    return t('plan.detail.depError.draft');
   }
-  return "Couldn't update the plan's dependencies. Please try again.";
+  return t('plan.detail.depError.generic');
 }
 
 // ── Task list tab ────────────────────────────────────────────────────────────
@@ -2272,6 +2281,7 @@ function memberRef(m: MemberResult): string {
 // the visible rows by title / Task-id / assignee, and the table scrolls
 // vertically within the tab. Inline assignee reassignment lives per-row.
 function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
+  const { t } = useTranslation('work');
   const nodes = plan.nodes ?? [];
   const canRemove = plan.status === 'draft';
   const members = useMembers();
@@ -2295,7 +2305,7 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
     <div data-testid="plan-task-list">
       {nodes.length === 0 ? (
         <p className="py-10 text-center text-xs text-text-muted" data-testid="plan-task-list-empty">
-          No tasks in this plan yet.
+          {t('plan.detail.taskList.empty')}
         </p>
       ) : (
         <>
@@ -2305,29 +2315,29 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               data-testid="plan-task-search"
-              aria-label="Filter tasks"
-              placeholder="Filter by title, Task id, or assignee…"
+              aria-label={t('plan.detail.taskList.filterAria')}
+              placeholder={t('plan.detail.taskList.filterPlaceholder')}
               className="min-w-[14rem] flex-1 rounded border border-border-base bg-bg-elevated px-2 py-1 text-xs text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
             <span className="text-[0.6875rem] text-text-muted" data-testid="plan-task-search-count">
-              Showing {filtered.length} of {nodes.length}
+              {t('plan.detail.taskList.showing', { shown: filtered.length, total: nodes.length })}
             </span>
           </div>
           {filtered.length === 0 ? (
             <p className="py-8 text-center text-xs text-text-muted" data-testid="plan-task-search-empty">
-              No tasks match your filter.
+              {t('plan.detail.taskList.noMatch')}
             </p>
           ) : (
             <div className="max-h-[28rem] overflow-x-auto overflow-y-auto">
               <table className="w-full text-left text-xs" data-testid="plan-task-list-table">
                 <thead>
                   <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                    <th className="py-1.5 pr-3 font-medium">Task</th>
-                    <th className="py-1.5 pr-3 font-medium">Title</th>
-                    <th className="py-1.5 pr-3 font-medium">Assignee</th>
-                    <th className="py-1.5 pr-3 font-medium">Task status</th>
-                    <th className="py-1.5 font-medium">Node status</th>
-                    {canRemove && <th className="py-1.5 pl-3 text-right font-medium">Action</th>}
+                    <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colTask')}</th>
+                    <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colTitle')}</th>
+                    <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colAssignee')}</th>
+                    <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colTaskStatus')}</th>
+                    <th className="py-1.5 font-medium">{t('plan.detail.taskList.colNodeStatus')}</th>
+                    {canRemove && <th className="py-1.5 pl-3 text-right font-medium">{t('plan.detail.taskList.colAction')}</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-base">
@@ -2359,18 +2369,18 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
 // single-active invariant (ResumeWorkByOperator → 409 agent_busy): the right answer
 // is to explain WHY, not retry blindly. Maps the backend error CODE (ApiError.code);
 // any unmapped error keeps the original generic copy.
-function resumeNodeErrorMessage(error: unknown): string {
+function resumeNodeErrorMessage(error: unknown, t: TFunction): string {
   const code = error instanceof ApiError ? error.code : '';
   switch (code) {
     case 'agent_busy':
       // The agent paused this item to work another; it can't be double-activated.
-      return "Its agent is busy on another task — it'll resume this one when that finishes, or the agent can resume it from its side.";
+      return t('plan.detail.resumeError.agentBusy');
     case 'node_not_paused':
-      return 'Nothing to resume — this node has no paused task (it may have already resumed).';
+      return t('plan.detail.resumeError.nodeNotPaused');
     case 'plan_not_running':
-      return "The plan isn't running, so its nodes can't be resumed.";
+      return t('plan.detail.resumeError.planNotRunning');
     default:
-      return "Couldn't resume this node. Please try again.";
+      return t('plan.detail.resumeError.generic');
   }
 }
 
@@ -2393,6 +2403,7 @@ function PlanTaskRow({
   canRemove: boolean;
   members: MemberResult[];
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const remove = useRemoveTaskFromPlan(projectId, planId);
   // Confirmation state for the trash-icon remove button. First click arms it
   // (shows "Confirm?" inline); second click executes; clicking elsewhere or
@@ -2436,7 +2447,7 @@ function PlanTaskRow({
   // leading so the (single) dropdown trigger shows the current assignee's
   // avatar + name. Mirrors the old <option> list (memberRef + "name (kind)").
   const assigneeOptions: EntityOption[] = useMemo(() => {
-    const opts: EntityOption[] = [{ value: '', label: 'Unassigned' }];
+    const opts: EntityOption[] = [{ value: '', label: t('plan.detail.taskList.unassigned') }];
     for (const m of members) {
       const name = m.display_name ?? normalizeIdentityRef(m.identity_id);
       opts.push({
@@ -2447,7 +2458,7 @@ function PlanTaskRow({
       });
     }
     return opts;
-  }, [members]);
+  }, [members, t]);
   return (
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
       {/* v2.9.1 UX point 1: human Task id (T-number) column. */}
@@ -2466,7 +2477,7 @@ function PlanTaskRow({
             role="alert"
             data-testid={`plan-task-remove-error-${node.task_id}`}
           >
-            Couldn't remove this task from the plan. Please try again.
+            {t('plan.detail.taskList.removeError')}
           </span>
         )}
       </td>
@@ -2488,10 +2499,10 @@ function PlanTaskRow({
             options={assigneeOptions}
             value={node.assignee_ref ?? ''}
             onChange={onAssigneeChange}
-            ariaLabel={`Reassign ${title}`}
+            ariaLabel={t('plan.detail.taskList.reassign', { title })}
             disabled={assign.isPending || unassign.isPending}
-            placeholder="Unassigned"
-            searchPlaceholder="Search members…"
+            placeholder={t('plan.detail.taskList.unassigned')}
+            searchPlaceholder={t('plan.detail.taskList.searchMembers')}
           />
         </div>
         {assignError && (
@@ -2500,7 +2511,7 @@ function PlanTaskRow({
             role="alert"
             data-testid={`plan-task-assign-error-${node.task_id}`}
           >
-            Couldn't reassign this task. Please try again.
+            {t('plan.detail.taskList.assignError')}
           </span>
         )}
       </td>
@@ -2531,12 +2542,12 @@ function PlanTaskRow({
               type="button"
               className="rounded border border-status-stone-border bg-status-stone-bg px-2 py-0.5 text-[0.6875rem] font-semibold text-status-stone-fg hover:opacity-80 disabled:opacity-50"
               disabled={resume.isPending}
-              aria-label={`Resume ${title}`}
-              title="Resume this paused node (wake its agent)"
+              aria-label={t('plan.detail.taskList.resumeAria', { title })}
+              title={t('plan.detail.taskList.resumeTitle')}
               data-testid={`plan-node-resume-${node.task_id}`}
               onClick={() => resume.mutate(node.task_id)}
             >
-              {resume.isPending ? 'Resuming…' : 'Resume'}
+              {resume.isPending ? t('plan.detail.taskList.resuming') : t('plan.detail.taskList.resume')}
             </button>
           )}
         </span>
@@ -2546,7 +2557,7 @@ function PlanTaskRow({
             role="alert"
             data-testid={`plan-node-resume-error-${node.task_id}`}
           >
-            {resumeNodeErrorMessage(resume.error)}
+            {resumeNodeErrorMessage(resume.error, t)}
           </span>
         )}
       </td>
@@ -2558,7 +2569,7 @@ function PlanTaskRow({
                 className="text-[0.6875rem] font-semibold text-danger"
                 aria-live="polite"
               >
-                Confirm?
+                {t('plan.detail.taskList.confirm')}
               </span>
             )}
             <button
@@ -2569,8 +2580,8 @@ function PlanTaskRow({
                   : 'text-text-muted hover:bg-bg-subtle hover:text-text-primary'
               }`}
               disabled={remove.isPending}
-              aria-label={`Remove ${node.title || refLabel(node.org_ref, node.task_id)} from plan`}
-              title={confirmArmed ? 'Click again to confirm removal' : 'Remove from plan (back to backlog)'}
+              aria-label={t('plan.detail.taskList.removeAria', { title: node.title || refLabel(node.org_ref, node.task_id) })}
+              title={confirmArmed ? t('plan.detail.taskList.removeConfirmTitle') : t('plan.detail.taskList.removeTitle')}
               data-testid={`plan-task-remove-${node.task_id}`}
               onClick={handleRemoveClick}
               onBlur={cancelConfirm}
@@ -2621,6 +2632,7 @@ function PlanConversationSide({
   maximized: boolean;
   onToggleMaximize: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const conv = useConversation(conversationId || undefined);
   const isMobile = useIsMobile(); // T324: embed the conv sidebar on desktop only
   // Embedded sidebar collapse — lifted so the restore button can sit in the
@@ -2669,8 +2681,8 @@ function PlanConversationSide({
               type="button"
               onClick={onToggleMaximize}
               data-testid="plan-conversation-restore"
-              aria-label="Restore chat"
-              title="Restore (Esc)"
+              aria-label={t('plan.detail.chat.restore')}
+              title={t('plan.detail.chat.restoreEsc')}
               className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               <PlanChatRestoreIcon />
@@ -2682,7 +2694,7 @@ function PlanConversationSide({
             className="rounded border border-dashed border-border-base p-4 text-xs italic text-text-muted"
             data-testid="plan-conversation-initializing"
           >
-            Conversation initializing — the plan's chat is being set up.
+            {t('plan.detail.chat.initializing')}
           </p>
         ) : (
           <div
@@ -2699,7 +2711,7 @@ function PlanConversationSide({
               <ConversationView surface="task-thread" conversationId={conversationId} />
               {conv.isError && (
                 <p className="p-2 text-[0.6875rem] text-text-muted">
-                  Couldn't refresh conversation details.
+                  {t('plan.detail.chat.refreshError')}
                 </p>
               )}
             </div>
@@ -2720,7 +2732,7 @@ function PlanConversationSide({
         )}
         {!maximized && (
           <p className="mt-2 hidden text-[0.6875rem] text-text-muted md:block">
-            Dispatch = @assignee in this conversation (notify human / wake agent); also the place to discuss this plan.
+            {t('plan.detail.chat.dispatchNote')}
           </p>
         )}
       </section>

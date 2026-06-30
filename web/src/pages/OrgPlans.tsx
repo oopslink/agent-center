@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useOrgPlans, type OrgPlanItem, type OrgPlanFilters } from '@/api/plans';
@@ -43,6 +44,7 @@ function ProgressMini({ done, total }: { done: number; total: number }): React.R
 }
 
 export default function OrgPlansPage(): React.ReactElement {
+  const { t } = useTranslation('work');
   const { slug } = useParams<{ slug: string }>();
   const [search, setSearch] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -94,26 +96,26 @@ export default function OrgPlansPage(): React.ReactElement {
       <header className="space-y-2">
         {/* v2.10.2 [T142]: "Plans" (plural) — matches the Workspace nav + the
             Projects/Issues/Tasks list-page title convention. */}
-        <h1 className="text-xl font-semibold text-text-primary">Plans</h1>
+        <h1 className="text-xl font-semibold text-text-primary">{t('plan.list.title')}</h1>
         <div
           className="space-y-2 rounded-md border border-border-base bg-bg-subtle/40 p-2.5"
           data-testid="org-plans-filterbar"
         >
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <label className="flex flex-1 items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
-              <span className="sr-only">Search plans</span>
+              <span className="sr-only">{t('plan.list.searchLabel')}</span>
               <input
                 type="search"
                 data-testid="org-plans-search"
-                aria-label="Search plans"
-                placeholder="Search plans…"
+                aria-label={t('plan.list.searchLabel')}
+                placeholder={t('plan.list.searchPlaceholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="min-w-[10rem] flex-1 rounded border border-border-base bg-bg-base px-2 py-1 text-xs normal-case tracking-normal text-text-secondary"
               />
             </label>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">Status</span>
+              <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">{t('plan.list.statusLabel')}</span>
               {PLAN_STATUS_OPTIONS.map((s) => {
                 const on = selectedStatuses.includes(s);
                 return (
@@ -129,21 +131,21 @@ export default function OrgPlansPage(): React.ReactElement {
                         : 'border border-border-base bg-bg-base text-text-secondary hover:bg-bg-subtle'
                     }`}
                   >
-                    {s}
+                    {t(`planStatus.${s}`, { defaultValue: s })}
                   </button>
                 );
               })}
             </div>
             <label className="flex items-center gap-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
-              <span>Project</span>
+              <span>{t('plan.list.projectLabel')}</span>
               <select
                 data-testid="org-plan-project"
-                aria-label="Project"
+                aria-label={t('plan.list.projectLabel')}
                 value={selectedProject}
                 onChange={(e) => setSelectedProject(e.target.value)}
                 className="rounded border border-border-base bg-bg-base px-1.5 py-0.5 text-xs normal-case tracking-normal text-text-secondary"
               >
-                <option value="">All projects</option>
+                <option value="">{t('plan.list.allProjects')}</option>
                 {projectList.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -159,21 +161,21 @@ export default function OrgPlansPage(): React.ReactElement {
               className="ml-auto inline-flex items-center gap-1 text-xs text-accent hover:underline disabled:text-text-muted disabled:no-underline disabled:opacity-60"
             >
               <span aria-hidden="true">&times;</span>
-              Clear filters
+              {t('plan.list.clearFilters')}
             </button>
           </div>
         </div>
       </header>
 
       {query.isLoading && (
-        <p className="text-xs text-text-muted" data-testid="org-plans-loading">Loading plans…</p>
+        <p className="text-xs text-text-muted" data-testid="org-plans-loading">{t('plan.list.loading')}</p>
       )}
       {query.isError && (
         <p className="text-xs text-danger" data-testid="org-plans-error">{(query.error as Error).message}</p>
       )}
       {query.data && items.length === 0 && (
         <p className="text-xs text-text-muted" data-testid="org-plans-empty">
-          {anyFilter ? 'No matching plans.' : 'No plans yet.'}
+          {anyFilter ? t('plan.list.emptyFiltered') : t('plan.list.empty')}
         </p>
       )}
 
@@ -184,13 +186,13 @@ export default function OrgPlansPage(): React.ReactElement {
           <table className="w-full text-left text-xs" data-testid="org-plans-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <SortHeader label="Name" sortKey="name" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 pr-3 font-medium">Project</th>
-                <th className="py-1.5 pr-3 font-medium">Progress</th>
-                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 pr-3 font-medium">Creator</th>
-                <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
+                <SortHeader label={t('plan.list.col.name')} sortKey="name" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('plan.list.col.status')} sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('plan.list.col.project')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('plan.list.col.progress')}</th>
+                <SortHeader label={t('plan.list.col.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('plan.list.col.creator')}</th>
+                <SortHeader label={t('plan.list.col.updated')} sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -295,7 +297,7 @@ export default function OrgPlansPage(): React.ReactElement {
                     <ProgressMini done={p.progress.done} total={p.progress.total} />
                     {p.creator_ref && (
                       <span className="truncate" title={p.creator_ref}>
-                        by {creatorLabel(p.creator_ref)}
+                        {t('plan.list.by', { name: creatorLabel(p.creator_ref) })}
                       </span>
                     )}
                     <span className="tabular-nums" title={p.created_at}>{shortDate(p.created_at)}</span>
@@ -343,6 +345,7 @@ function PlanSummaryPanel({
   plan: OrgPlanItem;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   // Owner ask: surface the creator's NAME (agent / human), not the raw id.
   const creatorLabel = useCreatorLabel();
   return (
@@ -350,14 +353,14 @@ function PlanSummaryPanel({
       <div className="flex flex-col" data-testid="org-plan-meta-panel" data-id={plan.id}>
         <div className="flex items-center justify-between px-4 pb-1 pt-3.5">
           <h2 className="text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">
-            Plan · summary
+            {t('plan.list.summary.heading')}
           </h2>
           <button
             type="button"
             onClick={onClose}
             data-testid="org-plan-meta-close"
-            aria-label="Close summary panel"
-            title="Close"
+            aria-label={t('plan.list.summary.closeAria')}
+            title={t('plan.list.summary.close')}
             className="inline-flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary"
           >
             <span aria-hidden="true">&times;</span>
@@ -365,17 +368,17 @@ function PlanSummaryPanel({
         </div>
 
         <div className="border-b border-border-base px-4 pb-2.5">
-          <SummaryKV k="ID"><PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="org-plan-meta-ref" /></SummaryKV>
-          <SummaryKV k="Name">{plan.name}</SummaryKV>
-          <SummaryKV k="Status"><PlanStatusChip status={plan.status} /></SummaryKV>
-          <SummaryKV k="Project">{plan.project.name}</SummaryKV>
-          <SummaryKV k="Nodes">{planProgressLabel(plan.progress)}</SummaryKV>
-          <SummaryKV k="Created"><span className="tabular-nums">{shortDate(plan.created_at)}</span></SummaryKV>
-          <SummaryKV k="Creator">{creatorLabel(plan.creator_ref)}</SummaryKV>
+          <SummaryKV k={t('plan.list.summary.id')}><PlanRefTag planId={plan.id} orgRef={plan.org_ref} testId="org-plan-meta-ref" /></SummaryKV>
+          <SummaryKV k={t('plan.list.summary.name')}>{plan.name}</SummaryKV>
+          <SummaryKV k={t('plan.list.summary.status')}><PlanStatusChip status={plan.status} /></SummaryKV>
+          <SummaryKV k={t('plan.list.summary.project')}>{plan.project.name}</SummaryKV>
+          <SummaryKV k={t('plan.list.summary.nodes')}>{planProgressLabel(plan.progress)}</SummaryKV>
+          <SummaryKV k={t('plan.list.summary.created')}><span className="tabular-nums">{shortDate(plan.created_at)}</span></SummaryKV>
+          <SummaryKV k={t('plan.list.summary.creator')}>{creatorLabel(plan.creator_ref)}</SummaryKV>
         </div>
 
         <h2 className="px-4 pb-1 pt-3 text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">
-          Actions
+          {t('plan.list.summary.actions')}
         </h2>
         <div className="px-4 pb-3">
           <OrgLink
@@ -384,7 +387,7 @@ function PlanSummaryPanel({
             className="inline-flex items-center gap-1 rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
           >
             <span aria-hidden="true">↗</span>
-            Open plan
+            {t('plan.list.summary.openPlan')}
           </OrgLink>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { useRelatedIssues } from '@/api/plans';
 import { StatusChip, refLabel } from '@/components/workItemDisplay';
@@ -22,17 +23,18 @@ export function RelatedIssuesBlock({
   projectId: string;
   currentPlanId: string;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const issues = useRelatedIssues(projectId, currentPlanId);
   const related = issues.data ?? [];
 
   return (
     <div className="border-b border-border-base p-5" data-testid="plan-related-issues">
       <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
-        Related Issues
+        {t('issue.relatedIssues.heading')}
       </h3>
       {issues.isLoading ? (
         <p className="text-xs text-text-muted" data-testid="related-issues-loading">
-          Loading…
+          {t('issue.relatedIssues.loading')}
         </p>
       ) : issues.isError ? (
         <p className="text-xs text-danger" data-testid="related-issues-error">
@@ -40,7 +42,7 @@ export function RelatedIssuesBlock({
         </p>
       ) : related.length === 0 ? (
         <p className="text-xs text-text-muted" data-testid="related-issues-empty">
-          No source issue for this plan.
+          {t('issue.relatedIssues.empty')}
         </p>
       ) : (
         <ul className="space-y-1" data-testid="related-issues-list">

@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 export interface EntityOption {
   /** The value submitted on select (e.g. a worker_id or an `agent:<id>` ref). */
@@ -41,12 +42,16 @@ export function EntitySelect({
   options,
   value,
   onChange,
-  placeholder = 'Select…',
-  searchPlaceholder = 'Search…',
-  emptyLabel = 'No matches.',
+  placeholder: placeholderProp,
+  searchPlaceholder: searchPlaceholderProp,
+  emptyLabel: emptyLabelProp,
   disabled = false,
   ariaLabel,
 }: EntitySelectProps): React.ReactElement {
+  const { t } = useTranslation('work');
+  const placeholder = placeholderProp ?? t('widgets.entitySelect.placeholder');
+  const searchPlaceholder = searchPlaceholderProp ?? t('widgets.entitySelect.searchPlaceholder');
+  const emptyLabel = emptyLabelProp ?? t('widgets.entitySelect.empty');
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -180,7 +185,7 @@ export function EntitySelect({
               }
             }}
             placeholder={searchPlaceholder}
-            aria-label="Search"
+            aria-label={t('widgets.entitySelect.searchAriaLabel')}
             className="block w-full rounded-t border-0 border-b border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-[var(--ring-color)]"
           />
           <ul className="min-h-0 flex-1 overflow-y-auto py-1" data-testid={`${testId}-options`} role="listbox">

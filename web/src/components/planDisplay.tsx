@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { PlanStatus } from '@/api/plans';
 import { refLabel } from '@/components/workItemDisplay';
 
@@ -38,13 +39,14 @@ export function planStatusClass(status: PlanStatus): string {
 // PlanStatusChip — the draft/running/done pill. Same shape/size idiom as the
 // work-items StatusChip (rounded uppercase mini-pill) for visual consistency.
 export function PlanStatusChip({ status }: { status: PlanStatus }): React.ReactElement {
+  const { t } = useTranslation('work');
   return (
     <span
       className={`rounded px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide ${planStatusClass(status)}`}
       data-testid="plan-status-chip"
       data-status={status}
     >
-      {status}
+      {t(`planStatus.${status}`, { defaultValue: status })}
     </span>
   );
 }
@@ -55,14 +57,15 @@ export function PlanStatusChip({ status }: { status: PlanStatus }): React.ReactE
 // ban stays green. Text label ("FAILED NODE"), NOT color/emoji alone. Renders
 // nothing when the Plan has no failed node.
 export function PlanFailedIndicator({ hasFailed }: { hasFailed: boolean }): React.ReactElement | null {
+  const { t } = useTranslation('work');
   if (!hasFailed) return null;
   return (
     <span
       className="rounded bg-blockedred px-1.5 py-0.5 text-[0.6875rem] uppercase tracking-wide text-white"
       data-testid="plan-failed-indicator"
-      title="A node in this plan has a failed task (§9.1)"
+      title={t('shared.failedNodeTitle')}
     >
-      Failed node
+      {t('shared.failedNode')}
     </span>
   );
 }
@@ -82,12 +85,13 @@ export function TaskArchivedBadge({
   archived: boolean | undefined;
   taskId: string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('work');
   if (!archived) return null;
   return (
     <span
       className="inline-flex items-center gap-1 rounded bg-status-amber-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-amber-fg"
       data-testid={`task-archived-badge-${taskId}`}
-      title="This task was archived with its plan (read-only)."
+      title={t('shared.archivedTitle')}
     >
       {/* archive box glyph */}
       <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
@@ -95,7 +99,7 @@ export function TaskArchivedBadge({
         <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8" />
         <path d="M10 12h4" />
       </svg>
-      Archived
+      {t('shared.archived')}
     </span>
   );
 }
@@ -155,7 +159,8 @@ export function AutoAdvancingIndicator({
 }: {
   variant?: 'detail' | 'column';
 }): React.ReactElement {
-  const hint = 'The system dispatches ready nodes automatically as upstream tasks complete.';
+  const { t } = useTranslation('work');
+  const hint = t('shared.autoAdvancingHint');
   if (variant === 'column') {
     // Compact suffix for the ~236px board column header.
     return (
@@ -165,7 +170,7 @@ export function AutoAdvancingIndicator({
         title={hint}
       >
         <AutoAdvancingIcon className="h-2.5 w-2.5" />
-        auto-advancing
+        {t('shared.autoAdvancingShort')}
       </span>
     );
   }
@@ -174,10 +179,10 @@ export function AutoAdvancingIndicator({
       className="inline-flex items-center gap-1 rounded border border-border-base px-1.5 py-0.5 text-[0.6875rem] font-medium text-text-secondary"
       data-testid="plan-auto-advancing"
       title={hint}
-      aria-label={`Auto-advancing — ${hint}`}
+      aria-label={t('shared.autoAdvancingAria', { hint })}
     >
       <AutoAdvancingIcon className="h-3 w-3" />
-      Auto-advancing
+      {t('shared.autoAdvancing')}
     </span>
   );
 }

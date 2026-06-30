@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MarkdownMessage } from './MarkdownMessage';
 
 // T179 (@oopslink) — the Task/Issue detail description, collapsible. A long
@@ -38,6 +39,7 @@ export function CollapsibleDescription({
   collapsedThreshold = 8,
   maxChars = 400,
 }: CollapsibleDescriptionProps): React.ReactElement {
+  const { t } = useTranslation('work');
   const collapsible = content.split('\n').length > collapsedThreshold || content.length > maxChars;
   const [expanded, setExpanded] = useState(false);
   const regionId = useId();
@@ -68,7 +70,7 @@ export function CollapsibleDescription({
           aria-controls={regionId}
           onClick={() => setExpanded((e) => !e)}
         >
-          {expanded ? 'Show less' : 'Show more'}
+          {expanded ? t('widgets.collapsible.showLess') : t('widgets.collapsible.showMore')}
         </button>
       )}
     </div>
