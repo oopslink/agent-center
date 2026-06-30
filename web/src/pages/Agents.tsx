@@ -325,9 +325,14 @@ export default function Agents(): React.ReactElement {
                   className="border-b border-border-base px-3 py-2 text-xs text-text-secondary"
                   data-testid="agent-role"
                 >
-                  {memberForAgent(a.identity_member_id)?.role ?? (
-                    <span className="text-text-muted">—</span>
-                  )}
+                  {(() => {
+                    const role = memberForAgent(a.identity_member_id)?.role;
+                    return role ? (
+                      t(`humans.role.${role}`, { defaultValue: role })
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    );
+                  })()}
                 </td>
                 <td className="border-b border-border-base px-3 py-2">
                   <MembershipStatus status={memberForAgent(a.identity_member_id)?.status} />
