@@ -380,12 +380,38 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 	}
 	// Builtin pool is a FLAT plan — no decisions/conditional edges, so nil outcomes.
 	view := pm.ComputePlanView(tasks, edges, records, nil, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
+	// Index tasks by id so we can read each newly-dispatched node's assignee for the
+	// F1 wake emit below (avoids a per-node FindByID).
+	byID := make(map[pm.TaskID]*pm.Task, len(tasks))
+	for _, t := range tasks {
+		byID[t.ID()] = t
+	}
 	var dispatched []pm.TaskID
 	for _, taskID := range view.ReadySet {
-		// PULL: record the dispatch (no message, no work-item, no wake). An empty
+		// PULL: record the dispatch (no message, no work-item, no @mention). An empty
 		// dispatch_message_id reflects that no @mention was posted for this node.
 		if rerr := s.plans.RecordDispatch(txCtx, planID, taskID, now, ""); rerr != nil {
 			return nil, rerr
+		}
+		// F1 (issue-ca51e07c): the built-in pool is PULL/no-@mention, but an ASSIGNED
+		// pool member still needs a PUSH wake — it will NOT self-claim (the task is
+		// already its own, not ownerless pool work), and this dispatch transition
+		// (NodeReady→NodeDispatched) is the exact moment it becomes runnable
+		// (EnsureTaskRunnable: a builtin member is runnable ONLY once NodeDispatched).
+		// Emit the SAME pm.task.assigned the structured dispatch emits
+		// (dispatchReadyNodes above) so the EXISTING DispatchWakeProjector (T465/I34)
+		// wakes the assignee exactly once. This is NOT a new emitter and does NOT revive
+		// the v2.14.0-retired AgentWorkItem: DispatchWakeProjector is event-id idempotent
+		// + runnable-gated, and a node leaves the ready-set the moment it is dispatched
+		// (RecordDispatch is INSERT-OR-IGNORE → ComputePlanView derives NodeDispatched),
+		// so this fires AT MOST ONCE per pool-dispatch — no double-wake loop. An
+		// UNASSIGNED pool member emits nothing here: it stays claimable and the
+		// auto-assign path wakes whoever it later assigns (that assign emits
+		// pm.task.assigned on an already-dispatched, runnable task).
+		if t := byID[taskID]; t != nil && strings.TrimSpace(string(t.Assignee())) != "" {
+			if eerr := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); eerr != nil {
+				return nil, eerr
+			}
 		}
 		dispatched = append(dispatched, taskID)
 	}
