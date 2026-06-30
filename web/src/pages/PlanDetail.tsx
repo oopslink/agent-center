@@ -815,7 +815,7 @@ function PlanInfoRail({
       {/* @oopslink: the unmerged-branch ship-gate board sits in the rail, just BEFORE
           Up next. Renders nothing when there is no unmerged work (no space on a clean
           plan). */}
-      <UnmergedBranchesPanel projectId={projectId} planId={plan.id} className="m-4 mb-0" />
+      <UnmergedBranchesPanel projectId={projectId} planId={plan.id} />
 
       {/* Up next (collapsible) */}
       <div className="border-b border-border-base p-5" data-testid="plan-upnext-section">
@@ -1360,7 +1360,7 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
   const s = NODE_STATE[status] ?? NODE_STATE.blocked;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide ${s.cls}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide ${s.cls}`}
       data-testid="node-state-chip"
       data-node-status={status}
     >
@@ -1385,12 +1385,13 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
 function UnmergedBranchesPanel({
   projectId,
   planId,
-  className = 'mx-4 mt-2',
+  className = '',
 }: {
   projectId: string;
   planId: string;
-  // Outer spacing — defaults to the in-flow placement; the right-hand rail passes
-  // its own (@oopslink: unmerged branches moved into the PlanInfoRail sidebar).
+  // Optional extra classes for the section wrapper. By default the panel is a
+  // plain rail section (same shape as Up next) — no boxed card; the rail/mobile
+  // call sites no longer need to pass margins.
   className?: string;
 }): React.ReactElement | null {
   const board = useUnmergedBranches(projectId, planId);
@@ -1406,17 +1407,22 @@ function UnmergedBranchesPanel({
     return null;
   }
   return (
-    <div
-      className={`overflow-hidden rounded-md border border-warning/40 bg-warning/5 ${className}`}
+    // @oopslink: unified with the Up next section — a plain bordered-bottom rail
+    // section (NO boxed warning card; the old `overflow-hidden` card clipped the
+    // status chip on the right). The warning semantics now live only in the
+    // header color + count badge, matching the rest of the rail's typography.
+    <section
+      className={`border-b border-border-base p-5 ${className}`}
       data-testid="plan-unmerged-board"
       data-unmerged-count={rows.length}
     >
-      {/* T315: clickable header = collapse toggle (chevron rotates when open). */}
+      {/* T315: clickable header = collapse toggle (chevron rotates when open).
+          Same shape/size as the Up next toggle, tinted warning. */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-warning hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/40"
+        className="mb-3 flex w-full items-center gap-2 text-[0.625rem] font-semibold uppercase tracking-wide text-warning hover:text-warning/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/40"
         data-testid="plan-unmerged-toggle"
       >
         <svg
@@ -1433,38 +1439,37 @@ function UnmergedBranchesPanel({
         >
           {rows.length}
         </span>
-        <span className="min-w-0 flex-1 truncate font-normal text-text-muted">
-          — not yet merged back; clear before Ship
+        <span className="min-w-0 flex-1 truncate text-left font-normal normal-case tracking-normal text-text-muted">
+          — clear before Ship
         </span>
       </button>
       {open && (
-        <ul
-          className="space-y-1 border-t border-warning/20 px-2 py-2"
-          data-testid="plan-unmerged-list"
-        >
+        <ul className="space-y-2" data-testid="plan-unmerged-list">
           {rows.map((u) => (
             <li
               key={u.task_id}
-              className="rounded border border-border-base/60 bg-bg-base/40 px-2 py-1.5"
+              className="rounded-lg border border-border-base bg-bg-subtle px-3 py-2"
               data-testid="plan-unmerged-row"
               data-task-id={u.task_id}
             >
-              {/* line 1: id · title · status — the at-a-glance row. */}
+              {/* line 1: id · title · status — the at-a-glance row. min-w-0 +
+                  shrink-0 on the chips lets the title truncate so nothing is
+                  clipped at the rail's right edge (the prior occlusion). */}
               <div className="flex items-center gap-2 text-xs">
                 <TaskIdTag taskId={u.task_id} orgRef={u.org_ref} testId="plan-unmerged-ref" />
                 <span className="min-w-0 flex-1 truncate font-medium text-text-primary" title={u.title}>
                   {u.title}
                 </span>
-                <NodeStateChip status={u.node_status} />
                 {u.skip_merge_check && (
                   <span
-                    className="inline-flex shrink-0 items-center rounded bg-bg-subtle px-1 py-0.5 text-[0.625rem] font-medium text-text-muted"
+                    className="inline-flex shrink-0 items-center rounded bg-bg-base px-1 py-0.5 text-[0.625rem] font-medium text-text-muted"
                     data-testid="plan-unmerged-skipcheck"
                     title="merge check structurally skipped (no-code feature); still counts until done"
                   >
                     skip-check
                   </span>
                 )}
+                <NodeStateChip status={u.node_status} />
               </div>
               {/* line 2: branch → base, secondary (truncates instead of wrapping). */}
               <div className="mt-1 flex items-center gap-1 font-mono text-[0.625rem] text-text-secondary">
@@ -1480,7 +1485,7 @@ function UnmergedBranchesPanel({
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
 
