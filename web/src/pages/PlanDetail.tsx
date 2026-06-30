@@ -636,6 +636,9 @@ function PlanInfoRail({
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState<null | 'delete' | 'archive'>(null);
   const [goalOpen, setGoalOpen] = useState(false);
+  // @oopslink: Up next is collapsible (mirrors the unmerged-branch panel). Default
+  // open so the queue stays visible; the header chevron toggles it.
+  const [upNextOpen, setUpNextOpen] = useState(true);
   // The agent-activity sidebar (SenderDetailSidebar, unchanged) — opened by the
   // @creator tag / a participant avatar. Local state keeps the rail decoupled
   // from the chat's own SenderSidebarProvider.
@@ -814,10 +817,30 @@ function PlanInfoRail({
           plan). */}
       <UnmergedBranchesPanel projectId={projectId} planId={plan.id} className="m-4 mb-0" />
 
-      {/* Up next */}
-      <div className="border-b border-border-base p-5">
-        <h3 className="mb-3 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">Up next</h3>
-        {upNext.length === 0 ? (
+      {/* Up next (collapsible) */}
+      <div className="border-b border-border-base p-5" data-testid="plan-upnext-section">
+        <button
+          type="button"
+          onClick={() => setUpNextOpen((o) => !o)}
+          aria-expanded={upNextOpen}
+          data-testid="plan-upnext-toggle"
+          className="mb-3 flex w-full items-center gap-2 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <svg
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            className={`h-3 w-3 shrink-0 transition-transform ${upNextOpen ? 'rotate-90' : ''}`}
+          >
+            <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Up next</span>
+          {upNext.length > 0 && (
+            <span className="inline-flex items-center rounded-full bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-bold text-text-secondary">
+              {upNext.length}
+            </span>
+          )}
+        </button>
+        {upNextOpen && (upNext.length === 0 ? (
           <p className="text-xs text-text-muted">No nodes queued.</p>
         ) : (
           <ul className="space-y-2" data-testid="plan-upnext">
@@ -839,7 +862,7 @@ function PlanInfoRail({
               </li>
             )}
           </ul>
-        )}
+        ))}
       </div>
 
       {/* Related Issues — the source issue(s) this plan's tasks derive from, so you

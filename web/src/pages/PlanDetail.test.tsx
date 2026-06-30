@@ -153,6 +153,18 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(list).queryByText('migration')).not.toBeInTheDocument(); // failed
   });
 
+  it('info rail: Up next is collapsible via its header toggle (@oopslink)', async () => {
+    mockPlan();
+    wrap();
+    expect(await screen.findByTestId('plan-upnext')).toBeInTheDocument();
+    // Collapse → the list unmounts; the header toggle stays.
+    fireEvent.click(screen.getByTestId('plan-upnext-toggle'));
+    expect(screen.queryByTestId('plan-upnext')).not.toBeInTheDocument();
+    // Expand again → list returns.
+    fireEvent.click(screen.getByTestId('plan-upnext-toggle'));
+    expect(screen.getByTestId('plan-upnext')).toBeInTheDocument();
+  });
+
   it('shows Stop (→ draft) when running and calls useStopPlan', async () => {
     let stopped = false;
     mockPlan();
