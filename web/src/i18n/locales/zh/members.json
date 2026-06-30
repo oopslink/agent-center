@@ -45,7 +45,7 @@
         "text": "文本"
       },
       "unavailableTitle": "运行时不可用",
-      "unavailableDefault": "该 Agent 已离线 / 其 Worker 无法访问——运行时数据在 Worker 在线时通过控制通道实时读取。"
+      "unavailableDefault": "该智能体已离线 / 其工作节点无法访问——运行时数据在工作节点在线时通过控制通道实时读取。"
     },
     "tasks": {
       "heading": "任务",
@@ -64,7 +64,7 @@
         "task": "任务"
       },
       "loading": "正在加载任务…",
-      "empty": "当任务被分配给该 Agent 时，会显示在这里。",
+      "empty": "当任务被分配给该智能体时，会显示在这里。",
       "noMatch": "没有任务符合当前筛选条件。",
       "status": {
         "in_progress": "进行中",
@@ -98,7 +98,7 @@
       "concurrency": {
         "slotsLabel": {
           "live": "个槽位使用中",
-          "offline": "个槽位 — Worker 离线",
+          "offline": "个槽位 — 工作节点离线",
           "expired": "个槽位 — 快照已过期",
           "nodata": "无实时槽位数据"
         },
@@ -106,7 +106,7 @@
         "adaptiveTitle": "自适应心跳频率",
         "adaptive": "自适应 3 秒",
         "updatedAgo": "{{age}}前更新",
-        "workerOffline": "Worker 离线",
+        "workerOffline": "工作节点离线",
         "expiredAge": "快照于 {{age}}前 · 最近已知",
         "nodataDetail": "无实时槽位数据 · 并发未启用"
       },
@@ -119,13 +119,13 @@
       }
     },
     "badges": {
-      "availabilityTitle": "可用性——该 Agent 是否会接受新工作",
+      "availabilityTitle": "可用性——该智能体是否会接受新工作",
       "availability": {
         "available": "可用",
         "busy": "繁忙",
         "unavailable": "不可用"
       },
-      "activityTitle": "活动状态——该运行中的 Agent 正在工作还是空闲",
+      "activityTitle": "活动状态——该运行中的智能体正在工作还是空闲",
       "activity": {
         "idle": "空闲",
         "busy": "活动中"
@@ -207,7 +207,7 @@
       "prettyDay": "{{year}} 年 {{month}} {{day}} 日"
     },
     "configModal": {
-      "dialogLabel": "编辑 Agent LLM 配置",
+      "dialogLabel": "编辑智能体 LLM 配置",
       "title": "编辑 LLM 配置",
       "close": "关闭",
       "fields": {
@@ -230,7 +230,7 @@
         "maxHint": "0 或 1 = 单任务（无并行）。2 及以上启用并行执行器。",
         "executorsLabel": "允许的执行器配置",
         "executorsHint": "守护进程可作为执行器派生的 {cli·model} 组合。至少添加一个以启用并行。",
-        "executorsEmpty": "无执行器配置——Agent 保持单任务模式。",
+        "executorsEmpty": "无执行器配置——智能体保持单任务模式。",
         "removeExecutor": "移除 {{cli}} {{model}}",
         "executorCli": "执行器 CLI",
         "executorModel": "执行器模型",
@@ -243,15 +243,15 @@
         "heading": "自动分配",
         "ariaLabel": "可自动分配",
         "label": "可自动分配",
-        "description": "开启时，该 Agent 可被自动分配匹配的任务池任务。关闭 = 永不自动分配，但仍可手动分配或由其自行认领任务。"
+        "description": "开启时，该智能体可被自动分配匹配的任务池任务。关闭 = 永不自动分配，但仍可手动分配或由其自行认领任务。"
       },
       "cancel": "取消",
       "save": "保存",
       "confirm": {
         "titleRestart": "重启以应用更改？",
         "titleSave": "保存配置更改？",
-        "messageRestart": "保存这些 LLM 配置更改将重启该 Agent 以使其生效。是否继续？",
-        "messageSave": "该 Agent 未在运行——新配置将在下次启动时生效。",
+        "messageRestart": "保存这些 LLM 配置更改将重启该智能体以使其生效。是否继续？",
+        "messageSave": "该智能体未在运行——新配置将在下次启动时生效。",
         "labelRestart": "保存并重启",
         "labelSave": "保存"
       }
@@ -259,17 +259,17 @@
   },
   "agents": {
     "list": {
-      "title": "Agent",
-      "subtitle": "组织范围内、具有受管生命周期的 Agent。",
-      "add": "+ 添加 Agent",
-      "emptyTitle": "暂无 Agent",
-      "emptyBody": "Agent 是组织范围内、具有受管生命周期的实体。点击「+ 添加 Agent」创建一个并将其绑定到一台 Worker。",
-      "tableCaption": "Agent 列表",
-      "selectAllAria": "全选 Agent",
-      "selectAgentAria": "选择 Agent {{name}}",
+      "title": "智能体",
+      "subtitle": "组织范围内、具有受管生命周期的智能体。",
+      "add": "+ 添加智能体",
+      "emptyTitle": "暂无智能体",
+      "emptyBody": "智能体是组织范围内、具有受管生命周期的实体。点击「+ 添加智能体」创建一个并将其绑定到一台工作节点。",
+      "tableCaption": "智能体列表",
+      "selectAllAria": "全选智能体",
+      "selectAgentAria": "选择智能体 {{name}}",
       "delete": "删除",
-      "deleteAgentAria": "删除 Agent {{name}}",
-      "deleteAgentTitle": "删除 Agent",
+      "deleteAgentAria": "删除智能体 {{name}}",
+      "deleteAgentTitle": "删除智能体",
       "noRecentActivity": "暂无近期活动",
       "col": {
         "name": "名称",
@@ -283,7 +283,7 @@
         "role": "角色",
         "status": "状态",
         "lastActivity": "最近活动",
-        "worker": "Worker"
+        "worker": "工作节点"
       }
     },
     "status": {
@@ -291,12 +291,12 @@
       "disabled": "已禁用"
     },
     "delete": {
-      "title": "删除 Agent",
-      "message": "删除 Agent「{{name}}」？此操作将永久移除该 Agent 及其成员身份。该 Agent 必须已停止且没有进行中的工作。此操作无法撤销。",
+      "title": "删除智能体",
+      "message": "删除智能体「{{name}}」？此操作将永久移除该智能体及其成员身份。该智能体必须已停止且没有进行中的工作。此操作无法撤销。",
       "confirm": "删除",
-      "errorRunning": "该 Agent 必须先停止才能删除。",
-      "errorActiveWork": "该 Agent 仍有进行中的任务，需待其完成后才能删除。",
-      "errorNotFound": "该 Agent 已不存在。",
+      "errorRunning": "该智能体必须先停止才能删除。",
+      "errorActiveWork": "该智能体仍有进行中的任务，需待其完成后才能删除。",
+      "errorNotFound": "该智能体已不存在。",
       "errorGeneric": "删除失败，请重试。"
     },
     "batch": {
@@ -307,22 +307,22 @@
         "reset": "重置"
       },
       "selectedCount": "已选择 {{count}} 个",
-      "confirmTitle": "{{action}} {{count}} 个 Agent",
-      "confirmMessage": "{{action}}所选的 {{count}} 个 Agent？",
-      "resetMessage": "重置所选的 {{count}} 个 Agent？此操作将清空每个 Agent 的记忆和工作区，且无法撤销。",
+      "confirmTitle": "{{action}} {{count}} 个智能体",
+      "confirmMessage": "{{action}}所选的 {{count}} 个智能体？",
+      "resetMessage": "重置所选的 {{count}} 个智能体？此操作将清空每个智能体的记忆和工作区，且无法撤销。",
       "confirmFallback": "确认",
       "summary": "{{succeeded}} 个成功",
       "summaryWithFailed": "{{succeeded}} 个成功，{{failed}} 个失败",
       "clear": "清除"
     },
     "members": {
-      "title": "Agent",
-      "add": "添加 Agent",
+      "title": "智能体",
+      "add": "添加智能体",
       "loading": "加载中…",
-      "empty": "暂无 Agent 成员",
+      "empty": "暂无智能体成员",
       "messageAria": "给 {{name}} 发消息",
       "runningOnPrefix": "运行于",
-      "notBound": "未绑定到 Worker",
+      "notBound": "未绑定到工作节点",
       "col": {
         "identity": "身份",
         "role": "角色",
@@ -331,11 +331,11 @@
       }
     },
     "detail": {
-      "loading": "正在加载 Agent…",
-      "backToAgents": "返回 Agent 列表",
-      "lookupFailed": "Agent 查询失败。",
+      "loading": "正在加载智能体…",
+      "backToAgents": "返回智能体列表",
+      "lookupFailed": "智能体查询失败。",
       "breadcrumbMembers": "成员",
-      "breadcrumbAgents": "Agent",
+      "breadcrumbAgents": "智能体",
       "tabs": {
         "profile": "资料",
         "activity": "活动",
@@ -347,17 +347,17 @@
         "messageTitle": "发送消息",
         "messageAria": "发送私信",
         "startTitle": "启动",
-        "startAria": "启动 Agent",
+        "startAria": "启动智能体",
         "stopTitle": "停止",
-        "stopAria": "停止 Agent",
+        "stopAria": "停止智能体",
         "restartTitle": "重启",
-        "restartAria": "重启 Agent",
+        "restartAria": "重启智能体",
         "resetTitle": "重置",
-        "resetAria": "重置 Agent",
+        "resetAria": "重置智能体",
         "archiveTitle": "归档",
-        "archiveAria": "归档 Agent",
+        "archiveAria": "归档智能体",
         "forceDeleteTitle": "强制删除",
-        "forceDeleteAria": "强制删除 Agent"
+        "forceDeleteAria": "强制删除智能体"
       },
       "activity": {
         "regionAria": "活动",
@@ -370,26 +370,26 @@
         "end": "没有更多活动"
       },
       "confirmStop": {
-        "title": "停止 Agent？",
+        "title": "停止智能体？",
         "message": "停止 <1>{{name}}</1>？所有进行中的工作都会被中断，直到再次启动。"
       },
       "confirmRestart": {
-        "title": "重启 Agent？",
-        "message": "重启 <1>{{name}}</1>？其当前运行会被中断，随后重新启动该 Agent。"
+        "title": "重启智能体？",
+        "message": "重启 <1>{{name}}</1>？其当前运行会被中断，随后重新启动该智能体。"
       },
       "confirmArchive": {
-        "title": "归档 Agent？",
-        "message": "归档 <1>{{name}}</1> 会将其从活动 Agent 列表中移除并释放其 Worker。其历史记录（任务、会话）会被保留，并显示为「（已归档）」。此操作无法撤销。",
+        "title": "归档智能体？",
+        "message": "归档 <1>{{name}}</1> 会将其从活动智能体列表中移除并释放其工作节点。其历史记录（任务、会话）会被保留，并显示为「（已归档）」。此操作无法撤销。",
         "confirm": "归档"
       },
       "reset": {
-        "title": "重置 Agent",
+        "title": "重置智能体",
         "description": "重置具有破坏性且无法撤销。请选择范围并确认后继续。",
         "scope": "范围",
         "scopeMemory": "记忆",
         "scopeWorkspace": "工作区",
         "scopeAll": "全部",
-        "understand": "我了解此操作将重置该 Agent 的{{scope}}。",
+        "understand": "我了解此操作将重置该智能体的{{scope}}。",
         "cancel": "取消",
         "submit": "重置",
         "submitting": "正在重置…"
@@ -401,7 +401,7 @@
       "descriptionNone": "无",
       "info": "信息",
       "computer": "计算机",
-      "noWorker": "无 Worker",
+      "noWorker": "无工作节点",
       "created": "创建时间",
       "creator": "创建者",
       "runtimeConfig": "运行时配置",
@@ -412,7 +412,7 @@
       "defaultBadge": "默认",
       "tag": {
         "cli": "CLI",
-        "model": "Model",
+        "model": "模型",
         "reasoning": "推理",
         "mode": "模式",
         "provider": "供应方",
@@ -423,40 +423,40 @@
       "concurrencySingle": "单活动 · 上限 1",
       "allowedExecutors": "允许的执行器",
       "executorsNone": "无",
-      "createdAgents": "创建的 Agent",
-      "createdAgentsEmpty": "暂无创建的 Agent。",
+      "createdAgents": "创建的智能体",
+      "createdAgentsEmpty": "暂无创建的智能体。",
       "skills": "技能",
       "skillsEmpty": "暂无技能。"
     },
     "create": {
-      "title": "添加 Agent",
+      "title": "添加智能体",
       "close": "关闭",
       "nameLabel": "名称",
       "namePlaceholder": "my-agent",
       "descriptionLabel": "描述",
-      "descriptionHint": "可选。会显示在 Agent 列表中。",
-      "modelLabel": "Model",
+      "descriptionHint": "可选。会显示在智能体列表中。",
+      "modelLabel": "模型",
       "modelHint": "可选。",
       "cliLabel": "CLI",
       "cliHint": "v2.7 仅运行 claude-code（codex/opencode 将在 v2.8 支持）。",
       "skillsLabel": "技能",
       "skillsHint": "可选。以逗号分隔。",
       "skillsPlaceholder": "review, planning",
-      "workerLabel": "Worker",
+      "workerLabel": "工作节点",
       "workerHint": "来源于环境（Environment）。",
-      "workerSelectPlaceholder": "选择一台 Worker…",
-      "workerSearchPlaceholder": "搜索 Worker…",
-      "workerEmptyLabel": "没有匹配的 Worker。",
-      "noWorkers": "环境中尚无 Worker — 请先注册一台 Worker。",
+      "workerSelectPlaceholder": "选择一台工作节点…",
+      "workerSearchPlaceholder": "搜索工作节点…",
+      "workerEmptyLabel": "没有匹配的工作节点。",
+      "noWorkers": "环境中尚无工作节点 — 请先注册一台工作节点。",
       "cancel": "取消",
-      "submit": "创建 Agent",
+      "submit": "创建智能体",
       "submitting": "正在创建..."
     },
     "bound": {
-      "loading": "正在加载 Agent…",
-      "emptyTitle": "暂无已绑定的 Agent",
-      "emptyBody": "没有 Agent 绑定到此 Worker。",
-      "removeHint": "若要将某个 Agent 从此 Worker 移除，请打开它并归档（无解绑操作）。",
+      "loading": "正在加载智能体…",
+      "emptyTitle": "暂无已绑定的智能体",
+      "emptyBody": "没有智能体绑定到此工作节点。",
+      "removeHint": "若要将某个智能体从此工作节点移除，请打开它并归档（无解绑操作）。",
       "restart": "重启",
       "restarting": "正在重启…",
       "col": {
@@ -493,7 +493,7 @@
     },
     "kind": {
       "human": "成员",
-      "agent": "Agent",
+      "agent": "智能体",
       "user": "用户"
     },
     "status": {
@@ -530,19 +530,19 @@
       "reEnable": "确定重新启用该成员吗？"
     },
     "new": {
-      "addAgent": "添加 Agent",
+      "addAgent": "添加智能体",
       "addUser": "添加用户",
       "createFailed": "创建失败",
       "userCreated": "用户已创建",
       "tempPasscodeHint": "临时密码（仅显示一次——请立即交付给对方）：",
       "savedBackToMembers": "我已保存，返回成员列表",
       "displayName": "显示名称",
-      "agentNamePlaceholder": "Agent 名称",
+      "agentNamePlaceholder": "智能体名称",
       "userNamePlaceholder": "用户名称",
       "descriptionOptional": "描述（可选）",
-      "runOnWorker": "运行所在 Worker",
-      "workerPlaceholder": "选择一个 Worker…",
-      "workerSearchPlaceholder": "搜索 Worker…",
+      "runOnWorker": "运行所在工作节点",
+      "workerPlaceholder": "选择一个工作节点…",
+      "workerSearchPlaceholder": "搜索工作节点…",
       "modelOptional": "模型（可选）",
       "cli": "CLI",
       "cliHint": "v2.7 仅支持运行 claude-code（codex/opencode 将在 v2.8 推出）。",
@@ -627,12 +627,12 @@
     "capabilities": {
       "removeAria": "移除能力 {{cap}}",
       "placeholder": "输入一项能力，按回车或逗号…",
-      "hint": "规范化（转为小写并去除首尾空格）。为空 = 无要求——任何符合条件的 Agent 均可被自动分配。非空则应用严格的子集校验。"
+      "hint": "规范化（转为小写并去除首尾空格）。为空 = 无要求——任何符合条件的智能体均可被自动分配。非空则应用严格的子集校验。"
     },
     "segment": {
       "ariaLabel": "成员类型",
       "humans": "成员",
-      "agents": "Agent"
+      "agents": "智能体"
     },
     "sidebar": {
       "deletedName": "（已删除）",
@@ -657,13 +657,13 @@
       "loadingActivity": "正在加载活动…",
       "noActivity": "暂无活动。",
       "loadOlder": "加载更早",
-      "loadingAgent": "正在加载 Agent…",
-      "agentDeleted": "该 Agent 不可用（已删除）。",
-      "agentLoadError": "无法加载该 Agent。",
+      "loadingAgent": "正在加载智能体…",
+      "agentDeleted": "该智能体不可用（已删除）。",
+      "agentLoadError": "无法加载该智能体。",
       "agentInfo": {
         "cli": "CLI",
         "model": "模型",
-        "worker": "Worker",
+        "worker": "工作节点",
         "description": "描述"
       },
       "loadingUser": "正在加载用户…",
@@ -679,12 +679,12 @@
   },
   "workers": {
     "detail": {
-      "loading": "正在加载 Worker…",
+      "loading": "正在加载工作节点…",
       "backToEnvironment": "返回环境",
-      "lookupFailed": "Worker 查询失败。",
+      "lookupFailed": "工作节点查询失败。",
       "breadcrumb": {
         "environment": "环境",
-        "workers": "Worker"
+        "workers": "工作节点"
       },
       "status": {
         "online": "在线",
@@ -692,7 +692,7 @@
       },
       "tabs": {
         "profile": "资料",
-        "agents": "绑定的 Agent",
+        "agents": "绑定的智能体",
         "management": "管理",
         "activity": "活动"
       },
@@ -702,7 +702,7 @@
       }
     },
     "profile": {
-      "id": "Worker ID",
+      "id": "工作节点 ID",
       "name": "名称",
       "unnamed": "未命名",
       "status": "状态",
@@ -722,7 +722,7 @@
     "management": {
       "name": {
         "heading": "名称",
-        "inputAriaLabel": "Worker 名称",
+        "inputAriaLabel": "工作节点名称",
         "saving": "正在保存…",
         "save": "保存",
         "cancel": "取消",
@@ -734,33 +734,33 @@
         "remint": "重新生成安装令牌"
       },
       "remove": {
-        "heading": "移除 Worker",
-        "description": "彻底移除此 Worker。重新登记机器即可再次注册。",
+        "heading": "移除工作节点",
+        "description": "彻底移除此工作节点。重新登记机器即可再次注册。",
         "removing": "正在移除…",
-        "button": "移除 Worker",
+        "button": "移除工作节点",
         "forceDeleting": "正在删除…",
         "forceDelete": "强制删除",
-        "confirmTitle": "移除 Worker？",
+        "confirmTitle": "移除工作节点？",
         "confirmLabel": "移除",
-        "confirmMessage": "移除 Worker“{{name}}”？此操作将吊销该 Worker 令牌并删除其记录。",
-        "boundWarning": "\n\n警告：有 {{count}} 个 Agent 绑定到此 Worker。移除后它们将失去所属 Worker（变为不可用）。它们不会被删除或解绑——若要移除某个 Agent，请在其详情页将其归档。",
-        "unboundNote": "已解绑 {{count}} 个 Agent。"
+        "confirmMessage": "移除工作节点“{{name}}”？此操作将吊销该工作节点令牌并删除其记录。",
+        "boundWarning": "\n\n警告：有 {{count}} 个智能体绑定到此工作节点。移除后它们将失去所属工作节点（变为不可用）。它们不会被删除或解绑——若要移除某个智能体，请在其详情页将其归档。",
+        "unboundNote": "已解绑 {{count}} 个智能体。"
       }
     },
     "enrolledToast": {
-      "connected": "Worker 已连接"
+      "connected": "工作节点已连接"
     },
     "addModal": {
-      "title": "添加 Worker",
+      "title": "添加工作节点",
       "close": "关闭",
-      "nameLabel": "Worker 名称",
+      "nameLabel": "工作节点名称",
       "namePlaceholder": "例如 test-1 或 tenant-foo",
-      "nameHint": "请使用一个唯一的名称（例如 <code>test-1</code>、<code>tenant-foo</code>），以便在环境中识别此 Worker。你可以从新建的环境行的“显示安装命令”操作中获取安装命令。",
+      "nameHint": "请使用一个唯一的名称（例如 <code>test-1</code>、<code>tenant-foo</code>），以便在环境中识别此工作节点。你可以从新建的环境行的“显示安装命令”操作中获取安装命令。",
       "cancel": "取消",
-      "submit": "添加 Worker",
-      "minting": "正在添加 Worker...",
+      "submit": "添加工作节点",
+      "minting": "正在添加工作节点...",
       "error": {
-        "title": "无法添加 Worker。",
+        "title": "无法添加工作节点。",
         "hint": "常见原因：中心未启用 admin TCP 监听（请在配置中设置 <code>server.admin_tcp_listen</code>，例如 <code>0.0.0.0:7300</code>），或 AdminToken 服务未接入。请检查服务器日志。",
         "close": "关闭",
         "retry": "重试"
@@ -775,16 +775,16 @@
         "title": "服务器未配置。"
       },
       "conflict": {
-        "title": "Worker 已在线。"
+        "title": "工作节点已在线。"
       },
       "notFound": {
-        "title": "未找到 Worker。"
+        "title": "未找到工作节点。"
       },
       "error": {
         "title": "无法加载安装命令。"
       },
       "ready": {
-        "instructions": "在你的 Worker 机器上，确认已解压 AgentCenter 压缩包，然后运行：",
+        "instructions": "在你的工作节点机器上，确认已解压智能体Center 压缩包，然后运行：",
         "tokenExpires": "令牌将于 {{time}} 过期（剩余 {{count}} 分钟）。",
         "done": "完成"
       },
@@ -793,8 +793,8 @@
         "close": "关闭",
         "reminting": "正在重新生成...",
         "remint": "重新生成安装命令",
-        "conflictError": "Worker 已在线——如需重置，请先从环境中移除它。",
-        "notFoundError": "未找到 Worker。",
+        "conflictError": "工作节点已在线——如需重置，请先从环境中移除它。",
+        "notFoundError": "未找到工作节点。",
         "genericError": "重新生成失败：{{message}}",
         "unknown": "未知"
       },
