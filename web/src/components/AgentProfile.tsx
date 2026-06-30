@@ -57,7 +57,7 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
                       data-testid="agent-profile-computer-status"
                       data-connected={computer.connected}
                     >
-                      {computer.status}
+                      {t(`workers.detail.status.${computer.status}`, { defaultValue: computer.status })}
                     </span>
                   </span>
                 ) : (

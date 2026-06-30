@@ -88,6 +88,12 @@ export default function MembersAgents(): React.ReactElement {
             const agent = agentByIdentity.get(m.identity_id);
             const name = m.display_name || m.identity_id;
             const lifecycle = agent?.lifecycle ?? (m.status === 'joined' ? 'joined' : 'disabled');
+            const roleLabel = t(`humans.role.${m.role}`, { defaultValue: m.role });
+            // `lifecycle` spans two enum spaces: agent lifecycle (running/stopped/…)
+            // and the membership fallback (joined/disabled); try each key group, then raw.
+            const lifecycleLabel = t(`agentRuntime.badges.lifecycle.${lifecycle}`, {
+              defaultValue: t(`agents.status.${lifecycle}`, { defaultValue: lifecycle }),
+            });
             const body = (
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
@@ -100,7 +106,7 @@ export default function MembersAgents(): React.ReactElement {
                   />
                 </span>
                 <span className="block truncate text-xs text-text-muted">
-                  {m.role} · {lifecycle}
+                  {roleLabel} · {lifecycleLabel}
                 </span>
               </span>
             );
