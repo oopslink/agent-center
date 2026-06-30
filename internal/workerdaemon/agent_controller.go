@@ -561,6 +561,17 @@ type AgentController struct {
 
 	mu     sync.Mutex
 	agents map[string]*managedAgent
+
+	// bg tracks best-effort background goroutines spawned off the event-pump on a
+	// clean turn-end (notably MarkCompletedTurn, which writes session.instance into
+	// the agent home). Production stays fully async — these are NEVER awaited on the
+	// hot path — but Shutdown drains bg after detaching the sessions so a caller that
+	// tears down its agent-home directory (every t.TempDir()-based test) is
+	// guaranteed no goroutine is still writing into it (T672: the async home write
+	// raced t.TempDir() RemoveAll → "directory not empty"). Add is only ever called
+	// from the pump goroutine, which Detach joins before Wait — so no Add races Wait.
+	bg sync.WaitGroup
+
 	// selfHeal tracks mid-run crash recovery per agent (backoff/cap/terminal). It
 	// SURVIVES the managedAgent delete on crash. Guarded by mu. See self_heal.go.
 	selfHeal map[string]*selfHealEntry
@@ -1817,6 +1828,37 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 		// later, UNRELATED connection error starts fresh with the full retry count
 		// (the previous burst recovered — its budget must not carry over).
 		c.resetAPIErrorRetries(agentID)
+		// 重启不丢上下文: persist that this generation has completed a clean turn,
+		// so a later boot can safely --resume this session (resuming a session that
+		// never completed a turn triggers a Claude no-completed-turn crash loop —
+		// see boot_reconcile.go). Best-effort, off the reader goroutine: this
+		// process holds the agent and serializes its instance-file writes, and the
+		// atomic temp+rename is the second-line defense, so no home flock is needed.
+		// A write failure only costs a fresh (non-resumed) relaunch next boot.
+		// SCOPED to claude-supervisor agents: a cli=codex session uses its own
+		// `codex exec` resume path and never reads session.instance on boot, so the
+		// lease write is pointless there (and would only add a stray async file
+		// write to its home).
+		var isCodex bool
+		c.mu.Lock()
+		if ma := c.agents[agentID]; ma != nil {
+			isCodex = ma.cli == cliCodex
+		}
+		c.mu.Unlock()
+		if !isCodex {
+			if home, _, _, pathErr := c.agentPaths(agentID); pathErr == nil {
+				// Tracked on c.bg so Shutdown can drain this home write before the
+				// caller removes the agent home (T672). Add runs here on the pump
+				// goroutine (Detach joins it before Wait), so Add never races Wait.
+				c.bg.Add(1)
+				go func() {
+					defer c.bg.Done()
+					if merrr := sessioninstance.MarkCompletedTurn(home); merrr != nil {
+						c.log("restart-recovery: MarkCompletedTurn(%s) failed: %v", agentID, merrr)
+					}
+				}()
+			}
+		}
 		go c.maybeReplyNudge(agentID)
 		// v2.15.0 I28/F2: a clean turn-end carries the result line's usage totals
 		// — report them to the center for per-turn cost accounting. Off the reader
@@ -2415,6 +2457,13 @@ func (c *AgentController) Shutdown(ctx context.Context) {
 		// Detach is no-signal + joins the pump; claude survives.
 		s.Detach()
 	}
+	// Detach joined every event-pump above, so no NEW clean-turn goroutine can be
+	// spawned past this point (no further c.bg.Add). Drain the ones already in
+	// flight (e.g. MarkCompletedTurn writing session.instance) so a caller that
+	// removes the agent home right after Shutdown — every t.TempDir()-based test —
+	// never races a lingering home write (T672). Production: these are fast local
+	// atomic writes, so the drain adds no meaningful shutdown latency.
+	c.bg.Wait()
 }
 
 // Stop is an alias for Shutdown using a background context (convenience).
