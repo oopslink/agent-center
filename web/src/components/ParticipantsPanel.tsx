@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRemoveParticipant } from '@/api/conversations';
 import { useDisplayNameResolver } from '@/api/members';
 import { useAppStore } from '@/store/app';
@@ -35,6 +36,7 @@ export function ParticipantsPanel({
   participants,
   showThreads = true,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('chat');
   const me = useAppStore((s) => s.currentUserId);
   const displayName = useDisplayNameResolver();
   const isOwner = participants.some(
@@ -45,7 +47,7 @@ export function ParticipantsPanel({
   const [inviteOpen, setInviteOpen] = useState(false);
 
   return (
-    <div className="p-4" aria-label="participants" data-testid="participants-panel">
+    <div className="p-4" aria-label={t('panels.participants.ariaLabel')} data-testid="participants-panel">
       <ul className="space-y-1">
         {active.map((p) => {
           const resolved = displayName(p.identity_id);
@@ -81,7 +83,7 @@ export function ParticipantsPanel({
                   onClick={() => remove.mutate({ conversationId, identityId: p.identity_id })}
                   data-testid="participant-remove"
                 >
-                  remove
+                  {t('panels.participants.remove')}
                 </button>
               )}
             </li>
@@ -107,7 +109,7 @@ export function ParticipantsPanel({
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M10 4v12M4 10h12" />
             </svg>
-            Invite
+            {t('panels.participants.invite')}
           </button>
           {inviteOpen && (
             <MemberInviteModal
@@ -139,6 +141,7 @@ export function ParticipantsPanel({
 // light / 1.67 dark, FAIL AA). Solid -100 bg + -800 text is AA in BOTH modes
 // (amber-100/amber-800 ≈ 6.37, slate ≈ 8+) and reads identically light + dark.
 function RoleBadge({ role }: { role: string }): React.ReactElement {
+  const { t } = useTranslation('chat');
   const isOwner = role === 'owner';
   const cls = isOwner
     ? 'bg-amber-100 text-amber-800' // raw-color-ok: solid OWNER amber, AA both modes
@@ -149,7 +152,7 @@ function RoleBadge({ role }: { role: string }): React.ReactElement {
       data-role={role}
       className={`shrink-0 rounded px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide ${cls}`}
     >
-      {isOwner ? 'OWNER' : 'MEMBER'}
+      {isOwner ? t('panels.participants.roleOwner') : t('panels.participants.roleMember')}
     </span>
   );
 }

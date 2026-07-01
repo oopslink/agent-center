@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { useParams } from 'react-router-dom';
 import { useDisplayNameResolver } from '@/api/members';
@@ -29,6 +30,7 @@ import { MobileBannerMeta, MobileDetailsContent, useIsMobile } from '@/component
 // assignee / tag edit controls here anymore. The single edit path is the modal,
 // which owns its own useUpdateTask hook.
 export default function TaskDetail(): React.ReactElement {
+  const { t } = useTranslation('work');
   const { projectId = '', id = '' } = useParams<{ projectId: string; id: string }>();
   const task = useTask(projectId, id);
   // v2.7 #186-2: show the project's display name (not its ULID) in the
@@ -61,7 +63,7 @@ export default function TaskDetail(): React.ReactElement {
       <section className="space-y-3" role="status" data-testid="page-TaskDetail">
         <Skeleton width="12rem" height="1.5rem" />
         <Skeleton height="4rem" />
-        <span className="sr-only">Loading task…</span>
+        <span className="sr-only">{t('task.detail.loading')}</span>
       </section>
     );
   }
@@ -72,7 +74,7 @@ export default function TaskDetail(): React.ReactElement {
           {(task.error as Error).message}
         </p>
         <OrgLink to={`/projects/${encodeURIComponent(projectId)}`} className="text-accent hover:underline">
-          Back to project
+          {t('task.detail.backToProject')}
         </OrgLink>
       </section>
     );
@@ -80,7 +82,7 @@ export default function TaskDetail(): React.ReactElement {
   if (!task.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-TaskDetail">
-        Task lookup failed.
+        {t('task.detail.lookupFailed')}
       </section>
     );
   }
@@ -117,9 +119,9 @@ export default function TaskDetail(): React.ReactElement {
       <div className="mb-2 hidden md:block">
         <Breadcrumb
           items={[
-            { label: 'Projects', to: '/projects' },
-            { label: project.data?.name || 'Project', to: `/projects/${encodeURIComponent(tk.project_id)}` },
-            { label: 'Tasks' },
+            { label: t('task.detail.breadcrumbProjects'), to: '/projects' },
+            { label: project.data?.name || t('task.detail.breadcrumbProject'), to: `/projects/${encodeURIComponent(tk.project_id)}` },
+            { label: t('task.detail.breadcrumbTasks') },
             { label: tk.org_ref ? `${tk.org_ref} - ${tk.title || tk.id}` : tk.title || tk.id },
           ]}
         />
@@ -165,16 +167,16 @@ export default function TaskDetail(): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => setShowInfo(false)}
-                    aria-label="Close info"
+                    aria-label={t('task.detail.closeInfo')}
                     className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:bg-bg-subtle hover:text-text-primary"
                     data-testid="wi-mobile-info-close"
                   >
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true"><path strokeLinecap="round" d="M5 5l10 10M15 5L5 15" /></svg>
                   </button>
                   {tk.description ? (
-                    <CollapsibleDescription content={tk.description} testId="task-description" ariaLabel="Task description" />
+                    <CollapsibleDescription content={tk.description} testId="task-description" ariaLabel={t('task.detail.descriptionAria')} />
                   ) : (
-                    <p className="text-sm italic text-text-muted">No description.</p>
+                    <p className="text-sm italic text-text-muted">{t('task.detail.noDescription')}</p>
                   )}
                   <div className="mt-3 border-t border-border-base pt-3">
                     <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
@@ -191,7 +193,7 @@ export default function TaskDetail(): React.ReactElement {
                     />
                     {planForSidebar && (
                       <div className="flex items-center justify-between gap-3 pt-1">
-                        <span className="shrink-0 text-xs uppercase tracking-wide text-text-muted">Plan</span>
+                        <span className="shrink-0 text-xs uppercase tracking-wide text-text-muted">{t('task.detail.plan')}</span>
                         <OrgLink
                           to={`/projects/${encodeURIComponent(tk.project_id)}/plans/${encodeURIComponent(planForSidebar.id)}`}
                           className="min-w-0 truncate text-right text-xs font-medium text-accent hover:underline"
@@ -220,9 +222,9 @@ export default function TaskDetail(): React.ReactElement {
               {tk.description ? (
                 // T179: long descriptions default-collapse (Show more); expanding
                 // reveals the full markdown in a height-capped, scrollable region.
-                <CollapsibleDescription content={tk.description} testId="task-description" ariaLabel="Task description" />
+                <CollapsibleDescription content={tk.description} testId="task-description" ariaLabel={t('task.detail.descriptionAria')} />
               ) : (
-                <p className="mt-4 text-sm italic text-text-muted">No description.</p>
+                <p className="mt-4 text-sm italic text-text-muted">{t('task.detail.noDescription')}</p>
               )}
               <div className="mt-4 border-t border-border-base pt-3">
                 <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
@@ -259,7 +261,7 @@ export default function TaskDetail(): React.ReactElement {
               className="mt-2 rounded bg-status-amber-bg px-2 py-1 text-xs font-medium text-status-amber-fg"
               data-testid="task-blocked-reason"
             >
-              Stuck: {tk.blocked_reason}
+              {t('task.detail.stuck', { reason: tk.blocked_reason })}
             </div>
           )}
         </div>

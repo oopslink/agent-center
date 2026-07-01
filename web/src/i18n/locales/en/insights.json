@@ -1,0 +1,236 @@
+{
+  "reminders": {
+    "header": "Reminders · {{scope}}",
+    "newButton": "+ New reminder",
+    "loading": "Loading…",
+    "loadError": "Failed to load reminders.",
+    "empty": "No reminders yet. Click “New reminder” to create one.",
+    "rowHint": "Click a row for details + firing history (each fire time, whether delivered, and whether skipped due to overlap).",
+    "self": "(self)",
+    "nextRunPaused": "— Paused",
+    "range": {
+      "all": "All",
+      "created": "Created by me",
+      "remindee": "Reminding me"
+    },
+    "statusChip": {
+      "default": "Active & Paused",
+      "all": "All",
+      "active": "Active",
+      "paused": "Paused",
+      "completed": "Completed",
+      "canceled": "Canceled"
+    },
+    "stat": {
+      "active": "Active",
+      "paused": "Paused",
+      "nextRun": "Next run"
+    },
+    "col": {
+      "target": "Target",
+      "trigger": "Trigger",
+      "nextRun": "Next run",
+      "content": "Content",
+      "creator": "Creator",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "kind": {
+      "once": "Once",
+      "recurring": "Recurring"
+    },
+    "relTime": {
+      "overdue": "Overdue",
+      "hours": "in ~{{hours}}h",
+      "days": "in ~{{days}}d"
+    },
+    "action": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "clone": "Clone",
+      "delete": "Delete"
+    },
+    "delete": {
+      "ariaLabel": "Delete reminder",
+      "title": "Delete reminder?",
+      "body": "This permanently removes the reminder for <name>{{name}}</name> and its firing history. This can’t be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete",
+      "pending": "Deleting…"
+    },
+    "create": {
+      "titleNew": "New reminder",
+      "titleEdit": "Edit reminder",
+      "close": "Close",
+      "remindeeLabel": "Remindee",
+      "remindeePlaceholder": "Select peer agents…",
+      "remindeeSearchPlaceholder": "Search agents…",
+      "remindeeEmpty": "No agents.",
+      "remindeeHint": "Pick one or more peer agents in the same project (guardrail: same project only · creation is audited).",
+      "remindeeHintEdit": "Remindee is fixed when editing — clone instead to retarget.",
+      "triggerLabel": "Trigger",
+      "triggerTypeAria": "Trigger type",
+      "tabOnce": "Once",
+      "tabRecurring": "Recurring (cron)",
+      "cronLabel": "Cron expression",
+      "cronPlaceholder": "min hour day month weekday",
+      "cronPreview": "{{human}} · TZ {{tz}}",
+      "timezoneAria": "Timezone",
+      "triggerTimeLabel": "Trigger time",
+      "contentLabel": "Reminder content",
+      "contentPlaceholder": "At trigger time this wakes the target agent as a directed message",
+      "skipOverlapLabel": "Skip this run if the previous one is unfinished",
+      "skipOverlapHint": "Avoids pile-up of recurring fires (on by default)",
+      "endConditionLabel": "End condition",
+      "endConditionHint": "Never ends · or set an end date or max N fires",
+      "endNever": "Never",
+      "endUntil": "Until date",
+      "endMaxCount": "Max N times",
+      "sendAsSelfLabel": "Send as yourself",
+      "sendAsSelfHint": "The fired reminder is sent as the creator (off = sent as system).",
+      "footerNote": "Creator: you · audited",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "saveChanges": "Save changes",
+      "creating": "Creating…",
+      "createButton": "Create reminder",
+      "errFailedSave": "Failed to save",
+      "errFailedCreate": "Failed to create",
+      "errPartial": "{{failed}} of {{total}} reminders failed: {{msg}}",
+      "oncePreview": "Fires once at {{date}} {{time}} · {{rel}} · TZ {{tz}}",
+      "oncePreviewRel": "in ~{{hours}}h",
+      "oncePreviewOverdue": "Overdue",
+      "cronPreset": {
+        "hourly": "Hourly",
+        "daily0900": "Daily 09:00",
+        "weekdays1800": "Weekdays 18:00",
+        "mondays0900": "Mondays 09:00",
+        "every30min": "Every 30 min"
+      },
+      "cronHuman": {
+        "every30min": "Every 30 minutes",
+        "everyHour": "Every hour, on the hour",
+        "daily": "Daily at {{time}}",
+        "weekdays": "Weekdays at {{time}}",
+        "everyDay": "Every {{weekday}} at {{time}}",
+        "weekly": "Weekly ({{dow}}) at {{time}}"
+      },
+      "weekday": {
+        "sunday": "Sunday",
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday"
+      }
+    },
+    "detail": {
+      "ariaLabel": "Reminder details",
+      "title": "Reminder details",
+      "close": "Close",
+      "loading": "Loading…",
+      "target": "Target",
+      "trigger": "Trigger",
+      "content": "Content",
+      "status": "Status",
+      "fired": "Fired",
+      "firedCount": "{{count}}×",
+      "viewDetail": "View {{name}} detail",
+      "firingHistory": "Firing history",
+      "firingsEmpty": "No firings yet.",
+      "outcome": {
+        "delivered": "Delivered",
+        "skippedOverlap": "Skipped (overlap)",
+        "failed": "Failed"
+      }
+    }
+  },
+  "analytics": {
+    "panel": {
+      "loading": "Loading analytics…",
+      "error": "Failed to load analytics.",
+      "loadingTopTasks": "Loading top tasks…"
+    },
+    "overview": {
+      "tokens": "Tokens - this month",
+      "cost": "Cost - this month",
+      "tasksDone": "Tasks done",
+      "activeDays": "Active days",
+      "activeRate": "{{pct}}% active rate",
+      "currentStreak": "Current streak",
+      "streakDays_one": "{{count}} day",
+      "streakDays_other": "{{count}} days",
+      "longest": "longest {{count}} days"
+    },
+    "trend": {
+      "title": "Tokens & Cost Trend",
+      "metric": {
+        "tokens": "Tokens",
+        "cost": "Cost"
+      },
+      "dim": {
+        "model": "Model",
+        "project": "Project"
+      },
+      "empty": "No {{metric}} data to chart.",
+      "ariaLabel": "{{metric}} trend stacked by {{dim}}",
+      "openProject": "Open project {{name}}"
+    },
+    "topTasks": {
+      "title": "Top Cost Tasks",
+      "empty": "No task-scoped usage this month.",
+      "drill": {
+        "loading": "Loading usage…",
+        "error": "Failed to load usage events.",
+        "empty": "No usage events for this task.",
+        "col": {
+          "when": "When",
+          "model": "Model",
+          "tokens": "Tokens",
+          "cost": "Cost"
+        }
+      }
+    }
+  },
+  "activity": {
+    "category": {
+      "output": "Output",
+      "thinking": "Thinking",
+      "checking": "Checking messages",
+      "tool": "Tool",
+      "result": "Result",
+      "control": "Control",
+      "received": "Received",
+      "acknowledged": "Acknowledged"
+    },
+    "tool": {
+      "searching": "Searching",
+      "searchingAria": "Searching (tool use)",
+      "running": "Running",
+      "runningAria": "Running (tool use)",
+      "result": "Result",
+      "resultOkAria": "Result, ok",
+      "resultErrorAria": "Result, error"
+    },
+    "row": {
+      "rateLimited": "rate limited",
+      "readConfirmed": "read confirmed",
+      "failed": "failed"
+    },
+    "detail": {
+      "task": "task",
+      "interaction": "interaction"
+    },
+    "checkingGroup": {
+      "label_one": "Checking messages × {{count}}",
+      "label_other": "Checking messages × {{count}}",
+      "aria_one": "Checking messages, {{count}} event, {{state}}",
+      "aria_other": "Checking messages, {{count}} events, {{state}}",
+      "expanded": "expanded",
+      "collapsed": "collapsed"
+    }
+  }
+}

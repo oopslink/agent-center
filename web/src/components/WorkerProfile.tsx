@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { EnvWorker } from '@/api/types';
 
 function formatDate(iso?: string): string {
@@ -20,29 +21,40 @@ const DEFERRED_FIELDS = [
   'Install path',
 ] as const;
 
+// Maps each stable English DEFERRED_FIELDS literal (kept for slug/key/testid) to
+// its translation key, so only the displayed <dt> label is localised.
+const DEFERRED_FIELD_KEYS: Record<(typeof DEFERRED_FIELDS)[number], string> = {
+  Hostname: 'workers.profile.deferred.hostname',
+  OS: 'workers.profile.deferred.os',
+  Architecture: 'workers.profile.deferred.architecture',
+  'agent-center version': 'workers.profile.deferred.version',
+  'Install path': 'workers.profile.deferred.installPath',
+};
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 // WorkerProfile — the #273 Profile tab. Renders the 5 fields the backend really
 // has (GET /api/workers/{id} = EnvWorker) + the 5 deferred fields as v2.9
 // placeholders.
 export function WorkerProfile({ worker }: { worker: EnvWorker }): React.ReactElement {
+  const { t } = useTranslation('members');
   const online = worker.status === 'online';
   return (
     <dl
       className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm"
       data-testid="worker-profile"
     >
-      <dt className="text-text-muted">Worker ID</dt>
+      <dt className="text-text-muted">{t('workers.profile.id')}</dt>
       <dd className="font-mono text-xs" data-testid="worker-profile-id" title={worker.worker_id}>
         {worker.worker_id}
       </dd>
 
-      <dt className="text-text-muted">Name</dt>
+      <dt className="text-text-muted">{t('workers.profile.name')}</dt>
       <dd data-testid="worker-profile-name">
-        {worker.name || <span className="italic text-text-muted">unnamed</span>}
+        {worker.name || <span className="italic text-text-muted">{t('workers.profile.unnamed')}</span>}
       </dd>
 
-      <dt className="text-text-muted">Status</dt>
+      <dt className="text-text-muted">{t('workers.profile.status')}</dt>
       <dd data-testid="worker-profile-status">
         {/* not-color-only: dot + text label */}
         <span className="inline-flex items-center gap-1">
@@ -50,28 +62,28 @@ export function WorkerProfile({ worker }: { worker: EnvWorker }): React.ReactEle
             className={`inline-block h-2 w-2 rounded-full ${online ? 'bg-success' : 'bg-text-muted'}`}
             aria-hidden="true"
           />
-          {online ? 'Online' : 'Offline'}
+          {online ? t('workers.profile.online') : t('workers.profile.offline')}
         </span>
       </dd>
 
-      <dt className="text-text-muted">Registered</dt>
+      <dt className="text-text-muted">{t('workers.profile.registered')}</dt>
       <dd data-testid="worker-profile-enrolled" title={worker.enrolled_at}>
         {formatDate(worker.enrolled_at)}
       </dd>
 
-      <dt className="text-text-muted">Last heartbeat</dt>
+      <dt className="text-text-muted">{t('workers.profile.lastHeartbeat')}</dt>
       <dd data-testid="worker-profile-heartbeat" title={worker.last_heartbeat_at}>
         {formatDate(worker.last_heartbeat_at)}
       </dd>
 
       {DEFERRED_FIELDS.map((label) => (
         <Fragment key={label}>
-          <dt className="text-text-muted">{label}</dt>
+          <dt className="text-text-muted">{t(DEFERRED_FIELD_KEYS[label])}</dt>
           <dd
             className="italic text-text-muted"
             data-testid={`worker-profile-deferred-${slug(label)}`}
           >
-            Coming in v2.9
+            {t('workers.profile.deferredValue')}
           </dd>
         </Fragment>
       ))}

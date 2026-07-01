@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSignout, authApi } from '@/api/auth';
 import { ApiError } from '@/api/client';
@@ -8,6 +9,7 @@ import { validatePasscodeStrength, PASSCODE_RULE_HINT } from '@/lib/passcode';
 // out). v2.8.1 #8: extracted from the old standalone /me page so the unified
 // UserDetail page can show these only when you are viewing your own profile.
 export default function AccountPanel(): React.ReactElement {
+  const { t } = useTranslation('common');
   const signout = useSignout();
   const qc = useQueryClient();
 
@@ -51,11 +53,11 @@ export default function AccountPanel(): React.ReactElement {
     },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 401) {
-        setPasscodeError('Current password is incorrect');
+        setPasscodeError(t('accountPanel.errorCurrentPasswordIncorrect'));
       } else if (err instanceof ApiError) {
         setPasscodeError(err.message);
       } else {
-        setPasscodeError('Change failed, please try again later');
+        setPasscodeError(t('accountPanel.errorChangeFailed'));
       }
     },
   });
@@ -63,7 +65,7 @@ export default function AccountPanel(): React.ReactElement {
   const validatePasscodeForm = () => {
     const strengthErr = validatePasscodeStrength(newPasscode);
     if (strengthErr) return strengthErr;
-    if (newPasscode !== confirmPasscode) return 'Passcodes do not match';
+    if (newPasscode !== confirmPasscode) return t('accountPanel.errorPasscodesDoNotMatch');
     return '';
   };
 
@@ -83,10 +85,10 @@ export default function AccountPanel(): React.ReactElement {
     <div className="space-y-6" data-testid="account-panel">
       {/* Change Passcode */}
       <div>
-        <h4 className="text-sm font-semibold text-text-primary mb-3">Change password</h4>
+        <h4 className="text-sm font-semibold text-text-primary mb-3">{t('accountPanel.changePasswordHeading')}</h4>
         {passcodeSuccess && (
           <div role="status" className="mb-3 rounded-md bg-success/10 border border-success/30 px-3 py-2 text-sm text-success">
-            Password changed successfully
+            {t('accountPanel.passwordChangedSuccess')}
           </div>
         )}
         {passcodeError && (
@@ -97,7 +99,7 @@ export default function AccountPanel(): React.ReactElement {
         <form onSubmit={handleChangePasscode} noValidate className="space-y-3 max-w-md">
           <div className="space-y-1">
             <label htmlFor="current_passcode" className="block text-sm text-text-primary">
-              Current password
+              {t('accountPanel.currentPasswordLabel')}
             </label>
             <input
               id="current_passcode"
@@ -106,12 +108,12 @@ export default function AccountPanel(): React.ReactElement {
               maxLength={128}
               onChange={(e) => setCurrentPasscode(e.target.value)}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="Current password"
+              placeholder={t('accountPanel.currentPasswordPlaceholder')}
             />
           </div>
           <div className="space-y-1">
             <label htmlFor="new_passcode" className="block text-sm text-text-primary">
-              New password
+              {t('accountPanel.newPasswordLabel')}
             </label>
             <input
               id="new_passcode"
@@ -123,7 +125,7 @@ export default function AccountPanel(): React.ReactElement {
               className={`w-full rounded border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary ${
                 newPasscodeError ? 'border-danger' : 'border-border'
               }`}
-              placeholder="New password"
+              placeholder={t('accountPanel.newPasswordPlaceholder')}
               aria-describedby={newPasscodeError ? 'new_passcode-err' : undefined}
               aria-invalid={!!newPasscodeError}
             />
@@ -136,7 +138,7 @@ export default function AccountPanel(): React.ReactElement {
           </div>
           <div className="space-y-1">
             <label htmlFor="confirm_new_passcode" className="block text-sm text-text-primary">
-              Confirm new password
+              {t('accountPanel.confirmNewPasswordLabel')}
             </label>
             <input
               id="confirm_new_passcode"
@@ -145,7 +147,7 @@ export default function AccountPanel(): React.ReactElement {
               maxLength={128}
               onChange={(e) => setConfirmPasscode(e.target.value)}
               className="w-full rounded border border-border px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring-color)] bg-bg-elevated text-text-primary"
-              placeholder="Confirm new password"
+              placeholder={t('accountPanel.confirmNewPasswordPlaceholder')}
             />
           </div>
           <button
@@ -153,21 +155,21 @@ export default function AccountPanel(): React.ReactElement {
             disabled={changePasscode.isPending || !currentPasscode || !newPasscode || !confirmPasscode}
             className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {changePasscode.isPending ? 'Changing…' : 'Change password'}
+            {changePasscode.isPending ? t('accountPanel.changingButton') : t('accountPanel.changePasswordButton')}
           </button>
         </form>
       </div>
 
       {/* Sign out */}
       <div className="border-t border-border-base pt-4">
-        <h4 className="text-sm font-semibold text-text-primary mb-2">Sign out</h4>
+        <h4 className="text-sm font-semibold text-text-primary mb-2">{t('accountPanel.signOutHeading')}</h4>
         <button
           type="button"
           onClick={() => signout.mutate()}
           disabled={signout.isPending}
           className="rounded border border-danger/50 px-4 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-50"
         >
-          {signout.isPending ? 'Signing out…' : 'Sign out'}
+          {signout.isPending ? t('accountPanel.signingOutButton') : t('accountPanel.signOutButton')}
         </button>
       </div>
     </div>

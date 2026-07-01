@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { OrgLink } from '@/OrgContext';
 import { useUnreadConversations, useMarkAllConversationsRead } from '@/api/conversations';
@@ -51,6 +52,7 @@ function FilterChip({
 }
 
 function UnreadCard({ row }: { row: UnreadConversationRow }): React.ReactElement {
+  const { t } = useTranslation('chat');
   const isMention = row.mention_count > 0;
   const preview = row.last_message_sender
     ? `${row.last_message_sender}: ${row.last_message_preview}`
@@ -80,7 +82,7 @@ function UnreadCard({ row }: { row: UnreadConversationRow }): React.ReactElement
                 data-testid="unread-conv-mention-label"
                 className="shrink-0 rounded bg-brand/10 px-1 text-[0.625rem] font-semibold uppercase tracking-wide text-brand"
               >
-                Mentions you
+                {t('unread.mentionsYou')}
               </span>
             )}
             <span className="min-w-0 truncate text-xs text-text-muted">{preview}</span>
@@ -98,6 +100,7 @@ function UnreadCard({ row }: { row: UnreadConversationRow }): React.ReactElement
 }
 
 export default function Unread(): React.ReactElement {
+  const { t } = useTranslation('chat');
   const { data, isLoading, isError, error } = useUnreadConversations();
   const markAllRead = useMarkAllConversationsRead();
   const [filter, setFilter] = useState<Filter>('all');
@@ -110,18 +113,18 @@ export default function Unread(): React.ReactElement {
 
   return (
     <section className="space-y-4" data-testid="page-Unread">
-      <SegmentedNav items={CONVERSATION_SEGMENTS} ariaLabel="Conversations sections" />
+      <SegmentedNav items={CONVERSATION_SEGMENTS} ariaLabel={t('unread.sectionsAriaLabel')} />
       <header className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Unread</h1>
+        <h1 className="text-xl font-semibold">{t('unread.title')}</h1>
         <button
           type="button"
           onClick={() => markAllRead.mutate()}
           disabled={markAllRead.isPending || rows.length === 0}
           data-testid="unread-mark-all-read"
           className="shrink-0 rounded border border-border-strong bg-bg-subtle px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-base hover:text-text-primary disabled:opacity-50"
-          title="Mark all unread conversations read"
+          title={t('unread.markAllReadTitle')}
         >
-          {markAllRead.isPending ? 'Marking…' : 'Mark all read'}
+          {markAllRead.isPending ? t('unread.marking') : t('unread.markAllRead')}
         </button>
       </header>
 
@@ -141,31 +144,31 @@ export default function Unread(): React.ReactElement {
       {!isLoading && !isError && rows.length === 0 && (
         <EmptyState
           testId="unread-empty"
-          title="You're all caught up"
-          body="No unread conversations. New unread channels, DMs, and task/issue/plan threads will appear here."
+          title={t('unread.emptyTitle')}
+          body={t('unread.emptyBody')}
         />
       )}
 
       {!isLoading && !isError && rows.length > 0 && (
         <>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Unread filters">
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t('unread.filtersAriaLabel')}>
             <FilterChip
               active={filter === 'all'}
-              label="All"
+              label={t('unread.filterAll')}
               count={rows.length}
               testId="unread-filter-all"
               onClick={() => setFilter('all')}
             />
             <FilterChip
               active={filter === 'mentions'}
-              label="@me"
+              label={t('unread.filterMentions')}
               count={mentionRows.length}
               testId="unread-filter-mentions"
               onClick={() => setFilter('mentions')}
             />
             <FilterChip
               active={filter === 'unread'}
-              label="Unread"
+              label={t('unread.filterUnread')}
               count={plainUnreadRows.length}
               testId="unread-filter-unread"
               onClick={() => setFilter('unread')}
@@ -174,7 +177,7 @@ export default function Unread(): React.ReactElement {
           <ul className="divide-y divide-border-base overflow-hidden rounded border border-border-base bg-bg-elevated text-text-primary">
             {shown.length === 0 ? (
               <li className="px-3 py-4 text-sm italic text-text-muted" data-testid="unread-no-match">
-                No matching conversations
+                {t('unread.noMatch')}
               </li>
             ) : (
               shown.map((row) => <UnreadCard key={row.conversation_id} row={row} />)

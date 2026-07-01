@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { EntityRef } from '@/components/EntityRef';
 import { AgentConfigEditModal } from '@/components/AgentConfigEditModal';
@@ -18,6 +19,7 @@ import { executorBadgeClass } from '@/components/executorProfiles';
 //      is v2.8 #230) + Created-agents list (#120) + a Message button that opens
 //      a DM with the agent.
 export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
+  const { t } = useTranslation('members');
   const skills = agent.skills ?? [];
   const createdAgents = agent.created_agents ?? [];
   const computer = agent.computer;
@@ -31,19 +33,19 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
       <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
         {/* LEFT */}
         <div className="space-y-4">
-          <Section label="Display name">
+          <Section label={t('agents.profile.displayName')}>
             <p className="text-sm font-semibold text-text-primary">{agent.name}</p>
           </Section>
 
-          <Section label="Description">
+          <Section label={t('agents.profile.description')}>
             <p className="text-sm text-text-primary" data-testid="agent-profile-description">
-              {agent.description || <span className="italic text-text-muted">none</span>}
+              {agent.description || <span className="italic text-text-muted">{t('agents.profile.descriptionNone')}</span>}
             </p>
           </Section>
 
-          <Section label="Info">
+          <Section label={t('agents.profile.info')}>
             <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5 text-sm text-text-primary">
-              <dt className="text-text-muted">Computer</dt>
+              <dt className="text-text-muted">{t('agents.profile.computer')}</dt>
               <dd data-testid="agent-profile-computer">
                 {computer ? (
                   <span className="inline-flex items-center gap-2">
@@ -55,20 +57,20 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
                       data-testid="agent-profile-computer-status"
                       data-connected={computer.connected}
                     >
-                      {computer.status}
+                      {t(`workers.detail.status.${computer.status}`, { defaultValue: computer.status })}
                     </span>
                   </span>
                 ) : (
-                  <span className="italic text-text-muted">no worker</span>
+                  <span className="italic text-text-muted">{t('agents.profile.noWorker')}</span>
                 )}
               </dd>
 
-              <dt className="text-text-muted">Created</dt>
+              <dt className="text-text-muted">{t('agents.profile.created')}</dt>
               <dd data-testid="agent-profile-created" title={agent.created_at}>
                 {formatDate(agent.created_at)}
               </dd>
 
-              <dt className="text-text-muted">Creator</dt>
+              <dt className="text-text-muted">{t('agents.profile.creator')}</dt>
               <dd data-testid="agent-profile-creator">
                 <EntityRef
                   id={agent.created_by}
@@ -80,7 +82,7 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
             </dl>
           </Section>
 
-          <Section label="Runtime config">
+          <Section label={t('agents.profile.runtimeConfig')}>
             <div className="mb-2 flex justify-end">
               <button
                 type="button"
@@ -88,20 +90,20 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
                 onClick={() => setEditingConfig(true)}
                 data-testid="agent-profile-edit-config"
               >
-                Edit
+                {t('agents.profile.edit')}
               </button>
             </div>
             <div className="flex flex-wrap gap-2" data-testid="agent-profile-runtime">
-              <ConfigTag label="CLI" value={agent.cli || '—'} testId="agent-profile-tag-cli" />
-              <ConfigTag label="Model" value={agent.model || '—'} testId="agent-profile-tag-model" />
+              <ConfigTag label={t('agents.profile.tag.cli')} value={agent.cli || '—'} testId="agent-profile-tag-cli" />
+              <ConfigTag label={t('agents.profile.tag.model')} value={agent.model || '—'} testId="agent-profile-tag-model" />
               {/* T236: real persisted values; empty → "Default" + default badge. */}
-              <ConfigTag label="Reasoning" value={agent.reasoning || 'Default'} testId="agent-profile-tag-reasoning" isDefault={!agent.reasoning} />
-              <ConfigTag label="Mode" value={agent.mode || 'Default'} testId="agent-profile-tag-mode" isDefault={!agent.mode} />
-              <ConfigTag label="Provider" value={agent.provider || 'Default'} testId="agent-profile-tag-provider" isDefault={!agent.provider} />
+              <ConfigTag label={t('agents.profile.tag.reasoning')} value={agent.reasoning || t('agents.profile.valueDefault')} testId="agent-profile-tag-reasoning" isDefault={!agent.reasoning} />
+              <ConfigTag label={t('agents.profile.tag.mode')} value={agent.mode || t('agents.profile.valueDefault')} testId="agent-profile-tag-mode" isDefault={!agent.mode} />
+              <ConfigTag label={t('agents.profile.tag.provider')} value={agent.provider || t('agents.profile.valueDefault')} testId="agent-profile-tag-provider" isDefault={!agent.provider} />
               {/* T566 (issue-577a7b0e): auto-assign opt-out (default on). */}
               <ConfigTag
-                label="Auto-assign"
-                value={(agent.auto_assignable ?? true) ? 'On' : 'Off'}
+                label={t('agents.profile.tag.autoAssign')}
+                value={(agent.auto_assignable ?? true) ? t('agents.profile.valueOn') : t('agents.profile.valueOff')}
                 testId="agent-profile-tag-auto-assignable"
               />
             </div>
@@ -113,7 +115,7 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
 
         {/* RIGHT */}
         <div className="space-y-4">
-          <Section label="Created agents" count={createdAgents.length} testId="agent-profile-created-agents">
+          <Section label={t('agents.profile.createdAgents')} count={createdAgents.length} testId="agent-profile-created-agents">
             {createdAgents.length > 0 ? (
               <ul className="flex flex-wrap gap-2">
                 {createdAgents.map((c) => (
@@ -130,12 +132,12 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
               </ul>
             ) : (
               <p className="text-xs italic text-text-muted" data-testid="agent-profile-created-agents-empty">
-                No created agents.
+                {t('agents.profile.createdAgentsEmpty')}
               </p>
             )}
           </Section>
 
-          <Section label="Skills" count={skills.length} testId="agent-profile-skills">
+          <Section label={t('agents.profile.skills')} count={skills.length} testId="agent-profile-skills">
             {skills.length > 0 ? (
               // design1: a card grid of skill names. Skill source/description
               // (global/local · path) is v2.8 #230 → name-only cards here.
@@ -153,7 +155,7 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
               </ul>
             ) : (
               <p className="text-xs italic text-text-muted" data-testid="agent-profile-skills-empty">
-                No skills.
+                {t('agents.profile.skillsEmpty')}
               </p>
             )}
           </Section>
@@ -196,6 +198,7 @@ function Section({
 // the "truly parallel" rule (effective cap ≥ 2) — a default agent (no executors)
 // shows "single-active · cap 1".
 function ConcurrencyTags({ agent }: { agent: Agent }): React.ReactElement {
+  const { t } = useTranslation('members');
   const cap = agent.effective_concurrency_cap ?? 1;
   const maxConcurrent = agent.max_concurrent_tasks ?? 0;
   const executors = agent.allowed_executors ?? [];
@@ -208,12 +211,12 @@ function ConcurrencyTags({ agent }: { agent: Agent }): React.ReactElement {
           data-testid="agent-profile-concurrency-badge"
           data-enabled={parallel}
         >
-          {parallel ? `concurrency · cap ${cap}` : 'single-active · cap 1'}
+          {parallel ? t('agents.profile.concurrencyEnabled', { cap }) : t('agents.profile.concurrencySingle')}
         </span>
-        <ConfigTag label="Max concurrent" value={String(maxConcurrent)} testId="agent-profile-tag-max-concurrent" />
+        <ConfigTag label={t('agents.profile.tag.maxConcurrent')} value={String(maxConcurrent)} testId="agent-profile-tag-max-concurrent" />
       </div>
       <div className="flex flex-wrap gap-2" data-testid="agent-profile-executors">
-        <span className="self-center text-xs text-text-muted">Allowed executors</span>
+        <span className="self-center text-xs text-text-muted">{t('agents.profile.allowedExecutors')}</span>
         {executors.length > 0 ? (
           executors.map((e) => (
             <span
@@ -229,7 +232,7 @@ function ConcurrencyTags({ agent }: { agent: Agent }): React.ReactElement {
           ))
         ) : (
           <span className="self-center text-xs italic text-text-muted" data-testid="agent-profile-executors-empty">
-            none
+            {t('agents.profile.executorsNone')}
           </span>
         )}
       </div>
@@ -248,6 +251,7 @@ function ConfigTag({
   testId: string;
   isDefault?: boolean;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded border border-border-base bg-bg-subtle px-2 py-1 text-xs"
@@ -257,7 +261,7 @@ function ConfigTag({
       <span className="font-mono text-text-primary">{value}</span>
       {isDefault && (
         <span className="rounded bg-bg-elevated px-1 py-0.5 text-[0.5625rem] uppercase tracking-wide text-text-muted">
-          default
+          {t('agents.profile.defaultBadge')}
         </span>
       )}
     </span>

@@ -1,5 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { useCreateConversation } from '@/api/conversations';
 import { ApiError } from '@/api/client';
 import { useModalA11y } from './useModalA11y';
@@ -7,11 +9,11 @@ import { useModalA11y } from './useModalA11y';
 // v2.7 #195: channel names are unique within an organization (composite
 // UNIQUE(org_id,name)); a duplicate create returns 409 `already_exists`.
 // Surface a friendly, org-scoped message instead of the raw envelope.
-function channelCreateErrorMessage(err: unknown, name: string): string {
+function channelCreateErrorMessage(err: unknown, name: string, t: TFunction): string {
   if (err instanceof ApiError && err.code === 'already_exists') {
-    return `A channel named "${name}" already exists in this organization.`;
+    return t('channels.create.alreadyExists', { name });
   }
-  return err instanceof Error ? err.message : 'Failed to create channel.';
+  return err instanceof Error ? err.message : t('channels.create.failed');
 }
 
 interface Props {
@@ -30,6 +32,7 @@ export function ChannelCreateModal({
   onClose,
   onCreated,
 }: Props): React.ReactElement | null {
+  const { t } = useTranslation('chat');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const create = useCreateConversation();
@@ -62,37 +65,37 @@ export function ChannelCreateModal({
     >
       <div className="w-full max-w-md rounded-lg bg-bg-elevated p-6 text-text-primary shadow-lg">
         <h2 id="create-channel-title" className="text-lg font-semibold">
-          New channel
+          {t('channels.create.title')}
         </h2>
         <form className="mt-4 space-y-3" onSubmit={submit}>
           <div>
-            <label htmlFor="create-channel-name-input" className="block text-xs font-medium text-text-primary">Name</label>
+            <label htmlFor="create-channel-name-input" className="block text-xs font-medium text-text-primary">{t('channels.create.nameLabel')}</label>
             <input
               id="create-channel-name-input"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="alpha"
+              placeholder={t('channels.create.namePlaceholder')}
               autoFocus
               className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
               data-testid="create-channel-name"
             />
           </div>
           <div>
-            <label htmlFor="create-channel-desc-input" className="block text-xs font-medium text-text-primary">Description</label>
+            <label htmlFor="create-channel-desc-input" className="block text-xs font-medium text-text-primary">{t('channels.create.descriptionLabel')}</label>
             <textarea
               id="create-channel-desc-input"
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="optional"
+              placeholder={t('channels.create.descriptionPlaceholder')}
               className="mt-1 w-full resize-none rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
               data-testid="create-channel-description"
             />
           </div>
           {create.isError && (
             <p className="text-xs text-danger" data-testid="create-channel-error">
-              {channelCreateErrorMessage(create.error, name.trim())}
+              {channelCreateErrorMessage(create.error, name.trim(), t)}
             </p>
           )}
           <div className="flex justify-end gap-2">
@@ -102,7 +105,7 @@ export function ChannelCreateModal({
               className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
               data-testid="create-channel-cancel"
             >
-              Cancel
+              {t('channels.create.cancel')}
             </button>
             <button
               type="submit"
@@ -110,7 +113,7 @@ export function ChannelCreateModal({
               className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="create-channel-submit"
             >
-              {create.isPending ? 'Creating…' : 'Create'}
+              {create.isPending ? t('channels.create.creating') : t('channels.create.submit')}
             </button>
           </div>
         </form>

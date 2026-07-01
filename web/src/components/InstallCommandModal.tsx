@@ -9,6 +9,7 @@
 // Both endpoints share the response shape (B2/B3 keep this in sync),
 // so the renderer below is the same once we have the payload.
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { withOrgSlug } from '@/api/client';
 
 interface InstallCommandPayload {
@@ -100,6 +101,7 @@ function shellQuote(s: string): string {
 }
 
 export function InstallCommandModal({ workerID, mode, onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('members');
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
   useEffect(() => {
@@ -122,13 +124,13 @@ export function InstallCommandModal({ workerID, mode, onClose }: Props): React.R
       <div className="w-full max-w-2xl rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">
-            {mode === 'remint' ? 'Re-minted install command' : 'Install command'}
+            {mode === 'remint' ? t('workers.installModal.titleRemint') : t('workers.installModal.title')}
           </h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('workers.installModal.close')}
             data-testid="install-command-close"
           >
             X
@@ -149,11 +151,12 @@ function Body({
   workerID: string;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   switch (state.kind) {
     case 'loading':
       return (
         <div className="py-8 text-center" data-testid="install-command-loading">
-          <p className="text-sm text-text-secondary">Loading...</p>
+          <p className="text-sm text-text-secondary">{t('workers.installModal.loading')}</p>
         </div>
       );
     case 'ready':
@@ -171,7 +174,7 @@ function Body({
     case 'no_master_key':
       return (
         <div data-testid="install-command-no-master-key">
-          <p className="mb-3 text-sm font-medium text-warning">Server not configured.</p>
+          <p className="mb-3 text-sm font-medium text-warning">{t('workers.installModal.noMasterKey.title')}</p>
           <p className="mb-4 text-xs text-text-secondary">{state.message}</p>
           <CloseButton onClose={onClose} />
         </div>
@@ -179,7 +182,7 @@ function Body({
     case 'conflict':
       return (
         <div data-testid="install-command-conflict">
-          <p className="mb-3 text-sm font-medium text-warning">Worker is already online.</p>
+          <p className="mb-3 text-sm font-medium text-warning">{t('workers.installModal.conflict.title')}</p>
           <p className="mb-4 text-xs text-text-secondary">{state.message}</p>
           <CloseButton onClose={onClose} />
         </div>
@@ -187,7 +190,7 @@ function Body({
     case 'not_found':
       return (
         <div data-testid="install-command-not-found">
-          <p className="mb-3 text-sm font-medium text-danger">Worker not found.</p>
+          <p className="mb-3 text-sm font-medium text-danger">{t('workers.installModal.notFound.title')}</p>
           <p className="mb-4 text-xs text-text-secondary">{state.message}</p>
           <CloseButton onClose={onClose} />
         </div>
@@ -195,7 +198,7 @@ function Body({
     case 'error':
       return (
         <div data-testid="install-command-error">
-          <p className="mb-3 text-sm font-medium text-danger">Could not load install command.</p>
+          <p className="mb-3 text-sm font-medium text-danger">{t('workers.installModal.error.title')}</p>
           <p className="mb-4 text-xs text-text-secondary">{state.message}</p>
           <CloseButton onClose={onClose} />
         </div>
@@ -210,18 +213,21 @@ function ReadyBody({
   payload: InstallCommandPayload;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const command = renderCommand(payload);
   const expires = new Date(payload.expires_at);
   const remainingMin = Math.max(0, Math.floor((expires.getTime() - Date.now()) / 60_000));
   return (
     <div data-testid="install-command-ready">
       <p className="mb-3 text-sm text-text-secondary">
-        On your worker machine, make sure the AgentCenter tarball is extracted, then run:
+        {t('workers.installModal.ready.instructions')}
       </p>
       <CommandBlock command={command} />
       <p className="mt-2 text-xs text-text-muted">
-        Token expires at {expires.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (
-        {remainingMin} min remaining).
+        {t('workers.installModal.ready.tokenExpires', {
+          time: expires.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+          count: remainingMin,
+        })}
       </p>
       <div className="mt-4 flex justify-end">
         <button
@@ -230,7 +236,7 @@ function ReadyBody({
           onClick={onClose}
           data-testid="install-command-done"
         >
-          Done
+          {t('workers.installModal.ready.done')}
         </button>
       </div>
     </div>
@@ -248,6 +254,7 @@ function ReMintPromptBody({
   dataTestID: string;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('members');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Inline transition: clicking Re-mint hits the re-mint endpoint
@@ -269,15 +276,17 @@ function ReMintPromptBody({
       return;
     }
     setError(result.kind === 'conflict'
-      ? 'Worker is already online — remove it from Environment first if you want to reset.'
+      ? t('workers.installModal.remintPrompt.conflictError')
       : result.kind === 'not_found'
-        ? 'Worker not found.'
-        : `Re-mint failed: ${'message' in result ? result.message : 'unknown'}`);
+        ? t('workers.installModal.remintPrompt.notFoundError')
+        : t('workers.installModal.remintPrompt.genericError', {
+            message: 'message' in result ? result.message : t('workers.installModal.remintPrompt.unknown'),
+          }));
   };
 
   return (
     <div data-testid={dataTestID}>
-      <p className="mb-3 text-sm font-medium text-text-primary">No active install command.</p>
+      <p className="mb-3 text-sm font-medium text-text-primary">{t('workers.installModal.remintPrompt.title')}</p>
       <p className="mb-4 text-xs text-text-secondary">{message}</p>
       {error && <p className="mb-3 text-xs text-danger" data-testid="install-command-remint-error">{error}</p>}
       <div className="flex justify-end gap-2">
@@ -287,7 +296,7 @@ function ReMintPromptBody({
           onClick={onClose}
           data-testid="install-command-close-empty"
         >
-          Close
+          {t('workers.installModal.remintPrompt.close')}
         </button>
         <button
           type="button"
@@ -296,7 +305,7 @@ function ReMintPromptBody({
           onClick={() => void handleReMint()}
           data-testid="install-command-remint"
         >
-          {busy ? 'Re-minting...' : 'Re-mint install command'}
+          {busy ? t('workers.installModal.remintPrompt.reminting') : t('workers.installModal.remintPrompt.remint')}
         </button>
       </div>
     </div>
@@ -304,6 +313,7 @@ function ReMintPromptBody({
 }
 
 function CloseButton({ onClose }: { onClose: () => void }): React.ReactElement {
+  const { t } = useTranslation('members');
   return (
     <div className="flex justify-end">
       <button
@@ -311,13 +321,14 @@ function CloseButton({ onClose }: { onClose: () => void }): React.ReactElement {
         className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
         onClick={onClose}
       >
-        Close
+        {t('workers.installModal.close')}
       </button>
     </div>
   );
 }
 
 function CommandBlock({ command }: { command: string }): React.ReactElement {
+  const { t } = useTranslation('members');
   const [copied, setCopied] = useState(false);
   const copy = () => {
     void navigator.clipboard.writeText(command);
@@ -337,7 +348,7 @@ function CommandBlock({ command }: { command: string }): React.ReactElement {
         onClick={copy}
         data-testid="install-command-copy"
       >
-        {copied ? 'Copied!' : 'Copy'}
+        {copied ? t('workers.installModal.command.copied') : t('workers.installModal.command.copy')}
       </button>
     </div>
   );

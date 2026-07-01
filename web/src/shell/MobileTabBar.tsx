@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 // ============================================================================
@@ -36,9 +37,10 @@ export function MobileTabBar({
   conversationsUnread?: number;
   conversationsMentions?: number;
 }): React.ReactElement {
+  const { t } = useTranslation('common');
   return (
     <nav
-      aria-label="modules mobile"
+      aria-label={t('shell.tabbar.modulesNav')}
       data-testid="mobile-tabbar"
       className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border-base bg-bg-elevated pb-[env(safe-area-inset-bottom)] md:hidden"
     >
@@ -70,8 +72,8 @@ export function MobileTabBar({
                 data-mention={conversationsMentions > 0 ? 'true' : 'false'}
                 aria-label={
                   conversationsMentions > 0
-                    ? `${conversationsMentions} conversations mention you`
-                    : `${conversationsUnread} unread conversations`
+                    ? t('shell.conversationsMentionBadge', { n: conversationsMentions })
+                    : t('shell.conversationsUnreadBadge', { n: conversationsUnread })
                 }
                 className={[
                   'absolute right-[18%] top-0.5 inline-flex min-w-[1.05rem] items-center justify-center rounded-full px-1 text-[0.625rem] font-semibold leading-none tabular-nums text-white',

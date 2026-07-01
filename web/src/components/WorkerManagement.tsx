@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOptionalOrgContext } from '@/OrgContext';
 import { withOrgSlug } from '@/api/client';
@@ -17,6 +18,7 @@ import type { EnvWorker } from '@/api/types';
 // (hard DELETE + ConfirmModal #169 + bound-agent warning). Rename lives here per
 // PD (centralised in the detail page; Environment links the name in → here).
 export function WorkerManagement({ worker }: { worker: EnvWorker }): React.ReactElement {
+  const { t } = useTranslation('members');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const org = useOptionalOrgContext();
@@ -89,11 +91,9 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
   // is informed consent: removal does not unbind/delete agents (no such endpoint,
   // #273 PD (a)); they are simply left without a worker (unavailable).
   const boundLine =
-    boundCount > 0
-      ? `\n\nWarning: ${boundCount} agent(s) are bound to this worker. Removing it leaves them without a worker (unavailable). They are not deleted or unbound — to remove an agent, archive it from its detail page.`
-      : '';
+    boundCount > 0 ? t('workers.management.remove.boundWarning', { count: boundCount }) : '';
   const removeMessage =
-    `Remove worker "${displayName}"? This revokes the worker token and removes the record.` + boundLine;
+    t('workers.management.remove.confirmMessage', { name: displayName }) + boundLine;
   const handleRemove = async () => {
     setRemoveBusy(true);
     setRemoveError(null);
@@ -121,7 +121,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
     <div className="space-y-6" data-testid="worker-management">
       {/* Rename */}
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Name</h3>
+        <h3 className="text-sm font-semibold">{t('workers.management.name.heading')}</h3>
         {editing ? (
           <form
             className="flex items-center gap-2"
@@ -137,7 +137,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
               disabled={renameBusy}
               className="w-56 rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary focus:border-accent"
               data-testid="worker-rename-input"
-              aria-label="Worker name"
+              aria-label={t('workers.management.name.inputAriaLabel')}
             />
             <button
               type="submit"
@@ -145,7 +145,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
               className="rounded bg-brand px-2 py-1 text-xs text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
               data-testid="worker-rename-save"
             >
-              {renameBusy ? 'Saving…' : 'Save'}
+              {renameBusy ? t('workers.management.name.saving') : t('workers.management.name.save')}
             </button>
             <button
               type="button"
@@ -157,7 +157,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
               }}
               className="text-xs text-text-muted hover:text-text-primary"
             >
-              Cancel
+              {t('workers.management.name.cancel')}
             </button>
             {renameError && (
               <span className="text-xs text-danger" data-testid="worker-rename-error">
@@ -179,7 +179,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
               className="text-xs text-accent hover:underline"
               data-testid="worker-rename-edit"
             >
-              Rename
+              {t('workers.management.name.rename')}
             </button>
           </div>
         )}
@@ -187,7 +187,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
 
       {/* Install command + Re-mint */}
       <section className="space-y-2">
-        <h3 className="text-sm font-semibold">Install command</h3>
+        <h3 className="text-sm font-semibold">{t('workers.management.install.heading')}</h3>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -195,7 +195,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
             className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
             data-testid="worker-install-show"
           >
-            Show install command
+            {t('workers.management.install.show')}
           </button>
           <button
             type="button"
@@ -203,16 +203,16 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
             className="rounded border border-border-base px-2 py-1 text-xs text-text-primary hover:bg-bg-subtle"
             data-testid="worker-install-remint"
           >
-            Re-mint install token
+            {t('workers.management.install.remint')}
           </button>
         </div>
       </section>
 
       {/* Remove worker (danger) */}
       <section className="space-y-2 border-t border-border-base pt-4">
-        <h3 className="text-sm font-semibold text-danger">Remove worker</h3>
+        <h3 className="text-sm font-semibold text-danger">{t('workers.management.remove.heading')}</h3>
         <p className="text-xs text-text-muted">
-          Hard-removes this worker. Re-enroll a machine to register it again.
+          {t('workers.management.remove.description')}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -222,7 +222,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
             className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:text-text-muted"
             data-testid="worker-remove"
           >
-            {removeBusy ? 'Removing…' : 'Remove worker'}
+            {removeBusy ? t('workers.management.remove.removing') : t('workers.management.remove.button')}
           </button>
           {/* v2.8.1: force-delete — admin escape hatch that bypasses the
               busy/online guards, removes the center's records and unbinds the
@@ -237,7 +237,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
             className="rounded border border-danger/40 px-2 py-1 text-xs text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:text-text-muted"
             data-testid="worker-force-delete"
           >
-            {forceDelete.isPending ? 'Deleting…' : 'Force delete'}
+            {forceDelete.isPending ? t('workers.management.remove.forceDeleting') : t('workers.management.remove.forceDelete')}
           </button>
           {removeError && (
             <span className="text-xs text-danger" data-testid="worker-remove-error">
@@ -246,7 +246,7 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
           )}
           {unboundNote != null && (
             <span className="text-xs text-text-muted" data-testid="worker-force-delete-note">
-              {unboundNote} agent(s) unbound.
+              {t('workers.management.remove.unboundNote', { count: unboundNote })}
             </span>
           )}
         </div>
@@ -261,9 +261,9 @@ export function WorkerManagement({ worker }: { worker: EnvWorker }): React.React
       )}
       <ConfirmModal
         open={confirmOpen}
-        title="Remove worker?"
+        title={t('workers.management.remove.confirmTitle')}
         message={removeMessage}
-        confirmLabel="Remove"
+        confirmLabel={t('workers.management.remove.confirmLabel')}
         danger
         busy={removeBusy}
         onConfirm={() => void handleRemove()}

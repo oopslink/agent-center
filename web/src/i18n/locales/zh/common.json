@@ -1,0 +1,281 @@
+{
+  "status": {
+    "active": "活跃",
+    "archived": "已归档"
+  },
+  "nav": {
+    "workspace": "工作区",
+    "conversations": "会话",
+    "members": "成员",
+    "reminders": "提醒",
+    "system": "系统",
+    "orgSettings": "组织设置",
+    "short": {
+      "workspace": "工作",
+      "conversations": "会话",
+      "members": "成员",
+      "reminders": "提醒",
+      "system": "系统"
+    }
+  },
+  "theme": {
+    "label": "主题",
+    "light": "浅色",
+    "dark": "深色",
+    "switchToLight": "切换到浅色主题",
+    "switchToDark": "切换到深色主题",
+    "toggleTitle": "切换主题（⌘D）"
+  },
+  "settings": {
+    "title": "设置",
+    "language": {
+      "title": "语言",
+      "description": "选择控制台界面的语言。你的选择会保存在本设备上。",
+      "en": "English",
+      "zh": "中文"
+    }
+  },
+  "version": {
+    "title": "版本",
+    "loading": "正在加载版本信息…",
+    "error": "加载版本信息失败。",
+    "fields": {
+      "version": "版本",
+      "branch": "分支",
+      "commit": "提交",
+      "built": "构建时间"
+    }
+  },
+  "notFound": {
+    "title": "404 — 页面不存在",
+    "description": "你访问的页面不存在。",
+    "home": "返回首页"
+  },
+  "breadcrumb": {
+    "ariaLabel": "面包屑导航"
+  },
+  "errorState": {
+    "details": "详情"
+  },
+  "skeleton": {
+    "loading": "加载中…"
+  },
+  "unreadBadge": {
+    "unread": "{{unread}} 条未读",
+    "unreadMention_one": "{{unread}} 条未读，{{count}} 条提及",
+    "unreadMention_other": "{{unread}} 条未读，{{count}} 条提及"
+  },
+  "avatar": {
+    "agentLabel": "{{name}}（智能体）",
+    "online": "在线",
+    "offline": "离线",
+    "onlineTitle": "在线",
+    "offlineTitle": "离线"
+  },
+  "confirmModal": {
+    "confirm": "确认",
+    "cancel": "取消"
+  },
+  "forceDeleteModal": {
+    "noun": {
+      "agent": "智能体",
+      "worker": "工作节点"
+    },
+    "title": "强制删除{{entityKind}}？",
+    "bodyWorker": "此操作将<strong>不可逆地</strong>删除中心中关于该{{entityKind}} <strong>{{entityName}}</strong> 的记录，并解绑其下的智能体。它仅清理元数据——不会停止或终止正在运行的进程。",
+    "bodyAgent": "此操作将<strong>不可逆地</strong>删除中心中关于该{{entityKind}} <strong>{{entityName}}</strong> 的记录。它仅清理元数据——不会停止或终止正在运行的进程。",
+    "typeToEnable": "在下方输入该{{entityKind}}的名称 <strong>{{entityName}}</strong> 以启用该按钮。",
+    "workerNameLabel": "工作节点名称",
+    "agentNameLabel": "智能体名称",
+    "inputAriaLabel": "输入 {{entityName}} 以确认",
+    "cancel": "取消",
+    "confirm": "强制删除",
+    "deleting": "正在删除…"
+  },
+  "commandPalette": {
+    "dialogAriaLabel": "命令面板",
+    "searchPlaceholder": "搜索页面、频道、私信…",
+    "searchAriaLabel": "搜索",
+    "resultsAriaLabel": "结果",
+    "noMatches": "未找到与“{{query}}”匹配的结果",
+    "navigate": "导航",
+    "open": "打开",
+    "close": "关闭"
+  },
+  "accountPanel": {
+    "changePasswordHeading": "修改密码",
+    "passwordChangedSuccess": "密码修改成功",
+    "errorCurrentPasswordIncorrect": "当前密码不正确",
+    "errorChangeFailed": "修改失败，请稍后重试",
+    "errorPasscodesDoNotMatch": "两次输入的密码不一致",
+    "currentPasswordLabel": "当前密码",
+    "currentPasswordPlaceholder": "当前密码",
+    "newPasswordLabel": "新密码",
+    "newPasswordPlaceholder": "新密码",
+    "confirmNewPasswordLabel": "确认新密码",
+    "confirmNewPasswordPlaceholder": "确认新密码",
+    "changingButton": "正在修改…",
+    "changePasswordButton": "修改密码",
+    "signOutHeading": "退出登录",
+    "signOutButton": "退出登录",
+    "signingOutButton": "正在退出…"
+  },
+  "signin": {
+    "title": "登录",
+    "subtitle": "使用您的 Agent Center 账户登录",
+    "displayNameLabel": "显示名称",
+    "displayNamePlaceholder": "您的名称",
+    "passwordLabel": "密码",
+    "passwordPlaceholder": "您的密码",
+    "submit": "登录",
+    "submitting": "正在登录…",
+    "noAccount": "还没有账户？",
+    "signupLink": "注册",
+    "errors": {
+      "invalidCredentials": "显示名称或密码不正确",
+      "generic": "登录失败，请稍后重试"
+    }
+  },
+  "signup": {
+    "title": "创建账户",
+    "subtitle": "设置您的 Agent Center 账户和第一个组织",
+    "displayNameLabel": "显示名称",
+    "displayNamePlaceholder": "您的名称",
+    "emailLabel": "邮箱",
+    "emailPlaceholder": "you@example.com",
+    "passcodeLabel": "密码",
+    "passcodePlaceholder": "您的密码",
+    "confirmPasscodeLabel": "确认密码",
+    "confirmPasscodePlaceholder": "确认密码",
+    "orgNameLabel": "组织名称",
+    "orgNamePlaceholder": "我的组织",
+    "submit": "创建账户",
+    "submitting": "正在注册…",
+    "haveAccount": "已有账户？",
+    "signinLink": "登录",
+    "errors": {
+      "displayNameRequired": "请输入显示名称",
+      "displayNameTooLong": "显示名称不能超过 40 个字符",
+      "emailRequired": "请输入邮箱",
+      "emailInvalid": "请输入有效的邮箱",
+      "passcodeMismatch": "两次输入的密码不一致",
+      "orgNameRequired": "请输入组织名称",
+      "orgNameTooLong": "组织名称不能超过 80 个字符",
+      "displayNameTaken": "该显示名称已被使用",
+      "emailTaken": "该邮箱已被使用",
+      "generic": "注册失败，请稍后重试"
+    }
+  },
+  "invitationAccept": {
+    "title": "组织邀请",
+    "description": "请先使用被邀请的用户账户登录后再接受邀请。邀请无法创建新用户。",
+    "accept": "接受邀请",
+    "accepting": "正在接受...",
+    "success": "邀请已接受。您现在可以从组织切换器中打开此组织。",
+    "errorFallback": "无法接受邀请。"
+  },
+  "shell": {
+    "none": "(无)",
+    "search": {
+      "label": "搜索",
+      "aria": "搜索 (⌘K)"
+    },
+    "alerts": {
+      "label": "告警",
+      "attention": "{{count}} 个任务需要你处理"
+    },
+    "sidebar": {
+      "collapse": "收起侧栏",
+      "expand": "展开侧栏"
+    },
+    "tabbar": {
+      "modulesNav": "移动端模块导航"
+    },
+    "conversationsMentionBadge": "{{n}} 条会话提及你",
+    "conversationsUnreadBadge": "{{n}} 条未读会话",
+    "bottomSheet": {
+      "close": "关闭"
+    },
+    "conv": {
+      "deletedPeer": "(已删除)",
+      "directMessageFallback": "私信",
+      "deleteDmLabel": "删除私信 {{name}}",
+      "deleteDmTitle": "删除私信",
+      "channels": "频道",
+      "newChannel": "新建频道",
+      "noChannels": "暂无频道",
+      "directMessages": "私信",
+      "newDirectMessage": "新建私信",
+      "noDirectMessages": "暂无私信",
+      "myDms": "我的私信",
+      "a2a": "A2A",
+      "deleteDmConfirm": "删除私信“{{name}}”？这将为所有人永久移除该会话及其全部消息。此操作无法撤销。",
+      "deleteConfirmLabel": "删除"
+    },
+    "members": {
+      "humans": "成员",
+      "allHumans": "全部成员",
+      "agents": "智能体",
+      "allAgents": "全部智能体"
+    },
+    "orgSettings": {
+      "profile": "资料",
+      "humans": "成员",
+      "agents": "智能体",
+      "invitations": "邀请",
+      "danger": "危险区域"
+    },
+    "reminders": {
+      "searchPlaceholder": "搜索提醒…",
+      "scopeLabel": "范围",
+      "statusLabel": "状态",
+      "scope": {
+        "all": "全部",
+        "created": "我创建的",
+        "remindee": "提醒我的"
+      },
+      "status": {
+        "default": "活跃和已暂停",
+        "allStatuses": "全部状态",
+        "active": "活跃",
+        "paused": "已暂停",
+        "completed": "已完成",
+        "canceled": "已取消"
+      }
+    },
+    "unread": {
+      "header": "未读",
+      "markAllReadTitle": "将所有未读会话标记为已读",
+      "marking": "标记中…",
+      "markAllRead": "全部标为已读",
+      "mentionsYou": "提及你",
+      "noMatching": "没有匹配的会话",
+      "filtersGroup": "未读筛选",
+      "filter": {
+        "all": "全部",
+        "mentions": "@我",
+        "unread": "未读"
+      },
+      "source": {
+        "plan": "计划",
+        "issue": "议题",
+        "task": "任务",
+        "channel": "频道",
+        "dm": "私信"
+      },
+      "badge": {
+        "mention_other": "{{unread}} 条未读，{{count}} 条提及",
+        "unread_other": "{{count}} 条未读"
+      }
+    },
+    "workspace": {
+      "projects": "项目",
+      "issues": "议题",
+      "tasks": "任务",
+      "plans": "计划",
+      "repos": "仓库",
+      "codeRepos": "代码仓库",
+      "workBoard": "工作看板"
+    }
+  }
+}

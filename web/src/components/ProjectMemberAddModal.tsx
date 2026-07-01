@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useAddProjectMember } from '@/api/projects';
 import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 import type { ProjectMember } from '@/api/types';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   projectId: string;
@@ -18,6 +19,7 @@ interface Props {
 // Candidates are org members (status joined) not already on the project.
 // Selecting submits "<kind>:<id>" refs the pm add endpoint expects.
 export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('members');
   const members = useMembers();
   const add = useAddProjectMember(projectId);
   const [query, setQuery] = useState('');
@@ -78,7 +80,7 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       role="dialog"
       aria-modal="true"
-      aria-label="Add project members"
+      aria-label={t('humans.projectAdd.dialogAria')}
       data-testid="project-add-member-modal"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -86,12 +88,12 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
     >
       <div className="w-full max-w-sm rounded-lg border border-border bg-bg-elevated p-4 shadow-[var(--shadow-3)]">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">Add members</h2>
+          <h2 className="text-sm font-semibold text-text-primary">{t('humans.projectAdd.title')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('humans.projectAdd.close')}
             data-testid="project-add-close"
           >
             X
@@ -101,13 +103,13 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search members…"
+          placeholder={t('humans.projectAdd.searchPlaceholder')}
           autoFocus
           className="mb-3 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
           data-testid="project-add-search"
         />
         <div className="mb-2 flex items-center justify-between px-1 text-xs text-text-muted">
-          <span data-testid="project-add-selected-count">{selected.size} selected</span>
+          <span data-testid="project-add-selected-count">{t('humans.projectAdd.selectedCount', { count: selected.size })}</span>
           {visibleRefs.length > 0 && (
             <button
               type="button"
@@ -115,14 +117,14 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
               className="font-medium text-accent hover:underline"
               data-testid="project-add-select-all"
             >
-              {allVisibleSelected ? 'Clear' : 'Select all'}
+              {allVisibleSelected ? t('humans.projectAdd.clear') : t('humans.projectAdd.selectAll')}
             </button>
           )}
         </div>
         <ul className="max-h-64 space-y-1 overflow-y-auto" data-testid="project-add-candidates">
           {candidates.length === 0 && (
             <li className="px-1 py-2 text-xs italic text-text-muted" data-testid="project-add-no-candidates">
-              No matching members.
+              {t('humans.projectAdd.noMatching')}
             </li>
           )}
           {candidates.map((m) => {
@@ -147,7 +149,7 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
                     className="rounded bg-bg-subtle px-1.5 text-[0.625rem] uppercase text-text-muted"
                     data-testid="project-add-candidate-kind"
                   >
-                    {m.kind === 'agent' ? 'Agent' : 'Human'}
+                    {m.kind === 'agent' ? t('humans.kind.agent') : t('humans.kind.human')}
                   </span>
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center text-accent" aria-hidden="true">
                     {selected.has(ref) && <CheckIcon />}
@@ -168,7 +170,7 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
             onClick={onClose}
             className="rounded px-3 py-1 text-xs text-text-secondary hover:bg-bg-subtle"
           >
-            Cancel
+            {t('humans.projectAdd.cancel')}
           </button>
           <button
             type="button"
@@ -177,7 +179,11 @@ export function ProjectMemberAddModal({ projectId, existing, onClose }: Props): 
             className="rounded bg-btn-primary-bg px-3 py-1 text-xs font-medium text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="project-add-confirm"
           >
-            {add.isPending ? 'Adding…' : `Add${selected.size > 0 ? ` (${selected.size})` : ''}`}
+            {add.isPending
+              ? t('humans.projectAdd.adding')
+              : selected.size > 0
+                ? t('humans.projectAdd.confirmCount', { count: selected.size })
+                : t('humans.projectAdd.confirm')}
           </button>
         </div>
       </div>

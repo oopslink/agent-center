@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useConversationThreads } from '@/api/conversations';
 import { isResolvedName, useDisplayNameResolver } from '@/api/members';
 import type { ThreadSummary } from '@/api/types';
@@ -30,6 +31,10 @@ function activityKey(t: ThreadSummary): string {
 }
 
 export function ConversationThreadList({ conversationId, embedded = false }: Props): React.ReactElement {
+  // Aliased to `tr` because the thread .map() callback below binds `t` to a
+  // ThreadSummary (and activityKey(t) does too) — using `t` for the translator
+  // here would shadow/collide.
+  const { t: tr } = useTranslation('chat');
   const threads = useConversationThreads(conversationId);
   const displayName = useDisplayNameResolver();
   // Opener for the shared ThreadSidebar (mounted by ConversationView). null when
@@ -43,21 +48,21 @@ export function ConversationThreadList({ conversationId, embedded = false }: Pro
       data-testid="thread-list"
     >
       {!embedded && (
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Threads</h3>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{tr('conversation.threadsHeader')}</h3>
       )}
       {threads.isLoading && (
         <p className="text-xs text-text-muted" data-testid="thread-list-loading">
-          Loading threads…
+          {tr('conversation.loadingThreads')}
         </p>
       )}
       {threads.isError && (
         <p className="text-xs text-danger" data-testid="thread-list-error">
-          Couldn&apos;t load threads.
+          {tr('conversation.threadsLoadError')}
         </p>
       )}
       {threads.isSuccess && threads.data.length === 0 && (
         <p className="text-xs text-text-muted" data-testid="thread-list-empty">
-          No threads yet.
+          {tr('conversation.noThreads')}
         </p>
       )}
       {threads.isSuccess && threads.data.length > 0 && (
@@ -83,7 +88,7 @@ export function ConversationThreadList({ conversationId, embedded = false }: Pro
                         className={`block truncate font-medium ${senderResolved ? 'text-text-secondary' : 'italic text-text-muted'}`}
                         data-testid="thread-list-sender"
                       >
-                        {senderResolved ? resolved : '(deleted)'}
+                        {senderResolved ? resolved : tr('conversation.deletedSender')}
                       </span>
                       {/* F3 (Tester2 run-real): preview uses text-text-secondary
                           (slate-600 ≈6.92), NOT text-text-muted (slate-500 on the

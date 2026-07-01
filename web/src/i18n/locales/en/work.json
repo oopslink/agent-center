@@ -1,0 +1,768 @@
+{
+  "status": {
+    "open": "open",
+    "in_progress": "in progress",
+    "running": "running",
+    "resolved": "resolved",
+    "completed": "completed",
+    "closed": "closed",
+    "discarded": "discarded",
+    "reopened": "reopened",
+    "blocked": "blocked",
+    "ready": "ready",
+    "dispatched": "dispatched",
+    "paused": "paused",
+    "done": "done",
+    "failed": "failed"
+  },
+  "planStatus": {
+    "draft": "draft",
+    "running": "running",
+    "done": "done",
+    "archived": "archived"
+  },
+  "type": {
+    "issue": "Issue",
+    "task": "Task",
+    "dm": "DM",
+    "channel": "Channel"
+  },
+  "shared": {
+    "failedNode": "Failed node",
+    "failedNodeTitle": "A node in this plan has a failed task (§9.1)",
+    "archived": "Archived",
+    "archivedTitle": "This task was archived with its plan (read-only).",
+    "autoAdvancing": "Auto-advancing",
+    "autoAdvancingShort": "auto-advancing",
+    "autoAdvancingHint": "The system dispatches ready nodes automatically as upstream tasks complete.",
+    "autoAdvancingAria": "Auto-advancing — {{hint}}",
+    "yesterday": "Yesterday"
+  },
+  "issue": {
+    "detail": {
+      "loading": "Loading issue…",
+      "backToProject": "Back to project",
+      "lookupFailed": "Issue lookup failed.",
+      "breadcrumb": {
+        "projects": "Projects",
+        "project": "Project",
+        "issues": "Issues"
+      },
+      "closeInfo": "Close info",
+      "descriptionAria": "Issue description",
+      "noDescription": "No description."
+    },
+    "create": {
+      "heading": "Open Issue",
+      "close": "Close",
+      "titleLabel": "Title",
+      "titlePlaceholder": "What needs deciding or fixing?",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Optional. Context, repro steps, links…",
+      "cancel": "Cancel",
+      "submit": "Open Issue",
+      "submitting": "Opening…"
+    },
+    "edit": {
+      "dialogAria": "Edit issue",
+      "heading": "Edit Issue",
+      "close": "Close",
+      "titleLabel": "Title",
+      "descriptionLabel": "Description",
+      "statusLabel": "Status",
+      "tagsLabel": "Tags",
+      "removeTag": "Remove tag {{tag}}",
+      "tagsPlaceholder": "Type a tag, press Enter or comma…",
+      "tagsHint": "Up to {{maxTags}} tags, ≤{{maxRunes}} characters each.",
+      "tagTooLong": "Tag too long (max {{max}})",
+      "tagMax": "Max {{max}} tags",
+      "cancel": "Cancel",
+      "submit": "Save changes",
+      "saving": "Saving…"
+    },
+    "sidebar": {
+      "aria": "Issue details",
+      "details": "Details",
+      "editButton": "Edit Issue",
+      "editAria": "Edit issue",
+      "status": "Status",
+      "statusDuration": "In current status for {{duration}}",
+      "tags": "Tags",
+      "noTags": "No tags",
+      "project": "Project",
+      "issueId": "Issue ID",
+      "created": "Created"
+    },
+    "derivedTasks": {
+      "aria": "Derived tasks",
+      "heading": "Derived Tasks",
+      "loading": "Loading…",
+      "empty": "No tasks derived from this issue."
+    },
+    "relatedPlans": {
+      "aria": "Related plans",
+      "heading": "Related Plans",
+      "loading": "Loading…",
+      "empty": "No plans derived from this issue."
+    },
+    "taskSidebar": {
+      "aria": "Details",
+      "tags": "Tags",
+      "noTags": "No tags",
+      "workItems": "Work items"
+    },
+    "relatedIssues": {
+      "heading": "Related Issues",
+      "loading": "Loading…",
+      "empty": "No source issue for this plan."
+    }
+  },
+  "plan": {
+    "detail": {
+      "loadError": "Couldn't load this plan.",
+      "backToPlans": "← Back to plans",
+      "lookupFailed": "Plan lookup failed.",
+      "cancel": "Cancel",
+      "participants": "Participants",
+      "progressComplete": "{{pct}}% complete",
+      "openActivity": "Open {{name}} activity",
+      "breadcrumb": {
+        "projects": "Projects",
+        "plans": "Plans"
+      },
+      "tabs": {
+        "chat": "Chat",
+        "dag": "DAG",
+        "tasks": "Task List"
+      },
+      "chat": {
+        "restore": "Restore chat",
+        "maximize": "Maximize chat",
+        "restoreEsc": "Restore (Esc)",
+        "initializing": "Conversation initializing — the plan's chat is being set up.",
+        "refreshError": "Couldn't refresh conversation details.",
+        "dispatchNote": "Dispatch = @assignee in this conversation (notify human / wake agent); also the place to discuss this plan."
+      },
+      "dag": {
+        "resetZoomAria": "Reset DAG zoom",
+        "compactAria": "Compact DAG (zoom to fit)",
+        "resetZoom": "Reset zoom",
+        "compact": "Compact (zoom to fit)",
+        "empty": "No tasks in this plan yet. Add tasks from the Work Board.",
+        "anchorStart": "Start",
+        "anchorEnd": "End",
+        "connectBanner": "Pick a highlighted task that <b>{{title}}</b> depends on.",
+        "cancelAddDependency": "Cancel adding dependency",
+        "removeDependency": "Remove dependency: {{from}} depends on {{to}}",
+        "addDep": "+ Dep",
+        "addDependencyAria": "Add dependency from {{title}}",
+        "addDependencyTitle": "Add a dependency from {{title}} (pick the task it depends on)",
+        "makeDependOn": "Make {{from}} depend on {{to}}",
+        "noteDerived": "Node status is derived (= f(task status, all upstream done, dispatch record)) and shown, not edited.",
+        "noteDraft": "This plan is a draft, so its dependencies are editable right on the graph — use a node's \"+ Dep\" button to add an edge, or an edge's \"×\" to remove one.",
+        "noteDisplayOnly": "Display-only graph: a running plan auto-advances (the system dispatches ready nodes as upstream tasks complete) and \"Advance now\" is a manual override. Dependencies can only be edited while the plan is a draft."
+      },
+      "actions": {
+        "menu": "Actions",
+        "hideGoal": "Hide goal",
+        "showGoal": "Show goal",
+        "stop": "Stop",
+        "edit": "Edit",
+        "start": "Start",
+        "archive": "Archive",
+        "delete": "Delete",
+        "archiveTitle": "Archive this plan and all its tasks (terminal, cannot be undone)",
+        "deleteTitle": "Delete this plan (unloads its tasks to the Backlog, cannot be undone)"
+      },
+      "lifecycle": {
+        "stop": "■ Stop (→ draft)",
+        "start": "▸ Start"
+      },
+      "meta": {
+        "progress": "Progress",
+        "target": "Target",
+        "creator": "Creator"
+      },
+      "rail": {
+        "nodesDone": "nodes done"
+      },
+      "goal": {
+        "close": "Close goal",
+        "title": "Plan goal",
+        "heading": "Goal",
+        "empty": "No goal set.",
+        "showLess": "Show less",
+        "showMore": "Show more"
+      },
+      "upNext": {
+        "title": "Up next",
+        "empty": "No nodes queued.",
+        "more": "+{{count}} more — view DAG"
+      },
+      "deleteModal": {
+        "title": "Delete this plan?",
+        "body": "This unloads all this plan's tasks back to the Backlog, permanently deletes the plan's conversation, and deletes the plan. This cannot be undone.",
+        "confirm": "Delete plan",
+        "pending": "Deleting…"
+      },
+      "archiveModal": {
+        "title": "Archive this plan?",
+        "body": "This archives the plan and all its tasks (a terminal state). This cannot be undone.",
+        "confirm": "Archive plan",
+        "pending": "Archiving…"
+      },
+      "editModal": {
+        "aria": "Edit plan",
+        "title": "Edit Plan",
+        "name": "Name",
+        "goal": "Goal",
+        "targetDate": "Target date",
+        "save": "Save changes",
+        "saving": "Saving…",
+        "errorArchived": "This plan is archived and can no longer be edited.",
+        "errorDraft": "The target date can only be changed while the plan is a draft.",
+        "errorGeneric": "Couldn't save your changes. Please try again."
+      },
+      "depError": {
+        "self": "A task can't depend on itself.",
+        "cycle": "That would create a cycle in the plan.",
+        "draft": "Dependencies can only be edited while the plan is a draft.",
+        "generic": "Couldn't update the plan's dependencies. Please try again."
+      },
+      "resumeError": {
+        "agentBusy": "Its agent is busy on another task — it'll resume this one when that finishes, or the agent can resume it from its side.",
+        "nodeNotPaused": "Nothing to resume — this node has no paused task (it may have already resumed).",
+        "planNotRunning": "The plan isn't running, so its nodes can't be resumed.",
+        "generic": "Couldn't resume this node. Please try again."
+      },
+      "unmerged": {
+        "title": "Unmerged branches",
+        "clearBeforeShip": "— clear before Ship",
+        "skipCheck": "skip-check",
+        "skipCheckTitle": "merge check structurally skipped (no-code feature); still counts until done"
+      },
+      "nodeStatus": {
+        "blocked": "blocked",
+        "ready": "ready",
+        "dispatched": "dispatched",
+        "running": "running",
+        "paused": "paused",
+        "done": "done",
+        "failed": "failed"
+      },
+      "taskList": {
+        "empty": "No tasks in this plan yet.",
+        "filterAria": "Filter tasks",
+        "filterPlaceholder": "Filter by title, Task id, or assignee…",
+        "showing": "Showing {{shown}} of {{total}}",
+        "noMatch": "No tasks match your filter.",
+        "colTask": "Task",
+        "colTitle": "Title",
+        "colAssignee": "Assignee",
+        "colTaskStatus": "Task status",
+        "colNodeStatus": "Node status",
+        "colAction": "Action",
+        "unassigned": "Unassigned",
+        "searchMembers": "Search members…",
+        "reassign": "Reassign {{title}}",
+        "removeError": "Couldn't remove this task from the plan. Please try again.",
+        "assignError": "Couldn't reassign this task. Please try again.",
+        "resume": "Resume",
+        "resuming": "Resuming…",
+        "resumeAria": "Resume {{title}}",
+        "resumeTitle": "Resume this paused node (wake its agent)",
+        "confirm": "Confirm?",
+        "removeAria": "Remove {{title}} from plan",
+        "removeConfirmTitle": "Click again to confirm removal",
+        "removeTitle": "Remove from plan (back to backlog)"
+      }
+    },
+    "list": {
+      "title": "Plans",
+      "searchLabel": "Search plans",
+      "searchPlaceholder": "Search plans…",
+      "statusLabel": "Status",
+      "projectLabel": "Project",
+      "allProjects": "All projects",
+      "clearFilters": "Clear filters",
+      "loading": "Loading plans…",
+      "empty": "No plans yet.",
+      "emptyFiltered": "No matching plans.",
+      "by": "by {{name}}",
+      "col": {
+        "name": "Name",
+        "status": "Status",
+        "project": "Project",
+        "progress": "Progress",
+        "created": "Created",
+        "creator": "Creator",
+        "updated": "Updated"
+      },
+      "summary": {
+        "heading": "Plan · summary",
+        "close": "Close",
+        "closeAria": "Close summary panel",
+        "id": "ID",
+        "name": "Name",
+        "status": "Status",
+        "project": "Project",
+        "nodes": "Nodes",
+        "created": "Created",
+        "creator": "Creator",
+        "actions": "Actions",
+        "openPlan": "Open plan"
+      }
+    },
+    "board": {
+      "rotateHint": "↻ Rotate to landscape for a better Work Board view.",
+      "rotateDismiss": "Dismiss rotate hint",
+      "breadcrumb": {
+        "projects": "Projects",
+        "workBoard": "Work Board"
+      },
+      "titleSuffix": " · Work Board",
+      "subtitle": "Three segments · Backlog (unscheduled) · Assignment Pool (claimable) · structured Plans.",
+      "newTask": "+ New Task",
+      "newPlan": "+ New Plan",
+      "newPlanHint": "(adds a column)",
+      "newPlanAria": "New plan",
+      "loadError": "Couldn't load the work board.",
+      "boardAria": "Work board",
+      "assignmentPool": "Assignment Pool",
+      "addToPlan": "Add to plan",
+      "unassigned": "Unassigned",
+      "overflow_one": "…and {{count}} more",
+      "overflow_other": "…and {{count}} more",
+      "backlog": {
+        "title": "Backlog",
+        "subtitle": "Unscheduled — not claimable",
+        "loadError": "Couldn't load the backlog.",
+        "empty": "No unplanned tasks. Every task is in a plan."
+      },
+      "addMenu": {
+        "empty": "No draft plan or pool. Create a plan to schedule this task."
+      },
+      "pool": {
+        "subtitle": "Built-in · always running · claimable",
+        "empty": "No claimable tasks yet."
+      },
+      "claimable": {
+        "label": "Claimable",
+        "title": "Claimable now — assigned & dispatched (pull, no-wake)."
+      },
+      "starved": {
+        "label": "Waiting for agent",
+        "title": "Waiting for a qualified agent — no eligible online agent covers this task's required capabilities."
+      },
+      "phase": {
+        "planning": "Planning",
+        "inProgress": "In progress"
+      },
+      "column": {
+        "empty": "No tasks yet."
+      },
+      "lock": {
+        "running": "This plan is running — its tasks can't be moved to or from another plan. Stop the plan to re-plan.",
+        "done": "This plan is completed — its task assignments are locked.",
+        "archived": "This plan is archived — its task assignments are locked.",
+        "default": "This plan’s task assignments are locked."
+      },
+      "removeTask": {
+        "aria": "Remove {{title}} from plan",
+        "title": "Remove from plan (back to backlog)",
+        "error": "Couldn't remove this task from the plan. Please try again."
+      },
+      "createModal": {
+        "heading": "New Plan",
+        "name": "Name",
+        "description": "Description",
+        "targetDate": "Target date",
+        "cancel": "Cancel",
+        "creating": "Creating…",
+        "submit": "Create Plan"
+      }
+    }
+  },
+  "project": {
+    "list": {
+      "title": "Projects",
+      "subtitle": "Projects organize Issues and Tasks.",
+      "addProject": "+ Add Project",
+      "noDescription": "no description",
+      "empty": {
+        "title": "No projects yet",
+        "body": "Projects organize work — Issues and Tasks live inside a project. Click + Add Project to create one."
+      },
+      "archived": {
+        "empty": "No archived projects."
+      }
+    },
+    "status": {
+      "active": "active",
+      "archived": "archived"
+    },
+    "counts": {
+      "task_one": "{{count}} task",
+      "task_other": "{{count}} tasks",
+      "issue_one": "{{count}} issue",
+      "issue_other": "{{count}} issues",
+      "plan_one": "{{count}} plan",
+      "plan_other": "{{count}} plans",
+      "repo_one": "{{count}} repo",
+      "repo_other": "{{count}} repos"
+    },
+    "relativeTime": {
+      "seconds": "{{count}}s ago",
+      "minutes": "{{count}}m ago",
+      "hours": "{{count}}h ago",
+      "days": "{{count}}d ago"
+    },
+    "shortcut": {
+      "edit": "Edit",
+      "board": "Work Board",
+      "tasks": "Tasks",
+      "issues": "Issues",
+      "codebase": "Codebase"
+    },
+    "actions": {
+      "menuLabel": "Project actions"
+    },
+    "create": {
+      "title": "Add Project",
+      "close": "Close",
+      "nameLabel": "Name",
+      "namePlaceholder": "My Project",
+      "descriptionLabel": "Description",
+      "descriptionHint": "Optional. Shown in the project list.",
+      "cancel": "Cancel",
+      "submit": "Create project",
+      "submitting": "Creating..."
+    },
+    "edit": {
+      "ariaLabel": "Edit project",
+      "title": "Edit Project",
+      "nameLabel": "Name",
+      "descriptionLabel": "Description",
+      "autoAssign": {
+        "label": "Auto-assign pool tasks",
+        "hint": "When on, claimable pool tasks are automatically assigned to an eligible idle agent whose capabilities cover the task. Off = tasks wait for a manual assign/claim."
+      },
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "delete": {
+      "title": "Archive project?",
+      "confirmPrefix": "Archive",
+      "confirmSuffix": " ({{id}})?",
+      "note": "Archiving hides the project from the active list. Its Issues and Tasks remain but the project is marked archived.",
+      "cancel": "Cancel",
+      "archive": "Archive",
+      "archiving": "Archiving…"
+    },
+    "detail": {
+      "backToProjects": "← Back to projects",
+      "lookupFailed": "Project lookup failed.",
+      "breadcrumb": "Projects",
+      "workBoard": "Work Board",
+      "edit": "Edit",
+      "archive": "Archive",
+      "tabs": {
+        "aria": "project work",
+        "issues": "Issues",
+        "tasks": "Tasks",
+        "plans": "Plans",
+        "members": "Members",
+        "repos": "Code repos"
+      }
+    },
+    "table": {
+      "id": "ID",
+      "name": "Name",
+      "title": "Title",
+      "status": "Status",
+      "progress": "Progress",
+      "created": "Created",
+      "updated": "Updated",
+      "creator": "Creator",
+      "assignedTo": "Assigned to",
+      "priority": "Priority"
+    },
+    "plans": {
+      "title": "Plans",
+      "empty": "No plans yet"
+    },
+    "members": {
+      "title": "Members",
+      "add": "+ Add",
+      "empty": "No members yet",
+      "remove": "Remove",
+      "cols": {
+        "identityId": "Identity ID",
+        "displayName": "Display Name",
+        "joined": "Joined",
+        "kind": "Kind",
+        "role": "Role"
+      },
+      "kind": {
+        "agent": "agent",
+        "user": "user"
+      },
+      "role": {
+        "owner": "owner"
+      },
+      "removeError": {
+        "cannotRemoveOwner": "The project owner can't be removed.",
+        "notMember": "This member is no longer in the project.",
+        "generic": "Remove failed, please try again."
+      },
+      "confirm": {
+        "title": "Remove member",
+        "message": "Remove {{label}} from this project? They lose access to the project's tasks and issues.",
+        "confirmLabel": "Remove"
+      }
+    },
+    "repos": {
+      "title": "Referenced repositories",
+      "subtitle": "Workspace repos this project references. The primary repo (starred) drives Integrate merge-check. Configure url/credentials on the workspace Repos page.",
+      "empty": "No referenced repositories.",
+      "primaryRepo": "Primary repo",
+      "setPrimary": "Set as primary",
+      "primaryBadge": "primary",
+      "unreference": "Unreference",
+      "selectAria": "Reference a workspace repo",
+      "noMoreRepos": "No more workspace repos to reference",
+      "selectPlaceholder": "Select a workspace repo…",
+      "addReference": "Add reference"
+    },
+    "issues": {
+      "title": "Issues",
+      "create": "+ Open Issue",
+      "empty": "No issues yet",
+      "emptyFiltered": "No matching issues"
+    },
+    "tasks": {
+      "title": "Tasks",
+      "create": "+ New Task",
+      "empty": "No tasks yet",
+      "emptyFiltered": "No matching tasks"
+    },
+    "overview": {
+      "title": "Overview",
+      "issues": "Issues",
+      "tasks": "Tasks",
+      "plans": "Plans",
+      "repos": "Repos"
+    },
+    "activity": {
+      "title": "Recent activity",
+      "empty": "No recent activity yet.",
+      "kind": {
+        "plan": "Plan"
+      }
+    }
+  },
+  "task": {
+    "create": {
+      "heading": "New Task",
+      "close": "Close",
+      "titleLabel": "Title",
+      "titlePlaceholder": "What should happen?",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Optional. Context, acceptance criteria, links…",
+      "capabilitiesLabel": "Required capabilities",
+      "destinationLabel": "Destination",
+      "destinationHint": "Where the task starts. Only draft plans can accept a new task.",
+      "destinationBacklog": "Backlog (unscheduled)",
+      "destinationPool": "Assignment Pool (claimable)",
+      "destinationPlansGroup": "Plans (draft)",
+      "cancel": "Cancel",
+      "submit": "Create Task",
+      "submitting": "Creating…"
+    },
+    "edit": {
+      "dialogLabel": "Edit task",
+      "heading": "Edit Task",
+      "close": "Close",
+      "titleLabel": "Title",
+      "descriptionLabel": "Description",
+      "statusLabel": "Status",
+      "assigneeLabel": "Assignee",
+      "unassigned": "Unassigned",
+      "tagsLabel": "Tags",
+      "removeTag": "Remove tag {{tag}}",
+      "tagPlaceholder": "Type a tag, press Enter or comma…",
+      "tagsHint": "Up to {{maxTags}} tags, ≤{{maxRunes}} characters each.",
+      "tagTooLong": "Tag too long (max {{max}})",
+      "tagMax": "Max {{count}} tags",
+      "capabilitiesLabel": "Required capabilities",
+      "cancel": "Cancel",
+      "submit": "Save changes",
+      "submitting": "Saving…"
+    },
+    "sidebar": {
+      "ariaLabel": "Task details",
+      "details": "Details",
+      "editTask": "Edit Task",
+      "editTaskAria": "Edit task",
+      "status": "Status",
+      "inStatusFor": "In current status for {{duration}}",
+      "assignee": "Assignee",
+      "openActivity": "Open {{name}}'s activity",
+      "unassigned": "Unassigned",
+      "tags": "Tags",
+      "noTags": "No tags",
+      "project": "Project",
+      "plan": "Plan",
+      "relatedIssue": "Related Issue",
+      "taskId": "Task ID",
+      "created": "Created"
+    },
+    "detail": {
+      "loading": "Loading task…",
+      "backToProject": "Back to project",
+      "lookupFailed": "Task lookup failed.",
+      "breadcrumbProjects": "Projects",
+      "breadcrumbProject": "Project",
+      "breadcrumbTasks": "Tasks",
+      "closeInfo": "Close info",
+      "descriptionAria": "Task description",
+      "noDescription": "No description.",
+      "plan": "Plan",
+      "stuck": "Stuck: {{reason}}"
+    }
+  },
+  "widgets": {
+    "taskTitleLink": {
+      "openInNewTab": "Open task in a new tab"
+    },
+    "entityRef": {
+      "deleted": "(deleted)"
+    },
+    "entitySelect": {
+      "placeholder": "Select…",
+      "searchPlaceholder": "Search…",
+      "empty": "No matches.",
+      "searchAriaLabel": "Search"
+    },
+    "entityMultiSelect": {
+      "placeholder": "Select…",
+      "searchPlaceholder": "Search…",
+      "empty": "No matches.",
+      "searchAriaLabel": "Search",
+      "removeChip": "Remove {{label}}"
+    },
+    "collapsible": {
+      "showMore": "Show more",
+      "showLess": "Show less"
+    },
+    "carryOver": {
+      "from": "from",
+      "discussionBelow": "Discussion below"
+    },
+    "followToggle": {
+      "follow": "Follow",
+      "following": "Following",
+      "followAria": "Follow this conversation",
+      "unfollowAria": "Unfollow this conversation"
+    },
+    "attachments": {
+      "title": "Attachments",
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "loading": "Loading attachments…",
+      "loadError": "Failed to load attachments.",
+      "empty": "No attachments yet."
+    }
+  },
+  "workItem": {
+    "title": {
+      "issues": "Issues",
+      "tasks": "Tasks"
+    },
+    "titleLower": {
+      "issues": "issues",
+      "tasks": "tasks"
+    },
+    "new": "+ New {{type}}",
+    "loading": "Loading {{items}}…",
+    "empty": {
+      "default": "No open {{items}}.",
+      "filtered": "No matching {{items}}."
+    },
+    "col": {
+      "id": "ID",
+      "project": "Project",
+      "title": "Title",
+      "status": "Status",
+      "assignedTo": "Assigned to",
+      "created": "Created",
+      "creator": "Creator",
+      "updated": "Updated"
+    },
+    "archived": "(archived)",
+    "by": "by {{name}}",
+    "meta": {
+      "heading": "{{type}} · metadata",
+      "closeAria": "Close metadata panel",
+      "close": "Close",
+      "status": "Status",
+      "assignee": "Assignee",
+      "project": "Project",
+      "id": "ID",
+      "created": "Created",
+      "updated": "Updated",
+      "conversation": "Conversation",
+      "openDiscussion": "Open {{type}} discussion"
+    },
+    "create": {
+      "title": "New {{type}}",
+      "close": "Close",
+      "closeGlyph": "X",
+      "project": "Project",
+      "selectProject": "Select a project…",
+      "hint": "Pick a project to create the {{kind}} in (issues/tasks are project-scoped)."
+    },
+    "mobile": {
+      "actions": "Actions",
+      "hideInfo": "Hide info",
+      "showInfo": "Show info",
+      "editTask": "Edit Task",
+      "editIssue": "Edit Issue",
+      "project": "Project",
+      "taskId": "Task ID",
+      "issueId": "Issue ID",
+      "created": "Created",
+      "tags": "Tags",
+      "noTags": "No tags"
+    }
+  },
+  "filter": {
+    "title": "Filters",
+    "clear": "Clear filters",
+    "status": {
+      "label": "Status"
+    },
+    "project": {
+      "label": "Project",
+      "all": "All projects"
+    },
+    "assignee": {
+      "label": "Assignee",
+      "any": "Any",
+      "kind": {
+        "user": "user",
+        "agent": "agent"
+      }
+    },
+    "date": {
+      "label": "Date range",
+      "created": "Created",
+      "updated": "Updated",
+      "createdAfter": "Created after",
+      "createdBefore": "Created before",
+      "updatedAfter": "Updated after",
+      "updatedBefore": "Updated before"
+    }
+  }
+}

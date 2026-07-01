@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   useConversations,
@@ -138,6 +139,7 @@ function TrashIcon(): React.ReactElement {
 }
 
 export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React.ReactElement {
+  const { t } = useTranslation('common');
   const location = useLocation();
   const navigate = useNavigate();
   const channels = useConversations({ kind: 'channel' });
@@ -185,8 +187,8 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
       : d.peer_display_name
         ? `@${d.peer_display_name}`
         : d.peer_identity_id
-          ? '(deleted)'
-          : 'Direct message';
+          ? t('shell.conv.deletedPeer')
+          : t('shell.conv.directMessageFallback');
   // T344 (@oopslink: "电脑端也要支持删除 DM"): desktop now allows deleting ANY DM
   // (mobile already did via the DMs page). The backend lets an org owner delete a
   // DM even when not a participant — so stray DMs (e.g. old single-party "Reminder"
@@ -236,8 +238,8 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
             type="button"
             className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-muted hover:bg-danger/10 hover:text-danger"
             data-testid="sidebar-dm-delete-button"
-            aria-label={`Delete DM ${dmLabel(d)}`}
-            title="Delete DM"
+            aria-label={t('shell.conv.deleteDmLabel', { name: dmLabel(d) })}
+            title={t('shell.conv.deleteDmTitle')}
             onClick={() => {
               deleteConversation.reset();
               setPendingDeleteDM({
@@ -263,15 +265,16 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
       {/* Channels */}
       <div>
         <SectionHeader
-          label="Channels"
+          label={t('shell.conv.channels')}
           createTo={`${orgBase}/channels`}
           createTestId="conv-new-channel"
-          createLabel="New channel"
+          createLabel={t('shell.conv.newChannel')}
         />
         <ul className="space-y-0.5">
-          {activeChannels.length === 0 && <EmptyRow text="No channels" />}
+          {activeChannels.length === 0 && <EmptyRow text={t('shell.conv.noChannels')} />}
           {orderedChannels.map((c) => (
             <li key={c.id} {...channelOrder.rowProps(c.id)} className={rowDragClass(channelOrder, c.id)}>
+
               <NavLink
                 to={`${orgBase}/channels/${encodeURIComponent(c.id)}`}
                 className={rowClass}
@@ -293,14 +296,14 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
       {/* Direct messages */}
       <div>
         <SectionHeader
-          label="Direct messages"
+          label={t('shell.conv.directMessages')}
           createTo={`${orgBase}/dms`}
           createTestId="conv-new-dm"
-          createLabel="New direct message"
+          createLabel={t('shell.conv.newDirectMessage')}
         />
         {dmList.length === 0 && (
           <ul className="space-y-0.5">
-            <EmptyRow text="No direct messages" />
+            <EmptyRow text={t('shell.conv.noDirectMessages')} />
           </ul>
         )}
         {/* My DMs (the subheader only appears when there are ALSO agent-agent DMs,
@@ -310,7 +313,7 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
           <>
             {agentAgentDMs.length > 0 && (
               <SubHeader
-                label="My DMs"
+                label={t('shell.conv.myDms')}
                 collapsed={isGroupCollapsed('mine')}
                 onToggle={() => toggleGroup('mine')}
                 testId="conv-nav-subheader-mine"
@@ -327,7 +330,7 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
         {agentAgentDMs.length > 0 && (
           <>
             <SubHeader
-              label="A2A"
+              label={t('shell.conv.a2a')}
               collapsed={isGroupCollapsed('a2a')}
               onToggle={() => toggleGroup('a2a')}
               testId="conv-nav-subheader-a2a"
@@ -351,13 +354,13 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
         open={pendingDeleteDM !== null}
         danger
         busy={deleteConversation.isPending}
-        title="Delete DM"
+        title={t('shell.conv.deleteDmTitle')}
         message={
           pendingDeleteDM
-            ? `Delete the DM "${pendingDeleteDM.label}"? This permanently removes the conversation and all its messages for everyone. This cannot be undone.`
+            ? t('shell.conv.deleteDmConfirm', { name: pendingDeleteDM.label })
             : undefined
         }
-        confirmLabel="Delete"
+        confirmLabel={t('shell.conv.deleteConfirmLabel')}
         onCancel={() => {
           if (deleteConversation.isPending) return;
           setPendingDeleteDM(null);

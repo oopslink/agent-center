@@ -1,6 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { server } from './mswServer';
+// Initialise i18next for the whole test run so components using
+// useTranslation() render real copy (default lang → English in jsdom, where
+// navigator.language is en-US and no `ac.lang` is stored) rather than raw keys.
+import '../i18n';
 
 // jsdom does not implement the object-URL APIs the composer uses for image
 // attachment previews (URL.createObjectURL / revokeObjectURL). Provide inert

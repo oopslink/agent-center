@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useCreateReminder,
   useUpdateReminder,
@@ -20,35 +21,43 @@ import { IconClose, IconCalendar, IconClock } from './icons';
 // Submits to POST /api/orgs/{slug}/reminders. The remindee is an agent.
 // =============================================================================
 
-const CRON_PRESETS: ReadonlyArray<{ label: string; expr: string }> = [
-  { label: 'Hourly', expr: '0 * * * *' },
-  { label: 'Daily 09:00', expr: '0 9 * * *' },
-  { label: 'Weekdays 18:00', expr: '0 18 * * 1-5' },
-  { label: 'Mondays 09:00', expr: '0 9 * * 1' },
-  { label: 'Every 30 min', expr: '*/30 * * * *' },
+const CRON_PRESETS: ReadonlyArray<{ labelKey: string; expr: string }> = [
+  { labelKey: 'reminders.create.cronPreset.hourly', expr: '0 * * * *' },
+  { labelKey: 'reminders.create.cronPreset.daily0900', expr: '0 9 * * *' },
+  { labelKey: 'reminders.create.cronPreset.weekdays1800', expr: '0 18 * * 1-5' },
+  { labelKey: 'reminders.create.cronPreset.mondays0900', expr: '0 9 * * 1' },
+  { labelKey: 'reminders.create.cronPreset.every30min', expr: '*/30 * * * *' },
 ];
 
 const browserTz =
   typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAY_KEYS = [
+  'reminders.create.weekday.sunday',
+  'reminders.create.weekday.monday',
+  'reminders.create.weekday.tuesday',
+  'reminders.create.weekday.wednesday',
+  'reminders.create.weekday.thursday',
+  'reminders.create.weekday.friday',
+  'reminders.create.weekday.saturday',
+];
 
 // cronHuman renders a best-effort natural-language gloss for the common shapes
 // the presets cover (the mockup's plain-language preview); unknown exprs fall
 // back to raw.
-function cronHuman(expr: string): string {
+function cronHuman(t: (key: string, opts?: Record<string, unknown>) => string, expr: string): string {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return expr;
   const [min, hr, dom, mon, dow] = parts;
   const hhmm = (h: string, m: string) => `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
-  if (min === '*/30' && hr === '*') return 'Every 30 minutes';
-  if (hr === '*' && min === '0') return 'Every hour, on the hour';
+  if (min === '*/30' && hr === '*') return t('reminders.create.cronHuman.every30min');
+  if (hr === '*' && min === '0') return t('reminders.create.cronHuman.everyHour');
   if (dom === '*' && mon === '*') {
     const time = /^\d+$/.test(hr) && /^\d+$/.test(min) ? hhmm(hr, min) : `${hr}:${min}`;
-    if (dow === '*') return `Daily at ${time}`;
-    if (dow === '1-5') return `Weekdays at ${time}`;
-    if (/^\d$/.test(dow)) return `Every ${WEEKDAYS[Number(dow)]} at ${time}`;
-    return `Weekly (${dow}) at ${time}`;
+    if (dow === '*') return t('reminders.create.cronHuman.daily', { time });
+    if (dow === '1-5') return t('reminders.create.cronHuman.weekdays', { time });
+    if (/^\d$/.test(dow)) return t('reminders.create.cronHuman.everyDay', { weekday: t(WEEKDAY_KEYS[Number(dow)]), time });
+    return t('reminders.create.cronHuman.weekly', { dow, time });
   }
   return expr;
 }
@@ -105,6 +114,7 @@ interface Props {
 }
 
 export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.ReactElement {
+  const { t } = useTranslation('insights');
   const create = useCreateReminder();
   const update = useUpdateReminder();
   const isEdit = !!editId;
@@ -154,9 +164,9 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
     if (!onceDate) return '—';
     const dt = new Date(`${onceDate}T${onceTime}:00`);
     const hrs = Math.round((dt.getTime() - Date.now()) / 3.6e6);
-    const rel = hrs > 0 ? `in ~${hrs}h` : 'Overdue';
-    return `Fires once at ${onceDate} ${onceTime} · ${rel} · TZ ${tz}`;
-  }, [onceDate, onceTime, tz]);
+    const rel = hrs > 0 ? t('reminders.create.oncePreviewRel', { hours: hrs }) : t('reminders.create.oncePreviewOverdue');
+    return t('reminders.create.oncePreview', { date: onceDate, time: onceTime, rel, tz });
+  }, [onceDate, onceTime, tz, t]);
 
   async function submit(): Promise<void> {
     setErr(null);
@@ -174,7 +184,7 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
         await update.mutateAsync({ id: editId, action: 'edit', schedule, content: content.trim() });
         onClose();
       } catch (e) {
-        setErr(e instanceof Error ? e.message : 'Failed to save');
+        setErr(e instanceof Error ? e.message : t('reminders.create.errFailedSave'));
       }
       return;
     }
@@ -199,11 +209,11 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
       onClose();
       return;
     }
-    const msg = failed[0].reason instanceof Error ? failed[0].reason.message : 'Failed to create';
+    const msg = failed[0].reason instanceof Error ? failed[0].reason.message : t('reminders.create.errFailedCreate');
     setErr(
       failed.length === remindees.length
         ? msg
-        : `${failed.length} of ${remindees.length} reminders failed: ${msg}`,
+        : t('reminders.create.errPartial', { failed: failed.length, total: remindees.length, msg }),
     );
   }
 
@@ -212,13 +222,13 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label={isEdit ? 'Edit reminder' : 'New reminder'}
+      aria-label={isEdit ? t('reminders.create.titleEdit') : t('reminders.create.titleNew')}
       data-testid="reminder-create-modal"
     >
       <div className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-xl bg-bg-elevated shadow-xl">
         <div className="flex items-center justify-between border-b border-border-base px-5 py-3">
-          <h4 className="text-base font-semibold text-text-primary">{isEdit ? 'Edit reminder' : 'New reminder'}</h4>
-          <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label="Close">
+          <h4 className="text-base font-semibold text-text-primary">{isEdit ? t('reminders.create.titleEdit') : t('reminders.create.titleNew')}</h4>
+          <button type="button" onClick={onClose} className="text-text-muted hover:text-text-primary" aria-label={t('reminders.create.close')}>
             <IconClose className="h-4 w-4" />
           </button>
         </div>
@@ -229,29 +239,29 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
               In edit mode the remindee is fixed (the edit contract is schedule +
               content only), so the select is disabled. */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-text-secondary">Remindee</label>
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.remindeeLabel')}</label>
             <EntityMultiSelect
               testId="reminder-remindee"
               options={remindeeOptions}
               values={remindees}
               onChange={setRemindees}
-              placeholder="Select peer agents…"
-              searchPlaceholder="Search agents…"
-              emptyLabel="No agents."
-              ariaLabel="Remindee"
+              placeholder={t('reminders.create.remindeePlaceholder')}
+              searchPlaceholder={t('reminders.create.remindeeSearchPlaceholder')}
+              emptyLabel={t('reminders.create.remindeeEmpty')}
+              ariaLabel={t('reminders.create.remindeeLabel')}
               disabled={isEdit}
             />
             <p className="mt-1.5 text-xs text-text-muted">
               {isEdit
-                ? 'Remindee is fixed when editing — clone instead to retarget.'
-                : 'Pick one or more peer agents in the same project (guardrail: same project only · creation is audited).'}
+                ? t('reminders.create.remindeeHintEdit')
+                : t('reminders.create.remindeeHint')}
             </p>
           </div>
 
           {/* Trigger type */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-text-secondary">Trigger</label>
-            <div className="inline-flex rounded-md bg-bg-subtle p-0.5" role="tablist" aria-label="Trigger type">
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.triggerLabel')}</label>
+            <div className="inline-flex rounded-md bg-bg-subtle p-0.5" role="tablist" aria-label={t('reminders.create.triggerTypeAria')}>
               {(['once', 'cron'] as const).map((k) => (
                 <button
                   key={k}
@@ -262,7 +272,7 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
                   onClick={() => setKind(k)}
                   className={`rounded px-3 py-1 text-xs font-semibold ${kind === k ? 'bg-brand text-white' : 'text-text-secondary'}`}
                 >
-                  {k === 'once' ? 'Once' : 'Recurring (cron)'}
+                  {k === 'once' ? t('reminders.create.tabOnce') : t('reminders.create.tabRecurring')}
                 </button>
               ))}
             </div>
@@ -271,11 +281,11 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
           {kind === 'cron' ? (
             <>
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-text-secondary">Cron expression</label>
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.cronLabel')}</label>
                 <input
                   value={cronExpr}
                   onChange={(e) => setCronExpr(e.target.value)}
-                  placeholder="min hour day month weekday"
+                  placeholder={t('reminders.create.cronPlaceholder')}
                   className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 font-mono text-sm"
                   data-testid="reminder-cron"
                 />
@@ -290,7 +300,7 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
                         cronExpr === p.expr ? 'bg-brand text-white' : 'bg-bg-subtle text-text-secondary hover:bg-bg-base'
                       }`}
                     >
-                      {p.label}
+                      {t(p.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -298,12 +308,12 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
                   className="mt-2.5 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info"
                   data-testid="reminder-preview"
                 >
-                  <IconCalendar className="h-3.5 w-3.5 shrink-0" /> <span>{cronHuman(cronExpr)} · TZ {tz}</span>
+                  <IconCalendar className="h-3.5 w-3.5 shrink-0" /> <span>{t('reminders.create.cronPreview', { human: cronHuman(t, cronExpr), tz })}</span>
                 </div>
                 <input
                   value={tz}
                   onChange={(e) => setTz(e.target.value)}
-                  aria-label="Timezone"
+                  aria-label={t('reminders.create.timezoneAria')}
                   className="mt-2 w-full rounded-md border border-border-base bg-bg-base px-3 py-2 text-sm"
                 />
               </div>
@@ -313,15 +323,15 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
               <div className="space-y-2 rounded-lg border border-border-base p-3">
                 <div className="flex items-center justify-between gap-2 text-xs text-text-secondary">
                   <span>
-                    Skip this run if the previous one is unfinished
-                    <span className="block text-text-muted">Avoids pile-up of recurring fires (on by default)</span>
+                    {t('reminders.create.skipOverlapLabel')}
+                    <span className="block text-text-muted">{t('reminders.create.skipOverlapHint')}</span>
                   </span>
                   {/* Toggle switch, not a checkbox (UX standards §1a). */}
                   <button
                     type="button"
                     role="switch"
                     aria-checked={skipOverlap}
-                    aria-label="Skip this run if the previous one is unfinished"
+                    aria-label={t('reminders.create.skipOverlapLabel')}
                     onClick={() => setSkipOverlap((v) => !v)}
                     data-testid="reminder-skip-overlap"
                     className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
@@ -337,8 +347,8 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
                 </div>
                 <label className="flex items-center justify-between gap-2 text-xs text-text-secondary">
                   <span>
-                    End condition
-                    <span className="block text-text-muted">Never ends · or set an end date or max N fires</span>
+                    {t('reminders.create.endConditionLabel')}
+                    <span className="block text-text-muted">{t('reminders.create.endConditionHint')}</span>
                   </span>
                   <select
                     value={endKind}
@@ -346,9 +356,9 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
                     className="rounded-md border border-border-base bg-bg-base px-2 py-1 text-xs"
                     data-testid="reminder-end-kind"
                   >
-                    <option value="never">Never</option>
-                    <option value="until">Until date</option>
-                    <option value="max_count">Max N times</option>
+                    <option value="never">{t('reminders.create.endNever')}</option>
+                    <option value="until">{t('reminders.create.endUntil')}</option>
+                    <option value="max_count">{t('reminders.create.endMaxCount')}</option>
                   </select>
                 </label>
               </div>
@@ -356,7 +366,7 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
             </>
           ) : (
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-text-secondary">Trigger time</label>
+              <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.triggerTimeLabel')}</label>
               <div className="flex gap-2">
                 <input
                   type="date"
@@ -384,12 +394,12 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
 
           {/* Content */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-text-secondary">Reminder content</label>
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.contentLabel')}</label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={2}
-              placeholder="At trigger time this wakes the target agent as a directed message"
+              placeholder={t('reminders.create.contentPlaceholder')}
               className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 text-sm"
               data-testid="reminder-content"
             />
@@ -401,14 +411,14 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
           {!isEdit && (
             <div className="flex items-center justify-between gap-3">
               <div className="text-xs text-text-secondary">
-                Send as yourself
-                <span className="block text-text-muted">The fired reminder is sent as the creator (off = sent as system).</span>
+                {t('reminders.create.sendAsSelfLabel')}
+                <span className="block text-text-muted">{t('reminders.create.sendAsSelfHint')}</span>
               </div>
               <button
                 type="button"
                 role="switch"
                 aria-checked={deliverAsCreator}
-                aria-label="Send as yourself"
+                aria-label={t('reminders.create.sendAsSelfLabel')}
                 onClick={() => setDeliverAsCreator((v) => !v)}
                 data-testid="reminder-deliver-as-creator"
                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
@@ -432,10 +442,10 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
         </div>
 
         <div className="flex items-center justify-between border-t border-border-base px-5 py-3">
-          <p className="text-xs text-text-muted">Creator: you · audited</p>
+          <p className="text-xs text-text-muted">{t('reminders.create.footerNote')}</p>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">
-              Cancel
+              {t('reminders.create.cancel')}
             </button>
             <button
               type="button"
@@ -446,11 +456,11 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
             >
               {isEdit
                 ? update.isPending
-                  ? 'Saving…'
-                  : 'Save changes'
+                  ? t('reminders.create.saving')
+                  : t('reminders.create.saveChanges')
                 : create.isPending
-                  ? 'Creating…'
-                  : 'Create reminder'}
+                  ? t('reminders.create.creating')
+                  : t('reminders.create.createButton')}
             </button>
           </div>
         </div>

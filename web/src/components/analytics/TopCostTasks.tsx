@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AnalyticsTopTask } from '@/api/types';
 import { useAgentAnalyticsTask } from '@/api/analytics';
 import { formatCostMicros, formatTokens } from '@/utils/format';
@@ -37,6 +38,7 @@ function TaskRow({
   agentId: string;
   maxCost: number;
 }): React.ReactElement {
+  const { t } = useTranslation('insights');
   const [open, setOpen] = useState(false);
   const drill = useAgentAnalyticsTask(agentId, task.task_id, open);
   const ref = (task.org_ref ?? '').trim();
@@ -89,19 +91,19 @@ function TaskRow({
       </button>
       {open && (
         <div className="px-9 pb-2" data-testid={`top-task-drill-${task.task_id}`}>
-          {drill.isLoading && <p className="py-1 text-xs text-text-muted">Loading usage…</p>}
-          {drill.isError && <p className="py-1 text-xs text-danger">Failed to load usage events.</p>}
+          {drill.isLoading && <p className="py-1 text-xs text-text-muted">{t('analytics.topTasks.drill.loading')}</p>}
+          {drill.isError && <p className="py-1 text-xs text-danger">{t('analytics.topTasks.drill.error')}</p>}
           {drill.data && drill.data.events.length === 0 && (
-            <p className="py-1 text-xs text-text-muted">No usage events for this task.</p>
+            <p className="py-1 text-xs text-text-muted">{t('analytics.topTasks.drill.empty')}</p>
           )}
           {drill.data && drill.data.events.length > 0 && (
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-text-muted">
-                  <th className="py-1 text-left font-normal">When</th>
-                  <th className="py-1 text-left font-normal">Model</th>
-                  <th className="py-1 text-right font-normal">Tokens</th>
-                  <th className="py-1 text-right font-normal">Cost</th>
+                  <th className="py-1 text-left font-normal">{t('analytics.topTasks.drill.col.when')}</th>
+                  <th className="py-1 text-left font-normal">{t('analytics.topTasks.drill.col.model')}</th>
+                  <th className="py-1 text-right font-normal">{t('analytics.topTasks.drill.col.tokens')}</th>
+                  <th className="py-1 text-right font-normal">{t('analytics.topTasks.drill.col.cost')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,13 +131,14 @@ export function TopCostTasks({
   tasks: AnalyticsTopTask[];
   agentId: string;
 }): React.ReactElement {
+  const { t } = useTranslation('insights');
   const maxCost = tasks.reduce((m, t) => Math.max(m, t.cost_micros), 0);
   return (
     <section className="flex min-h-[18rem] flex-col rounded-lg border border-border-base bg-bg-elevated p-5" data-testid="analytics-top-tasks">
-      <h3 className="mb-3 text-sm font-semibold text-text-primary">Top Cost Tasks</h3>
+      <h3 className="mb-3 text-sm font-semibold text-text-primary">{t('analytics.topTasks.title')}</h3>
       {tasks.length === 0 ? (
         <p className="flex flex-1 items-center justify-center text-center text-sm text-text-muted" data-testid="analytics-top-tasks-empty">
-          No task-scoped usage this month.
+          {t('analytics.topTasks.empty')}
         </p>
       ) : (
         <ol className="flex flex-col">

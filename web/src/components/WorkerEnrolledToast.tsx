@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/store/app';
 
 // v2.4-D-F4 (task #44): bottom-right toast that pops when a worker
@@ -17,6 +18,7 @@ interface ToastDetail {
 }
 
 export function WorkerEnrolledToast(): React.ReactElement | null {
+  const { t } = useTranslation('members');
   const [visible, setVisible] = useState<{ workerId: string; key: number } | null>(null);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export function WorkerEnrolledToast(): React.ReactElement | null {
       data-testid="worker-enrolled-toast"
       className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border border-success/40 bg-success/10 px-4 py-3 shadow-2 motion-safe:animate-fade-in"
     >
-      <p className="text-sm font-semibold text-success">Worker connected</p>
+      <p className="text-sm font-semibold text-success">{t('workers.enrolledToast.connected')}</p>
       <p className="mt-0.5 font-mono text-xs text-success" data-testid="worker-enrolled-toast-id">
         {visible.workerId}
       </p>

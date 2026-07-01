@@ -1,5 +1,6 @@
 // TaskCreateModal — v2.7 create a Task inside a project.
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCreateTask } from '@/api/tasks';
 import { useModalA11y } from './useModalA11y';
 import { CapabilitiesEditor } from './CapabilitiesEditor';
@@ -15,6 +16,7 @@ export function TaskCreateModal({
   onClose,
   onCreated,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [requiredCaps, setRequiredCaps] = useState<string[]>([]);
@@ -54,40 +56,40 @@ export function TaskCreateModal({
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">New Task</h2>
+          <h2 className="text-lg font-semibold">{t('task.create.heading')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('task.create.close')}
             data-testid="task-create-close"
           >
             X
           </button>
         </div>
 
-        <Field label="Title" required>
+        <Field label={t('task.create.titleLabel')} required>
           <input
             data-testid="task-create-title"
             className={inputClass}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="What should happen?"
+            placeholder={t('task.create.titlePlaceholder')}
           />
         </Field>
 
-        <Field label="Description">
+        <Field label={t('task.create.descriptionLabel')}>
           <textarea
             data-testid="task-create-description"
             className={inputClass}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            placeholder="Optional. Context, acceptance criteria, links…"
+            placeholder={t('task.create.descriptionPlaceholder')}
           />
         </Field>
 
-        <Field label="Required capabilities">
+        <Field label={t('task.create.capabilitiesLabel')}>
           <CapabilitiesEditor
             idPrefix="task-create-caps"
             value={requiredCaps}
@@ -108,7 +110,7 @@ export function TaskCreateModal({
             onClick={onClose}
             data-testid="task-create-cancel"
           >
-            Cancel
+            {t('task.create.cancel')}
           </button>
           <button
             type="submit"
@@ -116,7 +118,7 @@ export function TaskCreateModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="task-create-submit"
           >
-            {create.isPending ? 'Creating…' : 'Create Task'}
+            {create.isPending ? t('task.create.submitting') : t('task.create.submit')}
           </button>
         </div>
       </form>

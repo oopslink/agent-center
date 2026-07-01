@@ -1,4 +1,5 @@
 import { useParams, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { EmptyState } from '@/components/EmptyState';
@@ -14,14 +15,15 @@ import { WorkerManagement } from '@/components/WorkerManagement';
 // GET /api/workers/{id} (Profile) + GET /api/agents?worker_id= (Bound Agents) +
 // re-mint / rename / remove (Management). Activity is a v2.9 placeholder.
 const WORKER_TABS = [
-  { key: 'profile', label: 'Profile' },
-  { key: 'agents', label: 'Bound Agents' },
-  { key: 'management', label: 'Management' },
-  { key: 'activity', label: 'Activity' },
+  { key: 'profile' },
+  { key: 'agents' },
+  { key: 'management' },
+  { key: 'activity' },
 ] as const;
 type WorkerTab = (typeof WORKER_TABS)[number]['key'];
 
 export default function WorkerDetail(): React.ReactElement {
+  const { t } = useTranslation('members');
   const { id = '' } = useParams<{ id: string }>();
   const worker = useWorker(id);
 
@@ -46,7 +48,7 @@ export default function WorkerDetail(): React.ReactElement {
   if (worker.isLoading) {
     return (
       <section className="text-sm text-text-muted" data-testid="page-WorkerDetail">
-        Loading worker…
+        {t('workers.detail.loading')}
       </section>
     );
   }
@@ -57,7 +59,7 @@ export default function WorkerDetail(): React.ReactElement {
           {(worker.error as Error).message}
         </p>
         <OrgLink to="/environment" className="text-accent hover:underline">
-          Back to Environment
+          {t('workers.detail.backToEnvironment')}
         </OrgLink>
       </section>
     );
@@ -65,7 +67,7 @@ export default function WorkerDetail(): React.ReactElement {
   if (!worker.data) {
     return (
       <section className="text-sm text-danger" data-testid="page-WorkerDetail">
-        Worker lookup failed.
+        {t('workers.detail.lookupFailed')}
       </section>
     );
   }
@@ -77,8 +79,8 @@ export default function WorkerDetail(): React.ReactElement {
     <section className="space-y-4" data-testid="page-WorkerDetail" data-worker-id={w.worker_id}>
       <Breadcrumb
         items={[
-          { label: 'Environment', to: '/environment' },
-          { label: 'Workers' },
+          { label: t('workers.detail.breadcrumb.environment'), to: '/environment' },
+          { label: t('workers.detail.breadcrumb.workers') },
           { label: w.name || w.worker_id },
         ]}
       />
@@ -96,7 +98,7 @@ export default function WorkerDetail(): React.ReactElement {
                 className={`inline-block h-2 w-2 rounded-full ${online ? 'bg-success' : 'bg-text-muted'}`}
                 aria-hidden="true"
               />
-              {online ? 'Online' : 'Offline'}
+              {online ? t('workers.detail.status.online') : t('workers.detail.status.offline')}
             </span>
           </div>
           {/* #192: worker_id as a handle, full id on hover (chrome, no raw-id leak). */}
@@ -117,24 +119,24 @@ export default function WorkerDetail(): React.ReactElement {
         onBlur={tablist.onBlur}
         data-testid="worker-tabs"
       >
-        {WORKER_TABS.map((t) => (
+        {WORKER_TABS.map((wt) => (
           <button
-            key={t.key}
+            key={wt.key}
             type="button"
             role="tab"
-            id={`worker-tab-${t.key}`}
-            aria-selected={tab === t.key}
-            aria-controls={`worker-panel-${t.key}`}
-            tabIndex={tablist.tabIndexFor(t.key)}
-            onClick={() => setTab(t.key)}
-            data-testid={`worker-tab-${t.key}`}
+            id={`worker-tab-${wt.key}`}
+            aria-selected={tab === wt.key}
+            aria-controls={`worker-panel-${wt.key}`}
+            tabIndex={tablist.tabIndexFor(wt.key)}
+            onClick={() => setTab(wt.key)}
+            data-testid={`worker-tab-${wt.key}`}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === t.key
+              tab === wt.key
                 ? 'border-brand text-text-primary'
                 : 'border-transparent text-text-muted hover:text-text-primary'
             }`}
           >
-            {t.label}
+            {t(`workers.detail.tabs.${wt.key}`)}
           </button>
         ))}
       </nav>
@@ -153,8 +155,8 @@ export default function WorkerDetail(): React.ReactElement {
         {tab === 'activity' && (
           <EmptyState
             testId="worker-activity-stub"
-            title="Activity"
-            body="Coming in v2.9."
+            title={t('workers.detail.activity.title')}
+            body={t('workers.detail.activity.body')}
           />
         )}
       </div>

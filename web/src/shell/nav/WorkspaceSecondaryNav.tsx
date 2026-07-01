@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useProject } from '@/api/projects';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
@@ -21,14 +22,14 @@ import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 // expands-to-all-projects sub-list (the Projects LIST page covers that now).
 // ============================================================================
 
-const PROJECT_TABS: ReadonlyArray<{ key: string; label: string; Icon: () => React.ReactElement }> = [
-  { key: 'issues', label: 'Issues', Icon: IssueIcon },
-  { key: 'tasks', label: 'Tasks', Icon: TaskIcon },
+const PROJECT_TABS: ReadonlyArray<{ key: string; labelKey: string; Icon: () => React.ReactElement }> = [
+  { key: 'issues', labelKey: 'shell.workspace.issues', Icon: IssueIcon },
+  { key: 'tasks', labelKey: 'shell.workspace.tasks', Icon: TaskIcon },
   // Plans tab (per @oopslink) — the project's plan list, synced with
   // ProjectDetail's in-page tab bar (?tab=plans). Distinct from the Work Board
   // entry below, which is the /plans kanban route.
-  { key: 'plans', label: 'Plans', Icon: PlanIcon },
-  { key: 'repos', label: 'Code repos', Icon: ReposIcon },
+  { key: 'plans', labelKey: 'shell.workspace.plans', Icon: PlanIcon },
+  { key: 'repos', labelKey: 'shell.workspace.codeRepos', Icon: ReposIcon },
   // Members rendered LAST (per @oopslink) — see the dedicated <li> after the
   // Work Board entry below, so it sits at the very bottom of the project nav.
 ];
@@ -58,24 +59,25 @@ export default function WorkspaceSecondaryNav({ orgBase }: ModuleSecondaryNavPro
 
 // --- top-level Workspace nav (Projects / Issues / Tasks / Plan) --------------
 function TopLevelWorkspaceNav({ orgBase }: { orgBase: string }): React.ReactElement {
+  const { t } = useTranslation('common');
   const items: ReadonlyArray<{ to: string; label: string; Icon: () => React.ReactElement; end?: boolean }> = [
-    { to: `${orgBase}/projects`, label: 'Projects', Icon: ProjectsIcon },
-    { to: `${orgBase}/issues`, label: 'Issues', Icon: IssueIcon },
-    { to: `${orgBase}/tasks`, label: 'Tasks', Icon: TaskIcon },
+    { to: `${orgBase}/projects`, label: t('shell.workspace.projects'), Icon: ProjectsIcon },
+    { to: `${orgBase}/issues`, label: t('shell.workspace.issues'), Icon: IssueIcon },
+    { to: `${orgBase}/tasks`, label: t('shell.workspace.tasks'), Icon: TaskIcon },
     // v2.10.2 [T142]: "Plan" → "Plans" (plural, consistent with the siblings).
-    { to: `${orgBase}/plans`, label: 'Plans', Icon: PlanIcon },
+    { to: `${orgBase}/plans`, label: t('shell.workspace.plans'), Icon: PlanIcon },
     // Repos: the workspace-level code-repo registry (route /repos → OrgRepos,
     // T575/issue-f980c8de). Present in AppLayout's default nav + the module's
     // pathPrefixes, but was dropped when this route-aware override (T4) replaced
     // the default → the page was sidebar-orphaned. Restored here.
-    { to: `${orgBase}/repos`, label: 'Repos', Icon: ReposIcon },
+    { to: `${orgBase}/repos`, label: t('shell.workspace.repos'), Icon: ReposIcon },
     // T207: Reminders moved OUT to a top-level module (peer of Members) — see
     // buildModules() in AppLayout. It is no longer a Workspace col② item.
   ];
   return (
     <div data-testid="workspace-nav-toplevel">
       <h3 className="px-2 pb-1 pt-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">
-        <span data-testid="section-label">Workspace</span>
+        <span data-testid="section-label">{t('nav.workspace')}</span>
       </h3>
       <ul className="space-y-0.5">
         {items.map((item) => (
@@ -104,6 +106,7 @@ function TopLevelWorkspaceNav({ orgBase }: { orgBase: string }): React.ReactElem
 
 // --- project sub-nav (inside a project) -------------------------------------
 function ProjectSubNav({ orgBase, projectId }: { orgBase: string; projectId: string }): React.ReactElement {
+  const { t } = useTranslation('common');
   const project = useProject(projectId);
   const name = project.data?.name || projectId;
   const location = useLocation();
@@ -131,29 +134,29 @@ function ProjectSubNav({ orgBase, projectId }: { orgBase: string; projectId: str
         className="flex items-center gap-1.5 px-2 pb-1 pt-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary"
       >
         <span aria-hidden="true">‹</span>
-        <span data-testid="section-label">Projects</span>
+        <span data-testid="section-label">{t('shell.workspace.projects')}</span>
       </Link>
       {/* Current project header. */}
       <div className="truncate px-2 pb-1 text-sm font-semibold text-text-primary" title={name}>
         {name}
       </div>
       <ul className="space-y-0.5">
-        {PROJECT_TABS.map((t) => {
-          const active = onDetail && activeTab === t.key;
+        {PROJECT_TABS.map((tab) => {
+          const active = onDetail && activeTab === tab.key;
           return (
-            <li key={t.key}>
+            <li key={tab.key}>
               {/* plain Link (not NavLink): active state is ?tab=-driven, which
                   NavLink can't match (it matches on path, ignoring the query). */}
               <Link
-                to={`${base}?tab=${t.key}`}
-                data-testid={`project-subnav-${t.key}`}
+                to={`${base}?tab=${tab.key}`}
+                data-testid={`project-subnav-${tab.key}`}
                 aria-current={active ? 'page' : undefined}
                 className={itemCls(active)}
               >
                 <span aria-hidden="true" className="inline-flex h-4 w-4">
-                  <t.Icon />
+                  <tab.Icon />
                 </span>
-                <span>{t.label}</span>
+                <span>{t(tab.labelKey)}</span>
               </Link>
             </li>
           );
@@ -169,7 +172,7 @@ function ProjectSubNav({ orgBase, projectId }: { orgBase: string; projectId: str
             <span aria-hidden="true" className="inline-flex h-4 w-4">
               <WorkBoardIcon />
             </span>
-            <span>Work Board</span>
+            <span>{t('shell.workspace.workBoard')}</span>
           </Link>
         </li>
         {/* Members — rendered LAST (per @oopslink), after Work Board. Same
@@ -184,7 +187,7 @@ function ProjectSubNav({ orgBase, projectId }: { orgBase: string; projectId: str
             <span aria-hidden="true" className="inline-flex h-4 w-4">
               <MEMBERS_TAB.Icon />
             </span>
-            <span>{MEMBERS_TAB.label}</span>
+            <span>{t('nav.members')}</span>
           </Link>
         </li>
       </ul>

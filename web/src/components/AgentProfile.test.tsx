@@ -46,7 +46,10 @@ describe('AgentProfile (#228 PR(b))', () => {
     // raw worker id is on hover, not visible text (#192).
     expect(screen.getByTestId('agent-profile-computer-name')).toHaveAttribute('title', 'w-1');
     const status = screen.getByTestId('agent-profile-computer-status');
-    expect(status).toHaveTextContent('online');
+    // v2.25 i18n: status text now goes through t(workers.detail.status.<enum>) —
+    // the localized label ('Online' in en, '在线' in zh); the raw 'online' enum is
+    // still carried on the data-connected discriminator below.
+    expect(status).toHaveTextContent('Online');
     expect(status).toHaveAttribute('data-connected', 'true');
   });
 

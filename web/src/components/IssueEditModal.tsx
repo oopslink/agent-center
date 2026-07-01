@@ -4,6 +4,7 @@
 // Only the changed (dirty) fields are sent; the backend applies all-or-none.
 // NO assignee field — Issues are not assignable (unlike Tasks).
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useUpdateIssue } from '@/api/issues';
 import type { Issue, IssueStatus } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
@@ -30,6 +31,7 @@ const ISSUE_STATUSES: IssueStatus[] = [
 ];
 
 export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const [title, setTitle] = useState(issue.title ?? '');
   const [description, setDescription] = useState(issue.description ?? '');
   const [status, setStatus] = useState<IssueStatus>(issue.status ?? 'open');
@@ -50,7 +52,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
       return;
     }
     if (runeLength(candidate) > MAX_TAG_RUNES) {
-      setTagError(`Tag too long (max ${MAX_TAG_RUNES})`);
+      setTagError(t('issue.edit.tagTooLong', { max: MAX_TAG_RUNES }));
       return;
     }
     if (tags.includes(candidate)) {
@@ -60,7 +62,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
       return;
     }
     if (tags.length >= MAX_TAGS) {
-      setTagError(`Max ${MAX_TAGS} tags`);
+      setTagError(t('issue.edit.tagMax', { max: MAX_TAGS }));
       return;
     }
     setTags([...tags, candidate]);
@@ -128,19 +130,19 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
       data-testid="issue-edit-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Edit issue"
+      aria-label={t('issue.edit.dialogAria')}
     >
       <form
         onSubmit={submit}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Edit Issue</h2>
+          <h2 className="text-lg font-semibold">{t('issue.edit.heading')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('issue.edit.close')}
             data-testid="issue-edit-close"
           >
             X
@@ -149,7 +151,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
 
         <div className="mb-3">
           <label htmlFor="issue-edit-title" className="mb-1 block text-xs font-medium text-text-primary">
-            Title<span className="ml-1 text-danger">*</span>
+            {t('issue.edit.titleLabel')}<span className="ml-1 text-danger">*</span>
           </label>
           <input
             id="issue-edit-title"
@@ -165,7 +167,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
             htmlFor="issue-edit-description"
             className="mb-1 block text-xs font-medium text-text-primary"
           >
-            Description
+            {t('issue.edit.descriptionLabel')}
           </label>
           <textarea
             id="issue-edit-description"
@@ -179,7 +181,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
 
         <div className="mb-3">
           <label htmlFor="issue-edit-status" className="mb-1 block text-xs font-medium text-text-primary">
-            Status
+            {t('issue.edit.statusLabel')}
           </label>
           <select
             id="issue-edit-status"
@@ -190,7 +192,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
           >
             {ISSUE_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {t(`status.${s}`)}
               </option>
             ))}
           </select>
@@ -198,7 +200,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
 
         <div className="mb-3">
           <label htmlFor="issue-edit-tags-input" className="mb-1 block text-xs font-medium text-text-primary">
-            Tags
+            {t('issue.edit.tagsLabel')}
           </label>
           <div className="flex flex-wrap gap-1.5">
             {tags.map((tag) => {
@@ -215,7 +217,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
                     type="button"
                     className="hover:opacity-70"
                     onClick={() => removeTag(tag)}
-                    aria-label={`Remove tag ${tag}`}
+                    aria-label={t('issue.edit.removeTag', { tag })}
                     data-testid="issue-edit-tag-remove"
                   >
                     x
@@ -234,11 +236,11 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
               if (tagError) setTagError(null);
             }}
             onKeyDown={onTagKeyDown}
-            placeholder="Type a tag, press Enter or comma…"
+            placeholder={t('issue.edit.tagsPlaceholder')}
             aria-describedby="issue-edit-tags-hint"
           />
           <p id="issue-edit-tags-hint" className="mt-1 text-[0.6875rem] text-text-muted">
-            Up to {MAX_TAGS} tags, ≤{MAX_TAG_RUNES} characters each.
+            {t('issue.edit.tagsHint', { maxTags: MAX_TAGS, maxRunes: MAX_TAG_RUNES })}
           </p>
           {(tagError || tagsValidationError) && (
             <p className="mt-1 text-xs text-danger" data-testid="issue-edit-tag-error">
@@ -260,7 +262,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
             onClick={onClose}
             data-testid="issue-edit-cancel"
           >
-            Cancel
+            {t('issue.edit.cancel')}
           </button>
           <button
             type="submit"
@@ -268,7 +270,7 @@ export function IssueEditModal({ projectId, issue, onClose, onSaved }: Props): R
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="issue-edit-submit"
           >
-            {update.isPending ? 'Saving…' : 'Save changes'}
+            {update.isPending ? t('issue.edit.saving') : t('issue.edit.submit')}
           </button>
         </div>
       </form>

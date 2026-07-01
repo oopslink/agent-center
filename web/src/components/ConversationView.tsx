@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useConversationTimeline } from '@/api/conversations';
 import { useMarkSeen } from '@/api/readState';
 import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
@@ -34,6 +35,7 @@ export function ConversationView({
   header,
   sidePanel,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('chat');
   // T189 phase 2: the timeline = the live latest window + an on-demand older-history
   // buffer (scroll-up pagination). The latest window stays SSE-driven; older pages
   // load via the `before` keyset cursor and merge in chronologically.
@@ -58,7 +60,7 @@ export function ConversationView({
     <div className="flex flex-1 flex-col overflow-hidden">
       {messages.isLoading && (
         <p className="p-4 text-sm text-text-muted" role="status" data-testid="conversation-loading">
-          Loading messages…
+          {t('conversation.loadingMessages')}
         </p>
       )}
       {messages.isError && (

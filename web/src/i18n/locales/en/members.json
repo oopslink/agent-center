@@ -1,0 +1,807 @@
+{
+  "agentRuntime": {
+    "runtime": {
+      "filesHeading": "Files",
+      "expandTree": "Expand file tree",
+      "expandTitle": "Expand",
+      "collapseTree": "Collapse file tree",
+      "collapseTitle": "Collapse",
+      "treeLoadFailed": "Failed to load the runtime tree.",
+      "previewEmpty": "Select a file to preview.",
+      "unavailable": "unavailable",
+      "tabs": {
+        "content": "Content",
+        "history": "History"
+      },
+      "gitLog": {
+        "label": "git log",
+        "readOnly": "read-only",
+        "noCommits": "No commits.",
+        "footer": "memory is a git repo · most recent commits · select a commit to view its diff."
+      },
+      "diff": {
+        "loadFailed": "Could not load this diff.",
+        "noChanges": "No textual changes in this commit.",
+        "truncated": "diff truncated"
+      },
+      "preview": {
+        "truncated": "truncated",
+        "redactedTitle": "Contents withheld — this file holds plaintext credentials.",
+        "redactedBody": "Only metadata (size / mtime) is shown. Viewing the contents would require an org-admin gate + audit (not available yet).",
+        "notPreviewable": "Not previewable.",
+        "binaryMeta": "Binary or special file — metadata only ({{size}})."
+      },
+      "tag": {
+        "git": "git",
+        "lock": "lock",
+        "redacted": "redacted"
+      },
+      "typeLabel": {
+        "redacted": "redacted",
+        "image": "image",
+        "binary": "binary",
+        "markdown": "markdown",
+        "json": "json",
+        "text": "text"
+      },
+      "unavailableTitle": "Runtime unavailable",
+      "unavailableDefault": "The agent is offline / its worker is unreachable — runtime data is read live over the control-channel while the worker is online."
+    },
+    "tasks": {
+      "heading": "Tasks",
+      "filterByStatus": "Filter by status",
+      "filterByType": "Filter by type",
+      "statusFilter": {
+        "all": "All Status",
+        "in_progress": "In Progress",
+        "paused": "Paused",
+        "pending": "Pending",
+        "blocked": "Blocked",
+        "done": "Done"
+      },
+      "typeFilter": {
+        "all": "All Types",
+        "task": "Task"
+      },
+      "loading": "Loading tasks…",
+      "empty": "Tasks appear here when they are assigned to this agent.",
+      "noMatch": "No tasks match the current filters.",
+      "status": {
+        "in_progress": "In Progress",
+        "paused": "Paused",
+        "pending": "Pending",
+        "blocked": "Blocked",
+        "done": "Done",
+        "canceled": "Canceled",
+        "superseded": "Superseded"
+      },
+      "summary": {
+        "total": "{{count}} Total",
+        "inProgress": "{{count}} In Progress",
+        "paused": "{{count}} Paused",
+        "pending": "{{count}} Pending",
+        "blocked": "{{count}} Blocked",
+        "done": "{{count}} Done"
+      },
+      "columns": {
+        "id": "ID",
+        "title": "Title",
+        "type": "Type",
+        "priority": "Priority",
+        "status": "Status",
+        "updated": "Updated"
+      },
+      "defaultTitle": "Task",
+      "queued": "Queued for a slot",
+      "queuedWaiting": "Queued for a slot · waiting {{duration}}",
+      "yesterday": "Yesterday",
+      "concurrency": {
+        "slotsLabel": {
+          "live": "slots in use",
+          "offline": "slots — worker offline",
+          "expired": "slots — snapshot expired",
+          "nodata": "no live slot data"
+        },
+        "queued": "· {{count}} queued",
+        "adaptiveTitle": "Adaptive heartbeat cadence",
+        "adaptive": "adaptive 3s",
+        "updatedAgo": "updated {{age}} ago",
+        "workerOffline": "worker offline",
+        "expiredAge": "snapshot {{age}} ago · last known",
+        "nodataDetail": "no real-time slot data · concurrency not active"
+      },
+      "overlay": {
+        "slot": "slot {{slot}}",
+        "starting": "starting",
+        "heartbeatTitle": "Heartbeat age",
+        "orphan": "orphan · monitored",
+        "stale": "overlay stale"
+      }
+    },
+    "badges": {
+      "availabilityTitle": "Availability — whether this agent will accept new work",
+      "availability": {
+        "available": "available",
+        "busy": "busy",
+        "unavailable": "unavailable"
+      },
+      "activityTitle": "Activity — whether this running agent is actively working or idle",
+      "activity": {
+        "idle": "Idle",
+        "busy": "Active"
+      },
+      "status": {
+        "idle": "Idle",
+        "working": "Working",
+        "busy": "Busy",
+        "unavailable": "Unavailable",
+        "stopped": "Stopped",
+        "error": "Error"
+      },
+      "tooltip": {
+        "lifecycle": "Lifecycle: {{lifecycle}}",
+        "running": "Lifecycle: running · Availability: {{availability}} · Activity: {{activity}}",
+        "activityActive": "active",
+        "activityIdle": "idle"
+      },
+      "lifecycle": {
+        "running": "running",
+        "stopped": "stopped",
+        "stopping": "stopping",
+        "resetting": "resetting",
+        "error": "error",
+        "failed": "failed",
+        "archived": "archived"
+      },
+      "load": {
+        "label": "load: {{value}}",
+        "pillLabel": "load:{{value}}",
+        "titleNone": "Load — no active tasks (doing ÷ (doing + pending))",
+        "title": "Load = doing {{running}} ÷ (doing + pending {{total}}) = {{load}}"
+      },
+      "backlog": {
+        "label": "backlog: {{count}}",
+        "pillLabel": "backlog:{{count}}",
+        "titleNone": "Backlog — no pending (queued) tasks",
+        "title_one": "Backlog — {{count}} pending (queued) task",
+        "title_other": "Backlog — {{count}} pending (queued) tasks"
+      }
+    },
+    "heatmap": {
+      "title": "Activity Heatmap · last 12 months",
+      "metricSwitchLabel": "Heatmap metric",
+      "metric": {
+        "activity": "Activity",
+        "tokens": "Tokens",
+        "cost": "Cost"
+      },
+      "gridLabel": "Activity heatmap by day, coloured by {{metric}}",
+      "less": "Less",
+      "more": "More",
+      "weekday": {
+        "mon": "Mon",
+        "wed": "Wed",
+        "fri": "Fri"
+      },
+      "month": {
+        "jan": "Jan",
+        "feb": "Feb",
+        "mar": "Mar",
+        "apr": "Apr",
+        "may": "May",
+        "jun": "Jun",
+        "jul": "Jul",
+        "aug": "Aug",
+        "sep": "Sep",
+        "oct": "Oct",
+        "nov": "Nov",
+        "dec": "Dec"
+      },
+      "tooltip": "{{day}}: {{value}}",
+      "value": {
+        "tokens": "{{formattedCount}} tokens",
+        "cost": "{{amount}}",
+        "event_one": "{{count}} event",
+        "event_other": "{{count}} events"
+      },
+      "prettyDay": "{{month}} {{day}}, {{year}}"
+    },
+    "configModal": {
+      "dialogLabel": "Edit agent LLM config",
+      "title": "Edit LLM config",
+      "close": "Close",
+      "fields": {
+        "cli": "CLI",
+        "model": "Model",
+        "modelPlaceholder": "e.g. claude-opus-4-8",
+        "reasoning": "Reasoning",
+        "reasoningHint": "Reasoning effort. Default = the runtime default.",
+        "reasoningDefault": "Default",
+        "mode": "Mode",
+        "modeHint": "Optional. Empty = default.",
+        "modePlaceholder": "default",
+        "provider": "Provider",
+        "providerHint": "Optional. Empty = center default.",
+        "providerPlaceholder": "default"
+      },
+      "concurrency": {
+        "heading": "Concurrency",
+        "maxLabel": "Max concurrent tasks",
+        "maxHint": "0 or 1 = single active (no parallelism). 2+ enables parallel executors.",
+        "executorsLabel": "Allowed executor profiles",
+        "executorsHint": "The {cli·model} pairs the daemon may fork as executors. Add at least one to enable parallelism.",
+        "executorsEmpty": "No executor profiles — agent stays single-active.",
+        "removeExecutor": "Remove {{cli}} {{model}}",
+        "executorCli": "Executor CLI",
+        "executorModel": "Executor model",
+        "executorModelPlaceholder": "model (e.g. opus-4-8)",
+        "add": "Add",
+        "enabled": "Concurrency ENABLED — up to {{count}} tasks in parallel.",
+        "disabled": "DISABLED (single-active). Set max ≥ 2 and add ≥ 1 executor profile to run in parallel."
+      },
+      "autoAssign": {
+        "heading": "Auto-assignment",
+        "ariaLabel": "Auto-assignable",
+        "label": "Auto-assignable",
+        "description": "When on, this agent may be automatically assigned matching pool tasks. Off = it is never auto-assigned, but can still be assigned manually or claim tasks itself."
+      },
+      "cancel": "Cancel",
+      "save": "Save",
+      "confirm": {
+        "titleRestart": "Restart to apply changes?",
+        "titleSave": "Save config changes?",
+        "messageRestart": "Saving these LLM config changes will RESTART the agent so they take effect. Continue?",
+        "messageSave": "The agent is not running — the new config will apply the next time it starts.",
+        "labelRestart": "Save & restart",
+        "labelSave": "Save"
+      }
+    }
+  },
+  "agents": {
+    "list": {
+      "title": "Agents",
+      "subtitle": "Organization-scoped agents with a managed lifecycle.",
+      "add": "+ Add Agent",
+      "emptyTitle": "No agents yet",
+      "emptyBody": "Agents are org-scoped entities with a managed lifecycle. Click + Add Agent to create one and bind it to a fleet worker.",
+      "tableCaption": "Agent list",
+      "selectAllAria": "Select all agents",
+      "selectAgentAria": "Select agent {{name}}",
+      "delete": "Delete",
+      "deleteAgentAria": "Delete agent {{name}}",
+      "deleteAgentTitle": "Delete agent",
+      "noRecentActivity": "No recent activity",
+      "col": {
+        "name": "Name",
+        "provider": "Provider",
+        "lifecycle": "Lifecycle",
+        "availability": "Availability",
+        "load": "Load",
+        "loadTitle": "Load = doing ÷ (doing + pending) tasks; colored by pressure",
+        "backlog": "Backlog",
+        "backlogTitle": "Backlog — pending (queued) tasks; colored by depth",
+        "role": "Role",
+        "status": "Status",
+        "lastActivity": "Last activity",
+        "worker": "Worker"
+      }
+    },
+    "status": {
+      "joined": "Joined",
+      "disabled": "Disabled"
+    },
+    "delete": {
+      "title": "Delete agent",
+      "message": "Delete the agent \"{{name}}\"? This permanently removes the agent and its membership. The agent must be stopped with no active work. This cannot be undone.",
+      "confirm": "Delete",
+      "errorRunning": "This agent must be stopped before it can be deleted.",
+      "errorActiveWork": "This agent has active tasks and cannot be deleted until they finish.",
+      "errorNotFound": "This agent no longer exists.",
+      "errorGeneric": "Delete failed, please try again."
+    },
+    "batch": {
+      "actions": {
+        "start": "Start",
+        "stop": "Stop",
+        "restart": "Restart",
+        "reset": "Reset"
+      },
+      "selectedCount": "{{count}} selected",
+      "confirmTitle": "{{action}} {{count}} agent(s)",
+      "confirmMessage": "{{action}} {{count}} selected agent(s)?",
+      "resetMessage": "Reset {{count}} selected agent(s)? This clears each agent's memory and workspace and cannot be undone.",
+      "confirmFallback": "Confirm",
+      "summary": "{{succeeded}} succeeded",
+      "summaryWithFailed": "{{succeeded}} succeeded, {{failed}} failed",
+      "clear": "Clear"
+    },
+    "members": {
+      "title": "Agents",
+      "add": "Add agent",
+      "loading": "Loading…",
+      "empty": "No agent members yet",
+      "messageAria": "Message {{name}}",
+      "runningOnPrefix": "running on",
+      "notBound": "Not bound to a worker",
+      "col": {
+        "identity": "Identity",
+        "role": "Role",
+        "runningOn": "Running on",
+        "status": "Status"
+      }
+    },
+    "detail": {
+      "loading": "Loading agent…",
+      "backToAgents": "Back to agents",
+      "lookupFailed": "Agent lookup failed.",
+      "breadcrumbMembers": "Members",
+      "breadcrumbAgents": "Agents",
+      "tabs": {
+        "profile": "Profile",
+        "activity": "Activity",
+        "runtime": "Runtime",
+        "tasks": "Tasks",
+        "analytics": "Analytics"
+      },
+      "controls": {
+        "messageTitle": "Send message",
+        "messageAria": "Send a direct message",
+        "startTitle": "Start",
+        "startAria": "Start agent",
+        "stopTitle": "Stop",
+        "stopAria": "Stop agent",
+        "restartTitle": "Restart",
+        "restartAria": "Restart agent",
+        "resetTitle": "Reset",
+        "resetAria": "Reset agent",
+        "archiveTitle": "Archive",
+        "archiveAria": "Archive agent",
+        "forceDeleteTitle": "Force delete",
+        "forceDeleteAria": "Force delete agent"
+      },
+      "activity": {
+        "regionAria": "Activity",
+        "diagnostics": "Activity Diagnostics",
+        "refresh": "Refresh",
+        "refreshing": "Refreshing…",
+        "loading": "Loading activity…",
+        "empty": "No activity yet.",
+        "loadOlder": "Load older events",
+        "end": "No more activity"
+      },
+      "confirmStop": {
+        "title": "Stop agent?",
+        "message": "Stop <1>{{name}}</1>? Any in-progress work is interrupted until it is started again."
+      },
+      "confirmRestart": {
+        "title": "Restart agent?",
+        "message": "Restart <1>{{name}}</1>? Its current run is interrupted and the agent is started again."
+      },
+      "confirmArchive": {
+        "title": "Archive agent?",
+        "message": "Archiving <1>{{name}}</1> removes it from the active agent list and releases its worker. Its history (tasks, conversations) is preserved and it will show as “(archived)”. This cannot be undone.",
+        "confirm": "Archive"
+      },
+      "reset": {
+        "title": "Reset agent",
+        "description": "Resetting is destructive and cannot be undone. Choose a scope and confirm to proceed.",
+        "scope": "Scope",
+        "scopeMemory": "Memory",
+        "scopeWorkspace": "Workspace",
+        "scopeAll": "All",
+        "understand": "I understand this will reset the agent's {{scope}}.",
+        "cancel": "Cancel",
+        "submit": "Reset",
+        "submitting": "Resetting…"
+      }
+    },
+    "profile": {
+      "displayName": "Display name",
+      "description": "Description",
+      "descriptionNone": "none",
+      "info": "Info",
+      "computer": "Computer",
+      "noWorker": "no worker",
+      "created": "Created",
+      "creator": "Creator",
+      "runtimeConfig": "Runtime config",
+      "edit": "Edit",
+      "valueDefault": "Default",
+      "valueOn": "On",
+      "valueOff": "Off",
+      "defaultBadge": "default",
+      "tag": {
+        "cli": "CLI",
+        "model": "Model",
+        "reasoning": "Reasoning",
+        "mode": "Mode",
+        "provider": "Provider",
+        "autoAssign": "Auto-assign",
+        "maxConcurrent": "Max concurrent"
+      },
+      "concurrencyEnabled": "concurrency · cap {{cap}}",
+      "concurrencySingle": "single-active · cap 1",
+      "allowedExecutors": "Allowed executors",
+      "executorsNone": "none",
+      "createdAgents": "Created agents",
+      "createdAgentsEmpty": "No created agents.",
+      "skills": "Skills",
+      "skillsEmpty": "No skills."
+    },
+    "create": {
+      "title": "Add Agent",
+      "close": "Close",
+      "nameLabel": "Name",
+      "namePlaceholder": "my-agent",
+      "descriptionLabel": "Description",
+      "descriptionHint": "Optional. Shown in the agent list.",
+      "modelLabel": "Model",
+      "modelHint": "Optional.",
+      "cliLabel": "CLI",
+      "cliHint": "v2.7 runs claude-code only (codex/opencode coming in v2.8).",
+      "skillsLabel": "Skills",
+      "skillsHint": "Optional. Comma-separated.",
+      "skillsPlaceholder": "review, planning",
+      "workerLabel": "Worker",
+      "workerHint": "Sourced from Environment.",
+      "workerSelectPlaceholder": "Select a worker…",
+      "workerSearchPlaceholder": "Search workers…",
+      "workerEmptyLabel": "No matching workers.",
+      "noWorkers": "No workers in Environment yet — enroll a worker first.",
+      "cancel": "Cancel",
+      "submit": "Create agent",
+      "submitting": "Creating..."
+    },
+    "bound": {
+      "loading": "Loading agents…",
+      "emptyTitle": "No bound agents",
+      "emptyBody": "No agents are bound to this worker.",
+      "removeHint": "To remove an agent from this worker, open it and Archive it (there is no unbind).",
+      "restart": "Restart",
+      "restarting": "Restarting…",
+      "col": {
+        "name": "Name",
+        "lifecycle": "Lifecycle",
+        "availability": "Availability"
+      }
+    },
+    "context": {
+      "currentTask": "Current task",
+      "loading": "Loading…",
+      "noTask": "No active task.",
+      "plan": "Plan",
+      "notPartOfPlan": "Not part of a plan.",
+      "planBadge": "Plan",
+      "taskFallback": "Task",
+      "status": {
+        "active": "Running",
+        "paused": "Paused",
+        "queued": "Pending",
+        "waiting_input": "Blocked",
+        "failed": "Failed",
+        "done": "Done",
+        "canceled": "Canceled",
+        "superseded": "Superseded"
+      }
+    }
+  },
+  "humans": {
+    "role": {
+      "owner": "owner",
+      "admin": "admin",
+      "member": "member"
+    },
+    "kind": {
+      "human": "Human",
+      "agent": "Agent",
+      "user": "User"
+    },
+    "status": {
+      "joined": "Joined",
+      "disabled": "Disabled"
+    },
+    "list": {
+      "title": "Humans",
+      "loading": "Loading…",
+      "loadFailed": "Failed to load: {{error}}",
+      "empty": "No human members yet"
+    },
+    "table": {
+      "identity": "Identity",
+      "role": "Role",
+      "status": "Status",
+      "email": "Email",
+      "created": "Created",
+      "lastActive": "Last active"
+    },
+    "card": {
+      "messageAria": "Message {{name}}"
+    },
+    "actions": {
+      "menuLabel": "Member actions",
+      "changeRole": "Change role",
+      "disable": "Disable",
+      "reEnable": "Re-enable",
+      "cancel": "Cancel",
+      "confirm": "Confirm"
+    },
+    "confirm": {
+      "disable": "Disable this member?",
+      "reEnable": "Re-enable this member?"
+    },
+    "new": {
+      "addAgent": "Add agent",
+      "addUser": "Add user",
+      "createFailed": "Create failed",
+      "userCreated": "User created",
+      "tempPasscodeHint": "Temporary passcode (shown once — hand it over now):",
+      "savedBackToMembers": "I've saved it, back to members",
+      "displayName": "Display name",
+      "agentNamePlaceholder": "Agent name",
+      "userNamePlaceholder": "User name",
+      "descriptionOptional": "Description (optional)",
+      "runOnWorker": "Run on worker",
+      "workerPlaceholder": "Select a worker…",
+      "workerSearchPlaceholder": "Search workers…",
+      "modelOptional": "Model (optional)",
+      "cli": "CLI",
+      "cliHint": "v2.7 runs claude-code only (codex/opencode coming in v2.8).",
+      "role": "Role",
+      "cancel": "Cancel",
+      "creating": "Creating…",
+      "create": "Create"
+    },
+    "userDetail": {
+      "loading": "Loading user…",
+      "notFound": "User not found.",
+      "backToHumans": "Back to Humans",
+      "kindTag": "User",
+      "breadcrumb": {
+        "members": "Members",
+        "humans": "Humans"
+      },
+      "tabs": {
+        "profile": "Profile",
+        "organizations": "Organizations",
+        "account": "Account"
+      },
+      "profile": {
+        "email": "Email",
+        "created": "Created",
+        "lastActive": "Last active"
+      },
+      "orgs": {
+        "empty": "Not a member of any organization."
+      }
+    },
+    "me": {
+      "title": "Account settings",
+      "accountInfo": "Account info",
+      "loading": "Loading…",
+      "displayName": "Display name",
+      "accountId": "Account ID",
+      "type": "Type",
+      "changePassword": "Change password",
+      "changeSuccess": "Password changed successfully",
+      "currentPassword": "Current password",
+      "newPassword": "New password (6 digits)",
+      "confirmNewPassword": "Confirm new password",
+      "changing": "Changing…",
+      "signOut": "Sign out",
+      "signingOut": "Signing out…",
+      "errors": {
+        "currentIncorrect": "Current password is incorrect",
+        "changeFailed": "Change failed, please try again later",
+        "newMustBe6Digits": "New password must be 6 digits",
+        "passcodesMismatch": "Passcodes do not match"
+      }
+    },
+    "invite": {
+      "title": "Invite members",
+      "close": "Close",
+      "searchPlaceholder": "Search members…",
+      "searchAria": "Search members",
+      "selectedCount": "{{count}} selected",
+      "clear": "Clear",
+      "selectAll": "Select all",
+      "noMatching": "No matching members.",
+      "cancel": "Cancel",
+      "inviting": "Inviting…",
+      "confirm": "Invite",
+      "confirmCount": "Invite ({{count}})"
+    },
+    "projectAdd": {
+      "dialogAria": "Add project members",
+      "title": "Add members",
+      "close": "Close",
+      "searchPlaceholder": "Search members…",
+      "selectedCount": "{{count}} selected",
+      "clear": "Clear",
+      "selectAll": "Select all",
+      "noMatching": "No matching members.",
+      "cancel": "Cancel",
+      "adding": "Adding…",
+      "confirm": "Add",
+      "confirmCount": "Add ({{count}})"
+    },
+    "capabilities": {
+      "removeAria": "Remove capability {{cap}}",
+      "placeholder": "Type a capability, press Enter or comma…",
+      "hint": "Canonical (lowercased & trimmed). Empty = no requirement — any eligible agent may be auto-assigned. Non-empty applies a strict subset gate."
+    },
+    "segment": {
+      "ariaLabel": "Members type",
+      "humans": "Humans",
+      "agents": "Agents"
+    },
+    "sidebar": {
+      "deletedName": "(deleted)",
+      "dialogAria": "{{name}} detail",
+      "close": "Close sender detail",
+      "createReminder": "Create reminder",
+      "openDm": "Open DM",
+      "reminderContent": "Session/usage limit reset (was: \"{{clock}}\"). Resume your work.",
+      "loading": "Loading…",
+      "currentTasks": "Current tasks",
+      "currentTasksCount": "Current tasks ({{count}})",
+      "noTasksInProgress": "No tasks in progress.",
+      "taskStatus": {
+        "active": "In Progress",
+        "paused": "Paused",
+        "queued": "Pending",
+        "waiting_input": "Blocked"
+      },
+      "activity": "Activity",
+      "refreshing": "Refreshing…",
+      "refresh": "Refresh",
+      "loadingActivity": "Loading activity…",
+      "noActivity": "No activity yet.",
+      "loadOlder": "Load older",
+      "loadingAgent": "Loading agent…",
+      "agentDeleted": "This agent is unavailable (deleted).",
+      "agentLoadError": "Couldn't load this agent.",
+      "agentInfo": {
+        "cli": "CLI",
+        "model": "Model",
+        "worker": "Worker",
+        "description": "Description"
+      },
+      "loadingUser": "Loading user…",
+      "userDeleted": "This user is unavailable (deleted).",
+      "userLoadError": "Couldn't load this user.",
+      "userInfo": {
+        "name": "Name",
+        "kind": "Kind",
+        "role": "Role",
+        "email": "Email"
+      }
+    }
+  },
+  "workers": {
+    "detail": {
+      "loading": "Loading worker…",
+      "backToEnvironment": "Back to Environment",
+      "lookupFailed": "Worker lookup failed.",
+      "breadcrumb": {
+        "environment": "Environment",
+        "workers": "Workers"
+      },
+      "status": {
+        "online": "Online",
+        "offline": "Offline"
+      },
+      "tabs": {
+        "profile": "Profile",
+        "agents": "Bound Agents",
+        "management": "Management",
+        "activity": "Activity"
+      },
+      "activity": {
+        "title": "Activity",
+        "body": "Coming in v2.9."
+      }
+    },
+    "profile": {
+      "id": "Worker ID",
+      "name": "Name",
+      "unnamed": "unnamed",
+      "status": "Status",
+      "online": "Online",
+      "offline": "Offline",
+      "registered": "Registered",
+      "lastHeartbeat": "Last heartbeat",
+      "deferredValue": "Coming in v2.9",
+      "deferred": {
+        "hostname": "Hostname",
+        "os": "OS",
+        "architecture": "Architecture",
+        "version": "agent-center version",
+        "installPath": "Install path"
+      }
+    },
+    "management": {
+      "name": {
+        "heading": "Name",
+        "inputAriaLabel": "Worker name",
+        "saving": "Saving…",
+        "save": "Save",
+        "cancel": "Cancel",
+        "rename": "Rename"
+      },
+      "install": {
+        "heading": "Install command",
+        "show": "Show install command",
+        "remint": "Re-mint install token"
+      },
+      "remove": {
+        "heading": "Remove worker",
+        "description": "Hard-removes this worker. Re-enroll a machine to register it again.",
+        "removing": "Removing…",
+        "button": "Remove worker",
+        "forceDeleting": "Deleting…",
+        "forceDelete": "Force delete",
+        "confirmTitle": "Remove worker?",
+        "confirmLabel": "Remove",
+        "confirmMessage": "Remove worker \"{{name}}\"? This revokes the worker token and removes the record.",
+        "boundWarning": "\n\nWarning: {{count}} agent(s) are bound to this worker. Removing it leaves them without a worker (unavailable). They are not deleted or unbound — to remove an agent, archive it from its detail page.",
+        "unboundNote": "{{count}} agent(s) unbound."
+      }
+    },
+    "enrolledToast": {
+      "connected": "Worker connected"
+    },
+    "addModal": {
+      "title": "Add a Worker",
+      "close": "Close",
+      "nameLabel": "Worker name",
+      "namePlaceholder": "e.g. test-1 or tenant-foo",
+      "nameHint": "Use a unique name (e.g. <code>test-1</code>, <code>tenant-foo</code>) so you can spot this worker in Environment. You'll grab the install command from the new Environment row's Show install command action.",
+      "cancel": "Cancel",
+      "submit": "Add worker",
+      "minting": "Adding worker...",
+      "error": {
+        "title": "Could not add worker.",
+        "hint": "Common causes: admin TCP listener is not enabled on the center (set <code>server.admin_tcp_listen</code> in the config, e.g. <code>0.0.0.0:7300</code>) or the AdminToken service is not wired. Check the server logs.",
+        "close": "Close",
+        "retry": "Try again"
+      }
+    },
+    "installModal": {
+      "titleRemint": "Re-minted install command",
+      "title": "Install command",
+      "close": "Close",
+      "loading": "Loading...",
+      "noMasterKey": {
+        "title": "Server not configured."
+      },
+      "conflict": {
+        "title": "Worker is already online."
+      },
+      "notFound": {
+        "title": "Worker not found."
+      },
+      "error": {
+        "title": "Could not load install command."
+      },
+      "ready": {
+        "instructions": "On your worker machine, make sure the AgentCenter tarball is extracted, then run:",
+        "tokenExpires": "Token expires at {{time}} ({{count}} min remaining).",
+        "done": "Done"
+      },
+      "remintPrompt": {
+        "title": "No active install command.",
+        "close": "Close",
+        "reminting": "Re-minting...",
+        "remint": "Re-mint install command",
+        "conflictError": "Worker is already online — remove it from Environment first if you want to reset.",
+        "notFoundError": "Worker not found.",
+        "genericError": "Re-mint failed: {{message}}",
+        "unknown": "unknown"
+      },
+      "command": {
+        "copied": "Copied!",
+        "copy": "Copy"
+      }
+    }
+  }
+}

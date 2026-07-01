@@ -4,6 +4,7 @@ import { useInviteParticipant } from '@/api/conversations';
 import { useMembers, normalizeIdentityRef, identityRefOf } from '@/api/members';
 import type { Participant } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   conversationId: string;
@@ -18,6 +19,7 @@ interface Props {
 // participant is not re-surfaced here). Org member lists are small, so search is
 // a client-side filter over /api/members (which carries display_name + kind).
 export function MemberInviteModal({ conversationId, participants, onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('members');
   const members = useMembers();
   const invite = useInviteParticipant();
   const [query, setQuery] = useState('');
@@ -102,12 +104,12 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
     >
       <div className="w-full max-w-sm rounded-lg border border-border bg-bg-elevated p-4 shadow-[var(--shadow-3)]">
         <div className="mb-3 flex items-center justify-between">
-          <h2 id="member-invite-title" className="text-sm font-semibold text-text-primary">Invite members</h2>
+          <h2 id="member-invite-title" className="text-sm font-semibold text-text-primary">{t('humans.invite.title')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('humans.invite.close')}
             data-testid="invite-modal-close"
           >
             X
@@ -117,14 +119,14 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search members…"
-          aria-label="Search members"
+          placeholder={t('humans.invite.searchPlaceholder')}
+          aria-label={t('humans.invite.searchAria')}
           autoFocus
           className="mb-3 w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-sm text-text-primary placeholder:text-text-muted focus:border-accent"
           data-testid="invite-search"
         />
         <div className="mb-2 flex items-center justify-between px-1 text-xs text-text-muted">
-          <span data-testid="invite-selected-count">{selected.size} selected</span>
+          <span data-testid="invite-selected-count">{t('humans.invite.selectedCount', { count: selected.size })}</span>
           {visibleRefs.length > 0 && (
             <button
               type="button"
@@ -132,14 +134,14 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
               className="font-medium text-accent hover:underline"
               data-testid="invite-select-all"
             >
-              {allVisibleSelected ? 'Clear' : 'Select all'}
+              {allVisibleSelected ? t('humans.invite.clear') : t('humans.invite.selectAll')}
             </button>
           )}
         </div>
         <ul className="max-h-64 space-y-1 overflow-y-auto" data-testid="invite-candidates">
           {candidates.length === 0 && (
             <li className="px-1 py-2 text-xs italic text-text-muted" data-testid="invite-no-candidates">
-              No matching members.
+              {t('humans.invite.noMatching')}
             </li>
           )}
           {candidates.map((m) => {
@@ -164,7 +166,7 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
                     className="rounded bg-bg-subtle px-1.5 text-[0.625rem] uppercase text-text-muted"
                     data-testid="invite-candidate-kind"
                   >
-                    {m.kind === 'agent' ? 'Agent' : 'Human'}
+                    {m.kind === 'agent' ? t('humans.kind.agent') : t('humans.kind.human')}
                   </span>
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center text-accent" aria-hidden="true">
                     {selected.has(ref) && <CheckIcon />}
@@ -185,7 +187,7 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
             onClick={onClose}
             className="rounded px-3 py-1 text-xs text-text-secondary hover:bg-bg-subtle"
           >
-            Cancel
+            {t('humans.invite.cancel')}
           </button>
           <button
             type="button"
@@ -194,7 +196,11 @@ export function MemberInviteModal({ conversationId, participants, onClose }: Pro
             className="rounded bg-btn-primary-bg px-3 py-1 text-xs font-medium text-btn-primary-fg hover:opacity-90 disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="invite-confirm"
           >
-            {invite.isPending ? 'Inviting…' : `Invite${selected.size > 0 ? ` (${selected.size})` : ''}`}
+            {invite.isPending
+              ? t('humans.invite.inviting')
+              : selected.size > 0
+                ? t('humans.invite.confirmCount', { count: selected.size })
+                : t('humans.invite.confirm')}
           </button>
         </div>
       </div>

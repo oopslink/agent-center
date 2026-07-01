@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef } from '@/api/members';
 import type {
   ConversationMessageReference,
@@ -26,6 +27,7 @@ export function CarryOverDivider({
   refs,
   messages,
 }: Props): React.ReactElement | null {
+  const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
   if (refs.length === 0) return null;
   const referencedIds = new Set(refs.map((r) => r.source_message_id));
@@ -52,7 +54,7 @@ export function CarryOverDivider({
           data-source-conversation-id={sourceConvId}
         >
           <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-accent">
-            from <span className="font-mono">{sourceConvId}</span>
+            {t('widgets.carryOver.from')} <span className="font-mono">{sourceConvId}</span>
           </h4>
           <ul className="space-y-2">
             {msgs.map((m) => (
@@ -90,7 +92,7 @@ export function CarryOverDivider({
         data-testid="carry-over-divider"
       >
         <span className="flex-1 border-t border-border-base" />
-        Discussion below
+        {t('widgets.carryOver.discussionBelow')}
         <span className="flex-1 border-t border-border-base" />
       </div>
     </div>

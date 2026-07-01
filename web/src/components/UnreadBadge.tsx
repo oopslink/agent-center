@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 
 // v2.8 #264 P1 / #176 unread-badge contract. PROP-DRIVEN from the Conversation
 // row's embedded counts (GET /conversations / GET /:id carry unread_count +
@@ -20,18 +21,18 @@ export function UnreadBadge({
   unreadCount?: number;
   mentionCount?: number;
 }): React.ReactElement | null {
+  const { t } = useTranslation('common');
   const unread = Math.max(0, unreadCount);
   const mention = Math.max(0, mentionCount);
 
   if (mention > 0) {
     const label = mention > MaxMentionDisplay ? `${MaxMentionDisplay}+` : String(mention);
-    const mentionWord = mention === 1 ? 'mention' : 'mentions';
     return (
       <span
         className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-danger px-1.5 text-xs font-semibold text-white tabular-nums"
         data-testid="conversation-mention-badge"
         data-mention-count={mention}
-        aria-label={`${unread} unread, ${mention} ${mentionWord}`}
+        aria-label={t('unreadBadge.unreadMention', { unread, count: mention })}
       >
         {label}
       </span>
@@ -44,7 +45,7 @@ export function UnreadBadge({
         className="inline-flex items-center"
         data-testid="conversation-unread-dot"
         data-unread-count={unread}
-        aria-label={`${unread} unread`}
+        aria-label={t('unreadBadge.unread', { unread })}
       >
         <span aria-hidden="true" className="h-2 w-2 rounded-full bg-brand" />
       </span>

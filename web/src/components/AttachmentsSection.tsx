@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   useTaskFiles,
   useIssueFiles,
@@ -38,6 +39,7 @@ export function AttachmentsSection({
   uploadError,
   onSelectFiles,
 }: AttachmentsSectionProps): React.ReactElement {
+  const { t } = useTranslation('work');
   const inputRef = useRef<HTMLInputElement>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -59,7 +61,7 @@ export function AttachmentsSection({
     <section className="space-y-2" data-testid="attachments-section">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-text-primary">
-          Attachments
+          {t('widgets.attachments.title')}
           {files.length > 0 && (
             <span className="ml-1.5 text-xs font-normal text-text-muted" data-testid="attachments-count">
               {files.length}
@@ -73,7 +75,7 @@ export function AttachmentsSection({
           className="rounded border border-border-base px-2 py-1 text-xs font-medium text-text-primary hover:bg-bg-subtle disabled:opacity-50"
           data-testid="attachments-upload-btn"
         >
-          {uploading ? 'Uploading…' : 'Upload'}
+          {uploading ? t('widgets.attachments.uploading') : t('widgets.attachments.upload')}
         </button>
         <input
           ref={inputRef}
@@ -96,17 +98,17 @@ export function AttachmentsSection({
 
       {isLoading && (
         <p className="text-xs text-text-muted" data-testid="attachments-loading">
-          Loading attachments…
+          {t('widgets.attachments.loading')}
         </p>
       )}
       {isError && !isLoading && (
         <p className="text-xs text-danger" data-testid="attachments-load-error">
-          {errorMessage ?? 'Failed to load attachments.'}
+          {errorMessage ?? t('widgets.attachments.loadError')}
         </p>
       )}
       {!isLoading && !isError && files.length === 0 && (
         <p className="text-xs text-text-muted" data-testid="attachments-empty">
-          No attachments yet.
+          {t('widgets.attachments.empty')}
         </p>
       )}
 

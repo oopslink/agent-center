@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import type { ReminderListFilter, ReminderStatus } from '@/api/reminders';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
@@ -22,19 +23,20 @@ import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 // nav body.
 // ============================================================================
 
-const RANGES: ReadonlyArray<{ key: ReminderListFilter; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'created', label: 'Created by me' },
-  { key: 'remindee', label: 'Reminding me' },
+const RANGES: ReadonlyArray<{ key: ReminderListFilter; labelKey: string }> = [
+  { key: 'all', labelKey: 'shell.reminders.scope.all' },
+  { key: 'created', labelKey: 'shell.reminders.scope.created' },
+  { key: 'remindee', labelKey: 'shell.reminders.scope.remindee' },
 ];
-const STATUSES: ReadonlyArray<{ key: ReminderStatus; label: string; dot: string }> = [
-  { key: 'active', label: 'Active', dot: 'bg-success' },
-  { key: 'paused', label: 'Paused', dot: 'bg-warning' },
-  { key: 'completed', label: 'Completed', dot: 'bg-text-muted' },
-  { key: 'canceled', label: 'Canceled', dot: 'bg-text-muted' },
+const STATUSES: ReadonlyArray<{ key: ReminderStatus; labelKey: string; dot: string }> = [
+  { key: 'active', labelKey: 'shell.reminders.status.active', dot: 'bg-success' },
+  { key: 'paused', labelKey: 'shell.reminders.status.paused', dot: 'bg-warning' },
+  { key: 'completed', labelKey: 'shell.reminders.status.completed', dot: 'bg-text-muted' },
+  { key: 'canceled', labelKey: 'shell.reminders.status.canceled', dot: 'bg-text-muted' },
 ];
 
 export function RemindersSecondaryNav(_props: ModuleSecondaryNavProps): React.ReactElement {
+  const { t } = useTranslation('common');
   const [params, setParams] = useSearchParams();
   const range = (params.get('range') as ReminderListFilter) || 'all';
   const status = params.get('status'); // null/'' = all statuses
@@ -54,11 +56,11 @@ export function RemindersSecondaryNav(_props: ModuleSecondaryNavProps): React.Re
       <input
         value={search}
         onChange={(e) => setParam('q', e.target.value)}
-        placeholder="Search reminders…"
+        placeholder={t('shell.reminders.searchPlaceholder')}
         className="mb-3 w-full rounded-md border border-border-base bg-bg-base px-2.5 py-1.5 text-xs"
         data-testid="reminder-search"
       />
-      <FilterGroup label="Scope">
+      <FilterGroup label={t('shell.reminders.scopeLabel')}>
         {RANGES.map((rg) => (
           <FilterItem
             key={rg.key}
@@ -66,18 +68,18 @@ export function RemindersSecondaryNav(_props: ModuleSecondaryNavProps): React.Re
             onClick={() => setParam('range', rg.key === 'all' ? '' : rg.key)}
             testId={`reminder-range-${rg.key}`}
           >
-            {rg.label}
+            {t(rg.labelKey)}
           </FilterItem>
         ))}
       </FilterGroup>
-      <FilterGroup label="Status">
+      <FilterGroup label={t('shell.reminders.statusLabel')}>
         {/* Default (no status param) hides terminal reminders — labeled so the
             user knows completed/canceled are excluded until "All statuses". */}
         <FilterItem active={!status} onClick={() => setParam('status', '')} testId="reminder-status-default">
-          Active &amp; Paused
+          {t('shell.reminders.status.default')}
         </FilterItem>
         <FilterItem active={status === 'all'} onClick={() => setParam('status', 'all')} testId="reminder-status-all">
-          All statuses
+          {t('shell.reminders.status.allStatuses')}
         </FilterItem>
         {STATUSES.map((st) => (
           <FilterItem
@@ -87,7 +89,7 @@ export function RemindersSecondaryNav(_props: ModuleSecondaryNavProps): React.Re
             testId={`reminder-status-${st.key}`}
             dot={st.dot}
           >
-            {st.label}
+            {t(st.labelKey)}
           </FilterItem>
         ))}
       </FilterGroup>

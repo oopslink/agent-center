@@ -3,6 +3,7 @@
 // placeholder reflecting whether a credential is already stored; leaving it blank
 // keeps the existing one (the backend treats an omitted credential as unchanged).
 import React, { useState } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import {
   useCreateWorkspaceRepo,
   useUpdateWorkspaceRepo,
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function RepoFormModal({ repo, onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('admin');
   const isEdit = !!repo;
   const [label, setLabel] = useState(repo?.label ?? '');
   const [provider, setProvider] = useState(repo?.provider || 'github');
@@ -71,19 +73,19 @@ export function RepoFormModal({ repo, onClose }: Props): React.ReactElement {
       data-testid="repo-form-modal"
       role="dialog"
       aria-modal="true"
-      aria-label={isEdit ? 'Edit repository' : 'Add repository'}
+      aria-label={isEdit ? t('repos.form.editTitle') : t('repos.form.addTitle')}
     >
       <form
         onSubmit={submit}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{isEdit ? 'Edit repository' : 'Add repository'}</h2>
+          <h2 className="text-lg font-semibold">{isEdit ? t('repos.form.editTitle') : t('repos.form.addTitle')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('repos.form.close')}
             data-testid="repo-form-close"
           >
             <span aria-hidden="true">X</span>
@@ -91,17 +93,17 @@ export function RepoFormModal({ repo, onClose }: Props): React.ReactElement {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Label" required htmlFor="repo-form-label">
+          <Field label={t('repos.form.label')} required htmlFor="repo-form-label">
             <input
               id="repo-form-label"
               data-testid="repo-form-label"
               className={inputClass}
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder="agent-center"
+              placeholder={t('repos.form.labelPlaceholder')}
             />
           </Field>
-          <Field label="Provider" htmlFor="repo-form-provider">
+          <Field label={t('repos.form.provider')} htmlFor="repo-form-provider">
             <select
               id="repo-form-provider"
               data-testid="repo-form-provider"
@@ -111,49 +113,49 @@ export function RepoFormModal({ repo, onClose }: Props): React.ReactElement {
             >
               {REPO_PROVIDERS.map((p) => (
                 <option key={p} value={p}>
-                  {p === 'github' ? 'GitHub' : 'Git (generic)'}
+                  {p === 'github' ? t('repos.form.providerGithub') : t('repos.form.providerGit')}
                 </option>
               ))}
             </select>
           </Field>
         </div>
 
-        <Field label="Description" hint="One line so an agent understands the repo without checking it out." htmlFor="repo-form-description">
+        <Field label={t('repos.form.description')} hint={t('repos.form.descriptionHint')} htmlFor="repo-form-description">
           <input
             id="repo-form-description"
             data-testid="repo-form-description"
             className={inputClass}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What this repo is for"
+            placeholder={t('repos.form.descriptionPlaceholder')}
           />
         </Field>
 
-        <Field label="Clone URL" required htmlFor="repo-form-url">
+        <Field label={t('repos.form.url')} required htmlFor="repo-form-url">
           <input
             id="repo-form-url"
             data-testid="repo-form-url"
             className={inputClass}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="git@github.com:org/repo.git"
+            placeholder={t('repos.form.urlPlaceholder')}
           />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Default branch" htmlFor="repo-form-branch">
+          <Field label={t('repos.form.defaultBranch')} htmlFor="repo-form-branch">
             <input
               id="repo-form-branch"
               data-testid="repo-form-default-branch"
               className={inputClass}
               value={defaultBranch}
               onChange={(e) => setDefaultBranch(e.target.value)}
-              placeholder="main"
+              placeholder={t('repos.form.defaultBranchPlaceholder')}
             />
           </Field>
           <Field
-            label="Read credential"
-            hint={isEdit ? 'Leave blank to keep the stored credential.' : 'Stored encrypted, never shown again.'}
+            label={t('repos.form.credential')}
+            hint={isEdit ? t('repos.form.credentialHintEdit') : t('repos.form.credentialHintCreate')}
             htmlFor="repo-form-credential"
           >
             <input
@@ -164,26 +166,28 @@ export function RepoFormModal({ repo, onClose }: Props): React.ReactElement {
               className={inputClass}
               value={credential}
               onChange={(e) => setCredential(e.target.value)}
-              placeholder={isEdit && repo?.has_credential ? '•••••• (stored)' : 'fine-grained token'}
+              placeholder={isEdit && repo?.has_credential ? t('repos.form.credentialPlaceholderStored') : t('repos.form.credentialPlaceholder')}
             />
           </Field>
         </div>
 
         <p className="mb-3 -mt-1 text-xs text-text-muted" data-testid="repo-form-credential-help">
-          Private repos need a read-only credential. For GitHub, create a{' '}
-          <a
-            href="https://github.com/settings/personal-access-tokens/new?name=agent-center+repo+read&contents=read"
-            target="_blank"
-            rel="noreferrer"
-            className="text-accent hover:underline"
-          >
-            fine-grained token
-          </a>{' '}
-          scoped to this repository with{' '}
-          <span className="text-text-secondary">Contents: Read-only</span> (add{' '}
-          <span className="text-text-secondary">Pull requests: Read</span> to view PRs).
-          A GitHub App installation token or a read-only deploy key works too. Public
-          repos can leave this blank.
+          <Trans
+            t={t}
+            i18nKey="repos.form.credentialHelp"
+            components={{
+              tokenLink: (
+                <a
+                  href="https://github.com/settings/personal-access-tokens/new?name=agent-center+repo+read&contents=read"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-accent hover:underline"
+                />
+              ),
+              contents: <span className="text-text-secondary" />,
+              prs: <span className="text-text-secondary" />,
+            }}
+          />
         </p>
 
         {error && (
@@ -199,7 +203,7 @@ export function RepoFormModal({ repo, onClose }: Props): React.ReactElement {
             onClick={onClose}
             data-testid="repo-form-cancel"
           >
-            Cancel
+            {t('repos.form.cancel')}
           </button>
           <button
             type="submit"
@@ -207,7 +211,7 @@ export function RepoFormModal({ repo, onClose }: Props): React.ReactElement {
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="repo-form-save"
           >
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? t('repos.form.saving') : t('repos.form.save')}
           </button>
         </div>
       </form>

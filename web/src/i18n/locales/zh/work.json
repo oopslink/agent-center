@@ -1,0 +1,768 @@
+{
+  "status": {
+    "open": "待处理",
+    "in_progress": "进行中",
+    "running": "运行中",
+    "resolved": "已解决",
+    "completed": "已完成",
+    "closed": "已关闭",
+    "discarded": "已丢弃",
+    "reopened": "已重开",
+    "blocked": "已阻塞",
+    "ready": "就绪",
+    "dispatched": "已派发",
+    "paused": "已暂停",
+    "done": "已完成",
+    "failed": "已失败"
+  },
+  "planStatus": {
+    "draft": "草稿",
+    "running": "运行中",
+    "done": "已完成",
+    "archived": "已归档"
+  },
+  "type": {
+    "issue": "议题",
+    "task": "任务",
+    "dm": "私信",
+    "channel": "频道"
+  },
+  "shared": {
+    "failedNode": "节点失败",
+    "failedNodeTitle": "该计划中有一个节点的任务已失败（§9.1）",
+    "archived": "已归档",
+    "archivedTitle": "该任务已随其计划一并归档（只读）。",
+    "autoAdvancing": "自动推进",
+    "autoAdvancingShort": "自动推进",
+    "autoAdvancingHint": "上游任务完成后，系统会自动派发已就绪的节点。",
+    "autoAdvancingAria": "自动推进 — {{hint}}",
+    "yesterday": "昨天"
+  },
+  "issue": {
+    "detail": {
+      "loading": "正在加载议题…",
+      "backToProject": "返回项目",
+      "lookupFailed": "议题查询失败。",
+      "breadcrumb": {
+        "projects": "项目",
+        "project": "项目",
+        "issues": "议题"
+      },
+      "closeInfo": "关闭信息",
+      "descriptionAria": "议题描述",
+      "noDescription": "暂无描述。"
+    },
+    "create": {
+      "heading": "新建议题",
+      "close": "关闭",
+      "titleLabel": "标题",
+      "titlePlaceholder": "需要决策或修复什么？",
+      "descriptionLabel": "描述",
+      "descriptionPlaceholder": "可选。背景、复现步骤、链接…",
+      "cancel": "取消",
+      "submit": "新建议题",
+      "submitting": "正在创建…"
+    },
+    "edit": {
+      "dialogAria": "编辑议题",
+      "heading": "编辑议题",
+      "close": "关闭",
+      "titleLabel": "标题",
+      "descriptionLabel": "描述",
+      "statusLabel": "状态",
+      "tagsLabel": "标签",
+      "removeTag": "移除标签 {{tag}}",
+      "tagsPlaceholder": "输入标签，按回车或逗号…",
+      "tagsHint": "最多 {{maxTags}} 个标签，每个不超过 {{maxRunes}} 个字符。",
+      "tagTooLong": "标签过长（最多 {{max}} 个字符）",
+      "tagMax": "最多 {{max}} 个标签",
+      "cancel": "取消",
+      "submit": "保存更改",
+      "saving": "正在保存…"
+    },
+    "sidebar": {
+      "aria": "议题详情",
+      "details": "详情",
+      "editButton": "编辑议题",
+      "editAria": "编辑议题",
+      "status": "状态",
+      "statusDuration": "处于当前状态已 {{duration}}",
+      "tags": "标签",
+      "noTags": "暂无标签",
+      "project": "项目",
+      "issueId": "议题 ID",
+      "created": "创建时间"
+    },
+    "derivedTasks": {
+      "aria": "派生任务",
+      "heading": "派生任务",
+      "loading": "加载中…",
+      "empty": "暂无由此议题派生的任务。"
+    },
+    "relatedPlans": {
+      "aria": "相关计划",
+      "heading": "相关计划",
+      "loading": "加载中…",
+      "empty": "暂无由此议题派生的计划。"
+    },
+    "taskSidebar": {
+      "aria": "详情",
+      "tags": "标签",
+      "noTags": "暂无标签",
+      "workItems": "工作项"
+    },
+    "relatedIssues": {
+      "heading": "相关议题",
+      "loading": "加载中…",
+      "empty": "此计划没有来源议题。"
+    }
+  },
+  "plan": {
+    "detail": {
+      "loadError": "无法加载此计划。",
+      "backToPlans": "← 返回计划列表",
+      "lookupFailed": "计划查询失败。",
+      "cancel": "取消",
+      "participants": "参与者",
+      "progressComplete": "已完成 {{pct}}%",
+      "openActivity": "查看 {{name}} 的活动",
+      "breadcrumb": {
+        "projects": "项目",
+        "plans": "计划"
+      },
+      "tabs": {
+        "chat": "对话",
+        "dag": "DAG",
+        "tasks": "任务列表"
+      },
+      "chat": {
+        "restore": "还原对话",
+        "maximize": "最大化对话",
+        "restoreEsc": "还原（Esc）",
+        "initializing": "对话初始化中——正在创建该计划的聊天。",
+        "refreshError": "无法刷新对话详情。",
+        "dispatchNote": "派发 = 在此对话中 @负责人（通知人类 / 唤醒智能体）；这里也是讨论此计划的地方。"
+      },
+      "dag": {
+        "resetZoomAria": "重置 DAG 缩放",
+        "compactAria": "紧凑 DAG（缩放以适应）",
+        "resetZoom": "重置缩放",
+        "compact": "紧凑（缩放以适应）",
+        "empty": "此计划尚无任务。请从工作看板添加任务。",
+        "anchorStart": "开始",
+        "anchorEnd": "结束",
+        "connectBanner": "选择一个高亮任务，作为 <b>{{title}}</b> 所依赖的任务。",
+        "cancelAddDependency": "取消添加依赖",
+        "removeDependency": "移除依赖：{{from}} 依赖于 {{to}}",
+        "addDep": "+ 依赖",
+        "addDependencyAria": "从 {{title}} 添加依赖",
+        "addDependencyTitle": "从 {{title}} 添加一个依赖（选择它所依赖的任务）",
+        "makeDependOn": "让 {{from}} 依赖于 {{to}}",
+        "noteDerived": "节点状态是推导得出的（= f(任务状态, 所有上游已完成, 派发记录)），仅作展示，不可编辑。",
+        "noteDraft": "此计划为草稿，因此其依赖可直接在图上编辑——使用节点的“+ 依赖”按钮添加一条边，或使用某条边的“×”移除它。",
+        "noteDisplayOnly": "仅展示图：运行中的计划会自动推进（随着上游任务完成，系统会派发就绪节点），“立即推进”为手动覆盖。依赖只能在计划为草稿时编辑。"
+      },
+      "actions": {
+        "menu": "操作",
+        "hideGoal": "隐藏目标",
+        "showGoal": "显示目标",
+        "stop": "停止",
+        "edit": "编辑",
+        "start": "启动",
+        "archive": "归档",
+        "delete": "删除",
+        "archiveTitle": "归档此计划及其所有任务（终态，无法撤销）",
+        "deleteTitle": "删除此计划（将其任务卸载回待办池，无法撤销）"
+      },
+      "lifecycle": {
+        "stop": "■ 停止（→ 草稿）",
+        "start": "▸ 启动"
+      },
+      "meta": {
+        "progress": "进度",
+        "target": "目标日期",
+        "creator": "创建者"
+      },
+      "rail": {
+        "nodesDone": "已完成节点"
+      },
+      "goal": {
+        "close": "关闭目标",
+        "title": "计划目标",
+        "heading": "目标",
+        "empty": "未设置目标。",
+        "showLess": "收起",
+        "showMore": "展开"
+      },
+      "upNext": {
+        "title": "接下来",
+        "empty": "没有排队的节点。",
+        "more": "还有 {{count}} 个 — 查看 DAG"
+      },
+      "deleteModal": {
+        "title": "删除此计划？",
+        "body": "这将把此计划的所有任务卸载回待办池，永久删除此计划的对话，并删除此计划。此操作无法撤销。",
+        "confirm": "删除计划",
+        "pending": "删除中…"
+      },
+      "archiveModal": {
+        "title": "归档此计划？",
+        "body": "这将归档此计划及其所有任务（终态）。此操作无法撤销。",
+        "confirm": "归档计划",
+        "pending": "归档中…"
+      },
+      "editModal": {
+        "aria": "编辑计划",
+        "title": "编辑计划",
+        "name": "名称",
+        "goal": "目标",
+        "targetDate": "目标日期",
+        "save": "保存更改",
+        "saving": "保存中…",
+        "errorArchived": "此计划已归档，无法再编辑。",
+        "errorDraft": "目标日期只能在计划为草稿时更改。",
+        "errorGeneric": "无法保存你的更改。请重试。"
+      },
+      "depError": {
+        "self": "任务不能依赖自身。",
+        "cycle": "这会在计划中产生循环。",
+        "draft": "依赖只能在计划为草稿时编辑。",
+        "generic": "无法更新计划的依赖。请重试。"
+      },
+      "resumeError": {
+        "agentBusy": "其智能体正忙于另一任务——待该任务完成后会恢复此任务，或智能体可从其侧恢复。",
+        "nodeNotPaused": "无可恢复内容——此节点没有暂停的任务（可能已经恢复）。",
+        "planNotRunning": "计划未在运行，因此其节点无法被恢复。",
+        "generic": "无法恢复此节点。请重试。"
+      },
+      "unmerged": {
+        "title": "未合并的分支",
+        "clearBeforeShip": "— 发布前需清空",
+        "skipCheck": "跳过检查",
+        "skipCheckTitle": "结构上跳过合并检查（无代码特性）；在完成前仍计入"
+      },
+      "nodeStatus": {
+        "blocked": "受阻",
+        "ready": "就绪",
+        "dispatched": "已派发",
+        "running": "运行中",
+        "paused": "已暂停",
+        "done": "已完成",
+        "failed": "失败"
+      },
+      "taskList": {
+        "empty": "此计划尚无任务。",
+        "filterAria": "筛选任务",
+        "filterPlaceholder": "按标题、任务 ID 或负责人筛选…",
+        "showing": "显示 {{shown}} / {{total}}",
+        "noMatch": "没有任务匹配你的筛选。",
+        "colTask": "任务",
+        "colTitle": "标题",
+        "colAssignee": "负责人",
+        "colTaskStatus": "任务状态",
+        "colNodeStatus": "节点状态",
+        "colAction": "操作",
+        "unassigned": "未分配",
+        "searchMembers": "搜索成员…",
+        "reassign": "重新分配 {{title}}",
+        "removeError": "无法将此任务从计划中移除。请重试。",
+        "assignError": "无法重新分配此任务。请重试。",
+        "resume": "恢复",
+        "resuming": "恢复中…",
+        "resumeAria": "恢复 {{title}}",
+        "resumeTitle": "恢复此暂停的节点（唤醒其智能体）",
+        "confirm": "确认？",
+        "removeAria": "将 {{title}} 从计划中移除",
+        "removeConfirmTitle": "再次点击以确认移除",
+        "removeTitle": "从计划中移除（返回待办池）"
+      }
+    },
+    "list": {
+      "title": "计划",
+      "searchLabel": "搜索计划",
+      "searchPlaceholder": "搜索计划…",
+      "statusLabel": "状态",
+      "projectLabel": "项目",
+      "allProjects": "全部项目",
+      "clearFilters": "清除筛选",
+      "loading": "正在加载计划…",
+      "empty": "暂无计划。",
+      "emptyFiltered": "没有匹配的计划。",
+      "by": "由 {{name}}",
+      "col": {
+        "name": "名称",
+        "status": "状态",
+        "project": "项目",
+        "progress": "进度",
+        "created": "创建时间",
+        "creator": "创建者",
+        "updated": "更新时间"
+      },
+      "summary": {
+        "heading": "计划 · 摘要",
+        "close": "关闭",
+        "closeAria": "关闭摘要面板",
+        "id": "ID",
+        "name": "名称",
+        "status": "状态",
+        "project": "项目",
+        "nodes": "节点",
+        "created": "创建时间",
+        "creator": "创建者",
+        "actions": "操作",
+        "openPlan": "打开计划"
+      }
+    },
+    "board": {
+      "rotateHint": "↻ 旋转到横屏以获得更好的工作看板视图。",
+      "rotateDismiss": "忽略旋转提示",
+      "breadcrumb": {
+        "projects": "项目",
+        "workBoard": "工作看板"
+      },
+      "titleSuffix": " · 工作看板",
+      "subtitle": "三个区段 · 待办（未排期）· 认领池（可认领）· 结构化计划。",
+      "newTask": "+ 新建任务",
+      "newPlan": "+ 新建计划",
+      "newPlanHint": "（新增一列）",
+      "newPlanAria": "新建计划",
+      "loadError": "无法加载工作看板。",
+      "boardAria": "工作看板",
+      "assignmentPool": "认领池",
+      "addToPlan": "加入计划",
+      "unassigned": "未分配",
+      "overflow_one": "…还有 {{count}} 个",
+      "overflow_other": "…还有 {{count}} 个",
+      "backlog": {
+        "title": "待办",
+        "subtitle": "未排期 — 不可认领",
+        "loadError": "无法加载待办。",
+        "empty": "没有未排期的任务。所有任务都已在计划中。"
+      },
+      "addMenu": {
+        "empty": "没有草稿计划或认领池。请创建计划以排期此任务。"
+      },
+      "pool": {
+        "subtitle": "内置 · 持续运行 · 可认领",
+        "empty": "暂无可认领的任务。"
+      },
+      "claimable": {
+        "label": "可认领",
+        "title": "现在可认领 — 已分配并已派发（拉取，不唤醒）。"
+      },
+      "starved": {
+        "label": "等待智能体",
+        "title": "正在等待合格的智能体 — 没有符合条件的在线智能体覆盖此任务所需的能力。"
+      },
+      "phase": {
+        "planning": "规划中",
+        "inProgress": "进行中"
+      },
+      "column": {
+        "empty": "暂无任务。"
+      },
+      "lock": {
+        "running": "此计划正在运行 — 其任务不能在计划之间移动。停止计划后才能重新规划。",
+        "done": "此计划已完成 — 其任务分配已锁定。",
+        "archived": "此计划已归档 — 其任务分配已锁定。",
+        "default": "此计划的任务分配已锁定。"
+      },
+      "removeTask": {
+        "aria": "将 {{title}} 移出计划",
+        "title": "移出计划（退回待办）",
+        "error": "无法将此任务移出计划。请重试。"
+      },
+      "createModal": {
+        "heading": "新建计划",
+        "name": "名称",
+        "description": "描述",
+        "targetDate": "目标日期",
+        "cancel": "取消",
+        "creating": "正在创建…",
+        "submit": "创建计划"
+      }
+    }
+  },
+  "project": {
+    "list": {
+      "title": "项目",
+      "subtitle": "项目用于组织议题和任务。",
+      "addProject": "+ 添加项目",
+      "noDescription": "暂无描述",
+      "empty": {
+        "title": "暂无项目",
+        "body": "项目用于组织工作——议题和任务都归属于某个项目。点击“+ 添加项目”来创建一个。"
+      },
+      "archived": {
+        "empty": "没有已归档的项目。"
+      }
+    },
+    "status": {
+      "active": "活跃",
+      "archived": "已归档"
+    },
+    "counts": {
+      "task_one": "{{count}} 个任务",
+      "task_other": "{{count}} 个任务",
+      "issue_one": "{{count}} 个议题",
+      "issue_other": "{{count}} 个议题",
+      "plan_one": "{{count}} 个计划",
+      "plan_other": "{{count}} 个计划",
+      "repo_one": "{{count}} 个仓库",
+      "repo_other": "{{count}} 个仓库"
+    },
+    "relativeTime": {
+      "seconds": "{{count}} 秒前",
+      "minutes": "{{count}} 分钟前",
+      "hours": "{{count}} 小时前",
+      "days": "{{count}} 天前"
+    },
+    "shortcut": {
+      "edit": "编辑",
+      "board": "工作看板",
+      "tasks": "任务",
+      "issues": "议题",
+      "codebase": "代码库"
+    },
+    "actions": {
+      "menuLabel": "项目操作"
+    },
+    "create": {
+      "title": "添加项目",
+      "close": "关闭",
+      "nameLabel": "名称",
+      "namePlaceholder": "我的项目",
+      "descriptionLabel": "描述",
+      "descriptionHint": "可选。将显示在项目列表中。",
+      "cancel": "取消",
+      "submit": "创建项目",
+      "submitting": "创建中..."
+    },
+    "edit": {
+      "ariaLabel": "编辑项目",
+      "title": "编辑项目",
+      "nameLabel": "名称",
+      "descriptionLabel": "描述",
+      "autoAssign": {
+        "label": "自动分配任务池任务",
+        "hint": "开启后，可领取的任务池任务会自动分配给具备相应能力且空闲的智能体。关闭时，任务将等待手动分配或领取。"
+      },
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中..."
+    },
+    "delete": {
+      "title": "归档项目？",
+      "confirmPrefix": "归档",
+      "confirmSuffix": "（{{id}}）？",
+      "note": "归档会将项目从活跃列表中隐藏。其议题和任务仍会保留，但项目会被标记为已归档。",
+      "cancel": "取消",
+      "archive": "归档",
+      "archiving": "归档中…"
+    },
+    "detail": {
+      "backToProjects": "← 返回项目列表",
+      "lookupFailed": "项目查询失败。",
+      "breadcrumb": "项目",
+      "workBoard": "工作看板",
+      "edit": "编辑",
+      "archive": "归档",
+      "tabs": {
+        "aria": "项目工作",
+        "issues": "议题",
+        "tasks": "任务",
+        "plans": "计划",
+        "members": "成员",
+        "repos": "代码仓库"
+      }
+    },
+    "table": {
+      "id": "ID",
+      "name": "名称",
+      "title": "标题",
+      "status": "状态",
+      "progress": "进度",
+      "created": "创建时间",
+      "updated": "更新时间",
+      "creator": "创建者",
+      "assignedTo": "负责人",
+      "priority": "优先级"
+    },
+    "plans": {
+      "title": "计划",
+      "empty": "暂无计划"
+    },
+    "members": {
+      "title": "成员",
+      "add": "+ 添加",
+      "empty": "暂无成员",
+      "remove": "移除",
+      "cols": {
+        "identityId": "身份 ID",
+        "displayName": "显示名称",
+        "joined": "加入时间",
+        "kind": "类型",
+        "role": "角色"
+      },
+      "kind": {
+        "agent": "智能体",
+        "user": "用户"
+      },
+      "role": {
+        "owner": "所有者"
+      },
+      "removeError": {
+        "cannotRemoveOwner": "无法移除项目所有者。",
+        "notMember": "该成员已不在此项目中。",
+        "generic": "移除失败，请重试。"
+      },
+      "confirm": {
+        "title": "移除成员",
+        "message": "确定将 {{label}} 从此项目中移除吗？他们将失去对项目任务和议题的访问权限。",
+        "confirmLabel": "移除"
+      }
+    },
+    "repos": {
+      "title": "引用的代码仓库",
+      "subtitle": "此项目引用的工作区仓库。主仓库（带星标）用于驱动集成合并检查。请在工作区仓库页面配置 URL 和凭证。",
+      "empty": "没有引用的代码仓库。",
+      "primaryRepo": "主仓库",
+      "setPrimary": "设为主仓库",
+      "primaryBadge": "主仓库",
+      "unreference": "取消引用",
+      "selectAria": "引用一个工作区仓库",
+      "noMoreRepos": "没有更多可引用的工作区仓库",
+      "selectPlaceholder": "选择一个工作区仓库…",
+      "addReference": "添加引用"
+    },
+    "issues": {
+      "title": "议题",
+      "create": "+ 新建议题",
+      "empty": "暂无议题",
+      "emptyFiltered": "没有匹配的议题"
+    },
+    "tasks": {
+      "title": "任务",
+      "create": "+ 新建任务",
+      "empty": "暂无任务",
+      "emptyFiltered": "没有匹配的任务"
+    },
+    "overview": {
+      "title": "概览",
+      "issues": "议题",
+      "tasks": "任务",
+      "plans": "计划",
+      "repos": "仓库"
+    },
+    "activity": {
+      "title": "最近动态",
+      "empty": "暂无最近动态。",
+      "kind": {
+        "plan": "计划"
+      }
+    }
+  },
+  "task": {
+    "create": {
+      "heading": "新建任务",
+      "close": "关闭",
+      "titleLabel": "标题",
+      "titlePlaceholder": "需要完成什么？",
+      "descriptionLabel": "描述",
+      "descriptionPlaceholder": "可选。背景、验收标准、链接……",
+      "capabilitiesLabel": "所需能力",
+      "destinationLabel": "目标位置",
+      "destinationHint": "任务的起始位置。只有草稿计划才能接受新任务。",
+      "destinationBacklog": "待办列表（未排期）",
+      "destinationPool": "分配池（可认领）",
+      "destinationPlansGroup": "计划（草稿）",
+      "cancel": "取消",
+      "submit": "创建任务",
+      "submitting": "创建中……"
+    },
+    "edit": {
+      "dialogLabel": "编辑任务",
+      "heading": "编辑任务",
+      "close": "关闭",
+      "titleLabel": "标题",
+      "descriptionLabel": "描述",
+      "statusLabel": "状态",
+      "assigneeLabel": "负责人",
+      "unassigned": "未分配",
+      "tagsLabel": "标签",
+      "removeTag": "移除标签 {{tag}}",
+      "tagPlaceholder": "输入标签，按回车或逗号……",
+      "tagsHint": "最多 {{maxTags}} 个标签，每个不超过 {{maxRunes}} 个字符。",
+      "tagTooLong": "标签过长（最多 {{max}}）",
+      "tagMax": "最多 {{count}} 个标签",
+      "capabilitiesLabel": "所需能力",
+      "cancel": "取消",
+      "submit": "保存更改",
+      "submitting": "保存中……"
+    },
+    "sidebar": {
+      "ariaLabel": "任务详情",
+      "details": "详情",
+      "editTask": "编辑任务",
+      "editTaskAria": "编辑任务",
+      "status": "状态",
+      "inStatusFor": "处于当前状态已 {{duration}}",
+      "assignee": "负责人",
+      "openActivity": "打开 {{name}} 的活动",
+      "unassigned": "未分配",
+      "tags": "标签",
+      "noTags": "无标签",
+      "project": "项目",
+      "plan": "计划",
+      "relatedIssue": "关联事项",
+      "taskId": "任务 ID",
+      "created": "创建时间"
+    },
+    "detail": {
+      "loading": "正在加载任务……",
+      "backToProject": "返回项目",
+      "lookupFailed": "任务查询失败。",
+      "breadcrumbProjects": "项目",
+      "breadcrumbProject": "项目",
+      "breadcrumbTasks": "任务",
+      "closeInfo": "关闭信息",
+      "descriptionAria": "任务描述",
+      "noDescription": "暂无描述。",
+      "plan": "计划",
+      "stuck": "卡住：{{reason}}"
+    }
+  },
+  "widgets": {
+    "taskTitleLink": {
+      "openInNewTab": "在新标签页中打开任务"
+    },
+    "entityRef": {
+      "deleted": "(已删除)"
+    },
+    "entitySelect": {
+      "placeholder": "请选择…",
+      "searchPlaceholder": "搜索…",
+      "empty": "无匹配项。",
+      "searchAriaLabel": "搜索"
+    },
+    "entityMultiSelect": {
+      "placeholder": "请选择…",
+      "searchPlaceholder": "搜索…",
+      "empty": "无匹配项。",
+      "searchAriaLabel": "搜索",
+      "removeChip": "移除 {{label}}"
+    },
+    "collapsible": {
+      "showMore": "展开更多",
+      "showLess": "收起"
+    },
+    "carryOver": {
+      "from": "来自",
+      "discussionBelow": "以下为讨论"
+    },
+    "followToggle": {
+      "follow": "关注",
+      "following": "已关注",
+      "followAria": "关注此会话",
+      "unfollowAria": "取消关注此会话"
+    },
+    "attachments": {
+      "title": "附件",
+      "upload": "上传",
+      "uploading": "上传中…",
+      "loading": "正在加载附件…",
+      "loadError": "加载附件失败。",
+      "empty": "暂无附件。"
+    }
+  },
+  "workItem": {
+    "title": {
+      "issues": "议题",
+      "tasks": "任务"
+    },
+    "titleLower": {
+      "issues": "议题",
+      "tasks": "任务"
+    },
+    "new": "+ 新建{{type}}",
+    "loading": "正在加载{{items}}…",
+    "empty": {
+      "default": "暂无未关闭的{{items}}。",
+      "filtered": "没有匹配的{{items}}。"
+    },
+    "col": {
+      "id": "ID",
+      "project": "项目",
+      "title": "标题",
+      "status": "状态",
+      "assignedTo": "负责人",
+      "created": "创建时间",
+      "creator": "创建者",
+      "updated": "更新时间"
+    },
+    "archived": "（已归档）",
+    "by": "由 {{name}}",
+    "meta": {
+      "heading": "{{type}} · 元数据",
+      "closeAria": "关闭元数据面板",
+      "close": "关闭",
+      "status": "状态",
+      "assignee": "负责人",
+      "project": "项目",
+      "id": "ID",
+      "created": "创建时间",
+      "updated": "更新时间",
+      "conversation": "讨论",
+      "openDiscussion": "打开{{type}}讨论"
+    },
+    "create": {
+      "title": "新建{{type}}",
+      "close": "关闭",
+      "closeGlyph": "X",
+      "project": "项目",
+      "selectProject": "选择一个项目…",
+      "hint": "请选择要在其中创建该 {{kind}} 的项目（议题/任务均归属于项目）。"
+    },
+    "mobile": {
+      "actions": "操作",
+      "hideInfo": "隐藏信息",
+      "showInfo": "显示信息",
+      "editTask": "编辑任务",
+      "editIssue": "编辑议题",
+      "project": "项目",
+      "taskId": "任务 ID",
+      "issueId": "议题 ID",
+      "created": "创建时间",
+      "tags": "标签",
+      "noTags": "无标签"
+    }
+  },
+  "filter": {
+    "title": "筛选",
+    "clear": "清除筛选",
+    "status": {
+      "label": "状态"
+    },
+    "project": {
+      "label": "项目",
+      "all": "全部项目"
+    },
+    "assignee": {
+      "label": "负责人",
+      "any": "任意",
+      "kind": {
+        "user": "用户",
+        "agent": "智能体"
+      }
+    },
+    "date": {
+      "label": "日期范围",
+      "created": "创建",
+      "updated": "更新",
+      "createdAfter": "创建时间晚于",
+      "createdBefore": "创建时间早于",
+      "updatedAfter": "更新时间晚于",
+      "updatedBefore": "更新时间早于"
+    }
+  }
+}

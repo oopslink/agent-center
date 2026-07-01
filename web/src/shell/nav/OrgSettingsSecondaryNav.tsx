@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 
@@ -16,15 +17,16 @@ import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 // page reads the :section param and renders the matching panel in col③.
 // ============================================================================
 
-export const ORG_SETTINGS_SECTIONS: ReadonlyArray<{ slug: string; label: string }> = [
-  { slug: 'profile', label: 'Profile' },
-  { slug: 'humans', label: 'Humans' },
-  { slug: 'agents', label: 'Agents' },
-  { slug: 'invitations', label: 'Invitations' },
-  { slug: 'danger', label: 'Danger Zone' },
+export const ORG_SETTINGS_SECTIONS: ReadonlyArray<{ slug: string; label: string; labelKey: string }> = [
+  { slug: 'profile', label: 'Profile', labelKey: 'shell.orgSettings.profile' },
+  { slug: 'humans', label: 'Humans', labelKey: 'shell.orgSettings.humans' },
+  { slug: 'agents', label: 'Agents', labelKey: 'shell.orgSettings.agents' },
+  { slug: 'invitations', label: 'Invitations', labelKey: 'shell.orgSettings.invitations' },
+  { slug: 'danger', label: 'Danger Zone', labelKey: 'shell.orgSettings.danger' },
 ];
 
 export function OrgSettingsSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React.ReactElement {
+  const { t } = useTranslation('common');
   return (
     <ul className="space-y-0.5" data-testid="org-settings-secondary-nav">
       {ORG_SETTINGS_SECTIONS.map((s) => (
@@ -39,7 +41,7 @@ export function OrgSettingsSecondaryNav({ orgBase }: ModuleSecondaryNavProps): R
             }
             data-testid={`org-settings-nav-${s.slug}`}
           >
-            {s.label}
+            {t(s.labelKey)}
           </NavLink>
         </li>
       ))}

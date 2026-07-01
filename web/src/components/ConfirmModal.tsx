@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useModalA11y } from './useModalA11y';
 
 interface ConfirmModalProps {
@@ -25,13 +26,14 @@ export function ConfirmModal({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   danger = false,
   busy = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps): React.ReactElement | null {
+  const { t } = useTranslation('common');
   const containerRef = useModalA11y({ open, onClose: onCancel });
   if (!open) return null;
 
@@ -64,7 +66,7 @@ export function ConfirmModal({
             className="rounded px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle disabled:opacity-50"
             data-testid="confirm-modal-cancel"
           >
-            {cancelLabel}
+            {cancelLabel ?? t('confirmModal.cancel')}
           </button>
           <button
             type="button"
@@ -77,7 +79,7 @@ export function ConfirmModal({
             }
             data-testid="confirm-modal-confirm"
           >
-            {confirmLabel}
+            {confirmLabel ?? t('confirmModal.confirm')}
           </button>
         </div>
       </div>

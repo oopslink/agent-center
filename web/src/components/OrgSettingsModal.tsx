@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useOrgs, orgApi } from '@/api/auth';
 import { ApiError } from '@/api/client';
 
-function validateSlug(v: string): string {
-  if (v.length < 3) return 'Slug must be at least 3 characters';
-  if (v.length > 40) return 'Slug must be at most 40 characters';
-  if (!/^[a-z0-9-]+$/.test(v)) return 'Slug may only contain [a-z0-9-]';
-  if (/^-|-$/.test(v)) return 'Slug cannot start or end with a hyphen';
+function validateSlug(v: string, t: (key: string) => string): string {
+  if (v.length < 3) return t('orgSettings.modal.slugTooShort');
+  if (v.length > 40) return t('orgSettings.modal.slugTooLong');
+  if (!/^[a-z0-9-]+$/.test(v)) return t('orgSettings.modal.slugInvalidChars');
+  if (/^-|-$/.test(v)) return t('orgSettings.modal.slugHyphenEdge');
   return '';
 }
 
@@ -23,6 +24,7 @@ export function OrgSettingsModal({
   orgId: string;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('admin');
   const orgs = useOrgs();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -61,7 +63,7 @@ export function OrgSettingsModal({
     onSuccess: () => {
       const slugChanged = org && slug !== org.slug;
       qc.invalidateQueries({ queryKey: ['orgs'] });
-      setSuccess('Organization info updated');
+      setSuccess(t('orgSettings.modal.updateSuccess'));
       setError('');
       setTimeout(() => setSuccess(''), 3000);
       // Slug change moves the org's URL — navigate to its new root.
@@ -72,7 +74,7 @@ export function OrgSettingsModal({
     },
     onError: (err) => {
       if (err instanceof ApiError) setError(err.message);
-      else setError('Update failed');
+      else setError(t('orgSettings.modal.updateError'));
     },
   });
 
@@ -86,7 +88,7 @@ export function OrgSettingsModal({
     },
     onError: (err) => {
       if (err instanceof ApiError) setError(err.message);
-      else setError('Delete failed, please try again');
+      else setError(t('orgSettings.modal.deleteError'));
     },
   });
 
@@ -94,10 +96,10 @@ export function OrgSettingsModal({
     e.preventDefault();
     setError('');
     if (org && slug !== org.slug) {
-      const slugErr = validateSlug(slug);
+      const slugErr = validateSlug(slug, t);
       if (slugErr) { setError(slugErr); return; }
     }
-    if (!name.trim()) { setError('Please enter an organization name'); return; }
+    if (!name.trim()) { setError(t('orgSettings.modal.nameRequired')); return; }
     save.mutate();
   };
 
@@ -113,12 +115,12 @@ export function OrgSettingsModal({
       <div className="w-full max-w-md rounded-xl bg-bg-elevated border border-border p-6 shadow-[var(--shadow-3)] space-y-5">
         <div className="flex items-center justify-between">
           <h2 id="org-settings-title" className="text-base font-semibold text-text-primary">
-            Organization Settings
+            {t('orgSettings.modal.title')}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('orgSettings.modal.close')}
             className="text-text-muted hover:text-text-primary"
             data-testid="org-settings-cancel"
           >
@@ -137,16 +139,16 @@ export function OrgSettingsModal({
           </div>
         )}
 
-        {orgs.isLoading && !org && <p className="text-sm text-text-muted">Loading…</p>}
+        {orgs.isLoading && !org && <p className="text-sm text-text-muted">{t('orgSettings.modal.loading')}</p>}
         {!orgs.isLoading && !org && (
-          <p className="text-sm text-text-muted" data-testid="org-settings-missing">Organization not found.</p>
+          <p className="text-sm text-text-muted" data-testid="org-settings-missing">{t('orgSettings.modal.notFound')}</p>
         )}
 
         {org && (
           <>
             <form onSubmit={handleSave} noValidate className="space-y-3">
               <div className="space-y-1">
-                <label htmlFor="org-settings-name-input" className="block text-xs text-text-muted">Name</label>
+                <label htmlFor="org-settings-name-input" className="block text-xs text-text-muted">{t('orgSettings.modal.nameLabel')}</label>
                 <input
                   id="org-settings-name-input"
                   data-testid="org-settings-name"
@@ -158,7 +160,7 @@ export function OrgSettingsModal({
                 />
               </div>
               <div className="space-y-1">
-                <label htmlFor="org-settings-slug-input" className="block text-xs text-text-muted">Slug (changing this changes the URL)</label>
+                <label htmlFor="org-settings-slug-input" className="block text-xs text-text-muted">{t('orgSettings.modal.slugLabel')}</label>
                 <input
                   id="org-settings-slug-input"
                   data-testid="org-settings-slug"
@@ -170,7 +172,7 @@ export function OrgSettingsModal({
                 />
               </div>
               <div className="space-y-1">
-                <label htmlFor="org-settings-desc-input" className="block text-xs text-text-muted">Description</label>
+                <label htmlFor="org-settings-desc-input" className="block text-xs text-text-muted">{t('orgSettings.modal.descriptionLabel')}</label>
                 <textarea
                   id="org-settings-desc-input"
                   data-testid="org-settings-description"
@@ -187,13 +189,13 @@ export function OrgSettingsModal({
                   data-testid="org-settings-save"
                   className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
                 >
-                  {save.isPending ? 'Saving…' : 'Save'}
+                  {save.isPending ? t('orgSettings.modal.saving') : t('orgSettings.modal.save')}
                 </button>
               </div>
             </form>
 
             <div className="border-t border-border pt-4">
-              <h3 className="text-sm font-semibold text-danger mb-2">Danger Zone</h3>
+              <h3 className="text-sm font-semibold text-danger mb-2">{t('orgSettings.modal.dangerZone')}</h3>
               {!deleteConfirm ? (
                 <button
                   type="button"
@@ -201,12 +203,12 @@ export function OrgSettingsModal({
                   data-testid="org-settings-delete"
                   className="rounded border border-danger/50 px-4 py-1.5 text-sm text-danger hover:bg-danger/10"
                 >
-                  Delete Organization
+                  {t('orgSettings.modal.deleteOrganization')}
                 </button>
               ) : (
                 <div className="space-y-2" data-testid="org-settings-delete-confirm">
                   <p className="text-sm text-text-secondary">
-                    Delete <strong>{org.name}</strong>? This cannot be undone, and you must be an owner.
+                    {t('orgSettings.modal.deleteConfirmPrefix')}<strong>{org.name}</strong>{t('orgSettings.modal.deleteConfirmSuffix')}
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -214,7 +216,7 @@ export function OrgSettingsModal({
                       onClick={() => { setDeleteConfirm(false); setError(''); }}
                       className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
                     >
-                      Cancel
+                      {t('orgSettings.modal.cancel')}
                     </button>
                     <button
                       type="button"
@@ -223,7 +225,7 @@ export function OrgSettingsModal({
                       data-testid="org-settings-delete-confirm-button"
                       className="rounded bg-danger px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                     >
-                      {deleteOrg.isPending ? 'Deleting…' : 'Confirm delete'}
+                      {deleteOrg.isPending ? t('orgSettings.modal.deleting') : t('orgSettings.modal.confirmDelete')}
                     </button>
                   </div>
                 </div>

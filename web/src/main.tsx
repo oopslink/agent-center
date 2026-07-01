@@ -5,10 +5,17 @@ import './index.css';
 import { App } from './App';
 import { ErrorBoundary } from './ErrorBoundary';
 import { applyInitialTheme } from './theme';
+import { applyInitialLang } from './i18n/lang';
+// Side-effect import: initialise i18next (registers namespaces) before any
+// component calls useTranslation(). The detector reads `ac.lang`, which
+// applyInitialLang() has already reflected onto <html lang>.
+import './i18n';
 
-// Apply the persisted theme before React mounts so the first paint
-// matches user preference — no FOUC on dark-mode reload.
+// Apply the persisted theme + language before React mounts so the first paint
+// matches user preference — no FOUC on dark-mode reload and no flash of
+// fallback copy on a zh reload.
 applyInitialTheme();
+applyInitialLang();
 
 // QueryClient lives at module scope (per F4 oversight #2) so HMR + tests
 // can swap App without losing cached queries.

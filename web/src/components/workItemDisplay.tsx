@@ -1,4 +1,6 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 
 // Shared display helpers for issue/task rows — used by the per-project tables
 // (#242 ProjectDetail) and the org-scope aggregation pages (#258). Extracted so
@@ -50,6 +52,7 @@ export function statusDotClass(status: string): string {
 }
 
 export function StatusChip({ status }: { status: string }): React.ReactElement {
+  const { t } = useTranslation('work');
   const cls = statusSolidClass(status);
   return (
     <span
@@ -57,7 +60,7 @@ export function StatusChip({ status }: { status: string }): React.ReactElement {
       data-testid="status-chip"
       data-status={status}
     >
-      {status.replace(/_/g, ' ')}
+      {t(`status.${status}`, { defaultValue: status.replace(/_/g, ' ') })}
     </span>
   );
 }
@@ -108,6 +111,6 @@ export function shortDate(iso: string): string {
   if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  if (d.toDateString() === yesterday.toDateString()) return i18n.t('work:shared.yesterday');
   return d.toLocaleDateString();
 }

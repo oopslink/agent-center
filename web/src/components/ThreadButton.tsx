@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   /** Direct reply count on this message's thread; 0/undefined → no count chip. */
@@ -18,10 +19,11 @@ interface Props {
 // treatment (bg-bg-subtle + text-text-secondary, AA in both modes); the activity
 // dot is a solid bg-accent disc (non-text ≥3:1 against the elevated surface).
 export function ThreadButton({ replyCount = 0, hasActivity = false, onClick }: Props): React.ReactElement {
+  const { t } = useTranslation('chat');
   const hasReplies = replyCount > 0;
   const label = hasReplies
-    ? `Open thread — ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`
-    : 'Reply in thread';
+    ? t('panels.threadButton.openThread', { count: replyCount })
+    : t('panels.threadButton.replyInThread');
   return (
     <button
       type="button"

@@ -1,4 +1,5 @@
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
 import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
 import { useCreatorLabel } from '@/api/members';
@@ -77,7 +78,12 @@ export function OrgWorkItemsView({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }): React.ReactElement {
-  const title = kind === 'issue' ? 'Issues' : 'Tasks';
+  const { t } = useTranslation('work');
+  // Stable, English token used ONLY to build the `page-Org…` testid (NOT shown).
+  const titleToken = kind === 'issue' ? 'Issues' : 'Tasks';
+  // Localised display title + lowercased variant for the empty/loading copy.
+  const title = kind === 'issue' ? t('workItem.title.issues') : t('workItem.title.tasks');
+  const titleLower = kind === 'issue' ? t('workItem.titleLower.issues') : t('workItem.titleLower.tasks');
   const seg = kind === 'issue' ? 'issues' : 'tasks';
   // Owner ask: surface the creator's NAME (agent / human), not the raw id.
   const creatorLabel = useCreatorLabel();
@@ -91,7 +97,7 @@ export function OrgWorkItemsView({
     selectedStatuses.length === 0 && selectedProjects.length === 0 && assignee === '' && !anyDateSet;
 
   return (
-    <section className="space-y-4" data-testid={`page-Org${title}`}>
+    <section className="space-y-4" data-testid={`page-Org${titleToken}`}>
       <header className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-semibold text-text-primary">{title}</h1>
@@ -101,7 +107,7 @@ export function OrgWorkItemsView({
             onClick={onCreate}
             className="rounded bg-brand px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-hover"
           >
-            + New {kind === 'issue' ? 'Issue' : 'Task'}
+            {t('workItem.new', { type: kind === 'issue' ? t('type.issue') : t('type.task') })}
           </button>
         </div>
         {/* FilterBar — the shared status / project / assignee / date-range control
@@ -121,14 +127,14 @@ export function OrgWorkItemsView({
       </header>
 
       {query.isLoading && (
-        <p className="text-xs text-text-muted" data-testid="org-workitems-loading">Loading {title.toLowerCase()}…</p>
+        <p className="text-xs text-text-muted" data-testid="org-workitems-loading">{t('workItem.loading', { items: titleLower })}</p>
       )}
       {query.isError && (
         <p className="text-xs text-danger" data-testid="org-workitems-error">{(query.error as Error).message}</p>
       )}
       {query.data && items.length === 0 && (
         <p className="text-xs text-text-muted" data-testid="org-workitems-empty">
-          {defaultView ? `No open ${title.toLowerCase()}.` : `No matching ${title.toLowerCase()}.`}
+          {defaultView ? t('workItem.empty.default', { items: titleLower }) : t('workItem.empty.filtered', { items: titleLower })}
         </p>
       )}
 
@@ -140,14 +146,14 @@ export function OrgWorkItemsView({
           <table className="w-full text-left text-xs" data-testid="org-workitems-table">
             <thead>
               <tr className="border-b border-border-base text-[0.625rem] uppercase tracking-wide text-text-muted">
-                <SortHeader label="ID" sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 pr-3 font-medium">Project</th>
-                <SortHeader label="Title" sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <SortHeader label="Status" sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 pr-3 font-medium">Assigned to</th>
-                <SortHeader label="Created" sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
-                <th className="py-1.5 pr-3 font-medium">Creator</th>
-                <SortHeader label="Updated" sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
+                <SortHeader label={t('workItem.col.id')} sortKey="org_ref" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('workItem.col.project')}</th>
+                <SortHeader label={t('workItem.col.title')} sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <SortHeader label={t('workItem.col.status')} sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('workItem.col.assignedTo')}</th>
+                <SortHeader label={t('workItem.col.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('workItem.col.creator')}</th>
+                <SortHeader label={t('workItem.col.updated')} sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border-base">
@@ -207,7 +213,7 @@ export function OrgWorkItemsView({
                             className="ml-1 text-xs italic text-text-muted"
                             data-testid="org-workitem-assignee-archived"
                           >
-                            (archived)
+                            {t('workItem.archived')}
                           </span>
                         )}
                       </span>
@@ -286,13 +292,13 @@ export function OrgWorkItemsView({
                       <span className="truncate" title={it.assignee.member_id}>
                         {it.assignee.display_name}
                         {it.assignee.assignee_lifecycle === 'archived' && (
-                          <span className="ml-1 italic text-text-muted">(archived)</span>
+                          <span className="ml-1 italic text-text-muted">{t('workItem.archived')}</span>
                         )}
                       </span>
                     )}
                     {it.creator_ref && (
                       <span className="truncate" title={it.creator_ref}>
-                        by {creatorLabel(it.creator_ref)}
+                        {t('workItem.by', { name: creatorLabel(it.creator_ref) })}
                       </span>
                     )}
                     <span className="ml-auto tabular-nums" title={it.updated_at}>
@@ -358,19 +364,20 @@ function WorkItemMetaPanel({
   seg: string;
   onClose: () => void;
 }): React.ReactElement {
-  const label = kind === 'issue' ? 'Issue' : 'Task';
+  const { t } = useTranslation('work');
+  const label = kind === 'issue' ? t('type.issue') : t('type.task');
   return (
     <div className="flex flex-col" data-testid="org-workitem-meta-panel" data-id={item.id}>
       <div className="flex items-center justify-between px-4 pb-1 pt-3.5">
         <h2 className="text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">
-          {label} · metadata
+          {t('workItem.meta.heading', { type: label })}
         </h2>
         <button
           type="button"
           onClick={onClose}
           data-testid="org-workitem-meta-close"
-          aria-label="Close metadata panel"
-          title="Close"
+          aria-label={t('workItem.meta.closeAria')}
+          title={t('workItem.meta.close')}
           className="inline-flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary"
         >
           <span aria-hidden="true">&times;</span>
@@ -378,32 +385,32 @@ function WorkItemMetaPanel({
       </div>
 
       <div className="border-b border-border-base px-4 pb-2.5">
-        <MetaKV k="Status"><StatusChip status={item.status} /></MetaKV>
-        <MetaKV k="Assignee">
+        <MetaKV k={t('workItem.meta.status')}><StatusChip status={item.status} /></MetaKV>
+        <MetaKV k={t('workItem.meta.assignee')}>
           {item.assignee ? (
             <span title={item.assignee.member_id}>
               {item.assignee.display_name}
               {item.assignee.assignee_lifecycle === 'archived' && (
-                <span className="ml-1 italic text-text-muted">(archived)</span>
+                <span className="ml-1 italic text-text-muted">{t('workItem.archived')}</span>
               )}
             </span>
           ) : (
             <span className="text-text-muted">—</span>
           )}
         </MetaKV>
-        <MetaKV k="Project">{item.project.name}</MetaKV>
+        <MetaKV k={t('workItem.meta.project')}>{item.project.name}</MetaKV>
       </div>
 
       <div className="border-b border-border-base px-4 pb-2.5 pt-1.5">
-        <MetaKV k="ID">
+        <MetaKV k={t('workItem.meta.id')}>
           <span className="font-mono text-[0.6875rem]">{refLabel(item.org_ref, item.id)}</span>
         </MetaKV>
-        <MetaKV k="Created"><span className="tabular-nums">{shortDate(item.created_at)}</span></MetaKV>
-        <MetaKV k="Updated"><span className="tabular-nums">{shortDate(item.updated_at)}</span></MetaKV>
+        <MetaKV k={t('workItem.meta.created')}><span className="tabular-nums">{shortDate(item.created_at)}</span></MetaKV>
+        <MetaKV k={t('workItem.meta.updated')}><span className="tabular-nums">{shortDate(item.updated_at)}</span></MetaKV>
       </div>
 
       <h2 className="px-4 pb-1 pt-3 text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">
-        Conversation
+        {t('workItem.meta.conversation')}
       </h2>
       <div className="px-4 pb-3">
         <OrgLink
@@ -412,7 +419,7 @@ function WorkItemMetaPanel({
           className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
         >
           <span aria-hidden="true">↗</span>
-          Open {label} discussion
+          {t('workItem.meta.openDiscussion', { type: label })}
         </OrgLink>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useId } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useModalA11y } from '@/components/useModalA11y';
 
 // ============================================================================
@@ -42,6 +43,7 @@ export function BottomSheet({
 }: BottomSheetProps): React.ReactElement | null {
   const containerRef = useModalA11y({ open, onClose });
   const titleId = useId();
+  const { t } = useTranslation('common');
   if (!open) return null;
 
   return (
@@ -49,7 +51,7 @@ export function BottomSheet({
       {/* Scrim — tap to dismiss. Not a focus stop (the trap lives in the sheet). */}
       <button
         type="button"
-        aria-label="Close"
+        aria-label={t('shell.bottomSheet.close')}
         tabIndex={-1}
         onClick={onClose}
         data-testid="bottom-sheet-scrim"

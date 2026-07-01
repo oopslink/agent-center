@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { OrgLink } from '@/OrgContext';
 import { useBoardTouchDrag } from './useBoardTouchDrag';
@@ -54,6 +55,7 @@ function rotateHintDismissed(): boolean {
   }
 }
 function RotateForBoardHint(): React.ReactElement | null {
+  const { t } = useTranslation('work');
   const [portrait, setPortrait] = useState(false);
   const [dismissed, setDismissed] = useState(rotateHintDismissed);
   useEffect(() => {
@@ -71,10 +73,10 @@ function RotateForBoardHint(): React.ReactElement | null {
       role="status"
       data-testid="workboard-rotate-hint"
     >
-      <span>↻ Rotate to landscape for a better Work Board view.</span>
+      <span>{t('plan.board.rotateHint')}</span>
       <button
         type="button"
-        aria-label="Dismiss rotate hint"
+        aria-label={t('plan.board.rotateDismiss')}
         data-testid="workboard-rotate-dismiss"
         className="-mr-1 shrink-0 rounded px-1.5 py-0.5 font-semibold hover:bg-status-blue-border/40"
         onClick={() => {
@@ -102,6 +104,7 @@ function RotateForBoardHint(): React.ReactElement | null {
 //
 // Refactored FROM the #286 Plan-card list into this board.
 export default function ProjectPlans(): React.ReactElement {
+  const { t } = useTranslation('work');
   const { id = '' } = useParams<{ id: string }>();
   const project = useProject(id);
   const plans = usePlans(id);
@@ -123,9 +126,9 @@ export default function ProjectPlans(): React.ReactElement {
     <section className="space-y-4" data-testid="page-ProjectPlans" data-project-id={id}>
       <Breadcrumb
         items={[
-          { label: 'Projects', to: '/projects' },
+          { label: t('plan.board.breadcrumb.projects'), to: '/projects' },
           { label: projectName, to: `/projects/${encodeURIComponent(id)}` },
-          { label: 'Work Board' },
+          { label: t('plan.board.breadcrumb.workBoard') },
         ]}
       />
       <header className="flex flex-wrap items-center justify-between gap-2">
@@ -135,10 +138,10 @@ export default function ProjectPlans(): React.ReactElement {
               col② project sub-nav already provides the in-project navigation. */}
           <h1 className="font-heading text-2xl font-semibold text-text-primary">
             <span data-testid="workboard-project-name">{projectName}</span>
-            <span className="text-text-muted"> · Work Board</span>
+            <span className="text-text-muted">{t('plan.board.titleSuffix')}</span>
           </h1>
           <p className="mt-0.5 text-xs text-text-muted">
-            Three segments · Backlog (unscheduled) · Assignment Pool (claimable) · structured Plans.
+            {t('plan.board.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -150,7 +153,7 @@ export default function ProjectPlans(): React.ReactElement {
             onClick={() => setTaskCreateOpen(true)}
             data-testid="task-create-btn"
           >
-            + New Task
+            {t('plan.board.newTask')}
           </button>
           <button
             type="button"
@@ -158,7 +161,7 @@ export default function ProjectPlans(): React.ReactElement {
             onClick={() => setCreateOpen(true)}
             data-testid="plan-create-btn"
           >
-            + New Plan
+            {t('plan.board.newPlan')}
           </button>
         </div>
       </header>
@@ -188,7 +191,7 @@ export default function ProjectPlans(): React.ReactElement {
       <button
         type="button"
         onClick={() => setCreateOpen(true)}
-        aria-label="New plan"
+        aria-label={t('plan.board.newPlanAria')}
         data-testid="workboard-fab"
         className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-2 hover:bg-brand-hover md:hidden"
       >
@@ -266,6 +269,7 @@ function Board({
   setDragSource: (s: DragSource | null) => void;
   onNewPlan: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   // v2.10.1 [M5] touch drag: the any-plan mutations let a touch drop run the same
   // SELECT / MOVE / REMOVE the HTML5 handlers do, decided by the pure decideDrop.
   // dragSource is set on pickup so the columns' data-droppable validity (and thus
@@ -297,7 +301,7 @@ function Board({
   // surface the #218 friendly ErrorState. The Backlog has its own inline state.
   if (plans.isError) {
     return (
-      <ErrorState message="Couldn't load the work board." error={plans.error} testId="board-error" />
+      <ErrorState message={t('plan.board.loadError')} error={plans.error} testId="board-error" />
     );
   }
   if (plans.isLoading) {
@@ -332,7 +336,7 @@ function Board({
         className="flex snap-x snap-mandatory items-start gap-3 overflow-x-auto pb-2 md:snap-none"
         data-testid="work-board"
         role="list"
-        aria-label="Work board"
+        aria-label={t('plan.board.boardAria')}
       >
         <BacklogColumn
           projectId={projectId}
@@ -390,17 +394,17 @@ function isLiveTaskStatus(status: string | undefined): boolean {
 // plan can't be dragged out of or dropped into. Only a DRAFT plan's task-set is
 // editable; the always-running built-in pool is the deliberate exception and never
 // renders as a locked column. Archived plans are excluded from the board entirely.
-function planLockReason(status: string): string {
+function planLockReason(status: string, t: (key: string) => string): string {
   if (status === 'running') {
-    return "This plan is running — its tasks can't be moved to or from another plan. Stop the plan to re-plan.";
+    return t('plan.board.lock.running');
   }
   if (status === 'done') {
-    return 'This plan is completed — its task assignments are locked.';
+    return t('plan.board.lock.done');
   }
   if (status === 'archived') {
-    return 'This plan is archived — its task assignments are locked.';
+    return t('plan.board.lock.archived');
   }
-  return 'This plan’s task assignments are locked.';
+  return t('plan.board.lock.default');
 }
 
 // columnBase — the shared .col look (fixed ~236px, solid subtle bg, border).
@@ -427,6 +431,7 @@ function BacklogColumn({
   dragSource: DragSource | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   // ADR-0047: HIDE completed/discarded in the Backlog by default (live capacity
   // only). The BE `?unplanned=1` may already exclude them; the FE filter is the
   // belt-and-braces guard so a degraded payload never leaks terminal work.
@@ -480,19 +485,19 @@ function BacklogColumn({
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-sm font-bold text-text-primary">
             <BacklogIcon />
-            Backlog
+            {t('plan.board.backlog.title')}
           </span>
           <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="backlog-count">
             {tasks.length}
           </span>
         </div>
         <p className="mt-0.5 text-[0.625rem] leading-tight text-text-muted" data-testid="backlog-subtitle">
-          Unscheduled — not claimable
+          {t('plan.board.backlog.subtitle')}
         </p>
       </div>
       {backlog.isError ? (
         <ErrorState
-          message="Couldn't load the backlog."
+          message={t('plan.board.backlog.loadError')}
           error={backlog.error}
           testId="backlog-error"
         />
@@ -500,7 +505,7 @@ function BacklogColumn({
         <Skeleton height="3rem" />
       ) : tasks.length === 0 ? (
         <p className="py-4 text-center text-[0.6875rem] text-text-muted" data-testid="backlog-empty">
-          No unplanned tasks. Every task is in a plan.
+          {t('plan.board.backlog.empty')}
         </p>
       ) : (
         tasks.map((task) => (
@@ -534,6 +539,7 @@ function BacklogCard({
   builtinPool: Plan | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [menuOpen, setMenuOpen] = useState(false);
   // v2.10.1 [M5]: touch long-press starts a drag (mouse keeps native HTML5 DnD).
   const startLongPress = useContext(BoardTouchDragContext);
@@ -568,7 +574,7 @@ function BacklogCard({
           aria-expanded={menuOpen}
           data-testid={`backlog-add-${task.id}`}
         >
-          Add to plan
+          {t('plan.board.addToPlan')}
           <ChevronDownIcon />
         </button>
         {menuOpen && (
@@ -601,6 +607,7 @@ function AddToPlanMenu({
   builtinPool: Plan | null;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const noTargets = draftPlans.length === 0 && !builtinPool;
   return (
     <div
@@ -613,7 +620,7 @@ function AddToPlanMenu({
     >
       {noTargets ? (
         <p className="px-2 py-1.5 text-[0.6875rem] text-text-muted" data-testid="add-menu-empty">
-          No draft plan or pool. Create a plan to schedule this task.
+          {t('plan.board.addMenu.empty')}
         </p>
       ) : (
         <>
@@ -623,7 +630,7 @@ function AddToPlanMenu({
             <AddToPlanItem
               projectId={projectId}
               planId={builtinPool.id}
-              planName="Assignment Pool"
+              planName={t('plan.board.assignmentPool')}
               taskId={taskId}
               onDone={onClose}
             />
@@ -692,12 +699,13 @@ function ClaimableChip({
   claimable: boolean | undefined;
   taskId: string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('work');
   if (!claimable) return null;
   return (
     <span
       className="inline-flex items-center gap-1 rounded bg-status-emerald-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-emerald-fg"
       data-testid={`claimable-chip-${taskId}`}
-      title="Claimable now — assigned & dispatched (pull, no-wake)."
+      title={t('plan.board.claimable.title')}
     >
       {/* hand / pull glyph */}
       <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
@@ -705,7 +713,7 @@ function ClaimableChip({
         <path d="M9 11V5a2 2 0 0 1 4 0v6" />
         <path d="M13 11V6a2 2 0 0 1 4 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3" />
       </svg>
-      Claimable
+      {t('plan.board.claimable.label')}
     </span>
   );
 }
@@ -723,18 +731,19 @@ function StarvedBadge({
   starved: boolean | undefined;
   taskId: string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('work');
   if (!starved) return null;
   return (
     <span
       className="inline-flex items-center gap-1 rounded bg-status-amber-bg px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-status-amber-fg"
       data-testid={`starved-badge-${taskId}`}
-      title="Waiting for a qualified agent — no eligible online agent covers this task's required capabilities."
+      title={t('plan.board.starved.title')}
     >
       {/* hourglass / waiting glyph */}
       <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
         <path d="M6 3h12M6 21h12M8 3v4l4 4 4-4V3M8 21v-4l4-4 4 4v4" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      Waiting for agent
+      {t('plan.board.starved.label')}
     </span>
   );
 }
@@ -760,6 +769,7 @@ function BuiltinPoolColumn({
   dragSource: DragSource | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const add = useAddTaskToPlan(projectId, plan.id);
   // T121: a MOVE-in (another draft plan → pool) removes from the source plan then
   // adds to the pool; the source plan is only known at drop time → any-plan hooks.
@@ -832,19 +842,19 @@ function BuiltinPoolColumn({
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-sm font-bold text-text-primary">
             <PoolIcon />
-            Assignment Pool
+            {t('plan.board.assignmentPool')}
           </span>
           <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="builtin-pool-count">
             {shown.length}
           </span>
         </div>
         <p className="mt-0.5 text-[0.625rem] leading-tight text-text-muted" data-testid="builtin-pool-subtitle">
-          Built-in · always running · claimable
+          {t('plan.board.pool.subtitle')}
         </p>
       </div>
       {shown.length === 0 ? (
         <p className="py-3 text-center text-[0.6875rem] text-text-muted" data-testid="builtin-pool-empty">
-          No claimable tasks yet.
+          {t('plan.board.pool.empty')}
         </p>
       ) : (
         // task-0543ece9: all live pool nodes in a bounded scroll area (no cap).
@@ -862,7 +872,7 @@ function BuiltinPoolColumn({
       )}
       {overflow > 0 && (
         <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`pool-overflow-${plan.id}`}>
-          …and {overflow} more
+          {t('plan.board.overflow', { count: overflow })}
         </p>
       )}
     </div>
@@ -971,6 +981,7 @@ function PlanColumn({
   dragSource: DragSource | null;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const add = useAddTaskToPlan(projectId, plan.id);
   // A7: cross-column MOVE needs to remove from the SOURCE plan + add to THIS
   // plan; the source plan is only known at drop time → the any-plan variants.
@@ -1044,7 +1055,7 @@ function PlanColumn({
       data-locked={locked ? 'true' : 'false'}
       // T121: hovering a locked column (always) / dragging over it explains why it
       // won't accept tasks — the reason tooltip the owner asked for.
-      title={locked ? planLockReason(plan.status) : undefined}
+      title={locked ? planLockReason(plan.status, t) : undefined}
       role="listitem"
       onDragOver={(e) => {
         if (!canDrop) return; // don't allow drop on a running/done column.
@@ -1064,7 +1075,7 @@ function PlanColumn({
           role="status"
         >
           <LockIcon />
-          {planLockReason(plan.status)}
+          {planLockReason(plan.status, t)}
         </p>
       )}
       <div className="flex items-start justify-between gap-1.5 px-0.5">
@@ -1087,8 +1098,8 @@ function PlanColumn({
             <span
               className="inline-flex items-center text-text-muted"
               data-testid={`plan-locked-${plan.id}`}
-              title={planLockReason(plan.status)}
-              aria-label={planLockReason(plan.status)}
+              title={planLockReason(plan.status, t)}
+              aria-label={planLockReason(plan.status, t)}
             >
               <LockIcon />
             </span>
@@ -1097,7 +1108,7 @@ function PlanColumn({
       </div>
       <div className="flex items-center gap-1.5 px-0.5 pb-2 pt-0.5">
         <span className="tabular-nums text-[0.6875rem] text-text-muted" data-testid="plan-progress">
-          {plan.status === 'draft' ? 'Planning' : 'In progress'} · {planProgressLabel(progress)}
+          {plan.status === 'draft' ? t('plan.board.phase.planning') : t('plan.board.phase.inProgress')} · {planProgressLabel(progress)}
         </span>
         {/* P2-4: a running plan self-progresses (auto-advance). Compact suffix. */}
         {plan.status === 'running' && <AutoAdvancingIndicator variant="column" />}
@@ -1105,7 +1116,7 @@ function PlanColumn({
       </div>
       {shown.length === 0 ? (
         <p className="py-3 text-center text-[0.6875rem] text-text-muted" data-testid="plan-empty">
-          No tasks yet.
+          {t('plan.board.column.empty')}
         </p>
       ) : (
         // task-0543ece9: render EVERY node (backend no longer caps the preview) in
@@ -1125,7 +1136,7 @@ function PlanColumn({
               // A7: canRemove (= isDraft) ALSO gates drag — only draft-plan cards
               // are draggable (the source must be draft so MOVE/REMOVE is allowed).
               canRemove={isDraft}
-              lockReason={locked ? planLockReason(plan.status) : undefined}
+              lockReason={locked ? planLockReason(plan.status, t) : undefined}
               setDragSource={setDragSource}
             />
           ))}
@@ -1136,7 +1147,7 @@ function PlanColumn({
           partial payload (fewer preview nodes than node_count) still surfaces it. */}
       {overflow > 0 && (
         <p className="px-0.5 text-[0.6875rem] text-text-muted" data-testid={`plan-overflow-${plan.id}`}>
-          …and {overflow} more
+          {t('plan.board.overflow', { count: overflow })}
         </p>
       )}
     </div>
@@ -1167,6 +1178,7 @@ function PlanTaskCard({
   lockReason?: string;
   setDragSource: (s: DragSource | null) => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const remove = useRemoveTaskFromPlan(projectId, planId);
   // A7: a Plan-task card is draggable ONLY when its plan is draft (canRemove ==
   // isDraft) — moving it out runs RemoveTaskFromPlan on the source, which the
@@ -1219,8 +1231,8 @@ function PlanTaskCard({
             type="button"
             className="-mr-0.5 -mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle hover:text-text-primary disabled:opacity-50"
             disabled={remove.isPending}
-            aria-label={`Remove ${node.title} from plan`}
-            title="Remove from plan (back to backlog)"
+            aria-label={t('plan.board.removeTask.aria', { title: node.title })}
+            title={t('plan.board.removeTask.title')}
             data-testid={`plan-task-remove-${node.task_id}`}
             onClick={() => {
               // Direct remove (no confirm modal): removing from a Plan is
@@ -1258,7 +1270,7 @@ function PlanTaskCard({
           role="alert"
           data-testid={`plan-task-remove-error-${node.task_id}`}
         >
-          Couldn't remove this task from the plan. Please try again.
+          {t('plan.board.removeTask.error')}
         </p>
       )}
     </div>
@@ -1268,6 +1280,7 @@ function PlanTaskCard({
 // NewPlanColumn — the trailing dashed "New Plan" column (.newcol). Opens the
 // reused New-Plan modal → useCreatePlan (= a new column).
 function NewPlanColumn({ onClick }: { onClick: () => void }): React.ReactElement {
+  const { t } = useTranslation('work');
   return (
     <button
       type="button"
@@ -1276,8 +1289,8 @@ function NewPlanColumn({ onClick }: { onClick: () => void }): React.ReactElement
       data-testid="new-plan-column"
       role="listitem"
     >
-      + New Plan
-      <span className="text-[0.625rem] text-text-muted">(adds a column)</span>
+      {t('plan.board.newPlan')}
+      <span className="text-[0.625rem] text-text-muted">{t('plan.board.newPlanHint')}</span>
     </button>
   );
 }
@@ -1290,6 +1303,7 @@ function NewPlanColumn({ onClick }: { onClick: () => void }): React.ReactElement
 // resolve the ref. NO emoji. The resolver's internal useMembers() query is what
 // loads the org member directory into this page, so no extra load hook is needed.
 function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactElement {
+  const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
   if (!assignee) {
     return (
@@ -1297,7 +1311,7 @@ function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactE
         <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-bg-subtle text-[0.5rem] font-bold text-text-muted">
           ?
         </span>
-        Unassigned
+        {t('plan.board.unassigned')}
       </span>
     );
   }
@@ -1393,6 +1407,7 @@ export function PlanCreateModal({
   projectId: string;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [targetDate, setTargetDate] = useState('');
@@ -1422,12 +1437,12 @@ export function PlanCreateModal({
       data-testid="plan-create-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="New plan"
+      aria-label={t('plan.board.newPlanAria')}
     >
       <form onSubmit={submit} className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl">
-        <h2 className="mb-4 text-lg font-semibold">New Plan</h2>
+        <h2 className="mb-4 text-lg font-semibold">{t('plan.board.createModal.heading')}</h2>
         <label className="block text-xs font-medium" htmlFor="plan-name">
-          Name
+          {t('plan.board.createModal.name')}
         </label>
         <input
           id="plan-name"
@@ -1438,7 +1453,7 @@ export function PlanCreateModal({
           autoFocus
         />
         <label className="mt-3 block text-xs font-medium" htmlFor="plan-description">
-          Description
+          {t('plan.board.createModal.description')}
         </label>
         <textarea
           id="plan-description"
@@ -1449,7 +1464,7 @@ export function PlanCreateModal({
           data-testid="plan-create-description"
         />
         <label className="mt-3 block text-xs font-medium" htmlFor="plan-target-date">
-          Target date
+          {t('plan.board.createModal.targetDate')}
         </label>
         <input
           id="plan-target-date"
@@ -1471,7 +1486,7 @@ export function PlanCreateModal({
             className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
             onClick={onClose}
           >
-            Cancel
+            {t('plan.board.createModal.cancel')}
           </button>
           <button
             type="submit"
@@ -1479,7 +1494,7 @@ export function PlanCreateModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="plan-create-submit"
           >
-            {create.isPending ? 'Creating…' : 'Create Plan'}
+            {create.isPending ? t('plan.board.createModal.creating') : t('plan.board.createModal.submit')}
           </button>
         </div>
       </form>

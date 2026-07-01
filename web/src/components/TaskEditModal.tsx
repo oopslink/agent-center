@@ -3,6 +3,7 @@
 // (PATCH /projects/{pid}/tasks/{id} → pmBatchUpdateTaskHandler). Only the
 // changed (dirty) fields are sent; the backend applies all-or-none.
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAssignTask, useUpdateTask } from '@/api/tasks';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
 import type { MemberResult } from '@/api/members';
@@ -39,6 +40,7 @@ function memberRef(m: MemberResult): string {
 }
 
 export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const [title, setTitle] = useState(task.title ?? '');
   const [description, setDescription] = useState(task.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(task.status ?? 'open');
@@ -67,7 +69,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
       return;
     }
     if (runeLength(candidate) > MAX_TAG_RUNES) {
-      setTagError(`Tag too long (max ${MAX_TAG_RUNES})`);
+      setTagError(t('task.edit.tagTooLong', { max: MAX_TAG_RUNES }));
       return;
     }
     if (tags.includes(candidate)) {
@@ -77,7 +79,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
       return;
     }
     if (tags.length >= MAX_TAGS) {
-      setTagError(`Max ${MAX_TAGS} tags`);
+      setTagError(t('task.edit.tagMax', { count: MAX_TAGS }));
       return;
     }
     setTags([...tags, candidate]);
@@ -163,19 +165,19 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
       data-testid="task-edit-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Edit task"
+      aria-label={t('task.edit.dialogLabel')}
     >
       <form
         onSubmit={submit}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Edit Task</h2>
+          <h2 className="text-lg font-semibold">{t('task.edit.heading')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('task.edit.close')}
             data-testid="task-edit-close"
           >
             X
@@ -184,7 +186,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
 
         <div className="mb-3">
           <label htmlFor="task-edit-title" className="mb-1 block text-xs font-medium text-text-primary">
-            Title<span className="ml-1 text-danger">*</span>
+            {t('task.edit.titleLabel')}<span className="ml-1 text-danger">*</span>
           </label>
           <input
             id="task-edit-title"
@@ -200,7 +202,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
             htmlFor="task-edit-description"
             className="mb-1 block text-xs font-medium text-text-primary"
           >
-            Description
+            {t('task.edit.descriptionLabel')}
           </label>
           <textarea
             id="task-edit-description"
@@ -214,7 +216,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
 
         <div className="mb-3">
           <label htmlFor="task-edit-status" className="mb-1 block text-xs font-medium text-text-primary">
-            Status
+            {t('task.edit.statusLabel')}
           </label>
           <select
             id="task-edit-status"
@@ -225,7 +227,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
           >
             {TASK_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {t(`status.${s}`)}
               </option>
             ))}
           </select>
@@ -233,7 +235,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
 
         <div className="mb-3">
           <label htmlFor="task-edit-assignee" className="mb-1 block text-xs font-medium text-text-primary">
-            Assignee
+            {t('task.edit.assigneeLabel')}
           </label>
           <select
             id="task-edit-assignee"
@@ -242,7 +244,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
             value={assignee}
             onChange={(e) => setAssignee(e.target.value)}
           >
-            <option value="">Unassigned</option>
+            <option value="">{t('task.edit.unassigned')}</option>
             {(members.data ?? []).map((m) => (
               <option key={m.id} value={memberRef(m)}>
                 {m.display_name ?? m.identity_id} ({m.kind})
@@ -253,7 +255,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
 
         <div className="mb-3">
           <label htmlFor="task-edit-tags-input" className="mb-1 block text-xs font-medium text-text-primary">
-            Tags
+            {t('task.edit.tagsLabel')}
           </label>
           <div className="flex flex-wrap gap-1.5">
             {tags.map((tag) => (
@@ -267,7 +269,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
                   type="button"
                   className="text-text-muted hover:text-text-primary"
                   onClick={() => removeTag(tag)}
-                  aria-label={`Remove tag ${tag}`}
+                  aria-label={t('task.edit.removeTag', { tag })}
                   data-testid="task-edit-tag-remove"
                 >
                   x
@@ -285,11 +287,11 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
               if (tagError) setTagError(null);
             }}
             onKeyDown={onTagKeyDown}
-            placeholder="Type a tag, press Enter or comma…"
+            placeholder={t('task.edit.tagPlaceholder')}
             aria-describedby="task-edit-tags-hint"
           />
           <p id="task-edit-tags-hint" className="mt-1 text-[0.6875rem] text-text-muted">
-            Up to {MAX_TAGS} tags, ≤{MAX_TAG_RUNES} characters each.
+            {t('task.edit.tagsHint', { maxTags: MAX_TAGS, maxRunes: MAX_TAG_RUNES })}
           </p>
           {(tagError || tagsValidationError) && (
             <p className="mt-1 text-xs text-danger" data-testid="task-edit-tag-error">
@@ -300,7 +302,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
 
         <div className="mb-3">
           <label htmlFor="task-edit-caps-input" className="mb-1 block text-xs font-medium text-text-primary">
-            Required capabilities
+            {t('task.edit.capabilitiesLabel')}
           </label>
           <CapabilitiesEditor
             idPrefix="task-edit-caps"
@@ -322,7 +324,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
             onClick={onClose}
             data-testid="task-edit-cancel"
           >
-            Cancel
+            {t('task.edit.cancel')}
           </button>
           <button
             type="submit"
@@ -330,7 +332,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="task-edit-submit"
           >
-            {update.isPending || assign.isPending ? 'Saving…' : 'Save changes'}
+            {update.isPending || assign.isPending ? t('task.edit.submitting') : t('task.edit.submit')}
           </button>
         </div>
       </form>

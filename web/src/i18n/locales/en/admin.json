@@ -1,0 +1,348 @@
+{
+  "environment": {
+    "title": "Environment",
+    "subtitle": "Compute resources in this organization, the agents bound to them, in-flight work items, and file transfers.",
+    "addWorker": "+ Add Worker",
+    "loading": "Loading…",
+    "partialSnapshot": "Partial snapshot:",
+    "stats": {
+      "workersOnline": "Workers Online",
+      "agentsRunning": "Agents Running",
+      "tasks": "Tasks",
+      "pendingIssues": "Pending Issues"
+    },
+    "workers": {
+      "title": "Workers",
+      "emptyTitle": "No workers connected yet.",
+      "emptyHint": "A worker is a machine where agents actually run. Add at least one to start dispatching tasks.",
+      "emptyCta": "+ Add your first worker"
+    },
+    "worker": {
+      "active": "{{count}} active",
+      "heartbeat": "hb {{time}}",
+      "heartbeatNone": "hb —",
+      "cli": "CLI",
+      "agents": "Agents",
+      "noAgents": "No agents bound to this worker.",
+      "noCaps": "No agent CLIs detected.",
+      "disabledSuffix": " (disabled)",
+      "executableNote": "Executable: claude-code only (codex/opencode discovery only — v2.8)",
+      "showInstall": "Show install command",
+      "remintInstall": "Re-mint install command",
+      "remintConfirmTitle": "Re-mint install command?",
+      "remintConfirmMessage": "Re-mint will revoke the current install token and issue a fresh one. Use this if the original command expired or got lost. Continue?",
+      "remintConfirmLabel": "Re-mint",
+      "remove": "Remove",
+      "removing": "Removing...",
+      "removeConfirmTitle": "Remove worker?",
+      "removeConfirmLabel": "Remove",
+      "removeConfirmMessageOnline": "Remove worker \"{{name}}\"?\n\nThis will revoke the worker token and remove the record. The worker daemon will hit 401 next cycle.",
+      "removeConfirmMessageOffline": "Remove worker \"{{name}}\"?\n\nThis will revoke any active install token and remove the record.",
+      "openDetailsTitle": "Open {{name}} details"
+    },
+    "activity": {
+      "title": "Activity",
+      "tabs": {
+        "all": "All",
+        "tasks": "Tasks",
+        "issues": "Issues",
+        "transfers": "Transfers"
+      },
+      "emptyTitle": "No active operations",
+      "emptyHint": "Work items, issues, and file transfers will appear here.",
+      "typeTask": "Task",
+      "typeIssue": "Issue",
+      "typeTransfer": "Transfer",
+      "agentLabel": "agent",
+      "status": {
+        "queued": "queued",
+        "active": "active",
+        "paused": "paused",
+        "waiting_input": "waiting_input",
+        "done": "done",
+        "failed": "failed",
+        "canceled": "canceled",
+        "superseded": "superseded"
+      }
+    },
+    "transfers": {
+      "loading": "Loading…",
+      "columns": {
+        "direction": "Direction",
+        "scope": "Scope",
+        "content": "Content",
+        "size": "Size"
+      }
+    }
+  },
+  "systemNav": {
+    "system": "System",
+    "environment": "Environment",
+    "settings": "Settings",
+    "version": "Version",
+    "aria": "System sections"
+  },
+  "orgSettings": {
+    "profile": {
+      "title": "Organization Profile",
+      "nameLabel": "Organization Name",
+      "idLabel": "Organization ID",
+      "descriptionLabel": "Description",
+      "logoLabel": "Logo / Avatar",
+      "uploadLogo": "Upload logo",
+      "saving": "Saving...",
+      "save": "Save Changes"
+    },
+    "humans": {
+      "title": "Humans",
+      "invite": "Invite",
+      "colName": "Name",
+      "colRole": "Role",
+      "colJoined": "Joined",
+      "colStatus": "Status",
+      "colActions": "Actions",
+      "disable": "Disable",
+      "reEnable": "Re-enable",
+      "drop": "Drop",
+      "emptyTitle": "No humans",
+      "emptyBody": "Invite self-registered users to join this organization.",
+      "note": "Disable = keeps member identity & history but marks inactive. Drop = permanently removes the human from this organization (no record kept).",
+      "dropConfirmTitle": "Drop human",
+      "dropConfirmMessage": "Drop {{name}} from this organization? This permanently removes their membership — no record is kept. This cannot be undone.",
+      "dropConfirmLabel": "Drop"
+    },
+    "invitations": {
+      "title": "Invitations",
+      "new": "New Invitation",
+      "roleCreatedBy": "Role: {{role}} · Created by {{creator}}",
+      "expires": "Expires {{date}}",
+      "copy": "Copy",
+      "accepted": "Accepted {{date}}",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "emptyTitle": "No invitations",
+      "emptyBody": "Invite existing users by their user identity id.",
+      "deleteConfirmTitle": "Delete invitation",
+      "deleteConfirmMessage": "Delete the invitation for {{name}}? This removes the invitation record and its link will no longer work.",
+      "deleteConfirmLabel": "Delete"
+    },
+    "invitationModal": {
+      "title": "New Invitation",
+      "inviteeLabel": "Invitee user id",
+      "inviteePlaceholder": "user-...",
+      "roleLabel": "Role",
+      "createError": "Create invitation failed",
+      "cancel": "Cancel",
+      "creating": "Creating...",
+      "create": "Create"
+    },
+    "danger": {
+      "title": "Danger Zone",
+      "enableTitle": "Enable Organization",
+      "enableBody": "This organization is currently disabled — non-owner members cannot sign in to it. Enable it to restore access for everyone.",
+      "enabling": "Enabling…",
+      "enableButton": "Enable Org",
+      "disableTitle": "Disable Organization",
+      "disableBody": "Non-owner members can no longer sign in to this organization; you (as owner) keep full access and can re-enable it any time. No data is deleted.",
+      "disabling": "Disabling…",
+      "disableButton": "Disable Org",
+      "forceDeleteTitle": "Force-Delete Organization",
+      "forceDeleteBody": "Delete this organization from the workspace and disable all joined members. This action cannot be undone from the UI.",
+      "deleting": "Deleting…",
+      "forceDeleteButton": "Force Delete",
+      "auditLogTitle": "Audit Log",
+      "auditLogBody": "View all organization changes, member actions, and system events.",
+      "auditLogButton": "View Audit Log",
+      "enableConfirmTitle": "Enable organization",
+      "disableConfirmTitle": "Disable organization",
+      "enableConfirmMessage": "Enable organization {{name}}? All members will be able to sign in again.",
+      "disableConfirmMessage": "Disable organization {{name}}? Non-owner members will be locked out until you re-enable it. You keep full access. No data is deleted.",
+      "enableConfirmLabel": "Enable",
+      "disableConfirmLabel": "Disable",
+      "forceDeleteConfirmTitle": "Force-delete organization",
+      "forceDeleteConfirmMessage": "Force-delete organization {{name}}? This removes it from the organization switcher and disables its joined members. This cannot be undone from the UI.",
+      "forceDeleteConfirmLabel": "Force Delete"
+    },
+    "modal": {
+      "title": "Organization Settings",
+      "close": "Close",
+      "loading": "Loading…",
+      "notFound": "Organization not found.",
+      "nameLabel": "Name",
+      "slugLabel": "Slug (changing this changes the URL)",
+      "descriptionLabel": "Description",
+      "saving": "Saving…",
+      "save": "Save",
+      "dangerZone": "Danger Zone",
+      "deleteOrganization": "Delete Organization",
+      "deleteConfirmPrefix": "Delete ",
+      "deleteConfirmSuffix": "? This cannot be undone, and you must be an owner.",
+      "cancel": "Cancel",
+      "deleting": "Deleting…",
+      "confirmDelete": "Confirm delete",
+      "updateSuccess": "Organization info updated",
+      "updateError": "Update failed",
+      "deleteError": "Delete failed, please try again",
+      "nameRequired": "Please enter an organization name",
+      "slugTooShort": "Slug must be at least 3 characters",
+      "slugTooLong": "Slug must be at most 40 characters",
+      "slugInvalidChars": "Slug may only contain [a-z0-9-]",
+      "slugHyphenEdge": "Slug cannot start or end with a hyphen"
+    }
+  },
+  "repos": {
+    "title": "Repositories",
+    "subtitle": "Workspace-level code repos. Projects reference them; credentials are configured here only.",
+    "addRepo": "+ Add repo",
+    "empty": {
+      "title": "No repositories yet",
+      "body": "Add a workspace repository so projects can reference it. Click + Add repo to create one."
+    },
+    "delete": {
+      "title": "Delete repository?",
+      "message": "Delete \"{{label}}\"? This will permanently remove its stored credential. This cannot be undone.",
+      "messageRefs_one": "Delete \"{{label}}\"? This will drop its reference from {{count}} project and permanently remove its stored credential. This cannot be undone.",
+      "messageRefs_other": "Delete \"{{label}}\"? This will drop its reference from {{count}} projects and permanently remove its stored credential. This cannot be undone.",
+      "confirm": "Delete"
+    },
+    "card": {
+      "usedBy_one": "used by {{count}} project",
+      "usedBy_other": "used by {{count}} projects",
+      "viewRemote": "View remote",
+      "hideRemote": "Hide remote",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "remote": {
+      "heading": "Remote —",
+      "liveBadge": "live · remote",
+      "tabs": {
+        "commits": "Commits",
+        "branches": "Branches"
+      },
+      "branchLabel": "Branch",
+      "noCommits": "No commits.",
+      "noBranches": "No branches.",
+      "defaultBranch": "default",
+      "footer": "Live from the remote (go-github; falls back to git ls-remote). Never cloned.",
+      "unavailable": "Remote viewing isn't available right now."
+    },
+    "commits": {
+      "dayHeader": "Commits on {{day}}",
+      "unknownDate": "unknown date"
+    },
+    "commit": {
+      "hideDescriptionAria": "Hide commit description",
+      "showDescriptionAria": "Show commit description",
+      "hideDescription": "Hide description",
+      "showDescription": "Show description",
+      "unknownAuthor": "unknown",
+      "committed": "committed {{time}}",
+      "browseAria": "Browse the repository at {{short}}",
+      "browseTitle": "Browse the repository at this point",
+      "copyAria": "Copy the full commit SHA",
+      "copied": "Copied",
+      "copyTitle": "Copy full SHA"
+    },
+    "form": {
+      "editTitle": "Edit repository",
+      "addTitle": "Add repository",
+      "close": "Close",
+      "label": "Label",
+      "labelPlaceholder": "agent-center",
+      "provider": "Provider",
+      "providerGithub": "GitHub",
+      "providerGit": "Git (generic)",
+      "description": "Description",
+      "descriptionHint": "One line so an agent understands the repo without checking it out.",
+      "descriptionPlaceholder": "What this repo is for",
+      "url": "Clone URL",
+      "urlPlaceholder": "git@github.com:org/repo.git",
+      "defaultBranch": "Default branch",
+      "defaultBranchPlaceholder": "main",
+      "credential": "Read credential",
+      "credentialHintEdit": "Leave blank to keep the stored credential.",
+      "credentialHintCreate": "Stored encrypted, never shown again.",
+      "credentialPlaceholderStored": "•••••• (stored)",
+      "credentialPlaceholder": "fine-grained token",
+      "credentialHelp": "Private repos need a read-only credential. For GitHub, create a <tokenLink>fine-grained token</tokenLink> scoped to this repository with <contents>Contents: Read-only</contents> (add <prs>Pull requests: Read</prs> to view PRs). A GitHub App installation token or a read-only deploy key works too. Public repos can leave this blank.",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "save": "Save"
+    }
+  },
+  "secrets": {
+    "title": "Secrets",
+    "new": "New secret",
+    "revoke": "Revoke",
+    "disclaimer": "Values are stored encrypted and never displayed after creation. To rotate a secret, revoke and create a new one.",
+    "empty": {
+      "title": "No secrets yet",
+      "body": "Secrets store API keys + tokens that agents reference at runtime. Values are encrypted at rest and never displayed after creation."
+    },
+    "column": {
+      "name": "Name",
+      "kind": "Kind",
+      "state": "State",
+      "created": "Created"
+    },
+    "confirm": {
+      "title": "Revoke secret?",
+      "message": "Revoke secret \"{{name}}\"? This cannot be undone."
+    },
+    "modal": {
+      "title": "New secret",
+      "name": "Name",
+      "namePlaceholder": "github-token",
+      "kind": "Kind",
+      "value": "Value",
+      "valuePlaceholder": "paste secret",
+      "valueHelp": "Stored encrypted. Never displayed again — to rotate, revoke this secret and create a new one.",
+      "cancel": "Cancel",
+      "create": "Create",
+      "creating": "Creating…",
+      "done": "Done"
+    },
+    "success": {
+      "before": "Secret ",
+      "after": " created."
+    }
+  },
+  "wakeGuardrail": {
+    "title": "Wake guardrails",
+    "description": "Prevent runaway agent-to-agent wakes (chain depth / cycles / rate limit / token budget). Applied immediately on save — no restart needed.",
+    "loading": "Loading guardrail settings…",
+    "error": {
+      "load": "Failed to load guardrail settings.",
+      "retry": "Retry"
+    },
+    "fields": {
+      "max_depth": {
+        "label": "Max wake-chain depth",
+        "hint": "Max hops in one wake chain; exceeding it trips the breaker · default {{def}}"
+      },
+      "cycle_window_sec": {
+        "label": "Cycle-detection window (seconds)",
+        "hint": "Round-trips are counted within this rolling window · default {{def}}"
+      },
+      "cycle_threshold": {
+        "label": "Cycle threshold (round-trips per window)",
+        "hint": "Reaching this many round-trips in the window trips the breaker · default {{def}}"
+      },
+      "rate_per_min": {
+        "label": "Rate limit (agent wakes per minute)",
+        "hint": "Tokens for agent-driven wakes of a single agent per minute · default {{def}}"
+      },
+      "chain_token_budget": {
+        "label": "Chain token budget (root)",
+        "hint": "Cost budget per wake chain, decremented each hop · default {{def}}"
+      }
+    },
+    "invalid": "All thresholds must be positive integers (> 0).",
+    "saveError": "Save failed: {{message}}",
+    "unknownError": "Unknown error",
+    "saving": "Saving…",
+    "save": "Save",
+    "saved": "Saved and applied"
+  }
+}

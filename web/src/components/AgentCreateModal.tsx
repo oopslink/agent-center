@@ -5,6 +5,7 @@
 // (useFleet().workers); name + worker_id are required; description/model/cli/
 // skills optional. The created agent's business id = response identity_id.
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
 import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function AgentCreateModal({ onClose }: Props): React.ReactElement {
+  const { t } = useTranslation('members');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   // v2.7.1 #232: prefill the explicit default model (not a placeholder) so an
@@ -73,30 +75,30 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 id="agent-create-title" className="text-lg font-semibold">Add Agent</h2>
+          <h2 id="agent-create-title" className="text-lg font-semibold">{t('agents.create.title')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('agents.create.close')}
             data-testid="agent-create-close"
           >
             X
           </button>
         </div>
 
-        <Field label="Name" required htmlFor="agent-create-name-input">
+        <Field label={t('agents.create.nameLabel')} required htmlFor="agent-create-name-input">
           <input
             id="agent-create-name-input"
             data-testid="agent-create-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="my-agent"
+            placeholder={t('agents.create.namePlaceholder')}
             className={inputClass}
           />
         </Field>
 
-        <Field label="Description" hint="Optional. Shown in the agent list." htmlFor="agent-create-desc-input">
+        <Field label={t('agents.create.descriptionLabel')} hint={t('agents.create.descriptionHint')} htmlFor="agent-create-desc-input">
           <textarea
             id="agent-create-desc-input"
             data-testid="agent-create-description"
@@ -107,7 +109,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           />
         </Field>
 
-        <Field label="Model" hint="Optional." htmlFor="agent-create-model-input">
+        <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
           <input
             id="agent-create-model-input"
             data-testid="agent-create-model"
@@ -117,7 +119,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           />
         </Field>
 
-        <Field label="CLI" hint="v2.7 runs claude-code only (codex/opencode coming in v2.8)." htmlFor="agent-create-cli-input">
+        <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">
           <select
             id="agent-create-cli-input"
             data-testid="agent-create-cli"
@@ -129,18 +131,18 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           </select>
         </Field>
 
-        <Field label="Skills" hint="Optional. Comma-separated." htmlFor="agent-create-skills-input">
+        <Field label={t('agents.create.skillsLabel')} hint={t('agents.create.skillsHint')} htmlFor="agent-create-skills-input">
           <input
             id="agent-create-skills-input"
             data-testid="agent-create-skills"
             value={skills}
             onChange={(e) => setSkills(e.target.value)}
-            placeholder="review, planning"
+            placeholder={t('agents.create.skillsPlaceholder')}
             className={inputClass}
           />
         </Field>
 
-        <Field label="Worker" required hint="Sourced from Environment.">
+        <Field label={t('agents.create.workerLabel')} required hint={t('agents.create.workerHint')}>
           {/* v2.7 #191: shared searchable EntitySelect instead of a raw <select>. */}
           <EntitySelect
             testId="agent-create-worker"
@@ -151,14 +153,14 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
               label: w.name || w.worker_id,
               badge: w.status,
             }))}
-            placeholder="Select a worker…"
-            searchPlaceholder="Search workers…"
-            emptyLabel="No matching workers."
-            ariaLabel="Worker"
+            placeholder={t('agents.create.workerSelectPlaceholder')}
+            searchPlaceholder={t('agents.create.workerSearchPlaceholder')}
+            emptyLabel={t('agents.create.workerEmptyLabel')}
+            ariaLabel={t('agents.create.workerLabel')}
           />
           {fleet.isSuccess && workers.length === 0 && (
             <p className="mt-1 text-[0.6875rem] text-text-muted" data-testid="agent-create-no-workers">
-              No workers in Environment yet — enroll a worker first.
+              {t('agents.create.noWorkers')}
             </p>
           )}
         </Field>
@@ -176,7 +178,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             onClick={onClose}
             data-testid="agent-create-cancel"
           >
-            Cancel
+            {t('agents.create.cancel')}
           </button>
           <button
             type="submit"
@@ -184,7 +186,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="agent-create-submit"
           >
-            {create.isPending ? 'Creating...' : 'Create agent'}
+            {create.isPending ? t('agents.create.submitting') : t('agents.create.submit')}
           </button>
         </div>
       </form>

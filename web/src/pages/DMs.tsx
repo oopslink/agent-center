@@ -1,6 +1,7 @@
 import type React from 'react';
 import { OrgLink } from '@/OrgContext';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   conversationDeleteErrorMessage,
@@ -20,6 +21,7 @@ import { CONVERSATION_SEGMENTS } from './conversationSegments';
 
 // DMList page (/dms). Lists kind=dm conversations + "Start a DM" button.
 export default function DMs(): React.ReactElement {
+  const { t } = useTranslation('chat');
   const dms = useConversations({ kind: 'dm' });
   const [view, setView] = useState<'mine' | 'agent_agent'>('mine');
   const [startOpen, setStartOpen] = useState(false);
@@ -36,16 +38,16 @@ export default function DMs(): React.ReactElement {
     <section className="space-y-4" data-testid="page-DMs">
       {/* v2.10.2 [T129] Mobile (<md): Conversations module 二级段控 (Channels |
           DMs) — desktop keeps the col② nav. */}
-      <SegmentedNav items={CONVERSATION_SEGMENTS} ariaLabel="Conversations sections" />
+      <SegmentedNav items={CONVERSATION_SEGMENTS} ariaLabel={t('dms.segmentedNavAriaLabel')} />
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">DMs</h1>
+        <h1 className="text-xl font-semibold">{t('dms.title')}</h1>
         <button
           type="button"
           className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
           onClick={() => setStartOpen(true)}
           data-testid="dms-new-button"
         >
-          Start a DM
+          {t('dms.startButton')}
         </button>
       </header>
 
@@ -63,9 +65,9 @@ export default function DMs(): React.ReactElement {
       {dms.isSuccess && dms.data.length === 0 && (
         <EmptyState
           testId="dms-empty"
-          title="No DMs yet"
-          body="DMs are private conversations between two parties (human or agent). Start one to message someone directly."
-          action={{ label: 'Start a DM', onClick: () => setStartOpen(true) }}
+          title={t('dms.empty.title')}
+          body={t('dms.empty.body')}
+          action={{ label: t('dms.startButton'), onClick: () => setStartOpen(true) }}
         />
       )}
       {dms.isSuccess && dms.data.length > 0 && (
@@ -73,7 +75,7 @@ export default function DMs(): React.ReactElement {
           <div
             className="inline-flex rounded border border-border-base bg-bg-elevated p-0.5 text-sm"
             role="tablist"
-            aria-label="DM views"
+            aria-label={t('dms.viewsAriaLabel')}
           >
             <button
               type="button"
@@ -85,7 +87,7 @@ export default function DMs(): React.ReactElement {
                 view === 'mine' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              Mine
+              {t('dms.tabs.mine')}
             </button>
             <button
               type="button"
@@ -97,7 +99,7 @@ export default function DMs(): React.ReactElement {
                 view === 'agent_agent' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              Agent-to-agent
+              {t('dms.tabs.agentToAgent')}
               {agentAgentDMs.length > 0 && (
                 <span className="ml-1 text-xs text-text-muted">({agentAgentDMs.length})</span>
               )}
@@ -106,11 +108,11 @@ export default function DMs(): React.ReactElement {
           {visibleDMs.length === 0 ? (
             <EmptyState
               testId="dms-filter-empty"
-              title={view === 'agent_agent' ? 'No agent DMs' : 'No personal DMs'}
+              title={view === 'agent_agent' ? t('dms.filterEmpty.agent.title') : t('dms.filterEmpty.personal.title')}
               body={
                 view === 'agent_agent'
-                  ? 'Agent-to-agent DMs will appear here.'
-                  : 'DMs involving you will appear here.'
+                  ? t('dms.filterEmpty.agent.body')
+                  : t('dms.filterEmpty.personal.body')
               }
             />
           ) : (
@@ -137,7 +139,7 @@ export default function DMs(): React.ReactElement {
                           className="font-medium"
                         />
                       ) : (
-                        <span className="font-medium" data-testid="dm-name">Direct message</span>
+                        <span className="font-medium" data-testid="dm-name">{t('dms.directMessage')}</span>
                       )}
                       <UnreadBadge unreadCount={c.unread_count} mentionCount={c.mention_count} />
                       <span className="rounded bg-bg-subtle px-2 py-0.5 text-xs uppercase text-text-secondary">
@@ -145,7 +147,7 @@ export default function DMs(): React.ReactElement {
                       </span>
                       {c.dm_type === 'agent_agent_dm' && (
                         <span className="rounded bg-status-blue-bg px-2 py-0.5 text-xs font-semibold uppercase text-status-blue-fg">
-                          agent-agent
+                          {t('dms.agentAgentBadge')}
                         </span>
                       )}
                     </span>
@@ -154,15 +156,15 @@ export default function DMs(): React.ReactElement {
                     type="button"
                     data-testid="dm-delete-button"
                     data-dm-id={c.id}
-                    aria-label={`Delete DM ${c.name || c.id}`}
-                    title="Delete DM"
+                    aria-label={t('dms.deleteAriaLabel', { name: c.name || c.id })}
+                    title={t('dms.deleteTitle')}
                     onClick={() => {
                       del.reset();
                       setPendingDelete({ id: c.id, name: c.name || c.id });
                     }}
                     className="mr-2 shrink-0 rounded px-2 py-2 md:py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
                   >
-                    Delete
+                    {t('dms.deleteButton')}
                   </button>
                 </li>
               ))}
@@ -187,13 +189,13 @@ export default function DMs(): React.ReactElement {
         open={pendingDelete !== null}
         danger
         busy={del.isPending}
-        title="Delete DM"
+        title={t('dms.deleteConfirm.title')}
         message={
           pendingDelete
-            ? `Delete the DM "${pendingDelete.name}"? This permanently removes the conversation and all its messages for everyone. This cannot be undone.`
+            ? t('dms.deleteConfirm.message', { name: pendingDelete.name })
             : undefined
         }
-        confirmLabel="Delete"
+        confirmLabel={t('dms.deleteConfirm.confirmLabel')}
         onCancel={() => {
           if (del.isPending) return;
           setPendingDelete(null);

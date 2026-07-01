@@ -1,5 +1,6 @@
 // IssueCreateModal — v2.7 create an Issue inside a project.
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCreateIssue } from '@/api/issues';
 import { useModalA11y } from './useModalA11y';
 
@@ -14,6 +15,7 @@ export function IssueCreateModal({
   onClose,
   onCreated,
 }: Props): React.ReactElement {
+  const { t } = useTranslation('work');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const create = useCreateIssue(projectId);
@@ -52,12 +54,12 @@ export function IssueCreateModal({
         className="w-full max-w-lg rounded-lg bg-bg-elevated p-6 text-text-primary shadow-xl"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 id="issue-create-title" className="text-lg font-semibold">Open Issue</h2>
+          <h2 id="issue-create-title" className="text-lg font-semibold">{t('issue.create.heading')}</h2>
           <button
             type="button"
             className="text-text-muted hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('issue.create.close')}
             data-testid="issue-create-close"
           >
             X
@@ -66,7 +68,7 @@ export function IssueCreateModal({
 
         <div className="mb-3">
           <label htmlFor="issue-create-title-input" className="mb-1 block text-xs font-medium text-text-primary">
-            Title<span className="ml-1 text-danger">*</span>
+            {t('issue.create.titleLabel')}<span className="ml-1 text-danger">*</span>
           </label>
           <input
             id="issue-create-title-input"
@@ -74,13 +76,13 @@ export function IssueCreateModal({
             className={inputClass}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="What needs deciding or fixing?"
+            placeholder={t('issue.create.titlePlaceholder')}
           />
         </div>
 
         <div className="mb-3">
           <label htmlFor="issue-create-desc-input" className="mb-1 block text-xs font-medium text-text-primary">
-            Description
+            {t('issue.create.descriptionLabel')}
           </label>
           <textarea
             id="issue-create-desc-input"
@@ -89,7 +91,7 @@ export function IssueCreateModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
-            placeholder="Optional. Context, repro steps, links…"
+            placeholder={t('issue.create.descriptionPlaceholder')}
           />
         </div>
 
@@ -106,7 +108,7 @@ export function IssueCreateModal({
             onClick={onClose}
             data-testid="issue-create-cancel"
           >
-            Cancel
+            {t('issue.create.cancel')}
           </button>
           <button
             type="submit"
@@ -114,7 +116,7 @@ export function IssueCreateModal({
             className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-bg-subtle disabled:text-text-muted"
             data-testid="issue-create-submit"
           >
-            {create.isPending ? 'Opening…' : 'Open Issue'}
+            {create.isPending ? t('issue.create.submitting') : t('issue.create.submit')}
           </button>
         </div>
       </form>

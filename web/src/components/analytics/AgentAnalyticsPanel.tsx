@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAgentAnalytics } from '@/api/analytics';
 import { deriveCards, utcDay } from '@/utils/analyticsWindows';
 import AgentHeatmap from '@/components/AgentHeatmap';
@@ -30,16 +31,17 @@ function PanelMessage({ children, testId }: { children: React.ReactNode; testId:
 }
 
 export function AgentAnalyticsPanel({ agentId }: { agentId: string }): React.ReactElement {
+  const { t } = useTranslation('insights');
   const now = useMemo(() => new Date(), []);
   const series = useAgentAnalytics(agentId);
   const monthRange = useMemo(() => ({ from: utcDay(now, -29), to: utcDay(now, 0), top: 5 }), [now]);
   const monthQ = useAgentAnalytics(agentId, monthRange);
 
   if (series.isLoading) {
-    return <PanelMessage testId="agent-analytics-loading">Loading analytics…</PanelMessage>;
+    return <PanelMessage testId="agent-analytics-loading">{t('analytics.panel.loading')}</PanelMessage>;
   }
   if (series.isError || !series.data) {
-    return <PanelMessage testId="agent-analytics-error">Failed to load analytics.</PanelMessage>;
+    return <PanelMessage testId="agent-analytics-error">{t('analytics.panel.error')}</PanelMessage>;
   }
 
   const cards = deriveCards(series.data.heatmap, now);
@@ -50,7 +52,7 @@ export function AgentAnalyticsPanel({ agentId }: { agentId: string }): React.Rea
       <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)] lg:items-stretch lg:gap-6">
         <AgentHeatmap cells={series.data.heatmap} today={now} />
         {monthQ.isLoading ? (
-          <PanelMessage testId="agent-analytics-toptasks-loading">Loading top tasks…</PanelMessage>
+          <PanelMessage testId="agent-analytics-toptasks-loading">{t('analytics.panel.loadingTopTasks')}</PanelMessage>
         ) : (
           <TopCostTasks tasks={monthQ.data?.top_tasks ?? []} agentId={agentId} />
         )}
