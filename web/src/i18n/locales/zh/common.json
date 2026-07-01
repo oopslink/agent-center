@@ -182,7 +182,16 @@
     },
     "alerts": {
       "label": "告警",
-      "attention": "{{count}} 个任务需要你处理"
+      "attention": "{{count}} 个事项需要你处理",
+      "panelTitle": "需要你处理",
+      "empty": "暂无需要你处理的事项",
+      "item": {
+        "awaitingReply": "等待你回复",
+        "needsIntervention": "需要介入",
+        "mention": "提到了你",
+        "dm": "私信",
+        "dismiss": "消除"
+      }
     },
     "sidebar": {
       "collapse": "收起侧栏",

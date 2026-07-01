@@ -1,9 +1,10 @@
-// Global "stuck" Alerts rail item (col①): a task waiting on the user (running +
-// blocked_reason of type input_required/obstacle) must be visible from ANY page —
-// a badge with the count, an auto-opening popout listing the tasks (input_required
-// first), each deep-linking to the task so the user can unblock it.
+// v2.26.0 I61 — the "Needs your attention" rail panel. Its source is now the
+// unified GET /attention endpoint: stuck tasks (running + input_required/obstacle)
+// UNIONed with the human's directed unread (DM + @mention). The panel must render
+// BOTH kinds, deep-link each to its source, and let a mention be dismissed
+// (mark_seen) — all visible from ANY page via the rail badge + auto-opening popout.
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -29,38 +30,32 @@ beforeAll(() => {
   });
 });
 
-// An org-scoped tasks aggregation with two actionable stuck tasks (input_required
-// + obstacle), one healthy running task, and one running task blocked by an
-// unrelated/empty reason type — only the two actionable ones become alerts.
-function seedTasks() {
-  server.use(
-    http.get('/api/tasks', () =>
-      HttpResponse.json({
-        total: 4,
-        items: [
-          {
-            id: 'task-obs', org_ref: 'T20', project: { id: 'p1', name: 'Alpha' },
-            title: 'Needs a deploy key', status: 'running', assignee: null,
-            created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-29T00:00:00Z',
-            blocked_reason: 'waiting on infra to provision a key', blocked_reason_type: 'obstacle',
-          },
-          {
-            id: 'task-inp', org_ref: 'T21', project: { id: 'p2', name: 'Beta' },
-            title: 'Confirm the schema', status: 'running', assignee: null,
-            created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-30T00:00:00Z',
-            blocked_reason: 'please confirm column names', blocked_reason_type: 'input_required',
-          },
-          {
-            id: 'task-ok', org_ref: 'T22', project: { id: 'p1', name: 'Alpha' },
-            title: 'Healthy running task', status: 'running', assignee: null,
-            created_at: '2026-06-01T00:00:00Z', updated_at: '2026-06-28T00:00:00Z',
-            blocked_reason: '', blocked_reason_type: '',
-          },
-        ],
-      }),
-    ),
-  );
+// A unified attention list as the backend would return it: already deduped and
+// severity-then-recency sorted (input_required task → obstacle task → mention).
+function seedAttention(items: unknown[]) {
+  server.use(http.get('/api/attention', () => HttpResponse.json({ items })));
 }
+
+const TASK_INPUT = {
+  kind: 'task', severity: 'urgent', ref: 'task-inp', task_id: 'task-inp',
+  reason_type: 'input_required', title: 'Confirm the schema', snippet: 'please confirm column names',
+  actor: '', conversation_id: '', project_id: 'p2', project_name: 'Beta', org_ref: 'T21',
+  ts: '2026-06-30T00:00:00Z', route: '/projects/p2/tasks/task-inp',
+};
+const TASK_OBSTACLE = {
+  kind: 'task', severity: 'warning', ref: 'task-obs', task_id: 'task-obs',
+  reason_type: 'obstacle', title: 'Needs a deploy key', snippet: 'waiting on infra to provision a key',
+  actor: '', conversation_id: '', project_id: 'p1', project_name: 'Alpha', org_ref: 'T20',
+  ts: '2026-06-29T00:00:00Z', route: '/projects/p1/tasks/task-obs',
+};
+// The I61 core: an agent @mentioned the human in a task conversation with NO
+// human-owned task/block — surfaces as a kind=mention item, dismissable.
+const MENTION = {
+  kind: 'mention', severity: 'warning', ref: 'conv-9', conversation_id: 'conv-9',
+  conversation_kind: 'task', title: 'Blocked integrate', snippet: 'the integrate node is stuck on SQLITE_BUSY',
+  actor: 'agent:AG1', mention_count: 1, unread_count: 1, message_id: 'msg-42',
+  ts: '2026-06-30T02:00:00Z', route: '/projects/p3/tasks/task-x',
+};
 
 function renderShell() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -79,44 +74,68 @@ function renderShell() {
   );
 }
 
-describe('rail Alerts item — global stuck-task surfacing', () => {
+describe('rail Alerts — unified attention panel (tasks + directed mentions)', () => {
   beforeEach(() => { localStorage.clear(); });
   afterEach(() => cleanup());
 
-  it('shows a count badge and auto-opens the panel with input_required first', async () => {
-    seedTasks();
+  it('badge + auto-opened panel render both sources, urgent first, each deep-linked', async () => {
+    seedAttention([TASK_INPUT, TASK_OBSTACLE, MENTION]);
     renderShell();
 
-    // Badge reflects the two actionable stuck tasks.
     const badge = await screen.findByTestId('rail-alerts-badge');
-    expect(badge).toHaveTextContent('2');
+    expect(badge).toHaveTextContent('3');
 
-    // Panel auto-opens on first load when there are alerts.
     const panel = await screen.findByTestId('rail-alerts-panel');
     const items = within(panel).getAllByTestId('rail-alert-item');
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(3);
 
-    // input_required (most urgent) is listed first…
+    // Order preserved as delivered (backend already sorted urgent→…).
+    expect(items[0]).toHaveAttribute('data-kind', 'task');
     expect(items[0]).toHaveAttribute('data-reason-type', 'input_required');
-    expect(items[1]).toHaveAttribute('data-reason-type', 'obstacle');
-    // …and the healthy running task never appears.
-    expect(within(panel).queryByText('Healthy running task')).not.toBeInTheDocument();
-
-    // Each alert deep-links to its task detail under the current org base.
     expect(items[0]).toHaveAttribute('href', '/organizations/acme/projects/p2/tasks/task-inp');
-    expect(within(items[0]).getByText('Confirm the schema')).toBeInTheDocument();
     expect(within(items[0]).getByText('Awaiting your reply')).toBeInTheDocument();
+
+    expect(items[1]).toHaveAttribute('data-reason-type', 'obstacle');
     expect(within(items[1]).getByText('Needs intervention')).toBeInTheDocument();
+
+    // The directed @mention item — deep-links to the source conversation, shows
+    // the @-count, and carries a dismiss affordance (tasks do not).
+    const mention = items[2];
+    expect(mention).toHaveAttribute('data-kind', 'mention');
+    expect(mention).toHaveAttribute('href', '/organizations/acme/projects/p3/tasks/task-x');
+    expect(within(mention).getByText('Mentioned you')).toBeInTheDocument();
+    expect(within(panel).getAllByTestId('rail-alert-dismiss')).toHaveLength(1);
   });
 
-  it('renders no badge when there are no stuck tasks', async () => {
-    server.use(http.get('/api/tasks', () => HttpResponse.json({ total: 0, items: [] })));
+  it('dismissing a mention marks it seen (mark_seen) and it drops off the panel', async () => {
+    seedAttention([MENTION]);
+    let seenBody: { last_seen_message_id?: string } | null = null;
+    server.use(
+      http.post('/api/conversations/:id/seen', async ({ request, params }) => {
+        seenBody = (await request.json()) as { last_seen_message_id?: string };
+        expect(params.id).toBe('conv-9');
+        // After catch-up the panel source is empty.
+        seedAttention([]);
+        return HttpResponse.json({ last_seen_message_id: 'msg-42', version: 2, bumped: true, event_id: 'e1' });
+      }),
+    );
     renderShell();
 
-    // The Alerts rail button is always present…
+    const dismiss = await screen.findByTestId('rail-alert-dismiss');
+    fireEvent.click(dismiss);
+
+    await waitFor(() => expect(seenBody).not.toBeNull());
+    expect(seenBody!.last_seen_message_id).toBe('msg-42');
+    // The item drops out once attention refetches empty.
+    await waitFor(() => expect(screen.getByTestId('rail-alerts-empty')).toBeInTheDocument());
+  });
+
+  it('renders no badge when nothing needs attention', async () => {
+    seedAttention([]);
+    renderShell();
+
     const btn = await screen.findByTestId('rail-alerts');
     expect(btn).toHaveAttribute('data-count', '0');
-    // …but with no badge and no auto-opened panel.
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
     expect(screen.queryByTestId('rail-alerts-badge')).not.toBeInTheDocument();
     expect(screen.queryByTestId('rail-alerts-panel')).not.toBeInTheDocument();
