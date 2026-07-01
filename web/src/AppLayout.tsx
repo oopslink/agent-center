@@ -746,7 +746,7 @@ function SecondaryNavColumn({
         title={collapsed ? t('shell.sidebar.expand') : t('shell.sidebar.collapse')}
         className={[
           'absolute -right-3 top-4 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-secondary shadow-sm hover:bg-bg-subtle hover:text-text-primary focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-all',
-          collapsed ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100',
+          'opacity-0 group-hover/sidebar:opacity-100',
         ].join(' ')}
       >
         <SidebarToggleIcon collapsed={collapsed} />
