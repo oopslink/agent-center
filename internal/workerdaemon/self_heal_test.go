@@ -94,7 +94,7 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	c.cfg.starter = rs.start
 
 	// Crash with active work → schedules a relaunch at now+1s (crashCount 1).
-	c.recordCrashAndSchedule("ag-1", 7 /*version*/, true /*hadWork*/, "wi-7" /*workItemID*/, "bad-model-x" /*model*/, "agent-center-dev4" /*displayName*/, map[string]string{"AC_TEST_PROFILE": "on"}, "boom")
+	c.recordCrashAndSchedule("ag-1", 7 /*version*/, true /*hadWork*/, "wi-7" /*workItemID*/, "bad-model-x" /*model*/, "agent-center-dev4" /*displayName*/, map[string]string{"AC_TEST_PROFILE": "on"}, false, "boom")
 
 	// Before the 1s backoff elapses → OnTick must NOT relaunch.
 	c.OnTick(context.Background())
@@ -187,7 +187,7 @@ func TestSelfHeal_IdleRelaunchFreshNoResume(t *testing.T) {
 
 	// Crash of an IDLE agent (hadWork=false, no in-flight WorkItem) → schedules a
 	// relaunch at now+1s.
-	c.recordCrashAndSchedule("ag-1", 3 /*version*/, false /*hadWork*/, "" /*workItemID*/, "" /*model*/, "" /*displayName*/, nil, "idle-crash")
+	c.recordCrashAndSchedule("ag-1", 3 /*version*/, false /*hadWork*/, "" /*workItemID*/, "" /*model*/, "" /*displayName*/, nil, false, "idle-crash")
 
 	clock.advance(2 * time.Second)
 	c.OnTick(context.Background())
@@ -237,7 +237,7 @@ func TestSelfHeal_RelaunchFailCircuitBreaks(t *testing.T) {
 	c.cfg.starter = rs.start
 
 	// One real crash arms the first relaunch (crashCount 1).
-	c.recordCrashAndSchedule("ag-1", 9 /*version*/, false /*hadWork*/, "", "", "", nil, "boom")
+	c.recordCrashAndSchedule("ag-1", 9 /*version*/, false /*hadWork*/, "", "", "", nil, false, "boom")
 
 	// Each relaunch attempt FAILS to come up (startSession returns an error). The cap
 	// is the default 5: relaunch-fails advance crashCount 2..5 (transient "error"),
@@ -343,7 +343,7 @@ func TestSelfHeal_CircuitBreaksAndClearUnlatches(t *testing.T) {
 	// reset → counts 1..6): crashes 1-5 report transient "error", the 6th circuit-
 	// breaks and reports terminal "failed".
 	for i := 0; i < 6; i++ {
-		state := c.recordCrashAndSchedule("ag-1", 1, false, "" /*workItemID*/, "" /*model*/, "" /*displayName*/, nil, "boom")
+		state := c.recordCrashAndSchedule("ag-1", 1, false, "" /*workItemID*/, "" /*model*/, "" /*displayName*/, nil, false, "boom")
 		want := "error"
 		if i == 5 {
 			want = "failed"

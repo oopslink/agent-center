@@ -138,7 +138,7 @@ func (execLauncher) Launch(ctx context.Context, spec ClaudeLaunchSpec) (sessionP
 	// 0) above; the supervisor path threads the durable epoch + crash-relaunch fork).
 	// extraSystemPrompt "": the legacy direct-claude path does not inject scoped
 	// memory (the production supervisor path does — handlers_agentsupervisor.go).
-	argv, _, err := claudestream.BuildStreamingArgv(spec.AgentID, spec.Binary, spec.MCPConfigPath, 0, 0, "", spec.Env, "")
+	argv, _, err := claudestream.BuildStreamingArgv(spec.AgentID, spec.Binary, spec.MCPConfigPath, 0, 0, "", spec.Env, "", false)
 	if err != nil {
 		return nil, fmt.Errorf("claude_session: build streaming argv: %w", err)
 	}

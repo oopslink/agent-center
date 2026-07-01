@@ -789,7 +789,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 	// (lock released), so a plain resume of the same session-id is correct. Only the
 	// Mode-B crash-relaunch paths (bootReapRelaunch) fork (the killed claude's lock
 	// is still held).
-	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model, pl.DisplayName, pl.CLI, pl.EnvVars); err != nil {
+	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model, pl.DisplayName, pl.CLI, pl.EnvVars, concurrencyEnabled(pl)); err != nil {
 		// Start failure IS retryable (transient FS / launch error) — return the
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
@@ -1498,7 +1498,7 @@ const workAvailableNudge = "📥 New work is available in your queue. When you r
 // OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
-func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, displayName, cli string, envVars map[string]string) error {
+func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, displayName, cli string, envVars map[string]string, concurrencyEnabled bool) error {
 	home, tasksDir, _, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
@@ -1610,6 +1610,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		Epoch:               epochState.Epoch,
 		Generation:          generation,
 		ResumeFromSessionID: resumeFrom,
+		ConcurrencyEnabled:  concurrencyEnabled,
 		StopGrace:           c.cfg.StopGrace,
 		Logger:              c.cfg.Logger,
 		OnEvent: func(ev claudestream.StreamEvent) {
@@ -2290,6 +2291,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	displayName := ma.displayName       // agent's display_name → carry across crash so self-heal re-drive keeps git author NAME (T469)
 	envVars := cloneEnvVars(ma.envVars) // profile env → carry across crash so self-heal re-drive keeps runtime env
 	cli := ma.cli                       // codex agents skip the supervisor self-heal machinery (no epoch/fork)
+	wasConcurrent := ma.exec != nil     // concurrent mode → carry across crash so self-heal re-drive uses the orchestrator prompt
 	// W4: flush+close any open per-task log writer so the session's exit doesn't
 	// leak the fd (and so a later workspace wipe isn't racing a live writer).
 	taskLog := ma.taskLog
@@ -2340,7 +2342,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
 	// returns the lifecycle state to report: "error" (transient, still auto-retrying)
 	// or "failed" (terminal circuit-breaker), reported once for this crash instance.
-	state := c.recordCrashAndSchedule(agentID, version, hadWork, taskID, model, displayName, envVars, msg)
+	state := c.recordCrashAndSchedule(agentID, version, hadWork, taskID, model, displayName, envVars, wasConcurrent, msg)
 	if state != "" {
 		ma.lifecycleOnce.Do(func() {
 			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {

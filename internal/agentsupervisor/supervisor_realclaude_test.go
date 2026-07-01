@@ -33,7 +33,7 @@ func TestRealClaude_SupervisorInjectTurns(t *testing.T) {
 	// is NOT relocated). A fixed id collides on re-runs ("Session ID … already in
 	// use") → claude exits → events=0 → Inject hits a closed supervisor.
 	agentID := fmt.Sprintf("realclaude-inject-test-%d", time.Now().UnixNano())
-	argv, _, err := claudestream.BuildStreamingArgv(agentID, "", "" /*no mcp*/, 0, 0, "" /*gen0,no-fork*/, nil, "")
+	argv, _, err := claudestream.BuildStreamingArgv(agentID, "", "" /*no mcp*/, 0, 0, "" /*gen0,no-fork*/, nil, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}

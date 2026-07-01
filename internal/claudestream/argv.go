@@ -126,11 +126,14 @@ func SessionUUIDGen(agentID string, epoch, generation int) string {
 // memory; see cognition/memory.Engine.HarnessContext) rides the same idempotent,
 // re-applied-every-launch channel as the work-queue prompt. Empty ⇒ byte-for-byte
 // the pre-memory argv (every existing call site passes "").
-func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation int, resumeFromSessionID string, env map[string]string, extraSystemPrompt string) ([]string, string, error) {
+func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation int, resumeFromSessionID string, env map[string]string, extraSystemPrompt string, concurrencyEnabled bool) ([]string, string, error) {
 	if agentID == "" {
 		return nil, "", errors.New("claudestream: agent_id required")
 	}
 	sysPrompt := AgentWorkQueueSystemPrompt
+	if concurrencyEnabled {
+		sysPrompt = OrchestratorSystemPrompt
+	}
 	if strings.TrimSpace(extraSystemPrompt) != "" {
 		sysPrompt = sysPrompt + "\n\n" + extraSystemPrompt
 	}

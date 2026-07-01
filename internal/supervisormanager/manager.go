@@ -91,6 +91,10 @@ type SpawnSupervisorCfg struct {
 	// from, so the relaunched claude inherits the conversation under the NEW
 	// --session-id. Empty = a plain start with no fork (initial/normal start).
 	ResumeFromSessionID string
+	// ConcurrencyEnabled indicates whether this agent runs in concurrent mode
+	// (--concurrency-enabled). When true the supervisor selects the orchestrator
+	// system prompt instead of the single-task work-queue prompt.
+	ConcurrencyEnabled bool
 	// ComeUpTimeout bounds how long SpawnSupervisor waits for the supervisor to
 	// listen on its socket and answer Hello. Zero → defaultComeUpTimeout.
 	ComeUpTimeout time.Duration
@@ -306,6 +310,9 @@ func buildSupervisorArgs(cfg SpawnSupervisorCfg) []string {
 	}
 	if cfg.ResumeFromSessionID != "" {
 		args = append(args, "--resume-from", cfg.ResumeFromSessionID)
+	}
+	if cfg.ConcurrencyEnabled {
+		args = append(args, "--concurrency-enabled")
 	}
 	return args
 }

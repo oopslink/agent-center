@@ -115,11 +115,11 @@ func TestSessionUUID(t *testing.T) {
 // long-lived streaming flag set with the derived session-id + mcp-config, and
 // rejects an empty agent id.
 func TestBuildStreamingArgv(t *testing.T) {
-	if _, _, err := BuildStreamingArgv("", "", "", 0, 0, "", nil, ""); err == nil {
+	if _, _, err := BuildStreamingArgv("", "", "", 0, 0, "", nil, "", false); err == nil {
 		t.Fatal("empty agent id must error")
 	}
 
-	argv, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "/usr/local/bin/claude", "/home/agent/mcp.json", 0, 0, "", nil, "")
+	argv, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "/usr/local/bin/claude", "/home/agent/mcp.json", 0, 0, "", nil, "", false)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestBuildStreamingArgv(t *testing.T) {
 // read the issue" and block. Asserting on the real BuildStreamingArgv output (not
 // the const directly) proves the text survives into the delivered prompt.
 func TestBuildStreamingArgv_DeferredToolDiscoverabilityGuidance(t *testing.T) {
-	argv, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, 0, "", nil, "")
+	argv, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, 0, "", nil, "", false)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestBuildStreamingArgv_ModeBFork(t *testing.T) {
 	prev := SessionUUIDGen(id, 0, 0)
 
 	// Fork relaunch: generation 1, resume from the gen-0 id.
-	forked, _, err := BuildStreamingArgv(id, "claude", "", 0, 1, prev, nil, "")
+	forked, _, err := BuildStreamingArgv(id, "claude", "", 0, 1, prev, nil, "", false)
 	if err != nil {
 		t.Fatalf("fork argv: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestBuildStreamingArgv_ModeBFork(t *testing.T) {
 	}
 
 	// Plain start (no fork): no --resume / --fork-session.
-	plain, _, err := BuildStreamingArgv(id, "claude", "", 0, 0, "", nil, "")
+	plain, _, err := BuildStreamingArgv(id, "claude", "", 0, 0, "", nil, "", false)
 	if err != nil {
 		t.Fatalf("plain argv: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestBuildStreamingArgv_FINDING3_IdleRelaunchFresh(t *testing.T) {
 	newGen := SessionUUIDGen(id, 0, 1)  // the fresh bumped (gen-1) session-id
 
 	// hadWork==true relaunch: fresh gen-1 id + --resume <prevGen> --fork-session.
-	work, _, err := BuildStreamingArgv(id, "claude", "", 0, 1, prevGen, nil, "")
+	work, _, err := BuildStreamingArgv(id, "claude", "", 0, 1, prevGen, nil, "", false)
 	if err != nil {
 		t.Fatalf("with-work relaunch argv: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestBuildStreamingArgv_FINDING3_IdleRelaunchFresh(t *testing.T) {
 	}
 
 	// hadWork==false (idle) relaunch: fresh gen-1 id, NO --resume / --fork-session.
-	idle, _, err := BuildStreamingArgv(id, "claude", "", 0, 1, "" /*resumeFromSessionID empty = idle*/, nil, "")
+	idle, _, err := BuildStreamingArgv(id, "claude", "", 0, 1, "" /*resumeFromSessionID empty = idle*/, nil, "", false)
 	if err != nil {
 		t.Fatalf("idle relaunch argv: %v", err)
 	}
@@ -331,7 +331,7 @@ func countArg(argv []string, x string) int {
 // v2.7 #182 (FINDING-G): the value is `user,project` (NOT "") — the empty value
 // suppressed the keychain /login credential (loaded via the user source) → 403.
 func TestBuildStreamingArgv_SecurityFlags(t *testing.T) {
-	argv, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, 0, "", nil, "")
+	argv, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "/home/agent/mcp.json", 0, 0, "", nil, "", false)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv: %v", err)
 	}
@@ -378,7 +378,7 @@ func TestBuildStreamingArgv_SecurityFlags(t *testing.T) {
 
 	// Negative: with NO --mcp-config, --strict-mcp-config must be ABSENT (strict with
 	// zero servers = zero MCP tools — the wrong outcome).
-	noMCP, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "", 0, 0, "", nil, "")
+	noMCP, _, err := BuildStreamingArgv("01J9ZK7QW8X2YB3C4D5E6F7G8H", "claude", "", 0, 0, "", nil, "", false)
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv (no mcp): %v", err)
 	}
@@ -404,5 +404,31 @@ func TestEncodeUserMessage(t *testing.T) {
 	}
 	if !strings.Contains(s, "do the thing") {
 		t.Fatalf("missing message text: %q", s)
+	}
+}
+
+func TestBuildStreamingArgv_ConcurrencyEnabled(t *testing.T) {
+	argv, sysPrompt, err := BuildStreamingArgv("agent-concurrent-test", "claude", "", 0, 0, "", nil, "", true)
+	if err != nil {
+		t.Fatalf("BuildStreamingArgv: %v", err)
+	}
+	_ = argv
+	if !strings.Contains(sysPrompt, "ORCHESTRATOR") {
+		t.Fatal("concurrent mode must use OrchestratorSystemPrompt")
+	}
+	if strings.Contains(sysPrompt, "Only ONE task runs at a time") {
+		t.Fatal("concurrent mode must NOT contain single-task instruction")
+	}
+
+	// Single-task mode: must use the original prompt.
+	_, stPrompt, err := BuildStreamingArgv("agent-single-test", "claude", "", 0, 0, "", nil, "", false)
+	if err != nil {
+		t.Fatalf("BuildStreamingArgv: %v", err)
+	}
+	if !strings.Contains(stPrompt, "Only ONE task runs at a time") {
+		t.Fatal("single-task mode must contain single-task instruction")
+	}
+	if strings.Contains(stPrompt, "ORCHESTRATOR") {
+		t.Fatal("single-task mode must NOT contain orchestrator instruction")
 	}
 }

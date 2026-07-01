@@ -83,6 +83,10 @@ type SupervisorSessionConfig struct {
 	// killed (lock-held) prior session-id to `--resume … --fork-session` from. Empty
 	// = a plain start, no fork (initial/normal start).
 	ResumeFromSessionID string
+	// ConcurrencyEnabled indicates whether this agent runs in concurrent mode
+	// (orchestrator prompt). Forwarded as --concurrency-enabled to the supervisor
+	// subcommand so BuildStreamingArgv selects OrchestratorSystemPrompt.
+	ConcurrencyEnabled bool
 	// OnEvent is invoked for every parsed stdout StreamEvent drained from the
 	// supervisor, in order, from the event-pump goroutine. The AgentController maps
 	// this to ReportAgentActivity (s3b-2). Must not block indefinitely.
@@ -179,6 +183,7 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 		Epoch:               cfg.Epoch,
 		Generation:          cfg.Generation,
 		ResumeFromSessionID: cfg.ResumeFromSessionID,
+		ConcurrencyEnabled:  cfg.ConcurrencyEnabled,
 		ComeUpTimeout:       cfg.ComeUpTimeout,
 	})
 	if err != nil {
