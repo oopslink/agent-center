@@ -32,6 +32,12 @@ type RunnerCmdBuilder interface {
 // must NOT try to talk to the center; it does the task with its built-in tools in
 // its own workspace and reports the result as its final message (the orchestrator
 // harvests output.json and does all center writeback — design §3/§4).
+//
+// ExecutorSystemPrompt returns the executor framing prompt so callers (e.g. the
+// daemon's launchExecutor) can persist it to the executor's SYSTEM.md for runtime
+// inspection without duplicating the constant.
+func ExecutorSystemPrompt() string { return executorSystemPrompt }
+
 const executorSystemPrompt = "You are an isolated executor working a single task in your current working directory. " +
 	"You have NO access to the agent-center / MCP tools and NO network credentials for the center — do not attempt to message any chat, update any task, or call center tools. " +
 	"Use your built-in tools (read/edit files, run commands) to complete the task entirely within this workspace. " +

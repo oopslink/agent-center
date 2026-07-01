@@ -34,7 +34,7 @@ func gateHasPair(ss []string, flag, want string) bool {
 
 func TestGATE5_ArgvStaticAssertion(t *testing.T) {
 	const agentID = "01KSVNCZEXAMPLEAGENTID0001"
-	argv, err := BuildStreamingArgv(agentID, "claude", "/tmp/agents/01KS/mcp-config.json", 0, 0, "", nil, "")
+	argv, _, err := BuildStreamingArgv(agentID, "claude", "/tmp/agents/01KS/mcp-config.json", 0, 0, "", nil, "")
 	if err != nil {
 		t.Fatalf("BuildStreamingArgv error: %v", err)
 	}

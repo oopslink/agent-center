@@ -22,6 +22,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -372,6 +374,18 @@ func (c *AgentController) launchExecutor(ctx context.Context, agentID, taskID st
 	}
 	c.log("agent=%s task=%s forked executor=%s cli=%s model=%s(%s) problem=%s",
 		agentID, taskID, launched.ExecutorID, launched.CLI, launched.Model, launched.ModelSource, launched.ProblemID)
+
+	// Persist the executor system prompt to executors/<executor_id>/SYSTEM.md for
+	// runtime inspection / debugging. Best-effort: a write failure is logged but
+	// never blocks the fork (the executor is already running at this point).
+	if ee.fx != nil {
+		if execDir, dirErr := ee.fx.Layout().Dir(launched.ExecutorID); dirErr == nil {
+			sysPromptPath := filepath.Join(execDir, "SYSTEM.md")
+			if wErr := os.WriteFile(sysPromptPath, []byte(orchestrator.ExecutorSystemPrompt()), 0o600); wErr != nil {
+				c.log("agent=%s executor=%s warn: write SYSTEM.md: %v", agentID, launched.ExecutorID, wErr)
+			}
+		}
+	}
 
 	// Reap the executor when it exits, freeing its pool slot (W1). Runs detached so
 	// the work command acks immediately and the next work can launch concurrently.

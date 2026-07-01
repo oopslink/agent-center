@@ -101,7 +101,8 @@ func SessionUUIDGen(agentID string, epoch, generation int) string {
 //	→ + BuildMCPConfigArg(mcpConfigPath)       (--mcp-config <path> + --strict-mcp-config),
 //	                                            when non-empty
 //
-// It returns the FULL argv ([binary, args...]) ready for exec.Command. This is
+// It returns the FULL argv ([binary, args...]) ready for exec.Command AND the
+// assembled system prompt string (for the caller to persist to SYSTEM.md). This is
 // the single source of truth for the streaming claude invocation; the v2.7
 // agent-supervisor subcommand calls it instead of duplicating the flag rewrite.
 // binary empty → adapter default ("claude" on PATH). The supervisor receives only
@@ -125,9 +126,9 @@ func SessionUUIDGen(agentID string, epoch, generation int) string {
 // memory; see cognition/memory.Engine.HarnessContext) rides the same idempotent,
 // re-applied-every-launch channel as the work-queue prompt. Empty ⇒ byte-for-byte
 // the pre-memory argv (every existing call site passes "").
-func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation int, resumeFromSessionID string, env map[string]string, extraSystemPrompt string) ([]string, error) {
+func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation int, resumeFromSessionID string, env map[string]string, extraSystemPrompt string) ([]string, string, error) {
 	if agentID == "" {
-		return nil, errors.New("claudestream: agent_id required")
+		return nil, "", errors.New("claudestream: agent_id required")
 	}
 	sysPrompt := AgentWorkQueueSystemPrompt
 	if strings.TrimSpace(extraSystemPrompt) != "" {
@@ -146,13 +147,13 @@ func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation
 	}
 	cmdSpec, err := adapter.BuildCommand(req)
 	if err != nil {
-		return nil, fmt.Errorf("claudestream: build command: %w", err)
+		return nil, "", fmt.Errorf("claudestream: build command: %w", err)
 	}
 	args := rewriteForStreamingInput(cmdSpec.Args)
 	if mcpConfigPath != "" {
 		mcp, err := adapter.BuildMCPConfigArg(mcpConfigPath)
 		if err != nil {
-			return nil, fmt.Errorf("claudestream: mcp-config arg: %w", err)
+			return nil, "", fmt.Errorf("claudestream: mcp-config arg: %w", err)
 		}
 		args = append(args, mcp.Args...)
 		// v2.7 security: lock MCP discovery to ONLY this --mcp-config document — claude
@@ -173,7 +174,7 @@ func BuildStreamingArgv(agentID, binary, mcpConfigPath string, epoch, generation
 	if resumeFromSessionID != "" {
 		args = append(args, "--resume", resumeFromSessionID, "--fork-session")
 	}
-	return append([]string{cmdSpec.Binary}, args...), nil
+	return append([]string{cmdSpec.Binary}, args...), sysPrompt, nil
 }
 
 // longLivedSentinelPrompt satisfies BuildCommand's non-empty-prompt validation;

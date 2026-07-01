@@ -105,10 +105,16 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 	// <path>). The supervisor holds only the mcp-config PATH; no token here.
 	// --model (if any) is appended as an argv flag below. memoryContext rides the
 	// same --append-system-prompt as the work-queue harness.
-	childCmd, err := claudestream.BuildStreamingArgv(agentID, strings.TrimSpace(claudeBin), strings.TrimSpace(mcpConfigPath), resetEpoch, generation, strings.TrimSpace(resumeFrom), nil, memoryContext)
+	childCmd, sysPrompt, err := claudestream.BuildStreamingArgv(agentID, strings.TrimSpace(claudeBin), strings.TrimSpace(mcpConfigPath), resetEpoch, generation, strings.TrimSpace(resumeFrom), nil, memoryContext)
 	if err != nil {
 		fmt.Fprintf(errw, "Error: agent_supervisor: build claude argv: %v\n", err)
 		return ExitBusinessError
+	}
+	// Persist the assembled system prompt to <homeDir>/SYSTEM.md for runtime
+	// inspection / debugging. Best-effort: a write failure is logged but never
+	// blocks startup (the survival core must not hang on a disk error).
+	if wErr := os.WriteFile(filepath.Join(homeDir, "SYSTEM.md"), []byte(sysPrompt), 0o600); wErr != nil {
+		fmt.Fprintf(errw, "[agent-supervisor] warn: write SYSTEM.md: %v\n", wErr)
 	}
 	if m := strings.TrimSpace(model); m != "" {
 		childCmd = append(childCmd, "--model", m)
