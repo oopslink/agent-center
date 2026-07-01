@@ -400,7 +400,7 @@
       "description": "描述",
       "descriptionNone": "无",
       "info": "信息",
-      "computer": "计算机",
+      "computer": "工作节点",
       "noWorker": "无工作节点",
       "created": "创建时间",
       "creator": "创建者",
