@@ -66,17 +66,31 @@ func TestResolve_TaskModelHardOverride(t *testing.T) {
 	}
 }
 
-// task.model override of a model NOT in a single-CLI candidate set still pairs with
-// that sole CLI (so an only-codex agent's pinned model runs under codex).
+// task.model override of the ONLY model in a single-CLI candidate set succeeds
+// (it IS in allowed_executors) and pairs with that sole CLI.
 func TestResolve_TaskModelOverride_SoleCLI(t *testing.T) {
 	r := NewRouter(nil)
 	cfg := Config{AllowedExecutors: []ExecutorCandidate{{CLI: "codex", Model: "gpt-5.5"}}}
-	dec, err := r.ResolveExecutor(context.Background(), "gpt-custom", testGoal, cfg)
+	dec, err := r.ResolveExecutor(context.Background(), "gpt-5.5", testGoal, cfg)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if dec.CLI != "codex" || dec.Model != "gpt-custom" || dec.Source != SourceTaskOverride {
-		t.Errorf("got (%q,%q,%q), want (codex, gpt-custom, task_override)", dec.CLI, dec.Model, dec.Source)
+	if dec.CLI != "codex" || dec.Model != "gpt-5.5" || dec.Source != SourceTaskOverride {
+		t.Errorf("got (%q,%q,%q), want (codex, gpt-5.5, task_override)", dec.CLI, dec.Model, dec.Source)
+	}
+}
+
+// task.model override of a model NOT in a single-CLI candidate set → ErrModelNotAllowed
+// (the allowed_executors gate now applies regardless of how many CLIs are present).
+func TestResolve_TaskModelOverride_SoleCLI_NotInList(t *testing.T) {
+	r := NewRouter(nil)
+	cfg := Config{AllowedExecutors: []ExecutorCandidate{{CLI: "codex", Model: "gpt-5.5"}}}
+	_, err := r.ResolveExecutor(context.Background(), "gpt-custom", testGoal, cfg)
+	if err == nil {
+		t.Fatal("expected ErrModelNotAllowed when task.model not in allowed_executors")
+	}
+	if !errors.Is(err, ErrModelNotAllowed) {
+		t.Errorf("err = %v, want ErrModelNotAllowed", err)
 	}
 }
 
@@ -328,6 +342,53 @@ func TestResolve_TaskModelWorksWithEmptyConfig(t *testing.T) {
 	}
 	if dec.Model != "pin" || dec.Source != SourceTaskOverride || dec.CLI != "claude-code" {
 		t.Errorf("got (%q,%q,%q), want (claude-code, pin, task_override)", dec.CLI, dec.Model, dec.Source)
+	}
+}
+
+// task.model set to a model NOT in allowed_executors → ErrModelNotAllowed (block the
+// task rather than silently falling back to a different model).
+func TestResolveExecutor_TaskModelNotInAllowed(t *testing.T) {
+	r := NewRouter(nil)
+	cfg := baseCfg() // allowed: haiku-cheap, sonnet-mid, opus-hard
+
+	_, err := r.ResolveExecutor(context.Background(), "gpt-rogue", testGoal, cfg)
+	if err == nil {
+		t.Fatal("expected error when task.model is not in allowed_executors")
+	}
+	if !errors.Is(err, ErrModelNotAllowed) {
+		t.Errorf("err = %v, want ErrModelNotAllowed", err)
+	}
+}
+
+// task.model set to a model IN allowed_executors → SourceTaskOverride, no regression.
+func TestResolveExecutor_TaskModelInAllowed(t *testing.T) {
+	r := NewRouter(nil)
+	cfg := baseCfg() // allowed: haiku-cheap, sonnet-mid, opus-hard
+
+	dec, err := r.ResolveExecutor(context.Background(), "opus-hard", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if dec.Model != "opus-hard" || dec.Source != SourceTaskOverride {
+		t.Errorf("got (%q,%q), want (opus-hard, task_override)", dec.Model, dec.Source)
+	}
+	if dec.CLI != "claude-code" {
+		t.Errorf("cli = %q, want claude-code (paired from allowed_executors)", dec.CLI)
+	}
+}
+
+// task.model set but allowed_executors is EMPTY (single-task mode) → SourceTaskOverride,
+// no validation (the agent runs the model directly via its CLI).
+func TestResolveExecutor_TaskModelNoAllowedExecutors(t *testing.T) {
+	r := NewRouter(nil)
+	cfg := Config{} // no allowed_executors, no default
+
+	dec, err := r.ResolveExecutor(context.Background(), "any-model", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if dec.Model != "any-model" || dec.Source != SourceTaskOverride {
+		t.Errorf("got (%q,%q), want (any-model, task_override)", dec.Model, dec.Source)
 	}
 }
 

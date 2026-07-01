@@ -30,10 +30,12 @@ package workerdaemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
+	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
 
@@ -111,12 +113,35 @@ func (c *AgentController) forkOnWorkAvailable(ctx context.Context, agentID, task
 
 	// 3. Fork the executor (W1 HandleWork chain).
 	if err := c.launchExecutor(ctx, agentID, taskID, buildWorkItem(taskID, task), ee); err != nil {
+		if errors.Is(err, modelrouter.ErrModelNotAllowed) {
+			c.log("work_available agent=%s task=%s model not allowed: %v — blocking task", agentID, taskID, err)
+			c.blockTaskOnModelNotAllowed(ctx, agentID, taskID, err)
+			return
+		}
 		// The task is already running center-side but the local fork failed. This is a
 		// rare reap-skew case (e.g. a finished executor's slot not yet freed when the
 		// center already admitted): no executor runs (no double-run), and the execution
 		// lease reclaims the task to open so the sweep re-dispatches it. Surface it loudly.
 		c.log("work_available agent=%s task=%s started but fork failed: %v (lease will reclaim → re-dispatch)",
 			agentID, taskID, err)
+	}
+}
+
+// blockTaskOnModelNotAllowed blocks a task whose task.model is not in the
+// agent's allowed_executors. The task was already started (open→running) by
+// startCenterTask, so we block it (running→blocked) with an obstacle reason.
+func (c *AgentController) blockTaskOnModelNotAllowed(ctx context.Context, agentID, taskID string, err error) {
+	if c.cfg.ToolCaller == nil {
+		return
+	}
+	body := map[string]any{
+		"agent_id":    agentID,
+		"task_id":     taskID,
+		"reason":      err.Error(),
+		"reason_type": "obstacle",
+	}
+	if bErr := c.cfg.ToolCaller.CallAgentTool(ctx, "block_task", body, nil); bErr != nil {
+		c.log("work_available agent=%s task=%s block_task failed: %v", agentID, taskID, bErr)
 	}
 }
 

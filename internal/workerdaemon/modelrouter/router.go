@@ -59,6 +59,10 @@ var (
 	// ErrNoOrchestratorModel is returned by OrchestratorModel when the profile has
 	// no orchestrator_model configured.
 	ErrNoOrchestratorModel = errors.New("modelrouter: orchestrator_model not configured")
+	// ErrModelNotAllowed is returned when task.model is set but not found in
+	// the agent's allowed_executors list. The caller should block the task
+	// with an obstacle rather than silently falling back.
+	ErrModelNotAllowed = errors.New("modelrouter: task model not in allowed_executors")
 )
 
 // ExecutorCandidate is one {cli, model} executor candidate the router chooses among
@@ -155,6 +159,14 @@ func NewRouter(judge DifficultyJudge) *Router {
 func (r *Router) ResolveExecutor(ctx context.Context, taskModel string, goal executor.Goal, cfg Config) (Decision, error) {
 	// 1. Hard override — highest priority; short-circuit before any LLM call.
 	if m := strings.TrimSpace(taskModel); m != "" {
+		// When allowed_executors is configured (concurrent mode), task.model
+		// MUST be among them — a model the agent cannot run should block the
+		// task, not silently fall back. When allowed_executors is empty
+		// (single-task mode), the agent runs the model directly via its CLI,
+		// so no validation is needed here.
+		if len(cfg.AllowedExecutors) > 0 && !containsModel(cfg.AllowedExecutors, m) {
+			return Decision{}, fmt.Errorf("%w: %q", ErrModelNotAllowed, m)
+		}
 		return Decision{CLI: resolveCLI(cfg, m), Model: m, Source: SourceTaskOverride}, nil
 	}
 
@@ -202,6 +214,17 @@ func (r *Router) OrchestratorModel(cfg Config) (string, error) {
 func containsExecutor(execs []ExecutorCandidate, cli, model string) bool {
 	for _, e := range execs {
 		if e.CLI == cli && e.Model == model {
+			return true
+		}
+	}
+	return false
+}
+
+// containsModel reports whether ANY executor candidate has the given model
+// (regardless of CLI). Used to validate task.model against allowed_executors.
+func containsModel(execs []ExecutorCandidate, model string) bool {
+	for _, e := range execs {
+		if e.Model == model {
 			return true
 		}
 	}
