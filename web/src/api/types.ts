@@ -301,6 +301,9 @@ export interface AgentTask {
   // T84 instead of an id-tail (#b6eb82). Absent when the task has no org_number
   // (UI falls back), mirroring the task/issue DTO contract.
   org_ref?: string;
+  // plan_name is the owning plan's name. Empty string for assignment-pool tasks
+  // (builtin plan), absent when unresolved.
+  plan_name?: string;
   status: AgentTaskStatus;
   interactions: number;
   version: number;
@@ -656,6 +659,9 @@ export interface Task {
   // T106: the owning plan's id when the task is selected into a plan; absent for
   // a backlog task. The Task detail sidebar shows + links to the plan.
   plan_id?: string;
+  // plan_name is the owning plan's name. Empty string for assignment-pool tasks
+  // (builtin plan), absent when unresolved or no plan.
+  plan_name?: string;
   // T566 (issue-577a7b0e): canonical capability tags an agent must ALL have for
   // this task to be auto-assigned (strict subset gate). Empty = no requirement.
   // The DTO always emits an array ([] when none); optional for legacy payloads.
@@ -713,6 +719,10 @@ export interface OrgWorkItem {
   // '' / absent when not blocked. Only task rows carry these (issues never block).
   blocked_reason?: string;
   blocked_reason_type?: BlockReasonType;
+  // plan_id / plan_name: the owning plan. Empty plan_name for assignment-pool
+  // tasks (builtin plan), absent when no plan.
+  plan_id?: string;
+  plan_name?: string;
 }
 
 // CodeRepo — a PROJECT's reference to a code repo (v2.7; T575 turns it into a

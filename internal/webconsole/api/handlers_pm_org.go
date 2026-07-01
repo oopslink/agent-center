@@ -313,6 +313,18 @@ func (s *Server) orgTaskRow(r *http.Request, d HandlerDeps, t *pm.Task, p *pm.Pr
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref
 	}
+	if pid := t.PlanID(); pid != "" {
+		m["plan_id"] = string(pid)
+		if d.PM != nil {
+			if pl, perr := d.PM.GetPlan(r.Context(), pid); perr == nil && pl != nil {
+				if pl.IsBuiltin() {
+					m["plan_name"] = ""
+				} else {
+					m["plan_name"] = pl.Name()
+				}
+			}
+		}
+	}
 	return m
 }
 

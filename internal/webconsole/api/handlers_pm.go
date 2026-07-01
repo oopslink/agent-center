@@ -149,6 +149,33 @@ func pmTaskMap(t *pm.Task) map[string]any {
 	return m
 }
 
+// enrichTaskPlanNames batch-resolves plan_name for task DTOs that carry a plan_id.
+// Builtin (assignment-pool) plans → empty string; non-builtin → plan name.
+func enrichTaskPlanNames(ctx context.Context, d HandlerDeps, rows []map[string]any) {
+	if d.PM == nil {
+		return
+	}
+	cache := make(map[string]string)
+	for _, m := range rows {
+		pid, _ := m["plan_id"].(string)
+		if pid == "" {
+			continue
+		}
+		if _, ok := cache[pid]; !ok {
+			if pl, err := d.PM.GetPlan(ctx, pm.PlanID(pid)); err == nil && pl != nil {
+				if pl.IsBuiltin() {
+					cache[pid] = ""
+				} else {
+					cache[pid] = pl.Name()
+				}
+			}
+		}
+		if name, ok := cache[pid]; ok {
+			m["plan_name"] = name
+		}
+	}
+}
+
 // capsOrEmpty renders a capability slice as a non-nil JSON array ([] for nil/empty),
 // so required_capabilities always serializes as an array (v2.18.3 BE-1).
 func capsOrEmpty(caps []string) []string {
@@ -676,6 +703,7 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			out = append(out, pmTaskMap(t))
 		}
+		enrichTaskPlanNames(r.Context(), d, out)
 		writeJSON(w, http.StatusOK, map[string]any{"tasks": out, "total": len(out)})
 		return
 	}
@@ -698,6 +726,7 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 	for _, t := range ts {
 		out = append(out, pmTaskMap(t))
 	}
+	enrichTaskPlanNames(r.Context(), d, out)
 	writeJSON(w, http.StatusOK, map[string]any{"tasks": out, "total": total})
 }
 

@@ -487,6 +487,7 @@
       "updated": "Updated",
       "creator": "Creator",
       "assignedTo": "Assigned to",
+      "plan": "Plan",
       "priority": "Priority"
     },
     "plans": {
@@ -699,6 +700,7 @@
       "title": "Title",
       "status": "Status",
       "assignedTo": "Assigned to",
+      "plan": "Plan",
       "created": "Created",
       "creator": "Creator",
       "updated": "Updated"

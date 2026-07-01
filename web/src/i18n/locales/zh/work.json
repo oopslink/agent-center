@@ -487,6 +487,7 @@
       "updated": "更新时间",
       "creator": "创建者",
       "assignedTo": "负责人",
+      "plan": "计划",
       "priority": "优先级"
     },
     "plans": {
@@ -699,6 +700,7 @@
       "title": "标题",
       "status": "状态",
       "assignedTo": "负责人",
+      "plan": "计划",
       "created": "创建时间",
       "creator": "创建者",
       "updated": "更新时间"

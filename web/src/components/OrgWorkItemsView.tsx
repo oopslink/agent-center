@@ -151,6 +151,7 @@ export function OrgWorkItemsView({
                 <SortHeader label={t('workItem.col.title')} sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label={t('workItem.col.status')} sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">{t('workItem.col.assignedTo')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('workItem.col.plan')}</th>
                 <SortHeader label={t('workItem.col.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">{t('workItem.col.creator')}</th>
                 <SortHeader label={t('workItem.col.updated')} sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
@@ -220,6 +221,9 @@ export function OrgWorkItemsView({
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td className="py-1.5 pr-3 text-text-muted" data-testid="org-workitem-plan" title={it.plan_name || undefined}>
+                    {it.plan_name || '—'}
                   </td>
                   <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="org-workitem-created" title={it.created_at}>
                     {shortDate(it.created_at)}

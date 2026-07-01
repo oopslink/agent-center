@@ -184,6 +184,7 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
                   <th className="py-1.5 pr-3 font-medium">{t('agentRuntime.tasks.columns.id')}</th>
                   <th className="py-1.5 pr-3 font-medium">{t('agentRuntime.tasks.columns.title')}</th>
                   <th className="py-1.5 pr-3 font-medium">{t('agentRuntime.tasks.columns.type')}</th>
+                  <th className="py-1.5 pr-3 font-medium">{t('agentRuntime.tasks.columns.plan')}</th>
                   <th className="py-1.5 pr-3 font-medium">{t('agentRuntime.tasks.columns.priority')}</th>
                   <th className="py-1.5 pr-3 font-medium">{t('agentRuntime.tasks.columns.status')}</th>
                   <th className="py-1.5 font-medium">{t('agentRuntime.tasks.columns.updated')}</th>
@@ -277,6 +278,9 @@ function TaskRow({
       <td className="py-2 pr-3" data-testid="agent-workitem-type">
         {/* v2.7.1 fallback: every row is a Task (real types = v2.8 #231). */}
         <TypeChip kind="task" />
+      </td>
+      <td className="py-2 pr-3 text-text-muted" data-testid="agent-workitem-plan" title={w.plan_name || undefined}>
+        {w.plan_name || '—'}
       </td>
       <td className="py-2 pr-3 text-text-muted" data-testid="agent-workitem-priority">
         {/* v2.7.1 fallback: no priority schema yet (#231). */}—

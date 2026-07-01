@@ -1050,6 +1050,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                 <SortHeader label={t('project.table.title')} sortKey="title" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label={t('project.table.status')} sortKey="status" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <th className="py-1.5 pr-3 font-medium">{t('project.table.assignedTo')}</th>
+                <th className="py-1.5 pr-3 font-medium">{t('project.table.plan')}</th>
                 <th className="py-1.5 pr-3 font-medium">{t('project.table.priority')}</th>
                 <SortHeader label={t('project.table.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
                 <SortHeader label={t('project.table.updated')} sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
@@ -1083,6 +1084,9 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td className="py-1.5 pr-3 text-text-muted" data-testid="task-plan" title={tk.plan_name || undefined}>
+                    {tk.plan_name || '—'}
                   </td>
                   <td className="py-1.5 pr-3 text-text-muted" data-testid="task-priority">—</td>
                   <td className="py-1.5 pr-3 tabular-nums text-text-muted" title={formatLocalTime(tk.created_at)}>
