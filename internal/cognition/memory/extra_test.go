@@ -52,8 +52,8 @@ func TestEnsureRootInit_PreExistingRepo(t *testing.T) {
 	if err := f.EnsureRootInit(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "CLAUDE.md")); err != nil {
-		t.Error("global CLAUDE.md missing")
+	if _, err := os.Stat(filepath.Join(dir, "MEMORY.md")); err != nil {
+		t.Error("global MEMORY.md missing")
 	}
 }
 

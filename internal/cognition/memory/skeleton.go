@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
 
-// SkeletonFactory creates initial CLAUDE.md / supervisor.md files for
+// SkeletonFactory creates initial MEMORY.md / supervisor.md files for
 // new scopes (cognition/02-memory § 4). It owns mkdir + write + git
 // add+commit; the actual git interactions are delegated to GitOps.
 type SkeletonFactory struct {
@@ -57,7 +59,7 @@ func (f *SkeletonFactory) CreateSkeleton(ctx context.Context, scope MemoryScope)
 }
 
 // EnsureRootInit checks if memoryDir is a git repo; if not, runs `git init`
-// and seeds CLAUDE.md + supervisor.md skeletons. Idempotent. Called at
+// and seeds MEMORY.md + supervisor.md skeletons. Idempotent. Called at
 // center startup.
 func (f *SkeletonFactory) EnsureRootInit(ctx context.Context) error {
 	if f.memoryDir == "" {
@@ -75,7 +77,9 @@ func (f *SkeletonFactory) EnsureRootInit(ctx context.Context) error {
 			return err
 		}
 	}
-	// global CLAUDE.md
+	// Migrate legacy CLAUDE.md → MEMORY.md (idempotent).
+	f.migrateFromLegacyName(ctx)
+	// global MEMORY.md
 	if err := f.CreateSkeleton(ctx, MemoryScope{Kind: MemScopeGlobal}); err != nil {
 		return err
 	}
@@ -100,7 +104,7 @@ func defaultSkeleton(scope MemoryScope) string {
 
 <!-- Self-referential notes for the supervisor (workflow tweaks, common
      failure modes). Loaded explicitly at the top of every invocation prompt
-     (not via CLAUDE.md ancestor walk). Keep it short; expand into specific
+     (not via MEMORY.md ancestor walk). Keep it short; expand into specific
      scope files when relevant. -->
 `
 	case MemScopeProject:
@@ -115,6 +119,53 @@ func defaultSkeleton(scope MemoryScope) string {
 		return fmt.Sprintf("# Worker %s\n\n<!-- Worker-scope memory. -->\n", scope.Key)
 	}
 	return "# (unknown scope)\n"
+}
+
+// migrateFromLegacyName walks memoryDir looking for files named "CLAUDE.md"
+// and renames them to "MEMORY.md". Best-effort: errors are logged but do not
+// fail the caller (an agent should not fail to start due to a migration issue).
+func (f *SkeletonFactory) migrateFromLegacyName(ctx context.Context) {
+	if f.memoryDir == "" {
+		return
+	}
+	_ = filepath.WalkDir(f.memoryDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if d.Name() != "CLAUDE.md" {
+			return nil
+		}
+		newPath := filepath.Join(filepath.Dir(path), "MEMORY.md")
+		rel, relErr := filepath.Rel(f.memoryDir, path)
+		if relErr != nil {
+			slog.WarnContext(ctx, "memory migrate: cannot compute rel path", "path", path, "err", relErr)
+			return nil
+		}
+		newRel, relErr := filepath.Rel(f.memoryDir, newPath)
+		if relErr != nil {
+			slog.WarnContext(ctx, "memory migrate: cannot compute new rel path", "path", newPath, "err", relErr)
+			return nil
+		}
+		if _, statErr := os.Stat(newPath); statErr == nil {
+			// MEMORY.md already exists — just remove the stale legacy file.
+			if rmErr := os.Remove(path); rmErr != nil {
+				slog.WarnContext(ctx, "memory migrate: remove legacy file failed", "path", path, "err", rmErr)
+			}
+			return nil
+		}
+		// Use git mv so history is preserved.
+		if out, mvErr := f.gitops.run(ctx, "system:migrate", "system:migrate@agent-center.local",
+			"mv", rel, newRel); mvErr != nil {
+			slog.WarnContext(ctx, "memory migrate: git mv failed", "from", rel, "to", newRel, "err", mvErr, "out", out)
+			return nil
+		}
+		if cmErr := f.gitops.AutoCommitDirty(ctx,
+			"system:migrate", "system:migrate@agent-center.local",
+			"migrate: rename CLAUDE.md → MEMORY.md"); cmErr != nil {
+			slog.WarnContext(ctx, "memory migrate: commit failed", "err", cmErr)
+		}
+		return nil
+	})
 }
 
 func scopeLabel(scope MemoryScope) string {

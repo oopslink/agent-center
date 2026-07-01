@@ -94,7 +94,7 @@ func TestAssembleScoped_AncestorWalk(t *testing.T) {
 	}
 
 	// Remove the middle (project) scope file: assemble must skip it gracefully.
-	pPath := filepath.Join(e.MemoryDir(), "projects", "P1", "CLAUDE.md")
+	pPath := filepath.Join(e.MemoryDir(), "projects", "P1", "MEMORY.md")
 	if err := os.Remove(pPath); err != nil {
 		t.Fatalf("rm project file: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestWriteScoped_CommitsHistory(t *testing.T) {
 		t.Errorf("commit history missing writes:\n%s", log)
 	}
 	// File holds the latest content.
-	got, err := os.ReadFile(filepath.Join(e.MemoryDir(), "projects", "P9", "tasks", "T9", "CLAUDE.md"))
+	got, err := os.ReadFile(filepath.Join(e.MemoryDir(), "projects", "P9", "tasks", "T9", "MEMORY.md"))
 	if err != nil {
 		t.Fatalf("read back: %v", err)
 	}
@@ -180,12 +180,12 @@ func TestCommitDirty_TurnsAgentEditsIntoCommits(t *testing.T) {
 	if err := e.EnsureRootInit(ctx); err != nil {
 		t.Fatalf("EnsureRootInit: %v", err)
 	}
-	// Simulate the agent editing a CLAUDE.md directly via its file tools.
+	// Simulate the agent editing a MEMORY.md directly via its file tools.
 	p := filepath.Join(e.MemoryDir(), "projects", "PX", "tasks", "TX")
 	if err := os.MkdirAll(p, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(p, "CLAUDE.md"), []byte("# agent wrote this\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(p, "MEMORY.md"), []byte("# agent wrote this\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	if err := e.CommitDirty(ctx, "dev1", "dev1@agent-center", "memory: sync"); err != nil {
@@ -268,7 +268,7 @@ func TestHarnessContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HarnessContext: %v", err)
 	}
-	for _, want := range []string{"== Your memory ==", e.MemoryDir(), "tasks/<task_id>/CLAUDE.md", "ancestor chain"} {
+	for _, want := range []string{"== Your memory ==", e.MemoryDir(), "tasks/<task_id>/MEMORY.md", "ancestor chain"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("harness context missing %q:\n%s", want, out)
 		}
@@ -302,7 +302,7 @@ func TestWriteAndCommit_DefaultIdentityFallback(t *testing.T) {
 		t.Fatalf("WriteScoped fallback: %v", err)
 	}
 	// Dirty edit + empty author/message on CommitDirty → system:memory-sync.
-	if err := os.WriteFile(filepath.Join(e.MemoryDir(), "CLAUDE.md"), []byte("# edited\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(e.MemoryDir(), "MEMORY.md"), []byte("# edited\n"), 0o644); err != nil {
 		t.Fatalf("edit: %v", err)
 	}
 	if err := e.CommitDirty(ctx, "", "", ""); err != nil {

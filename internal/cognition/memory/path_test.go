@@ -14,13 +14,13 @@ func TestScopeToFSPath_AllScopes(t *testing.T) {
 		scope memory.MemoryScope
 		want  string
 	}{
-		{"global", memory.MemoryScope{Kind: memory.MemScopeGlobal}, "CLAUDE.md"},
+		{"global", memory.MemoryScope{Kind: memory.MemScopeGlobal}, "MEMORY.md"},
 		{"supervisor", memory.MemoryScope{Kind: memory.MemScopeSupervisor}, "supervisor.md"},
-		{"project", memory.MemoryScope{Kind: memory.MemScopeProject, ProjectID: "demo"}, "projects/demo/CLAUDE.md"},
-		{"task", memory.MemoryScope{Kind: memory.MemScopeTask, Key: "T-1", ProjectID: "demo"}, "projects/demo/tasks/T-1/CLAUDE.md"},
-		{"issue", memory.MemoryScope{Kind: memory.MemScopeIssue, Key: "I-7", ProjectID: "demo"}, "projects/demo/issues/I-7/CLAUDE.md"},
-		{"conversation", memory.MemoryScope{Kind: memory.MemScopeConversation, Key: "C-3"}, "conversations/C-3/CLAUDE.md"},
-		{"worker", memory.MemoryScope{Kind: memory.MemScopeWorker, Key: "W-1"}, "workers/W-1/CLAUDE.md"},
+		{"project", memory.MemoryScope{Kind: memory.MemScopeProject, ProjectID: "demo"}, "projects/demo/MEMORY.md"},
+		{"task", memory.MemoryScope{Kind: memory.MemScopeTask, Key: "T-1", ProjectID: "demo"}, "projects/demo/tasks/T-1/MEMORY.md"},
+		{"issue", memory.MemoryScope{Kind: memory.MemScopeIssue, Key: "I-7", ProjectID: "demo"}, "projects/demo/issues/I-7/MEMORY.md"},
+		{"conversation", memory.MemoryScope{Kind: memory.MemScopeConversation, Key: "C-3"}, "conversations/C-3/MEMORY.md"},
+		{"worker", memory.MemoryScope{Kind: memory.MemScopeWorker, Key: "W-1"}, "workers/W-1/MEMORY.md"},
 	}
 	for _, tc := range cases {
 		got, err := memory.ScopeToFSPath(tc.scope)

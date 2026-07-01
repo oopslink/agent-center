@@ -45,7 +45,7 @@ func (e *Engine) GitLog(ctx context.Context) (string, error) {
 	return e.gitops.LogOneline(ctx)
 }
 
-// EnsureRootInit makes memoryDir a git repo seeded with the global CLAUDE.md +
+// EnsureRootInit makes memoryDir a git repo seeded with the global MEMORY.md +
 // supervisor.md skeletons. Idempotent — safe to call at every agent CLI startup.
 func (e *Engine) EnsureRootInit(ctx context.Context) error {
 	return e.factory.EnsureRootInit(ctx)
@@ -112,7 +112,7 @@ func (e *Engine) AssembleScoped(ctx context.Context, scope MemoryScope, includeS
 
 // HarnessContext renders the memory block injected into the agent CLI's
 // append-system-prompt harness at launch: a short guide to the on-disk scoped
-// layout (so the agent reads/writes the right CLAUDE.md via its own file tools)
+// layout (so the agent reads/writes the right MEMORY.md via its own file tools)
 // plus the always-relevant global + supervisor memory bodies. The runtime
 // commits the agent's edits automatically (see CommitDirty), so the guide tells
 // the agent to just edit the matching file. Never returns an error for a missing
@@ -125,13 +125,13 @@ func (e *Engine) HarnessContext(ctx context.Context) (string, error) {
 	var b strings.Builder
 	b.WriteString("== Your memory ==\n")
 	fmt.Fprintf(&b, "Your persistent memory is a git repo at %s — markdown, organised by scope:\n", e.memoryDir)
-	b.WriteString("  CLAUDE.md                                          global (all your work)\n")
+	b.WriteString("  MEMORY.md                                          global (all your work)\n")
 	b.WriteString("  supervisor.md                                      your self-memory\n")
-	b.WriteString("  projects/<project_id>/CLAUDE.md                     project scope\n")
-	b.WriteString("  projects/<project_id>/tasks/<task_id>/CLAUDE.md     task scope\n")
-	b.WriteString("  projects/<project_id>/issues/<issue_id>/CLAUDE.md   issue scope\n")
-	b.WriteString("  conversations/<conversation_id>/CLAUDE.md           conversation scope\n")
-	b.WriteString("When you start a unit of work, consult the ancestor chain narrow→broad (task → project → global) and let the most specific notes win. Record durable lessons / skills / principles back into the MOST specific scope that fits by editing the matching CLAUDE.md with your file tools — the runtime commits your edits automatically. Never write outside this directory.\n")
+	b.WriteString("  projects/<project_id>/MEMORY.md                     project scope\n")
+	b.WriteString("  projects/<project_id>/tasks/<task_id>/MEMORY.md     task scope\n")
+	b.WriteString("  projects/<project_id>/issues/<issue_id>/MEMORY.md   issue scope\n")
+	b.WriteString("  conversations/<conversation_id>/MEMORY.md           conversation scope\n")
+	b.WriteString("When you start a unit of work, consult the ancestor chain narrow→broad (task → project → global) and let the most specific notes win. Record durable lessons / skills / principles back into the MOST specific scope that fits by editing the matching MEMORY.md with your file tools — the runtime commits your edits automatically. Never write outside this directory.\n")
 	if body != "" {
 		b.WriteString("\nCurrent global + supervisor memory:\n")
 		b.WriteString(body)
@@ -169,7 +169,7 @@ func (e *Engine) WriteScoped(ctx context.Context, scope MemoryScope, content, au
 }
 
 // CommitDirty stages and commits any dirty working-tree changes under memoryDir.
-// The agent edits CLAUDE.md files directly via its file tools; this is the
+// The agent edits MEMORY.md files directly via its file tools; this is the
 // "memory sync" that turns those edits into commit history. No-op on a clean
 // tree. W2 scope: LOCAL commit only — remote push (W1) is out.
 func (e *Engine) CommitDirty(ctx context.Context, authorName, authorEmail, message string) error {

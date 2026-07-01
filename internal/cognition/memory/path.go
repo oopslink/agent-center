@@ -3,7 +3,7 @@
 //
 // Memory is the supervisor's persistent brain — markdown files committed
 // via real git, stored under $AGENT_CENTER_MEMORY_DIR. Each invocation /
-// scope walks an ancestor chain of CLAUDE.md files; supervisor.md sits at
+// scope walks an ancestor chain of MEMORY.md files; supervisor.md sits at
 // the root and is loaded explicitly (not via ancestor walk).
 package memory
 
@@ -39,17 +39,17 @@ type MemoryScope struct {
 }
 
 // ScopeToFSPath returns the relative path (within MemoryDir) of the
-// CLAUDE.md / supervisor.md file for the given scope. Path-traversal
+// MEMORY.md / supervisor.md file for the given scope. Path-traversal
 // validation runs against the constructed components.
 //
 // Layout (cognition/02 § 1):
 //
-//	global       → CLAUDE.md
-//	project:X    → projects/X/CLAUDE.md
-//	task:T (in X) → projects/X/tasks/T/CLAUDE.md
-//	issue:I (in X) → projects/X/issues/I/CLAUDE.md
-//	conversation:C → conversations/C/CLAUDE.md
-//	worker:W      → workers/W/CLAUDE.md
+//	global       → MEMORY.md
+//	project:X    → projects/X/MEMORY.md
+//	task:T (in X) → projects/X/tasks/T/MEMORY.md
+//	issue:I (in X) → projects/X/issues/I/MEMORY.md
+//	conversation:C → conversations/C/MEMORY.md
+//	worker:W      → workers/W/MEMORY.md
 //	supervisor    → supervisor.md
 func ScopeToFSPath(scope MemoryScope) (string, error) {
 	if err := validateScopeComponents(scope); err != nil {
@@ -57,17 +57,17 @@ func ScopeToFSPath(scope MemoryScope) (string, error) {
 	}
 	switch scope.Kind {
 	case MemScopeGlobal:
-		return "CLAUDE.md", nil
+		return "MEMORY.md", nil
 	case MemScopeProject:
-		return filepath.ToSlash(filepath.Join("projects", scope.ProjectID, "CLAUDE.md")), nil
+		return filepath.ToSlash(filepath.Join("projects", scope.ProjectID, "MEMORY.md")), nil
 	case MemScopeTask:
-		return filepath.ToSlash(filepath.Join("projects", scope.ProjectID, "tasks", scope.Key, "CLAUDE.md")), nil
+		return filepath.ToSlash(filepath.Join("projects", scope.ProjectID, "tasks", scope.Key, "MEMORY.md")), nil
 	case MemScopeIssue:
-		return filepath.ToSlash(filepath.Join("projects", scope.ProjectID, "issues", scope.Key, "CLAUDE.md")), nil
+		return filepath.ToSlash(filepath.Join("projects", scope.ProjectID, "issues", scope.Key, "MEMORY.md")), nil
 	case MemScopeConversation:
-		return filepath.ToSlash(filepath.Join("conversations", scope.Key, "CLAUDE.md")), nil
+		return filepath.ToSlash(filepath.Join("conversations", scope.Key, "MEMORY.md")), nil
 	case MemScopeWorker:
-		return filepath.ToSlash(filepath.Join("workers", scope.Key, "CLAUDE.md")), nil
+		return filepath.ToSlash(filepath.Join("workers", scope.Key, "MEMORY.md")), nil
 	case MemScopeSupervisor:
 		return "supervisor.md", nil
 	default:
@@ -75,7 +75,7 @@ func ScopeToFSPath(scope MemoryScope) (string, error) {
 	}
 }
 
-// ScopeToDirPath returns the parent directory containing the CLAUDE.md
+// ScopeToDirPath returns the parent directory containing the MEMORY.md
 // file (used by mkdir -p before write). For global / supervisor scopes
 // it returns "." (root).
 func ScopeToDirPath(scope MemoryScope) (string, error) {

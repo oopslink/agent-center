@@ -21,7 +21,7 @@ func TestSkeleton_EnsureRootInit(t *testing.T) {
 		t.Fatalf("init: %v", err)
 	}
 	// global + supervisor exist
-	for _, name := range []string{"CLAUDE.md", "supervisor.md"} {
+	for _, name := range []string{"MEMORY.md", "supervisor.md"} {
 		p := filepath.Join(dir, name)
 		if _, err := os.Stat(p); err != nil {
 			t.Errorf("%s missing: %v", name, err)
@@ -60,11 +60,11 @@ func TestSkeleton_CreateProjectAndTask(t *testing.T) {
 	}
 	// confirm files
 	wantPaths := []string{
-		"projects/demo/CLAUDE.md",
-		"projects/demo/tasks/T-1/CLAUDE.md",
-		"projects/demo/issues/I-1/CLAUDE.md",
-		"conversations/C-1/CLAUDE.md",
-		"workers/W-1/CLAUDE.md",
+		"projects/demo/MEMORY.md",
+		"projects/demo/tasks/T-1/MEMORY.md",
+		"projects/demo/issues/I-1/MEMORY.md",
+		"conversations/C-1/MEMORY.md",
+		"workers/W-1/MEMORY.md",
 	}
 	for _, p := range wantPaths {
 		if _, err := os.Stat(filepath.Join(dir, p)); err != nil {

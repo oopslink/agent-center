@@ -86,7 +86,7 @@ func TestGitOps_FakeRunner_AuthorEnvInjected(t *testing.T) {
 		{out: ""},                       // commit
 	}
 	g := memory.NewGitOps(dir, r, "/tmp/fakehome")
-	if err := g.CommitFile(context.Background(), "CLAUDE.md", "supervisor", "supervisor@x.local", "init"); err != nil {
+	if err := g.CommitFile(context.Background(), "MEMORY.md", "supervisor", "supervisor@x.local", "init"); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
 	if len(r.calls) != 3 {
@@ -122,7 +122,7 @@ func TestGitOps_FakeRunner_CleanCommitSkipped(t *testing.T) {
 		},
 	}
 	g := memory.NewGitOps(dir, r, "")
-	if err := g.CommitFile(context.Background(), "CLAUDE.md", "a", "a@x", "m"); err != nil {
+	if err := g.CommitFile(context.Background(), "MEMORY.md", "a", "a@x", "m"); err != nil {
 		t.Fatal(err)
 	}
 	if len(r.calls) != 2 {
@@ -148,7 +148,7 @@ func TestGitOps_AutoCommit_Clean(t *testing.T) {
 func TestGitOps_AutoCommit_Dirty(t *testing.T) {
 	r := &fakeRunner{
 		script: []fakeResult{
-			{out: "M CLAUDE.md\n"}, // status dirty
+			{out: "M MEMORY.md\n"}, // status dirty
 			{out: ""},              // add -A
 			{out: ""},              // commit
 		},
@@ -182,18 +182,18 @@ func TestGitOps_RealGitInit(t *testing.T) {
 		t.Fatalf("after init isrepo: %v %v", ok, err)
 	}
 	// write a file + commit it
-	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# x\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte("# x\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if err := g.CommitFile(ctx, "CLAUDE.md", "supervisor", "supervisor@local", "init"); err != nil {
+	if err := g.CommitFile(ctx, "MEMORY.md", "supervisor", "supervisor@local", "init"); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
 	// commit again should be idempotent (no changes)
-	if err := g.CommitFile(ctx, "CLAUDE.md", "supervisor", "supervisor@local", "init"); err != nil {
+	if err := g.CommitFile(ctx, "MEMORY.md", "supervisor", "supervisor@local", "init"); err != nil {
 		t.Fatalf("commit idempotent: %v", err)
 	}
 	// modify + auto-commit
-	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("# x\n## more\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "MEMORY.md"), []byte("# x\n## more\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := g.AutoCommitDirty(ctx, "supervisor:1", "supervisor:1@local", "update"); err != nil {
