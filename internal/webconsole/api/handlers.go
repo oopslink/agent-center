@@ -52,7 +52,6 @@ type HandlerDeps struct {
 	ChannelMgmtSvc     *convservice.ChannelManagementService
 	ParticipantMgmtSvc *convservice.ParticipantManagementService
 	CarryOverSvc       *convservice.CarryOverService
-	AgentInstanceRepo  workforce.AgentInstanceRepository
 	UserSecretRepo     secretmgmt.UserSecretRepository
 	UserSecretSvc      *secretservice.UserSecretService
 	FleetSvc           *query.FleetSnapshotService
@@ -313,29 +312,6 @@ func (s *Server) requireConversationInOrg(w http.ResponseWriter, r *http.Request
 	}
 	if conv.OrganizationID() != orgID {
 		writeError(w, http.StatusNotFound, "not_found", "conversation not found")
-		return "", false
-	}
-	return orgID, true
-}
-
-// requireAgentInOrg guards agent detail endpoints. AgentInstances carry
-// organization_id directly. Looks up by name.
-func (s *Server) requireAgentInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps, name string) (orgID string, ok bool) {
-	_, _, orgID, member := requireOrgMember(w, r, d)
-	if !member {
-		return "", false
-	}
-	if d.AgentInstanceRepo == nil {
-		writeError(w, http.StatusNotImplemented, "not_wired", "agent repo not wired")
-		return "", false
-	}
-	ai, err := d.AgentInstanceRepo.FindByName(r.Context(), name)
-	if err != nil || ai == nil {
-		writeError(w, http.StatusNotFound, "not_found", "agent not found")
-		return "", false
-	}
-	if ai.OrganizationID() != orgID {
-		writeError(w, http.StatusNotFound, "not_found", "agent not found")
 		return "", false
 	}
 	return orgID, true
@@ -1510,43 +1486,6 @@ func (s *Server) fleetSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // =============================================================================
-// Agents (read-only)
-// =============================================================================
-
-func (s *Server) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	_, _, orgID, ok := requireOrgMember(w, r, d)
-	if !ok {
-		return
-	}
-	filter := workforce.AgentInstanceFilter{OrganizationID: orgID}
-	list, err := d.AgentInstanceRepo.FindAll(r.Context(), filter)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
-		return
-	}
-	arr := make([]map[string]any, len(list))
-	for i, ai := range list {
-		arr[i] = agentPublicMap(ai)
-	}
-	writeJSON(w, http.StatusOK, arr)
-}
-
-func (s *Server) showAgentHandler(w http.ResponseWriter, r *http.Request) {
-	d := hd(r)
-	name := r.PathValue("name")
-	if _, ok := s.requireAgentInOrg(w, r, d, name); !ok {
-		return
-	}
-	ai, err := d.AgentInstanceRepo.FindByName(r.Context(), name)
-	if err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, agentPublicMap(ai))
-}
-
-// =============================================================================
 // Secrets (metadata only; plaintext never echoed)
 // =============================================================================
 
@@ -1752,7 +1691,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		// v2.9.1 Thread P1: a reply targeting a parent in another conversation is
 		// indistinguishable from "not found" at the edge (existence non-disclosure).
 		errors.Is(err, conversation.ErrMessageParentMismatch),
-		errors.Is(err, workforce.ErrAgentInstanceNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, conversation.ErrConversationVersionConflict),
@@ -1868,23 +1806,6 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 		out["attachments"] = arr
 	}
 	return out
-}
-
-func agentPublicMap(ai *workforce.AgentInstance) map[string]any {
-	wid := ""
-	if ai.WorkerID() != nil {
-		wid = string(*ai.WorkerID())
-	}
-	return map[string]any{
-		"id":             string(ai.ID()),
-		"name":           ai.Name(),
-		"state":          string(ai.State()),
-		"agent_cli":      ai.AgentCLI(),
-		"worker_id":      wid,
-		"is_builtin":     ai.IsBuiltin(),
-		"max_concurrent": ai.MaxConcurrent(),
-		"identity_id":    "agent:" + string(ai.ID()),
-	}
 }
 
 // =============================================================================

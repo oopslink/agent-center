@@ -17,7 +17,6 @@ import (
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretsvcCreate "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
-	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // ============================================================================
@@ -516,7 +515,6 @@ func TestMapDomainError_Matrix(t *testing.T) {
 	}{
 		{conversation.ErrConversationNotFound, 404},
 		{conversation.ErrMessageNotFound, 404},
-		{workforce.ErrAgentInstanceNotFound, 404},
 		{secretmgmt.ErrUserSecretNotFound, 404},
 		{conversation.ErrConversationVersionConflict, 409},
 		{secretmgmt.ErrUserSecretVersionConflict, 409},
@@ -559,24 +557,6 @@ func TestSecretPublicMap_RevokedFieldsPresent(t *testing.T) {
 	}
 	if m["revoked_by"] != "user:hayang" {
 		t.Fatalf("revoked_by: %v", m["revoked_by"])
-	}
-}
-
-func TestAgentPublicMap_NilWorkerID(t *testing.T) {
-	now := time.Now().UTC()
-	ai, err := workforce.NewAgentInstance(workforce.NewAgentInstanceInput{
-		ID: "AI-1", Name: "builtin", AgentCLI: "claudecode",
-		IsBuiltin: true, Config: "{}", CreatedAt: now,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := agentPublicMap(ai)
-	if m["worker_id"] != "" {
-		t.Fatalf("worker_id: %v", m["worker_id"])
-	}
-	if m["is_builtin"] != true {
-		t.Fatalf("is_builtin: %v", m["is_builtin"])
 	}
 }
 

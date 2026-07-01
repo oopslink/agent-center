@@ -180,10 +180,6 @@ type App struct {
 	// agent.awaiting_input emit no longer exists; AgentWorkItem was removed in F7.)
 	OutboxRepo outbox.Repository
 
-	// Workforce — AgentInstance (P10 § 3.8 + F5)
-	AgentInstanceRepo workforce.AgentInstanceRepository
-	AgentMgmtSvc      *wfservice.AgentInstanceManagementService
-
 	// SecretManagement (P11 § 3.7b)
 	UserSecretRepo secretmgmt.UserSecretRepository
 	UserSecretSvc  *secretservice.UserSecretService
@@ -341,10 +337,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		identitySigninSvc *identity.SigninService
 		identityAuthSvc   *identity.AuthService
 	)
-
-	// Workforce — AgentInstance management.
-	aiRepo := wfsqlite.NewAgentInstanceRepo(db)
-	agentMgmt := wfservice.NewAgentInstanceManagementService(db, aiRepo, gen, sink, clk)
 
 	// P11 § 3.7b: UserSecret management — wired iff master key file is
 	// configured. Without master key the CLI handlers refuse with
@@ -569,9 +561,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		FollowStateRepo:     followStateRepo,
 		FollowStateSvc:      followStateSvc,
 		OutboxRepo:          outboxRepo,
-
-		AgentInstanceRepo: aiRepo,
-		AgentMgmtSvc:      agentMgmt,
 
 		UserSecretRepo:       userSecretRepo,
 		UserSecretSvc:        userSecretSvc,

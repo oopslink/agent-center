@@ -1,6 +1,6 @@
 // Package cli — admin_client_workforce.go: Client methods for the
-// Workforce BC admin surface (workers, proposals, agent instances,
-// projects). Mirrors internal/admin/api/workforce.go 1:1.
+// Workforce BC admin surface (workers, proposals, projects).
+// Mirrors internal/admin/api/workforce.go 1:1.
 //
 // Naming: methods on Client are named <Resource><Verb> to match the
 // admin route segments (e.g. `WorkerEnroll` for
@@ -13,8 +13,8 @@ import "context"
 
 // =============================================================================
 // DTOs — JSON shape returned by admin/api/workforce.go projection helpers.
-// Field names match the JSON keys in workerMap / proposalMap / projectMap /
-// agentInstanceMap exactly.
+// Field names match the JSON keys in workerMap / proposalMap / projectMap
+// exactly.
 // =============================================================================
 
 // WorkerDTO mirrors admin api workerMap.
@@ -39,20 +39,6 @@ type ProjectDTO struct {
 	CreatedAt      string `json:"created_at"`
 }
 
-// AgentInstanceDTO mirrors admin api agentInstanceMap.
-type AgentInstanceDTO struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	State         string `json:"state"`
-	AgentCLI      string `json:"agent_cli"`
-	WorkerID      string `json:"worker_id"`
-	IsBuiltin     bool   `json:"is_builtin"`
-	MaxConcurrent int    `json:"max_concurrent"`
-	Config        string `json:"config"`
-	Version       int    `json:"version"`
-	IdentityID    string `json:"identity_id"`
-}
-
 // =============================================================================
 // Request payloads — match admin/api request structs (kept local so the
 // Client doesn't take a compile dependency on the api package).
@@ -75,30 +61,6 @@ type WorkerEnrollResponse struct {
 // many admin write endpoints (`{"event_id": "..."}`).
 type EventIDResponse struct {
 	EventID string `json:"event_id"`
-}
-
-// AgentCreateRequest mirrors api agentCreateReq.
-type AgentCreateRequest struct {
-	Name          string `json:"name"`
-	AgentCLI      string `json:"agent_cli"`
-	WorkerID      string `json:"worker_id"`
-	Config        string `json:"config"`
-	MaxConcurrent *int   `json:"max_concurrent"`
-}
-
-// AgentCreateResponse mirrors api success projection.
-type AgentCreateResponse struct {
-	ID         string `json:"id"`
-	IdentityID string `json:"identity_id"`
-	EventID    string `json:"event_id"`
-}
-
-// AgentArchiveRequest mirrors api agentArchiveReq.
-type AgentArchiveRequest struct {
-	ID      string `json:"id"`
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
-	Version int    `json:"version"`
 }
 
 // =============================================================================
@@ -132,46 +94,6 @@ func (c *Client) WorkerFindByID(ctx context.Context, id string) (WorkerDTO, erro
 func (c *Client) WorkerFindByStatus(ctx context.Context, status string) ([]WorkerDTO, error) {
 	var out []WorkerDTO
 	err := c.getJSON(ctx, "/admin/workforce/worker/find-by-status"+buildQuery("status", status), &out)
-	return out, err
-}
-
-// =============================================================================
-// AgentInstance — Create / Archive + reads
-// =============================================================================
-
-// AgentInstanceCreate POSTs /admin/workforce/agent-instance/create.
-func (c *Client) AgentInstanceCreate(ctx context.Context, req AgentCreateRequest) (AgentCreateResponse, error) {
-	var res AgentCreateResponse
-	err := c.postJSON(ctx, "/admin/workforce/agent-instance/create", req, &res)
-	return res, err
-}
-
-// AgentInstanceArchive POSTs /admin/workforce/agent-instance/archive.
-func (c *Client) AgentInstanceArchive(ctx context.Context, req AgentArchiveRequest) (EventIDResponse, error) {
-	var res EventIDResponse
-	err := c.postJSON(ctx, "/admin/workforce/agent-instance/archive", req, &res)
-	return res, err
-}
-
-// AgentInstanceFindAll GETs /admin/workforce/agent-instance/find-all?state=…&worker_id=…
-func (c *Client) AgentInstanceFindAll(ctx context.Context, state, workerID string) ([]AgentInstanceDTO, error) {
-	var out []AgentInstanceDTO
-	err := c.getJSON(ctx, "/admin/workforce/agent-instance/find-all"+
-		buildQuery("state", state, "worker_id", workerID), &out)
-	return out, err
-}
-
-// AgentInstanceFindByID GETs /admin/workforce/agent-instance/find-by-id?id=…
-func (c *Client) AgentInstanceFindByID(ctx context.Context, id string) (AgentInstanceDTO, error) {
-	var out AgentInstanceDTO
-	err := c.getJSON(ctx, "/admin/workforce/agent-instance/find-by-id"+buildQuery("id", id), &out)
-	return out, err
-}
-
-// AgentInstanceFindByName GETs /admin/workforce/agent-instance/find-by-name?name=…
-func (c *Client) AgentInstanceFindByName(ctx context.Context, name string) (AgentInstanceDTO, error) {
-	var out AgentInstanceDTO
-	err := c.getJSON(ctx, "/admin/workforce/agent-instance/find-by-name"+buildQuery("name", name), &out)
 	return out, err
 }
 

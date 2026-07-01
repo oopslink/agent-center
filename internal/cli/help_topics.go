@@ -83,7 +83,7 @@ Examples:
 agent-center models actors with the kind:id prefix scheme (ADR-0033):
 
   user:<id>    e.g. user:hayang  (human operator)
-  agent:<id>   e.g. agent:01HXXX (an AgentInstance the system spawned)
+  agent:<id>   e.g. agent:01HXXX (an agent the system spawned)
   system:<id>  e.g. system:scheduler (internal services)
 
 Wherever you see --created-by, --decided-by, sender-identity, or task

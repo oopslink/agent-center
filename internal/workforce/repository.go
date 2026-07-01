@@ -44,33 +44,6 @@ type WorkerRepository interface {
 	ReplaceCapabilities(ctx context.Context, id WorkerID, caps []Capability, version int) error
 }
 
-// AgentInstanceFilter narrows AgentInstanceRepository.FindAll.
-type AgentInstanceFilter struct {
-	WorkerID  *WorkerID
-	State     *AgentInstanceState
-	IsBuiltin *bool
-	// OrganizationID scopes to a specific organization (v2.6).
-	OrganizationID string
-}
-
-// AgentInstanceRepository defines persistence for AgentInstance AR
-// (ADR-0024 § 1 + ADR-0029 § 1).
-type AgentInstanceRepository interface {
-	FindByID(ctx context.Context, id AgentInstanceID) (*AgentInstance, error)
-	FindByName(ctx context.Context, name string) (*AgentInstance, error)
-	FindAll(ctx context.Context, filter AgentInstanceFilter) ([]*AgentInstance, error)
-	Save(ctx context.Context, a *AgentInstance) error
-	// UpdateState transitions state with CAS on version.
-	UpdateState(ctx context.Context, id AgentInstanceID, from, to AgentInstanceState, version int) error
-	// UpdateConfig writes the config JSON + max_concurrent (nil = unchanged)
-	// with CAS on version.
-	UpdateConfig(ctx context.Context, id AgentInstanceID, config string, maxConcurrent *int, version int) error
-	// Archive transitions idle → archived in one DB write atomically (records
-	// archived_at / archived_reason / archived_message). CAS on version.
-	Archive(ctx context.Context, id AgentInstanceID, at time.Time, reason AgentInstanceArchivedReason, message string, version int) error
-	// v2.7 #131 (PR-6): CountActiveExecutions removed (read retired task_executions; dead path).
-}
-
 // BootstrapTokenRepository defines persistence for BootstrapToken Entity
 // (ADR-0023 § 2). Repository implementations sit in internal/workforce/sqlite.
 type BootstrapTokenRepository interface {

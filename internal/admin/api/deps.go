@@ -72,10 +72,8 @@ type HandlerDeps struct {
 	ReplyNudgeSvc *convservice.ReplyNudgeService
 
 	// Workforce BC
-	WorkerRepo        workforce.WorkerRepository
-	AgentInstanceRepo workforce.AgentInstanceRepository
-	EnrollSvc         *wfservice.WorkerEnrollService
-	AgentMgmtSvc      *wfservice.AgentInstanceManagementService
+	WorkerRepo workforce.WorkerRepository
+	EnrollSvc  *wfservice.WorkerEnrollService
 	// WorkerConfigSvc backs the operator per-CLI capability toggle
 	// (v2.7 #147 PATCH .../capabilities/{name}/enabled).
 	WorkerConfigSvc *wfservice.WorkerConfigService

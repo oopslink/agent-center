@@ -309,11 +309,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-all", s.workerFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-id", s.workerFindByIDHandler)
 	s.mux.HandleFunc("GET /admin/workforce/worker/find-by-status", s.workerFindByStatusHandler)
-	s.mux.HandleFunc("POST /admin/workforce/agent-instance/create", s.agentCreateHandler)
-	s.mux.HandleFunc("POST /admin/workforce/agent-instance/archive", s.agentArchiveHandler)
-	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-all", s.agentFindAllHandler)
-	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-by-id", s.agentFindByIDHandler)
-	s.mux.HandleFunc("GET /admin/workforce/agent-instance/find-by-name", s.agentFindByNameHandler)
 	s.mux.HandleFunc("GET /admin/workforce/project/find-all", s.projectFindAllHandler)
 	s.mux.HandleFunc("GET /admin/workforce/project/find-by-id", s.projectFindByIDHandler)
 

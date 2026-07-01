@@ -26,7 +26,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	// ---- not_found (404) -------------------------------------------------
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
-		errors.Is(err, workforce.ErrAgentInstanceNotFound),
 		errors.Is(err, workforce.ErrWorkerNotFound),
 		errors.Is(err, workforce.ErrBootstrapTokenNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound),
@@ -85,7 +84,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, conversation.ErrConversationAlreadyExists),
 		errors.Is(err, convservice.ErrParticipantAlreadyActive),
 		errors.Is(err, workforce.ErrWorkerAlreadyExists),
-		errors.Is(err, workforce.ErrAgentInstanceNameTaken),
 		errors.Is(err, secretmgmt.ErrUserSecretAlreadyExists),
 		errors.Is(err, secretmgmt.ErrUserSecretNameTaken):
 		writeError(w, http.StatusConflict, "already_exists", err.Error())
@@ -94,7 +92,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, conversation.ErrConversationVersionConflict),
 		errors.Is(err, conversation.ErrReadStateVersionConflict),
 		errors.Is(err, workforce.ErrWorkerVersionConflict),
-		errors.Is(err, workforce.ErrAgentInstanceVersionConflict),
 		errors.Is(err, secretmgmt.ErrUserSecretVersionConflict),
 		errors.Is(err, pm.ErrVersionConflict):
 		writeError(w, http.StatusConflict, "version_conflict", err.Error())
@@ -119,7 +116,6 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	// ---- forbidden / terminal (403) -------------------------------------
 	case errors.Is(err, conversation.ErrConversationArchived),
 		errors.Is(err, conversation.ErrConversationClosed),
-		errors.Is(err, workforce.ErrAgentInstanceArchived),
 		errors.Is(err, secretmgmt.ErrUserSecretRevoked),
 		errors.Is(err, pmservice.ErrNotMember),
 		errors.Is(err, pm.ErrCrossProject),

@@ -1,5 +1,5 @@
 // Package workforce hosts the Workforce BC tactical types:
-//   - Aggregate Roots: Worker (+ AgentInstance, BootstrapToken)
+//   - Aggregate Roots: Worker, BootstrapToken
 //   - Value Objects: typed IDs, enum statuses, etc.
 //   - Repository interfaces + sentinel errors (architecture layer)
 //

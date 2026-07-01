@@ -10,7 +10,6 @@ import (
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/persistence"
-	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 // resolveCallerAndOrg is the strict org-scope resolver for member endpoints.
@@ -33,46 +32,15 @@ func (s *Server) listMembersHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
 		return
 	}
-	// v2.6 X1 §4: enrich agent members with "running on {worker}". Build an
-	// identity_id → worker_id map from the org's AgentInstances (an agent
-	// member may not yet have a bound AgentInstance — then worker is empty).
-	agentWorker := map[string]string{}
-	if d.AgentInstanceRepo != nil {
-		instances, aerr := d.AgentInstanceRepo.FindAll(r.Context(), workforce.AgentInstanceFilter{OrganizationID: orgID})
-		if aerr == nil {
-			for _, ai := range instances {
-				if ai.IdentityID() != "" && ai.WorkerID() != nil {
-					agentWorker[ai.IdentityID()] = string(*ai.WorkerID())
-				}
-			}
-		}
-	}
 	arr := make([]map[string]any, 0, len(members))
 	for _, m := range members {
 		row := memberPublicMap(m)
-		if wid, ok := agentWorker[m.IdentityID()]; ok {
-			row["worker_id"] = wid
-		}
-		// v2.7 #160: enrich with the identity's display name. The Member AR only
-		// carries identity_id; the UI needs a human name to render message senders
-		// + the participant list (else it shows the raw "user:<id>" ref).
-		// Best-effort — a miss leaves display_name unset and the UI falls back to
-		// the ref.
 		if d.IdentityRepo != nil {
 			if ident, err := d.IdentityRepo.GetByID(r.Context(), m.IdentityID()); err == nil && ident != nil {
 				row["display_name"] = ident.DisplayName()
-				// v2.7.1 #214: the Humans page shows email / created / last-active for
-				// human members. Emit explicit null (not "" / omitted) for the nullable
-				// fields so the UI's null-handling is unambiguous (Tester seam contract).
 				if ident.Kind() == identity.KindUser {
 					addUserProfileFields(row, ident)
 				} else if ident.Kind() == identity.KindAgent && d.AgentSvc != nil {
-					// v2.7.1 #226: the worker binding lives on the Agent AR (the unified
-					// CreateAgent sets WorkerID but does NOT create a legacy AgentInstance),
-					// so the agentWorker map above is empty for unified-create agents and the
-					// Members→Agents "Running on" column showed "Not bound" forever. Resolve
-					// worker_id read-time from the Agent BC (the source of truth), overriding
-					// the legacy-map value. Best-effort — unresolved leaves the prior value.
 					if ag, aerr := d.AgentSvc.ResolveAgent(r.Context(), m.IdentityID()); aerr == nil && ag != nil {
 						if wid := ag.WorkerID(); wid != "" {
 							row["worker_id"] = wid
