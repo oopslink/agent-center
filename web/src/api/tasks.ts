@@ -94,6 +94,9 @@ export interface UpdateTaskInput {
   // T566 (issue-577a7b0e): full replacement of the canonical required-capability
   // set (sent only when changed; omitted = unchanged). [] clears the requirement.
   required_capabilities?: string[];
+  // v2.13.0 I18/F3: toggle the F3 merge-check exemption (sent only when changed;
+  // omitted = unchanged). role/branch/base are preserved by the backend.
+  skip_merge_check?: boolean;
 }
 
 export function useUpdateTask(projectId: string, taskId: string) {

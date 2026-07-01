@@ -111,8 +111,9 @@ var wantTools = []string{
 	"create_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe",
 	"block_task", "complete_task",
-	"discard_task",   // T119: terminal-discard a superseded / mis-created task
-	"set_task_issue", // T192: (re)set/clear derived_from_issue after creation
+	"discard_task",              // T119: terminal-discard a superseded / mis-created task
+	"set_task_issue",            // T192: (re)set/clear derived_from_issue after creation
+	"set_task_skip_merge_check", // v2.13.0 I18/F3: toggle the merge-check exemption after creation
 	// T206 Cognition reminders
 	"create_reminder", "list_reminders", "get_reminder", "update_reminder",
 	// v2.9.1 P0 recovery tools (deadlocked-blocked task recovery)

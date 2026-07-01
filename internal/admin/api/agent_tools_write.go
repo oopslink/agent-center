@@ -1101,3 +1101,49 @@ func (s *Server) setTaskIssueHandler(w http.ResponseWriter, r *http.Request) {
 		"ok": true, "task_id": req.TaskID, "derived_from_issue": string(issueID),
 	})
 }
+
+// --- set_task_skip_merge_check (v2.13.0 I18/F3) ------------------------------
+
+type setTaskSkipMergeCheckReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+	// SkipMergeCheck is the new value of the F3 merge-check exemption for this node.
+	SkipMergeCheck bool `json:"skip_merge_check"`
+}
+
+// setTaskSkipMergeCheckHandler is the agent-facing path to toggle a task's
+// skip_merge_check flag AFTER creation (previously stampable only at scaffold time).
+// It stands the F3 Integrate-complete merge guard down (true) or back up (false) for
+// the node, preserving role/branch/base. Authorized by the relaxed task-access gate
+// (creator / project member / current worker), same surface as set_task_issue — no
+// WorkItem required. Returns the resulting flag.
+func (s *Server) setTaskSkipMergeCheckHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req setTaskSkipMergeCheckReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	// Relaxed gate — creator / project member may adjust the flag without a WorkItem.
+	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
+		return
+	}
+	skip := req.SkipMergeCheck
+	if err := d.PMService.BatchUpdateTask(r.Context(), pm.TaskID(req.TaskID), pmservice.BatchTaskPatch{
+		SkipMergeCheck: &skip,
+	}, pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "task_id": req.TaskID, "skip_merge_check": skip,
+	})
+}

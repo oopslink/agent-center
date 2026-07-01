@@ -25,8 +25,9 @@ var AgentFacingToolNames = []string{
 	"block_task",
 	"heartbeat", // v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
 	"complete_task",
-	"discard_task",   // T119: terminal-discard a superseded / mis-created task
-	"set_task_issue", // T192: (re)set/clear a task's derived_from_issue after creation
+	"discard_task",              // T119: terminal-discard a superseded / mis-created task
+	"set_task_issue",            // T192: (re)set/clear a task's derived_from_issue after creation
+	"set_task_skip_merge_check", // v2.13.0 I18/F3: toggle the F3 merge-check exemption after creation
 	// T206 Cognition reminders
 	"create_reminder",
 	"list_reminders",

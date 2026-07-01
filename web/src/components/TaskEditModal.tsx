@@ -11,10 +11,14 @@ import type { Task, TaskStatus } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { MAX_TAG_RUNES, MAX_TAGS, runeLength, validateTags } from './tagValidation';
 import { CapabilitiesEditor } from './CapabilitiesEditor';
+import { ToggleSwitch } from './ToggleSwitch';
 
 interface Props {
   projectId: string;
-  task: Pick<Task, 'id' | 'title' | 'description' | 'status' | 'assignee' | 'tags' | 'required_capabilities'>;
+  task: Pick<
+    Task,
+    'id' | 'title' | 'description' | 'status' | 'assignee' | 'tags' | 'required_capabilities' | 'skip_merge_check'
+  >;
   onClose: () => void;
   onSaved?: () => void;
 }
@@ -49,6 +53,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
   const [tagDraft, setTagDraft] = useState('');
   const [tagError, setTagError] = useState<string | null>(null);
   const [requiredCaps, setRequiredCaps] = useState<string[]>(task.required_capabilities ?? []);
+  const [skipMergeCheck, setSkipMergeCheck] = useState<boolean>(task.skip_merge_check ?? false);
 
   const update = useUpdateTask(projectId, task.id);
   // E2E finding F-7: a real (re)assignment must go through the dedicated assign
@@ -115,8 +120,15 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
   const origCaps = task.required_capabilities ?? [];
   const capsChanged =
     requiredCaps.length !== origCaps.length || requiredCaps.some((c, i) => c !== origCaps[i]);
+  const skipMergeCheckChanged = skipMergeCheck !== (task.skip_merge_check ?? false);
   const anyDirty =
-    titleChanged || descChanged || statusChanged || assigneeChanged || tagsChanged || capsChanged;
+    titleChanged ||
+    descChanged ||
+    statusChanged ||
+    assigneeChanged ||
+    tagsChanged ||
+    capsChanged ||
+    skipMergeCheckChanged;
 
   const hasError = !!tagError || !!tagsValidationError;
   const canSubmit =
@@ -134,11 +146,13 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
       assignee?: string;
       tags?: string[];
       required_capabilities?: string[];
+      skip_merge_check?: boolean;
     } = {};
     if (titleChanged) body.title = trimmedTitle;
     if (descChanged) body.description = description.trim();
     if (statusChanged) body.status = status;
     if (capsChanged) body.required_capabilities = requiredCaps;
+    if (skipMergeCheckChanged) body.skip_merge_check = skipMergeCheck;
     // F-7: route a real (re)assignment through the dedicated assign endpoint below
     // (it dispatches the agent). Only fold the assignee into the batch PATCH when
     // CLEARING it — an unassign needs no dispatch.
@@ -309,6 +323,21 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
             value={requiredCaps}
             onChange={setRequiredCaps}
           />
+        </div>
+
+        <div className="mb-3 flex items-start gap-2">
+          <ToggleSwitch
+            checked={skipMergeCheck}
+            onChange={setSkipMergeCheck}
+            ariaLabel={t('task.edit.skipMergeCheckLabel')}
+            testId="task-edit-skip-merge-check"
+          />
+          <div className="text-xs font-medium text-text-primary">
+            {t('task.edit.skipMergeCheckLabel')}
+            <span className="mt-0.5 block font-normal text-text-muted">
+              {t('task.edit.skipMergeCheckHint')}
+            </span>
+          </div>
         </div>
 
         {(update.isError || assign.isError) && (

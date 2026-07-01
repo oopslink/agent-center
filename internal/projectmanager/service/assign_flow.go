@@ -876,6 +876,10 @@ type BatchTaskPatch struct {
 	// RequiredCapabilities (v2.18.3 BE-1): nil = unchanged; non-nil replaces the set
 	// (empty slice clears it → unrestricted). Canonicalized by the domain.
 	RequiredCapabilities *[]string
+	// SkipMergeCheck (v2.13.0 I18/F3): nil = unchanged; non-nil toggles ONLY the F3
+	// merge-check exemption (role/branch/base preserved). Editable after create so ops
+	// can stand the Integrate-complete merge guard down/up for a node later.
+	SkipMergeCheck *bool
 }
 
 // BatchUpdateTask applies any subset of {status, assignee, tags} to a Task in a
@@ -929,6 +933,11 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		}
 		if patch.RequiredCapabilities != nil {
 			if err := t.SetRequiredCapabilities(*patch.RequiredCapabilities, now); err != nil {
+				return err
+			}
+		}
+		if patch.SkipMergeCheck != nil {
+			if err := t.SetSkipMergeCheck(*patch.SkipMergeCheck, now); err != nil {
 				return err
 			}
 		}

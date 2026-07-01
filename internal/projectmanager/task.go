@@ -695,6 +695,21 @@ func (t *Task) SetCycleMeta(role CycleNodeRole, branch, base string, skipMergeCh
 	return nil
 }
 
+// SetSkipMergeCheck toggles ONLY the F3 merge-check exemption (v2.13.0 I18/F3),
+// preserving role/branch/base. It is the editable path for skip_merge_check AFTER
+// creation: scaffold_cycle_plan stamps it at create, but ops sometimes need to
+// stand the Integrate-complete merge guard down — or back up — for a node later
+// (e.g. a project with no reachable code repo). Pure metadata edit (NOT a status
+// change, so statusChangedAt is untouched); rejected on an archived task.
+func (t *Task) SetSkipMergeCheck(v bool, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	t.skipMergeCheck = v
+	t.touch(at)
+	return nil
+}
+
 // SetDerivedFromIssue links (or, with issueID=="", UNLINKS) this task to the Issue
 // it was derived from (T192 — editable after creation; previously create-only via
 // NewTaskInput). Pure metadata edit — NOT a status change, so statusChangedAt is

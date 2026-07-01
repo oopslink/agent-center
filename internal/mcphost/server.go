@@ -332,6 +332,12 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "(Re)set or CLEAR a task's derived_from_issue link AFTER creation (previously the create-time link was the only chance to set it). Pass issue_id to link it (the issue must EXIST and belong to the task's project) or an empty string to clear. Authorized for the task's creator / a project member / its current worker — no work item required. Returns the resulting link.",
 	}, makeSetTaskIssue(cfg))
 
+	// v2.13.0 I18/F3: toggle a task's skip_merge_check exemption AFTER creation.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "set_task_skip_merge_check",
+		Description: "Toggle a task's skip_merge_check flag AFTER creation (previously only scaffold_cycle_plan could stamp it). Pass skip_merge_check=true to stand the F3 Integrate-complete merge guard DOWN for this node (exempt it from the merge check — e.g. the project has no reachable code repo), or false to re-enforce it. role/branch/base are preserved. Authorized for the task's creator / a project member / its current worker — no work item required. Returns the resulting flag.",
+	}, makeSetTaskSkipMergeCheck(cfg))
+
 	// --- reminder tools (T206, Cognition BC) ---------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_reminder",

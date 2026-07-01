@@ -268,6 +268,40 @@ describe('TaskEditModal', () => {
     });
   });
 
+  it('toggling skip_merge_check sends skip_merge_check:true in the PATCH body', async () => {
+    const cap = capturePatch();
+    const onClose = vi.fn();
+    wrap(<TaskEditModal projectId="proj-a" task={baseTask} onClose={onClose} />);
+    const toggle = screen.getByTestId('task-edit-skip-merge-check') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(screen.getByTestId('task-edit-submit'));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(cap.received()).toEqual({ skip_merge_check: true });
+  });
+
+  it('unchanged skip_merge_check is omitted from the PATCH body', async () => {
+    const cap = capturePatch();
+    wrap(
+      <TaskEditModal
+        projectId="proj-a"
+        task={{ ...baseTask, skip_merge_check: true }}
+        onClose={() => undefined}
+      />,
+    );
+    // pre-checked from the task prop; a title-only edit must not resend the flag.
+    expect(
+      (screen.getByTestId('task-edit-skip-merge-check') as HTMLButtonElement).getAttribute(
+        'aria-checked',
+      ),
+    ).toBe('true');
+    fireEvent.change(screen.getByTestId('task-edit-title'), { target: { value: 'renamed' } });
+    fireEvent.click(screen.getByTestId('task-edit-submit'));
+    await waitFor(() => expect(cap.received()).toBeDefined());
+    expect(cap.received()).toEqual({ title: 'renamed' });
+  });
+
   it('400 response → modal stays open + shows error', async () => {
     server.use(
       http.patch('/api/projects/proj-a/tasks/T-1', () =>

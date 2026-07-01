@@ -554,6 +554,28 @@ func makeSetTaskIssue(cfg Config) mcp.ToolHandlerFor[setTaskIssueArgs, any] {
 	}
 }
 
+// --- set_task_skip_merge_check (v2.13.0 I18/F3) ------------------------------
+
+type setTaskSkipMergeCheckArgs struct {
+	TaskID         string `json:"task_id" jsonschema:"the task whose skip_merge_check flag to toggle"`
+	SkipMergeCheck bool   `json:"skip_merge_check" jsonschema:"true stands the F3 Integrate-complete merge guard DOWN for this node (exempt it from the merge check); false re-enforces it. role/branch/base are preserved."`
+}
+
+// makeSetTaskSkipMergeCheck backs set_task_skip_merge_check — toggle a task's
+// skip_merge_check exemption AFTER creation (previously stampable only at scaffold
+// time). Authorized by the relaxed task-access gate (creator / project member /
+// current worker), same as set_task_issue — no WorkItem required.
+func makeSetTaskSkipMergeCheck(cfg Config) mcp.ToolHandlerFor[setTaskSkipMergeCheckArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args setTaskSkipMergeCheckArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":         cfg.AgentID,
+			"task_id":          args.TaskID,
+			"skip_merge_check": args.SkipMergeCheck,
+		}
+		return callAdmin(ctx, cfg, "set_task_skip_merge_check", body)
+	}
+}
+
 // --- reminder tools (T206, Cognition BC) -------------------------------------
 
 type reminderScheduleArg struct {
