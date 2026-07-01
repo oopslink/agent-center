@@ -33,10 +33,13 @@ type CreateAgentCommand struct {
 	// AutoAssignable opts the agent in/out of the BE-2 auto-assign reconciler
 	// (v2.18.3 BE-1). nil → the default (true = assignable).
 	AutoAssignable *bool
-	EnvVars        map[string]string
-	Skills         []string
-	WorkerID       string
-	CreatedBy      agent.IdentityRef
+	// IncludeDescriptionInSystemPrompt opts the agent in/out of injecting Description
+	// into its system prompt (T728). nil → the default (true = inject).
+	IncludeDescriptionInSystemPrompt *bool
+	EnvVars                          map[string]string
+	Skills                           []string
+	WorkerID                         string
+	CreatedBy                        agent.IdentityRef
 	// IdentityMemberID (optional, v2.7 #157) — the identity-member id this
 	// execution Agent represents; set by the unified Members→Add Agent flow.
 	IdentityMemberID string
@@ -72,7 +75,10 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 			// v2.18.3 BE-1: a fresh agent is auto-assignable by default (nil → true);
 			// the owner opts out by sending auto_assignable=false.
 			AutoAssignable: cmd.AutoAssignable == nil || *cmd.AutoAssignable,
-			EnvVars:        cmd.EnvVars,
+			// T728: a fresh agent injects its description into the system prompt by
+			// default (nil → true); the owner opts out by sending false.
+			IncludeDescriptionInSystemPrompt: cmd.IncludeDescriptionInSystemPrompt == nil || *cmd.IncludeDescriptionInSystemPrompt,
+			EnvVars:                          cmd.EnvVars,
 		},
 		Skills:           cmd.Skills,
 		WorkerID:         cmd.WorkerID,
@@ -191,6 +197,10 @@ type UpdateAgentConfigCommand struct {
 	// (v2.18.3 BE-1). nil → preserve the existing value (a config edit that omits the
 	// field must not silently flip it).
 	AutoAssignable *bool
+	// IncludeDescriptionInSystemPrompt opts the agent in/out of injecting Description
+	// into its system prompt (T728). nil → preserve the existing value (a config edit
+	// that omits the field must not silently flip it).
+	IncludeDescriptionInSystemPrompt *bool
 }
 
 // resolveAllowedExecutors canonicalizes the executor-candidate input into the
@@ -255,6 +265,10 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		// override it when the PATCH explicitly sent the field (nil → preserve).
 		if cmd.AutoAssignable != nil {
 			p.AutoAssignable = *cmd.AutoAssignable
+		}
+		// T728: same preserve-unless-sent rule as AutoAssignable.
+		if cmd.IncludeDescriptionInSystemPrompt != nil {
+			p.IncludeDescriptionInSystemPrompt = *cmd.IncludeDescriptionInSystemPrompt
 		}
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err

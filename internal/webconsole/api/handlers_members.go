@@ -205,10 +205,13 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		// v2.18.1 BE-1: authoritative {cli,model} candidate list; wins over allowed_models.
 		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
 		// v2.18.3 BE-1: per-agent auto-assign opt-out. nil → default (true = assignable).
-		AutoAssignable *bool             `json:"auto_assignable"`
-		WorkerID       string            `json:"worker_id"`
-		EnvVars        map[string]string `json:"env_vars"`
-		Skills         []string          `json:"skills"`
+		AutoAssignable *bool `json:"auto_assignable"`
+		// T728: per-agent switch to inject description into the system prompt.
+		// nil → default (true = inject).
+		IncludeDescriptionInSystemPrompt *bool             `json:"include_description_in_system_prompt"`
+		WorkerID                         string            `json:"worker_id"`
+		EnvVars                          map[string]string `json:"env_vars"`
+		Skills                           []string          `json:"skills"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -283,25 +286,26 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		agentPhase = true
 		aid, aerr := d.AgentSvc.CreateAgent(txCtx, agentsvc.CreateAgentCommand{
-			OrganizationID:       orgID,
-			Name:                 body.DisplayName,
-			Description:          body.Description,
-			Model:                body.Model,
-			CLI:                  body.CLI,
-			Reasoning:            body.Reasoning,
-			Mode:                 body.Mode,
-			Provider:             body.Provider,
-			OrchestratorModel:    body.OrchestratorModel,
-			DefaultExecutorModel: body.DefaultExecutorModel,
-			MaxConcurrentTasks:   body.MaxConcurrentTasks,
-			AllowedModels:        body.AllowedModels,
-			AllowedExecutors:     body.AllowedExecutors,
-			AutoAssignable:       body.AutoAssignable,
-			EnvVars:              body.EnvVars,
-			Skills:               body.Skills,
-			WorkerID:             body.WorkerID,
-			CreatedBy:            agentCallerRef(callerID),
-			IdentityMemberID:     idn.ID(),
+			OrganizationID:                   orgID,
+			Name:                             body.DisplayName,
+			Description:                      body.Description,
+			Model:                            body.Model,
+			CLI:                              body.CLI,
+			Reasoning:                        body.Reasoning,
+			Mode:                             body.Mode,
+			Provider:                         body.Provider,
+			OrchestratorModel:                body.OrchestratorModel,
+			DefaultExecutorModel:             body.DefaultExecutorModel,
+			MaxConcurrentTasks:               body.MaxConcurrentTasks,
+			AllowedModels:                    body.AllowedModels,
+			AllowedExecutors:                 body.AllowedExecutors,
+			AutoAssignable:                   body.AutoAssignable,
+			IncludeDescriptionInSystemPrompt: body.IncludeDescriptionInSystemPrompt,
+			EnvVars:                          body.EnvVars,
+			Skills:                           body.Skills,
+			WorkerID:                         body.WorkerID,
+			CreatedBy:                        agentCallerRef(callerID),
+			IdentityMemberID:                 idn.ID(),
 		})
 		if aerr != nil {
 			return aerr

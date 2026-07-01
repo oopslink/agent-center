@@ -375,7 +375,7 @@ func TestBootReapRelaunch_ResumeGatedOnCompletedTurn(t *testing.T) {
 		}
 		// nudge=false (idle, no in-flight work): resume is governed by CompletedTurn,
 		// not hadWork, so it must STILL resume to preserve context across restart.
-		if rerr := c.bootReapRelaunch(context.Background(), "ag-r", home, 1, false /*nudge*/, "", "", ""); rerr != nil {
+		if rerr := c.bootReapRelaunch(context.Background(), "ag-r", home, 1, false /*nudge*/, "", "", "", ""); rerr != nil {
 			t.Fatalf("bootReapRelaunch: %v", rerr)
 		}
 		if got, want := rs.last().cfg.ResumeFromSessionID, resumeID("ag-r"); got != want {
@@ -397,7 +397,7 @@ func TestBootReapRelaunch_ResumeGatedOnCompletedTurn(t *testing.T) {
 		// nudge=true (hadWork): the resume nudge still fires, but the session must
 		// NOT --resume — resuming a no-completed-turn session triggers the Claude
 		// crash loop, so the fresh-relaunch wins regardless of hadWork.
-		if rerr := c.bootReapRelaunch(context.Background(), "ag-f", home, 1, true /*nudge*/, "wi-1", "", ""); rerr != nil {
+		if rerr := c.bootReapRelaunch(context.Background(), "ag-f", home, 1, true /*nudge*/, "wi-1", "", "", ""); rerr != nil {
 			t.Fatalf("bootReapRelaunch: %v", rerr)
 		}
 		if got := rs.last().cfg.ResumeFromSessionID; got != "" {
@@ -408,4 +408,24 @@ func TestBootReapRelaunch_ResumeGatedOnCompletedTurn(t *testing.T) {
 			t.Fatalf("hadWork must still inject the resume nudge, got %v", msgs)
 		}
 	})
+}
+
+// T728: a boot/self-heal relaunch must carry the injected persona段 through to the
+// spawned supervisor (--prompt-description). This is the issue-5e39b7dc trap: a value
+// applied only on the reconcile path but dropped on relaunch would "work first, vanish
+// on restart". bootReapRelaunch is the SHARED relaunch routine for BOTH boot-reconcile
+// and self-heal, so covering it here covers both.
+func TestBootReapRelaunch_CarriesPromptDescription(t *testing.T) {
+	base := t.TempDir()
+	c, _, rs := newTestController(t, base)
+	home, _, _, err := c.agentPaths("ag-p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rerr := c.bootReapRelaunch(context.Background(), "ag-p", home, 1, false /*nudge*/, "", "", "", "persona text"); rerr != nil {
+		t.Fatalf("bootReapRelaunch: %v", rerr)
+	}
+	if got := rs.last().cfg.PromptDescription; got != "persona text" {
+		t.Fatalf("relaunch dropped the persona: cfg.PromptDescription = %q, want %q", got, "persona text")
+	}
 }

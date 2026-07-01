@@ -62,6 +62,10 @@ type SupervisorSessionConfig struct {
 	// supervisor as --display-name so it injects GIT_{AUTHOR,COMMITTER}_NAME via the
 	// ② AgentEnv seam (T469). Empty → the supervisor falls back to the ULID AgentID.
 	DisplayName string
+	// PromptDescription is the already-gated description text forwarded to the
+	// supervisor as --prompt-description, injected into the system prompt as a persona段
+	// (T728). Empty → no injection.
+	PromptDescription string
 	// ClaudeBin overrides the claude binary path the SUPERVISOR uses to exec
 	// claude (tests point it at a stand-in). The session itself never execs it.
 	ClaudeBin string
@@ -171,6 +175,7 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 		BinaryPath:          cfg.BinaryPath,
 		Model:               cfg.Model,
 		DisplayName:         cfg.DisplayName,
+		PromptDescription:   cfg.PromptDescription,
 		ClaudeBin:           cfg.ClaudeBin,
 		Epoch:               cfg.Epoch,
 		Generation:          cfg.Generation,

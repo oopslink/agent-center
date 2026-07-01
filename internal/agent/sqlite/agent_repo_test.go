@@ -60,6 +60,79 @@ func TestAgentRepo_RoundTrip(t *testing.T) {
 	}
 }
 
+// T728: the include_description_in_system_prompt flag survives Save→Find and
+// Update→Find for both values.
+func TestAgentRepo_IncludeDescriptionInSystemPrompt_RoundTrip(t *testing.T) {
+	r := newDB(t)
+	ctx := context.Background()
+	for _, want := range []bool{true, false} {
+		id := agent.AgentID("A-" + map[bool]string{true: "on", false: "off"}[want])
+		a, err := agent.NewAgent(agent.NewAgentInput{
+			ID: id, OrganizationID: "org", WorkerID: "W1",
+			Profile:   agent.Profile{Name: "coder", Description: "persona text", IncludeDescriptionInSystemPrompt: want},
+			CreatedBy: "user:a", CreatedAt: t0,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Save(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+		got, err := r.FindByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Profile().IncludeDescriptionInSystemPrompt != want {
+			t.Fatalf("save round-trip: IncludeDescriptionInSystemPrompt = %v, want %v", got.Profile().IncludeDescriptionInSystemPrompt, want)
+		}
+		// Update path: flip the flag and re-read.
+		p := got.Profile()
+		p.IncludeDescriptionInSystemPrompt = !want
+		if err := got.UpdateProfile(p, t0.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Update(ctx, got); err != nil {
+			t.Fatal(err)
+		}
+		got2, err := r.FindByID(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got2.Profile().IncludeDescriptionInSystemPrompt != !want {
+			t.Fatalf("update round-trip: IncludeDescriptionInSystemPrompt = %v, want %v", got2.Profile().IncludeDescriptionInSystemPrompt, !want)
+		}
+	}
+}
+
+// T728: a pre-existing agent row (one that predates the 0090 column) reads the
+// migration DEFAULT 1 → true. Simulated by a raw INSERT that omits the column so it
+// takes its column default, mirroring what ALTER TABLE ... DEFAULT 1 does to old rows.
+func TestAgentRepo_IncludeDescriptionInSystemPrompt_LegacyRowDefaultsTrue(t *testing.T) {
+	d, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	if err := persistence.NewMigrator(d).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	// Insert only the NOT-NULL-without-default columns; every ALTER-added column
+	// (incl. include_description_in_system_prompt) takes its DEFAULT.
+	if _, err := d.ExecContext(ctx,
+		`INSERT INTO agents (id, organization_id, name, worker_id, lifecycle, created_by, created_at, updated_at)
+		 VALUES ('LEGACY','org','coder','W1','stopped','user:a',?,?)`, ts(t0), ts(t0)); err != nil {
+		t.Fatalf("raw legacy insert: %v", err)
+	}
+	got, err := NewAgentRepo(d).FindByID(ctx, "LEGACY")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Profile().IncludeDescriptionInSystemPrompt {
+		t.Fatalf("legacy row IncludeDescriptionInSystemPrompt = false, want true (migration DEFAULT 1)")
+	}
+}
+
 // F3 model routing (design §5 & §10): the new profile fields
 // (orchestrator_model / default_executor_model / max_concurrent_tasks /
 // allowed_models) round-trip through Save → FindByID with all values preserved,

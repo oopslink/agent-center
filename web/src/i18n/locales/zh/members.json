@@ -254,6 +254,13 @@
         "messageSave": "该智能体未在运行——新配置将在下次启动时生效。",
         "labelRestart": "保存并重启",
         "labelSave": "保存"
+      },
+      "descriptionPrompt": {
+        "heading": "系统提示词",
+        "ariaLabel": "将描述加入系统提示词",
+        "label": "将描述加入系统提示词",
+        "description": "开启后，该智能体的描述会作为 persona 段注入其系统提示词；关闭则不将描述发送给模型。",
+        "restartHint": "重启 agent 后生效。"
       }
     }
   },
@@ -450,7 +457,12 @@
       "noWorkers": "环境中尚无工作节点 — 请先注册一台工作节点。",
       "cancel": "取消",
       "submit": "创建智能体",
-      "submitting": "正在创建..."
+      "submitting": "正在创建...",
+      "descriptionPrompt": {
+        "ariaLabel": "将描述加入系统提示词",
+        "label": "将描述加入系统提示词",
+        "description": "开启后，该智能体的描述会作为 persona 段注入其系统提示词；关闭则不将描述发送给模型。"
+      }
     },
     "bound": {
       "loading": "正在加载智能体…",

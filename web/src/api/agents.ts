@@ -110,6 +110,9 @@ export interface UpdateAgentConfigInput {
   // T566 (issue-577a7b0e): per-agent opt-out of auto-assignment (default true).
   // Optional so a config edit that doesn't touch it preserves the server value.
   auto_assignable?: boolean;
+  // T728 (issue-0619f315): inject the description into the system prompt (default
+  // true). Optional so a config edit that omits it preserves the server value.
+  include_description_in_system_prompt?: boolean;
 }
 
 export function useUpdateAgentConfig(id: string) {

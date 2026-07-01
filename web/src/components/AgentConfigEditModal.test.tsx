@@ -166,6 +166,33 @@ describe('AgentConfigEditModal (T236)', () => {
     expect(patchBody).toMatchObject({ auto_assignable: false });
   });
 
+  it('T728: include-description toggle defaults ON and PATCHes false when turned off', async () => {
+    let patchBody: Record<string, unknown> | undefined;
+    server.use(
+      http.patch('/api/agents/:id/config', async ({ request }) => {
+        patchBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...base });
+      }),
+      http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
+    );
+    wrap(base); // base has no include_description_in_system_prompt → defaults ON
+    const toggle = screen.getByTestId('agent-config-include-description');
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    // restart-to-apply hint is shown next to the switch.
+    expect(screen.getByTestId('agent-config-include-description-restart-hint')).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(screen.getByTestId('agent-config-edit-save'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(patchBody).toBeDefined());
+    expect(patchBody).toMatchObject({ include_description_in_system_prompt: false });
+  });
+
+  it('T728: include-description toggle echoes the persisted false value', () => {
+    wrap({ ...base, include_description_in_system_prompt: false });
+    expect(screen.getByTestId('agent-config-include-description')).toHaveAttribute('aria-checked', 'false');
+  });
+
   it('Cancel on the confirm keeps the modal open (no PATCH)', async () => {
     let patched = false;
     server.use(
