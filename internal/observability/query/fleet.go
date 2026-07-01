@@ -152,6 +152,12 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 	orgScoped := filter.OrganizationID != ""
 	out := make([]TaskExecRow, 0, len(tasks))
 	for _, t := range tasks {
+		// Skip tasks whose blocked reason starts with "Superseded" — they are
+		// effectively dead (replaced by another task) but haven't been terminally
+		// discarded yet. Showing them as WAITING_INPUT is misleading noise.
+		if strings.HasPrefix(t.BlockedReason(), "Superseded") {
+			continue
+		}
 		row := taskExecutionRow(t)
 		if row.AgentID == "" {
 			continue // executions are agent work only — skip human-assigned/unassigned
@@ -257,6 +263,9 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 				tasks, _ := s.deps.PMTasks.ListByAssignee(ctx, pm.IdentityRef("agent:"+memberID))
 				for _, t := range tasks {
 					if t.Status().IsTerminal() {
+						continue
+					}
+					if strings.HasPrefix(t.BlockedReason(), "Superseded") {
 						continue
 					}
 					if filter.OrganizationID != "" {
