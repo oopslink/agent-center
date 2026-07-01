@@ -182,7 +182,16 @@
     },
     "alerts": {
       "label": "Alerts",
-      "attention": "{{count}} tasks need your attention"
+      "attention": "{{count}} items need your attention",
+      "panelTitle": "Needs your attention",
+      "empty": "Nothing needs your attention",
+      "item": {
+        "awaitingReply": "Awaiting your reply",
+        "needsIntervention": "Needs intervention",
+        "mention": "Mentioned you",
+        "dm": "Direct message",
+        "dismiss": "Dismiss"
+      }
     },
     "sidebar": {
       "collapse": "Collapse sidebar",

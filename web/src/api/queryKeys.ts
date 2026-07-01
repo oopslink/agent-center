@@ -35,6 +35,12 @@ export const qk = {
   // /unread-conversations) for the main-sidebar "未读会话" region. Single org-scoped
   // list key; SSE invalidates it on message/read-state/lifecycle events.
   unreadConversations: () => o('unreadConversations'),
+  // v2.26.0 I61: the "Needs your attention" panel data source (GET
+  // /orgs/{slug}/attention) — stuck tasks UNIONed with the human's directed
+  // unread (DM + @mention). Single org-scoped key; SSE invalidates it on the
+  // same message / read-state / task block-lifecycle events that move its two
+  // underlying sources (orgTasks + unread digest).
+  attention: () => o('attention'),
   conversation: (id: string) => o('conversation', id),
   conversationByOwner: (ownerRef: string) => o('conversationByOwner', ownerRef),
   messages: (convId: string) => o('messages', convId),

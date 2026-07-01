@@ -217,6 +217,9 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         // I23 (T332): a new message changes the cross-source unread digest
         // (count bump, or a previously-read source re-surfaces).
         invalidate(qk.unreadConversations());
+        // v2.26.0 I61: a new DM / @mention is a directed-attention signal — keep
+        // the "Needs your attention" panel's mention band live (agent escalation).
+        invalidate(qk.attention());
         // v2.9.1 Threads F2: keep the Participants thread list live — a new
         // root thread, a reply (reply_count++/last-activity re-sort) all arrive
         // as conversation.message_added, same SSE path that keeps the per-message
@@ -251,6 +254,9 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
         invalidate(qk.messages(ev.conversation_id));
         // I23 (T332): catching up on a source clears (or drops) its digest row.
         invalidate(qk.unreadConversations());
+        // v2.26.0 I61: dismissing a mention item (mark_seen) advances the read
+        // cursor → the item drops out of the attention panel. Keep it in sync.
+        invalidate(qk.attention());
       }
       return;
     case 'conversation.participant_joined':
@@ -359,16 +365,19 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'pm.task.created':
       invalidate(qk.orgTasksAll());
       return;
-    // Block / unblock lifecycle — drives the global "stuck" Alerts rail item
-    // (useStuckTasks reads qk.orgTasks). block_task emits state_changed (always)
-    // + input_requested (input_required only); unblock emits assigned (re-dispatch)
-    // + input_replied (input_required only). Refresh the org tasks aggregation so
-    // the alert badge + panel update live without polling.
+    // Block / unblock lifecycle — drives the "Needs your attention" panel's stuck
+    // band (useAttention → GET /attention, and the org task lists). block_task
+    // emits state_changed (always) + input_requested (input_required only); unblock
+    // emits assigned (re-dispatch) + input_replied (input_required only). Refresh
+    // both so the alert badge + panel update live without polling.
     case 'pm.task.state_changed':
     case 'pm.task.input_requested':
     case 'pm.task.input_replied':
     case 'pm.task.assigned':
       invalidate(qk.orgTasksAll());
+      // v2.26.0 I61: the stuck-task band of the attention panel is derived from
+      // the same block/unblock lifecycle — refresh it alongside the task lists.
+      invalidate(qk.attention());
       return;
     case 'pm.plan.created':
       invalidate(qk.orgPlansAll());

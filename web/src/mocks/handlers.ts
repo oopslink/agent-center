@@ -764,6 +764,11 @@ const baseHandlers = [
   // onUnhandledRequest:'error'; tests that exercise the region override this.
   http.get('/api/unread-conversations', () => ok([])),
 
+  // v2.26.0 I61: "Needs your attention" unified panel source. Default empty so the
+  // shell (which always mounts the Alerts rail) doesn't trip
+  // onUnhandledRequest:'error'; tests that exercise the panel override this.
+  http.get('/api/attention', () => ok({ items: [] })),
+
   // File transfers (v2.7 #164: Environment surfaces in-flight transfer sessions).
   http.get('/api/files/transfers', () => ok({ transfer_sessions: [] })),
 
