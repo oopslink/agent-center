@@ -231,6 +231,7 @@ function projectShortcuts(
     { key: 'board', label: t('project.shortcut.board'), icon: <BoardIcon />, to: `${base}/plans` },
     { key: 'tasks', label: t('project.shortcut.tasks'), icon: <TasksIcon />, to: `${base}?tab=tasks` },
     { key: 'issues', label: t('project.shortcut.issues'), icon: <IssuesIcon />, to: `${base}?tab=issues` },
+    { key: 'plans', label: t('project.shortcut.plans'), icon: <PlansIcon />, to: `${base}?tab=plans` },
     { key: 'codebase', label: t('project.shortcut.codebase'), icon: <CodebaseIcon />, to: `${base}?tab=repos` },
   ];
 }
@@ -457,6 +458,15 @@ function CodebaseIcon(): React.ReactElement {
   return (
     <svg {...iconProps}>
       <path d="M8 9l-3 3 3 3M16 9l3 3-3 3M13.5 6l-3 12" />
+    </svg>
+  );
+}
+
+function PlansIcon(): React.ReactElement {
+  return (
+    <svg {...iconProps}>
+      <path d="M12 3l9 5-9 5-9-5 9-5z" />
+      <path d="M3 12l9 5 9-5M3 16l9 5 9-5" />
     </svg>
   );
 }

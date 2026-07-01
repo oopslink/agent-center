@@ -248,15 +248,16 @@ describe('Projects page', () => {
     );
   }
 
-  it('T139: a project card shows the 5 quick-action shortcuts with project-scoped routes', async () => {
+  it('T139: a project card shows the 6 quick-action shortcuts with project-scoped routes', async () => {
     oneProject();
     wrap(<Projects />);
     await waitFor(() => expect(screen.getByTestId('project-row')).toBeInTheDocument());
 
-    // Work Board / Tasks / Issues / Codebase are links into the project's views.
+    // Work Board / Tasks / Issues / Plans / Codebase are links into the project's views.
     expect(screen.getByTestId('project-shortcut-board')).toHaveAttribute('href', '/projects/proj-a/plans');
     expect(screen.getByTestId('project-shortcut-tasks')).toHaveAttribute('href', '/projects/proj-a?tab=tasks');
     expect(screen.getByTestId('project-shortcut-issues')).toHaveAttribute('href', '/projects/proj-a?tab=issues');
+    expect(screen.getByTestId('project-shortcut-plans')).toHaveAttribute('href', '/projects/proj-a?tab=plans');
     expect(screen.getByTestId('project-shortcut-codebase')).toHaveAttribute('href', '/projects/proj-a?tab=repos');
     // Edit is a button (opens the edit modal), not a link.
     expect(screen.getByTestId('project-shortcut-edit').tagName).toBe('BUTTON');
@@ -286,6 +287,7 @@ describe('Projects page', () => {
     fireEvent.click(screen.getByTestId('project-actions-menu-btn'));
     const menu = screen.getByTestId('project-actions-menu');
     expect(within(menu).getByTestId('project-shortcut-menu-board')).toHaveAttribute('href', '/projects/proj-a/plans');
+    expect(within(menu).getByTestId('project-shortcut-menu-plans')).toHaveAttribute('href', '/projects/proj-a?tab=plans');
     expect(within(menu).getByTestId('project-shortcut-menu-codebase')).toHaveAttribute('href', '/projects/proj-a?tab=repos');
     expect(within(menu).getByTestId('project-shortcut-menu-edit').tagName).toBe('BUTTON');
   });

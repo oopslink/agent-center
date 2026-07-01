@@ -422,6 +422,7 @@
       "board": "工作看板",
       "tasks": "任务",
       "issues": "议题",
+      "plans": "计划",
       "codebase": "代码库"
     },
     "actions": {
