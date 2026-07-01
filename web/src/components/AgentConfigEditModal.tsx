@@ -26,6 +26,7 @@ const REASONING_OPTIONS = ['', 'minimal', 'low', 'medium', 'high'];
 
 export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElement {
   const { t } = useTranslation('members');
+  const [description, setDescription] = useState(agent.description ?? '');
   const [model, setModel] = useState(agent.model ?? '');
   const [cli, setCli] = useState(agent.cli || 'claude-code');
   const [reasoning, setReasoning] = useState(agent.reasoning ?? '');
@@ -93,6 +94,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         max_concurrent_tasks: maxConcurrent,
         allowed_executors: executors,
         auto_assignable: autoAssignable,
+        description: description.trim(),
       });
       // A running agent must restart to pick up the new config; a stopped agent
       // applies it on its next start (nothing to restart now).
@@ -141,6 +143,17 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
             setConfirming(true);
           }}
         >
+          <Field label={t('agentRuntime.configModal.fields.description')} htmlFor="agent-config-description-input">
+            <input
+              id="agent-config-description-input"
+              data-testid="agent-config-description"
+              className={inputClass}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t('agentRuntime.configModal.fields.descriptionPlaceholder')}
+            />
+          </Field>
+
           <Field label={t('agentRuntime.configModal.fields.cli')} htmlFor="agent-config-cli-input">
             <select
               id="agent-config-cli-input"

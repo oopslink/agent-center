@@ -87,6 +87,7 @@
         "id": "ID",
         "title": "Title",
         "type": "Type",
+        "plan": "Plan",
         "priority": "Priority",
         "status": "Status",
         "updated": "Updated"
@@ -220,6 +221,8 @@
         "mode": "Mode",
         "modeHint": "Optional. Empty = default.",
         "modePlaceholder": "default",
+        "description": "Description",
+        "descriptionPlaceholder": "e.g. UX & UI designer",
         "provider": "Provider",
         "providerHint": "Optional. Empty = center default.",
         "providerPlaceholder": "default"

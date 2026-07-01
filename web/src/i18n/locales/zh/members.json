@@ -87,6 +87,7 @@
         "id": "ID",
         "title": "标题",
         "type": "类型",
+        "plan": "计划",
         "priority": "优先级",
         "status": "状态",
         "updated": "更新时间"
@@ -220,6 +221,8 @@
         "mode": "模式",
         "modeHint": "可选。留空 = 默认。",
         "modePlaceholder": "default",
+        "description": "描述",
+        "descriptionPlaceholder": "例如 UX & UI 设计师",
         "provider": "提供方",
         "providerHint": "可选。留空 = 中心默认值。",
         "providerPlaceholder": "default"

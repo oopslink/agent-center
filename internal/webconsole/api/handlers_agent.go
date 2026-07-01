@@ -613,6 +613,8 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		AllowedExecutors []agentbc.ExecutorProfile `json:"allowed_executors"`
 		// v2.18.3 BE-1: per-agent auto-assign opt-out. nil (field omitted) → preserve.
 		AutoAssignable *bool `json:"auto_assignable"`
+		// Description edits the agent's human-readable description. nil → preserve.
+		Description *string `json:"description"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -629,6 +631,7 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
 		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
 		AllowedExecutors: req.AllowedExecutors, AutoAssignable: req.AutoAssignable,
+		Description: req.Description,
 	})
 	if err != nil {
 		mapAgentError(w, err)
@@ -688,8 +691,29 @@ func (s *Server) agentTasksHandler(w http.ResponseWriter, r *http.Request) {
 			mapAgentError(w, err)
 			return
 		}
+		// Batch-resolve plan names: collect unique plan IDs, look up once.
+		planNames := make(map[pm.PlanID]string)
 		for _, t := range tasks {
-			out = append(out, agentTaskExecMap(t, facing))
+			pid := t.PlanID()
+			if pid == "" {
+				continue
+			}
+			if _, ok := planNames[pid]; !ok {
+				if pl, perr := d.PM.GetPlan(r.Context(), pid); perr == nil && pl != nil {
+					if pl.IsBuiltin() {
+						planNames[pid] = "" // assignment pool → empty
+					} else {
+						planNames[pid] = pl.Name()
+					}
+				}
+			}
+		}
+		for _, t := range tasks {
+			m := agentTaskExecMap(t, facing)
+			if name, ok := planNames[t.PlanID()]; ok {
+				m["plan_name"] = name
+			}
+			out = append(out, m)
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})

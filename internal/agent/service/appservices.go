@@ -196,6 +196,9 @@ type UpdateAgentConfigCommand struct {
 	// (v2.18.3 BE-1). nil → preserve the existing value (a config edit that omits the
 	// field must not silently flip it).
 	AutoAssignable *bool
+	// Description is the agent's human-readable description. nil → preserve the
+	// existing value; non-nil replaces it (including empty string to clear).
+	Description *string
 }
 
 // resolveAllowedExecutors canonicalizes the executor-candidate input into the
@@ -263,6 +266,9 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		// override it when the PATCH explicitly sent the field (nil → preserve).
 		if cmd.AutoAssignable != nil {
 			p.AutoAssignable = *cmd.AutoAssignable
+		}
+		if cmd.Description != nil {
+			p.Description = *cmd.Description
 		}
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err

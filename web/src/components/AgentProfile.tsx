@@ -28,6 +28,19 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
 
   return (
     <div className="space-y-4" data-testid="agent-tabpanel-profile">
+      {/* Edit config button — top-right icon. */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="flex items-center rounded border border-border-base px-2 py-1.5 text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
+          onClick={() => setEditingConfig(true)}
+          data-testid="agent-profile-edit-config"
+          title={t('agents.profile.edit')}
+          aria-label={t('agents.profile.edit')}
+        >
+          <PencilIcon />
+        </button>
+      </div>
       {/* design1: two columns — left identity/config, right relationships.
           (v2.7.1 #240: the Message action moved to the page header.) */}
       <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
@@ -83,16 +96,6 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
           </Section>
 
           <Section label={t('agents.profile.runtimeConfig')}>
-            <div className="mb-2 flex justify-end">
-              <button
-                type="button"
-                className="rounded border border-border-base px-2 py-0.5 text-xs text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
-                onClick={() => setEditingConfig(true)}
-                data-testid="agent-profile-edit-config"
-              >
-                {t('agents.profile.edit')}
-              </button>
-            </div>
             <div className="flex flex-wrap gap-2" data-testid="agent-profile-runtime">
               <ConfigTag label={t('agents.profile.tag.cli')} value={agent.cli || '—'} testId="agent-profile-tag-cli" />
               <ConfigTag label={t('agents.profile.tag.model')} value={agent.model || '—'} testId="agent-profile-tag-model" />
@@ -300,6 +303,14 @@ function ConfigTag({
         </span>
       )}
     </span>
+  );
+}
+
+function PencilIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M13.5 3.5l3 3L7 16H4v-3L13.5 3.5z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
