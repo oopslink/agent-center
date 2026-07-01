@@ -5,7 +5,7 @@
 | Status | Draft |
 | Date | 2026-05-27 |
 | Delivered | v2.6 design phase；详 [v2.6-design § 2.2 / § 4.2.1](../../plans/v2.6-design.md) |
-| Supersedes | ~~[ADR-0033 § 1 Identity kind 简化 4→3](0033-identity-model-refactor.md)~~（v2.6 改 kind 枚举为 `user | agent`，删 `system`）<br>~~[ADR-0033 § 2 Identity ID 命名约定 `kind:id`](0033-identity-model-refactor.md)~~（v2.6 改为 `kind-<8hex>` worker-style） |
+| Supersedes | （v2.6 改 kind 枚举为 `user | agent`，删 `system`）<br>（v2.6 改为 `kind-<8hex>` worker-style） |
 | Related | [ADR-0040 Identity BC carve-out](0040-identity-bc-carve-out.md) / [ADR-0023 Worker enroll lightweight](0023-worker-enroll-lightweight.md)（worker-style id 来源） |
 
 ## Context

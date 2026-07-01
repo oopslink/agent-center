@@ -5,7 +5,7 @@
 | Status | Draft |
 | Date | 2026-05-27 |
 | Delivered | v2.6 design phase；详 [v2.6-design § 3.2 / § 4](../../plans/v2.6-design.md) |
-| Supersedes | ~~[ADR-0033 Identity 模型重构](0033-identity-model-refactor.md)~~（v2.6 重新设计 Identity 模型 + BC 边界 + ID 格式 + kind 枚举；详 [ADR-0045](0045-identity-id-format.md)） |
+| Supersedes | （v2.6 重新设计 Identity 模型 + BC 边界 + ID 格式 + kind 枚举；详 [ADR-0045](0045-identity-id-format.md)） |
 | Related | v2.6 周期一并立的 [ADR-0041 Organization](0041-organization-multi-tenant.md) / [ADR-0042 Member](0042-member-ar.md) / [ADR-0043 Auth](0043-auth-passcode-jwt.md) / [ADR-0044 Supervisor cut](0044-supervisor-cut.md) / [ADR-0045 Identity ID format](0045-identity-id-format.md) |
 
 ## Context

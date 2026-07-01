@@ -167,7 +167,7 @@ Center 派单时只考虑 `detected=true && enabled=true` 的 CLI。
 
 ### 7. Worker Invariants 变更
 
-- ❌ 删：~~bootstrap token 一次性~~（被结构化）
+- ❌ 删：（被结构化）
 - ✅ 改：**enroll token used 是终态；同 worker 同时至多 1 个 active token**
 - 其余 Worker invariants（identity 不可变 / session 1:1 / online↔offline 反复 / offline 不接派单 / heartbeat 静默 → offline）**不动**
 

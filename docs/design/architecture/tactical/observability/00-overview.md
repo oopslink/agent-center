@@ -326,15 +326,6 @@ I-12             agent-center  user:hayang     2h
 
 数据基础：worker daemon 维护的 TaskExecutionProjection 实时投影 + center 端聚合查询。
 
-### 7.3 ~~Bridge 渲染（subscribe-only 不渲染）~~ (v2 删 Bridge BC per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
-
-
-### 7.4 ~~飞书侧~~ (v2 删 vendor 集成 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
-
-- ~~用户问"现在在跑啥" → supervisor 调 `query executions --status=working,input_required` → 组装卡片回复~~
-- ~~周期 review 卡片附此刻活跃 execution 小卡~~
-- ~~任务完成卡片附 [查看 trace] [查看 supervisor 思考] 按钮，点击拉详细页（v1 回 Markdown 摘要文本）~~
-
 ### 7.5 事件总览（按 BC 分组）
 
 | BC | 主要事件类型 |
@@ -347,7 +338,6 @@ I-12             agent-center  user:hayang     2h
 | Workforce | `worker.enrolled` / `worker.online` / `worker.offline` / `worker.heartbeat` / `worker_project_proposal.*` / `worker_project_mapping.*` / `project.*` |
 | Cognition | `supervisor.invocation_started` / `supervisor.invocation_ended` / `supervisor.decision_made` / `supervisor.invocation_failed_alert`（Memory 变更不 emit `memory.*` 事件，由 supervisor invocation 的 `trace.jsonl.gz`（含 `Edit`/`Write` tool 调用）+ `git log` 双渠道审计，[ADR-0012](../../../decisions/0012-memory-file-based.md) / [ADR-0015](../../../decisions/0015-agent-trace-not-in-events-table.md)） |
 | Conversation | `conversation.opened` / `conversation.message_added` / `conversation.closed` / `identity.registered` / `channel_binding.added` |
-| ~~Bridge~~ | ~~`channel.delivered` / `channel.delivery_failed` / `bridge.parse_failed`~~ (v2 删 Bridge BC per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)) |
 
 所有失败 / 取消 / 超时事件必须带 `reason + message` 双字段（[conventions § 16](../../../../rules/conventions.md)）。
 
@@ -388,7 +378,6 @@ I-12             agent-center  user:hayang     2h
 - [discussion/00-overview.md](../../../retired/discussion/00-overview.md) — Issue 事件 emit
 - [workforce/00-overview.md](../workforce/00-overview.md) — Worker / Proposal / Mapping / Project 事件 emit
 - [cognition/00-overview.md](../cognition/00-overview.md) — Supervisor 事件 emit
-- [cognition/01-supervisor-invocation.md § 4](../cognition/01-supervisor-invocation.md) — DecisionRecord + events.decision_id 关联
 - [conversation/00-overview.md](../conversation/00-overview.md) — Conversation 事件 emit
 
 ### 实现层

@@ -14,7 +14,6 @@
 | 0006 | [大文件走 BlobStore，DB 只存相对路径](0006-blob-store-for-large-content.md) | Accepted |
 | 0007 | [引入 Conversation 层作为渠道无关的会话上下文](0007-conversation-as-unified-session.md) | Accepted |
 | 0008 | [WorkerProjectMapping 走"自动发现 + 用户确认"流程](0008-worker-project-mapping-via-discovery-proposal.md) | Accepted |
-| ~~0009~~ | ~~Issue 与 Conversation 解耦 + 外部集成走 Bridge~~ | **v2 删除**（Bridge 撤回 + 已 Superseded）|
 | 0010 | [Task / TaskExecution 两层模型 + AgentSession 合并](0010-task-execution-two-layer-model.md) | Accepted |
 | 0011 | [Dispatch 可靠性协议：ACK + execution_id 幂等 + Reconcile](0011-dispatch-reliability-protocol.md) | Accepted (Refined by 0018) |
 | 0012 | [Supervisor Memory 走 file-based + git](0012-memory-file-based.md) | Accepted |
@@ -22,12 +21,8 @@
 | 0014 | [事件溯源走 L1：状态表为权威，事件表是审计流](0014-event-sourcing-level.md) | Accepted |
 | 0015 | [agent_trace 不进 events 表：归 BlobStore + TaskExecution 投影摘要](0015-agent-trace-not-in-events-table.md) | Accepted |
 | 0016 | [Task 进度跟踪走 bound thread + 进度消息流](0016-task-progress-via-bound-thread.md) | Superseded by 0017→已 v2 删 → ADR-0039 接管 |
-| ~~0017~~ | ~~Task 即 Conversation：1:1 绑定~~ | **v2 删除**（vendor 撤回；Conversation v2 模型 → [ADR-0039](0039-conversation-business-model-v2-unified.md)）|
 | 0018 | [Detached agent execution via per-execution shim](0018-detached-agent-via-per-execution-shim.md) | Accepted |
 | 0019 | [BC1 Scheduling + BC4 Execution 合并为 TaskRuntime](0019-bc-scheduling-execution-merged-to-task-runtime.md) | Accepted |
-| ~~0020~~ | ~~Card 限制在 Bridge BC~~ | **v2 删除**（Bridge 撤回）|
-| ~~0021~~ | ~~Issue 即 Conversation：1:1 绑定~~ | **v2 删除**（vendor 撤回；模型 → [ADR-0039](0039-conversation-business-model-v2-unified.md)）|
-| ~~0022~~ | ~~Conversation 不对齐 IM 软件的 channel/thread 层级模型~~ | **v2 删除**（vendor 撤回后 trivial；channel 已升业务一等公民 [ADR-0032](0032-conversation-channel-as-first-class.md)）|
 | 0023 | [Worker Enroll 轻量化](0023-worker-enroll-lightweight.md) | Accepted |
 | 0024 | [AgentInstance 一等公民化](0024-agent-instance-first-class.md) | Accepted (amended by 0029) |
 | 0025 | [`agent:create` 协议 = G1 CLI Endpoint](0025-agent-create-via-cli-not-protocol.md) | Accepted |

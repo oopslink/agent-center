@@ -40,10 +40,10 @@ Supervisor **不是常驻 daemon**，事件触发 spawn 一次就退出；跨次
 
 ### S3. 对话即决策审计
 
-Supervisor 每一步关键决策都经 用户 UI（v1: ~~IM（飞书）~~ → v2: Web Console / CLI per ADR-0031）对用户可见 + 可干预；**不藏后台、不静默调度**。
+Supervisor 每一步关键决策都经 用户 UI（v1: → v2: Web Console / CLI per ADR-0031）对用户可见 + 可干预；**不藏后台、不静默调度**。
 
 - 反面：传统调度系统决策落 log / DB，要查时去后台翻
-- 依据：[discussion/00-overview](../../retired/discussion/00-overview.md)（RETIRED / historical）+ [conversation/00-overview](../tactical/conversation/00-overview.md) + [ADR-0007](../../decisions/0007-conversation-as-unified-session.md)（Conversation 作统一会话层）+ [ADR-0039](../../decisions/0039-conversation-business-model-v2-unified.md)（v2 统一 Conversation 业务模型；原 ADR-0021 Issue ↔ Conversation 1:1 已 superseded）+ ~~IM-first 设计~~（v2 撤回 per ADR-0031）
+- 依据：[discussion/00-overview](../../retired/discussion/00-overview.md)（RETIRED / historical）+ [conversation/00-overview](../tactical/conversation/00-overview.md) + [ADR-0007](../../decisions/0007-conversation-as-unified-session.md)（Conversation 作统一会话层）+ [ADR-0039](../../decisions/0039-conversation-business-model-v2-unified.md)（v2 统一 Conversation 业务模型；原 ADR-0021 Issue ↔ Conversation 1:1 已 superseded）+ （v2 撤回 per ADR-0031）
 
 ### S4. Center 单一权威
 

@@ -290,7 +290,6 @@ Enter new value: ****
 - [ADR-0026 SecretManagement BC](../../../decisions/0026-user-secret-management-bc.md)
 - [ADR-0027 MCP per-agent 注入](../../../decisions/0027-mcp-per-agent-injection.md)
 - [00-overview.md](00-overview.md) — BC 入口
-- [workforce/04-agent-instance.md](../workforce/04-agent-instance.md) — AgentInstance.config.mcp_config 字段
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — worker daemon 注入流程
 - [conventions § 13 安全 / 凭据处理](../../../../rules/conventions.md)
 - [implementation/04-configuration.md § 7.10 secret_management.*](../../../implementation/04-configuration.md)

@@ -201,7 +201,7 @@ YAML 是**单一文件多模式共用**。每个 mode 启动时**只读它需要
 | `supervisor.invocation_timeout_seconds` | int | 180 | [ADR-0013 § 6](../decisions/0013-supervisor-invocation-concurrency.md) | scope_kind ≠ global 的 timeout |
 | `supervisor.invocation_timeout_global_seconds` | int | 600 | 同上 | scope_kind=global 的 timeout |
 
-### 7.4 ~~`notification.*` / 7.5 `bridge.*`~~ (RETIRED)
+### 7.4 `notification.*` / 7.5 `bridge.*` (RETIRED)
 
 Both sections removed in v2 per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md). v2 routes user-visible
 notifications through the Web Console + SSE; there is no
@@ -263,7 +263,7 @@ notification fallback channel and no vendor Bridge configuration.
 
 > Master key 一旦丢失，所有 user_secret 不可解。运维需自管 key 备份；[roadmap](../roadmap.md) 接 Vault / KMS 作为可选来源。
 
-### 7.11 ~~`agent_cli.*`~~ (RETIRED)
+### 7.11 `agent_cli.*` (RETIRED)
 
 > **v2.7+ UPDATE**: `agent_cli.*` 配置段已不在 Config struct 中。Agent CLI binary 路径现在通过 agent adapter 的 `Probe()` 方法自动发现（PATH 查找）。Binary 名默认为 `claude` / `codex` / `opencode`；如需覆盖，通过 Agent BC 的 `cli` 字段在 Web Console 中配置。
 
@@ -332,7 +332,6 @@ server:
 | [ADR-0011 Dispatch reliability](../decisions/0011-dispatch-reliability-protocol.md) | `execution.dispatch_ack_timeout_seconds` |
 | [ADR-0013 Supervisor 并发](../decisions/0013-supervisor-invocation-concurrency.md) | `supervisor.*` |
 | [ADR-0015 trace 不进 events 表](../decisions/0015-agent-trace-not-in-events-table.md) | `observability.peek_trace_buffer_lines` |
-| ~~[ADR-0017 Task ↔ Conversation](../decisions/0039-conversation-business-model-v2-unified.md) § 10.5~~ <!-- v1 ref: ADR-0017 superseded by ADR-0039 --> | ~~`notification.default_channel`~~ (v2 删 per ADR-0031) |
 | [ADR-0018 Per-execution shim](../decisions/0018-detached-agent-via-per-execution-shim.md) | `execution.shim_*` / `worker_config.exec_base_dir` / `gc_exec_retention_hours` |
 | [NF1 零 LLM SDK](../requirements/02-non-functional.md) | 整个 config 不含任何 LLM SDK key |
 | [NF6 并发 capacity](../requirements/02-non-functional.md) | `worker_config.concurrency.per_agent_type` |

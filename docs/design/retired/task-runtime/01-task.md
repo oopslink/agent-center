@@ -63,7 +63,7 @@ stateDiagram-v2
 
 | 迁移 | 触发 | 触发者 | 备注 |
 |---|---|---|---|
-| → `open` | Task 创建（CLI / Issue conclude / supervisor spawn / ~~Web Console / Bridge~~ (v2 删 per ADR-0031)） | Center | 初始状态 |
+| → `open` | Task 创建（CLI / Issue conclude / supervisor spawn /） | Center | 初始状态 |
 | `open → suspended` | `suspend-task` 动作 | User / Supervisor | 前置：先 kill 当前 active execution（若有），见 [00-overview § 3.5 KillCoordinator](00-overview.md) |
 | `suspended → open` | `resume-task` 动作 | User / Supervisor | 不续跑 —— 要继续干必须新建 execution |
 | `open → abandoned` | `abandon-task` 动作 | User / Supervisor | 前置：先 kill 当前 active execution（若有） |
@@ -131,18 +131,14 @@ Worker / Agent 不能直接改 Task 状态（[conventions § 1](../../../../rule
 
 | Task 来源 | conversation 创建时机 |
 |---|---|
-| ~~a. 飞书用户 @bot 直接发起~~ | ~~Task.created 同事务建 Conversation + emit `conversation.opened` + Bridge 发 Task root card 回写 `primary_channel_thread_key`~~ (v2 删 per ADR-0031) |
 | b. Issue concluded spawn（IssueConcludeSpawn）| **不**建；`task.conversation_id=null`；用户后续触发懒创建 |
 | c. Supervisor 自主开（v1 暂无） | 同 b |
 | d. CLI 直接 `task create` | 同 b |
-| ~~e. Web Console 新建~~ | ~~同 a（Web Console 是 Conversation 的另一个 channel binding）~~ (v2 删 per ADR-0031) |
 
 ### 7.2 懒创建触发
 
 | 路径 | 触发 |
 |---|---|
-| ~~飞书 slash 命令~~ | ~~`/track <task_id>` —— Bridge 直接转 bind-conversation（不经 supervisor）~~ (v2 删 per ADR-0031) |
-| ~~飞书 @bot 自由文本~~ | ~~"盯一下 T-42" → supervisor 解析意图 → bind-conversation~~ (v2 删 per ADR-0031) |
 | Center 硬规则 fallback | agent 调 `request-input` 且 task.conversation_id=null → 自动 bind 到 `notification.default_channel`；未配置 → InputRequest 创建失败、execution → `failed(reason=no_input_channel)`（详见 [03-input-request § 8 fallback](03-input-request.md)） |
 
 详见 [ADR-0017 § 10](../../../decisions/0039-conversation-business-model-v2-unified.md)。
@@ -243,8 +239,6 @@ Task 创建走 [00-overview § 4.1 TaskFactory](00-overview.md)，**5 个 caller
 | CLI `task create` | 用户 | 不建（懒） |
 | IssueConcludeSpawn（Domain Service）| Discussion BC | 不建（懒）；filed `from_issue_id` |
 | Supervisor | v1 暂无（roadmap） | 不建（懒） |
-| ~~Web Console~~ | ~~用户 Web UI~~ | ~~task.created 同事务建~~ (v2 删 per ADR-0031) |
-| ~~Bridge（飞书 @bot）~~| ~~用户飞书消息~~ | ~~task.created 同事务建~~ (v2 删 per ADR-0031) |
 
 IssueConcludeSpawn 走批量事务性 spawn（all-or-nothing），支持 batch 内 task 间引用依赖。详见 [00-overview § 3.4 IssueConcludeSpawn](00-overview.md)。
 

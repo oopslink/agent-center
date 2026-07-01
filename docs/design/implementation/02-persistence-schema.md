@@ -199,7 +199,7 @@ var migrationsFS embed.FS
 
 ## § 8. BC 实现切片（代表性 BC：TaskRuntime + Observability）
 
-其余 5 BC（Cognition / Workforce / Discussion / Conversation / ~~Bridge (v2 deleted per ADR-0031)~~）的 DDL 不在 P8b 展开；落代码时按 § 1-7 套用即可。出现新 schema pattern 时回 P8b 补元层规则。
+其余 BC（Cognition / Workforce / Discussion / Conversation）的 DDL 不在 P8b 展开；落代码时按 § 1-7 套用即可。出现新 schema pattern 时回 P8b 补元层规则。
 
 > **v2.7+ UPDATE (2026-06-26)**：截至 migration 0081，实际 schema 已大幅超出 P8b 首版描述。本节补充完整表清单 + 新增 BC 概览。TaskRuntime BC 表已在 v2.7 被 ProjectManager BC 取代（见 § 8.4）。
 
@@ -257,8 +257,8 @@ var migrationsFS embed.FS
 | **Usage** | `usage_events` | 0077 | active |
 | **Usage** | `agent_activity_daily` | 0078 | active |
 | **System** | `center_settings` | 0064 | active |
-| ~~**Bridge**~~ | `feishu_delivery_ledger` | 0005 | **RETIRED** — v2 dropped (0025) per ADR-0031 |
-| ~~**Bridge**~~ | `bridge_subscription_cursors` | 0005 | **RETIRED** — v2 dropped (0025) per ADR-0031 |
+| **Bridge** (RETIRED) | `feishu_delivery_ledger` | 0005 | RETIRED — v2 dropped (0025) per ADR-0031 |
+| **Bridge** (RETIRED) | `bridge_subscription_cursors` | 0005 | RETIRED — v2 dropped (0025) per ADR-0031 |
 
 ### 8.1 TaskRuntime (RETIRED — v2.7)
 
@@ -451,9 +451,6 @@ LIMIT ?;
 
 | BC | Repository（P8a 接口） | 物理表（P8b） | 关键 SQL |
 |---|---|---|---|
-| ~~TaskRuntime~~ | ~~TaskRepository~~ | ~~`tasks`~~ | ~~CAS UPDATE~~ (RETIRED v2.7 → `pm_tasks`) |
-| ~~TaskRuntime~~ | ~~TaskExecutionRepository~~ | ~~`task_executions`~~ | ~~CAS + 状态机校验~~ (RETIRED v2.7 → `agent_work_items`) |
-| ~~TaskRuntime~~ | ~~InputRequestRepository~~ | ~~`input_requests`~~ | (RETIRED v2.7) |
 | Observability | EventRepository | `events` | append-only INSERT |
 | Observability | TaskExecutionProjectionRepository | `task_execution_projections` | UPSERT（不走 CAS） |
 | Observability | TraceArchiveRepository | **不在 DB** | 见 [01-blob-store](01-blob-store.md) |

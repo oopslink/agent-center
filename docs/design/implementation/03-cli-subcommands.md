@@ -40,10 +40,8 @@ agent-center <agent-verb> [<arg>] [--flag ...]
 | `issue` | Discussion | issues 聚合 |
 | `worker` / `worker proposal` / `project` | Workforce | 各聚合 |
 | `conversation` | Conversation | conversations 聚合 |
-| ~~`identity`~~ | ~~Bridge~~ | ~~Bridge 内 vendor 身份~~ (v2 删 per ADR-0031) |
 | `supervisor` / `record-decision` | Cognition | SupervisorInvocation / DecisionRecord |
 | `inspect` / `query` / `ps` / `stats` / `logs` / `peek-trace` | Observability | Open Host — 跨 BC 五动词 + peek |
-| ~~`bridge`~~ | ~~Bridge~~ | ~~vendor 集成管理~~ (v2 删 per ADR-0031) |
 | `admin` | System | 运维 |
 
 **vendor 概念不进 subject / verb / flag 名**（[conventions § 9.y](../../rules/conventions.md)）。`task bind-card` 是反例 —— 2026-05-20 已修正为 `task bind-conversation`（commit `0212f5a`）。
@@ -240,7 +238,6 @@ human 输出格式：`Error: <reason>: <message>` 一行红字到 stderr。
 | `inspect / query / ps / stats / logs / peek-trace` | Observability | Web Console API |
 | `request-input / report-progress / report-artifact / report-failure` | TaskRuntime | 由 Agent BC + MCP 通道取代 |
 | `supervisor retrigger / record-decision` | Cognition | Web Console API |
-| ~~`identity` / `bridge`~~ | ~~Bridge~~ | v2 ADR-0031 删除 |
 
 > **注**：这些退役命令的 audience 含 `S` / `A` 的功能现在走 MCP server（`worker mcp-host`）和 admin HTTP endpoint，不再通过 CLI 子命令暴露。
 

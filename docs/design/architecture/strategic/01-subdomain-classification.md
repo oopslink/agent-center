@@ -45,9 +45,6 @@ DDD 把领域切成子域，按 **投入策略** 分三类（**主分类**）：
 | Observability（观测）| Supporting | Peripheral | 降级可运行——失去 fleet view / trace 投影，可 grep events 表兜底。子包：`escalator/`、`peek/`、`query/`。代码包 `internal/observability` |
 | SecretManagement（密钥管理）| Supporting | Peripheral | 降级可运行——失去密钥中心化管理，可手动配置环境变量兜底。代码包 `internal/secretmgmt` |
 | Files（文件管理）| Supporting | Peripheral | 文件上传 / 管理。降级可运行。代码包 `internal/files` |
-| ~~TaskRuntime（任务运行时）~~ | ~~**Core**~~ | — | **RETIRED (v2.7 #131)**——职责迁移至 ProjectManager BC（pm.Task）+ Agent work-items。战术设计见 [retired/task-runtime/](../../retired/task-runtime/00-overview.md) |
-| ~~Discussion（讨论）~~ | ~~**Core**~~ | — | **RETIRED (v2.7 #131)**——职责迁移至 ProjectManager BC（pm.Issue）+ Agent work-items。战术设计见 [retired/discussion/](../../retired/discussion/00-overview.md) |
-| ~~Bridge（渠道桥接层）~~ | ~~Supporting~~ | ~~Peripheral~~ | **RETIRED (v2 per ADR-0031)**——v2 撤回飞书 / vendor 接入 |
 
 **汇总**：
 

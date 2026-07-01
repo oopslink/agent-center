@@ -4,7 +4,7 @@
 
 > **DDD 战术层** · BC: Workforce · 聚合: WorkerProjectProposal（独立 AR）
 
-WorkerProjectProposal 是 Worker 自动扫描发现的 "候选项目映射"。**需要用户 ~~飞书~~ / Web Console / CLI 确认才能升级成 WorkerProjectMapping**（v2 撤回飞书 per ADR-0031）。
+WorkerProjectProposal 是 Worker 自动扫描发现的 "候选项目映射"。**需要用户 / Web Console / CLI 确认才能升级成 WorkerProjectMapping**（v2 撤回飞书 per ADR-0031）。
 
 设计动机：避免 Worker 一发现 git repo 就建出无用 mapping —— 用户决策权前置，明示"哪些项目你打算在哪些 worker 上跑"。详见 [ADR-0008](../../../decisions/0008-worker-project-mapping-via-discovery-proposal.md)。
 
@@ -77,10 +77,10 @@ worker_project_proposal (
 
 4. Center 入库 worker_project_proposals(status=pending) + 触发 supervisor 唤醒
 
-5. Supervisor 决定如何呈现 (v1: ~~直接推飞书卡片~~ / v2: Web Console + CLI per ADR-0031):
+5. Supervisor 决定如何呈现 (v1: / v2: Web Console + CLI per ADR-0031):
    多条 proposal 可批量打包, 也可逐条
 
-6. 用户 UI（~~飞书卡片~~ → v2 Web Console / CLI per ADR-0031）:
+6. 用户 UI（ → v2 Web Console / CLI per ADR-0031）:
    🔍 Worker mac-mini-1 发现候选项目:
        📁 /Users/oopslink/code/agent-center  (Go, 2.1k commits, github.com/.../agent-center)
        建议 project_id: agent-center
@@ -104,7 +104,7 @@ worker_project_proposal (
 ```
 单事务内：
   a. 校验 suggested_project_id 不跟既有 project 冲突
-     冲突 → ~~飞书卡片标红~~ 用户 UI 提示（v2 Web Console / CLI per ADR-0031），让用户改 project_id 后再提交（不允许同名）
+ 冲突 → 用户 UI 提示（v2 Web Console / CLI per ADR-0031），让用户改 project_id 后再提交（不允许同名）
   b. 若 project 不存在: 自动创建 Project（用 suggested_project_id + suggested_kind）
      emit project.created
   c. 创建 WorkerProjectMapping(base_path=candidate_path, source_proposal_id=...)
@@ -116,7 +116,7 @@ worker_project_proposal (
 ### 4.2 用户点击 ✏️ 改后加入
 
 ```
-1. ~~Bridge 弹卡片~~ 用户 UI（v2 Web Console / CLI per ADR-0031）让用户编辑 project_id / name / kind / default_agent_cli
+1. 用户 UI（v2 Web Console / CLI per ADR-0031）让用户编辑 project_id / name / kind / default_agent_cli
 2. 用户提交后走 § 4.1 流程，用编辑后的字段
 ```
 
@@ -145,7 +145,7 @@ agent-center worker proposal unignore <proposal_id>
 Worker A 已 accepted `agent-center → /Users/.../code/agent-center`。
 Worker B 扫到自己本地 `/home/.../code/agent-center`，suggested_project_id 也是 `agent-center`。
 
-Center 检测到 Project `agent-center` 已存在 → 仍然走 propose + ~~飞书~~ 用户 UI 路径（v2 Web Console / CLI per ADR-0031）：
+Center 检测到 Project `agent-center` 已存在 → 仍然走 propose + 用户 UI 路径（v2 Web Console / CLI per ADR-0031）：
 
 ```
 Worker home-server 也发现 agent-center 项目:

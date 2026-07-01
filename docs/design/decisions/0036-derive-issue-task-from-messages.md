@@ -21,7 +21,7 @@ CV3 [ADR-0035](0035-cross-conversation-message-carryover.md) 引入 `conversatio
 
 - supervisor `agent-center issue open ...` — supervisor 决策时
 - user `agent-center issue open ...` — 用户直接开
-- ~~飞书 @bot 在 thread 里说「开 Issue」~~ → vendor 撤回（[ADR-0031](0031-v2-drop-bridge-vendor-integration.md)）
+- → vendor 撤回（[ADR-0031](0031-v2-drop-bridge-vendor-integration.md)）
 
 → CV4 加 **「from conversation messages」** 第三条入口。
 

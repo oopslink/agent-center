@@ -21,7 +21,7 @@
 | **聚合管理** | Issue（6 态状态机，单聚合 AR）|
 | **议事 IO** | 复用 Conversation Message（`kind=issue` Conversation 1:1 关联到 Issue）|
 | **conclude 协议** | Issue conclude → 调 TaskRuntime BC 的 IssueConcludeSpawn 批量建 Tasks（同事务，all-or-nothing） |
-| **跨 BC 协作** | Discussion → TaskRuntime（spawn）/ Discussion → Conversation（1:1 强引用）/ ~~Discussion → Bridge（emit `conversation.opened` 让 Bridge 发 Issue root card）~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))|
+| **跨 BC 协作** | Discussion → TaskRuntime（spawn）/ Discussion → Conversation（1:1 强引用）/)|
 
 ### 0.2 UL 切片
 
@@ -43,7 +43,6 @@
 - **Discussion → TaskRuntime**：Customer-Supplier（Issue conclude 批量 spawn Tasks via IssueConcludeSpawn）
 - **TaskRuntime → Discussion**：Customer-Supplier（worker 上 agent 调 `agent-center open-issue` 创建 Issue）
 - **Cognition → Discussion**："User" via tools（Supervisor 调 `issue open` / `issue conclude` / `issue comment` facade）
-- ~~**Bridge → Discussion**：Customer-Supplier（inbound 时 Bridge 调 `conversation add-message` 到 `kind=issue` Conversation；不再有 "issue thread binding" 例外路径）~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 - **Observability ← Discussion**：Open Host（订阅 `issue.*` 事件做投影 / inspect 查询）
 
 ---
@@ -155,7 +154,7 @@ issue (
 
 ### 3.1 IssueLifecycleService
 
-**职责**：Issue 开 / 撤回 / 结论流转 + 跨 BC 协作（调 TaskRuntime IssueConcludeSpawn / ~~emit 事件让 Bridge 同步~~ — v2 删 Bridge per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)）。
+**职责**：Issue 开 / 撤回 / 结论流转 + 跨 BC 协作（调 TaskRuntime IssueConcludeSpawn / — v2 删 Bridge per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)）。
 
 | 维度 | 内容 |
 |---|---|
@@ -192,7 +191,6 @@ issue (
 |---|---|---|
 | **CLI** | `agent-center issue open --title=... --description=... --project=...` | null（懒创建路径）|
 | **Web Console** | 表单提交 | 同步建（Web 是 conversation 的 channel binding 之一）|
-| ~~**飞书 @bot 自由文本**~~ | ~~"讨论一下 X" → Bridge 写 inbound DM/group Message → Supervisor 解析意图 → 调 issue open~~ | ~~同步建（继承当前用户所在飞书渠道；同 ADR-0017 a 路径模板）~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)) |
 | **Supervisor** | 自主开 issue（从用户对话推断意图）| 同步建（supervisor 知道 caller channel）|
 | **Worker (agent)** | `agent-center open-issue --title=...` (worker daemon 中转，跨 BC) | null（懒创建，跟 CLI 同路径） |
 
@@ -268,7 +266,7 @@ var (
 | 引用方 → 被引方 | 强弱 | 一致性窗口 | 触发场景 | ADR |
 |---|---|---|---|---|
 | **Issue → Conversation**（`issue.conversation_id`） | 强 / 1:1 | tx 同步（同步建路径同事务）/ tx 同步（懒创建另事务） | 同步建 issue.open / 懒创建 `issue bind-conversation` | [ADR-0021](../../../decisions/0039-conversation-business-model-v2-unified.md) |
-| **Issue → Conversation**（`issue.related_conversation_ids`） | 弱 / N:N | 无 | 自动（~~R1 飞书 DM/group @bot 触发开 issue → 关联触发源 conversation~~ — v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)；R2 supervisor 派子任务关联 sub-task conversation）/ 手动（R3 `agent-center issue link-conversation`）| [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
+| **Issue → Conversation**（`issue.related_conversation_ids`） | 弱 / N:N | 无 | 自动（ — v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)；R2 supervisor 派子任务关联 sub-task conversation）/ 手动（R3 `agent-center issue link-conversation`）| [ADR-0039](../../../decisions/0039-conversation-business-model-v2-unified.md) |
 | **Task → Issue**（`task.from_issue_id`，TaskRuntime BC 内）| 弱 / 血缘 | tx 同步（创建时填，从不变） | IssueConcludeSpawn 创建 task | - |
 
 **跨聚合一致性策略汇总**：
@@ -296,12 +294,10 @@ Discussion emit 的事件中触发 supervisor 唤醒的子集：
 
 详见 [cognition/00-overview.md](../cognition/00-overview.md)。
 
-### 7.2 ~~Bridge 渲染（outbound）~~ (v2 整节删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
+### 7.2 (v2 整节删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 
-| 事件 | ~~Bridge 渲染动作~~ |
+| 事件 | |
 |---|---|
-| ~~`conversation.opened` (kind=issue)~~ | ~~Bridge 发 Issue root card 到 vendor 当前位置（DM / 群里 thread root）→ 该 card 形成 thread root → 回写 `conversation.primary_channel_thread_key`~~ |
-| ~~`issue.concluded` / `issue.tasks_spawned`~~ | ~~Bridge 渲染一条 `kind=system` Message 到 issue.conversation_id 提示 "已结论 / 已 spawn task #X / #Y / #Z"~~ |
 
 
 ### 7.3 Observability 订阅
@@ -316,7 +312,6 @@ Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / i
 | TaskRuntime → Discussion | Customer-Supplier | Worker 上 agent 调 `open-issue` 命令 Discussion 创建 Issue |
 | Discussion ↔ Conversation | Shared Kernel / 1:1 | issue.conversation_id 1:1 强引用 kind=issue Conversation（[ADR-0021](../../../decisions/0039-conversation-business-model-v2-unified.md)）|
 | Discussion ↔ Workforce | Shared Kernel | Issue 引用 project_id |
-| ~~Bridge → Discussion~~ | ~~Customer-Supplier（间接）~~ | ~~inbound 时 Bridge 调 Conversation BC API（`conversation add-message`），不直接调 Discussion API；议事消息归 Conversation BC 持有~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)) |
 | Cognition → Discussion | "User" via tools | Supervisor 调 `issue open` / `issue conclude` / `issue comment` facade / `issue bind-conversation` |
 | Observability ← Discussion | Open Host | 全部 `issue.*` 事件订阅 |
 
@@ -328,8 +323,6 @@ Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / i
 
 | 项 | 归属 |
 |---|---|
-| ~~飞书 /slash 命令 `/open-issue title="..."`~~ | ~~[roadmap](../../../roadmap.md)（v1 不实现）~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))|
-| ~~飞书 slash `/track-issue <id>`~~ | ~~[roadmap](../../../roadmap.md)（同 ADR-0017 § 6 task `/track` 模板，issue 同步推到 v2）~~ (v2 删 per [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)) |
 | Agent 主动评论 issue（agent 在 issue 议事内自由发言）| [roadmap](../../../roadmap.md)（v1 agent 只能调 open-issue，不主动议事）|
 | 自动从 conversation 消息推断 IssueComment | [out-of-scope](../../../requirements/03-out-of-scope.md)（[ADR-0021](../../../decisions/0039-conversation-business-model-v2-unified.md) 明示议事必须主动写 Message 到 issue.conversation_id；不做自动镜像）|
 | Issue 之间的引用 / epic-story 分层 | [out-of-scope](../../../requirements/03-out-of-scope.md) |
@@ -345,11 +338,7 @@ Observability BC 订阅 Discussion 全部 `issue.*` 事件做投影 / 查询 / i
 
 - [ADR-0004 Issue 取代 Suggestion](../../../decisions/0004-issue-not-suggestion.md)
 - [ADR-0007 引入 Conversation 层](../../../decisions/0007-conversation-as-unified-session.md)（Refined by 0009 → 0021 → **superseded by 0039**）
-- ~~ADR-0009 Issue 与 Conversation 解耦 + 外部集成走 Bridge~~ (deleted; superseded → [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
 - [ADR-0014 事件溯源走 L1](../../../decisions/0014-event-sourcing-level.md)（同事务双写原则）
-- ~~ADR-0017 Task ↔ Conversation 1:1~~ (deleted; superseded → [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/0039-conversation-business-model-v2-unified.md))
-- ~~ADR-0020 Card 限制在 Bridge BC~~ (deleted; v2 撤回 Bridge → [ADR-0031](../../../decisions/0031-v2-drop-bridge-vendor-integration.md))
-- ~~ADR-0021 Issue 即 Conversation 1:1~~ (deleted; superseded → [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/0039-conversation-business-model-v2-unified.md))
 - [ADR-0031 v2 撤回 Bridge BC + 飞书集成](../../../decisions/0031-v2-drop-bridge-vendor-integration.md)（**当前权威**）
 - [ADR-0039 Conversation 业务模型 v2 统一](../../../decisions/0039-conversation-business-model-v2-unified.md)（**当前权威**）
 

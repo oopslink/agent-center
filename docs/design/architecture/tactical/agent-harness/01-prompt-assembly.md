@@ -31,7 +31,7 @@ agent CLI 一次性吃下作为 system + user prompt
 | 层 | 谁产生 | 何处存储 |
 |---|---|---|
 | `worker-agent.md` skill | agent-center 项目（bundled with binary） | `${install_dir}/skills/worker-agent.md` |
-| `agent_instance.instructions.md` | 用户为该 AgentInstance 配置 | `~/.agent-center-worker/agents/<agent_instance_id>/instructions.md`（[workforce/04-agent-instance.md § 3](../workforce/04-agent-instance.md)）；execution 期间只读 |
+| `agent.instructions.md` | 用户为该 Agent 配置 | `~/.agent-center/workers/{worker_id}/agents/{agent_id}/instructions.md`（Agent BC `internal/agent/`）；execution 期间只读 |
 | `constraints_extra` | supervisor 派单时附加 | dispatch envelope 内 |
 | `task.prompt` | supervisor 加工后 | DB 表 `tasks` |
 | 项目本地约定（`CLAUDE.md` 等） | 用户在项目仓库维护 | 项目自己的 git 仓库 |

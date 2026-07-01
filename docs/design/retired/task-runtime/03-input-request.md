@@ -8,7 +8,7 @@
 >
 > Agent 执行中需要外部输入的**同步阻塞**请求。
 
-InputRequest 是独立聚合（独立表 / 独立状态机 / 独立超时；不合并到 Conversation Message）。UI 投递走 [Task ↔ Conversation 1:1 模型 (ADR-0017 superseded by 0039)](../../../decisions/0039-conversation-business-model-v2-unified.md)：写一条 `content_kind=agent_finding, input_request_ref=<id>` 的 Message 到 `task.conversation_id`，~~Bridge 渲染时附按钮~~ (v2 删 vendor per ADR-0031)。详见 [ADR-0017 (superseded by 0039) § 5](../../../decisions/0039-conversation-business-model-v2-unified.md)。
+InputRequest 是独立聚合（独立表 / 独立状态机 / 独立超时；不合并到 Conversation Message）。UI 投递走 [Task ↔ Conversation 1:1 模型 (ADR-0017 superseded by 0039)](../../../decisions/0039-conversation-business-model-v2-unified.md)：写一条 `content_kind=agent_finding, input_request_ref=<id>` 的 Message 到 `task.conversation_id`，。详见 [ADR-0017 (superseded by 0039) § 5](../../../decisions/0039-conversation-business-model-v2-unified.md)。
 
 详细 BC 视图见 [00-overview.md](00-overview.md)。
 
@@ -48,7 +48,7 @@ Agent 怎么知道有这个命令？通过 [`worker-agent.md`](../agent-harness/
 ```mermaid
 stateDiagram-v2
     [*] --> pending: agent request-input<br/>(worker daemon 代写)
-    pending --> responded: Center: InputRequest.respond<br/>(三响应路径：~~飞书按钮~~ (v2 删 per ADR-0031) / /answer slash / 自由文本)
+ pending --> responded: Center: InputRequest.respond<br/>(三响应路径： / /answer slash / 自由文本)
     pending --> timed_out: TimeoutScanner<br/>(T1 4h ping / T2 24h fail)
     pending --> canceled: kill / abandon precondition
     responded --> [*]
@@ -83,7 +83,7 @@ reason 字段配 message（[conventions § 16](../../../../rules/conventions.md)
 | 操作 | Caller | 效果 |
 |---|---|---|
 | `request-input`（agent CLI）| Worker 上 agent | Worker daemon → Center 创建 InputRequest pending；TaskExecution → input_required |
-| `respond-to-input-request`（CLI / ~~Bridge~~ (v2 删 per ADR-0031))| User / Supervisor | InputRequest pending → responded；TaskExecution input_required → working |
+| `respond-to-input-request`（CLI /)| User / Supervisor | InputRequest pending → responded；TaskExecution input_required → working |
 | 自动 timeout（TimeoutScanner）| Center background ticker | InputRequest pending → timed_out（T2=24h）；TaskExecution → failed(input_timeout) |
 | 自动 cancel（KillCoordinator 联动）| Center | InputRequest pending → canceled（execution 被 kill 时联动）|
 
@@ -125,7 +125,7 @@ reason 字段配 message（[conventions § 16](../../../../rules/conventions.md)
    - INSERT events: `input_request.requested` + `task_execution.input_required`
    - 解析 `task.conversation_id`：非 null → 写 Message(agent_finding, input_request_ref) 到该 conversation；null → 触发 § 8 fallback
 5. User 通过三响应路径之一回应（详见 § 6）
-6. Center 收 respond → 写 response + status: pending → responded + TaskExecution → working + emit `input_request.responded`；~~Bridge update_card 置灰~~ (v2 删 per ADR-0031)
+6. Center 收 respond → 写 response + status: pending → responded + TaskExecution → working + emit `input_request.responded`；
 7. Worker daemon 收 InputResponseEvent → 在 pending map 找 channel → 写 response → CLI 解阻塞 → agent stdout 拿到 JSON answer 继续干
 
 具体 schema 见 [implementation/02-persistence-schema.md](../../../implementation/)。
@@ -134,19 +134,13 @@ reason 字段配 message（[conventions § 16](../../../../rules/conventions.md)
 
 ## § 6. 三响应路径
 
-### 6.1 ~~卡片按钮~~ (v2 删 per ADR-0031)
+### 6.1
 
-~~最常见。Bridge 收 `card.action.trigger` 事件 → 解析 `input_request_id` + 用户选项 → 调 center 的 `InputRequest.respond` API + 写一条 inbound `text` Message 到同 conversation 作为留痕（`content = "选: <option>"` 或自由输入的文本）。~~
 
-### 6.2 ~~自由文本 @bot~~ (v2 删 per ADR-0031)
+### 6.2
 
-~~用户在 task conversation thread 内说话（不点按钮）：~~
 
-- ~~Bridge 收 `im.message.receive_v1` → 走 [conversation/01-conversation § inbound](../conversation/01-conversation.md) 写 Message~~
-- ~~`conversation.message_added` emit → supervisor 唤醒~~
-- ~~supervisor 看 conversation 当前是否有 pending InputRequest → 解析意图 → 调 `InputRequest.respond`~~
 
-~~这条路径**烧 supervisor LLM**，用作"用户不知道 slash 命令时的兜底"。~~
 
 ### 6.3 Slash 命令 `/answer`
 
@@ -163,9 +157,9 @@ reason 字段配 message（[conventions § 16](../../../../rules/conventions.md)
 
 | 时点 | 行为 |
 |---|---|
-| T+0 | InputRequest 创建 + Message (input_request_ref) 写入；~~Bridge 渲染卡片投递~~ (v2 删 per ADR-0031) |
-| T+4h（T1） | Supervisor wake：用户没回，提醒一次（~~飞书 ping~~ (v2 删 vendor per ADR-0031)，走 supervisor_summary Message 同 conversation） |
-| T+24h（T2） | InputRequest → `timed_out`；emit `input_request.timed_out`；~~Bridge 订阅 → update_card 显示 "⏰ 已超时"~~ (v2 删 per ADR-0031)；Worker 端 CLI 超时，返回 error 给 agent；Agent 通常 fail 任务；TaskExecution.status = `failed`, reason=`input_timeout`, message="<具体超时上下文>"；Supervisor 收到 failed 决定是否重派 |
+| T+0 | InputRequest 创建 + Message (input_request_ref) 写入； |
+| T+4h（T1） | Supervisor wake：用户没回，提醒一次（，走 supervisor_summary Message 同 conversation） |
+| T+24h（T2） | InputRequest → `timed_out`；emit `input_request.timed_out`；；Worker 端 CLI 超时，返回 error 给 agent；Agent 通常 fail 任务；TaskExecution.status = `failed`, reason=`input_timeout`, message="<具体超时上下文>"；Supervisor 收到 failed 决定是否重派 |
 
 T1 / T2 都是 per-project 可配置（v1 全局默认 4h / 24h，不做 per-project；见 [roadmap](../../../roadmap.md)）。
 

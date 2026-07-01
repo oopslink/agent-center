@@ -142,6 +142,5 @@ Task done/abandoned、Issue closed/withdrawn、Worker un-enrolled、Conversation
 - [ADR-0012 Memory file-based + git](../../../decisions/0012-memory-file-based.md)
 - [ADR-0015 agent_trace 不进 events 表](../../../decisions/0015-agent-trace-not-in-events-table.md)
 - [00-overview.md § 3 / § 4.2 MemorySkeletonFactory](00-overview.md)
-- [01-supervisor-invocation.md](01-supervisor-invocation.md) — Memory 作为 invocation prompt 的另一个组成部分
 - [conventions § 7 项目本地约定不进 agent-center](../../../../rules/conventions.md) — 跟项目仓自带的 `CLAUDE.md` 区分（worker-side prompt 用项目仓的；本 Memory 是 supervisor 私脑）
 - [conventions § 13 安全](../../../../rules/conventions.md) — 备份方案（rsync 或 git remote）

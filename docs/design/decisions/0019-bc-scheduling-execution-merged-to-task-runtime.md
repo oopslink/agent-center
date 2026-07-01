@@ -49,7 +49,7 @@ P3 战术设计推进到第 1 个 BC（Scheduling）时盘点现 `tactical/sched
 
 **Workforce BC 不动**：Worker 注册 / heartbeat / 在线状态 / WorkerProjectMapping / WorkerProjectProposal / Project 元数据 + worker daemon 自身（非 per-execution 的）生命周期 —— 这些是"谁能干活"的元数据管理域，跟 TaskRuntime 是不同关注点。
 
-**BC 编号**：BC1 / BC2 / BC3 保留（BC1 = TaskRuntime；BC2 = Discussion；BC3 = Workforce）；原 BC4 Execution 删除；原 BC5-BC8 编号 -1（BC4 Cognition / BC5 Observability / BC6 Conversation / ~~BC7 Bridge~~ — v2 删 Bridge per ADR-0031）。
+**BC 编号**：BC1 / BC2 / BC3 保留（BC1 = TaskRuntime；BC2 = Discussion；BC3 = Workforce）；原 BC4 Execution 删除；原 BC5-BC8 编号 -1（BC4 Cognition / BC5 Observability / BC6 Conversation / — v2 删 Bridge per ADR-0031）。
 
 ## Rationale
 
@@ -85,7 +85,7 @@ ddd-blueprint § 3.1 P3 段落升级：从"每个 BC 加一节 § X.1-X.6"升级
 
 - 多聚合 BC（≥2 聚合）：`00-overview.md` + `0N-{aggregate}.md` 多文件
 - 单聚合 BC：`00-overview.md` 内合并聚合详情
-- 无业务聚合 BC（~~如 Bridge — v2 删 per ADR-0031~~）：仅 `00-overview.md`，说明"无聚合 / 仅 ACL 翻译职责"
+- 无业务聚合 BC（）：仅 `00-overview.md`，说明"无聚合 / 仅 ACL 翻译职责"
 - **明令禁止**：不按主题切（dispatch / kill / workspace / retry / timeout）—— 这就是 BC1+BC4 leaky 的根源
 
 ### ADR 措辞
@@ -115,4 +115,4 @@ Workforce 的 enrollment / project mapping / discovery 跟 task 执行 lifecycle
 - DDD 方法论：[conventions § 0](../../rules/conventions.md)
 - 蓝图 P3 升级：[ddd-blueprint § 3.1](../ddd-blueprint.md)
 - 新战术文档：[tactical/task-runtime/00-overview.md](../architecture/tactical/task-runtime/00-overview.md)
-- 受影响 ADR（措辞审）：[0010](0010-task-execution-two-layer-model.md) / [0011](0011-dispatch-reliability-protocol.md) / [0014](0014-event-sourcing-level.md) / [0015](0015-agent-trace-not-in-events-table.md) / ~~0017~~ ([ADR-0039](drafts/0039-conversation-business-model-v2-unified.md) supersede) / [0018](0018-detached-agent-via-per-execution-shim.md) + 0007 / 0008 / 0012 / 0013 / 0016（路径 / 措辞引用）
+- 受影响 ADR（措辞审）：[0010](0010-task-execution-two-layer-model.md) / [0011](0011-dispatch-reliability-protocol.md) / [0014](0014-event-sourcing-level.md) / [0015](0015-agent-trace-not-in-events-table.md) / ([ADR-0039](drafts/0039-conversation-business-model-v2-unified.md) supersede) / [0018](0018-detached-agent-via-per-execution-shim.md) + 0007 / 0008 / 0012 / 0013 / 0016（路径 / 措辞引用）

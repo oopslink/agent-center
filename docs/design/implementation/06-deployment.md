@@ -430,7 +430,7 @@ worker daemon / center server 自带的 domain event（[observability/00-overvie
 
 | 事件 | 触发条件 | 路由 |
 |---|---|---|
-| `worker.offline { reason, message }` | 心跳超时 / 主动 disconnect | ~~Bridge 推飞书~~ (v2 删 per ADR-0031) + Web Console |
+| `worker.offline { reason, message }` | 心跳超时 / 主动 disconnect | Web Console |
 | `task_execution.failed { reason, message }` | execution 终态 failed | 同上 |
 | `supervisor.invocation_failed_alert` | supervisor 调用失败 / 超时（[ADR-0013](../decisions/0013-supervisor-invocation-concurrency.md)）| 同上 |
 | `agent_adapter.unknown_event_seen` | adapter 见不认识的 JSONL type（[05 § 3.1](05-agent-adapters.md)）| 累计阈值后 escalate |
@@ -485,8 +485,6 @@ ssh -L 7100:127.0.0.1:7100 user@vps-host
 ```
 
 不要 firewall 开 7100 — Web Console 设计前提就是 loopback-only (ADR-0037)。需要远程访问就用 SSH tunnel。
-
-~~**无 HTTP webhook / 无入站飞书连接** —— Center 主动出站连飞书 WebSocket，不需要域名 / TLS cert / Reverse proxy。~~ (v2 删 per ADR-0031；v2 仅 gRPC 入站 / 无 vendor 出站)
 
 ### 9.2 firewalld 配置示例
 

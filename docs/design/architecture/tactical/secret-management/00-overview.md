@@ -234,7 +234,6 @@ Cognition wake scheduler 不订阅 `user_secret.*` 事件 —— secret 生命�
 
 ### 跨 BC
 
-- [workforce/04-agent-instance.md](../workforce/04-agent-instance.md) — AgentInstance.config.mcp_config 字段
 - [agent-harness/01-prompt-assembly.md](../agent-harness/01-prompt-assembly.md) — worker daemon 注入流程
 
 ### 横切

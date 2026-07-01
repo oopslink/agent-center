@@ -5,7 +5,7 @@
 | Status | Draft |
 | Date | 2026-05-27 |
 | Delivered | v2.6 design phase；详 [v2.6-design § 11.3](../../plans/v2.6-design.md) |
-| Supersedes | ~~[ADR-0011 派单可靠性协议](0011-dispatch-reliability-protocol.md)~~（dispatch 中所有 supervisor branch 移除；可靠性机制保留 retry / timeout 部分）<br>~~[ADR-0013 Supervisor 并发模型](0013-supervisor-invocation-concurrency.md)~~（SupervisorInvocation AR 删除）<br>~~[ADR-0029 Supervisor as Built-in AgentInstance](0029-supervisor-as-builtin-agent-instance.md)~~（不再有 built-in supervisor 实例） |
+| Supersedes | （dispatch 中所有 supervisor branch 移除；可靠性机制保留 retry / timeout 部分）<br>（SupervisorInvocation AR 删除）<br>（不再有 built-in supervisor 实例） |
 | Related | [ADR-0040 Identity BC carve-out](0040-identity-bc-carve-out.md) / [ADR-0042 Member AR](0042-member-ar.md) |
 
 ## Context

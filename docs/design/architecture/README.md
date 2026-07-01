@@ -8,13 +8,10 @@
 architecture/
 ├── strategic/        # DDD 战略层（域愿景 / 子域分类 / 限界上下文 / 系统总览）
 └── tactical/         # DDD 战术层
-    # ~~task-runtime/~~     # ~~BC1: 任务运行时~~ — RETIRED (v2.7 #131)；战术设计已移至 docs/design/retired/task-runtime/
-    # ~~discussion/~~       # ~~BC2: 讨论~~ — RETIRED (v2.7 #131)；战术设计已移至 docs/design/retired/discussion/
     ├── workforce/         # BC3: 工作池
     ├── cognition/         # BC4: 认知 / Supervisor
     ├── observability/     # BC5: 观测
     ├── conversation/      # BC6: 会话
-    # ~~BC7 Bridge~~ — v2 已撤回（per ADR-0031）；v3+ 重新设计
     ├── secret-management/ # BC8: 用户密钥管理（v2 新增；ADR-0026）
     ├── agent-harness/     # 主题: agent 运行时支撑（prompt 组装 + skill/CLI 工具）
     └── presentation/      # 主题: 表现层 / 前端（Web Console、未来 Mobile / Desktop）
@@ -43,7 +40,7 @@ DDD 战略设计：从整体看系统怎么切。
 
 DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain Service / Factory / Repository。
 
-### ~~TaskRuntime（任务运行时）— BC1~~ — RETIRED (v2.7 #131)
+### TaskRuntime（任务运行时）— BC1 — RETIRED (v2.7 #131)
 
 > ⚠️ **RETIRED (v2.7 #131 carve-out)**：BC 已从代码库删除（code + tables removed）。职责迁移至 ProjectManager BC（pm.Task）+ Agent work-items。以下链接指向归档战术设计文档。
 
@@ -54,7 +51,7 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 | 02 | [TaskExecution 聚合（含 worker 运行时 / Artifact）](../retired/task-runtime/02-task-execution.md) | RETIRED |
 | 03 | [InputRequest 聚合](../retired/task-runtime/03-input-request.md) | RETIRED |
 
-### ~~Discussion（讨论）— BC2~~ — RETIRED (v2.7 #131)
+### Discussion（讨论）— BC2 — RETIRED (v2.7 #131)
 
 > ⚠️ **RETIRED (v2.7 #131 carve-out)**：BC 已从代码库删除（code + tables removed）。职责迁移至 ProjectManager BC（pm.Issue）+ Agent work-items。以下链接指向归档战术设计文档。
 
@@ -72,14 +69,14 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 | 01 | [Worker 聚合 + BootstrapToken + WorkerProjectMapping 子从属](tactical/workforce/01-worker.md) | Draft |
 | 02 | [Project 聚合](tactical/workforce/02-project.md) | Draft |
 | 03 | [WorkerProjectProposal 聚合](tactical/workforce/03-worker-project-proposal.md) | Draft |
-| 04 | [AgentInstance 聚合](tactical/workforce/04-agent-instance.md)（[ADR-0024](../decisions/0024-agent-instance-first-class.md)）| Draft |
+| 04 | [AgentInstance 聚合](../retired/workforce/04-agent-instance.md) — 已归档（replaced by Agent BC `internal/agent/`）| Retired |
 
 ### Cognition（认知 / Supervisor）— BC4
 
 | # | 主题 | 状态 |
 |---|---|---|
 | 00 | [Cognition BC Overview](tactical/cognition/00-overview.md) | Draft |
-| 01 | [SupervisorInvocation 聚合](tactical/cognition/01-supervisor-invocation.md) | Draft |
+| 01 | [SupervisorInvocation 聚合](../retired/cognition/01-supervisor-invocation.md) — 已归档 per ADR-0044 | Retired |
 | 02 | [Memory 聚合](tactical/cognition/02-memory.md) | Draft |
 
 ### Observability（观测）— BC5
@@ -96,7 +93,7 @@ DDD 战术设计：每个 BC 内部的聚合 / 实体 / VO / Invariants / Domain
 | 01 | [Conversation 聚合（+ Message）](tactical/conversation/01-conversation.md) | Draft |
 | 02 | [Identity 聚合（+ ChannelBinding）](tactical/conversation/02-identity.md) | Draft |
 
-### ~~Bridge（渠道桥接）— BC7~~
+### Bridge（渠道桥接）— BC7 — RETIRED
 
 > **v2 已撤回**（per [ADR-0031](../decisions/0031-v2-drop-bridge-vendor-integration.md)）；vendor 接入 v3+ 重新设计（[roadmap.md](../roadmap.md) v3+ AgentImage / Bridge 重设计条）。
 
