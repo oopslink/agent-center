@@ -84,6 +84,9 @@ type agentLifecycleEvtPayload struct {
 	MaxConcurrentTasks   int             `json:"max_concurrent_tasks,omitempty"`
 	AllowedModels        []string        `json:"allowed_models,omitempty"`
 	AllowedExecutors     json.RawMessage `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: [{cli,model}] passthrough (opaque here)
+	// T728: the already-gated description text to inject into the system prompt,
+	// passthrough like DisplayName (empty ⇒ no injection).
+	PromptDescription string `json:"prompt_description,omitempty"`
 }
 
 // reconcileCommandPayload is the declarative command payload the AgentController
@@ -110,8 +113,11 @@ type reconcileCommandPayload struct {
 	MaxConcurrentTasks   int             `json:"max_concurrent_tasks,omitempty"`
 	AllowedModels        []string        `json:"allowed_models,omitempty"`
 	AllowedExecutors     json.RawMessage `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: [{cli,model}] passthrough
-	Version              int             `json:"version"`
-	ResetScope           string          `json:"reset_scope,omitempty"`
+	// T728: the already-gated description to inject into the system prompt, passthrough
+	// to the daemon session config → supervisor --prompt-description (empty ⇒ none).
+	PromptDescription string `json:"prompt_description,omitempty"`
+	Version           int    `json:"version"`
+	ResetScope        string `json:"reset_scope,omitempty"`
 }
 
 // Project enqueues a reconcile command for an agent.lifecycle_changed event.
@@ -147,7 +153,8 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 		DefaultExecutorModel: pl.DefaultExecutorModel,
 		MaxConcurrentTasks:   pl.MaxConcurrentTasks,
 		AllowedModels:        pl.AllowedModels,
-		AllowedExecutors:     pl.AllowedExecutors, // BE-1 passthrough (opaque [{cli,model}])
+		AllowedExecutors:     pl.AllowedExecutors,  // BE-1 passthrough (opaque [{cli,model}])
+		PromptDescription:    pl.PromptDescription, // T728 passthrough — inject-text for the system prompt
 		Version:              pl.Version,
 		ResetScope:           pl.ResetScope,
 	})

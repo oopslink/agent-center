@@ -464,6 +464,10 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			"desired_lifecycle": string(agent.LifecycleRunning),
 			"model":             p.Model, // v2.7 Model plumbing: boot-reconcile relaunch spawns claude with it
 			"display_name":      p.Name,  // T469: boot-reconcile relaunch injects it as git author NAME (② AgentEnv seam)
+			// T728: the already-gated description text to inject into the system prompt,
+			// carried like display_name so a boot-reconcile relaunch (worker restart) keeps
+			// the persona段 instead of silently dropping it (issue-5e39b7dc-style regression).
+			"prompt_description": resumePromptDescription(p),
 			// Concurrency config: carried so a boot-reconcile relaunch (worker restart)
 			// can RE-ATTACH the executor engine and keep a concurrency-enabled agent
 			// CONCURRENT across the restart, instead of silently degrading to
@@ -491,6 +495,17 @@ func executorProfilesToMaps(execs []agent.ExecutorProfile) []map[string]any {
 		out = append(out, map[string]any{"cli": e.CLI, "model": e.Model})
 	}
 	return out
+}
+
+// resumePromptDescription collapses the per-agent inject-description switch into the
+// effective text carried in the resume-state (T728): trimmed Description when the
+// agent opts in, else "". Mirrors the center-side emit() gate so the boot-reconcile
+// relaunch path injects exactly what the reconcile path would.
+func resumePromptDescription(p agent.Profile) string {
+	if !p.IncludeDescriptionInSystemPrompt {
+		return ""
+	}
+	return strings.TrimSpace(p.Description)
 }
 
 // envAgentRuntimeFSResponseHandler — POST /admin/environment/agent/runtime-fs/response

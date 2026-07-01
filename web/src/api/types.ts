@@ -247,6 +247,9 @@ export interface Agent {
   // absent ⇒ true (assignable). When false the agent is never auto-assigned a
   // pool task, but can still be assigned manually / claim tasks itself.
   auto_assignable?: boolean;
+  // T728 (issue-0619f315): per-agent switch to inject the description into the
+  // system prompt. Default true — absent ⇒ true (inject). Applies on next restart.
+  include_description_in_system_prompt?: boolean;
 }
 
 // v2.18.1: one executor candidate = a {cli, model} pair. cli ∈ {claude-code,

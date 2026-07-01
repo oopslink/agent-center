@@ -129,6 +129,36 @@ func TestAgentControlProjector_PassesModel(t *testing.T) {
 	}
 }
 
+// TestAgentControlProjector_PassesPromptDescription (T728) pins the prompt_description
+// passthrough: a lifecycle event carrying the already-gated inject-text is forwarded
+// into the reconcile command so the worker→supervisor injects it into the system prompt.
+// A prompt_description-less event omits it (additive → no injection).
+func TestAgentControlProjector_PassesPromptDescription(t *testing.T) {
+	f := newProjectorFixture(t)
+	withDesc := outbox.Event{
+		ID:        "EVPD",
+		EventType: agentsvc.EvtAgentLifecycleChanged,
+		Payload:   `{"agent_id":"AG1","worker_id":"W1","lifecycle":"running","version":2,"prompt_description":"persona text"}`,
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+	if err := f.proj.Project(f.ctx, withDesc); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 || !strings.Contains(cmds[0].Payload(), `"prompt_description":"persona text"`) {
+		t.Fatalf("reconcile command must carry prompt_description, got: %s", cmds[0].Payload())
+	}
+
+	// prompt_description-less event → no key (omitempty, backward-compat).
+	f2 := newProjectorFixture(t)
+	if err := f2.proj.Project(f2.ctx, lifecycleEvent("EV1", "AG2", "W2", "running", 1, "")); err != nil {
+		t.Fatalf("Project no-prompt-description: %v", err)
+	}
+	if c := f2.commandsFor(t, "W2"); len(c) != 1 || strings.Contains(c[0].Payload(), `"prompt_description"`) {
+		t.Fatalf("prompt_description-less event must omit it, got: %s", c[0].Payload())
+	}
+}
+
 // TestAgentControlProjector_PassesDisplayName (T469) pins the display_name passthrough:
 // a lifecycle event carrying the agent's display_name is forwarded into the reconcile
 // command so the worker→supervisor injects it as git author NAME (② AgentEnv seam). A

@@ -425,6 +425,10 @@ type ResumeAgent struct {
 	// like Model so a boot-reconcile relaunch injects it as GIT_{AUTHOR,COMMITTER}_NAME
 	// via the ② AgentEnv seam (T469). Empty/absent → the supervisor uses the ULID.
 	DisplayName string `json:"display_name"`
+	// PromptDescription is the already-gated description text to inject into the system
+	// prompt (T728, resume-state), carried like DisplayName so a boot-reconcile relaunch
+	// keeps the persona段 across a worker restart. Empty ⇒ no injection.
+	PromptDescription string `json:"prompt_description,omitempty"`
 	// Concurrency config (resume-state), carried so a boot-reconcile relaunch can
 	// RE-ATTACH the per-agent executor engine after a full worker process restart —
 	// without these the worker has no way to know a relaunched agent is
