@@ -1,7 +1,6 @@
 import type React from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { OrgLink } from '@/OrgContext';
 import { EntityRef } from '@/components/EntityRef';
 import { AgentConfigEditModal } from '@/components/AgentConfigEditModal';
 import { normalizeIdentityRef } from '@/api/members';
@@ -16,12 +15,10 @@ import { executorBadgeClass } from '@/components/executorProfiles';
 //      "Default" with the default badge. Editable via the "Edit" affordance →
 //      AgentConfigEditModal (save + restart-to-apply).
 //   3. Skills name cards (no global/local badge or path — that origin metadata
-//      is v2.8 #230) + Created-agents list (#120) + a Message button that opens
-//      a DM with the agent.
+//      is v2.8 #230).
 export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
   const { t } = useTranslation('members');
   const skills = agent.skills ?? [];
-  const createdAgents = agent.created_agents ?? [];
   const computer = agent.computer;
   // T236: the Edit-config modal (model/cli/reasoning/mode/provider + restart).
   const [editingConfig, setEditingConfig] = useState(false);
@@ -119,28 +116,6 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
 
         {/* RIGHT */}
         <div className="space-y-4">
-          <Section label={t('agents.profile.createdAgents')} count={createdAgents.length} testId="agent-profile-created-agents">
-            {createdAgents.length > 0 ? (
-              <ul className="flex flex-wrap gap-2">
-                {createdAgents.map((c) => (
-                  <li key={c.id} data-testid="agent-profile-created-agent">
-                    <OrgLink
-                      to={`/agents/${encodeURIComponent(c.id)}`}
-                      className="rounded border border-border-base px-2.5 py-1 text-xs text-text-secondary hover:text-accent"
-                      title={c.id}
-                    >
-                      {c.name || c.id}
-                    </OrgLink>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs italic text-text-muted" data-testid="agent-profile-created-agents-empty">
-                {t('agents.profile.createdAgentsEmpty')}
-              </p>
-            )}
-          </Section>
-
           <Section label={t('agents.profile.skills')} count={skills.length} testId="agent-profile-skills">
             {skills.length > 0 ? (
               // design1: a card grid of skill names. Skill source/description

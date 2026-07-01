@@ -160,14 +160,10 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(screen.getByTestId('agent-profile-skills-empty')).toBeInTheDocument();
   });
 
-  it('lists created agents linking to each detail; empty → placeholder', () => {
+  it('does not render the created-agents relationship block', () => {
     wrap({ ...base, created_agents: [{ id: 'sub-1', name: 'helper' }] });
-    const link = screen.getByTestId('agent-profile-created-agent').querySelector('a');
-    expect(link).toHaveTextContent('helper');
-    expect(link?.getAttribute('href')).toContain('/agents/sub-1');
-    cleanup();
-    wrap(base);
-    expect(screen.getByTestId('agent-profile-created-agents-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-profile-created-agents')).toBeNull();
+    expect(screen.queryByTestId('agent-profile-created-agent')).toBeNull();
   });
 
   // v2.7.1 #240: the Message action moved out of the Profile body into the
