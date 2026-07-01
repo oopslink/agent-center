@@ -35,10 +35,28 @@ import (
 const commandTypeAgentConverse = "agent.converse"
 
 // userParticipantPrefix is the IdentityRef scheme for a human participant. v2.7
-// #185 wakes agents ONLY on messages from a human sender — this is the
-// structural loop-break (an agent-sender or system message never wakes an
-// agent) and the "agents reply to humans only" rule.
+// #185 wakes agents on messages from a human sender — one of the loop-break rules
+// (an AGENT sender wakes only through the four-gate guard; see below).
 const userParticipantPrefix = "user:"
+
+// systemSenderRef is the sentinel IdentityRef of the system singleton (ADR-0033 —
+// the bare literal "system", no scheme). quick-fix (@oopslink, system-msg-activity):
+// a system-authored TEXT message that @mentions an agent MUST be delivered to it
+// exactly like a normal message — the same agent.converse inject that records a
+// "Received" activity (message_delivered) and advances the read cursor. Before this
+// the WakeProjector woke ONLY user:/agent: senders, so system MESSAGES (e.g. a plan
+// "task ready" @mention) never entered the agent's context and left no receive
+// record. LOOP-SAFE: a system message is machine-emitted by a projector, never an
+// agent replying, so it cannot start an agent↔agent storm (no wake-guard needed);
+// @all stays human-only (broadcastAll gates on user:). See projectConversationMessage.
+const systemSenderRef = "system"
+
+// systemMessageContentKind is the content_kind of a real (deliverable) system
+// message. Only content_kind=text system messages are delivered like normal
+// messages; system NOTIFICATION CHROME (content_kind=system — e.g. the "@X is not
+// running" notice) is NOT injected. Mirrors conversation.MessageContentText without
+// importing it (this payload is a BC-boundary JSON mirror).
+const systemMessageContentKind = "text"
 
 // v2.14.0 F7 (issue I14): EvtAgentAwaitingInput + the D2-e-ii batch-flush /
 // awaiting_input wake path (and the WorkItem-keyed task wake) removed —
@@ -89,12 +107,18 @@ type WakeProjector struct {
 	// participant's identity_id → display_name for channel @mention matching;
 	// systemNotify posts a system notification-style message into a conversation
 	// (the "agent not running" signal when a DM/channel targets a stopped agent).
-	displayName  func(ctx context.Context, identityID string) (string, bool)
-	systemNotify func(ctx context.Context, conversationID, text string) error
+	displayName func(ctx context.Context, identityID string) (string, bool)
+	// systemNotify / systemMessage return the POSTED message id (quick-fix
+	// system-msg-activity): the sanctioned system→agent nudge paths (lease-nudge /
+	// issue-derived-done) key their converse idempotency on this id so it MATCHES the
+	// generic system-message wake's converse key (deliverConverse) — the ControlLog
+	// then collapses the two into ONE delivery instead of double-injecting. "" =
+	// nothing posted (dep unwired) → the caller falls back to its legacy key.
+	systemNotify func(ctx context.Context, conversationID, text string) (string, error)
 	// systemMessage posts a normal text message authored by the system singleton.
 	// Use this for actionable workflow messages that humans/agents should handle as
 	// ordinary conversation content, not notification chrome.
-	systemMessage func(ctx context.Context, conversationID, text string) error
+	systemMessage func(ctx context.Context, conversationID, text string) (string, error)
 
 	// v2.7.1 #224: resolves an issue/task conversation's owner_ref → the owning
 	// project's AGENT member-ids (stripped of the "agent:" prefix), so an agent
@@ -159,11 +183,15 @@ type WakeProjectorDeps struct {
 	ReadState conversation.UserConversationReadStateRepository
 
 	// v2.7 #185 conversational-wake deps (optional; nil → DM/channel→agent no-op).
-	DisplayName  func(ctx context.Context, identityID string) (string, bool)
-	SystemNotify func(ctx context.Context, conversationID, text string) error
+	DisplayName func(ctx context.Context, identityID string) (string, bool)
+	// SystemNotify / SystemMessage return the posted message id (quick-fix
+	// system-msg-activity) so the sanctioned nudge paths can align their converse
+	// idempotency key with the generic system-message wake (dedup). See the struct
+	// fields for the full rationale.
+	SystemNotify func(ctx context.Context, conversationID, text string) (string, error)
 	// SystemMessage posts a normal text message authored by system. If nil, callers
 	// that need ordinary message semantics fall back to SystemNotify for compatibility.
-	SystemMessage func(ctx context.Context, conversationID, text string) error
+	SystemMessage func(ctx context.Context, conversationID, text string) (string, error)
 
 	// v2.7.1 #224 (optional; nil → only conversation participants are @mention wake
 	// candidates). owner_ref → owning project's agent member-ids.
@@ -233,6 +261,12 @@ type messageAddedPayload struct {
 	MessageID      string `json:"message_id"`
 	Sender         string `json:"sender"`
 	Text           string `json:"text"`
+	// ContentKind (quick-fix system-msg-activity) is the producer's message
+	// content_kind. It gates the system-sender wake: a system-authored TEXT message
+	// (content_kind=text — e.g. a plan "task ready" @mention) is delivered like a
+	// normal message; system notification CHROME (content_kind=system — e.g. the
+	// "@X is not running" notice) is NOT. Empty → treated as a plain message.
+	ContentKind string `json:"content_kind,omitempty"`
 	// RootMessageID (v2.9.1 Thread F4) is the thread root of the triggering message
 	// (empty if top-level); carried through to the agent so its reply lands in-thread.
 	RootMessageID string `json:"root_message_id,omitempty"`
@@ -382,10 +416,30 @@ func (p *WakeProjector) projectConversationMessage(ctx context.Context, e outbox
 	// and every such wake runs through the wake-chain four-gate guard in
 	// wakeConversationParticipants so an A↔B ping-pong self-extinguishes (T289: the
 	// send side shipped in T291 but the wake side was never plumbed — without this an
-	// agent's DM never wakes its peer). A system message never wakes (no agent storm).
+	// agent's DM never wakes its peer).
+	//
+	// quick-fix (@oopslink, system-msg-activity) — DO NOT REVERT to "system never
+	// wakes": a SYSTEM sender now ALSO delivers, but ONLY for a real MESSAGE
+	// (content_kind=text — e.g. a plan "task ready" @mention), NOT for notification
+	// CHROME (content_kind=system — e.g. the "@X is not running" notice). Rationale:
+	// a system TEXT message directed at an agent must reach it exactly like a normal
+	// message — the same agent.converse inject that (a) enters the agent's context
+	// ("delivered like a normal message") and (b) records a "Received" activity
+	// (message_delivered) + advances the read cursor. Previously such messages only
+	// woke the assignee via a content-free agent.work_available (pull), so the actual
+	// message never entered context and left NO receive record — exactly the gap this
+	// fixes. LOOP-SAFE: a system message is projector-emitted, never an agent replying,
+	// so it cannot start an agent-storm; it needs no wake-guard, and @all stays
+	// human-only (broadcastAll gates on user:). DEDUP with the sanctioned system→agent
+	// wakes (plan-creator / lease-nudge / issue-derived-done, which ALSO enqueue a
+	// converse for the same posted message): those key their converse on the SAME
+	// (conversation,message,entity) tuple as deliverConverse, so the ControlLog
+	// idempotency collapses the two into ONE delivery (see deliverLeaseNudge / the
+	// plan-creator + issue-done paths).
 	isHumanSender := strings.HasPrefix(pl.Sender, userParticipantPrefix)
 	isAgentSender := strings.HasPrefix(pl.Sender, agentParticipantPrefix)
-	if !isHumanSender && !isAgentSender {
+	isSystemSender := pl.Sender == systemSenderRef && pl.ContentKind == systemMessageContentKind
+	if !isHumanSender && !isAgentSender && !isSystemSender {
 		return nil
 	}
 	conv, err := p.convRepo.FindByID(ctx, conversation.ConversationID(pl.ConversationID))
@@ -688,14 +742,27 @@ func (p *WakeProjector) lookupDisplayName(ctx context.Context, ref string) (stri
 func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.Conversation, a *agent.Agent, rawID string, pl messageAddedPayload) error {
 	entityID := string(a.ID())
 	if a.Lifecycle() != agent.LifecycleRunning {
+		// quick-fix (system-msg-activity): a SYSTEM-sender message to a stopped agent
+		// skips SILENTLY — no "@X is not running" chrome. The durable message already
+		// sits in the conversation for the agent to read on its next run, and a system
+		// nudge posting "not running" back into the plan/task chat is just noise (it
+		// also matches the sanctioned system→agent paths, which log+skip a stopped
+		// target). The "not running" notice exists to tell a HUMAN peer their DM/channel
+		// message won't be answered now — keep it ONLY for human/agent senders.
+		if pl.Sender == systemSenderRef {
+			slog.Info("wake projector: system message target not running — skip (durable message stays for next run)",
+				"agent_id", entityID, "conversation_id", pl.ConversationID)
+			return nil
+		}
 		// Visible signal instead of silence (#185 Tester refinement). The name
 		// resolves via agentDisplayName so the notice reads "@AgentBeta", not the
 		// raw entity id, even when the participant ref carried the entity id
 		// (FINDING-J / Rule 2).
 		if p.systemNotify != nil {
 			name, _ := p.agentDisplayName(ctx, a, rawID)
-			return p.systemNotify(ctx, pl.ConversationID,
+			_, err := p.systemNotify(ctx, pl.ConversationID,
 				"@"+name+" is not running and won't reply until it is started.")
+			return err
 		}
 		return nil
 	}
@@ -844,6 +911,13 @@ func (p *WakeProjector) projectPlanCreatorWake(ctx context.Context, e outbox.Eve
 // IDEMPOTENCY-KEY: "agent.converse:<conv>:<failureMsgID>:<creatorEntity>" — the same
 // shape deliverConverse uses (conv:msg:entity), with the failure @mention id as the
 // message anchor so a replayed wake event dedups at the ControlLog (never double-wake).
+//
+// quick-fix (system-msg-activity) — natural dedup, DO NOT change the key shape: the
+// failure @mention is a system TEXT message (PostMention), so the generic
+// system-message wake (projectConversationMessage → deliverConverse) ALSO enqueues a
+// converse for it — with EXACTLY this key (failureMsgID == the posted message id). The
+// two collapse into one delivery. Keeping this sanctioned path is belt-and-suspenders
+// (it still wakes even if the generic path is unwired in a given composition).
 func (p *WakeProjector) deliverCreatorWake(ctx context.Context, rawID, convID, failureMsgID string, pl planCreatorFailureWakePayload) error {
 	a, ok := p.resolveAgent(ctx, rawID)
 	if !ok {
@@ -983,18 +1057,24 @@ func (p *WakeProjector) deliverLeaseNudge(ctx context.Context, e outbox.Event, r
 		"The task is still yours (assignee unchanged); please continue, or complete/block it if you're done."
 
 	// (a) The visible, durable @assignee nudge message (sender=system,
-	// content_kind=text). It does NOT wake by itself (system sender, #185), so the
-	// converse below is what wakes a running agent; the message is what a
-	// stopped/relaunched agent reads later. Fall back to the legacy SystemNotify
-	// port only for old test wiring.
+	// content_kind=text). quick-fix (system-msg-activity): this posted TEXT message
+	// now ALSO drives the generic system-message wake (projectConversationMessage →
+	// deliverConverse), which is what delivers it + records the "Received" activity.
+	// We capture its message id (postedMsgID) so the converse we enqueue below shares
+	// the SAME idempotency key the generic path uses — the two collapse into ONE
+	// delivery at the ControlLog. Fall back to the legacy SystemNotify port only for
+	// old test wiring.
 	postSystemMessage := p.systemMessage
 	if postSystemMessage == nil {
 		postSystemMessage = p.systemNotify
 	}
+	var postedMsgID string
 	if postSystemMessage != nil {
-		if err := postSystemMessage(ctx, convID, nudgeText); err != nil {
+		mid, err := postSystemMessage(ctx, convID, nudgeText)
+		if err != nil {
 			return err
 		}
+		postedMsgID = mid
 	}
 
 	// (b) Wake a RUNNING assignee. Resolve/running/worker failures log + skip (the
@@ -1021,6 +1101,18 @@ func (p *WakeProjector) deliverLeaseNudge(ctx context.Context, e outbox.Event, r
 			convName = title
 		}
 	}
+	// quick-fix (system-msg-activity): anchor the converse on the POSTED message id
+	// (postedMsgID) so this sanctioned converse and the generic system-message wake's
+	// converse for the SAME message share one idempotency key → the ControlLog keeps
+	// exactly one (no double-inject). Fall back to the per-episode event id (e.ID)
+	// only when no message was posted (systemMessage unwired), preserving the legacy
+	// behavior for old test wiring.
+	converseMsgID := postedMsgID
+	idemAnchor := "agent.converse:" + convID + ":" + postedMsgID + ":" + entityID
+	if postedMsgID == "" {
+		converseMsgID = e.ID // unique per nudge episode → distinct converse per lapse
+		idemAnchor = "agent.converse:" + convID + ":lease-nudge:" + e.ID + ":" + entityID
+	}
 	payload, err := json.Marshal(converseCommandPayload{
 		AgentID:        entityID,
 		ConversationID: convID,
@@ -1028,7 +1120,7 @@ func (p *WakeProjector) deliverLeaseNudge(ctx context.Context, e outbox.Event, r
 		ConvName:       convName,
 		SenderRef:      "system",
 		SenderDisplay:  "system",
-		MessageID:      e.ID, // unique per nudge episode → distinct converse per lapse
+		MessageID:      converseMsgID,
 		MessageText:    nudgeText,
 		OwnerRef:       pl.OwnerRef,
 	})
@@ -1039,7 +1131,7 @@ func (p *WakeProjector) deliverLeaseNudge(ctx context.Context, e outbox.Event, r
 		WorkerID:       environment.WorkerID(workerID),
 		CommandType:    commandTypeAgentConverse,
 		Payload:        string(payload),
-		IdempotencyKey: "agent.converse:" + convID + ":lease-nudge:" + e.ID + ":" + entityID,
+		IdempotencyKey: idemAnchor,
 	})
 	return err
 }
@@ -1137,10 +1229,13 @@ func (p *WakeProjector) deliverIssueDerivedTasksDone(ctx context.Context, e outb
 	if postSystemMessage == nil {
 		postSystemMessage = p.systemNotify
 	}
+	var postedMsgID string
 	if postSystemMessage != nil {
-		if err := postSystemMessage(ctx, convID, msg); err != nil {
+		mid, err := postSystemMessage(ctx, convID, msg)
+		if err != nil {
 			return err
 		}
+		postedMsgID = mid
 	}
 
 	// (b) Wake a RUNNING agent owner. A human owner / unresolved / stopped / no-worker
@@ -1165,6 +1260,16 @@ func (p *WakeProjector) deliverIssueDerivedTasksDone(ctx context.Context, e outb
 			convName = title
 		}
 	}
+	// quick-fix (system-msg-activity): anchor the converse on the POSTED message id so
+	// it dedups against the generic system-message wake's converse for the SAME
+	// message (one delivery at the ControlLog). Legacy per-episode e.ID key only when
+	// nothing was posted (systemMessage unwired).
+	converseMsgID := postedMsgID
+	idemAnchor := "agent.converse:" + convID + ":" + postedMsgID + ":" + entityID
+	if postedMsgID == "" {
+		converseMsgID = e.ID // unique per episode → distinct converse per fill-cycle
+		idemAnchor = "agent.converse:" + convID + ":issue-derived-done:" + e.ID + ":" + entityID
+	}
 	payload, err := json.Marshal(converseCommandPayload{
 		AgentID:        entityID,
 		ConversationID: convID,
@@ -1172,7 +1277,7 @@ func (p *WakeProjector) deliverIssueDerivedTasksDone(ctx context.Context, e outb
 		ConvName:       convName,
 		SenderRef:      "system",
 		SenderDisplay:  "system",
-		MessageID:      e.ID, // unique per episode → distinct converse per fill-cycle
+		MessageID:      converseMsgID,
 		MessageText:    msg,
 		OwnerRef:       pl.OwnerRef,
 	})
@@ -1183,7 +1288,7 @@ func (p *WakeProjector) deliverIssueDerivedTasksDone(ctx context.Context, e outb
 		WorkerID:       environment.WorkerID(workerID),
 		CommandType:    commandTypeAgentConverse,
 		Payload:        string(payload),
-		IdempotencyKey: "agent.converse:" + convID + ":issue-derived-done:" + e.ID + ":" + entityID,
+		IdempotencyKey: idemAnchor,
 	})
 	return err
 }

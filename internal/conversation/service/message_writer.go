@@ -399,6 +399,15 @@ type messageAddedOutboxPayload struct {
 	MessageID      string `json:"message_id"`
 	Sender         string `json:"sender"`
 	Text           string `json:"text"`
+	// ContentKind (quick-fix system-msg-activity) is the message's content_kind
+	// ("text"/"system"/…). It rides the wake event so the WakeProjector can tell a
+	// real system MESSAGE (content_kind=text — e.g. a plan "task ready" @mention)
+	// from system notification CHROME (content_kind=system — e.g. the "@X is not
+	// running" notice). Per @oopslink: a system-authored TEXT message must be
+	// delivered to the @mentioned agent exactly like a normal message (converse
+	// inject → a "Received" activity), while notification chrome must NOT be. Empty
+	// (omitted) → treated as a plain message by the consumer (back-compat).
+	ContentKind string `json:"content_kind,omitempty"`
 	// RootMessageID (v2.9.1 Thread F4) is the thread root of the triggering message
 	// when it is a thread reply (empty for a top-level message). It flows through the
 	// WakeProjector → daemon brief so the woken agent replies IN the same thread
@@ -433,6 +442,7 @@ func (w *MessageWriter) emitMessageAddedOutbox(ctx context.Context, conv *conver
 		MessageID:       string(m.ID()),
 		Sender:          string(m.SenderIdentityID()),
 		Text:            m.Content(),
+		ContentKind:     string(m.ContentKind()),   // quick-fix: text vs system-chrome gate for the system-sender wake
 		RootMessageID:   string(m.RootMessageID()), // F4: thread root (empty if top-level)
 		MentionRefs:     mentionRefs,               // T460 ①: structural typo-proof mention refs
 		AttachmentCount: len(m.Attachments()),      // T74: tell the brief about file(s)

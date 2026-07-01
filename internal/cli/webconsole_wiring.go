@@ -246,11 +246,17 @@ func (a *App) outboxProjectors(
 			}
 			return idn.DisplayName(), true
 		},
-		SystemNotify: func(ctx context.Context, convID, text string) error {
+		// quick-fix (system-msg-activity): both ports return the POSTED message id so
+		// the sanctioned nudge paths can align their converse idempotency key with the
+		// generic system-message wake (dedup). SystemNotify stays content_kind=system
+		// (notification chrome — NOT delivered as a message); SystemMessage stays
+		// content_kind=text (a real message the generic wake delivers + records as
+		// "Received").
+		SystemNotify: func(ctx context.Context, convID, text string) (string, error) {
 			if a.MessageWriter == nil {
-				return nil
+				return "", nil
 			}
-			_, err := a.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+			res, err := a.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
 				ConversationID:   conversation.ConversationID(convID),
 				SenderIdentityID: conversation.IdentityRef("system"),
 				ContentKind:      conversation.MessageContentSystem,
@@ -258,13 +264,16 @@ func (a *App) outboxProjectors(
 				Content:          text,
 				Actor:            observability.Actor("system"),
 			})
-			return err
-		},
-		SystemMessage: func(ctx context.Context, convID, text string) error {
-			if a.MessageWriter == nil {
-				return nil
+			if err != nil {
+				return "", err
 			}
-			_, err := a.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
+			return string(res.MessageID), nil
+		},
+		SystemMessage: func(ctx context.Context, convID, text string) (string, error) {
+			if a.MessageWriter == nil {
+				return "", nil
+			}
+			res, err := a.MessageWriter.AddMessage(ctx, convservice.AddMessageCommand{
 				ConversationID:   conversation.ConversationID(convID),
 				SenderIdentityID: conversation.IdentityRef("system"),
 				ContentKind:      conversation.MessageContentText,
@@ -272,7 +281,10 @@ func (a *App) outboxProjectors(
 				Content:          text,
 				Actor:            observability.Actor("system"),
 			})
-			return err
+			if err != nil {
+				return "", err
+			}
+			return string(res.MessageID), nil
 		},
 		// v2.7.1 #224: an issue/task conversation's @mention can target an agent that
 		// is a MEMBER of the owning project (not only an explicit participant). Resolve

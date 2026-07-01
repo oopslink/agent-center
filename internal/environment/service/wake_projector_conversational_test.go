@@ -138,17 +138,17 @@ func (f *wakeFixture) projWithSystemMessages(displayName map[string]string, sysN
 			n, ok := displayName[ref]
 			return n, ok
 		},
-		SystemNotify: func(_ context.Context, convID, text string) error {
+		SystemNotify: func(_ context.Context, convID, text string) (string, error) {
 			if sysNotes != nil {
 				*sysNotes = append(*sysNotes, convID+": "+text)
 			}
-			return nil
+			return "", nil
 		},
-		SystemMessage: func(_ context.Context, convID, text string) error {
+		SystemMessage: func(_ context.Context, convID, text string) (string, error) {
 			if sysMessages != nil {
 				*sysMessages = append(*sysMessages, convID+": "+text)
 			}
-			return nil
+			return "", nil
 		},
 	})
 }
