@@ -375,7 +375,7 @@ func TestBootReapRelaunch_ResumeGatedOnCompletedTurn(t *testing.T) {
 		}
 		// nudge=false (idle, no in-flight work): resume is governed by CompletedTurn,
 		// not hadWork, so it must STILL resume to preserve context across restart.
-		if rerr := c.bootReapRelaunch(context.Background(), "ag-r", home, 1, false /*nudge*/, "", "", ""); rerr != nil {
+		if rerr := c.bootReapRelaunch(context.Background(), "ag-r", home, 1, false /*nudge*/, "", "", "", nil); rerr != nil {
 			t.Fatalf("bootReapRelaunch: %v", rerr)
 		}
 		if got, want := rs.last().cfg.ResumeFromSessionID, resumeID("ag-r"); got != want {
@@ -397,7 +397,7 @@ func TestBootReapRelaunch_ResumeGatedOnCompletedTurn(t *testing.T) {
 		// nudge=true (hadWork): the resume nudge still fires, but the session must
 		// NOT --resume — resuming a no-completed-turn session triggers the Claude
 		// crash loop, so the fresh-relaunch wins regardless of hadWork.
-		if rerr := c.bootReapRelaunch(context.Background(), "ag-f", home, 1, true /*nudge*/, "wi-1", "", ""); rerr != nil {
+		if rerr := c.bootReapRelaunch(context.Background(), "ag-f", home, 1, true /*nudge*/, "wi-1", "", "", nil); rerr != nil {
 			t.Fatalf("bootReapRelaunch: %v", rerr)
 		}
 		if got := rs.last().cfg.ResumeFromSessionID; got != "" {

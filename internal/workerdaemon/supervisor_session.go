@@ -62,6 +62,9 @@ type SupervisorSessionConfig struct {
 	// supervisor as --display-name so it injects GIT_{AUTHOR,COMMITTER}_NAME via the
 	// ② AgentEnv seam (T469). Empty → the supervisor falls back to the ULID AgentID.
 	DisplayName string
+	// AgentEnv is the persisted profile env overlay. The manager writes it to a
+	// per-agent 0600 runtime file and passes only that path to the supervisor.
+	AgentEnv map[string]string
 	// ClaudeBin overrides the claude binary path the SUPERVISOR uses to exec
 	// claude (tests point it at a stand-in). The session itself never execs it.
 	ClaudeBin string
@@ -171,6 +174,7 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 		BinaryPath:          cfg.BinaryPath,
 		Model:               cfg.Model,
 		DisplayName:         cfg.DisplayName,
+		AgentEnv:            cfg.AgentEnv,
 		ClaudeBin:           cfg.ClaudeBin,
 		Epoch:               cfg.Epoch,
 		Generation:          cfg.Generation,

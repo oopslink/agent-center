@@ -36,6 +36,41 @@ describe('AgentConfigEditModal (T236)', () => {
     expect((screen.getByTestId('agent-config-provider') as HTMLInputElement).value).toBe('anthropic');
   });
 
+  it('env vars: prefills KEY=value lines and PATCHes env_vars', async () => {
+    let patchBody: Record<string, unknown> | undefined;
+    server.use(
+      http.patch('/api/agents/:id/config', async ({ request }) => {
+        patchBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...base });
+      }),
+      http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
+    );
+    wrap({
+      ...base,
+      env_vars: {
+        FOO: 'bar',
+        ANTHROPIC_BASE_URL: 'https://anthropic.example',
+      },
+    });
+
+    const env = screen.getByTestId('agent-config-env') as HTMLTextAreaElement;
+    expect(env.value).toBe('ANTHROPIC_BASE_URL=https://anthropic.example\nFOO=bar');
+    fireEvent.change(env, { target: { value: 'FOO=baz\nEMPTY=' } });
+    fireEvent.click(screen.getByTestId('agent-config-edit-save'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+
+    await waitFor(() => expect(patchBody).toBeDefined());
+    expect(patchBody).toMatchObject({ env_vars: { FOO: 'baz', EMPTY: '' } });
+  });
+
+  it('env vars: invalid lines block confirmation and show an error', () => {
+    wrap(base);
+    fireEvent.change(screen.getByTestId('agent-config-env'), { target: { value: '1BAD=value' } });
+    fireEvent.click(screen.getByTestId('agent-config-edit-save'));
+    expect(screen.queryByTestId('confirm-modal')).toBeNull();
+    expect(screen.getByTestId('agent-config-env-error')).toHaveTextContent(/invalid environment variable name/i);
+  });
+
   it('Save shows a restart confirmation for a RUNNING agent, then PATCHes config + restarts', async () => {
     let patchBody: Record<string, unknown> | undefined;
     let restarted = false;

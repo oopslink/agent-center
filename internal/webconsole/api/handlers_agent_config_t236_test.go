@@ -32,7 +32,8 @@ func TestAPI_Agent_UpdateConfig_236(t *testing.T) {
 
 	// PATCH config: change model + cli + set reasoning/mode/provider.
 	resp = orgScopedPatch(t, s.URL+"/api/agents/"+id+"/config",
-		`{"model":"claude-sonnet-4-6","cli":"codex","reasoning":"high","mode":"plan","provider":"anthropic"}`, sess)
+		`{"model":"claude-sonnet-4-6","cli":"codex","reasoning":"high","mode":"plan","provider":"anthropic",`+
+			`"env_vars":{"FOO":"bar","ANTHROPIC_BASE_URL":"https://anthropic.example"}}`, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("update config: got %d, want 200", resp.StatusCode)
 	}
@@ -53,6 +54,10 @@ func TestAPI_Agent_UpdateConfig_236(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&reread)
 	if reread["reasoning"] != "high" || reread["provider"] != "anthropic" || reread["cli"] != "codex" {
 		t.Fatalf("reread config not persisted: %+v", reread)
+	}
+	env, _ := reread["env_vars"].(map[string]any)
+	if env["FOO"] != "bar" || env["ANTHROPIC_BASE_URL"] != "https://anthropic.example" {
+		t.Fatalf("reread env_vars not persisted: %+v", reread["env_vars"])
 	}
 
 	// Invalid reasoning → 400 invalid_reasoning (allowlist enforced).

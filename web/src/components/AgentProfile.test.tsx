@@ -125,6 +125,25 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(chips[1]).toHaveTextContent('gpt-5.5');
   });
 
+  it('env vars: renders key chips without exposing values; empty shows placeholder', () => {
+    wrap({
+      ...base,
+      env_vars: {
+        SECRET_TOKEN: 'do-not-render',
+        FOO: 'bar',
+      },
+    });
+    expect(screen.getByTestId('agent-profile-env-count')).toHaveTextContent('2');
+    const keys = screen.getAllByTestId('agent-profile-env-key');
+    expect(keys.map((k) => k.textContent)).toEqual(['FOO', 'SECRET_TOKEN']);
+    expect(screen.queryByText('do-not-render')).toBeNull();
+
+    cleanup();
+    wrap(base);
+    expect(screen.getByTestId('agent-profile-env-count')).toHaveTextContent('0');
+    expect(screen.getByTestId('agent-profile-env-empty')).toHaveTextContent('none');
+  });
+
   it('T566: auto-assign tag shows On by default and Off when opted out', () => {
     wrap(base); // no auto_assignable → defaults On
     expect(screen.getByTestId('agent-profile-tag-auto-assignable')).toHaveTextContent('On');

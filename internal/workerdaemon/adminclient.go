@@ -424,7 +424,8 @@ type ResumeAgent struct {
 	// DisplayName is the agent's human-readable display_name (resume-state), carried
 	// like Model so a boot-reconcile relaunch injects it as GIT_{AUTHOR,COMMITTER}_NAME
 	// via the ② AgentEnv seam (T469). Empty/absent → the supervisor uses the ULID.
-	DisplayName string `json:"display_name"`
+	DisplayName string            `json:"display_name"`
+	EnvVars     map[string]string `json:"env_vars,omitempty"`
 	// Concurrency config (resume-state), carried so a boot-reconcile relaunch can
 	// RE-ATTACH the per-agent executor engine after a full worker process restart —
 	// without these the worker has no way to know a relaunched agent is

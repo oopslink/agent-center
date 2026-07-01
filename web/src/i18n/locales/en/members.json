@@ -224,6 +224,14 @@
         "providerHint": "Optional. Empty = center default.",
         "providerPlaceholder": "default"
       },
+      "env": {
+        "heading": "Environment variables",
+        "hint": "One KEY=value pair per line. Applied when the agent CLI starts.",
+        "placeholder": "ANTHROPIC_BASE_URL=https://...\nFOO=bar",
+        "errorFormat": "Environment variables must use KEY=value lines.",
+        "errorName": "Invalid environment variable name: {{name}}",
+        "emptyName": "(empty)"
+      },
       "concurrency": {
         "heading": "Concurrency",
         "maxLabel": "Max concurrent tasks",
@@ -423,6 +431,8 @@
       "concurrencySingle": "single-active · cap 1",
       "allowedExecutors": "Allowed executors",
       "executorsNone": "none",
+      "envVars": "Environment",
+      "envVarsNone": "none",
       "createdAgents": "Created agents",
       "createdAgentsEmpty": "No created agents.",
       "skills": "Skills",

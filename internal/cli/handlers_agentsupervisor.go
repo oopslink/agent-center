@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -56,11 +57,12 @@ func AgentSupervisorCommand() *Command {
 			claudeBin := fs.String("claude-bin", "", "override the claude binary path (default: claude on PATH)")
 			model := fs.String("model", "", "optional claude --model override")
 			displayName := fs.String("display-name", "", "agent human-readable display_name; injected as GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam (overrides the ULID default; empty → ULID). EMAIL stays <agent-id>@agent-center (T469)")
+			agentEnvFile := fs.String("agent-env-file", "", "path to 0600 JSON object of per-agent env vars (system; profile env)")
 			resetEpoch := fs.Int("reset-epoch", 0, "per-agent reset epoch; derives claude --session-id via SessionUUIDGen(agent-id, epoch, generation). 0 = initial; the daemon bumps it on a clean-slate reset and re-passes the durable value on a crash-relaunch (system; v2.7 D2-f)")
 			generation := fs.Int("generation", 0, "per-agent crash-relaunch fork generation; derives claude --session-id via SessionUUIDGen(agent-id, epoch, generation). 0 = pre-fix id (initial/normal start); the daemon bumps it per Mode-B relaunch (system; v2.7 GATE-7)")
 			resumeFrom := fs.String("resume-from", "", "Mode-B fork: prior session-id to --resume + --fork-session from (the killed session whose lock blocks re-use). Empty = plain start, no fork (system; v2.7 GATE-7)")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-				return runAgentSupervisor(ctx, errw, *agentID, *homeDir, *mcpConfigPath, *workspaceDir, *claudeBin, *model, *displayName, *resetEpoch, *generation, *resumeFrom)
+				return runAgentSupervisor(ctx, errw, *agentID, *homeDir, *mcpConfigPath, *workspaceDir, *claudeBin, *model, *displayName, *agentEnvFile, *resetEpoch, *generation, *resumeFrom)
 			}
 		},
 	}
@@ -71,7 +73,7 @@ func AgentSupervisorCommand() *Command {
 // process, launches the child, and runs until SIGTERM/SIGINT. Diagnostics go to
 // errw; the child's stdout is drained to events.jsonl and is NOT echoed to the
 // supervisor's stdout.
-func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, mcpConfigPath, workspaceDir, claudeBin, model, displayName string, resetEpoch, generation int, resumeFrom string) ExitCode {
+func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, mcpConfigPath, workspaceDir, claudeBin, model, displayName, agentEnvFile string, resetEpoch, generation int, resumeFrom string) ExitCode {
 	agentID = strings.TrimSpace(agentID)
 	homeDir = strings.TrimSpace(homeDir)
 	if agentID == "" {
@@ -112,6 +114,21 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		childCmd = append(childCmd, "--model", m)
 	}
 
+	profileEnv, envErr := readAgentEnvFile(strings.TrimSpace(agentEnvFile))
+	if envErr != nil {
+		fmt.Fprintf(errw, "Error: agent_supervisor: read agent env: %v\n", envErr)
+		return ExitBusinessError
+	}
+	agentEnv := agentsupervisor.DisplayNameEnv(displayName)
+	if len(profileEnv) > 0 {
+		if agentEnv == nil {
+			agentEnv = map[string]string{}
+		}
+		for k, v := range profileEnv {
+			agentEnv[k] = v
+		}
+	}
+
 	sup, err := agentsupervisor.New(agentsupervisor.Config{
 		AgentID:  agentID,
 		HomeDir:  homeDir,
@@ -122,7 +139,7 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		// via the ② AgentEnv seam. mergeGitIdentity overlays this OVER the AgentID
 		// (ULID) default, keeping EMAIL=<agent-id>@agent-center. Empty display_name →
 		// nil → NAME falls back to the ULID default (no empty-author injection).
-		AgentEnv: agentsupervisor.DisplayNameEnv(displayName),
+		AgentEnv: agentEnv,
 		Logger: func(msg string) {
 			fmt.Fprintf(errw, "[agent-supervisor] %s\n", msg)
 		},
@@ -220,6 +237,21 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		return ExitBusinessError
 	}
 	return ExitOK
+}
+
+func readAgentEnvFile(path string) (map[string]string, error) {
+	if path == "" {
+		return nil, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var env map[string]string
+	if err := json.Unmarshal(b, &env); err != nil {
+		return nil, err
+	}
+	return env, nil
 }
 
 // memorySyncIdentity returns the git author NAME/EMAIL the memory-sync commits

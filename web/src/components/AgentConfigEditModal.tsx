@@ -31,6 +31,8 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const [reasoning, setReasoning] = useState(agent.reasoning ?? '');
   const [mode, setMode] = useState(agent.mode ?? '');
   const [provider, setProvider] = useState(agent.provider ?? '');
+  const [envText, setEnvText] = useState(formatEnvVars(agent.env_vars ?? {}));
+  const [envError, setEnvError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
   // v2.18.1 concurrency config.
@@ -67,7 +69,19 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const busy = update.isPending || restart.isPending;
   const error = (update.error ?? restart.error) as Error | null;
 
+  const parseCurrentEnv = () =>
+    parseEnvVars(envText, {
+      format: t('agentRuntime.configModal.env.errorFormat'),
+      name: (name) => t('agentRuntime.configModal.env.errorName', { name: name || t('agentRuntime.configModal.env.emptyName') }),
+    });
+
   const apply = async () => {
+    const parsedEnv = parseCurrentEnv();
+    if (!parsedEnv.ok) {
+      setEnvError(parsedEnv.error);
+      setConfirming(false);
+      return;
+    }
     try {
       await update.mutateAsync({
         model: model.trim(),
@@ -75,6 +89,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         reasoning,
         mode: mode.trim(),
         provider: provider.trim(),
+        env_vars: parsedEnv.env,
         max_concurrent_tasks: maxConcurrent,
         allowed_executors: executors,
         auto_assignable: autoAssignable,
@@ -117,6 +132,12 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            const parsedEnv = parseCurrentEnv();
+            if (!parsedEnv.ok) {
+              setEnvError(parsedEnv.error);
+              return;
+            }
+            setEnvError(null);
             setConfirming(true);
           }}
         >
@@ -183,6 +204,30 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
               onChange={(e) => setProvider(e.target.value)}
               placeholder={t('agentRuntime.configModal.fields.providerPlaceholder')}
             />
+          </Field>
+
+          <Field
+            label={t('agentRuntime.configModal.env.heading')}
+            hint={t('agentRuntime.configModal.env.hint')}
+            htmlFor="agent-config-env-input"
+          >
+            <textarea
+              id="agent-config-env-input"
+              data-testid="agent-config-env"
+              className={`${inputClass} min-h-28 font-mono text-xs`}
+              value={envText}
+              onChange={(e) => {
+                setEnvText(e.target.value);
+                setEnvError(null);
+              }}
+              placeholder={t('agentRuntime.configModal.env.placeholder')}
+              spellCheck={false}
+            />
+            {envError && (
+              <p className="mt-1 text-[0.6875rem] text-danger" data-testid="agent-config-env-error">
+                {envError}
+              </p>
+            )}
           </Field>
 
           {/* v2.18.1 (issue-8746a5b9): executor concurrency config. */}
@@ -362,6 +407,33 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
       />
     </div>
   );
+}
+
+function formatEnvVars(env: Record<string, string>): string {
+  return Object.keys(env)
+    .sort()
+    .map((k) => `${k}=${env[k] ?? ''}`)
+    .join('\n');
+}
+
+type ParseEnvResult = { ok: true; env: Record<string, string> } | { ok: false; error: string };
+
+function parseEnvVars(text: string, errors: { format: string; name: (name: string) => string }): ParseEnvResult {
+  const env: Record<string, string> = {};
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) {
+      return { ok: false, error: errors.format };
+    }
+    const key = line.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      return { ok: false, error: errors.name(key) };
+    }
+    env[key] = line.slice(eq + 1);
+  }
+  return { ok: true, env };
 }
 
 function Field({

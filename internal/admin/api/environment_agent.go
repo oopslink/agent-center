@@ -474,6 +474,7 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			"allowed_executors":      executorProfilesToMaps(p.AllowedExecutors),
 			"orchestrator_model":     p.OrchestratorModel,
 			"default_executor_model": p.DefaultExecutorModel,
+			"env_vars":               p.EnvVars,
 			"version":                a.Version(),
 			"reset_scope":            "",                 // reserved for f-3 (rollback/reset semantics)
 			"tasks":                  []map[string]any{}, // F7: always empty (AgentWorkItem retired)

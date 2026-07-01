@@ -159,6 +159,34 @@ func TestAgentControlProjector_PassesDisplayName(t *testing.T) {
 	}
 }
 
+// TestAgentControlProjector_PassesEnvVars pins profile env passthrough: lifecycle
+// events are the worker's start/reconcile source, so the projector must carry
+// env_vars without reading the agent repository.
+func TestAgentControlProjector_PassesEnvVars(t *testing.T) {
+	f := newProjectorFixture(t)
+	withEnv := outbox.Event{
+		ID:        "EVE",
+		EventType: agentsvc.EvtAgentLifecycleChanged,
+		Payload:   `{"agent_id":"AG1","worker_id":"W1","lifecycle":"running","version":2,"env_vars":{"FOO":"bar","EMPTY":""}}`,
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+	if err := f.proj.Project(f.ctx, withEnv); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 || !strings.Contains(cmds[0].Payload(), `"env_vars":{"EMPTY":"","FOO":"bar"}`) {
+		t.Fatalf("reconcile command must carry env_vars, got: %s", cmds[0].Payload())
+	}
+
+	f2 := newProjectorFixture(t)
+	if err := f2.proj.Project(f2.ctx, lifecycleEvent("EV1", "AG2", "W2", "running", 1, "")); err != nil {
+		t.Fatalf("Project no-env: %v", err)
+	}
+	if c := f2.commandsFor(t, "W2"); len(c) != 1 || strings.Contains(c[0].Payload(), `"env_vars"`) {
+		t.Fatalf("env-less event must omit env_vars, got: %s", c[0].Payload())
+	}
+}
+
 func TestAgentControlProjector_ResetScope(t *testing.T) {
 	f := newProjectorFixture(t)
 	e := lifecycleEvent("EV1", "AG1", "W1", "resetting", 5, "all")

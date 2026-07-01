@@ -253,6 +253,7 @@ func (c *AgentController) buildExecutorEngine(agentRoot string, pl reconcilePayl
 		Tracker:    tracker,
 		Max:        pl.MaxConcurrentTasks,
 		Clock:      clk,
+		AgentEnv:   runtimeAgentEnv(pl.AgentID, pl.DisplayName, pl.EnvVars),
 		// No Worktrees/BaseRef → plain-dir workspaces (PD ruling B).
 	})
 	if err != nil {

@@ -157,6 +157,9 @@ type reconcilePayload struct {
 	// Model from the lifecycle event so the supervisor injects it as
 	// GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam (T469). Empty → ULID fallback.
 	DisplayName string `json:"display_name,omitempty"`
+	// EnvVars is the persisted per-agent profile env overlay applied to agent CLI
+	// processes (supervisor-owned claude, codex turns, and forked executors).
+	EnvVars map[string]string `json:"env_vars,omitempty"`
 	// CLI selects the per-CLI session starter ("codex" → CodexSession; empty /
 	// "claude-code" → the claude supervisor path).
 	CLI string `json:"cli,omitempty"`
@@ -517,6 +520,10 @@ type managedAgent struct {
 	// silently fall back to the ULID AgentID, T469). Guarded by mu.
 	displayName string
 
+	// envVars is the persisted per-agent profile env overlay. Held for the same
+	// reason as model/displayName: self-heal relaunch gets no fresh reconcile.
+	envVars map[string]string
+
 	// cli is the agent's execution CLI ("codex" → CodexSession; empty / "claude-code"
 	// → claude supervisor). Read in onExit to route a codex agent away from the
 	// supervisor self-heal machinery (codex has no epoch/fork/reattach). Guarded by mu.
@@ -782,7 +789,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 	// (lock released), so a plain resume of the same session-id is correct. Only the
 	// Mode-B crash-relaunch paths (bootReapRelaunch) fork (the killed claude's lock
 	// is still held).
-	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model, pl.DisplayName, pl.CLI); err != nil {
+	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model, pl.DisplayName, pl.CLI, pl.EnvVars); err != nil {
 		// Start failure IS retryable (transient FS / launch error) — return the
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
@@ -1491,7 +1498,7 @@ const workAvailableNudge = "📥 New work is available in your queue. When you r
 // OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
 // starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
 // claude. grep-clean: no exec.Command(claude…) on this path.
-func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, displayName, cli string) error {
+func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, displayName, cli string, envVars map[string]string) error {
 	home, tasksDir, _, err := c.agentPaths(agentID)
 	if err != nil {
 		return err
@@ -1504,7 +1511,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	// self-contained CodexSession path before any of the claude/supervisor setup
 	// below. The claude path (cli empty / "claude-code") is untouched.
 	if cli == cliCodex {
-		return c.startCodexSession(ctx, agentID, version, home, tasksDir, model)
+		return c.startCodexSession(ctx, agentID, version, home, tasksDir, model, displayName, envVars)
 	}
 	// v2.7 #182: claude runs with cwd=tasks and `--setting-sources user,project`,
 	// so its "project" settings source resolves to <tasks>/.claude. Create the
@@ -1585,7 +1592,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit (which fire on the
 	// event-pump goroutine the instant the process speaks) find their entry. The
 	// session field is filled in after the starter returns.
-	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model, displayName: displayName}
+	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model, displayName: displayName, envVars: cloneEnvVars(envVars)}
 	c.mu.Lock()
 	c.agents[agentID] = ma
 	c.mu.Unlock()
@@ -1599,6 +1606,7 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 		ClaudeBin:           c.cfg.ClaudeBinary,
 		Model:               model,
 		DisplayName:         displayName,
+		AgentEnv:            envVars,
 		Epoch:               epochState.Epoch,
 		Generation:          generation,
 		ResumeFromSessionID: resumeFrom,
@@ -1646,12 +1654,12 @@ func (c *AgentController) startSession(ctx context.Context, agentID string, vers
 //
 // OWNERSHIP: this never execs claude. It starts a CodexSession (via the injected
 // codexStarter), whose per-turn `codex exec` process is owned by the session.
-func (c *AgentController) startCodexSession(ctx context.Context, agentID string, version int, home, workspace, model string) error {
+func (c *AgentController) startCodexSession(ctx context.Context, agentID string, version int, home, workspace, model, displayName string, envVars map[string]string) error {
 	if err := writeAgentCLIMarker(home, cliCodex); err != nil {
 		return fmt.Errorf("agent_controller: write codex cli marker: %w", err)
 	}
 	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit find their entry.
-	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model, cli: cliCodex}
+	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model, displayName: displayName, envVars: cloneEnvVars(envVars), cli: cliCodex}
 	c.mu.Lock()
 	c.agents[agentID] = ma
 	c.mu.Unlock()
@@ -1661,6 +1669,7 @@ func (c *AgentController) startCodexSession(ctx context.Context, agentID string,
 		TasksDir: workspace,
 		Binary:   c.cfg.CodexBinary,
 		Model:    model,
+		Env:      runtimeAgentEnv(agentID, displayName, envVars),
 		Logger:   c.cfg.Logger,
 		OnEvent: func(ev StreamEvent) {
 			c.onEvent(agentID, ev)
@@ -2274,12 +2283,13 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	}
 	detaching := ma.detaching
 	expected := ma.expectedStop
-	version := ma.appliedVersion  // captured for a possible self-heal relaunch
-	hadWork := ma.hadWork         // injected work → nudge on self-heal relaunch
-	taskID := ma.currentTaskID    // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
-	model := ma.model             // agent's --model → carry across crash so self-heal re-drive uses the SAME model
-	displayName := ma.displayName // agent's display_name → carry across crash so self-heal re-drive keeps git author NAME (T469)
-	cli := ma.cli                 // codex agents skip the supervisor self-heal machinery (no epoch/fork)
+	version := ma.appliedVersion        // captured for a possible self-heal relaunch
+	hadWork := ma.hadWork               // injected work → nudge on self-heal relaunch
+	taskID := ma.currentTaskID          // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
+	model := ma.model                   // agent's --model → carry across crash so self-heal re-drive uses the SAME model
+	displayName := ma.displayName       // agent's display_name → carry across crash so self-heal re-drive keeps git author NAME (T469)
+	envVars := cloneEnvVars(ma.envVars) // profile env → carry across crash so self-heal re-drive keeps runtime env
+	cli := ma.cli                       // codex agents skip the supervisor self-heal machinery (no epoch/fork)
 	// W4: flush+close any open per-task log writer so the session's exit doesn't
 	// leak the fd (and so a later workspace wipe isn't racing a live writer).
 	taskLog := ma.taskLog
@@ -2330,7 +2340,7 @@ func (c *AgentController) onExit(agentID string, exitErr error) {
 	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
 	// returns the lifecycle state to report: "error" (transient, still auto-retrying)
 	// or "failed" (terminal circuit-breaker), reported once for this crash instance.
-	state := c.recordCrashAndSchedule(agentID, version, hadWork, taskID, model, displayName, msg)
+	state := c.recordCrashAndSchedule(agentID, version, hadWork, taskID, model, displayName, envVars, msg)
 	if state != "" {
 		ma.lifecycleOnce.Do(func() {
 			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {

@@ -598,11 +598,12 @@ func (s *Server) agentResetHandler(w http.ResponseWriter, r *http.Request) {
 // restart the agent" is enforced by the frontend). Returns the refreshed agent.
 func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Model     string `json:"model"`
-		CLI       string `json:"cli"`
-		Reasoning string `json:"reasoning"`
-		Mode      string `json:"mode"`
-		Provider  string `json:"provider"`
+		Model     string             `json:"model"`
+		CLI       string             `json:"cli"`
+		Reasoning string             `json:"reasoning"`
+		Mode      string             `json:"mode"`
+		Provider  string             `json:"provider"`
+		EnvVars   *map[string]string `json:"env_vars"`
 		// F3 model routing (design §5 & §10).
 		OrchestratorModel    string   `json:"orchestrator_model"`
 		DefaultExecutorModel string   `json:"default_executor_model"`
@@ -624,6 +625,7 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 	}
 	err := d.AgentSvc.UpdateAgentConfig(r.Context(), a.ID(), agentsvc.UpdateAgentConfigCommand{
 		Model: req.Model, CLI: req.CLI, Reasoning: req.Reasoning, Mode: req.Mode, Provider: req.Provider,
+		EnvVars:           req.EnvVars,
 		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
 		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
 		AllowedExecutors: req.AllowedExecutors, AutoAssignable: req.AutoAssignable,

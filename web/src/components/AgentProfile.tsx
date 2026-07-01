@@ -110,6 +110,7 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
 
             {/* v2.18.1 (issue-8746a5b9): executor concurrency, read-only. */}
             <ConcurrencyTags agent={agent} />
+            <EnvVarsView agent={agent} />
           </Section>
         </div>
 
@@ -236,6 +237,40 @@ function ConcurrencyTags({ agent }: { agent: Agent }): React.ReactElement {
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+function EnvVarsView({ agent }: { agent: Agent }): React.ReactElement {
+  const { t } = useTranslation('members');
+  const env = agent.env_vars ?? {};
+  const keys = Object.keys(env).sort();
+  return (
+    <div className="mt-3 border-t border-border-base pt-3" data-testid="agent-profile-env-vars">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-xs text-text-muted">{t('agents.profile.envVars')}</span>
+        <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-medium text-text-muted" data-testid="agent-profile-env-count">
+          {keys.length}
+        </span>
+      </div>
+      {keys.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {keys.map((k) => (
+            <span
+              key={k}
+              className="rounded border border-border-base bg-bg-subtle px-2 py-1 font-mono text-xs text-text-secondary"
+              data-testid="agent-profile-env-key"
+              title={k}
+            >
+              {k}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="text-xs italic text-text-muted" data-testid="agent-profile-env-empty">
+          {t('agents.profile.envVarsNone')}
+        </span>
+      )}
     </div>
   );
 }

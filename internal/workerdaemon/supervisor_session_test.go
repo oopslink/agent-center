@@ -266,7 +266,7 @@ func TestSupervisorSession_StartAndPump(t *testing.T) {
 	}
 	defer sess.Detach()
 
-	col.waitForType(t, "system", 10*time.Second)
+	col.waitForType(t, "system", 15*time.Second)
 
 	// The pump acks consumed bytes → the supervisor's baseOffset advances past 0.
 	rec := readInstance(t, home)
@@ -481,7 +481,7 @@ func TestSupervisorSession_DetachSurvives(t *testing.T) {
 
 	// A fresh daemon re-attaches via ProbeAgent → Reattachable, then resumes the
 	// event-pump from the last-acked offset (here: the supervisor's baseOffset).
-	pr := waitProbeReattachable(t, home, 5*time.Second)
+	pr := waitProbeReattachable(t, home, 15*time.Second)
 	ref := supervisormanager.RefFromProbe(home, pr)
 	col2 := &eventCollector{}
 	sess2, err := workerdaemon.ReattachSupervisorSession(

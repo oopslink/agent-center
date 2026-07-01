@@ -101,6 +101,7 @@ export interface UpdateAgentConfigInput {
   reasoning: string;
   mode: string;
   provider: string;
+  env_vars?: Record<string, string>;
   // v2.18.1 (issue-8746a5b9) executor concurrency. allowed_executors is the
   // authoritative {cli,model} candidate list (server hard-validates cli ∈
   // {claude-code,codex}); max_concurrent_tasks gates parallelism (0/1 = single

@@ -67,6 +67,9 @@ type SpawnSupervisorCfg struct {
 	// so commit authorship reads as the display_name instead of the ULID AgentID
 	// (T469). Empty → the supervisor omits the flag → NAME falls back to the AgentID.
 	DisplayName string
+	// AgentEnv is the per-agent profile env overlay. It is written to a 0600 file
+	// under HomeDir and the supervisor receives only the file path.
+	AgentEnv map[string]string
 	// ClaudeBin overrides the claude binary path (--claude-bin). In tests this
 	// points at a stand-in so no real claude is required.
 	ClaudeBin string
@@ -182,6 +185,13 @@ func SpawnSupervisor(ctx context.Context, cfg SpawnSupervisorCfg) (*SupervisorRe
 	}
 
 	args := buildSupervisorArgs(cfg)
+	if len(cfg.AgentEnv) > 0 {
+		envPath, err := writeAgentEnvFile(cfg.HomeDir, cfg.AgentEnv)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, "--agent-env-file", envPath)
+	}
 
 	// PLAIN exec.Command (not CommandContext): ctx must NOT be able to kill the
 	// supervisor. The supervisor reparents to init after its own setsid; we are not
@@ -243,6 +253,18 @@ func SpawnSupervisor(ctx context.Context, cfg SpawnSupervisorCfg) (*SupervisorRe
 		return nil, err
 	}
 	return ref, nil
+}
+
+func writeAgentEnvFile(homeDir string, env map[string]string) (string, error) {
+	path := filepath.Join(homeDir, "agent_env.runtime.json")
+	b, err := json.Marshal(env)
+	if err != nil {
+		return "", fmt.Errorf("supervisormanager: encode agent env: %w", err)
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		return "", fmt.Errorf("supervisormanager: write agent env: %w", err)
+	}
+	return path, nil
 }
 
 // buildSupervisorArgs assembles the `worker agent-supervisor` subcommand argv

@@ -224,6 +224,14 @@
         "providerHint": "可选。留空 = 中心默认值。",
         "providerPlaceholder": "default"
       },
+      "env": {
+        "heading": "环境变量",
+        "hint": "每行一个 KEY=value。智能体 CLI 启动时生效。",
+        "placeholder": "ANTHROPIC_BASE_URL=https://...\nFOO=bar",
+        "errorFormat": "环境变量必须使用 KEY=value 格式。",
+        "errorName": "无效的环境变量名：{{name}}",
+        "emptyName": "空"
+      },
       "concurrency": {
         "heading": "并发",
         "maxLabel": "最大并发任务数",
@@ -423,6 +431,8 @@
       "concurrencySingle": "单活动 · 上限 1",
       "allowedExecutors": "允许的执行器",
       "executorsNone": "无",
+      "envVars": "环境变量",
+      "envVarsNone": "无",
       "createdAgents": "创建的智能体",
       "createdAgentsEmpty": "暂无创建的智能体。",
       "skills": "技能",

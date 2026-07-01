@@ -138,6 +138,7 @@ type agentEventPayload struct {
 	MaxConcurrentTasks   int                     `json:"max_concurrent_tasks,omitempty"`
 	AllowedModels        []string                `json:"allowed_models,omitempty"`
 	AllowedExecutors     []agent.ExecutorProfile `json:"allowed_executors,omitempty"`
+	EnvVars              map[string]string       `json:"env_vars,omitempty"`
 }
 
 // emit appends an outbox event inside the current transaction. Mutating
@@ -162,6 +163,7 @@ func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, re
 		MaxConcurrentTasks:   a.Profile().MaxConcurrentTasks,
 		AllowedModels:        a.Profile().AllowedModels,
 		AllowedExecutors:     a.Profile().AllowedExecutors,
+		EnvVars:              a.Profile().EnvVars,
 	})
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
@@ -168,16 +169,20 @@ func (s *Service) RestartAgent(ctx context.Context, id agent.AgentID) error {
 	return s.lifecycleOp(ctx, id, func(a *agent.Agent) error { return a.Restart(now) }, "", "restarted")
 }
 
-// UpdateAgentConfigCommand carries the editable LLM config (T236). Name /
-// Description / EnvVars / Skills are preserved from the existing profile — this
-// edits the LLM tuning only. Empty string fields are written as-is (empty = the
-// runtime/center default).
+// UpdateAgentConfigCommand carries the editable runtime config (T236 + later
+// profile knobs). Name / Description / Skills are preserved from the existing
+// profile. Empty string fields are written as-is (empty = the runtime/center
+// default).
 type UpdateAgentConfigCommand struct {
 	Model     string
 	CLI       string
 	Reasoning string
 	Mode      string
 	Provider  string
+	// EnvVars is the per-agent environment overlay for agent CLI processes. nil means
+	// the PATCH omitted env_vars and the existing map is preserved; non-nil replaces it
+	// (including an empty map to clear).
+	EnvVars *map[string]string
 	// F3 model routing (design §5 & §10). Edited alongside the LLM tuning; empty /
 	// zero stores the column as NULL/0 (= center default / EffectiveMaxConcurrentTasks).
 	OrchestratorModel    string
@@ -240,12 +245,15 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		if err != nil {
 			return err
 		}
-		p := a.Profile() // preserve Name/Description/EnvVars; edit LLM fields only.
+		p := a.Profile() // preserve Name/Description/Skills; edit runtime fields only.
 		p.Model = cmd.Model
 		p.CLI = cmd.CLI
 		p.Reasoning = cmd.Reasoning
 		p.Mode = cmd.Mode
 		p.Provider = cmd.Provider
+		if cmd.EnvVars != nil {
+			p.EnvVars = normalizeEnvVars(*cmd.EnvVars)
+		}
 		p.OrchestratorModel = cmd.OrchestratorModel
 		p.DefaultExecutorModel = cmd.DefaultExecutorModel
 		p.MaxConcurrentTasks = cmd.MaxConcurrentTasks
@@ -261,6 +269,21 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		}
 		return s.agents.Update(txCtx, a)
 	})
+}
+
+func normalizeEnvVars(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		k = strings.TrimSpace(k)
+		if k == "" || strings.Contains(k, "=") {
+			continue
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // SetAgentCapabilityTags replaces an agent's dispatch capability tags (T461) and

@@ -79,11 +79,12 @@ type agentLifecycleEvtPayload struct {
 	Mode        string `json:"mode,omitempty"`      // T236
 	Provider    string `json:"provider,omitempty"`  // T236
 	// F3 model routing (design §5 & §10) — passthrough, same as Model.
-	OrchestratorModel    string          `json:"orchestrator_model,omitempty"`
-	DefaultExecutorModel string          `json:"default_executor_model,omitempty"`
-	MaxConcurrentTasks   int             `json:"max_concurrent_tasks,omitempty"`
-	AllowedModels        []string        `json:"allowed_models,omitempty"`
-	AllowedExecutors     json.RawMessage `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: [{cli,model}] passthrough (opaque here)
+	OrchestratorModel    string            `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string            `json:"default_executor_model,omitempty"`
+	MaxConcurrentTasks   int               `json:"max_concurrent_tasks,omitempty"`
+	AllowedModels        []string          `json:"allowed_models,omitempty"`
+	AllowedExecutors     json.RawMessage   `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: [{cli,model}] passthrough (opaque here)
+	EnvVars              map[string]string `json:"env_vars,omitempty"`
 }
 
 // reconcileCommandPayload is the declarative command payload the AgentController
@@ -105,13 +106,14 @@ type reconcileCommandPayload struct {
 	Mode      string `json:"mode,omitempty"`
 	Provider  string `json:"provider,omitempty"`
 	// F3 model routing (design §5 & §10) — passthrough to the daemon session config.
-	OrchestratorModel    string          `json:"orchestrator_model,omitempty"`
-	DefaultExecutorModel string          `json:"default_executor_model,omitempty"`
-	MaxConcurrentTasks   int             `json:"max_concurrent_tasks,omitempty"`
-	AllowedModels        []string        `json:"allowed_models,omitempty"`
-	AllowedExecutors     json.RawMessage `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: [{cli,model}] passthrough
-	Version              int             `json:"version"`
-	ResetScope           string          `json:"reset_scope,omitempty"`
+	OrchestratorModel    string            `json:"orchestrator_model,omitempty"`
+	DefaultExecutorModel string            `json:"default_executor_model,omitempty"`
+	MaxConcurrentTasks   int               `json:"max_concurrent_tasks,omitempty"`
+	AllowedModels        []string          `json:"allowed_models,omitempty"`
+	AllowedExecutors     json.RawMessage   `json:"allowed_executors,omitempty"` // v2.18.1 BE-1: [{cli,model}] passthrough
+	EnvVars              map[string]string `json:"env_vars,omitempty"`
+	Version              int               `json:"version"`
+	ResetScope           string            `json:"reset_scope,omitempty"`
 }
 
 // Project enqueues a reconcile command for an agent.lifecycle_changed event.
@@ -148,6 +150,7 @@ func (p *AgentControlProjector) Project(ctx context.Context, e outbox.Event) err
 		MaxConcurrentTasks:   pl.MaxConcurrentTasks,
 		AllowedModels:        pl.AllowedModels,
 		AllowedExecutors:     pl.AllowedExecutors, // BE-1 passthrough (opaque [{cli,model}])
+		EnvVars:              pl.EnvVars,
 		Version:              pl.Version,
 		ResetScope:           pl.ResetScope,
 	})
