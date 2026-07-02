@@ -365,3 +365,67 @@ func TestAgentRepo_AutoAssignableRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// TestAgentRepo_LastLifecycleTransitionAt_RoundTrip: the lifecycle-transition
+// timestamp is persisted on Save and updated via Update (the Start path), and it
+// survives Save→Find and Update→Find.
+func TestAgentRepo_LastLifecycleTransitionAt_RoundTrip(t *testing.T) {
+	r := newDB(t)
+	ctx := context.Background()
+	a := mkAgent(t, "A1", "W1")
+	if err := r.Save(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.FindByID(ctx, "A1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Fresh agent: seeded to createdAt.
+	if !got.LastLifecycleTransitionAt().Equal(t0) {
+		t.Fatalf("save round-trip: got %v, want %v", got.LastLifecycleTransitionAt(), t0)
+	}
+	// Start advances the field; Update must persist it.
+	tStart := t0.Add(2 * time.Hour)
+	if err := got.Start(tStart); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Update(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	got2, err := r.FindByID(ctx, "A1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got2.LastLifecycleTransitionAt().Equal(tStart) {
+		t.Fatalf("update round-trip: got %v, want %v", got2.LastLifecycleTransitionAt(), tStart)
+	}
+}
+
+// TestAgentRepo_LastLifecycleTransitionAt_LegacyRowBackfill: a raw row whose
+// last_lifecycle_transition_at column is NULL (predates 0096) reads back as
+// updated_at via the RehydrateAgent fallback.
+func TestAgentRepo_LastLifecycleTransitionAt_LegacyRowBackfill(t *testing.T) {
+	d, err := persistence.Open(persistence.MemoryDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	if err := persistence.NewMigrator(d).Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	upd := t0.Add(6 * time.Hour)
+	// Omit last_lifecycle_transition_at → it stays NULL for this post-migration insert.
+	if _, err := d.ExecContext(ctx,
+		`INSERT INTO agents (id, organization_id, name, worker_id, lifecycle, created_by, created_at, updated_at)
+		 VALUES ('LEGACY','org','coder','W1','running','user:a',?,?)`, ts(t0), ts(upd)); err != nil {
+		t.Fatalf("raw legacy insert: %v", err)
+	}
+	got, err := NewAgentRepo(d).FindByID(ctx, "LEGACY")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.LastLifecycleTransitionAt().Equal(upd) {
+		t.Fatalf("legacy backfill: got %v, want updatedAt %v", got.LastLifecycleTransitionAt(), upd)
+	}
+}

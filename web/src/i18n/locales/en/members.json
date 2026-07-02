@@ -303,8 +303,14 @@
         "role": "Role",
         "status": "Status",
         "lastActivity": "Last activity",
+        "lifecycleTime": "Lifecycle time",
         "worker": "Worker"
       }
+    },
+    "lifecycleTime": {
+      "started": "Started / restarted",
+      "stopped": "Stopped",
+      "changed": "Lifecycle changed"
     },
     "status": {
       "joined": "Joined",

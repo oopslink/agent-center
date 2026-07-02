@@ -6,6 +6,7 @@ import { AgentConfigEditModal } from '@/components/AgentConfigEditModal';
 import { normalizeIdentityRef } from '@/api/members';
 import type { Agent } from '@/api/types';
 import { executorBadgeClass } from '@/components/executorProfiles';
+import { lifecycleTimeLabelKey } from '@/utils/agentLifecycleTime';
 
 // AgentProfile (v2.7.1 #228 PR(b)) — the Profile tab body. Three blocks:
 //   1. Info card — Computer (bound worker name + connected status), Created,
@@ -78,6 +79,17 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
               <dt className="text-text-muted">{t('agents.profile.created')}</dt>
               <dd data-testid="agent-profile-created" title={agent.created_at}>
                 {formatDate(agent.created_at)}
+              </dd>
+
+              {/* Lifecycle time: label follows state (started/restarted vs stopped). */}
+              <dt className="text-text-muted">{t(lifecycleTimeLabelKey(agent.lifecycle))}</dt>
+              <dd
+                data-testid="agent-profile-lifecycle-time"
+                title={agent.last_lifecycle_transition_at}
+              >
+                {agent.last_lifecycle_transition_at
+                  ? formatDate(agent.last_lifecycle_transition_at)
+                  : '—'}
               </dd>
 
               <dt className="text-text-muted">{t('agents.profile.creator')}</dt>

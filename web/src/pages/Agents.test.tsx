@@ -44,8 +44,19 @@ const agent = (id: string, extra: Record<string, unknown> = {}) => ({
 });
 
 const seed = [
-  agent('bot-1', { name: 'bot-1', lifecycle: 'running', availability: 'busy' }),
-  agent('bot-2', { name: 'bot-2', lifecycle: 'stopped', availability: 'available' }),
+  agent('bot-1', {
+    name: 'bot-1',
+    lifecycle: 'running',
+    availability: 'busy',
+    last_lifecycle_transition_at: '2026-05-24T03:00:00Z',
+  }),
+  agent('bot-2', {
+    name: 'bot-2',
+    lifecycle: 'stopped',
+    availability: 'available',
+    last_lifecycle_transition_at: '2026-05-24T04:00:00Z',
+  }),
+  // bot-3 has no last_lifecycle_transition_at → the cell shows an em dash.
   agent('bot-3', { name: 'bot-3', lifecycle: 'error', availability: 'unavailable', worker_id: '' }),
 ];
 
@@ -71,6 +82,20 @@ describe('Agents page', () => {
     // T133: the separate "Open →" link is removed; Delete stays.
     expect(screen.queryByText(/Open/)).not.toBeInTheDocument();
     expect(screen.getAllByTestId('agent-delete-button')).toHaveLength(3);
+  });
+
+  it('renders the lifecycle-time column: started/restarted when running, stopped when stopped, em dash when absent', async () => {
+    wrap(<Agents />);
+    await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
+    const cells = screen.getAllByTestId('agent-lifecycle-time');
+    expect(cells).toHaveLength(3);
+    // running → "Started / restarted" label carried on title; value present.
+    expect(cells[0].getAttribute('title')).toMatch(/^Started \/ restarted:/);
+    // stopped → "Stopped" label.
+    expect(cells[1].getAttribute('title')).toMatch(/^Stopped:/);
+    // missing timestamp → em dash, label-only title.
+    expect(cells[2]).toHaveTextContent('—');
+    expect(cells[2].getAttribute('title')).toBe('Lifecycle changed');
   });
 
   it('shows the add-agent empty state when there are no agents', async () => {

@@ -415,3 +415,75 @@ func TestIdentityRefValidate(t *testing.T) {
 	_ = AgentID("a").String()
 	_ = IdentityRef("user:x").String()
 }
+
+// TestAgent_LastLifecycleTransitionAt verifies the dedicated lifecycle-transition
+// timestamp: it seeds to creation time, advances on every lifecycle STATE change
+// (start / restart / stop / mark-stopped / mark-error / …), and — unlike
+// updatedAt — is NOT moved by a config edit (UpdateProfile / SetSkills).
+func TestAgent_LastLifecycleTransitionAt(t *testing.T) {
+	a := newAgent(t) // fresh → stopped
+	if !a.LastLifecycleTransitionAt().Equal(t0) {
+		t.Fatalf("seed: got %v, want createdAt %v", a.LastLifecycleTransitionAt(), t0)
+	}
+
+	tStart := t0.Add(1 * time.Hour)
+	if err := a.Start(tStart); err != nil {
+		t.Fatal(err)
+	}
+	if !a.LastLifecycleTransitionAt().Equal(tStart) {
+		t.Fatalf("start: got %v, want %v", a.LastLifecycleTransitionAt(), tStart)
+	}
+
+	// A profile edit bumps updatedAt but MUST NOT move the lifecycle time.
+	tEdit := t0.Add(2 * time.Hour)
+	if err := a.UpdateProfile(Profile{Name: "renamed"}, tEdit); err != nil {
+		t.Fatal(err)
+	}
+	if !a.UpdatedAt().Equal(tEdit) {
+		t.Fatalf("edit should bump updatedAt: got %v, want %v", a.UpdatedAt(), tEdit)
+	}
+	if !a.LastLifecycleTransitionAt().Equal(tStart) {
+		t.Fatalf("config edit moved lifecycle time: got %v, want %v (unchanged)",
+			a.LastLifecycleTransitionAt(), tStart)
+	}
+
+	// A restart re-stamps it (still running → the UI's start/restart time).
+	tRestart := t0.Add(3 * time.Hour)
+	if err := a.Restart(tRestart); err != nil {
+		t.Fatal(err)
+	}
+	if !a.LastLifecycleTransitionAt().Equal(tRestart) {
+		t.Fatalf("restart: got %v, want %v", a.LastLifecycleTransitionAt(), tRestart)
+	}
+
+	// Stop → mark-stopped: the settled "stopped" time.
+	tStop := t0.Add(4 * time.Hour)
+	if err := a.Stop(tStop); err != nil {
+		t.Fatal(err)
+	}
+	tSettled := t0.Add(5 * time.Hour)
+	if err := a.MarkStopped(tSettled); err != nil {
+		t.Fatal(err)
+	}
+	if !a.LastLifecycleTransitionAt().Equal(tSettled) {
+		t.Fatalf("mark-stopped: got %v, want %v", a.LastLifecycleTransitionAt(), tSettled)
+	}
+}
+
+// TestAgent_LastLifecycleTransitionAt_RehydrateBackfill verifies legacy rows
+// (zero LastLifecycleTransitionAt) fall back to UpdatedAt on rehydrate.
+func TestAgent_LastLifecycleTransitionAt_RehydrateBackfill(t *testing.T) {
+	upd := t0.Add(9 * time.Hour)
+	a, err := RehydrateAgent(RehydrateAgentInput{
+		ID: "A1", OrganizationID: "org", Profile: Profile{Name: "x"}, WorkerID: "w",
+		Lifecycle: LifecycleRunning, CreatedBy: "user:a",
+		CreatedAt: t0, UpdatedAt: upd, Version: 3,
+		// LastLifecycleTransitionAt intentionally zero (legacy row).
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !a.LastLifecycleTransitionAt().Equal(upd) {
+		t.Fatalf("backfill: got %v, want updatedAt %v", a.LastLifecycleTransitionAt(), upd)
+	}
+}

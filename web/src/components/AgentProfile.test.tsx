@@ -58,6 +58,25 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(screen.getByTestId('agent-profile-computer')).toHaveTextContent('no worker');
   });
 
+  it('renders the lifecycle-time row: "Stopped" label when stopped', () => {
+    wrap({ ...base, lifecycle: 'stopped', last_lifecycle_transition_at: '2026-05-24T04:00:00Z' });
+    const cell = screen.getByTestId('agent-profile-lifecycle-time');
+    expect(cell).toHaveAttribute('title', '2026-05-24T04:00:00Z');
+    // The row's dt label reads "Stopped" for a stopped agent.
+    expect(screen.getByText('Stopped')).toBeInTheDocument();
+  });
+
+  it('lifecycle-time row uses the started/restarted label when running', () => {
+    wrap({ ...base, lifecycle: 'running', last_lifecycle_transition_at: '2026-05-24T05:00:00Z' });
+    expect(screen.getByTestId('agent-profile-lifecycle-time')).toBeInTheDocument();
+    expect(screen.getByText('Started / restarted')).toBeInTheDocument();
+  });
+
+  it('lifecycle-time row shows an em dash when the timestamp is absent', () => {
+    wrap({ ...base, lifecycle: 'stopped' });
+    expect(screen.getByTestId('agent-profile-lifecycle-time')).toHaveTextContent('—');
+  });
+
   it('shows the creator display name (raw ref on hover), not the raw actor ref', () => {
     wrap({ ...base, created_by_display_name: 'Hayang' });
     const creator = screen.getByTestId('agent-profile-creator-ref');

@@ -386,7 +386,13 @@ type Agent struct {
 	identityMemberID string
 	createdAt        time.Time
 	updatedAt        time.Time
-	version          int
+	// lastLifecycleTransitionAt stamps the time of the most recent lifecycle
+	// STATE transition (start / stop / restart / reset / archive / the Mark*
+	// feedbacks) — distinct from updatedAt, which also bumps on config edits
+	// (UpdateProfile / SetSkills / SetCapabilityTags). The UI renders it as the
+	// "started/restarted" time when running and the "stopped" time when stopped.
+	lastLifecycleTransitionAt time.Time
+	version                   int
 }
 
 // NewAgentInput captures constructor args.
@@ -438,7 +444,10 @@ func NewAgent(in NewAgentInput) (*Agent, error) {
 		identityMemberID: in.IdentityMemberID,
 		createdAt:        at,
 		updatedAt:        at,
-		version:          1,
+		// A fresh agent is stopped and has never transitioned; seed the field to
+		// creation time so the UI shows a sensible "stopped since" rather than blank.
+		lastLifecycleTransitionAt: at,
+		version:                   1,
 	}, nil
 }
 
@@ -483,7 +492,11 @@ type RehydrateAgentInput struct {
 	IdentityMemberID string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
-	Version          int
+	// LastLifecycleTransitionAt is optional for backward compatibility: legacy
+	// rows persisted before the column existed pass a zero value, which
+	// RehydrateAgent backfills from UpdatedAt.
+	LastLifecycleTransitionAt time.Time
+	Version                   int
 }
 
 // RehydrateAgent reconstructs without invariant checks.
@@ -507,8 +520,20 @@ func RehydrateAgent(in RehydrateAgentInput) (*Agent, error) {
 		identityMemberID: in.IdentityMemberID,
 		createdAt:        in.CreatedAt.UTC(),
 		updatedAt:        in.UpdatedAt.UTC(),
-		version:          in.Version,
+		lastLifecycleTransitionAt: lifecycleTransitionOrFallback(
+			in.LastLifecycleTransitionAt, in.UpdatedAt),
+		version: in.Version,
 	}, nil
+}
+
+// lifecycleTransitionOrFallback returns t.UTC(), or fallback.UTC() when t is
+// zero — legacy rows written before the last_lifecycle_transition_at column
+// existed have no value, so they fall back to updated_at.
+func lifecycleTransitionOrFallback(t, fallback time.Time) time.Time {
+	if t.IsZero() {
+		return fallback.UTC()
+	}
+	return t.UTC()
 }
 
 // Getters.
@@ -522,7 +547,12 @@ func (a *Agent) CreatedBy() IdentityRef    { return a.createdBy }
 func (a *Agent) IdentityMemberID() string  { return a.identityMemberID }
 func (a *Agent) CreatedAt() time.Time      { return a.createdAt }
 func (a *Agent) UpdatedAt() time.Time      { return a.updatedAt }
-func (a *Agent) Version() int              { return a.version }
+
+// LastLifecycleTransitionAt is the time of the most recent lifecycle state
+// transition (start / stop / restart / reset / archive / Mark* feedback).
+func (a *Agent) LastLifecycleTransitionAt() time.Time { return a.lastLifecycleTransitionAt }
+
+func (a *Agent) Version() int { return a.version }
 
 // Skills returns a defensive copy.
 func (a *Agent) Skills() []string {
@@ -590,7 +620,7 @@ func (a *Agent) Start(at time.Time) error {
 	}
 	a.lifecycle = LifecycleRunning
 	a.lifecycleError = ""
-	a.touch(at)
+	a.touchLifecycle(at)
 	return nil
 }
 
@@ -602,7 +632,7 @@ func (a *Agent) Stop(at time.Time) error {
 		return ErrIllegalLifecycle
 	}
 	a.lifecycle = LifecycleStopping
-	a.touch(at)
+	a.touchLifecycle(at)
 	return nil
 }
 
@@ -612,7 +642,7 @@ func (a *Agent) Restart(at time.Time) error {
 	if a.lifecycle != LifecycleRunning {
 		return ErrIllegalLifecycle
 	}
-	a.touch(at)
+	a.touchLifecycle(at)
 	return nil
 }
 
@@ -637,7 +667,7 @@ func (a *Agent) Reset(scope ResetScope, at time.Time) error {
 		return ErrResetRequiresStopped
 	}
 	a.lifecycle = LifecycleResetting
-	a.touch(at)
+	a.touchLifecycle(at)
 	return nil
 }
 
@@ -667,7 +697,7 @@ func (a *Agent) Archive(at time.Time) error {
 	a.lifecycle = LifecycleArchived
 	a.lifecycleError = ""
 	a.workerID = "" // release the binding; the worker becomes re-bindable
-	a.touch(at)
+	a.touchLifecycle(at)
 	return nil
 }
 
@@ -678,7 +708,7 @@ func (a *Agent) MarkStopped(at time.Time) error {
 		return ErrIllegalLifecycle
 	}
 	a.lifecycle = LifecycleStopped
-	a.touch(at)
+	a.touchLifecycle(at)
 	return nil
 }
 
@@ -686,7 +716,7 @@ func (a *Agent) MarkStopped(at time.Time) error {
 func (a *Agent) MarkError(msg string, at time.Time) {
 	a.lifecycle = LifecycleError
 	a.lifecycleError = msg
-	a.touch(at)
+	a.touchLifecycle(at)
 }
 
 // MarkRecovered is the Environment feedback that a CRASHED agent's session is back
@@ -704,7 +734,7 @@ func (a *Agent) MarkRecovered(at time.Time) {
 	}
 	a.lifecycle = LifecycleRunning
 	a.lifecycleError = ""
-	a.touch(at)
+	a.touchLifecycle(at)
 }
 
 // MarkFailed records the TERMINAL crash-loop circuit-breaker state (v2.7 GATE-7
@@ -717,7 +747,7 @@ func (a *Agent) MarkFailed(msg string, at time.Time) error {
 	}
 	a.lifecycle = LifecycleFailed
 	a.lifecycleError = msg
-	a.touch(at)
+	a.touchLifecycle(at)
 	return nil
 }
 
@@ -753,4 +783,17 @@ func (a *Agent) touch(at time.Time) {
 	}
 	a.updatedAt = at.UTC()
 	a.version++
+}
+
+// touchLifecycle is touch() plus stamping lastLifecycleTransitionAt. Called by
+// the lifecycle STATE transitions (start / stop / restart / reset / archive and
+// the Mark* feedbacks) — NOT by config edits (UpdateProfile / SetSkills /
+// SetCapabilityTags), which use plain touch() so a profile edit does not move
+// the "started/stopped" time.
+func (a *Agent) touchLifecycle(at time.Time) {
+	if at.IsZero() {
+		at = time.Now()
+	}
+	a.lastLifecycleTransitionAt = at.UTC()
+	a.touch(at)
 }

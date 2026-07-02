@@ -28,6 +28,7 @@ import {
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { formatLocalTime } from '@/utils/time';
+import { lifecycleTimeLabelKey } from '@/utils/agentLifecycleTime';
 
 // v2.7 #197: map the backend's delete-guard codes to friendly copy so the UI
 // never shows a raw error code or fails silently (Rule 9).
@@ -257,6 +258,8 @@ export default function Agents(): React.ReactElement {
                 <th className="w-[7%] border-b border-border-base px-3 py-2">{t('agents.list.col.role')}</th>
                 <th className="w-[9%] border-b border-border-base px-3 py-2">{t('agents.list.col.status')}</th>
                 <th className="w-[13%] border-b border-border-base px-3 py-2">{t('agents.list.col.lastActivity')}</th>
+                {/* Lifecycle time: started/restarted when running, stopped when stopped. */}
+                <th className="w-[11%] border-b border-border-base px-3 py-2">{t('agents.list.col.lifecycleTime')}</th>
                 <th className="w-[12%] border-b border-border-base px-3 py-2">{t('agents.list.col.worker')}</th>
                 <th className="w-[7%] border-b border-border-base px-3 py-2 text-right" />
               </tr>
@@ -341,6 +344,12 @@ export default function Agents(): React.ReactElement {
                   <AgentLastActivity
                     at={a.last_activity_at}
                     content={a.last_activity_content}
+                  />
+                </td>
+                <td className="border-b border-border-base px-3 py-2 align-top">
+                  <AgentLifecycleTime
+                    at={a.last_lifecycle_transition_at}
+                    lifecycle={a.lifecycle}
                   />
                 </td>
                 <td className="border-b border-border-base px-3 py-2 text-xs text-text-muted">
@@ -607,6 +616,37 @@ function AgentLastActivity({
           {preview}
         </div>
       )}
+    </div>
+  );
+}
+
+// AgentLifecycleTime — the lifecycle-time cell for an Agents row. Shows the last
+// lifecycle transition timestamp (formatLocalTime, LOCAL tz) under a state-aware
+// label carried on `title`: "started/restarted" when running, "stopped" when
+// stopped, generic otherwise. Missing timestamp → an em dash (never blank).
+function AgentLifecycleTime({
+  at,
+  lifecycle,
+}: {
+  at: string | undefined;
+  lifecycle: string | undefined;
+}): React.ReactElement {
+  const { t } = useTranslation('members');
+  const label = t(lifecycleTimeLabelKey(lifecycle));
+  if (!at) {
+    return (
+      <span className="text-xs text-text-muted" data-testid="agent-lifecycle-time" title={label}>
+        —
+      </span>
+    );
+  }
+  return (
+    <div
+      className="text-xs text-text-muted"
+      data-testid="agent-lifecycle-time"
+      title={`${label}: ${formatLocalTime(at)}`}
+    >
+      {formatLocalTime(at)}
     </div>
   );
 }

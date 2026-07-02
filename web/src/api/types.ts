@@ -212,6 +212,10 @@ export interface Agent {
   version: number;
   created_at: string;
   updated_at: string;
+  // Time of the most recent lifecycle transition (start/stop/restart/reset/…).
+  // Rendered as the started/restarted time when running, the stopped time when
+  // stopped. Omitted only for payloads predating the field.
+  last_lifecycle_transition_at?: string;
   lifecycle_error?: string;
   // v2.7.1 #228/#120 — Profile-only enrichment, present ONLY on the single-agent
   // detail load (GET /api/agents/{id}), never on the list. Each is omitted when

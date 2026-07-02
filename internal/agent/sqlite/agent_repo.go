@@ -36,13 +36,13 @@ func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO agents (id, organization_id, name, description, model, cli, reasoning, mode, provider,
 			orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars, skills,
-			capability_tags, auto_assignable, include_description_in_system_prompt, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			capability_tags, auto_assignable, include_description_in_system_prompt, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, last_lifecycle_transition_at, version)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(a.ID()), a.OrganizationID(), p.Name, nullString(p.Description), nullString(p.Model),
 		nullString(p.CLI), nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
 		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors,
 		env, skills, tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
-		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), a.Version())
+		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), ts(a.LastLifecycleTransitionAt()), a.Version())
 	if persistence.IsUniqueViolation(err) {
 		return agent.ErrAgentExists
 	}
@@ -60,11 +60,11 @@ func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	res, err := exec.ExecContext(ctx,
 		`UPDATE agents SET name=?, description=?, model=?, cli=?, reasoning=?, mode=?, provider=?,
 			orchestrator_model=?, default_executor_model=?, max_concurrent_tasks=?, allowed_models=?, allowed_executors=?, env_vars=?, skills=?,
-			capability_tags=?, auto_assignable=?, include_description_in_system_prompt=?, lifecycle=?, lifecycle_error=?, updated_at=?, version=? WHERE id=?`,
+			capability_tags=?, auto_assignable=?, include_description_in_system_prompt=?, lifecycle=?, lifecycle_error=?, updated_at=?, last_lifecycle_transition_at=?, version=? WHERE id=?`,
 		p.Name, nullString(p.Description), nullString(p.Model), nullString(p.CLI),
 		nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
 		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors, env, skills,
-		tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), a.Version(), string(a.ID()))
+		tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), ts(a.LastLifecycleTransitionAt()), a.Version(), string(a.ID()))
 	if err != nil {
 		return err
 	}
@@ -82,8 +82,8 @@ func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 func (r *AgentRepo) Archive(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx,
-		`UPDATE agents SET lifecycle=?, lifecycle_error='', worker_id='', updated_at=?, version=? WHERE id=?`,
-		string(a.Lifecycle()), ts(a.UpdatedAt()), a.Version(), string(a.ID()))
+		`UPDATE agents SET lifecycle=?, lifecycle_error='', worker_id='', updated_at=?, last_lifecycle_transition_at=?, version=? WHERE id=?`,
+		string(a.Lifecycle()), ts(a.UpdatedAt()), ts(a.LastLifecycleTransitionAt()), a.Version(), string(a.ID()))
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func (r *AgentRepo) list(ctx context.Context, q, arg string) ([]*agent.Agent, er
 
 const agentSelect = `SELECT id, organization_id, name, description, model, cli, reasoning, mode, provider,
 	orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars, skills,
-	capability_tags, auto_assignable, include_description_in_system_prompt, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, version FROM agents`
+	capability_tags, auto_assignable, include_description_in_system_prompt, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, last_lifecycle_transition_at, version FROM agents`
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
@@ -246,6 +246,7 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string,
 func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 	var (
 		id, org, name, workerID, lifecycle, createdBy, createdAt, updatedAt string
+		lastLifecycleTransitionAt                                           sql.NullString // nullable: legacy rows predate the column
 		desc, model, cli, lifecycleErr, identityMemberID                    sql.NullString
 		reasoning, mode, provider                                           sql.NullString
 		orchestratorModel, defaultExecutorModel                             sql.NullString
@@ -258,7 +259,7 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 	)
 	if err := scan(&id, &org, &name, &desc, &model, &cli, &reasoning, &mode, &provider,
 		&orchestratorModel, &defaultExecutorModel, &maxConcurrentTasks, &allowedModelsJSON, &allowedExecutorsJSON, &envJSON, &skillsJSON,
-		&tagsJSON, &autoAssignable, &includeDescInPrompt, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &version); err != nil {
+		&tagsJSON, &autoAssignable, &includeDescInPrompt, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &lastLifecycleTransitionAt, &version); err != nil {
 		return nil, err
 	}
 	var env map[string]string
@@ -302,7 +303,9 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 		Lifecycle: agent.AgentLifecycle(lifecycle), LifecycleError: lifecycleErr.String,
 		CreatedBy:        agent.IdentityRef(createdBy),
 		IdentityMemberID: identityMemberID.String,
-		CreatedAt:        parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
+		CreatedAt:        parseTime(createdAt), UpdatedAt: parseTime(updatedAt),
+		// NULL/empty on legacy rows → zero time → RehydrateAgent backfills from UpdatedAt.
+		LastLifecycleTransitionAt: parseTime(lastLifecycleTransitionAt.String), Version: version,
 	})
 }
 

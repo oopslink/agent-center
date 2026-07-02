@@ -154,6 +154,11 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		"created_at":         a.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at":         a.UpdatedAt().Format(time.RFC3339Nano),
 	}
+	// Time of the most recent lifecycle transition — the UI shows it as the
+	// started/restarted time when running, the stopped time when stopped.
+	if t := a.LastLifecycleTransitionAt(); !t.IsZero() {
+		m["last_lifecycle_transition_at"] = t.Format(time.RFC3339Nano)
+	}
 	if le := a.LifecycleError(); le != "" {
 		m["lifecycle_error"] = le
 	}

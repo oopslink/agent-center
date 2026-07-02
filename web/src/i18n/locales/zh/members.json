@@ -303,8 +303,14 @@
         "role": "角色",
         "status": "状态",
         "lastActivity": "最近活动",
+        "lifecycleTime": "生命周期时间",
         "worker": "工作节点"
       }
+    },
+    "lifecycleTime": {
+      "started": "启动/重启时间",
+      "stopped": "停止时间",
+      "changed": "状态变更时间"
     },
     "status": {
       "joined": "已加入",
