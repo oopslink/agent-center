@@ -48,10 +48,14 @@ const METRICS: { id: HeatmapMetric; labelKey: string; swatch: string }[] = [
 // this SPA (the documented trap), so levels 1-3 were invisible and only level 4
 // (solid) showed (@oopslink: Less/More 不对). raw-color-ok: data-visualization ramp.
 const RAMP_EMPTY = 'bg-bg-subtle';
+// Ordered LIGHT (level 1, least) → DARK (level 4, most) so the Less▢▢▢▢▢More legend
+// darkens toward "More", matching the GitHub-contribution convention (more activity =
+// deeper hue). The arrays were previously dark→light, which inverted the legend — the
+// darkest swatch sat at the "Less" end (@oopslink).
 const RAMP_HEX: Record<HeatmapMetric, [string, string, string, string]> = {
-  activity: ['#0e4429', '#006d32', '#26a641', '#39d353'], // GitHub-style greens
-  tokens: ['#0a3069', '#0969da', '#218bff', '#54aeff'], // blues
-  cost: ['#7a4f01', '#bb8009', '#e3a008', '#f5c518'], // ambers
+  activity: ['#39d353', '#26a641', '#006d32', '#0e4429'], // GitHub-style greens, light→dark
+  tokens: ['#54aeff', '#218bff', '#0969da', '#0a3069'], // blues, light→dark
+  cost: ['#f5c518', '#e3a008', '#bb8009', '#7a4f01'], // ambers, light→dark
 };
 
 /** rampStyle returns the inline backgroundColor for a level (1..4), or undefined
