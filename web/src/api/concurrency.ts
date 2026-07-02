@@ -37,6 +37,15 @@ export interface AgentConcurrency {
   // snapshot-present, i.e. the legacy stale-only behavior).
   reachable?: boolean;
   has_snapshot?: boolean;
+  // running — the CENTER-known in-progress task count for this agent (PM AgentTaskLoad.
+  // Running). Used as the occupancy FALLBACK when no live snapshot is available so a
+  // busy agent never reads a bare "—". Optional for back-compat with a pre-fix Center.
+  running?: number;
+  // concurrency_enabled — whether the agent actually runs the concurrent executor path
+  // (cap>1). false = a genuinely single-active agent (the honest "concurrency not
+  // active" case); true but no snapshot = enabled-yet-awaiting-live-data (NOT "not
+  // active"). Optional for back-compat (absent → treated as the legacy nodata label).
+  concurrency_enabled?: boolean;
   snapshot_age_ms: number;
   executors: ConcurrencyExecutor[];
 }

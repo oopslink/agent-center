@@ -26,14 +26,34 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	agentID := agentFacingID(a)
+	// liveKey is the id the WORKER keys its concurrency snapshot by: the execution
+	// entity's AR id (string(a.ID())). It travels to the daemon as the lifecycle
+	// event's agent_id (agent/service/service.go → agent_control_projector) and is used
+	// verbatim as the LiveState.Put key on the heartbeat. For any member-provisioned
+	// agent this is DISTINCT from agentFacingID (the member id "agent-<hex>"), so the
+	// read MUST key by a.ID(); keying by agentFacingID silently missed every member
+	// agent's snapshot and reported "concurrency not active" while it was running
+	// (issue-c44ccf6b). The response's `agent_id` field below stays agentFacingID — the
+	// outward contract is unchanged; only the internal store lookup key is corrected.
+	liveKey := string(a.ID())
 	cap := a.Profile().EffectiveConcurrencyCap()
+	// concurrencyEnabled distinguishes a genuinely single-active agent (cap 1, the
+	// honest "concurrency not active" case) from one that HAS concurrency enabled but
+	// simply has no fresh snapshot yet — the UI must not label the latter "not active".
+	concurrencyEnabled := a.Profile().ConcurrencyEnabled()
 
-	// queued = the agent's PENDING tasks (open/assigned, unblocked, not yet running) —
-	// the assign_flow AgentTaskLoad split. Fail-soft: a count error degrades to 0.
+	// PM-derived per-agent load (keyed by the member ref agent:<member-id>):
+	//   queued  = Pending (open/assigned, unblocked, not yet running)
+	//   running = Running (center-known in-progress) — the FALLBACK occupancy the UI
+	//             shows when no live snapshot is available, so a busy agent never reads
+	//             a bare "—". Fail-soft: a count error degrades both to 0.
 	queued := 0
+	running := 0
 	if d.PM != nil {
 		if loads, err := d.PM.AgentTaskLoads(r.Context()); err == nil {
-			queued = loads[pm.IdentityRef("agent:"+agentID)].Pending
+			load := loads[pm.IdentityRef("agent:"+agentID)]
+			queued = load.Pending
+			running = load.Running
 		}
 	}
 
@@ -54,7 +74,7 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 	var snapshotAgeMs int64
 	executors := []map[string]any{}
 	if d.LiveState != nil {
-		if snap, age, found := d.LiveState.Get(agentID, time.Now()); found {
+		if snap, age, found := d.LiveState.Get(liveKey, time.Now()); found {
 			hasSnapshot = true
 			snapshotAgeMs = age.Milliseconds()
 			stale = age > liveStateTTL
@@ -87,14 +107,16 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"agent_id":        agentID,
-		"cap":             cap,
-		"active":          active,
-		"queued":          queued,
-		"stale":           stale,
-		"reachable":       reachable,
-		"has_snapshot":    hasSnapshot,
-		"snapshot_age_ms": snapshotAgeMs,
-		"executors":       executors,
+		"agent_id":            agentID,
+		"cap":                 cap,
+		"active":              active,
+		"queued":              queued,
+		"running":             running,
+		"concurrency_enabled": concurrencyEnabled,
+		"stale":               stale,
+		"reachable":           reachable,
+		"has_snapshot":        hasSnapshot,
+		"snapshot_age_ms":     snapshotAgeMs,
+		"executors":           executors,
 	})
 }

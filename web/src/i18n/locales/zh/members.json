@@ -101,7 +101,8 @@
           "live": "个槽位使用中",
           "offline": "个槽位 — 工作节点离线",
           "expired": "个槽位 — 快照已过期",
-          "nodata": "无实时槽位数据"
+          "disabled": "运行中 · 单活 agent",
+          "nodata": "个槽位 · 等待实时数据"
         },
         "queued": "· {{count}} 项排队中",
         "adaptiveTitle": "自适应心跳频率",
@@ -109,7 +110,8 @@
         "updatedAgo": "{{age}}前更新",
         "workerOffline": "工作节点离线",
         "expiredAge": "快照于 {{age}}前 · 最近已知",
-        "nodataDetail": "无实时槽位数据 · 并发未启用"
+        "disabledDetail": "单活 agent · 并发未启用",
+        "nodataDetail": "等待实时槽位数据"
       },
       "overlay": {
         "slot": "槽位 {{slot}}",

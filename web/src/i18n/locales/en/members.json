@@ -101,7 +101,8 @@
           "live": "slots in use",
           "offline": "slots — worker offline",
           "expired": "slots — snapshot expired",
-          "nodata": "no live slot data"
+          "disabled": "active · single-active agent",
+          "nodata": "slots · awaiting live data"
         },
         "queued": "· {{count}} queued",
         "adaptiveTitle": "Adaptive heartbeat cadence",
@@ -109,7 +110,8 @@
         "updatedAgo": "updated {{age}} ago",
         "workerOffline": "worker offline",
         "expiredAge": "snapshot {{age}} ago · last known",
-        "nodataDetail": "no real-time slot data · concurrency not active"
+        "disabledDetail": "single-active agent · concurrency not active",
+        "nodataDetail": "awaiting live slot data"
       },
       "overlay": {
         "slot": "slot {{slot}}",

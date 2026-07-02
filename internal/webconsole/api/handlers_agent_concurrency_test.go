@@ -1,15 +1,32 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/concurrency"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsqlite "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfsqlite "github.com/oopslink/agent-center/internal/workforce/sqlite"
 )
+
+// arID resolves an agent's EXECUTION-entity id (string(a.ID()), the AR ULID) from its
+// member id — this is the id the WORKER keys its concurrency snapshot by (the lifecycle
+// event's agent_id). Tests MUST seed the LiveState store under THIS key, not the member
+// id, to exercise the real production write path (issue-c44ccf6b): keying by the member
+// id (as the pre-fix tests did) accidentally matched the buggy read key and hid the bug.
+func arID(t *testing.T, deps HandlerDeps, memberID string) string {
+	t.Helper()
+	a, err := deps.AgentSvc.ResolveAgent(context.Background(), memberID)
+	if err != nil {
+		t.Fatalf("resolve agent %s: %v", memberID, err)
+	}
+	return string(a.ID())
+}
 
 // v2.19.0 GET .../agents/{id}/concurrency: the cap (profile) + queued (pm) joined
 // with the worker's last-known live executor snapshot (store).
@@ -35,8 +52,10 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 		t.Fatal("missing agent id")
 	}
 
-	// Seed a fresh snapshot for this agent.
-	store.Put(id, concurrency.AgentSnapshot{
+	// Seed a fresh snapshot under the REAL worker write key (the AR id), NOT the member
+	// id — matching production (issue-c44ccf6b). The handler must resolve the member-id
+	// URL to a.ID() and find it there.
+	store.Put(arID(t, deps, id), concurrency.AgentSnapshot{
 		Active: 1,
 		Executors: []concurrency.ExecutorSnapshot{
 			{ExecutorID: "e1", TaskID: "t1", CLI: "codex", Model: "gpt-5.5", State: concurrency.StateRunning, PID: 99, StartedAt: time.Now()},
@@ -191,5 +210,116 @@ func TestAPI_AgentConcurrency_RequiresAuth(t *testing.T) {
 	defer r.Body.Close()
 	if r.StatusCode != http.StatusUnauthorized && r.StatusCode != http.StatusForbidden {
 		t.Fatalf("unauthenticated status = %d, want 401/403", r.StatusCode)
+	}
+}
+
+// issue-c44ccf6b root-cause regression: the worker writes the snapshot under the AR id
+// (string(a.ID())), while the read handler must look it up by the SAME AR id — NOT the
+// member id (agent-<hex>) that agentFacingID prefers. For a member-provisioned agent the
+// two ids DIFFER, so a member-keyed read missed every running snapshot and reported
+// "concurrency not active" while the agent was busy. This test seeds under the real write
+// key and asserts the read finds it; a negative control seeds under the OLD (member-id)
+// key and asserts the read does NOT find it — guarding against a regression back to a
+// member-keyed lookup. The outward `agent_id` field stays the member id (contract).
+func TestAPI_AgentConcurrency_ReadsByARKeyNotMemberID(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	store := concurrency.NewInMemoryStore()
+	deps.LiveState = store
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"named","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	memberID, _ := created["identity_id"].(string)
+	arKey := arID(t, deps, memberID)
+
+	// Precondition: the two ids are genuinely different (else the test proves nothing).
+	if arKey == memberID {
+		t.Fatalf("expected member id (%s) != AR id (%s) for a member-provisioned agent", memberID, arKey)
+	}
+
+	snap := concurrency.AgentSnapshot{
+		Active:    2,
+		Executors: []concurrency.ExecutorSnapshot{{ExecutorID: "e1", TaskID: "t1", State: concurrency.StateRunning, StartedAt: time.Now()}},
+	}
+
+	// Negative control: seeding under the MEMBER id (the pre-fix buggy key) must NOT be
+	// found — the read is keyed by the AR id.
+	store.Put(memberID, snap, time.Now())
+	resp = orgScopedGet(t, s.URL+"/api/agents/"+memberID+"/concurrency", sess)
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if hs, _ := body["has_snapshot"].(bool); hs {
+		t.Fatalf("member-id-keyed snapshot must NOT be found (read keys by AR id); got has_snapshot=true")
+	}
+
+	// Real write path: seed under the AR id → the member-id URL resolves and finds it.
+	store.Put(arKey, snap, time.Now())
+	resp = orgScopedGet(t, s.URL+"/api/agents/"+memberID+"/concurrency", sess)
+	body = map[string]any{}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if hs, _ := body["has_snapshot"].(bool); !hs {
+		t.Errorf("AR-id-keyed snapshot must be found; got has_snapshot=false")
+	}
+	if active, _ := body["active"].(float64); active != 2 {
+		t.Errorf("active = %v, want 2 (from the live snapshot)", body["active"])
+	}
+	if body["agent_id"] != memberID {
+		t.Errorf("agent_id = %v, want member id %s (outward contract unchanged)", body["agent_id"], memberID)
+	}
+}
+
+// issue-c44ccf6b fallback: with NO live snapshot, the occupancy must NOT collapse to a
+// bare "—" — the handler surfaces the center-known in-progress count (PM
+// AgentTaskLoad.Running) as `running`, and `concurrency_enabled` so the UI can tell a
+// genuinely single-active agent apart from an enabled-but-awaiting one.
+func TestAPI_AgentConcurrency_RunningFallback_NoSnapshot(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	deps.LiveState = concurrency.NewInMemoryStore() // empty: no snapshot
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"busy","model":"claude","cli":"claude-code","worker_id":"w-1"}`, sess)
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	memberID, _ := created["identity_id"].(string)
+
+	// Seed one RUNNING task assigned to this agent (agent:<member-id>) straight into the
+	// task repo on the same db PM reads — CountActiveByAssignee then reports Running=1.
+	now := time.Now()
+	tk, err := pm.RehydrateTask(pm.RehydrateTaskInput{
+		ID: "task-run-1", ProjectID: "proj-x", Title: "in progress",
+		Status: pm.TaskRunning, Assignee: pm.IdentityRef("agent:" + memberID),
+		CreatedBy: "user:a", CreatedAt: now, UpdatedAt: now, Version: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pmsqlite.NewTaskRepo(db).Save(context.Background(), tk); err != nil {
+		t.Fatal(err)
+	}
+
+	resp = orgScopedGet(t, s.URL+"/api/agents/"+memberID+"/concurrency", sess)
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if hs, _ := body["has_snapshot"].(bool); hs {
+		t.Error("no snapshot must report has_snapshot=false")
+	}
+	if active, _ := body["active"].(float64); active != 0 {
+		t.Errorf("active = %v, want 0 (no live snapshot)", body["active"])
+	}
+	if running, _ := body["running"].(float64); running != 1 {
+		t.Errorf("running = %v, want 1 (center-known in-progress fallback)", body["running"])
+	}
+	// A default agent (no allowed_executors) is single-active → concurrency_enabled=false.
+	if ce, ok := body["concurrency_enabled"].(bool); !ok || ce {
+		t.Errorf("concurrency_enabled = %v, want false (default single-active agent)", body["concurrency_enabled"])
 	}
 }
