@@ -1,9 +1,31 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"testing"
+
+	"github.com/oopslink/agent-center/internal/agent"
 )
+
+// seedNamedAgent adds an org agent with an arbitrary display_name (which may
+// contain spaces) to the fixture roster, so mention-report tests can exercise
+// display_names the tokenizer truncates. Returns nothing; the agent is visible
+// to buildMentionsReport via AgentSvc.ListAgents.
+func (f *writeToolsFixture) seedNamedAgent(t *testing.T, id, name, memberID string) {
+	t.Helper()
+	a, err := agent.NewAgent(agent.NewAgentInput{
+		ID: agent.AgentID(id), OrganizationID: atTestOrg,
+		Profile: agent.Profile{Name: name}, WorkerID: atWorker1,
+		CreatedBy: "system", CreatedAt: atNow, IdentityMemberID: memberID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.agents.Save(context.Background(), a); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // T460 ③: post_message returns a structured mentions report when an intended
 // @mention resolves to nobody — resolved vs unresolved, each unresolved token
@@ -121,6 +143,77 @@ func TestPostMessage_MentionRefs_UnknownRefReported(t *testing.T) {
 	}
 	if u0, _ := unresolved[0].(map[string]any); u0["token"] != "agent:NOPE-404" {
 		t.Fatalf("unresolved ref should be agent:NOPE-404, got %v", unresolved[0])
+	}
+}
+
+// T742: an @mention of a display_name that CONTAINS A SPACE ("@Owner t1") must
+// NOT be falsely flagged unresolved. ExtractTokens truncates the token at the
+// space (→ "owner"), but the wake path / badge use mention.Present (full-name
+// substring) and DO hit it; buildMentionsReport now reconciles the two by
+// pre-resolving spaced names via Present. A post whose only mention is such a
+// name is fully resolved → carries no mentions block (no did_you_mean noise).
+func TestPostMessage_SpacedDisplayName_NoFalseDidYouMean(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	f.seedNamedAgent(t, "01OWNERT1", "Owner t1", "agent-ownert1")
+	srv := f.server(t)
+	convID := startAgentDM(t, f, srv.URL)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{
+			"agent_id": atAgent1,
+			"target":   map[string]any{"type": "conversation", "id": convID},
+			"content":  "@Owner t1 please review",
+		})
+	if status != http.StatusOK {
+		t.Fatalf("post status=%d body=%v", status, body)
+	}
+	if body["message_id"] == nil || body["message_id"] == "" {
+		t.Fatalf("message must still be sent, got %v", body)
+	}
+	if _, present := body["mentions"]; present {
+		t.Fatalf("a spaced-name @mention that Present resolves must carry no mentions block, got %v", body["mentions"])
+	}
+}
+
+// T742 regression: with a spaced name present, a genuinely mistyped @token in the
+// SAME message is still reported unresolved with a did_you_mean — the fix only
+// suppresses the truncated remnant of a name Present actually matched, not real
+// misses.
+func TestPostMessage_SpacedDisplayName_StillReportsRealTypo(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	f.seedNamedAgent(t, "01OWNERT1", "Owner t1", "agent-ownert1")
+	srv := f.server(t)
+	convID := startAgentDM(t, f, srv.URL)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/post_message", "acat_w1",
+		map[string]any{
+			"agent_id": atAgent1,
+			"target":   map[string]any{"type": "conversation", "id": convID},
+			"content":  "@Owner t1 and @AG3 please look",
+		})
+	if status != http.StatusOK {
+		t.Fatalf("post status=%d body=%v", status, body)
+	}
+	rep, ok := body["mentions"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected a mentions report (for @AG3), got %v", body["mentions"])
+	}
+	resolved, _ := rep["resolved"].([]any)
+	if !containsStr(resolved, "@Owner t1") {
+		t.Fatalf("resolved should contain @Owner t1, got %v", resolved)
+	}
+	unresolved, _ := rep["unresolved"].([]any)
+	if len(unresolved) != 1 {
+		t.Fatalf("expected exactly one unresolved token (@ag3), got %v", unresolved)
+	}
+	u0, _ := unresolved[0].(map[string]any)
+	if u0["token"] != "@ag3" {
+		t.Fatalf("unresolved token should be @ag3 (the real typo), got %v", u0["token"])
+	}
+	if dym, _ := u0["did_you_mean"].(string); dym == "" {
+		t.Fatalf("@ag3 should still carry a did_you_mean, got %v", u0)
 	}
 }
 

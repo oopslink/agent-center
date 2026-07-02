@@ -120,10 +120,33 @@ func (s *Server) buildMentionsReport(ctx context.Context, d HandlerDeps, a *agen
 	var resolved []string
 	var unresolved []unresolvedMention
 
+	// T742 — reconcile the tokenizer with mention.Present for display_names that
+	// contain a space. ExtractTokens stops a token at the first non-word char, so
+	// an @mention of "@Owner t1" yields only "owner" — which matches no full name
+	// in nameSet and would be falsely flagged unresolved (a "did you mean @Owner t1"
+	// noise) even though the wake path / badge, which use mention.Present (full-name
+	// substring), correctly hit it. Pre-resolve every spaced name that Present finds
+	// in the content using that SAME matcher, and record its leading token so the
+	// token loop below skips the truncated remnant. This keeps a single tokenizer
+	// intact and makes did_you_mean agree with Present.
+	spacedResolved := map[string]bool{}
+	for _, n := range names {
+		if !strings.Contains(n, " ") {
+			continue
+		}
+		if mention.Present(content, n) {
+			resolved = append(resolved, "@"+n)
+			spacedResolved[leadingToken(n)] = true
+		}
+	}
+
 	for _, tok := range tokens {
 		if tok == mention.AllToken {
 			resolved = append(resolved, "@"+tok) // broadcast addresses everyone
 			continue
+		}
+		if spacedResolved[tok] {
+			continue // already resolved via a full multi-word name (T742)
 		}
 		if canon, ok := nameSet[tok]; ok {
 			resolved = append(resolved, "@"+canon)
@@ -165,6 +188,26 @@ func (s *Server) buildMentionsReport(ctx context.Context, d HandlerDeps, a *agen
 	}
 
 	return &mentionsReport{Resolved: resolved, Unresolved: unresolved}
+}
+
+// leadingToken returns the leading run of word chars of a display_name,
+// lowercased — the exact token ExtractTokens produces for an @mention of that
+// name, which truncates at the first non-word char (e.g. the space in
+// "Owner t1" → "owner"). Used by T742 to skip the truncated remnant of a spaced
+// name already resolved via mention.Present.
+func leadingToken(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	i := 0
+	for i < len(name) && isMentionWordChar(name[i]) {
+		i++
+	}
+	return name[:i]
+}
+
+// isMentionWordChar mirrors mention.ExtractTokens' token-boundary rule
+// ([a-z0-9_-]) so leadingToken produces the same token the tokenizer would.
+func isMentionWordChar(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' || b == '-'
 }
 
 // suggestName returns the nearest known display_name ("@name") to an unresolved

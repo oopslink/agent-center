@@ -52,6 +52,7 @@ type writeToolsFixture struct {
 	verifier *fakeVerifier
 
 	db          *sql.DB
+	agents      *agentsql.AgentRepo
 	pmSvc       *pmservice.Service
 	codeRepoSvc *coderepservice.Service
 	convRepo    conversation.ConversationRepository
@@ -214,7 +215,7 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 		OutboxRepo:    outboxRepo,
 	}
 	return &writeToolsFixture{
-		deps: deps, verifier: verifier, db: db, pmSvc: pmSvc, codeRepoSvc: codeRepoSvc, convRepo: convRepo,
+		deps: deps, verifier: verifier, db: db, agents: agents, pmSvc: pmSvc, codeRepoSvc: codeRepoSvc, convRepo: convRepo,
 		msgRepo: msgRepo, outboxRepo: outboxRepo, relay: relay, clk: clk,
 	}
 }
