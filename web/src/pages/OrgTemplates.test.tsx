@@ -75,4 +75,56 @@ describe('OrgTemplates edit — content hydration', () => {
     const panel = await screen.findByTestId('template-content-panel');
     await waitFor(() => expect(panel).toHaveTextContent('REAL TEMPLATE BODY'));
   });
+
+  it('renders the content panel INSIDE its own card (attached, not a detached bottom panel)', async () => {
+    server.use(
+      http.get('/api/templates', () => HttpResponse.json({ templates: [listItem] })),
+      http.get('/api/templates/:id', () => HttpResponse.json(detail)),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('template-card-view'));
+    const panel = await screen.findByTestId('template-content-panel');
+    const card = screen.getByTestId('template-card');
+    expect(card).toContainElement(panel);
+  });
+});
+
+describe('OrgTemplates layout — multiple cards expand independently', () => {
+  const listA = { ...listItem, id: 'ta', name: 'Template A' };
+  const listB = { ...listItem, id: 'tb', name: 'Template B' };
+  const bodies: Record<string, string> = { ta: 'BODY A', tb: 'BODY B' };
+
+  function wrapTwo() {
+    server.use(
+      http.get('/api/templates', () => HttpResponse.json({ templates: [listA, listB] })),
+      http.get('/api/templates/:id', ({ params }) =>
+        HttpResponse.json({ ...listItem, id: params.id, content: bodies[params.id as string] ?? '', version: 1 }),
+      ),
+    );
+    return wrap();
+  }
+
+  it('opens two cards at once — both content panels stay visible', async () => {
+    wrapTwo();
+    const views = await screen.findAllByTestId('template-card-view');
+    expect(views).toHaveLength(2);
+    fireEvent.click(views[0]);
+    fireEvent.click(views[1]);
+    const panels = await screen.findAllByTestId('template-content-panel');
+    expect(panels).toHaveLength(2);
+    await waitFor(() => expect(screen.getByText('BODY A')).toBeInTheDocument());
+    expect(screen.getByText('BODY B')).toBeInTheDocument();
+  });
+
+  it('Hide on one card leaves the other expanded (independent toggles)', async () => {
+    wrapTwo();
+    const views = await screen.findAllByTestId('template-card-view');
+    fireEvent.click(views[0]);
+    fireEvent.click(views[1]);
+    await waitFor(() => expect(screen.getAllByTestId('template-content-panel')).toHaveLength(2));
+    // Collapse the first card; the second stays open.
+    fireEvent.click(screen.getAllByTestId('template-card-view')[0]);
+    await waitFor(() => expect(screen.getAllByTestId('template-content-panel')).toHaveLength(1));
+    expect(screen.getByText('BODY B')).toBeInTheDocument();
+  });
 });

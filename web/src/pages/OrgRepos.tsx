@@ -28,7 +28,16 @@ export default function OrgRepos(): React.ReactElement {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<WorkspaceRepo | null>(null);
   const [deleting, setDeleting] = useState<WorkspaceRepo | null>(null);
-  const [selected, setSelected] = useState<WorkspaceRepo | null>(null);
+  // Multiple repos can be expanded at once — track the set of expanded ids (each
+  // card renders its own remote viewer inline; no single detached panel).
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const toggleExpanded = (id: string) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // Deep-link: /repos?repo=<id> (e.g. clicking a repo name in a project's
   // Referenced repositories list) auto-opens that repo's detail. Applied once
@@ -42,7 +51,7 @@ export default function OrgRepos(): React.ReactElement {
     const match = repos.data.find((r) => r.id === repoParam);
     if (!match) return;
     appliedRepoParam.current = repoParam;
-    setSelected(match);
+    setExpandedIds((prev) => (prev.has(match.id) ? prev : new Set(prev).add(match.id)));
     const el = document.querySelector(
       `[data-testid="repos-list"] [data-repo-id="${repoParam}"]`,
     );
@@ -62,7 +71,12 @@ export default function OrgRepos(): React.ReactElement {
     if (!deleting) return;
     try {
       await del.mutateAsync(deleting.id);
-      if (selected?.id === deleting.id) setSelected(null);
+      setExpandedIds((prev) => {
+        if (!prev.has(deleting.id)) return prev;
+        const next = new Set(prev);
+        next.delete(deleting.id);
+        return next;
+      });
       setDeleting(null);
     } catch {
       // surfaced via del.error on the confirm modal staying open
@@ -112,16 +126,14 @@ export default function OrgRepos(): React.ReactElement {
             <RepoCard
               key={repo.id}
               repo={repo}
-              selected={selected?.id === repo.id}
-              onView={() => setSelected((s) => (s?.id === repo.id ? null : repo))}
+              expanded={expandedIds.has(repo.id)}
+              onView={() => toggleExpanded(repo.id)}
               onEdit={() => openEdit(repo)}
               onDelete={() => setDeleting(repo)}
             />
           ))}
         </ul>
       )}
-
-      {selected && <RemoteViewerPanel repo={selected} />}
 
       {formOpen && (
         <RepoFormModal repo={editing ?? undefined} onClose={() => setFormOpen(false)} />
@@ -151,13 +163,13 @@ export default function OrgRepos(): React.ReactElement {
 
 function RepoCard({
   repo,
-  selected,
+  expanded,
   onView,
   onEdit,
   onDelete,
 }: {
   repo: WorkspaceRepo;
-  selected: boolean;
+  expanded: boolean;
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -165,7 +177,7 @@ function RepoCard({
   const { t } = useTranslation('admin');
   return (
     <li
-      className={`rounded-lg border bg-bg-elevated p-3 shadow-1 ${selected ? 'border-accent' : 'border-border-base'}`}
+      className={`rounded-lg border bg-bg-elevated p-3 shadow-1 ${expanded ? 'border-accent' : 'border-border-base'}`}
       data-testid="repo-card"
       data-repo-id={repo.id}
     >
@@ -206,7 +218,7 @@ function RepoCard({
           onClick={onView}
           data-testid="repo-card-view"
         >
-          {selected ? t('repos.card.hideRemote') : t('repos.card.viewRemote')}
+          {expanded ? t('repos.card.hideRemote') : t('repos.card.viewRemote')}
         </button>
         <button
           type="button"
@@ -225,6 +237,9 @@ function RepoCard({
           {t('repos.card.delete')}
         </button>
       </div>
+      {/* Remote viewer lives INSIDE the card (attached below the actions), and
+          multiple cards can be expanded at once. */}
+      {expanded && <RemoteViewerPanel repo={repo} />}
     </li>
   );
 }
@@ -241,7 +256,7 @@ function RemoteViewerPanel({ repo }: { repo: WorkspaceRepo }): React.ReactElemen
   const commits = useRepoCommits(repo.id, branch, tab === 'commits');
 
   return (
-    <div className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1" data-testid="repo-remote-viewer">
+    <div className="mt-3 border-t border-border-base pt-3" data-testid="repo-remote-viewer">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-text-primary">
           {t('repos.remote.heading')} <span className="font-mono">{repo.label}</span>

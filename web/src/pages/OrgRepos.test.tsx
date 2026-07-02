@@ -140,6 +140,38 @@ describe('OrgRepos (T575)', () => {
     expect(within(list).queryByTestId('repo-commit-browse')).toBeNull();
   });
 
+  it('renders the remote viewer INSIDE its own card (attached, not a detached bottom panel)', async () => {
+    server.use(
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })),
+      http.get('/api/code-repos/repo-1/branches', () => HttpResponse.json({ branches: [{ name: 'main', is_default: true }] })),
+      http.get('/api/code-repos/repo-1/commits', () => HttpResponse.json({ commits: [] })),
+    );
+    wrap();
+    fireEvent.click(await screen.findByTestId('repo-card-view'));
+    const viewer = await screen.findByTestId('repo-remote-viewer');
+    const card = screen.getByTestId('repo-card');
+    expect(card).toContainElement(viewer);
+  });
+
+  it('opens two repo viewers at once — both stay visible independently', async () => {
+    const repoB: WorkspaceRepo = { ...repoA, id: 'repo-2', label: 'other-repo' };
+    server.use(
+      http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA, repoB] })),
+      http.get('/api/code-repos/repo-1/branches', () => HttpResponse.json({ branches: [{ name: 'main', is_default: true }] })),
+      http.get('/api/code-repos/repo-1/commits', () => HttpResponse.json({ commits: [{ sha: 'aaaaaaa1', message: 'from one', author: 'o', date: '' }] })),
+      http.get('/api/code-repos/repo-2/branches', () => HttpResponse.json({ branches: [{ name: 'main', is_default: true }] })),
+      http.get('/api/code-repos/repo-2/commits', () => HttpResponse.json({ commits: [{ sha: 'bbbbbbb2', message: 'from two', author: 'o', date: '' }] })),
+    );
+    wrap();
+    const views = await screen.findAllByTestId('repo-card-view');
+    expect(views).toHaveLength(2);
+    fireEvent.click(views[0]);
+    fireEvent.click(views[1]);
+    await waitFor(() => expect(screen.getAllByTestId('repo-remote-viewer')).toHaveLength(2));
+    await waitFor(() => expect(screen.getByText('from one')).toBeInTheDocument());
+    expect(screen.getByText('from two')).toBeInTheDocument();
+  });
+
   it('remote viewer degrades gracefully when BE-2 viewing is unavailable', async () => {
     server.use(
       http.get('/api/code-repos', () => HttpResponse.json({ repos: [repoA] })),

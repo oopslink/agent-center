@@ -19,7 +19,16 @@ export default function OrgTemplates(): React.ReactElement {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Template | null>(null);
   const [deleting, setDeleting] = useState<Template | null>(null);
-  const [selected, setSelected] = useState<Template | null>(null);
+  // Multiple templates can be expanded at once — track the set of expanded ids
+  // (each card renders its own content panel inline; no single detached panel).
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const toggleExpanded = (id: string) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const openAdd = () => {
     setEditing(null);
@@ -34,7 +43,12 @@ export default function OrgTemplates(): React.ReactElement {
     if (!deleting) return;
     try {
       await del.mutateAsync(deleting.id);
-      if (selected?.id === deleting.id) setSelected(null);
+      setExpandedIds((prev) => {
+        if (!prev.has(deleting.id)) return prev;
+        const next = new Set(prev);
+        next.delete(deleting.id);
+        return next;
+      });
       setDeleting(null);
     } catch {
       // surfaced via del.error
@@ -84,16 +98,14 @@ export default function OrgTemplates(): React.ReactElement {
             <TemplateCard
               key={tpl.id}
               template={tpl}
-              selected={selected?.id === tpl.id}
-              onView={() => setSelected((s) => (s?.id === tpl.id ? null : tpl))}
+              expanded={expandedIds.has(tpl.id)}
+              onView={() => toggleExpanded(tpl.id)}
               onEdit={() => openEdit(tpl)}
               onDelete={() => setDeleting(tpl)}
             />
           ))}
         </ul>
       )}
-
-      {selected && <TemplateContentPanel template={selected} />}
 
       {formOpen && (
         <TemplateFormModal template={editing ?? undefined} onClose={() => setFormOpen(false)} />
@@ -118,13 +130,13 @@ export default function OrgTemplates(): React.ReactElement {
 
 function TemplateCard({
   template,
-  selected,
+  expanded,
   onView,
   onEdit,
   onDelete,
 }: {
   template: Template;
-  selected: boolean;
+  expanded: boolean;
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -132,7 +144,7 @@ function TemplateCard({
   const { t } = useTranslation('admin');
   return (
     <li
-      className={`rounded-lg border bg-bg-elevated p-3 shadow-1 ${selected ? 'border-accent' : 'border-border-base'}`}
+      className={`rounded-lg border bg-bg-elevated p-3 shadow-1 ${expanded ? 'border-accent' : 'border-border-base'}`}
       data-testid="template-card"
     >
       <div className="flex items-start justify-between gap-3">
@@ -161,7 +173,7 @@ function TemplateCard({
           onClick={onView}
           data-testid="template-card-view"
         >
-          {selected ? t('templates.hide') : t('templates.view')}
+          {expanded ? t('templates.hide') : t('templates.view')}
         </button>
         {!template.builtin && (
           <>
@@ -184,6 +196,9 @@ function TemplateCard({
           </>
         )}
       </div>
+      {/* Content view lives INSIDE the card (attached below the actions), and
+          multiple cards can be expanded at once. */}
+      {expanded && <TemplateContentPanel template={template} />}
     </li>
   );
 }
@@ -194,13 +209,7 @@ function TemplateContentPanel({ template }: { template: Template }): React.React
   const detail = useTemplate(template.id);
   const content = detail.data?.content ?? template.content ?? '';
   return (
-    <div
-      className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
-      data-testid="template-content-panel"
-    >
-      <h2 className="mb-2 text-sm font-semibold text-text-primary">
-        {template.name}
-      </h2>
+    <div className="mt-3 border-t border-border-base pt-3" data-testid="template-content-panel">
       {detail.isLoading && !content ? (
         <p className="text-xs text-text-muted" data-testid="template-content-loading">
           {t('templates.loading')}
