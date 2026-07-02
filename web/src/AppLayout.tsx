@@ -10,7 +10,8 @@ import {
   useUnreadConversations,
 } from '@/api/conversations';
 import { useProjects } from '@/api/projects';
-import { useStuckTasks, type StuckTask } from '@/api/stuckTasks';
+import { useAttention } from '@/api/attention';
+import { AttentionPanel } from '@/shell/AttentionPanel';
 import { useAppStore } from '@/store/app';
 import { PageSkeleton } from '@/components/Skeleton';
 import { UnreadBadge } from '@/components/UnreadBadge';
@@ -240,6 +241,7 @@ export default function AppLayout(): React.ReactElement {
   const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [mobileNavSheetOpen, setMobileNavSheetOpen] = useState(false);
   const [mobileAccountSheetOpen, setMobileAccountSheetOpen] = useState(false);
+  const [mobileAlertsOpen, setMobileAlertsOpen] = useState(false);
 
 
   const location = useLocation();
@@ -302,28 +304,29 @@ export default function AppLayout(): React.ReactElement {
   const conversationsUnread = (unreadConvs.data ?? []).reduce((s, r) => s + (r.unread_count || 0), 0);
   const conversationsMentions = (unreadConvs.data ?? []).reduce((s, r) => s + (r.mention_count || 0), 0);
 
-  // Global "stuck" alerts for the rail Alerts item — current-user-visible tasks
-  // (running + blocked_reason of type input_required/obstacle) across the org. The
-  // panel auto-opens when a NEW stuck task appears so the user catches it on ANY
-  // page; the badge persists the count regardless.
-  const stuck = useStuckTasks(orgCtx?.slug);
-  const stuckTasks = stuck.tasks;
-  const alertCount = stuckTasks.length;
+  // v2.26.0 I61: the "Needs your attention" rail item. Its source is the unified
+  // /attention endpoint — stuck tasks (running + input_required/obstacle) UNIONed
+  // with the human's directed unread (DM + @mention), so an agent→human escalation
+  // surfaces even with NO human-owned task. The panel auto-opens when a NEW item
+  // appears so the user catches it on ANY page; the badge persists the count.
+  const attention = useAttention(orgCtx?.slug);
+  const attentionItems = attention.items;
+  const alertCount = attentionItems.length;
   // seenAlertIdsRef stays null until the first resolved snapshot, then tracks the
-  // current alert set; a freshly-appearing id (re)opens the panel exactly once.
+  // current item set; a freshly-appearing ref (re)opens the panel exactly once.
   const seenAlertIdsRef = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (stuck.isLoading) return; // wait for the first real fetch before seeding
-    const ids = stuckTasks.map((t) => t.id);
+    if (attention.isLoading) return; // wait for the first real fetch before seeding
+    const ids = attentionItems.map((it) => `${it.kind}:${it.ref}`);
     const prev = seenAlertIdsRef.current;
     seenAlertIdsRef.current = new Set(ids);
     if (prev === null) {
-      // First snapshot: surface existing alerts once on load.
+      // First snapshot: surface existing items once on load.
       if (ids.length > 0) setAlertsPanelOpen(true);
       return;
     }
     if (ids.some((id) => !prev.has(id))) setAlertsPanelOpen(true);
-  }, [stuck.isLoading, stuckTasks]);
+  }, [attention.isLoading, attentionItems]);
 
   // Org switcher binding.
   const orgSwitcher: OrgSwitcherBinding = {
@@ -379,8 +382,31 @@ export default function AppLayout(): React.ReactElement {
           >
             {isOrgSettings ? t('nav.orgSettings') : activeModule ? moduleLabel(activeModule.id) : '…'}
           </button>
-          {/* Right: account toggle */}
+          {/* Right: alerts + account toggle */}
           <div className="flex items-center gap-1">
+            {/* v2.26.0 I61: "Needs your attention" reachable on mobile too (the
+                desktop rail is md:flex-only). Same unified source + panel. */}
+            <button
+              type="button"
+              data-testid="mobile-alerts"
+              data-count={alertCount}
+              aria-label={alertCount > 0 ? t('shell.alerts.attention', { count: alertCount }) : t('shell.alerts.label')}
+              onClick={() => setMobileAlertsOpen((v) => !v)}
+              className={[
+                'relative inline-flex h-8 w-8 items-center justify-center rounded motion-safe:transition-colors',
+                alertCount > 0 ? 'text-danger hover:bg-danger/10' : 'text-text-secondary hover:bg-bg-subtle',
+              ].join(' ')}
+            >
+              <span aria-hidden="true" className="inline-flex h-5 w-5"><AlertBellIcon /></span>
+              {alertCount > 0 && (
+                <span
+                  data-testid="mobile-alerts-badge"
+                  className="absolute -right-0.5 -top-0.5 inline-flex min-w-[1.05rem] items-center justify-center rounded-full bg-danger px-1 text-[0.625rem] font-semibold leading-none tabular-nums text-white"
+                >
+                  {alertCount > 99 ? '99+' : alertCount}
+                </span>
+              )}
+            </button>
             <button
               type="button"
               data-testid="mobile-account-toggle"
@@ -394,6 +420,17 @@ export default function AppLayout(): React.ReactElement {
             </button>
           </div>
         </header>
+        {/* Mobile attention popout — anchored under the top bar (rail is hidden). */}
+        {mobileAlertsOpen && (
+          <AttentionPanel
+            items={attentionItems}
+            orgBase={orgBase}
+            onClose={() => setMobileAlertsOpen(false)}
+            testId="mobile-alerts-panel"
+            toggleTestId="mobile-alerts"
+            className="fixed inset-x-2 top-12 z-40 max-h-[70vh] overflow-y-auto rounded-lg border border-border-base bg-bg-elevated p-3 shadow-2 md:hidden"
+          />
+        )}
 
         {/* ────── col① Module Rail (desktop) ────── */}
         <nav
@@ -474,8 +511,8 @@ export default function AppLayout(): React.ReactElement {
               )}
             </button>
             {alertsPanelOpen && (
-              <RailAlertsPanel
-                tasks={stuckTasks}
+              <AttentionPanel
+                items={attentionItems}
                 orgBase={orgBase}
                 onClose={() => setAlertsPanelOpen(false)}
               />
@@ -1087,102 +1124,6 @@ function RailUserPanel({
         <span aria-hidden="true" className="inline-flex h-4 w-4"><SignoutIcon /></span>
         Sign out
       </button>
-    </div>
-  );
-}
-
-// ============================================================================
-// RailAlertsPanel — popout panel from the rail Alerts item. Lists the current
-// "stuck" tasks (running + blocked, input_required/obstacle), input_required
-// first, each deep-linking to the task so the user can unblock it.
-// ============================================================================
-function RailAlertsPanel({
-  tasks,
-  orgBase,
-  onClose,
-}: {
-  tasks: ReadonlyArray<StuckTask>;
-  orgBase: string;
-  onClose: () => void;
-}): React.ReactElement {
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        // Ignore clicks on the toggle button itself (it manages its own open state).
-        const target = e.target as HTMLElement;
-        if (target.closest('[data-testid="rail-alerts"]')) return;
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
-  return (
-    <div
-      ref={panelRef}
-      data-testid="rail-alerts-panel"
-      className="absolute bottom-12 left-14 z-50 max-h-[70vh] w-80 overflow-y-auto rounded-lg border border-border-base bg-bg-elevated p-3 shadow-2"
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-medium text-text-primary">Needs your attention</span>
-        <span className="rounded-full bg-bg-subtle px-1.5 text-[0.6875rem] font-semibold tabular-nums text-text-secondary">
-          {tasks.length}
-        </span>
-      </div>
-      {tasks.length === 0 ? (
-        <div data-testid="rail-alerts-empty" className="px-1 py-6 text-center text-sm text-text-muted">
-          No tasks waiting on you
-        </div>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {tasks.map((t) => {
-            const inputRequired = t.reason_type === 'input_required';
-            return (
-              <li key={t.id}>
-                <Link
-                  to={`${orgBase}/projects/${encodeURIComponent(t.project_id)}/tasks/${encodeURIComponent(t.id)}`}
-                  data-testid="rail-alert-item"
-                  data-reason-type={t.reason_type}
-                  onClick={onClose}
-                  className="block rounded-md border border-border-base px-2.5 py-2 hover:bg-bg-subtle motion-safe:transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={[
-                        'inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[0.625rem] font-semibold',
-                        inputRequired
-                          ? 'bg-danger/15 text-danger'
-                          : 'bg-warning/15 text-warning',
-                      ].join(' ')}
-                    >
-                      {inputRequired ? 'Awaiting your reply' : 'Needs intervention'}
-                    </span>
-                    {t.org_ref && (
-                      <span className="shrink-0 font-mono text-[0.6875rem] text-text-muted">{t.org_ref}</span>
-                    )}
-                    <span className="truncate text-sm font-medium text-text-primary">{t.title}</span>
-                  </div>
-                  <div className="mt-1 truncate text-xs text-text-secondary" title={t.reason}>
-                    {t.reason}
-                  </div>
-                  <div className="mt-0.5 truncate text-[0.6875rem] text-text-muted">{t.project_name}</div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
     </div>
   );
 }

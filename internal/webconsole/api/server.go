@@ -171,6 +171,10 @@ func (s *Server) routes() {
 	// (registered before the /{id} routes so the static path isn't shadowed).
 	s.mux.HandleFunc("GET /api/orgs/{slug}/unread-conversations", s.listUnreadConversationsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/unread-conversations/mark-all-read", s.markAllUnreadConversationsSeenHandler)
+	// v2.26.0 I61: the "Needs your attention" panel data source — stuck tasks
+	// UNIONed with the human's directed unread (DM + @mention), so an agent→human
+	// escalation surfaces even with no human-owned task. (static path, no shadow)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/attention", s.listAttentionHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/conversations", s.createConversationHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/conversations/{id}", s.showConversationHandler)
 	// v2.7 #198: hard-delete a DM (channels use archive → 400 use_archive).
