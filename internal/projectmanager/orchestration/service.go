@@ -202,6 +202,21 @@ func (s *Service) CompleteNode(ctx context.Context, id NodeID, outcome string) e
 	return s.nodes.Update(ctx, n)
 }
 
+// ReopenNode transitions a completed node back to reopen status (Completed→Reopen)
+// with the given reason, so it re-enters the ready-set for another round. Used by
+// the T768 graph dispatch to propagate a task that was reopened (e.g. a decision
+// loopback re-activating an upstream node) onto its bound graph node.
+func (s *Service) ReopenNode(ctx context.Context, id NodeID, reason string) error {
+	n, err := s.nodes.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := n.Reopen(reason, s.clock.Now()); err != nil {
+		return err
+	}
+	return s.nodes.Update(ctx, n)
+}
+
 // DiscardNode transitions a node to discarded status.
 func (s *Service) DiscardNode(ctx context.Context, id NodeID) error {
 	n, err := s.nodes.FindByID(ctx, id)

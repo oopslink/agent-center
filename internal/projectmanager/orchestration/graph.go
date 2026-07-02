@@ -120,14 +120,14 @@ func RehydrateGraph(in RehydrateGraphInput) (*Graph, error) {
 }
 
 // Getters.
-func (g *Graph) ID() GraphID         { return g.id }
-func (g *Graph) PlanID() string      { return g.planID }
-func (g *Graph) Status() GraphStatus { return g.status }
-func (g *Graph) StartNodeID() NodeID { return g.startNode }
-func (g *Graph) EndNodeID() NodeID   { return g.endNode }
+func (g *Graph) ID() GraphID          { return g.id }
+func (g *Graph) PlanID() string       { return g.planID }
+func (g *Graph) Status() GraphStatus  { return g.status }
+func (g *Graph) StartNodeID() NodeID  { return g.startNode }
+func (g *Graph) EndNodeID() NodeID    { return g.endNode }
 func (g *Graph) CreatedAt() time.Time { return g.createdAt }
 func (g *Graph) UpdatedAt() time.Time { return g.updatedAt }
-func (g *Graph) Version() int        { return g.version }
+func (g *Graph) Version() int         { return g.version }
 
 func (g *Graph) FindNode(id NodeID) *Node { return g.nodes[id] }
 
@@ -261,9 +261,14 @@ func (g *Graph) ReadyNodes() []*Node {
 				break
 			}
 			depDone := dep.Status() == NodeCompleted || dep.Status() == NodeDiscarded
-			// Control nodes (e.g. start) are treated as satisfied even when open:
-			// they act as structural anchors and do not block downstream business nodes.
-			if depDone || dep.Category() == NodeCategoryControl {
+			// Structural-anchor control nodes (start/end) are treated as satisfied even
+			// when open: they never gate downstream business nodes. A CONDITION control
+			// node, by contrast, GATES its downstream — it is satisfied only once
+			// resolved (completed/discarded via ResolveCondition). Without this a
+			// condition could never gate (T768: decision routing on the graph); an
+			// unresolved condition would leave its downstream falsely ready.
+			anchorControl := dep.Category() == NodeCategoryControl && dep.ControlKind() != ControlKindCondition
+			if depDone || anchorControl {
 				continue
 			}
 			allDone = false
