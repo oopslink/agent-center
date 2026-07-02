@@ -281,6 +281,7 @@
     "descriptionPlaceholder": "Brief description of the workflow",
     "content": "Content",
     "contentPlaceholder": "Markdown content describing the orchestration rules...",
+    "loading": "Loading…",
     "builtin": "Built-in",
     "builtinBadge": "System",
     "deleteConfirm": "Delete template \"{{name}}\"? This cannot be undone.",

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   useTemplates,
+  useTemplate,
   useCreateTemplate,
   useUpdateTemplate,
   useDeleteTemplate,
@@ -188,6 +189,10 @@ function TemplateCard({
 }
 
 function TemplateContentPanel({ template }: { template: Template }): React.ReactElement {
+  const { t } = useTranslation('admin');
+  // The list DTO omits `content`; fetch the detail to render the full body.
+  const detail = useTemplate(template.id);
+  const content = detail.data?.content ?? template.content ?? '';
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -196,9 +201,15 @@ function TemplateContentPanel({ template }: { template: Template }): React.React
       <h2 className="mb-2 text-sm font-semibold text-text-primary">
         {template.name}
       </h2>
-      <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded border border-border-base bg-bg-subtle px-3 py-2 font-mono text-xs text-text-secondary">
-        {template.content}
-      </pre>
+      {detail.isLoading && !content ? (
+        <p className="text-xs text-text-muted" data-testid="template-content-loading">
+          {t('templates.loading')}
+        </p>
+      ) : (
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded border border-border-base bg-bg-subtle px-3 py-2 font-mono text-xs text-text-secondary">
+          {content}
+        </pre>
+      )}
     </div>
   );
 }
@@ -216,12 +227,26 @@ function TemplateFormModal({
   const update = useUpdateTemplate(template?.id ?? '');
   const mutation = isEdit ? update : create;
 
+  // The list DTO omits `content`, so on edit we fetch the detail and hydrate the
+  // textarea from it. Until it loads we block Save — otherwise submitting the
+  // empty initial value would wipe the stored content.
+  const detail = useTemplate(isEdit ? (template?.id ?? '') : '');
   const [name, setName] = useState(template?.name ?? '');
   const [description, setDescription] = useState(template?.description ?? '');
   const [content, setContent] = useState(template?.content ?? '');
+  const hydrated = useRef(!isEdit);
+  useEffect(() => {
+    if (isEdit && detail.data && !hydrated.current) {
+      hydrated.current = true;
+      setContent(detail.data.content ?? '');
+    }
+  }, [isEdit, detail.data]);
+
+  const contentLoading = isEdit && !hydrated.current && detail.isLoading;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (contentLoading) return;
     mutation.mutate(
       { name: name.trim(), description: description.trim(), content },
       { onSuccess: () => onClose() },
@@ -282,9 +307,10 @@ function TemplateFormModal({
               id="tpl-content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder={t('templates.contentPlaceholder')}
+              placeholder={contentLoading ? t('templates.loading') : t('templates.contentPlaceholder')}
               rows={12}
-              className="w-full rounded border border-border-base bg-bg-elevated px-3 py-2 font-mono text-sm text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              disabled={contentLoading}
+              className="w-full rounded border border-border-base bg-bg-elevated px-3 py-2 font-mono text-sm text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
               data-testid="template-form-content"
             />
           </div>
@@ -298,7 +324,7 @@ function TemplateFormModal({
             </button>
             <button
               type="submit"
-              disabled={mutation.isPending}
+              disabled={mutation.isPending || contentLoading}
               className="rounded bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
               data-testid="template-form-submit"
             >

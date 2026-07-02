@@ -281,6 +281,7 @@
     "descriptionPlaceholder": "简要描述工作流",
     "content": "内容",
     "contentPlaceholder": "用 Markdown 描述编排规则...",
+    "loading": "加载中…",
     "builtin": "内置",
     "builtinBadge": "系统",
     "deleteConfirm": "删除模板 \"{{name}}\"？此操作不可撤销。",
