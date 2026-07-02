@@ -15,7 +15,7 @@ import (
 // drop it, and NOT require an escape vertex. has_failed stays unset (an exhausted
 // loop awaiting a human ruling is not a failure, Q1).
 func TestApplyLoopbacks_ExhaustionEscalates(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateRed})
+	f := newAutoFixture(t)
 
 	pid, err := f.svc.CreateProject(f.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
 	if err != nil {

@@ -10,8 +10,7 @@ import (
 
 // GitRunner is the port the worktree provisioner uses to invoke git. Extracted so
 // tests can swap a fake (recording args + returning canned output/exit errors);
-// real git is reached via execGitRunner. Mirrors mergecheck / cognition.memory's
-// GitRunner exactly.
+// real git is reached via execGitRunner. Mirrors cognition.memory's GitRunner.
 type GitRunner interface {
 	// Run executes "git" with args under workdir + env, returning combined
 	// stdout/stderr and the underlying exec error (an *exec.ExitError on non-zero).
@@ -109,7 +108,7 @@ func (p *WorktreeProvisioner) Remove(ctx context.Context, worktreePath string) e
 
 // run invokes git under repoDir with a NEUTRALIZED environment so host gitconfig /
 // prompts / signing can never interfere with worktree management (mirrors
-// mergecheck.run).
+// cognition.memory's GitRunner).
 func (p *WorktreeProvisioner) run(ctx context.Context, args ...string) (string, error) {
 	env := []string{
 		"GIT_TERMINAL_PROMPT=0",
@@ -123,7 +122,7 @@ func (p *WorktreeProvisioner) run(ctx context.Context, args ...string) (string, 
 }
 
 // safeDefaultPath returns a deterministic minimal PATH that finds git on common
-// dev / CI images (matches mergecheck / cognition.memory's helper).
+// dev / CI images (mirrors cognition.memory's GitRunner).
 func safeDefaultPath() string {
 	return "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
 }

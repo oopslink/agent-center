@@ -13,7 +13,7 @@ import (
 // notifyLoopStuck. The escape edge convention is From=Escape / To=Decision, so the
 // driver must match it by ToTaskID==decision (the bug used FromTaskID).
 func TestApplyLoopbacks_ExhaustionRoutesToEscape(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateRed})
+	f := newAutoFixture(t)
 
 	pid, err := f.svc.CreateProject(f.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:pd"})
 	if err != nil {

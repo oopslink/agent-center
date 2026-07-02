@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
@@ -40,7 +38,6 @@ import (
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
-	"github.com/oopslink/agent-center/internal/projectmanager/gatecheck"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/runtimefs"
@@ -485,21 +482,6 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// v2.14.0 F7 (issue I14): the WorkItem-backed node-resumer adapter wiring was
 	// removed — AgentWorkItem retired. The pm Service's NodeResumer port is left
 	// unwired (ResumePausedNode degrades to ErrNodeResumerUnavailable).
-
-	// v2.13.0 I18/B3: wire the §-1 gate adapter so completing a DECISION node without
-	// an explicit outcome auto-derives pass/reject from the gate verdict. Running the
-	// real gate is HEAVY (a full checkout + build/test, run synchronously inside
-	// complete_task), so it is an explicit operator OPT-IN via AC_DECISION_GATE_CMD
-	// (the gate command, space-separated, e.g. "make gate"). Unset ⇒ B3 defers every
-	// decision to a human (manual complete_task outcome only) — the safe default.
-	if gateCmd := strings.Fields(os.Getenv("AC_DECISION_GATE_CMD")); len(gateCmd) > 0 {
-		gateCacheBase := os.TempDir()
-		if cfg.BlobStore.Root != "" {
-			gateCacheBase = filepath.Dir(cfg.BlobStore.Root)
-		}
-		gateCacheDir := filepath.Join(gateCacheBase, "gatecheck-clones")
-		pmSvc.SetDecisionGate(gatecheck.New(gateCacheDir, gateCmd, gatecheck.NewExecCommandRunner()))
-	}
 
 	// v2.7 D5 slice-1: the shared SSE down-push bus. Created here so it is the
 	// SAME instance the projector's ControlLog publishes to (webconsole_wiring.go)

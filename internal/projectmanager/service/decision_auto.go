@@ -27,21 +27,6 @@ import (
 // outcome only). The back-compat anchor.
 // =============================================================================
 
-// DecisionGate reports the §-1 gate verdict (build/lint/tsc/test —
-// cycle-node-graph-spec.md §2.3) for a feature branch. It is the runtime input to
-// B3's auto-decision. OPTIONAL / nil-safe: when nil, every gate is GateUnknown, so
-// B3 records no outcome and defers every decision to a human (pre-B3 behaviour). It
-// is a CONSUMER-owned port (mirroring MergeChecker): the concrete adapter lives in
-// internal/projectmanager/gatecheck and is wired at composition, so the pm BC never
-// shells out itself.
-type DecisionGate interface {
-	// GateStatus returns the §-1 gate verdict for <branch> (checked against <base>)
-	// in the repo at repoURL. It returns GateUnknown + a non-nil error when the gate
-	// could not be run/determined (the caller maps that to a human ruling — it never
-	// auto-passes or auto-rejects on a gate it could not actually evaluate).
-	GateStatus(ctx context.Context, repoURL, branch, base string) (pm.GateVerdict, error)
-}
-
 // AutoDecision is the result of ComputeAutoDecision: what (if anything) B3 derived
 // for a node, plus the inputs that drove it (for the @mention / logs).
 type AutoDecision struct {
@@ -97,7 +82,7 @@ func (s *Service) ComputeAutoDecision(ctx context.Context, taskID pm.TaskID) (Au
 		return AutoDecision{}, nil // ordinary node ⇒ B3 does nothing
 	}
 
-	gate := s.evaluateGate(ctx, t)
+	gate := pm.GateUnknown
 	switch gate {
 	case pm.GateRed:
 		// Unambiguous failure: reject (B1's bounded loopback re-runs Dev). Comments
@@ -163,23 +148,6 @@ func (s *Service) ComputeAutoDecision(ctx context.Context, taskID pm.TaskID) (Au
 			Reason: "§-1 gate verdict unavailable → human ruling required (record the outcome manually with complete_task outcome=…)",
 		}, nil
 	}
-}
-
-// evaluateGate resolves the gate verdict for a decision node's feature branch,
-// failing SAFE to GateUnknown on every "can't determine" case (no port wired, no
-// branch/base metadata, no project repo, or an infra error from the gate) so an
-// indeterminate gate never drives an auto outcome.
-//
-// NOTE (v2.28.0): cycle-specific branch/base fields were removed from Task. The
-// gate now always returns GateUnknown (no branch/base metadata to evaluate against).
-// When the orchestration engine supplies branch/base via node metadata, this method
-// should be updated to read from that source.
-func (s *Service) evaluateGate(ctx context.Context, t *pm.Task) pm.GateVerdict {
-	if s.decisionGate == nil {
-		return pm.GateUnknown // gate disabled (pre-B3 / not wired)
-	}
-	// Cycle-specific branch/base fields removed from Task — no metadata to evaluate.
-	return pm.GateUnknown
 }
 
 // verdictState classifies the review-verdict lookup for a decision's current round.

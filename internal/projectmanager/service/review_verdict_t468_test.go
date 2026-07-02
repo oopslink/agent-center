@@ -63,7 +63,7 @@ func (f *autoFixture) reviewCycle(t *testing.T) (pm.PlanID, pm.TaskID, pm.TaskID
 // auto-pass/reject. The review verdict recording and round stamping are still exercised.
 
 func TestComputeAutoDecision_VerdictPassNonBlocking_DefersWithoutGate_T468(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
+	f := newAutoFixture(t)
 	_, review, dec, _ := f.reviewCycle(t)
 
 	if err := f.svc.RecordReviewVerdict(f.ctx, review, pm.ReviewPass, false, "minor nit, non-blocking", "sha1", "user:pd"); err != nil {
@@ -80,7 +80,7 @@ func TestComputeAutoDecision_VerdictPassNonBlocking_DefersWithoutGate_T468(t *te
 }
 
 func TestComputeAutoDecision_StaleRoundVerdict_Defers_T468(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
+	f := newAutoFixture(t)
 	planID, review, dec, dev := f.reviewCycle(t)
 	if err := f.svc.RecordReviewVerdict(f.ctx, review, pm.ReviewPass, false, "", "sha1", "user:pd"); err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestComputeAutoDecision_StaleRoundVerdict_Defers_T468(t *testing.T) {
 }
 
 func TestComputeAutoDecision_NewRoundVerdict_RecordsRound_T468(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
+	f := newAutoFixture(t)
 	planID, review, dec, dev := f.reviewCycle(t)
 	if err := f.svc.RecordReviewVerdict(f.ctx, review, pm.ReviewReject, false, "r0", "sha0", "user:pd"); err != nil {
 		t.Fatal(err)

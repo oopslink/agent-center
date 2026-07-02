@@ -13,18 +13,6 @@ import (
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
-// fakeDecisionGate is a recording stub for the B3 DecisionGate port.
-type fakeDecisionGate struct {
-	verdict pm.GateVerdict
-	err     error
-	calls   int
-}
-
-func (f *fakeDecisionGate) GateStatus(_ context.Context, _, _, _ string) (pm.GateVerdict, error) {
-	f.calls++
-	return f.verdict, f.err
-}
-
 // recordingDispatcher captures NotifyDecisionDeferred @mentions.
 type recordingDispatcher struct {
 	posts       int
@@ -42,13 +30,12 @@ type autoFixture struct {
 	svc      *Service
 	tasks    *pmsql.TaskRepo
 	findings *pmsql.PlanFindingRepo
-	gate     *fakeDecisionGate
 	disp     *recordingDispatcher
 	ctx      context.Context
 	clk      *clock.FakeClock
 }
 
-func newAutoFixture(t *testing.T, gate *fakeDecisionGate) *autoFixture {
+func newAutoFixture(t *testing.T) *autoFixture {
 	t.Helper()
 	db, err := persistence.Open(persistence.MemoryDSN())
 	if err != nil {
@@ -63,19 +50,15 @@ func newAutoFixture(t *testing.T, gate *fakeDecisionGate) *autoFixture {
 	tasks := pmsql.NewTaskRepo(db)
 	findings := pmsql.NewPlanFindingRepo(db)
 	disp := &recordingDispatcher{}
-	var dg DecisionGate
-	if gate != nil {
-		dg = gate
-	}
 	svc := New(Deps{
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: pmsql.NewPlanRepo(db),
 		Findings: findings, Outbox: outboxsql.NewOutboxRepo(db),
-		IDGen: gen, Clock: clk, DecisionGate: dg, PlanDispatcher: disp,
+		IDGen: gen, Clock: clk, PlanDispatcher: disp,
 	})
-	return &autoFixture{svc: svc, tasks: tasks, findings: findings, gate: gate, disp: disp, ctx: context.Background(), clk: clk}
+	return &autoFixture{svc: svc, tasks: tasks, findings: findings, disp: disp, ctx: context.Background(), clk: clk}
 }
 
 // decisionNode builds a draft plan with a decision node (branch/base set) and a
@@ -153,7 +136,7 @@ func (f *autoFixture) projectOf(t *testing.T, tid pm.TaskID) pm.ProjectID {
 // so all gate-dependent auto-decisions now defer to a human.
 
 func TestComputeAutoDecision_AlwaysDefersWithoutBranchBase(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
+	f := newAutoFixture(t)
 	_, dec, _ := f.decisionNode(t)
 	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
 	if err != nil {
@@ -172,7 +155,7 @@ func TestComputeAutoDecision_AlwaysDefersWithoutBranchBase(t *testing.T) {
 }
 
 func TestComputeAutoDecision_GateUnknown_Defers(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateUnknown})
+	f := newAutoFixture(t)
 	_, dec, _ := f.decisionNode(t)
 	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
 	if err != nil {
@@ -184,7 +167,7 @@ func TestComputeAutoDecision_GateUnknown_Defers(t *testing.T) {
 }
 
 func TestComputeAutoDecision_NoGateWired_Defers(t *testing.T) {
-	f := newAutoFixture(t, nil) // no DecisionGate
+	f := newAutoFixture(t) // gate always GateUnknown
 	_, dec, _ := f.decisionNode(t)
 	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
 	if err != nil {
@@ -196,7 +179,7 @@ func TestComputeAutoDecision_NoGateWired_Defers(t *testing.T) {
 }
 
 func TestComputeAutoDecision_OrdinaryNode_NoOp(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
+	f := newAutoFixture(t)
 	_, _, down := f.decisionNode(t) // downstream node has no routing OUT-edge
 	ad, err := f.svc.ComputeAutoDecision(f.ctx, down)
 	if err != nil {
@@ -205,13 +188,10 @@ func TestComputeAutoDecision_OrdinaryNode_NoOp(t *testing.T) {
 	if ad.IsDecision {
 		t.Fatalf("downstream/ordinary node must not be a decision: %+v", ad)
 	}
-	if f.gate.calls != 0 {
-		t.Fatalf("gate must not be consulted for an ordinary node (calls=%d)", f.gate.calls)
-	}
 }
 
 func TestComputeAutoDecision_TaskNotInPlan_NoOp(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
+	f := newAutoFixture(t)
 	pid, err := f.svc.CreateProject(f.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P2", CreatedBy: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +210,7 @@ func TestComputeAutoDecision_TaskNotInPlan_NoOp(t *testing.T) {
 }
 
 func TestNotifyDecisionDeferred_PingsHuman(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateUnknown})
+	f := newAutoFixture(t)
 	_, dec, _ := f.decisionNode(t)
 	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
 	if err != nil {
@@ -251,7 +231,7 @@ func TestNotifyDecisionDeferred_PingsHuman(t *testing.T) {
 // manually sets a decision outcome (since auto-decisions now always defer without
 // branch/base on the Task).
 func TestAutoDecision_ManualRecordRoundTrip(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
+	f := newAutoFixture(t)
 	planID, dec, _ := f.decisionNode(t)
 
 	// The auto-decision defers (no branch/base → GateUnknown), so record manually.
@@ -275,7 +255,7 @@ func TestAutoDecision_ManualRecordRoundTrip(t *testing.T) {
 
 // An UNDECIDED (deferred) decision triggers a deferral @mention.
 func TestNotifyDecisionDeferred_PostsWhenUndecided(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
+	f := newAutoFixture(t)
 	_, dec, _ := f.decisionNode(t)
 	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
 	if err != nil {

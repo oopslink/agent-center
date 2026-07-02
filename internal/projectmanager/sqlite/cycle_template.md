@@ -92,36 +92,78 @@ start → 开发主分支
 
 每个 business 节点使用 `bind_task_to_node` 关联一个 Task。控制节点不需要绑定。
 
-## 节点完成标准（供 Agent 判断）
+## 节点完成标准（Agent 自行执行的具体检查）
 
-这些标准由 Agent 自行理解和执行，引擎不强制：
+以下检查由 Agent 自行执行，引擎不强制。Agent 应在调用 `complete_graph_node` 前完成这些检查。
 
 ### 开发主分支
-- `origin/dev/{version}` 存在（`git ls-remote origin dev/{version}` 有结果）
-- 已在 plan 会话周知
+```bash
+# 确认 dev/{version} 已推到 origin
+git ls-remote origin dev/{version}
+# 应返回非空结果（至少一个 ref）
+```
 
 ### 开发节点
-- feature 分支已实现该功能的全部范围
-- 分支已推到 origin
-- 本地构建/测试可过
+```bash
+# 确认 feature 分支已推到 origin
+git ls-remote origin {feature_branch}
+
+# 在 feature 分支上运行构建
+git checkout {feature_branch}
+make build
+```
 
 ### 评审节点
-- code review 通过（无阻塞性意见或意见已解决）
-- 构建门禁通过（build / lint / tsc -b）
+```bash
+# 在 feature 分支上运行完整门禁（构建 + lint + 类型检查 + 测试）
+git checkout {feature_branch}
+make build lint
+# 前端项目额外运行
+pnpm --dir web test
+
+# 确认 code review 意见已解决（Agent 应检查 PR 状态或评审会话记录）
+```
 
 ### 集成节点
-- feature 分支已合并到 dev/{version}
-- `origin/dev/{version}` 包含该 feature 的 commit
-- Agent 应在完成前调用合并检查 API 验证
+```bash
+# 确认 feature 分支已合并到集成主干
+git fetch origin
+git merge-base --is-ancestor origin/{feature_branch} origin/dev/{version}
+# exit 0 = 已合并, exit 1 = 未合并
+
+# 如果未合并，Agent 应执行合并：
+git checkout dev/{version}
+git pull origin dev/{version}
+git merge {feature_branch}
+git push origin dev/{version}
+
+# 合并后再次验证
+git fetch origin
+git merge-base --is-ancestor origin/{feature_branch} origin/dev/{version}
+```
 
 ### 验收节点
-- 在 dev/{version} 主干上运行完整测试套件
-- 所有测试通过
+```bash
+# 在集成主干上运行完整测试套件
+git checkout dev/{version}
+git pull origin dev/{version}
+make build lint test
+# 前端
+pnpm --dir web test
+```
 
 ### 发布节点
-- dev/{version} 合并到 main
-- 打 tag
-- 推到 origin
+```bash
+# 合并集成主干到 main
+git checkout main
+git pull origin main
+git merge dev/{version}
+git push origin main
+
+# 打 tag
+git tag {version}
+git push origin {version}
+```
 
 ## 评审决策的回退行为
 
