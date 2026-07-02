@@ -71,6 +71,25 @@ var secondaryTools = []struct{ name, summary string }{
 	// plan shared findings
 	{"record_finding", "record a shared finding on a plan"},
 	{"list_findings", "list a plan's shared findings"},
+	// orchestration engine (P2-T2) — low-frequency graph authoring tools
+	{"create_graph", "create an orchestration graph for a plan"},
+	{"get_graph", "get graph detail with nodes and edges"},
+	{"start_graph", "start an orchestration graph (draft to running)"},
+	{"finish_graph", "finish an orchestration graph (running to done)"},
+	{"add_graph_node", "add a node to an orchestration graph"},
+	{"remove_graph_node", "remove a node from an orchestration graph"},
+	{"update_graph_node", "update a graph node's title or metadata"},
+	{"start_graph_node", "start a graph node (transition to running)"},
+	{"complete_graph_node", "complete a graph node with an outcome"},
+	{"discard_graph_node", "discard a graph node"},
+	{"resolve_condition", "resolve a condition node (success/failure)"},
+	{"add_graph_edge", "add a dependency edge between graph nodes"},
+	{"remove_graph_edge", "remove a dependency edge between graph nodes"},
+	{"list_graph_nodes", "list all nodes in an orchestration graph"},
+	{"get_graph_node", "get a single graph node by ID"},
+	{"get_ready_nodes", "get graph nodes whose dependencies are satisfied"},
+	{"bind_task_to_node", "bind a task to a graph node"},
+	{"unbind_task_from_node", "unbind the task from a graph node"},
 	// files — T247 (issue-2dfd42a1): download_file + upload_file are CORE (kept
 	// OUT of this deferred manifest). An agent that receives an image/file
 	// attachment must be able to fetch it WITHOUT first discovering the tool via

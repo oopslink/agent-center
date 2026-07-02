@@ -17,15 +17,21 @@ package mcphost
 // instead of the /admin/agent-tools/<name> proxy). The guard will tell you if you
 // miss one.
 var AgentFacingToolNames = []string{
+	"add_graph_edge",
+	"add_graph_node",
 	"add_plan_dependency",
 	"add_task_to_plan",
 	"archive_plan",
 	"assign_task",
 	"attach_file",
+	"bind_task_to_node",
 	"block_task",
 	"heartbeat", // v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
+	"complete_graph_node",
 	"complete_task",
-	"discard_task",              // T119: terminal-discard a superseded / mis-created task
+	"create_graph",
+	"discard_graph_node",
+	"discard_task", // T119: terminal-discard a superseded / mis-created task
 	"set_task_issue",            // T192: (re)set/clear a task's derived_from_issue after creation
 	"set_task_skip_merge_check", // v2.13.0 I18/F3: toggle the F3 merge-check exemption after creation
 	// T206 Cognition reminders
@@ -58,13 +64,18 @@ var AgentFacingToolNames = []string{
 	"download_file",
 	"find_org_agent",
 	"find_org_channel",
+	"finish_graph",
+	"get_graph",
+	"get_graph_node",
 	"get_issue",
 	"get_my_profile",
 	"get_my_unread",
+	"get_ready_nodes",
 	"list_my_tasks", // v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)
 	"get_plan",
 	"get_task",
 	"list_findings",
+	"list_graph_nodes",
 	"list_plans",
 	"list_tasks",
 	"list_unmerged_branches",
@@ -75,15 +86,22 @@ var AgentFacingToolNames = []string{
 	"post_message",
 	"reassign_task",
 	"record_finding",
+	"remove_graph_edge",
+	"remove_graph_node",
 	"remove_plan_dependency",
+	"resolve_condition",
 	"claim_task",
 	"remove_task_from_plan",
 	"start_dm",
+	"start_graph",
+	"start_graph_node",
 	"start_plan",
 	"start_task",
 	"stop_plan",
 	"subscribe",
+	"unbind_task_from_node",
 	"unsubscribe",
+	"update_graph_node",
 	"upload_file",
 }
 

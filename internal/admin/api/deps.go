@@ -25,6 +25,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/outbox"
 	projectmanager "github.com/oopslink/agent-center/internal/projectmanager"
+	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
@@ -157,6 +158,10 @@ type HandlerDeps struct {
 	// .../agents/{id}/concurrency endpoint reads the SAME store instance. nil →
 	// snapshots are dropped (feature off / not wired).
 	LiveState concurrency.LiveStateStore
+	// OrchService is the orchestration engine application service (P2-T2) backing
+	// the graph/node/edge agent MCP tools. nil when not wired (handlers then
+	// return orchestration_not_wired 501).
+	OrchService *orch.Service
 	// PMProjectRepo is the new-model (pm) project repo backing the
 	// operator/admin-token project find-* read endpoints. v2.7 #131 PR-3:
 	// repointed off the retired workforce.Project model. Operator-scoped —
