@@ -162,12 +162,15 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 		if row.AgentID == "" {
 			continue // executions are agent work only — skip human-assigned/unassigned
 		}
-		taskOrgRef, projectID, orgID := s.taskProjectOrg(ctx, t)
+		taskOrgRef, projectID, orgID, projectArchived := s.taskProjectOrg(ctx, t)
 		if filter.ProjectID != "" && projectID != filter.ProjectID {
 			continue
 		}
 		if orgScoped && orgID != filter.OrganizationID {
 			continue // fail-closed: never leak a task whose org can't be confirmed
+		}
+		if projectArchived {
+			continue // an archived project's tasks are terminal — not in-flight work
 		}
 		// Read-time enrichment for the Home rows (task title + org_ref + owning
 		// project for the click-through link). No extra query — the task is in hand.
@@ -184,7 +187,7 @@ func (s *FleetSnapshotService) fetchExecutions(ctx context.Context, filter Snaps
 // "" for any hop that can't be resolved (missing repo / project); callers
 // fail-closed on org scope so a task whose org can't be confirmed is never
 // leaked. No task lookup — the caller already holds the loaded task.
-func (s *FleetSnapshotService) taskProjectOrg(ctx context.Context, t *pm.Task) (taskOrgRef, projectID, orgID string) {
+func (s *FleetSnapshotService) taskProjectOrg(ctx context.Context, t *pm.Task) (taskOrgRef, projectID, orgID string, projectArchived bool) {
 	// The org_ref token ("T<n>"); "" when the org-number isn't allocated → UI
 	// falls back to a clean #hash.
 	if n := t.OrgNumber(); n > 0 {
@@ -194,9 +197,14 @@ func (s *FleetSnapshotService) taskProjectOrg(ctx context.Context, t *pm.Task) (
 	if s.deps.PMProjects != nil && projectID != "" {
 		if pr, perr := s.deps.PMProjects.FindByID(ctx, pm.ProjectID(projectID)); perr == nil && pr != nil {
 			orgID = pr.OrganizationID()
+			// An ARCHIVED project is terminal: its tasks (even any left non-terminal
+			// at archive time) must NOT surface as in-flight work in the org fleet
+			// view or be counted as active. Callers skip archived-project tasks in
+			// BOTH the executions list and the ActiveCount so count==list holds.
+			projectArchived = pr.Status() == pm.ProjectArchived
 		}
 	}
-	return taskOrgRef, projectID, orgID
+	return taskOrgRef, projectID, orgID, projectArchived
 }
 
 func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter SnapshotFilter) ([]FleetWorkerRow, []string, error) {
@@ -268,13 +276,20 @@ func (s *FleetSnapshotService) fetchWorkers(ctx context.Context, filter Snapshot
 					if strings.HasPrefix(t.BlockedReason(), "Superseded") {
 						continue
 					}
+					// Count==list: mirror fetchExecutions' archived-project exclusion so
+					// an archived project's leftover non-terminal tasks are neither listed
+					// nor counted as active. Resolve once, unconditionally (also feeds the
+					// org check below).
+					_, _, tOrg, tArchived := s.taskProjectOrg(ctx, t)
+					if tArchived {
+						continue
+					}
 					if filter.OrganizationID != "" {
 						// Count==list: fetchExecutions only includes tasks whose
 						// pm-project org equals the scope org, fail-closed — so
 						// unresolvable ("") AND divergent are BOTH excluded there.
 						// Mirror that here: only count when the org resolves to this
 						// worker's org.
-						_, _, tOrg := s.taskProjectOrg(ctx, t)
 						if tOrg != w.OrganizationID() {
 							if tOrg != "" {
 								// Positive divergence (resolved to a DIFFERENT org) = the

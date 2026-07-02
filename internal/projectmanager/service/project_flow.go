@@ -83,6 +83,39 @@ func (s *Service) ArchiveProject(ctx context.Context, projectID pm.ProjectID, ac
 				}
 			}
 		}
+		// Terminate the project's in-flight tasks. Archiving is ORTHOGONAL to task
+		// status, so without this a non-terminal task (open/running/reopened) is left
+		// LIVE under an archived project: it can no longer be worked (child writes are
+		// frozen by requireProjectMutable) yet it still surfaces as in-flight work /
+		// active-count in the org fleet view AND can no longer be discarded (discard_task
+		// rejects an archived project → the orphan is unrecoverable). Conclude every
+		// non-terminal task to discarded here — the same FinalizeForArchive the task
+		// archive cascade (T339) uses — so archiving leaves no orphan running task.
+		// A terminal task keeps its real outcome; an already-archived-but-non-terminal
+		// leftover is concluded via the FinalizeArchived escape hatch.
+		if s.tasks != nil {
+			tasks, terr := s.tasks.ListByProject(txCtx, p.ID())
+			if terr != nil {
+				return terr
+			}
+			for _, t := range tasks {
+				if t.Status().IsTerminal() {
+					continue
+				}
+				var ferr error
+				if t.IsArchived() {
+					ferr = t.FinalizeArchived(now)
+				} else {
+					ferr = t.FinalizeForArchive(now)
+				}
+				if ferr != nil {
+					return ferr
+				}
+				if uerr := s.tasks.Update(txCtx, t); uerr != nil {
+					return uerr
+				}
+			}
+		}
 		return nil
 	})
 }
