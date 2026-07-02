@@ -193,6 +193,9 @@ type Task struct {
 	// Plan later via SetPlan. NOT a node_status — node status is derived, never
 	// stored (§9.2).
 	planID PlanID
+	// nodeID is the orchestration engine node ID that this task maps to (v2.2.8).
+	// "" when not wired to an orchestration graph node.
+	nodeID string
 	// archivedAt/archivedBy hold the ORTHOGONAL archived state (v2.9 P3). Archival
 	// does NOT change task.status — a task can be archived in ANY status, and its
 	// status is preserved through archive (so a verified/discarded/running task
@@ -273,6 +276,9 @@ type NewTaskInput struct {
 	// RequiredCapabilities is the optional capability set a task demands (v2.18.3
 	// BE-1); canonicalized at construction. nil/empty = unrestricted.
 	RequiredCapabilities []string
+	// NodeID is the orchestration engine node ID that this task maps to (v2.2.8).
+	// "" when not wired to an orchestration graph node.
+	NodeID string
 }
 
 // NewTask constructs a fresh open Task. A Task must belong to a Project (no
@@ -313,6 +319,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		role:                 in.Role,
 		model:                in.Model,
 		requiredCapabilities: NormalizeCapabilities(in.RequiredCapabilities),
+		nodeID:               in.NodeID,
 	}, nil
 }
 
@@ -354,6 +361,8 @@ type RehydrateTaskInput struct {
 	// RequiredCapabilities is the persisted capability set (v2.18.3 BE-1);
 	// re-canonicalized on rehydrate (defensive against hand-edited rows).
 	RequiredCapabilities []string
+	// NodeID is the orchestration engine node ID (v2.2.8); "" when not wired.
+	NodeID string
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -401,6 +410,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		actionLogs:              in.ActionLogs,
 		model:                   in.Model,
 		requiredCapabilities:    NormalizeCapabilities(in.RequiredCapabilities),
+		nodeID:                  in.NodeID,
 	}, nil
 }
 
@@ -442,6 +452,7 @@ func (t *Task) StatusChangedAt() time.Time         { return t.statusChangedAt }
 // when the task is not currently completed (never completed, or reopened since).
 func (t *Task) CompletedAt() time.Time  { return t.completedAt }
 func (t *Task) PlanID() PlanID          { return t.planID }
+func (t *Task) NodeID() string          { return t.nodeID }
 func (t *Task) ArchivedAt() *time.Time  { return t.archivedAt }
 func (t *Task) ArchivedBy() IdentityRef { return t.archivedBy }
 
@@ -571,6 +582,13 @@ func (t *Task) SetPlan(planID PlanID, at time.Time) error {
 	t.planID = planID
 	t.touch(at)
 	return nil
+}
+
+// SetNodeID wires this task to an orchestration engine node (v2.2.8). Pure
+// metadata edit — not a status change.
+func (t *Task) SetNodeID(id string, at time.Time) {
+	t.nodeID = id
+	t.touch(at)
 }
 
 // ClearPlan removes this task from its Plan (back to the backlog).

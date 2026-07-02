@@ -81,6 +81,9 @@ type Plan struct {
 	// "plan", INDEPENDENT of tasks/issues); 0 for the builtin pool + rows
 	// predating the allocator / not yet backfilled (DTO omits org_ref then).
 	orgNumber int
+	// graphID is the orchestration engine graph ID that this plan maps to (v2.2.8).
+	// "" when not wired to an orchestration graph.
+	graphID   string
 	createdAt time.Time
 	updatedAt time.Time
 	version   int
@@ -98,6 +101,8 @@ type NewPlanInput struct {
 	// OrgNumber is the allocated per-org plan number (v2.10.1 [T99]), supplied by
 	// the service from the org sequence within the create tx. 0 ⇒ no org_ref.
 	OrgNumber int
+	// GraphID is the orchestration engine graph ID (v2.2.8); "" when not wired.
+	GraphID   string
 	CreatedAt time.Time
 }
 
@@ -129,6 +134,7 @@ func NewPlan(in NewPlanInput) (*Plan, error) {
 		targetDate:  normalizeTargetDate(in.TargetDate),
 		builtin:     in.Builtin,
 		orgNumber:   in.OrgNumber,
+		graphID:     in.GraphID,
 		createdAt:   at,
 		updatedAt:   at,
 		version:     1,
@@ -147,9 +153,11 @@ type RehydratePlanInput struct {
 	TargetDate     *time.Time
 	Builtin        bool
 	OrgNumber      int
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	Version        int
+	// GraphID is the orchestration engine graph ID (v2.2.8); "" when not wired.
+	GraphID   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Version   int
 }
 
 // RehydratePlan reconstructs without invariant checks (only enum + version).
@@ -171,6 +179,7 @@ func RehydratePlan(in RehydratePlanInput) (*Plan, error) {
 		targetDate:     normalizeTargetDate(in.TargetDate),
 		builtin:        in.Builtin,
 		orgNumber:      in.OrgNumber,
+		graphID:        in.GraphID,
 		createdAt:      in.CreatedAt.UTC(),
 		updatedAt:      in.UpdatedAt.UTC(),
 		version:        in.Version,
@@ -200,6 +209,13 @@ func (p *Plan) UpdatedAt() time.Time    { return p.updatedAt }
 func (p *Plan) Version() int            { return p.version }
 func (p *Plan) IsBuiltin() bool         { return p.builtin }
 func (p *Plan) OrgNumber() int          { return p.orgNumber }
+func (p *Plan) GraphID() string         { return p.graphID }
+
+// SetGraphID wires this plan to an orchestration engine graph (v2.2.8).
+func (p *Plan) SetGraphID(id string, at time.Time) {
+	p.graphID = id
+	p.touch(at)
+}
 
 // Rename updates the display name.
 func (p *Plan) Rename(name string, at time.Time) error {
