@@ -15,26 +15,8 @@ func parseTime(s string) time.Time {
 	return t
 }
 
-func nullString(s string) any {
-	if strings.TrimSpace(s) == "" {
-		return nil
-	}
-	return s
-}
-
 func isUnique(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique")
-}
-
-func marshalMetadata(m map[string]any) string {
-	if len(m) == 0 {
-		return "{}"
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
 }
 
 func unmarshalMetadata(s string) map[string]any {
@@ -46,17 +28,6 @@ func unmarshalMetadata(s string) map[string]any {
 		return map[string]any{}
 	}
 	return m
-}
-
-func marshalActionLogs(logs []orch.ActionLog) string {
-	if len(logs) == 0 {
-		return "[]"
-	}
-	b, err := json.Marshal(logs)
-	if err != nil {
-		return "[]"
-	}
-	return string(b)
 }
 
 func unmarshalActionLogs(s string) []orch.ActionLog {
