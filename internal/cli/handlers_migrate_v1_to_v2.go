@@ -141,7 +141,8 @@ func MigrateV1ToV2Command() *Command {
 // incident-2026-06-30 added 0089 (idx_aae_occurred_at — additive index supporting the new
 // agent_activity_events retention GC; 0084–0088 are the intervening v2.18.x migrations).
 // T728 added 0090 (agents.include_description_in_system_prompt — additive ADD COLUMN, v2.27.0).
-const targetSchemaVersion = 90
+// Task-6 added 0091 (pm_graphs, pm_graph_nodes, pm_graph_edges — orchestration engine DAG tables).
+const targetSchemaVersion = 91
 
 func runMigrateV1ToV2(
 	ctx context.Context,
