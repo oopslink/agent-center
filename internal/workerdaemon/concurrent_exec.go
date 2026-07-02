@@ -330,6 +330,11 @@ func (c *AgentController) buildExecutorEngine(agentRoot string, pl reconcilePayl
 		Reconciler: reconciler,
 		Writeback:  wb,
 		Clock:      clk,
+		// T758: executor stop + progress flow into the AgentActivityEvent stream so
+		// the Agent-detail Activity panel shows executor起停+进展 (存活可观测). The
+		// observer is center-coupled (holds this agent's id + the Reporter) — the
+		// executor package stays center-free, emitting only via this port.
+		Observer: executorActivityObserver{c: c, agentID: pl.AgentID},
 		// Liveness defaults to SignalLiveness (real pid probe).
 	})
 	if err != nil {
@@ -374,6 +379,10 @@ func (c *AgentController) launchExecutor(ctx context.Context, agentID, taskID st
 	}
 	c.log("agent=%s task=%s forked executor=%s cli=%s model=%s(%s) problem=%s",
 		agentID, taskID, launched.ExecutorID, launched.CLI, launched.Model, launched.ModelSource, launched.ProblemID)
+
+	// T758: the fork just succeeded — emit executor.start into the activity stream
+	// (pid + routed cli/model + task_ref). Best-effort; never blocks the launch.
+	c.emitExecutorStart(agentID, item.TaskRef, item.Goal.Title, launched)
 
 	// Persist the executor system prompt to executors/<executor_id>/SYSTEM.md for
 	// runtime inspection / debugging. Best-effort: a write failure is logged but
@@ -494,6 +503,10 @@ func (c *AgentController) maybeRunExecutorWatchdog(ctx context.Context, now time
 	c.mu.Unlock()
 
 	for _, ae := range engines {
+		// 0. T758: sample each live executor's progress into the activity stream
+		// (change-only throttled — reuses status.last_progress_at, the same signal the
+		// watchdog reads). Piggybacks the watchdog cadence so no extra timer is needed.
+		ae.ee.monitor.SampleProgress()
 		// 1. Stall-sweep the live (this-process) executors.
 		if killed, err := ae.ee.monitor.Sweep(ctx); err != nil {
 			c.log("agent=%s executor watchdog sweep: %v", ae.id, err)
