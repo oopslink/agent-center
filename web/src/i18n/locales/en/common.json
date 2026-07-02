@@ -216,8 +216,9 @@
       "directMessages": "Direct messages",
       "newDirectMessage": "New direct message",
       "noDirectMessages": "No direct messages",
-      "myDms": "My DMs",
+      "myDms": "Mine",
       "a2a": "A2A",
+      "systemDms": "System DMs",
       "deleteDmConfirm": "Delete the DM \"{{name}}\"? This permanently removes the conversation and all its messages for everyone. This cannot be undone.",
       "deleteConfirmLabel": "Delete"
     },

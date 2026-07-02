@@ -122,9 +122,9 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
       }),
     );
     renderNav();
-    // subgroup headers appear (My DMs + A2A) once an agent-agent DM exists.
+    // subgroup headers appear (Mine + A2A) once an agent-agent DM exists.
     expect(await screen.findByText('A2A')).toBeInTheDocument();
-    expect(screen.getByText('My DMs')).toBeInTheDocument();
+    expect(screen.getByText('Mine')).toBeInTheDocument();
     // the agent-agent DM is labeled with BOTH agents (T318: stacked on two lines)
     // and lives in the agent group.
     const agentGroup = screen.getByTestId('conv-nav-dms-agent');
@@ -137,6 +137,32 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     expect(within(agentGroup).getByTestId('conv-nav-dm-a2a')).toContainElement(dev1);
     // the personal DM stays in the My DMs group.
     expect(within(screen.getByTestId('conv-nav-dms-mine')).getByText('@oopslink')).toBeInTheDocument();
+  });
+
+  it('groups system DMs separately under "System DMs" and labels the row with the target', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const kind = new URL(request.url).searchParams.get('kind');
+        if (kind === 'dm') {
+          return HttpResponse.json([
+            { id: 'D1', kind: 'dm', status: 'active', dm_type: 'my_dm', peer_identity_id: 'user:o', peer_display_name: 'oopslink', unread_count: 0, mention_count: 0 },
+            { id: 'DSYS', kind: 'dm', status: 'active', dm_type: 'system_dm', peer_identity_id: 'tester3', peer_display_name: 'tester3', unread_count: 0, mention_count: 0 },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+    );
+    renderNav();
+    // The "System DMs" subheader appears; its row labels the delivery target.
+    expect(await screen.findByText('System DMs')).toBeInTheDocument();
+    const systemGroup = screen.getByTestId('conv-nav-dms-system');
+    const target = within(systemGroup).getByText('@tester3');
+    expect(target).toBeInTheDocument();
+    expect(target.closest('[data-testid="conv-nav-dm"]')).toHaveAttribute('data-dm-type', 'system_dm');
+    // The system DM must NOT bleed into the "Mine" group.
+    expect(within(screen.getByTestId('conv-nav-dms-mine')).queryByText('@tester3')).not.toBeInTheDocument();
+    // "Mine" subheader shows because another group (System DMs) exists.
+    expect(screen.getByText('Mine')).toBeInTheDocument();
   });
 
   it('collapses and expands the My DMs / A2A subgroups via their headers (T321)', async () => {

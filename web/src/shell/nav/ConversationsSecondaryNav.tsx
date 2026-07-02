@@ -164,19 +164,26 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
 
   const activeChannels = (channels.data ?? []).filter((c) => c.status !== 'archived');
   const dmList = dms.data ?? [];
-  // T308: group DMs like the DMs page — "My DMs" (the viewer is a participant)
-  // vs "Agent-to-agent" (between two agents; the human viewer isn't a peer, so
-  // these previously all read "Direct message"). The agent rows now show "@A ↔ @B".
+  // Group DMs into three buckets: "Mine" (the viewer is a participant — T308),
+  // "A2A" (between two agents; the human isn't a peer), and "System DMs" (a
+  // delivery FROM the `system` identity to a single target agent, e.g. a reminder
+  // — dm_type=system_dm, target exposed as the peer so the row reads "@target").
   const agentAgentDMs = dmList.filter((d) => d.dm_type === 'agent_agent_dm');
-  const myDMs = dmList.filter((d) => d.dm_type !== 'agent_agent_dm');
+  const systemDMs = dmList.filter((d) => d.dm_type === 'system_dm');
+  const myDMs = dmList.filter((d) => d.dm_type !== 'agent_agent_dm' && d.dm_type !== 'system_dm');
 
   // Drag-reorder (per-user, persisted) for each col② list — @oopslink.
   const channelOrder = useListOrder(`${orgBase}/conv/channels`, activeChannels.map((c) => c.id));
   const myDMOrder = useListOrder(`${orgBase}/conv/dms.mine`, myDMs.map((d) => d.id));
   const a2aOrder = useListOrder(`${orgBase}/conv/dms.a2a`, agentAgentDMs.map((d) => d.id));
+  const systemDMOrder = useListOrder(`${orgBase}/conv/dms.system`, systemDMs.map((d) => d.id));
   const orderedChannels = orderList(channelOrder, activeChannels, (c) => c.id);
   const orderedMyDMs = orderList(myDMOrder, myDMs, (d) => d.id);
   const orderedA2ADMs = orderList(a2aOrder, agentAgentDMs, (d) => d.id);
+  const orderedSystemDMs = orderList(systemDMOrder, systemDMs, (d) => d.id);
+  // The "Mine" subheader shows only when at least one OTHER DM group is present
+  // (else a viewer with only personal DMs sees a clean flat list).
+  const hasOtherDmGroups = agentAgentDMs.length > 0 || systemDMs.length > 0;
 
   // A DM whose peer identity exists but whose display name is gone = a
   // deleted-peer DM; it keeps a manual delete action (same rule as the prior
@@ -306,12 +313,13 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
             <EmptyRow text={t('shell.conv.noDirectMessages')} />
           </ul>
         )}
-        {/* My DMs (the subheader only appears when there are ALSO agent-agent DMs,
-            so a viewer with only personal DMs sees a clean flat list). T321: the
-            subheader collapses its list; with no subheader the list always shows. */}
+        {/* Mine (the subheader only appears when there is ALSO another DM group —
+            A2A or System — so a viewer with only personal DMs sees a clean flat
+            list). T321: the subheader collapses its list; with no subheader the
+            list always shows. */}
         {myDMs.length > 0 && (
           <>
-            {agentAgentDMs.length > 0 && (
+            {hasOtherDmGroups && (
               <SubHeader
                 label={t('shell.conv.myDms')}
                 collapsed={isGroupCollapsed('mine')}
@@ -319,7 +327,7 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
                 testId="conv-nav-subheader-mine"
               />
             )}
-            {!(agentAgentDMs.length > 0 && isGroupCollapsed('mine')) && (
+            {!(hasOtherDmGroups && isGroupCollapsed('mine')) && (
               <ul className="space-y-0.5" data-testid="conv-nav-dms-mine">
                 {orderedMyDMs.map((d) => renderDmRow(d, myDMOrder))}
               </ul>
@@ -338,6 +346,23 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
             {!isGroupCollapsed('a2a') && (
               <ul className="space-y-0.5" data-testid="conv-nav-dms-agent">
                 {orderedA2ADMs.map((d) => renderDmRow(d, a2aOrder))}
+              </ul>
+            )}
+          </>
+        )}
+        {/* System DMs — deliveries from the `system` identity (e.g. reminders) to a
+            single target agent. The row labels the TARGET (e.g. "@tester3"). */}
+        {systemDMs.length > 0 && (
+          <>
+            <SubHeader
+              label={t('shell.conv.systemDms')}
+              collapsed={isGroupCollapsed('system')}
+              onToggle={() => toggleGroup('system')}
+              testId="conv-nav-subheader-system"
+            />
+            {!isGroupCollapsed('system') && (
+              <ul className="space-y-0.5" data-testid="conv-nav-dms-system">
+                {orderedSystemDMs.map((d) => renderDmRow(d, systemDMOrder))}
               </ul>
             )}
           </>

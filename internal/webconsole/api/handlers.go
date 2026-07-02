@@ -688,6 +688,44 @@ func dmPeerOf(c *conversation.Conversation, self conversation.IdentityRef) (conv
 	return peer, true
 }
 
+// isActiveParticipant reports whether ref is an ACTIVE participant of c. Used by
+// the attention panel to keep an org-wide conversation scan from surfacing a DM
+// the viewer merely observes but isn't a party to (e.g. a system↔agent reminder
+// delivery) — see handlers_attention.go's directed gate.
+func isActiveParticipant(c *conversation.Conversation, ref conversation.IdentityRef) bool {
+	for _, p := range c.Participants() {
+		if p.IsActive() && p.IdentityID == ref {
+			return true
+		}
+	}
+	return false
+}
+
+// singleNonSystemParticipant returns the sole non-`system` participant of a DM
+// whose active set is exactly {system, X} — the TARGET of a system delivery. ok
+// is false unless there are exactly two active participants, one being `system`
+// and one not (a plain two-human/agent DM, or a multi-party DM, yields false so
+// it is NOT misclassified as a system DM).
+func singleNonSystemParticipant(refs []conversation.IdentityRef) (conversation.IdentityRef, bool) {
+	if len(refs) != 2 {
+		return "", false
+	}
+	var target conversation.IdentityRef
+	hasSystem, hasTarget := false, false
+	for _, ref := range refs {
+		if ref == conversation.IdentityRef("system") {
+			hasSystem = true
+			continue
+		}
+		target = ref
+		hasTarget = true
+	}
+	if hasSystem && hasTarget {
+		return target, true
+	}
+	return "", false
+}
+
 func activeDMParticipants(c *conversation.Conversation) []conversation.IdentityRef {
 	refs := []conversation.IdentityRef{}
 	if c.Kind() != conversation.ConversationKindDM {
@@ -722,6 +760,23 @@ func enrichDMProjection(ctx context.Context, nr *nameResolver, c *conversation.C
 		row["dm_participants"] = dmParticipantSummaries(ctx, nr, refs)
 		row["dm_title"] = dmTitle(ctx, nr, refs)
 		return
+	}
+	// System DM: a delivery FROM the `system` identity to a single target (e.g. a
+	// reminder delivered to an agent — participants {system, agent:X}). The human
+	// viewer isn't a party (my_dm above would have won otherwise), so it would read
+	// as a generic observed_dm. Surface it as its own kind with the TARGET (the
+	// non-system participant) as the peer, so the UI can group it under
+	// "System DMs" and label the row with the target (e.g. "@tester3").
+	if row["dm_type"] == "observed_dm" {
+		if target, ok := singleNonSystemParticipant(refs); ok {
+			row["dm_type"] = "system_dm"
+			row["peer_identity_id"] = refBareID(target)
+			if name := nr.resolveDisplayName(ctx, target); name != "" {
+				row["peer_display_name"] = name
+				row["dm_title"] = "@" + name
+			}
+			return
+		}
 	}
 	if peer, ok := dmPeerOf(c, self); ok {
 		row["peer_identity_id"] = refBareID(peer)

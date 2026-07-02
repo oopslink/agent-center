@@ -228,10 +228,20 @@ func (s *Server) collectDirectedMentionItems(
 			continue
 		}
 		kind := c.Kind()
-		// DIRECTED gate: a DM (every unread message is to the human) OR an unread
-		// @mention of the human in any other kind. Non-mention channel/work chatter
-		// is NOT an attention signal — that's the firehose the panel must avoid.
-		if kind != conversation.ConversationKindDM && sum.MentionCount == 0 {
+		// DIRECTED gate: a DM the human PARTICIPATES IN (every unread message there
+		// is to them) OR an unread @mention of the human in any other kind. Two
+		// exclusions the firehose must avoid: plain non-mention channel/work chatter,
+		// AND — critically — a DM the human merely OBSERVES but isn't a party to.
+		// The conversation scan above is org-wide (no participant filter), so a DM
+		// between two OTHER identities (e.g. a system↔agent reminder delivery) is in
+		// `all`; without the participant check its every message would count as this
+		// human's unread and leak into the panel (a directed-signal false positive
+		// AND a mild info leak). A DM only counts when self is an active party.
+		if kind == conversation.ConversationKindDM {
+			if !isActiveParticipant(c, self) {
+				continue
+			}
+		} else if sum.MentionCount == 0 {
 			continue
 		}
 		base, ts, ok := s.buildUnreadConvRow(r, d, nr, c, sum, recentByConv[c.ID()])

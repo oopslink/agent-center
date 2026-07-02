@@ -59,6 +59,25 @@ describe('DMs page', () => {
     expect(screen.queryByText(/Agent 间/)).not.toBeInTheDocument();
   });
 
+  it('adds a "System DMs" tab that lists system deliveries by their target', async () => {
+    server.use(
+      http.get('/api/conversations', () =>
+        HttpResponse.json([
+          { id: 'C-D1', kind: 'dm', name: '', status: 'active', dm_type: 'my_dm', peer_identity_id: 'agent:bot-1', peer_display_name: 'Bot One' },
+          { id: 'C-SYS', kind: 'dm', name: '', status: 'active', dm_type: 'system_dm', peer_identity_id: 'tester3', peer_display_name: 'tester3' },
+        ]),
+      ),
+    );
+    wrap(<DMs />);
+    const systemTab = await screen.findByTestId('dms-tab-system');
+    expect(systemTab).toHaveTextContent('System DMs');
+    // The system DM is NOT in the default "Mine" view.
+    expect(screen.queryByText('@tester3')).not.toBeInTheDocument();
+    // Switching to the System tab reveals it, labeled by the target.
+    fireEvent.click(systemTab);
+    expect(await screen.findByText('@tester3')).toBeInTheDocument();
+  });
+
   it('shows the empty state when there are no DMs', async () => {
     server.use(http.get('/api/conversations', () => HttpResponse.json([])));
     wrap(<DMs />);

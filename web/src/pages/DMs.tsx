@@ -23,7 +23,7 @@ import { CONVERSATION_SEGMENTS } from './conversationSegments';
 export default function DMs(): React.ReactElement {
   const { t } = useTranslation('chat');
   const dms = useConversations({ kind: 'dm' });
-  const [view, setView] = useState<'mine' | 'agent_agent'>('mine');
+  const [view, setView] = useState<'mine' | 'agent_agent' | 'system'>('mine');
   const [startOpen, setStartOpen] = useState(false);
   // v2.7 #198: per-row delete (hard-delete) gated behind a confirm dialog.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
@@ -31,8 +31,10 @@ export default function DMs(): React.ReactElement {
   const navigate = useNavigate();
   useSSEConversationSubscribe(dms.data?.map((c) => c.id));
   const agentAgentDMs = dms.data?.filter((c) => c.dm_type === 'agent_agent_dm') ?? [];
-  const myDMs = dms.data?.filter((c) => c.dm_type !== 'agent_agent_dm') ?? [];
-  const visibleDMs = view === 'agent_agent' ? agentAgentDMs : myDMs;
+  const systemDMs = dms.data?.filter((c) => c.dm_type === 'system_dm') ?? [];
+  const myDMs =
+    dms.data?.filter((c) => c.dm_type !== 'agent_agent_dm' && c.dm_type !== 'system_dm') ?? [];
+  const visibleDMs = view === 'agent_agent' ? agentAgentDMs : view === 'system' ? systemDMs : myDMs;
 
   return (
     <section className="space-y-4" data-testid="page-DMs">
@@ -104,15 +106,38 @@ export default function DMs(): React.ReactElement {
                 <span className="ml-1 text-xs text-text-muted">({agentAgentDMs.length})</span>
               )}
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'system'}
+              onClick={() => setView('system')}
+              data-testid="dms-tab-system"
+              className={`rounded px-3 py-1 min-h-[44px] md:min-h-0 ${
+                view === 'system' ? 'bg-bg-subtle text-text-primary' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {t('dms.tabs.system')}
+              {systemDMs.length > 0 && (
+                <span className="ml-1 text-xs text-text-muted">({systemDMs.length})</span>
+              )}
+            </button>
           </div>
           {visibleDMs.length === 0 ? (
             <EmptyState
               testId="dms-filter-empty"
-              title={view === 'agent_agent' ? t('dms.filterEmpty.agent.title') : t('dms.filterEmpty.personal.title')}
+              title={
+                view === 'agent_agent'
+                  ? t('dms.filterEmpty.agent.title')
+                  : view === 'system'
+                    ? t('dms.filterEmpty.system.title')
+                    : t('dms.filterEmpty.personal.title')
+              }
               body={
                 view === 'agent_agent'
                   ? t('dms.filterEmpty.agent.body')
-                  : t('dms.filterEmpty.personal.body')
+                  : view === 'system'
+                    ? t('dms.filterEmpty.system.body')
+                    : t('dms.filterEmpty.personal.body')
               }
             />
           ) : (

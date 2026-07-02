@@ -53,7 +53,8 @@
     },
     "tabs": {
       "mine": "我的",
-      "agentToAgent": "智能体之间"
+      "agentToAgent": "智能体之间",
+      "system": "系统私信"
     },
     "filterEmpty": {
       "agent": {
@@ -63,6 +64,10 @@
       "personal": {
         "title": "暂无个人私信",
         "body": "与你相关的私信将显示在此处。"
+      },
+      "system": {
+        "title": "暂无系统私信",
+        "body": "系统发给智能体的投递（如提醒）将显示在此处。"
       }
     },
     "deleteConfirm": {

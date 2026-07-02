@@ -56,7 +56,7 @@ export interface Conversation {
   // Absent on channels / malformed DMs → UI falls back to "Direct message".
   peer_identity_id?: string;
   peer_display_name?: string;
-  dm_type?: 'my_dm' | 'agent_agent_dm' | 'observed_dm';
+  dm_type?: 'my_dm' | 'agent_agent_dm' | 'system_dm' | 'observed_dm';
   dm_title?: string;
   dm_participants?: Array<{
     identity_id: string;

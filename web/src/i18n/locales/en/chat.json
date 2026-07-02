@@ -53,7 +53,8 @@
     },
     "tabs": {
       "mine": "Mine",
-      "agentToAgent": "Agent-to-agent"
+      "agentToAgent": "Agent-to-agent",
+      "system": "System DMs"
     },
     "filterEmpty": {
       "agent": {
@@ -63,6 +64,10 @@
       "personal": {
         "title": "No personal DMs",
         "body": "DMs involving you will appear here."
+      },
+      "system": {
+        "title": "No system DMs",
+        "body": "System deliveries (e.g. reminders) to agents will appear here."
       }
     },
     "deleteConfirm": {

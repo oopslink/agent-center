@@ -216,8 +216,9 @@
       "directMessages": "私信",
       "newDirectMessage": "新建私信",
       "noDirectMessages": "暂无私信",
-      "myDms": "我的私信",
+      "myDms": "我的",
       "a2a": "A2A",
+      "systemDms": "系统私信",
       "deleteDmConfirm": "删除私信“{{name}}”？这将为所有人永久移除该会话及其全部消息。此操作无法撤销。",
       "deleteConfirmLabel": "删除"
     },
