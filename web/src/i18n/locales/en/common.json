@@ -94,7 +94,7 @@
   },
   "commandPalette": {
     "dialogAriaLabel": "Command palette",
-    "searchPlaceholder": "Search pages, channels, DMs…",
+    "searchPlaceholder": "Search pages, channels, DMs… (@ to message an agent)",
     "searchAriaLabel": "Search",
     "resultsAriaLabel": "Results",
     "noMatches": "No matches for “{{query}}”",

@@ -94,7 +94,7 @@
   },
   "commandPalette": {
     "dialogAriaLabel": "命令面板",
-    "searchPlaceholder": "搜索页面、频道、私信…",
+    "searchPlaceholder": "搜索页面、频道、私信…（输入 @ 给 agent 发消息）",
     "searchAriaLabel": "搜索",
     "resultsAriaLabel": "结果",
     "noMatches": "未找到与“{{query}}”匹配的结果",

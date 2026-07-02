@@ -2,7 +2,9 @@ import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useConversations } from '@/api/conversations';
+import { useConversations, useCreateConversation } from '@/api/conversations';
+import { useMembers, identityRefOf, normalizeIdentityRef } from '@/api/members';
+import { useAppStore } from '@/store/app';
 import { orgPath, useOptionalOrgContext } from '@/OrgContext';
 
 // CommandPalette — Cmd/Ctrl-K quick-switcher (v2.3 P6). Searches
@@ -10,14 +12,20 @@ import { orgPath, useOptionalOrgContext } from '@/OrgContext';
 // case-insensitive). No new dependency: the dropdown + keyboard
 // navigation are ~80 lines instead of pulling cmdk (~13KB).
 //
+// `@` MODE: when the query starts with "@", the palette becomes an agent/member
+// picker — it lists the org members you can DM (agents + humans, joined, minus
+// self) filtered by the text after "@". Committing opens your DM with that member,
+// creating it if none exists (the create endpoint is idempotent: an existing DM is
+// reused). This makes ⌘K + "@name" a one-keystroke way to jump into a DM.
+//
 // Hidden by default; AppLayout owns the open/close state so the global
 // ⌘K hook can flip it.
 
-interface Item {
-  label: string;
-  href: string;
-  hint: string;
-}
+// A palette row: either a navigation target (page/channel/dm) or an agent/member
+// to open a DM with. `kind` drives commit (navigate vs open-or-create DM).
+type Item =
+  | { kind: 'nav'; label: string; href: string; hint: string; key: string }
+  | { kind: 'dm-agent'; label: string; ref: string; hint: string; key: string };
 
 export function CommandPalette({
   open,
@@ -37,42 +45,79 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
+  const members = useMembers();
+  const createConversation = useCreateConversation();
+  const me = useAppStore((s) => s.currentUserId);
+  const meBare = me ? normalizeIdentityRef(me) : '';
 
-  // Build the full item list once per data change. Static nav targets
+  // `@`-prefixed queries switch to the agent/member DM picker.
+  const atMode = query.startsWith('@');
+
+  // Build the full nav item list once per data change. Static nav targets
   // come first so an empty query still surfaces top-level pages.
   const items = useMemo<Item[]>(() => {
     const out: Item[] = [
-      { label: 'Overview', href: '/', hint: 'page' },
-      { label: 'Channels', href: '/channels', hint: 'page' },
-      { label: 'DMs', href: '/dms', hint: 'page' },
-      { label: 'Projects', href: '/projects', hint: 'page' },
-      { label: 'Agents', href: '/agents', hint: 'page' },
-      { label: 'Environment', href: '/environment', hint: 'page' },
-      { label: 'Secrets', href: '/secrets', hint: 'page' },
-      { label: 'Settings', href: '/settings', hint: 'page' },
+      { kind: 'nav', label: 'Overview', href: '/', hint: 'page', key: 'nav-/' },
+      { kind: 'nav', label: 'Channels', href: '/channels', hint: 'page', key: 'nav-/channels' },
+      { kind: 'nav', label: 'DMs', href: '/dms', hint: 'page', key: 'nav-/dms' },
+      { kind: 'nav', label: 'Projects', href: '/projects', hint: 'page', key: 'nav-/projects' },
+      { kind: 'nav', label: 'Issues', href: '/issues', hint: 'page', key: 'nav-/issues' },
+      { kind: 'nav', label: 'Tasks', href: '/tasks', hint: 'page', key: 'nav-/tasks' },
+      { kind: 'nav', label: 'Plans', href: '/plans', hint: 'page', key: 'nav-/plans' },
+      { kind: 'nav', label: 'Repos', href: '/repos', hint: 'page', key: 'nav-/repos' },
+      { kind: 'nav', label: 'Templates', href: '/templates', hint: 'page', key: 'nav-/templates' },
+      { kind: 'nav', label: 'Agents', href: '/agents', hint: 'page', key: 'nav-/agents' },
+      { kind: 'nav', label: 'Environment', href: '/environment', hint: 'page', key: 'nav-/environment' },
+      { kind: 'nav', label: 'Secrets', href: '/secrets', hint: 'page', key: 'nav-/secrets' },
+      { kind: 'nav', label: 'Settings', href: '/settings', hint: 'page', key: 'nav-/settings' },
     ];
     for (const c of channels.data ?? []) {
       out.push({
+        kind: 'nav',
         label: `# ${c.name}`,
         href: `/channels/${encodeURIComponent(c.id)}`,
         hint: 'channel',
+        key: `channel-${c.id}`,
       });
     }
     for (const c of dms.data ?? []) {
       out.push({
+        kind: 'nav',
         label: `◐ ${c.name || c.id}`,
         href: `/dms/${encodeURIComponent(c.id)}`,
         hint: 'dm',
+        key: `dm-${c.id}`,
       });
     }
     return out;
   }, [channels.data, dms.data]);
 
+  // `@` mode: the org members you can DM — agents + humans that have joined,
+  // excluding yourself. Labeled "@name" (falls back to the identity id).
+  const agentItems = useMemo<Item[]>(() => {
+    return (members.data ?? [])
+      .filter((m) => m.status === 'joined' && normalizeIdentityRef(m.identity_id) !== meBare)
+      .map((m) => ({
+        kind: 'dm-agent' as const,
+        label: `@${m.display_name || normalizeIdentityRef(m.identity_id)}`,
+        ref: identityRefOf(m),
+        hint: m.kind === 'agent' ? 'agent' : 'human',
+        key: `member-${m.identity_id}`,
+      }));
+  }, [members.data, meBare]);
+
   const filtered = useMemo<Item[]>(() => {
+    if (atMode) {
+      const q = query.slice(1).trim().toLowerCase();
+      const list = q
+        ? agentItems.filter((it) => it.label.toLowerCase().includes(q))
+        : agentItems;
+      return list.slice(0, 20);
+    }
     const q = query.trim().toLowerCase();
-    if (!q) return items.slice(0, 12);
+    if (!q) return items.slice(0, 14); // show all top-level pages before channels/DMs
     return items.filter((it) => it.label.toLowerCase().includes(q)).slice(0, 20);
-  }, [items, query]);
+  }, [atMode, agentItems, items, query]);
 
   // Reset focus + selection every time the palette opens.
   useEffect(() => {
@@ -94,6 +139,21 @@ export function CommandPalette({
   const commit = (idx: number) => {
     const item = filtered[idx];
     if (!item) return;
+    if (item.kind === 'dm-agent') {
+      // Open my DM with this member, creating it if none exists (the create
+      // endpoint is idempotent — an existing DM is returned, not duplicated).
+      if (createConversation.isPending) return;
+      createConversation.mutate(
+        { kind: 'dm', members: [item.ref] },
+        {
+          onSuccess: (res) => {
+            navigate(orgPath(`/dms/${encodeURIComponent(res.conversation_id)}`, org?.slug));
+            onClose();
+          },
+        },
+      );
+      return;
+    }
     navigate(orgPath(item.href, org?.slug));
     onClose();
   };
@@ -158,7 +218,7 @@ export function CommandPalette({
           ) : (
             filtered.map((it, i) => (
               <li
-                key={`${it.hint}-${it.href}`}
+                key={it.key}
                 role="option"
                 aria-selected={i === selected}
                 onMouseEnter={() => setSelected(i)}
