@@ -512,6 +512,22 @@ func (e *qenv) seedOrgProject(t *testing.T, projectID, orgID string) {
 	}
 }
 
+// archiveProject flips an already-seeded project to archived (domain Archive +
+// repo Update), so fleet tests can assert an archived project's tasks are excluded
+// from the executions list and ActiveCount.
+func (e *qenv) archiveProject(t *testing.T, projectID string) {
+	t.Helper()
+	repo := pmsqlite.NewProjectRepo(e.db)
+	p, err := repo.FindByID(context.Background(), pm.ProjectID(projectID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Archive(e.clk.Now())
+	if err := repo.Update(context.Background(), p); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // seedPMIssue seeds a pm issue (pm_issues) in a project with a given status —
 // the fleet pending-issues source after the #119 repoint. Use a real pm project
 // (seedOrgProject) for org-scoped tests so org resolves via the pm source.

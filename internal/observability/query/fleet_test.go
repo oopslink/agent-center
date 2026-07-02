@@ -362,3 +362,29 @@ func fleetWorkerRow(t *testing.T, snap query.FleetSnapshot, workerID string) que
 	t.Fatalf("worker row %q not found in snapshot: %+v", workerID, snap.Workers)
 	return query.FleetWorkerRow{}
 }
+
+// TestFleetSnapshot_ArchivedProject_ExcludedFromListAndCount pins the second half
+// of the "orphan after archive" fix: even if a non-terminal task is left under an
+// ARCHIVED project (a pre-fix leftover), the org fleet view must neither list it as
+// in-flight work nor count it in ActiveCount. Excluded in BOTH the executions list
+// and the ActiveCount so count==list holds.
+func TestFleetSnapshot_ArchivedProject_ExcludedFromListAndCount(t *testing.T) {
+	env := newQEnv(t)
+	env.seedWorkerOrg(t, "W-1", "org-A")
+	env.seedAgent(t, "AG-1", "W-1")
+	env.seedLiveExecution(t, "WI-1", "AG-1", "proj-arch", "org-A", "active")
+	// Archive the owning project — its live task is now an orphan under a terminal
+	// project and must drop out of the fleet view entirely.
+	env.archiveProject(t, "proj-arch")
+
+	svc := query.NewFleetSnapshotService(env.deps)
+	snap := svc.Snapshot(context.Background(), query.SnapshotFilter{OrganizationID: "org-A"})
+
+	if len(snap.Tasks) != 0 {
+		t.Fatalf("archived-project task must be excluded from executions list, got %d: %+v", len(snap.Tasks), snap.Tasks)
+	}
+	row := fleetWorkerRow(t, snap, "W-1")
+	if row.ActiveCount != 0 {
+		t.Fatalf("archived-project task must NOT be counted active, got ActiveCount=%d", row.ActiveCount)
+	}
+}
