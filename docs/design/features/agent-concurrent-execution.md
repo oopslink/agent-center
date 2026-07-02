@@ -10,6 +10,7 @@
 > 来源：#并发讨论 channel 与 @oopslink 的逐点对齐（2026-06-28）。
 > 参考但**不照搬**：`codingclaw-agent-parallel-execution-design.md`（模型不同，
 > 见 §11）。状态：**设计草案，待 owner 最终拍板后落实现层**。
+> 源码工作区细化方案见：[Agent Runtime Repo Workspaces](agent-runtime-repo-workspaces.md)。
 
 ---
 
