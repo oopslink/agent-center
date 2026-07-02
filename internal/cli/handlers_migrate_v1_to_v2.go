@@ -145,7 +145,7 @@ func MigrateV1ToV2Command() *Command {
 // P2-T3 added 0092 (task.node_id, plan.graph_id — orchestration FK wiring).
 // P2-T5 added 0093 (drop task cycle fields: branch/base/skip_merge_check/role).
 // Template added 0094 (pm_templates — workflow template management).
-const targetSchemaVersion = 94
+const targetSchemaVersion = 95
 
 func runMigrateV1ToV2(
 	ctx context.Context,

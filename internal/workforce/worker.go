@@ -31,6 +31,9 @@ type Worker struct {
 	discovery       WorkerDiscovery
 	lastHeartbeatAt *time.Time
 	workingSeconds  int64
+	// systemInfo holds the worker-reported host + build identity (T752).
+	// Zero value until the worker uploads it on online (capabilities report).
+	systemInfo      SystemInfo
 	enrolledAt      time.Time
 	onlineAt        *time.Time
 	offlineAt       *time.Time
@@ -114,6 +117,7 @@ type RehydrateWorkerInput struct {
 	Discovery       *WorkerDiscovery
 	LastHeartbeatAt *time.Time
 	WorkingSeconds  int64
+	SystemInfo      SystemInfo
 	EnrolledAt      time.Time
 	OnlineAt        *time.Time
 	OfflineAt       *time.Time
@@ -159,6 +163,7 @@ func RehydrateWorker(in RehydrateWorkerInput) (*Worker, error) {
 		discovery:       discovery,
 		lastHeartbeatAt: copyTimePtr(in.LastHeartbeatAt),
 		workingSeconds:  in.WorkingSeconds,
+		systemInfo:      in.SystemInfo,
 		enrolledAt:      in.EnrolledAt.UTC(),
 		onlineAt:        copyTimePtr(in.OnlineAt),
 		offlineAt:       copyTimePtr(in.OfflineAt),
@@ -179,6 +184,7 @@ func (w *Worker) OrganizationID() string       { return w.organizationID }
 func (w *Worker) Status() WorkerStatus         { return w.status }
 func (w *Worker) LastHeartbeatAt() *time.Time  { return copyTimePtr(w.lastHeartbeatAt) }
 func (w *Worker) WorkingSeconds() int64        { return w.workingSeconds }
+func (w *Worker) SystemInfo() SystemInfo       { return w.systemInfo }
 func (w *Worker) EnrolledAt() time.Time        { return w.enrolledAt }
 func (w *Worker) OnlineAt() *time.Time         { return copyTimePtr(w.onlineAt) }
 func (w *Worker) OfflineAt() *time.Time        { return copyTimePtr(w.offlineAt) }
@@ -241,6 +247,25 @@ func (w *Worker) ConcurrencyJSON() ([]byte, error) {
 // DiscoveryJSON marshals the discovery VO for storage.
 func (w *Worker) DiscoveryJSON() ([]byte, error) {
 	return json.Marshal(w.discovery)
+}
+
+// SystemInfoJSON marshals the worker-reported system info for storage (T752).
+// The zero value serialises to "{}" (never null).
+func (w *Worker) SystemInfoJSON() ([]byte, error) {
+	return systemInfoJSON(w.systemInfo)
+}
+
+// ApplySystemInfo records the worker's freshly-reported host + build identity
+// (T752). Reported on every online via the capabilities path, so it stays fresh
+// across restarts/upgrades. No-op (no version bump) when the incoming info is
+// unchanged, so an idle re-report does not churn the version.
+func (w *Worker) ApplySystemInfo(at time.Time, info SystemInfo) {
+	if w.systemInfo == info {
+		return
+	}
+	w.systemInfo = info
+	w.updatedAt = at.UTC()
+	w.version++
 }
 
 // ApplyConfig updates concurrency + discovery (per ADR-0023 service path).

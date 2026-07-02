@@ -176,7 +176,7 @@ func (c *AdminClient) EnrollWithExchange(ctx context.Context, workerID, name str
 // is auto-discovered. The rich workforce.Capability shape is sent verbatim so
 // probe version + feature flags survive the wire; the center merges onto the
 // stored set, preserving operator Enabled toggles.
-func (c *AdminClient) ReportCapabilities(ctx context.Context, workerID string, capabilities []workforce.Capability) error {
+func (c *AdminClient) ReportCapabilities(ctx context.Context, workerID string, capabilities []workforce.Capability, systemInfo workforce.SystemInfo) error {
 	if strings.TrimSpace(workerID) == "" {
 		return errors.New("adminclient: worker_id required")
 	}
@@ -186,6 +186,12 @@ func (c *AdminClient) ReportCapabilities(ctx context.Context, workerID string, c
 	body := map[string]any{
 		"worker_id":    workerID,
 		"capabilities": capabilities,
+	}
+	// T752: ship the worker's host + build identity so the Worker Profile page
+	// shows real values. Omitted when empty so an older center simply ignores a
+	// field it doesn't know, and the shape stays byte-compatible when unset.
+	if !systemInfo.IsZero() {
+		body["system_info"] = systemInfo
 	}
 	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/capabilities", body, nil)
 }

@@ -8,34 +8,48 @@ function formatDate(iso?: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
 
-// Fields the worker does not yet report (no backend source in v2.8 — the
-// workforce.Worker entity lacks them, no worker-side reporting). Shown as
-// explicit "Coming in v2.9" deferred-with-pointer rather than blank/omitted, so
-// the gap is honest (T-9 completeness, same as the Activity tab). The v2.9
-// worker-info-reporting epic adds worker-side enroll reporting + schema + DTO.
-const DEFERRED_FIELDS = [
-  'Hostname',
-  'OS',
-  'Architecture',
-  'agent-center version',
-  'Install path',
-] as const;
-
-// Maps each stable English DEFERRED_FIELDS literal (kept for slug/key/testid) to
-// its translation key, so only the displayed <dt> label is localised.
-const DEFERRED_FIELD_KEYS: Record<(typeof DEFERRED_FIELDS)[number], string> = {
-  Hostname: 'workers.profile.deferred.hostname',
-  OS: 'workers.profile.deferred.os',
-  Architecture: 'workers.profile.deferred.architecture',
-  'agent-center version': 'workers.profile.deferred.version',
-  'Install path': 'workers.profile.deferred.installPath',
+// Worker-reported host + build identity fields (T752). The worker uploads these
+// on every online (capabilities report); the backend emits each key only when
+// the worker actually reported it. So a field shows its REAL value when present,
+// and falls back to the explicit "Coming in v2.9" placeholder when absent (older
+// worker / not yet reported) — the gap stays honest (T-9 completeness) rather
+// than blank/fake.
+type SysField = {
+  slug: string; // stable testid slug
+  labelKey: string; // i18n label key
+  mono?: boolean; // render value monospaced (paths / versions)
+  value: (w: EnvWorker) => string | undefined;
 };
 
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const SYS_FIELDS: readonly SysField[] = [
+  { slug: 'hostname', labelKey: 'workers.profile.deferred.hostname', value: (w) => w.hostname },
+  { slug: 'os', labelKey: 'workers.profile.deferred.os', value: (w) => w.os },
+  { slug: 'architecture', labelKey: 'workers.profile.deferred.architecture', value: (w) => w.arch },
+  {
+    slug: 'agent-center-version',
+    labelKey: 'workers.profile.deferred.version',
+    mono: true,
+    value: (w) => w.agent_center_version,
+  },
+  {
+    slug: 'install-path',
+    labelKey: 'workers.profile.deferred.installPath',
+    mono: true,
+    value: (w) => w.install_path,
+  },
+  // The worker's OWN version — a distinct row from agent-center version (T752).
+  {
+    slug: 'worker-version',
+    labelKey: 'workers.profile.deferred.workerVersion',
+    mono: true,
+    value: (w) => w.worker_version,
+  },
+];
 
-// WorkerProfile — the #273 Profile tab. Renders the 5 fields the backend really
-// has (GET /api/workers/{id} = EnvWorker) + the 5 deferred fields as v2.9
-// placeholders.
+// WorkerProfile — the #273 Profile tab. Renders the 5 core fields the backend
+// always has (GET /api/workers/{id} = EnvWorker) plus the 6 worker-reported
+// system-info fields (T752): each shown as its real value, or the "Coming in
+// v2.9" placeholder when the worker has not reported it yet.
 export function WorkerProfile({ worker }: { worker: EnvWorker }): React.ReactElement {
   const { t } = useTranslation('members');
   const online = worker.status === 'online';
@@ -76,17 +90,30 @@ export function WorkerProfile({ worker }: { worker: EnvWorker }): React.ReactEle
         {formatDate(worker.last_heartbeat_at)}
       </dd>
 
-      {DEFERRED_FIELDS.map((label) => (
-        <Fragment key={label}>
-          <dt className="text-text-muted">{t(DEFERRED_FIELD_KEYS[label])}</dt>
-          <dd
-            className="italic text-text-muted"
-            data-testid={`worker-profile-deferred-${slug(label)}`}
-          >
-            {t('workers.profile.deferredValue')}
-          </dd>
-        </Fragment>
-      ))}
+      {SYS_FIELDS.map((f) => {
+        const v = f.value(worker)?.trim();
+        return (
+          <Fragment key={f.slug}>
+            <dt className="text-text-muted">{t(f.labelKey)}</dt>
+            {v ? (
+              <dd
+                className={f.mono ? 'break-all font-mono text-xs' : ''}
+                data-testid={`worker-profile-${f.slug}`}
+                title={v}
+              >
+                {v}
+              </dd>
+            ) : (
+              <dd
+                className="italic text-text-muted"
+                data-testid={`worker-profile-deferred-${f.slug}`}
+              >
+                {t('workers.profile.deferredValue')}
+              </dd>
+            )}
+          </Fragment>
+        );
+      })}
     </dl>
   );
 }

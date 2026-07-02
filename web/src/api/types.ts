@@ -484,6 +484,15 @@ export interface EnvWorker {
   created_at: string;
   updated_at: string;
   version: number;
+  // T752: worker-reported host + build identity (Worker Profile). Each is
+  // present only when the worker actually reported it — absent → the Profile
+  // page shows its "Coming in v2.9" per-field placeholder (honest gap).
+  hostname?: string;
+  os?: string;
+  arch?: string;
+  agent_center_version?: string;
+  install_path?: string;
+  worker_version?: string;
 }
 
 // TransferSession (v2.7 E1 #139): an in-flight file-transfer session shown on the

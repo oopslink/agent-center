@@ -44,7 +44,25 @@ func envWorkerMap(w *workforce.Worker) map[string]any {
 	if hb := w.LastHeartbeatAt(); hb != nil {
 		m["last_heartbeat_at"] = hb.Format(time.RFC3339Nano)
 	}
+	// T752: worker-reported host + build identity for the Profile page. Each key
+	// is emitted only when the worker actually reported it, so the frontend
+	// falls back to its per-field "Coming in v2.9" placeholder when absent
+	// (older worker / not yet reported) instead of showing a blank/fake value.
+	si := w.SystemInfo()
+	putIfSet(m, "hostname", si.Hostname)
+	putIfSet(m, "os", si.OS)
+	putIfSet(m, "arch", si.Arch)
+	putIfSet(m, "agent_center_version", si.AgentCenterVersion)
+	putIfSet(m, "install_path", si.InstallPath)
+	putIfSet(m, "worker_version", si.WorkerVersion)
 	return m
+}
+
+// putIfSet writes key=val only when val is non-empty (T752 omit-when-absent).
+func putIfSet(m map[string]any, key, val string) {
+	if val != "" {
+		m[key] = val
+	}
 }
 
 // listWorkersHandler serves GET /api/workers — the caller org's enrolled workers.

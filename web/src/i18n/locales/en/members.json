@@ -741,7 +741,8 @@
         "os": "OS",
         "architecture": "Architecture",
         "version": "agent-center version",
-        "installPath": "Install path"
+        "installPath": "Install path",
+        "workerVersion": "Worker version"
       }
     },
     "management": {

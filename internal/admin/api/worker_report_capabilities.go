@@ -13,6 +13,9 @@ import (
 type reportCapabilitiesReq struct {
 	WorkerID     string                 `json:"worker_id"`
 	Capabilities []workforce.Capability `json:"capabilities"`
+	// SystemInfo is the worker-reported host + build identity (T752). Optional
+	// and additive — a pre-T752 worker omits it and the field stays zero.
+	SystemInfo workforce.SystemInfo `json:"system_info"`
 }
 
 // workerReportCapabilitiesHandler backs POST /admin/workforce/worker/capabilities.
@@ -46,6 +49,7 @@ func (s *Server) workerReportCapabilitiesHandler(w http.ResponseWriter, r *http.
 	res, err := d.EnrollSvc.ReportCapabilities(r.Context(), wfservice.ReportCapabilitiesCommand{
 		WorkerID:      workforce.WorkerID(req.WorkerID),
 		Capabilities:  req.Capabilities,
+		SystemInfo:    req.SystemInfo,
 		ActorIdentity: d.Actor,
 	})
 	if err != nil {

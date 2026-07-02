@@ -77,6 +77,15 @@ func WorkerRunCommand() *Command {
 					return ExitUsage
 				}
 				logf := func(msg string) { fmt.Fprintf(errw, "[worker] %s\n", msg) }
+				// T752: resolve the binary's build identity from the CLI seams
+				// (set by main() via SetInstallBuildVersion). agent-center version
+				// is the release tag; worker version pins it to the exact commit
+				// build so the two Profile rows are distinguishable.
+				acVersion := installerVersion()
+				wkVersion := acVersion
+				if bc := installerCommit(); bc != "" && bc != "unknown" {
+					wkVersion = acVersion + "+" + bc
+				}
 				err := workerdaemon.RunDaemon(ctx, workerdaemon.RunOptions{
 					ConfigPath:           cfgPath,
 					WorkerID:             workerIDv,
@@ -88,6 +97,8 @@ func WorkerRunCommand() *Command {
 					ServerFingerprint:    firstNonEmptyWorker(*serverFingerprint, cfg.Worker.ServerFingerprint),
 					SkillsDir:            *skillsDir,
 					DisableControlStream: *disableControlStream,
+					AgentCenterVersion:   acVersion,
+					WorkerVersion:        wkVersion,
 				}, logf)
 				if err != nil {
 					if workerdaemon.IsShutdownError(err) {

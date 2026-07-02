@@ -48,12 +48,16 @@ func (r *WorkerRepo) Save(ctx context.Context, w *workforce.Worker) error {
 	if err != nil {
 		return fmt.Errorf("marshal discovery: %w", err)
 	}
+	sysInfo, err := w.SystemInfoJSON()
+	if err != nil {
+		return fmt.Errorf("marshal system_info: %w", err)
+	}
 	const stmt = `INSERT INTO workers (
 		id, name, status, concurrency_json, discovery_json, capabilities_json,
-		last_heartbeat_at, working_seconds,
+		last_heartbeat_at, working_seconds, system_info_json,
 		enrolled_at, online_at, offline_at, offline_reason, offline_message,
 		created_at, updated_at, version, organization_id
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	_, err = exec.ExecContext(ctx, stmt,
 		string(w.ID()),
 		w.Name(),
@@ -63,6 +67,7 @@ func (r *WorkerRepo) Save(ctx context.Context, w *workforce.Worker) error {
 		string(caps),
 		nullTimePtr(w.LastHeartbeatAt()),
 		w.WorkingSeconds(),
+		string(sysInfo),
 		w.EnrolledAt().Format(time.RFC3339Nano),
 		nullTimePtr(w.OnlineAt()),
 		nullTimePtr(w.OfflineAt()),
@@ -347,6 +352,35 @@ func (r *WorkerRepo) ReplaceCapabilities(ctx context.Context, id workforce.Worke
 	return nil
 }
 
+// UpdateSystemInfo persists the worker-reported host + build identity (T752).
+// CAS on version — the info is uploaded on the same online path as the
+// capability report, so it participates in the same optimistic-lock discipline.
+func (r *WorkerRepo) UpdateSystemInfo(ctx context.Context, id workforce.WorkerID, info workforce.SystemInfo, version int) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(info)
+	if err != nil {
+		return fmt.Errorf("marshal system_info: %w", err)
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	const stmt = `UPDATE workers SET system_info_json = ?, updated_at = ?, version = version + 1
+		WHERE id = ? AND version = ?`
+	res, err := exec.ExecContext(ctx, stmt, string(b), now, string(id), version)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return r.cassDiagnose(ctx, exec, id, workforce.ErrWorkerVersionConflict, workforce.ErrWorkerNotFound)
+	}
+	return nil
+}
+
 // UpdateLastHeartbeatAt is a non-CAS hot path (heartbeat is high frequency).
 func (r *WorkerRepo) UpdateLastHeartbeatAt(ctx context.Context, id workforce.WorkerID, at time.Time, workingSeconds int64) error {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
@@ -385,7 +419,7 @@ func (r *WorkerRepo) cassDiagnose(ctx context.Context, exec persistence.SQLExecu
 }
 
 const workerSelect = `SELECT id, name, status, concurrency_json, discovery_json, capabilities_json,
-	last_heartbeat_at, working_seconds,
+	last_heartbeat_at, working_seconds, system_info_json,
 	enrolled_at, online_at, offline_at, offline_reason, offline_message,
 	created_at, updated_at, version, organization_id
 	FROM workers`
@@ -412,6 +446,7 @@ func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 		capsJSON        string
 		lastHeartbeatAt sql.NullString
 		workingSeconds  int64
+		systemInfoJSON  string
 		enrolledAt      string
 		onlineAt        sql.NullString
 		offlineAt       sql.NullString
@@ -423,10 +458,14 @@ func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 		organizationID  string
 	)
 	if err := scan(&id, &name, &status, &concurrencyJSON, &discoveryJSON, &capsJSON,
-		&lastHeartbeatAt, &workingSeconds,
+		&lastHeartbeatAt, &workingSeconds, &systemInfoJSON,
 		&enrolledAt, &onlineAt, &offlineAt, &offlineReason, &offlineMessage,
 		&createdAt, &updatedAt, &version, &organizationID); err != nil {
 		return nil, err
+	}
+	systemInfo, err := workforce.ParseSystemInfo(systemInfoJSON)
+	if err != nil {
+		return nil, fmt.Errorf("scan worker: system_info_json: %w", err)
 	}
 	var caps []workforce.Capability
 	if capsJSON != "" {
@@ -479,6 +518,7 @@ func scanWorker(scan func(...any) error) (*workforce.Worker, error) {
 		Discovery:       &discovery,
 		LastHeartbeatAt: heartbeat,
 		WorkingSeconds:  workingSeconds,
+		SystemInfo:      systemInfo,
 		EnrolledAt:      enrolled,
 		OnlineAt:        online,
 		OfflineAt:       offline,

@@ -15,8 +15,13 @@ import (
 // uploads the result here so newly-installed CLIs are auto-discovered without
 // a manual --capabilities flag.
 type ReportCapabilitiesCommand struct {
-	WorkerID      workforce.WorkerID
-	Capabilities  []workforce.Capability
+	WorkerID     workforce.WorkerID
+	Capabilities []workforce.Capability
+	// SystemInfo is the worker-reported host + build identity (T752). Reported
+	// on the SAME online path as capabilities so the Worker Profile stays fresh.
+	// Zero value = an older worker that reports nothing → stored info is left
+	// untouched (never overwritten with blanks).
+	SystemInfo    workforce.SystemInfo
 	ActorIdentity observability.Actor
 }
 
@@ -50,6 +55,22 @@ func (s *WorkerEnrollService) ReportCapabilities(ctx context.Context, cmd Report
 		if len(cmd.Capabilities) > 0 {
 			if err := s.repo.UpdateCapabilities(txCtx, w.ID(), cmd.Capabilities, w.Version()); err != nil {
 				return err
+			}
+		}
+		// T752: persist the worker-reported system info on the same online path.
+		// Skip when the worker reported nothing (older worker) or the info is
+		// unchanged from what's stored, so an idle re-report doesn't churn the
+		// version. Re-read first: UpdateCapabilities above bumps the version, so
+		// the CAS must use the current one.
+		if !cmd.SystemInfo.IsZero() {
+			cur, err := s.repo.FindByID(txCtx, w.ID())
+			if err != nil {
+				return err
+			}
+			if cur.SystemInfo() != cmd.SystemInfo {
+				if err := s.repo.UpdateSystemInfo(txCtx, cur.ID(), cmd.SystemInfo, cur.Version()); err != nil {
+					return err
+				}
 			}
 		}
 		evID, err := s.sink.Emit(txCtx, observability.EmitCommand{

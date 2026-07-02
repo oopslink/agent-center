@@ -45,6 +45,12 @@ type RunOptions struct {
 	// The SSE down-push stream is DEFAULT-ON for v2.7 (D5 slice-2); this is the
 	// operator escape hatch. Poll keeps the identical delivery contract.
 	DisableControlStream bool
+	// AgentCenterVersion / WorkerVersion carry the binary's build identity
+	// (T752 Worker Profile), threaded from the CLI build seams. Reported to the
+	// center on every online so the Profile page shows real versions. Empty in
+	// unversioned / `go run` builds — the Profile page then omits the field.
+	AgentCenterVersion string
+	WorkerVersion      string
 }
 
 // RunDaemon boots and runs the worker daemon until ctx is cancelled or a SIGINT/
@@ -105,6 +111,11 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	probed := ProbeAllAdapters(ctx, nil)
 	caps := detectedCLINames(probed)
 
+	// T752: gather the worker host + build identity once at startup; reported
+	// alongside the capability upload below so the Worker Profile page shows
+	// real host facts instead of "Coming in v2.9" placeholders.
+	sysInfo := collectSystemInfo(opts.AgentCenterVersion, opts.WorkerVersion)
+
 	// Long-term worker token persistence (v2.4-D-X1): load an existing token and
 	// skip enroll, else enroll-with-exchange and persist the minted long-term token.
 	tokenPath := workerTokenFilePath(cfg, opts.ConfigPath, opts.WorkerID)
@@ -143,7 +154,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	// Non-fatal: a failed report just means stale caps until the next online.
 	{
 		ctxRep, cancelRep := context.WithTimeout(ctx, 30*time.Second)
-		if rerr := client.ReportCapabilities(ctxRep, opts.WorkerID, probed); rerr != nil {
+		if rerr := client.ReportCapabilities(ctxRep, opts.WorkerID, probed, sysInfo); rerr != nil {
 			logf(fmt.Sprintf("warning: capability report failed (will retry next online): %v", rerr))
 		} else {
 			logf(fmt.Sprintf("reported %d probed capabilities", len(probed)))

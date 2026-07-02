@@ -18,7 +18,15 @@ func TestAdminClient_ReportCapabilities_PostsRichShape(t *testing.T) {
 		{AgentCLI: "claude-code", Detected: true, Enabled: true, Version: "1.2.3", SupportsMCP: true},
 		{AgentCLI: "opencode", Detected: false},
 	}
-	if err := client.ReportCapabilities(context.Background(), "w-1", caps); err != nil {
+	sysInfo := workforce.SystemInfo{
+		Hostname:           "dev001.local",
+		OS:                 "darwin",
+		Arch:               "arm64",
+		AgentCenterVersion: "v2.10.2",
+		InstallPath:        "/usr/local/bin/agent-center",
+		WorkerVersion:      "v2.10.2+abc1234",
+	}
+	if err := client.ReportCapabilities(context.Background(), "w-1", caps, sysInfo); err != nil {
 		t.Fatalf("ReportCapabilities: %v", err)
 	}
 	reqs := fs.reqs()
@@ -28,6 +36,7 @@ func TestAdminClient_ReportCapabilities_PostsRichShape(t *testing.T) {
 	var body struct {
 		WorkerID     string                 `json:"worker_id"`
 		Capabilities []workforce.Capability `json:"capabilities"`
+		SystemInfo   workforce.SystemInfo   `json:"system_info"`
 	}
 	if err := json.Unmarshal(reqs[0].Body, &body); err != nil {
 		t.Fatalf("body decode: %v", err)
@@ -43,12 +52,37 @@ func TestAdminClient_ReportCapabilities_PostsRichShape(t *testing.T) {
 	if cc.AgentCLI != "claude-code" || cc.Version != "1.2.3" || !cc.SupportsMCP || !cc.Detected {
 		t.Fatalf("rich fields lost in transit: %+v", cc)
 	}
+	// T752: system info must ride the same report.
+	if body.SystemInfo != sysInfo {
+		t.Fatalf("system_info lost in transit: got %+v want %+v", body.SystemInfo, sysInfo)
+	}
+}
+
+// T752: an empty SystemInfo is omitted from the wire (byte-compatible with the
+// pre-T752 shape; an older center simply sees no field).
+func TestAdminClient_ReportCapabilities_OmitsEmptySystemInfo(t *testing.T) {
+	fs, client, cleanup := newFakeServer(t)
+	defer cleanup()
+	if err := client.ReportCapabilities(context.Background(), "w-1", nil, workforce.SystemInfo{}); err != nil {
+		t.Fatalf("ReportCapabilities: %v", err)
+	}
+	reqs := fs.reqs()
+	if len(reqs) != 1 {
+		t.Fatalf("want 1 req, got %d", len(reqs))
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(reqs[0].Body, &raw); err != nil {
+		t.Fatalf("body decode: %v", err)
+	}
+	if _, present := raw["system_info"]; present {
+		t.Fatalf("empty system_info must be omitted, body=%s", string(reqs[0].Body))
+	}
 }
 
 func TestAdminClient_ReportCapabilities_EmptyWorkerIDFails(t *testing.T) {
 	_, client, cleanup := newFakeServer(t)
 	defer cleanup()
-	if err := client.ReportCapabilities(context.Background(), "  ", nil); err == nil {
+	if err := client.ReportCapabilities(context.Background(), "  ", nil, workforce.SystemInfo{}); err == nil {
 		t.Fatal("expected error for empty worker_id")
 	}
 }

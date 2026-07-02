@@ -131,3 +131,36 @@ func TestWorkerReportCapabilities_SameWorkerMerges(t *testing.T) {
 		t.Fatal("codex was not merged onto W-1")
 	}
 }
+
+// T752: system_info in the report body is decoded and persisted through the HTTP
+// layer, so the Worker Profile page can surface real host + build values.
+func TestWorkerReportCapabilities_PersistsSystemInfo(t *testing.T) {
+	f := newReportCapsFixture(t)
+	f.seedWorker(t, "W-1", nil)
+	f.addWorkerToken(t, "acat_w1", "W-1")
+
+	status := f.postReport(t, "acat_w1", map[string]any{
+		"worker_id": "W-1",
+		"system_info": map[string]any{
+			"hostname":             "dev001.local",
+			"os":                   "linux",
+			"arch":                 "amd64",
+			"agent_center_version": "v2.10.2",
+			"install_path":         "/usr/local/bin/agent-center",
+			"worker_version":       "v2.10.2+abc1234",
+		},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("report must be 200, got %d", status)
+	}
+	w, _ := f.deps.WorkerRepo.FindByID(context.Background(), "W-1")
+	got := w.SystemInfo()
+	want := workforce.SystemInfo{
+		Hostname: "dev001.local", OS: "linux", Arch: "amd64",
+		AgentCenterVersion: "v2.10.2", InstallPath: "/usr/local/bin/agent-center",
+		WorkerVersion: "v2.10.2+abc1234",
+	}
+	if got != want {
+		t.Fatalf("persisted system_info = %+v, want %+v", got, want)
+	}
+}

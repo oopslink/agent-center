@@ -741,7 +741,8 @@
         "os": "OS",
         "architecture": "架构",
         "version": "agent-center 版本",
-        "installPath": "安装路径"
+        "installPath": "安装路径",
+        "workerVersion": "worker 版本"
       }
     },
     "management": {

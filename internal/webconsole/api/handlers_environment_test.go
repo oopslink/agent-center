@@ -67,6 +67,66 @@ func TestAPI_EnvWorkers_ListOrgScoped(t *testing.T) {
 	}
 }
 
+// TestAPI_EnvWorkers_SystemInfoSurfaced (T752): a worker that has reported its
+// host + build identity surfaces those fields on GET /api/workers/{id}; a worker
+// that has not reported them omits the keys (frontend then shows the "Coming in
+// v2.9" placeholder per field — honest gap, no fake values).
+func TestAPI_EnvWorkers_SystemInfoSurfaced(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.WorkerRepo = wfsql.NewWorkerRepo(db)
+	sess := setupTestSession(t, db, deps)
+
+	// One worker WITH system info, one WITHOUT.
+	repo := wfsql.NewWorkerRepo(db)
+	info := workforce.SystemInfo{
+		Hostname:           "dev001.local",
+		OS:                 "darwin",
+		Arch:               "arm64",
+		AgentCenterVersion: "v2.10.2",
+		InstallPath:        "/usr/local/bin/agent-center",
+		WorkerVersion:      "v2.10.2+abc1234",
+	}
+	wWith, err := workforce.RehydrateWorker(workforce.RehydrateWorkerInput{
+		ID: "w-info", OrganizationID: sess.OrgID, Name: "w-info", Status: workforce.WorkerOffline,
+		SystemInfo: info, EnrolledAt: time.Now(), CreatedAt: time.Now(), UpdatedAt: time.Now(), Version: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Save(context.Background(), wWith); err != nil {
+		t.Fatal(err)
+	}
+	saveWorkforceWorkerInOrg(t, db, sess.OrgID, "w-bare")
+
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	// WITH info → all fields present + correct.
+	var got map[string]any
+	_ = json.NewDecoder(orgScopedGet(t, s.URL+"/api/workers/w-info", sess).Body).Decode(&got)
+	for k, want := range map[string]string{
+		"hostname":             info.Hostname,
+		"os":                   info.OS,
+		"arch":                 info.Arch,
+		"agent_center_version": info.AgentCenterVersion,
+		"install_path":         info.InstallPath,
+		"worker_version":       info.WorkerVersion,
+	} {
+		if got[k] != want {
+			t.Fatalf("worker w-info field %q = %v, want %q", k, got[k], want)
+		}
+	}
+
+	// WITHOUT info → keys omitted (so the UI falls back to its placeholder).
+	var bare map[string]any
+	_ = json.NewDecoder(orgScopedGet(t, s.URL+"/api/workers/w-bare", sess).Body).Decode(&bare)
+	for _, k := range []string{"hostname", "os", "arch", "agent_center_version", "install_path", "worker_version"} {
+		if _, present := bare[k]; present {
+			t.Fatalf("worker w-bare should omit %q when unreported, got %+v", k, bare)
+		}
+	}
+}
+
 // TestAPI_EnvWorkers_GetOwnAndCrossOrg404: detail returns 200 for the caller org's
 // worker, and 404 (NOT 403/leak) for another org's worker id — the fetch-then-check
 // guard prevents probing cross-org worker ids (E-10b hard invariant). v2.7 #140

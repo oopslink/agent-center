@@ -42,6 +42,9 @@ type WorkerRepository interface {
 	// (WorkerConfigService.SetCapabilityEnabled) where the caller has
 	// already constructed the final desired list. Optimistic lock on version.
 	ReplaceCapabilities(ctx context.Context, id WorkerID, caps []Capability, version int) error
+	// UpdateSystemInfo persists the worker-reported host + build identity
+	// (T752 Worker Profile). Optimistic lock on version.
+	UpdateSystemInfo(ctx context.Context, id WorkerID, info SystemInfo, version int) error
 }
 
 // BootstrapTokenRepository defines persistence for BootstrapToken Entity

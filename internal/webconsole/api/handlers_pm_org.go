@@ -63,6 +63,7 @@ var planTerminalStatus = map[string]bool{"archived": true}
 func orgListQueryBase(r *http.Request, projects []*pm.Project, terminal map[string]bool) (pm.OrgListQuery, error) {
 	projectFilter := parseSetParam(r, "project")
 	var ids []pm.ProjectID
+	archivedInSet := 0
 	for _, p := range projects {
 		if len(projectFilter) > 0 && !projectFilter[string(p.ID())] {
 			continue
@@ -71,10 +72,27 @@ func orgListQueryBase(r *http.Request, projects []*pm.Project, terminal map[stri
 			continue // archived project hidden unless explicitly filtered (T42)
 		}
 		ids = append(ids, p.ID())
+		if p.Status() == pm.ProjectArchived {
+			archivedInSet++
+		}
 	}
 	q := pm.OrgListQuery{ProjectIDs: ids}
 	if err := applyListFilters(r, &q, terminal); err != nil {
 		return pm.OrgListQuery{}, err
+	}
+	// T42: when the caller EXPLICITLY filters to archived project(s) only, surface
+	// their items in full instead of an always-empty list. Archiving a project
+	// force-discards its in-flight tasks (project_flow.ArchiveProject cascade), so
+	// with the DEFAULT terminal-status hide + archived hide every task of an
+	// archived project is filtered out — the explicit "show me this archived
+	// project" view would always read empty. Lifting both defaults here is scoped
+	// to the archived-only explicit filter; an explicit ?status= filter is still
+	// honored (only the default exclusion is dropped).
+	if len(projectFilter) > 0 && len(ids) > 0 && archivedInSet == len(ids) {
+		q.IncludeArchived = true
+		if len(parseSetParam(r, "status")) == 0 {
+			q.ExcludeStatuses = nil
+		}
 	}
 	return q, nil
 }
