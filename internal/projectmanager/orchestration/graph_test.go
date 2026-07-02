@@ -117,9 +117,8 @@ func TestGraph_ReadyNodes(t *testing.T) {
 	g.AddEdge(startID, "a")
 	g.AddEdge("a", "b")
 
-	// Mark start as completed (control node)
-	g.FindNode(startID).Complete("", t0)
-
+	// No need to complete the start control node: ReadyNodes treats control nodes as
+	// passthrough-satisfied regardless of their status, so "a" is immediately ready.
 	ready := g.ReadyNodes()
 	if len(ready) != 1 || ready[0].ID() != "a" {
 		t.Fatalf("ready = %v, want [a]", nodeIDs(ready))
@@ -169,6 +168,70 @@ func TestGraph_Finish(t *testing.T) {
 	}
 	if g.Status() != GraphDone {
 		t.Fatalf("status = %s, want done", g.Status())
+	}
+}
+
+func TestNewGraph_EmptyID(t *testing.T) {
+	_, err := NewGraph(NewGraphInput{ID: "", PlanID: "plan-1", CreatedAt: t0})
+	if err != ErrMissingRequiredField {
+		t.Fatalf("want ErrMissingRequiredField, got %v", err)
+	}
+}
+
+func TestGraph_RemoveNode_StartEndBlocked(t *testing.T) {
+	g, _ := NewGraph(NewGraphInput{ID: "g1", PlanID: "plan-1", CreatedAt: t0})
+
+	if err := g.RemoveNode(g.StartNodeID()); err != ErrNodeNotRemovable {
+		t.Fatalf("removing start: want ErrNodeNotRemovable, got %v", err)
+	}
+	if err := g.RemoveNode(g.EndNodeID()); err != ErrNodeNotRemovable {
+		t.Fatalf("removing end: want ErrNodeNotRemovable, got %v", err)
+	}
+}
+
+func TestGraph_IsAutoDone(t *testing.T) {
+	t.Run("empty graph returns false", func(t *testing.T) {
+		g, _ := NewGraph(NewGraphInput{ID: "g1", PlanID: "plan-1", CreatedAt: t0})
+		if g.IsAutoDone() {
+			t.Fatal("want false for graph with no business nodes")
+		}
+	})
+
+	t.Run("all business nodes completed returns true", func(t *testing.T) {
+		g, _ := NewGraph(NewGraphInput{ID: "g1", PlanID: "plan-1", CreatedAt: t0})
+		g.AddNode(NewNodeInput{ID: "a", GraphID: "g1", Category: NodeCategoryBusiness, Title: "A"})
+		g.AddNode(NewNodeInput{ID: "b", GraphID: "g1", Category: NodeCategoryBusiness, Title: "B"})
+		n := g.FindNode("a")
+		n.Start(t0)
+		n.Complete("ok", t0)
+		m := g.FindNode("b")
+		m.Start(t0)
+		m.Complete("ok", t0)
+		if !g.IsAutoDone() {
+			t.Fatal("want true when all business nodes completed")
+		}
+	})
+
+	t.Run("one running node returns false", func(t *testing.T) {
+		g, _ := NewGraph(NewGraphInput{ID: "g1", PlanID: "plan-1", CreatedAt: t0})
+		g.AddNode(NewNodeInput{ID: "a", GraphID: "g1", Category: NodeCategoryBusiness, Title: "A"})
+		g.AddNode(NewNodeInput{ID: "b", GraphID: "g1", Category: NodeCategoryBusiness, Title: "B"})
+		n := g.FindNode("a")
+		n.Start(t0)
+		n.Complete("ok", t0)
+		g.FindNode("b").Start(t0) // still running
+		if g.IsAutoDone() {
+			t.Fatal("want false when a business node is still running")
+		}
+	})
+}
+
+func TestGraph_AddNode_Duplicate(t *testing.T) {
+	g, _ := NewGraph(NewGraphInput{ID: "g1", PlanID: "plan-1", CreatedAt: t0})
+	g.AddNode(NewNodeInput{ID: "a", GraphID: "g1", Category: NodeCategoryBusiness, Title: "A"})
+	_, err := g.AddNode(NewNodeInput{ID: "a", GraphID: "g1", Category: NodeCategoryBusiness, Title: "A"})
+	if err != ErrNodeExists {
+		t.Fatalf("want ErrNodeExists, got %v", err)
 	}
 }
 

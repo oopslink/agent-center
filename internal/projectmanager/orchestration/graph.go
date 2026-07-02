@@ -174,6 +174,9 @@ func (g *Graph) AddNode(in NewNodeInput) (*Node, error) {
 }
 
 func (g *Graph) RemoveNode(nodeID NodeID) error {
+	if nodeID == g.startNode || nodeID == g.endNode {
+		return ErrNodeNotRemovable
+	}
 	n := g.nodes[nodeID]
 	if n == nil {
 		return ErrNodeNotFound
@@ -267,16 +270,19 @@ func (g *Graph) ReadyNodes() []*Node {
 }
 
 // IsAutoDone returns true when all business nodes are completed or discarded.
+// Returns false when no business nodes exist (empty graph cannot be considered done).
 func (g *Graph) IsAutoDone() bool {
+	hasBusiness := false
 	for _, n := range g.nodes {
 		if n.Category() == NodeCategoryControl {
 			continue
 		}
+		hasBusiness = true
 		if n.Status() != NodeCompleted && n.Status() != NodeDiscarded {
 			return false
 		}
 	}
-	return true
+	return hasBusiness
 }
 
 func (g *Graph) touch(at time.Time) {
