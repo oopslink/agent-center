@@ -8,7 +8,9 @@
 //	                   never consulted); CLI paired from profile.allowed_executors
 //	not set          → the orchestrator's LLM reads the goal, judges difficulty, and
 //	                   picks one {cli, model} from profile.allowed_executors (v2.18.1 BE-2)
-//	can't judge      → profile.default_executor_model (fallback)
+//	can't judge      → profile.default_executor_model (fallback), or when that is unset
+//	                   profile.orchestrator_model as a last-resort default (T743) so an
+//	                   orchestrator-only profile still spawns instead of erroring
 //
 // The orchestrator's OWN model (used for routing / judging / aggregation — the
 // cheap-fast tier) is profile.orchestrator_model.
@@ -149,7 +151,9 @@ func NewRouter(judge DifficultyJudge) *Router {
 //
 //  1. taskModel set            → SourceTaskOverride (judge never consulted); CLI paired via resolveCLI
 //  2. judge picks an allowed   → SourceJudged (CLI is the chosen candidate's)
-//  3. otherwise default set    → SourceDefault (JudgeError carries why, if a judge ran); CLI paired via resolveCLI
+//  3. default OR orchestrator  → SourceDefault (default_executor_model, else orchestrator_model
+//                                 as last-resort default — T743); JudgeError carries why, if a
+//                                 judge ran; CLI paired via resolveCLI
 //  4. nothing resolvable       → ErrNoExecutorModel (wrapping the judge reason)
 //
 // The CLI for the model-only override / default paths is paired by resolveCLI:
@@ -186,8 +190,17 @@ func (r *Router) ResolveExecutor(ctx context.Context, taskModel string, goal exe
 		}
 	}
 
-	// 3. Default fallback.
-	if d := strings.TrimSpace(cfg.DefaultExecutorModel); d != "" {
+	// 3. Default fallback — profile.default_executor_model, or (when that is unset)
+	// profile.orchestrator_model as a last-resort default. An agent that configured
+	// only an orchestrator_model (no default_executor_model, no judge/allowed set)
+	// therefore still spawns an executor under that model instead of failing with
+	// ErrNoExecutorModel — the common single-model profile no longer strands its
+	// no-task.model tasks in a fork-fail loop (T743).
+	d := strings.TrimSpace(cfg.DefaultExecutorModel)
+	if d == "" {
+		d = strings.TrimSpace(cfg.OrchestratorModel)
+	}
+	if d != "" {
 		return Decision{CLI: resolveCLI(cfg, d), Model: d, Source: SourceDefault, JudgeError: judgeErr}, nil
 	}
 

@@ -311,13 +311,56 @@ func TestResolve_NilJudge_FallsBackToDefault(t *testing.T) {
 	}
 }
 
-// Nothing resolvable: no task.model, judge inconclusive, no default → error
-// (protocol requires a non-empty executor model before spawn).
+// T743: no task.model, judge unusable, no default_executor_model, but an
+// orchestrator_model IS configured → fall back to the orchestrator model as a
+// last-resort default (SourceDefault) rather than erroring, so an
+// orchestrator-only profile still spawns an executor.
+func TestResolve_NoDefault_FallsBackToOrchestratorModel(t *testing.T) {
+	j := &fakeJudge{err: ErrInconclusive}
+	r := NewRouter(j)
+	cfg := baseCfg()
+	cfg.DefaultExecutorModel = "" // only orchestrator_model ("haiku-cheap") remains
+
+	dec, err := r.ResolveExecutor(context.Background(), "", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if dec.Model != "haiku-cheap" || dec.Source != SourceDefault {
+		t.Errorf("got (%q,%q), want (haiku-cheap, default) via orchestrator-model fallback", dec.Model, dec.Source)
+	}
+	// CLI still paired from the matching candidate (haiku-cheap is a claude-code entry).
+	if dec.CLI != "claude-code" {
+		t.Errorf("cli = %q, want claude-code (paired from candidates)", dec.CLI)
+	}
+	// The judge reason is still surfaced (not swallowed) even on the orchestrator fallback.
+	if !errors.Is(dec.JudgeError, ErrInconclusive) {
+		t.Errorf("JudgeError = %v, want it to wrap ErrInconclusive", dec.JudgeError)
+	}
+}
+
+// An explicit default_executor_model still WINS over the orchestrator_model
+// fallback (T743 only fills the gap when default is unset).
+func TestResolve_ExplicitDefault_WinsOverOrchestrator(t *testing.T) {
+	r := NewRouter(nil)
+	cfg := baseCfg() // OrchestratorModel haiku-cheap, DefaultExecutorModel sonnet-mid
+	dec, err := r.ResolveExecutor(context.Background(), "", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if dec.Model != "sonnet-mid" || dec.Source != SourceDefault {
+		t.Errorf("got (%q,%q), want (sonnet-mid, default) — explicit default beats orchestrator fallback", dec.Model, dec.Source)
+	}
+}
+
+// Nothing resolvable: no task.model, judge inconclusive, no default AND no
+// orchestrator_model → error (protocol requires a non-empty executor model
+// before spawn; the T743 orchestrator fallback cannot fill a blank orchestrator).
 func TestResolve_Unresolvable_Errors(t *testing.T) {
 	j := &fakeJudge{err: ErrInconclusive}
 	r := NewRouter(j)
 	cfg := baseCfg()
 	cfg.DefaultExecutorModel = ""
+	cfg.OrchestratorModel = "" // no last-resort default either
 
 	_, err := r.ResolveExecutor(context.Background(), "", testGoal, cfg)
 	if err == nil {

@@ -97,6 +97,8 @@ worker
 task.model 设了      → 直接用，不问监工（硬覆盖，优先级最高）
         没设         → 监工用 LLM 读 goal 判难度 → 从 profile.allowed_models 选档
                         判不出 → profile.default_executor_model 兜底
+                                 未配 default → 用 profile.orchestrator_model 作最后兜底（T743），
+                                 使只配了 orchestrator_model 的 profile 也能 fork 执行器而非报错
 ```
 
 - 难度判断**用 LLM 推理**（监工本就是会推理的模型），不写死启发式规则。
@@ -220,7 +222,7 @@ executor」，不必提前二选一。
 |---|---|---|
 | `orchestrator_model` | 监工自身模型（便宜快档） | profile 指定 |
 | `allowed_models[]` | executor 可选模型清单（监工按难度从中选） | profile 指定 |
-| `default_executor_model` | 难度判不出时的兜底 | profile 指定 |
+| `default_executor_model` | 难度判不出时的兜底（未配时回退 `orchestrator_model`，T743） | profile 指定 |
 | `max_concurrent_tasks` | 一个 agent 名下最大并发 executor 数 | **3** |
 
 **task：**
