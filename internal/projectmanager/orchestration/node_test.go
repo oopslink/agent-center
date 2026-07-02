@@ -160,3 +160,89 @@ func TestNode_IllegalTransition(t *testing.T) {
 		t.Fatal("expected error for open -> completed")
 	}
 }
+
+func TestRehydrateNode_HappyPath(t *testing.T) {
+	logs := []ActionLog{
+		{OccurredAt: t0, Action: "started", Detail: ""},
+		{OccurredAt: t0.Add(time.Hour), Action: "completed", Detail: "ok"},
+	}
+	n, err := RehydrateNode(RehydrateNodeInput{
+		ID:          "n42",
+		GraphID:     "g99",
+		Category:    NodeCategoryBusiness,
+		ControlKind: "",
+		Title:       "Rehydrated task",
+		Status:      NodeCompleted,
+		Outcome:     "ok",
+		Metadata:    map[string]any{"env": "prod"},
+		ActionLogs:  logs,
+		CreatedAt:   t0,
+		UpdatedAt:   t0.Add(time.Hour),
+		Version:     3,
+	})
+	if err != nil {
+		t.Fatalf("RehydrateNode: %v", err)
+	}
+	if n.ID() != "n42" {
+		t.Errorf("ID = %s, want n42", n.ID())
+	}
+	if n.GraphID() != "g99" {
+		t.Errorf("GraphID = %s, want g99", n.GraphID())
+	}
+	if n.Category() != NodeCategoryBusiness {
+		t.Errorf("Category = %s, want business", n.Category())
+	}
+	if n.ControlKind() != "" {
+		t.Errorf("ControlKind = %s, want empty", n.ControlKind())
+	}
+	if n.Title() != "Rehydrated task" {
+		t.Errorf("Title = %s, want 'Rehydrated task'", n.Title())
+	}
+	if n.Status() != NodeCompleted {
+		t.Errorf("Status = %s, want completed", n.Status())
+	}
+	if n.Outcome() != "ok" {
+		t.Errorf("Outcome = %s, want ok", n.Outcome())
+	}
+	if n.Metadata()["env"] != "prod" {
+		t.Errorf("Metadata[env] = %v, want prod", n.Metadata()["env"])
+	}
+	if len(n.ActionLogs()) != 2 {
+		t.Errorf("ActionLogs len = %d, want 2", len(n.ActionLogs()))
+	}
+	if !n.CreatedAt().Equal(t0.UTC()) {
+		t.Errorf("CreatedAt = %v, want %v", n.CreatedAt(), t0.UTC())
+	}
+	if !n.UpdatedAt().Equal(t0.Add(time.Hour).UTC()) {
+		t.Errorf("UpdatedAt = %v, want %v", n.UpdatedAt(), t0.Add(time.Hour).UTC())
+	}
+	if n.Version() != 3 {
+		t.Errorf("Version = %d, want 3", n.Version())
+	}
+}
+
+func TestRehydrateNode_InvalidStatus(t *testing.T) {
+	_, err := RehydrateNode(RehydrateNodeInput{
+		ID:      "n1",
+		GraphID: "g1",
+		Title:   "x",
+		Status:  NodeStatus("bogus"),
+		Version: 1,
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid status")
+	}
+}
+
+func TestRehydrateNode_InvalidVersion(t *testing.T) {
+	_, err := RehydrateNode(RehydrateNodeInput{
+		ID:      "n1",
+		GraphID: "g1",
+		Title:   "x",
+		Status:  NodeOpen,
+		Version: 0,
+	})
+	if err == nil {
+		t.Fatal("expected error for version < 1")
+	}
+}

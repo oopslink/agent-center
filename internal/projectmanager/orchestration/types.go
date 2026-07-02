@@ -1,6 +1,9 @@
 package orchestration
 
-import "errors"
+import (
+	"errors"
+	"slices"
+)
 
 // Typed identifiers.
 type (
@@ -69,12 +72,7 @@ var nodeTransitions = map[NodeStatus][]NodeStatus{
 }
 
 func (s NodeStatus) CanTransitionTo(to NodeStatus) bool {
-	for _, n := range nodeTransitions[s] {
-		if n == to {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(nodeTransitions[s], to)
 }
 
 func (s NodeStatus) IsTerminal() bool {
@@ -107,12 +105,7 @@ var graphTransitions = map[GraphStatus][]GraphStatus{
 }
 
 func (s GraphStatus) CanTransitionTo(to GraphStatus) bool {
-	for _, n := range graphTransitions[s] {
-		if n == to {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(graphTransitions[s], to)
 }
 
 // Sentinel errors.

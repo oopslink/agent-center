@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"encoding/json"
+	"maps"
 	"strings"
 	"time"
 )
@@ -141,9 +142,7 @@ func (n *Node) Version() int             { return n.version }
 
 func (n *Node) Metadata() map[string]any {
 	cp := make(map[string]any, len(n.metadata))
-	for k, v := range n.metadata {
-		cp[k] = v
-	}
+	maps.Copy(cp, n.metadata)
 	return cp
 }
 
