@@ -15,6 +15,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/observability"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 // AdminTransportConfig captures the v2.3-7a (task #27) admin listener
@@ -280,6 +281,13 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 
 		// ProjectManager BC (v2.7 D2-b2) — block_task / complete_task.
 		PMService: a.PMService,
+		// T764 hotfix: back the agent list_templates / get_template tools.
+		// This is the ONLY admin-api HandlerDeps builder (used by both the live
+		// server at NewServerWithTransports and the admin_client_testhelper), so
+		// wiring it here keeps the wiring test and the live path in lock-step —
+		// no "test green but prod 501" gap. Parallels webconsole_wiring.go's
+		// TemplateRepo line; builtin rows are seeded at boot in NewApp.
+		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 		// v2.18.4 BE-2 (issue-f980c8de) — workspace CodeRepo svc backing the agent
 		// repo-info MCP tools (list_project_repos / get_repo_info live).
 		CodeRepoSvc: a.CodeRepoService,

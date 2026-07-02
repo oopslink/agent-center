@@ -229,6 +229,15 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		clk = clock.SystemClock{}
 	}
 	gen := idgen.NewGenerator(clk)
+	// T764 hotfix: seed the built-in workflow templates at boot. Migration 0094
+	// creates pm_templates; SeedBuiltinTemplates fills the builtin rows so the
+	// agent list_templates / get_template tools return them. NewApp is the single
+	// choke point every boot path (live server, webconsole/admin test helpers,
+	// placeholder) goes through with an already-migrated DB, so seeding here keeps
+	// test and live in lock-step. Idempotent — safe to re-run on every boot.
+	if err := pmsql.SeedBuiltinTemplates(context.Background(), db, pmsql.NewTemplateRepo(db)); err != nil {
+		return nil, fmt.Errorf("seed builtin templates: %w", err)
+	}
 	er, err := obsqlite.NewEventRepo(context.Background(), db)
 	if err != nil {
 		return nil, fmt.Errorf("event repo: %w", err)
