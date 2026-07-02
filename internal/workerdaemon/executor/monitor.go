@@ -162,13 +162,20 @@ func (m *Monitor) Sweep(ctx context.Context) ([]string, error) {
 		if !m.watchdog.Check(st, now).Stalled {
 			continue
 		}
+		// Mark the stall BEFORE the kill, not after. GracefulKill blocks for the
+		// SIGTERM→SIGKILL grace window, and a well-behaved executor that flushes
+		// output.json + status=failed and exits WITHIN that window is reaped
+		// concurrently by its own drain goroutine (AwaitCompletion→Finalize→
+		// emitStop→takeStalled). If the mark were set only after GracefulKill
+		// returned, that reap would race ahead, find no mark, and mislabel the
+		// stall-kill as a generic nonzero_exit — losing the "stalled" cause that is
+		// the whole point of watchdog observability. Marking first makes the cause
+		// visible to any concurrent reap; markStalled/takeStalled are mutex-guarded,
+		// so the write here happens-before the reap's read.
+		m.markStalled(h.ExecutorID)
 		if err := m.watchdog.GracefulKill(ctx, h); err != nil {
 			return killed, fmt.Errorf("executor: sweep kill %s: %w", h.ExecutorID, err)
 		}
-		// Remember the stall so the eventual Finalize (via the drain goroutine's
-		// AwaitCompletion) labels this-process kill's stop "stalled" — the reaped
-		// kill would otherwise classify as a generic nonzero_exit.
-		m.markStalled(h.ExecutorID)
 		killed = append(killed, h.ExecutorID)
 	}
 	return killed, nil

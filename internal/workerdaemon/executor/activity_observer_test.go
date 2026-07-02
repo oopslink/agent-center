@@ -129,6 +129,51 @@ func TestMonitor_Sweep_MarksStalled(t *testing.T) {
 	}
 }
 
+// Regression (T760): Sweep must mark the stall BEFORE GracefulKill, so a drain
+// goroutine that reaps the executor DURING the SIGTERM grace window (a well-behaved
+// executor flushing status=failed then exiting) still classifies the stop as
+// "stalled", not a generic nonzero_exit. This test injects the reap's classification
+// at the exact race point — the watchdog's grace-window sleep, which runs mid-kill.
+// It FAILS on the pre-fix ordering (mark after GracefulKill → mark absent mid-window)
+// and PASSES on the fix (mark before GracefulKill).
+func TestMonitor_Sweep_MarksStalledBeforeGracefulKill(t *testing.T) {
+	f := newMonitorFixture(t, 3)
+	id := "e-race"
+	if _, err := f.pool.Launch(context.Background(), LaunchSpec{Input: inputWithTaskRef(id, "T758")}); err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	mustWriteStatus(t, f.fx, runningStatusAt(id, f.clk.Now()))
+	f.clk.Advance(2 * time.Minute) // past the 1m stall timeout
+
+	// A watchdog whose grace-window sleep runs the SAME classification the reap's
+	// Finalize→emitStop would (takeStalled): this models the drain goroutine winning
+	// the race and finalizing the executor while GracefulKill is still mid-kill.
+	var reapReason string
+	f.mon.watchdog = NewWatchdog(WatchdogConfig{
+		StallTimeout: time.Minute,
+		Clock:        f.clk,
+		Sleep: func(time.Duration) {
+			if f.mon.takeStalled(id) {
+				reapReason = "stalled"
+			} else {
+				reapReason = "nonzero_exit"
+			}
+		},
+	})
+
+	killed, err := f.mon.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("Sweep: %v", err)
+	}
+	if len(killed) != 1 || killed[0] != id {
+		t.Fatalf("killed = %v, want [%s]", killed, id)
+	}
+	if reapReason != "stalled" {
+		t.Fatalf("a reap racing the grace window classified %q, want stalled — "+
+			"Sweep must markStalled BEFORE GracefulKill", reapReason)
+	}
+}
+
 // A stall mark overrides the reaped completion's reason to "stalled" at Finalize.
 func TestMonitor_Emit_Stop_StalledOverride(t *testing.T) {
 	f := newMonitorFixture(t, 3)
