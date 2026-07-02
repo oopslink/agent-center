@@ -36,7 +36,7 @@ func mapTemplateError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTemplateExists):
 		writeError(w, http.StatusConflict, "template_exists", err.Error())
 	default:
-		writeError(w, http.StatusInternalServerError, "template_error", err.Error())
+		writeError(w, http.StatusInternalServerError, "internal_error", "an internal error occurred")
 	}
 }
 
@@ -115,6 +115,7 @@ func (s *Server) createTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 2<<20) // 2 MiB limit
 	var req struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
@@ -179,6 +180,7 @@ func (s *Server) updateTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden", "builtin templates cannot be modified")
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 2<<20) // 2 MiB limit
 	var req struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`

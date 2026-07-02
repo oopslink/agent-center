@@ -2,6 +2,7 @@ package projectmanager
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -32,15 +33,17 @@ type NewTemplateInput struct {
 	CreatedAt   time.Time
 }
 
+const (
+	maxTemplateNameLen    = 256
+	maxTemplateContentLen = 1 << 20 // 1 MiB
+)
+
 func NewTemplate(in NewTemplateInput) (*Template, error) {
 	if strings.TrimSpace(string(in.ID)) == "" {
 		return nil, errors.New("projectmanager: template id required")
 	}
-	if strings.TrimSpace(in.Name) == "" {
-		return nil, errors.New("projectmanager: template name required")
-	}
-	if strings.TrimSpace(in.Content) == "" {
-		return nil, errors.New("projectmanager: template content required")
+	if err := validateTemplateLengths(in.Name, in.Content); err != nil {
+		return nil, err
 	}
 	at := in.CreatedAt
 	if at.IsZero() {
@@ -105,16 +108,29 @@ func (t *Template) Version() int          { return t.version }
 
 // Mutations
 func (t *Template) Update(name, description, content string, at time.Time) error {
-	if strings.TrimSpace(name) == "" {
-		return errors.New("projectmanager: template name required")
-	}
-	if strings.TrimSpace(content) == "" {
-		return errors.New("projectmanager: template content required")
+	if err := validateTemplateLengths(name, content); err != nil {
+		return err
 	}
 	t.name = name
 	t.description = description
 	t.content = content
 	t.touch(at)
+	return nil
+}
+
+func validateTemplateLengths(name, content string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("projectmanager: template name required")
+	}
+	if len(name) > maxTemplateNameLen {
+		return fmt.Errorf("projectmanager: template name too long (max %d bytes)", maxTemplateNameLen)
+	}
+	if strings.TrimSpace(content) == "" {
+		return errors.New("projectmanager: template content required")
+	}
+	if len(content) > maxTemplateContentLen {
+		return errors.New("projectmanager: template content too long (max 1 MiB)")
+	}
 	return nil
 }
 
