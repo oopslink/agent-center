@@ -293,6 +293,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans", s.pmListPlansHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans", s.pmCreatePlanHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
+	// T769 — plan-detail DAG reads the orchestration-engine graph (control nodes +
+	// edge kinds); a no-graph plan yields has_graph:false → legacy DAG fallback.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/graph", s.pmGetPlanGraphHandler)
 	// T581 — plan detail rail "Related Plans": other plans from the same source issue.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/related-plans", s.pmRelatedPlansHandler)
 	// Plan detail rail "Related Issues": the source issue(s) this plan's tasks derive from.

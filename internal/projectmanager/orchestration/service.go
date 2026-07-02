@@ -307,6 +307,15 @@ func (s *Service) ListNodes(ctx context.Context, graphID GraphID) ([]*Node, erro
 	return s.nodes.ListByGraph(ctx, graphID)
 }
 
+// ListEdges returns all directed edges belonging to a graph (from→to). It is the
+// read counterpart of AddEdge/RemoveEdge: a straight passthrough to the edge repo
+// (edges carry no domain state beyond their endpoints, so no aggregate rehydrate
+// is needed). Used by the webconsole plan-detail graph read (T769) to render the
+// DAG's edges alongside ListNodes.
+func (s *Service) ListEdges(ctx context.Context, graphID GraphID) ([]Edge, error) {
+	return s.edges.ListByGraph(ctx, graphID)
+}
+
 // GetReadyNodes loads the full graph and returns nodes whose upstream
 // dependencies are all completed or discarded.
 func (s *Service) GetReadyNodes(ctx context.Context, graphID GraphID) ([]*Node, error) {

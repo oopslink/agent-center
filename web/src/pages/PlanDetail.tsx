@@ -7,6 +7,7 @@ import { useProject } from '@/api/projects';
 import { ApiError } from '@/api/client';
 import {
   usePlan,
+  usePlanGraph,
   useStartPlan,
   useStopPlan,
   useAddDependency,
@@ -21,6 +22,9 @@ import {
   type Plan,
   type PlanNode,
   type PlanNodeStatus,
+  type PlanGraphNode,
+  type PlanGraphEdge,
+  type PlanGraphEdgeKind,
   type PatchPlanInput,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
@@ -1822,6 +1826,283 @@ function PlanStepper({
   );
 }
 
+// ── T769: graph-backed DAG (orchestration engine) ───────────────────────────
+// Renders the plan's REAL engine graph: control nodes (Start/End/Condition) +
+// business nodes (bound tasks) + edges tagged by kind (seq/conditional/loopback),
+// rather than the client-side depends_on reconstruction. Used when the plan
+// carries a graph; PlanDag falls back to the legacy renderer for ungraphed plans.
+
+interface GraphPositioned {
+  node: PlanGraphNode;
+  level: number;
+  x: number;
+  y: number;
+}
+
+// Longest-path left→right layout over the FORWARD edges (loopback back-edges are
+// excluded from leveling — they are drawn as return arcs). Control + business
+// nodes share the layout so the graph reads as one flow.
+function layoutGraph(
+  nodes: PlanGraphNode[],
+  edges: PlanGraphEdge[],
+): { positioned: GraphPositioned[]; width: number; height: number } {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const forward = edges.filter((e) => e.kind !== 'loopback' && byId.has(e.from) && byId.has(e.to));
+  const incoming = new Map<string, string[]>();
+  for (const e of forward) incoming.set(e.to, [...(incoming.get(e.to) ?? []), e.from]);
+
+  const cache = new Map<string, number>();
+  const inStack = new Set<string>();
+  function level(id: string): number {
+    if (cache.has(id)) return cache.get(id)!;
+    if (inStack.has(id)) return 0; // cycle guard (defensive)
+    inStack.add(id);
+    const preds = incoming.get(id) ?? [];
+    const lvl = preds.length === 0 ? 0 : Math.max(...preds.map((p) => level(p) + 1));
+    inStack.delete(id);
+    cache.set(id, lvl);
+    return lvl;
+  }
+
+  const byLevel = new Map<number, PlanGraphNode[]>();
+  let maxLevel = 0;
+  for (const n of nodes) {
+    const lvl = level(n.id);
+    maxLevel = Math.max(maxLevel, lvl);
+    byLevel.set(lvl, [...(byLevel.get(lvl) ?? []), n]);
+  }
+  const positioned: GraphPositioned[] = [];
+  let maxRows = 0;
+  for (const [lvl, group] of byLevel) {
+    maxRows = Math.max(maxRows, group.length);
+    group.forEach((node, row) => {
+      positioned.push({ node, level: lvl, x: PAD_X + lvl * COL_W, y: PAD_Y + row * (NODE_H + ROW_GAP) });
+    });
+  }
+  const width = PAD_X * 2 + (maxLevel + 1) * COL_W;
+  const height = Math.max(PAD_Y * 2 + maxRows * (NODE_H + ROW_GAP) - ROW_GAP, 200);
+  return { positioned, width, height };
+}
+
+// Per-kind edge stroke class + dash. seq = neutral, conditional = accent (routed
+// by a decision), loopback = amber dashed return arc.
+const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; marker: string }> = {
+  seq: { cls: 'stroke-border-strong', marker: 'url(#plan-graph-arrow)' },
+  conditional: { cls: 'stroke-accent', marker: 'url(#plan-graph-arrow-accent)' },
+  loopback: { cls: 'stroke-status-amber-border', dash: '5 3', marker: 'url(#plan-graph-arrow-loop)' },
+};
+
+// A control node marker: Start/End circular terminals; Condition a rotated
+// (diamond) square. Distinct from task cards so the control flow is legible.
+function ControlNodeMarker({ node }: { node: PlanGraphNode }): React.ReactElement {
+  const { t } = useTranslation('work');
+  const kind = node.control_kind;
+  const isCondition = kind === 'condition';
+  const label = isCondition
+    ? node.title || t('plan.detail.dag.controlCondition', { defaultValue: 'Condition' })
+    : kind === 'start'
+      ? t('plan.detail.dag.anchorStart')
+      : t('plan.detail.dag.anchorEnd');
+  return (
+    <div
+      className="flex h-full w-full items-center justify-center"
+      data-testid="plan-graph-control-node"
+      data-control-kind={kind}
+      data-node-status={node.status}
+    >
+      <div
+        className={`flex items-center justify-center text-center text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary shadow-1 ${
+          isCondition
+            ? 'h-16 w-16 rotate-45 rounded-md border-[1.5px] border-status-amber-border bg-bg-elevated'
+            : `h-14 w-14 rounded-full border-[1.5px] bg-bg-elevated ${kind === 'start' ? 'border-accent' : 'border-border-strong'}`
+        }`}
+        title={label}
+      >
+        <span className={isCondition ? '-rotate-45 px-1 leading-tight' : ''}>{label}</span>
+      </div>
+    </div>
+  );
+}
+
+function PlanGraphDag({
+  projectId,
+  plan,
+  graph,
+  compact,
+}: {
+  projectId: string;
+  plan: Plan;
+  graph: { nodes: PlanGraphNode[]; edges: PlanGraphEdge[] };
+  compact: boolean;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const scale = compact ? 0.7 : 1;
+  const nodes = graph.nodes;
+  const edges = graph.edges;
+
+  // Bound task → derived 6-state node_status (for the business-node chip), taken
+  // from the plan detail's PlanNode list so the graph chips match the plan view.
+  const nodeStatusOf = useMemo(() => {
+    const m = new Map<string, PlanNodeStatus>();
+    for (const pn of plan.nodes ?? []) m.set(pn.task_id, pn.node_status);
+    return m;
+  }, [plan.nodes]);
+
+  const { positioned, width, height } = useMemo(() => layoutGraph(nodes, edges), [nodes, edges]);
+  const posById = useMemo(() => new Map(positioned.map((p) => [p.node.id, p])), [positioned]);
+
+  // Edge paths. Forward edges: right-mid → left-mid cubic. Loopback: a return arc
+  // over the top (from the decision back to its upstream target).
+  const drawnEdges = useMemo(() => {
+    const out: { key: string; d: string; kind: PlanGraphEdgeKind }[] = [];
+    for (const e of edges) {
+      const a = posById.get(e.from);
+      const b = posById.get(e.to);
+      if (!a || !b) continue;
+      if (e.kind === 'loopback') {
+        const x1 = a.x + NODE_W / 2;
+        const y1 = a.y;
+        const x2 = b.x + NODE_W / 2;
+        const y2 = b.y;
+        const topY = Math.min(y1, y2) - 34;
+        out.push({ key: `loop-${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${x1},${topY} ${x2},${topY} ${x2},${y2}` });
+        continue;
+      }
+      const x1 = a.x + NODE_W;
+      const y1 = a.y + NODE_H / 2;
+      const x2 = b.x;
+      const y2 = b.y + NODE_H / 2;
+      const midX = (x1 + x2) / 2;
+      out.push({ key: `${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}` });
+    }
+    return out;
+  }, [edges, posById]);
+
+  return (
+    <SenderSidebarProvider>
+      <div data-testid="plan-dag" data-graph="true" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
+        {/* Mobile: a simple ordered list of nodes by flow level. */}
+        <ol className="mt-1 space-y-1.5 md:hidden" data-testid="plan-graph-stepper">
+          {positioned
+            .slice()
+            .sort((p, q) => p.level - q.level || p.y - q.y)
+            .map((p) => (
+              <li
+                key={p.node.id}
+                className="rounded-lg border border-border-base bg-bg-elevated p-2 text-xs"
+                data-node-category={p.node.category}
+                data-control-kind={p.node.control_kind}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-text-primary">
+                    {p.node.title || refLabel(p.node.org_ref, p.node.task_id ?? p.node.id)}
+                  </span>
+                  {p.node.category === 'business' && p.node.task_id ? (
+                    <NodeStateChip status={nodeStatusOf.get(p.node.task_id) ?? 'blocked'} />
+                  ) : (
+                    <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary">
+                      {p.node.control_kind}
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+        </ol>
+
+        {/* Desktop canvas. */}
+        <div
+          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle hex-dot-grid md:block md:min-h-0 md:flex-1"
+          data-testid="plan-dag-canvas"
+          data-compact={compact ? 'true' : 'false'}
+        >
+          <div style={{ width: width * scale, height: height * scale }}>
+            <div
+              className="relative"
+              data-testid="plan-dag-scaler"
+              style={{ width, height, transform: scale === 1 ? undefined : `scale(${scale})`, transformOrigin: 'top left' }}
+            >
+              <svg className="absolute left-0 top-0" width={width} height={height} data-testid="plan-graph-svg" aria-hidden="true">
+                <defs>
+                  <marker id="plan-graph-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" className="fill-border-strong" />
+                  </marker>
+                  <marker id="plan-graph-arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" className="fill-accent" />
+                  </marker>
+                  <marker id="plan-graph-arrow-loop" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" className="fill-status-amber-border" />
+                  </marker>
+                </defs>
+                {drawnEdges.map((e) => {
+                  const st = EDGE_KIND_STROKE[e.kind];
+                  return (
+                    <path
+                      key={e.key}
+                      d={e.d}
+                      fill="none"
+                      className={st.cls}
+                      strokeWidth="1.6"
+                      strokeDasharray={st.dash}
+                      markerEnd={st.marker}
+                      data-testid="plan-graph-edge"
+                      data-edge={e.key}
+                      data-edge-kind={e.kind}
+                    />
+                  );
+                })}
+              </svg>
+
+              {positioned.map((p) => {
+                if (p.node.category === 'control') {
+                  return (
+                    <div key={p.node.id} className="absolute" style={{ left: p.x, top: p.y, width: NODE_W, height: NODE_H }}>
+                      <ControlNodeMarker node={p.node} />
+                    </div>
+                  );
+                }
+                const taskId = p.node.task_id ?? p.node.id;
+                const status = nodeStatusOf.get(taskId) ?? 'blocked';
+                const s = NODE_STATE[status] ?? NODE_STATE.blocked;
+                const accentCls = s.border.replace(/^border-/, 'bg-');
+                return (
+                  <div
+                    key={p.node.id}
+                    className={`absolute overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 ${s.border}`}
+                    style={{ left: p.x, top: p.y, width: NODE_W }}
+                    data-testid="plan-graph-node"
+                    data-task-id={taskId}
+                    data-node-id={p.node.id}
+                    data-level={p.level}
+                  >
+                    <span className={`absolute inset-y-0 left-0 w-1.5 ${accentCls}`} aria-hidden="true" />
+                    <div className="mb-1 flex items-center justify-between gap-1">
+                      <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-graph-node-taskid" />
+                      <NodeStateChip status={status} />
+                    </div>
+                    <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
+                      <TaskTitleLink projectId={projectId} taskId={taskId} title={p.node.title || refLabel(p.node.org_ref, taskId)} />
+                    </div>
+                    <div className="flex min-w-0 text-[0.6875rem]">
+                      <AssigneeTag assigneeRef={p.node.assignee_ref ?? ''} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Edge-kind legend so seq/conditional/loopback are decodable. */}
+        <div className="mt-2 hidden flex-wrap items-center gap-3 text-[0.625rem] text-text-muted md:flex" data-testid="plan-graph-legend">
+          <span className="inline-flex items-center gap-1"><span className="h-0.5 w-4 bg-border-strong" />{t('plan.detail.dag.edgeSeq', { defaultValue: 'seq' })}</span>
+          <span className="inline-flex items-center gap-1"><span className="h-0.5 w-4 bg-accent" />{t('plan.detail.dag.edgeConditional', { defaultValue: 'conditional' })}</span>
+          <span className="inline-flex items-center gap-1"><span className="h-0.5 w-4 border-t border-dashed border-status-amber-border" />{t('plan.detail.dag.edgeLoopback', { defaultValue: 'loopback' })}</span>
+        </div>
+      </div>
+    </SenderSidebarProvider>
+  );
+}
+
 function PlanDag({
   projectId,
   plan,
@@ -1833,6 +2114,17 @@ function PlanDag({
   compact: boolean;
 }): React.ReactElement {
   const { t } = useTranslation('work');
+  // T769: when the plan carries a real orchestration graph (built by T768 on
+  // start), render THAT graph — control nodes (Start/End/Condition) + edges by
+  // kind — so the DAG reflects the engine. A plan with NO graph (draft /
+  // never-started / engine unwired) returns has_graph:false and falls through to
+  // the legacy depends_on renderer below (NON-BREAKING, zero regression).
+  const graphQuery = usePlanGraph(projectId, plan.id);
+  const g = graphQuery.data;
+  if (g?.has_graph && (g.nodes?.length ?? 0) > 0) {
+    return <PlanGraphDag projectId={projectId} plan={plan} graph={{ nodes: g.nodes ?? [], edges: g.edges ?? [] }} compact={compact} />;
+  }
+
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
   // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
