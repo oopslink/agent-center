@@ -25,21 +25,40 @@ describe('formatLocalTime', () => {
   });
 });
 
-// @oopslink locked (DM mockup): per-message formatChatTime renders 24-hr local
-// "HH:MM" (e.g. "13:00"). tz-tolerant: assert the shape via regex, not a fixed
-// wall-clock value (the actual digits depend on the runner's local tz).
+// T751 cross-day rule: per-message formatChatTime renders 24-hr local "HH:MM"
+// for same-day messages, and "date + time + (UTC±N)" for messages from another
+// day so yesterday and today can be told apart. `now` is injected so the
+// same-vs-different-day comparison is deterministic regardless of the runner's
+// wall clock. tz-tolerant: assert shape via regex, not a fixed wall-clock value
+// (the digits + offset depend on the runner's local tz).
 describe('formatChatTime', () => {
   const iso = '2026-06-08T12:01:02.500Z';
 
-  it('formats a known ISO into 24-hr local "HH:MM" (e.g. "13:00")', () => {
-    expect(formatChatTime(iso)).toMatch(/^\d{2}:\d{2}$/);
+  it('same local day → 24-hr local "HH:MM" only (no date / no tz)', () => {
+    // now = a minute after the message → guaranteed the same LOCAL calendar day
+    // in every timezone (never straddles a day boundary).
+    const now = new Date('2026-06-08T12:02:00Z').getTime();
+    const out = formatChatTime(iso, now);
+    expect(out).toMatch(/^\d{2}:\d{2}$/);
+    expect(out).not.toMatch(/\d{4}/); // no year
+    expect(out).not.toMatch(/UTC/); // no tz label
+    expect(out).not.toBe(formatLocalTime(iso));
   });
 
-  it('is the short HH:MM form — NOT the long formatLocalTime form (no date / no tz)', () => {
-    const out = formatChatTime(iso);
-    expect(out).not.toBe(formatLocalTime(iso));
-    expect(out).not.toMatch(/\d{4}/); // no year
-    expect(out).not.toMatch(/GMT|UTC/); // no tz label
+  it('different day, same year → "MM-DD HH:MM (UTC±N)"', () => {
+    // now = weeks later, same year → date shown WITHOUT the year, plus tz.
+    const now = new Date('2026-07-02T09:00:00Z').getTime();
+    const out = formatChatTime(iso, now);
+    expect(out).toMatch(/^\d{2}-\d{2} \d{2}:\d{2} \(UTC[+-]\d/);
+    expect(out).not.toMatch(/^\d{4}-/); // year is omitted for same-year
+  });
+
+  it('different year → "YYYY-MM-DD HH:MM (UTC±N)"', () => {
+    // now = next year → the year is included to disambiguate.
+    const now = new Date('2027-01-15T09:00:00Z').getTime();
+    const out = formatChatTime(iso, now);
+    expect(out).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC[+-]\d/);
+    expect(out).toContain('2026');
   });
 
   it('returns invalid / empty input unchanged (fail-safe)', () => {
@@ -48,7 +67,8 @@ describe('formatChatTime', () => {
   });
 
   it('is stable for the same input', () => {
-    expect(formatChatTime(iso)).toBe(formatChatTime(iso));
+    const now = new Date('2026-07-02T09:00:00Z').getTime();
+    expect(formatChatTime(iso, now)).toBe(formatChatTime(iso, now));
   });
 });
 

@@ -226,14 +226,17 @@ describe('MessageList', () => {
     expect(row).toHaveTextContent('theirs');
   });
 
-  // @oopslink locked (DM mockup): the header timestamp uses formatChatTime —
-  // now the 24-hr local "HH:MM" form (tz-tolerant assertion). The dateTime attr
-  // keeps the raw ISO.
-  it('renders the header timestamp in 24-hr local "HH:MM" form', () => {
+  // T751: the header timestamp uses formatChatTime. The sample's posted_at
+  // (2026-05-24) is always in the past relative to "now", so it renders the
+  // cross-day "date time (UTC±N)" form (tz-tolerant assertion). The dateTime
+  // attr keeps the raw ISO; the title is the full local timezone-aware time.
+  it('renders the header timestamp with a cross-day date + time + tz form', () => {
     render(<MessageList messages={[sample('M1', 'mine')]} />);
     const time = screen.getByTestId('message-time');
     expect(time).toHaveAttribute('dateTime', '2026-05-24T01:00:00Z');
-    expect(time.textContent).toMatch(/^\d{2}:\d{2}$/);
+    expect(time.textContent).toMatch(/\d{2}-\d{2} \d{2}:\d{2} \(UTC[+-]\d/);
+    expect(time).toHaveAttribute('title');
+    expect(time.getAttribute('title')).not.toBe('2026-05-24T01:00:00Z'); // not raw ISO
   });
 
   it('clicking the "New messages" pill scrolls to bottom + dismisses the pill', () => {

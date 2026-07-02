@@ -17,28 +17,71 @@ export function formatLocalTime(iso: string): string {
   }).format(d);
 }
 
-// formatChatTime — per-message chat timestamp (@oopslink locked, DM mockup).
-// Renders an ISO-8601 (UTC) timestamp as 24-hr "HH:MM" in the viewer's LOCAL
-// timezone, e.g. "13:00". Overrides the old long "YYYY-MM-DD HH:MM:SS GMT+N"
-// form. Built from Intl.DateTimeFormat parts (local tz, hour12:false, 2-digit
-// hour+minute) so the digits come from the local-tz computation. Invalid or
-// empty input is returned unchanged (fail-safe — never throw on bad data).
-export function formatChatTime(iso: string): string {
+// tzOffsetLabel — the viewer's LOCAL UTC offset for an instant, formatted as a
+// compact "UTC+8" / "UTC-7" / "UTC+5:30" / "UTC+0" label. Computed from the
+// Date's getTimezoneOffset() so it is correct across DST for THAT instant (not
+// just "now"). getTimezoneOffset() returns minutes to ADD to local to reach UTC
+// (GMT+8 → -480), so we negate to get minutes EAST of UTC.
+function tzOffsetLabel(d: Date): string {
+  const offMin = -d.getTimezoneOffset();
+  const sign = offMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offMin);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return m === 0 ? `UTC${sign}${h}` : `UTC${sign}${h}:${String(m).padStart(2, '0')}`;
+}
+
+// formatChatTime — per-message chat timestamp (T751 cross-day rule).
+// Renders an ISO-8601 (UTC) timestamp in the viewer's LOCAL timezone:
+//   • same local calendar day as `now` → 24-hr "HH:MM" only          (e.g. "13:21")
+//   • a different day, same year       → "MM-DD HH:MM (UTC±N)"       (e.g. "07-01 13:21 (UTC+8)")
+//   • a different year                 → "YYYY-MM-DD HH:MM (UTC±N)"  (e.g. "2025-12-31 13:21 (UTC+8)")
+// This lets yesterday's and today's messages be told apart (previously both
+// rendered as bare "HH:MM"). The date + tz are only shown when they add signal.
+// `now` is injectable for deterministic tests. All digits come from a LOCAL-tz
+// Intl computation. Invalid/empty input is returned unchanged (fail-safe).
+export function formatChatTime(iso: string, now: number = Date.now()): string {
   if (!iso) return iso;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const fmt = new Intl.DateTimeFormat('en-GB', {
+
+  // 24-hr local "HH:MM" — always part of the output.
+  const timeFmt = new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   });
-  const parts = fmt.formatToParts(d);
-  const get = (t: Intl.DateTimeFormatPartTypes): string =>
-    parts.find((p) => p.type === t)?.value ?? '';
-  let hour = get('hour');
+  const tParts = timeFmt.formatToParts(d);
+  const tGet = (t: Intl.DateTimeFormatPartTypes): string =>
+    tParts.find((p) => p.type === t)?.value ?? '';
+  let hour = tGet('hour');
   if (hour === '24') hour = '00'; // some engines emit 24 for midnight
-  const minute = get('minute');
-  return `${hour}:${minute}`;
+  const time = `${hour}:${tGet('minute')}`;
+
+  // Local calendar-day comparison of the message vs `now`. 'en-CA' gives a
+  // stable YYYY-MM-DD shape in the local tz; compare the parts, not the instant.
+  const dateFmt = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const partsOf = (val: Date) => {
+    const p = dateFmt.formatToParts(val);
+    const g = (t: Intl.DateTimeFormatPartTypes): string => p.find((x) => x.type === t)?.value ?? '';
+    return { year: g('year'), month: g('month'), day: g('day') };
+  };
+  const msg = partsOf(d);
+  const today = partsOf(new Date(now));
+
+  // Same local day → time only.
+  if (msg.year === today.year && msg.month === today.month && msg.day === today.day) {
+    return time;
+  }
+
+  // Different day → date + time + timezone. Include the year only when it differs.
+  const datePart =
+    msg.year === today.year ? `${msg.month}-${msg.day}` : `${msg.year}-${msg.month}-${msg.day}`;
+  return `${datePart} ${time} (${tzOffsetLabel(d)})`;
 }
 
 // formatLocalDateTimeSeconds — render an ISO-8601 (UTC) timestamp as a full

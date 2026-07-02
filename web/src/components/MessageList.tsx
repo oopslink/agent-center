@@ -6,7 +6,7 @@ import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef, isSystemSender } from '@/api/members';
 import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
-import { formatChatTime } from '@/utils/time';
+import { formatChatTime, formatLocalTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
 import { MessageCopyButton } from './MessageCopyButton';
 import type { ConversationSurface } from './ConversationView';
@@ -304,13 +304,14 @@ export function MessageList({
             {t('message.workItem')}
           </span>
         )}
-        {/* Chat UX 2 #4: timestamp in the header line (outside the bubble), as a
-            <time dateTime title>. @oopslink locked: visible text is 24-hr local
-            "HH:MM" (formatChatTime); the dateTime attr keeps the raw ISO. */}
+        {/* Chat UX 2 #4 / T751: timestamp in the header line (outside the bubble),
+            as a <time dateTime title>. Visible text is formatChatTime (same-day →
+            "HH:MM", cross-day → date+time+tz); the tooltip is the full local
+            timezone-aware time (formatLocalTime); dateTime keeps the raw ISO. */}
         <time
           className="text-[0.625rem] font-normal text-text-muted"
           dateTime={m.posted_at}
-          title={m.posted_at}
+          title={formatLocalTime(m.posted_at)}
           data-testid="message-time"
         >
           {formatChatTime(m.posted_at)}
@@ -606,7 +607,7 @@ function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
           </svg>
           <span>{t('message.system')}</span>
           <span className="text-text-muted/70">·</span>
-          <time dateTime={m.posted_at} title={m.posted_at} className="font-normal normal-case tracking-normal">
+          <time dateTime={m.posted_at} title={formatLocalTime(m.posted_at)} className="font-normal normal-case tracking-normal">
             {formatChatTime(m.posted_at)}
           </time>
           <svg
