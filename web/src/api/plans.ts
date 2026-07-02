@@ -143,6 +143,61 @@ export interface Plan {
 }
 
 // ---------------------------------------------------------------------------
+// T769 — orchestration-engine GRAPH read model (plan-detail DAG).
+//
+// The plan-detail DAG historically reconstructed Start/End anchors + depends_on
+// edges client-side from the derived PlanNode list. T768 wired a real engine graph
+// behind every started plan; GET …/plans/{id}/graph exposes it so the DAG reflects
+// the ACTUAL graph — real control nodes (Start/End/Condition) and edges tagged by
+// kind (seq/conditional/loopback).
+//
+// NON-BREAKING: a plan with NO graph (pre-T768 / draft / never-started, or the
+// engine unwired) returns { has_graph: false } and the DAG falls back to the
+// legacy PlanNode/depends_on rendering — zero regression.
+// ---------------------------------------------------------------------------
+
+// A control node sub-kind. Business nodes carry no control_kind.
+export type PlanGraphControlKind = 'start' | 'end' | 'condition';
+
+// Raw engine node status (distinct from the derived 6-state PlanNodeStatus). The
+// DAG maps a business node's bound task back to its PlanNode for the 6-state chip;
+// control nodes render from this raw status.
+export type PlanGraphNodeStatus = 'open' | 'running' | 'completed' | 'reopen' | 'discarded';
+
+// One graph node. category business|control; control nodes carry control_kind.
+// A business node binds a task — task_id + the bound task's status/org_ref ride
+// along so the DAG can label it without a second lookup.
+export interface PlanGraphNode {
+  id: string;
+  category: 'business' | 'control';
+  control_kind?: PlanGraphControlKind;
+  title: string;
+  status: PlanGraphNodeStatus;
+  task_id?: string;
+  task_status?: string;
+  org_ref?: string;
+  assignee_ref?: string;
+}
+
+// One directed edge from→to, tagged by kind.
+export type PlanGraphEdgeKind = 'seq' | 'conditional' | 'loopback';
+export interface PlanGraphEdge {
+  from: string;
+  to: string;
+  kind: PlanGraphEdgeKind;
+}
+
+// The graph read response. `has_graph:false` = the fallback signal (no fields
+// beyond the flag); `has_graph:true` carries the graph.
+export interface PlanGraphView {
+  has_graph: boolean;
+  graph_id?: string;
+  status?: string;
+  nodes?: PlanGraphNode[];
+  edges?: PlanGraphEdge[];
+}
+
+// ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
 
@@ -257,6 +312,18 @@ export function usePlan(projectId: string | undefined, planId: string | undefine
   return useQuery({
     queryKey: qk.plan(planId ?? ''),
     queryFn: () => api.get<Plan>(`${plansBase(projectId ?? '')}/${planId}`),
+    enabled: !!projectId && !!planId,
+  });
+}
+
+// GET /{id}/graph — the orchestration-engine graph read model (T769). Returns
+// { has_graph:false } for an ungraphed plan (the legacy-DAG fallback signal), or
+// the graph (control nodes + edges by kind) once T768 has built it on plan start.
+// Cached under the plan key so it invalidates alongside the plan detail.
+export function usePlanGraph(projectId: string | undefined, planId: string | undefined) {
+  return useQuery({
+    queryKey: [...qk.plan(planId ?? ''), 'graph'],
+    queryFn: () => api.get<PlanGraphView>(`${plansBase(projectId ?? '')}/${planId}/graph`),
     enabled: !!projectId && !!planId,
   });
 }

@@ -38,6 +38,8 @@ import (
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
+	orchsql "github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	"github.com/oopslink/agent-center/internal/runtimefs"
@@ -107,6 +109,11 @@ type App struct {
 	// CodeRepoService is the v2.18.4 BE-1 workspace CodeRepo AppService (issue-f980c8de)
 	// — workspace Repos CRUD + encrypted credential storage + the merge-check resolver.
 	CodeRepoService *coderepservice.Service
+
+	// OrchService is the T768 orchestration engine AppService backing the 18 agent MCP
+	// graph/node/edge tools (admin-api HandlerDeps.OrchService). The SAME instance is
+	// injected into PMService for graph-backed plan dispatch.
+	OrchService *orch.Service
 
 	// LiveState is the per-agent live executor snapshot store (v2.19.0): the SAME
 	// instance is wired into the admin heartbeat handler (writer) and the webconsole
@@ -407,8 +414,23 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Providers: coderepprovider.NewFactory(coderepprovider.NewGitHub(), coderepprovider.NewGit()),
 	})
 
+	// T768: the orchestration engine application service — graph/node/edge store over
+	// the orchestration/sqlite repos. Built ONCE here and shared: injected into the pm
+	// Service (so StartPlan builds a graph + dispatch uses it as the ready-source) AND
+	// exposed on App.OrchService for the admin-api HandlerDeps (the 18 agent MCP
+	// orchestration tools). Migration 0091/0092 create the graph/node/edge tables.
+	orchSvc := orch.NewService(orch.ServiceDeps{
+		DB:     db,
+		Graphs: orchsql.NewGraphRepo(db),
+		Nodes:  orchsql.NewNodeRepo(db),
+		Edges:  orchsql.NewEdgeRepo(db),
+		IDGen:  gen,
+		Clock:  clk,
+	})
+
 	pmSvc := pmservice.New(pmservice.Deps{
 		DB:               db,
+		Orch:             orchSvc, // T768: graph-backed dispatch (plan.GraphID switch)
 		Projects:         pmsql.NewProjectRepo(db),
 		Members:          pmsql.NewProjectMemberRepo(db),
 		Issues:           pmsql.NewIssueRepo(db),
@@ -432,7 +454,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		// auto-assign is live.
 		AutoAssignDir:      pmservice.NewAgentAutoAssignDirectory(agentRepo, wr),
 		AutoAssignSettings: settingssql.NewStore(db, clk),
-		OrgSeq: pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
+		OrgSeq:             pmsql.NewOrgSequenceRepo(db), // v2.7.1 #245: per-org T<n>/I<n> allocation
 		// v2.9 #285: advance posts the node-ready @mention into the Plan conversation
 		// via MessageWriter (the wake+mention path #220 wakes an agent assignee). The
 		// resolver mirrors the WakeProjector's DisplayName resolution (strip the
@@ -509,6 +531,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		IDGen:               gen,
 		PMService:           pmSvc,
 		CodeRepoService:     codeRepoSvc,
+		OrchService:         orchSvc,
 		LiveState:           concurrency.NewInMemoryStore(),
 		AgentService:        agentSvc,
 		AgentRepo:           agentRepo,

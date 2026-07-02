@@ -260,9 +260,9 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		ReplyNudgeSvc: a.ReplyNudgeSvc,
 
 		// Workforce BC
-		WorkerRepo:        a.WorkerRepo,
-		EnrollSvc:         a.EnrollSvc,
-		WorkerConfigSvc:   a.WorkerConfigSvc,
+		WorkerRepo:      a.WorkerRepo,
+		EnrollSvc:       a.EnrollSvc,
+		WorkerConfigSvc: a.WorkerConfigSvc,
 
 		// Environment BC (v2.7 D1, ADR-0050, task #102)
 		EnvControlSvc: a.EnvControlSvc,
@@ -281,6 +281,12 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 
 		// ProjectManager BC (v2.7 D2-b2) — block_task / complete_task.
 		PMService: a.PMService,
+		// T768: the orchestration engine service backing the 18 agent MCP graph/node/
+		// edge tools (create_graph/add_node/get_ready_nodes/resolve_condition/…). nil
+		// here made every one return orchestration_not_wired (501). This is the only
+		// admin-api HandlerDeps builder (live server + admin_client_testhelper share
+		// it), so wiring it here covers both the wiring test and the live path.
+		OrchService: a.OrchService,
 		// T764 hotfix: back the agent list_templates / get_template tools.
 		// This is the ONLY admin-api HandlerDeps builder (used by both the live
 		// server at NewServerWithTransports and the admin_client_testhelper), so

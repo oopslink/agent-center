@@ -18,6 +18,7 @@ import (
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 	"github.com/oopslink/agent-center/internal/settings"
 )
 
@@ -248,6 +249,13 @@ type Service struct {
 	// store backing the per-project auto_assign master switch (autoassign.Enabled). nil
 	// ⇒ the switch reads its default (ON) for every project.
 	autoAssignSettings settings.Store
+	// orch is OPTIONAL (nil-safe, T768). The orchestration engine application service.
+	// When wired, StartPlan builds a graph mirroring the plan DAG (business node per
+	// task + condition node per decision) and dispatch/advance switch to the graph as
+	// the ready-source (via plan.GraphID). nil ⇒ graphs are never built and every plan
+	// stays on the legacy plan-DAG path (ComputePlanView) — the zero-regression
+	// fallback for pre-T768 constructions and in-flight (graphID=="") plans.
+	orch *orch.Service
 }
 
 // DefaultPoolClaimLimit is the T83 §3.6 default cap on concurrently-claimed
@@ -322,6 +330,11 @@ type Deps struct {
 	// AutoAssignSettings is OPTIONAL (v2.18.3 BE-2): the center settings store backing
 	// the per-project auto_assign master switch. nil ⇒ the switch is its default (ON).
 	AutoAssignSettings settings.Store
+	// Orch is OPTIONAL (T768): the orchestration engine application service. When set,
+	// StartPlan builds a graph for the plan and dispatch/advance use it as the
+	// ready-source (via plan.GraphID). nil ⇒ every plan stays on the legacy plan-DAG
+	// path (zero-regression fallback).
+	Orch *orch.Service
 }
 
 // New constructs the Service.
@@ -339,6 +352,7 @@ func New(d Deps) *Service {
 		actionLogs:         d.TaskActionLogs,
 		autoAssignDir:      d.AutoAssignDir,
 		autoAssignSettings: d.AutoAssignSettings,
+		orch:               d.Orch,
 	}
 }
 
