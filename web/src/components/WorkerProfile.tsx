@@ -26,18 +26,12 @@ const SYS_FIELDS: readonly SysField[] = [
   { slug: 'os', labelKey: 'workers.profile.deferred.os', value: (w) => w.os },
   { slug: 'architecture', labelKey: 'workers.profile.deferred.architecture', value: (w) => w.arch },
   {
-    slug: 'agent-center-version',
-    labelKey: 'workers.profile.deferred.version',
-    mono: true,
-    value: (w) => w.agent_center_version,
-  },
-  {
     slug: 'install-path',
     labelKey: 'workers.profile.deferred.installPath',
     mono: true,
     value: (w) => w.install_path,
   },
-  // The worker's OWN version — a distinct row from agent-center version (T752).
+  // The worker's OWN build identity (T752).
   {
     slug: 'worker-version',
     labelKey: 'workers.profile.deferred.workerVersion',
@@ -47,7 +41,7 @@ const SYS_FIELDS: readonly SysField[] = [
 ];
 
 // WorkerProfile — the #273 Profile tab. Renders the 5 core fields the backend
-// always has (GET /api/workers/{id} = EnvWorker) plus the 6 worker-reported
+// always has (GET /api/workers/{id} = EnvWorker) plus the worker-reported
 // system-info fields (T752): each shown as its real value, or the "Coming in
 // v2.9" placeholder when the worker has not reported it yet.
 export function WorkerProfile({ worker }: { worker: EnvWorker }): React.ReactElement {

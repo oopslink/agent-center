@@ -740,7 +740,6 @@
         "hostname": "Hostname",
         "os": "OS",
         "architecture": "Architecture",
-        "version": "agent-center version",
         "installPath": "Install path",
         "workerVersion": "Worker version"
       }

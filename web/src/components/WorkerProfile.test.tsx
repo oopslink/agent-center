@@ -30,16 +30,9 @@ describe('WorkerProfile', () => {
     expect(screen.getByTestId('worker-profile-heartbeat')).toBeInTheDocument();
   });
 
-  it('shows the 6 system-info fields as "Coming in v2.9" when the worker has not reported them', () => {
+  it('shows the system-info fields as "Coming in v2.9" when the worker has not reported them', () => {
     render(<WorkerProfile worker={w()} />);
-    for (const s of [
-      'hostname',
-      'os',
-      'architecture',
-      'agent-center-version',
-      'install-path',
-      'worker-version',
-    ]) {
+    for (const s of ['hostname', 'os', 'architecture', 'install-path', 'worker-version']) {
       expect(screen.getByTestId(`worker-profile-deferred-${s}`)).toHaveTextContent('Coming in v2.9');
     }
   });
@@ -51,7 +44,6 @@ describe('WorkerProfile', () => {
           hostname: 'dev001.local',
           os: 'darwin',
           arch: 'arm64',
-          agent_center_version: 'v2.10.2',
           install_path: '/usr/local/bin/agent-center',
           worker_version: 'v2.10.2+abc1234',
         })}
@@ -60,7 +52,6 @@ describe('WorkerProfile', () => {
     expect(screen.getByTestId('worker-profile-hostname')).toHaveTextContent('dev001.local');
     expect(screen.getByTestId('worker-profile-os')).toHaveTextContent('darwin');
     expect(screen.getByTestId('worker-profile-architecture')).toHaveTextContent('arm64');
-    expect(screen.getByTestId('worker-profile-agent-center-version')).toHaveTextContent('v2.10.2');
     expect(screen.getByTestId('worker-profile-install-path')).toHaveTextContent(
       '/usr/local/bin/agent-center',
     );
