@@ -245,6 +245,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/code-repos", s.createCodeRepoHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/code-repos/{repo_id}", s.updateCodeRepoHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/code-repos/{repo_id}", s.deleteCodeRepoHandler)
+
+	// Template CRUD (org-scoped, member-readable list/get; member-writable create/update/delete).
+	// Builtin templates are read-only system-wide; org-owned templates are org-scoped.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/templates", s.listTemplatesHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/templates/{id}", s.getTemplateHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/templates", s.createTemplateHandler)
+	s.mux.HandleFunc("PUT /api/orgs/{slug}/templates/{id}", s.updateTemplateHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/templates/{id}", s.deleteTemplateHandler)
 	// v2.18.4 BE-2: remote viewing (commits / branches) — member-readable, via the
 	// provider abstraction (go-github / git fallback); no clone, credential never returned.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/code-repos/{repo_id}/commits", s.listCodeRepoCommitsHandler)

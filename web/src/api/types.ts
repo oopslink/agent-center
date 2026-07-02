@@ -744,6 +744,21 @@ export interface CodeRepo {
   is_primary?: boolean;
 }
 
+// Template — a workspace/org-level workflow template. Templates define
+// orchestration rules for plans; agents read them to scaffold graphs.
+export interface Template {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string;
+  content: string;
+  builtin: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
 // WorkspaceRepo — a workspace/org-level code repository (T575, issue-f980c8de).
 // The authoritative repo record; projects only REFERENCE it (via CodeRepo.repo_id).
 // Credentials are configured ONLY here and never returned — has_credential is the

@@ -118,6 +118,9 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		// I28/F4: per-agent analytics read service (heatmap/cards/trends/Top-task).
 		// Wired in BOTH builders so the test handler and the live server agree.
 		Analytics: usagesql.NewAnalytics(a.DB),
+		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
+		// repo the admin agent-tools use (list_templates / get_template).
+		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -522,6 +525,9 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		// I28/F4: per-agent analytics read service (heatmap/cards/trends/Top-task).
 		// Wired in BOTH builders so the test handler and the live server agree.
 		Analytics: usagesql.NewAnalytics(a.DB),
+		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
+		// repo the admin agent-tools use (list_templates / get_template).
+		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),

@@ -28,6 +28,7 @@ import (
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/persistence"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
@@ -189,6 +190,11 @@ type HandlerDeps struct {
 	// dashboard endpoints (GET /api/orgs/{slug}/agents/{id}/analytics + the
 	// Top-Cost-Tasks drill-down). Optional — nil degrades the endpoints to 501.
 	Analytics usage.AnalyticsService
+
+	// TemplateRepo backs the webconsole template CRUD endpoints
+	// (GET/POST/PUT/DELETE /api/orgs/{slug}/templates). Optional — nil degrades
+	// the endpoints to 501.
+	TemplateRepo pm.TemplateRepository
 }
 
 // hd retrieves the typed dep bag from the request context.

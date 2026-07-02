@@ -285,6 +285,7 @@
       "tasks": "Tasks",
       "plans": "Plans",
       "repos": "Repos",
+      "templates": "Templates",
       "codeRepos": "Code repos",
       "workBoard": "Work Board"
     }

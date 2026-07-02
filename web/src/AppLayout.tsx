@@ -90,7 +90,7 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     short: 'Work',
     defaultPath: 'projects',
     Icon: FolderIcon,
-    pathPrefixes: ['projects', 'issues', 'tasks', 'plans', 'repos'],
+    pathPrefixes: ['projects', 'issues', 'tasks', 'plans', 'repos', 'templates'],
   },
   {
     id: 'conversations',
@@ -180,6 +180,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
         { to: p('tasks'), label: 'Tasks', Icon: TaskIcon },
         { to: p('plans'), label: 'Plan', Icon: PlanIcon },
         { to: p('repos'), label: 'Repos', Icon: RepoIcon },
+        { to: p('templates'), label: 'Templates', Icon: TemplatesIcon },
       ] }];
     case 'conversations':
       return [{ label: 'Conversations', items: [
@@ -1399,6 +1400,9 @@ function ReminderIcon(): React.ReactElement {
 // Alerts (rail) — a warning triangle, not a bell. "Needs your attention" reads
 // as an alert/warning signal, kept visually distinct from the Reminders bell
 // (which a bell-with-ping was too easily confused with at rail size).
+function TemplatesIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" /><path d="M7 7h6M7 10h6M7 13h4" strokeLinecap="round" /></svg>);
+}
 function AlertBellIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 3.3 17.2 16H2.8z" strokeLinejoin="round" /><path d="M10 8.5v3.2" strokeLinecap="round" /><circle cx="10" cy="13.9" r="0.6" className="fill-current stroke-none" /></svg>);
 }

@@ -71,6 +71,7 @@ function TopLevelWorkspaceNav({ orgBase }: { orgBase: string }): React.ReactElem
     // pathPrefixes, but was dropped when this route-aware override (T4) replaced
     // the default → the page was sidebar-orphaned. Restored here.
     { to: `${orgBase}/repos`, label: t('shell.workspace.repos'), Icon: ReposIcon },
+    { to: `${orgBase}/templates`, label: t('shell.workspace.templates'), Icon: TemplatesIcon },
     // T207: Reminders moved OUT to a top-level module (peer of Members) — see
     // buildModules() in AppLayout. It is no longer a Workspace col② item.
   ];
@@ -240,6 +241,14 @@ function ReposIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <ellipse cx="10" cy="5" rx="6" ry="2.4" />
       <path d="M4 5v10c0 1.3 2.7 2.4 6 2.4s6-1.1 6-2.4V5M4 10c0 1.3 2.7 2.4 6 2.4s6-1.1 6-2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function TemplatesIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="3" y="3" width="14" height="14" rx="2" />
+      <path d="M7 7h6M7 10h6M7 13h4" strokeLinecap="round" />
     </svg>
   );
 }

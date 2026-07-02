@@ -271,6 +271,32 @@
       "save": "Save"
     }
   },
+  "templates": {
+    "title": "Templates",
+    "subtitle": "Workflow templates define orchestration rules for plans. Agents read these to scaffold graphs.",
+    "addTemplate": "+ New template",
+    "name": "Name",
+    "namePlaceholder": "e.g. cycle, hotfix",
+    "description": "Description",
+    "descriptionPlaceholder": "Brief description of the workflow",
+    "content": "Content",
+    "contentPlaceholder": "Markdown content describing the orchestration rules...",
+    "builtin": "Built-in",
+    "builtinBadge": "System",
+    "deleteConfirm": "Delete template \"{{name}}\"? This cannot be undone.",
+    "empty": "No templates yet",
+    "emptyDesc": "Create a workflow template or wait for system templates to be seeded.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "view": "View",
+    "hide": "Hide",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "save": "Save",
+    "editTitle": "Edit template",
+    "addTitle": "New template",
+    "deleteTitle": "Delete template?"
+  },
   "secrets": {
     "title": "Secrets",
     "new": "New secret",

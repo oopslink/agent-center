@@ -271,6 +271,32 @@
       "save": "保存"
     }
   },
+  "templates": {
+    "title": "模板",
+    "subtitle": "工作流模板定义了计划的编排规则。Agent 读取模板后构建编排图。",
+    "addTemplate": "+ 新建模板",
+    "name": "名称",
+    "namePlaceholder": "例如 cycle, hotfix",
+    "description": "描述",
+    "descriptionPlaceholder": "简要描述工作流",
+    "content": "内容",
+    "contentPlaceholder": "用 Markdown 描述编排规则...",
+    "builtin": "内置",
+    "builtinBadge": "系统",
+    "deleteConfirm": "删除模板 \"{{name}}\"？此操作不可撤销。",
+    "empty": "暂无模板",
+    "emptyDesc": "创建工作流模板，或等待系统模板初始化。",
+    "edit": "编辑",
+    "delete": "删除",
+    "view": "查看",
+    "hide": "隐藏",
+    "cancel": "取消",
+    "saving": "保存中...",
+    "save": "保存",
+    "editTitle": "编辑模板",
+    "addTitle": "新建模板",
+    "deleteTitle": "删除模板？"
+  },
   "secrets": {
     "title": "密钥",
     "new": "新建密钥",
