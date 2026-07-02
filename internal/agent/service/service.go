@@ -14,6 +14,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/clock"
@@ -139,6 +140,26 @@ type agentEventPayload struct {
 	AllowedModels        []string                `json:"allowed_models,omitempty"`
 	AllowedExecutors     []agent.ExecutorProfile `json:"allowed_executors,omitempty"`
 	EnvVars              map[string]string       `json:"env_vars,omitempty"`
+	// PromptDescription is the ALREADY-GATED description text to inject into the
+	// agent's system prompt (T728). The center collapses the per-agent switch here:
+	// it is Profile.Description when IncludeDescriptionInSystemPrompt is true, else
+	// "". Carried the SAME way as DisplayName (event → projector → reconcile command /
+	// resume-state → daemon → supervisor --prompt-description) so only ONE string
+	// rides the wire — the worker injects it verbatim when non-empty. Snapshotted at
+	// the (re)start that emitted this event ("edit switch → restart to apply").
+	PromptDescription string `json:"prompt_description,omitempty"`
+}
+
+// promptDescription collapses the per-agent switch into the effective inject-text
+// carried to the worker (T728): the trimmed Description when the agent opts in
+// (IncludeDescriptionInSystemPrompt), else "". Keeping the gate here means only ONE
+// string rides the whole DisplayName-style passthrough — the worker supervisor
+// injects it verbatim when non-empty and never has to know the switch.
+func promptDescription(p agent.Profile) string {
+	if !p.IncludeDescriptionInSystemPrompt {
+		return ""
+	}
+	return strings.TrimSpace(p.Description)
 }
 
 // emit appends an outbox event inside the current transaction. Mutating
@@ -164,6 +185,7 @@ func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, re
 		AllowedModels:        a.Profile().AllowedModels,
 		AllowedExecutors:     a.Profile().AllowedExecutors,
 		EnvVars:              a.Profile().EnvVars,
+		PromptDescription:    promptDescription(a.Profile()),
 	})
 	if err != nil {
 		return err

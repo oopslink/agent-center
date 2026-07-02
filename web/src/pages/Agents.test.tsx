@@ -139,14 +139,50 @@ describe('Agents page', () => {
     const cliSelect = screen.getByTestId('agent-create-cli') as HTMLSelectElement;
     expect(cliSelect.tagName).toBe('SELECT');
     expect(Array.from(cliSelect.options).map((o) => o.value)).toEqual(['claude-code']);
+    // T728: the include-description switch defaults ON.
+    expect(screen.getByTestId('agent-create-include-description')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('agent-create-submit'));
 
     await waitFor(() => expect(posted).not.toBeNull());
     // Unified create payload: display_name (not name) + role + worker_id + cli.
-    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code', model: 'claude-opus-4-8' });
+    // T728: default-on switch is carried as include_description_in_system_prompt=true.
+    expect(posted).toMatchObject({ display_name: 'newbot', role: 'member', worker_id: 'w-7', cli: 'claude-code', model: 'claude-opus-4-8', include_description_in_system_prompt: true });
     await waitFor(() =>
       expect(screen.queryByTestId('agent-create-modal')).not.toBeInTheDocument(),
     );
+  });
+
+  it('T728: toggling the include-description switch off posts false', async () => {
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      http.get('/api/fleet', () =>
+        HttpResponse.json({
+          tasks: [],
+          workers: [{ worker_id: 'w-7', name: 'box-7', status: 'online' }],
+          pending_issues: [],
+        }),
+      ),
+      http.post('/api/members/agent', async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { id: 'agent-new', identity_id: 'agent-new', kind: 'agent', display_name: 'newbot' },
+          { status: 201 },
+        );
+      }),
+    );
+    wrap(<Agents />);
+    await waitFor(() => expect(screen.getAllByTestId('agent-row')).toHaveLength(3));
+    fireEvent.click(screen.getByTestId('agents-add-btn'));
+    await userEvent.type(screen.getByTestId('agent-create-name'), 'newbot');
+    fireEvent.click(screen.getByTestId('agent-create-worker-trigger'));
+    await waitFor(() =>
+      expect(screen.getByTestId('agent-create-worker-options')).toHaveTextContent('box-7'),
+    );
+    fireEvent.click(screen.getByTestId('agent-create-worker-option'));
+    fireEvent.click(screen.getByTestId('agent-create-include-description')); // turn OFF
+    fireEvent.click(screen.getByTestId('agent-create-submit'));
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ include_description_in_system_prompt: false });
   });
 
   it('surfaces API error', async () => {

@@ -65,6 +65,10 @@ type SupervisorSessionConfig struct {
 	// AgentEnv is the persisted profile env overlay. The manager writes it to a
 	// per-agent 0600 runtime file and passes only that path to the supervisor.
 	AgentEnv map[string]string
+	// PromptDescription is the already-gated description text forwarded to the
+	// supervisor as --prompt-description, injected into the system prompt as a persona段
+	// (T728). Empty → no injection.
+	PromptDescription string
 	// ClaudeBin overrides the claude binary path the SUPERVISOR uses to exec
 	// claude (tests point it at a stand-in). The session itself never execs it.
 	ClaudeBin string
@@ -179,6 +183,7 @@ func StartSupervisorSession(ctx context.Context, cfg SupervisorSessionConfig) (*
 		Model:               cfg.Model,
 		DisplayName:         cfg.DisplayName,
 		AgentEnv:            cfg.AgentEnv,
+		PromptDescription:   cfg.PromptDescription,
 		ClaudeBin:           cfg.ClaudeBin,
 		Epoch:               cfg.Epoch,
 		Generation:          cfg.Generation,

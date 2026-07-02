@@ -36,6 +36,27 @@ func TestBuildSupervisorArgs_ResetEpoch(t *testing.T) {
 	}
 }
 
+// TestBuildSupervisorArgs_PromptDescription (T728) proves the spawn argv carries
+// --prompt-description ONLY when set, so the supervisor injects it into the system
+// prompt; an empty value (opted-out / no description) omits the flag → no injection.
+func TestBuildSupervisorArgs_PromptDescription(t *testing.T) {
+	base := SpawnSupervisorCfg{AgentID: "agent-1", HomeDir: "/home/agent-1"}
+
+	// empty → flag omitted.
+	if got := strings.Join(buildSupervisorArgs(base), " "); strings.Contains(got, "--prompt-description") {
+		t.Fatalf("empty prompt description must omit --prompt-description, got %q", got)
+	}
+
+	// set → flag present with the value.
+	cfg := base
+	cfg.PromptDescription = "a helpful coder"
+	got := buildSupervisorArgs(cfg)
+	joined := strings.Join(got, "\x00") // NUL-join so the multi-word value stays one arg
+	if !strings.Contains(joined, "--prompt-description\x00a helpful coder") {
+		t.Fatalf("must emit --prompt-description as a single arg with the value, got %#v", got)
+	}
+}
+
 // TestBuildSupervisorArgs_DisplayName (T469) proves the spawn argv carries
 // --display-name ONLY when set, so the supervisor injects it as the git author NAME
 // (② AgentEnv seam); an empty display_name omits the flag → the supervisor falls back

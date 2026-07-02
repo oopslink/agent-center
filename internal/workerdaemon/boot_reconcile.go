@@ -163,6 +163,10 @@ type centerRecord struct {
 	// passed to the boot-reconcile relaunch so the supervisor injects it as
 	// GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam (T469). Empty → ULID.
 	DisplayName string
+	// PromptDescription is the already-gated description text to inject into the system
+	// prompt (T728, from resume-state), passed to the boot-reconcile relaunch so the
+	// supervisor keeps the persona段 across a worker restart. Empty → no injection.
+	PromptDescription string
 	// EnvVars is the persisted profile env overlay from resume-state.
 	EnvVars map[string]string
 	// ConcurrencyEnabled indicates whether this agent runs in concurrent mode
@@ -332,11 +336,12 @@ func (c *AgentController) ReconcileOnBoot(ctx context.Context) error {
 // the relaunch nudge).
 func toCenterRecord(ra ResumeAgent) *centerRecord {
 	rec := &centerRecord{
-		DesiredLifecycle: ra.DesiredLifecycle,
-		Model:            ra.Model,
-		DisplayName:      ra.DisplayName,
-		EnvVars:          ra.EnvVars,
-		HasInflight:      len(ra.Tasks) > 0,
+		DesiredLifecycle:  ra.DesiredLifecycle,
+		Model:             ra.Model,
+		DisplayName:       ra.DisplayName,
+		PromptDescription: ra.PromptDescription,
+		EnvVars:           ra.EnvVars,
+		HasInflight:       len(ra.Tasks) > 0,
 		ConcurrencyEnabled: agent.Profile{
 			MaxConcurrentTasks: ra.MaxConcurrentTasks,
 			AllowedExecutors:   ra.AllowedExecutors,
@@ -443,7 +448,7 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 		// Boot-reconcile treats a per-agent relaunch failure as logged-and-skip (one
 		// bad agent never stalls boot; bootReapRelaunch already logged). The error is
 		// consumed only by the SELF-HEAL caller for circuit-breaking (part A).
-		_ = c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveTaskID, rec.Model, rec.DisplayName, rec.EnvVars, rec.ConcurrencyEnabled)
+		_ = c.bootReapRelaunch(ctx, agentID, home, version, action.Nudge, rec.ActiveTaskID, rec.Model, rec.DisplayName, rec.PromptDescription, rec.EnvVars, rec.ConcurrencyEnabled)
 	case bootStopReap:
 		c.bootStopReap(agentID, home, pr)
 	case bootReapOnly:
@@ -510,7 +515,7 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 // Returns the startSession error (nil on success) so the SELF-HEAL caller can
 // circuit-break a relaunch that fails to come up (FINDING-3 #117 part A); the
 // boot-reconcile caller treats a per-agent failure as logged-and-skip.
-func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, taskID, model, displayName string, envVars map[string]string, concurrencyEnabled bool) error {
+func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home string, version int, nudge bool, taskID, model, displayName, promptDescription string, envVars map[string]string, concurrencyEnabled bool) error {
 	if rerr := supervisormanager.ReapResidual(home); rerr != nil {
 		c.log("boot-reconcile agent=%s reap before relaunch: %v", agentID, rerr)
 	}
@@ -543,7 +548,7 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	}
 	// nudge (==hadWork) still independently drives the ResumeNudge injection below —
 	// resume only governs whether the prior conversation is carried forward.
-	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, prev.CompletedTurn /*resume*/, model, displayName, "" /*cli: boot relaunch is claude-supervisor only; codex is guarded earlier*/, envVars, concurrencyEnabled); err != nil {
+	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, prev.CompletedTurn /*resume*/, model, displayName, "" /*cli: boot relaunch is claude-supervisor only; codex is guarded earlier*/, promptDescription, envVars, concurrencyEnabled); err != nil {
 		c.log("boot-reconcile agent=%s relaunch: %v — skip", agentID, err)
 		return err
 	}

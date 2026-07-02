@@ -62,6 +62,12 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   // T566 (issue-577a7b0e): per-agent auto-assign opt-out (default true).
   const [autoAssignable, setAutoAssignable] = useState(agent.auto_assignable ?? true);
 
+  // T728 (issue-0619f315): inject the agent's description into its system prompt
+  // (default true). Echoes the persisted value so editing shows the current state.
+  const [includeDescription, setIncludeDescription] = useState(
+    agent.include_description_in_system_prompt ?? true,
+  );
+
   const update = useUpdateAgentConfig(agent.id);
   const restart = useRestartAgent(agent.id);
   const containerRef = useModalA11y({ open: true, onClose });
@@ -95,6 +101,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         allowed_executors: executors,
         auto_assignable: autoAssignable,
         description: description.trim(),
+        include_description_in_system_prompt: includeDescription,
       });
       // A running agent must restart to pick up the new config; a stopped agent
       // applies it on its next start (nothing to restart now).
@@ -372,6 +379,30 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 <span className="font-medium text-text-primary">{t('agentRuntime.configModal.autoAssign.label')}</span>
                 <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
                   {t('agentRuntime.configModal.autoAssign.description')}
+                </span>
+              </span>
+            </div>
+          </div>
+
+          {/* T728 (issue-0619f315): inject description into the system prompt. */}
+          <div className="mb-3 mt-5 border-t border-border-base pt-4" data-testid="agent-config-desc-prompt-section">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              {t('agentRuntime.configModal.descriptionPrompt.heading')}
+            </h3>
+            <div className="flex items-start gap-2.5">
+              <ToggleSwitch
+                checked={includeDescription}
+                onChange={setIncludeDescription}
+                ariaLabel={t('agentRuntime.configModal.descriptionPrompt.ariaLabel')}
+                testId="agent-config-include-description"
+              />
+              <span className="text-xs">
+                <span className="font-medium text-text-primary">{t('agentRuntime.configModal.descriptionPrompt.label')}</span>
+                <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
+                  {t('agentRuntime.configModal.descriptionPrompt.description')}
+                </span>
+                <span className="mt-0.5 block text-[0.6875rem] italic text-text-muted" data-testid="agent-config-include-description-restart-hint">
+                  {t('agentRuntime.configModal.descriptionPrompt.restartHint')}
                 </span>
               </span>
             </div>

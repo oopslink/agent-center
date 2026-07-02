@@ -59,6 +59,10 @@ type selfHealEntry struct {
 	// delete) → the self-heal relaunch spawns the supervisor with the SAME git author NAME.
 	// self-heal gets NO fresh reconcile, so without this the re-drive would fall back to the
 	// ULID AgentID default (T469). Empty = none (ULID fallback).
+	promptDescription string // T728: already-gated description text captured at crash
+	// (survives the managedAgent delete) → the self-heal relaunch spawns the supervisor with
+	// the SAME persona段. self-heal gets NO fresh reconcile, so without this the re-drive would
+	// silently drop the injected description. Empty = none (no injection).
 	envVars            map[string]string // agent profile env captured at crash; self-heal gets no fresh reconcile.
 	concurrencyEnabled bool              // concurrent mode captured at crash; self-heal gets no fresh reconcile.
 }
@@ -134,7 +138,7 @@ func (c *AgentController) selfHealParams() selfHealParams {
 // Returns the lifecycle STATE the caller should report (outside the lock): "error"
 // (transient — a relaunch is scheduled), "failed" (terminal — the cap is reached), or
 // "" (no report — a defensive crash after the agent is already terminal-failed).
-func (c *AgentController) recordCrashAndSchedule(agentID string, version int, hadWork bool, taskID, model, displayName string, envVars map[string]string, concurrencyEnabled bool, msg string) string {
+func (c *AgentController) recordCrashAndSchedule(agentID string, version int, hadWork bool, taskID, model, displayName, promptDescription string, envVars map[string]string, concurrencyEnabled bool, msg string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.selfHeal[agentID]
@@ -152,9 +156,10 @@ func (c *AgentController) recordCrashAndSchedule(agentID string, version int, ha
 	e.lastCrashMsg = msg
 	e.version = version
 	e.nudge = hadWork
-	e.taskID = taskID           // rebound to currentTaskID on the relaunch (L2×Mode-B)
-	e.model = model             // re-driven claude spawns with the SAME model (self-heal gets no fresh reconcile)
-	e.displayName = displayName // re-driven supervisor keeps the SAME git author NAME (T469)
+	e.taskID = taskID                       // rebound to currentTaskID on the relaunch (L2×Mode-B)
+	e.model = model                         // re-driven claude spawns with the SAME model (self-heal gets no fresh reconcile)
+	e.displayName = displayName             // re-driven supervisor keeps the SAME git author NAME (T469)
+	e.promptDescription = promptDescription // re-driven supervisor keeps the SAME injected persona段 (T728)
 	e.envVars = cloneEnvVars(envVars)
 	e.concurrencyEnabled = concurrencyEnabled
 	if dec.failed {
@@ -183,6 +188,7 @@ func (c *AgentController) OnTick(ctx context.Context) {
 		taskID             string
 		model              string
 		displayName        string
+		promptDescription  string
 		envVars            map[string]string
 		concurrencyEnabled bool
 		attempt            int
@@ -199,14 +205,14 @@ func (c *AgentController) OnTick(ctx context.Context) {
 			e.nextRelaunchAt = time.Time{}
 			continue
 		}
-		dues = append(dues, due{agentID: id, version: e.version, nudge: e.nudge, taskID: e.taskID, model: e.model, displayName: e.displayName, envVars: cloneEnvVars(e.envVars), concurrencyEnabled: e.concurrencyEnabled, attempt: e.crashCount})
+		dues = append(dues, due{agentID: id, version: e.version, nudge: e.nudge, taskID: e.taskID, model: e.model, displayName: e.displayName, promptDescription: e.promptDescription, envVars: cloneEnvVars(e.envVars), concurrencyEnabled: e.concurrencyEnabled, attempt: e.crashCount})
 		e.nextRelaunchAt = time.Time{} // consume the schedule (no re-fire)
 		e.lastRelaunchAt = now         // healthy-run reset window is measured from here
 	}
 	c.mu.Unlock()
 
 	for _, d := range dues {
-		c.selfHealRelaunch(ctx, d.agentID, d.version, d.nudge, d.taskID, d.model, d.displayName, d.envVars, d.concurrencyEnabled, d.attempt)
+		c.selfHealRelaunch(ctx, d.agentID, d.version, d.nudge, d.taskID, d.model, d.displayName, d.promptDescription, d.envVars, d.concurrencyEnabled, d.attempt)
 	}
 
 	// LLM 服务端限流自动恢复: re-drive any agent whose rate-limit window has cleared.
@@ -234,7 +240,7 @@ func (c *AgentController) OnTick(ctx context.Context) {
 // the agent home lock (single-instance, cross-daemon), then reap residual + start a
 // fresh supervisor (resumes the durable epoch) + nudge iff the crash interrupted
 // active work. Reuses bootReapRelaunch (same reap+resume+nudge sequence).
-func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, version int, nudge bool, taskID, model, displayName string, envVars map[string]string, concurrencyEnabled bool, attempt int) {
+func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, version int, nudge bool, taskID, model, displayName, promptDescription string, envVars map[string]string, concurrencyEnabled bool, attempt int) {
 	home, _, _, err := c.agentPaths(agentID)
 	if err != nil {
 		c.log("agent=%s self-heal relaunch resolve home: %v — skip", agentID, err)
@@ -253,7 +259,7 @@ func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, 
 	}
 	defer release()
 	c.log("agent=%s self-heal RELAUNCH attempt=%d at=%s (nudge=%v)", agentID, attempt, c.now().Format(time.RFC3339), nudge)
-	if rerr := c.bootReapRelaunch(ctx, agentID, home, version, nudge, taskID, model, displayName, envVars, concurrencyEnabled); rerr != nil {
+	if rerr := c.bootReapRelaunch(ctx, agentID, home, version, nudge, taskID, model, displayName, promptDescription, envVars, concurrencyEnabled); rerr != nil {
 		// The relaunch FAILED to come up (e.g. "supervisor did not come up within 15s"
 		// — gate3b/c). nextRelaunchAt was already consumed in OnTick, so without this the
 		// agent would SILENT-LIMBO: no retry, no circuit-break, no surface (FINDING-3
@@ -263,7 +269,7 @@ func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, 
 		// relaunch that keeps failing to come up cannot loop forever, it eventually
 		// circuit-breaks to terminal (Fleet-visible).
 		c.log("agent=%s self-heal RELAUNCH attempt=%d FAILED to come up: %v", agentID, attempt, rerr)
-		state := c.recordRelaunchFailAndSchedule(agentID, version, nudge, taskID, model, displayName, envVars, concurrencyEnabled, rerr.Error())
+		state := c.recordRelaunchFailAndSchedule(agentID, version, nudge, taskID, model, displayName, promptDescription, envVars, concurrencyEnabled, rerr.Error())
 		if state == "failed" {
 			// Terminal circuit-break — surface the Fleet-visible lifecycle once.
 			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, rerr.Error(), c.now()); err != nil {
@@ -283,7 +289,7 @@ func (c *AgentController) selfHealRelaunch(ctx context.Context, agentID string, 
 //
 // Returns "failed" when the cap is reached (terminal — the caller surfaces the
 // Fleet-visible lifecycle), or "error" when another backed-off retry was scheduled.
-func (c *AgentController) recordRelaunchFailAndSchedule(agentID string, version int, nudge bool, taskID, model, displayName string, envVars map[string]string, concurrencyEnabled bool, msg string) string {
+func (c *AgentController) recordRelaunchFailAndSchedule(agentID string, version int, nudge bool, taskID, model, displayName, promptDescription string, envVars map[string]string, concurrencyEnabled bool, msg string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e := c.selfHeal[agentID]
@@ -304,6 +310,7 @@ func (c *AgentController) recordRelaunchFailAndSchedule(agentID string, version 
 	e.taskID = taskID
 	e.model = model
 	e.displayName = displayName
+	e.promptDescription = promptDescription
 	e.envVars = cloneEnvVars(envVars)
 	e.concurrencyEnabled = concurrencyEnabled
 	if dec.failed {

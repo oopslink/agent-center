@@ -143,7 +143,9 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		"effective_concurrency_cap": p.EffectiveConcurrencyCap(),
 		// v2.18.3 BE-1: per-agent auto-assign opt-out flag (true = assignable).
 		"auto_assignable": p.AutoAssignable,
-		"env_vars":        envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
+		// T728: per-agent inject-description-into-system-prompt flag (true = inject); FE回显.
+		"include_description_in_system_prompt": p.IncludeDescriptionInSystemPrompt,
+		"env_vars":                             envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
 		// v2.7 #157: kept for back-compat (equals id now). Lets the Members page
@@ -615,6 +617,8 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		AutoAssignable *bool `json:"auto_assignable"`
 		// Description edits the agent's human-readable description. nil → preserve.
 		Description *string `json:"description"`
+		// T728: per-agent inject-description-into-system-prompt switch. nil (omitted) → preserve.
+		IncludeDescriptionInSystemPrompt *bool `json:"include_description_in_system_prompt"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -631,7 +635,8 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		OrchestratorModel: req.OrchestratorModel, DefaultExecutorModel: req.DefaultExecutorModel,
 		MaxConcurrentTasks: req.MaxConcurrentTasks, AllowedModels: req.AllowedModels,
 		AllowedExecutors: req.AllowedExecutors, AutoAssignable: req.AutoAssignable,
-		Description: req.Description,
+		Description:                      req.Description,
+		IncludeDescriptionInSystemPrompt: req.IncludeDescriptionInSystemPrompt,
 	})
 	if err != nil {
 		mapAgentError(w, err)

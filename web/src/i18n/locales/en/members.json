@@ -265,6 +265,13 @@
         "messageSave": "The agent is not running — the new config will apply the next time it starts.",
         "labelRestart": "Save & restart",
         "labelSave": "Save"
+      },
+      "descriptionPrompt": {
+        "heading": "System prompt",
+        "ariaLabel": "Add description to system prompt",
+        "label": "Add description to system prompt",
+        "description": "When on, this agent's description is injected into its system prompt as a persona section. Off = the description is not sent to the model.",
+        "restartHint": "Applies after the agent restarts."
       }
     }
   },
@@ -463,7 +470,12 @@
       "noWorkers": "No workers in Environment yet — enroll a worker first.",
       "cancel": "Cancel",
       "submit": "Create agent",
-      "submitting": "Creating..."
+      "submitting": "Creating...",
+      "descriptionPrompt": {
+        "ariaLabel": "Add description to system prompt",
+        "label": "Add description to system prompt",
+        "description": "When on, this agent's description is injected into its system prompt as a persona section. Off = the description is not sent to the model."
+      }
     },
     "bound": {
       "loading": "Loading agents…",

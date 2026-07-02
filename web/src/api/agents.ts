@@ -114,6 +114,9 @@ export interface UpdateAgentConfigInput {
   // Agent description. Optional so a config edit that doesn't touch it preserves
   // the server value.
   description?: string;
+  // T728 (issue-0619f315): inject the description into the system prompt (default
+  // true). Optional so a config edit that omits it preserves the server value.
+  include_description_in_system_prompt?: boolean;
 }
 
 export function useUpdateAgentConfig(id: string) {

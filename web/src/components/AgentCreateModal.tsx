@@ -10,6 +10,7 @@ import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
 import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
 import { EntitySelect } from './EntitySelect';
+import { ToggleSwitch } from './ToggleSwitch';
 
 interface Props {
   onClose: () => void;
@@ -29,6 +30,9 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const [cli, setCli] = useState('claude-code');
   const [skills, setSkills] = useState('');
   const [workerId, setWorkerId] = useState('');
+  // T728 (issue-0619f315): inject the description into the agent's system prompt.
+  // Default ON — matches the backend default (nil → true).
+  const [includeDescription, setIncludeDescription] = useState(true);
   const create = useAddAgentMember();
   const fleet = useFleet();
   const workers = fleet.data?.workers ?? [];
@@ -55,6 +59,7 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         cli,
         skills: parsedSkills.length > 0 ? parsedSkills : undefined,
         worker_id: workerId,
+        include_description_in_system_prompt: includeDescription,
       });
       onClose();
     } catch {
@@ -108,6 +113,22 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
             className={inputClass}
           />
         </Field>
+
+        {/* T728: inject the description into the system prompt (default on). */}
+        <div className="mb-3 flex items-start gap-2.5" data-testid="agent-create-desc-prompt-section">
+          <ToggleSwitch
+            checked={includeDescription}
+            onChange={setIncludeDescription}
+            ariaLabel={t('agents.create.descriptionPrompt.ariaLabel')}
+            testId="agent-create-include-description"
+          />
+          <span className="text-xs">
+            <span className="font-medium text-text-primary">{t('agents.create.descriptionPrompt.label')}</span>
+            <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
+              {t('agents.create.descriptionPrompt.description')}
+            </span>
+          </span>
+        </div>
 
         <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
           <input

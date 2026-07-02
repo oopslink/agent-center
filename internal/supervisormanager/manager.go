@@ -70,6 +70,10 @@ type SpawnSupervisorCfg struct {
 	// AgentEnv is the per-agent profile env overlay. It is written to a 0600 file
 	// under HomeDir and the supervisor receives only the file path.
 	AgentEnv map[string]string
+	// PromptDescription is the already-gated description text (--prompt-description).
+	// The supervisor injects it into the system prompt as a persona段 (T728). Empty →
+	// the supervisor omits the flag → no injection.
+	PromptDescription string
 	// ClaudeBin overrides the claude binary path (--claude-bin). In tests this
 	// points at a stand-in so no real claude is required.
 	ClaudeBin string
@@ -293,6 +297,9 @@ func buildSupervisorArgs(cfg SpawnSupervisorCfg) []string {
 	}
 	if cfg.DisplayName != "" {
 		args = append(args, "--display-name", cfg.DisplayName)
+	}
+	if cfg.PromptDescription != "" {
+		args = append(args, "--prompt-description", cfg.PromptDescription)
 	}
 	if cfg.ClaudeBin != "" {
 		args = append(args, "--claude-bin", cfg.ClaudeBin)

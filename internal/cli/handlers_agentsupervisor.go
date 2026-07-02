@@ -58,12 +58,13 @@ func AgentSupervisorCommand() *Command {
 			model := fs.String("model", "", "optional claude --model override")
 			displayName := fs.String("display-name", "", "agent human-readable display_name; injected as GIT_{AUTHOR,COMMITTER}_NAME via the ② AgentEnv seam (overrides the ULID default; empty → ULID). EMAIL stays <agent-id>@agent-center (T469)")
 			agentEnvFile := fs.String("agent-env-file", "", "path to 0600 JSON object of per-agent env vars (system; profile env)")
+			promptDescription := fs.String("prompt-description", "", "agent profile description to inject into the system prompt as a persona段 (T728; already gated by the per-agent switch — empty → no injection)")
 			resetEpoch := fs.Int("reset-epoch", 0, "per-agent reset epoch; derives claude --session-id via SessionUUIDGen(agent-id, epoch, generation). 0 = initial; the daemon bumps it on a clean-slate reset and re-passes the durable value on a crash-relaunch (system; v2.7 D2-f)")
 			generation := fs.Int("generation", 0, "per-agent crash-relaunch fork generation; derives claude --session-id via SessionUUIDGen(agent-id, epoch, generation). 0 = pre-fix id (initial/normal start); the daemon bumps it per Mode-B relaunch (system; v2.7 GATE-7)")
 			resumeFrom := fs.String("resume-from", "", "Mode-B fork: prior session-id to --resume + --fork-session from (the killed session whose lock blocks re-use). Empty = plain start, no fork (system; v2.7 GATE-7)")
 			concurrencyEnabled := fs.Bool("concurrency-enabled", false, "whether this agent runs in concurrent mode (orchestrator prompt; system)")
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
-				return runAgentSupervisor(ctx, errw, *agentID, *homeDir, *mcpConfigPath, *workspaceDir, *claudeBin, *model, *displayName, *agentEnvFile, *resetEpoch, *generation, *resumeFrom, *concurrencyEnabled)
+				return runAgentSupervisor(ctx, errw, *agentID, *homeDir, *mcpConfigPath, *workspaceDir, *claudeBin, *model, *displayName, *agentEnvFile, *promptDescription, *resetEpoch, *generation, *resumeFrom, *concurrencyEnabled)
 			}
 		},
 	}
@@ -74,7 +75,7 @@ func AgentSupervisorCommand() *Command {
 // process, launches the child, and runs until SIGTERM/SIGINT. Diagnostics go to
 // errw; the child's stdout is drained to events.jsonl and is NOT echoed to the
 // supervisor's stdout.
-func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, mcpConfigPath, workspaceDir, claudeBin, model, displayName, agentEnvFile string, resetEpoch, generation int, resumeFrom string, concurrencyEnabled bool) ExitCode {
+func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, mcpConfigPath, workspaceDir, claudeBin, model, displayName, agentEnvFile, promptDescription string, resetEpoch, generation int, resumeFrom string, concurrencyEnabled bool) ExitCode {
 	agentID = strings.TrimSpace(agentID)
 	homeDir = strings.TrimSpace(homeDir)
 	if agentID == "" {
@@ -101,12 +102,18 @@ func runAgentSupervisor(ctx context.Context, errw io.Writer, agentID, homeDir, m
 		memoryContext = mc
 	}
 
+	// T728: compose the --append-system-prompt extra text = optional persona段 (the
+	// agent's profile description, already gated by the per-agent switch at the center —
+	// promptDescription is "" when the agent opted out) + the memory harness context.
+	// Empty when neither is present ⇒ unchanged argv.
+	extraSystemPrompt := claudestream.ComposeExtraSystemPrompt(promptDescription, memoryContext)
+
 	// Build the validated claude streaming argv via the claudestream pipeline
 	// (BuildCommand + rewriteForStreamingInput + SessionUUID + --mcp-config
 	// <path>). The supervisor holds only the mcp-config PATH; no token here.
 	// --model (if any) is appended as an argv flag below. memoryContext rides the
 	// same --append-system-prompt as the work-queue harness.
-	childCmd, sysPrompt, err := claudestream.BuildStreamingArgv(agentID, strings.TrimSpace(claudeBin), strings.TrimSpace(mcpConfigPath), resetEpoch, generation, strings.TrimSpace(resumeFrom), nil, memoryContext, concurrencyEnabled)
+	childCmd, sysPrompt, err := claudestream.BuildStreamingArgv(agentID, strings.TrimSpace(claudeBin), strings.TrimSpace(mcpConfigPath), resetEpoch, generation, strings.TrimSpace(resumeFrom), nil, extraSystemPrompt, concurrencyEnabled)
 	if err != nil {
 		fmt.Fprintf(errw, "Error: agent_supervisor: build claude argv: %v\n", err)
 		return ExitBusinessError

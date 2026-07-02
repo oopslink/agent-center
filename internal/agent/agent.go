@@ -194,6 +194,17 @@ type Profile struct {
 	// boundary (CreateAgent), so a profile must be created through the service to get
 	// the right default — a hand-built Profile zero-values to false.
 	AutoAssignable bool
+	// IncludeDescriptionInSystemPrompt is the per-agent switch (T728, issue-0619f315)
+	// controlling whether Description is injected into the agent's system prompt as a
+	// persona段. true (the default — column DEFAULT 1) means: when Description is
+	// non-empty, inject it; false opts out. Like AutoAssignable it is defaulted to
+	// true at the create boundary (CreateAgent), so a hand-built Profile zero-values
+	// to false — construct through the service to get the intended default. The
+	// effective inject-text (Description gated by this flag) is snapshotted at the
+	// (re)start that emits the lifecycle event and carried to the worker supervisor,
+	// so toggling it takes effect on the next agent restart ("edit + restart to apply",
+	// same as Model/CLI).
+	IncludeDescriptionInSystemPrompt bool
 }
 
 // ExecutorProfile is one executor candidate: which CLI runs it and which model it

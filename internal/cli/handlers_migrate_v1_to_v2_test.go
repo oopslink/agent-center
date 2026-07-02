@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -114,7 +115,7 @@ func TestMigrateV1ToV2_DryRunReportsCounts(t *testing.T) {
 	}
 	for _, want := range []string{
 		"current schema version: 6",
-		"target  schema version: 89",
+		fmt.Sprintf("target  schema version: %d", targetSchemaVersion),
 		"feishu_delivery_ledger:    2",
 		"bridge_subscription_cursors: 1",
 		"dry-run: no changes applied",
@@ -149,7 +150,7 @@ func TestMigrateV1ToV2_ApplyArchivesAndUpgrades(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("code=%d stdout=%s", code, stdout)
 	}
-	if !strings.Contains(stdout, "new schema version: 89") {
+	if !strings.Contains(stdout, fmt.Sprintf("new schema version: %d", targetSchemaVersion)) {
 		t.Fatalf("expected new version line; got:\n%s", stdout)
 	}
 
@@ -193,8 +194,8 @@ func TestMigrateV1ToV2_ApplyArchivesAndUpgrades(t *testing.T) {
 	db, _ := persistence.Open(dbPath)
 	defer db.Close()
 	v, _ := persistence.NewMigrator(db).Version(context.Background())
-	if v != 89 {
-		t.Fatalf("post-apply version=%d want 89", v)
+	if v != targetSchemaVersion {
+		t.Fatalf("post-apply version=%d want %d", v, targetSchemaVersion)
 	}
 	for _, tbl := range []string{"feishu_delivery_ledger", "bridge_subscription_cursors"} {
 		var n int
