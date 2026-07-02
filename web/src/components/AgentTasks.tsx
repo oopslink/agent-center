@@ -311,22 +311,26 @@ function formatUpdated(iso: string, t: TFunction): string {
 
 // ── T593: concurrency overlay ────────────────────────────────────────────────
 
-// concurrencyMode resolves the T606 three-state freshness from the snapshot
-// (issue-af03da2f), replacing the single overloaded `stale` flag that mislabeled
-// every non-live case "worker unreachable":
-//   - 'live'    — a fresh snapshot: show real active/cap slots.
-//   - 'offline' — the bound worker is truly OFFLINE (reachable=false).
-//   - 'expired' — a snapshot exists but aged past the TTL (last-known, worker online).
-//   - 'nodata'  — the agent never reported a snapshot (concurrency not active on the
-//                 worker) — NEUTRAL, not an error; the common non-concurrent case.
-// reachable/has_snapshot are optional for back-compat with a pre-T606 Center: absent
-// → online + (snapshot present iff not stale), i.e. the legacy live-vs-stale split.
-type ConcurrencyMode = 'live' | 'offline' | 'expired' | 'nodata';
+// concurrencyMode resolves freshness + activation state from the snapshot:
+//   - 'live'     — a fresh snapshot: show real active/cap slots.
+//   - 'offline'  — the bound worker is truly OFFLINE (reachable=false).
+//   - 'expired'  — a snapshot exists but aged past the TTL (last-known, worker online).
+//   - 'disabled' — the agent does NOT run the concurrent path (concurrency_enabled=false,
+//                  cap 1): the honest "concurrency not active" single-active case.
+//   - 'nodata'   — concurrency IS enabled but no live snapshot has landed yet — NEUTRAL:
+//                  "awaiting live data", NOT "not active" (issue-c44ccf6b: a running,
+//                  concurrency-enabled agent was mislabeled "concurrency not active"
+//                  because its snapshot lookup missed on a read/write key mismatch — now
+//                  fixed center-side; this split stops the remaining label from lying).
+// reachable/has_snapshot/concurrency_enabled are optional for back-compat with a pre-fix
+// Center: absent reachable/has_snapshot → online + (snapshot present iff not stale);
+// absent concurrency_enabled → the legacy single 'nodata' label.
+type ConcurrencyMode = 'live' | 'offline' | 'expired' | 'disabled' | 'nodata';
 function concurrencyMode(data: AgentConcurrency): ConcurrencyMode {
   const reachable = data.reachable ?? true;
   const hasSnapshot = data.has_snapshot ?? !data.stale;
   if (!reachable) return 'offline';
-  if (!hasSnapshot) return 'nodata';
+  if (!hasSnapshot) return data.concurrency_enabled === false ? 'disabled' : 'nodata';
   if (data.stale) return 'expired';
   return 'live';
 }
@@ -340,13 +344,19 @@ function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElem
   const mode = concurrencyMode(data);
   const cap = Math.max(0, data.cap);
   const active = Math.max(0, data.active);
-  const segs = Array.from({ length: cap }, (_, i) => i < active);
-  // offline/expired are warnings (amber); nodata is neutral; live is normal.
+  // Occupancy: the live executor count when the snapshot is fresh, else the
+  // center-known in-progress count (data.running) as a FALLBACK so a busy agent
+  // never reads a bare "—". Drives both the number and the filled segments.
+  const fallback = Math.max(0, data.running ?? 0);
+  const occupancy = mode === 'live' ? active : fallback;
+  const segs = Array.from({ length: cap }, (_, i) => i < occupancy);
+  // offline/expired are warnings (amber); disabled/nodata are neutral; live is normal.
   const amber = mode === 'offline' || mode === 'expired';
   const slotsLabel: Record<ConcurrencyMode, string> = {
     live: t('agentRuntime.tasks.concurrency.slotsLabel.live'),
     offline: t('agentRuntime.tasks.concurrency.slotsLabel.offline'),
     expired: t('agentRuntime.tasks.concurrency.slotsLabel.expired'),
+    disabled: t('agentRuntime.tasks.concurrency.slotsLabel.disabled'),
     nodata: t('agentRuntime.tasks.concurrency.slotsLabel.nodata'),
   };
   return (
@@ -360,7 +370,7 @@ function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElem
     >
       <div className="flex items-center gap-2">
         <span className="text-sm font-bold text-text-primary" data-testid="agent-concurrency-slots">
-          {mode === 'live' ? active : '—'}
+          {mode === 'live' ? active : occupancy > 0 ? `~${occupancy}` : '—'}
           <span className="text-text-muted">/{cap}</span>
         </span>
         <span className="text-xs text-text-muted">{slotsLabel[mode]}</span>
@@ -369,7 +379,13 @@ function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElem
             <span
               key={i}
               className={`h-2 w-5 rounded-sm ${
-                mode === 'live' && on ? 'bg-brand' : amber && on ? 'bg-warning' : 'bg-border-strong'
+                mode === 'live' && on
+                  ? 'bg-brand'
+                  : amber && on
+                    ? 'bg-warning'
+                    : on
+                      ? 'bg-text-muted'
+                      : 'bg-border-strong'
               }`}
             />
           ))}
@@ -391,7 +407,13 @@ function ConcurrencySlots({ data }: { data: AgentConcurrency }): React.ReactElem
         <span className="flex items-center gap-1 text-xs font-medium text-status-amber-fg" data-testid="agent-concurrency-age">
           <WarnIcon /> {t('agentRuntime.tasks.concurrency.expiredAge', { age: formatAge(data.snapshot_age_ms) })}
         </span>
+      ) : mode === 'disabled' ? (
+        // Genuinely single-active (concurrency not enabled) — the HONEST "not active".
+        <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="agent-concurrency-age">
+          {t('agentRuntime.tasks.concurrency.disabledDetail')}
+        </span>
       ) : (
+        // Concurrency enabled but no live snapshot yet — awaiting data, NOT "not active".
         <span className="flex items-center gap-1 text-xs text-text-muted" data-testid="agent-concurrency-age">
           {t('agentRuntime.tasks.concurrency.nodataDetail')}
         </span>

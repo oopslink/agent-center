@@ -289,9 +289,9 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     expect(screen.getByTestId('agent-workitems-table')).toBeInTheDocument();
   });
 
-  // T606: agent never reported a snapshot (concurrency not active) → NEUTRAL "no
-  // real-time slot data", NOT "worker unreachable" (the original I54 misreport).
-  it('no snapshot (concurrency not active): neutral no-data state, not "unreachable"', async () => {
+  // Back-compat (no concurrency_enabled from a pre-fix Center): no snapshot → neutral
+  // 'nodata' (awaiting live data), NOT "worker unreachable" (the original I54 misreport).
+  it('no snapshot, no enabled flag: neutral awaiting-data state, not "unreachable"', async () => {
     stub([inProg('t1')]);
     stubConcurrency({
       agent_id: 'A1', cap: 3, active: 0, queued: 0, stale: true, reachable: true, has_snapshot: false, snapshot_age_ms: 0, executors: [],
@@ -299,10 +299,43 @@ describe('AgentTasks — concurrency overlay (T593)', () => {
     wrap();
     const sum = await screen.findByTestId('agent-concurrency-summary');
     expect(sum).toHaveAttribute('data-mode', 'nodata');
-    expect(sum).toHaveTextContent(/no real-time slot data/i);
+    expect(sum).toHaveTextContent(/awaiting live slot data/i);
     expect(sum).not.toHaveTextContent(/unreachable/i);
     expect(sum).not.toHaveTextContent(/offline/i);
     expect(screen.getByTestId('agent-workitems-table')).toBeInTheDocument();
+  });
+
+  // issue-c44ccf6b: a genuinely single-active agent (concurrency_enabled=false) is the
+  // HONEST "concurrency not active" case → mode 'disabled'. The center-known running
+  // count is shown as the occupancy fallback (~1/1), never a bare "—".
+  it('single-active agent (concurrency disabled): honest "not active" + running fallback', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({
+      agent_id: 'A1', cap: 1, active: 0, queued: 0, running: 1, concurrency_enabled: false,
+      stale: true, reachable: true, has_snapshot: false, snapshot_age_ms: 0, executors: [],
+    });
+    wrap();
+    const sum = await screen.findByTestId('agent-concurrency-summary');
+    expect(sum).toHaveAttribute('data-mode', 'disabled');
+    expect(sum).toHaveTextContent(/concurrency not active/i);
+    expect(screen.getByTestId('agent-concurrency-slots')).toHaveTextContent('~1/1'); // fallback, not "—"
+  });
+
+  // issue-c44ccf6b core fix: an ENABLED, running agent with no fresh snapshot must NOT
+  // be labeled "concurrency not active" — it's 'nodata' (awaiting live data) and shows
+  // the center-known running count as occupancy (~2/3), not "—".
+  it('enabled but no snapshot: awaiting-data (NOT "not active") + running fallback', async () => {
+    stub([inProg('t1')]);
+    stubConcurrency({
+      agent_id: 'A1', cap: 3, active: 0, queued: 0, running: 2, concurrency_enabled: true,
+      stale: true, reachable: true, has_snapshot: false, snapshot_age_ms: 0, executors: [],
+    });
+    wrap();
+    const sum = await screen.findByTestId('agent-concurrency-summary');
+    expect(sum).toHaveAttribute('data-mode', 'nodata');
+    expect(sum).toHaveTextContent(/awaiting live slot data/i);
+    expect(sum).not.toHaveTextContent(/concurrency not active/i);
+    expect(screen.getByTestId('agent-concurrency-slots')).toHaveTextContent('~2/3'); // fallback, not "—"
   });
 
   it('pending row shows the queued-for-slot hint', async () => {
