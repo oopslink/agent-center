@@ -53,6 +53,13 @@ type Completion struct {
 	// Retryable is true iff Kind == OutcomeCrashed: the orchestrator MAY re-queue
 	// the work rather than reporting a terminal failure.
 	Retryable bool
+	// Recovered marks a completion observed via the crash-recovery / orphan path
+	// (Monitor.Recover / Monitor.CheckOrphan) rather than a reaped this-process exit
+	// (Monitor.AwaitCompletion). It is NOT set by Classify — the observing Monitor
+	// method stamps it — so the pure classification stays orthogonal to how the
+	// completion was witnessed. The activity stream surfaces it as the "orphan 清理"
+	// stop class (design: executor lifecycle observability).
+	Recovered bool
 }
 
 // CompletionFacts are the raw observations the classifier reasons over. The
