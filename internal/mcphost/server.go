@@ -513,6 +513,16 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Unbind the task from an orchestration graph node (removes task_id from node metadata).",
 	}, makeUnbindTaskFromNode(cfg))
 
+	// --- template tools ------------------------------------------------------
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_templates",
+		Description: "List available workflow templates. Returns both system built-in templates and organization-specific templates. Use get_template to read the full content of a template.",
+	}, makeListTemplates(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_template",
+		Description: "Get a workflow template by ID. Returns the full markdown content that describes the orchestration rules. Read this content to understand how to scaffold a graph using the orchestration tools.",
+	}, makeGetTemplate(cfg))
+
 	// --- file tools ----------------------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "upload_file",

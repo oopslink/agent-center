@@ -162,6 +162,9 @@ type HandlerDeps struct {
 	// the graph/node/edge agent MCP tools. nil when not wired (handlers then
 	// return orchestration_not_wired 501).
 	OrchService *orch.Service
+	// TemplateRepo backs the list_templates / get_template agent tools.
+	// nil when not wired (handlers return templates_not_wired 501).
+	TemplateRepo projectmanager.TemplateRepository
 	// PMProjectRepo is the new-model (pm) project repo backing the
 	// operator/admin-token project find-* read endpoints. v2.7 #131 PR-3:
 	// repointed off the retired workforce.Project model. Operator-scoped —

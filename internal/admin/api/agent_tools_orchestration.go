@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
 
@@ -698,4 +699,83 @@ func (s *Server) unbindTaskFromNodeHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// =============================================================================
+// Template tools: list_templates / get_template
+// =============================================================================
+
+type listTemplatesReq struct {
+	AgentID string `json:"agent_id"`
+}
+
+func (s *Server) listTemplatesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listTemplatesReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.TemplateRepo == nil {
+		writeError(w, http.StatusNotImplemented, "templates_not_wired", "")
+		return
+	}
+	// Resolve org from agent
+	orgID := string(a.OrganizationID())
+	templates, err := d.TemplateRepo.ListByOrg(r.Context(), orgID)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(templates))
+	for _, t := range templates {
+		items = append(items, map[string]any{
+			"id":          string(t.ID()),
+			"name":        t.Name(),
+			"description": t.Description(),
+			"builtin":     t.IsBuiltin(),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"templates": items})
+}
+
+type getTemplateReq struct {
+	AgentID    string `json:"agent_id"`
+	TemplateID string `json:"template_id"`
+}
+
+func (s *Server) getTemplateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req getTemplateReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+		return
+	}
+	if d.TemplateRepo == nil {
+		writeError(w, http.StatusNotImplemented, "templates_not_wired", "")
+		return
+	}
+	t, err := d.TemplateRepo.FindByID(r.Context(), pm.TemplateID(req.TemplateID))
+	if err != nil {
+		if errors.Is(err, pm.ErrTemplateNotFound) {
+			writeError(w, http.StatusNotFound, "template_not_found", err.Error())
+			return
+		}
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":          string(t.ID()),
+		"name":        t.Name(),
+		"description": t.Description(),
+		"content":     t.Content(),
+		"builtin":     t.IsBuiltin(),
+	})
 }

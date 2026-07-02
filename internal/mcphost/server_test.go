@@ -136,6 +136,8 @@ var wantTools = []string{
 	"bind_task_to_node", "unbind_task_from_node",
 	// files
 	"upload_file", "download_file", "attach_file",
+	// templates
+	"list_templates", "get_template",
 }
 
 // planTools is the v2.9 P3 Stage C (#285) plan agent-tool catalog: every plan

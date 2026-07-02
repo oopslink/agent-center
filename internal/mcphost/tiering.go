@@ -95,6 +95,9 @@ var secondaryTools = []struct{ name, summary string }{
 	// directly, and post_message attachments depend on upload_file. attach_file
 	// (rarer — re-scoping an existing blob) stays deferred.
 	{"attach_file", "attach an existing center file into a scope"},
+	// templates — workflow template catalog
+	{"list_templates", "list available workflow templates"},
+	{"get_template", "get a workflow template's content"},
 }
 
 // secondaryToolNames returns the deferred tool names (for RemoveTools on the

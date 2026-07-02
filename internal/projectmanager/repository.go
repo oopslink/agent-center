@@ -322,6 +322,15 @@ type CodeRepoRefRepository interface {
 	ClearPrimaryForProject(ctx context.Context, projectID ProjectID, exceptID string) error
 }
 
+// TemplateRepository persists Template aggregates.
+type TemplateRepository interface {
+	Save(ctx context.Context, t *Template) error
+	Update(ctx context.Context, t *Template) error
+	FindByID(ctx context.Context, id TemplateID) (*Template, error)
+	ListByOrg(ctx context.Context, orgID string) ([]*Template, error)
+	Delete(ctx context.Context, id TemplateID) error
+}
+
 // OrgSequenceRepository allocates per-organization, per-entity-type monotonic
 // numbers (v2.7.1 #245 — the T<n>/I<n> display/reference tokens). Allocate is
 // atomic + race-safe (one SQL UPSERT...RETURNING; SQLite serializes per-row

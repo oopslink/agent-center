@@ -253,4 +253,7 @@ var (
 	// effectively unreachable, but the repo must not mislabel a unique violation as
 	// a 404 (review finding #5).
 	ErrPlanFindingExists = errors.New("projectmanager: plan finding already exists")
+	// Template management.
+	ErrTemplateNotFound = errors.New("projectmanager: template not found")
+	ErrTemplateExists   = errors.New("projectmanager: template already exists")
 )

@@ -489,6 +489,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/get_ready_nodes", s.getReadyNodesHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/bind_task_to_node", s.bindTaskToNodeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/unbind_task_from_node", s.unbindTaskFromNodeHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_templates", s.listTemplatesHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_template", s.getTemplateHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/upload_file", s.uploadFileHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/attach_file", s.attachFileHandler)
 	s.mux.HandleFunc("PUT /admin/files/transfer/{transfer_id}", s.putAgentBlobHandler)

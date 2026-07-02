@@ -332,3 +332,30 @@ func makeUnbindTaskFromNode(cfg Config) mcp.ToolHandlerFor[unbindTaskFromNodeArg
 		return callAdmin(ctx, cfg, "unbind_task_from_node", body)
 	}
 }
+
+// --- list_templates ----------------------------------------------------------
+
+type listTemplatesArgs struct{}
+
+func makeListTemplates(cfg Config) mcp.ToolHandlerFor[listTemplatesArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listTemplatesArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID}
+		return callAdmin(ctx, cfg, "list_templates", body)
+	}
+}
+
+// --- get_template ------------------------------------------------------------
+
+type getTemplateArgs struct {
+	TemplateID string `json:"template_id" jsonschema:"The template ID to retrieve"`
+}
+
+func makeGetTemplate(cfg Config) mcp.ToolHandlerFor[getTemplateArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getTemplateArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":    cfg.AgentID,
+			"template_id": args.TemplateID,
+		}
+		return callAdmin(ctx, cfg, "get_template", body)
+	}
+}

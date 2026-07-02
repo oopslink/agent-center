@@ -50,8 +50,8 @@ func TestMigration0071_AwiDataBackfill(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up (apply 0071): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 93 {
-		t.Fatalf("version after re-Up: got %d want 93", v)
+	if v, _ := mig.Version(ctx); v != 94 {
+		t.Fatalf("version after re-Up: got %d want 94", v)
 	}
 
 	assertBackfill(t, db)

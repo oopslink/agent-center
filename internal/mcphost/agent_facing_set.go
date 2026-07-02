@@ -100,6 +100,8 @@ var AgentFacingToolNames = []string{
 	"unsubscribe",
 	"update_graph_node",
 	"upload_file",
+	"list_templates",
+	"get_template",
 }
 
 // FilesSeamTools are the agent-facing tools that move BYTES through the FileMover
