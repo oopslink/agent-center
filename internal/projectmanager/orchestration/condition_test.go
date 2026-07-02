@@ -121,15 +121,16 @@ func TestApplyConditionResult_Failure_ReopensChain(t *testing.T) {
 	g.FindNode("b").Start(t0)
 	g.FindNode("b").Complete("failure", t0)
 
+	// OnFailure targets both a and b explicitly so both are reopened.
 	cfg := ConditionConfig{
-		OnFailure: []NodeID{"a"},
+		OnFailure: []NodeID{"a", "b"},
 	}
 	err := ApplyConditionResult(g, "cond", cfg, false, t0)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// a and b should be reopened (they are on the chain from cond back to a)
+	// a and b should be reopened (both are explicit on_failure targets)
 	if g.FindNode("a").Status() != NodeReopen {
 		t.Fatalf("a status = %s, want reopen", g.FindNode("a").Status())
 	}
@@ -144,38 +145,91 @@ func TestApplyConditionResult_Failure_ReopensChain(t *testing.T) {
 
 func TestApplyConditionResult_MaxRoundsExceeded_Discard(t *testing.T) {
 	g := buildConditionTestGraph(t)
-	g.FindNode("a").Start(t0)
-	g.FindNode("a").Complete("failure", t0)
-	g.FindNode("b").Start(t0)
-	g.FindNode("b").Complete("failure", t0)
 
 	cfg := ConditionConfig{
-		OnFailure:     []NodeID{"a"},
+		OnFailure:     []NodeID{"a", "b"},
 		MaxRounds:     1,
 		OnMaxExceeded: MaxExceededDiscard,
 	}
 
-	// First failure: round 1 -> reopen
-	err := ApplyConditionResult(g, "cond", cfg, false, t0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Now simulate round 2: re-complete and re-fail
+	// Round 1: complete upstreams, apply failure → reopen chain
 	g.FindNode("a").Start(t0)
 	g.FindNode("a").Complete("failure", t0)
 	g.FindNode("b").Start(t0)
 	g.FindNode("b").Complete("failure", t0)
-	g.FindNode("cond").Start(t0)
-	g.FindNode("cond").Complete("", t0)
-	g.FindNode("cond").Reopen("re-eval", t0)
 
-	// Second failure: round exceeds max -> discard
+	err := ApplyConditionResult(g, "cond", cfg, false, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// After round 1: cond should be reopened
+	if g.FindNode("cond").Status() != NodeReopen {
+		t.Fatalf("after round 1: cond status = %s, want reopen", g.FindNode("cond").Status())
+	}
+
+	// Round 2: re-complete upstreams, apply failure again → max exceeded → discard
+	g.FindNode("a").Start(t0)
+	g.FindNode("a").Complete("failure", t0)
+	g.FindNode("b").Start(t0)
+	g.FindNode("b").Complete("failure", t0)
+
 	err = ApplyConditionResult(g, "cond", cfg, false, t0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if g.FindNode("cond").Status() != NodeDiscarded {
-		t.Fatalf("cond status = %s, want discarded (max rounds exceeded)", g.FindNode("cond").Status())
+		t.Fatalf("after round 2: cond status = %s, want discarded", g.FindNode("cond").Status())
+	}
+}
+
+func TestApplyConditionResult_MaxRoundsExceeded_ForceSuccess(t *testing.T) {
+	g := buildConditionTestGraph(t)
+	cfg := ConditionConfig{
+		OnFailure:     []NodeID{"a", "b"},
+		MaxRounds:     1,
+		OnMaxExceeded: MaxExceededForceSuccess,
+	}
+
+	// Round 1
+	g.FindNode("a").Start(t0)
+	g.FindNode("a").Complete("failure", t0)
+	g.FindNode("b").Start(t0)
+	g.FindNode("b").Complete("failure", t0)
+	if err := ApplyConditionResult(g, "cond", cfg, false, t0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Round 2: max exceeded → force success
+	g.FindNode("a").Start(t0)
+	g.FindNode("a").Complete("failure", t0)
+	g.FindNode("b").Start(t0)
+	g.FindNode("b").Complete("failure", t0)
+	err := ApplyConditionResult(g, "cond", cfg, false, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.FindNode("cond").Status() != NodeCompleted {
+		t.Fatalf("cond status = %s, want completed (force_success)", g.FindNode("cond").Status())
+	}
+	if g.FindNode("cond").Outcome() != "force_success" {
+		t.Fatalf("cond outcome = %s, want force_success", g.FindNode("cond").Outcome())
+	}
+}
+
+func TestEvaluateUpstream_Or_AllFail(t *testing.T) {
+	g := buildConditionTestGraph(t)
+	g.FindNode("a").Start(t0)
+	g.FindNode("a").Complete("failure", t0)
+	g.FindNode("b").Start(t0)
+	g.FindNode("b").Complete("failure", t0)
+
+	cfg := ConditionConfig{Evaluator: EvaluatorUpstream, Logic: LogicOr}
+	ok, err := EvaluateUpstream(g, "cond", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("expected failure (all upstream failure with OR)")
 	}
 }
 

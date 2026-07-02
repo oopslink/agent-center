@@ -106,6 +106,7 @@ func EvaluateUpstream(g *Graph, conditionNodeID NodeID, cfg ConditionConfig) (bo
 		logic = LogicAnd
 	}
 
+	businessCount := 0
 	for _, id := range upstreamIDs {
 		n := g.FindNode(id)
 		if n == nil {
@@ -114,6 +115,7 @@ func EvaluateUpstream(g *Graph, conditionNodeID NodeID, cfg ConditionConfig) (bo
 		if n.Category() == NodeCategoryControl {
 			continue // skip control nodes
 		}
+		businessCount++
 		isSuccess := n.Status() == NodeCompleted && n.Outcome() == "success"
 
 		if logic == LogicAnd && !isSuccess {
@@ -122,6 +124,9 @@ func EvaluateUpstream(g *Graph, conditionNodeID NodeID, cfg ConditionConfig) (bo
 		if logic == LogicOr && isSuccess {
 			return true, nil
 		}
+	}
+	if businessCount == 0 {
+		return false, errors.New("orchestration: condition node has no upstream business nodes")
 	}
 
 	if logic == LogicAnd {
@@ -164,12 +169,7 @@ func ApplyConditionResult(g *Graph, conditionNodeID NodeID, cfg ConditionConfig,
 			}
 			return condNode.Complete("force_success", at)
 		case MaxExceededDiscard:
-			if condNode.Status() == NodeReopen {
-				// Already in reopen state; transition: reopen -> running -> discard
-				if err := condNode.Start(at); err != nil {
-					return err
-				}
-			} else if condNode.Status() == NodeOpen {
+			if condNode.Status() == NodeOpen || condNode.Status() == NodeReopen {
 				if err := condNode.Start(at); err != nil {
 					return err
 				}
@@ -188,24 +188,6 @@ func ApplyConditionResult(g *Graph, conditionNodeID NodeID, cfg ConditionConfig,
 		chain := ReopenChain(edges, conditionNodeID, targetID)
 		for _, nid := range chain {
 			toReopen[nid] = true
-		}
-	}
-
-	// Also reopen all direct upstream completed business nodes of the condition
-	// so that the condition can re-evaluate them on the next round.
-	for _, e := range edges {
-		if e.ToNodeID != conditionNodeID {
-			continue
-		}
-		n := g.FindNode(e.FromNodeID)
-		if n == nil {
-			continue
-		}
-		if n.Category() == NodeCategoryControl {
-			continue
-		}
-		if n.Status() == NodeCompleted {
-			toReopen[e.FromNodeID] = true
 		}
 	}
 
