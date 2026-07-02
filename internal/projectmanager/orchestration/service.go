@@ -123,7 +123,12 @@ func (s *Service) AddNode(ctx context.Context, graphID GraphID, category, contro
 	if err != nil {
 		return "", err
 	}
-	return id, s.nodes.Save(ctx, n)
+	return id, persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		if err := s.nodes.Save(txCtx, n); err != nil {
+			return err
+		}
+		return s.graphs.Update(txCtx, g)
+	})
 }
 
 // RemoveNode removes a node (and its edges) from the graph and deletes it from
@@ -225,14 +230,21 @@ func (s *Service) ResolveCondition(ctx context.Context, id NodeID, result string
 	if err != nil {
 		return err
 	}
+	// Snapshot node versions before mutation to detect which ones changed.
+	versionsBefore := make(map[NodeID]int, len(g.Nodes()))
+	for _, node := range g.Nodes() {
+		versionsBefore[node.ID()] = node.Version()
+	}
 	success := result == "success"
 	if err := ApplyConditionResult(g, id, cfg, success, s.clock.Now()); err != nil {
 		return err
 	}
 	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
 		for _, node := range g.Nodes() {
-			if err := s.nodes.Update(txCtx, node); err != nil {
-				return err
+			if node.Version() != versionsBefore[node.ID()] {
+				if err := s.nodes.Update(txCtx, node); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -253,7 +265,12 @@ func (s *Service) AddEdge(ctx context.Context, graphID GraphID, from, to NodeID)
 	if err := g.AddEdge(from, to); err != nil {
 		return err
 	}
-	return s.edges.Save(ctx, graphID, Edge{FromNodeID: from, ToNodeID: to})
+	return persistence.RunInTx(ctx, s.db, func(txCtx context.Context) error {
+		if err := s.edges.Save(txCtx, graphID, Edge{FromNodeID: from, ToNodeID: to}); err != nil {
+			return err
+		}
+		return s.graphs.Update(txCtx, g)
+	})
 }
 
 // RemoveEdge removes a directed edge from→to within a graph. Idempotent.

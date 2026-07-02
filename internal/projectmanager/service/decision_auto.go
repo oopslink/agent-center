@@ -9,22 +9,14 @@ import (
 )
 
 // =============================================================================
-// B3 — decision automation, service layer (v2.13.0 I18/B3 — docs/design/v2.13.0/
-// control-flow-engine-spec.md §2.3 / §10).
+// B3 — decision automation, service layer.
 //
-// ComputeAutoDecision gathers the two inputs of the B3 rule for a control-flow
-// decision node — the §-1 gate verdict (via the DecisionGate port) and the count of
-// open review comments — and applies pm.AutoDecideOutcome. It performs READS + gate
-// I/O ONLY (no writes, no tx), so the complete_task handler can call it BEFORE the
-// completion tx (the gate is git/CI I/O — slow, must run outside the tx, exactly
-// like the F3 guardIntegrateMerge pre-check) and then record the resulting outcome
-// INSIDE the same tx as the complete (so the subsequent auto-advance routes the
-// decision's conditional/loopback edges in the same pass).
+// ComputeAutoDecision checks whether a just-completed node is a control-flow
+// decision node. Currently (v2.28.0+) the gate evaluation has been removed
+// (cycle-specific branch/base fields were removed from Task), so the gate is
+// always GateUnknown and every decision defers to a human ruling.
 //
-// Everything here is a NO-OP for an ordinary task (IsDecision==false) and degrades
-// to "human ruling" when the gate cannot be determined — so a plan without decision
-// nodes, or a deployment with no DecisionGate wired, behaves exactly as B1 (manual
-// outcome only). The back-compat anchor.
+// Everything here is a NO-OP for an ordinary task (IsDecision==false).
 // =============================================================================
 
 // AutoDecision is the result of ComputeAutoDecision: what (if anything) B3 derived
@@ -82,72 +74,14 @@ func (s *Service) ComputeAutoDecision(ctx context.Context, taskID pm.TaskID) (Au
 		return AutoDecision{}, nil // ordinary node ⇒ B3 does nothing
 	}
 
-	gate := pm.GateUnknown
-	switch gate {
-	case pm.GateRed:
-		// Unambiguous failure: reject (B1's bounded loopback re-runs Dev). Comments
-		// are irrelevant — a red gate rejects regardless.
-		return AutoDecision{
-			IsDecision: true, Decided: true, Outcome: pm.OutcomeReject, Gate: gate,
-			Reason: "§-1 gate failed (red) → auto-reject (re-run Dev)",
-		}, nil
-	case pm.GateGreen:
-		// T468: on a green gate, prefer the structured CURRENT-round review verdict.
-		// A reviewer's non-blocking nit (verdict=pass, blocking=false) now auto-passes
-		// instead of being wedged by a non-zero open-comment count.
-		vd, vstate, verr := s.currentRoundReviewVerdict(ctx, t.PlanID(), edges, taskID)
-		if verr != nil {
-			return AutoDecision{
-				IsDecision: true, Decided: false, Gate: gate,
-				Reason: "§-1 gate green but the review verdict could not be read → human ruling required",
-			}, nil
-		}
-		switch vstate {
-		case verdictCurrent:
-			outcome, decided := pm.AutoDecideFromVerdict(vd.Verdict, vd.Blocking)
-			reason := "§-1 gate green + review verdict=pass (non-blocking) → auto-pass"
-			if outcome == pm.OutcomeReject {
-				if vd.Verdict == pm.ReviewReject {
-					reason = "§-1 gate green but review verdict=reject → auto-reject (bounded loopback re-runs Dev)"
-				} else {
-					reason = "§-1 gate green but review verdict carries a BLOCKING objection → auto-reject (bounded loopback re-runs Dev)"
-				}
-			}
-			v := vd
-			return AutoDecision{
-				IsDecision: true, Decided: decided, Outcome: outcome, Gate: gate, Verdict: &v, Reason: reason,
-			}, nil
-		case verdictStale:
-			// A verdict exists but for an EARLIER review round (this round's reviewer has
-			// not re-recorded) → never auto-route on a stale review; defer.
-			v := vd
-			return AutoDecision{
-				IsDecision: true, Decided: false, Gate: gate, Verdict: &v,
-				Reason: fmt.Sprintf("§-1 gate green but the review verdict is from an earlier round (verdict round %d) → awaiting this round's verdict → human ruling required", vd.Round),
-			}, nil
-		default: // verdictNone — no structured verdict at all → legacy open-comment fallback.
-			open, cerr := s.countOpenReviewComments(ctx, t.PlanID(), taskID)
-			if cerr != nil {
-				return AutoDecision{
-					IsDecision: true, Decided: false, Gate: gate,
-					Reason: "§-1 gate green but review comments could not be read → human ruling required",
-				}, nil
-			}
-			outcome, decided := pm.AutoDecideOutcome(gate, open)
-			reason := "§-1 gate green, no review verdict + no open review comments → auto-pass"
-			if !decided {
-				reason = fmt.Sprintf("§-1 gate green but no review verdict and %d open review comment(s) → human ruling required", open)
-			}
-			return AutoDecision{
-				IsDecision: true, Decided: decided, Outcome: outcome, Gate: gate, OpenComments: open, Reason: reason,
-			}, nil
-		}
-	default: // GateUnknown
-		return AutoDecision{
-			IsDecision: true, Decided: false, Gate: gate,
-			Reason: "§-1 gate verdict unavailable → human ruling required (record the outcome manually with complete_task outcome=…)",
-		}, nil
-	}
+	// Gate evaluation removed (v2.28.0): cycle-specific branch/base fields were
+	// removed from Task; the gate always returns GateUnknown. When the orchestration
+	// engine supplies gate evaluation via condition nodes, this function can be
+	// simplified further or removed entirely.
+	return AutoDecision{
+		IsDecision: true, Decided: false, Gate: pm.GateUnknown,
+		Reason: "gate verdict unavailable → human ruling required (record the outcome manually with complete_task outcome=…)",
+	}, nil
 }
 
 // verdictState classifies the review-verdict lookup for a decision's current round.
@@ -265,32 +199,6 @@ func (s *Service) ListReviewVerdicts(ctx context.Context, planID pm.PlanID, acto
 		return nil, err
 	}
 	return s.plans.ListReviewVerdicts(ctx, planID)
-}
-
-// countOpenReviewComments counts UNRESOLVED review comments on the decision node.
-// The cycle has no dedicated resolved-review-comment store yet (findings are
-// immutable DeLM gists, not resolvable comments), so B3's interim signal is: a
-// finding of kind `failure` recorded ON the decision node — a reviewer's explicit
-// "this failed" objection grounded in the very node being decided. It is read-only;
-// a nil findings repo ⇒ 0 (no objections known). A read error is returned so the
-// caller defers (never auto-passes on an unverifiable comment state). This signal is
-// deliberately conservative (it can only DEFER, never auto-pass over an objection)
-// and is the documented seam to a richer review-comment model later.
-func (s *Service) countOpenReviewComments(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) (int, error) {
-	if s.findings == nil {
-		return 0, nil
-	}
-	all, err := s.findings.ListByPlan(ctx, planID)
-	if err != nil {
-		return 0, err
-	}
-	n := 0
-	for _, f := range all {
-		if f.TaskID() == taskID && f.Kind() == pm.FindingFailure {
-			n++
-		}
-	}
-	return n, nil
 }
 
 // NotifyDecisionDeferred @mentions the decision node's assignee (or, absent one, the

@@ -83,6 +83,15 @@ func ParseConditionConfig(metadata map[string]any) (ConditionConfig, error) {
 	if v, ok := metadata["on_max_exceeded"].(string); ok {
 		cfg.OnMaxExceeded = MaxExceededAction(v)
 	}
+	// Validate evaluator if provided.
+	if cfg.Evaluator != "" {
+		switch cfg.Evaluator {
+		case EvaluatorUpstream, EvaluatorHook, EvaluatorManual:
+			// valid
+		default:
+			return ConditionConfig{}, fmt.Errorf("orchestration: unknown evaluator %q", cfg.Evaluator)
+		}
+	}
 	return cfg, nil
 }
 

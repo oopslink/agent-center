@@ -755,7 +755,8 @@ func (s *Server) getTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
 		return
 	}
 	if d.TemplateRepo == nil {
@@ -769,6 +770,11 @@ func (s *Server) getTemplateHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		mapDomainError(w, err)
+		return
+	}
+	// Org-level access check: non-builtin templates belong to the agent's org only.
+	if !t.IsBuiltin() && t.OrgID() != string(a.OrganizationID()) {
+		writeError(w, http.StatusNotFound, "template_not_found", "not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

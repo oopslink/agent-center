@@ -1,6 +1,7 @@
 package orchestration
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -60,14 +61,20 @@ func NewGraph(in NewGraphInput) (*Graph, error) {
 	}
 
 	// Auto-create start + end control nodes.
-	start, _ := NewNode(NewNodeInput{
+	start, err := NewNode(NewNodeInput{
 		ID: startID, GraphID: in.ID, Category: NodeCategoryControl,
 		ControlKind: ControlKindStart, Title: "Start", CreatedAt: at,
 	})
-	end, _ := NewNode(NewNodeInput{
+	if err != nil {
+		return nil, fmt.Errorf("orchestration: creating start node: %w", err)
+	}
+	end, err := NewNode(NewNodeInput{
 		ID: endID, GraphID: in.ID, Category: NodeCategoryControl,
 		ControlKind: ControlKindEnd, Title: "End", CreatedAt: at,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("orchestration: creating end node: %w", err)
+	}
 	g.nodes[startID] = start
 	g.nodes[endID] = end
 	return g, nil
