@@ -32,15 +32,13 @@ var AgentFacingToolNames = []string{
 	"create_graph",
 	"discard_graph_node",
 	"discard_task", // T119: terminal-discard a superseded / mis-created task
-	"set_task_issue",            // T192: (re)set/clear a task's derived_from_issue after creation
-	"set_task_skip_merge_check", // v2.13.0 I18/F3: toggle the F3 merge-check exemption after creation
+	"set_task_issue", // T192: (re)set/clear a task's derived_from_issue after creation
 	// T206 Cognition reminders
 	"create_reminder",
 	"list_reminders",
 	"get_reminder",
 	"update_reminder",
 	"create_plan",
-	"scaffold_cycle_plan",
 	// v2.9.1 P0 recovery tools (deliberately agent-facing: owner/PD recover a
 	// task stuck blocked after a restart/stale-release).
 	"unblock_task",
@@ -78,7 +76,6 @@ var AgentFacingToolNames = []string{
 	"list_graph_nodes",
 	"list_plans",
 	"list_tasks",
-	"list_unmerged_branches",
 	"mark_seen",
 	"list_messages", // browse a conversation's chat history (DM/channel/task/issue/plan)
 	// T200 WS4: post_message is the single post tool (target = conversation|task|issue);

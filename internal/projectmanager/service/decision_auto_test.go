@@ -102,7 +102,6 @@ func (f *autoFixture) decisionNode(t *testing.T) (pm.PlanID, pm.TaskID, pm.TaskI
 	}
 	dec, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{
 		ProjectID: pid, Title: "Review/Decision", CreatedBy: "user:pd",
-		Role: pm.CycleRoleReview, Branch: "T9", Base: "dev/v2.13.0",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -150,46 +149,25 @@ func (f *autoFixture) projectOf(t *testing.T, tid pm.TaskID) pm.ProjectID {
 	return tk.ProjectID()
 }
 
-func TestComputeAutoDecision_GreenNoComments_Pass(t *testing.T) {
+// With branch/base removed from Task, evaluateGate always returns GateUnknown,
+// so all gate-dependent auto-decisions now defer to a human.
+
+func TestComputeAutoDecision_AlwaysDefersWithoutBranchBase(t *testing.T) {
 	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
 	_, dec, _ := f.decisionNode(t)
 	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ad.IsDecision || !ad.Decided || ad.Outcome != pm.OutcomePass {
-		t.Fatalf("got %+v; want IsDecision+Decided+pass", ad)
+	if !ad.IsDecision {
+		t.Fatalf("got %+v; want IsDecision", ad)
 	}
-	if f.gate.calls != 1 {
-		t.Fatalf("gate calls = %d, want 1", f.gate.calls)
+	// Gate always returns unknown (no branch/base on Task) → defers.
+	if ad.Decided {
+		t.Fatalf("got %+v; want !Decided (gate always unknown without branch/base)", ad)
 	}
-}
-
-func TestComputeAutoDecision_Red_Reject(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateRed})
-	_, dec, _ := f.decisionNode(t)
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ad.Decided || ad.Outcome != pm.OutcomeReject {
-		t.Fatalf("got %+v; want Decided+reject", ad)
-	}
-}
-
-func TestComputeAutoDecision_GreenWithComment_Defers(t *testing.T) {
-	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
-	planID, dec, _ := f.decisionNode(t)
-	f.addFailureFinding(t, planID, dec, f.projectOf(t, dec))
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ad.IsDecision || ad.Decided {
-		t.Fatalf("got %+v; want IsDecision && !Decided (green + open comment → human)", ad)
-	}
-	if ad.OpenComments != 1 {
-		t.Fatalf("OpenComments = %d, want 1", ad.OpenComments)
+	if ad.Gate != pm.GateUnknown {
+		t.Fatalf("got gate=%v; want unknown", ad.Gate)
 	}
 }
 
@@ -269,23 +247,15 @@ func TestNotifyDecisionDeferred_PingsHuman(t *testing.T) {
 	}
 }
 
-// TestAutoDecision_RecordRoundTrip exercises EXACTLY what the complete_task handler
-// does on a decision node with no manual outcome: ComputeAutoDecision → (Decided) →
-// SetDecisionOutcome, then confirms the outcome is persisted so B1's ComputePlanView
-// / applyLoopbacks will route the decision's edges.
-func TestAutoDecision_RecordRoundTrip(t *testing.T) {
+// TestAutoDecision_ManualRecordRoundTrip exercises the handler path where a human
+// manually sets a decision outcome (since auto-decisions now always defer without
+// branch/base on the Task).
+func TestAutoDecision_ManualRecordRoundTrip(t *testing.T) {
 	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
 	planID, dec, _ := f.decisionNode(t)
 
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ad.Decided {
-		t.Fatalf("expected a decided auto-decision, got %+v", ad)
-	}
-	// Mirror the handler: record the auto-derived outcome (actor = the completing member).
-	if err := f.svc.SetDecisionOutcome(f.ctx, dec, ad.Outcome, "user:pd"); err != nil {
+	// The auto-decision defers (no branch/base → GateUnknown), so record manually.
+	if err := f.svc.SetDecisionOutcome(f.ctx, dec, pm.OutcomePass, "user:pd"); err != nil {
 		t.Fatal(err)
 	}
 	outs, err := f.svc.plans.ListDecisionOutcomes(f.ctx, planID)
@@ -303,21 +273,21 @@ func TestAutoDecision_RecordRoundTrip(t *testing.T) {
 	}
 }
 
-// A DECIDED decision must NOT trigger a deferral @mention.
-func TestNotifyDecisionDeferred_NoopWhenDecided(t *testing.T) {
+// An UNDECIDED (deferred) decision triggers a deferral @mention.
+func TestNotifyDecisionDeferred_PostsWhenUndecided(t *testing.T) {
 	f := newAutoFixture(t, &fakeDecisionGate{verdict: pm.GateGreen})
 	_, dec, _ := f.decisionNode(t)
 	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ad.Decided {
-		t.Fatalf("precondition: expected a decided auto-decision, got %+v", ad)
+	if ad.Decided {
+		t.Fatalf("precondition: expected an undecided auto-decision (gate=unknown), got %+v", ad)
 	}
 	if err := f.svc.NotifyDecisionDeferred(f.ctx, dec, ad); err != nil {
 		t.Fatal(err)
 	}
-	if f.disp.posts != 0 {
-		t.Fatalf("a decided decision must not @mention a human, got %d posts", f.disp.posts)
+	if f.disp.posts != 1 {
+		t.Fatalf("an undecided decision must @mention a human, got %d posts", f.disp.posts)
 	}
 }

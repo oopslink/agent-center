@@ -441,13 +441,6 @@ func agentTaskMap(t *pm.Task) map[string]any {
 	if t.OrgNumber() > 0 { // v2.7.1 #245: T<n> display/ref token (omitted when unallocated)
 		m["org_ref"] = "T" + strconv.Itoa(t.OrgNumber())
 	}
-	// v2.13.0 I18/F2: cycle-node git metadata — emitted only for scaffolded nodes
-	// (branch/base set), so ordinary backlog tasks stay clean. F3/F4 read these.
-	if t.Branch() != "" || t.Base() != "" || t.SkipMergeCheck() {
-		m["branch"] = t.Branch()
-		m["base"] = t.Base()
-		m["skip_merge_check"] = t.SkipMergeCheck()
-	}
 	// F3 model routing (design §5 & §10): per-task executor model override, emitted
 	// only when set so ordinary tasks stay clean.
 	if t.Model() != "" {

@@ -134,13 +134,6 @@ func pmTaskMap(t *pm.Task) map[string]any {
 	if pid := string(t.PlanID()); pid != "" {
 		m["plan_id"] = pid
 	}
-	// v2.13.0 I18/F2: cycle-node git metadata — present only for scaffolded nodes
-	// (branch/base set); ordinary tasks stay clean. F3/F4 + the FE board read these.
-	if t.Branch() != "" || t.Base() != "" || t.SkipMergeCheck() {
-		m["branch"] = t.Branch()
-		m["base"] = t.Base()
-		m["skip_merge_check"] = t.SkipMergeCheck()
-	}
 	// F3 model routing (design §5 & §10): per-task executor model override, emitted
 	// only when set so ordinary tasks stay clean.
 	if t.Model() != "" {
@@ -846,8 +839,6 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 		DerivedFromIssue *string `json:"derived_from_issue"`
 		// v2.18.3 BE-1: nil = unchanged; non-nil replaces (empty clears → unrestricted).
 		RequiredCapabilities *[]string `json:"required_capabilities"`
-		// v2.13.0 I18/F3: nil = unchanged; non-nil toggles the F3 merge-check exemption.
-		SkipMergeCheck *bool `json:"skip_merge_check"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -858,7 +849,6 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 		Title: req.Title, Description: req.Description,
 		DerivedFromIssue:     issueIDPtr(req.DerivedFromIssue),
 		RequiredCapabilities: req.RequiredCapabilities,
-		SkipMergeCheck:       req.SkipMergeCheck,
 	}, caller); err != nil {
 		mapPMError(w, err)
 		return

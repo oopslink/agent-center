@@ -205,25 +205,6 @@ type Task struct {
 	// ArchivePlan when its Plan is archived.
 	archivedAt *time.Time
 	archivedBy IdentityRef
-	// branch/base/skipMergeCheck are the cycle-node git metadata (v2.13.0 I18/F2 —
-	// see docs/design/v2.13.0/cycle-node-graph-spec.md). branch = the feature
-	// branch a node works on (default the feature's T<n>); base = the integration
-	// trunk (dev/vX.Y.0); skipMergeCheck structurally exempts a node from the F3
-	// merge-check guard (pure-doc / no-code features whose chain stops at Dev). All
-	// zero-valued ("" / "" / false) for ordinary backlog tasks not built by
-	// scaffold_cycle_plan. They are the INPUT to F3's `origin/<base> --contains
-	// <branch>` Integrate-complete check; F2 only writes them.
-	branch         string
-	base           string
-	skipMergeCheck bool
-	// role is the cycle-node ROLE discriminator (v2.13.0 I18/F3 —
-	// docs/design/v2.13.0/cycle-node-graph-spec.md §5). Dev/Review/Integrate(T)
-	// SHARE branch/base (§4.2), so role is the ONLY thing that distinguishes the
-	// Integrate node (F3's merge-check landing point + F4's board target) from its
-	// chain siblings. "" for ordinary backlog tasks not built by scaffold_cycle_plan
-	// (= no role; matches neither the F3 guard nor the F4 board). F2 (0066) stored
-	// branch/base/skip_merge_check but NOT role — F3 (0067) persists it.
-	role CycleNodeRole
 	// --- v2.14.0 I14 (remove AgentWorkItem →收敛到 Task): block annotation + lease + log ---
 	// blockedReasonType classifies blockedReason (input_required vs obstacle); "" when
 	// not blocked. Set by Block, cleared by Unblock / ExpireLease / RecordReassignment.
@@ -262,14 +243,6 @@ type NewTaskInput struct {
 	// OrgNumber is the allocated per-org task number (v2.7.1 #245), supplied by
 	// the service from the org sequence within the create tx.
 	OrgNumber int
-	// Branch/Base/SkipMergeCheck are the cycle-node git metadata (v2.13.0 I18/F2),
-	// set at create only by scaffold_cycle_plan; empty/false for ordinary tasks.
-	Branch         string
-	Base           string
-	SkipMergeCheck bool
-	// Role is the cycle-node role discriminator (v2.13.0 I18/F3); set at create by
-	// scaffold_cycle_plan, "" for ordinary tasks.
-	Role CycleNodeRole
 	// Model is the optional hard-override executor model (F3 model routing, design
 	// §5 & §10); "" = unset.
 	Model string
@@ -313,10 +286,6 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		version:              1,
 		orgNumber:            in.OrgNumber,
 		statusChangedAt:      at,
-		branch:               in.Branch,
-		base:                 in.Base,
-		skipMergeCheck:       in.SkipMergeCheck,
-		role:                 in.Role,
 		model:                in.Model,
 		requiredCapabilities: NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:               in.NodeID,
@@ -345,12 +314,8 @@ type RehydrateTaskInput struct {
 	// 0088); zero when not currently completed.
 	CompletedAt    time.Time
 	PlanID         PlanID
-	ArchivedAt     *time.Time
-	ArchivedBy     IdentityRef
-	Branch         string
-	Base           string
-	SkipMergeCheck bool
-	Role           CycleNodeRole
+	ArchivedAt *time.Time
+	ArchivedBy IdentityRef
 	// v2.14.0 I14 — block annotation + lease + action log (F2 round-trip).
 	BlockedReasonType       BlockReasonType
 	BlockedComment          string
@@ -400,10 +365,6 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		planID:                  in.PlanID,
 		archivedAt:              copyTaskTimePtr(in.ArchivedAt),
 		archivedBy:              in.ArchivedBy,
-		branch:                  in.Branch,
-		base:                    in.Base,
-		skipMergeCheck:          in.SkipMergeCheck,
-		role:                    in.Role,
 		blockedReasonType:       in.BlockedReasonType,
 		blockedComment:          in.BlockedComment,
 		executionLeaseExpiresAt: copyTaskTimePtr(in.ExecutionLeaseExpiresAt),
@@ -473,17 +434,6 @@ func (t *Task) ActionLogs() []TaskActionLog {
 	copy(out, t.actionLogs)
 	return out
 }
-
-// Branch/Base/SkipMergeCheck expose the cycle-node git metadata (v2.13.0 I18/F2).
-// Empty/false for tasks not built by scaffold_cycle_plan. See task struct doc.
-func (t *Task) Branch() string       { return t.branch }
-func (t *Task) Base() string         { return t.base }
-func (t *Task) SkipMergeCheck() bool { return t.skipMergeCheck }
-
-// Role exposes the cycle-node role discriminator (v2.13.0 I18/F3). "" for tasks
-// not built by scaffold_cycle_plan. The F3 merge guard targets the role ==
-// CycleRoleIntegrate node; F4's board keys on the same field. See task struct doc.
-func (t *Task) Role() CycleNodeRole { return t.role }
 
 // Model exposes the optional hard-override executor model (F3 model routing,
 // design §5 & §10). "" = unset → the executor model is selected from the agent's
@@ -690,40 +640,6 @@ func (t *Task) SetDescription(desc string, at time.Time) error {
 		return ErrTaskArchived
 	}
 	t.description = desc
-	t.touch(at)
-	return nil
-}
-
-// SetCycleMeta sets the cycle-node git metadata (v2.13.0 I18/F2+F3) — role,
-// branch, base, and the skip-merge-check exemption. Pure metadata edit (NOT a
-// status change), so statusChangedAt is untouched; rejected on an archived task.
-// scaffold_cycle_plan normally stamps these at create via NewTaskInput; this
-// setter is the editable path (and resolveDefaultBranch's re-stamp). v2.13.0
-// I18/F3 added the role parameter so a re-stamp PRESERVES the node's role (callers
-// must pass t.Role() back when only adjusting branch/base).
-func (t *Task) SetCycleMeta(role CycleNodeRole, branch, base string, skipMergeCheck bool, at time.Time) error {
-	if t.IsArchived() {
-		return ErrTaskArchived
-	}
-	t.role = role
-	t.branch = branch
-	t.base = base
-	t.skipMergeCheck = skipMergeCheck
-	t.touch(at)
-	return nil
-}
-
-// SetSkipMergeCheck toggles ONLY the F3 merge-check exemption (v2.13.0 I18/F3),
-// preserving role/branch/base. It is the editable path for skip_merge_check AFTER
-// creation: scaffold_cycle_plan stamps it at create, but ops sometimes need to
-// stand the Integrate-complete merge guard down — or back up — for a node later
-// (e.g. a project with no reachable code repo). Pure metadata edit (NOT a status
-// change, so statusChangedAt is untouched); rejected on an archived task.
-func (t *Task) SetSkipMergeCheck(v bool, at time.Time) error {
-	if t.IsArchived() {
-		return ErrTaskArchived
-	}
-	t.skipMergeCheck = v
 	t.touch(at)
 	return nil
 }

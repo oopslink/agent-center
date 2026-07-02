@@ -23,20 +23,19 @@ func TestApplyLoopbacks_ExhaustionRoutesToEscape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dec, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "Decision", CreatedBy: "user:pd",
-		Role: pm.CycleRoleDecision, Branch: "T9", Base: "dev/v2.13.0"})
+	dec, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "Decision", CreatedBy: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	dev, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "Dev", CreatedBy: "user:pd", Role: pm.CycleRoleDev})
+	dev, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "Dev", CreatedBy: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	rev, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "Review", CreatedBy: "user:pd", Role: pm.CycleRoleReview})
+	rev, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "Review", CreatedBy: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	esc, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "Escape", CreatedBy: "user:pd", Role: pm.CycleRoleEscape})
+	esc, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "Escape", CreatedBy: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -169,23 +169,17 @@ func (s *Service) ComputeAutoDecision(ctx context.Context, taskID pm.TaskID) (Au
 // failing SAFE to GateUnknown on every "can't determine" case (no port wired, no
 // branch/base metadata, no project repo, or an infra error from the gate) so an
 // indeterminate gate never drives an auto outcome.
+//
+// NOTE (v2.28.0): cycle-specific branch/base fields were removed from Task. The
+// gate now always returns GateUnknown (no branch/base metadata to evaluate against).
+// When the orchestration engine supplies branch/base via node metadata, this method
+// should be updated to read from that source.
 func (s *Service) evaluateGate(ctx context.Context, t *pm.Task) pm.GateVerdict {
 	if s.decisionGate == nil {
 		return pm.GateUnknown // gate disabled (pre-B3 / not wired)
 	}
-	branch, base := t.Branch(), t.Base()
-	if branch == "" || base == "" {
-		return pm.GateUnknown // no merge target metadata to run the gate against
-	}
-	url, err := s.primaryRepoURL(ctx, t.ProjectID())
-	if err != nil || url == "" {
-		return pm.GateUnknown // no repo to check out / read error → defer to human
-	}
-	v, err := s.decisionGate.GateStatus(ctx, url, branch, base)
-	if err != nil {
-		return pm.GateUnknown // gate could not run → defer (never auto pass/reject)
-	}
-	return v
+	// Cycle-specific branch/base fields removed from Task — no metadata to evaluate.
+	return pm.GateUnknown
 }
 
 // verdictState classifies the review-verdict lookup for a decision's current round.

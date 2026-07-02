@@ -36,7 +36,6 @@ var secondaryTools = []struct{ name, summary string }{
 	// task link / assignment admin
 	{"reassign_task", "reassign a task to a different identity"},
 	{"set_task_issue", "(re)set or clear a task's derived_from_issue link"},
-	{"set_task_skip_merge_check", "toggle a task's skip_merge_check merge-guard exemption"},
 	// reminders (T206 Cognition) are CORE — kept OUT of this deferred manifest
 	// (T252, issue-c438cde1). They were deferred, but that DOUBLE-hid them: in a
 	// harness whose own tool-search only surfaces tools the MCP server has already
@@ -65,7 +64,6 @@ var secondaryTools = []struct{ name, summary string }{
 	{"stop_plan", "stop a running plan"},
 	{"get_plan", "read a plan and its nodes"},
 	{"list_plans", "list a project's plans"},
-	{"list_unmerged_branches", "list a cycle plan's unmerged Integrate nodes (ship-gate check)"},
 	{"delete_plan", "delete a draft plan"},
 	{"archive_plan", "archive a finished plan"},
 	// plan shared findings

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -518,28 +517,15 @@ func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error
 }
 
 // CompleteTask moves running→completed and records the completer.
-//
-// v2.13.0 I18/F3: BEFORE the state transition, an Integrate cycle node must pass
-// the merge guardrail — its feature branch must have merged back into the
-// integration trunk on origin (docs/design/v2.13.0/cycle-node-graph-spec.md §5).
-// The guard runs OUTSIDE the DB tx (git fetch/ancestry I/O is slow + must only
-// trust origin), so it is a pre-check here, not inside taskStateOp's mutate. When
-// it blocks, the task stays `running` (no transition, no event). The guard is
-// nil-safe: with no MergeChecker wired it is disabled (pre-F3 behavior), and it
-// targets ONLY role==integrate nodes — Dev/Review/Gate/Accept/Ship and every
-// ordinary task complete normally.
 func (s *Service) CompleteTask(ctx context.Context, taskID pm.TaskID, by pm.IdentityRef) error {
-	if err := s.guardIntegrateMerge(ctx, taskID); err != nil {
-		return err
-	}
 	return s.CompleteTaskAfterPrecheck(ctx, taskID, by)
 }
 
 // PrecheckCompleteTask runs the external/read-only completion guards before a caller
-// opens its own write transaction. Agent-tools uses this so git I/O never happens
-// inside the summary+complete atomic DB transaction.
+// opens its own write transaction. Currently a no-op (the cycle-specific merge guard
+// was removed); retained for API stability with callers that split precheck + commit.
 func (s *Service) PrecheckCompleteTask(ctx context.Context, taskID pm.TaskID) error {
-	return s.guardIntegrateMerge(ctx, taskID)
+	return nil
 }
 
 // CompleteTaskAfterPrecheck moves running→completed without re-running external
@@ -547,72 +533,6 @@ func (s *Service) PrecheckCompleteTask(ctx context.Context, taskID pm.TaskID) er
 // surrounding transaction. CompleteTask remains the safe default for other callers.
 func (s *Service) CompleteTaskAfterPrecheck(ctx context.Context, taskID pm.TaskID, by pm.IdentityRef) error {
 	return s.taskStateOp(ctx, taskID, by, func(t *pm.Task, now time.Time) error { return t.Complete(by, now) }, "")
-}
-
-// guardIntegrateMerge is the F3 Integrate-complete merge guardrail (v2.13.0 I18 —
-// docs/design/v2.13.0/cycle-node-graph-spec.md §5). It returns nil (allow) for
-// every case EXCEPT an Integrate node whose branch has not (or cannot be verified
-// to have) merged back into origin/<base>:
-//
-//   - mergeChecker == nil                  → guard DISABLED (pre-F3) → allow.
-//   - role != integrate                    → not the merge-check node → allow
-//     (Dev/Review/Gate/Accept/Ship + ordinary tasks complete normally).
-//   - skip_merge_check                      → structural exemption (doc-only) → allow.
-//   - branch == "" || base == ""           → no merge target to check → allow.
-//   - project has NO CodeRepoRef            → AUTO-SKIP (allow): the absence of a
-//     repo IS the project-level off switch (T330). A project that never configured
-//     a CodeRepoRef has nothing to verify against, so the merge guard stands down
-//     for ALL its Integrate nodes — current and future — instead of jamming every
-//     complete_task and forcing a manual per-node skip_merge_check. Projects WITH a
-//     repo are unaffected (the guard still verifies the merge below).
-//   - checker returns an error              → fail CLOSED (ErrIntegrateMergeUnverifiable,
-//     wrapping the cause): a flaky/missing remote must not let an unmerged branch land.
-//   - checker returns merged == false       → block (ErrIntegrateBranchNotMerged).
-//   - checker returns merged == true        → allow.
-//
-// It runs OUTSIDE any tx (plain repo reads + git I/O); CompleteTask invokes it
-// before opening the state-transition tx.
-func (s *Service) guardIntegrateMerge(ctx context.Context, taskID pm.TaskID) error {
-	if s.mergeChecker == nil {
-		return nil // guard disabled (pre-F3 behavior)
-	}
-	t, err := s.tasks.FindByID(ctx, taskID)
-	if err != nil {
-		return err
-	}
-	if t.Role() != pm.CycleRoleIntegrate {
-		return nil // not an Integrate node — completes normally
-	}
-	if t.SkipMergeCheck() {
-		return nil // structural exemption (doc-only / no-code node)
-	}
-	branch, base := t.Branch(), t.Base()
-	if branch == "" || base == "" {
-		return nil // no merge target configured — nothing to verify
-	}
-	url, err := s.primaryRepoURL(ctx, t.ProjectID())
-	if err != nil {
-		return err
-	}
-	if url == "" {
-		// T330: the project has no CodeRepoRef — nothing to verify against. Treat the
-		// missing repo as the project-level off switch and auto-skip the merge check
-		// (allow) rather than fail closed. This roots out the manual per-node
-		// skip_merge_check workaround for repo-less projects. Projects that DO configure
-		// a repo still get the full guard.
-		return nil
-	}
-	merged, err := s.mergeChecker.BranchMergedToOrigin(ctx, url, branch, base)
-	if err != nil {
-		// Could not verify (fetch/transport/ref error). Fail closed.
-		return fmt.Errorf("%w: could not verify merge of %s into origin/%s against %s: %v; ensure the server can fetch the repo, or set skip_merge_check",
-			ErrIntegrateMergeUnverifiable, branch, base, url, err)
-	}
-	if !merged {
-		return fmt.Errorf("%w: branch %s has not landed on origin/%s — merge %s into %s and push to origin, then retry complete",
-			ErrIntegrateBranchNotMerged, branch, base, branch, base)
-	}
-	return nil
 }
 
 // primaryRepoURL resolves the project's primary code-repo URL for the F3 merge
@@ -876,10 +796,6 @@ type BatchTaskPatch struct {
 	// RequiredCapabilities (v2.18.3 BE-1): nil = unchanged; non-nil replaces the set
 	// (empty slice clears it → unrestricted). Canonicalized by the domain.
 	RequiredCapabilities *[]string
-	// SkipMergeCheck (v2.13.0 I18/F3): nil = unchanged; non-nil toggles ONLY the F3
-	// merge-check exemption (role/branch/base preserved). Editable after create so ops
-	// can stand the Integrate-complete merge guard down/up for a node later.
-	SkipMergeCheck *bool
 }
 
 // BatchUpdateTask applies any subset of {status, assignee, tags} to a Task in a
@@ -933,11 +849,6 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		}
 		if patch.RequiredCapabilities != nil {
 			if err := t.SetRequiredCapabilities(*patch.RequiredCapabilities, now); err != nil {
-				return err
-			}
-		}
-		if patch.SkipMergeCheck != nil {
-			if err := t.SetSkipMergeCheck(*patch.SkipMergeCheck, now); err != nil {
 				return err
 			}
 		}

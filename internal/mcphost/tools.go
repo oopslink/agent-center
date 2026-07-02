@@ -554,28 +554,6 @@ func makeSetTaskIssue(cfg Config) mcp.ToolHandlerFor[setTaskIssueArgs, any] {
 	}
 }
 
-// --- set_task_skip_merge_check (v2.13.0 I18/F3) ------------------------------
-
-type setTaskSkipMergeCheckArgs struct {
-	TaskID         string `json:"task_id" jsonschema:"the task whose skip_merge_check flag to toggle"`
-	SkipMergeCheck bool   `json:"skip_merge_check" jsonschema:"true stands the F3 Integrate-complete merge guard DOWN for this node (exempt it from the merge check); false re-enforces it. role/branch/base are preserved."`
-}
-
-// makeSetTaskSkipMergeCheck backs set_task_skip_merge_check — toggle a task's
-// skip_merge_check exemption AFTER creation (previously stampable only at scaffold
-// time). Authorized by the relaxed task-access gate (creator / project member /
-// current worker), same as set_task_issue — no WorkItem required.
-func makeSetTaskSkipMergeCheck(cfg Config) mcp.ToolHandlerFor[setTaskSkipMergeCheckArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args setTaskSkipMergeCheckArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id":         cfg.AgentID,
-			"task_id":          args.TaskID,
-			"skip_merge_check": args.SkipMergeCheck,
-		}
-		return callAdmin(ctx, cfg, "set_task_skip_merge_check", body)
-	}
-}
-
 // --- reminder tools (T206, Cognition BC) -------------------------------------
 
 type reminderScheduleArg struct {
@@ -715,53 +693,6 @@ func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
 	}
 }
 
-// --- scaffold_cycle_plan -----------------------------------------------------
-
-type scaffoldFeatureArgs struct {
-	Name       string   `json:"name" jsonschema:"the feature label, used in node titles (e.g. 'F1 节点图规格')"`
-	Branch     string   `json:"branch,omitempty" jsonschema:"optional shared feature branch for its Dev/Review/Decision/Integrate chain; defaults to the Dev node's T<n>"`
-	DocOnly    bool     `json:"doc_only,omitempty" jsonschema:"true for a pure-doc/no-code feature: the chain collapses to a single Dev node exempt from the merge-check guard"`
-	Issue      string   `json:"issue,omitempty" jsonschema:"optional issue id whose spec drives THIS feature's chain; overrides source_issue for this feature's nodes (must be in the same project)"`
-	Spec       string   `json:"spec,omitempty" jsonschema:"optional spec/acceptance markdown for THIS feature; written verbatim as the Dev node's description, with a short pointer added to Review/Decision/Integrate — so a dispatched owner knows what to build/check without chasing the issue body"`
-	MockupURIs []string `json:"mockup_uris,omitempty" jsonschema:"optional already-uploaded file URIs (ac://files/...) — e.g. FE mockups — attached to this feature's Dev and Review nodes (visible as preview cards). Each must be reachable in your own domain (e.g. you uploaded it)"`
-}
-
-type scaffoldCyclePlanArgs struct {
-	ProjectID       string                `json:"project_id" jsonschema:"the project to create the cycle plan in (you must be a member)"`
-	Version         string                `json:"version" jsonschema:"the cycle version, e.g. 'v2.13.0'; the integration trunk is dev/<version>"`
-	Features        []scaffoldFeatureArgs `json:"features" jsonschema:"the features in this cycle; each gets a Dev→Review→Decision{pass→Integrate, reject→Dev bounded} control-flow chain (or a single Dev node when doc_only)"`
-	MaxReviewRounds int                   `json:"max_review_rounds,omitempty" jsonschema:"max review-reject loopback rounds per feature before the Decision exhausts to reject_exhausted and escalates to the PD (default 3)"`
-	SkipMergeCheck  bool                  `json:"skip_merge_check,omitempty" jsonschema:"set true to mark every Integrate node skip_merge_check, standing the Integrate-complete merge guard down for this whole cycle (default false = merge-check enforced). Use when the project has no code repo configured or integrates outside this server's reach"`
-	SourceIssue     string                `json:"source_issue,omitempty" jsonschema:"optional issue id (must be in this project) whose spec drives the cycle; EVERY generated node is linked to it as derived_from_issue at create, so each node's owner can get_issue the spec straight away. A feature may override it via its own 'issue'. Omit to leave nodes unlinked"`
-	Title           string                `json:"title,omitempty" jsonschema:"optional plan title — state the FEATURE this cycle delivers (what it actually does), e.g. 'auto-assign reconciler' or 'agent runtime browser', NOT a generic cycle-graph label. Omit to fall back to the version-derived default '<version> — cycle 控制流图'"`
-}
-
-// makeScaffoldCyclePlan builds the whole cycle control-flow graph in one call.
-// Nodes are created UNASSIGNED (assign owners afterwards with assign_task) and carry
-// branch/base/role cycle metadata; the plan is a draft (wire/adjust then start_plan).
-func makeScaffoldCyclePlan(cfg Config) mcp.ToolHandlerFor[scaffoldCyclePlanArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args scaffoldCyclePlanArgs) (*mcp.CallToolResult, any, error) {
-		features := make([]map[string]any, 0, len(args.Features))
-		for _, f := range args.Features {
-			features = append(features, map[string]any{
-				"name": f.Name, "branch": f.Branch, "doc_only": f.DocOnly, "issue": f.Issue,
-				"spec": f.Spec, "mockup_uris": f.MockupURIs,
-			})
-		}
-		body := map[string]any{
-			"agent_id":          cfg.AgentID,
-			"project_id":        args.ProjectID,
-			"version":           args.Version,
-			"features":          features,
-			"max_review_rounds": args.MaxReviewRounds,
-			"skip_merge_check":  args.SkipMergeCheck,
-			"source_issue":      args.SourceIssue,
-			"title":             args.Title,
-		}
-		return callAdmin(ctx, cfg, "scaffold_cycle_plan", body)
-	}
-}
-
 // --- add_task_to_plan / remove_task_from_plan --------------------------------
 
 type planTaskArgs struct {
@@ -862,24 +793,6 @@ func makeListPlans(cfg Config) mcp.ToolHandlerFor[listPlansArgs, any] {
 			body["offset"] = args.Offset
 		}
 		return callAdmin(ctx, cfg, "list_plans", body)
-	}
-}
-
-// --- list_unmerged_branches (v2.13.0 / I18 F4) -------------------------------
-
-type listUnmergedArgs struct {
-	ProjectID string `json:"project_id" jsonschema:"the project the plan belongs to (scopes the read)"`
-	PlanID    string `json:"plan_id" jsonschema:"the cycle plan whose unmerged Integrate nodes to list"`
-}
-
-func makeListUnmergedBranches(cfg Config) mcp.ToolHandlerFor[listUnmergedArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args listUnmergedArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id":   cfg.AgentID,
-			"project_id": args.ProjectID,
-			"plan_id":    args.PlanID,
-		}
-		return callAdmin(ctx, cfg, "list_unmerged_branches", body)
 	}
 }
 

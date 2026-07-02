@@ -37,35 +37,6 @@ func TestBatchUpdateTask_Partial(t *testing.T) {
 	}
 }
 
-// TestBatchUpdateTask_SkipMergeCheck: a {skip_merge_check}-only patch toggles the
-// F3 merge-check exemption on/off and leaves other fields untouched (v2.13.0 I18/F3).
-func TestBatchUpdateTask_SkipMergeCheck(t *testing.T) {
-	svc, _, ctx := flowSetup(t)
-	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
-
-	on := true
-	if err := svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{SkipMergeCheck: &on}, "user:a"); err != nil {
-		t.Fatalf("BatchUpdateTask (on): %v", err)
-	}
-	got, _ := svc.GetTask(ctx, tid)
-	if !got.SkipMergeCheck() {
-		t.Fatalf("skip_merge_check not set true")
-	}
-	if got.Status() != pm.TaskOpen {
-		t.Fatalf("status changed by skip-only patch: %v", got.Status())
-	}
-
-	off := false
-	if err := svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{SkipMergeCheck: &off}, "user:a"); err != nil {
-		t.Fatalf("BatchUpdateTask (off): %v", err)
-	}
-	got, _ = svc.GetTask(ctx, tid)
-	if got.SkipMergeCheck() {
-		t.Fatalf("skip_merge_check not cleared")
-	}
-}
-
 // TestBatchUpdateTask_Atomic: an invalid status in a {status,tags} patch rolls
 // back the WHOLE patch — tags must NOT be applied.
 func TestBatchUpdateTask_Atomic(t *testing.T) {

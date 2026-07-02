@@ -332,12 +332,6 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "(Re)set or CLEAR a task's derived_from_issue link AFTER creation (previously the create-time link was the only chance to set it). Pass issue_id to link it (the issue must EXIST and belong to the task's project) or an empty string to clear. Authorized for the task's creator / a project member / its current worker — no work item required. Returns the resulting link.",
 	}, makeSetTaskIssue(cfg))
 
-	// v2.13.0 I18/F3: toggle a task's skip_merge_check exemption AFTER creation.
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "set_task_skip_merge_check",
-		Description: "Toggle a task's skip_merge_check flag AFTER creation (previously only scaffold_cycle_plan could stamp it). Pass skip_merge_check=true to stand the F3 Integrate-complete merge guard DOWN for this node (exempt it from the merge check — e.g. the project has no reachable code repo), or false to re-enforce it. role/branch/base are preserved. Authorized for the task's creator / a project member / its current worker — no work item required. Returns the resulting flag.",
-	}, makeSetTaskSkipMergeCheck(cfg))
-
 	// --- reminder tools (T206, Cognition BC) ---------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_reminder",
@@ -364,14 +358,6 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Name:        "create_plan",
 		Description: "Create a new draft plan in a project you belong to. A plan is a DAG of tasks the center auto-dispatches once started. After creating, add tasks with add_task_to_plan, wire dependencies with add_plan_dependency, then start_plan. Optional target_date is RFC3339.",
 	}, makeCreatePlan(cfg))
-
-	// v2.13.0 I18/F2: one-call cycle-plan scaffolding. CORE (advertised by default,
-	// not deferred) — it is the headline plan-authoring entrypoint a PD is directed
-	// to call, so it must be discoverable without a search_tools round-trip.
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "scaffold_cycle_plan",
-		Description: "Build a whole cycle CONTROL-FLOW graph in one call: S0 (cut dev/<version>) → for each feature a Dev→Review→Decision chain where the Decision routes pass→Integrate and reject→a bounded loopback back to Dev (max_review_rounds, default 3; on exhaustion the Decision records the terminal reject_exhausted outcome — that feature's Integrate auto-skips — and escalates to the PD) → 集成完成 Gate (barrier) → Accept → Ship. Seq, conditional, and loopback edges are wired via the B1 control-flow engine. Nodes are created UNASSIGNED — assign owners afterwards with assign_task. Each node carries branch/base/role cycle metadata (the Integrate merge-check guard reads them). A doc_only feature collapses to a single Dev node exempt from the merge check. Pass skip_merge_check=true to stand the Integrate merge guard down for the whole cycle (e.g. the project has no code repo configured). Pass title to name the plan after the FEATURE it delivers (what it does) instead of the generic version-derived '<version> — cycle 控制流图' default. Returns the draft plan id + created nodes + edges; review/adjust then start_plan.",
-	}, makeScaffoldCyclePlan(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_task_to_plan",
@@ -412,11 +398,6 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Name:        "list_plans",
 		Description: "List a project's plans with a board summary each (status, progress, has_failed, node_count, and a capped nodes preview). Use this to find a plan_id to operate on.",
 	}, makeListPlans(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_unmerged_branches",
-		Description: "List a cycle plan's UNMERGED feature branches = its Integrate nodes that are not yet done (each branch not yet merged back into the integration trunk). Use this as the ship-gate reconciliation before shipping: all_merged=true means every feature integrated. Each row carries the task, branch, base, node_status, and skip_merge_check.",
-	}, makeListUnmergedBranches(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "delete_plan",

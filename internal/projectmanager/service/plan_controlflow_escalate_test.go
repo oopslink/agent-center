@@ -26,16 +26,15 @@ func TestApplyLoopbacks_ExhaustionEscalates(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Decision is owned by the PD — escalation should @mention the assignee.
-	dec, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "F1 · Decision", CreatedBy: "user:pd",
-		Role: pm.CycleRoleDecision, Branch: "T9", Base: "dev/v2.23.0"})
+	dec, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "F1 · Decision", CreatedBy: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	dev, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "F1 · Dev", CreatedBy: "user:pd", Role: pm.CycleRoleDev})
+	dev, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "F1 · Dev", CreatedBy: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	rev, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "F1 · Review", CreatedBy: "user:pd", Role: pm.CycleRoleReview})
+	rev, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "F1 · Review", CreatedBy: "user:pd"})
 	if err != nil {
 		t.Fatal(err)
 	}

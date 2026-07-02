@@ -285,8 +285,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans", s.pmListPlansHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/plans", s.pmCreatePlanHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmGetPlanHandler)
-	// v2.13.0 / I18 F4 — unmerged-branch board (un-done Integrate nodes).
-	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/unmerged-branches", s.pmListUnmergedBranchesHandler)
 	// T581 — plan detail rail "Related Plans": other plans from the same source issue.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/related-plans", s.pmRelatedPlansHandler)
 	// Plan detail rail "Related Issues": the source issue(s) this plan's tasks derive from.
