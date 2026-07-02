@@ -19,6 +19,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 )
@@ -45,6 +47,10 @@ type MonitorConfig struct {
 	// Nil → SignalLiveness (signal-0 existence check).
 	Liveness LivenessProbe
 	Clock    clock.Clock
+	// Observer, when set, receives executor stop + progress observations for the
+	// agent activity stream (ADR-0049). OPTIONAL — nil disables emission; it is a
+	// pure monitoring sink and never affects lifecycle decisions (activity.go).
+	Observer ActivityObserver
 	// signal delivers the watchdog kill to an adopted orphan's process group. An
 	// unexported seam (tests set it to avoid signalling a real pid); nil →
 	// realGroupSignal (production killpg).
@@ -61,9 +67,23 @@ type Monitor struct {
 	watchdog  *Watchdog
 	recon     *Reconciler
 	wb        Writeback
+	obs       ActivityObserver
 	live      LivenessProbe
 	killSig   groupSignaler
 	clk       clock.Clock
+
+	// mu guards the two small activity-tracking maps below. The Monitor is otherwise
+	// lock-free (design §3: the orchestrator is the sole coordinator), but these are
+	// touched from BOTH the per-executor drain goroutines (Finalize) and the watchdog
+	// tick goroutine (Sweep / SampleProgress), so they need synchronization.
+	mu sync.Mutex
+	// stallKilled records this-process executors the watchdog Sweep graceful-killed,
+	// so the eventual Finalize can label their stop "stalled" (the reaped kill would
+	// otherwise classify as a generic nonzero_exit — the "stalled" cause is lost).
+	stallKilled map[string]struct{}
+	// progressAt is the last status.last_progress_at emitted per executor, so
+	// SampleProgress only emits on advance (change-only throttling).
+	progressAt map[string]time.Time
 }
 
 // NewMonitor validates cfg and builds a Monitor.
@@ -84,15 +104,18 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 		killSig = realGroupSignal
 	}
 	return &Monitor{
-		fx:        cfg.Exchange,
-		worktrees: cfg.Worktrees,
-		pool:      cfg.Pool,
-		watchdog:  cfg.Watchdog,
-		recon:     cfg.Reconciler,
-		wb:        cfg.Writeback,
-		live:      live,
-		killSig:   killSig,
-		clk:       clk,
+		fx:          cfg.Exchange,
+		worktrees:   cfg.Worktrees,
+		pool:        cfg.Pool,
+		watchdog:    cfg.Watchdog,
+		recon:       cfg.Reconciler,
+		wb:          cfg.Writeback,
+		obs:         cfg.Observer,
+		live:        live,
+		killSig:     killSig,
+		clk:         clk,
+		stallKilled: make(map[string]struct{}),
+		progressAt:  make(map[string]time.Time),
 	}, nil
 }
 
@@ -139,6 +162,17 @@ func (m *Monitor) Sweep(ctx context.Context) ([]string, error) {
 		if !m.watchdog.Check(st, now).Stalled {
 			continue
 		}
+		// Mark the stall BEFORE the kill, not after. GracefulKill blocks for the
+		// SIGTERM→SIGKILL grace window, and a well-behaved executor that flushes
+		// output.json + status=failed and exits WITHIN that window is reaped
+		// concurrently by its own drain goroutine (AwaitCompletion→Finalize→
+		// emitStop→takeStalled). If the mark were set only after GracefulKill
+		// returned, that reap would race ahead, find no mark, and mislabel the
+		// stall-kill as a generic nonzero_exit — losing the "stalled" cause that is
+		// the whole point of watchdog observability. Marking first makes the cause
+		// visible to any concurrent reap; markStalled/takeStalled are mutex-guarded,
+		// so the write here happens-before the reap's read.
+		m.markStalled(h.ExecutorID)
 		if err := m.watchdog.GracefulKill(ctx, h); err != nil {
 			return killed, fmt.Errorf("executor: sweep kill %s: %w", h.ExecutorID, err)
 		}
@@ -197,6 +231,7 @@ func (m *Monitor) CheckOrphan(ctx context.Context, executorID string, pid int) (
 		HasOutput:  hasOut,
 		Status:     st,
 	})
+	c.Recovered = true // observed via the orphan poll, not a reaped this-process exit
 	if err := m.Finalize(ctx, c); err != nil {
 		return c, false, err
 	}
@@ -213,6 +248,7 @@ func (m *Monitor) stalledCompletion(executorID string, st *Status) Completion {
 		Kind:       OutcomeFailed,
 		Status:     st,
 		Error:      &ErrorDetail{Kind: "stalled", Message: "executor stalled: no progress before watchdog timeout, killed by orchestrator"},
+		Recovered:  true, // only CheckOrphan (orphan path) synthesizes this
 	}
 	if out, hasOut, _ := m.harvest(executorID); hasOut {
 		c.Output = out
@@ -238,6 +274,7 @@ func (m *Monitor) Recover(ctx context.Context) ([]Reconciled, error) {
 			m.adopt(it.ExecutorID)
 			continue
 		}
+		it.Completion.Recovered = true // finalized from durable files at restart (orphan)
 		if err := m.Finalize(ctx, it.Completion); err != nil {
 			return items, fmt.Errorf("executor: recover finalize %s: %w", it.ExecutorID, err)
 		}
@@ -278,6 +315,10 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	if m.pool != nil {
 		m.pool.Release(c.ExecutorID)
 	}
+	// 2b) Emit the terminal stop to the activity stream BEFORE teardown, so task_ref
+	// is still resolvable from the (not-yet-removed) input.json. Best-effort +
+	// observational: it never affects the finalize outcome (activity.go contract).
+	m.emitStop(c)
 	// 3) Teardown durable state — only for terminal outcomes; retain a retryable
 	// crash's dir/worktree for re-launch + inspection (design §7 "清理或保留").
 	if c.Retryable {
@@ -294,6 +335,120 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 		return fmt.Errorf("executor: remove dir %s: %w", c.ExecutorID, err)
 	}
 	return nil
+}
+
+// emitStop reports one terminal completion to the activity Observer (best-effort,
+// observational — never affects finalize). It resolves task_ref from the still
+// -present input.json, maps the Completion's classification onto the StopEvent
+// (Error.Kind → Reason), and — for a this-process watchdog kill — overrides the
+// reason to "stalled" (the reaped kill classifies as a generic nonzero_exit; the
+// stall cause, tracked by Sweep, is the accurate one). It also clears the id's
+// per-executor tracking state (the executor is gone; a retryable re-launch mints a
+// fresh id).
+func (m *Monitor) emitStop(c Completion) {
+	stalled := m.takeStalled(c.ExecutorID)
+	m.clearProgress(c.ExecutorID)
+	if m.obs == nil {
+		return
+	}
+	ev := StopEvent{
+		ExecutorID: c.ExecutorID,
+		TaskRef:    m.taskRef(c.ExecutorID),
+		Outcome:    c.Kind,
+		Retryable:  c.Retryable,
+		Recovered:  c.Recovered,
+		At:         m.clk.Now(),
+	}
+	if c.Error != nil {
+		ev.Reason = c.Error.Kind
+		ev.Detail = c.Error.Message
+	}
+	if stalled && ev.Reason != "stalled" {
+		// This-process watchdog kill: reaped as nonzero_exit, but the cause was a
+		// stall. Prefer the accurate cause so the 4th stop class is distinguishable.
+		ev.Reason = "stalled"
+		if ev.Detail == "" {
+			ev.Detail = "executor stalled: no progress before watchdog timeout, killed by orchestrator"
+		}
+	}
+	m.obs.ExecutorStopped(ev)
+}
+
+// SampleProgress emits a progress heartbeat for every live this-process executor
+// whose status.last_progress_at has ADVANCED since its last emitted sample
+// (change-only throttling — a long-lived executor yields a readable heartbeat, not
+// a per-tick flood, design point 2). Driven by the daemon's watchdog tick; a
+// missing/terminal/never-progressed status is skipped. No-op without an Observer
+// or Pool.
+func (m *Monitor) SampleProgress() {
+	if m.obs == nil || m.pool == nil {
+		return
+	}
+	for _, h := range m.pool.Handles() {
+		st, err := m.fx.ReadStatus(h.ExecutorID)
+		if err != nil || st.State != StateRunning || st.LastProgressAt.IsZero() {
+			continue
+		}
+		if !m.advancedProgress(h.ExecutorID, st.LastProgressAt) {
+			continue
+		}
+		m.obs.ExecutorProgress(ProgressEvent{
+			ExecutorID:     h.ExecutorID,
+			TaskRef:        m.taskRef(h.ExecutorID),
+			State:          string(st.State),
+			Summary:        st.Summary,
+			LastProgressAt: st.LastProgressAt,
+			At:             m.clk.Now(),
+		})
+	}
+}
+
+// taskRef resolves an executor's source task ref from its input.json (the fork
+// -time Source.TaskRef). Best-effort: an absent/mid-write input yields "".
+func (m *Monitor) taskRef(executorID string) string {
+	if m.fx == nil {
+		return ""
+	}
+	in, err := m.fx.ReadInput(executorID)
+	if err != nil {
+		return ""
+	}
+	return in.Source.TaskRef
+}
+
+// markStalled records that Sweep watchdog-killed this-process executor id.
+func (m *Monitor) markStalled(executorID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.stallKilled[executorID] = struct{}{}
+}
+
+// takeStalled reports (and clears) whether id was watchdog-killed by Sweep.
+func (m *Monitor) takeStalled(executorID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.stallKilled[executorID]
+	delete(m.stallKilled, executorID)
+	return ok
+}
+
+// advancedProgress reports whether at is newer than the last progress sample
+// emitted for id, recording it when so (change-only throttle).
+func (m *Monitor) advancedProgress(executorID string, at time.Time) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !at.After(m.progressAt[executorID]) {
+		return false
+	}
+	m.progressAt[executorID] = at
+	return true
+}
+
+// clearProgress drops the per-executor progress watermark (called at finalize).
+func (m *Monitor) clearProgress(executorID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.progressAt, executorID)
 }
 
 // harvest reads output.json + status for executorID, tolerating either being
