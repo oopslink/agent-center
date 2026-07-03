@@ -33,6 +33,15 @@ type WorkItem struct {
 	Goal      executor.Goal
 	TaskModel string // task.model hard override ("" = unset → F3 judges/falls back)
 	Context   string // aggregated context the orchestrator assembled (design §6.E)
+	// ExecutorID, when non-empty, is a pre-minted executor id the caller already used
+	// to materialize a worktree BEFORE HandleWork (P3): HandleWork uses it verbatim so
+	// the launched executor's workspace path matches the prepared worktree. Empty ⇒
+	// HandleWork mints one (today's behavior, byte-for-byte).
+	ExecutorID string
+	// Prepared, when non-nil, is a git worktree already materialized at the executor's
+	// workspace (P4): it is threaded into the LaunchSpec so the pool uses it as-is and
+	// its teardown handle is persisted. Nil ⇒ today's provisioning path.
+	Prepared *executor.PreparedWorkspace
 }
 
 // Launched is the result of a successful fork: the executor handle plus the
@@ -124,6 +133,11 @@ func NewEngine(cfg EngineConfig) (*Engine, error) {
 // Pool exposes the underlying Pool (the daemon checks Available()/drives completion).
 func (e *Engine) Pool() *executor.Pool { return e.pool }
 
+// NewExecutorID mints a fresh executor id via the engine's minter. It lets the
+// SpawnExecutor caller pre-mint the id BEFORE HandleWork (P3), so the repo-materializer
+// worktree path/branch embed the SAME id the pool ultimately launches.
+func (e *Engine) NewExecutorID() string { return e.ids.NewExecutorID() }
+
 // HandleWork turns one WorkItem into a forked executor, chaining the foundations
 // (design §11.1 step a–d):
 //
@@ -174,7 +188,12 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: build runner: %w", err)
 	}
-	execID := e.ids.NewExecutorID()
+	// Use the caller's pre-minted id (P3: the worktree path/branch already embed it) or
+	// mint a fresh one — the plain-dir path, byte-for-byte as before.
+	execID := strings.TrimSpace(item.ExecutorID)
+	if execID == "" {
+		execID = e.ids.NewExecutorID()
+	}
 	input := executor.Input{
 		ExecutorID: execID,
 		ProblemID:  problemID,
@@ -191,7 +210,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	}
 
 	// 4. F1 fork (≤ max; ErrAtCapacity bubbles up unwrapped for the caller to queue).
-	h, err := e.pool.Launch(ctx, executor.LaunchSpec{Input: input, RunnerCmd: runnerCmd})
+	h, err := e.pool.Launch(ctx, executor.LaunchSpec{Input: input, RunnerCmd: runnerCmd, Prepared: item.Prepared})
 	if err != nil {
 		if errors.Is(err, executor.ErrAtCapacity) {
 			return nil, err

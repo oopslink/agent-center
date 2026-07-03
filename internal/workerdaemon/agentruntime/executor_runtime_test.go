@@ -124,7 +124,7 @@ func TestBuildWorkItem(t *testing.T) {
 	t.Run("full detail", func(t *testing.T) {
 		got := buildWorkItem("task-9", &centerTaskDetail{
 			ID: "task-9", Title: "Fix the bug", Description: "do the fix", Model: "claude-haiku",
-		})
+		}, "", nil)
 		want := orchestrator.WorkItem{
 			TaskID: "task-9", TaskRef: "task-9", TaskModel: "claude-haiku",
 			Goal: executor.Goal{Title: "Fix the bug", Description: "do the fix"},
@@ -134,13 +134,13 @@ func TestBuildWorkItem(t *testing.T) {
 		}
 	})
 	t.Run("title falls back to first description line", func(t *testing.T) {
-		got := buildWorkItem("task-1", &centerTaskDetail{Description: "  \nfirst line\nrest"})
+		got := buildWorkItem("task-1", &centerTaskDetail{Description: "  \nfirst line\nrest"}, "", nil)
 		if got.Goal.Title != "first line" {
 			t.Errorf("goal title = %q, want 'first line'", got.Goal.Title)
 		}
 	})
 	t.Run("title falls back to task id", func(t *testing.T) {
-		got := buildWorkItem("task-7", &centerTaskDetail{})
+		got := buildWorkItem("task-7", &centerTaskDetail{}, "", nil)
 		if got.Goal.Title != "task task-7" {
 			t.Errorf("goal title = %q, want 'task task-7'", got.Goal.Title)
 		}

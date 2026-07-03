@@ -23,6 +23,7 @@ import (
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/reporepo"
 	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
@@ -108,6 +109,17 @@ type LocalRuntimeConfig struct {
 	// RemoveAgent deletes the managedAgent from the daemon map. Called with Mu HELD
 	// (onExit crash path) — it must NOT re-lock Mu.
 	RemoveAgent func(agentID string)
+
+	// Materializer is the repo-workspace port (AC_EXECUTOR_GIT_WORKTREE). nil ⇒ the
+	// flag is OFF: SpawnExecutor prepares NO worktree and the pool/monitor/recovery
+	// behave byte-for-byte as before (the zero-regression contract). Non-nil (a
+	// reporepo.LocalGitMaterializer) ⇒ SpawnExecutor materializes a canonical source +
+	// a per-executor worktree BEFORE start_task, and the Monitor tears it down on
+	// finalize/recovery via a WorktreeCleaner adapter.
+	Materializer reporepo.RepoMaterializer
+	// ReposRoot is the canonical <agent_home>/repos root the Materializer is anchored
+	// at (informational; the Materializer already carries it). Empty when the flag is off.
+	ReposRoot string
 }
 
 // LocalRuntime is the in-process Runtime for one agent.

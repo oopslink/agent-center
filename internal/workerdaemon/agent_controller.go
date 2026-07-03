@@ -218,6 +218,13 @@ type AgentControllerConfig struct {
 	// (AGENT_CENTER_DISABLE_USAGE_REPORT=1) stops new reports immediately.
 	DisableUsageReport bool
 
+	// GitWorktreeEnabled turns ON per-executor git repo workspaces (design §4
+	// AC_EXECUTOR_GIT_WORKTREE). Default (false) = OFF: no repo materializer is created
+	// and SpawnExecutor/pool/monitor/recovery behave byte-for-byte as before (the
+	// zero-regression contract). When true, newRuntimeFor injects a per-agent
+	// reporepo.LocalGitMaterializer rooted at <agent_home>/repos.
+	GitWorktreeEnabled bool
+
 	// Resumer queries the center for this worker's boot-resume state (s4b boot
 	// reconcile). Nil → ReconcileOnBoot is a no-op (additive/dormant). The daemon's
 	// *AdminClient satisfies resumeStateQuerier.

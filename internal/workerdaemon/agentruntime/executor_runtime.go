@@ -29,6 +29,7 @@ import (
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
+	"github.com/oopslink/agent-center/internal/workerdaemon/reporepo"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
 
@@ -150,14 +151,27 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 		cwb.WithUsageReporter(newUsageReporter(caller))
 		wb = cwb
 	}
+	// P4/P5: when the repo-workspace flag is ON (materializer wired), give the Monitor
+	// the Tracker (to read each executor's RepoKey/SourcePath teardown handle) + a
+	// WorktreeCleaner adapter (executor→reporepo, defined here so the executor package
+	// never imports reporepo — red line D). nil when off ⇒ no worktree cleanup, today's
+	// behavior byte-for-byte.
+	var cleaner executor.WorktreeCleaner
+	var cleanupTracker *executor.Tracker
+	if r.cfg.Materializer != nil {
+		cleaner = materializerCleaner{m: r.cfg.Materializer}
+		cleanupTracker = tracker
+	}
 	mon, err := executor.NewMonitor(executor.MonitorConfig{
-		Exchange:   fx,
-		Pool:       pool,
-		Watchdog:   watchdog,
-		Reconciler: reconciler,
-		Writeback:  wb,
-		Clock:      clk,
-		Observer:   executorActivityObserver{r: r, agentID: pl.AgentID},
+		Exchange:        fx,
+		Pool:            pool,
+		Watchdog:        watchdog,
+		Reconciler:      reconciler,
+		Writeback:       wb,
+		Tracker:         cleanupTracker,
+		WorktreeCleaner: cleaner,
+		Clock:           clk,
+		Observer:        executorActivityObserver{r: r, agentID: pl.AgentID},
 	})
 	if err != nil {
 		return nil, err
@@ -400,26 +414,95 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return nil, nil
 	}
 
-	// 2. Admission gate: 代 start_task (open→running). The center enforces the ≤N cap.
+	// 2. Repo workspace (P3, red line A): materialize the canonical source + a
+	// per-executor worktree BEFORE start_task/reserve, so an EnsureSource/PrepareWorktree
+	// failure means the task is NEVER admitted (best-effort, non-wedging: log + leave
+	// queued). Only when the flag is ON (materializer wired) AND the task carries a
+	// primary repo; otherwise execID stays empty + prepared nil ⇒ the plain-dir path is
+	// byte-for-byte unchanged.
+	var execID string
+	var prepared *executor.PreparedWorkspace
+	if r.cfg.Materializer != nil && task.Repo != nil {
+		execID = ee.engine.NewExecutorID() // must be known BEFORE PrepareWorktree (path+branch embed it)
+		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
+		if wsErr != nil {
+			r.log("work_available agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
+			return nil, nil
+		}
+		source, srcErr := r.cfg.Materializer.EnsureSource(ctx, resolveRepoTarget(task))
+		if srcErr != nil {
+			r.log("work_available agent=%s task=%s ensure repo source: %v — left queued (start_task NOT called)",
+				agentID, taskID, srcErr)
+			return nil, nil
+		}
+		wt, wtErr := r.cfg.Materializer.PrepareWorktree(ctx, source, reporepo.WorktreeRequest{
+			ExecutorID:    execID,
+			TaskID:        taskID,
+			BranchName:    "ac-exec/" + taskID + "/" + execID,
+			WorkspacePath: wsPath,
+			BaseRef:       source.BaseRef,
+		})
+		if wtErr != nil {
+			r.log("work_available agent=%s task=%s prepare worktree: %v — left queued (start_task NOT called)",
+				agentID, taskID, wtErr)
+			return nil, nil
+		}
+		prepared = &executor.PreparedWorkspace{
+			Path:       wt.WorkspacePath,
+			RepoKey:    wt.RepoKey,
+			SourcePath: wt.SourcePath,
+			Branch:     wt.Branch,
+		}
+	}
+
+	// 3. Admission gate: 代 start_task (open→running). The center enforces the ≤N cap.
 	if err := r.startCenterTask(ctx, agentID, taskID); err != nil {
+		// start_task declined AFTER the worktree was prepared → tear it down (red line B:
+		// no worktree leak). The task was never admitted, so nothing else to roll back.
+		r.removePreparedWorktree(ctx, agentID, taskID, prepared)
 		r.log("work_available agent=%s task=%s start_task declined (cap/again/not-runnable): %v — left queued",
 			agentID, taskID, err)
 		return nil, nil
 	}
 
-	// 3. Fork the executor (W1 HandleWork chain) under the SAME forkMu.
-	launched, err := r.launchExecutorLocked(ctx, agentID, taskID, buildWorkItem(taskID, task), ee)
+	// 4. Fork the executor (W1 HandleWork chain) under the SAME forkMu.
+	launched, err := r.launchExecutorLocked(ctx, agentID, taskID, buildWorkItem(taskID, task, execID, prepared), ee)
 	if err != nil {
 		if errors.Is(err, modelrouter.ErrModelNotAllowed) {
+			// Task already admitted → block it; the prepared worktree is now orphaned, tear
+			// it down (red line B).
+			r.removePreparedWorktree(ctx, agentID, taskID, prepared)
 			r.log("work_available agent=%s task=%s model not allowed: %v — blocking task", agentID, taskID, err)
 			r.blockTaskOnModelNotAllowed(ctx, agentID, taskID, err)
 			return nil, nil
 		}
+		// Fork failed but the task is already running (start_task succeeded). Tear down
+		// the worktree (red line B); the task status is left to lease reclaim → re-dispatch
+		// (matches today's no-rollback-of-start_task behavior).
+		r.removePreparedWorktree(ctx, agentID, taskID, prepared)
 		r.log("work_available agent=%s task=%s started but fork failed: %v (lease will reclaim → re-dispatch)",
 			agentID, taskID, err)
 		return nil, nil
 	}
 	return &SpawnResult{ExecutorID: launched.ExecutorID, Model: launched.Model, CLI: launched.CLI}, nil
+}
+
+// removePreparedWorktree tears down a worktree materialized in SpawnExecutor before
+// the launch succeeded (every failure path after PrepareWorktree — red line B). No-op
+// when nothing was prepared (flag off / no repo). Best-effort: a teardown failure is
+// logged, not surfaced (the canonical source is untouched — design §10).
+func (r *LocalRuntime) removePreparedWorktree(ctx context.Context, agentID, taskID string, prepared *executor.PreparedWorkspace) {
+	if prepared == nil || r.cfg.Materializer == nil {
+		return
+	}
+	if err := r.cfg.Materializer.RemoveWorktree(ctx, reporepo.PreparedWorktree{
+		RepoKey:       prepared.RepoKey,
+		SourcePath:    prepared.SourcePath,
+		WorkspacePath: prepared.Path,
+		Branch:        prepared.Branch,
+	}); err != nil {
+		r.log("work_available agent=%s task=%s remove prepared worktree: %v", agentID, taskID, err)
+	}
 }
 
 // blockTaskOnModelNotAllowed blocks a task whose task.model is not in the agent's
@@ -524,8 +607,10 @@ func (d *centerTaskDetail) goalTitle(taskID string) string {
 
 // buildWorkItem maps a center task detail onto the orchestrator WorkItem the W1 fork
 // chain consumes. TaskRef carries the CANONICAL task_id; TaskModel carries task.model
-// so the §5 model chain can hard-override.
-func buildWorkItem(taskID string, task *centerTaskDetail) orchestrator.WorkItem {
+// so the §5 model chain can hard-override. execID (P3) is the pre-minted executor id
+// whose worktree was materialized before the launch (empty ⇒ HandleWork mints one);
+// prepared (P4) is the worktree threaded to the pool (nil ⇒ today's provisioning path).
+func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepared *executor.PreparedWorkspace) orchestrator.WorkItem {
 	return orchestrator.WorkItem{
 		TaskID:  taskID,
 		TaskRef: taskID,
@@ -533,7 +618,40 @@ func buildWorkItem(taskID string, task *centerTaskDetail) orchestrator.WorkItem 
 			Title:       task.goalTitle(taskID),
 			Description: task.Description,
 		},
-		TaskModel: task.Model,
+		TaskModel:  task.Model,
+		ExecutorID: execID,
+		Prepared:   prepared,
+	}
+}
+
+// materializerCleaner adapts a reporepo.RepoMaterializer to the narrow
+// executor.WorktreeCleaner port the Monitor consumes. It lives HERE (agentruntime),
+// which imports BOTH executor and reporepo, so the executor package stays free of any
+// reporepo import (red line D — no cycle). It rebuilds the minimal
+// reporepo.PreparedWorktree the materializer needs to tear down ONLY the worktree
+// (never the canonical source — design §10).
+type materializerCleaner struct{ m reporepo.RepoMaterializer }
+
+var _ executor.WorktreeCleaner = materializerCleaner{}
+
+func (c materializerCleaner) RemoveWorktree(ctx context.Context, repoKey, sourcePath, workspacePath string) error {
+	return c.m.RemoveWorktree(ctx, reporepo.PreparedWorktree{
+		RepoKey:       repoKey,
+		SourcePath:    sourcePath,
+		WorkspacePath: workspacePath,
+	})
+}
+
+// resolveRepoTarget maps a task's credential-free repo hint (get_task projection, P1)
+// onto the RepoTarget the materializer clones/fetches. BaseRef is the task-resolved
+// base ref; the materializer falls back to DefaultBranch when it is empty.
+func resolveRepoTarget(task *centerTaskDetail) reporepo.RepoTarget {
+	return reporepo.RepoTarget{
+		RepoID:        task.Repo.RepoID,
+		URL:           task.Repo.URL,
+		Provider:      task.Repo.Provider,
+		DefaultBranch: task.Repo.DefaultBranch,
+		BaseRef:       task.BaseRef,
 	}
 }
 

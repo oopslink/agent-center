@@ -200,6 +200,13 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	if v := strings.TrimSpace(os.Getenv("AGENT_CENTER_DISABLE_USAGE_REPORT")); v == "1" || strings.EqualFold(v, "true") {
 		disableUsageReport = true
 	}
+	// Repo-workspace flag (design §4): OFF by default. When AC_EXECUTOR_GIT_WORKTREE is
+	// 1/true, each agent gets a per-agent git repo materializer so SpawnExecutor
+	// prepares an isolated worktree per executor (byte-for-byte unchanged when unset).
+	gitWorktreeEnabled := false
+	if v := strings.TrimSpace(os.Getenv("AC_EXECUTOR_GIT_WORKTREE")); v == "1" || strings.EqualFold(v, "true") {
+		gitWorktreeEnabled = true
+	}
 	if controller, cerr := NewAgentController(AgentControllerConfig{
 		Reporter:           client,
 		Resumer:            client,
@@ -212,6 +219,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		AgentHomeBase:      agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
 		Logger:             logf,
 		DisableUsageReport: disableUsageReport,
+		GitWorktreeEnabled: gitWorktreeEnabled,
 		// issue-5753e8fa W3/W4: wire the per-task execution-directory manager so the
 		// runtime actually creates tasks/{id}/ and the onEvent sink writes
 		// events.current.jsonl + task.log + archived segments. Nil here was the

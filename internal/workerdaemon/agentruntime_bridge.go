@@ -8,9 +8,11 @@ package workerdaemon
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
+	"github.com/oopslink/agent-center/internal/workerdaemon/reporepo"
 )
 
 // --- Type aliases (moved DOWN; daemon aliases back). ---
@@ -160,7 +162,32 @@ func (c *AgentController) newRuntimeFor(agentID string) (*agentruntime.LocalRunt
 	st := &agentruntime.SessionState{}
 	cfg := c.baseRuntimeConfig()
 	cfg.AgentID = agentID
+	c.maybeWireMaterializer(&cfg, agentID)
 	return agentruntime.NewLocalRuntime(cfg, st), st
+}
+
+// maybeWireMaterializer injects a per-agent repo materializer into cfg when the
+// AC_EXECUTOR_GIT_WORKTREE flag is ON (GitWorktreeEnabled). The materializer is
+// rooted at <agent_home>/repos so each agent's canonical sources + per-executor
+// worktrees stay under its own home. Flag OFF (or an unresolvable home / build
+// failure) leaves cfg.Materializer nil ⇒ the plain-dir path, byte-for-byte unchanged.
+func (c *AgentController) maybeWireMaterializer(cfg *agentruntime.LocalRuntimeConfig, agentID string) {
+	if !c.cfg.GitWorktreeEnabled {
+		return
+	}
+	home, _, _, err := c.agentPaths(agentID)
+	if err != nil {
+		c.log("agent=%s repo-workspace: resolve home: %v (falling back to plain-dir)", agentID, err)
+		return
+	}
+	reposRoot := filepath.Join(home, "repos")
+	mat, err := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil)
+	if err != nil {
+		c.log("agent=%s repo-workspace: build materializer: %v (falling back to plain-dir)", agentID, err)
+		return
+	}
+	cfg.Materializer = mat
+	cfg.ReposRoot = reposRoot
 }
 
 // removeAgentLocked deletes the managedAgent from the map. Called with c.mu HELD

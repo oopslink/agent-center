@@ -89,6 +89,10 @@ type scriptedToolCaller struct {
 	getTaskRaw  []byte
 	getTaskErr  error
 	startErr    error
+	// seq, when set, also records each tool name into a shared cross-collaborator
+	// order log (so a repo-workspace test can assert PrepareWorktree happens BEFORE
+	// start_task). Nil for the pre-existing tests → no behavior change.
+	seq *callSeq
 }
 
 type scriptedCall struct {
@@ -103,6 +107,9 @@ func (s *scriptedToolCaller) CallAgentTool(_ context.Context, tool string, body 
 	b, _ := json.Marshal(body)
 	_ = json.Unmarshal(b, &bm)
 	s.calls = append(s.calls, scriptedCall{tool: tool, body: bm})
+	if s.seq != nil {
+		s.seq.add(tool)
+	}
 	switch tool {
 	case "get_task":
 		if s.getTaskErr != nil {
