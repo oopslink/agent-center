@@ -203,6 +203,7 @@
       "tool": "Tool",
       "result": "Result",
       "control": "Control",
+      "executor": "Executor",
       "received": "Received",
       "acknowledged": "Acknowledged"
     },

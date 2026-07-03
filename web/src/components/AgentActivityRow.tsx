@@ -28,6 +28,13 @@ const CAT_TOOL_RESULT: Category = { key: 'tool_result', label: 'Result', labelKe
 // folded into the "Checking messages × N" group, so operators couldn't see when
 // an agent was started/stopped/reset. Distinct blue label + dot, never grouped.
 const CAT_CONTROL: Category = { key: 'control', label: 'Control', labelKey: 'control', cls: 'text-status-blue-fg', dot: 'bg-status-blue-solid' };
+// v2.31.0 (oopslink DM 2026-07-03): concurrently-forked executors emit lifecycle
+// events (executor.start / .stop / .progress — internal/workerdaemon/executor_activity.go)
+// that previously fell into CAT_CONTROL, indistinguishable from the agent's own
+// session control ops. They now get their OWN violet "Executor" category so the
+// stream visibly separates session vs executor activity, and the preview surfaces
+// which executor is running which task without expanding the row.
+const CAT_EXECUTOR: Category = { key: 'executor', label: 'Executor', labelKey: 'executor', cls: 'text-status-violet-fg', dot: 'bg-status-violet-solid' };
 // message-consumption activity (docs/design/features/agent-message-consumption-activity.md):
 // Received = inbound message entered the agent context (message_delivered — primary debug signal,
 // NEVER folded into Checking); Acknowledged = agent confirmed read via mark_seen (muted accent).
@@ -42,7 +49,17 @@ const CAT_ACK: Category = { key: 'acknowledged', label: 'Acknowledged', labelKey
 // are v2.8 work (PD-accepted degradation).
 const SEARCH_TOOLS = new Set(['grep', 'glob', 'read', 'websearch', 'webfetch']);
 
-function categoryOf(eventType: string): Category {
+// isExecutorEvent — a lifecycle event produced by a forked executor (payload.event
+// is executor.start / executor.stop / executor.progress), as opposed to the agent's
+// own session control ops which share event_type='lifecycle'.
+function isExecutorEvent(eventType: string, p: Record<string, unknown>): boolean {
+  return eventType === 'lifecycle' && str(p.event).startsWith('executor.');
+}
+
+function categoryOf(eventType: string, p?: Record<string, unknown>): Category {
+  // Executor lifecycle events split off from CAT_CONTROL into their own category
+  // (needs the payload to tell them apart from session control ops).
+  if (p && isExecutorEvent(eventType, p)) return CAT_EXECUTOR;
   switch (eventType) {
     case 'assistant_text':
     case 'result':
@@ -160,7 +177,28 @@ function XIcon(): React.ReactElement {
 // (system_init / lifecycle / rate_limit / unknown). Consecutive runs of these are
 // folded into one "Checking messages × N" group in the timeline.
 export function isCheckingEvent(event: AgentActivityEvent): boolean {
-  return categoryOf(event.event_type) === CAT_CHECKING;
+  return categoryOf(event.event_type, parsePayload(event.payload)) === CAT_CHECKING;
+}
+
+// shortExecId trims a long executor id to a readable tail for the row preview
+// (the full executor:<id> stays in the expanded interaction_ref).
+function shortExecId(id: string): string {
+  if (!id) return '';
+  const tail = id.includes('-') ? id.slice(id.lastIndexOf('-') + 1) : id;
+  return tail.length > 8 ? tail.slice(-8) : tail;
+}
+
+// executorPreview — one-line summary for an executor lifecycle event: the kind
+// (start/stop/progress), which executor, which task, and the state/outcome — so
+// an operator sees "which executor is running which task" without expanding.
+function executorPreview(p: Record<string, unknown>): string {
+  const kind = str(p.event).replace(/^executor\./, ''); // start | stop | progress
+  const exec = shortExecId(str(p.executor_id));
+  const task = truncate(str(p.title) || str(p.task_ref), 60);
+  // scope is the emitter's precomputed one-word summary: model (start),
+  // outcome[:reason] (stop), or state (progress); fall back to the raw fields.
+  const detail = str(p.scope) || str(p.outcome) || str(p.state);
+  return [kind, exec && `exec ${exec}`, task, detail].filter(Boolean).join(' · ');
 }
 
 function truncate(s: string, n: number): string {
@@ -224,6 +262,8 @@ function preview(eventType: string, p: Record<string, unknown>, t: TFunction): s
     case 'status_change':
       return `${str(p.from)} → ${str(p.to)}`;
     case 'lifecycle': {
+      // Executor lifecycle → richer executor-scoped preview.
+      if (str(p.event).startsWith('executor.')) return executorPreview(p);
       // T338 payload = {event:<verb>, scope?}; show e.g. "reset (workspace)".
       const verb = str(p.event);
       const scope = str(p.scope);
@@ -255,7 +295,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   const payload = parsePayload(event.payload);
   // v2.7.1 #228 PR(c): main badge shows the user-facing category; the raw
   // event_type stays on data-event-type + inside the expanded JSON viewer.
-  const cat = categoryOf(event.event_type);
+  const cat = categoryOf(event.event_type, payload);
   // A failed tool_result / result keeps its category but flags the failure
   // inline so the error signal isn't buried in the JSON viewer.
   const errored =

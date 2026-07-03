@@ -203,6 +203,7 @@
       "tool": "工具",
       "result": "结果",
       "control": "控制",
+      "executor": "执行器",
       "received": "已接收",
       "acknowledged": "已确认"
     },

@@ -179,6 +179,60 @@ describe('AgentActivityRow (#228 categories)', () => {
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('reset (workspace)');
   });
 
+  // v2.31.0 (oopslink 2026-07-03): forked-executor lifecycle events split off from
+  // Control into their OWN "Executor" category, and the preview surfaces which
+  // executor is running which task without expanding the row.
+  it('executor.start lifecycle → Executor badge (not Control) + exec/task/model preview', () => {
+    row(
+      ev('lifecycle', {
+        event: 'executor.start',
+        executor_id: 'exec-abcdef123456',
+        task_ref: 'task-99',
+        title: 'repo task',
+        model: 'claude-opus',
+        scope: 'claude-opus',
+      }),
+    );
+    const badge = screen.getByTestId('agent-activity-badge');
+    expect(badge).toHaveTextContent('Executor');
+    expect(badge).not.toHaveTextContent('Control');
+    const preview = screen.getByTestId('agent-activity-preview');
+    expect(preview).toHaveTextContent('start');
+    expect(preview).toHaveTextContent('repo task'); // task visible without expanding
+    expect(preview).toHaveTextContent('claude-opus');
+  });
+
+  it('executor.stop lifecycle → Executor badge + outcome in preview', () => {
+    row(
+      ev('lifecycle', {
+        event: 'executor.stop',
+        executor_id: 'exec-77',
+        task_ref: 'task-99',
+        outcome: 'failed',
+        scope: 'failed:stalled',
+      }),
+    );
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Executor');
+    const preview = screen.getByTestId('agent-activity-preview');
+    expect(preview).toHaveTextContent('stop');
+    expect(preview).toHaveTextContent('failed:stalled');
+    expect(preview).toHaveTextContent('task-99');
+  });
+
+  it('executor.progress lifecycle → Executor badge + state in preview', () => {
+    row(ev('lifecycle', { event: 'executor.progress', executor_id: 'exec-5', task_ref: 'task-1', state: 'running', scope: 'running' }));
+    expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Executor');
+    expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('progress');
+    expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('running');
+  });
+
+  it('non-executor lifecycle still maps to Control (session control ops unchanged)', () => {
+    row(ev('lifecycle', { event: 'stopped' }));
+    const badge = screen.getByTestId('agent-activity-badge');
+    expect(badge).toHaveTextContent('Control');
+    expect(badge).not.toHaveTextContent('Executor');
+  });
+
   it('unknown event type → Checking messages badge + JSON preview', () => {
     row(ev('weird.event', { foo: 'bar' }));
     expect(screen.getByTestId('agent-activity-badge')).toHaveTextContent('Checking messages');
