@@ -422,7 +422,12 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 		return nil, err
 	}
 	// Builtin pool is a FLAT plan — no decisions/conditional edges, so nil outcomes.
-	view := pm.ComputePlanView(tasks, edges, records, nil, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
+	// T807 ④: the flat pool's ready-set is its equivalent graph read — a flat plan has
+	// no conditional gating, so DerivePlanView reduces to "in-plan open task with all
+	// (here: no) upstream done → ready/dispatched". Off ComputePlanView (⑤ deletes the
+	// shell); byte-for-byte (same pure algorithm on a flat plan). pause never changes
+	// the ready-set/AllDone (T53).
+	view := pm.DerivePlanView(tasks, edges, records, nil, nil)
 	// Index tasks by id so we can read each newly-dispatched node's assignee for the
 	// F1 wake emit below (avoids a per-node FindByID).
 	byID := make(map[pm.TaskID]*pm.Task, len(tasks))

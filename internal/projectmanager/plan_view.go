@@ -186,15 +186,24 @@ type PlanView struct {
 	AllDone   bool
 }
 
-// ComputePlanView derives the whole-Plan read model from the selected tasks, the
-// DAG edges, the dispatch records, and the set of tasks whose work item is paused
-// (§9.2/§9.7/§9.1). It is PURE: callers load the inputs and pass them in. `paused`
-// maps a TaskID→true when that task's live AgentWorkItem is paused (T53); a nil/
-// empty map means "no paused overlay" — dispatch callers pass nil since pausing a
-// running node never changes the ready-set or AllDone (a paused node is neither
+// DerivePlanView derives the whole-Plan read model from the selected tasks, the DAG
+// edges, the dispatch records, the decision outcomes, and the set of tasks whose work
+// item is paused (§9.2/§9.7/§9.1). It is PURE: callers load the inputs and pass them
+// in. `paused` maps a TaskID→true when that task's live AgentWorkItem is paused (T53);
+// a nil/empty map means "no paused overlay" — dispatch callers pass nil since pausing
+// a running node never changes the ready-set or AllDone (a paused node is neither
 // ready nor done). Nodes are returned in the input `tasks` order (callers pass a
 // stable order); the ready-set follows that same order.
-func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
+//
+// T807 ④: DerivePlanView is the graph-era READ-VIEW derivation — the pure body the
+// readers (get_plan detail / list enrich / builtin pool) call directly. "The graph is
+// authoritative" is a DISPATCH property (T805 ③ drives readiness/decisions/loopback off
+// the engine graph); a read VIEW is a projection of LIVE task state, so it derives here
+// over live tasks+deps+outcomes+dispatch rather than physically re-reading the graph's
+// node statuses (which are only synced at dispatch, so possibly stale at read time —
+// and a READ must not sync/write). Deriving over live truth keeps the read byte-for-byte
+// correct. ComputePlanView is the retained legacy shell over this (⑤ deletes the shell).
+func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
 	// Index task status by id, and whether each node is dispatched.
 	statusOf := make(map[TaskID]TaskStatus, len(tasks))
 	inPlan := make(map[TaskID]struct{}, len(tasks))
@@ -405,4 +414,13 @@ func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecor
 	}
 	view.AllDone = allDone
 	return view
+}
+
+// ComputePlanView is the retained legacy alias over DerivePlanView. After T807 ④ the
+// READERS (get_plan detail / list enrich / builtin pool) call DerivePlanView directly;
+// this shell survives ONLY for the remaining non-reader caller — the plan_lifecycle.go
+// legacy dispatch fallback for a non-graphed plan (dispatchReadyNodes' `else` branch),
+// which ⑤ deletes along with this shell. Straight delegation → zero behaviour change.
+func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
+	return DerivePlanView(tasks, edges, dispatch, outcomes, paused)
 }
