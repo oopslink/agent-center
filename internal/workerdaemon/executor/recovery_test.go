@@ -60,7 +60,7 @@ func TestRecord_Validate(t *testing.T) {
 
 func TestTracker_WriteReadRoundTrip(t *testing.T) {
 	_, tr := newRecoveryFixture(t)
-	rec := Record{ExecutorID: "e1", PID: 555, SpawnedAt: time.Unix(1700000000, 0).UTC(), BaseRef: "dev", RunnerCmd: []string{"claude", "-p"}}
+	rec := Record{ExecutorID: "e1", PID: 555, SpawnedAt: time.Unix(1700000000, 0).UTC(), BaseRef: "dev", RunnerCmd: []string{"claude", "-p"}, SessionID: "11111111-2222-5333-8444-555555555555"}
 	if err := tr.Write(rec); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
@@ -70,6 +70,10 @@ func TestTracker_WriteReadRoundTrip(t *testing.T) {
 	}
 	if got.PID != 555 || got.BaseRef != "dev" || len(got.RunnerCmd) != 2 {
 		t.Errorf("round trip mismatch: %+v", got)
+	}
+	// §4.3: the session id survives the round trip so recovery can --resume it.
+	if got.SessionID != rec.SessionID {
+		t.Errorf("session_id round trip = %q, want %q", got.SessionID, rec.SessionID)
 	}
 }
 
