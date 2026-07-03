@@ -41,6 +41,108 @@ type ExecutorEngine struct {
 
 	mu      sync.Mutex
 	orphans map[string]int // adopted orphan executor_id → pid; watchdog-polled until terminal
+	// recovering is the D5 mid-life point-recovery dedup set (§4.6): an executor_id is
+	// in it from the moment a stall/death recovery is claimed until that recovery
+	// settles (relaunch adopted as an orphan, or gave up/cleaned). It stops two
+	// triggers (a stall + a death of the SAME executor, or two consecutive watchdog
+	// ticks, or the drain path + the watchdog path) from each starting a recovery —
+	// which would relaunch two processes and leak the orphan pid. Guarded by ee.mu.
+	recovering map[string]struct{}
+	// recoverCount bounds mid-life recovery PER TASK (§4.6 safety floor, PD ruling):
+	// task-ref → how many stall/crash recoveries this task has consumed ACROSS executor
+	// incarnations. Monitor's original "definite failure → never re-queue" existed to
+	// stop an infinite re-queue of a job that PROVED it hangs; §9 is now demoted to a
+	// BOUNDED floor — within budget the runtime resumes via the D3 ladder, over budget it
+	// lets the executor terminally finalize + escalate to PD. Keyed by TASK, NOT executor
+	// id: a tier3 re-dispatch / crash re-fork gets a NEW executor id, so a per-id counter
+	// would reset to full budget every incarnation and never bound a serial hang-loop.
+	// recovering (above) blocks CONCURRENT dup-recovery; recoverCount blocks the SERIAL
+	// loop. Cleared on terminal. Guarded by ee.mu.
+	recoverCount map[string]recoverBudget
+}
+
+// recoverBudget is a task's consumed recovery counts, split by cause so stall (proven-
+// stuck, resuming ≈ re-stalls) can be bounded tighter than crash (often transient).
+type recoverBudget struct{ stall, crash int }
+
+// Per-task recovery bounds (§4.6, PD ruling 2026-07-04). Tunable — deliberately NOT
+// hardcoded at call sites; real-deploy acceptance may tune these. crash is looser
+// (OOM/signal/node jitter is often transient, worth a few tries); stall is strict
+// (a resumed stuck conversation / re-run of a hanging job likely stalls again).
+const (
+	maxCrashRecover = 3
+	maxStallRecover = 1
+)
+
+// tryConsumeRecoverBudget checks THIS task's remaining budget for a stall (wasStall=true)
+// or crash (false) recovery and, if any remains, consumes one and returns true. Returns
+// false when the relevant budget is exhausted — the caller must then terminal-finalize +
+// escalate to PD instead of resuming again (pd's bounded floor; blocks serial hang-loop).
+func (ee *ExecutorEngine) tryConsumeRecoverBudget(taskRef string, wasStall bool) bool {
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	if ee.recoverCount == nil {
+		ee.recoverCount = make(map[string]recoverBudget)
+	}
+	b := ee.recoverCount[taskRef]
+	if wasStall {
+		if b.stall >= maxStallRecover {
+			return false
+		}
+		b.stall++
+	} else {
+		if b.crash >= maxCrashRecover {
+			return false
+		}
+		b.crash++
+	}
+	ee.recoverCount[taskRef] = b
+	return true
+}
+
+// clearRecoverBudget forgets a task's recovery counts (terminal: the task completed /
+// was cancelled / gave up). Keeps the map bounded. Idempotent; no-op on empty ref.
+func (ee *ExecutorEngine) clearRecoverBudget(taskRef string) {
+	if taskRef == "" {
+		return
+	}
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	delete(ee.recoverCount, taskRef)
+}
+
+// beginRecovery CAS-claims execID for point recovery: it returns true exactly once
+// per (unsettled) recovery — the caller that gets true owns the recovery and MUST
+// call endRecovery when it settles. A concurrent/duplicate trigger gets false and
+// must do nothing. This is the D5 idempotency guard (§4.6).
+func (ee *ExecutorEngine) beginRecovery(id string) bool {
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	if ee.recovering == nil {
+		ee.recovering = make(map[string]struct{})
+	}
+	if _, busy := ee.recovering[id]; busy {
+		return false
+	}
+	ee.recovering[id] = struct{}{}
+	return true
+}
+
+// endRecovery clears the recovering claim for execID (recovery settled: relaunched +
+// re-adopted, or abandoned/cleaned). Idempotent.
+func (ee *ExecutorEngine) endRecovery(id string) {
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	delete(ee.recovering, id)
+}
+
+// isRecovering reports whether execID currently has an in-flight point recovery (used
+// by the watchdog/drain to skip an executor already being recovered by the other path).
+func (ee *ExecutorEngine) isRecovering(id string) bool {
+	ee.mu.Lock()
+	defer ee.mu.Unlock()
+	_, busy := ee.recovering[id]
+	return busy
 }
 
 // addOrphan registers a recovered, still-alive executor for watchdog polling.
