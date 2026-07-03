@@ -58,7 +58,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"create_plan", "create a draft plan (a DAG of tasks)"},
 	{"add_task_to_plan", "add a backlog task as a node in a draft plan"},
 	{"remove_task_from_plan", "remove a task node from a draft plan"},
-	{"add_plan_dependency", "wire a depends_on edge between two plan nodes"},
+	{"add_plan_dependency", "wire a plan edge: seq depends_on, or a conditional/loopback control-flow edge (Decision/cycle authoring)"},
 	{"remove_plan_dependency", "remove a depends_on edge between plan nodes"},
 	{"start_plan", "start a draft plan (the center dispatches ready nodes)"},
 	{"stop_plan", "stop a running plan"},

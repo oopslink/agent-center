@@ -71,6 +71,8 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
 	case errors.Is(err, pm.ErrIllegalPlanTransition), errors.Is(err, pm.ErrInvalidPlanStatus),
 		errors.Is(err, pm.ErrPlanCycle), errors.Is(err, pm.ErrSelfDependency),
+		errors.Is(err, pm.ErrInvalidLoopback), errors.Is(err, pm.ErrConditionalNeedsWhen),
+		errors.Is(err, pm.ErrInvalidEdgeKind),
 		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
@@ -186,23 +188,52 @@ type planDepReq struct {
 	PlanID     string `json:"plan_id"`
 	FromTaskID string `json:"from_task_id"`
 	ToTaskID   string `json:"to_task_id"`
+	// T802 control-flow authoring (optional, additive): a plain seq edge omits all
+	// three (Kind "" == seq, back-compat). Kind ∈ seq/conditional/loopback; When is
+	// the outcome label a conditional/loopback routes on; MaxRounds bounds a loopback.
+	Kind      string `json:"kind"`
+	When      string `json:"when"`
+	MaxRounds int    `json:"max_rounds"`
 }
 
-// addPlanDependencyHandler adds a depends_on edge to a draft Plan's DAG via
-// pm.AddPlanDependency (actor=agent). The repo rejects self-edges/cycles
-// (ErrSelfDependency / ErrPlanCycle) before persisting → surfaced as tool errors.
+// addPlanDependencyHandler adds an edge to a draft Plan's DAG (actor=agent). A
+// plain seq edge (no kind/when/max_rounds) goes through pm.AddPlanDependency
+// unchanged; a control-flow edge (conditional/loopback, T802) goes through
+// pm.AddPlanControlEdge so an agent can author Decision/loopback cycles. The repo
+// rejects self-edges/cycles (ErrSelfDependency / ErrPlanCycle), and control edges
+// additionally validate kind/when/loopback-ancestry → surfaced as tool errors.
 func (s *Server) addPlanDependencyHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	a, req, ok := s.decodePlanDep(w, r, d)
 	if !ok {
 		return
 	}
-	if err := d.PMService.AddPlanDependency(r.Context(), pm.PlanID(req.PlanID),
-		pm.TaskID(req.FromTaskID), pm.TaskID(req.ToTaskID), pm.IdentityRef(agentActor(a))); err != nil {
+	var err error
+	if isPlainSeqDep(req) {
+		err = d.PMService.AddPlanDependency(r.Context(), pm.PlanID(req.PlanID),
+			pm.TaskID(req.FromTaskID), pm.TaskID(req.ToTaskID), pm.IdentityRef(agentActor(a)))
+	} else {
+		err = d.PMService.AddPlanControlEdge(r.Context(), pm.PlanID(req.PlanID), pm.Dependency{
+			PlanID:     pm.PlanID(req.PlanID),
+			FromTaskID: pm.TaskID(req.FromTaskID),
+			ToTaskID:   pm.TaskID(req.ToTaskID),
+			Kind:       pm.EdgeKind(strings.TrimSpace(req.Kind)),
+			When:       req.When,
+			MaxRounds:  req.MaxRounds,
+		}, pm.IdentityRef(agentActor(a)))
+	}
+	if err != nil {
 		mapPlanToolError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// isPlainSeqDep reports whether the request is a plain sequential depends_on edge
+// (no control-flow fields), so it can take the unchanged AddPlanDependency path.
+func isPlainSeqDep(req planDepReq) bool {
+	k := pm.NormalizeEdgeKind(pm.EdgeKind(strings.TrimSpace(req.Kind)))
+	return k == pm.EdgeSeq && strings.TrimSpace(req.When) == "" && req.MaxRounds == 0
 }
 
 // removePlanDependencyHandler removes a depends_on edge from a draft Plan's DAG

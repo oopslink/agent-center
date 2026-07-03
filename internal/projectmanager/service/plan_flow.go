@@ -299,6 +299,22 @@ func (s *Service) AddPlanDependency(ctx context.Context, planID pm.PlanID, fromT
 	return s.addPlanEdge(ctx, planID, pm.Dependency{PlanID: planID, FromTaskID: fromTaskID, ToTaskID: toTaskID}, actor)
 }
 
+// AddPlanControlEdge adds a control-flow edge (seq / conditional / loopback) to a
+// DRAFT plan's DAG so an agent can author Decision / loopback cycles directly via
+// add_plan_dependency (T802). It validates the edge SHAPE up-front (kind enum +
+// conditional needs a When) then delegates to addPlanEdge; the repo's AddDependency
+// runs WouldCreateCycle → ValidateLoopback (a loopback needs When + MaxRounds≥1 +
+// its To a forward ancestor of From) and the forward-acyclic guard. No engine
+// change is needed: buildPlanGraph already turns conditional edges into condition
+// nodes and leaves loopback back-edges to the task-level driver.
+func (s *Service) AddPlanControlEdge(ctx context.Context, planID pm.PlanID, dep pm.Dependency, actor pm.IdentityRef) error {
+	dep.Kind = pm.NormalizeEdgeKind(dep.Kind)
+	if err := pm.ValidateControlEdgeShape(dep); err != nil {
+		return err
+	}
+	return s.addPlanEdge(ctx, planID, dep, actor)
+}
+
 // addPlanEdge is the shared edge-insert primitive behind AddPlanDependency and the
 // control-flow edges scaffold_cycle_plan wires (B2/B0 §2.2). It carries the same
 // draft/membership/scope guards and persists whatever edge Kind/When/MaxRounds the
