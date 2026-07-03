@@ -426,6 +426,90 @@ describe('ProjectDetail page', () => {
     expect(row).not.toHaveTextContent('user:hayang');
   });
 
+  // Owner ask (2026-07-03): the Plans list gains a status + name-search filter.
+  // These assert the UI wires status[]/q into the (already-supporting) endpoint.
+  it('Plans filter: status chip sends ?status=, search sends ?q=, and both reset to page 1', async () => {
+    const searches: string[] = [];
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/projects/:pid/plans', ({ request }) => {
+        searches.push(new URL(request.url).search);
+        return HttpResponse.json({
+          plans: [
+            {
+              id: 'plan-1', project_id: 'proj-a', name: 'Sprint One', description: '',
+              status: 'running', creator_ref: 'user:hayang', conversation_id: 'c-1',
+              org_ref: 'P7', has_failed: false, progress: { done: 2, total: 5 },
+              created_at: '2026-05-20T01:00:00Z',
+            },
+          ],
+          total: 1,
+        });
+      }),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('project-tab-plans'));
+    await waitFor(() => expect(screen.getByTestId('plan-row')).toBeInTheDocument());
+    // Initial request carries neither status nor q.
+    expect(searches[0]).not.toContain('status=');
+    expect(searches[0]).not.toContain('q=');
+
+    // Click the "running" status chip → the next request filters by status=running.
+    fireEvent.click(screen.getByTestId('plan-filter-status-running'));
+    await waitFor(() => expect(searches.some((s) => s.includes('status=running'))).toBe(true));
+    // Page did NOT get pinned to a stale value: a status change resets to page 1
+    // (no page=… param, which is only sent for page>1).
+    const afterStatus = searches[searches.length - 1];
+    expect(afterStatus).not.toContain('page=');
+
+    // Type into the search box → the request carries the q term.
+    fireEvent.change(screen.getByTestId('plan-filter-search'), { target: { value: 'sprint' } });
+    await waitFor(() => expect(searches.some((s) => s.includes('q=sprint'))).toBe(true));
+
+    // Clear resets both filters → back to an unfiltered request.
+    fireEvent.click(screen.getByTestId('plan-filter-clear'));
+    await waitFor(() => {
+      const last = searches[searches.length - 1];
+      return expect(!last.includes('status=') && !last.includes('q=')).toBe(true);
+    });
+  });
+
+  it('Plans filter: an empty filtered result shows the "no match" copy, not the generic empty', async () => {
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/projects/:pid/plans', ({ request }) => {
+        // Unfiltered → one plan; any status/q filter → empty.
+        const s = new URL(request.url).search;
+        if (s.includes('status=') || s.includes('q=')) return HttpResponse.json({ plans: [], total: 0 });
+        return HttpResponse.json({
+          plans: [
+            {
+              id: 'plan-1', project_id: 'proj-a', name: 'Sprint One', description: '',
+              status: 'running', creator_ref: 'user:hayang', conversation_id: 'c-1',
+              org_ref: 'P7', has_failed: false, progress: { done: 2, total: 5 },
+              created_at: '2026-05-20T01:00:00Z',
+            },
+          ],
+          total: 1,
+        });
+      }),
+    );
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('project-tab-plans'));
+    await waitFor(() => expect(screen.getByTestId('plan-row')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-filter-status-draft'));
+    await waitFor(() => expect(screen.getByTestId('project-plans-empty')).toBeInTheDocument());
+    expect(screen.getByTestId('project-plans-empty')).toHaveTextContent('No plans match the filter');
+  });
+
   it('member name links to its detail page (agent → AgentDetail, human → user page)', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),

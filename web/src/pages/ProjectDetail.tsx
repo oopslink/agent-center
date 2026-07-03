@@ -12,7 +12,7 @@ import {
   type Project,
 } from '@/api/projects';
 import { useIssues } from '@/api/issues';
-import { useProjectPlansList } from '@/api/plans';
+import { useProjectPlansList, type PlanStatus } from '@/api/plans';
 import { useAgents } from '@/api/agents';
 import { formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
@@ -30,7 +30,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
 import { SortHeader, Pagination, useListControls } from '@/components/listControls';
-import { PlanStatusChip, planProgressLabel, PlanFailedIndicator } from '@/components/planDisplay';
+import { PlanStatusChip, planProgressLabel, PlanFailedIndicator, planStatusClass } from '@/components/planDisplay';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 import {
   useWorkspaceRepos,
@@ -412,6 +412,89 @@ function TabButton({
   );
 }
 
+// Plan lifecycle statuses, in order — drive the PlanFilterBar chips. Kept local
+// (the WorkItemFilterBar STATUS_OPTIONS covers only issue/task; plans have their
+// own draft/running/done/archived set and no assignee/date filter).
+const PLAN_FILTER_STATUSES: PlanStatus[] = ['draft', 'running', 'done', 'archived'];
+
+// PlanFilterBar — status toggle chips + a name/ref search box for PlansPanel
+// (owner ask 2026-07-03). Mirrors WorkItemFilterBar's chip idiom (solid status
+// fill when selected, muted border when not); plan-specific since plans carry a
+// creator, not an assignee.
+function PlanFilterBar({
+  selectedStatuses,
+  onStatusesChange,
+  search,
+  onSearchChange,
+}: {
+  selectedStatuses: string[];
+  onStatusesChange: (next: string[]) => void;
+  search: string;
+  onSearchChange: (next: string) => void;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const toggleStatus = (s: string) =>
+    onStatusesChange(
+      selectedStatuses.includes(s) ? selectedStatuses.filter((x) => x !== s) : [...selectedStatuses, s],
+    );
+  const active = selectedStatuses.length > 0 || search.trim().length > 0;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="project-plans-filter">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[0.625rem] font-medium uppercase tracking-wide text-text-muted">
+          {t('filter.status.label')}
+        </span>
+        {PLAN_FILTER_STATUSES.map((s) => {
+          const on = selectedStatuses.includes(s);
+          // SELECTED = the status's solid pill + an inset ring; UNSELECTED = muted
+          // border chip. Distinguished by fill + aria-pressed, never color alone.
+          return (
+            <button
+              key={s}
+              type="button"
+              data-testid={`plan-filter-status-${s}`}
+              aria-pressed={on}
+              onClick={() => toggleStatus(s)}
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs uppercase tracking-wide ${
+                on
+                  ? `${planStatusClass(s)} ring-1 ring-inset ring-current`
+                  : 'border border-border-base bg-bg-base text-text-secondary hover:bg-bg-subtle'
+              }`}
+            >
+              {t(`planStatus.${s}`, { defaultValue: s })}
+            </button>
+          );
+        })}
+      </div>
+      <label className="flex items-center gap-1.5">
+        <span className="sr-only">{t('project.plans.searchLabel')}</span>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={t('project.plans.searchPlaceholder')}
+          data-testid="plan-filter-search"
+          className="w-48 rounded border border-border-base bg-bg-base px-2 py-1 text-xs text-text-primary placeholder:text-text-muted focus:border-accent"
+        />
+      </label>
+      {active && (
+        <button
+          type="button"
+          data-testid="plan-filter-clear"
+          onClick={() => {
+            onStatusesChange([]);
+            onSearchChange('');
+          }}
+          className="inline-flex items-center gap-1 text-[0.6875rem] text-text-muted hover:text-text-secondary"
+        >
+          <span aria-hidden="true">&times;</span>
+          {t('filter.clear')}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // PlansPanel lists the project's plans (per @oopslink: a Plans tab after Tasks).
 // Read-only table (ID / Name / Status / Progress) mirroring the Issues/Tasks
 // panels; each name links to the plan detail page. Plans are created/edited on
@@ -422,7 +505,16 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
   // pool excluded, returns { items, total }. usePlans (Work Board) stays
   // unpaginated + includes builtin.
   const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
+  // Owner ask (2026-07-03): 48+ plans → filter by status + name search. The
+  // project plans endpoint already honors status[]/q (applyListFilters); this
+  // just wires the UI. NOTE: an empty status set = backend default (EXCLUDES
+  // archived); selecting the "archived" chip opts those back in.
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
+  const q = search.trim();
   const plans = useProjectPlansList(projectId, {
+    status: selectedStatuses.length > 0 ? selectedStatuses : undefined,
+    q: q || undefined,
     sort: controls.sort,
     dir: controls.dir,
     page: controls.page,
@@ -430,6 +522,12 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
   });
   const data = plans.data?.items ?? [];
   const total = plans.data?.total ?? 0;
+  const filtered = selectedStatuses.length > 0 || q.length > 0;
+  // Narrowing the filter resets to page 1 (a stale high page would show empty).
+  const setPage = controls.setPage;
+  useEffect(() => {
+    setPage(1);
+  }, [selectedStatuses, q, setPage]);
   // Owner ask: show the creator's NAME (agent / human), not the raw id.
   const creatorLabel = useCreatorLabel();
   return (
@@ -447,6 +545,14 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
           {t('project.detail.workBoard')}
         </OrgLink>
       </div>
+      <div className="mb-3">
+        <PlanFilterBar
+          selectedStatuses={selectedStatuses}
+          onStatusesChange={setSelectedStatuses}
+          search={search}
+          onSearchChange={setSearch}
+        />
+      </div>
       {plans.isLoading ? (
         <div className="space-y-2 py-2">
           <Skeleton height="1.5rem" />
@@ -457,7 +563,9 @@ function PlansPanel({ projectId }: { projectId: string }): React.ReactElement {
           {(plans.error as Error).message}
         </p>
       ) : data.length === 0 ? (
-        <p className="py-4 text-center text-xs text-text-muted">{t('project.plans.empty')}</p>
+        <p className="py-4 text-center text-xs text-text-muted" data-testid="project-plans-empty">
+          {filtered ? t('project.plans.emptyFiltered') : t('project.plans.empty')}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs" data-testid="project-plans-table">

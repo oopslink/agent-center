@@ -492,7 +492,10 @@
     },
     "plans": {
       "title": "Plans",
-      "empty": "No plans yet"
+      "empty": "No plans yet",
+      "emptyFiltered": "No plans match the filter",
+      "searchLabel": "Search plans",
+      "searchPlaceholder": "Search name or ID…"
     },
     "members": {
       "title": "Members",

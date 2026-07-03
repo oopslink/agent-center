@@ -492,7 +492,10 @@
     },
     "plans": {
       "title": "计划",
-      "empty": "暂无计划"
+      "empty": "暂无计划",
+      "emptyFiltered": "没有匹配过滤条件的计划",
+      "searchLabel": "搜索计划",
+      "searchPlaceholder": "搜索名称或编号…"
     },
     "members": {
       "title": "成员",
