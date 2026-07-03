@@ -15,6 +15,26 @@ import (
 	"github.com/oopslink/agent-center/internal/runtimefs"
 )
 
+// withAgentState runs mutate under agentID's per-agent StateMu — the SessionState lock
+// that T839 §4.1 moved onto each LocalRuntime (r.mu, exposed via StateMu()). Tests that
+// simulate SessionState changes (session death, injected task/conversation ids) MUST use
+// this rather than a bare or c.mu-guarded write: production reads Session/CurrentTaskID/
+// CurrentConversationID under StateMu from async readers (e.g. maybeReplyNudge, spawned
+// by bootReapRelaunch), so a write under any OTHER lock races that read — invisible at
+// -count=1 but stable under -race -count>=5. No-op if the agent/runtime is absent.
+func withAgentState(c *AgentController, agentID string, mutate func()) {
+	c.mu.Lock()
+	ma := c.agents[agentID]
+	c.mu.Unlock()
+	if ma == nil || ma.runtime == nil {
+		return
+	}
+	mu := ma.runtime.StateMu()
+	mu.Lock()
+	defer mu.Unlock()
+	mutate()
+}
+
 // recordingReporter is a fake feedbackReporter that records every call so
 // assertions can inspect activity / lifecycle feedback. Safe for concurrent use
 // (OnEvent/OnExit fire on the session reader goroutine).
@@ -628,9 +648,7 @@ func TestAgentController_ReplyGuardrail_SkipsDuringConverse(t *testing.T) {
 	rep.replyNudges = []string{"should not be injected"}
 	rep.mu.Unlock()
 	// Anchor the agent to an in-flight conversation turn.
-	c.mu.Lock()
-	c.agents["agent-1"].state.CurrentConversationID = "conv-9"
-	c.mu.Unlock()
+	withAgentState(c, "agent-1", func() { c.agents["agent-1"].state.CurrentConversationID = "conv-9" })
 
 	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
 	time.Sleep(50 * time.Millisecond) // let the async hook run (or correctly no-op)
@@ -834,11 +852,11 @@ func TestAgentController_WorkAvailable_ResendWhileDown_RelaunchesEachTime(t *tes
 
 	// The relaunch tracked a (fake) live session; simulate it dying again so the agent
 	// is still down when the sweep's next tick resends the SAME wake.
-	c.mu.Lock()
-	if ma := c.agents["agent-1"]; ma != nil {
-		ma.state.Session = nil
-	}
-	c.mu.Unlock()
+	withAgentState(c, "agent-1", func() {
+		if ma := c.agents["agent-1"]; ma != nil {
+			ma.state.Session = nil
+		}
+	})
 
 	if err := c.Handle(context.Background(), workAvailableCmd(t, "agent-1", "wi-1", 2)); err != nil {
 		t.Fatalf("work_available #2 must ack, got err: %v", err)
@@ -1324,9 +1342,7 @@ func TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem(t *testing.T) {
 	}
 
 	// Simulate an in-flight work item (set the same field work/wake delivery sets).
-	c.mu.Lock()
-	c.agents["agent-1"].state.CurrentTaskID = "WI-1"
-	c.mu.Unlock()
+	withAgentState(c, "agent-1", func() { c.agents["agent-1"].state.CurrentTaskID = "WI-1" })
 
 	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-1"})
 	acts = rep.activityCalls()

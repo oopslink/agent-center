@@ -207,10 +207,10 @@ func TestRateLimit_DrainSkipsDeadSession(t *testing.T) {
 
 	// A managed agent with a DUE resume but no live session.
 	st := c.installTestAgent("agent-1")
-	c.mu.Lock()
-	st.CurrentTaskID = "wi-1"
-	st.RateLimitResumeAt = clock.now().Add(-time.Second)
-	c.mu.Unlock()
+	withAgentState(c, "agent-1", func() {
+		st.CurrentTaskID = "wi-1"
+		st.RateLimitResumeAt = clock.now().Add(-time.Second)
+	})
 
 	c.OnTick(context.Background())
 
@@ -239,10 +239,10 @@ func TestRateLimit_DrainInjectErrorTolerated(t *testing.T) {
 	fs.stopped = true // make Inject return ErrSessionClosed
 	fs.mu.Unlock()
 
-	c.mu.Lock()
-	c.agents["agent-1"].state.CurrentTaskID = "wi-1"
-	c.agents["agent-1"].state.RateLimitResumeAt = clock.now().Add(-time.Second)
-	c.mu.Unlock()
+	withAgentState(c, "agent-1", func() {
+		c.agents["agent-1"].state.CurrentTaskID = "wi-1"
+		c.agents["agent-1"].state.RateLimitResumeAt = clock.now().Add(-time.Second)
+	})
 
 	c.OnTick(context.Background()) // must not panic; schedule consumed despite the error
 

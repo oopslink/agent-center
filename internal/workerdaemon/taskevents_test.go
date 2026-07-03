@@ -23,7 +23,7 @@ func newTaskEventController(t *testing.T, taskID string, segMax, logMax int64) (
 	c.cfg.SegmentMaxBytes = segMax
 	c.cfg.TaskLogMaxBytes = logMax
 	st := c.installTestAgent("agent-1")
-	st.CurrentTaskID = taskID
+	withAgentState(c, "agent-1", func() { st.CurrentTaskID = taskID })
 	_, tasksDir, _, err := c.agentPaths("agent-1")
 	if err != nil {
 		t.Fatal(err)
@@ -335,7 +335,7 @@ func TestOnEvent_EndToEnd(t *testing.T) {
 	c, rep, _ := newTestController(t, t.TempDir())
 	c.cfg.TaskDirManager = taskexec.NewDirManager()
 	st := c.installTestAgent("agent-1")
-	st.CurrentTaskID = "task-Z"
+	withAgentState(c, "agent-1", func() { st.CurrentTaskID = "task-Z" })
 
 	c.onEvent("agent-1", textEvent("driven via onEvent"))
 

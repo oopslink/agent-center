@@ -14,7 +14,7 @@ import (
 func TestMaybeReportUsage(t *testing.T) {
 	c, rep, _ := newTestController(t, t.TempDir())
 	st := c.installTestAgent("agent-1")
-	st.Model = "claude-opus-4-8"
+	withAgentState(c, "agent-1", func() { st.Model = "claude-opus-4-8" })
 
 	ev := StreamEvent{
 		Type: "result", TokensIn: 100, TokensOut: 50,

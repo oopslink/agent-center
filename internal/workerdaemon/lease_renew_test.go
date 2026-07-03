@@ -19,9 +19,7 @@ func TestLeaseRenew_OnTickRenewsLiveSessionTask(t *testing.T) {
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	c.mu.Lock()
-	c.agents["agent-1"].state.CurrentTaskID = "task-1"
-	c.mu.Unlock()
+	withAgentState(c, "agent-1", func() { c.agents["agent-1"].state.CurrentTaskID = "task-1" })
 
 	c.OnTick(context.Background())
 
@@ -47,9 +45,7 @@ func TestLeaseRenew_SkipsIdleAndDeadSessions(t *testing.T) {
 	}
 	// A managed agent with a current task but a DEAD session (session nil) → skip.
 	st := c.installTestAgent("dead-ag")
-	c.mu.Lock()
-	st.CurrentTaskID = "task-x"
-	c.mu.Unlock()
+	withAgentState(c, "dead-ag", func() { st.CurrentTaskID = "task-x" })
 
 	c.OnTick(context.Background())
 
@@ -69,10 +65,10 @@ func TestLeaseRenew_SkipsStoppingSession(t *testing.T) {
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	c.mu.Lock()
-	c.agents["agent-1"].state.CurrentTaskID = "task-1"
-	c.agents["agent-1"].state.ExpectedStop = true
-	c.mu.Unlock()
+	withAgentState(c, "agent-1", func() {
+		c.agents["agent-1"].state.CurrentTaskID = "task-1"
+		c.agents["agent-1"].state.ExpectedStop = true
+	})
 
 	c.OnTick(context.Background())
 	if got := rep.leaseRenewCalls(); len(got) != 0 {
@@ -92,9 +88,7 @@ func TestLeaseRenew_RateLimited(t *testing.T) {
 	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	c.mu.Lock()
-	c.agents["agent-1"].state.CurrentTaskID = "task-1"
-	c.mu.Unlock()
+	withAgentState(c, "agent-1", func() { c.agents["agent-1"].state.CurrentTaskID = "task-1" })
 
 	c.OnTick(context.Background()) // renews
 	c.OnTick(context.Background()) // within the window → no renew
