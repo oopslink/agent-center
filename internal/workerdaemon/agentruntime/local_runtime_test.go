@@ -70,12 +70,10 @@ var _ Reporter = (*nopReporter)(nil)
 
 func newTestRuntime(t *testing.T) (*LocalRuntime, *SessionState, *nopReporter) {
 	t.Helper()
-	var mu sync.Mutex
 	rep := &nopReporter{}
 	st := &SessionState{}
 	cfg := LocalRuntimeConfig{
 		AgentID:  "agent-x",
-		Mu:       &mu,
 		Reporter: rep,
 		Log:      func(string, ...any) {},
 	}

@@ -19,7 +19,7 @@ import (
 // W3/W4 task sink + the L2 no-silent-failure surface + the turn-end hooks.
 func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	agentID := r.cfg.AgentID
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	st := r.state
 	var workItemRef, toolName string
 	var rlRetryAfter int
@@ -71,7 +71,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		st.SawIncompleteTurn = false // turn ended → consume the truncation marker
 	}
 	taskForEvent = st.EventTaskID
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	payload, err := json.Marshal(StreamActivityPayload(ev, toolName))
 	reportOK := false
@@ -94,10 +94,10 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		r.recordTaskEvent(agentID, routeTask, ev, ActivityEventType(ev), string(payload), reportOK)
 	}
 	if clearEventTask {
-		r.cfg.Mu.Lock()
+		r.mu.Lock()
 		st.LastEventTaskID = st.EventTaskID
 		st.EventTaskID = ""
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 	}
 
 	if ev.Type == "result" && ev.IsError {
@@ -126,14 +126,14 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	if ev.Type == "result" && !ev.IsError {
 		r.resetAPIErrorRetries(agentID)
 		var isCodex bool
-		r.cfg.Mu.Lock()
+		r.mu.Lock()
 		isCodex = st.CLI == CLICodex
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 		if !isCodex {
 			if home, _, _, pathErr := r.agentPaths(agentID); pathErr == nil {
-				r.cfg.BG.Add(1)
+				r.bg.Add(1)
 				go func() {
-					defer r.cfg.BG.Done()
+					defer r.bg.Done()
 					if merrr := sessioninstance.MarkCompletedTurn(home); merrr != nil {
 						r.log("restart-recovery: MarkCompletedTurn(%s) failed: %v", agentID, merrr)
 					}
@@ -142,19 +142,20 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		}
 		go r.maybeReplyNudge(agentID)
 		var usageTaskID string
-		r.cfg.Mu.Lock()
+		r.mu.Lock()
 		usageTaskID = st.UsageTaskAtResult()
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 		go r.maybeReportUsage(agentID, ev, usageTaskID)
 	}
 }
 
 // onExit coordinates the exactly-once lifecycle report on session exit (three exit
-// kinds). Crash path deletes the managedAgent (via RemoveAgent under the lock) and
-// records + schedules a self-heal relaunch — byte-identical to before.
+// kinds). Crash path deletes the managedAgent (via RemoveAgent, now called AFTER the
+// StateMu critical section so the seam can take c.mu — 去共享状态) and records +
+// schedules a self-heal relaunch — behavior preserved.
 func (r *LocalRuntime) onExit(exitErr error) {
 	agentID := r.cfg.AgentID
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	st := r.state
 	detaching := st.Detaching
 	expected := st.ExpectedStop
@@ -167,14 +168,20 @@ func (r *LocalRuntime) onExit(exitErr error) {
 	envVars := cloneEnv(st.EnvVars)
 	cli := st.CLI
 	// The executor engine now lives on the runtime (Phase 0c); read it under the held
-	// Mu (this whole block is inside r.cfg.Mu.Lock()).
+	// Mu (this whole block is inside r.mu.Lock()).
 	wasConcurrent := r.exec != nil
 	taskLog := st.TaskLog
 	st.TaskLog, st.TaskLogID = nil, ""
+	r.mu.Unlock()
+
+	// RemoveAgent deletes the managedAgent from the daemon's c.agents map, which is
+	// guarded by c.mu — NOT this runtime's StateMu (T839 §4.1 去共享状态). Call it AFTER
+	// releasing r.mu so the seam can take c.mu without ever holding two locks at once
+	// (lock-order discipline: never StateMu-then-c.mu). The map delete no longer shares
+	// the SessionState critical section, but it stays c.mu-guarded via the seam wrapper.
 	if r.cfg.RemoveAgent != nil {
 		r.cfg.RemoveAgent(agentID)
 	}
-	r.cfg.Mu.Unlock()
 
 	if taskLog != nil {
 		_ = taskLog.Close()
@@ -226,10 +233,10 @@ func (r *LocalRuntime) onExit(exitErr error) {
 
 // maybeReplyNudge is the worker half of the reply-guardrail turn-end hook (T341).
 func (r *LocalRuntime) maybeReplyNudge(agentID string) {
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	sess := r.state.Session
 	inConverse := r.state.CurrentConversationID != ""
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 	if sess == nil || inConverse {
 		return
 	}
@@ -265,9 +272,9 @@ func (r *LocalRuntime) maybeReportUsage(agentID string, ev claudestream.StreamEv
 	if ev.TokensIn == 0 && ev.TokensOut == 0 && ev.CacheReadTokens == 0 && ev.CacheWriteTokens == 0 {
 		return
 	}
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	model := r.state.Model
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 	if model == "" {
 		return
 	}
@@ -289,10 +296,10 @@ func (r *LocalRuntime) maybeReportUsage(agentID string, ev claudestream.StreamEv
 
 // surfaceTurnFailure fails the in-flight WorkItem after an is_error turn (L2).
 func (r *LocalRuntime) surfaceTurnFailure(agentID string, ev claudestream.StreamEvent) {
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	wiID := r.state.CurrentTaskID
 	convID := r.state.CurrentConversationID
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if wiID == "" {
 		if convID != "" {
@@ -305,11 +312,11 @@ func (r *LocalRuntime) surfaceTurnFailure(agentID string, ev claudestream.Stream
 
 	r.log("L2 agent=%s work_item=%s failed (is_error turn, subtype=%q)", agentID, wiID, ev.Subtype)
 
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	if r.state.CurrentTaskID == wiID {
 		r.state.CurrentTaskID = ""
 	}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 }
 
 // surfaceConverseFailure posts a VISIBLE system message into a failed converse
@@ -322,9 +329,9 @@ func (r *LocalRuntime) surfaceConverseFailure(agentID, convID string, ev claudes
 		return
 	}
 	r.log("L2 agent=%s conv=%s converse turn failed (is_error, subtype=%q) — system notice posted", agentID, convID, ev.Subtype)
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	if r.state.CurrentConversationID == convID {
 		r.state.CurrentConversationID = ""
 	}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 }

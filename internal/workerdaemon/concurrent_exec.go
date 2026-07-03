@@ -79,9 +79,10 @@ func execConfigOf(pl reconcilePayload) agentruntime.ExecutorConfig {
 // Agents with a concurrency engine but zero live executors are still emitted (active
 // 0) so the center's last-known state reflects "idle now", not a stale set.
 func (c *AgentController) SnapshotConcurrency() map[string]concurrency.AgentSnapshot {
-	// Snapshot the runtimes under the lock, then query each OUTSIDE it — HasExecutor /
-	// SnapshotConcurrency take the SAME shared mutex (r.cfg.Mu == &c.mu), so calling
-	// them while holding c.mu would deadlock.
+	// Snapshot the runtimes under c.mu, then query each OUTSIDE it — HasExecutor /
+	// SnapshotConcurrency take the runtime's own StateMu (T839 §4.1 去共享状态); keeping
+	// the snapshot-then-query split preserves the lock-order discipline (never hold c.mu
+	// while taking a runtime's StateMu) with no behavior change.
 	c.mu.Lock()
 	type agentRT struct {
 		id string

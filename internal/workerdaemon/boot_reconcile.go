@@ -607,11 +607,21 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	// any resume-phase (pre-nudge) result → move the bind INTO startSession (set it at
 	// managedAgent creation, structurally window-free). (CHANGELOG + §A.)
 	if taskID != "" {
+		// Snapshot the runtime under c.mu, then write ma.state.CurrentTaskID under the
+		// agent's own StateMu (去共享状态) — never both locks at once.
 		c.mu.Lock()
-		if ma := c.agents[agentID]; ma != nil && ma.state != nil {
-			ma.state.CurrentTaskID = taskID
+		ma := c.agents[agentID]
+		var rt *agentruntime.LocalRuntime
+		if ma != nil {
+			rt = ma.runtime
 		}
 		c.mu.Unlock()
+		if rt != nil && ma != nil && ma.state != nil {
+			mu := rt.StateMu()
+			mu.Lock()
+			ma.state.CurrentTaskID = taskID
+			mu.Unlock()
+		}
 	}
 	// 重启不漏回 (改动 B, reuses T341 reply-guardrail): a crash BEFORE the agent sent a
 	// directed reply leaves no clean turn-end, so the turn-end reply-nudge hook never
@@ -632,11 +642,19 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	msg := c.resumeNudgeText()
 	c.mu.Lock()
 	ma := c.agents[agentID]
-	var sess agentSession
-	if ma != nil && ma.state != nil {
-		sess = ma.state.Session
+	var rt *agentruntime.LocalRuntime
+	if ma != nil {
+		rt = ma.runtime
 	}
 	c.mu.Unlock()
+	// Read ma.state.Session under the agent's StateMu (去共享状态), not c.mu.
+	var sess agentSession
+	if rt != nil && ma != nil && ma.state != nil {
+		mu := rt.StateMu()
+		mu.Lock()
+		sess = ma.state.Session
+		mu.Unlock()
+	}
 	if sess != nil {
 		if err := sess.Inject(ctx, msg); err != nil {
 			c.log("boot-reconcile agent=%s resume-nudge inject: %v", agentID, err)

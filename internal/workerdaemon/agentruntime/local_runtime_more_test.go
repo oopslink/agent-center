@@ -49,8 +49,7 @@ func TestAccessorsAndResumeNudge(t *testing.T) {
 	}
 
 	// Override via cfg.
-	var mu sync.Mutex
-	rt2 := NewLocalRuntime(LocalRuntimeConfig{AgentID: "a", Mu: &mu, Reporter: &nopReporter{}, ResumeNudge: "pick it back up"}, &SessionState{})
+	rt2 := NewLocalRuntime(LocalRuntimeConfig{AgentID: "a", Reporter: &nopReporter{}, ResumeNudge: "pick it back up"}, &SessionState{})
 	if got := rt2.ResumeNudgeText(); got != "pick it back up" {
 		t.Fatalf("ResumeNudgeText override = %q", got)
 	}

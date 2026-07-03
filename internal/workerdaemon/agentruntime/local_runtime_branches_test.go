@@ -71,7 +71,6 @@ func fullRuntime(t *testing.T) (rt *LocalRuntime, st *SessionState, rep *recRepo
 	removed = &rm
 	cfg := LocalRuntimeConfig{
 		AgentID:     "agent-x",
-		Mu:          &mu,
 		Reporter:    rep,
 		Log:         func(string, ...any) {},
 		Now:         func() time.Time { return time.Unix(1_000_000, 0) },
@@ -97,10 +96,9 @@ func TestNotifyWork_InjectErrorPropagates(t *testing.T) {
 }
 
 func TestNotifyWork_CreatesTaskDir(t *testing.T) {
-	var mu sync.Mutex
 	home := t.TempDir()
 	rt := NewLocalRuntime(LocalRuntimeConfig{
-		AgentID: "agent-x", Mu: &mu, Reporter: &nopReporter{}, Log: func(string, ...any) {},
+		AgentID: "agent-x", Reporter: &nopReporter{}, Log: func(string, ...any) {},
 		Now: func() time.Time { return time.Unix(1, 0) }, WorkerID: "w-1", AgentHomeBase: home,
 		TaskDirManager: taskexec.NewDirManager(),
 	}, &SessionState{})
@@ -454,16 +452,15 @@ func TestWriteMCPConfig_Branches(t *testing.T) {
 }
 
 func TestAgentPaths_Errors(t *testing.T) {
-	var mu sync.Mutex
-	base := NewLocalRuntime(LocalRuntimeConfig{Mu: &mu, Reporter: &nopReporter{}}, &SessionState{})
+	base := NewLocalRuntime(LocalRuntimeConfig{Reporter: &nopReporter{}}, &SessionState{})
 	if _, _, _, err := base.agentPaths("a"); err == nil {
 		t.Fatal("missing AgentHomeBase must error")
 	}
-	r2 := NewLocalRuntime(LocalRuntimeConfig{Mu: &mu, Reporter: &nopReporter{}, AgentHomeBase: "/tmp"}, &SessionState{})
+	r2 := NewLocalRuntime(LocalRuntimeConfig{Reporter: &nopReporter{}, AgentHomeBase: "/tmp"}, &SessionState{})
 	if _, _, _, err := r2.agentPaths("a"); err == nil {
 		t.Fatal("missing WorkerID must error")
 	}
-	r3 := NewLocalRuntime(LocalRuntimeConfig{Mu: &mu, Reporter: &nopReporter{}, AgentHomeBase: "/tmp", WorkerID: "w"}, &SessionState{})
+	r3 := NewLocalRuntime(LocalRuntimeConfig{Reporter: &nopReporter{}, AgentHomeBase: "/tmp", WorkerID: "w"}, &SessionState{})
 	if _, _, _, err := r3.agentPaths(""); err == nil {
 		t.Fatal("missing agentID must error")
 	}

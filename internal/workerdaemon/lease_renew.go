@@ -3,6 +3,8 @@ package workerdaemon
 import (
 	"context"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 )
 
 // lease_renew.go (T456 / issue-21ba5b78 I30 P0 #1) — the worker-side, process-alive
@@ -49,21 +51,42 @@ func (c *AgentController) drainLeaseRenewals(ctx context.Context, now time.Time)
 		return
 	}
 	c.nextLeaseRenewAt = now.Add(c.cfg.LeaseRenewEvery)
-	var targets []leaseRenewTarget
+	// Snapshot the (agentID, managedAgent, runtime) triples under c.mu, then inspect
+	// each agent's ma.state.* under its OWN StateMu (去共享状态) — never holding c.mu and
+	// a StateMu at once, and never two StateMus at once (one agent inspected at a time).
+	type leaseCandidate struct {
+		id string
+		ma *managedAgent
+		rt *agentruntime.LocalRuntime
+	}
+	var candidates []leaseCandidate
 	for id, ma := range c.agents {
+		if ma == nil || ma.runtime == nil {
+			continue
+		}
+		candidates = append(candidates, leaseCandidate{id: id, ma: ma, rt: ma.runtime})
+	}
+	c.mu.Unlock()
+
+	var targets []leaseRenewTarget
+	for _, cand := range candidates {
+		mu := cand.rt.StateMu()
+		mu.Lock()
+		ma := cand.ma
 		// A live session that is NOT being torn down (an intentional stop / survival
 		// detach is in progress → its lease should be allowed to lapse) and currently
 		// has a task injected. currentTaskID empty → idle/converse-only session, no
 		// task lease to keep alive.
-		if ma == nil || ma.state == nil || ma.state.Session == nil || ma.state.ExpectedStop || ma.state.Detaching {
+		var taskID string
+		if ma.state != nil && ma.state.Session != nil && !ma.state.ExpectedStop && !ma.state.Detaching {
+			taskID = ma.state.CurrentTaskID
+		}
+		mu.Unlock()
+		if taskID == "" {
 			continue
 		}
-		if ma.state.CurrentTaskID == "" {
-			continue
-		}
-		targets = append(targets, leaseRenewTarget{agentID: id, taskID: ma.state.CurrentTaskID})
+		targets = append(targets, leaseRenewTarget{agentID: cand.id, taskID: taskID})
 	}
-	c.mu.Unlock()
 
 	for _, t := range targets {
 		if err := c.cfg.Reporter.RenewTaskLease(ctx, t.agentID, t.taskID, now); err != nil {

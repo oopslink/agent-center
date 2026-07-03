@@ -6,12 +6,12 @@ package agentruntime
 // (get_task→start_task→launch) and NotifyWork executor branch.
 //
 // 🔴 FORK MUTEX (防双 fork / 爆 max_concurrent): forkMu (a field on LocalRuntime,
-// SEPARATE from cfg.Mu which guards SessionState) serializes the WHOLE
+// SEPARATE from r.mu which guards SessionState) serializes the WHOLE
 // get_task→start_task→launch sequence in SpawnExecutor AND the shared launch tail
 // (launchExecutor), so two concurrent forks for one agent can never both pass the
 // pool cap. forkMu is held only for the fork/launch bookkeeping — the drain goroutine
 // runs detached as before, and the SessionState write (HadWork/CurrentTaskID) takes
-// cfg.Mu separately (never nested under forkMu guarding the same field).
+// r.mu separately (never nested under forkMu guarding the same field).
 
 import (
 	"context"
@@ -60,23 +60,23 @@ type ExecutorConfig struct {
 // mutex, exactly as ma.exec was set under c.mu). Called by the daemon's
 // maybeAttachExecutorEngine / reattach paths.
 func (r *LocalRuntime) AttachExecutor(ee *ExecutorEngine) {
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	r.exec = ee
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 }
 
 // HasExecutor reports whether an executor engine is attached (the exec-vs-session
 // branch predicate — exactly today's ma.exec != nil semantics).
 func (r *LocalRuntime) HasExecutor() bool {
-	r.cfg.Mu.Lock()
-	defer r.cfg.Mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.exec != nil
 }
 
 // execEngine reads the attached engine under the shared lock (nil when none).
 func (r *LocalRuntime) execEngine() *ExecutorEngine {
-	r.cfg.Mu.Lock()
-	defer r.cfg.Mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.exec
 }
 
@@ -239,9 +239,9 @@ func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID
 	// Reap the executor when it exits, freeing its pool slot. Runs detached.
 	go r.drainExecutor(ee, launched.Handle)
 
-	// Mirror the inject path's work-state bookkeeping (takes cfg.Mu, NOT forkMu — two
+	// Mirror the inject path's work-state bookkeeping (takes r.mu, NOT forkMu — two
 	// different concerns; matches today's launchExecutor which took c.mu only here).
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	if r.state != nil {
 		r.state.HadWork = true
 		if taskID != "" {
@@ -249,7 +249,7 @@ func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID
 			r.state.CurrentConversationID = ""
 		}
 	}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 	return launched, nil
 }
 

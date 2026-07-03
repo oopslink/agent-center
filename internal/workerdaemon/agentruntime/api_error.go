@@ -146,11 +146,11 @@ func (r *LocalRuntime) maybeScheduleAPIErrorResume(agentID string, ev claudestre
 	}
 	p := r.apiErrorParams()
 
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	st := r.state
 	if st.Session == nil || (st.CurrentTaskID == "" && st.CurrentConversationID == "") {
 		// No live session, or no in-flight WorkItem/conversation → nothing to resume.
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 		return false
 	}
 	if st.APIErrorRetries >= p.maxRetries {
@@ -160,7 +160,7 @@ func (r *LocalRuntime) maybeScheduleAPIErrorResume(agentID string, ev claudestre
 		}
 		st.APIErrorRetries = 0
 		st.RateLimitResumeAt = time.Time{}
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 		r.log("agent=%s inflight=%s transient/incomplete turn but retry budget (%d) spent → surfacing", agentID, inflight, p.maxRetries)
 		return false
 	}
@@ -171,7 +171,7 @@ func (r *LocalRuntime) maybeScheduleAPIErrorResume(agentID string, ev claudestre
 	now := r.now()
 	resumeAt := now.Add(delay)
 	st.RateLimitResumeAt = resumeAt
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if r.cfg.Reporter != nil {
 		payload := apiErrorResumePayload(ev, attempt, p.maxRetries, resumeAt)
@@ -188,9 +188,9 @@ func (r *LocalRuntime) maybeScheduleAPIErrorResume(agentID string, ev claudestre
 
 // resetAPIErrorRetries zeroes the transient-API-error retry budget on a CLEAN turn-end.
 func (r *LocalRuntime) resetAPIErrorRetries(agentID string) {
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	r.state.APIErrorRetries = 0
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 }
 
 func apiErrorResumePayload(ev claudestream.StreamEvent, attempt, maxRetries int, resumeAt time.Time) string {

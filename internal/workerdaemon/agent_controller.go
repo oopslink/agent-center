@@ -339,7 +339,13 @@ type managedAgent struct {
 	workAvailOrder []string
 }
 
-// live reports whether this managedAgent has a live session. Caller must hold c.mu.
+// live reports whether this managedAgent has a live session. Caller must hold the
+// runtime's StateMu (the per-agent SessionState lock) that serializes writes to
+// ma.state.Session (T839 §4.1 去共享状态). NOTE: the self-heal drain path
+// (drainSelfHeal → SelfHealStore.DrainDue) still calls this while holding c.mu — that
+// store is deliberately UNTOUCHED and shares &c.mu; it is safe there because
+// ma.state.Session is only written on the single ControlLoop goroutine that DrainDue
+// also runs on (see the lock-order note in the T839 handoff).
 func (ma *managedAgent) live() bool {
 	return ma != nil && ma.state != nil && ma.state.Session != nil
 }
@@ -354,15 +360,9 @@ type AgentController struct {
 	mu     sync.Mutex
 	agents map[string]*managedAgent
 
-	// bg tracks best-effort background goroutines spawned off the event-pump on a
-	// clean turn-end (notably MarkCompletedTurn, which writes session.instance into
-	// the agent home). Production stays fully async — these are NEVER awaited on the
-	// hot path — but Shutdown drains bg after detaching the sessions so a caller that
-	// tears down its agent-home directory (every t.TempDir()-based test) is
-	// guaranteed no goroutine is still writing into it (T672: the async home write
-	// raced t.TempDir() RemoveAll → "directory not empty"). Add is only ever called
-	// from the pump goroutine, which Detach joins before Wait — so no Add races Wait.
-	bg sync.WaitGroup
+	// (T839 §4.1 去共享状态) The best-effort clean-turn goroutine WaitGroup used to live
+	// here (c.bg, shared with every runtime). It now belongs to each LocalRuntime
+	// (r.bg); Shutdown drains them per-runtime via rt.WaitBG(). See that method.
 
 	// selfHeal is the daemon-level mid-run crash-recovery survival store (the
 	// decide/record logic lives in agentruntime.SelfHealStore). It SURVIVES the
@@ -577,8 +577,20 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
-	hasLive := ma.live()
+	var rt *agentruntime.LocalRuntime
+	if ma != nil {
+		rt = ma.runtime
+	}
 	c.mu.Unlock()
+	// Read ma.state.Session under the agent's own StateMu (去共享状态): snapshot the
+	// runtime out from under c.mu, then lock its StateMu — never both at once.
+	hasLive := false
+	if rt != nil {
+		mu := rt.StateMu()
+		mu.Lock()
+		hasLive = ma.live()
+		mu.Unlock()
+	}
 
 	if hasLive {
 		c.log("reconcile agent=%s running version-bump=%d — restarting", pl.AgentID, pl.Version)
@@ -887,15 +899,19 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 	}
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
-	var sess agentSession
 	var rt *agentruntime.LocalRuntime
 	if ma != nil {
-		if ma.state != nil {
-			sess = ma.state.Session
-		}
 		rt = ma.runtime
 	}
 	c.mu.Unlock()
+	// Read ma.state.Session under the agent's StateMu (去共享状态), not c.mu.
+	var sess agentSession
+	if rt != nil && ma != nil && ma.state != nil {
+		mu := rt.StateMu()
+		mu.Lock()
+		sess = ma.state.Session
+		mu.Unlock()
+	}
 
 	// W4a / F1 (issue I55): a CONCURRENCY-ENABLED agent (executor engine attached to
 	// its runtime — opt-in, non-codex) forks an isolated executor for the queued task
@@ -1183,14 +1199,33 @@ func (c *AgentController) wipeContained(home, target string) error {
 // is recognised as a survival detach, NOT a crash. No goroutine leaks: each
 // Detach joins the session's event-pump.
 func (c *AgentController) Shutdown(ctx context.Context) {
+	// Snapshot every (managedAgent, runtime) under c.mu, then decide liveness under
+	// each agent's own StateMu (去共享状态) — never holding c.mu and a StateMu at once.
 	c.mu.Lock()
-	rts := make([]*agentruntime.LocalRuntime, 0, len(c.agents))
+	type maRt struct {
+		ma *managedAgent
+		rt *agentruntime.LocalRuntime
+	}
+	snap := make([]maRt, 0, len(c.agents))
+	allRts := make([]*agentruntime.LocalRuntime, 0, len(c.agents))
 	for _, ma := range c.agents {
-		if ma.runtime != nil && ma.live() {
-			rts = append(rts, ma.runtime)
+		if ma.runtime != nil {
+			snap = append(snap, maRt{ma: ma, rt: ma.runtime})
 		}
 	}
 	c.mu.Unlock()
+
+	rts := make([]*agentruntime.LocalRuntime, 0, len(snap))
+	for _, e := range snap {
+		allRts = append(allRts, e.rt)
+		mu := e.rt.StateMu()
+		mu.Lock()
+		live := e.ma.live()
+		mu.Unlock()
+		if live {
+			rts = append(rts, e.rt)
+		}
+	}
 
 	for _, rt := range rts {
 		// Detach marks the session detaching (so its OnExit(nil) is a survival
@@ -1199,13 +1234,35 @@ func (c *AgentController) Shutdown(ctx context.Context) {
 		rt.Detach()
 	}
 	// Detach joined every event-pump above, so no NEW clean-turn goroutine can be
-	// spawned past this point (no further c.bg.Add). Drain the ones already in
-	// flight (e.g. MarkCompletedTurn writing session.instance) so a caller that
+	// spawned past this point (no further per-runtime bg.Add). Drain the ones already
+	// in flight (e.g. MarkCompletedTurn writing session.instance) so a caller that
 	// removes the agent home right after Shutdown — every t.TempDir()-based test —
 	// never races a lingering home write (T672). Production: these are fast local
-	// atomic writes, so the drain adds no meaningful shutdown latency.
-	c.bg.Wait()
+	// atomic writes, so the drain adds no meaningful shutdown latency. Wait on every
+	// runtime's own bg WaitGroup (去共享状态: the shared c.bg is gone).
+	for _, rt := range allRts {
+		rt.WaitBG()
+	}
 }
 
 // Stop is an alias for Shutdown using a background context (convenience).
 func (c *AgentController) Stop() { c.Shutdown(context.Background()) }
+
+// waitAllBG drains every current runtime's best-effort clean-turn goroutines
+// (去共享状态: replaces the old shared c.bg.Wait()). It snapshots the runtimes under
+// c.mu then waits per-runtime with no lock held. Used by the T672 test-cleanup drains
+// that don't call Shutdown; only agents still in the map are awaited (a since-removed
+// crashed agent's runtime is no longer reachable — see the T839 handoff note).
+func (c *AgentController) waitAllBG() {
+	c.mu.Lock()
+	rts := make([]*agentruntime.LocalRuntime, 0, len(c.agents))
+	for _, ma := range c.agents {
+		if ma.runtime != nil {
+			rts = append(rts, ma.runtime)
+		}
+	}
+	c.mu.Unlock()
+	for _, rt := range rts {
+		rt.WaitBG()
+	}
+}

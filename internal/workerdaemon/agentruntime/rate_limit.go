@@ -109,14 +109,14 @@ func (r *LocalRuntime) maybeScheduleRateLimitResume(agentID string, ev claudestr
 	delay := decideRateLimitResume(retryAfterSecs, resetAtUnix, now, r.rateLimitParams())
 	resumeAt := now.Add(delay)
 
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	if r.state.Session == nil || r.state.CurrentTaskID == "" {
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 		return false
 	}
 	wiID := r.state.CurrentTaskID
 	r.state.RateLimitResumeAt = resumeAt
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if r.cfg.Reporter != nil {
 		payload := rateLimitResumePayload(ev, retryAfterSecs, resetAtUnix, resumeAt)
@@ -136,20 +136,20 @@ func (r *LocalRuntime) maybeScheduleRateLimitResume(agentID string, ev claudestr
 // the old drainRateLimitResumes.
 func (r *LocalRuntime) drainResume(ctx context.Context, now time.Time) {
 	agentID := r.cfg.AgentID
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	st := r.state
 	if st.RateLimitResumeAt.IsZero() || st.RateLimitResumeAt.After(now) {
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 		return
 	}
 	if st.Session == nil {
 		st.RateLimitResumeAt = time.Time{}
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 		return
 	}
 	sess := st.Session
 	st.RateLimitResumeAt = time.Time{}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if err := sess.Inject(ctx, r.resumeNudgeText()); err != nil {
 		r.log("agent=%s rate-limit resume inject: %v — skipped", agentID, err)

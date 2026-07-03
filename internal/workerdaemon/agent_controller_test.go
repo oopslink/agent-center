@@ -356,7 +356,7 @@ func newTestController(t *testing.T, base string) (*AgentController, *recordingR
 	// AFTER the caller's t.TempDir() — so by Cleanup LIFO this drain runs BEFORE the
 	// TempDir RemoveAll — it guarantees no goroutine is still writing into the home
 	// when the dir is torn down, even for tests that don't call Shutdown.
-	t.Cleanup(c.bg.Wait)
+	t.Cleanup(c.waitAllBG)
 	return c, rep, rs
 }
 
@@ -742,7 +742,7 @@ func newTestControllerWithResumer(t *testing.T, base string, resumer resumeState
 	// T672: drain best-effort clean-turn goroutines before the caller's t.TempDir()
 	// RemoveAll (Cleanup LIFO — registered after TempDir runs first). See
 	// newTestController for the rationale.
-	t.Cleanup(c.bg.Wait)
+	t.Cleanup(c.waitAllBG)
 	return c, rs
 }
 

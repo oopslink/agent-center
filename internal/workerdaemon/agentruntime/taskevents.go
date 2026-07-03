@@ -75,7 +75,7 @@ func (r *LocalRuntime) recordTaskEvent(agentID, taskID string, ev claudestream.S
 	}
 	taskDir := filepath.Join(tasksDir, taskID)
 
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	st := r.state
 	if st.TaskLogID != taskID && st.TaskLog != nil {
 		_ = st.TaskLog.Close()
@@ -91,7 +91,7 @@ func (r *LocalRuntime) recordTaskEvent(agentID, taskID string, ev claudestream.S
 	logw := st.TaskLog
 	st.EventSeq++
 	seq := st.EventSeq
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if logw != nil {
 		line := fmt.Sprintf("%s\t%s\t%s\n", r.now().UTC().Format(time.RFC3339Nano), eventType, payload)
@@ -139,12 +139,12 @@ func (r *LocalRuntime) sealTaskSegment(agentID, taskID, taskDir, lastEventID str
 		r.log("eventstream agent=%s task=%s sealed segment → %s", agentID, taskID, name)
 	}
 
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	if r.state.TaskLogID == taskID {
 		if r.state.TaskLog != nil {
 			_ = r.state.TaskLog.Close()
 		}
 		r.state.TaskLog, r.state.TaskLogID = nil, ""
 	}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 }

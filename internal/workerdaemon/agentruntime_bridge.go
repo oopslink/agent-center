@@ -118,11 +118,11 @@ func startCodexSessionAdapter(ctx context.Context, spec agentruntime.CodexSpec) 
 }
 
 // baseRuntimeConfig builds the per-agent-invariant LocalRuntimeConfig (everything
-// except AgentID). The SHARED mutex is &c.mu (pointer — NEVER a copy). Called under
-// no lock; the returned value is copied per agent (copy-safe: pointers/funcs/scalars).
+// except AgentID). The runtime now owns its SessionState lock + bg WaitGroup (T839
+// §4.1 去共享状态), so neither is passed here. Called under no lock; the returned value
+// is copied per agent (copy-safe: pointers/funcs/scalars).
 func (c *AgentController) baseRuntimeConfig() agentruntime.LocalRuntimeConfig {
 	return agentruntime.LocalRuntimeConfig{
-		Mu:                      &c.mu,
 		Reporter:                c.cfg.Reporter,
 		Starter:                 c.cfg.starter,
 		CodexStarter:            c.cfg.codexStarter,
@@ -151,8 +151,7 @@ func (c *AgentController) baseRuntimeConfig() agentruntime.LocalRuntimeConfig {
 		SegmentMaxBytes:         c.cfg.SegmentMaxBytes,
 		TaskLogMaxBytes:         c.cfg.TaskLogMaxBytes,
 		EventWriter:             c.eventWriter,
-		BG:                      &c.bg,
-		RemoveAgent:             c.removeAgentLocked,
+		RemoveAgent:             c.removeAgent,
 	}
 }
 
@@ -194,6 +193,17 @@ func (c *AgentController) maybeWireMaterializer(cfg *agentruntime.LocalRuntimeCo
 // (onExit crash path) — it must NOT lock c.mu.
 func (c *AgentController) removeAgentLocked(agentID string) {
 	delete(c.agents, agentID)
+}
+
+// removeAgent is the RemoveAgent seam handed to each runtime (T839 §4.1 去共享状态).
+// onExit calls it OUTSIDE the runtime's StateMu, so it takes c.mu here to keep the
+// c.agents map guarded by c.mu (the invariant the old shared mutex provided), then
+// delegates to the byte-identical removeAgentLocked. Never called with c.mu already
+// held, and never with a StateMu held → no lock-order hazard.
+func (c *AgentController) removeAgent(agentID string) {
+	c.mu.Lock()
+	c.removeAgentLocked(agentID)
+	c.mu.Unlock()
 }
 
 // reportRecovered clears a lingering center `error` → running (recovery paths). Routes

@@ -4,11 +4,11 @@ package agentruntime
 // execution面 (session lifecycle + onEvent/onExit + self-heal/rate-limit/api-error/
 // taskevents) OFF workerdaemon.AgentController INTO here as REAL implementations.
 //
-// Locking (reviewer redline): the runtime does NOT own its state — it shares the
-// daemon's per-agent SessionState (by pointer) and the daemon's mutex (Mu ==
-// &AgentController.mu). onEvent/onExit (reader goroutine) and the daemon's
-// drainLeaseRenewals/workViaExecutor guard the identical fields under the identical
-// lock, critical sections bit-for-bit preserved.
+// Locking (T839 §4.1 去共享状态): the runtime now OWNS its SessionState lock (r.mu,
+// exposed to the daemon via StateMu()) instead of sharing &AgentController.mu.
+// onEvent/onExit (reader goroutine) and the daemon's drainLeaseRenewals/workViaExecutor
+// guard the identical SessionState fields under this per-agent lock — critical sections
+// preserved. c.mu still guards the daemon's c.agents map (the RemoveAgent seam takes it).
 
 import (
 	"context"
@@ -48,10 +48,6 @@ const (
 // sync.Mutex by value → copylocks-clean) and passes it to NewLocalRuntime.
 type LocalRuntimeConfig struct {
 	AgentID string
-
-	// Mu is the SHARED mutex (== &AgentController.mu). Guards SessionState + the
-	// self-heal store. NEVER a copy — always the daemon's own mutex by pointer.
-	Mu *sync.Mutex
 
 	Reporter     Reporter
 	Starter      SessionStarter
@@ -102,12 +98,9 @@ type LocalRuntimeConfig struct {
 	TaskLogMaxBytes int64
 	EventWriter     *taskexec.EventStreamWriter
 
-	// BG tracks best-effort clean-turn goroutines (== &AgentController.bg) so
-	// Shutdown drains them. Pointer → never copies the WaitGroup by value.
-	BG *sync.WaitGroup
-
-	// RemoveAgent deletes the managedAgent from the daemon map. Called with Mu HELD
-	// (onExit crash path) — it must NOT re-lock Mu.
+	// RemoveAgent deletes the managedAgent from the daemon map. onExit invokes it
+	// OUTSIDE the runtime's StateMu (去共享状态), so the seam is responsible for taking
+	// the daemon's c.mu (which guards c.agents) itself.
 	RemoveAgent func(agentID string)
 
 	// Materializer is the repo-workspace port (AC_EXECUTOR_GIT_WORKTREE). nil ⇒ the
@@ -127,17 +120,38 @@ type LocalRuntime struct {
 	cfg   LocalRuntimeConfig
 	state *SessionState
 
+	// mu is the PER-AGENT SessionState lock (T839 §4.1 去共享状态). It replaces the
+	// formerly SHARED cfg.Mu (== &AgentController.mu): the runtime now owns the lock
+	// that guards its own SessionState, and the daemon reaches it via StateMu() during
+	// the transitional decoupling. Critical sections are bit-for-bit those the shared
+	// mutex protected before the move.
+	mu sync.Mutex
+
+	// bg tracks best-effort clean-turn goroutines (formerly &AgentController.bg) so
+	// Shutdown drains them via WaitBG(). Per-agent now (去共享状态).
+	bg sync.WaitGroup
+
 	// exec is the per-agent concurrent-execution wiring (Phase 0c), installed via
 	// AttachExecutor when the agent opts into concurrency. nil ⇒ single-claude inject
-	// path. Guarded by the SHARED cfg.Mu exactly as ma.exec was guarded by c.mu.
+	// path. Guarded by r.mu exactly as ma.exec was guarded by c.mu.
 	exec *ExecutorEngine
 
 	// forkMu (red line #1) serializes the get_task→start_task→launch fork sequence
 	// (SpawnExecutor) AND the shared launch tail (launchExecutor) so two concurrent
-	// forks for one agent cannot both pass the pool cap. SEPARATE from cfg.Mu (the
+	// forks for one agent cannot both pass the pool cap. SEPARATE from r.mu (the
 	// SessionState lock) — a different concern; never guards the same field.
 	forkMu sync.Mutex
 }
+
+// StateMu is the per-agent SessionState lock the daemon uses during the transitional
+// decoupling (T839 §4.1 去共享状态). The daemon snapshots the *managedAgent out from
+// under c.mu, then locks this to read/write that agent's ma.state.* fields — the same
+// fields the runtime's own critical sections guard.
+func (r *LocalRuntime) StateMu() *sync.Mutex { return &r.mu }
+
+// WaitBG blocks until this agent's best-effort clean-turn goroutines have drained
+// (Shutdown calls it per-runtime, replacing the old shared c.bg.Wait()).
+func (r *LocalRuntime) WaitBG() { r.bg.Wait() }
 
 var _ Runtime = (*LocalRuntime)(nil)
 
@@ -208,10 +222,10 @@ func (r *LocalRuntime) agentPaths(agentID string) (home, tasksDir, plansDir stri
 // the executor branch to workViaExecutor before reaching here).
 func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	agentID := req.AgentID
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	sess := r.state.Session
 	ee := r.exec
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 	if sess == nil {
 		return fmt.Errorf("agent_controller: work for agent=%s but no running session (retry after reconcile)", agentID)
 	}
@@ -247,13 +261,13 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 		return fmt.Errorf("agent_controller: inject agent=%s: %w", agentID, err)
 	}
 
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	r.state.HadWork = true
 	if req.TaskID != "" {
 		r.state.CurrentTaskID = req.TaskID
 		r.state.CurrentConversationID = ""
 	}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 	return nil
 }
 
@@ -261,16 +275,16 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 // mark-seen), mirroring the old wake().
 func (r *LocalRuntime) NotifyWake(ctx context.Context, req WakeRequest) error {
 	agentID := req.AgentID
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	sess := r.state.Session
 	if req.MessageID != "" && r.state.WakeSeen != nil {
 		if _, seen := r.state.WakeSeen[req.MessageID]; seen {
-			r.cfg.Mu.Unlock()
+			r.mu.Unlock()
 			r.log("wake agent=%s message=%s already injected — dedup no-op", agentID, req.MessageID)
 			return nil
 		}
 	}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if sess == nil {
 		return fmt.Errorf("agent_controller: wake for agent=%s but no running session (retry after reconcile)", agentID)
@@ -289,10 +303,10 @@ func (r *LocalRuntime) NotifyWake(ctx context.Context, req WakeRequest) error {
 	}
 
 	if req.TaskID != "" {
-		r.cfg.Mu.Lock()
+		r.mu.Lock()
 		r.state.CurrentTaskID = req.TaskID
 		r.state.CurrentConversationID = ""
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 	}
 	return nil
 }
@@ -301,16 +315,16 @@ func (r *LocalRuntime) NotifyWake(ctx context.Context, req WakeRequest) error {
 // WorkItem), mirroring the old converse().
 func (r *LocalRuntime) NotifyConverse(ctx context.Context, req ConverseRequest) error {
 	agentID := req.AgentID
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	sess := r.state.Session
 	if req.MessageID != "" && r.state.WakeSeen != nil {
 		if _, seen := r.state.WakeSeen[req.MessageID]; seen {
-			r.cfg.Mu.Unlock()
+			r.mu.Unlock()
 			r.log("converse agent=%s message=%s already injected — dedup no-op", agentID, req.MessageID)
 			return nil
 		}
 	}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if sess == nil {
 		return fmt.Errorf("agent_controller: converse for agent=%s but no running session (retry after reconcile)", agentID)
@@ -328,10 +342,10 @@ func (r *LocalRuntime) NotifyConverse(ctx context.Context, req ConverseRequest) 
 		r.log("converse agent=%s message_delivered report: %v", agentID, err)
 	}
 
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	r.state.CurrentConversationID = req.ConversationID
 	r.state.CurrentTaskID = ""
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if req.ConversationID != "" && req.MessageID != "" {
 		if err := r.cfg.Reporter.ReportMarkSeen(ctx, agentID, req.ConversationID, req.MessageID, time.Now()); err != nil {
@@ -348,8 +362,8 @@ func (r *LocalRuntime) recordWake(messageID string) {
 	if messageID == "" {
 		return
 	}
-	r.cfg.Mu.Lock()
-	defer r.cfg.Mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.state.WakeSeen == nil {
 		r.state.WakeSeen = make(map[string]struct{}, WakeDedupCap)
 	}
@@ -376,14 +390,14 @@ func (r *LocalRuntime) recordWake(messageID string) {
 func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	agentID := spec.AgentID
 	// Session-scoped config carried across a crash (self-heal gets no fresh reconcile).
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	r.state.Version = spec.Version
 	r.state.Model = spec.Model
 	r.state.DisplayName = spec.DisplayName
 	r.state.PromptDescription = spec.PromptDescription
 	r.state.EnvVars = cloneEnv(spec.EnvVars)
 	r.state.CLI = spec.CLI
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	home, tasksDir, _, err := r.agentPaths(agentID)
 	if err != nil {
@@ -459,9 +473,9 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 		return fmt.Errorf("agent_controller: start session: %w", err)
 	}
 
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	r.state.Session = sess
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	sessionID := claudestream.SessionUUIDGen(agentID, epochState.Epoch, generation)
 	if _, lerr := sessioninstance.AcquireInstance(home, sessionID, os.Getpid()); lerr != nil {
@@ -493,9 +507,9 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	if err != nil {
 		return fmt.Errorf("agent_controller: start codex session: %w", err)
 	}
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	r.state.Session = sess
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 	r.log("started codex agent=%s version=%d home=%s", agentID, spec.Version, home)
 	return nil
 }
@@ -510,9 +524,9 @@ func (r *LocalRuntime) rawLogger() func(msg string) {
 // builds the *SupervisorSession via ReattachSupervisorSession wiring
 // OnEventCallback/OnExitCallback, then hands it here.
 func (r *LocalRuntime) Attach(sess Session) {
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	r.state.Session = sess
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 }
 
 // OnEventCallback / OnExitCallback expose the reader-goroutine callbacks so the
@@ -536,17 +550,17 @@ func (r *LocalRuntime) StopReporting(ctx context.Context) error {
 
 func (r *LocalRuntime) stop(ctx context.Context, reportLifecycle bool) error {
 	agentID := r.cfg.AgentID
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	sess := r.state.Session
 	if sess == nil {
-		r.cfg.Mu.Unlock()
+		r.mu.Unlock()
 		if reportLifecycle {
 			r.reportLifecycleOnce(ctx, "stopped", "")
 		}
 		return nil
 	}
 	r.state.ExpectedStop = true
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 
 	if err := sess.Stop(ctx); err != nil {
 		r.log("stop agent=%s: %v", agentID, err)
@@ -566,20 +580,20 @@ func (r *LocalRuntime) stop(ctx context.Context, reportLifecycle bool) error {
 
 // IsRunning reports whether the session is live.
 func (r *LocalRuntime) IsRunning() bool {
-	r.cfg.Mu.Lock()
-	defer r.cfg.Mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.state.Session != nil
 }
 
 // Detach detaches the live session (daemon-shutdown survival). Sets Detaching so
 // onExit recognises the nil exit as a survival detach, not a crash.
 func (r *LocalRuntime) Detach() {
-	r.cfg.Mu.Lock()
+	r.mu.Lock()
 	sess := r.state.Session
 	if sess != nil {
 		r.state.Detaching = true
 	}
-	r.cfg.Mu.Unlock()
+	r.mu.Unlock()
 	if sess != nil {
 		sess.Detach()
 	}

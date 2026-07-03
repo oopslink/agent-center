@@ -1,7 +1,6 @@
 package agentruntime
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -13,10 +12,9 @@ import (
 // progress events (and emitExecutorStart) each post ONE lifecycle activity, and a nil
 // Launched is a no-op.
 func TestExecutorActivityObserver_Emits(t *testing.T) {
-	var mu sync.Mutex
 	rep := &recReporter{}
 	rt := NewLocalRuntime(LocalRuntimeConfig{
-		AgentID: "a", Mu: &mu, Reporter: rep,
+		AgentID: "a", Reporter: rep,
 		Log: func(string, ...any) {}, Now: func() time.Time { return time.Unix(1, 0) },
 	}, &SessionState{})
 	obs := executorActivityObserver{r: rt, agentID: "a"}

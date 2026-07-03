@@ -33,10 +33,8 @@ func lookTrue(t *testing.T) string {
 // given binary. The shared mutex is a fresh one (the runtime owns its state here).
 func newExecRuntime(t *testing.T, base, agentID, binary string) *LocalRuntime {
 	t.Helper()
-	var mu sync.Mutex
 	cfg := LocalRuntimeConfig{
 		AgentID:       agentID,
-		Mu:            &mu,
 		Reporter:      &nopReporter{},
 		WorkerID:      "w-1",
 		AgentHomeBase: base,

@@ -61,7 +61,6 @@ func (r *recReporter) hasActivity(eventType string) bool {
 func incompleteTurnRuntime(t *testing.T) (*LocalRuntime, *SessionState, *recReporter, *advClock, *fakeSession) {
 	t.Helper()
 	var mu sync.Mutex
-	var bg sync.WaitGroup
 	rep := &recReporter{}
 	clk := &advClock{t: time.Unix(1_000_000, 0)}
 	st := &SessionState{}
@@ -69,11 +68,9 @@ func incompleteTurnRuntime(t *testing.T) (*LocalRuntime, *SessionState, *recRepo
 	st.Session = fs
 	cfg := LocalRuntimeConfig{
 		AgentID:  "agent-1",
-		Mu:       &mu,
 		Reporter: rep,
 		Log:      func(string, ...any) {},
 		Now:      clk.now,
-		BG:       &bg,
 		SelfHeal: NewSelfHealStore(&mu, SelfHealParams{}, nil),
 	}
 	return NewLocalRuntime(cfg, st), st, rep, clk, fs
@@ -93,9 +90,9 @@ func TestAPIError_IncompleteMarkerSchedulesResumeOnCleanResult(t *testing.T) {
 	rt.onEvent(claudestream.StreamEvent{Type: "assistant_text", Text: "API Error: Connection closed mid-response. The response above may be incomplete."})
 	rt.onEvent(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
 
-	rt.cfg.Mu.Lock()
+	rt.StateMu().Lock()
 	gotTask, gotResumeAt, gotRetries, gotFlag := st.CurrentTaskID, st.RateLimitResumeAt, st.APIErrorRetries, st.SawIncompleteTurn
-	rt.cfg.Mu.Unlock()
+	rt.StateMu().Unlock()
 	if gotTask != "wi-1" {
 		t.Fatalf("incomplete turn must PRESERVE CurrentTaskID for resume, got %q", gotTask)
 	}
@@ -135,9 +132,9 @@ func TestAPIError_IncompleteMarkerResumesConverseTurn(t *testing.T) {
 	rt.onEvent(claudestream.StreamEvent{Type: "assistant_text", Text: "…the response above may be incomplete."})
 	rt.onEvent(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
 
-	rt.cfg.Mu.Lock()
+	rt.StateMu().Lock()
 	gotConv, gotTask, gotResumeAt, gotRetries := st.CurrentConversationID, st.CurrentTaskID, st.RateLimitResumeAt, st.APIErrorRetries
-	rt.cfg.Mu.Unlock()
+	rt.StateMu().Unlock()
 	if gotTask != "" {
 		t.Fatalf("converse turn must have no WorkItem, got CurrentTaskID=%q", gotTask)
 	}
