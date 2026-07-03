@@ -26,6 +26,10 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	var rlResetAt int64
 	var taskForEvent string
 	var clearEventTask bool
+	// sawIncomplete snapshots whether THIS turn was cut short by a connection drop (an
+	// assistant_text truncation marker seen earlier this turn), read at turn-end so the
+	// `result` branch below can schedule a bounded resume even when is_error=false (T799).
+	var sawIncomplete bool
 	workItemRef = st.CurrentTaskID
 	switch ev.Type {
 	case "tool_use":
@@ -41,6 +45,13 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		if isTaskTerminalTool(ev.ToolName) {
 			clearEventTask = true
 		}
+	case "assistant_text":
+		// T799: claude prints "API Error: Connection closed mid-response. The response
+		// above may be incomplete." as ordinary assistant text; flag the turn so the
+		// terminal `result` schedules a resume even if is_error=false.
+		if isIncompleteTurnMarker(ev.Text) {
+			st.SawIncompleteTurn = true
+		}
 	case "tool_result":
 		toolName = st.ToolNames[ev.ToolUseID]
 	case "rate_limit":
@@ -50,11 +61,14 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		st.ToolNames = nil
 		if ev.Subtype == "init" {
 			st.RLRetryAfterSecs, st.RLResetAtUnix = 0, 0
+			st.SawIncompleteTurn = false // fresh turn → drop a stale truncation marker
 		}
 	case "result":
 		st.ToolNames = nil
 		rlRetryAfter, rlResetAt = st.RLRetryAfterSecs, st.RLResetAtUnix
 		st.RLRetryAfterSecs, st.RLResetAtUnix = 0, 0
+		sawIncomplete = st.SawIncompleteTurn
+		st.SawIncompleteTurn = false // turn ended → consume the truncation marker
 	}
 	taskForEvent = st.EventTaskID
 	r.cfg.Mu.Unlock()
@@ -90,10 +104,23 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		if r.maybeScheduleRateLimitResume(agentID, ev, rlRetryAfter, rlResetAt) {
 			return
 		}
-		if r.maybeScheduleAPIErrorResume(agentID, ev) {
+		if r.maybeScheduleAPIErrorResume(agentID, ev, sawIncomplete) {
 			return
 		}
 		r.surfaceTurnFailure(agentID, ev)
+	}
+
+	// T799: a turn CUT SHORT by a connection drop can end with is_error=FALSE — claude
+	// prints "…the response above may be incomplete." as ordinary assistant text and
+	// then closes the turn "successfully", so IsTransientAPIError (which only inspects a
+	// `result` is_error) never fires. Handle it HERE, before the clean-turn path:
+	// schedule the SAME bounded resume of the still-live turn. Does NOT return when there
+	// is nothing to resume or the budget is spent, so the normal clean-turn handling below
+	// still runs (the truncation marker was consumed above).
+	if ev.Type == "result" && !ev.IsError && sawIncomplete {
+		if r.maybeScheduleAPIErrorResume(agentID, ev, sawIncomplete) {
+			return
+		}
 	}
 
 	if ev.Type == "result" && !ev.IsError {

@@ -177,6 +177,16 @@ type SessionState struct {
 	// APIErrorRetries counts consecutive transient-API-error resumes for the turn.
 	APIErrorRetries int
 
+	// SawIncompleteTurn is set when THIS turn's assistant_text carried a truncation
+	// marker ("Connection closed mid-response" / "the response above may be incomplete")
+	// — claude prints the connection-drop as ordinary assistant TEXT and may still end
+	// the turn with a `result` is_error=FALSE, so IsTransientAPIError (which only
+	// inspects a `result` is_error) never sees it. Recorded on the assistant_text event,
+	// consumed + cleared on the turn-end `result` (and on a fresh system/init) so the
+	// runtime can schedule the SAME bounded resume for a truncated turn that would
+	// otherwise be silently incomplete (快修 T799). Guarded by the shared Mu.
+	SawIncompleteTurn bool
+
 	// Lifecycle coordination (onExit three-state).
 	ExpectedStop  bool
 	Detaching     bool

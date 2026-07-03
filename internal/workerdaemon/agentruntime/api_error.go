@@ -36,6 +36,33 @@ var transientAPIErrorSignatures = []string{
 	"gateway timeout",
 }
 
+// incompleteTurnMarkers are needles in a turn's assistant_text that mean the response
+// was CUT SHORT by a transient connection drop ("API Error: Connection closed
+// mid-response. The response above may be incomplete."). Unlike a terminal `result`
+// is_error, claude prints this as ordinary assistant TEXT and may still end the turn
+// with is_error=false — so it escapes IsTransientAPIError. onEvent flags the turn
+// (SessionState.SawIncompleteTurn) on a match so a truncated turn gets the SAME
+// bounded resume instead of being left silently incomplete (快修 T799).
+var incompleteTurnMarkers = []string{
+	"connection closed mid-response",
+	"the response above may be incomplete",
+}
+
+// isIncompleteTurnMarker reports whether an assistant_text block carries a
+// connection-drop truncation marker (case-insensitive). Empty text is never a marker.
+func isIncompleteTurnMarker(text string) bool {
+	if text == "" {
+		return false
+	}
+	hay := strings.ToLower(text)
+	for _, m := range incompleteTurnMarkers {
+		if strings.Contains(hay, m) {
+			return true
+		}
+	}
+	return false
+}
+
 // IsTransientAPIError reports whether a `result` is_error event is a transient
 // API/connection error.
 func IsTransientAPIError(ev claudestream.StreamEvent) bool {
@@ -104,25 +131,37 @@ func decideAPIErrorBackoff(attempt int, p apiErrorParams) time.Duration {
 	return d
 }
 
-// maybeScheduleAPIErrorResume schedules a bounded resume for a transient API error.
-func (r *LocalRuntime) maybeScheduleAPIErrorResume(agentID string, ev claudestream.StreamEvent) bool {
-	if !IsTransientAPIError(ev) {
+// maybeScheduleAPIErrorResume schedules a bounded resume for a turn-end `result` the
+// rate-limit path did NOT claim, when BOTH: (a) the turn is retryable — a transient
+// API/connection `result` is_error (IsTransientAPIError) OR sawIncomplete=true (T799:
+// the turn was cut short by a connection drop and printed "…may be incomplete." as
+// text, ending is_error=false so IsTransientAPIError never sees it); AND (b) there is
+// an in-flight context on a LIVE session — a WorkItem (CurrentTaskID) OR a conversation
+// (CurrentConversationID, T799: a DM/@mention turn resumes instead of only posting a
+// system notice); AND (c) the retry budget is not spent. Returns false otherwise so
+// the caller runs its normal handling (a persistently-failing turn surfaces, not loops).
+func (r *LocalRuntime) maybeScheduleAPIErrorResume(agentID string, ev claudestream.StreamEvent, sawIncomplete bool) bool {
+	if !IsTransientAPIError(ev) && !sawIncomplete {
 		return false
 	}
 	p := r.apiErrorParams()
 
 	r.cfg.Mu.Lock()
 	st := r.state
-	if st.Session == nil || st.CurrentTaskID == "" {
+	if st.Session == nil || (st.CurrentTaskID == "" && st.CurrentConversationID == "") {
+		// No live session, or no in-flight WorkItem/conversation → nothing to resume.
 		r.cfg.Mu.Unlock()
 		return false
 	}
 	if st.APIErrorRetries >= p.maxRetries {
+		inflight := st.CurrentTaskID
+		if inflight == "" {
+			inflight = st.CurrentConversationID
+		}
 		st.APIErrorRetries = 0
 		st.RateLimitResumeAt = time.Time{}
-		wi := st.CurrentTaskID
 		r.cfg.Mu.Unlock()
-		r.log("agent=%s work_item=%s transient API error but retry budget (%d) spent → surfacing failure", agentID, wi, p.maxRetries)
+		r.log("agent=%s inflight=%s transient/incomplete turn but retry budget (%d) spent → surfacing", agentID, inflight, p.maxRetries)
 		return false
 	}
 	st.APIErrorRetries++
