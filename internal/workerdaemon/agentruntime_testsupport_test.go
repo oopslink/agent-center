@@ -31,47 +31,15 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	}
 }
 
-func (c *AgentController) onExit(agentID string, err error) {
-	if rt := c.runtimeFor(agentID); rt != nil {
-		rt.OnExit(err)
-	}
-}
-
 func (c *AgentController) maybeReportUsage(agentID string, ev StreamEvent, taskID string) {
 	if rt := c.runtimeFor(agentID); rt != nil {
 		rt.MaybeReportUsage(agentID, ev, taskID)
 	}
 }
 
-func (c *AgentController) surfaceTurnFailure(agentID string, ev StreamEvent) {
-	if rt := c.runtimeFor(agentID); rt != nil {
-		rt.SurfaceTurnFailure(agentID, ev)
-	}
-}
-
 func (c *AgentController) recordTaskEvent(agentID, taskID string, ev StreamEvent, eventType, payload string, delivered bool) {
 	if rt := c.runtimeFor(agentID); rt != nil {
 		rt.RecordTaskEvent(agentID, taskID, ev, eventType, payload, delivered)
-	}
-}
-
-func (c *AgentController) maybeScheduleRateLimitResume(agentID string, ev StreamEvent, retryAfterSecs int, resetAtUnix int64) bool {
-	if rt := c.runtimeFor(agentID); rt != nil {
-		return rt.MaybeScheduleRateLimitResume(agentID, ev, retryAfterSecs, resetAtUnix)
-	}
-	return false
-}
-
-func (c *AgentController) maybeScheduleAPIErrorResume(agentID string, ev StreamEvent) bool {
-	if rt := c.runtimeFor(agentID); rt != nil {
-		return rt.MaybeScheduleAPIErrorResume(agentID, ev)
-	}
-	return false
-}
-
-func (c *AgentController) resetAPIErrorRetries(agentID string) {
-	if rt := c.runtimeFor(agentID); rt != nil {
-		rt.ResetAPIErrorRetries(agentID)
 	}
 }
 

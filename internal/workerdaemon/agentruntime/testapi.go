@@ -17,33 +17,14 @@ func (r *LocalRuntime) MaybeReportUsage(agentID string, ev claudestream.StreamEv
 	r.maybeReportUsage(agentID, ev, taskID)
 }
 
-// SurfaceTurnFailure exposes the L2 failure surface for daemon-level tests.
-func (r *LocalRuntime) SurfaceTurnFailure(agentID string, ev claudestream.StreamEvent) {
-	r.surfaceTurnFailure(agentID, ev)
-}
-
-// MaybeScheduleRateLimitResume exposes the rate-limit resume scheduler for tests.
-func (r *LocalRuntime) MaybeScheduleRateLimitResume(agentID string, ev claudestream.StreamEvent, retryAfterSecs int, resetAtUnix int64) bool {
-	return r.maybeScheduleRateLimitResume(agentID, ev, retryAfterSecs, resetAtUnix)
-}
-
-// MaybeScheduleAPIErrorResume exposes the transient-API-error resume scheduler for tests.
-func (r *LocalRuntime) MaybeScheduleAPIErrorResume(agentID string, ev claudestream.StreamEvent) bool {
-	return r.maybeScheduleAPIErrorResume(agentID, ev)
-}
-
-// ResetAPIErrorRetries exposes the clean-turn retry-budget reset for tests.
-func (r *LocalRuntime) ResetAPIErrorRetries(agentID string) { r.resetAPIErrorRetries(agentID) }
-
 // RecordTaskEvent exposes the W3/W4 local task sink for tests.
 func (r *LocalRuntime) RecordTaskEvent(agentID, taskID string, ev claudestream.StreamEvent, eventType, payload string, delivered bool) {
 	r.recordTaskEvent(agentID, taskID, ev, eventType, payload, delivered)
 }
 
-// OnEvent / OnExit expose the reader-goroutine callbacks for tests that drive them
+// OnEvent exposes the reader-goroutine event callback for tests that drive it
 // directly (rather than via a fake session's emit).
 func (r *LocalRuntime) OnEvent(ev claudestream.StreamEvent) { r.onEvent(ev) }
-func (r *LocalRuntime) OnExit(err error)                    { r.onExit(err) }
 
 // RateLimitResumePayload / APIErrorResumePayload expose the activity payload builders.
 func RateLimitResumePayload(ev claudestream.StreamEvent, retryAfterSecs int, resetAtUnix int64, resumeAt time.Time) string {
