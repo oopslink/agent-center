@@ -331,6 +331,7 @@
       "assignmentPool": "认领池",
       "addToPlan": "加入计划",
       "unassigned": "未分配",
+      "openAgentActivity": "查看 agent 活动",
       "overflow_one": "…还有 {{count}} 个",
       "overflow_other": "…还有 {{count}} 个",
       "backlog": {

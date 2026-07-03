@@ -26,6 +26,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel } from '@/components/planDisplay';
+import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSidebarContext';
 
 // v2.10.1 [M5] — touch long-press drag plumbing. The board's cards pick up the
 // `startLongPress` handler from this context so a touch drag can be started from
@@ -123,6 +124,9 @@ export default function ProjectPlans(): React.ReactElement {
   const projectName = project.data?.name ?? id;
 
   return (
+    // Wrap the board in the sender-sidebar provider so clicking an agent assignee
+    // on any card opens the shared agent-activity sidebar (owner ask 2026-07-03).
+    <SenderSidebarProvider>
     <section className="space-y-4" data-testid="page-ProjectPlans" data-project-id={id}>
       <Breadcrumb
         items={[
@@ -198,6 +202,7 @@ export default function ProjectPlans(): React.ReactElement {
         <span aria-hidden="true" className="text-3xl font-light leading-none">+</span>
       </button>
     </section>
+    </SenderSidebarProvider>
   );
 }
 
@@ -558,6 +563,11 @@ function BacklogCard({
       }}
       onDragEnd={() => setDragSource(null)}
     >
+      {/* Owner ask (2026-07-03): a backlog card shows its human task id (T123),
+          same as the pool / plan-node cards. */}
+      <div className="mb-1 flex items-center gap-1">
+        <TaskIdTag taskId={task.id} orgRef={task.org_ref} />
+      </div>
       <div className="mb-1.5 text-xs font-semibold leading-tight text-text-primary">
         <TaskTitleLink projectId={projectId} taskId={task.id} title={task.title} />
       </div>
@@ -1305,6 +1315,7 @@ function NewPlanColumn({ onClick }: { onClick: () => void }): React.ReactElement
 function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactElement {
   const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
+  const openSender = useSenderSidebar();
   if (!assignee) {
     return (
       <span className="inline-flex items-center gap-1 text-[0.6875rem] text-text-muted" data-testid="assignee">
@@ -1322,6 +1333,43 @@ function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactE
   const resolved = resolveName(assignee);
   const label = resolved === assignee ? normalizeIdentityRef(assignee) : resolved;
   const disc = kind === 'agent' ? 'bg-status-violet-solid' : 'bg-status-cyan-solid';
+  const avatar = (
+    <span
+      className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[0.5rem] font-bold text-white ${disc}`}
+      aria-hidden="true"
+    >
+      {label.charAt(0).toUpperCase()}
+    </span>
+  );
+  // Owner ask (2026-07-03): clicking an AGENT assignee opens the shared agent
+  // activity sidebar (openSender routes agent:→AgentDetailBody). Only when a
+  // SenderSidebarProvider is present (the Work Board wraps one). The button is
+  // NOT draggable and stops propagation so it never starts a card drag.
+  if (kind === 'agent' && openSender) {
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded text-[0.6875rem] text-text-secondary hover:text-accent hover:underline"
+        data-testid="assignee"
+        data-kind={kind}
+        // #192/#215: the raw prefixed ref stays on the title (hover) only — the
+        // visible text is the resolved name / clean handle. aria-label conveys the
+        // click action for a11y.
+        title={assignee}
+        aria-label={t('plan.board.openAgentActivity', { defaultValue: 'View agent activity' })}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          openSender(assignee);
+        }}
+      >
+        {avatar}
+        {label}
+      </button>
+    );
+  }
   return (
     <span
       className="inline-flex items-center gap-1 text-[0.6875rem] text-text-secondary"
@@ -1329,12 +1377,7 @@ function AssigneeBadge({ assignee }: { assignee?: string | null }): React.ReactE
       data-kind={kind}
       title={assignee}
     >
-      <span
-        className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[0.5rem] font-bold text-white ${disc}`}
-        aria-hidden="true"
-      >
-        {label.charAt(0).toUpperCase()}
-      </span>
+      {avatar}
       {label}
     </span>
   );
