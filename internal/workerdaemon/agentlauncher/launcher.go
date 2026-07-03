@@ -44,6 +44,13 @@ type AgentLauncher interface {
 	// idempotent: a no-op if the agent is already up. Returns an error only if the
 	// initial spawn fails.
 	Ensure(spec AgentSpec) error
+	// Adopt takes over supervision of an already-running (non-child) survivor process
+	// by pid, WITHOUT respawning it — the worker-restart re-adoption path (T860 gap5).
+	// The caller must have confirmed the pid is alive and serving spec.AgentID.
+	Adopt(spec AgentSpec, pid int) error
+	// AdoptablePIDs returns the durably-recorded agentID→pid map the boot reconcile
+	// consults to decide adopt-vs-spawn (empty when no durable store is configured).
+	AdoptablePIDs() map[string]int
 	// Stop terminates the agent unit and stops rebuilding it (desired-stopped, or the
 	// agent was removed from this worker). Idempotent: a no-op for an unknown agent.
 	Stop(agentID string) error
@@ -54,14 +61,19 @@ type AgentLauncher interface {
 }
 
 // BackoffParams throttles rebuilds so a crash-looping agent does not hot-spin. The
-// delay grows Base·2^(consecutive crashes-1) capped at Max.
+// delay grows Base·2^(consecutive crashes-1) capped at Max. ResetAfter is the stable-
+// uptime threshold that zeroes the CONSECUTIVE-crash counter (T860 gap4, PD nuance):
+// a process that ran healthy for ≥ ResetAfter before dying is NOT counted toward the
+// crash-loop cap — so a long-lived agent's sporadic crashes over months never brick it,
+// while a poison session that keeps crashing fast accumulates toward MaxAttempts.
 type BackoffParams struct {
-	Base time.Duration
-	Max  time.Duration
+	Base       time.Duration
+	Max        time.Duration
+	ResetAfter time.Duration
 }
 
-// DefaultBackoff is a sane rebuild throttle (1s → … → 30s).
-var DefaultBackoff = BackoffParams{Base: time.Second, Max: 30 * time.Second}
+// DefaultBackoff is a sane rebuild throttle (1s → … → 30s; reset after 5 min healthy).
+var DefaultBackoff = BackoffParams{Base: time.Second, Max: 30 * time.Second, ResetAfter: 5 * time.Minute}
 
 func (b BackoffParams) normalized() BackoffParams {
 	if b.Base <= 0 {
@@ -69,6 +81,9 @@ func (b BackoffParams) normalized() BackoffParams {
 	}
 	if b.Max <= 0 {
 		b.Max = DefaultBackoff.Max
+	}
+	if b.ResetAfter <= 0 {
+		b.ResetAfter = DefaultBackoff.ResetAfter
 	}
 	return b
 }
@@ -109,16 +124,26 @@ type ProcessStarter interface {
 // rebuilds it on exit (design §4.5). Safe for concurrent Ensure/Stop from the
 // controller loop.
 type LocalProcessLauncher struct {
-	starter   ProcessStarter
-	backoff   BackoffParams
-	stopGrace time.Duration
-	after     func(time.Duration) <-chan time.Time // sleep seam (tests inject)
-	log       func(format string, args ...any)
+	starter     ProcessStarter
+	backoff     BackoffParams
+	maxAttempts int
+	stopGrace   time.Duration
+	adoptPoll   time.Duration                        // liveness poll for adopted (non-child) survivors
+	after       func(time.Duration) <-chan time.Time // sleep seam (tests inject)
+	now         func() time.Time                     // clock seam for uptime (tests inject)
+	onExhausted func(agentID string, lastErr error)  // crash-loop cap hit → report terminal
+	pids        PIDStore                             // durable agentID→pid for worker-restart re-adoption
+	log         func(format string, args ...any)
 
 	mu    sync.Mutex
 	units map[string]*agentUnit
 	wg    sync.WaitGroup
 }
+
+// DefaultMaxRebuildAttempts caps consecutive rapid rebuilds before an agent is declared
+// a poison crash-loop (T860 gap4). The counter resets after a stable run (BackoffParams
+// .ResetAfter), so this bounds ONLY back-to-back crashes, never a long-lived agent.
+const DefaultMaxRebuildAttempts = 6
 
 // Config wires a LocalProcessLauncher.
 type Config struct {
@@ -126,10 +151,25 @@ type Config struct {
 	Starter ProcessStarter
 	// Backoff throttles rebuilds (zero → DefaultBackoff).
 	Backoff BackoffParams
+	// MaxAttempts caps CONSECUTIVE rapid rebuilds (reset by a stable run) before the
+	// agent is declared a poison crash-loop and rebuilding stops (zero → default).
+	MaxAttempts int
+	// OnExhausted is called when MaxAttempts is exceeded — the worker reports the agent
+	// terminally errored so a poison session does not hot-loop forever. Optional.
+	OnExhausted func(agentID string, lastErr error)
 	// StopGrace is how long Stop waits after Signal before Kill (zero → 5s).
 	StopGrace time.Duration
+	// PIDs durably records launched agent pids so a worker restart can re-adopt
+	// surviving agent processes instead of double-spawning (T860 gap5). Optional (nil
+	// → no persistence, so every restart respawns).
+	PIDs PIDStore
+	// AdoptPoll is how often an adopted (non-child) survivor's liveness is polled via
+	// signal-0 (zero → 1s). Only used for adopted units.
+	AdoptPoll time.Duration
 	// After is the delay seam (nil → time.After); tests inject a controllable one.
 	After func(time.Duration) <-chan time.Time
+	// Now is the clock seam for uptime measurement (nil → time.Now).
+	Now func() time.Time
 	// Log is an optional logger.
 	Log func(format string, args ...any)
 }
@@ -147,30 +187,118 @@ func New(cfg Config) (*LocalProcessLauncher, error) {
 	if after == nil {
 		after = time.After
 	}
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
+	maxAttempts := cfg.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = DefaultMaxRebuildAttempts
+	}
 	log := cfg.Log
 	if log == nil {
 		log = func(string, ...any) {}
 	}
+	adoptPoll := cfg.AdoptPoll
+	if adoptPoll <= 0 {
+		adoptPoll = time.Second
+	}
 	return &LocalProcessLauncher{
-		starter:   cfg.Starter,
-		backoff:   cfg.Backoff.normalized(),
-		stopGrace: grace,
-		after:     after,
-		log:       log,
-		units:     make(map[string]*agentUnit),
+		starter:     cfg.Starter,
+		backoff:     cfg.Backoff.normalized(),
+		maxAttempts: maxAttempts,
+		stopGrace:   grace,
+		adoptPoll:   adoptPoll,
+		after:       after,
+		now:         now,
+		onExhausted: cfg.OnExhausted,
+		pids:        cfg.PIDs,
+		log:         log,
+		units:       make(map[string]*agentUnit),
 	}, nil
+}
+
+// recordPID / removePID persist the launched pid (best-effort — a store failure is
+// logged but never blocks the launch/stop).
+func (l *LocalProcessLauncher) recordPID(agentID string, pid int) {
+	if l.pids == nil {
+		return
+	}
+	if err := l.pids.Record(agentID, pid); err != nil {
+		l.log("agentlauncher: persist pid agent=%s pid=%d: %v", agentID, pid, err)
+	}
+}
+
+func (l *LocalProcessLauncher) removePID(agentID string) {
+	if l.pids == nil {
+		return
+	}
+	if err := l.pids.Remove(agentID); err != nil {
+		l.log("agentlauncher: drop pid agent=%s: %v", agentID, err)
+	}
+}
+
+// AdoptablePIDs returns the durably-recorded agentID→pid map (empty when no store).
+// The boot reconcile reads it to decide which desired agents may be re-adopted rather
+// than respawned (T860 gap5).
+func (l *LocalProcessLauncher) AdoptablePIDs() map[string]int {
+	if l.pids == nil {
+		return map[string]int{}
+	}
+	m, err := l.pids.Load()
+	if err != nil {
+		l.log("agentlauncher: load pids: %v", err)
+		return map[string]int{}
+	}
+	return m
+}
+
+// Adopt takes over supervision of a SURVIVING agent process (pid) that outlived a prior
+// worker incarnation, without respawning it (T860 gap5). The caller must have already
+// confirmed the pid is alive AND serving spec.AgentID (control-socket health probe);
+// Adopt trusts that. From here the unit is supervised exactly like a spawned one — if
+// the survivor later dies, the launcher rebuilds it with a fresh fork. Idempotent: a
+// no-op if the agent is already supervised.
+func (l *LocalProcessLauncher) Adopt(spec AgentSpec, pid int) error {
+	if spec.AgentID == "" {
+		return errors.New("agentlauncher: adopt requires agent_id")
+	}
+	if pid <= 0 {
+		return errors.New("agentlauncher: adopt requires a positive pid")
+	}
+	l.mu.Lock()
+	if u, ok := l.units[spec.AgentID]; ok && !u.stopped {
+		l.mu.Unlock()
+		return nil // already supervised
+	}
+	u := &agentUnit{
+		spec:      spec,
+		proc:      newAdoptedProcess(pid, l.adoptPoll, l.after),
+		spawnedAt: l.now(),
+		stopCh:    make(chan struct{}),
+		done:      make(chan struct{}),
+	}
+	l.units[spec.AgentID] = u
+	l.mu.Unlock()
+
+	l.recordPID(spec.AgentID, pid) // refresh (idempotent) so the store stays authoritative
+	l.log("agentlauncher: adopted surviving agent=%s pid=%d", spec.AgentID, pid)
+	l.wg.Add(1)
+	go l.supervise(spec.AgentID, u)
+	return nil
 }
 
 var _ AgentLauncher = (*LocalProcessLauncher)(nil)
 
 // agentUnit is one supervised agent process.
 type agentUnit struct {
-	spec    AgentSpec
-	proc    Process
-	crashes int
-	stopped bool          // Stop-initiated → the supervisor must not rebuild
-	stopCh  chan struct{} // closed by Stop → interrupts a backoff wait immediately
-	done    chan struct{} // closed when the supervise goroutine returns
+	spec      AgentSpec
+	proc      Process
+	spawnedAt time.Time // when the current proc was (re)started — for the uptime-reset
+	crashes   int       // consecutive rapid crashes (reset by a stable run)
+	stopped   bool      // Stop-initiated → the supervisor must not rebuild
+	stopCh    chan struct{}
+	done      chan struct{}
 }
 
 // Ensure spawns + supervises the agent if it is not already up.
@@ -205,7 +333,9 @@ func (l *LocalProcessLauncher) Ensure(spec AgentSpec) error {
 		return nil
 	}
 	u.proc = proc
+	u.spawnedAt = l.now()
 	l.mu.Unlock()
+	l.recordPID(spec.AgentID, proc.PID())
 	l.log("agentlauncher: launched agent=%s pid=%d", spec.AgentID, proc.PID())
 
 	l.wg.Add(1)
@@ -213,7 +343,9 @@ func (l *LocalProcessLauncher) Ensure(spec AgentSpec) error {
 	return nil
 }
 
-// supervise blocks on the process and rebuilds it (backoff-throttled) until Stop.
+// supervise blocks on the process and rebuilds it (backoff-throttled) until Stop or the
+// crash-loop cap is hit. The consecutive-crash counter resets after a stable run so a
+// long-lived agent's sporadic crashes never brick it (T860 gap4, PD nuance).
 func (l *LocalProcessLauncher) supervise(agentID string, u *agentUnit) {
 	defer l.wg.Done()
 	defer close(u.done)
@@ -225,9 +357,29 @@ func (l *LocalProcessLauncher) supervise(agentID string, u *agentUnit) {
 			l.mu.Unlock()
 			return // intentional stop — do not rebuild
 		}
+		// Reset the consecutive-crash counter if the process ran healthy for ≥ ResetAfter
+		// before dying (a stable run — not a crash loop).
+		if !u.spawnedAt.IsZero() && l.now().Sub(u.spawnedAt) >= l.backoff.ResetAfter {
+			u.crashes = 0
+		}
 		u.crashes++
 		crashes := u.crashes
+		exhausted := crashes > l.maxAttempts
 		l.mu.Unlock()
+
+		if exhausted {
+			// Poison crash-loop: stop rebuilding + report the agent terminally errored,
+			// so it does not hot-loop forever (the worker's OnExhausted reports "error").
+			l.log("agentlauncher: agent=%s crash-looped (%d consecutive) — giving up rebuild (poison)", agentID, crashes)
+			l.removePID(agentID) // poison → no survivor worth re-adopting
+			if l.onExhausted != nil {
+				l.onExhausted(agentID, waitErr)
+			}
+			l.mu.Lock()
+			delete(l.units, agentID)
+			l.mu.Unlock()
+			return
+		}
 
 		delay := l.backoff.delayFor(crashes)
 		l.log("agentlauncher: agent=%s exited (%v) — rebuild #%d after %s", agentID, waitErr, crashes, delay)
@@ -247,7 +399,9 @@ func (l *LocalProcessLauncher) supervise(agentID string, u *agentUnit) {
 			return
 		}
 		u.proc = proc
+		u.spawnedAt = l.now()
 		l.mu.Unlock()
+		l.recordPID(agentID, proc.PID())
 		l.log("agentlauncher: rebuilt agent=%s pid=%d", agentID, proc.PID())
 	}
 }
@@ -282,6 +436,7 @@ func (l *LocalProcessLauncher) Stop(agentID string) error {
 	proc := u.proc
 	delete(l.units, agentID)
 	l.mu.Unlock()
+	l.removePID(agentID) // intentional stop → not a survivor to re-adopt
 
 	if proc != nil {
 		_ = proc.Signal()

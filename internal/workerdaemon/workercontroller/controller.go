@@ -26,6 +26,10 @@ import (
 // tests).
 type controlClient interface {
 	Deliver(ctx context.Context, cmd agentcontrol.Command) error
+	// Probe returns the agent id the process on the socket is serving (T860 gap5); an
+	// error means no live matching process. Used at boot to confirm a survivor before
+	// re-adopting it.
+	Probe(ctx context.Context) (string, error)
 }
 
 // clientFactory builds a control client for an agent's socket (seam for tests;
@@ -131,6 +135,65 @@ func (c *Controller) Reconcile(desired []string) {
 			c.mu.Unlock()
 		}
 	}
+}
+
+// ReconcileWithAdoption is the BOOT reconcile (T860 gap5): before (re)spawning a
+// desired agent, it checks whether a process from a prior worker incarnation is still
+// alive and serving that agent — and if so ADOPTS it instead of double-spawning. The
+// decision ladder per pd's ruling: (1) a durably-recorded pid must exist and pass the
+// fast signal-0 pre-filter; (2) the control-socket /health probe must echo back the
+// SAME agent id (authoritative — guards pid recycling / stale sockets). Only when both
+// hold is the survivor adopted; otherwise the agent is spawned fresh. Undesired
+// launched agents are stopped (same as Reconcile).
+func (c *Controller) ReconcileWithAdoption(ctx context.Context, desired []string) {
+	recorded := c.launcher.AdoptablePIDs()
+	want := make(map[string]struct{}, len(desired))
+	for _, id := range desired {
+		if id == "" {
+			continue
+		}
+		want[id] = struct{}{}
+		if pid, ok := recorded[id]; ok && c.tryAdopt(ctx, id, pid) {
+			continue // survivor re-adopted — no respawn
+		}
+		if err := c.launcher.Ensure(agentlauncher.AgentSpec{AgentID: id}); err != nil {
+			c.log("workercontroller: ensure agent=%s: %v", id, err)
+		}
+	}
+	for _, id := range c.launcher.Running() {
+		if _, ok := want[id]; !ok {
+			if err := c.launcher.Stop(id); err != nil {
+				c.log("workercontroller: stop agent=%s: %v", id, err)
+			}
+			c.mu.Lock()
+			delete(c.clients, id)
+			c.mu.Unlock()
+		}
+	}
+}
+
+// tryAdopt confirms a recorded pid is a live survivor of `agentID` and adopts it. It
+// returns false (→ caller respawns) when the pid is dead, the socket does not answer,
+// the answer names a different agent, or Adopt fails.
+func (c *Controller) tryAdopt(ctx context.Context, agentID string, pid int) bool {
+	if !agentlauncher.PIDAlive(pid) {
+		return false // fast pre-filter: pid gone
+	}
+	got, err := c.clientFor(agentID).Probe(ctx)
+	if err != nil {
+		c.log("workercontroller: adopt probe agent=%s pid=%d: %v (respawning)", agentID, pid, err)
+		return false
+	}
+	if got != agentID {
+		c.log("workercontroller: adopt probe agent=%s pid=%d served %q (respawning)", agentID, pid, got)
+		return false
+	}
+	if err := c.launcher.Adopt(agentlauncher.AgentSpec{AgentID: agentID}, pid); err != nil {
+		c.log("workercontroller: adopt agent=%s pid=%d: %v (respawning)", agentID, pid, err)
+		return false
+	}
+	c.log("workercontroller: re-adopted surviving agent=%s pid=%d", agentID, pid)
+	return true
 }
 
 // EnsureAgent launches one agent if not already up (used when a command targets an

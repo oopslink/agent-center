@@ -25,7 +25,7 @@ func shortSockDir(t *testing.T) string {
 func startServer(t *testing.T, h Handler) (sock string, stop func()) {
 	t.Helper()
 	sock = filepath.Join(shortSockDir(t), "a.sock")
-	s, err := NewServer(sock, h, nil)
+	s, err := NewServer(sock, "agent-x", h, nil)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -94,18 +94,60 @@ func TestDeliver_AgentDownIsError(t *testing.T) {
 }
 
 func TestNewServer_Validation(t *testing.T) {
-	if _, err := NewServer("", HandlerFunc(func(context.Context, Command) error { return nil }), nil); err == nil {
+	if _, err := NewServer("", "agent-x", HandlerFunc(func(context.Context, Command) error { return nil }), nil); err == nil {
 		t.Error("empty socket path must error")
 	}
-	if _, err := NewServer(filepath.Join(shortSockDir(t), "x.sock"), nil, nil); err == nil {
+	if _, err := NewServer(filepath.Join(shortSockDir(t), "x.sock"), "", HandlerFunc(func(context.Context, Command) error { return nil }), nil); err == nil {
+		t.Error("empty agent_id must error")
+	}
+	if _, err := NewServer(filepath.Join(shortSockDir(t), "x.sock"), "agent-x", nil, nil); err == nil {
 		t.Error("nil handler must error")
+	}
+}
+
+// TestProbe_EchoesAgentID pins the T860 gap5 liveness/identity probe: a live server
+// answers GET /health with the agent id it serves (the authoritative survivor signal).
+func TestProbe_EchoesAgentID(t *testing.T) {
+	sock := filepath.Join(shortSockDir(t), "h.sock")
+	h := HandlerFunc(func(context.Context, Command) error { return nil })
+	s, err := NewServer(sock, "agent-777", h, nil)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	go func() { _ = s.Serve() }()
+	defer func() { _ = s.Close(context.Background()) }()
+
+	c := NewClient(sock, time.Second)
+	deadline := time.Now().Add(2 * time.Second)
+	var got string
+	for time.Now().Before(deadline) {
+		if got, err = c.Probe(context.Background()); err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("Probe: %v", err)
+	}
+	if got != "agent-777" {
+		t.Fatalf("Probe = %q, want agent-777", got)
+	}
+}
+
+// TestProbe_AgentDownIsError pins that probing a socket with no live server errors — the
+// worker treats "no answer" as "no survivor" and respawns.
+func TestProbe_AgentDownIsError(t *testing.T) {
+	sock := filepath.Join(shortSockDir(t), "absent.sock")
+	c := NewClient(sock, 200*time.Millisecond)
+	if _, err := c.Probe(context.Background()); err == nil {
+		t.Error("probing a down agent must error (no survivor → respawn)")
 	}
 }
 
 func TestServer_RebindsOverStaleSocket(t *testing.T) {
 	sock := filepath.Join(shortSockDir(t), "a.sock")
 	h := HandlerFunc(func(context.Context, Command) error { return nil })
-	s1, err := NewServer(sock, h, nil)
+	s1, err := NewServer(sock, "agent-x", h, nil)
 	if err != nil {
 		t.Fatalf("NewServer 1: %v", err)
 	}
@@ -113,7 +155,7 @@ func TestServer_RebindsOverStaleSocket(t *testing.T) {
 	_ = s1.Close(context.Background())
 	// A prior incarnation left the socket file; a fresh Server must rebind over it
 	// (the crash-recovery case — a killed agent process never cleaned its socket).
-	s2, err := NewServer(sock, h, nil)
+	s2, err := NewServer(sock, "agent-x", h, nil)
 	if err != nil {
 		t.Fatalf("NewServer over stale socket: %v", err)
 	}

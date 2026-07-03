@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -50,62 +49,6 @@ const (
 type runtimeFsError struct {
 	code string
 	msg  string
-}
-
-// runtimeFs handles one agent.runtime_fs command: resolve the agent home, run the op,
-// and POST the correlated Response. It NEVER returns a control-loop error (the read is
-// fire-and-forget — a failed POST is logged, and the Center degrades to {unavailable}
-// on its own timeout), so a transient feedback failure never wedges the command
-// cursor.
-func (c *AgentController) runtimeFs(ctx context.Context, pl runtimefs.Command) error {
-	resp := runtimefs.Response{AgentID: pl.AgentID, ReqID: pl.ReqID}
-
-	home, _, _, err := c.agentPaths(pl.AgentID)
-	if err != nil {
-		// agent not hosted here / bad config — report an error result (the Center
-		// maps it; it will not leak another agent's data because home never resolved).
-		resp.Code, resp.Message = runtimefs.ErrCodeInternal, err.Error()
-		c.postRuntimeFs(ctx, resp)
-		return nil
-	}
-
-	var (
-		result any
-		opErr  *runtimeFsError
-	)
-	switch pl.Op {
-	case runtimefs.OpList:
-		result, opErr = runtimeFsList(home, pl.Path)
-	case runtimefs.OpRead:
-		result, opErr = runtimeFsRead(home, pl.Path)
-	case runtimefs.OpGitLog:
-		result, opErr = runtimeFsGitLog(ctx, home, pl.Path, pl.Limit)
-	case runtimefs.OpGitDiff:
-		result, opErr = runtimeFsGitDiff(ctx, home, pl.Path, pl.Ref)
-	default:
-		opErr = &runtimeFsError{runtimefs.ErrCodeInternal, "unknown op " + pl.Op}
-	}
-
-	switch {
-	case opErr != nil:
-		resp.Code, resp.Message = opErr.code, opErr.msg
-	default:
-		raw, merr := json.Marshal(result)
-		if merr != nil {
-			resp.Code, resp.Message = runtimefs.ErrCodeInternal, merr.Error()
-		} else {
-			resp.Result = raw
-		}
-	}
-	c.postRuntimeFs(ctx, resp)
-	return nil
-}
-
-// postRuntimeFs POSTs the response best-effort (logs failures).
-func (c *AgentController) postRuntimeFs(ctx context.Context, resp runtimefs.Response) {
-	if err := c.cfg.Reporter.ReportRuntimeFsResponse(ctx, resp); err != nil {
-		c.log("runtime_fs response post (req=%s op-agent=%s): %v", resp.ReqID, resp.AgentID, err)
-	}
 }
 
 // ── ops ────────────────────────────────────────────────────────────────────────────

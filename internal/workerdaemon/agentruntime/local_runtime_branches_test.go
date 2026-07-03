@@ -60,24 +60,23 @@ func (r *recReporter) lifecycles() []string {
 	return append([]string(nil), r.lifecycle...)
 }
 
-// fullRuntime wires the deps onExit / self-heal need (shared mutex, self-heal store,
-// RemoveAgent callback, clock). removed reports whether RemoveAgent fired.
-func fullRuntime(t *testing.T) (rt *LocalRuntime, st *SessionState, rep *recReporter, removed *bool) {
+// fullRuntime wires the deps onExit needs (reporter, clock, OnFatal). fatal reports
+// whether OnFatal fired — the controller-model crash signal (→ process exit → launcher
+// rebuild) that replaced the retired in-process self-heal.
+func fullRuntime(t *testing.T) (rt *LocalRuntime, st *SessionState, rep *recReporter, fatal *bool) {
 	t.Helper()
-	var mu sync.Mutex
 	rep = &recReporter{}
 	st = &SessionState{}
-	rm := false
-	removed = &rm
+	f := false
+	fatal = &f
 	cfg := LocalRuntimeConfig{
-		AgentID:     "agent-x",
-		Reporter:    rep,
-		Log:         func(string, ...any) {},
-		Now:         func() time.Time { return time.Unix(1_000_000, 0) },
-		SelfHeal:    NewSelfHealStore(&mu, SelfHealParams{}, nil),
-		RemoveAgent: func(string) { rm = true },
+		AgentID:  "agent-x",
+		Reporter: rep,
+		Log:      func(string, ...any) {},
+		Now:      func() time.Time { return time.Unix(1_000_000, 0) },
+		OnFatal:  func(string) { f = true },
 	}
-	return NewLocalRuntime(cfg, st), st, rep, removed
+	return NewLocalRuntime(cfg, st), st, rep, fatal
 }
 
 // --- NotifyWork branches ---
@@ -184,63 +183,58 @@ func TestRecordWake_FIFOEviction(t *testing.T) {
 // --- onExit three-state coordination ---
 
 func TestOnExit_DetachingReportsNothing(t *testing.T) {
-	rt, st, rep, removed := fullRuntime(t)
+	rt, st, rep, fatal := fullRuntime(t)
 	st.Detaching = true
 	rt.onExit(nil)
 	if len(rep.lifecycles()) != 0 {
 		t.Fatalf("detaching exit must report NOTHING (agent stays desired-running), got %v", rep.lifecycles())
 	}
-	// The daemon's in-memory managedAgent is dropped on every exit (the surviving
-	// supervisor/claude is re-attached on the next daemon boot); no self-heal scheduled.
-	if !*removed {
-		t.Fatal("onExit must RemoveAgent on all exit paths")
-	}
-	if _, _, present := rt.cfg.SelfHeal.EntryForTest("agent-x"); present {
-		t.Fatal("detaching (survival) must NOT schedule self-heal")
+	if *fatal {
+		t.Fatal("detaching (survival) must NOT fire OnFatal")
 	}
 }
 
 func TestOnExit_ExpectedStopReportsNothing(t *testing.T) {
-	rt, st, rep, _ := fullRuntime(t)
+	rt, st, rep, fatal := fullRuntime(t)
 	st.ExpectedStop = true
 	rt.onExit(nil)
 	if len(rep.lifecycles()) != 0 {
 		t.Fatalf("expected-stop exit must report NOTHING (stop flow owns it), got %v", rep.lifecycles())
 	}
+	if *fatal {
+		t.Fatal("expected-stop must NOT fire OnFatal")
+	}
 }
 
 func TestOnExit_CodexCrashReportsErrorOnce(t *testing.T) {
-	rt, st, rep, removed := fullRuntime(t)
+	rt, st, rep, fatal := fullRuntime(t)
 	st.CLI = CLICodex
 	rt.onExit(context.DeadlineExceeded)
 	got := rep.lifecycles()
 	if len(got) != 1 || !strings.HasPrefix(got[0], "error|") {
 		t.Fatalf("codex crash must report error once, got %v", got)
 	}
-	if !*removed {
-		t.Fatal("crash must RemoveAgent")
-	}
-	// No self-heal entry for codex (no supervisor relaunch machinery).
-	if _, _, present := rt.cfg.SelfHeal.EntryForTest("agent-x"); present {
-		t.Fatal("codex crash must NOT schedule supervisor self-heal")
+	// codex has no --resume / no restart → must NOT fire OnFatal (no process-exit rebuild).
+	if *fatal {
+		t.Fatal("codex crash must NOT fire OnFatal")
 	}
 }
 
-func TestOnExit_ClaudeCrashSchedulesSelfHeal(t *testing.T) {
-	rt, st, rep, removed := fullRuntime(t)
+// TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal is the T860 gap4 guard: a claude
+// unexpected crash reports "crashed" once and fires OnFatal (→ the agent-runtime process
+// exits → the worker launcher rebuilds it with bounded backoff). No in-process self-heal.
+func TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal(t *testing.T) {
+	rt, st, rep, fatal := fullRuntime(t)
 	st.HadWork = true
 	st.CurrentTaskID = "wi-9"
 	st.Model = "m-1"
 	rt.onExit(context.DeadlineExceeded)
-	if !*removed {
-		t.Fatal("crash must RemoveAgent")
-	}
 	got := rep.lifecycles()
-	if len(got) != 1 || !strings.HasPrefix(got[0], "error|") {
-		t.Fatalf("claude crash (transient) must report error once, got %v", got)
+	if len(got) != 1 || !strings.HasPrefix(got[0], "crashed|") {
+		t.Fatalf("claude crash must report 'crashed' once, got %v", got)
 	}
-	if cnt, _, present := rt.cfg.SelfHeal.EntryForTest("agent-x"); !present || cnt != 1 {
-		t.Fatalf("claude crash must schedule self-heal (crashCount=1), got cnt=%d present=%v", cnt, present)
+	if !*fatal {
+		t.Fatal("claude crash must fire OnFatal (→ process exit → launcher rebuild)")
 	}
 }
 

@@ -82,8 +82,12 @@ type LocalRuntimeConfig struct {
 	DisableUsageReport func() bool
 	ResumeNudge        string
 
-	// SelfHeal is the daemon-level crash-recovery survival store (shared).
-	SelfHeal *SelfHealStore
+	// OnFatal is called when the supervisor session crashes unexpectedly (T860 piece ③,
+	// controller model): the agent-runtime process signals itself to exit via this seam,
+	// and the worker's launcher rebuilds it (bounded backoff/max-attempts) — replacing
+	// the retired in-process SelfHealStore. nil ⇒ no-op (the single-claude/daemon-less
+	// test path).
+	OnFatal func(reason string)
 
 	RateLimitDefaultBackoff time.Duration
 	RateLimitMinBackoff     time.Duration
@@ -97,11 +101,6 @@ type LocalRuntimeConfig struct {
 	SegmentMaxBytes int64
 	TaskLogMaxBytes int64
 	EventWriter     *taskexec.EventStreamWriter
-
-	// RemoveAgent deletes the managedAgent from the daemon map. onExit invokes it
-	// OUTSIDE the runtime's StateMu (去共享状态), so the seam is responsible for taking
-	// the daemon's c.mu (which guards c.agents) itself.
-	RemoveAgent func(agentID string)
 
 	// Materializer is the repo-workspace port (AC_EXECUTOR_GIT_WORKTREE). nil ⇒ the
 	// flag is OFF: SpawnExecutor prepares NO worktree and the pool/monitor/recovery

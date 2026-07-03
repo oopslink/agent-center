@@ -194,12 +194,17 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	// (cursor-gated), instead of hosting N runtimes in-process. This is the SOLE path;
 	// the pre-D6 in-process AgentController path was removed after the §6 real-deploy
 	// acceptance validated the controller model.
-	wctrl, werr := buildWorkerController(opts, targetSpec, token, fingerprint, logf)
+	wctrl, werr := buildWorkerController(opts, targetSpec, token, fingerprint, client, logf)
 	if werr != nil {
 		return fmt.Errorf("worker daemon: controller: %w", werr)
 	}
 	reconcileControllerFromResumeState(ctx, wctrl, client, opts.WorkerID, logf)
-	rtCfg.ControlHandler = controllerHandler{ctrl: wctrl, log: logf}
+	rtCfg.ControlHandler = controllerHandler{
+		ctrl:     wctrl,
+		homeBase: agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
+		poster:   client,
+		log:      logf,
+	}
 	logf("worker running in controller mode (process-per-agent)")
 
 	rt := NewRuntime(rtCfg, client)

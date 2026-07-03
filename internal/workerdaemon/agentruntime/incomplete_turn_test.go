@@ -60,7 +60,6 @@ func (r *recReporter) hasActivity(eventType string) bool {
 // T799's controller-level tests used, driven directly against LocalRuntime).
 func incompleteTurnRuntime(t *testing.T) (*LocalRuntime, *SessionState, *recReporter, *advClock, *fakeSession) {
 	t.Helper()
-	var mu sync.Mutex
 	rep := &recReporter{}
 	clk := &advClock{t: time.Unix(1_000_000, 0)}
 	st := &SessionState{}
@@ -71,7 +70,6 @@ func incompleteTurnRuntime(t *testing.T) (*LocalRuntime, *SessionState, *recRepo
 		Reporter: rep,
 		Log:      func(string, ...any) {},
 		Now:      clk.now,
-		SelfHeal: NewSelfHealStore(&mu, SelfHealParams{}, nil),
 	}
 	return NewLocalRuntime(cfg, st), st, rep, clk, fs
 }

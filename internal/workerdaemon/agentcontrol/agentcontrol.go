@@ -33,8 +33,20 @@ import (
 	"time"
 )
 
-// controlPath is the single HTTP route the server exposes.
+// controlPath is the command-ingress HTTP route the server exposes.
 const controlPath = "/control"
+
+// healthPath is the liveness/identity route (T860 gap5): a worker restart probes it to
+// decide adopt-vs-respawn. It returns the agent id the process is serving, which is the
+// AUTHORITATIVE survivor signal — a bare "socket accepts a connection" is not enough
+// (a recycled pid / stale socket could answer), so the worker re-adopts a surviving
+// agent process ONLY when this route echoes back the expected agent id.
+const healthPath = "/health"
+
+// HealthResponse is the body of a GET /health probe: the agent id this process serves.
+type HealthResponse struct {
+	AgentID string `json:"agent_id"`
+}
 
 // SocketName returns a SHORT, collision-resistant control-socket filename for an
 // agent. A unix socket PATH has an OS length cap (~104 darwin / 108 linux) and an
@@ -75,17 +87,22 @@ func (f HandlerFunc) Handle(ctx context.Context, cmd Command) error { return f(c
 // the agent-runtime process's control-plane ingress.
 type Server struct {
 	sockPath string
+	agentID  string
 	handler  Handler
 	log      func(format string, args ...any)
 	srv      *http.Server
 	ln       net.Listener
 }
 
-// NewServer binds a Server to sockPath (removing a stale socket first). Call Serve to
-// run it and Close to stop.
-func NewServer(sockPath string, h Handler, log func(format string, args ...any)) (*Server, error) {
+// NewServer binds a Server to sockPath (removing a stale socket first). agentID is
+// echoed by GET /health so a worker restart can authoritatively identify the surviving
+// agent process on this socket (T860 gap5). Call Serve to run it and Close to stop.
+func NewServer(sockPath, agentID string, h Handler, log func(format string, args ...any)) (*Server, error) {
 	if sockPath == "" {
 		return nil, errors.New("agentcontrol: server socket path required")
+	}
+	if agentID == "" {
+		return nil, errors.New("agentcontrol: server agent_id required")
 	}
 	if h == nil {
 		return nil, errors.New("agentcontrol: server handler required")
@@ -99,11 +116,22 @@ func NewServer(sockPath string, h Handler, log func(format string, args ...any))
 	if err != nil {
 		return nil, fmt.Errorf("agentcontrol: listen %s: %w", sockPath, err)
 	}
-	s := &Server{sockPath: sockPath, handler: h, log: log, ln: ln}
+	s := &Server{sockPath: sockPath, agentID: agentID, handler: h, log: log, ln: ln}
 	mux := http.NewServeMux()
 	mux.HandleFunc(controlPath, s.serveControl)
+	mux.HandleFunc(healthPath, s.serveHealth)
 	s.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	return s, nil
+}
+
+// serveHealth answers the liveness/identity probe with the served agent id.
+func (s *Server) serveHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(HealthResponse{AgentID: s.agentID})
 }
 
 func (s *Server) serveControl(w http.ResponseWriter, r *http.Request) {
@@ -191,6 +219,30 @@ func (c *Client) Deliver(ctx context.Context, cmd Command) error {
 		return fmt.Errorf("agentcontrol: deliver type=%s: agent returned %s", cmd.Type, resp.Status)
 	}
 	return nil
+}
+
+// Probe GETs /health and returns the agent id the process on the socket is serving.
+// A worker restart uses this as the AUTHORITATIVE survivor check (T860 gap5): it adopts
+// a surviving agent process only when Probe succeeds AND returns the expected agent id.
+// An error (dial fails / non-2xx / bad body) means "no live matching process" → respawn.
+func (c *Client) Probe(ctx context.Context) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent"+healthPath, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("agentcontrol: probe: %w", err) // agent down/unreachable
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "", fmt.Errorf("agentcontrol: probe: agent returned %s", resp.Status)
+	}
+	var hr HealthResponse
+	if err := json.NewDecoder(resp.Body).Decode(&hr); err != nil {
+		return "", fmt.Errorf("agentcontrol: probe: decode: %w", err)
+	}
+	return hr.AgentID, nil
 }
 
 // removeSocket unlinks a unix socket path, ignoring a missing file.

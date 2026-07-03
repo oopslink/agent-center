@@ -2,7 +2,6 @@ package agentruntime
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 )
@@ -121,26 +120,4 @@ func TestAgentCLIMarker_RoundTrip(t *testing.T) {
 	if err := WriteAgentCLIMarker("", "x"); err == nil {
 		t.Fatal("WriteAgentCLIMarker with empty home must error")
 	}
-}
-
-// TestSelfHealStore_Rearm pins the home-lock-busy retry path: Rearm re-schedules a
-// live (non-terminal) entry's relaunch to a later time; a drain before that time
-// yields nothing, at/after it yields the spec.
-func TestSelfHealStore_Rearm(t *testing.T) {
-	var mu sync.Mutex
-	now := time.Unix(1_000_000, 0)
-	store := NewSelfHealStore(&mu, SelfHealParams{MaxAttempts: 5, BackoffBase: time.Second}, nil)
-
-	store.RecordCrashAndSchedule(RelaunchSpec{AgentID: "a", Version: 1}, now, "boom")
-	// Push the relaunch out to now+10s.
-	store.Rearm("a", now.Add(10*time.Second))
-	if dues := store.DrainDue(now.Add(5*time.Second), func(string) bool { return false }); len(dues) != 0 {
-		t.Fatalf("Rearm did not defer the relaunch: %d due early", len(dues))
-	}
-	dues := store.DrainDue(now.Add(10*time.Second), func(string) bool { return false })
-	if len(dues) != 1 || dues[0].AgentID != "a" {
-		t.Fatalf("expected one due relaunch at the rearmed time, got %+v", dues)
-	}
-	// Rearm of an unknown agent is a safe no-op.
-	store.Rearm("ghost", now)
 }

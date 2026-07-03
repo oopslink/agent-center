@@ -137,20 +137,6 @@ func (r *Runtime) Run(ctx context.Context) error {
 
 	// Environment-BC control-stream poll loop (ADR-0050, task #102). This is
 	// the unconditional execution path as of #107 slice-2.
-	//
-	// BOOT RECONCILE — before the poll loop starts, reconcile this worker's
-	// agents (re-attach survivors / relaunch the dead / stop the unwanted) by
-	// joining center resume-state with local supervisor probes. Run
-	// SYNCHRONOUSLY: the attach/start paths are only safe for the
-	// single-threaded ControlLoop caller, which has not started yet.
-	// Best-effort — a failure is logged, never crashes the daemon (the poll
-	// loop still starts; the center re-reconciles via commands). Skipped when
-	// the handler is not a bootReconciler.
-	if br, ok := r.cfg.ControlHandler.(bootReconciler); ok {
-		if err := br.ReconcileOnBoot(ctx); err != nil {
-			r.log("boot reconcile: %v (continuing — poll loop will reconcile)", err)
-		}
-	}
 
 	interval := r.cfg.ControlPollInterval
 	if interval <= 0 {

@@ -174,14 +174,9 @@ func (r *LocalRuntime) onExit(exitErr error) {
 	st.TaskLog, st.TaskLogID = nil, ""
 	r.mu.Unlock()
 
-	// RemoveAgent deletes the managedAgent from the daemon's c.agents map, which is
-	// guarded by c.mu — NOT this runtime's StateMu (T839 §4.1 去共享状态). Call it AFTER
-	// releasing r.mu so the seam can take c.mu without ever holding two locks at once
-	// (lock-order discipline: never StateMu-then-c.mu). The map delete no longer shares
-	// the SessionState critical section, but it stays c.mu-guarded via the seam wrapper.
-	if r.cfg.RemoveAgent != nil {
-		r.cfg.RemoveAgent(agentID)
-	}
+	// T860 piece ③: the daemon-side managedAgent map + its RemoveAgent seam are gone
+	// (the agent is its OWN process now, not an in-process managedAgent). Nothing to
+	// delete here — a crash exits the process and the worker launcher rebuilds it.
 
 	if taskLog != nil {
 		_ = taskLog.Close()
@@ -203,6 +198,7 @@ func (r *LocalRuntime) onExit(exitErr error) {
 		msg = "process exited unexpectedly"
 	}
 	r.log("agent=%s crashed: %s", agentID, msg)
+	// codex has no --resume: report error, no restart (unchanged).
 	if cli == CLICodex {
 		st.LifecycleOnce.Do(func() {
 			if err := r.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "error", msg, time.Now()); err != nil {
@@ -211,23 +207,29 @@ func (r *LocalRuntime) onExit(exitErr error) {
 		})
 		return
 	}
-	state := r.cfg.SelfHeal.RecordCrashAndSchedule(RelaunchSpec{
-		AgentID:            agentID,
-		Version:            version,
-		Nudge:              hadWork,
-		TaskID:             taskID,
-		Model:              model,
-		DisplayName:        displayName,
-		PromptDescription:  promptDescription,
-		EnvVars:            envVars,
-		ConcurrencyEnabled: wasConcurrent,
-	}, r.now(), msg)
-	if state != "" {
-		st.LifecycleOnce.Do(func() {
-			if err := r.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {
-				r.log("agent=%s report %s: %v", agentID, state, err)
-			}
-		})
+	// T860 piece ③ (gap4): the controller/process-per-agent model has NO in-process
+	// self-heal (SelfHealStore is gone). A claude unexpected crash → report the crash
+	// lifecycle once, then signal THIS agent-runtime PROCESS to exit (OnFatal). The
+	// worker's launcher rebuilds it with BOUNDED backoff + max-attempts (crash-loop
+	// safety lives in the durable launcher, not the crashing process), and the rebuilt
+	// process re-Boots + re-Starts the session. _ = version/hadWork/... : the relaunch
+	// spec fields the old in-process self-heal carried are re-derived by the rebuilt
+	// process from the center's ResumeState, so they are not threaded through here.
+	_ = version
+	_ = hadWork
+	_ = taskID
+	_ = model
+	_ = displayName
+	_ = promptDescription
+	_ = envVars
+	_ = wasConcurrent
+	st.LifecycleOnce.Do(func() {
+		if err := r.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "crashed", msg, time.Now()); err != nil {
+			r.log("agent=%s report crashed: %v", agentID, err)
+		}
+	})
+	if r.cfg.OnFatal != nil {
+		r.cfg.OnFatal(msg)
 	}
 }
 

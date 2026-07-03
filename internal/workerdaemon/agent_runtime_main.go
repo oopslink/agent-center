@@ -66,8 +66,17 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 		return err
 	}
 
-	// 2) construct the single runtime (SelfHeal/RemoveAgent nil — crash=process exit).
-	rt := buildAgentRuntime(opts, cfg, client, targetSpec, token, fingerprint, logf)
+	// 2) construct the single runtime. A supervisor-session crash signals fatalCh → the
+	// process exits (drain) and the worker launcher rebuilds it (bounded backoff) — the
+	// controller-model replacement for the retired in-process SelfHealStore.
+	fatalCh := make(chan string, 1)
+	onFatal := func(reason string) {
+		select {
+		case fatalCh <- reason:
+		default: // already signalled
+		}
+	}
+	rt := buildAgentRuntime(opts, cfg, client, targetSpec, token, fingerprint, logf, onFatal)
 
 	// 2b) 🔴 ENGINE-ATTACH-BEFORE-BOOT (T854 D6 fix, sibling to Boot-before-serve): a
 	// crash-rebuilt agent-runtime process gets NO reconcile command (the center has not
@@ -96,7 +105,7 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 
 	// 4) control server — opened ONLY after Boot returned.
 	sockPath := filepath.Join(opts.SockDir, agentcontrol.SocketName(opts.AgentID))
-	srv, err := agentcontrol.NewServer(sockPath, agentControlHandler{rt: rt, log: logf}, func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) })
+	srv, err := agentcontrol.NewServer(sockPath, opts.AgentID, agentControlHandler{rt: rt, log: logf}, func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) })
 	if err != nil {
 		return fmt.Errorf("agent-runtime: control server: %w", err)
 	}
@@ -122,6 +131,15 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 			cancel()
 			logf(fmt.Sprintf("agent-runtime agent=%s drained", opts.AgentID))
 			return nil
+		case reason := <-fatalCh:
+			// gap4: the supervisor session crashed unexpectedly → drain + exit so the
+			// launcher rebuilds this process fresh (re-Boot + re-Start). Non-zero exit.
+			logf(fmt.Sprintf("agent-runtime agent=%s fatal: %s — exiting for launcher rebuild", opts.AgentID, reason))
+			shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			_ = srv.Close(shutCtx)
+			_ = rt.Stop(shutCtx)
+			cancel()
+			return fmt.Errorf("agent-runtime: supervisor session crashed: %s", reason)
 		case err := <-serveErr:
 			if err != nil {
 				return fmt.Errorf("agent-runtime: control server exited: %w", err)
@@ -182,9 +200,9 @@ func agentRuntimeClient(opts RunOptions, logf func(string)) (client *AdminClient
 }
 
 // buildAgentRuntime constructs the single-agent LocalRuntime. It mirrors the daemon's
-// baseRuntimeConfig recipe but with the process-model differences: NO SelfHeal and NO
-// RemoveAgent (an unrecoverable failure exits the process; the launcher rebuilds it).
-func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *AdminClient, targetSpec, token, fingerprint string, logf func(string)) *agentruntime.LocalRuntime {
+// baseRuntimeConfig recipe but with the process-model differences: NO in-process self-
+// heal — a supervisor-session crash fires OnFatal (→ process exit → launcher rebuild).
+func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *AdminClient, targetSpec, token, fingerprint string, logf func(string), onFatal func(reason string)) *agentruntime.LocalRuntime {
 	binPath, _ := os.Executable()
 	disableUsage := false
 	if v := strings.TrimSpace(os.Getenv("AGENT_CENTER_DISABLE_USAGE_REPORT")); v == "1" || strings.EqualFold(v, "true") {
@@ -209,10 +227,9 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		DisableUsageReport: func() bool { return disableUsage },
 		TaskDirManager:     taskexec.NewDirManager(),
 		EventWriter:        taskexec.NewEventStreamWriter(),
-		// §4.5 process model: no in-process self-heal / removal — the process exits and
-		// the worker launcher rebuilds it.
-		SelfHeal:    nil,
-		RemoveAgent: nil,
+		// §4.5 process model: no in-process self-heal — a supervisor crash fires OnFatal →
+		// this process exits and the worker launcher rebuilds it (bounded backoff).
+		OnFatal: onFatal,
 	}
 	// Repo-workspace (AC_EXECUTOR_GIT_WORKTREE): wire a per-agent materializer so
 	// SpawnExecutor prepares an isolated git worktree per executor (required for the

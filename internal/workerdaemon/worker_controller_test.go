@@ -2,10 +2,13 @@ package workerdaemon
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
 	"github.com/oopslink/agent-center/internal/workerdaemon/workercontroller"
@@ -41,7 +44,9 @@ func (l *stubLauncher) Running() []string {
 	}
 	return out
 }
-func (l *stubLauncher) Shutdown(context.Context) error { return nil }
+func (l *stubLauncher) Shutdown(context.Context) error           { return nil }
+func (l *stubLauncher) Adopt(agentlauncher.AgentSpec, int) error { return nil }
+func (l *stubLauncher) AdoptablePIDs() map[string]int            { return map[string]int{} }
 
 func newTestHandler(t *testing.T) (controllerHandler, *stubLauncher) {
 	t.Helper()
@@ -98,6 +103,98 @@ func TestControllerHandler_ReconcileStoppedTearsDown(t *testing.T) {
 	}
 	if len(l.stopped) != 1 || l.stopped[0] != "a" {
 		t.Errorf("a desired-stopped reconcile must stop the agent process, stopped=%v", l.stopped)
+	}
+}
+
+// fakePoster records posted runtime_fs responses (and can be set to fail).
+type fakePoster struct {
+	mu   sync.Mutex
+	got  []runtimefs.Response
+	fail error
+}
+
+func (p *fakePoster) ReportRuntimeFsResponse(_ context.Context, resp runtimefs.Response) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.fail != nil {
+		return p.fail
+	}
+	p.got = append(p.got, resp)
+	return nil
+}
+
+// TestControllerHandler_RuntimeFsServedLocally pins T860 gap2: an agent.runtime_fs
+// command is handled by the worker-controller directly (reads the agent home + posts the
+// correlated response), NOT proxied to the agent process.
+func TestControllerHandler_RuntimeFsServedLocally(t *testing.T) {
+	homeBase := t.TempDir()
+	// Lay out an agent home: <homeBase>/agents/<id>/ with a file to list.
+	home := filepath.Join(homeBase, "agents", "agent-1")
+	if err := os.MkdirAll(filepath.Join(home, "memory"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "memory", "notes.txt"), []byte("hi"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := &fakePoster{}
+	h := controllerHandler{homeBase: homeBase, poster: p, log: func(string) {}}
+
+	err := h.Handle(context.Background(), ControlCommand{
+		CommandType: cmdTypeRuntimeFs,
+		Payload:     `{"req_id":"r1","agent_id":"agent-1","op":"list","path":"memory"}`,
+	})
+	if err != nil {
+		t.Fatalf("Handle runtime_fs = %v, want nil (served + posted)", err)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.got) != 1 {
+		t.Fatalf("posted %d responses, want 1", len(p.got))
+	}
+	resp := p.got[0]
+	if resp.ReqID != "r1" || resp.AgentID != "agent-1" {
+		t.Errorf("response correlation wrong: %+v", resp)
+	}
+	if resp.Code != "" {
+		t.Fatalf("unexpected error code %q (%s)", resp.Code, resp.Message)
+	}
+	var list runtimefs.ListResult
+	if err := json.Unmarshal(resp.Result, &list); err != nil {
+		t.Fatalf("result not a ListResult: %v", err)
+	}
+	if len(list.Entries) != 1 || list.Entries[0].Name != "notes.txt" {
+		t.Errorf("listing = %+v, want the single notes.txt entry", list.Entries)
+	}
+}
+
+// TestControllerHandler_RuntimeFsUnknownOpReportsError pins that a bad op is reported as
+// an error Response (still acked) rather than proxied or wedging the cursor.
+func TestControllerHandler_RuntimeFsUnknownOpReportsError(t *testing.T) {
+	p := &fakePoster{}
+	h := controllerHandler{homeBase: t.TempDir(), poster: p, log: func(string) {}}
+	if err := h.Handle(context.Background(), ControlCommand{
+		CommandType: cmdTypeRuntimeFs,
+		Payload:     `{"req_id":"r2","agent_id":"a","op":"bogus"}`,
+	}); err != nil {
+		t.Fatalf("Handle = %v, want nil", err)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.got) != 1 || p.got[0].Code == "" {
+		t.Errorf("unknown op must post an error response, got %+v", p.got)
+	}
+}
+
+// TestControllerHandler_RuntimeFsPostFailureRetries pins that a failed response POST
+// surfaces as an error so the control loop keeps the command un-acked and retries.
+func TestControllerHandler_RuntimeFsPostFailureRetries(t *testing.T) {
+	p := &fakePoster{fail: context.DeadlineExceeded}
+	h := controllerHandler{homeBase: t.TempDir(), poster: p, log: func(string) {}}
+	if err := h.Handle(context.Background(), ControlCommand{
+		CommandType: cmdTypeRuntimeFs,
+		Payload:     `{"req_id":"r3","agent_id":"a","op":"list","path":""}`,
+	}); err == nil {
+		t.Error("a failed response POST must return an error (retry, don't drop)")
 	}
 }
 

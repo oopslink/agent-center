@@ -3,6 +3,7 @@ package workercontroller
 import (
 	"context"
 	"errors"
+	"os"
 	"sort"
 	"sync"
 	"testing"
@@ -11,16 +12,25 @@ import (
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
 )
 
-// fakeLauncher records Ensure/Stop and reports a running set.
+// fakeLauncher records Ensure/Stop/Adopt and reports a running set.
 type fakeLauncher struct {
-	mu      sync.Mutex
-	running map[string]bool
-	ensureN map[string]int
-	ensERR  map[string]error
+	mu        sync.Mutex
+	running   map[string]bool
+	ensureN   map[string]int
+	adoptN    map[string]int
+	ensERR    map[string]error
+	adoptPIDs map[string]int // returned by AdoptablePIDs
+	adoptERR  error
 }
 
 func newFakeLauncher() *fakeLauncher {
-	return &fakeLauncher{running: map[string]bool{}, ensureN: map[string]int{}, ensERR: map[string]error{}}
+	return &fakeLauncher{
+		running:   map[string]bool{},
+		ensureN:   map[string]int{},
+		adoptN:    map[string]int{},
+		ensERR:    map[string]error{},
+		adoptPIDs: map[string]int{},
+	}
 }
 
 func (l *fakeLauncher) Ensure(spec agentlauncher.AgentSpec) error {
@@ -50,13 +60,35 @@ func (l *fakeLauncher) Running() []string {
 	return out
 }
 func (l *fakeLauncher) Shutdown(context.Context) error { return nil }
+func (l *fakeLauncher) Adopt(spec agentlauncher.AgentSpec, _ int) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.adoptN[spec.AgentID]++
+	if l.adoptERR != nil {
+		return l.adoptERR
+	}
+	l.running[spec.AgentID] = true
+	return nil
+}
+func (l *fakeLauncher) AdoptablePIDs() map[string]int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := map[string]int{}
+	for k, v := range l.adoptPIDs {
+		out[k] = v
+	}
+	return out
+}
 
-// fakeClient records delivered commands and can be set to fail.
+// fakeClient records delivered commands and can be set to fail. probeID/probeErr drive
+// the T860 gap5 adoption identity probe.
 type fakeClient struct {
-	mu   sync.Mutex
-	sock string
-	got  []agentcontrol.Command
-	err  error
+	mu       sync.Mutex
+	sock     string
+	got      []agentcontrol.Command
+	err      error
+	probeID  string
+	probeErr error
 }
 
 func (c *fakeClient) Deliver(_ context.Context, cmd agentcontrol.Command) error {
@@ -67,6 +99,11 @@ func (c *fakeClient) Deliver(_ context.Context, cmd agentcontrol.Command) error 
 	}
 	c.got = append(c.got, cmd)
 	return nil
+}
+func (c *fakeClient) Probe(context.Context) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.probeID, c.probeErr
 }
 
 func newTestController(t *testing.T, l agentlauncher.AgentLauncher) *Controller {
@@ -163,5 +200,106 @@ func TestNew_Validation(t *testing.T) {
 	}
 	if _, err := New(Config{Launcher: newFakeLauncher()}); err == nil {
 		t.Error("empty sock_dir must error")
+	}
+}
+
+// newAdoptController builds a controller whose control clients all Probe with the given
+// id/err — enough for the single-agent T860 gap5 adoption tests.
+func newAdoptController(t *testing.T, l agentlauncher.AgentLauncher, probeID string, probeErr error) *Controller {
+	t.Helper()
+	c, err := New(Config{
+		Launcher:  l,
+		SockDir:   "/tmp/acs",
+		NewClient: func(string) controlClient { return &fakeClient{probeID: probeID, probeErr: probeErr} },
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return c
+}
+
+// TestReconcileWithAdoption_AdoptsLiveSurvivor: a recorded pid that is alive (this test
+// process's own pid) AND whose socket probe echoes the agent id is ADOPTED, not respawned.
+func TestReconcileWithAdoption_AdoptsLiveSurvivor(t *testing.T) {
+	l := newFakeLauncher()
+	l.adoptPIDs["a"] = os.Getpid() // a definitely-alive pid
+	c := newAdoptController(t, l, "a", nil)
+
+	c.ReconcileWithAdoption(context.Background(), []string{"a"})
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.adoptN["a"] != 1 {
+		t.Errorf("Adopt(a) called %d times, want 1", l.adoptN["a"])
+	}
+	if l.ensureN["a"] != 0 {
+		t.Errorf("Ensure(a) called %d times, want 0 (survivor must not be respawned)", l.ensureN["a"])
+	}
+}
+
+// TestReconcileWithAdoption_RespawnsOnProbeMismatch: pid alive but the socket serves a
+// DIFFERENT agent (recycled pid / stale socket) → respawn, not adopt.
+func TestReconcileWithAdoption_RespawnsOnProbeMismatch(t *testing.T) {
+	l := newFakeLauncher()
+	l.adoptPIDs["a"] = os.Getpid()
+	c := newAdoptController(t, l, "someone-else", nil) // probe returns wrong id
+
+	c.ReconcileWithAdoption(context.Background(), []string{"a"})
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.adoptN["a"] != 0 {
+		t.Errorf("Adopt(a) called %d times, want 0 (identity mismatch)", l.adoptN["a"])
+	}
+	if l.ensureN["a"] != 1 {
+		t.Errorf("Ensure(a) called %d times, want 1 (respawn on mismatch)", l.ensureN["a"])
+	}
+}
+
+// TestReconcileWithAdoption_RespawnsOnDeadPid: a recorded pid that no longer exists fails
+// the fast pre-filter → respawn (no probe needed).
+func TestReconcileWithAdoption_RespawnsOnDeadPid(t *testing.T) {
+	l := newFakeLauncher()
+	l.adoptPIDs["a"] = 0x7fffffff // not a live pid
+	c := newAdoptController(t, l, "a", nil)
+
+	c.ReconcileWithAdoption(context.Background(), []string{"a"})
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.adoptN["a"] != 0 {
+		t.Errorf("Adopt(a) called %d times, want 0 (dead pid)", l.adoptN["a"])
+	}
+	if l.ensureN["a"] != 1 {
+		t.Errorf("Ensure(a) called %d times, want 1 (respawn on dead pid)", l.ensureN["a"])
+	}
+}
+
+// TestReconcileWithAdoption_NoRecordSpawns: an agent with no recorded pid is a plain
+// spawn (the common first-boot case).
+func TestReconcileWithAdoption_NoRecordSpawns(t *testing.T) {
+	l := newFakeLauncher()
+	c := newAdoptController(t, l, "", errors.New("no server"))
+
+	c.ReconcileWithAdoption(context.Background(), []string{"a"})
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.ensureN["a"] != 1 || l.adoptN["a"] != 0 {
+		t.Errorf("no-record agent: ensure=%d adopt=%d, want ensure=1 adopt=0", l.ensureN["a"], l.adoptN["a"])
+	}
+}
+
+// TestReconcileWithAdoption_StopsUndesired: an agent no longer desired is stopped (same
+// as the plain Reconcile).
+func TestReconcileWithAdoption_StopsUndesired(t *testing.T) {
+	l := newFakeLauncher()
+	l.running["old"] = true
+	c := newAdoptController(t, l, "", errors.New("no server"))
+
+	c.ReconcileWithAdoption(context.Background(), []string{"a"})
+
+	if got := l.Running(); len(got) != 1 || got[0] != "a" {
+		t.Errorf("running=%v, want [a] (old stopped, a spawned)", got)
 	}
 }
