@@ -371,8 +371,8 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_plan_dependency",
-		Description: "Add a depends_on edge to a draft plan's DAG: from_task_id depends on to_task_id (to_task_id must finish before from_task_id is dispatched). Both tasks must already be nodes in the plan. Self-edges and cycles are rejected.",
-	}, makePlanDep(cfg, "add_plan_dependency"))
+		Description: "Add an edge to a draft plan's DAG. Default (kind=seq, or omitted) is a hard depends_on: from_task_id runs after to_task_id. For control flow, set kind: 'conditional' routes a branch only when to_task_id (a decision node) completes with outcome==when; 'loopback' is a bounded back-edge — when from_task_id (a decision) completes with outcome==when, the to_task_id subgraph (a forward ancestor, e.g. Dev) re-runs, up to max_rounds. Conditional and loopback REQUIRE when; loopback also requires max_rounds>=1 and its to_task_id must be a forward ancestor. With create_plan + add_task_to_plan this authors a full Decision/loopback cycle plan. Both tasks must already be nodes in the plan; self-edges and forward cycles are rejected.",
+	}, makeAddPlanDep(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "remove_plan_dependency",

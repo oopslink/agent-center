@@ -19,6 +19,7 @@ import (
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
+	orchsql "github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite"
 	"github.com/oopslink/agent-center/internal/settings"
 )
 
@@ -253,7 +254,7 @@ type Service struct {
 	// When wired, StartPlan builds a graph mirroring the plan DAG (business node per
 	// task + condition node per decision) and dispatch/advance switch to the graph as
 	// the ready-source (via plan.GraphID). nil ⇒ graphs are never built and every plan
-	// stays on the legacy plan-DAG path (ComputePlanView) — the zero-regression
+	// stays on the legacy plan-DAG path (DerivePlanView) — the zero-regression
 	// fallback for pre-T768 constructions and in-flight (graphID=="") plans.
 	orch *orch.Service
 }
@@ -343,6 +344,17 @@ func New(d Deps) *Service {
 	if clk == nil {
 		clk = clock.SystemClock{}
 	}
+	// T810 ⑤: the orchestration engine is MANDATORY — it is the single dispatch/
+	// decision/loopback path (the ComputePlanView fallback was deleted). Production
+	// injects Deps.Orch explicitly; when a caller (e.g. a test harness) leaves it nil
+	// but provides a DB, construct it from the DB so every Service has a live engine.
+	orchSvc := d.Orch
+	if orchSvc == nil && d.DB != nil {
+		orchSvc = orch.NewService(orch.ServiceDeps{
+			DB: d.DB, Graphs: orchsql.NewGraphRepo(d.DB), Nodes: orchsql.NewNodeRepo(d.DB),
+			Edges: orchsql.NewEdgeRepo(d.DB), IDGen: d.IDGen, Clock: clk,
+		})
+	}
 	return &Service{
 		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
@@ -352,7 +364,7 @@ func New(d Deps) *Service {
 		actionLogs:         d.TaskActionLogs,
 		autoAssignDir:      d.AutoAssignDir,
 		autoAssignSettings: d.AutoAssignSettings,
-		orch:               d.Orch,
+		orch:               orchSvc,
 	}
 }
 

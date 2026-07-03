@@ -103,9 +103,77 @@ func TestGetPlanGraph_ReflectsEngineGraph(t *testing.T) {
 	}
 }
 
+// TestGetPlanGraph_StartEndAnchorsWired is the T800 proof: buildPlanGraph now wires
+// the seeded Start/End control anchors — Start → every ROOT business node (no
+// incoming graph edge), every SINK business node (no outgoing) → End — so the graph
+// has a single inlined source and sink instead of orphan Start/End (End previously
+// had no incoming edge, which the DAG renderer mis-laid-out). For the Dev→Review→
+// Decision→(cond)Integrate cycle: Dev is the sole root (its only "incoming" is the
+// loopback, which is NOT a graph edge), Integrate is the sole sink.
+func TestGetPlanGraph_StartEndAnchorsWired(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "anchors", CreatedBy: "user:a"})
+	h.drain(t)
+	dev, _, _, integ := buildGraphCycle(t, h, pid, planID)
+
+	view, err := h.svc.GetPlanGraph(ctx, planID)
+	if err != nil {
+		t.Fatalf("GetPlanGraph: %v", err)
+	}
+
+	var startID, endID, devNodeID, integNodeID string
+	for _, n := range view.Nodes {
+		switch {
+		case n.ControlKind == string(orch.ControlKindStart):
+			startID = n.ID
+		case n.ControlKind == string(orch.ControlKindEnd):
+			endID = n.ID
+		case n.TaskID == string(dev):
+			devNodeID = n.ID
+		case n.TaskID == string(integ):
+			integNodeID = n.ID
+		}
+	}
+	if startID == "" || endID == "" || devNodeID == "" || integNodeID == "" {
+		t.Fatalf("missing node ids: start=%q end=%q dev=%q integ=%q", startID, endID, devNodeID, integNodeID)
+	}
+
+	edge := func(from, to string) *PlanGraphEdge {
+		for i := range view.Edges {
+			if view.Edges[i].From == from && view.Edges[i].To == to {
+				return &view.Edges[i]
+			}
+		}
+		return nil
+	}
+	// Start → root (Dev): present and seq-kinded.
+	if e := edge(startID, devNodeID); e == nil {
+		t.Fatalf("missing Start→root(Dev) anchor edge; edges=%+v", view.Edges)
+	} else if e.Kind != "seq" {
+		t.Fatalf("Start→Dev edge kind = %q, want seq", e.Kind)
+	}
+	// Sink (Integrate) → End: present and seq-kinded.
+	if e := edge(integNodeID, endID); e == nil {
+		t.Fatalf("missing sink(Integrate)→End anchor edge; edges=%+v", view.Edges)
+	} else if e.Kind != "seq" {
+		t.Fatalf("Integrate→End edge kind = %q, want seq", e.Kind)
+	}
+	// Start stays a pure source (no incoming); End stays a pure sink (no outgoing).
+	for _, e := range view.Edges {
+		if e.To == startID {
+			t.Fatalf("Start anchor has an incoming edge %+v — should be a pure source", e)
+		}
+		if e.From == endID {
+			t.Fatalf("End anchor has an outgoing edge %+v — should be a pure sink", e)
+		}
+	}
+}
+
 // TestGetPlanGraph_NoGraph_FallbackSignal is the NON-BREAKING guard: a plan with NO
 // graph (never started — no graph_id) returns ErrPlanHasNoGraph, which the handler
-// maps to has_graph:false so the FE renders the legacy ComputePlanView DAG. Zero
+// maps to has_graph:false so the FE renders the legacy DerivePlanView DAG. Zero
 // regression for pre-T768 / draft plans.
 func TestGetPlanGraph_NoGraph_FallbackSignal(t *testing.T) {
 	h, _ := planGraphSetup(t)
@@ -120,20 +188,6 @@ func TestGetPlanGraph_NoGraph_FallbackSignal(t *testing.T) {
 	}
 }
 
-// TestGetPlanGraph_EngineUnwired_FallbackSignal proves the fallback also holds when
-// the orchestration engine is UNWIRED (Deps.Orch nil) — even a STARTED plan has no
-// graph_id, so GetPlanGraph returns ErrPlanHasNoGraph and the legacy DAG is used.
-func TestGetPlanGraph_EngineUnwired_FallbackSignal(t *testing.T) {
-	h := planAdvanceSetup(t) // no Orch wired
-	ctx := h.ctx
-	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "unwired", CreatedBy: "user:a"})
-	h.drain(t)
-	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
-	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
-		t.Fatalf("StartPlan: %v", err)
-	}
-	if _, err := h.svc.GetPlanGraph(ctx, planID); !errors.Is(err, ErrPlanHasNoGraph) {
-		t.Fatalf("GetPlanGraph with engine unwired = %v, want ErrPlanHasNoGraph", err)
-	}
-}
+// T810 ⑤: TestGetPlanGraph_EngineUnwired_FallbackSignal was removed — the engine is now
+// MANDATORY (New auto-wires it), so a STARTED plan always has a graph. GetPlanGraph still
+// returns ErrPlanHasNoGraph for a DRAFT (never-started) plan; that is covered elsewhere.

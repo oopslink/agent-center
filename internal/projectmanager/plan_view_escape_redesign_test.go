@@ -19,7 +19,7 @@ func newScaffoldCycleEdges() []Dependency {
 	}
 }
 
-func TestComputePlanView_ExhaustedNewScaffold_IntegrateSkips_NoFailure(t *testing.T) {
+func TestDerivePlanView_ExhaustedNewScaffold_IntegrateSkips_NoFailure(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskCompleted),
@@ -27,7 +27,7 @@ func TestComputePlanView_ExhaustedNewScaffold_IntegrateSkips_NoFailure(t *testin
 		newTaskWithStatus(t, "Dec", TaskCompleted), // exhausted → reject_exhausted terminal
 		newTaskWithStatus(t, "Integ", TaskOpen),    // pass branch never taken
 	}
-	v := ComputePlanView(tasks, newScaffoldCycleEdges(), nil,
+	v := DerivePlanView(tasks, newScaffoldCycleEdges(), nil,
 		[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "reject_exhausted"}}, nil)
 	st := nodeStatusByID(v)
 

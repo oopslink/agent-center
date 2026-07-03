@@ -17,7 +17,7 @@ func nodeStatusByID(v PlanView) map[TaskID]NodeStatus {
 
 // A decision routes by outcome: the matching conditional branch becomes ready, the
 // non-matching branch (and its downstream) is SKIPPED; the plan still reaches AllDone.
-func TestComputePlanView_ConditionalRouting(t *testing.T) {
+func TestDerivePlanView_ConditionalRouting(t *testing.T) {
 	// D(decision, done, outcome=pass) → pass:Integrate, reject:Rework→Rework2.
 	d := newTaskWithStatus(t, "D", TaskCompleted)
 	integ := newTaskWithStatus(t, "I", TaskOpen)
@@ -31,7 +31,7 @@ func TestComputePlanView_ConditionalRouting(t *testing.T) {
 	}
 	outcomes := []DecisionOutcome{{PlanID: "pl", TaskID: "D", Outcome: "pass"}}
 
-	v := ComputePlanView(tasks, edges, nil, outcomes, nil)
+	v := DerivePlanView(tasks, edges, nil, outcomes, nil)
 	st := nodeStatusByID(v)
 	if st["I"] != NodeReady {
 		t.Fatalf("pass-branch I = %s, want ready", st["I"])
@@ -49,12 +49,12 @@ func TestComputePlanView_ConditionalRouting(t *testing.T) {
 
 // A pending (not-done) decision keeps its conditional downstream BLOCKED (not ready,
 // not skipped) until the decision resolves.
-func TestComputePlanView_PendingDecisionBlocks(t *testing.T) {
+func TestDerivePlanView_PendingDecisionBlocks(t *testing.T) {
 	d := newTaskWithStatus(t, "D", TaskRunning) // decision not done yet
 	integ := newTaskWithStatus(t, "I", TaskOpen)
 	tasks := []*Task{d, integ}
 	edges := []Dependency{{PlanID: "pl", FromTaskID: "I", ToTaskID: "D", Kind: EdgeConditional, When: "pass"}}
-	v := ComputePlanView(tasks, edges, nil, nil, nil)
+	v := DerivePlanView(tasks, edges, nil, nil, nil)
 	st := nodeStatusByID(v)
 	if st["I"] != NodeBlocked {
 		t.Fatalf("I = %s, want blocked (decision pending)", st["I"])
@@ -62,7 +62,7 @@ func TestComputePlanView_PendingDecisionBlocks(t *testing.T) {
 }
 
 // AllDone counts SKIPPED as settled: done pass-branch + skipped reject-branch == done.
-func TestComputePlanView_AllDoneWithSkipped(t *testing.T) {
+func TestDerivePlanView_AllDoneWithSkipped(t *testing.T) {
 	d := newTaskWithStatus(t, "D", TaskCompleted)
 	integ := newTaskWithStatus(t, "I", TaskCompleted) // pass branch ran + done
 	rework := newTaskWithStatus(t, "R", TaskOpen)     // reject branch, never taken
@@ -72,7 +72,7 @@ func TestComputePlanView_AllDoneWithSkipped(t *testing.T) {
 		{PlanID: "pl", FromTaskID: "R", ToTaskID: "D", Kind: EdgeConditional, When: "reject"},
 	}
 	outcomes := []DecisionOutcome{{PlanID: "pl", TaskID: "D", Outcome: "pass"}}
-	v := ComputePlanView(tasks, edges, nil, outcomes, nil)
+	v := DerivePlanView(tasks, edges, nil, outcomes, nil)
 	if !v.AllDone {
 		t.Fatalf("AllDone = false, want true (done + skipped == settled). statuses=%v", nodeStatusByID(v))
 	}
@@ -80,7 +80,7 @@ func TestComputePlanView_AllDoneWithSkipped(t *testing.T) {
 
 // A loopback edge does NOT gate forward readiness: Dev (the loop target) stays ready
 // off its real upstream even though a later decision has a loopback edge to it.
-func TestComputePlanView_LoopbackNotForwardBlocking(t *testing.T) {
+func TestDerivePlanView_LoopbackNotForwardBlocking(t *testing.T) {
 	s0 := newTaskWithStatus(t, "S0", TaskCompleted)
 	dev := newTaskWithStatus(t, "Dev", TaskOpen)
 	dec := newTaskWithStatus(t, "Dec", TaskOpen)
@@ -91,7 +91,7 @@ func TestComputePlanView_LoopbackNotForwardBlocking(t *testing.T) {
 		// loopback Dec → Dev (back-edge). Must NOT make Dev depend on Dec.
 		{PlanID: "pl", FromTaskID: "Dec", ToTaskID: "Dev", Kind: EdgeLoopback, When: "reject", MaxRounds: 3},
 	}
-	v := ComputePlanView(tasks, edges, nil, nil, nil)
+	v := DerivePlanView(tasks, edges, nil, nil, nil)
 	st := nodeStatusByID(v)
 	if st["Dev"] != NodeReady {
 		t.Fatalf("Dev = %s, want ready (loopback must not gate forward readiness)", st["Dev"])
@@ -173,7 +173,7 @@ func TestLoopbackResetSet(t *testing.T) {
 // loopback(reject)→Dev. This is the contract the scaffold must satisfy (the service
 // test asserts the scaffold emits exactly these edges); here we assert the edges
 // drive the engine the way B2 intends.
-func TestComputePlanView_CycleControlFlowRouting(t *testing.T) {
+func TestDerivePlanView_CycleControlFlowRouting(t *testing.T) {
 	// Forward chain done up to a resolved Decision; Integrate + Escape still open.
 	mkTasks := func() []*Task {
 		return []*Task{
@@ -196,7 +196,7 @@ func TestComputePlanView_CycleControlFlowRouting(t *testing.T) {
 
 	// pass → Integrate becomes ready, Escape is pruned (skipped).
 	t.Run("pass routes to Integrate", func(t *testing.T) {
-		v := ComputePlanView(mkTasks(), edges, nil,
+		v := DerivePlanView(mkTasks(), edges, nil,
 			[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "pass"}}, nil)
 		st := nodeStatusByID(v)
 		if st["Integ"] != NodeReady {
@@ -209,7 +209,7 @@ func TestComputePlanView_CycleControlFlowRouting(t *testing.T) {
 
 	// reject_exhausted → Escape becomes ready, Integrate is pruned (skipped).
 	t.Run("reject_exhausted routes to Escape", func(t *testing.T) {
-		v := ComputePlanView(mkTasks(), edges, nil,
+		v := DerivePlanView(mkTasks(), edges, nil,
 			[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "reject_exhausted"}}, nil)
 		st := nodeStatusByID(v)
 		if st["Esc"] != NodeReady {
@@ -223,13 +223,13 @@ func TestComputePlanView_CycleControlFlowRouting(t *testing.T) {
 
 // Backward compatibility: a pure seq DAG with NO edge kinds / NO outcomes derives
 // identically to the pre-B1 engine — no node is ever skipped, AllDone == all done.
-func TestComputePlanView_PureDAGBackCompat(t *testing.T) {
+func TestDerivePlanView_PureDAGBackCompat(t *testing.T) {
 	a := newTaskWithStatus(t, "A", TaskCompleted)
 	b := newTaskWithStatus(t, "B", TaskOpen)
 	c := newTaskWithStatus(t, "C", TaskCompleted)
 	tasks := []*Task{a, b, c}
 	edges := []Dependency{{PlanID: "pl", FromTaskID: "B", ToTaskID: "A"}} // zero-value kind == seq
-	v := ComputePlanView(tasks, edges, nil, nil, nil)
+	v := DerivePlanView(tasks, edges, nil, nil, nil)
 	st := nodeStatusByID(v)
 	if st["B"] != NodeReady {
 		t.Fatalf("B = %s, want ready (A done)", st["B"])

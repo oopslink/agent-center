@@ -1590,6 +1590,12 @@ const NODE_H = 84;
 const ROW_GAP = 28;
 const PAD_X = 14;
 const PAD_Y = 16;
+// T800: control-node marker cell width (circle 56 / diamond 64 + breathing room) and
+// the uniform horizontal gap between columns. A level holding only control markers
+// uses CTRL_W instead of the full card width, so Start/End and a condition diamond
+// don't float in an over-wide column (the "过大空列" around a condition).
+const CTRL_W = 76;
+const COL_GAP = COL_W - NODE_W; // 32 — preserves the prior business-column spacing
 
 interface Positioned {
   node: PlanNode;
@@ -1837,12 +1843,15 @@ interface GraphPositioned {
   level: number;
   x: number;
   y: number;
+  w: number; // T800: per-node cell width (control markers are slimmer than cards)
 }
 
 // Longest-path left→right layout over the FORWARD edges (loopback back-edges are
 // excluded from leveling — they are drawn as return arcs). Control + business
 // nodes share the layout so the graph reads as one flow.
-function layoutGraph(
+// Exported for unit tests (T800 layout algebra: Start/End terminal ranks + slim
+// control columns). Not part of the page's public surface otherwise.
+export function layoutGraph(
   nodes: PlanGraphNode[],
   edges: PlanGraphEdge[],
 ): { positioned: GraphPositioned[]; width: number; height: number } {
@@ -1864,22 +1873,56 @@ function layoutGraph(
     return lvl;
   }
 
+  // Raw longest-path level, then FORCE terminal ranks for the structural anchors:
+  // Start is the inline SOURCE (leftmost), End the inline SINK (rightmost). Holds
+  // even for graphs built before the Start→root / sink→End edges existed (T800) —
+  // an edge-less End would otherwise land at level 0, stacked in Start's left column.
+  const raw = new Map<string, number>();
+  let maxNonEnd = 0;
+  for (const n of nodes) {
+    const lvl = level(n.id);
+    raw.set(n.id, lvl);
+    if (n.control_kind !== 'end') maxNonEnd = Math.max(maxNonEnd, lvl);
+  }
+  const effLevel = (n: PlanGraphNode): number =>
+    n.control_kind === 'start' ? 0 : n.control_kind === 'end' ? maxNonEnd + 1 : (raw.get(n.id) ?? 0);
+
   const byLevel = new Map<number, PlanGraphNode[]>();
   let maxLevel = 0;
   for (const n of nodes) {
-    const lvl = level(n.id);
+    const lvl = effLevel(n);
     maxLevel = Math.max(maxLevel, lvl);
     byLevel.set(lvl, [...(byLevel.get(lvl) ?? []), n]);
   }
+
+  // Per-level column width: a level holding ONLY control markers (start / end /
+  // condition) is slim (CTRL_W); a business — or mixed — level keeps the full card
+  // width. Then lay columns out left→right with a uniform gap, so a lone condition
+  // diamond no longer reserves a full card column beside its neighbours.
+  const nodeW = (n: PlanGraphNode): number => (n.category === 'control' ? CTRL_W : NODE_W);
+  const colW: number[] = [];
+  const colX: number[] = [];
+  let acc = PAD_X;
+  for (let l = 0; l <= maxLevel; l++) {
+    const group = byLevel.get(l) ?? [];
+    const allControl = group.length > 0 && group.every((n) => n.category === 'control');
+    colW[l] = allControl ? CTRL_W : NODE_W;
+    colX[l] = acc;
+    acc += colW[l] + COL_GAP;
+  }
+
   const positioned: GraphPositioned[] = [];
   let maxRows = 0;
   for (const [lvl, group] of byLevel) {
     maxRows = Math.max(maxRows, group.length);
     group.forEach((node, row) => {
-      positioned.push({ node, level: lvl, x: PAD_X + lvl * COL_W, y: PAD_Y + row * (NODE_H + ROW_GAP) });
+      const w = nodeW(node);
+      // Center a slim control marker within a wider (mixed/business) column.
+      const x = colX[lvl] + (colW[lvl] - w) / 2;
+      positioned.push({ node, level: lvl, x, y: PAD_Y + row * (NODE_H + ROW_GAP), w });
     });
   }
-  const width = PAD_X * 2 + (maxLevel + 1) * COL_W;
+  const width = acc - COL_GAP + PAD_X;
   const height = Math.max(PAD_Y * 2 + maxRows * (NODE_H + ROW_GAP) - ROW_GAP, 200);
   return { positioned, width, height };
 }
@@ -1960,15 +2003,15 @@ function PlanGraphDag({
       const b = posById.get(e.to);
       if (!a || !b) continue;
       if (e.kind === 'loopback') {
-        const x1 = a.x + NODE_W / 2;
+        const x1 = a.x + a.w / 2;
         const y1 = a.y;
-        const x2 = b.x + NODE_W / 2;
+        const x2 = b.x + b.w / 2;
         const y2 = b.y;
         const topY = Math.min(y1, y2) - 34;
         out.push({ key: `loop-${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${x1},${topY} ${x2},${topY} ${x2},${y2}` });
         continue;
       }
-      const x1 = a.x + NODE_W;
+      const x1 = a.x + a.w;
       const y1 = a.y + NODE_H / 2;
       const x2 = b.x;
       const y2 = b.y + NODE_H / 2;
@@ -2055,7 +2098,7 @@ function PlanGraphDag({
               {positioned.map((p) => {
                 if (p.node.category === 'control') {
                   return (
-                    <div key={p.node.id} className="absolute" style={{ left: p.x, top: p.y, width: NODE_W, height: NODE_H }}>
+                    <div key={p.node.id} className="absolute" style={{ left: p.x, top: p.y, width: p.w, height: NODE_H }}>
                       <ControlNodeMarker node={p.node} />
                     </div>
                   );

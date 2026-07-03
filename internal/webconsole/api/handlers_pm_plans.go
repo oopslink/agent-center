@@ -344,7 +344,7 @@ func (s *Server) pmGetPlanHandler(w http.ResponseWriter, r *http.Request) {
 // orchestration-engine GRAPH read model: control nodes (Start/End/Condition) +
 // business nodes bound to tasks (status/org_ref) + edges by kind
 // (seq/conditional/loopback). The plan-detail DAG reads THIS to reflect the real
-// engine graph rather than the client-side ComputePlanView reconstruction.
+// engine graph rather than the client-side DerivePlanView reconstruction.
 //
 // NON-BREAKING: a plan with NO graph_id (pre-T768 / draft / never-started, or the
 // engine unwired) yields ErrPlanHasNoGraph → a 200 {has_graph:false} body, and the

@@ -226,7 +226,7 @@ type PlanRepository interface {
 	// Decision outcomes (v2.13.0 I18/B1, control-flow §2.3) — a decision node's
 	// recorded outcome (latest-wins per plan_id,task_id), routing its conditional/
 	// loopback out-edges. RecordDecisionOutcome upserts (overwrite on re-decision);
-	// ListDecisionOutcomes returns one plan's outcomes (fed to ComputePlanView);
+	// ListDecisionOutcomes returns one plan's outcomes (fed to DerivePlanView);
 	// ClearDecisionOutcome removes one (loopback reopen → re-decide).
 	RecordDecisionOutcome(ctx context.Context, planID PlanID, taskID TaskID, outcome string, at time.Time) error
 	ListDecisionOutcomes(ctx context.Context, planID PlanID) ([]DecisionOutcome, error)

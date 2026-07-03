@@ -721,7 +721,7 @@ type planDepArgs struct {
 	ToTaskID   string `json:"to_task_id" jsonschema:"the prerequisite task that must finish first"`
 }
 
-// makePlanDep backs BOTH add_plan_dependency and remove_plan_dependency. The
+// makePlanDep backs remove_plan_dependency (a plain from/to edge removal). The
 // tool string MUST equal the admin route segment, so it is supplied explicitly.
 func makePlanDep(cfg Config, tool string) mcp.ToolHandlerFor[planDepArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args planDepArgs) (*mcp.CallToolResult, any, error) {
@@ -732,6 +732,36 @@ func makePlanDep(cfg Config, tool string) mcp.ToolHandlerFor[planDepArgs, any] {
 			"to_task_id":   args.ToTaskID,
 		}
 		return callAdmin(ctx, cfg, tool, body)
+	}
+}
+
+// addPlanDepArgs extends the plain from/to edge with T802 control-flow authoring
+// fields (all optional; omit them for a plain seq depends_on edge). Together with
+// create_plan + add_task_to_plan this lets an agent author a Decision/loopback
+// cycle plan with no scaffold tool.
+type addPlanDepArgs struct {
+	PlanID     string `json:"plan_id" jsonschema:"the draft plan whose dependency DAG to modify"`
+	FromTaskID string `json:"from_task_id" jsonschema:"the dependent task (for seq/conditional it runs after to_task_id; for a loopback it is the decision node the back-edge starts from)"`
+	ToTaskID   string `json:"to_task_id" jsonschema:"the prerequisite task (for seq/conditional it must finish first; for a loopback it is the forward ancestor to re-activate, e.g. the Dev node)"`
+	Kind       string `json:"kind,omitempty" jsonschema:"edge kind: seq (default hard depends_on) | conditional (active only when to_task_id's decision outcome == when) | loopback (bounded back-edge: when from_task_id's decision outcome == when, re-run the to_task_id subgraph up to max_rounds)"`
+	When       string `json:"when,omitempty" jsonschema:"outcome label the edge routes on; REQUIRED for conditional and loopback (e.g. pass / reject)"`
+	MaxRounds  int    `json:"max_rounds,omitempty" jsonschema:"loopback round cap (>=1); required for loopback, ignored otherwise"`
+}
+
+// makeAddPlanDep backs add_plan_dependency with control-flow authoring. Body keys
+// match the admin handler's planDepReq exactly.
+func makeAddPlanDep(cfg Config) mcp.ToolHandlerFor[addPlanDepArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args addPlanDepArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":     cfg.AgentID,
+			"plan_id":      args.PlanID,
+			"from_task_id": args.FromTaskID,
+			"to_task_id":   args.ToTaskID,
+			"kind":         args.Kind,
+			"when":         args.When,
+			"max_rounds":   args.MaxRounds,
+		}
+		return callAdmin(ctx, cfg, "add_plan_dependency", body)
 	}
 }
 

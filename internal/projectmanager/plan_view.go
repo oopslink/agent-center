@@ -186,15 +186,25 @@ type PlanView struct {
 	AllDone   bool
 }
 
-// ComputePlanView derives the whole-Plan read model from the selected tasks, the
-// DAG edges, the dispatch records, and the set of tasks whose work item is paused
-// (§9.2/§9.7/§9.1). It is PURE: callers load the inputs and pass them in. `paused`
-// maps a TaskID→true when that task's live AgentWorkItem is paused (T53); a nil/
-// empty map means "no paused overlay" — dispatch callers pass nil since pausing a
-// running node never changes the ready-set or AllDone (a paused node is neither
+// DerivePlanView derives the whole-Plan read model from the selected tasks, the DAG
+// edges, the dispatch records, the decision outcomes, and the set of tasks whose work
+// item is paused (§9.2/§9.7/§9.1). It is PURE: callers load the inputs and pass them
+// in. `paused` maps a TaskID→true when that task's live AgentWorkItem is paused (T53);
+// a nil/empty map means "no paused overlay" — dispatch callers pass nil since pausing
+// a running node never changes the ready-set or AllDone (a paused node is neither
 // ready nor done). Nodes are returned in the input `tasks` order (callers pass a
 // stable order); the ready-set follows that same order.
-func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
+//
+// T807 ④: DerivePlanView is the graph-era READ-VIEW derivation — the pure body the
+// readers (get_plan detail / list enrich / builtin pool) call directly. "The graph is
+// authoritative" is a DISPATCH property (T805 ③ drives readiness/decisions/loopback off
+// the engine graph); a read VIEW is a projection of LIVE task state, so it derives here
+// over live tasks+deps+outcomes+dispatch rather than physically re-reading the graph's
+// node statuses (which are only synced at dispatch, so possibly stale at read time —
+// and a READ must not sync/write). Deriving over live truth keeps the read byte-for-byte
+// correct. (T810 ⑤: the old ComputePlanView shell was deleted — DerivePlanView is the
+// single read-view derivation; the graph is the DISPATCH authority.)
+func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
 	// Index task status by id, and whether each node is dispatched.
 	statusOf := make(map[TaskID]TaskStatus, len(tasks))
 	inPlan := make(map[TaskID]struct{}, len(tasks))

@@ -39,47 +39,15 @@ type planAdvanceHarness struct {
 	ctx        context.Context
 }
 
+// planAdvanceSetup builds the plan-advance harness. T810 ⑤: it now delegates to
+// planGraphSetup so the orchestration engine is ALWAYS wired — after the old-engine
+// deletion there is a SINGLE dispatch path (the graph), so every dispatch test must
+// run a graphed plan, exactly as production does (StartPlan builds a graph for every
+// plan). The prior orch-unwired variant exercised the deleted legacy dispatch fallback.
 func planAdvanceSetup(t *testing.T) *planAdvanceHarness {
 	t.Helper()
-	db, err := persistence.Open(persistence.MemoryDSN())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := persistence.NewMigrator(db).Up(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	clk := clock.NewFakeClock(time.Unix(1_700_000_000, 0).UTC())
-	gen := idgen.NewGenerator(clk)
-	ob := outboxsql.NewOutboxRepo(db)
-	applied := outboxsql.NewAppliedRepo(db)
-	convRepo := convsql.NewConversationRepo(db)
-	msgRepo := convsql.NewMessageRepo(db)
-	er, _ := obsqlite.NewEventRepo(context.Background(), db)
-	sink := observability.NewEventSink(er, er, gen, clk)
-	writer := convservice.NewMessageWriter(db, convRepo, msgRepo, sink, gen, clk).WithOutbox(ob)
-	plans := pmsql.NewPlanRepo(db)
-	tasks := pmsql.NewTaskRepo(db)
-	actionLogs := pmsql.NewTaskActionLogRepo(db, gen)
-	svc := New(Deps{
-		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
-		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
-		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, IDGen: gen, Clock: clk,
-		TaskActionLogs: actionLogs,
-		// #245 org sequence so CreateTask allocates T<n> ids — the plan-conversation
-		// dispatch reminder names tasks by their id.
-		OrgSeq:   pmsql.NewOrgSequenceRepo(db),
-		AgentDir: allOrgDir("org-1"),
-		// Resolver mirrors production (strip the agent:/user: scheme → display_name).
-		// Here the harness has no IdentityRepo, so it uses the bare id as the
-		// display_name — enough to exercise the @<display_name> prepend + wake match.
-		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, planTestDisplayName),
-	})
-	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
-	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
-	relay := outbox.NewRelay(ob, applied, clk, taskProj, planProj)
-	return &planAdvanceHarness{svc: svc, plans: plans, tasks: tasks, convRepo: convRepo, msgRepo: msgRepo, relay: relay, clk: clk, actionLogs: actionLogs, ctx: context.Background()}
+	h, _ := planGraphSetup(t)
+	return h
 }
 
 func (h *planAdvanceHarness) drain(t *testing.T) {
