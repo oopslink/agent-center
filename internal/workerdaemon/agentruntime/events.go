@@ -139,7 +139,9 @@ func (r *LocalRuntime) onExit(exitErr error) {
 	promptDescription := st.PromptDescription
 	envVars := cloneEnv(st.EnvVars)
 	cli := st.CLI
-	wasConcurrent := r.cfg.ExecActive != nil && r.cfg.ExecActive(agentID)
+	// The executor engine now lives on the runtime (Phase 0c); read it under the held
+	// Mu (this whole block is inside r.cfg.Mu.Lock()).
+	wasConcurrent := r.exec != nil
 	taskLog := st.TaskLog
 	st.TaskLog, st.TaskLogID = nil, ""
 	if r.cfg.RemoveAgent != nil {

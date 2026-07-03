@@ -39,3 +39,12 @@ func TaskIDFromStartTool(toolName string, toolInput json.RawMessage) string {
 	return taskIDFromStartTool(toolName, toolInput)
 }
 func IsTaskTerminalTool(toolName string) bool { return isTaskTerminalTool(toolName) }
+
+// SeedOrphanForTest registers an adopted orphan on the attached executor engine, a
+// deterministic way for the daemon's SnapshotConcurrency aggregate test to make one
+// executor appear (the engine internals are unexported). No-op with no engine.
+func (r *LocalRuntime) SeedOrphanForTest(id string, pid int) {
+	if ee := r.execEngine(); ee != nil {
+		ee.addOrphan(id, pid)
+	}
+}

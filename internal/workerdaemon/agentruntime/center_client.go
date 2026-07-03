@@ -1,15 +1,11 @@
-package workerdaemon
+package agentruntime
 
-// center_client.go — W2 daemon adapter: bridges the orchestrator's CenterClient
-// port (internal/workerdaemon/orchestrator) to the daemon's authed admin
-// transport (*AdminClient.CallAgentTool over the agent-tools endpoints). This is
-// the production wiring that lets the executor Writeback reach the center WITHOUT
-// the orchestrator package importing the daemon (it depends only on the port).
-//
-// Every call goes through the same worker-bearer transport as the rest of the
-// daemon and carries the agent_id; the center authenticates the worker and maps it
-// to the agent's business identity — the daemon never touches center storage
-// directly (conventions §0.4).
+// center_client.go — the daemon adapter that bridges the orchestrator's CenterClient
+// / UsageReporter ports to the daemon's authed admin transport, moved (Phase 0c) into
+// agentruntime because buildExecutorEngine (now a LocalRuntime method) constructs the
+// writeback from it. ToolCaller is the narrow POST-agent-tool seam; workerdaemon
+// aliases it back (agentToolCaller = agentruntime.ToolCaller) and *AdminClient
+// satisfies it. This file imports only orchestrator (which does not import workerdaemon).
 
 import (
 	"context"
@@ -19,21 +15,21 @@ import (
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
 
-// agentToolCaller is the narrow seam the writeback adapter needs from the admin
-// client: POST /admin/agent-tools/<tool>. *AdminClient satisfies it (CallAgentTool).
-type agentToolCaller interface {
+// ToolCaller is the narrow seam the writeback adapter needs from the admin client:
+// POST /admin/agent-tools/<tool>. *AdminClient satisfies it (CallAgentTool).
+type ToolCaller interface {
 	CallAgentTool(ctx context.Context, tool string, body any, out *json.RawMessage) error
 }
 
-// centerClientAdapter implements orchestrator.CenterClient over an agentToolCaller.
+// centerClientAdapter implements orchestrator.CenterClient over a ToolCaller.
 type centerClientAdapter struct {
-	caller agentToolCaller
+	caller ToolCaller
 }
 
-// newCenterClient wraps an agentToolCaller as an orchestrator.CenterClient. Returns
-// nil when the caller is nil (the daemon then wires a nil Writeback — graceful
-// degrade to reap-and-free-slot, as in W1).
-func newCenterClient(caller agentToolCaller) orchestrator.CenterClient {
+// newCenterClient wraps a ToolCaller as an orchestrator.CenterClient. Returns nil
+// when the caller is nil (the runtime then wires a nil Writeback — graceful degrade
+// to reap-and-free-slot, as in W1).
+func newCenterClient(caller ToolCaller) orchestrator.CenterClient {
 	if caller == nil {
 		return nil
 	}
@@ -76,19 +72,19 @@ func (a *centerClientAdapter) PostMessage(ctx context.Context, agentID, conversa
 	return a.caller.CallAgentTool(ctx, "post_message", body, nil)
 }
 
-// usageReporterAdapter implements orchestrator.UsageReporter over an agentToolCaller
+// usageReporterAdapter implements orchestrator.UsageReporter over a ToolCaller
 // (T613): it POSTs an executor run's aggregate token usage to the center's
 // report_usage agent-tool, the SAME endpoint + worker-bearer transport the
 // in-process per-turn hook uses. The executor never reaches here — only the
 // orchestrator (sole writer, already authed) does, so executor default-deny holds.
 type usageReporterAdapter struct {
-	caller agentToolCaller
+	caller ToolCaller
 }
 
-// newUsageReporter wraps an agentToolCaller as an orchestrator.UsageReporter.
-// Returns nil when the caller is nil (the writeback then leaves usage reporting
-// off — graceful degrade, matching newCenterClient).
-func newUsageReporter(caller agentToolCaller) orchestrator.UsageReporter {
+// newUsageReporter wraps a ToolCaller as an orchestrator.UsageReporter. Returns nil
+// when the caller is nil (the writeback then leaves usage reporting off — graceful
+// degrade, matching newCenterClient).
+func newUsageReporter(caller ToolCaller) orchestrator.UsageReporter {
 	if caller == nil {
 		return nil
 	}

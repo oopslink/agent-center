@@ -320,10 +320,9 @@ type managedAgent struct {
 	// before a session exists). Every field is guarded by AgentController.mu.
 	state *agentruntime.SessionState
 
-	// exec is the W1 per-agent concurrent-execution wiring, attached by
-	// reconcileRunning when the agent opts into concurrency. nil ⇒ single-claude
-	// inject path (0c). Guarded by AgentController.mu; recreated on restart.
-	exec *executorEngine
+	// (Phase 0c) the per-agent executor engine moved OFF managedAgent onto the
+	// runtime (LocalRuntime.exec). Presence is queried via runtime.HasExecutor() and
+	// installed via runtime.AttachExecutor(ee).
 
 	// appliedVersion is the highest reconcile version applied (replay guard).
 	appliedVersion int
@@ -620,31 +619,50 @@ func (c *AgentController) maybeAttachExecutorEngine(ctx context.Context, pl reco
 	// ma.exec stays nil after a restart and concurrency silently degrades to single-active.
 	c.mu.Lock()
 	c.execConfig[pl.AgentID] = pl
+	rt := c.runtimeForLocked(pl.AgentID)
 	c.mu.Unlock()
+
+	// The engine installs onto the agent's LocalRuntime (rt.AttachExecutor). Without a
+	// runtime there is nothing to attach to (a stub managedAgent with no session) —
+	// leave it for the next bring-up's reattach-from-cache.
+	if rt == nil {
+		c.log("agent=%s executor engine: no runtime yet (falling back to inject until bring-up)", pl.AgentID)
+		return
+	}
 
 	home, _, _, perr := c.agentPaths(pl.AgentID)
 	if perr != nil {
 		c.log("agent=%s executor engine paths: %v (falling back to inject)", pl.AgentID, perr)
 		return
 	}
-	ee, err := c.buildExecutorEngine(home, pl)
+	ee, err := rt.BuildExecutorEngine(home, execConfigOf(pl))
 	if err != nil {
 		c.log("agent=%s build executor engine: %v (falling back to inject)", pl.AgentID, err)
 		return
 	}
+	rt.AttachExecutor(ee)
+
 	c.mu.Lock()
-	if cur := c.agents[pl.AgentID]; cur != nil {
-		cur.exec = ee
-	}
 	firstAttach := !c.recoveredExec[pl.AgentID]
 	c.recoveredExec[pl.AgentID] = true
 	c.mu.Unlock()
 	c.log("agent=%s concurrent-execution enabled (max=%d, executors=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedExecutors))
 
 	// First attach this process → recover orphans from a prior process (design §12).
+	// The recovery-once-per-agent-per-process guard (recoveredExec) stays DAEMON-level
+	// so a later in-process rebuild does NOT re-scan (would double-finalize/double-adopt).
 	if firstAttach {
-		c.recoverExecutors(ctx, pl.AgentID, ee)
+		_ = rt.Recover(ctx)
 	}
+}
+
+// runtimeForLocked returns the agent's runtime (or nil). Caller MUST hold c.mu.
+func (c *AgentController) runtimeForLocked(agentID string) *agentruntime.LocalRuntime {
+	ma := c.agents[agentID]
+	if ma == nil {
+		return nil
+	}
+	return ma.runtime
 }
 
 // reattachExecutorEngineFromCache re-attaches the per-agent executor engine after a
@@ -773,50 +791,19 @@ func (c *AgentController) runtimeFor(agentID string) *agentruntime.LocalRuntime 
 	return ma.runtime
 }
 
-// createTaskDir creates the pending task-execution directory (the executor branch of
-// the old work(); the inject branch does it inside LocalRuntime.NotifyWork).
-func (c *AgentController) createTaskDir(agentID, taskID string) {
-	if c.cfg.TaskDirManager == nil {
-		return
-	}
-	_, tasksDir, _, pathErr := c.agentPaths(agentID)
-	if pathErr != nil {
-		c.log("agent=%s task=%s resolve paths: %v", agentID, taskID, pathErr)
-		return
-	}
-	now := c.now()
-	meta := taskexec.TaskExecutionMeta{TaskID: taskID, Status: taskexec.StatusPending, CreatedAt: now, UpdatedAt: now}
-	if createErr := c.cfg.TaskDirManager.Create(tasksDir, meta, taskexec.ExecutionContext{}); createErr != nil {
-		c.log("agent=%s task=%s create task dir: %v", agentID, taskID, createErr)
-	}
-}
-
-// routeWork dispatches an agent.work command: the executor branch (exec != nil) forks
-// via workViaExecutor (0c, daemon-owned); otherwise the inject branch goes through the
-// runtime's NotifyWork (the moved session-inject path). The daemon owns the exec
-// decision because it owns the executor engine.
+// routeWork dispatches an agent.work command through the per-agent runtime's
+// NotifyWork, which now owns the exec-vs-session decision (Phase 0c): a
+// concurrency-enabled runtime (r.exec != nil) forks an executor; otherwise it injects
+// the brief into the resident session. The no-running-session error surface is
+// preserved inside NotifyWork (byte-identical message).
 func (c *AgentController) routeWork(ctx context.Context, pl workPayload) error {
 	if strings.TrimSpace(pl.AgentID) == "" {
 		c.log("work missing agent_id — skipping")
 		return nil
 	}
-	c.mu.Lock()
-	ma := c.agents[pl.AgentID]
-	live := ma.live()
-	var exec *executorEngine
-	var rt *agentruntime.LocalRuntime
-	if ma != nil {
-		exec = ma.exec
-		rt = ma.runtime
-	}
-	c.mu.Unlock()
-
-	if !live {
+	rt := c.runtimeFor(pl.AgentID)
+	if rt == nil {
 		return fmt.Errorf("agent_controller: work for agent=%s but no running session (retry after reconcile)", pl.AgentID)
-	}
-	if exec != nil {
-		c.createTaskDir(pl.AgentID, pl.TaskID)
-		return c.workViaExecutor(ctx, pl, exec)
 	}
 	return rt.NotifyWork(ctx, workRequestOf(pl))
 }
@@ -895,26 +882,26 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
 	var sess agentSession
-	var exec *executorEngine
+	var rt *agentruntime.LocalRuntime
 	if ma != nil {
 		if ma.state != nil {
 			sess = ma.state.Session
 		}
-		exec = ma.exec
+		rt = ma.runtime
 	}
 	c.mu.Unlock()
 
-	// W4a / F1 (issue I55): a CONCURRENCY-ENABLED agent (executorEngine attached by
-	// maybeAttachExecutorEngine — opt-in, non-codex) forks an isolated executor for the
-	// queued task instead of nudging the resident claude. This is the LIVE producer
-	// that makes W1 executor concurrency fire in production. MUTUALLY EXCLUSIVE with the
-	// nudge/relaunch path below: we fork (or leave queued) and ALWAYS short-circuit
-	// return — never also Inject the pull nudge — so the executor and the resident
-	// session can't both drive the same task (防双跑). The executor is independent of
-	// the resident session, so this runs whether or not a session is live. Best-effort
-	// + non-wedging: forkOnWorkAvailable logs every failure and the wake is always acked.
-	if exec != nil {
-		c.forkOnWorkAvailable(ctx, pl.AgentID, pl.TaskID, exec)
+	// W4a / F1 (issue I55): a CONCURRENCY-ENABLED agent (executor engine attached to
+	// its runtime — opt-in, non-codex) forks an isolated executor for the queued task
+	// instead of nudging the resident claude. This is the LIVE producer that makes
+	// executor concurrency fire in production. MUTUALLY EXCLUSIVE with the nudge/relaunch
+	// path below: we fork (or leave queued) and ALWAYS short-circuit return — never also
+	// Inject the pull nudge — so the executor and the resident session can't both drive
+	// the same task (防双跑). The executor is independent of the resident session, so
+	// this runs whether or not a session is live. Best-effort + non-wedging:
+	// SpawnExecutor logs every failure and the wake is always acked.
+	if rt != nil && rt.HasExecutor() {
+		_, _ = rt.SpawnExecutor(ctx, agentruntime.SpawnRequest{TaskID: pl.TaskID})
 		return nil
 	}
 
@@ -928,12 +915,10 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 		c.log("work_available agent=%s: concurrency-enabled but no executor engine attached — re-attaching (degradation guard)", pl.AgentID)
 		c.reattachExecutorEngineFromCache(ctx, pl.AgentID)
 		c.mu.Lock()
-		if ma := c.agents[pl.AgentID]; ma != nil {
-			exec = ma.exec
-		}
+		rt = c.runtimeForLocked(pl.AgentID)
 		c.mu.Unlock()
-		if exec != nil {
-			c.forkOnWorkAvailable(ctx, pl.AgentID, pl.TaskID, exec)
+		if rt != nil && rt.HasExecutor() {
+			_, _ = rt.SpawnExecutor(ctx, agentruntime.SpawnRequest{TaskID: pl.TaskID})
 			return nil
 		}
 	}

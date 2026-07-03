@@ -28,6 +28,15 @@ type SupervisorSessionConfig = agentruntime.SupervisorSessionConfig
 // feedbackReporter is the RESULT-feedback seam.
 type feedbackReporter = agentruntime.Reporter
 
+// executorEngine is the per-agent concurrent-execution wiring (moved DOWN in Phase
+// 0c). The daemon aliases it back so existing code/tests referencing the name keep
+// compiling; the ENGINE itself now lives on the agent's LocalRuntime (r.exec).
+type executorEngine = agentruntime.ExecutorEngine
+
+// agentToolCaller is the narrow center agent-tool transport seam (moved DOWN). The
+// daemon's *AdminClient satisfies it (CallAgentTool); tests inject a fake.
+type agentToolCaller = agentruntime.ToolCaller
+
 // UsageReport is one per-turn usage sample.
 type UsageReport = agentruntime.UsageReport
 
@@ -115,6 +124,7 @@ func (c *AgentController) baseRuntimeConfig() agentruntime.LocalRuntimeConfig {
 		Reporter:                c.cfg.Reporter,
 		Starter:                 c.cfg.starter,
 		CodexStarter:            c.cfg.codexStarter,
+		ToolCaller:              func() agentruntime.ToolCaller { return c.cfg.ToolCaller },
 		WorkerID:                c.cfg.WorkerID,
 		AdminURL:                c.cfg.AdminURL,
 		WorkerToken:             c.cfg.WorkerToken,
@@ -141,7 +151,6 @@ func (c *AgentController) baseRuntimeConfig() agentruntime.LocalRuntimeConfig {
 		EventWriter:             c.eventWriter,
 		BG:                      &c.bg,
 		RemoveAgent:             c.removeAgentLocked,
-		ExecActive:              c.execActiveLocked,
 	}
 }
 
@@ -183,13 +192,6 @@ func (c *AgentController) resumeNudgeText() string {
 		return c.cfg.ResumeNudge
 	}
 	return DefaultResumeNudge
-}
-
-// execActiveLocked reports whether the agent has an executor engine attached. Called
-// with c.mu HELD — it must NOT lock c.mu.
-func (c *AgentController) execActiveLocked(agentID string) bool {
-	ma := c.agents[agentID]
-	return ma != nil && ma.exec != nil
 }
 
 // bringUpSession reserves a fresh managedAgent (runtime + shared SessionState) for

@@ -61,7 +61,7 @@ func (r *recReporter) lifecycles() []string {
 }
 
 // fullRuntime wires the deps onExit / self-heal need (shared mutex, self-heal store,
-// RemoveAgent + ExecActive callbacks, clock). removed reports whether RemoveAgent fired.
+// RemoveAgent callback, clock). removed reports whether RemoveAgent fired.
 func fullRuntime(t *testing.T) (rt *LocalRuntime, st *SessionState, rep *recReporter, removed *bool) {
 	t.Helper()
 	var mu sync.Mutex
@@ -77,7 +77,6 @@ func fullRuntime(t *testing.T) (rt *LocalRuntime, st *SessionState, rep *recRepo
 		Now:         func() time.Time { return time.Unix(1_000_000, 0) },
 		SelfHeal:    NewSelfHealStore(&mu, SelfHealParams{}, nil),
 		RemoveAgent: func(string) { rm = true },
-		ExecActive:  func(string) bool { return false },
 	}
 	return NewLocalRuntime(cfg, st), st, rep, removed
 }

@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
-	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
@@ -56,6 +55,14 @@ type LocalRuntimeConfig struct {
 	Reporter     Reporter
 	Starter      SessionStarter
 	CodexStarter CodexSessionStarter
+
+	// ToolCaller reaches the center agent-tools endpoints (get_task / start_task /
+	// complete_task / block_task / report_usage) for the executor fork + W2 writeback.
+	// A func seam so it is read LIVE (the daemon owns c.cfg.ToolCaller, which tests
+	// wire after the runtime is built — matching the pre-move c.cfg.ToolCaller read).
+	// nil func / nil result ⇒ the fork path leaves tasks queued and the Monitor
+	// degrades to reap-and-free-slot with no center writeback.
+	ToolCaller func() ToolCaller
 
 	WorkerID          string
 	AdminURL          string
@@ -101,15 +108,23 @@ type LocalRuntimeConfig struct {
 	// RemoveAgent deletes the managedAgent from the daemon map. Called with Mu HELD
 	// (onExit crash path) — it must NOT re-lock Mu.
 	RemoveAgent func(agentID string)
-	// ExecActive reports whether the agent has an executor engine attached
-	// (managedAgent.exec != nil). Called with Mu HELD — must NOT re-lock Mu.
-	ExecActive func(agentID string) bool
 }
 
 // LocalRuntime is the in-process Runtime for one agent.
 type LocalRuntime struct {
 	cfg   LocalRuntimeConfig
 	state *SessionState
+
+	// exec is the per-agent concurrent-execution wiring (Phase 0c), installed via
+	// AttachExecutor when the agent opts into concurrency. nil ⇒ single-claude inject
+	// path. Guarded by the SHARED cfg.Mu exactly as ma.exec was guarded by c.mu.
+	exec *ExecutorEngine
+
+	// forkMu (red line #1) serializes the get_task→start_task→launch fork sequence
+	// (SpawnExecutor) AND the shared launch tail (launchExecutor) so two concurrent
+	// forks for one agent cannot both pass the pool cap. SEPARATE from cfg.Mu (the
+	// SessionState lock) — a different concern; never guards the same field.
+	forkMu sync.Mutex
 }
 
 var _ Runtime = (*LocalRuntime)(nil)
@@ -131,6 +146,14 @@ func (r *LocalRuntime) now() time.Time {
 		return r.cfg.Now()
 	}
 	return time.Now()
+}
+
+// toolCaller resolves the live center agent-tool transport (nil when unwired).
+func (r *LocalRuntime) toolCaller() ToolCaller {
+	if r.cfg.ToolCaller == nil {
+		return nil
+	}
+	return r.cfg.ToolCaller()
 }
 
 func (r *LocalRuntime) log(format string, args ...any) {
@@ -175,9 +198,19 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	agentID := req.AgentID
 	r.cfg.Mu.Lock()
 	sess := r.state.Session
+	ee := r.exec
 	r.cfg.Mu.Unlock()
 	if sess == nil {
 		return fmt.Errorf("agent_controller: work for agent=%s but no running session (retry after reconcile)", agentID)
+	}
+
+	// Executor branch (Phase 0c): a concurrency-enabled agent forks an executor for
+	// the brief instead of injecting into the resident claude. Mirrors today's
+	// routeWork exec-vs-session decision (ma.exec != nil), which required a live
+	// session first (checked above). The fork serializes under forkMu (red line #1).
+	if ee != nil {
+		r.createTaskDir(agentID, req.TaskID)
+		return r.workViaExecutor(ctx, req, ee)
 	}
 
 	if r.cfg.TaskDirManager != nil {
@@ -577,18 +610,15 @@ func (r *LocalRuntime) ReportLifecycleOnce(ctx context.Context, state, errMsg st
 // ResumeNudgeText exposes the resume nudge for the daemon boot-relaunch path.
 func (r *LocalRuntime) ResumeNudgeText() string { return r.resumeNudgeText() }
 
-// ---------------------------------------------------------------------------
-// Runtime interface methods not owned by 0b (executor面 → 0c).
-// ---------------------------------------------------------------------------
-
+// NotifyWorkAvailable is the interface entry for a work_available signal that routes
+// straight to a fork (SpawnExecutor). The daemon's workAvailable command handler owns
+// the dedup/relaunch/nudge orchestration and calls SpawnExecutor directly for the
+// concurrency branch, so this thin delegate is here for interface completeness /
+// future supervisor-driven fork_executor wiring.
 func (r *LocalRuntime) NotifyWorkAvailable(ctx context.Context, taskID string) error {
-	return ErrNotWired
+	_, err := r.SpawnExecutor(ctx, SpawnRequest{TaskID: taskID})
+	return err
 }
-func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*SpawnResult, error) {
-	return nil, ErrNotWired
-}
-func (r *LocalRuntime) Recover(ctx context.Context) error                    { return ErrNotWired }
-func (r *LocalRuntime) SnapshotConcurrency() []concurrency.ExecutorSnapshot { return nil }
 
 // cloneEnv duplicates an env overlay (nil-safe).
 func cloneEnv(in map[string]string) map[string]string {

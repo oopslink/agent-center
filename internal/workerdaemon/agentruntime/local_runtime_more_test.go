@@ -2,31 +2,34 @@ package agentruntime
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 	"time"
 )
 
-// TestDeferredMethods_ReturnNotWired pins the 0c-deferred surface: until the
-// executor面 migrates (0c), these fail loudly with ErrNotWired / zero values so a
-// later-phase routing mistake surfaces instead of silently dropping a signal.
-func TestDeferredMethods_ReturnNotWired(t *testing.T) {
+// TestExecutorSurface_NoEngineNoop pins the 0c executor面 on a runtime with NO engine
+// attached (the default single-active agent): every executor method is a safe,
+// non-wedging no-op rather than a wired action, so a non-concurrent agent never forks.
+func TestExecutorSurface_NoEngineNoop(t *testing.T) {
 	rt, _, _ := newTestRuntime(t)
 	ctx := context.Background()
 
-	if err := rt.NotifyWorkAvailable(ctx, "wi-1"); !errors.Is(err, ErrNotWired) {
-		t.Errorf("NotifyWorkAvailable = %v, want ErrNotWired", err)
+	// No engine + no ToolCaller → SpawnExecutor logs + returns (nil, nil), never wedges.
+	if err := rt.NotifyWorkAvailable(ctx, "wi-1"); err != nil {
+		t.Errorf("NotifyWorkAvailable (no engine) = %v, want nil", err)
 	}
 	res, err := rt.SpawnExecutor(ctx, SpawnRequest{TaskID: "wi-1"})
-	if res != nil || !errors.Is(err, ErrNotWired) {
-		t.Errorf("SpawnExecutor = (%v, %v), want (nil, ErrNotWired)", res, err)
+	if res != nil || err != nil {
+		t.Errorf("SpawnExecutor (no engine) = (%v, %v), want (nil, nil)", res, err)
 	}
-	if err := rt.Recover(ctx); !errors.Is(err, ErrNotWired) {
-		t.Errorf("Recover = %v, want ErrNotWired", err)
+	if err := rt.Recover(ctx); err != nil {
+		t.Errorf("Recover (no engine) = %v, want nil", err)
 	}
 	if snap := rt.SnapshotConcurrency(); snap != nil {
-		t.Errorf("SnapshotConcurrency = %v, want nil", snap)
+		t.Errorf("SnapshotConcurrency (no engine) = %v, want nil", snap)
+	}
+	if rt.HasExecutor() {
+		t.Error("a runtime with no engine attached must report HasExecutor()=false")
 	}
 }
 
