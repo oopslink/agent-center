@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
@@ -119,60 +118,88 @@ func mintToken(t *testing.T, sock, bootstrap, owner string, scopes []string) str
 
 // procHandle wraps a spawned process plus its captured stdout/stderr.
 type procHandle struct {
-	cmd    *exec.Cmd
-	mu     sync.Mutex
-	stdout *bytes.Buffer
-	stderr *bytes.Buffer
+	cmd     *exec.Cmd
+	outPath string
+	errPath string
 }
 
 func (p *procHandle) out() string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.stdout.String() + "\n" + p.stderr.String()
+	o, _ := os.ReadFile(p.outPath)
+	e, _ := os.ReadFile(p.errPath)
+	return string(o) + "\n" + string(e)
 }
 
 // spawn starts a process with captured stdio. env entries (KEY=VAL) are appended
 // to the current environment.
+//
+// stdout/stderr are backed by real *os.File sinks (NOT an in-memory writer). This is
+// deliberate: with a non-*os.File writer, os/exec creates an OS pipe and a copy
+// goroutine that cmd.Wait() awaits (awaitGoroutines). Under the controller /
+// process-per-agent model, the worker's agent-runtime children are an INTENTIONALLY
+// surviving, separate process group (ASSERT-2 / gap5) that inherit the pipe's write
+// end — so the pipe never reaches EOF and cmd.Wait() blocks until the test's 10-min
+// timeout. Handing the child a plain *os.File fd (no copy goroutine) makes cmd.Wait()
+// reap only the direct child and return promptly, leaving the designed survivor alive
+// without wedging teardown.
 func spawn(t *testing.T, name string, args []string, env []string) *procHandle {
 	t.Helper()
 	cmd := exec.Command(name, args...)
 	cmd.Env = append(os.Environ(), env...)
-	h := &procHandle{cmd: cmd, stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{}}
-	// Synchronized writers so out() can be read concurrently with the copy goroutines.
-	cmd.Stdout = &lockedWriter{mu: &h.mu, buf: h.stdout}
-	cmd.Stderr = &lockedWriter{mu: &h.mu, buf: h.stderr}
+	outF, err := os.CreateTemp(t.TempDir(), "proc-stdout-*.log")
+	if err != nil {
+		t.Fatalf("spawn %s: create stdout sink: %v", name, err)
+	}
+	errF, err := os.CreateTemp(t.TempDir(), "proc-stderr-*.log")
+	if err != nil {
+		t.Fatalf("spawn %s: create stderr sink: %v", name, err)
+	}
+	cmd.Stdout = outF
+	cmd.Stderr = errF
+	h := &procHandle{cmd: cmd, outPath: outF.Name(), errPath: errF.Name()}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start %s: %v", name, err)
 	}
+	// The child dup'd the fds at Start; the parent's copies aren't needed for the
+	// child (or its surviving descendants) to keep writing.
+	_ = outF.Close()
+	_ = errF.Close()
 	return h
 }
 
-type lockedWriter struct {
-	mu  *sync.Mutex
-	buf *bytes.Buffer
+// waitBounded reaps the process but never blocks the caller past timeout. A surviving
+// descendant that inherited an fd must not be able to wedge teardown; the *os.File
+// stdio above already prevents the copy-goroutine hang, this is a defensive cap for
+// any other inherited-fd surprise.
+func (p *procHandle) waitBounded(timeout time.Duration) {
+	if p.cmd.Process == nil {
+		return
+	}
+	done := make(chan struct{})
+	go func() { _ = p.cmd.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+	}
 }
 
-func (w *lockedWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.buf.Write(p)
-}
-
-// sigkill hard-kills the process group/process and waits for it to reap.
+// sigkill hard-kills the process and reaps it (bounded). It kills ONLY the direct
+// process, not the process group: the restart-recovery test kills the worker mid-run
+// and REQUIRES the agent-runtime survivor to stay alive (ASSERT-2 / gap5). Reaping the
+// designed survivors is the caller's separate stray-reap cleanup, not this helper.
 func (p *procHandle) sigkill(t *testing.T) {
 	t.Helper()
 	if p.cmd.Process != nil {
 		_ = p.cmd.Process.Kill()
 	}
-	_ = p.cmd.Wait()
+	p.waitBounded(10 * time.Second)
 }
 
-// sigterm sends SIGTERM and waits (graceful).
+// sigterm sends SIGTERM and waits (graceful, bounded).
 func (p *procHandle) sigterm() {
 	if p.cmd.Process != nil {
 		_ = p.cmd.Process.Signal(os.Interrupt)
 	}
-	_ = p.cmd.Wait()
+	p.waitBounded(10 * time.Second)
 }
 
 // waitFor polls fn until it returns true or the deadline passes; returns the final

@@ -181,6 +181,13 @@ secret_management:
 		}
 	})
 
+	// Bind the self-enrolled worker to the seeded org. Under the controller model the
+	// worker MUST org-enroll to control-connect (else 409 worker_not_org_enrolled, v2.7
+	// #148/#255) and receive reconcile/work; the bare worker enroll token mints no org.
+	// This SQL bind is the admin-socket-harness equivalent of production's org-scoped
+	// mint-enroll; it persists across the kill/restart (claimPreEnrolled keeps org).
+	orgEnrollWorker(t, dbPath, workerID, orgID)
+
 	// The agent home (where session.instance lands): <sqlite_dir>/agents/<agentID>/.
 	agentHome := filepath.Join(sandbox, "agents", agentID)
 	instanceFile := filepath.Join(agentHome, "session.instance")
@@ -252,14 +259,26 @@ secret_management:
 		w2.sigkill(t)
 	})
 
-	// ---- ASSERT 3a: boot-reconcile RELAUNCHES the agent --------------------
+	// ---- ASSERT 3a: the agent's supervisor session is RELAUNCHED + RESUMED --
+	// Controller / process-per-agent model (T860 ③): "relaunch" is the agent-runtime
+	// re-starting the supervisor session, observable as local_runtime.go's
+	// `started agent=<id> ... resume=<bool>` (child log prefixed [agent-runtime <id>]
+	// merged into worker stdout) — the pre-D6 daemon boot_reconcile "RELAUNCHED" string
+	// is gone. resume=true proves the relaunch RESUMED the prior session.
+	// BASELINE NOTE: this asserts the relaunch OUTCOME (trigger-agnostic). It holds
+	// whether the relaunch is control-driven (a68defe9) or autonomous at boot (after
+	// the gap6 fold-in); the fold-in adds a stronger assertion on the boot-reconcile
+	// autonomous-relaunch log on top of this.
+	startedMarker := "started agent=" + agentID
 	if !waitFor(40*time.Second, func() bool {
-		return strings.Contains(w2.out(), "RELAUNCHED")
+		out := w2.out()
+		return strings.Contains(out, startedMarker) && strings.Contains(out, "resume=true")
 	}) {
-		t.Fatalf("ASSERT-3a FAILED: no boot-reconcile RELAUNCH after restart.\nworker2 out:\n%s\nfakeclaude.log:\n%s",
-			w2.out(), safeRead(fcLog))
+		t.Fatalf("ASSERT-3a FAILED: agent-runtime did not relaunch+resume the supervisor session "+
+			"(want %q + resume=true) after restart.\nworker2 out:\n%s\nfakeclaude.log:\n%s",
+			startedMarker, w2.out(), safeRead(fcLog))
 	}
-	t.Logf("ASSERT-3a PASS: boot-reconcile RELAUNCHED the agent after restart")
+	t.Logf("ASSERT-3a PASS: agent-runtime RELAUNCHED + RESUMED the supervisor session after restart")
 
 	// ---- ASSERT 3b: the relaunch RESUMED (resume gated on completed_turn) ---
 	// The fix: because the prior generation completed a clean turn, boot-reconcile
@@ -310,6 +329,35 @@ secret_management:
 
 type seedParams struct {
 	orgID, agentID, workerID, convID, userRef, msgID string
+}
+
+// orgEnrollWorker binds the self-enrolled worker to the seeded org. The harness mints a
+// BARE worker enroll token (no org), so the daemon's workforce.Worker row lands with an
+// empty organization_id — under the controller model that makes the worker's
+// control-connect fail with 409 worker_not_org_enrolled (v2.7 #148/#255), so it never
+// receives reconcile/work. Production binds the org at mint-enroll time (the org install
+// command); the admin-socket enroll route does NOT org-stamp, so this SQL bind is the
+// harness-equivalent fixture. It is set once after the daemon self-enrolls (the row
+// appears shortly after spawn) and survives the kill/restart because the post-restart
+// re-enroll takes the claimPreEnrolled path, which does not overwrite organization_id.
+func orgEnrollWorker(t *testing.T, dbPath, workerID, orgID string) {
+	t.Helper()
+	db := openSeedDB(t, dbPath)
+	defer db.Close()
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		res, err := db.Exec(`UPDATE workers SET organization_id = ? WHERE id = ?`, orgID, workerID)
+		if err == nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				t.Logf("org-enrolled worker %s → org %s (control-connect precondition)", workerID, orgID)
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("org-enroll: worker row %s never appeared within 20s (last err=%v)", workerID, err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 func openSeedDB(t *testing.T, dbPath string) *sql.DB {
