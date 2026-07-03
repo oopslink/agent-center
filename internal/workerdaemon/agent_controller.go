@@ -47,6 +47,7 @@ import (
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 	"github.com/oopslink/agent-center/internal/workerdaemon/tasklog"
@@ -391,6 +392,15 @@ type managedAgent struct {
 	agentID string
 	session agentSession
 
+	// runtime is the per-agent execution面 (Phase 0a: docs/plans/2026-07-02-agent-
+	// repo-workspaces-implementation.md §4.0). The daemon now HOLDS a Runtime per
+	// managed agent and routes converse / work / wake through it (Notify* forward
+	// to the existing session paths — behavior unchanged). Session lifecycle +
+	// executor面 migrate INTO the runtime in 0b/0c; until then `session`/`exec`
+	// below remain the source of truth and the runtime is a thin forwarding wrapper.
+	// Lazily built by runtimeFor; guarded by AgentController.mu.
+	runtime agentruntime.Runtime
+
 	// exec is the W1 per-agent concurrent-execution wiring (orchestration Engine +
 	// reaping Monitor), attached by reconcileRunning ONLY when the agent's profile
 	// opts into concurrency (concurrencyEnabled). nil ⇒ the agent uses the legacy
@@ -695,21 +705,21 @@ func (c *AgentController) Handle(ctx context.Context, cmd ControlCommand) error 
 			c.log("work decode (offset=%d): %v — skipping", cmd.Offset, err)
 			return nil
 		}
-		return c.work(ctx, pl)
+		return c.routeWork(ctx, pl)
 	case cmdTypeAgentWake:
 		var pl wakePayload
 		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
 			c.log("wake decode (offset=%d): %v — skipping", cmd.Offset, err)
 			return nil
 		}
-		return c.wake(ctx, pl)
+		return c.routeWake(ctx, pl)
 	case cmdTypeAgentConverse:
 		var pl conversePayload
 		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
 			c.log("converse decode (offset=%d): %v — skipping", cmd.Offset, err)
 			return nil
 		}
-		return c.converse(ctx, pl)
+		return c.routeConverse(ctx, pl)
 	case cmdTypeWorkAvailable:
 		var pl workAvailablePayload
 		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
@@ -974,6 +984,122 @@ func (c *AgentController) reconcileReset(ctx context.Context, pl reconcilePayloa
 // session should be up. This is the lower-surprise option: we never silently
 // drop work, and we never start an un-reconciled session (start is the
 // reconcile's job — keeping a single source of truth for lifecycle).
+// runtimeFor returns the per-agent Runtime for an existing managedAgent, lazily
+// constructing the LocalRuntime on first use. It returns nil when no managedAgent
+// exists yet (a signal arriving before reconcile started the session) so the caller
+// falls back to the direct path, which preserves the "no running session → retry"
+// behavior. Guarded by mu.
+func (c *AgentController) runtimeFor(agentID string) agentruntime.Runtime {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ma := c.agents[agentID]
+	if ma == nil {
+		return nil
+	}
+	if ma.runtime == nil {
+		ma.runtime = c.newLocalRuntime(agentID)
+	}
+	return ma.runtime
+}
+
+// newLocalRuntime builds the Phase 0a LocalRuntime for an agent: a thin wrapper
+// whose Notify* hooks forward to the EXISTING controller paths (c.work / c.wake /
+// c.converse). No session state moves here yet — that lands in 0b/0c. Keeping the
+// hooks stateless (they re-look-up the managedAgent inside c.work/wake/converse)
+// means a runtime is safe to attach to any managedAgent, session or not.
+func (c *AgentController) newLocalRuntime(agentID string) agentruntime.Runtime {
+	return agentruntime.NewLocalRuntime(agentID, agentruntime.Hooks{
+		NotifyWork: func(ctx context.Context, req agentruntime.WorkRequest) error {
+			return c.work(ctx, workPayload{
+				AgentID: req.AgentID,
+				TaskID:  req.TaskID,
+				TaskRef: req.TaskRef,
+				Brief:   req.Brief,
+			})
+		},
+		NotifyWake: func(ctx context.Context, req agentruntime.WakeRequest) error {
+			return c.wake(ctx, wakePayload{
+				AgentID:        req.AgentID,
+				TaskID:         req.TaskID,
+				TaskRef:        req.TaskRef,
+				ConversationID: req.ConversationID,
+				MessageID:      req.MessageID,
+				MessageText:    req.MessageText,
+				RootMessageID:  req.RootMessageID,
+			})
+		},
+		NotifyConverse: func(ctx context.Context, req agentruntime.ConverseRequest) error {
+			return c.converse(ctx, conversePayload{
+				AgentID:         req.AgentID,
+				ConversationID:  req.ConversationID,
+				ConvKind:        req.ConvKind,
+				ConvName:        req.ConvName,
+				SenderRef:       req.SenderRef,
+				SenderDisplay:   req.SenderDisplay,
+				MessageID:       req.MessageID,
+				MessageText:     req.MessageText,
+				RootMessageID:   req.RootMessageID,
+				AttachmentCount: req.AttachmentCount,
+				OwnerRef:        req.OwnerRef,
+			})
+		},
+	})
+}
+
+// routeWork dispatches an agent.work command through the per-agent Runtime when one
+// exists, falling back to the direct path otherwise. The Runtime hook re-enters
+// c.work, so behavior is identical either way — this is the Phase 0a "daemon holds
+// Runtime, thin forward" seam.
+func (c *AgentController) routeWork(ctx context.Context, pl workPayload) error {
+	if rt := c.runtimeFor(pl.AgentID); rt != nil {
+		return rt.NotifyWork(ctx, agentruntime.WorkRequest{
+			AgentID: pl.AgentID,
+			TaskID:  pl.TaskID,
+			TaskRef: pl.TaskRef,
+			Brief:   pl.Brief,
+		})
+	}
+	return c.work(ctx, pl)
+}
+
+// routeWake dispatches an agent.wake command through the per-agent Runtime when one
+// exists, falling back to the direct path otherwise. See routeWork.
+func (c *AgentController) routeWake(ctx context.Context, pl wakePayload) error {
+	if rt := c.runtimeFor(pl.AgentID); rt != nil {
+		return rt.NotifyWake(ctx, agentruntime.WakeRequest{
+			AgentID:        pl.AgentID,
+			TaskID:         pl.TaskID,
+			TaskRef:        pl.TaskRef,
+			ConversationID: pl.ConversationID,
+			MessageID:      pl.MessageID,
+			MessageText:    pl.MessageText,
+			RootMessageID:  pl.RootMessageID,
+		})
+	}
+	return c.wake(ctx, pl)
+}
+
+// routeConverse dispatches an agent.converse command through the per-agent Runtime
+// when one exists, falling back to the direct path otherwise. See routeWork.
+func (c *AgentController) routeConverse(ctx context.Context, pl conversePayload) error {
+	if rt := c.runtimeFor(pl.AgentID); rt != nil {
+		return rt.NotifyConverse(ctx, agentruntime.ConverseRequest{
+			AgentID:         pl.AgentID,
+			ConversationID:  pl.ConversationID,
+			ConvKind:        pl.ConvKind,
+			ConvName:        pl.ConvName,
+			SenderRef:       pl.SenderRef,
+			SenderDisplay:   pl.SenderDisplay,
+			MessageID:       pl.MessageID,
+			MessageText:     pl.MessageText,
+			RootMessageID:   pl.RootMessageID,
+			AttachmentCount: pl.AttachmentCount,
+			OwnerRef:        pl.OwnerRef,
+		})
+	}
+	return c.converse(ctx, pl)
+}
+
 func (c *AgentController) work(ctx context.Context, pl workPayload) error {
 	if strings.TrimSpace(pl.AgentID) == "" {
 		c.log("work missing agent_id — skipping")
