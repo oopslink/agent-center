@@ -142,13 +142,21 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 	}, nil
 }
 
-// AwaitCompletion blocks on a live executor process, harvests its files, applies
-// the dual-signal classification (§9), and finalizes the result. This is the
-// orchestrator's wake event (3) "executor 退出" handler for executors THIS
-// process spawned (so it holds a reapable Handle).
-func (m *Monitor) AwaitCompletion(ctx context.Context, h *Handle) (Completion, error) {
+// AwaitCompletionNoFinalize blocks on a live executor process, harvests its files,
+// and applies the dual-signal classification (§9) — but does NOT finalize. It is the
+// recovery-aware split (T851 §4.6): the runtime decides recover-vs-finalize from the
+// returned Completion, so the durable dir/worktree survive (teardown lives ONLY in
+// Finalize) until the runtime judges the executor terminal.
+//
+// wasStall reports — WITHOUT consuming the mark (peek, not take) — whether Sweep
+// watchdog-killed this executor, so the caller can pick the recovery budget (a stall
+// is more suspect than a crash). The eventual Finalize still consumes + labels the
+// stall cause via emitStop, so nothing is lost on the finalize path; a caller that
+// RECOVERS instead must ClearStalled(id) so the mark does not linger onto the
+// recovered incarnation's later terminal stop.
+func (m *Monitor) AwaitCompletionNoFinalize(h *Handle) (Completion, bool, error) {
 	if h == nil {
-		return Completion{}, errors.New("executor: monitor await nil handle")
+		return Completion{}, false, errors.New("executor: monitor await nil handle")
 	}
 	waitErr := h.Wait()
 	out, hasOut, st := m.harvest(h.ExecutorID)
@@ -160,6 +168,20 @@ func (m *Monitor) AwaitCompletion(ctx context.Context, h *Handle) (Completion, e
 		HasOutput:  hasOut,
 		Status:     st,
 	})
+	return c, m.peekStalled(h.ExecutorID), nil
+}
+
+// AwaitCompletion blocks on a live executor process, harvests its files, applies
+// the dual-signal classification (§9), and finalizes the result. This is the
+// orchestrator's wake event (3) "executor 退出" handler for executors THIS
+// process spawned (so it holds a reapable Handle). It is the reap-and-finalize
+// wrapper over AwaitCompletionNoFinalize — byte-for-byte the pre-T851 behavior for
+// callers that do not drive recovery.
+func (m *Monitor) AwaitCompletion(ctx context.Context, h *Handle) (Completion, error) {
+	c, _, err := m.AwaitCompletionNoFinalize(h)
+	if err != nil {
+		return c, err
+	}
 	if err := m.Finalize(ctx, c); err != nil {
 		return c, err
 	}
@@ -218,35 +240,58 @@ func (m *Monitor) Sweep(ctx context.Context) ([]string, error) {
 // done=true means the orphan reached a terminal Completion and was finalized (slot
 // released, writeback reported, dir torn down for terminal outcomes): stop polling.
 func (m *Monitor) CheckOrphan(ctx context.Context, executorID string, pid int) (Completion, bool, error) {
+	c, terminal, _, _, err := m.CheckOrphanNoFinalize(ctx, executorID, pid)
+	if err != nil {
+		return c, false, err
+	}
+	if terminal {
+		if fErr := m.Finalize(ctx, c); fErr != nil {
+			return c, false, fErr
+		}
+	}
+	return c, terminal, nil
+}
+
+// CheckOrphanNoFinalize probes an adopted orphan and classifies it (§9) WITHOUT
+// finalizing — the recovery-aware split (T851 §4.6). It still KILLS a stalled orphan
+// (that is detection mechanism, and a hung process must be stopped either way), but
+// leaves the recover-vs-finalize decision — and thus the dir/worktree teardown, which
+// lives only in Finalize — to the runtime.
+//
+// Returns:
+//   - terminal: the orphan reached a terminal outcome (dead, or stall-killed). false ⇒
+//     still alive and healthy (caller keeps polling).
+//   - killed: this call issued a GracefulKill (a stalled orphan).
+//   - wasStall: the terminal cause is a stall (⇒ the runtime applies the stricter
+//     stall recovery budget). For a plain crash/exit this is false.
+//
+// The old CheckOrphan is the finalize-on-terminal wrapper over this — byte-for-byte
+// the pre-T851 behavior.
+func (m *Monitor) CheckOrphanNoFinalize(ctx context.Context, executorID string, pid int) (c Completion, terminal, killed, wasStall bool, err error) {
 	if pid <= 0 {
-		return Completion{}, false, fmt.Errorf("executor: check orphan %s: invalid pid %d", executorID, pid)
+		return Completion{}, false, false, false, fmt.Errorf("executor: check orphan %s: invalid pid %d", executorID, pid)
 	}
 	if m.live.Alive(pid) {
 		// Alive: the only thing that ends it early is a watchdog stall.
 		if m.watchdog != nil {
-			st, err := m.fx.ReadStatus(executorID)
-			if err == nil && m.watchdog.Check(st, m.clk.Now()).Stalled {
+			st, rerr := m.fx.ReadStatus(executorID)
+			if rerr == nil && m.watchdog.Check(st, m.clk.Now()).Stalled {
 				h := recoveredHandle(executorID, pid, m.killSig)
 				if kErr := m.watchdog.GracefulKill(ctx, h); kErr != nil {
-					return Completion{}, false, fmt.Errorf("executor: orphan watchdog kill %s: %w", executorID, kErr)
+					return Completion{}, false, false, false, fmt.Errorf("executor: orphan watchdog kill %s: %w", executorID, kErr)
 				}
-				// We KNOW it stalled, so finalize as a definite failure now (design §9
-				// "按失败处理") rather than let the next tick observe the kill and
-				// (mis)classify it as a retryable crash — that would re-queue a job that
-				// just proved it hangs. GracefulKill returns after SIGKILL, so it is gone.
-				c := m.stalledCompletion(executorID, &st)
-				if fErr := m.Finalize(ctx, c); fErr != nil {
-					return c, false, fErr
-				}
-				return c, true, nil
+				// KNOWN stall: synthesize the definite-failure Completion (design §9) but
+				// do NOT finalize — the runtime decides bounded recover vs finalize.
+				// GracefulKill returns after SIGKILL, so the process is gone.
+				return m.stalledCompletion(executorID, &st), true, true, true, nil
 			}
 		}
-		return Completion{ExecutorID: executorID, Kind: OutcomeRunning}, false, nil
+		return Completion{ExecutorID: executorID, Kind: OutcomeRunning}, false, false, false, nil
 	}
 	// Process gone: classify from the durable files via the same dual signal Recover
 	// uses (Exited=false, Alive=false → output/status decide succeeded/failed/crashed).
 	out, hasOut, st := m.harvest(executorID)
-	c := Classify(CompletionFacts{
+	c = Classify(CompletionFacts{
 		ExecutorID: executorID,
 		Exited:     false,
 		Alive:      false,
@@ -255,10 +300,7 @@ func (m *Monitor) CheckOrphan(ctx context.Context, executorID string, pid int) (
 		Status:     st,
 	})
 	c.Recovered = true // observed via the orphan poll, not a reaped this-process exit
-	if err := m.Finalize(ctx, c); err != nil {
-		return c, false, err
-	}
-	return c, true, nil
+	return c, true, false, false, nil
 }
 
 // stalledCompletion synthesizes the terminal Failed Completion for a watchdog-killed
@@ -314,6 +356,25 @@ func (m *Monitor) adopt(executorID string) {
 		return
 	}
 	_ = m.pool.Adopt(executorID)
+}
+
+// ReleaseSlot frees the pool concurrency slot held by a this-process executor whose
+// process has DIED, WITHOUT any writeback or teardown (T851 §4.6). The recovery
+// driver calls it on the RECOVER branch — which deliberately skips Finalize — before
+// relaunching the executor as an orphan, so the dead Launch handle's slot does not
+// leak (the relaunched orphan is counted separately, not via a pool slot).
+//
+// It is a DISTINCT primitive rather than folding the release into
+// AwaitCompletionNoFinalize on purpose: Finalize releases the slot ONLY after a
+// successful writeback (a writeback failure retains slot + dir for retry, an invariant
+// TestMonitor_Finalize_WritebackErrorRetainsDir pins). The recover branch has no
+// writeback, so releasing here is unambiguous and leaves that finalize-path invariant
+// untouched. Idempotent (pool.Release no-ops an unknown/already-freed id); the
+// finalize branch does NOT call it (Finalize frees the slot itself, step 2).
+func (m *Monitor) ReleaseSlot(executorID string) {
+	if m.pool != nil {
+		m.pool.Release(executorID)
+	}
 }
 
 // Finalize is the UNIFIED WRITEBACK + teardown (design §11.2 step g/h). It is the
@@ -480,6 +541,27 @@ func (m *Monitor) takeStalled(executorID string) bool {
 	_, ok := m.stallKilled[executorID]
 	delete(m.stallKilled, executorID)
 	return ok
+}
+
+// peekStalled reports whether Sweep watchdog-killed id WITHOUT clearing the mark
+// (unlike takeStalled). AwaitCompletionNoFinalize uses it to surface wasStall to the
+// recovery driver while leaving the eventual Finalize→emitStop→takeStalled to consume
+// + label the "stalled" cause — so no cause is lost on the finalize path (T851 §4.6).
+func (m *Monitor) peekStalled(executorID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.stallKilled[executorID]
+	return ok
+}
+
+// ClearStalled drops id's Sweep stall mark. The recovery driver calls it when it
+// RECOVERS (rather than finalizes) a this-process stalled executor, so the peeked-
+// but-not-consumed mark does not linger and mislabel the recovered incarnation's
+// later terminal stop as "stalled" (T851 §4.6).
+func (m *Monitor) ClearStalled(executorID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.stallKilled, executorID)
 }
 
 // advancedProgress reports whether at is newer than the last progress sample
