@@ -127,6 +127,15 @@ secret_management:
 	const userRef = "user:tester"
 	const msgID = "msg-p46-0000000001" // sortable id
 
+	// Guarantee cleanup of any agent-supervisor (+ its claude child) that
+	// setsid-escaped a worker's process group — from EITHER the pre-crash worker
+	// or the post-restart relaunch. Registered here (before the worker cleanups),
+	// so via t.Cleanup's LIFO order it runs AFTER the workers are SIGKILLed, and it
+	// runs on every exit path including panic / t.Fatal / timeout. Without this the
+	// post-restart supervisor leaks as an orphan (reparented to launchd). Scoped to
+	// this test's sandbox (fakeClaude path + unique agentID) — never touches prod.
+	t.Cleanup(func() { reapStrays(t, fakeClaude, agentID) })
+
 	// Worker token (owner worker:<id>) so the daemon's resume-state + reply-nudge
 	// calls authorize. The daemon also self-enrolls + mints its own long-term
 	// token; this one seeds the enroll handshake.
@@ -212,7 +221,7 @@ secret_management:
 	// any surviving claude/agent-supervisor by name to model a full-host crash.
 	w1.sigkill(t)
 	w1Killed = true
-	reapStrays(t, fakeClaude, bin)
+	reapStrays(t, fakeClaude, agentID)
 	t.Logf("ASSERT-2 PASS: worker SIGKILLed before the agent replied to the directed message")
 
 	// snapshot the fakeclaude log up to the kill (the post-restart lines are what we assert on)
@@ -426,14 +435,24 @@ func countAgentReplies(t *testing.T, dbPath, convID, agentID string) int {
 	return n
 }
 
-// reapStrays kills any surviving fakeclaude / agent-supervisor processes by path,
-// modeling a full-host crash (the supervisor setsid-escapes the worker's group).
-func reapStrays(t *testing.T, fakeClaude, bin string) {
+// reapStrays kills any surviving fakeclaude / agent-supervisor processes for
+// THIS test, modeling a full-host crash (the supervisor setsid-escapes the
+// worker's process group, so a group-kill of the worker leaves it — and its
+// claude child — running).
+//
+// Both matchers are scoped to this test's sandbox and MUST NOT match anything
+// else on the host: on a shared machine, production agent-supervisors (and other
+// e2e runs) are live at the same time. The old `pkill -f "worker agent-supervisor"`
+// was host-wide and would SIGKILL every production supervisor — do not reintroduce it.
+//   - fakeClaude is the sandbox-unique stand-in claude path (<sandbox>/bin/claude).
+//   - agentID (e.g. "agent-p46-0001") is globally unique to this test and appears
+//     in both the supervisor argv (--agent-id / --home-dir) and its claude child's
+//     argv (--home-dir / mcp-config / memory path); it is absent from the server
+//     and worker argv, so neither is collateral.
+func reapStrays(t *testing.T, fakeClaude, agentID string) {
 	t.Helper()
-	// pkill -f matches the full command line; the fakeclaude path + the
-	// `worker agent-supervisor` subcommand are unique to this test's sandbox.
 	_ = runQuiet("pkill", "-9", "-f", fakeClaude)
-	_ = runQuiet("pkill", "-9", "-f", "worker agent-supervisor")
+	_ = runQuiet("pkill", "-9", "-f", agentID)
 	time.Sleep(300 * time.Millisecond)
 }
 
