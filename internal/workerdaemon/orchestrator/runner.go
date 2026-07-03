@@ -22,8 +22,35 @@ import (
 // ruling, W1: the executor must really run a model — no placeholder runner).
 type RunnerCmdBuilder interface {
 	// Build returns the full argv ([binary, args...]) for the given resolved model
-	// and goal prompt. model and prompt are both required.
-	Build(model, prompt string) ([]string, error)
+	// and goal prompt. model and prompt are both required. sessionID, when non-empty,
+	// is the orchestrator-allocated session identifier the runner should bind so the
+	// executor's LLM conversation can later be `--resume`d for crash recovery (design
+	// §4.3). A builder whose CLI cannot pre-assign a session id (e.g. codex mints its
+	// own thread) ignores it — recovery then degrades that executor to a plain rerun.
+	Build(model, prompt, sessionID string) ([]string, error)
+}
+
+// resumeSessionArgv rewrites a persisted fresh-launch argv into its --resume form:
+// it swaps the `--session-id <sid>` flag pair for `--resume <sid>`, keeping every
+// other flag (model, prompt, permissions) byte-for-byte. This is how the recovery
+// ladder's tier-1 (full-context resume, design §4.3) reconstructs the resume
+// invocation from the durable Record.RunnerCmd WITHOUT re-deriving model/prompt.
+//
+// It returns (resumeArgv, true) when a `--session-id <sid>` pair is present, or
+// (argv, false) when it is not — the signal that this argv cannot be session-
+// resumed (a session-less CLI like codex, or a pre-session record), so the caller
+// falls back to a plain rerun (tier-2).
+func resumeSessionArgv(argv []string) ([]string, bool) {
+	for i := 0; i+1 < len(argv); i++ {
+		if argv[i] == "--session-id" {
+			out := make([]string, 0, len(argv))
+			out = append(out, argv[:i]...)
+			out = append(out, "--resume", argv[i+1])
+			out = append(out, argv[i+2:]...)
+			return out, true
+		}
+	}
+	return argv, false
 }
 
 // executorSystemPrompt is the executor's persistent --append-system-prompt: it
@@ -92,8 +119,14 @@ func NewCodexRunnerBuilder(binary string) *CodexRunnerBuilder {
 //	           -m <model> <executor-framed prompt>
 //
 // NO --json (plain combined output captured into output.json), NO mcp (codex carries
-// none by default), NO resume thread (each executor is an ephemeral one-shot).
-func (b *CodexRunnerBuilder) Build(model, prompt string) ([]string, error) {
+// none by default).
+//
+// sessionID is IGNORED: `codex exec` mints its own thread id (captured from the
+// first turn's thread.started event) and has no flag to pre-assign one, so the
+// orchestrator cannot bind the session ahead of time. A crashed codex executor
+// therefore recovers via the ladder's tier-2 rerun (design §4.3), not a resume.
+func (b *CodexRunnerBuilder) Build(model, prompt, sessionID string) ([]string, error) {
+	_ = sessionID // codex has no pre-assignable session id (see doc above)
 	if strings.TrimSpace(model) == "" {
 		return nil, errors.New("orchestrator: runner model required")
 	}
@@ -141,8 +174,14 @@ func NewClaudeRunnerBuilder(binary string) *ClaudeRunnerBuilder {
 //	       --allow-dangerously-skip-permissions --dangerously-skip-permissions
 //	       --permission-mode bypassPermissions
 //
-// NO --mcp-config (executor isolation: no center tools/credentials), NO --session-id
-// (each executor is an ephemeral one-shot).
+// NO --mcp-config (executor isolation: no center tools/credentials).
+//
+// v2.34.0 (T845, §4.3): when sessionID is non-empty the argv binds `--session-id
+// <sessionID>` so the executor's claude conversation is durably identified and can
+// later be `--resume`d for full-context crash recovery (the orchestrator persists
+// the same id into Record.SessionID). An empty sessionID keeps the old ephemeral
+// one-shot argv byte-for-byte (no --session-id), so a caller that opts out is
+// unchanged.
 //
 // v2.20.1 (T622, issue-47fe2a78 reopen): the executor runs in stream-json mode so
 // each turn's `result` line carries the token `usage` the orchestrator relays to
@@ -151,7 +190,7 @@ func NewClaudeRunnerBuilder(binary string) *ClaudeRunnerBuilder {
 // requires --verbose to emit stream-json under -p. The CommandRunner extracts the
 // final TEXT result from the stream (executor.ParseRunnerStream) for output.json /
 // chat relay — the raw JSON is never written back as the task result.
-func (b *ClaudeRunnerBuilder) Build(model, prompt string) ([]string, error) {
+func (b *ClaudeRunnerBuilder) Build(model, prompt, sessionID string) ([]string, error) {
 	if strings.TrimSpace(model) == "" {
 		return nil, errors.New("orchestrator: runner model required")
 	}
@@ -176,6 +215,12 @@ func (b *ClaudeRunnerBuilder) Build(model, prompt string) ([]string, error) {
 		"--allow-dangerously-skip-permissions",
 		"--dangerously-skip-permissions",
 		"--permission-mode", "bypassPermissions",
+	}
+	// §4.3: bind the orchestrator-allocated session id so this executor's claude
+	// conversation is durably resumable. Appended last so resumeSessionArgv can
+	// locate the `--session-id <sid>` pair when reconstructing the resume argv.
+	if sid := strings.TrimSpace(sessionID); sid != "" {
+		args = append(args, "--session-id", sid)
 	}
 	return args, nil
 }

@@ -7,7 +7,7 @@ import (
 
 func TestClaudeRunnerBuilder_Build(t *testing.T) {
 	b := NewClaudeRunnerBuilder("")
-	argv, err := b.Build("claude-haiku-4-5", "do the thing")
+	argv, err := b.Build("claude-haiku-4-5", "do the thing", "")
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestClaudeRunnerBuilder_Build(t *testing.T) {
 
 func TestCodexRunnerBuilder_Build(t *testing.T) {
 	b := NewCodexRunnerBuilder("")
-	argv, err := b.Build("gpt-5.5", "do the thing")
+	argv, err := b.Build("gpt-5.5", "do the thing", "")
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -80,34 +80,102 @@ func TestCodexRunnerBuilder_Build(t *testing.T) {
 
 func TestCodexRunnerBuilder_CustomBinaryAndValidation(t *testing.T) {
 	b := NewCodexRunnerBuilder("/opt/codex")
-	argv, err := b.Build("gpt-5.5", "p")
+	argv, err := b.Build("gpt-5.5", "p", "")
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	if argv[0] != "/opt/codex" {
 		t.Errorf("binary = %q, want /opt/codex", argv[0])
 	}
-	if _, err := b.Build("", "p"); err == nil {
+	if _, err := b.Build("", "p", ""); err == nil {
 		t.Error("empty model must error")
 	}
-	if _, err := b.Build("m", "  "); err == nil {
+	if _, err := b.Build("m", "  ", ""); err == nil {
 		t.Error("empty prompt must error")
+	}
+}
+
+func TestClaudeRunnerBuilder_SessionID(t *testing.T) {
+	b := NewClaudeRunnerBuilder("")
+	sid := "abcabcab-1111-5222-8333-444444444444"
+
+	// A non-empty session id binds --session-id <sid> for durable/resumable identity.
+	argv, err := b.Build("m", "p", sid)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	joined := strings.Join(argv, " ")
+	if !strings.Contains(joined, "--session-id "+sid) {
+		t.Errorf("argv %q missing --session-id %s", joined, sid)
+	}
+
+	// An empty session id keeps the old ephemeral one-shot argv (no --session-id).
+	bare, err := b.Build("m", "p", "")
+	if err != nil {
+		t.Fatalf("Build bare: %v", err)
+	}
+	if strings.Contains(strings.Join(bare, " "), "--session-id") {
+		t.Errorf("empty session id must not add --session-id: %q", bare)
+	}
+}
+
+func TestCodexRunnerBuilder_IgnoresSessionID(t *testing.T) {
+	// codex mints its own thread id — a passed session id must not leak into the argv.
+	argv, err := NewCodexRunnerBuilder("").Build("gpt-5.5", "p", "some-session")
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if strings.Contains(strings.Join(argv, " "), "some-session") {
+		t.Errorf("codex argv must not carry a pre-assigned session id: %q", argv)
+	}
+}
+
+func TestResumeSessionArgv(t *testing.T) {
+	// A claude fresh argv rewrites --session-id <sid> → --resume <sid>, preserving
+	// every other flag in order.
+	sid := "abcabcab-1111-5222-8333-444444444444"
+	fresh, err := NewClaudeRunnerBuilder("claude").Build("m", "the goal", sid)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	resumed, ok := resumeSessionArgv(fresh)
+	if !ok {
+		t.Fatalf("resumeSessionArgv did not find --session-id in %q", fresh)
+	}
+	joined := strings.Join(resumed, " ")
+	if !strings.Contains(joined, "--resume "+sid) {
+		t.Errorf("resumed argv %q missing --resume %s", joined, sid)
+	}
+	if strings.Contains(joined, "--session-id") {
+		t.Errorf("resumed argv must not keep --session-id: %q", joined)
+	}
+	// The goal prompt + model survive the rewrite (same conversation, resumed).
+	if !strings.Contains(joined, "-p the goal") || !strings.Contains(joined, "--model m") {
+		t.Errorf("resumed argv dropped prompt/model: %q", joined)
+	}
+	if len(resumed) != len(fresh) {
+		t.Errorf("resume rewrite changed argv length: %d → %d", len(fresh), len(resumed))
+	}
+
+	// A session-less argv (no --session-id, e.g. codex) reports not-resumable.
+	if _, ok := resumeSessionArgv([]string{"codex", "exec", "-m", "x", "prompt"}); ok {
+		t.Error("session-less argv must report ok=false")
 	}
 }
 
 func TestClaudeRunnerBuilder_CustomBinaryAndValidation(t *testing.T) {
 	b := NewClaudeRunnerBuilder("/opt/claude")
-	argv, err := b.Build("m", "p")
+	argv, err := b.Build("m", "p", "")
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	if argv[0] != "/opt/claude" {
 		t.Errorf("binary = %q, want /opt/claude", argv[0])
 	}
-	if _, err := b.Build("", "p"); err == nil {
+	if _, err := b.Build("", "p", ""); err == nil {
 		t.Error("empty model must error")
 	}
-	if _, err := b.Build("m", "  "); err == nil {
+	if _, err := b.Build("m", "  ", ""); err == nil {
 		t.Error("empty prompt must error")
 	}
 }

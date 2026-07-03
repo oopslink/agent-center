@@ -37,6 +37,12 @@ type Record struct {
 	// without re-deriving them (the orchestrator already chose them at spawn).
 	BaseRef   string   `json:"base_ref,omitempty"`
 	RunnerCmd []string `json:"runner_cmd,omitempty"`
+	// SessionID is the orchestrator-allocated LLM session identifier bound into the
+	// runner argv at launch (design §4.3). Persisted so a restarted orchestrator can
+	// `--resume` the executor's conversation (recovery tier-1, full context). Empty
+	// when the runner's CLI cannot pre-assign a session (codex) or the launch opted
+	// out — recovery then degrades that executor to a plain rerun (tier-2).
+	SessionID string `json:"session_id,omitempty"`
 	// RepoKey / SourcePath are the durable teardown handle for a repo-materializer
 	// worktree (P5). Written ONLY for worktree-backed executors; empty otherwise, so a
 	// plain-dir executor's Record is byte-for-byte as before. Finalize (and a restarted

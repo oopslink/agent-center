@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
@@ -184,15 +185,22 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	if runner == nil {
 		return nil, fmt.Errorf("orchestrator: no runner builder for cli %q", modelDec.CLI)
 	}
-	runnerCmd, err := runner.Build(modelDec.Model, buildPrompt(item))
-	if err != nil {
-		return nil, fmt.Errorf("orchestrator: build runner: %w", err)
-	}
 	// Use the caller's pre-minted id (P3: the worktree path/branch already embed it) or
-	// mint a fresh one — the plain-dir path, byte-for-byte as before.
+	// mint a fresh one — the plain-dir path, byte-for-byte as before. Resolved BEFORE
+	// the runner argv so the executor's session id can be derived from it (§4.3).
 	execID := strings.TrimSpace(item.ExecutorID)
 	if execID == "" {
 		execID = e.ids.NewExecutorID()
+	}
+	// §4.3: allocate a durable, resumable session id for this executor's LLM
+	// conversation. Derived deterministically from execID (a valid v5 UUID claude
+	// accepts as --session-id) so it is stable and reconstructible; the builder binds
+	// it into the argv (claude) or ignores it (codex mints its own thread), and it is
+	// persisted into Record.SessionID for tier-1 --resume crash recovery.
+	sessionID := claudestream.SessionUUID(execID, 0)
+	runnerCmd, err := runner.Build(modelDec.Model, buildPrompt(item), sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("orchestrator: build runner: %w", err)
 	}
 	input := executor.Input{
 		ExecutorID: execID,
@@ -210,7 +218,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	}
 
 	// 4. F1 fork (≤ max; ErrAtCapacity bubbles up unwrapped for the caller to queue).
-	h, err := e.pool.Launch(ctx, executor.LaunchSpec{Input: input, RunnerCmd: runnerCmd, Prepared: item.Prepared})
+	h, err := e.pool.Launch(ctx, executor.LaunchSpec{Input: input, RunnerCmd: runnerCmd, SessionID: sessionID, Prepared: item.Prepared})
 	if err != nil {
 		if errors.Is(err, executor.ErrAtCapacity) {
 			return nil, err

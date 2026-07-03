@@ -89,6 +89,11 @@ type LaunchSpec struct {
 	// (the model-routed agent CLI; F3 supplies it). Empty is allowed at the
 	// process-model layer — the executor entrypoint reports a clear error.
 	RunnerCmd []string
+	// SessionID is the orchestrator-allocated LLM session id bound into RunnerCmd
+	// (design §4.3). Persisted verbatim into the recovery Record so a restarted
+	// orchestrator can `--resume` this executor's conversation. Empty ⇒ no session
+	// was bound (session-less CLI / opt-out); recovery degrades to a plain rerun.
+	SessionID string
 	// Prepared, when non-nil, is a git worktree the repo materializer ALREADY
 	// materialized at the executor's workspace path (the P3 repo-workspace track):
 	// provisionAndSpawn then uses it AS the workspace and skips the cfg.Worktrees /
@@ -282,6 +287,7 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 			SpawnedAt:  p.clk.Now(),
 			BaseRef:    p.cfg.BaseRef,
 			RunnerCmd:  spec.RunnerCmd,
+			SessionID:  spec.SessionID, // §4.3: durable handle for tier-1 --resume recovery
 		}
 		// P5: persist the prepared worktree's teardown handle so Finalize + crash
 		// recovery can remove the per-executor worktree (never the canonical source).

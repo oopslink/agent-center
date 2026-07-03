@@ -48,7 +48,9 @@ func TestNewEngine_RequiredFieldBranches(t *testing.T) {
 // errRunner always fails Build — exercises HandleWork's runner-error path.
 type errRunner struct{}
 
-func (errRunner) Build(string, string) ([]string, error) { return nil, errors.New("runner boom") }
+func (errRunner) Build(string, string, string) ([]string, error) {
+	return nil, errors.New("runner boom")
+}
 
 func TestHandleWork_RunnerBuildError(t *testing.T) {
 	eng, _, _ := newTestEngine(t, 2, modelrouter.Config{DefaultExecutorModel: "m"}, errRunner{})

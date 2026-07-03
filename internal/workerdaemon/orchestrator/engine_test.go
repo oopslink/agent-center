@@ -39,12 +39,12 @@ func (m *fakeIDMinter) NewProblemID() string {
 // model instead). cli labels which builder ran (so cli-dispatch tests can tell which
 // runner the engine selected).
 type fakeRunner struct {
-	cli                   string
-	lastModel, lastPrompt string
+	cli                              string
+	lastModel, lastPrompt, lastSess string
 }
 
-func (r *fakeRunner) Build(model, prompt string) ([]string, error) {
-	r.lastModel, r.lastPrompt = model, prompt
+func (r *fakeRunner) Build(model, prompt, sessionID string) ([]string, error) {
+	r.lastModel, r.lastPrompt, r.lastSess = model, prompt, sessionID
 	return []string{"true"}, nil
 }
 

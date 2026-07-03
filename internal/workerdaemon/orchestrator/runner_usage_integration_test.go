@@ -57,7 +57,7 @@ func TestIntegration_ClaudeBuilderArgvProducesParseableUsage(t *testing.T) {
 	}
 	bin := fakeClaudeScript(t)
 
-	argv, err := NewClaudeRunnerBuilder(bin).Build("claude-opus-4-8", "do the thing")
+	argv, err := NewClaudeRunnerBuilder(bin).Build("claude-opus-4-8", "do the thing", "")
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}

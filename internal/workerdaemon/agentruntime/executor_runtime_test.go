@@ -74,7 +74,9 @@ func TestWorkViaExecutor_ForksAndRegistersRouting(t *testing.T) {
 // error branch.
 type errRunnerWD struct{}
 
-func (errRunnerWD) Build(string, string) ([]string, error) { return nil, errors.New("runner boom") }
+func (errRunnerWD) Build(string, string, string) ([]string, error) {
+	return nil, errors.New("runner boom")
+}
 
 func TestWorkViaExecutor_NonCapacityErrorWraps(t *testing.T) {
 	trueBin := lookTrue(t)
