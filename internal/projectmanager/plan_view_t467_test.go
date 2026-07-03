@@ -21,7 +21,7 @@ func t467CycleEdges() []Dependency {
 
 // pass route + the (never-taken) escape node was DISCARDED → it must read as SKIPPED,
 // has_failed stays false, and the plan reaches AllDone (success terminal).
-func TestComputePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467(t *testing.T) {
+func TestDerivePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskCompleted),
@@ -30,7 +30,7 @@ func TestComputePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467(t *testi
 		newTaskWithStatus(t, "Integ", TaskCompleted), // pass branch ran + done
 		newTaskWithStatus(t, "Esc", TaskDiscarded),   // untaken escape, discarded as cleanup
 	}
-	v := ComputePlanView(tasks, t467CycleEdges(), nil,
+	v := DerivePlanView(tasks, t467CycleEdges(), nil,
 		[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "pass"}}, nil)
 	st := nodeStatusByID(v)
 	if st["Esc"] != NodeSkipped {
@@ -47,7 +47,7 @@ func TestComputePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467(t *testi
 // reject_exhausted route (escape TAKEN) + the escape node was then DISCARDED → a REAL
 // failure: it stays NodeFailed and sets has_failed. The pass-branch Integrate that was
 // not taken is the one that skips.
-func TestComputePlanView_DiscardedTakenEscape_StaysFailed_T467(t *testing.T) {
+func TestDerivePlanView_DiscardedTakenEscape_StaysFailed_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskCompleted),
@@ -56,7 +56,7 @@ func TestComputePlanView_DiscardedTakenEscape_StaysFailed_T467(t *testing.T) {
 		newTaskWithStatus(t, "Integ", TaskOpen),    // pass branch NOT taken
 		newTaskWithStatus(t, "Esc", TaskDiscarded), // escape WAS taken, then discarded → real fail
 	}
-	v := ComputePlanView(tasks, t467CycleEdges(), nil,
+	v := DerivePlanView(tasks, t467CycleEdges(), nil,
 		[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "reject_exhausted"}}, nil)
 	st := nodeStatusByID(v)
 	if st["Esc"] != NodeFailed {
@@ -72,13 +72,13 @@ func TestComputePlanView_DiscardedTakenEscape_StaysFailed_T467(t *testing.T) {
 
 // A DISCARDED node on a plain (non-conditional) path is a real failure — pruning never
 // reaches it, so it stays NodeFailed (a dev node that truly failed).
-func TestComputePlanView_DiscardedDevNode_StaysFailed_T467(t *testing.T) {
+func TestDerivePlanView_DiscardedDevNode_StaysFailed_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskDiscarded), // dev truly failed
 	}
 	edges := []Dependency{{PlanID: "pl", FromTaskID: "Dev", ToTaskID: "S0", Kind: EdgeSeq}}
-	v := ComputePlanView(tasks, edges, nil, nil, nil)
+	v := DerivePlanView(tasks, edges, nil, nil, nil)
 	if nodeStatusByID(v)["Dev"] != NodeFailed {
 		t.Fatalf("discarded dev node must stay failed (no conditional → never pruned)")
 	}
@@ -89,7 +89,7 @@ func TestComputePlanView_DiscardedDevNode_StaysFailed_T467(t *testing.T) {
 
 // A RUNNING node on the escape branch tells the truth (NodeRunning), never hidden behind
 // `skipped` — a loopback can still re-decide the decision and re-activate it.
-func TestComputePlanView_RunningEscape_NotSkipped_T467(t *testing.T) {
+func TestDerivePlanView_RunningEscape_NotSkipped_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskCompleted),
@@ -98,7 +98,7 @@ func TestComputePlanView_RunningEscape_NotSkipped_T467(t *testing.T) {
 		newTaskWithStatus(t, "Integ", TaskCompleted),
 		newTaskWithStatus(t, "Esc", TaskRunning), // somehow running on the dead branch
 	}
-	v := ComputePlanView(tasks, t467CycleEdges(), nil,
+	v := DerivePlanView(tasks, t467CycleEdges(), nil,
 		[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "pass"}}, nil)
 	if got := nodeStatusByID(v)["Esc"]; got != NodeRunning {
 		t.Fatalf("running escape = %s, want running (never hidden behind skipped)", got)
@@ -107,7 +107,7 @@ func TestComputePlanView_RunningEscape_NotSkipped_T467(t *testing.T) {
 
 // During a bounded loopback that has NOT yet resolved, the decision is re-opened
 // (not done) so the escape node is NOT prematurely skipped — it stays blocked/pending.
-func TestComputePlanView_ActiveLoopback_EscapeNotPrematurelySkipped_T467(t *testing.T) {
+func TestDerivePlanView_ActiveLoopback_EscapeNotPrematurelySkipped_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskRunning), // re-activated by a reject loopback round
@@ -117,7 +117,7 @@ func TestComputePlanView_ActiveLoopback_EscapeNotPrematurelySkipped_T467(t *test
 		newTaskWithStatus(t, "Esc", TaskOpen),
 	}
 	// No (stale) outcome recorded for Dec this round.
-	v := ComputePlanView(tasks, t467CycleEdges(), nil, nil, nil)
+	v := DerivePlanView(tasks, t467CycleEdges(), nil, nil, nil)
 	st := nodeStatusByID(v)
 	if st["Esc"] == NodeSkipped {
 		t.Fatalf("escape must NOT be skipped while the loopback is unresolved (decision not done)")

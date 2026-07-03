@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 // When the pm Service has an orchestration engine (s.orch != nil), StartPlan
 // builds a graph mirroring the plan DAG (buildPlanGraph) and stamps the plan
 // with its graph_id. From then on the plan is dispatched off the GRAPH: the
-// ready-source switches from ComputePlanView to orchestration GetReadyNodes
+// ready-source switches from DerivePlanView to orchestration GetReadyNodes
 // (graphReadySet), and plan-done is graph.IsAutoDone.
 //
 // The switch is plan.GraphID(): a plan WITH a graph_id uses the new engine; a
@@ -31,12 +32,6 @@ import (
 // missed event can never leave the graph permanently out of sync.
 // =============================================================================
 
-// graphDispatchEnabled reports whether this plan should be dispatched off the
-// orchestration graph: the engine is wired AND the plan carries a graph_id.
-func (s *Service) graphDispatchEnabled(p *pm.Plan) bool {
-	return s.orch != nil && p.GraphID() != ""
-}
-
 // buildPlanGraph creates the orchestration graph for a freshly-started plan and
 // wires it back onto the aggregates: one business node per task (task_id in the
 // node metadata + Task.SetNodeID); one CONDITION control node per decision node
@@ -51,7 +46,7 @@ func (s *Service) graphDispatchEnabled(p *pm.Plan) bool {
 //   - conditional edge {From:X, To:D, When:w} (X taken when decision D's outcome==w)
 //     → route X through D's condition node: node(D)→C_D and C_D→node(X). C_D gates
 //     X (the T768 ReadyNodes fix makes a condition dep block downstream until it is
-//     resolved). driveGraphConditions resolves C_D to success once D records a
+//     resolved). driveGraphDecisions resolves C_D to success once D records a
 //     pass-outcome, releasing X.
 //   - loopback edge {From:D, To:Dev, When:reject} → NOT added as a graph EDGE (it is a
 //     back-edge, excluded from the acyclic graph), but ENCODED into D's condition node
@@ -247,13 +242,12 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 //     that onto the TASKS (Reopen + ClearDispatch + ClearDecisionOutcome over the
 //     LoopbackResetSet) — the node↔task mapping the graph dispatch (task-keyed) needs
 //     so the reopened decision re-runs and re-decides.
-//   - EXHAUSTION (round > max_rounds): a plan-side shim reproduces the legacy
-//     applyLoopbacks terminal exactly — record the "<outcome>_exhausted" decision
-//     outcome, then either leave a HISTORICAL Escape vertex to pick it up
-//     (hasLegacyEscapeEdge) or escalateExhaustion (@mention the owner). The condition
-//     is left UNRESOLVED so the gated pass branch never releases (Integrate
-//     auto-skips), matching the legacy exhaustion behaviour. ⑤ ports this escalation
-//     into the engine's OnMaxExceeded and deletes the shim.
+//   - EXHAUSTION (round > max_rounds): record the "<outcome>_exhausted" decision
+//     outcome and escalateExhaustion (@mention the owner). The condition is left
+//     UNRESOLVED so the gated pass branch never releases (Integrate auto-skips).
+//     escalate lives in the SERVICE layer — the pure orchestration engine has no
+//     plan/conversation knowledge, so the driver (not the engine's OnMaxExceeded) owns
+//     the boundary + escalation (T810 ⑤ "纯引擎 + 服务层驱动" layering).
 //
 // The exhaustion boundary here mirrors the engine's own (countReopens+1 > max_rounds)
 // so the driver never lets the engine reach OnMaxExceeded (which would discard/
@@ -315,13 +309,16 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 		// Bounded round via the engine's countReopens on the condition node.
 		round := conditionReopenCount(n) + 1
 		if lb.MaxRounds > 0 && round > lb.MaxRounds {
-			// EXHAUSTION shim — byte-for-byte with legacy applyLoopbacks (§4 terminal).
+			// EXHAUSTION terminal (§4): record the "<outcome>_exhausted" outcome, leave the
+			// condition UNRESOLVED so the gated pass branch never releases (Integrate
+			// auto-skips), and escalate to the owner. T810 ⑤: the pre-v2.23.0 legacy-escape
+			// double-track (hasLegacyEscapeEdge) was removed — escape is a Decision terminal
+			// since v2.23.0, the current authoring (add_plan_dependency) never emits an
+			// `_exhausted` conditional in-edge, and in-flight legacy plans are out of scope
+			// ("全删不留尾巴") — so that branch was dead and always escalated.
 			exhausted := outcome + exhaustedOutcomeSuffix
 			if rerr := s.plans.RecordDecisionOutcome(txCtx, p.ID(), pm.TaskID(decisionID), exhausted, now); rerr != nil {
 				return rerr
-			}
-			if hasLegacyEscapeEdge(edges, pm.TaskID(decisionID), exhausted) {
-				continue // a historical Escape vertex surfaces it — do NOT also escalate.
 			}
 			dt, ferr := s.tasks.FindByID(txCtx, pm.TaskID(decisionID))
 			if ferr != nil {
@@ -468,11 +465,11 @@ func (s *Service) reload(txCtx context.Context, n *orch.Node) (*orch.Node, error
 // graphReadySet returns the plan's ready task-ids off the orchestration graph: the
 // GetReadyNodes business nodes (upstream all completed/discarded) whose task has
 // no dispatch record yet (dispatch idempotency — a dispatched node is skipped just
-// as ComputePlanView derives NodeDispatched). It also reports graph.IsAutoDone
+// as DerivePlanView derives NodeDispatched). It also reports graph.IsAutoDone
 // (every business node completed/discarded) as the plan-done signal.
 //
 // The caller MUST have synced the graph first (syncGraphToTasks).
-func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, records []pm.DispatchRecord) ([]pm.TaskID, bool, error) {
+func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, tasks []*pm.Task, records []pm.DispatchRecord) ([]pm.TaskID, bool, error) {
 	graphID := orch.GraphID(p.GraphID())
 	readyNodes, err := s.orch.GetReadyNodes(txCtx, graphID)
 	if err != nil {
@@ -482,6 +479,19 @@ func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, records []pm.
 	for _, r := range records {
 		dispatched[r.TaskID] = struct{}{}
 	}
+	// A FAILED (discarded) task is never ready — advanceNodeTo deliberately leaves its
+	// node OPEN (§9.7: NodeDiscarded is satisfied-terminal, which would wrongly release
+	// downstream), so GetReadyNodes can surface a failed ROOT (no unsatisfied upstream).
+	// Exclude it here so a failed task is not (re)dispatched — matching DerivePlanView,
+	// which derives NodeFailed from task status directly (never NodeReady). Production
+	// relies on the dispatch-record skip for this, but a task discarded BEFORE dispatch
+	// (no record) would otherwise re-enter the ready-set.
+	failed := make(map[pm.TaskID]bool, len(tasks))
+	for _, t := range tasks {
+		if pm.TaskIsFailed(t.Status()) {
+			failed[t.ID()] = true
+		}
+	}
 	var ready []pm.TaskID
 	for _, n := range readyNodes {
 		taskID := nodeTaskID(n)
@@ -490,6 +500,9 @@ func (s *Service) graphReadySet(txCtx context.Context, p *pm.Plan, records []pm.
 		}
 		if _, done := dispatched[taskID]; done {
 			continue // already dispatched — idempotent skip.
+		}
+		if failed[taskID] {
+			continue // failed task is terminal-failed, never ready (§9.7 parity).
 		}
 		ready = append(ready, taskID)
 	}
@@ -506,4 +519,94 @@ func nodeTaskID(n *orch.Node) pm.TaskID {
 		return pm.TaskID(v)
 	}
 	return ""
+}
+
+// =============================================================================
+// T810 ⑤ — new-engine service-layer driver support (relocated from the deleted
+// plan_controlflow.go). These are NOT the old control-flow engine (applyLoopbacks/
+// SetDecisionOutcome-as-driver were deleted): they are the graph-era driver's own
+// plan-layer helpers — the decision-outcome INPUT the engine consumes, the node↔task
+// reopen MIRROR the graph dispatch needs, and the exhaustion escalation the engine
+// (a pure graph domain) cannot own. driveGraphDecisions above calls them.
+// =============================================================================
+
+// RecordDecisionOutcome records (latest-wins) a decision node's outcome — the INPUT
+// the new engine consumes: driveGraphDecisions reads it at dispatch (pass releases the
+// forward branch via ResolveCondition; reject drives the bounded loopback), and the
+// reader DerivePlanView reads it for skipped/blocked routing. The complete_task handler
+// records it in the SAME tx as the completion so the subsequent auto-advance sees it.
+// (T810 ⑤: renamed from the old SetDecisionOutcome — it is the engine's decision input,
+// not the deleted old-engine driver.) The actor must be a project member; the task must
+// belong to a plan.
+func (s *Service) RecordDecisionOutcome(ctx context.Context, taskID pm.TaskID, outcome string, actor pm.IdentityRef) error {
+	if s.plans == nil {
+		return ErrPlansUnavailable
+	}
+	now := s.clock.Now()
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		t, err := s.tasks.FindByID(txCtx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := s.requireProjectMember(txCtx, t.ProjectID(), actor); err != nil {
+			return err
+		}
+		if t.PlanID() == "" {
+			return fmt.Errorf("projectmanager: task %s is not in a plan — no decision outcome to record", taskID)
+		}
+		return s.plans.RecordDecisionOutcome(txCtx, t.PlanID(), taskID, outcome, now)
+	})
+}
+
+// reopenLoopSubgraph re-activates every node on the forward path from `to` (the loop
+// target) to `from` (the decision), inclusive: a completed node is Reopened
+// (Completed→Reopened, a re-dispatchable non-terminal state), its dispatch record is
+// cleared (so it re-enters the ready-set), and its decision outcome is cleared (so a
+// re-run decision re-decides). Non-completed nodes are left as-is. This is the TASK-
+// layer mirror of the engine's node reopen (ApplyConditionResult) — the node↔task
+// mapping the graph dispatch (task-keyed) needs; driveGraphDecisions calls it on a
+// bounded reject.
+func (s *Service) reopenLoopSubgraph(txCtx context.Context, planID pm.PlanID, edges []pm.Dependency, to, from pm.TaskID, now time.Time) error {
+	for _, nodeID := range pm.LoopbackResetSet(edges, to, from) {
+		nt, err := s.tasks.FindByID(txCtx, nodeID)
+		if err != nil {
+			return err
+		}
+		if pm.TaskIsDone(nt.Status()) { // Completed→Reopened (a re-dispatchable non-terminal state)
+			if rerr := nt.Reopen(now); rerr != nil {
+				return rerr
+			}
+			if uerr := s.tasks.Update(txCtx, nt); uerr != nil {
+				return uerr
+			}
+		}
+		if cerr := s.plans.ClearDispatch(txCtx, planID, nodeID); cerr != nil {
+			return cerr
+		}
+		if cerr := s.plans.ClearDecisionOutcome(txCtx, planID, nodeID); cerr != nil {
+			return cerr
+		}
+	}
+	return nil
+}
+
+// escalateExhaustion is the bounded-loopback terminal handler: when a cycle's Decision
+// loopback exhausts, escape is not a graph vertex (v2.23.0), so the driver surfaces the
+// exhaustion by @mentioning the Decision's owner (or, absent one, the plan creator) in
+// the plan conversation — the human then rules. It deliberately does NOT BlockTask
+// anything and leaves has_failed UNSET (an exhausted loop awaiting a human ruling is not
+// a failure). It lives in the SERVICE layer (not the pure orchestration engine, which
+// has no plan/conversation knowledge): driveGraphDecisions calls it once on exhaustion.
+// Best-effort: a nil dispatcher is a no-op.
+func (s *Service) escalateExhaustion(txCtx context.Context, plan *pm.Plan, decision *pm.Task) error {
+	if s.planDispatcher == nil {
+		return nil
+	}
+	target := string(decision.Assignee())
+	if target == "" {
+		target = string(plan.CreatorRef())
+	}
+	content := fmt.Sprintf("decision %q exhausted its review-reject loopback rounds (escalated). The feature will NOT auto-integrate — please rule: reopen for another round, re-decide the outcome, or abandon the feature.", decision.Title())
+	_, err := s.planDispatcher.PostMention(txCtx, plan.ConversationID(), target, content)
+	return err
 }

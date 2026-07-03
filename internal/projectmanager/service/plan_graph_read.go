@@ -13,7 +13,7 @@ import (
 // T769 — plan-detail DAG read off the NEW orchestration engine graph.
 //
 // The webconsole plan-detail DAG historically rendered the DERIVED plan-layer
-// read model (ComputePlanView, GetPlanDetail.View.Nodes) — task nodes + depends_on
+// read model (DerivePlanView, GetPlanDetail.View.Nodes) — task nodes + depends_on
 // edges, with Start/End SYNTHESIZED client-side. T768 wired a real orchestration
 // GRAPH behind every started plan (plan.GraphID), whose nodes carry the true
 // control nodes (Start/End/Condition) and whose edges encode the real dependency
@@ -22,13 +22,13 @@ import (
 //
 // NON-BREAKING: a plan WITHOUT a graph_id (every pre-T768 / draft / never-started
 // plan, or a deployment with the engine unwired) returns ErrPlanHasNoGraph, and
-// the caller falls back to the legacy ComputePlanView rendering — zero regression.
+// the caller falls back to the legacy DerivePlanView rendering — zero regression.
 // =============================================================================
 
 // ErrPlanHasNoGraph is returned by GetPlanGraph when the plan carries no
 // orchestration graph (no graph_id, or the engine is unwired). It is NOT an error
 // condition for the caller — it is the signal to fall back to the legacy
-// ComputePlanView plan-DAG rendering (the non-breaking path).
+// DerivePlanView plan-DAG rendering (the non-breaking path).
 var ErrPlanHasNoGraph = errors.New("projectmanager: plan has no orchestration graph")
 
 // PlanGraphNode is one node of the orchestration-graph read model. category is
@@ -73,7 +73,7 @@ type PlanGraphView struct {
 
 // GetPlanGraph returns the orchestration-graph read model for a plan (T769). It
 // returns ErrPlanHasNoGraph when the plan carries no graph (the non-breaking
-// fallback signal — the caller renders the legacy ComputePlanView DAG instead).
+// fallback signal — the caller renders the legacy DerivePlanView DAG instead).
 func (s *Service) GetPlanGraph(ctx context.Context, id pm.PlanID) (*PlanGraphView, error) {
 	if s.plans == nil {
 		return nil, ErrPlansUnavailable

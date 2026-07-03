@@ -58,43 +58,16 @@ func (f *autoFixture) reviewCycle(t *testing.T) (pm.PlanID, pm.TaskID, pm.TaskID
 	return planID, review, dec, dev
 }
 
-// With branch/base removed from Task, the gate always returns GateUnknown, so the
-// gate-dependent tests now expect DEFER (IsDecision=true, Decided=false) instead of
-// auto-pass/reject. The review verdict recording and round stamping are still exercised.
+// T810 ⑤: the two ComputeAutoDecision-driven tests (VerdictPassNonBlocking_Defers /
+// StaleRoundVerdict_Defers) were removed — the B3 auto-decision + its stale-round
+// verdict lookup were deleted (the engine owns routing; the gate was removed in
+// v2.28.0 so it always deferred). The review verdict RECORDING + round stamping — the
+// behaviour that must survive (verdict-record parity) — stays exercised below.
 
-func TestComputeAutoDecision_VerdictPassNonBlocking_DefersWithoutGate_T468(t *testing.T) {
-	f := newAutoFixture(t)
-	_, review, dec, _ := f.reviewCycle(t)
-
-	if err := f.svc.RecordReviewVerdict(f.ctx, review, pm.ReviewPass, false, "minor nit, non-blocking", "sha1", "user:pd"); err != nil {
-		t.Fatal(err)
-	}
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Gate always returns GateUnknown now (branch/base removed from Task), so B3 defers.
-	if ad.IsDecision && ad.Decided {
-		t.Fatalf("expected DEFER (gate always unknown without branch/base); got %+v", ad)
-	}
-}
-
-func TestComputeAutoDecision_StaleRoundVerdict_Defers_T468(t *testing.T) {
-	f := newAutoFixture(t)
-	planID, review, dec, dev := f.reviewCycle(t)
-	if err := f.svc.RecordReviewVerdict(f.ctx, review, pm.ReviewPass, false, "", "sha1", "user:pd"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := f.svc.plans.IncrementLoopRound(f.ctx, planID, dec, dev); err != nil {
-		t.Fatal(err)
-	}
-	ad, _ := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if ad.Decided {
-		t.Fatalf("got %+v; want DEFER on a stale-round verdict (never auto-route)", ad)
-	}
-}
-
-func TestComputeAutoDecision_NewRoundVerdict_RecordsRound_T468(t *testing.T) {
+// TestReviewVerdict_NewRoundRecordsRound_T468 pins that a re-recorded verdict is
+// stamped with the decision's CURRENT loop round (single-slot latest-wins), so a
+// later round's verdict overwrites and carries the right round tag.
+func TestReviewVerdict_NewRoundRecordsRound_T468(t *testing.T) {
 	f := newAutoFixture(t)
 	planID, review, dec, dev := f.reviewCycle(t)
 	if err := f.svc.RecordReviewVerdict(f.ctx, review, pm.ReviewReject, false, "r0", "sha0", "user:pd"); err != nil {

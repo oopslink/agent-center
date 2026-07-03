@@ -202,7 +202,8 @@ type PlanView struct {
 // over live tasks+deps+outcomes+dispatch rather than physically re-reading the graph's
 // node statuses (which are only synced at dispatch, so possibly stale at read time —
 // and a READ must not sync/write). Deriving over live truth keeps the read byte-for-byte
-// correct. ComputePlanView is the retained legacy shell over this (⑤ deletes the shell).
+// correct. (T810 ⑤: the old ComputePlanView shell was deleted — DerivePlanView is the
+// single read-view derivation; the graph is the DISPATCH authority.)
 func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
 	// Index task status by id, and whether each node is dispatched.
 	statusOf := make(map[TaskID]TaskStatus, len(tasks))
@@ -414,13 +415,4 @@ func DerivePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord
 	}
 	view.AllDone = allDone
 	return view
-}
-
-// ComputePlanView is the retained legacy alias over DerivePlanView. After T807 ④ the
-// READERS (get_plan detail / list enrich / builtin pool) call DerivePlanView directly;
-// this shell survives ONLY for the remaining non-reader caller — the plan_lifecycle.go
-// legacy dispatch fallback for a non-graphed plan (dispatchReadyNodes' `else` branch),
-// which ⑤ deletes along with this shell. Straight delegation → zero behaviour change.
-func ComputePlanView(tasks []*Task, edges []Dependency, dispatch []DispatchRecord, outcomes []DecisionOutcome, paused map[TaskID]bool) PlanView {
-	return DerivePlanView(tasks, edges, dispatch, outcomes, paused)
 }

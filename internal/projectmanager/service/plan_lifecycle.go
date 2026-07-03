@@ -201,7 +201,7 @@ func (s *Service) AdvancePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 // dispatching, if every node is `done` the Plan is marked done (§9.1).
 //
 // It is IDEMPOTENT and REPLAY/CONCURRENCY-safe: a node already dispatched is
-// skipped (ComputePlanView derives `dispatched` from the records → a
+// skipped (DerivePlanView derives `dispatched` from the records → a
 // dispatched-but-not-running node is NodeDispatched, never NodeReady), and
 // RecordDispatch is INSERT-OR-IGNORE on PK (plan_id, task_id) so two concurrent
 // task-done events / an event replay can never double-@mention a node (§9.3).
@@ -243,51 +243,41 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if err != nil {
 		return nil, err
 	}
-	records, err := s.plans.ListDispatchRecords(txCtx, planID)
-	if err != nil {
-		return nil, err
-	}
-	// B1 (control-flow): decision outcomes route conditional/loopback edges in
-	// ComputePlanView. Empty for a pure DAG plan (no outcomes recorded) ⇒ unchanged.
+	// Decision outcomes drive the engine's condition resolution / bounded loopback in
+	// driveGraphDecisions. Empty for a pure DAG plan (no outcomes recorded). (T810 ⑤:
+	// the dispatch-record read moved into the graph branch as freshRecords — it must be
+	// read AFTER driveGraphDecisions clears the reopened loop tasks' records.)
 	outcomes, err := s.plans.ListDecisionOutcomes(txCtx, planID)
 	if err != nil {
 		return nil, err
 	}
-	// T768: the ready-source switch. A graphed plan (plan.graph_id set) is dispatched
-	// off the orchestration engine — graphReadySet syncs the graph to task state then
-	// reads GetReadyNodes (dispatch-record-idempotent) + graph.IsAutoDone. A plan
-	// without a graph_id (legacy / in-flight / control-flow) keeps the proven
-	// ComputePlanView path unchanged — zero regression.
+	// T810 ⑤: a structured plan is dispatched off the orchestration engine — the SINGLE
+	// dispatch path (the old DerivePlanView fallback + graphDispatchEnabled switch were
+	// deleted; every running plan is graphed by StartPlan). graphReadySet syncs the graph
+	// to task state then reads GetReadyNodes (dispatch-record-idempotent) + IsAutoDone.
 	var readySet []pm.TaskID
 	var allDone bool
-	if s.graphDispatchEnabled(p) {
-		if serr := s.syncGraphToTasks(txCtx, p, tasks); serr != nil {
-			return nil, serr
-		}
-		// T805 ③: drive decision adjudication + bounded loopback through the engine.
-		// PASS releases the forward branch (ResolveCondition success); REJECT re-runs the
-		// loop subgraph via the engine's bounded countReopens (+ task mirror); exhaustion
-		// escalates via the plan-side shim. Replaces the pass-only driveGraphConditions bridge
-		// AND the task-level applyLoopbacks for graphed plans (gated off in the projector).
-		if cerr := s.driveGraphDecisions(txCtx, p, edges, outcomes); cerr != nil {
-			return nil, cerr
-		}
-		// T805 ③: a reject/loopback round CLEARS the dispatch records of the reopened
-		// loop tasks (reopenLoopSubgraph) INSIDE driveGraphDecisions — so the `records`
-		// loaded above are now stale. Re-read them so graphReadySet's dispatch-idempotency
-		// sees the cleared set and re-dispatches the reopened tasks THIS pass (the legacy
-		// applyLoopbacks cleared them in the projector, BEFORE records were loaded).
-		freshRecords, rerr := s.plans.ListDispatchRecords(txCtx, planID)
-		if rerr != nil {
-			return nil, rerr
-		}
-		readySet, allDone, err = s.graphReadySet(txCtx, p, freshRecords)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		view := pm.ComputePlanView(tasks, edges, records, outcomes, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
-		readySet, allDone = view.ReadySet, view.AllDone
+	if serr := s.syncGraphToTasks(txCtx, p, tasks); serr != nil {
+		return nil, serr
+	}
+	// T805 ③: drive decision adjudication + bounded loopback through the engine. PASS
+	// releases the forward branch (ResolveCondition success); REJECT re-runs the loop
+	// subgraph via the engine's bounded countReopens (+ reopenLoopSubgraph task mirror);
+	// exhaustion records "<outcome>_exhausted" + escalates to the owner.
+	if cerr := s.driveGraphDecisions(txCtx, p, edges, outcomes); cerr != nil {
+		return nil, cerr
+	}
+	// T805 ③: a reject/loopback round CLEARS the dispatch records of the reopened loop
+	// tasks (reopenLoopSubgraph) INSIDE driveGraphDecisions — so the `records` loaded
+	// above are now stale. Re-read them so graphReadySet's dispatch-idempotency sees the
+	// cleared set and re-dispatches the reopened tasks THIS pass.
+	freshRecords, rerr := s.plans.ListDispatchRecords(txCtx, planID)
+	if rerr != nil {
+		return nil, rerr
+	}
+	readySet, allDone, err = s.graphReadySet(txCtx, p, tasks, freshRecords)
+	if err != nil {
+		return nil, err
 	}
 
 	// v2.10 (ADR-0053): load the Plan's shared findings ONCE and format them into a
@@ -324,7 +314,7 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	}
 
 	// Dispatch every ready node (the ready-set is exactly the nodes with no
-	// dispatch record — ComputePlanView derives `dispatched` from the records,
+	// dispatch record — DerivePlanView derives `dispatched` from the records,
 	// so a dispatched-but-not-running node is NodeDispatched, never NodeReady).
 	var dispatched []pm.TaskID
 	for _, taskID := range readySet {
@@ -365,7 +355,7 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		//
 		// IDEMPOTENT: this fires only inside the view.ReadySet loop — i.e. ONLY for a
 		// node with no dispatch record yet. RecordDispatch (INSERT-OR-IGNORE on the PK)
-		// above makes the node NodeDispatched on the next ComputePlanView, so it leaves
+		// above makes the node NodeDispatched on the next DerivePlanView, so it leaves
 		// the ready-set and is never dispatched again → exactly one pm.task.assigned per
 		// node-dispatch → no double wake under replay or concurrent done-events.
 		//
@@ -402,7 +392,7 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 // EvtTaskAssigned — there is no push/wake; the assignee pulls the task via
 // get_my_work and claims it (open→running). Because the pool is flat, every
 // assigned open task has no upstream → is immediately `ready` → gets a dispatch
-// record on the first sweep. IDEMPOTENT + replay-safe: ComputePlanView derives a
+// record on the first sweep. IDEMPOTENT + replay-safe: DerivePlanView derives a
 // dispatched node as NodeDispatched (never NodeReady), and RecordDispatch is
 // INSERT-OR-IGNORE on the PK, so re-running never double-records. The pool never
 // "completes" (it is immutable/resident), so it never MarkDone.
@@ -422,11 +412,10 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 		return nil, err
 	}
 	// Builtin pool is a FLAT plan — no decisions/conditional edges, so nil outcomes.
-	// T807 ④: the flat pool's ready-set is its equivalent graph read — a flat plan has
-	// no conditional gating, so DerivePlanView reduces to "in-plan open task with all
-	// (here: no) upstream done → ready/dispatched". Off ComputePlanView (⑤ deletes the
-	// shell); byte-for-byte (same pure algorithm on a flat plan). pause never changes
-	// the ready-set/AllDone (T53).
+	// The flat pool's ready-set is its equivalent graph read — a flat plan has no
+	// conditional gating, so DerivePlanView reduces to "in-plan open task with all
+	// (here: no) upstream done → ready/dispatched". pause never changes the
+	// ready-set/AllDone (T53).
 	view := pm.DerivePlanView(tasks, edges, records, nil, nil)
 	// Index tasks by id so we can read each newly-dispatched node's assignee for the
 	// F1 wake emit below (avoids a per-node FindByID).
@@ -451,7 +440,7 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 		// wakes the assignee exactly once. This is NOT a new emitter and does NOT revive
 		// the v2.14.0-retired AgentWorkItem: DispatchWakeProjector is event-id idempotent
 		// + runnable-gated, and a node leaves the ready-set the moment it is dispatched
-		// (RecordDispatch is INSERT-OR-IGNORE → ComputePlanView derives NodeDispatched),
+		// (RecordDispatch is INSERT-OR-IGNORE → DerivePlanView derives NodeDispatched),
 		// so this fires AT MOST ONCE per pool-dispatch — no double-wake loop. An
 		// UNASSIGNED pool member emits nothing here: it stays claimable and the
 		// auto-assign path wakes whoever it later assigns (that assign emits
@@ -493,7 +482,7 @@ func (s *Service) StopPlan(ctx context.Context, planID pm.PlanID, actor pm.Ident
 // (global) and re-runs the idempotent dispatch core (dispatchReadyNodes) for
 // each, so a ready-but-undispatched node (an event the orchestrator projector
 // never saw) still gets dispatched. It is IDEMPOTENT: an already-dispatched node
-// is skipped (ComputePlanView derives it as NodeDispatched, never NodeReady) and
+// is skipped (DerivePlanView derives it as NodeDispatched, never NodeReady) and
 // RecordDispatch is INSERT-OR-IGNORE — so a sweep over a fully-dispatched plan
 // dispatches nothing (no double @mention, §9.3).
 //

@@ -90,7 +90,7 @@ func TestAddPlanControlEdge_AuthorsCyclePlan_ViaAgentTools(t *testing.T) {
 	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.SetDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
+	if err := h.svc.RecordDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	h.setTaskStatus(t, dec, pm.TaskCompleted)

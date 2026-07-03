@@ -29,7 +29,7 @@ import (
 //     is safe/idempotent regardless of WHICH state it moved to). v2.9 P2-2: if
 //     the task is now FAILED (TaskDiscarded), also @mention the Plan CREATOR in
 //     the Plan conversation — the failure handler (§9.1/§9.7). The failed node's
-//     downstream stays `blocked` (ComputePlanView) and the Plan does NOT
+//     downstream stays `blocked` (DerivePlanView) and the Plan does NOT
 //     auto-terminate (MarkDone fires only when ALL nodes are done); the creator
 //     notification is the ONLY new effect.
 //   - pm.plan.started → dispatch the Plan's INITIAL ready nodes (those with no
@@ -123,24 +123,10 @@ func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Even
 	if err := p.notifyCreatorOnFailure(txCtx, e, plan); err != nil {
 		return err
 	}
-	// B1 (control-flow): if THIS event is a decision node completing with an outcome
-	// that fires a loopback edge, re-activate the loop subgraph BEFORE dispatch (so the
-	// reopened nodes re-dispatch in this same pass). No-op for non-decision/non-loopback
-	// completions and for pure DAG plans (back-compat).
-	//
-	// T805 ③: a GRAPHED plan drives its loopback through the engine in
-	// driveGraphDecisions (bounded countReopens + task mirror), so the task-level
-	// applyLoopbacks is gated OFF for it — production loopback goes ONLY through the
-	// engine. A legacy (non-graphed) plan keeps this proven task-level driver unchanged.
-	if e.EventType == EvtTaskStateChanged && !p.svc.graphDispatchEnabled(plan) {
-		var pl taskEventPayload
-		if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
-			return err
-		}
-		if err := p.svc.applyLoopbacks(txCtx, plan, pm.TaskID(pl.TaskID)); err != nil {
-			return err
-		}
-	}
+	// T810 ⑤: the decision/loopback drive is owned entirely by the engine inside
+	// dispatchReadyNodes → driveGraphDecisions (bounded countReopens + reopenLoopSubgraph
+	// task mirror). The old task-level applyLoopbacks projector step was deleted — there
+	// is a single dispatch path, no per-event loopback driver here.
 	_, err = p.svc.dispatchReadyNodes(txCtx, plan)
 	return err
 }
@@ -148,7 +134,7 @@ func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Even
 // notifyCreatorOnFailure implements the v2.9 P2-2 failure handler: when THIS
 // pm.task.state_changed event reports a →FAILED TRANSITION (the task's prev
 // status was NOT failed AND it is now FAILED — TaskDiscarded, the same taskIsFailed
-// semantics ComputePlanView uses, §9.2/§9.7), it posts an @mention of the Plan
+// semantics DerivePlanView uses, §9.2/§9.7), it posts an @mention of the Plan
 // CREATOR into the Plan conversation noting the task failed and its downstream is
 // blocked pending resolution. The creator is already a plan-conversation
 // participant (#284 additive sync), so the mention reaches them (an agent creator

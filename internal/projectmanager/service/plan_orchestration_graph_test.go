@@ -232,8 +232,8 @@ func TestGraphCycle_ConditionGate_PassReleasesDownstream(t *testing.T) {
 	}
 
 	// Decision passes → condition resolves → Integrate released.
-	if err := h.svc.SetDecisionOutcome(ctx, dec, "pass", "user:a"); err != nil {
-		t.Fatalf("SetDecisionOutcome: %v", err)
+	if err := h.svc.RecordDecisionOutcome(ctx, dec, "pass", "user:a"); err != nil {
+		t.Fatalf("RecordDecisionOutcome: %v", err)
 	}
 	h.setTaskStatus(t, dec, pm.TaskCompleted)
 	dRelease, err := h.svc.AdvancePlan(ctx, planID, "user:a")
@@ -282,7 +282,7 @@ func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Decision rejects.
-	if err := h.svc.SetDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
+	if err := h.svc.RecordDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	h.setTaskStatus(t, dec, pm.TaskCompleted)
@@ -334,8 +334,8 @@ func TestGraphCycle_Loopback_BoundedRoundsThenExhausts(t *testing.T) {
 		h.setTaskStatus(t, dev, pm.TaskCompleted)
 		h.setTaskStatus(t, rev, pm.TaskCompleted)
 		h.setTaskStatus(t, dec, pm.TaskCompleted)
-		if err := h.svc.SetDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
-			t.Fatalf("SetDecisionOutcome reject: %v", err)
+		if err := h.svc.RecordDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
+			t.Fatalf("RecordDecisionOutcome reject: %v", err)
 		}
 		d, err := h.svc.AdvancePlan(ctx, planID, "user:a")
 		if err != nil {
@@ -357,8 +357,8 @@ func TestGraphCycle_Loopback_BoundedRoundsThenExhausts(t *testing.T) {
 	h.setTaskStatus(t, dev, pm.TaskCompleted)
 	h.setTaskStatus(t, rev, pm.TaskCompleted)
 	h.setTaskStatus(t, dec, pm.TaskCompleted)
-	if err := h.svc.SetDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
-		t.Fatalf("SetDecisionOutcome reject (round3): %v", err)
+	if err := h.svc.RecordDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
+		t.Fatalf("RecordDecisionOutcome reject (round3): %v", err)
 	}
 	msgsBefore := h.planConvMsgCount(t, planID)
 	d3, err := h.svc.AdvancePlan(ctx, planID, "user:a")
@@ -479,30 +479,7 @@ func TestGraphHelpers(t *testing.T) {
 	}
 }
 
-// TestStartPlan_NoOrch_UsesLegacyPath is the zero-regression guard: with the engine
-// UNWIRED (Deps.Orch nil, every pre-T768 construction + control-flow plan), StartPlan
-// builds NO graph (plan.graph_id stays empty) and dispatch runs off the legacy
-// ComputePlanView path — unchanged behavior.
-func TestStartPlan_NoOrch_UsesLegacyPath(t *testing.T) {
-	h := planAdvanceSetup(t) // no Orch wired
-	ctx := h.ctx
-	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "legacy", CreatedBy: "user:a"})
-	h.drain(t)
-	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
-	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
-		t.Fatalf("StartPlan: %v", err)
-	}
-	p, _ := h.plans.FindByID(ctx, planID)
-	if p.GraphID() != "" {
-		t.Fatalf("legacy plan got a graph_id %q — graph must not be built without the engine", p.GraphID())
-	}
-	// Dispatch still works off the legacy path.
-	d, err := h.svc.AdvancePlan(ctx, planID, "user:a")
-	if err != nil {
-		t.Fatalf("AdvancePlan: %v", err)
-	}
-	if len(d) != 1 || d[0] != a {
-		t.Fatalf("legacy dispatch = %v, want [A]=%v", d, a)
-	}
-}
+// T810 ⑤: TestStartPlan_NoOrch_UsesLegacyPath was removed — the orchestration engine is
+// now MANDATORY (the ComputePlanView dispatch fallback + graphDispatchEnabled switch were
+// deleted; New auto-wires the engine), so the "engine unwired → legacy path" scenario no
+// longer exists.

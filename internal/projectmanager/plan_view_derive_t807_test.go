@@ -1,23 +1,21 @@
 package projectmanager
 
 import (
-	"reflect"
 	"testing"
 	"time"
 )
 
 // T807 ④ — DerivePlanView is the graph-era read-view derivation the readers switched
-// to (get_plan detail / list enrich / builtin pool). These tests pin that it is
-// byte-for-byte with the legacy ComputePlanView across ALL 8 derived node statuses,
-// for a RUNNING-shaped plan (done/failed/running/paused/blocked/ready/dispatched/
-// skipped), a DRAFT-shaped plan, and a FLAT pool — the N4r parity gate.
+// to (get_plan detail / list enrich / builtin pool). These tests pin its 8 derived
+// node statuses for a RUNNING-shaped plan (done/failed/running/paused/blocked/ready/
+// dispatched/skipped), a DRAFT-shaped plan, and a FLAT pool. (T810 ⑤: the old
+// ComputePlanView shell was deleted — DerivePlanView is the single derivation, so the
+// prior DeepEqual-vs-ComputePlanView parity assertions were removed.)
 
 // (nodeStatusByID lives in plan_controlflow_test.go — reused here.)
 
 // TestDerivePlanView_AllEightStates exercises every derived node status in ONE plan
-// and asserts (a) each node's status is what the legacy derivation produced and
-// (b) DerivePlanView is deep-equal to ComputePlanView for the same inputs (the
-// delegation/parity contract — readers get identical output off the new entry point).
+// and asserts each node's status.
 func TestDerivePlanView_AllEightStates(t *testing.T) {
 	// A(done, root) → D(done decision, outcome=pass), Y(ready), Z(dispatched).
 	// R(running, root) → B(blocked). P(paused). F(failed, root).
@@ -71,16 +69,11 @@ func TestDerivePlanView_AllEightStates(t *testing.T) {
 		t.Errorf("ReadySet = %v, want [Y]", view.ReadySet)
 	}
 
-	// Parity contract: DerivePlanView == ComputePlanView for the same inputs.
-	legacy := ComputePlanView(tasks, edges, records, outcomes, paused)
-	if !reflect.DeepEqual(view, legacy) {
-		t.Fatalf("DerivePlanView != ComputePlanView:\n derive=%+v\n legacy=%+v", view, legacy)
-	}
 }
 
 // TestDerivePlanView_DraftPlan pins the draft-shaped derivation (option (c)): a plan
 // with no dispatch records and no decision outcomes (never started) derives roots to
-// `ready` and their dependents to `blocked` — no graph needed, no ComputePlanView.
+// `ready` and their dependents to `blocked` — no graph needed.
 func TestDerivePlanView_DraftPlan(t *testing.T) {
 	root1 := newTaskWithStatus(t, "R1", TaskOpen)
 	root2 := newTaskWithStatus(t, "R2", TaskOpen)
@@ -98,9 +91,6 @@ func TestDerivePlanView_DraftPlan(t *testing.T) {
 	}
 	if view.AllDone || view.HasFailed || view.Progress.Done != 0 {
 		t.Errorf("draft view = allDone:%v hasFailed:%v done:%d, want false/false/0", view.AllDone, view.HasFailed, view.Progress.Done)
-	}
-	if !reflect.DeepEqual(view, ComputePlanView(tasks, edges, nil, nil, nil)) {
-		t.Fatal("draft DerivePlanView != ComputePlanView")
 	}
 }
 
@@ -122,8 +112,5 @@ func TestDerivePlanView_FlatPool(t *testing.T) {
 	// The pool dispatch loop consumes ReadySet — only the undispatched member is in it.
 	if len(view.ReadySet) != 1 || view.ReadySet[0] != "M1" {
 		t.Errorf("pool ReadySet = %v, want [M1]", view.ReadySet)
-	}
-	if !reflect.DeepEqual(view, ComputePlanView(tasks, nil, records, nil, nil)) {
-		t.Fatal("pool DerivePlanView != ComputePlanView")
 	}
 }
