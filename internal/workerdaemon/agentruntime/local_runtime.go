@@ -156,6 +156,12 @@ type LocalRuntime struct {
 	// does NOT re-scan the executor dirs and double-finalize an orphan already
 	// classified this process. Guarded by r.mu.
 	recoveredOnce bool
+
+	// nextLeaseRenewAt / lastGCAt rate-limit the per-Tick execution-lease renewal and
+	// task-dir GC (T860 piece ③: moved off the daemon AgentController.OnTick into the
+	// agent-runtime process itself — self-contained, k8s-aligned). Guarded by r.mu.
+	nextLeaseRenewAt time.Time
+	lastGCAt         time.Time
 }
 
 // cacheExecConfig records the ExecutorConfig this runtime's engine was built from
@@ -649,6 +655,11 @@ func (r *LocalRuntime) Detach() {
 // is gone), so it is NOT here.
 func (r *LocalRuntime) Tick(ctx context.Context, now time.Time) error {
 	r.drainResume(ctx, now)
+	// T860 piece ③: renew every in-flight task's execution lease + GC this agent's
+	// task-dir residue — the work the daemon's AgentController.OnTick used to do, now
+	// self-contained in the agent-runtime process. Both internally rate-limited.
+	r.drainLeaseRenewals(ctx, now)
+	r.maybeRunGC(now)
 	return nil
 }
 

@@ -25,8 +25,6 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/config"
-	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
-	"github.com/oopslink/agent-center/internal/workerdaemon/workercontroller"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -191,70 +189,26 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		DisableControlStream: opts.DisableControlStream,
 	}
 
-	// BinaryPath = os.Executable(). When the daemon runs as the unified
-	// `agent-center` binary this routes `worker agent-supervisor` +
-	// `worker mcp-host`.
-	binPath, _ := os.Executable()
-	// F2 (v2.15.0 I28) per-turn usage hook: ON by default; ops kill-switch via
-	// AGENT_CENTER_DISABLE_USAGE_REPORT=1 (or "true").
-	disableUsageReport := false
-	if v := strings.TrimSpace(os.Getenv("AGENT_CENTER_DISABLE_USAGE_REPORT")); v == "1" || strings.EqualFold(v, "true") {
-		disableUsageReport = true
-	}
-	// Repo-workspace flag (design §4): OFF by default. When AC_EXECUTOR_GIT_WORKTREE is
-	// 1/true, each agent gets a per-agent git repo materializer so SpawnExecutor
-	// prepares an isolated worktree per executor (byte-for-byte unchanged when unset).
-	gitWorktreeEnabled := false
-	if v := strings.TrimSpace(os.Getenv("AC_EXECUTOR_GIT_WORKTREE")); v == "1" || strings.EqualFold(v, "true") {
-		gitWorktreeEnabled = true
-	}
-	// T854 D6 §4.5: when the worker-controller path is enabled, the worker launches one
+	// T854 D6 §4.5 (Ship, piece ③): the worker is a launcher/controller — it launches one
 	// `worker agent-runtime` process per agent and PROXIES control commands to them
-	// (cursor-gated), instead of hosting N runtimes in-process. Gated during rollout —
-	// OFF keeps the pre-D6 in-process AgentController path byte-for-byte.
-	var wctrl *workercontroller.Controller
-	if workerControllerEnabled() {
-		wc, werr := buildWorkerController(opts, targetSpec, token, fingerprint, logf)
-		if werr != nil {
-			return fmt.Errorf("worker daemon: controller: %w", werr)
-		}
-		wctrl = wc
-		reconcileControllerFromResumeState(ctx, wctrl, client, opts.WorkerID, logf)
-		rtCfg.ControlHandler = controllerHandler{ctrl: wctrl, log: logf}
-		logf("worker running in CONTROLLER mode (process-per-agent, AC_WORKER_CONTROLLER=1)")
-	} else if controller, cerr := NewAgentController(AgentControllerConfig{
-		Reporter:           client,
-		Resumer:            client,
-		ToolCaller:         client, // W2: *AdminClient.CallAgentTool → executor writeback
-		WorkerID:           opts.WorkerID,
-		AdminURL:           targetSpec,
-		WorkerToken:        token,
-		ServerFingerprint:  fingerprint,
-		BinaryPath:         binPath,
-		AgentHomeBase:      agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
-		Logger:             logf,
-		DisableUsageReport: disableUsageReport,
-		GitWorktreeEnabled: gitWorktreeEnabled,
-		// issue-5753e8fa W3/W4: wire the per-task execution-directory manager so the
-		// runtime actually creates tasks/{id}/ and the onEvent sink writes
-		// events.current.jsonl + task.log + archived segments. Nil here was the
-		// false-green bug — the taskexec/tasklog subsystems had zero runtime callers.
-		TaskDirManager: taskexec.NewDirManager(),
-	}); cerr != nil {
-		logf("warning: agent controller not wired: " + cerr.Error())
-	} else {
-		rtCfg.ControlHandler = controller
+	// (cursor-gated), instead of hosting N runtimes in-process. This is the SOLE path;
+	// the pre-D6 in-process AgentController path was removed after the §6 real-deploy
+	// acceptance validated the controller model.
+	wctrl, werr := buildWorkerController(opts, targetSpec, token, fingerprint, logf)
+	if werr != nil {
+		return fmt.Errorf("worker daemon: controller: %w", werr)
 	}
+	reconcileControllerFromResumeState(ctx, wctrl, client, opts.WorkerID, logf)
+	rtCfg.ControlHandler = controllerHandler{ctrl: wctrl, log: logf}
+	logf("worker running in controller mode (process-per-agent)")
 
 	rt := NewRuntime(rtCfg, client)
-	if wctrl != nil {
-		// Stop the agent processes when the worker drains.
-		defer func() {
-			shutCtx, cancelSh := context.WithTimeout(context.Background(), 15*time.Second)
-			_ = wctrl.Shutdown(shutCtx)
-			cancelSh()
-		}()
-	}
+	// Stop the agent processes when the worker drains.
+	defer func() {
+		shutCtx, cancelSh := context.WithTimeout(context.Background(), 15*time.Second)
+		_ = wctrl.Shutdown(shutCtx)
+		cancelSh()
+	}()
 
 	// Signal-aware context (SIGINT/SIGTERM → cancel → graceful drain).
 	runCtx, cancel := context.WithCancel(ctx)
