@@ -1,6 +1,10 @@
 package workerdaemon
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
+)
 
 // TestMaybeReportUsage covers the v2.15.0 I28/F2 worker turn-end usage hook:
 // a clean result with token totals is reported (with the cache splits mapped
@@ -9,9 +13,8 @@ import "testing"
 // `result` boundary — issue-af03da2f), not re-read from the managedAgent.
 func TestMaybeReportUsage(t *testing.T) {
 	c, rep, _ := newTestController(t, t.TempDir())
-	c.agents["agent-1"] = &managedAgent{
-		agentID: "agent-1", model: "claude-opus-4-8",
-	}
+	st := c.installTestAgent("agent-1")
+	st.Model = "claude-opus-4-8"
 
 	ev := StreamEvent{
 		Type: "result", TokensIn: 100, TokensOut: 50,
@@ -56,33 +59,33 @@ func TestMaybeReportUsage(t *testing.T) {
 // the turn-end `result`, so without lastEventTaskID the completing turn would bill
 // no task and the Top Cost Tasks panel stays empty.
 func TestUsageTaskAtResult(t *testing.T) {
-	ma := &managedAgent{agentID: "agent-1"}
+	st := &agentruntime.SessionState{}
 
 	// Converse/idle turn — no task in flight → unattributed (non-task overhead).
-	if got := ma.usageTaskAtResult(); got != "" {
+	if got := st.UsageTaskAtResult(); got != "" {
 		t.Fatalf("idle turn: got %q, want \"\"", got)
 	}
 
 	// Mid-task turn — start_task opened eventTaskID, not yet completed.
-	ma.eventTaskID = "task-A"
-	if got := ma.usageTaskAtResult(); got != "task-A" {
+	st.EventTaskID = "task-A"
+	if got := st.UsageTaskAtResult(); got != "task-A" {
 		t.Fatalf("mid-task turn: got %q, want task-A", got)
 	}
 	// A second mid-task result still attributes (eventTaskID persists across turns).
-	if got := ma.usageTaskAtResult(); got != "task-A" {
+	if got := st.UsageTaskAtResult(); got != "task-A" {
 		t.Fatalf("mid-task turn 2: got %q, want task-A", got)
 	}
 
 	// Completing turn — complete_task cleared eventTaskID and stashed lastEventTaskID.
-	ma.eventTaskID = ""
-	ma.lastEventTaskID = "task-A"
-	if got := ma.usageTaskAtResult(); got != "task-A" {
+	st.EventTaskID = ""
+	st.LastEventTaskID = "task-A"
+	if got := st.UsageTaskAtResult(); got != "task-A" {
 		t.Fatalf("completing turn: got %q, want task-A (from lastEventTaskID)", got)
 	}
 
 	// The NEXT turn (converse after completion) must NOT bill the finished task —
 	// lastEventTaskID was consumed above.
-	if got := ma.usageTaskAtResult(); got != "" {
+	if got := st.UsageTaskAtResult(); got != "" {
 		t.Fatalf("post-completion converse turn: got %q, want \"\" (no leak)", got)
 	}
 }

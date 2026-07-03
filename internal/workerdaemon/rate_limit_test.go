@@ -93,8 +93,8 @@ func TestRateLimit_SchedulesResumeAndOnTickResumes(t *testing.T) {
 	// The in-flight work is NOT abandoned, and a resume is scheduled at now+30s.
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask := ma.currentTaskID
-	gotResumeAt := ma.rateLimitResumeAt
+	gotTask := ma.state.CurrentTaskID
+	gotResumeAt := ma.state.RateLimitResumeAt
 	c.mu.Unlock()
 	if gotTask != "wi-1" {
 		t.Fatalf("rate-limited turn must PRESERVE currentTaskID for resume, got %q", gotTask)
@@ -127,7 +127,7 @@ func TestRateLimit_SchedulesResumeAndOnTickResumes(t *testing.T) {
 	}
 	// Schedule consumed → a further tick does not re-inject.
 	c.mu.Lock()
-	cleared := c.agents["agent-1"].rateLimitResumeAt.IsZero()
+	cleared := c.agents["agent-1"].state.RateLimitResumeAt.IsZero()
 	c.mu.Unlock()
 	if !cleared {
 		t.Fatalf("rateLimitResumeAt must be consumed after resume")
@@ -161,8 +161,8 @@ func TestRateLimit_NonRateLimitErrorStillFails(t *testing.T) {
 
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask := ma.currentTaskID
-	gotResumeAt := ma.rateLimitResumeAt
+	gotTask := ma.state.CurrentTaskID
+	gotResumeAt := ma.state.RateLimitResumeAt
 	c.mu.Unlock()
 	if gotTask != "" {
 		t.Fatalf("an ordinary is_error turn must clear currentTaskID (surfaceTurnFailure), got %q", gotTask)
@@ -189,7 +189,7 @@ func TestRateLimit_NoResumeWhenNoInflightWork(t *testing.T) {
 	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "rate_limit_error", Result: "overloaded", IsError: true})
 
 	c.mu.Lock()
-	resumeAt := c.agents["agent-1"].rateLimitResumeAt
+	resumeAt := c.agents["agent-1"].state.RateLimitResumeAt
 	c.mu.Unlock()
 	if !resumeAt.IsZero() {
 		t.Fatalf("no in-flight work → must NOT schedule a resume, got %s", resumeAt)
@@ -206,18 +206,16 @@ func TestRateLimit_DrainSkipsDeadSession(t *testing.T) {
 	defer c.Shutdown(context.Background())
 
 	// A managed agent with a DUE resume but no live session.
+	st := c.installTestAgent("agent-1")
 	c.mu.Lock()
-	c.agents["agent-1"] = &managedAgent{
-		agentID:           "agent-1",
-		currentTaskID:     "wi-1",
-		rateLimitResumeAt: clock.now().Add(-time.Second),
-	}
+	st.CurrentTaskID = "wi-1"
+	st.RateLimitResumeAt = clock.now().Add(-time.Second)
 	c.mu.Unlock()
 
 	c.OnTick(context.Background())
 
 	c.mu.Lock()
-	resumeAt := c.agents["agent-1"].rateLimitResumeAt
+	resumeAt := c.agents["agent-1"].state.RateLimitResumeAt
 	c.mu.Unlock()
 	if !resumeAt.IsZero() {
 		t.Fatalf("a due resume with a dead session must be cleared, got %s", resumeAt)
@@ -242,14 +240,14 @@ func TestRateLimit_DrainInjectErrorTolerated(t *testing.T) {
 	fs.mu.Unlock()
 
 	c.mu.Lock()
-	c.agents["agent-1"].currentTaskID = "wi-1"
-	c.agents["agent-1"].rateLimitResumeAt = clock.now().Add(-time.Second)
+	c.agents["agent-1"].state.CurrentTaskID = "wi-1"
+	c.agents["agent-1"].state.RateLimitResumeAt = clock.now().Add(-time.Second)
 	c.mu.Unlock()
 
 	c.OnTick(context.Background()) // must not panic; schedule consumed despite the error
 
 	c.mu.Lock()
-	resumeAt := c.agents["agent-1"].rateLimitResumeAt
+	resumeAt := c.agents["agent-1"].state.RateLimitResumeAt
 	c.mu.Unlock()
 	if !resumeAt.IsZero() {
 		t.Fatalf("schedule must be consumed even when Inject fails, got %s", resumeAt)

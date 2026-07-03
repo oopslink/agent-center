@@ -1,11 +1,43 @@
-package workerdaemon
+package agentruntime
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
+	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
+
+// TestExecutorActivityObserver_Emits covers the observer→activity bridge: stop and
+// progress events (and emitExecutorStart) each post ONE lifecycle activity, and a nil
+// Launched is a no-op.
+func TestExecutorActivityObserver_Emits(t *testing.T) {
+	var mu sync.Mutex
+	rep := &recReporter{}
+	rt := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID: "a", Mu: &mu, Reporter: rep,
+		Log: func(string, ...any) {}, Now: func() time.Time { return time.Unix(1, 0) },
+	}, &SessionState{})
+	obs := executorActivityObserver{r: rt, agentID: "a"}
+
+	obs.ExecutorStopped(executor.StopEvent{ExecutorID: "e1", TaskRef: "T", Outcome: executor.OutcomeSucceeded})
+	obs.ExecutorProgress(executor.ProgressEvent{ExecutorID: "e1", TaskRef: "T", State: "running"})
+	rt.emitExecutorStart("a", "T", "title", &orchestrator.Launched{ExecutorID: "e1", CLI: "claude-code", Model: "m"})
+	rt.emitExecutorStart("a", "T", "title", nil) // nil → no-op
+
+	rep.mu.Lock()
+	got := append([]string(nil), rep.activity...)
+	rep.mu.Unlock()
+	if len(got) != 3 {
+		t.Fatalf("expected 3 lifecycle activity emits, got %d: %v", len(got), got)
+	}
+	for _, ev := range got {
+		if ev != "lifecycle" {
+			t.Errorf("event type = %q, want lifecycle", ev)
+		}
+	}
+}
 
 // T758: the executor lifecycle activity payloads follow a fixed per-event schema
 // the Web Console Activity stream reads. Every payload MUST carry the executor_id +
