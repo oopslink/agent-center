@@ -19,11 +19,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 )
+
+// WorktreeCleaner tears down a per-executor git worktree at finalize / recovery. It
+// is a NARROW port defined IN THIS PACKAGE on purpose (red line D): the executor
+// package must NEVER import reporepo, so the repo materializer is adapted to this
+// string-only contract by a tiny adapter in a package that imports BOTH (agentruntime
+// / the daemon wiring). A nil cleaner ⇒ no-op (today's behavior). Implementations
+// remove ONLY the worktree at workspacePath — never the canonical source at
+// sourcePath (design §10).
+type WorktreeCleaner interface {
+	RemoveWorktree(ctx context.Context, repoKey, sourcePath, workspacePath string) error
+}
 
 // Writeback is the orchestrator's sole-writer result sink. It is implemented by
 // the center-connected orchestrator (out of this package, by design): Report
@@ -43,6 +55,13 @@ type MonitorConfig struct {
 	Watchdog   *Watchdog
 	Reconciler *Reconciler
 	Writeback  Writeback
+	// Tracker reads the per-executor recovery Record at finalize so the RepoKey/
+	// SourcePath teardown handle (P5) is available for worktree cleanup. OPTIONAL —
+	// nil (or a Record without a RepoKey) ⇒ no worktree cleanup, today's behavior.
+	Tracker *Tracker
+	// WorktreeCleaner tears down a repo-materializer worktree on finalize + recovery
+	// (P4/P5). OPTIONAL — nil ⇒ no-op (today's behavior). Used together with Tracker.
+	WorktreeCleaner WorktreeCleaner
 	// Liveness probes whether an adopted-orphan pid is still alive (CheckOrphan).
 	// Nil → SignalLiveness (signal-0 existence check).
 	Liveness LivenessProbe
@@ -67,6 +86,8 @@ type Monitor struct {
 	watchdog  *Watchdog
 	recon     *Reconciler
 	wb        Writeback
+	tracker   *Tracker
+	cleaner   WorktreeCleaner
 	obs       ActivityObserver
 	live      LivenessProbe
 	killSig   groupSignaler
@@ -110,6 +131,8 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 		watchdog:    cfg.Watchdog,
 		recon:       cfg.Reconciler,
 		wb:          cfg.Writeback,
+		tracker:     cfg.Tracker,
+		cleaner:     cfg.WorktreeCleaner,
 		obs:         cfg.Observer,
 		live:        live,
 		killSig:     killSig,
@@ -331,10 +354,37 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 			_ = m.worktrees.Remove(ctx, ws)
 		}
 	}
+	// P4/P5: tear down a repo-materializer worktree (never the canonical source). Runs
+	// on BOTH the live drain path (AwaitCompletion→Finalize) and crash recovery
+	// (Recover→Finalize). No-op when no cleaner/tracker is wired or the Record carries
+	// no RepoKey (a plain-dir executor) — today's behavior, byte-for-byte.
+	m.cleanupPreparedWorktree(ctx, c.ExecutorID)
 	if err := m.fx.Remove(c.ExecutorID); err != nil {
 		return fmt.Errorf("executor: remove dir %s: %w", c.ExecutorID, err)
 	}
 	return nil
+}
+
+// cleanupPreparedWorktree removes a repo-materializer worktree for a finalized
+// executor (P4/P5). It reads the durable Record (written at spawn) for the
+// RepoKey/SourcePath teardown handle and delegates to the narrow WorktreeCleaner
+// port. Best-effort (the writeback already succeeded; a teardown failure must not
+// fail the finalize) and a strict no-op unless BOTH a cleaner and a tracker are
+// wired AND the Record names a RepoKey — so a plain-dir executor is untouched. The
+// cleaner removes ONLY the worktree, never the canonical source (design §10).
+func (m *Monitor) cleanupPreparedWorktree(ctx context.Context, executorID string) {
+	if m.cleaner == nil || m.tracker == nil {
+		return
+	}
+	rec, err := m.tracker.Read(executorID)
+	if err != nil || strings.TrimSpace(rec.RepoKey) == "" {
+		return
+	}
+	ws, err := m.fx.Layout().WorkspaceDir(executorID)
+	if err != nil {
+		return
+	}
+	_ = m.cleaner.RemoveWorktree(ctx, rec.RepoKey, rec.SourcePath, ws)
 }
 
 // emitStop reports one terminal completion to the activity Observer (best-effort,

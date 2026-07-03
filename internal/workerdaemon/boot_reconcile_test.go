@@ -326,7 +326,7 @@ func TestDecideBootAction_NudgeOnlyOnRelaunch(t *testing.T) {
 // TestToCenterRecord_CapturesActiveTaskID pins the boot-reconcile half of the
 // L2×Mode-B WI-id-restore: an ACTIVE in-flight WorkItem's id is captured into the
 // centerRecord so bootReapRelaunch can rebind it onto the relaunched
-// managedAgent.currentTaskID (a failed re-drive then surfaces via L2). A
+// managedAgent.state.CurrentTaskID (a failed re-drive then surfaces via L2). A
 // waiting_input-only agent yields no active id.
 func TestToCenterRecord_CapturesActiveTaskID(t *testing.T) {
 	active := toCenterRecord(ResumeAgent{

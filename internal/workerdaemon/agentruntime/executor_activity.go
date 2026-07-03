@@ -1,29 +1,21 @@
-package workerdaemon
+package agentruntime
 
-// executor_activity.go — the daemon-side bridge that makes concurrently-forked
-// executors first-class producers of the AgentActivityEvent stream (ADR-0049 /
-// T758). The executor subsystem (F1–F5) is deliberately center-free; the ONLY
-// object holding both the center Reporter (c.cfg.Reporter.ReportAgentActivity) and
-// the per-agent executor plumbing is AgentController, so the executor→activity
-// bridge lives here.
+// executor_activity.go — the executor→activity bridge, moved (Phase 0c) off
+// AgentController into agentruntime alongside the executor engine it observes. It
+// makes concurrently-forked executors first-class producers of the
+// AgentActivityEvent stream (ADR-0049 / T758). The executor subsystem (F1–F5) is
+// deliberately center-free; the object holding both the center Reporter
+// (r.cfg.Reporter.ReportAgentActivity) and the per-agent executor plumbing is now
+// the LocalRuntime, so the executor→activity bridge lives here.
 //
 // Three event kinds, all emitted as agent.EventTypeLifecycle so the Web Console
-// Agent-detail Activity panel renders them in its "Control" category (never folded
-// into the Checking group) with zero frontend change — the row preview reads
+// Agent-detail Activity panel renders them in its "Control" category, keyed by
 // payload.event + payload.scope:
 //
 //	executor.start     — emitted at fork time (launchExecutor): pid + routed cli/model.
 //	executor.stop      — one per terminal completion, via the executor.ActivityObserver
-//	                     port off Monitor.Finalize (this-process reap, orphan poll, and
-//	                     crash recovery all funnel through it). Distinguishes the four
-//	                     stop classes: succeeded / failed(exit) / stalled(watchdog) /
-//	                     orphan(recovered) — reusing completion.go's classification.
+//	                     port off Monitor.Finalize.
 //	executor.progress  — throttled heartbeat, via the same port off Monitor.SampleProgress.
-//
-// Every payload carries executor_id + task_ref as the identifying prefix (design
-// point 3), and each event is tagged with interaction_ref "executor:<id>" so the UI
-// groups one executor's activity together. Emission is best-effort: a report error
-// is logged, never propagated (it must not perturb the executor lifecycle).
 
 import (
 	"context"
@@ -37,9 +29,9 @@ import (
 
 // executorActivityObserver implements executor.ActivityObserver for one agent,
 // mapping the executor-scoped stop/progress facts onto ReportAgentActivity calls
-// tagged with that agent's id. Constructed per executorEngine (per agent).
+// tagged with that agent's id. Constructed per ExecutorEngine (per runtime/agent).
 type executorActivityObserver struct {
-	c       *AgentController
+	r       *LocalRuntime
 	agentID string
 }
 
@@ -47,17 +39,17 @@ var _ executor.ActivityObserver = executorActivityObserver{}
 
 // ExecutorStopped emits one terminal executor.stop lifecycle event.
 func (o executorActivityObserver) ExecutorStopped(ev executor.StopEvent) {
-	o.c.emitExecutorLifecycle(o.agentID, ev.ExecutorID, ev.TaskRef, executorStopPayload(ev), stampOr(ev.At, o.c.now))
+	o.r.emitExecutorLifecycle(o.agentID, ev.ExecutorID, ev.TaskRef, executorStopPayload(ev), stampOr(ev.At, o.r.now))
 }
 
 // ExecutorProgress emits one executor.progress lifecycle heartbeat.
 func (o executorActivityObserver) ExecutorProgress(ev executor.ProgressEvent) {
-	o.c.emitExecutorLifecycle(o.agentID, ev.ExecutorID, ev.TaskRef, executorProgressPayload(ev), stampOr(ev.At, o.c.now))
+	o.r.emitExecutorLifecycle(o.agentID, ev.ExecutorID, ev.TaskRef, executorProgressPayload(ev), stampOr(ev.At, o.r.now))
 }
 
 // emitExecutorStart emits the executor.start lifecycle event right after a
 // successful fork (launchExecutor), where the routed cli/model + pid are richest.
-func (c *AgentController) emitExecutorStart(agentID, taskRef, title string, launched *orchestrator.Launched) {
+func (r *LocalRuntime) emitExecutorStart(agentID, taskRef, title string, launched *orchestrator.Launched) {
 	if launched == nil {
 		return
 	}
@@ -75,23 +67,23 @@ func (c *AgentController) emitExecutorStart(agentID, taskRef, title string, laun
 		ProblemID:   launched.ProblemID,
 		Title:       title,
 	})
-	c.emitExecutorLifecycle(agentID, launched.ExecutorID, taskRef, payload, c.now())
+	r.emitExecutorLifecycle(agentID, launched.ExecutorID, taskRef, payload, r.now())
 }
 
 // emitExecutorLifecycle marshals payload and posts it as a lifecycle activity for
 // agentID, tagged with task_ref + the executor's interaction ref. Best-effort:
 // a marshal/report failure is logged, never returned (activity is observational).
-func (c *AgentController) emitExecutorLifecycle(agentID, execID, taskRef string, payload map[string]any, at time.Time) {
+func (r *LocalRuntime) emitExecutorLifecycle(agentID, execID, taskRef string, payload map[string]any, at time.Time) {
 	b, err := json.Marshal(payload)
 	if err != nil {
-		c.log("agent=%s executor=%s lifecycle activity marshal: %v", agentID, execID, err)
+		r.log("agent=%s executor=%s lifecycle activity marshal: %v", agentID, execID, err)
 		return
 	}
-	if err := c.cfg.Reporter.ReportAgentActivity(
+	if err := r.cfg.Reporter.ReportAgentActivity(
 		context.Background(), agentID, agent.EventTypeLifecycle, string(b),
 		taskRef, executorInteractionRef(execID), at,
 	); err != nil {
-		c.log("agent=%s executor=%s lifecycle activity report: %v", agentID, execID, err)
+		r.log("agent=%s executor=%s lifecycle activity report: %v", agentID, execID, err)
 	}
 }
 

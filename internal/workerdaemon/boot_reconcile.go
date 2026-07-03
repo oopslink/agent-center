@@ -52,20 +52,11 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
-	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
-
-// DefaultResumeNudge is the message injected into a RELAUNCHED agent's session for
-// an ACTIVE WorkItem on boot (s4b), so the interrupted task continues. FLAG
-// (GATE-7): claude --session-id resumes the conversation, but whether it
-// auto-continues an interrupted turn or needs an explicit nudge is unknown until
-// validated against real claude — this is the single, isolated spot to correct if
-// GATE-7 finds a different nudge (or none) is required. Overridable via
-// AgentControllerConfig.ResumeNudge.
-const DefaultResumeNudge = "Resume your current task."
 
 // bootReconciler is the optional interface the runtime type-asserts the
 // ControlHandler against to invoke boot-resume SYNCHRONOUSLY before the control
@@ -422,7 +413,15 @@ func (c *AgentController) reconcileAgentOnBoot(ctx context.Context, agentID stri
 				c.log("boot-reconcile agent=%s (codex) resolve tasks dir: %v — skip", agentID, werr)
 				return
 			}
-			if serr := c.startCodexSession(ctx, agentID, version, home, tasksDir, rec.Model, rec.DisplayName, rec.EnvVars); serr != nil {
+			_ = tasksDir // paths resolved for validation; Start re-resolves from cfg
+			if serr := c.bringUpSession(ctx, agentruntime.StartSpec{
+				AgentID:     agentID,
+				Version:     version,
+				CLI:         cliCodex,
+				Model:       rec.Model,
+				DisplayName: rec.DisplayName,
+				EnvVars:     rec.EnvVars,
+			}); serr != nil {
 				c.log("boot-reconcile agent=%s (codex) relaunch: %v", agentID, serr)
 			}
 			return
@@ -474,16 +473,20 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 		return
 	}
 
-	// Reserve the managedAgent BEFORE the event-pump starts (OnEvent/OnExit fire on
-	// the pump goroutine).
-	ma := &managedAgent{agentID: agentID, appliedVersion: version}
+	// Reserve the managedAgent (runtime + shared SessionState) BEFORE the event-pump
+	// starts (OnEvent/OnExit fire on the pump goroutine, on r.state). The reattached
+	// session has no fresh reconcile, so state carries only the version (a later crash
+	// self-heal relaunch resolves model/etc. from the durable epoch + resume-state).
+	rt, st := c.newRuntimeFor(agentID)
+	ma := &managedAgent{agentID: agentID, runtime: rt, state: st, appliedVersion: version}
 	c.mu.Lock()
 	c.agents[agentID] = ma
+	st.Version = version
 	c.mu.Unlock()
 
 	sess, err := ReattachSupervisorSession(ctx, ref, ref.Client,
-		func(ev claudestream.StreamEvent) { c.onEvent(agentID, ev) },
-		func(exitErr error) { c.onExit(agentID, exitErr) },
+		rt.OnEventCallback(),
+		rt.OnExitCallback(),
 		c.cfg.Logger,
 		pr.Hello.BaseOffset,
 	)
@@ -496,9 +499,7 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 		c.log("boot-reconcile agent=%s reattach: %v", agentID, err)
 		return
 	}
-	c.mu.Lock()
-	ma.session = sess
-	c.mu.Unlock()
+	rt.Attach(sess)
 	c.log("boot-reconcile agent=%s RE-ATTACHED from offset=%d (no nudge — claude alive)", agentID, pr.Hello.BaseOffset)
 	// issue I13: if the center had this agent in `error` (a prior crash), clear it back
 	// to running now that its session is live again — else it stays `unavailable` (no
@@ -548,7 +549,18 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	}
 	// nudge (==hadWork) still independently drives the ResumeNudge injection below —
 	// resume only governs whether the prior conversation is carried forward.
-	if err := c.startSession(ctx, agentID, version, true /*forkResume*/, prev.CompletedTurn /*resume*/, model, displayName, "" /*cli: boot relaunch is claude-supervisor only; codex is guarded earlier*/, promptDescription, envVars, concurrencyEnabled); err != nil {
+	if err := c.bringUpSession(ctx, agentruntime.StartSpec{
+		AgentID:            agentID,
+		Version:            version,
+		ForkResume:         true,
+		Resume:             prev.CompletedTurn,
+		Model:              model,
+		DisplayName:        displayName,
+		CLI:                "", // boot relaunch is claude-supervisor only; codex guarded earlier
+		PromptDescription:  promptDescription,
+		EnvVars:            envVars,
+		ConcurrencyEnabled: concurrencyEnabled,
+	}); err != nil {
 		c.log("boot-reconcile agent=%s relaunch: %v — skip", agentID, err)
 		return err
 	}
@@ -584,8 +596,8 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	// managedAgent creation, structurally window-free). (CHANGELOG + §A.)
 	if taskID != "" {
 		c.mu.Lock()
-		if ma := c.agents[agentID]; ma != nil {
-			ma.currentTaskID = taskID
+		if ma := c.agents[agentID]; ma != nil && ma.state != nil {
+			ma.state.CurrentTaskID = taskID
 		}
 		c.mu.Unlock()
 	}
@@ -609,8 +621,8 @@ func (c *AgentController) bootReapRelaunch(ctx context.Context, agentID, home st
 	c.mu.Lock()
 	ma := c.agents[agentID]
 	var sess agentSession
-	if ma != nil {
-		sess = ma.session
+	if ma != nil && ma.state != nil {
+		sess = ma.state.Session
 	}
 	c.mu.Unlock()
 	if sess != nil {

@@ -89,6 +89,24 @@ type LaunchSpec struct {
 	// (the model-routed agent CLI; F3 supplies it). Empty is allowed at the
 	// process-model layer — the executor entrypoint reports a clear error.
 	RunnerCmd []string
+	// Prepared, when non-nil, is a git worktree the repo materializer ALREADY
+	// materialized at the executor's workspace path (the P3 repo-workspace track):
+	// provisionAndSpawn then uses it AS the workspace and skips the cfg.Worktrees /
+	// plain-dir provisioning. Its metadata (RepoKey/SourcePath) is persisted into the
+	// recovery Record so Finalize + crash-recovery can tear the worktree down via a
+	// WorktreeCleaner. Nil ⇒ today's provisioning path, byte-for-byte unchanged.
+	Prepared *PreparedWorkspace
+}
+
+// PreparedWorkspace is a per-executor git worktree the repo materializer prepared
+// BEFORE the launch (design §4 Phase 3/4). Path is the worktree directory (== the
+// executor's workspace); RepoKey + SourcePath are the durable teardown handle
+// (design §10: only the worktree is ever removed, never the canonical source).
+type PreparedWorkspace struct {
+	Path       string
+	RepoKey    string
+	SourcePath string
+	Branch     string
 }
 
 // Pool tracks an agent's live executors under a concurrency cap.
@@ -219,16 +237,24 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 	if err != nil {
 		return nil, err
 	}
-	// Provision the workspace: a git worktree when configured (executor edits a source
-	// repo), else a plain isolated directory (PD ruling, W1). Either way the executor's
-	// file edits are confined to wsPath by the F2 containment guard + its process group.
-	if p.cfg.Worktrees != nil && strings.TrimSpace(p.cfg.BaseRef) != "" {
+	// Provision the workspace: (a) a repo-materializer worktree ALREADY prepared at
+	// wsPath (P3 repo-workspace track) — use it as-is, nothing to provision; (b) a git
+	// worktree when cfg.Worktrees is configured (executor edits a source repo); else
+	// (c) a plain isolated directory (PD ruling, W1). Either way the executor's file
+	// edits are confined to wsPath by the F2 containment guard + its process group.
+	switch {
+	case spec.Prepared != nil && strings.TrimSpace(spec.Prepared.Path) != "":
+		// The worktree was materialized before start_task (SpawnExecutor / P3) at the
+		// executor's workspace path; do NOT re-provision it.
+	case p.cfg.Worktrees != nil && strings.TrimSpace(p.cfg.BaseRef) != "":
 		branch := executorBranch(id)
 		if err := p.cfg.Worktrees.AddNewBranch(ctx, wsPath, branch, p.cfg.BaseRef); err != nil {
 			return nil, fmt.Errorf("executor: pool worktree %s: %w", id, err)
 		}
-	} else if err := os.MkdirAll(wsPath, 0o700); err != nil {
-		return nil, fmt.Errorf("executor: pool workspace dir %s: %w", id, err)
+	default:
+		if err := os.MkdirAll(wsPath, 0o700); err != nil {
+			return nil, fmt.Errorf("executor: pool workspace dir %s: %w", id, err)
+		}
 	}
 	if err := p.cfg.Exchange.WriteInput(spec.Input); err != nil {
 		return nil, fmt.Errorf("executor: pool write input %s: %w", id, err)
@@ -256,6 +282,12 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 			SpawnedAt:  p.clk.Now(),
 			BaseRef:    p.cfg.BaseRef,
 			RunnerCmd:  spec.RunnerCmd,
+		}
+		// P5: persist the prepared worktree's teardown handle so Finalize + crash
+		// recovery can remove the per-executor worktree (never the canonical source).
+		if spec.Prepared != nil {
+			rec.RepoKey = spec.Prepared.RepoKey
+			rec.SourcePath = spec.Prepared.SourcePath
 		}
 		if werr := p.cfg.Tracker.Write(rec); werr != nil {
 			_ = h.Kill()

@@ -629,7 +629,7 @@ func TestAgentController_ReplyGuardrail_SkipsDuringConverse(t *testing.T) {
 	rep.mu.Unlock()
 	// Anchor the agent to an in-flight conversation turn.
 	c.mu.Lock()
-	c.agents["agent-1"].currentConversationID = "conv-9"
+	c.agents["agent-1"].state.CurrentConversationID = "conv-9"
 	c.mu.Unlock()
 
 	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
@@ -836,7 +836,7 @@ func TestAgentController_WorkAvailable_ResendWhileDown_RelaunchesEachTime(t *tes
 	// is still down when the sweep's next tick resends the SAME wake.
 	c.mu.Lock()
 	if ma := c.agents["agent-1"]; ma != nil {
-		ma.session = nil
+		ma.state.Session = nil
 	}
 	c.mu.Unlock()
 
@@ -1325,7 +1325,7 @@ func TestAgentController_OnEvent_TagsActivityWithCurrentWorkItem(t *testing.T) {
 
 	// Simulate an in-flight work item (set the same field work/wake delivery sets).
 	c.mu.Lock()
-	c.agents["agent-1"].currentTaskID = "WI-1"
+	c.agents["agent-1"].state.CurrentTaskID = "WI-1"
 	c.mu.Unlock()
 
 	fs.emit(claudestream.StreamEvent{Type: "tool_use", ToolName: "Bash", ToolUseID: "tu-1"})

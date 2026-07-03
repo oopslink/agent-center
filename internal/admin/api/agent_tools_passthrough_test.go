@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -614,6 +615,73 @@ func TestGetTask_NonMemberForeign_403(t *testing.T) {
 		map[string]any{"agent_id": atAgent1, "task_id": string(tid)})
 	if status != http.StatusForbidden || body["error"] != "not_agents_task" {
 		t.Fatalf("status = %d err=%v, want 403 not_agents_task", status, body["error"])
+	}
+}
+
+// TestGetTask_RepoHint_WithPrimaryRepo: v2.31.0 (issue-9f749a19 Phase 1) — when the
+// task's project has a PRIMARY repo, get_task attaches a credential-free `repo`
+// projection (via agentRepoRefMap) plus `base_ref` = the repo's default branch, so a
+// forked executor knows which repo/branch to work in.
+func TestGetTask_RepoHint_WithPrimaryRepo(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pidStr, repoID := seedProjectWithRepo(t, f) // AG1 member; project has a primary repo.
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: pm.ProjectID(pidStr), Title: "repo task", CreatedBy: owner,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1), owner); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": string(tid)})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	if body["base_ref"] != "main" {
+		t.Errorf("base_ref = %v, want main; body = %v", body["base_ref"], body)
+	}
+	repo, ok := body["repo"].(map[string]any)
+	if !ok {
+		t.Fatalf("repo hint missing/not-an-object: %v", body["repo"])
+	}
+	if repo["repo_id"] != repoID || repo["label"] != "app" || repo["provider"] != "github" ||
+		repo["default_branch"] != "main" || repo["is_primary"] != true {
+		t.Errorf("repo hint = %v", repo)
+	}
+	// The credential must NEVER appear anywhere in the payload.
+	if strings.Contains(jsonStr(body), "ghp_secret") {
+		t.Fatal("get_task repo hint leaked the credential")
+	}
+}
+
+// TestGetTask_RepoHint_NoPrimaryRepo: a project WITHOUT a primary repo omits the
+// repo hint entirely — additive/best-effort (old workers + repo-less projects both
+// see the unchanged projection).
+func TestGetTask_RepoHint_NoPrimaryRepo(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, tid := f.seedMemberProject(t) // no repo reference on this project.
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/get_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	if _, ok := body["repo"]; ok {
+		t.Errorf("repo hint present on a repo-less project: %v", body["repo"])
+	}
+	if _, ok := body["base_ref"]; ok {
+		t.Errorf("base_ref present on a repo-less project: %v", body["base_ref"])
 	}
 }
 
