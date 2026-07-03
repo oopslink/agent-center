@@ -569,6 +569,17 @@ type managedAgent struct {
 	// paying) an endlessly failing turn forever. Reset to 0 on any CLEAN (non-error)
 	// turn-end and when the cap is hit. Guarded by mu.
 	apiErrorRetries int
+
+	// sawIncompleteTurn is set when THIS turn's assistant_text carried a truncation
+	// marker ("Connection closed mid-response" / "the response above may be
+	// incomplete") — claude prints the connection-drop as ordinary assistant TEXT and
+	// may still end the turn with a `result` is_error=FALSE, so isTransientAPIError
+	// (which only inspects a `result` is_error) never sees it. Recorded on the
+	// assistant_text event, consumed + cleared on the turn-end `result` (and on a
+	// fresh system/init) so the controller can schedule the SAME bounded resume for a
+	// truncated turn that would otherwise be silently incomplete (快修 T799). Guarded
+	// by mu.
+	sawIncompleteTurn bool
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -1801,6 +1812,11 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 	// pull path never sets).
 	var taskForEvent string
 	var clearEventTask bool
+	// sawIncomplete snapshots whether THIS turn was cut short by a connection drop
+	// (an assistant_text truncation marker seen earlier this turn), read at turn-end
+	// so the `result` branch below can schedule a bounded resume even when the result
+	// is is_error=false (快修 T799).
+	var sawIncomplete bool
 	if ma := c.agents[agentID]; ma != nil {
 		workItemRef = ma.currentTaskID
 		// v2.7.1 #216: maintain the per-turn tool_use_id→tool_name correlation so the
@@ -1824,6 +1840,13 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 			if isTaskTerminalTool(ev.ToolName) {
 				clearEventTask = true
 			}
+		case "assistant_text":
+			// T799: claude prints "API Error: Connection closed mid-response. The
+			// response above may be incomplete." as ordinary assistant text; flag the
+			// turn so the terminal `result` schedules a resume even if is_error=false.
+			if isIncompleteTurnMarker(ev.Text) {
+				ma.sawIncompleteTurn = true
+			}
 		case "tool_result":
 			toolName = ma.toolNames[ev.ToolUseID]
 		case "rate_limit":
@@ -1836,11 +1859,14 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 			ma.toolNames = nil
 			if ev.Subtype == "init" {
 				ma.rlRetryAfterSecs, ma.rlResetAtUnix = 0, 0 // fresh turn → drop a stale window
+				ma.sawIncompleteTurn = false                 // fresh turn → drop a stale truncation marker
 			}
 		case "result":
 			ma.toolNames = nil
 			rlRetryAfter, rlResetAt = ma.rlRetryAfterSecs, ma.rlResetAtUnix
 			ma.rlRetryAfterSecs, ma.rlResetAtUnix = 0, 0 // turn ended → consume the window
+			sawIncomplete = ma.sawIncompleteTurn
+			ma.sawIncompleteTurn = false // turn ended → consume the truncation marker
 		}
 		taskForEvent = ma.eventTaskID
 	}
@@ -1913,10 +1939,23 @@ func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
 		// work instead of abandoning it. Falls through to surfaceTurnFailure when the
 		// error is not transient, there is nothing to resume, or the retry budget is
 		// spent (so a persistently-failing turn still surfaces, never loops forever).
-		if c.maybeScheduleAPIErrorResume(agentID, ev) {
+		if c.maybeScheduleAPIErrorResume(agentID, ev, sawIncomplete) {
 			return
 		}
 		c.surfaceTurnFailure(agentID, ev)
+	}
+
+	// T799: a turn CUT SHORT by a connection drop can end with is_error=FALSE — claude
+	// prints "…the response above may be incomplete." as ordinary assistant text and
+	// then closes the turn "successfully", so isTransientAPIError (which only inspects
+	// a `result` is_error) never fires. Handle it HERE, before the clean-turn T341
+	// path: schedule the SAME bounded resume of the still-live turn. Does NOT return
+	// when there is nothing to resume or the budget is spent, so the normal clean-turn
+	// handling below still runs (the truncation marker was consumed above).
+	if ev.Type == "result" && !ev.IsError && sawIncomplete {
+		if c.maybeScheduleAPIErrorResume(agentID, ev, sawIncomplete) {
+			return
+		}
 	}
 
 	// T341 reply-guardrail (方案 A): a CLEAN turn-end is the natural "the agent

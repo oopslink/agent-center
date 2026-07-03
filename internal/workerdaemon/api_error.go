@@ -71,6 +71,33 @@ var transientAPIErrorSignatures = []string{
 	"gateway timeout",
 }
 
+// incompleteTurnMarkers are needles in a turn's assistant_text that mean the response
+// was CUT SHORT by a transient connection drop ("API Error: Connection closed
+// mid-response. The response above may be incomplete."). Unlike a terminal `result`
+// is_error, claude prints this as ordinary assistant TEXT and may still end the turn
+// with is_error=false — so it escapes isTransientAPIError. onEvent flags the turn
+// (managedAgent.sawIncompleteTurn) on a match so a truncated turn gets the SAME
+// bounded resume instead of being left silently incomplete (快修 T799).
+var incompleteTurnMarkers = []string{
+	"connection closed mid-response",
+	"the response above may be incomplete",
+}
+
+// isIncompleteTurnMarker reports whether an assistant_text block carries a
+// connection-drop truncation marker (case-insensitive). Empty text is never a marker.
+func isIncompleteTurnMarker(text string) bool {
+	if text == "" {
+		return false
+	}
+	hay := strings.ToLower(text)
+	for _, m := range incompleteTurnMarkers {
+		if strings.Contains(hay, m) {
+			return true
+		}
+	}
+	return false
+}
+
 // isTransientAPIError reports whether a `result` is_error event is a transient
 // API/connection error (so the controller schedules a bounded resume instead of
 // abandoning the work). Non-result / non-error events are never transient API errors
@@ -137,53 +164,69 @@ func decideAPIErrorBackoff(attempt int, p apiErrorParams) time.Duration {
 	return d
 }
 
-// maybeScheduleAPIErrorResume is the onEvent hook for a `result` is_error turn that
-// the rate-limit path did NOT claim. If the failure is a transient API/connection
-// error AND there is an in-flight WorkItem on a live session AND the retry budget is
-// not yet spent, it SCHEDULES a bounded, backed-off resume (keeps currentTaskID, sets
-// rateLimitResumeAt) and returns true so onEvent does NOT fall through to
-// surfaceTurnFailure. It returns false — caller proceeds with the normal failure
-// surface — when the error is not transient, the session is gone (let self-heal own
-// recovery), there is no in-flight WorkItem to resume, or the retry cap is reached (a
-// persistently-failing API must surface, not loop). On hitting the cap it RESETS the
-// counter so the eventual surfaceTurnFailure + a future turn start clean.
-func (c *AgentController) maybeScheduleAPIErrorResume(agentID string, ev StreamEvent) bool {
-	if !isTransientAPIError(ev) {
+// maybeScheduleAPIErrorResume is the onEvent hook for a turn-end `result` that the
+// rate-limit path did NOT claim. It SCHEDULES a bounded, backed-off resume (keeps the
+// in-flight context, sets rateLimitResumeAt) and returns true so onEvent does NOT fall
+// through to the failure/clean-turn handling when BOTH:
+//   - the turn is retryable — either a transient API/connection `result` is_error
+//     (isTransientAPIError) OR sawIncomplete=true (T799: the turn was cut short by a
+//     connection drop and printed "…may be incomplete." as text, ending is_error=false
+//     so isTransientAPIError never sees it); AND
+//   - there is an in-flight context on a LIVE session — a WorkItem (currentTaskID) OR a
+//     conversation (currentConversationID, T799: a DM/@mention turn), so a truncated
+//     converse turn resumes instead of only posting a system notice; AND
+//   - the retry budget is not yet spent.
+//
+// It returns false — caller proceeds with its normal handling — when the turn is not
+// retryable, the session is gone (let self-heal own recovery), there is no in-flight
+// context to resume, or the retry cap is reached (a persistently-failing turn must
+// surface, not loop). On hitting the cap it RESETS the counter so the eventual
+// failure surface + a future turn start clean.
+func (c *AgentController) maybeScheduleAPIErrorResume(agentID string, ev StreamEvent, sawIncomplete bool) bool {
+	if !isTransientAPIError(ev) && !sawIncomplete {
 		return false
 	}
 	p := c.apiErrorParams()
 
 	c.mu.Lock()
 	ma := c.agents[agentID]
-	if ma == nil || ma.session == nil || ma.currentTaskID == "" {
-		// No live session or no in-flight WorkItem → nothing to auto-resume here.
+	if ma == nil || ma.session == nil || (ma.currentTaskID == "" && ma.currentConversationID == "") {
+		// No live session, or no in-flight WorkItem/conversation → nothing to resume.
 		c.mu.Unlock()
 		return false
 	}
 	if ma.apiErrorRetries >= p.maxRetries {
-		// Budget spent: the API is down, not blipping. Reset so the surfaceTurnFailure
-		// below + the next turn start fresh, and let the normal failure surface run.
+		// Budget spent: the API is down, not blipping. Reset so the eventual failure
+		// surface + the next turn start fresh, and let the caller's normal handling run.
 		// Also clear any resume slot still pending from the LAST retry so a stale drain
 		// can't re-drive the work we're about to abandon (defensive: in practice OnTick
 		// has already consumed it by the time this next error arrives).
+		inflight := ma.currentTaskID
+		if inflight == "" {
+			inflight = ma.currentConversationID
+		}
 		ma.apiErrorRetries = 0
 		ma.rateLimitResumeAt = time.Time{}
 		c.mu.Unlock()
-		c.log("agent=%s work_item=%s transient API error but retry budget (%d) spent → surfacing failure", agentID, ma.currentTaskID, p.maxRetries)
+		c.log("agent=%s inflight=%s transient/incomplete turn but retry budget (%d) spent → surfacing", agentID, inflight, p.maxRetries)
 		return false
 	}
 	ma.apiErrorRetries++
 	attempt := ma.apiErrorRetries
 	wiID := ma.currentTaskID
+	inflight := ma.currentTaskID
+	if inflight == "" {
+		inflight = ma.currentConversationID
+	}
 	delay := decideAPIErrorBackoff(attempt, p)
 	now := c.now()
 	resumeAt := now.Add(delay)
 	ma.rateLimitResumeAt = resumeAt
 	c.mu.Unlock()
 
-	// Observability: surface the transient error + the scheduled retry (distinct from a
-	// terminal failure) in the activity stream and the daemon log. currentTaskID is
-	// intentionally PRESERVED so the resumed turn re-drives the same work.
+	// Observability: surface the transient/incomplete turn + the scheduled retry
+	// (distinct from a terminal failure) in the activity stream and the daemon log. The
+	// in-flight context is intentionally PRESERVED so the resumed turn re-drives it.
 	if c.cfg.Reporter != nil {
 		payload := apiErrorResumePayload(ev, attempt, p.maxRetries, resumeAt)
 		if err := c.cfg.Reporter.ReportAgentActivity(
@@ -192,8 +235,8 @@ func (c *AgentController) maybeScheduleAPIErrorResume(agentID string, ev StreamE
 			c.log("agent=%s api-error activity report: %v", agentID, err)
 		}
 	}
-	c.log("agent=%s work_item=%s transient API error (subtype=%q) → resume scheduled in %s (attempt %d/%d, at %s); work NOT abandoned",
-		agentID, wiID, ev.Subtype, delay, attempt, p.maxRetries, resumeAt.Format(time.RFC3339))
+	c.log("agent=%s inflight=%s transient/incomplete turn (subtype=%q, incomplete=%t) → resume scheduled in %s (attempt %d/%d, at %s); work NOT abandoned",
+		agentID, inflight, ev.Subtype, sawIncomplete, delay, attempt, p.maxRetries, resumeAt.Format(time.RFC3339))
 	return true
 }
 
