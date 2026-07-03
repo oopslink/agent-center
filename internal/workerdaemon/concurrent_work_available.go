@@ -49,6 +49,26 @@ type centerTaskDetail struct {
 	Status      string `json:"status"`
 	Model       string `json:"model"`
 	OrgRef      string `json:"org_ref"`
+	// v2.31.0 (issue-9f749a19 Phase 1): repo hint from the get_task projection —
+	// the project's PRIMARY repo reference (credential-free) plus base_ref (its
+	// default branch). Emitted only when the project has a primary repo; absent on
+	// older centers (the zero value is a nil Repo + empty BaseRef). Consumed by the
+	// per-executor repo-workspace track; decoded here so the fields survive.
+	Repo    *centerTaskRepo `json:"repo,omitempty"`
+	BaseRef string          `json:"base_ref"`
+}
+
+// centerTaskRepo mirrors the agentRepoRefMap projection (internal/admin/api): a
+// credential-free view of a project↔repo reference. Only the fields the fork path
+// may need to build a repo workspace are decoded; unknown keys are ignored.
+type centerTaskRepo struct {
+	RefID         string `json:"ref_id"`
+	RepoID        string `json:"repo_id"`
+	Label         string `json:"label"`
+	URL           string `json:"url"`
+	Provider      string `json:"provider"`
+	DefaultBranch string `json:"default_branch"`
+	IsPrimary     bool   `json:"is_primary"`
 }
 
 // goalTitle derives the executor goal title: the task title, else the first

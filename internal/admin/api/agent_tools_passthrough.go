@@ -271,6 +271,18 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
 		m["claimable"] = claimable
 	}
+	// v2.31.0 (issue-9f749a19 Phase 1): repo hint — attach the project's PRIMARY
+	// repo reference (credential-free, via agentRepoRefMap) plus its default branch
+	// as `base_ref`, so a forked executor knows which repo/branch to work in. Best-
+	// effort + additive: a project with no primary repo (ErrCodeRepoRefNotFound) or
+	// an unresolvable ref simply omits the fields; old workers ignore unknown keys.
+	if ref, rerr := d.PMService.ResolveProjectRepoForMember(r.Context(), t.ProjectID(), "", pm.IdentityRef(agentActor(a))); rerr == nil && ref != nil {
+		repo := s.agentRepoRefMap(r.Context(), d, a, ref)
+		m["repo"] = repo
+		if b, _ := repo["default_branch"].(string); b != "" {
+			m["base_ref"] = b
+		}
+	}
 	writeJSON(w, http.StatusOK, m)
 }
 
