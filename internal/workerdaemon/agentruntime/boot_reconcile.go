@@ -24,6 +24,7 @@ package agentruntime
 import (
 	"context"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/oopslink/agent-center/internal/supervisormanager"
@@ -80,25 +81,37 @@ func (r *LocalRuntime) reapOrphanWorktrees(ctx context.Context, ee *ExecutorEngi
 type reconcileAction int
 
 const (
+	// reconcileLeave — do nothing: don't adopt, don't cancel. Used for an executor with
+	// no task ref (untracked/ownerless) and for the degraded dead case — there is no
+	// POSITIVE evidence to cancel, so we leave the process alone and let the monitor's
+	// terminal finalize reap it if/when it dies. Never SIGKILL without cancel evidence.
+	reconcileLeave reconcileAction = iota
 	// reconcileAdopt — the task is still in-flight AND the process is alive: re-adopt
 	// it into the watchdog (no re-spawn), exactly the survivor-restart case.
-	reconcileAdopt reconcileAction = iota + 1
+	reconcileAdopt
 	// reconcileRecover — the task is still in-flight but the process is dead: bring it
 	// back via the D3 RecoveryPlanner ladder (resume / rerun / fresh).
 	reconcileRecover
-	// reconcileCancel — the task is no longer in this agent's in-flight set (discarded
-	// / completed / reassigned / plan stopped) or the executor is untracked: stop the
-	// process (if any) and clean up its workspace.
-	reconcileCancel
+	// reconcileVerifyCancel — the task is ABSENT from this agent's in-flight set: a
+	// CANDIDATE for cancel, NOT an immediate one. Absence ≠ cancel evidence (the set may
+	// be incomplete), so the enactment first get_task-verifies and cancels ONLY on
+	// positive proof (terminal, or reassigned to another agent). PD ruling (T848 review):
+	// losing an in-flight-but-live executor is worse than leaving a zombie (whose
+	// writeback is already rejected by the terminal task), so cancel needs proof.
+	reconcileVerifyCancel
 )
 
 // classifyExecutorReconcile is the PURE §4.4 decision for one executor: its task ref
-// × liveness × the agent's in-flight task set. An executor whose task is absent from
-// the in-flight set (or that carries no task ref) is cancelled; otherwise a live one
-// is adopted and a dead one is recovered via the ladder.
+// × liveness × the agent's in-flight task set.
+//   - no task ref (ownerless/untracked) → leave (no cancel evidence).
+//   - task absent from the in-flight set → verify-cancel CANDIDATE (get_task decides).
+//   - task in the set: live → adopt; dead → recover via the ladder.
 func classifyExecutorReconcile(taskRef string, alive bool, inflight map[string]bool) reconcileAction {
-	if taskRef == "" || !inflight[taskRef] {
-		return reconcileCancel
+	if taskRef == "" {
+		return reconcileLeave
+	}
+	if !inflight[taskRef] {
+		return reconcileVerifyCancel
 	}
 	if alive {
 		return reconcileAdopt
@@ -110,6 +123,7 @@ func classifyExecutorReconcile(taskRef string, alive bool, inflight map[string]b
 // the enactment needs. Plan is set only for reconcileRecover (the D3 ladder verdict).
 type execReconcileDecision struct {
 	ExecutorID string
+	TaskRef    string
 	Action     reconcileAction
 	Alive      bool
 	PID        int
@@ -126,24 +140,25 @@ func planExecutorReconcile(items []executor.Reconciled, inflight map[string]bool
 	out := make([]execReconcileDecision, 0, len(items))
 	for _, it := range items {
 		d := execReconcileDecision{ExecutorID: it.ExecutorID, Record: it.Record}
+		d.TaskRef = taskRefOf(it.Snapshot)
 		d.Alive = it.Completion.Kind == executor.OutcomeRunning && it.Record != nil && it.Record.PID > 0
 		if d.Alive {
 			d.PID = it.Record.PID
 		}
-		taskRef := taskRefOf(it.Snapshot)
 
 		if !haveInflight {
-			// Degraded: adopt the alive, skip everything else (no cancel).
+			// Degraded (center inflight query failed): adopt the alive, leave the rest —
+			// NEVER cancel (that could kill live work behind a transient query failure).
 			if d.Alive {
 				d.Action = reconcileAdopt
 			} else {
-				d.Action = 0 // leave to monitor's terminal finalize
+				d.Action = reconcileLeave // monitor's terminal finalize handles it
 			}
 			out = append(out, d)
 			continue
 		}
 
-		d.Action = classifyExecutorReconcile(taskRef, d.Alive, inflight)
+		d.Action = classifyExecutorReconcile(d.TaskRef, d.Alive, inflight)
 		if d.Action == reconcileRecover && planner != nil {
 			d.Plan = planner.Plan(it.ExecutorID, it.Record)
 		}
@@ -178,7 +193,7 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 	}
 
 	decisions := planExecutorReconcile(items, inflight, haveInflight, planner)
-	var adopted, recovered, cancelled int
+	var adopted, recovered, cancelled, kept int
 	for _, d := range decisions {
 		switch d.Action {
 		case reconcileAdopt:
@@ -187,14 +202,20 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 		case reconcileRecover:
 			r.enactRecover(ctx, ee, d)
 			recovered++
-		case reconcileCancel:
-			r.enactCancel(ctx, ee, d)
-			cancelled++
+		case reconcileVerifyCancel:
+			// Absence is not cancel evidence: get_task-verify, cancel only on proof.
+			if r.verifyThenCancel(ctx, ee, d) {
+				cancelled++
+			} else {
+				kept++
+			}
+		case reconcileLeave:
+			kept++
 		}
 	}
-	if adopted+recovered+cancelled > 0 {
-		r.log("agent=%s self-reconcile: scanned=%d adopted=%d recovered=%d cancelled=%d inflight_known=%t",
-			r.cfg.AgentID, len(items), adopted, recovered, cancelled, haveInflight)
+	if adopted+recovered+cancelled+kept > 0 {
+		r.log("agent=%s self-reconcile: scanned=%d adopted=%d recovered=%d cancelled=%d kept=%d inflight_known=%t",
+			r.cfg.AgentID, len(items), adopted, recovered, cancelled, kept, haveInflight)
 	}
 	return nil
 }
@@ -286,6 +307,65 @@ func (r *LocalRuntime) enactCancel(ctx context.Context, ee *ExecutorEngine, d ex
 		_ = os.RemoveAll(dir)
 	}
 	ee.dropOrphan(d.ExecutorID)
+}
+
+// verifyThenCancel resolves a verify-cancel CANDIDATE with POSITIVE evidence (PD
+// ruling, T848 review): an executor whose task is merely ABSENT from the in-flight
+// set is get_task-verified, and cancelled ONLY when the center confirms the task is
+// terminal (discarded/completed) or reassigned to another agent. Any other outcome —
+// still mine/running (⇒ the in-flight set was incomplete), or an uncertain/failed
+// query — is treated as "keep": adopt the live process, leave the dead one to the
+// monitor's terminal finalize. Never SIGKILL a live executor without proof. Returns
+// true iff it cancelled.
+func (r *LocalRuntime) verifyThenCancel(ctx context.Context, ee *ExecutorEngine, d execReconcileDecision) bool {
+	detail, err := r.fetchCenterTask(ctx, r.cfg.AgentID, d.TaskRef)
+	if err != nil || detail == nil {
+		// Uncertain: the inflight set said absent but get_task couldn't confirm why.
+		// Do NOT cancel — keep the executor (adopt if live).
+		if err != nil {
+			r.log("agent=%s self-reconcile verify task=%s get_task: %v — keeping executor=%s",
+				r.cfg.AgentID, d.TaskRef, err, d.ExecutorID)
+		}
+		if d.Alive {
+			ee.addOrphan(d.ExecutorID, d.PID)
+		}
+		return false
+	}
+	if taskCancelEvidence(detail, r.cfg.AgentID) {
+		r.enactCancel(ctx, ee, d)
+		return true
+	}
+	// Still mine/running ⇒ the in-flight set was incomplete: keep it.
+	if d.Alive {
+		ee.addOrphan(d.ExecutorID, d.PID)
+	}
+	return false
+}
+
+// taskCancelEvidence is the PURE cancel-proof test: a task is safe to cancel its
+// executor for ONLY when the center says it is terminal (completed/discarded/
+// cancelled) OR it is now assigned to a DIFFERENT agent (reassigned). Anything else —
+// running/open/blocked and still mine, or an empty/unknown status — is NOT proof, so
+// the executor is kept. Absence-from-inflight alone never reaches here.
+func taskCancelEvidence(detail *centerTaskDetail, agentID string) bool {
+	if detail == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(detail.Status)) {
+	case "completed", "discarded", "cancelled", "canceled":
+		return true
+	}
+	return taskReassigned(detail.Assignee, agentID)
+}
+
+// taskReassigned reports whether a non-empty assignee names an agent OTHER than this
+// one (the get_task projection renders the assignee as "agent:<id>" or a bare id).
+func taskReassigned(assignee, agentID string) bool {
+	assignee = strings.TrimSpace(assignee)
+	if assignee == "" || strings.TrimSpace(agentID) == "" {
+		return false // unknown assignee is not proof of reassignment
+	}
+	return assignee != agentID && assignee != "agent:"+agentID
 }
 
 // ---------------------------------------------------------------------------

@@ -1,12 +1,16 @@
 package agentruntime
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
+
+var errBoom = errors.New("boom")
 
 func TestClassifyExecutorReconcile(t *testing.T) {
 	inflight := map[string]bool{"task-1": true}
@@ -18,9 +22,11 @@ func TestClassifyExecutorReconcile(t *testing.T) {
 	}{
 		{"inflight+alive → adopt", "task-1", true, reconcileAdopt},
 		{"inflight+dead → recover", "task-1", false, reconcileRecover},
-		{"not-inflight → cancel", "task-9", true, reconcileCancel},
-		{"not-inflight+dead → cancel", "task-9", false, reconcileCancel},
-		{"no task ref → cancel", "", true, reconcileCancel},
+		// Absent from inflight → a CANDIDATE for cancel (get_task-verified), not cancel.
+		{"not-inflight → verify-cancel", "task-9", true, reconcileVerifyCancel},
+		{"not-inflight+dead → verify-cancel", "task-9", false, reconcileVerifyCancel},
+		// No task ref (ownerless) → leave (never SIGKILL without cancel evidence).
+		{"no task ref → leave", "", true, reconcileLeave},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -71,8 +77,8 @@ func TestPlanExecutorReconcile_Branches(t *testing.T) {
 	if d := byID["e-recover"]; d.Action != reconcileRecover || d.Plan.Action == 0 {
 		t.Errorf("recover decision should carry a ladder plan: %+v", d)
 	}
-	if d := byID["e-cancel"]; d.Action != reconcileCancel {
-		t.Errorf("cancel decision wrong: %+v", d)
+	if d := byID["e-cancel"]; d.Action != reconcileVerifyCancel || d.TaskRef != "task-gone" {
+		t.Errorf("absent task should be a verify-cancel candidate: %+v", d)
 	}
 }
 
@@ -85,18 +91,99 @@ func TestPlanExecutorReconcile_DegradedNeverCancels(t *testing.T) {
 	}
 	got := planExecutorReconcile(items, nil, false, nil)
 	for _, d := range got {
-		if d.Action == reconcileCancel {
-			t.Errorf("degraded reconcile must never cancel: %+v", d)
+		if d.Action == reconcileVerifyCancel {
+			t.Errorf("degraded reconcile must never even consider cancel: %+v", d)
 		}
 	}
 	if got[0].Action != reconcileAdopt {
 		t.Errorf("degraded: alive executor should still be adopted, got %v", got[0].Action)
+	}
+	if got[1].Action != reconcileLeave {
+		t.Errorf("degraded: dead executor should be left to monitor finalize, got %v", got[1].Action)
 	}
 }
 
 func TestTaskRefOf_NilInput(t *testing.T) {
 	if ref := taskRefOf(executor.Snapshot{}); ref != "" {
 		t.Errorf("nil input should yield empty task ref, got %q", ref)
+	}
+}
+
+func TestTaskCancelEvidence(t *testing.T) {
+	me := "agent-a"
+	cases := []struct {
+		name     string
+		status   string
+		assignee string
+		want     bool
+	}{
+		{"completed → cancel", "completed", "agent:agent-a", true},
+		{"discarded → cancel", "discarded", "agent:agent-a", true},
+		{"cancelled → cancel", "cancelled", "", true},
+		{"reassigned → cancel", "running", "agent:agent-b", true},
+		{"running+mine (agent: form) → keep", "running", "agent:agent-a", false},
+		{"running+mine (bare form) → keep", "running", "agent-a", false},
+		{"running+unknown assignee → keep", "open", "", false},
+		{"empty status+mine → keep", "", "agent:agent-a", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := taskCancelEvidence(&centerTaskDetail{Status: tc.status, Assignee: tc.assignee}, me)
+			if got != tc.want {
+				t.Errorf("taskCancelEvidence(status=%q assignee=%q) = %v, want %v", tc.status, tc.assignee, got, tc.want)
+			}
+		})
+	}
+	if taskCancelEvidence(nil, me) {
+		t.Error("nil detail must not be cancel evidence")
+	}
+}
+
+// TestVerifyThenCancel_IncompleteInflightDoesNotKill is the PD-required guard: when
+// the inflight set omits a task that get_task shows is STILL MINE and running, the
+// live executor is KEPT (adopted), never cancelled — an incomplete inflight set must
+// not kill live work.
+func TestVerifyThenCancel_IncompleteInflightDoesNotKill(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-a")
+	attach(rt, ee)
+	setToolCaller(rt, &scriptedToolCaller{
+		getTaskRaw: []byte(`{"id":"task-1","status":"running","assignee":"agent:agent-a"}`),
+	})
+	d := execReconcileDecision{ExecutorID: "e-keep", TaskRef: "task-1", Alive: true, PID: 424242}
+
+	if cancelled := rt.verifyThenCancel(context.Background(), ee, d); cancelled {
+		t.Fatal("still-mine running task must NOT be cancelled (incomplete inflight set)")
+	}
+	if _, ok := ee.snapshotOrphans()["e-keep"]; !ok {
+		t.Error("a kept live executor must be adopted as an orphan")
+	}
+}
+
+func TestVerifyThenCancel_ReassignedIsCancelled(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-a")
+	attach(rt, ee)
+	setToolCaller(rt, &scriptedToolCaller{
+		getTaskRaw: []byte(`{"id":"task-1","status":"running","assignee":"agent:agent-b"}`),
+	})
+	// Alive=false so enactCancel does no process kill in the test — only cleanup.
+	d := execReconcileDecision{ExecutorID: "e-gone", TaskRef: "task-1", Alive: false}
+
+	if cancelled := rt.verifyThenCancel(context.Background(), ee, d); !cancelled {
+		t.Error("a task reassigned to another agent is positive cancel evidence")
+	}
+}
+
+func TestVerifyThenCancel_GetTaskErrorKeeps(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-a")
+	attach(rt, ee)
+	setToolCaller(rt, &scriptedToolCaller{getTaskErr: errBoom})
+	d := execReconcileDecision{ExecutorID: "e-uncertain", TaskRef: "task-1", Alive: true, PID: 424242}
+
+	if cancelled := rt.verifyThenCancel(context.Background(), ee, d); cancelled {
+		t.Error("an uncertain get_task must NOT cancel")
+	}
+	if _, ok := ee.snapshotOrphans()["e-uncertain"]; !ok {
+		t.Error("uncertain + alive must be kept (adopted)")
 	}
 }
 

@@ -611,8 +611,11 @@ type centerTaskDetail struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Status      string `json:"status"`
-	Model       string `json:"model"`
-	OrgRef      string `json:"org_ref"`
+	// Assignee is the task's current owner ("agent:<id>" or a bare id). Used by boot
+	// self-reconcile (T848 §4.4) to detect a reassigned task as positive cancel evidence.
+	Assignee string `json:"assignee"`
+	Model    string `json:"model"`
+	OrgRef   string `json:"org_ref"`
 	// v2.31.0 (issue-9f749a19 Phase 1): repo hint from the get_task projection —
 	// the project's PRIMARY repo reference (credential-free) plus base_ref (its
 	// default branch). Emitted only when the project has a primary repo; absent on
