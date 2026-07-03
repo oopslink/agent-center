@@ -126,6 +126,11 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"worker"}, WorkerRunCommand()); err != nil {
 		return nil, "", err
 	}
+	// T854 D6 §4.5: per-agent self-contained runtime process (spawned by the worker
+	// launcher, one per agent). os.Executable() worker agent-runtime --agent-id X.
+	if err := router.Add([]string{"worker"}, AgentRuntimeCommand()); err != nil {
+		return nil, "", err
+	}
 	// v2.7 b3-i: per-agent stdio MCP server (system; spawned by the daemon).
 	if err := router.Add([]string{"worker"}, MCPHostCommand()); err != nil {
 		return nil, "", err
