@@ -122,12 +122,23 @@ func TestINT2_MigrationIdempotent(t *testing.T) {
 	if err := m.Up(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	// Derive the expected version from the migrator's OWN applied state rather
+	// than hardcoding a number: the version after a full Up IS the highest
+	// migration in the set, so adding a migration no longer rots this test.
+	vAfterFirstUp, err := m.Version(context.Background())
+	if err != nil {
+		t.Fatalf("Version after first Up: %v", err)
+	}
+	if vAfterFirstUp <= 0 {
+		t.Fatalf("first Up did not advance the schema version (got %d)", vAfterFirstUp)
+	}
+	// Idempotent: re-running Up must not error and must leave the version unchanged.
 	if err := m.Up(context.Background()); err != nil {
 		t.Fatalf("second Up: %v", err)
 	}
 	v, _ := m.Version(context.Background())
-	if v != 95 {
-		t.Fatalf("version: %d", v)
+	if v != vAfterFirstUp {
+		t.Fatalf("Up not idempotent: schema version changed %d -> %d on re-run", vAfterFirstUp, v)
 	}
 	if err := m.Down(context.Background(), 0); err != nil {
 		t.Fatal(err)
