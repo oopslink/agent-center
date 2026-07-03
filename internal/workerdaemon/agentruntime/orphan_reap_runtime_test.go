@@ -198,3 +198,106 @@ func TestSpawnExecutor_RealGit_SpawnHookReapsOrphan(t *testing.T) {
 	}
 	t.Log("spawn hook reaped the prior orphan while adding the new worktree; canonical intact ✓")
 }
+
+// TestRecover_RealGit_BootHookKeepsLiveOrphan is the defense-in-depth guard for the
+// UNRECOVERABLE risk surface (v2.31.1 follow-up): the boot-hook must KEEP the worktree
+// of an executor that is STILL LIVE (a still-running executor re-adopted by recovery, so
+// it is in the liveExecIDs snapshot) while reaping a dead orphan in the SAME sweep. This
+// pins the one link the sandbox could not stage (launchd takes the executor down with the
+// worker, so a live executor never survives a worker restart there). Deleting a live
+// executor's worktree is the only unrecoverable failure, so it gets a direct assertion.
+func TestRecover_RealGit_BootHookKeepsLiveOrphan(t *testing.T) {
+	if !gitOK() {
+		t.Skip("git not available")
+	}
+	base := t.TempDir()
+	agentID := "agent-keeplive"
+	rt := newExecRuntime(t, base, agentID, lookTrue(t))
+	home, _, _, err := rt.agentPaths(agentID)
+	if err != nil {
+		t.Fatalf("agentPaths: %v", err)
+	}
+	reposRoot := filepath.Join(home, "repos")
+	key := "repo-key-kl"
+	sourcePath := filepath.Join(reposRoot, key, "source")
+	if err := os.MkdirAll(sourcePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, sourcePath, "init", "-q", "-b", "master")
+	if err := os.WriteFile(filepath.Join(sourcePath, "MARKER.txt"), []byte("canonical"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, sourcePath, "add", "-A")
+	git(t, sourcePath, "commit", "-q", "-m", "init")
+
+	mat, err := reporepo.NewLocalGitMaterializer(reposRoot, executor.NewExecGitRunner(), clock.SystemClock{})
+	if err != nil {
+		t.Fatalf("NewLocalGitMaterializer: %v", err)
+	}
+	rt.cfg.Materializer = mat
+
+	src := reporepo.SourceRepo{RepoKey: key, Path: sourcePath, BaseRef: "master"}
+	mkWT := func(id string) string {
+		ws := filepath.Join(home, "executors", id, "workspace")
+		if _, werr := mat.PrepareWorktree(context.Background(), src,
+			reporepo.WorktreeRequest{ExecutorID: id, TaskID: "task-" + id, BranchName: "ac-exec/task-" + id + "/" + id, WorkspacePath: ws, BaseRef: "master"}); werr != nil {
+			t.Fatalf("PrepareWorktree(%s): %v", id, werr)
+		}
+		return ws
+	}
+	liveWS := mkWT("exec-live") // a still-running executor's worktree — MUST be kept
+	deadWS := mkWT("exec-dead") // a dead orphan — must be reaped
+
+	ee, err := rt.BuildExecutorEngine(home, ExecutorConfig{AgentID: agentID, MaxConcurrentTasks: 2, DefaultExecutorModel: "claude-default"})
+	if err != nil {
+		t.Fatalf("BuildExecutorEngine: %v", err)
+	}
+	attach(rt, ee)
+	// exec-live is a still-running executor re-adopted by recovery → it appears in the
+	// liveExecIDs snapshot (SnapshotConcurrency includes adopted orphans). os.Getpid() is
+	// the live test process, so this is a genuinely-live pid.
+	ee.addOrphan("exec-live", os.Getpid())
+
+	before := git(t, sourcePath, "worktree", "list", "--porcelain")
+	t.Logf("=== git worktree list BEFORE boot Recover (live + dead both present) ===\n%s", before)
+	if !strings.Contains(before, liveWS) || !strings.Contains(before, deadWS) {
+		t.Fatalf("pre-boot: both worktrees must be listed:\n%s", before)
+	}
+
+	if err := rt.Recover(context.Background()); err != nil {
+		t.Fatalf("Recover: %v", err)
+	}
+
+	after := git(t, sourcePath, "worktree", "list", "--porcelain")
+	t.Logf("=== git worktree list AFTER boot Recover (live KEPT, dead REAPED) ===\n%s", after)
+	// 🔴 the golden assertion: the LIVE executor's worktree survives (never mis-deleted).
+	if !strings.Contains(after, liveWS) {
+		t.Fatalf("boot hook MUST KEEP a live executor's worktree (unrecoverable if deleted), missing:\n%s", after)
+	}
+	if _, serr := os.Stat(liveWS); serr != nil {
+		t.Fatalf("live worktree dir must remain: %v", serr)
+	}
+	// the dead orphan is reaped in the same sweep.
+	if strings.Contains(after, deadWS) {
+		t.Fatalf("dead orphan must be reaped in the same sweep, still listed:\n%s", after)
+	}
+	if _, serr := os.Stat(deadWS); !os.IsNotExist(serr) {
+		t.Fatalf("dead worktree dir must be removed, stat err=%v", serr)
+	}
+	// canonical source untouched.
+	if !strings.Contains(after, filepath.Clean(sourcePath)) {
+		t.Fatalf("canonical source MAIN worktree must survive:\n%s", after)
+	}
+	if b, rerr := os.ReadFile(filepath.Join(sourcePath, "MARKER.txt")); rerr != nil || string(b) != "canonical" {
+		t.Fatalf("canonical source content must survive: %q err=%v", string(b), rerr)
+	}
+	// live branch remains, dead branch gone.
+	branches := git(t, sourcePath, "branch", "--list")
+	if !strings.Contains(branches, "ac-exec/task-exec-live/exec-live") {
+		t.Fatalf("live branch must remain:\n%s", branches)
+	}
+	if strings.Contains(branches, "ac-exec/task-exec-dead/exec-dead") {
+		t.Fatalf("dead stale branch must be deleted:\n%s", branches)
+	}
+	t.Log("boot hook KEPT the live executor's worktree + REAPED the dead orphan in one sweep; canonical intact ✓")
+}
