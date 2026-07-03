@@ -41,7 +41,11 @@ import (
 // finalize), wasStall is whether the cause was a watchdog stall-kill (vs a crash/exit) —
 // it selects the tighter stall budget. isThisProcess distinguishes a reactive drain
 // (this-process handle, slot already accounted by the caller) from a watchdog orphan.
-func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEngine, execID string, comp executor.Completion, wasStall bool) {
+// thisProcess=true means the caller is the reactive drain (a this-process handle whose
+// pool slot must be freed via ReleaseSlot on the recover branch — Finalize would free it
+// on the terminal branch); false is the watchdog orphan path (no pool Launch-handle, so
+// no ReleaseSlot).
+func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEngine, execID string, comp executor.Completion, wasStall, thisProcess bool) {
 	if ee == nil {
 		return
 	}
@@ -52,8 +56,16 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	}
 	defer ee.endRecovery(execID)
 
-	// Success is not a failure: finalize normally (free slot + report), no recovery.
-	if comp.Kind == executor.OutcomeSucceeded {
+	// Only a DEATH or STALL is a recovery candidate. A SUCCESS, or a definite failure the
+	// executor itself CONCLUDED — OutcomeFailed WITH a harvested output.json verdict — is
+	// terminal: the executor ran and reported an outcome, so we finalize + writeback (this
+	// preserves §9's "don't re-queue a job that legitimately failed"). A DEATH is a process
+	// that died/was killed WITHOUT a valid verdict: OutcomeCrashed, OR OutcomeFailed with no
+	// Output (nonzero exit / SIGKILL, no output.json), OR a watchdog stall-kill (wasStall).
+	// Recover only those — a legitimately-failed executor must not be auto-re-run.
+	deathOrStall := wasStall || comp.Kind == executor.OutcomeCrashed ||
+		(comp.Kind == executor.OutcomeFailed && comp.Output == nil)
+	if !deathOrStall {
 		r.finalizeTerminal(ctx, ee, execID, comp)
 		return
 	}
@@ -99,6 +111,15 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	if wasStall && plan.Action == orchestrator.RecoverResume && rec != nil {
 		plan.Action = orchestrator.RecoverRerun
 		plan.RunnerCmd = rec.RunnerCmd
+	}
+
+	// Free the dead this-process handle's pool slot before relaunching as an orphan
+	// (dev2's ReleaseSlot — the recover branch has NO writeback, so it does not touch the
+	// Finalize "retain slot on writeback error" invariant) and clear any stall mark so the
+	// relaunched executor is not mislabeled. Orphans have no pool Launch-handle → skip.
+	if thisProcess {
+		ee.monitor.ReleaseSlot(execID)
+		ee.monitor.ClearStalled(execID)
 	}
 
 	// Observability continuity (§4.6 "事件流不断"): emit executor.recover BEFORE the

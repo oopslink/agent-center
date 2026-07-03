@@ -256,15 +256,28 @@ func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID
 	return launched, nil
 }
 
-// drainExecutor blocks until the forked executor exits, then finalizes it via the
-// F5 Monitor (dual-signal classification → free pool slot → cleanup dir).
+// drainExecutor blocks until the forked (this-process) executor exits, then hands it to
+// the §4.6 point-recovery policy. It harvests + classifies WITHOUT finalizing
+// (AwaitCompletionNoFinalize) so the worktree/session survive if the runtime decides to
+// recover in place; reconcileOneExecutor then either recovers (should-continue + budget)
+// or terminally finalizes (success / gone task / budget exhausted). This is the reactive,
+// immediate death detection for a this-process child (it holds a reapable handle — no
+// lease/poll). wasStall carries the watchdog stall-kill cause for the tiered budget.
 func (r *LocalRuntime) drainExecutor(ee *ExecutorEngine, h *executor.Handle) {
 	if ee == nil || h == nil {
 		return
 	}
-	if _, err := ee.monitor.AwaitCompletion(context.Background(), h); err != nil {
-		r.log("agent executor=%s drain: %v", h.ExecutorID, err)
+	comp, wasStall, err := ee.monitor.AwaitCompletionNoFinalize(h)
+	if err != nil {
+		// Rare (harvest/classify error): fall back to the plain finalize so the slot is
+		// never leaked, matching the pre-§4.6 drain behavior.
+		r.log("agent executor=%s drain classify: %v — finalizing", h.ExecutorID, err)
+		if fErr := ee.monitor.Finalize(context.Background(), comp); fErr != nil {
+			r.log("agent executor=%s drain finalize: %v", h.ExecutorID, fErr)
+		}
+		return
 	}
+	r.reconcileOneExecutor(context.Background(), ee, h.ExecutorID, comp, wasStall, true /*thisProcess*/)
 }
 
 // Recover rebuilds in-flight executor state the FIRST time this daemon process
@@ -360,28 +373,25 @@ func (r *LocalRuntime) RunWatchdog(ctx context.Context) {
 	} else if len(killed) > 0 {
 		r.log("agent=%s watchdog killed stalled executors: %v", agentID, killed)
 	}
-	// 2. Poll the adopted orphans (no reapable handle): stall + completion.
+	// 2. Poll the adopted orphans (no reapable handle): stall + completion. §4.6: a
+	//    terminal orphan goes to point recovery (recover in place vs finalize) — NOT the
+	//    old auto-finalize+teardown. CheckOrphanNoFinalize kills a stalled orphan + classifies
+	//    but does NOT finalize (so the worktree survives for a tier1/2 relaunch); the runtime
+	//    then decides. Skip one already being recovered (the recovering-set also guards, this
+	//    just avoids a wasted CheckOrphan syscall/kill on the same tick).
 	for id, pid := range ee.snapshotOrphans() {
-		done, kind, err := r.checkOrphanOnce(ctx, ee, id, pid)
+		if ee.isRecovering(id) {
+			continue
+		}
+		comp, terminal, _, wasStall, err := ee.monitor.CheckOrphanNoFinalize(ctx, id, pid)
 		if err != nil {
 			r.log("agent=%s orphan watchdog executor=%s: %v", agentID, id, err)
 			continue
 		}
-		if done {
-			ee.dropOrphan(id)
-			r.log("agent=%s recovered orphan executor=%s finalized: %s", agentID, id, kind)
+		if terminal {
+			r.reconcileOneExecutor(ctx, ee, id, comp, wasStall, false /*orphan*/)
 		}
 	}
-}
-
-// checkOrphanOnce runs one orphan watchdog+completion tick and reports whether it
-// reached a terminal outcome (so the caller stops polling it).
-func (r *LocalRuntime) checkOrphanOnce(ctx context.Context, ee *ExecutorEngine, id string, pid int) (bool, executor.OutcomeKind, error) {
-	comp, done, err := ee.monitor.CheckOrphan(ctx, id, pid)
-	if err != nil {
-		return false, "", err
-	}
-	return done, comp.Kind, nil
 }
 
 // SnapshotConcurrency returns this agent's executor snapshots (nil when no engine).
@@ -566,11 +576,17 @@ func (r *LocalRuntime) blockTaskOnModelNotAllowed(ctx context.Context, agentID, 
 	}
 }
 
-// fetchCenterTask reads one task's detail via the get_task agent-tool.
+// fetchCenterTask reads one task's detail via the get_task agent-tool. Returns an error
+// (never panics) when no center transport is wired — §4.6 point recovery treats that as
+// "cannot confirm should-continue" and finalizes rather than resuming a task it can't see.
 func (r *LocalRuntime) fetchCenterTask(ctx context.Context, agentID, taskID string) (*centerTaskDetail, error) {
+	caller := r.toolCaller()
+	if caller == nil {
+		return nil, fmt.Errorf("agent_controller: get_task agent=%s: no center transport", agentID)
+	}
 	var raw json.RawMessage
 	body := map[string]any{"agent_id": agentID, "task_id": taskID}
-	if err := r.toolCaller().CallAgentTool(ctx, "get_task", body, &raw); err != nil {
+	if err := caller.CallAgentTool(ctx, "get_task", body, &raw); err != nil {
 		return nil, err
 	}
 	var t centerTaskDetail

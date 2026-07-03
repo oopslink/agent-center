@@ -299,21 +299,27 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 	}
 }
 
-// blockingToolCaller detects overlapping in-flight center calls (maxInFlight) so the
-// fork-mutex serialization can be asserted, and returns a canned get_task body.
+// blockingToolCaller detects overlapping in-flight center calls so the fork-mutex
+// serialization can be asserted, and returns a canned get_task body. Overlap is tracked
+// over START_TASK (fork-exclusive): since T851 §4.6 a drained executor also probes
+// get_task via the reactive point-recovery path, so get_task is NO LONGER fork-exclusive
+// and can't measure fork overlap; start_task is only ever called inside the forkMu-held
+// fork sequence, so its max concurrency is the clean serialization signal.
 type blockingToolCaller struct {
-	mu          sync.Mutex
-	inFlight    int
-	maxInFlight int
-	getTasks    int
-	delay       time.Duration
+	mu               sync.Mutex
+	startInFlight    int
+	maxStartInFlight int
+	getTasks         int
+	delay            time.Duration
 }
 
 func (b *blockingToolCaller) CallAgentTool(_ context.Context, tool string, _ any, out *json.RawMessage) error {
 	b.mu.Lock()
-	b.inFlight++
-	if b.inFlight > b.maxInFlight {
-		b.maxInFlight = b.inFlight
+	if tool == "start_task" {
+		b.startInFlight++
+		if b.startInFlight > b.maxStartInFlight {
+			b.maxStartInFlight = b.startInFlight
+		}
 	}
 	if tool == "get_task" {
 		b.getTasks++
@@ -329,7 +335,9 @@ func (b *blockingToolCaller) CallAgentTool(_ context.Context, tool string, _ any
 	}
 
 	b.mu.Lock()
-	b.inFlight--
+	if tool == "start_task" {
+		b.startInFlight--
+	}
 	b.mu.Unlock()
 	return nil
 }
@@ -356,10 +364,15 @@ func TestSpawnExecutor_ForkMutexSerializes(t *testing.T) {
 	wg.Wait()
 
 	btc.mu.Lock()
-	maxIn, got := btc.maxInFlight, btc.getTasks
+	maxIn, got := btc.maxStartInFlight, btc.getTasks
 	btc.mu.Unlock()
 
-	if got != 2 {
+	// Both forks must reach get_task (≥2). Since T851 §4.6, a drained executor that died
+	// without a verdict (here /usr/bin/true → exit 0, no output.json → Crashed) also fires
+	// a should-continue get_task via the reactive point-recovery path, so the total can
+	// exceed 2 — this test's subject is the fork-sequence serialization (maxInFlight below),
+	// not the exact get_task count.
+	if got < 2 {
 		t.Fatalf("both SpawnExecutor calls must reach get_task, got %d", got)
 	}
 	if maxIn != 1 {
