@@ -127,7 +127,12 @@ func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Even
 	// that fires a loopback edge, re-activate the loop subgraph BEFORE dispatch (so the
 	// reopened nodes re-dispatch in this same pass). No-op for non-decision/non-loopback
 	// completions and for pure DAG plans (back-compat).
-	if e.EventType == EvtTaskStateChanged {
+	//
+	// T805 ③: a GRAPHED plan drives its loopback through the engine in
+	// driveGraphDecisions (bounded countReopens + task mirror), so the task-level
+	// applyLoopbacks is gated OFF for it — production loopback goes ONLY through the
+	// engine. A legacy (non-graphed) plan keeps this proven task-level driver unchanged.
+	if e.EventType == EvtTaskStateChanged && !p.svc.graphDispatchEnabled(plan) {
 		var pl taskEventPayload
 		if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
 			return err

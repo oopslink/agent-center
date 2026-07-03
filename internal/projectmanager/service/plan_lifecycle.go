@@ -264,12 +264,24 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		if serr := s.syncGraphToTasks(txCtx, p, tasks); serr != nil {
 			return nil, serr
 		}
-		// Release conditional (pass) branches whose decision has recorded a pass-outcome
-		// (a non-pass leaves the branch gated; loopback re-run is task-level).
-		if cerr := s.driveGraphConditions(txCtx, p, outcomes); cerr != nil {
+		// T805 ③: drive decision adjudication + bounded loopback through the engine.
+		// PASS releases the forward branch (ResolveCondition success); REJECT re-runs the
+		// loop subgraph via the engine's bounded countReopens (+ task mirror); exhaustion
+		// escalates via the plan-side shim. Replaces the pass-only driveGraphConditions bridge
+		// AND the task-level applyLoopbacks for graphed plans (gated off in the projector).
+		if cerr := s.driveGraphDecisions(txCtx, p, edges, outcomes); cerr != nil {
 			return nil, cerr
 		}
-		readySet, allDone, err = s.graphReadySet(txCtx, p, records)
+		// T805 ③: a reject/loopback round CLEARS the dispatch records of the reopened
+		// loop tasks (reopenLoopSubgraph) INSIDE driveGraphDecisions — so the `records`
+		// loaded above are now stale. Re-read them so graphReadySet's dispatch-idempotency
+		// sees the cleared set and re-dispatches the reopened tasks THIS pass (the legacy
+		// applyLoopbacks cleared them in the projector, BEFORE records were loaded).
+		freshRecords, rerr := s.plans.ListDispatchRecords(txCtx, planID)
+		if rerr != nil {
+			return nil, rerr
+		}
+		readySet, allDone, err = s.graphReadySet(txCtx, p, freshRecords)
 		if err != nil {
 			return nil, err
 		}

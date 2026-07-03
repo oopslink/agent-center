@@ -197,7 +197,7 @@ func graphHasTaskID(ids []pm.TaskID, want pm.TaskID) bool {
 // TestGraphCycle_ConditionGate_PassReleasesDownstream proves the T768 decision
 // routing on the graph: the conditional (Integrate) branch stays GATED behind the
 // decision's condition node until the decision records a pass-outcome, at which
-// point driveGraphConditions resolves the condition and Integrate is released +
+// point driveGraphDecisions resolves the condition and Integrate is released +
 // dispatched, and the plan completes.
 func TestGraphCycle_ConditionGate_PassReleasesDownstream(t *testing.T) {
 	h, _ := planGraphSetup(t)
@@ -255,10 +255,12 @@ func TestGraphCycle_ConditionGate_PassReleasesDownstream(t *testing.T) {
 	}
 }
 
-// TestGraphCycle_Loopback_RejectReopensDev proves the reject/loopback round on the
-// graph: a reject outcome does NOT release Integrate; the task-level applyLoopbacks
-// reopens the Dev→Review→Decision subgraph, and syncGraphToTasks propagates the
-// reopen onto the graph nodes so Dev is re-dispatched for another round.
+// TestGraphCycle_Loopback_RejectReopensDev proves the T805 ③ reject/loopback round is
+// driven by the ENGINE inside AdvancePlan (driveGraphDecisions → ResolveCondition
+// ("reject") → ApplyConditionResult, then reopenLoopSubgraph mirrors onto the tasks)
+// — NOT the task-level applyLoopbacks (gated off for graphed plans). A reject outcome
+// does NOT release Integrate; the same advance reopens the Dev→Review→Decision
+// subgraph and re-dispatches Dev for another round.
 func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 	h, _ := planGraphSetup(t)
 	ctx := h.ctx
@@ -284,26 +286,22 @@ func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.setTaskStatus(t, dec, pm.TaskCompleted)
-	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
-		t.Fatal(err)
+	// T805 ③: this advance drives the reject through the engine AND re-dispatches Dev
+	// for round 2 in the SAME pass (no separate applyLoopbacks step).
+	dLoop, err := h.svc.AdvancePlan(ctx, planID, "user:a")
+	if err != nil {
+		t.Fatalf("AdvancePlan reject/loopback: %v", err)
 	}
-	// Integrate must NOT be released on reject.
+	if !graphHasTaskID(dLoop, dev) {
+		t.Fatalf("after reject, dispatch = %v, want Dev re-dispatched for round 2", dLoop)
+	}
+	if graphHasTaskID(dLoop, integ) {
+		t.Fatalf("Integrate released on reject: %v", dLoop)
+	}
+	// Integrate must NOT be released; plan not done.
 	p, _ := h.plans.FindByID(ctx, planID)
 	if p.Status() == pm.PlanDone {
 		t.Fatal("plan marked done on reject — Integrate should stay gated")
-	}
-
-	// Drive the loopback (the projector's advance step). It reopens the loop subgraph.
-	if err := h.svc.applyLoopbacks(ctx, p, dec); err != nil {
-		t.Fatalf("applyLoopbacks: %v", err)
-	}
-	// Next advance re-dispatches Dev for round 2 (node reopened + dispatch cleared).
-	dLoop, err := h.svc.AdvancePlan(ctx, planID, "user:a")
-	if err != nil {
-		t.Fatalf("AdvancePlan loopback: %v", err)
-	}
-	if !graphHasTaskID(dLoop, dev) {
-		t.Fatalf("after reject loopback, dispatch = %v, want Dev re-dispatched", dLoop)
 	}
 	// The decision task was reopened by the loopback (Completed→Reopened).
 	dt, _ := h.tasks.FindByID(ctx, dec)
@@ -312,6 +310,107 @@ func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 	}
 	_ = rev
 	_ = integ
+}
+
+// TestGraphCycle_Loopback_BoundedRoundsThenExhausts is the T805 ③ bounded-loopback +
+// exhaustion parity guard, driven ENTIRELY through the engine (driveGraphDecisions):
+// with max_rounds=2, two reject rounds re-run the loop (Dev re-dispatched, the engine's
+// countReopens bumping each time); the THIRD reject exhausts (round 3 > 2) → the
+// plan-side shim records the terminal "reject_exhausted" outcome and escalates once,
+// Dev is NOT re-dispatched, Integrate stays gated, the plan stays running (awaits a
+// human ruling), and a further advance is idempotent (no re-escalation, no re-dispatch).
+func TestGraphCycle_Loopback_BoundedRoundsThenExhausts(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "cycleexhaust", CreatedBy: "user:a"})
+	h.drain(t)
+	dev, rev, dec, integ := buildGraphCycle(t, h, pid, planID) // loopback max_rounds=2
+
+	// rejectRound completes Dev→Review→Decision, records a reject outcome, then advances
+	// (which drives the engine loopback + dispatch in one pass). Returns the dispatch set.
+	rejectRound := func() []pm.TaskID {
+		t.Helper()
+		h.setTaskStatus(t, dev, pm.TaskCompleted)
+		h.setTaskStatus(t, rev, pm.TaskCompleted)
+		h.setTaskStatus(t, dec, pm.TaskCompleted)
+		if err := h.svc.SetDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
+			t.Fatalf("SetDecisionOutcome reject: %v", err)
+		}
+		d, err := h.svc.AdvancePlan(ctx, planID, "user:a")
+		if err != nil {
+			t.Fatalf("AdvancePlan: %v", err)
+		}
+		return d
+	}
+
+	// Rounds 1 & 2 (within bound): Dev re-dispatched each time.
+	if d := rejectRound(); !graphHasTaskID(d, dev) {
+		t.Fatalf("round1 reject: dispatch=%v, want Dev re-dispatched", d)
+	}
+	if d := rejectRound(); !graphHasTaskID(d, dev) {
+		t.Fatalf("round2 reject: dispatch=%v, want Dev re-dispatched", d)
+	}
+
+	// Round 3 (round 3 > max 2): EXHAUSTION. Count messages around the advance so we can
+	// assert EXACTLY ONE escalation @mention (no new dispatch happens on exhaustion).
+	h.setTaskStatus(t, dev, pm.TaskCompleted)
+	h.setTaskStatus(t, rev, pm.TaskCompleted)
+	h.setTaskStatus(t, dec, pm.TaskCompleted)
+	if err := h.svc.SetDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
+		t.Fatalf("SetDecisionOutcome reject (round3): %v", err)
+	}
+	msgsBefore := h.planConvMsgCount(t, planID)
+	d3, err := h.svc.AdvancePlan(ctx, planID, "user:a")
+	if err != nil {
+		t.Fatalf("AdvancePlan round3: %v", err)
+	}
+	if graphHasTaskID(d3, dev) {
+		t.Fatalf("round3 exhausted: Dev must NOT be re-dispatched, got %v", d3)
+	}
+	if graphHasTaskID(d3, integ) {
+		t.Fatalf("round3 exhausted: Integrate must stay gated, got %v", d3)
+	}
+	// Terminal outcome recorded as "<outcome>_exhausted" (byte-for-byte with legacy).
+	if got := decisionOutcomeFor(t, h, planID, dec); got != "reject_exhausted" {
+		t.Fatalf("decision outcome = %q, want reject_exhausted", got)
+	}
+	// Exactly one escalation @mention fired (the only new message on the exhaustion pass).
+	if delta := h.planConvMsgCount(t, planID) - msgsBefore; delta != 1 {
+		t.Fatalf("exhaustion posted %d new messages, want exactly 1 (the escalation @mention)", delta)
+	}
+	// Plan stays running — an exhausted loop awaits a human ruling, not auto-done.
+	if p, _ := h.plans.FindByID(ctx, planID); p.Status() == pm.PlanDone {
+		t.Fatal("plan marked done on exhaustion — must await human ruling")
+	}
+
+	// Idempotent: a further advance (no new decision) does NOT re-escalate or re-dispatch.
+	msgsAfterExhaust := h.planConvMsgCount(t, planID)
+	d4, err := h.svc.AdvancePlan(ctx, planID, "user:a")
+	if err != nil {
+		t.Fatalf("AdvancePlan post-exhaustion: %v", err)
+	}
+	if graphHasTaskID(d4, dev) {
+		t.Fatalf("post-exhaustion advance must be idempotent, got Dev re-dispatched: %v", d4)
+	}
+	if h.planConvMsgCount(t, planID) != msgsAfterExhaust {
+		t.Fatal("post-exhaustion advance re-escalated (message count changed) — must be once-only")
+	}
+}
+
+// decisionOutcomeFor reads the recorded outcome for one decision task (test helper).
+func decisionOutcomeFor(t *testing.T, h *planAdvanceHarness, planID pm.PlanID, dec pm.TaskID) string {
+	t.Helper()
+	outs, err := h.plans.ListDecisionOutcomes(h.ctx, planID)
+	if err != nil {
+		t.Fatalf("ListDecisionOutcomes: %v", err)
+	}
+	for _, o := range outs {
+		if o.TaskID == dec {
+			return o.Outcome
+		}
+	}
+	return ""
 }
 
 // TestGraphDispatch_FailedTaskBlocksDownstream is the §9.7 parity guard: a FAILED

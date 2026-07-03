@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -52,11 +53,12 @@ func (s *Service) graphDispatchEnabled(p *pm.Plan) bool {
 //     X (the T768 ReadyNodes fix makes a condition dep block downstream until it is
 //     resolved). driveGraphConditions resolves C_D to success once D records a
 //     pass-outcome, releasing X.
-//   - loopback edge {From:D, To:Dev, When:reject} → NOT added to the graph. The
-//     reject/loopback re-run stays on the proven task-level applyLoopbacks driver
-//     (reopen tasks + clear dispatch/outcome, bounded by MaxRounds), which
-//     syncGraphToTasks then propagates onto the graph nodes. This keeps the bounded
-//     loop + exhaustion/escalation semantics in ONE place.
+//   - loopback edge {From:D, To:Dev, When:reject} → NOT added as a graph EDGE (it is a
+//     back-edge, excluded from the acyclic graph), but ENCODED into D's condition node
+//     metadata (on_failure = the loop-target node, max_rounds). T805 ③: the engine then
+//     drives the bounded reject re-run (driveGraphDecisions → ResolveCondition("reject")
+//     → ApplyConditionResult countReopens), and reopenLoopSubgraph mirrors the reopen
+//     onto the tasks. Exhaustion escalation stays a plan-side shim (parity; ⑤ ports it).
 //
 // A task that is ALREADY terminal at plan-start (pre-done, §9.6) has its node
 // advanced to match immediately, so graphReadySet/IsAutoDone see the true state.
@@ -123,12 +125,37 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 				}
 			}
 		}
+		// T805 ③: encode the decision's loopback into the condition node so the engine's
+		// ApplyConditionResult drives the bounded reject re-run (countReopens). on_failure
+		// = the loop-target's node — ReopenChain(condition → loop-target) reopens exactly
+		// the LoopbackResetSet business nodes; max_rounds = the loopback edge's MaxRounds.
+		// The condition's max_rounds is the record; driveGraphDecisions owns the exhaustion
+		// BOUNDARY (so the engine never settles the condition on exhaustion — which would
+		// wrongly release the gated pass branch) and keeps the escalate/legacy-escape
+		// shim for byte-for-byte parity. ⑤ ports that escalation into the engine.
+		condMeta := map[string]any{
+			"evaluator":     string(orch.EvaluatorManual),
+			"condition_for": string(t.ID()),
+			"pass_whens":    passWhens,
+		}
+		var onFailure []any
+		maxRounds := 0
+		for _, e := range edges {
+			if e.IsLoopback() && e.FromTaskID == t.ID() {
+				if tn, ok := nodeOf[e.ToTaskID]; ok {
+					onFailure = append(onFailure, string(tn))
+				}
+				if e.MaxRounds > maxRounds {
+					maxRounds = e.MaxRounds
+				}
+			}
+		}
+		if len(onFailure) > 0 {
+			condMeta["on_failure"] = onFailure
+			condMeta["max_rounds"] = maxRounds
+		}
 		condID, aerr := s.orch.AddNode(txCtx, graphID, string(orch.NodeCategoryControl), string(orch.ControlKindCondition),
-			"decision:"+nodeTitle(t), map[string]any{
-				"evaluator":     string(orch.EvaluatorManual),
-				"condition_for": string(t.ID()),
-				"pass_whens":    passWhens,
-			})
+			"decision:"+nodeTitle(t), condMeta)
 		if aerr != nil {
 			return aerr
 		}
@@ -204,20 +231,39 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 	return s.syncGraphToTasks(txCtx, p, tasks)
 }
 
-// driveGraphConditions resolves each decision's condition node once the decision
-// has recorded a pass-outcome (§2.3): for every condition node whose decision has
-// an outcome ∈ its pass_whens and that is not yet resolved, ResolveCondition
-// success — which completes the condition and (via the ReadyNodes condition-gate
-// fix) releases its downstream conditional targets. A reject/non-pass outcome
-// leaves the condition open (its downstream stays gated) — the bounded loopback
-// re-run is handled by the task-level applyLoopbacks driver, which reopens the
-// loop subgraph (cleared outcome included) so the decision re-runs and can pass a
-// later round. Idempotent: an already-completed condition is skipped.
+// driveGraphDecisions is the T805 ③ engine-driven decision/loopback driver for a
+// graphed plan — it REPLACES the driveGraphConditions bridge (pass-only) AND the
+// task-level applyLoopbacks (reject/loopback) so production drives BOTH through the
+// orchestration engine, byte-for-byte with the legacy behaviour. For every condition
+// node whose decision has recorded an outcome and that is not yet resolved:
 //
-// Runs inside the graph dispatch, AFTER syncGraphToTasks (so the decision node is
-// completed) and BEFORE graphReadySet (so a just-released target is dispatched in
-// the same pass).
-func (s *Service) driveGraphConditions(txCtx context.Context, p *pm.Plan, outcomes []pm.DecisionOutcome) error {
+//   - PASS (outcome ∈ pass_whens): ResolveCondition("success") — completes the
+//     condition and (via the ReadyNodes condition-gate) releases its downstream
+//     conditional targets.
+//   - REJECT within bounds (outcome matches a loopback edge's When AND the
+//     engine round countReopens+1 ≤ max_rounds): ResolveCondition("reject") drives
+//     the engine's bounded reopen (ApplyConditionResult reopens the on_failure node
+//     chain + the condition, bumping countReopens); reopenLoopSubgraph then mirrors
+//     that onto the TASKS (Reopen + ClearDispatch + ClearDecisionOutcome over the
+//     LoopbackResetSet) — the node↔task mapping the graph dispatch (task-keyed) needs
+//     so the reopened decision re-runs and re-decides.
+//   - EXHAUSTION (round > max_rounds): a plan-side shim reproduces the legacy
+//     applyLoopbacks terminal exactly — record the "<outcome>_exhausted" decision
+//     outcome, then either leave a HISTORICAL Escape vertex to pick it up
+//     (hasLegacyEscapeEdge) or escalateExhaustion (@mention the owner). The condition
+//     is left UNRESOLVED so the gated pass branch never releases (Integrate
+//     auto-skips), matching the legacy exhaustion behaviour. ⑤ ports this escalation
+//     into the engine's OnMaxExceeded and deletes the shim.
+//
+// The exhaustion boundary here mirrors the engine's own (countReopens+1 > max_rounds)
+// so the driver never lets the engine reach OnMaxExceeded (which would discard/
+// force-success the condition and wrongly release downstream). Idempotent: a resolved
+// condition is skipped, and a decision already tagged "_exhausted" is skipped so the
+// escalation fires exactly once (the legacy path was event-driven / once-per-event).
+//
+// Runs inside the graph dispatch, AFTER syncGraphToTasks and BEFORE graphReadySet, so
+// a just-released target OR a just-reopened loop task is dispatched in the same pass.
+func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges []pm.Dependency, outcomes []pm.DecisionOutcome) error {
 	graphID := orch.GraphID(p.GraphID())
 	nodes, err := s.orch.ListNodes(txCtx, graphID)
 	if err != nil {
@@ -227,12 +273,13 @@ func (s *Service) driveGraphConditions(txCtx context.Context, p *pm.Plan, outcom
 	for _, o := range outcomes {
 		outcomeOf[o.TaskID] = o.Outcome
 	}
+	now := s.clock.Now()
 	for _, n := range nodes {
 		if n.ControlKind() != orch.ControlKindCondition {
 			continue
 		}
 		if n.Status() == orch.NodeCompleted || n.Status() == orch.NodeDiscarded {
-			continue // already resolved.
+			continue // already resolved (pass released).
 		}
 		meta := n.Metadata()
 		decisionID, _ := meta["condition_for"].(string)
@@ -243,14 +290,75 @@ func (s *Service) driveGraphConditions(txCtx context.Context, p *pm.Plan, outcom
 		if outcome == "" {
 			continue // decision not decided yet → keep the branch gated.
 		}
-		if !metaHasWhen(meta["pass_whens"], outcome) {
-			continue // a non-pass outcome → loopback (task-level driver), not a release.
+		if strings.HasSuffix(outcome, exhaustedOutcomeSuffix) {
+			continue // exhaustion already surfaced — do not re-escalate (idempotent).
 		}
-		if rerr := s.orch.ResolveCondition(txCtx, orch.NodeID(n.ID()), "success"); rerr != nil {
+		// PASS: release the forward branch through the engine.
+		if metaHasWhen(meta["pass_whens"], outcome) {
+			if rerr := s.orch.ResolveCondition(txCtx, orch.NodeID(n.ID()), "success"); rerr != nil {
+				return rerr
+			}
+			continue
+		}
+		// REJECT: only a loopback edge whose When matches this outcome fires a re-run
+		// (parity with legacy applyLoopbacks, which keyed on the matching loopback edge).
+		var lb *pm.Dependency
+		for i := range edges {
+			if edges[i].IsLoopback() && edges[i].FromTaskID == pm.TaskID(decisionID) && edges[i].When == outcome {
+				lb = &edges[i]
+				break
+			}
+		}
+		if lb == nil {
+			continue // non-pass outcome with no matching loopback → leave the branch gated.
+		}
+		// Bounded round via the engine's countReopens on the condition node.
+		round := conditionReopenCount(n) + 1
+		if lb.MaxRounds > 0 && round > lb.MaxRounds {
+			// EXHAUSTION shim — byte-for-byte with legacy applyLoopbacks (§4 terminal).
+			exhausted := outcome + exhaustedOutcomeSuffix
+			if rerr := s.plans.RecordDecisionOutcome(txCtx, p.ID(), pm.TaskID(decisionID), exhausted, now); rerr != nil {
+				return rerr
+			}
+			if hasLegacyEscapeEdge(edges, pm.TaskID(decisionID), exhausted) {
+				continue // a historical Escape vertex surfaces it — do NOT also escalate.
+			}
+			dt, ferr := s.tasks.FindByID(txCtx, pm.TaskID(decisionID))
+			if ferr != nil {
+				return ferr
+			}
+			if eerr := s.escalateExhaustion(txCtx, p, dt); eerr != nil {
+				return eerr
+			}
+			continue
+		}
+		// Within bounds: drive the engine reopen (bumps countReopens on the condition),
+		// then mirror onto the tasks so the reopened loop subgraph re-dispatches.
+		if rerr := s.orch.ResolveCondition(txCtx, orch.NodeID(n.ID()), "reject"); rerr != nil {
+			return rerr
+		}
+		if rerr := s.reopenLoopSubgraph(txCtx, p.ID(), edges, lb.ToTaskID, lb.FromTaskID, now); rerr != nil {
 			return rerr
 		}
 	}
 	return nil
+}
+
+// exhaustedOutcomeSuffix tags a decision outcome whose bounded reject-loopback has
+// exhausted (kept as the legacy value name for backward compat — see applyLoopbacks).
+const exhaustedOutcomeSuffix = "_exhausted"
+
+// conditionReopenCount counts how many times a condition node has been reopened —
+// the engine's bounded-loopback counter (mirrors orchestration.countReopens, which
+// is unexported). Each engine reject reopen appends a "reopened" action log.
+func conditionReopenCount(n *orch.Node) int {
+	count := 0
+	for _, log := range n.ActionLogs() {
+		if log.Action == "reopened" {
+			count++
+		}
+	}
+	return count
 }
 
 // metaHasWhen reports whether the JSON-round-tripped pass_whens metadata ([]any of
@@ -337,9 +445,10 @@ func (s *Service) advanceNodeTo(txCtx context.Context, n *orch.Node, taskStatus 
 		}
 		return nil
 	case taskStatus == pm.TaskReopened:
-		// A loopback reopened this task (task-level applyLoopbacks): propagate onto the
-		// node so it re-enters the ready-set for another round. Only a completed node
-		// can reopen (Completed→Reopen); an already open/reopen node is left as-is.
+		// A loopback reopened this task (legacy task-level applyLoopbacks, or the T805 ③
+		// engine-driven reopenLoopSubgraph): propagate onto the node so it re-enters the
+		// ready-set for another round. Only a completed node can reopen (Completed→Reopen);
+		// an already open/reopen node is left as-is.
 		if n.Status() == orch.NodeCompleted {
 			return s.orch.ReopenNode(txCtx, orch.NodeID(n.ID()), "loopback_reopen")
 		}
