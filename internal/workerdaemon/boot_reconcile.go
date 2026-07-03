@@ -501,6 +501,18 @@ func (c *AgentController) bootReattach(ctx context.Context, agentID, home string
 	}
 	rt.Attach(sess)
 	c.log("boot-reconcile agent=%s RE-ATTACHED from offset=%d (no nudge — claude alive)", agentID, pr.Hello.BaseOffset)
+	// Concurrency-restore parity with bootReapRelaunch: a live-survivor RE-ATTACH also
+	// carries no fresh reconcile command, so maybeAttachExecutorEngine (which only fires
+	// on reconcileRunning) never re-attached the executor engine onto this freshly-built
+	// managedAgent — leaving ma.exec nil. That silently (a) degrades a concurrency-enabled
+	// agent to the single-active nudge path, (b) drops it out of SnapshotConcurrency
+	// (HasExecutor()==false → skipped → "0/N slots"), and (c) leaves any executor forked
+	// before the restart running as an UNMANAGED ORPHAN — never re-adopted into the
+	// watchdog, so its progress/stop activity events never fire and its result may never
+	// write back. Re-attach from the cached config here (same as bootReapRelaunch:575) so
+	// the engine is restored and Recover re-adopts the orphan. No-op for a default
+	// single-active agent (no cached concurrency config).
+	c.reattachExecutorEngineFromCache(ctx, agentID)
 	// issue I13: if the center had this agent in `error` (a prior crash), clear it back
 	// to running now that its session is live again — else it stays `unavailable` (no
 	// new dispatch) and shows crashed forever. No-op at the center unless it was error.

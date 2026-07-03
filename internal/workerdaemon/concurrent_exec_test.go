@@ -128,6 +128,53 @@ func TestReattachExecutorEngineFromCache(t *testing.T) {
 	}
 }
 
+// TestBootReattach_RestoresExecutorEngine reproduces the dev3 bug: after a worker
+// daemon restart where the claude session SURVIVED, boot takes the bootReattach path.
+// Before the fix that path re-attached the session but NOT the executor engine, so a
+// concurrency-enabled agent stayed exec==nil — which (a) dropped it out of
+// SnapshotConcurrency (HasExecutor()==false → "0/N slots in use") and (b) left any
+// executor forked before the restart an UNMANAGED ORPHAN (never re-adopted into the
+// watchdog → no progress/stop activity events). The fix calls
+// reattachExecutorEngineFromCache from bootReattach, mirroring bootReapRelaunch. This
+// test drives that exact seam: config seeded from the center resume-state on boot
+// (seedExecConfig) + a fresh runtime (exec==nil), then the reattach restores the engine
+// AND the agent's visibility in the concurrency snapshot.
+func TestBootReattach_RestoresExecutorEngine(t *testing.T) {
+	trueBin := lookTrue(t)
+	base := t.TempDir()
+	c, _, _ := newTestController(t, base)
+	c.cfg.BinaryPath = trueBin
+
+	// Boot seeds the concurrency config from the center resume-state (the in-memory
+	// cache from a prior reconcile is gone after a process restart).
+	pl := reconcilePayload{AgentID: "a-reattach", MaxConcurrentTasks: 2, AllowedExecutors: testExecs, AllowedModels: []string{"m"}}
+	c.seedExecConfig(pl)
+
+	// bootReattach reserves a FRESH managedAgent+runtime with exec==nil (mirrors
+	// newRuntimeFor + c.agents[id]=ma before the live-session reattach).
+	rt := reserveRuntime(t, c, "a-reattach")
+
+	// BUG STATE: a live-survivor re-attach that forgot the engine → exec==nil → the
+	// agent is ABSENT from the concurrency snapshot (this is the "0/N slots" symptom).
+	if rt.HasExecutor() {
+		t.Fatal("precondition: a fresh reattach runtime must start with no engine")
+	}
+	if _, ok := c.SnapshotConcurrency()["a-reattach"]; ok {
+		t.Fatal("precondition (bug state): an agent with no engine must be absent from the snapshot — this is the 0/N-slots symptom")
+	}
+
+	// THE FIX: bootReattach now calls this after rt.Attach(sess).
+	c.reattachExecutorEngineFromCache(context.Background(), "a-reattach")
+
+	if !rt.HasExecutor() {
+		t.Fatal("bootReattach must re-attach the executor engine from the seeded config (else: no executor lifecycle events + concurrency degrades to single-active)")
+	}
+	// Symptom 2 directly: the agent reappears in the concurrency snapshot → slots visible.
+	if _, ok := c.SnapshotConcurrency()["a-reattach"]; !ok {
+		t.Fatal("after reattach the agent must appear in SnapshotConcurrency (else the panel shows '0/N slots in use' while an executor is running)")
+	}
+}
+
 // TestReattachExecutorEngineFromCache_NoOpForDefaultAgent: an agent with no cached
 // concurrency config must NOT get an engine — reattach is a safe no-op.
 func TestReattachExecutorEngineFromCache_NoOpForDefaultAgent(t *testing.T) {
