@@ -383,6 +383,11 @@ func (l *lazyApp) withApp(build func(app *App) *Command) *Command {
 				return PrintError(errw, "human", "bootstrap_error", err.Error(), ExitBusinessError)
 			}
 			defer real.DB.Close()
+			// Stop the AdminToken background markUsedPump before the DB closes, so it
+			// never outlives the App (symmetric with DB.Close; the pump must stop first
+			// so it can't write through a closing DB). Close is nil-safe → no-op for
+			// CLI-mode apps where AdminTokenSvc is unset. T816.
+			defer real.AdminTokenSvc.Close()
 			realCmd := build(real)
 			if realCmd.Run != nil {
 				return realCmd.Run(ctx, args, out, errw)

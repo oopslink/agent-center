@@ -46,6 +46,10 @@ func newWorkerEnrollTestDeps(t *testing.T) HandlerDeps {
 	sink := observability.NewEventSink(eventRepo, eventRepo, gen, clk)
 	tokenRepo := tsqlite.New(db)
 	tokenSvc := admintokensvc.New(tokenRepo, gen, clk)
+	// Stop the background markUsedPump goroutine when the test ends — otherwise
+	// each New leaks a goroutine that blocks forever on `range markUsedCh`, and
+	// under `-race -count=N` they accumulate until the admin suite times out (T816).
+	t.Cleanup(tokenSvc.Close)
 	workerRepo := wfsqlite.NewWorkerRepo(db)
 	enrollSvc := wfservice.NewWorkerEnrollService(db, workerRepo, sink, clk)
 	configSvc := wfservice.NewWorkerConfigService(db, workerRepo, sink, clk)
