@@ -105,6 +105,14 @@ type RepoMaterializer interface {
 	EnsureSource(ctx context.Context, target RepoTarget) (SourceRepo, error)
 	PrepareWorktree(ctx context.Context, source SourceRepo, req WorktreeRequest) (PreparedWorktree, error)
 	RemoveWorktree(ctx context.Context, wt PreparedWorktree) error
+	// PruneOrphanWorktrees reaps per-executor worktrees under ONE source whose owning
+	// executor is no longer live (v2.31.1 orphan-reap). isLive reports whether an
+	// executor id is still running/adopted; a nil isLive treats every worktree as live
+	// (reaps nothing). Never removes the canonical source. Returns the count reaped.
+	PruneOrphanWorktrees(ctx context.Context, source SourceRepo, isLive func(execID string) bool) (int, error)
+	// ReapOrphanWorktrees runs PruneOrphanWorktrees across EVERY materialized source
+	// under the repos root (the boot-reconcile sweep). Best-effort per source.
+	ReapOrphanWorktrees(ctx context.Context, isLive func(execID string) bool) (int, error)
 }
 
 // LocalGitMaterializer is the single-machine v1 RepoMaterializer: a non-bare
@@ -260,6 +268,172 @@ func (m *LocalGitMaterializer) RemoveWorktree(ctx context.Context, wt PreparedWo
 	}
 	// Only the worktree path is removed; wt.SourcePath is never touched.
 	return prov.Remove(ctx, wt.WorkspacePath)
+}
+
+// PruneOrphanWorktrees reaps orphaned per-executor worktrees under ONE source (v2.31.1
+// bugfix: a retryable-crash keeps its worktree — design §7 inspection — but re-dispatch
+// is fresh-id, so the old worktree is never reused and nothing else cleans it). It
+// lists the source's linked worktrees and removes each whose owning executor is no
+// longer live, plus its stale ac-exec/* branch. The canonical source (the source's own
+// MAIN worktree) is NEVER touched. Best-effort per entry.
+//
+// FAIL-SAFE (hard rule): only an UNAMBIGUOUSLY orphaned worktree is removed — the
+// executor id must parse from the worktree PATH and the branch AND agree, and isLive
+// must report false. A nil isLive, an unparseable/mismatched id, or any doubt → the
+// worktree is KEPT (deleting a live executor's worktree is unrecoverable corruption;
+// leaking one orphan is recoverable and reaped on a later pass).
+func (m *LocalGitMaterializer) PruneOrphanWorktrees(ctx context.Context, source SourceRepo, isLive func(execID string) bool) (int, error) {
+	if strings.TrimSpace(source.Path) == "" {
+		return 0, errors.New("reporepo: source path required")
+	}
+	if isLive == nil {
+		// No liveness oracle → treat everything as live, reap nothing (fail-safe).
+		return 0, nil
+	}
+	lk := m.lockFor(source.RepoKey)
+	lk.Lock()
+	defer lk.Unlock()
+
+	out, err := m.git(ctx, source.Path, "worktree", "list", "--porcelain")
+	if err != nil {
+		return 0, fmt.Errorf("reporepo: worktree list repo_key=%s: %w", source.RepoKey, err)
+	}
+	prov, perr := executor.NewWorktreeProvisioner(source.Path, m.runner)
+	if perr != nil {
+		return 0, perr
+	}
+	canonical := filepath.Clean(source.Path)
+	pruned := 0
+	for _, e := range parseWorktreeList(out) {
+		if filepath.Clean(e.path) == canonical {
+			continue // the source's own MAIN worktree — never touched (§10)
+		}
+		execID := orphanExecID(e.path, e.branch)
+		if execID == "" {
+			continue // can't unambiguously identify → KEEP (fail-safe)
+		}
+		if isLive(execID) {
+			continue // still running / adopted → KEEP
+		}
+		// Unambiguous orphan: remove the worktree (never the source) + its stale branch.
+		if rerr := prov.Remove(ctx, e.path); rerr != nil {
+			// Best-effort: leave it for a later pass rather than abort the whole sweep.
+			continue
+		}
+		if e.branch != "" {
+			_, _ = m.git(ctx, source.Path, "branch", "-D", e.branch) // best-effort stale-branch cleanup
+		}
+		pruned++
+	}
+	return pruned, nil
+}
+
+// ReapOrphanWorktrees runs PruneOrphanWorktrees across every materialized source under
+// the repos root — the boot-reconcile sweep that cleans orphans left by a prior process
+// (full-crash path). Best-effort per source: a bad/absent repo dir is skipped, not fatal.
+func (m *LocalGitMaterializer) ReapOrphanWorktrees(ctx context.Context, isLive func(execID string) bool) (int, error) {
+	entries, err := os.ReadDir(m.reposRoot)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil // no repos materialized yet
+		}
+		return 0, fmt.Errorf("reporepo: read repos root: %w", err)
+	}
+	total := 0
+	for _, ent := range entries {
+		if !ent.IsDir() {
+			continue
+		}
+		key := ent.Name()
+		sourcePath := filepath.Join(m.reposRoot, key, "source")
+		if fi, statErr := os.Stat(filepath.Join(sourcePath, ".git")); statErr != nil || (!fi.IsDir() && fi.Mode().IsRegular() == false) {
+			continue // not a materialized source checkout — skip
+		}
+		n, perr := m.PruneOrphanWorktrees(ctx, SourceRepo{RepoKey: key, Path: sourcePath}, isLive)
+		if perr != nil {
+			continue // best-effort per source
+		}
+		total += n
+	}
+	return total, nil
+}
+
+// worktreeEntry is one `git worktree list --porcelain` record (path + checked-out branch).
+type worktreeEntry struct {
+	path   string
+	branch string // short branch name (refs/heads/ stripped); "" when detached
+}
+
+// parseWorktreeList parses `git worktree list --porcelain` output: blank-line-separated
+// records, each with a "worktree <path>" line and (unless detached) a "branch
+// refs/heads/<name>" line.
+func parseWorktreeList(out string) []worktreeEntry {
+	var entries []worktreeEntry
+	var cur worktreeEntry
+	flush := func() {
+		if cur.path != "" {
+			entries = append(entries, cur)
+		}
+		cur = worktreeEntry{}
+	}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
+		switch {
+		case strings.HasPrefix(line, "worktree "):
+			flush()
+			cur.path = strings.TrimSpace(strings.TrimPrefix(line, "worktree "))
+		case strings.HasPrefix(line, "branch "):
+			ref := strings.TrimSpace(strings.TrimPrefix(line, "branch "))
+			cur.branch = strings.TrimPrefix(ref, "refs/heads/")
+		case line == "":
+			flush()
+		}
+	}
+	flush()
+	return entries
+}
+
+// orphanExecID returns the executor id for a per-executor worktree ONLY when it parses
+// unambiguously from BOTH the workspace path (<...>/executors/<id>/workspace) AND the
+// branch (ac-exec/<task_id>/<id>) and the two AGREE. Any mismatch / missing side → ""
+// (the caller keeps the worktree — fail-safe). This double-parse is the guard against
+// ever reaping a worktree we can't positively tie to a dead executor.
+func orphanExecID(worktreePath, branch string) string {
+	fromPath := execIDFromWorkspacePath(worktreePath)
+	fromBranch := execIDFromBranch(branch)
+	if fromPath == "" || fromBranch == "" || fromPath != fromBranch {
+		return ""
+	}
+	return fromPath
+}
+
+// execIDFromWorkspacePath extracts <id> from a path ending .../executors/<id>/workspace.
+func execIDFromWorkspacePath(p string) string {
+	p = filepath.Clean(p)
+	if filepath.Base(p) != "workspace" {
+		return ""
+	}
+	idDir := filepath.Dir(p)                  // .../executors/<id>
+	if filepath.Base(filepath.Dir(idDir)) != "executors" {
+		return ""
+	}
+	id := filepath.Base(idDir)
+	if id == "." || id == string(filepath.Separator) {
+		return ""
+	}
+	return id
+}
+
+// execIDFromBranch extracts <id> from an ac-exec/<task_id>/<id> branch.
+func execIDFromBranch(branch string) string {
+	if branch == "" {
+		return ""
+	}
+	parts := strings.Split(branch, "/")
+	if len(parts) < 3 || parts[0] != "ac-exec" {
+		return ""
+	}
+	return parts[len(parts)-1]
 }
 
 // lockFor returns the shared per-repo_key mutex, creating it on first use.

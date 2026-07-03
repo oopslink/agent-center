@@ -280,7 +280,34 @@ func (r *LocalRuntime) Recover(ctx context.Context) error {
 	if ee == nil {
 		return nil
 	}
-	return r.recoverExecutors(ctx, agentID, ee)
+	if err := r.recoverExecutors(ctx, agentID, ee); err != nil {
+		return err
+	}
+	// v2.31.1 orphan-reap (boot hook): after recovery has re-adopted the still-live
+	// orphans, reap worktrees left by a prior process whose executor is gone (full-crash:
+	// the retryable-crash kept its worktree, the task re-dispatched fresh-id, nothing
+	// cleaned it). isLive = the post-recovery snapshot (adopted-running); fail-safe KEEP.
+	if r.cfg.Materializer != nil {
+		live := r.liveExecIDs(ee)
+		if n, err := r.cfg.Materializer.ReapOrphanWorktrees(ctx, func(id string) bool { return live[id] }); err != nil {
+			r.log("agent=%s boot orphan-worktree reap: %v (non-fatal)", agentID, err)
+		} else if n > 0 {
+			r.log("agent=%s boot-reaped %d orphan worktree(s)", agentID, n)
+		}
+	}
+	return nil
+}
+
+// liveExecIDs snapshots the currently live executor id set (pool-active + adopted
+// orphans) for the orphan-reap fail-safe: only an executor id ABSENT here is reaped.
+func (r *LocalRuntime) liveExecIDs(ee *ExecutorEngine) map[string]bool {
+	live := map[string]bool{}
+	for _, s := range ee.SnapshotConcurrency() {
+		if s.ExecutorID != "" {
+			live[s.ExecutorID] = true
+		}
+	}
+	return live
 }
 
 func (r *LocalRuntime) recoverExecutors(ctx context.Context, agentID string, ee *ExecutorEngine) error {
@@ -434,6 +461,18 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			r.log("work_available agent=%s task=%s ensure repo source: %v — left queued (start_task NOT called)",
 				agentID, taskID, srcErr)
 			return nil, nil
+		}
+		// v2.31.1 orphan-reap (spawn hook): before adding THIS executor's worktree, reap
+		// any orphaned worktrees under this source (a prior retryable-crash's kept worktree
+		// whose task was re-dispatched fresh-id — never reused, nothing else cleans it).
+		// Safe here: we hold forkMu (no concurrent same-agent spawn) and the new execID's
+		// worktree does not exist yet (PrepareWorktree is below), so it can't be reaped.
+		// isLive = the current pool+orphan snapshot (fail-safe KEEP for anything live).
+		live := r.liveExecIDs(ee)
+		if n, perr := r.cfg.Materializer.PruneOrphanWorktrees(ctx, source, func(id string) bool { return live[id] }); perr != nil {
+			r.log("work_available agent=%s repo_key=%s prune orphan worktrees: %v (non-fatal)", agentID, source.RepoKey, perr)
+		} else if n > 0 {
+			r.log("agent=%s repo_key=%s reaped %d orphan worktree(s) at spawn", agentID, source.RepoKey, n)
 		}
 		wt, wtErr := r.cfg.Materializer.PrepareWorktree(ctx, source, reporepo.WorktreeRequest{
 			ExecutorID:    execID,

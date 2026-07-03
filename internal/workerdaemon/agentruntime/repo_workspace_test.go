@@ -103,6 +103,7 @@ type recordingMaterializer struct {
 	mu         sync.Mutex
 	prepared   []reporepo.WorktreeRequest
 	removed    []removeArgs
+	pruneCalls []pruneCall
 	lastTarget reporepo.RepoTarget
 }
 
@@ -152,6 +153,40 @@ func (m *recordingMaterializer) RemoveWorktree(_ context.Context, wt reporepo.Pr
 	// Tear down ONLY the worktree — never the canonical source (design §10).
 	_ = os.RemoveAll(wt.WorkspacePath)
 	return nil
+}
+
+// pruneCall records one PruneOrphanWorktrees invocation (the spawn-hook) + the ids the
+// runtime's isLive predicate reported live at that moment.
+type pruneCall struct {
+	repoKey string
+	live    map[string]bool
+}
+
+func (m *recordingMaterializer) PruneOrphanWorktrees(_ context.Context, source reporepo.SourceRepo, isLive func(string) bool) (int, error) {
+	m.seq.add("PruneOrphanWorktrees")
+	// Snapshot which of the previously-prepared executor ids the runtime considers live,
+	// so a test can assert the fail-safe (a live executor's worktree is never reaped).
+	live := map[string]bool{}
+	m.mu.Lock()
+	for _, req := range m.prepared {
+		if isLive != nil && isLive(req.ExecutorID) {
+			live[req.ExecutorID] = true
+		}
+	}
+	m.pruneCalls = append(m.pruneCalls, pruneCall{repoKey: source.RepoKey, live: live})
+	m.mu.Unlock()
+	return 0, nil
+}
+
+func (m *recordingMaterializer) ReapOrphanWorktrees(_ context.Context, _ func(string) bool) (int, error) {
+	m.seq.add("ReapOrphanWorktrees")
+	return 0, nil
+}
+
+func (m *recordingMaterializer) pruneHookCalls() []pruneCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]pruneCall(nil), m.pruneCalls...)
 }
 
 func (m *recordingMaterializer) removeCalls() []removeArgs {
@@ -205,6 +240,35 @@ func repoTaskBody(taskID string) map[string]any {
 // the launched executor's ACTUAL workspace (the pre-minted id threads pool→worktree),
 // and that the worktree teardown handle (RepoKey/SourcePath) is persisted into the
 // recovery Record so finalize/recovery can tear it down later.
+// TestSpawnExecutor_Repo_PruneHookRunsBeforePrepare pins the v2.31.1 spawn-hook: the
+// orphan-worktree reap runs AFTER EnsureSource and BEFORE PrepareWorktree — so the new
+// executor's own worktree does not exist yet and can never be reaped, while any prior
+// orphan under the source is swept before we add ours.
+func TestSpawnExecutor_Repo_PruneHookRunsBeforePrepare(t *testing.T) {
+	seq := &callSeq{}
+	mat := &recordingMaterializer{seq: seq, repoKey: "key-abc", sourcePath: t.TempDir() + "/repos/key-abc/source", baseRef: "main"}
+	rt, _, _ := engineForAgentMat(t, "agent-repo", mat)
+	setToolCaller(rt, &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-9")})
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-9"})
+	if err != nil || res == nil {
+		t.Fatalf("SpawnExecutor = (%v, %v)", res, err)
+	}
+	order := seq.snapshot()
+	iEnsure, iPrune, iPrep := indexOf(order, "EnsureSource"), indexOf(order, "PruneOrphanWorktrees"), indexOf(order, "PrepareWorktree")
+	if iEnsure < 0 || iPrune < 0 || iPrep < 0 {
+		t.Fatalf("missing prune-hook in order %v", order)
+	}
+	if !(iEnsure < iPrune && iPrune < iPrep) {
+		t.Fatalf("order violation: want EnsureSource<PruneOrphanWorktrees<PrepareWorktree, got %v", order)
+	}
+	// The reap ran before this executor's worktree existed → its id was NOT reported live
+	// (the fail-safe live set is built from already-prepared executors; there are none yet).
+	if calls := mat.pruneHookCalls(); len(calls) != 1 || len(calls[0].live) != 0 {
+		t.Fatalf("prune hook: want 1 call with empty live set (new executor not yet a worktree), got %+v", calls)
+	}
+}
+
 func TestSpawnExecutor_Repo_PrepareBeforeStartTask(t *testing.T) {
 	seq := &callSeq{}
 	mat := &recordingMaterializer{seq: seq, repoKey: "key-abc", sourcePath: t.TempDir() + "/repos/key-abc/source", baseRef: "main"}
