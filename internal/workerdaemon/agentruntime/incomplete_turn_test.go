@@ -41,7 +41,7 @@ type advClock struct {
 	t  time.Time
 }
 
-func (c *advClock) now() time.Time      { c.mu.Lock(); defer c.mu.Unlock(); return c.t }
+func (c *advClock) now() time.Time          { c.mu.Lock(); defer c.mu.Unlock(); return c.t }
 func (c *advClock) advance(d time.Duration) { c.mu.Lock(); c.t = c.t.Add(d); c.mu.Unlock() }
 
 func (r *recReporter) hasActivity(eventType string) bool {

@@ -25,8 +25,13 @@ func (f *fakeSession) Inject(_ context.Context, msg string) error {
 	f.injected = append(f.injected, msg)
 	return nil
 }
-func (f *fakeSession) Stop(context.Context) error { f.mu.Lock(); f.closed = true; f.mu.Unlock(); return nil }
-func (f *fakeSession) Detach()                    { f.mu.Lock(); f.closed = true; f.mu.Unlock() }
+func (f *fakeSession) Stop(context.Context) error {
+	f.mu.Lock()
+	f.closed = true
+	f.mu.Unlock()
+	return nil
+}
+func (f *fakeSession) Detach() { f.mu.Lock(); f.closed = true; f.mu.Unlock() }
 func (f *fakeSession) msgs() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()

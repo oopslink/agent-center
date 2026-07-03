@@ -309,4 +309,3 @@ func startSpecOf(pl reconcilePayload) agentruntime.StartSpec {
 		ConcurrencyEnabled: concurrencyEnabled(pl),
 	}
 }
-
