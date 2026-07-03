@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { http, HttpResponse, delay } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
@@ -1888,5 +1888,85 @@ describe('PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper', () => {
     // The header renders; the board does not (nothing to reconcile).
     await waitFor(() => expect(screen.getByTestId('plan-title-bar')).toBeInTheDocument());
     expect(screen.queryByTestId('plan-unmerged-board')).not.toBeInTheDocument();
+  });
+});
+
+// v2.30.1 fix-before... post-ship hotfix (React #300): a plan whose orchestration
+// graph query STARTS loading (data=undefined → legacy DAG, all its hooks run) and
+// THEN resolves has_graph:true (→ PlanGraphDag) used to crash with React error
+// #300 ("rendered fewer hooks than expected"), because PlanDag early-returned
+// <PlanGraphDag/> from between the legacy hooks. The regression guard MUST drive
+// the real usePlanGraph through the loading→resolved transition (a delayed MSW
+// response) — mocking an INSTANT has_graph:true (no loading frame) never hits the
+// hook-count drop and would have passed on the buggy code too.
+describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard)', () => {
+  afterEach(() => {
+    cleanup();
+    delete (window as Partial<Window>).matchMedia;
+  });
+
+  const graphView = {
+    has_graph: true,
+    graph_id: 'g-PL-1',
+    status: 'running',
+    nodes: [
+      { id: 'ctrl-start', category: 'control', control_kind: 'start', title: 'Start', status: 'completed' },
+      { id: 'biz-1', category: 'business', title: 'design schema', status: 'running', task_id: 'n1', task_status: 'running', org_ref: 'T1' },
+      { id: 'ctrl-cond', category: 'control', control_kind: 'condition', title: 'Gate', status: 'open' },
+      { id: 'ctrl-end', category: 'control', control_kind: 'end', title: 'End', status: 'open' },
+    ],
+    edges: [
+      { from: 'ctrl-start', to: 'biz-1', kind: 'seq' },
+      { from: 'biz-1', to: 'ctrl-cond', kind: 'seq' },
+      { from: 'ctrl-cond', to: 'biz-1', kind: 'loopback' },
+      { from: 'ctrl-cond', to: 'ctrl-end', kind: 'conditional' },
+    ],
+  };
+
+  it('DAG tab survives a loading→has_graph:true resolve: legacy first, then PlanGraphDag, no #300 crash', async () => {
+    mockPlan();
+    // DELAYED graph → usePlanGraph is pending (data=undefined) on the first DAG
+    // render (legacy renderer + all its hooks), then resolves has_graph:true and
+    // the wrapper swaps to <PlanGraphDag/>. This is the exact hook-count drop that
+    // crashed the old between-hooks early return.
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/graph', async () => {
+        await delay(25);
+        return HttpResponse.json(graphView);
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-dag'));
+    // Loading frame: the DAG is shown via the LEGACY renderer (no data-graph flag),
+    // because the graph query has not resolved yet.
+    const loadingDag = screen.getByTestId('plan-dag');
+    expect(loadingDag).toBeInTheDocument();
+    expect(loadingDag).not.toHaveAttribute('data-graph', 'true');
+    // Resolve: the wrapper swaps to PlanGraphDag WITHOUT a #300 crash (a crash
+    // would throw during this transition render and fail the test).
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toHaveAttribute('data-graph', 'true'));
+    expect(screen.getByTestId('plan-dag')).toHaveAttribute('data-graph', 'true');
+  });
+
+  it('graph that stays has_graph:false keeps the legacy renderer (zero-regression fallback)', async () => {
+    mockPlan();
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/graph', async () => {
+        await delay(10);
+        return HttpResponse.json({ has_graph: false });
+      }),
+    );
+    wrap();
+    await waitFor(() => expect(screen.getByTestId('plan-tab-dag')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-tab-dag'));
+    // Give the (false) graph query time to resolve; the renderer must remain the
+    // legacy DAG and never crash.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 40));
+    });
+    const dag = screen.getByTestId('plan-dag');
+    expect(dag).toBeInTheDocument();
+    expect(dag).not.toHaveAttribute('data-graph', 'true');
   });
 });

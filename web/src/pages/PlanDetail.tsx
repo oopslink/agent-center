@@ -2103,6 +2103,23 @@ function PlanGraphDag({
   );
 }
 
+// T769: when the plan carries a real orchestration graph (built by T768 on
+// start), render THAT graph — control nodes (Start/End/Condition) + edges by
+// kind — so the DAG reflects the engine. A plan with NO graph (draft /
+// never-started / engine unwired) returns has_graph:false and falls through to
+// the legacy depends_on renderer (NON-BREAKING, zero regression).
+//
+// v2.30.1 fix-before-ship (React #300): PlanDag is a THIN WRAPPER — it runs the
+// single graph query, then renders EITHER <PlanGraphDag/> OR <LegacyPlanDag/> as
+// a sibling. The previous shape early-returned <PlanGraphDag/> from BETWEEN the
+// legacy hooks (usePlanGraph → conditional return → ~13 more hooks below), so the
+// first frame (query loading, has_graph undefined) ran ALL those hooks, and once
+// the query resolved has_graph:true the early return fired and the rendered hook
+// count dropped → React error #300 ("rendered fewer hooks than expected"),
+// crashing every started (has_graph:true) plan's DAG tab regardless of graph
+// shape. Splitting the two renderers into siblings gives each a STABLE,
+// unconditional hook list, so no loading→resolved transition changes a
+// component's hook count.
 function PlanDag({
   projectId,
   plan,
@@ -2113,18 +2130,28 @@ function PlanDag({
   // T348: compact (zoom-to-fit) is controlled by the tab-row icon in PlanDetail.
   compact: boolean;
 }): React.ReactElement {
-  const { t } = useTranslation('work');
-  // T769: when the plan carries a real orchestration graph (built by T768 on
-  // start), render THAT graph — control nodes (Start/End/Condition) + edges by
-  // kind — so the DAG reflects the engine. A plan with NO graph (draft /
-  // never-started / engine unwired) returns has_graph:false and falls through to
-  // the legacy depends_on renderer below (NON-BREAKING, zero regression).
   const graphQuery = usePlanGraph(projectId, plan.id);
   const g = graphQuery.data;
   if (g?.has_graph && (g.nodes?.length ?? 0) > 0) {
     return <PlanGraphDag projectId={projectId} plan={plan} graph={{ nodes: g.nodes ?? [], edges: g.edges ?? [] }} compact={compact} />;
   }
+  return <LegacyPlanDag projectId={projectId} plan={plan} compact={compact} />;
+}
 
+// LegacyPlanDag renders the depends_on graph for plans WITHOUT an orchestration
+// graph (has_graph:false). Split out of PlanDag so ALL of its hooks run
+// unconditionally — there is no graph early-return sitting between them (that
+// interleaving was the React #300 root cause).
+function LegacyPlanDag({
+  projectId,
+  plan,
+  compact,
+}: {
+  projectId: string;
+  plan: Plan;
+  compact: boolean;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
   const nodes = plan.nodes ?? [];
   const isDraft = plan.status === 'draft';
   // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
