@@ -18,12 +18,12 @@ import (
 // The child runs in its OWN process group (Setpgid) so Signal/Kill target the group
 // (the agent-runtime process + any grandchildren), mirroring the executor spawn model.
 type ExecStarter struct {
-	binaryPath string
-	subcommand string
-	baseArgs   []string
-	baseEnv    []string
-	stdout     io.Writer
-	stderr     io.Writer
+	binaryPath  string
+	subcommands []string
+	baseArgs    []string
+	baseEnv     []string
+	stdout      io.Writer
+	stderr      io.Writer
 }
 
 // ExecStarterConfig wires an ExecStarter.
@@ -31,8 +31,9 @@ type ExecStarterConfig struct {
 	// BinaryPath is the worker binary to exec (empty → os.Executable(), i.e. re-exec
 	// this same binary — the unified-binary model, same as executor forks).
 	BinaryPath string
-	// Subcommand is the agent-runtime subcommand name (empty → "agent-runtime").
-	Subcommand string
+	// Subcommands is the subcommand token PATH before --agent-id (empty → ["worker",
+	// "agent-runtime"], the unified-binary route the launcher execs).
+	Subcommands []string
 	// BaseArgs are argv appended after the subcommand + --agent-id (shared config
 	// flags like --config / --admin-target that every agent process needs).
 	BaseArgs []string
@@ -53,9 +54,9 @@ func NewExecStarter(cfg ExecStarterConfig) (*ExecStarter, error) {
 		}
 		bin = self
 	}
-	sub := cfg.Subcommand
-	if strings.TrimSpace(sub) == "" {
-		sub = "agent-runtime"
+	subs := cfg.Subcommands
+	if len(subs) == 0 {
+		subs = []string{"worker", "agent-runtime"}
 	}
 	env := cfg.BaseEnv
 	if env == nil {
@@ -69,7 +70,7 @@ func NewExecStarter(cfg ExecStarterConfig) (*ExecStarter, error) {
 	if errw == nil {
 		errw = os.Stderr
 	}
-	return &ExecStarter{binaryPath: bin, subcommand: sub, baseArgs: cfg.BaseArgs, baseEnv: env, stdout: out, stderr: errw}, nil
+	return &ExecStarter{binaryPath: bin, subcommands: subs, baseArgs: cfg.BaseArgs, baseEnv: env, stdout: out, stderr: errw}, nil
 }
 
 var _ ProcessStarter = (*ExecStarter)(nil)
@@ -79,7 +80,8 @@ func (s *ExecStarter) Start(ctx context.Context, spec AgentSpec) (Process, error
 	if spec.AgentID == "" {
 		return nil, errors.New("agentlauncher: exec start requires agent_id")
 	}
-	args := []string{s.subcommand, "--agent-id", spec.AgentID}
+	args := append([]string{}, s.subcommands...)
+	args = append(args, "--agent-id", spec.AgentID)
 	args = append(args, s.baseArgs...)
 	args = append(args, spec.Args...)
 

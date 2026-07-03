@@ -202,42 +202,43 @@ type agentControlHandler struct {
 	log func(string)
 }
 
-// Handle decodes cmd.Payload (a runtime-request the worker already converted from the
-// center payload) and dispatches to the matching runtime method.
+// Handle decodes cmd.Payload — the RAW center command payload the worker proxied
+// verbatim — using the SAME daemon payload types + converters the in-process path
+// used, and dispatches to the matching runtime method. Reusing the daemon's decoders
+// (this file is in the workerdaemon package) keeps the wire contract byte-identical to
+// the pre-D6 in-process routing.
 func (h agentControlHandler) Handle(ctx context.Context, cmd agentcontrol.Command) error {
 	switch cmd.Type {
-	case "reconcile":
-		var spec agentruntime.StartSpec
-		if err := decode(cmd.Payload, &spec); err != nil {
+	case cmdTypeAgentReconcile:
+		var pl reconcilePayload
+		if err := decode(cmd.Payload, &pl); err != nil {
 			return err
 		}
-		return h.rt.Start(ctx, spec)
-	case "work":
-		var req agentruntime.WorkRequest
-		if err := decode(cmd.Payload, &req); err != nil {
+		return h.rt.Start(ctx, startSpecOf(pl))
+	case cmdTypeAgentWork:
+		var pl workPayload
+		if err := decode(cmd.Payload, &pl); err != nil {
 			return err
 		}
-		return h.rt.NotifyWork(ctx, req)
-	case "wake":
-		var req agentruntime.WakeRequest
-		if err := decode(cmd.Payload, &req); err != nil {
+		return h.rt.NotifyWork(ctx, workRequestOf(pl))
+	case cmdTypeAgentWake:
+		var pl wakePayload
+		if err := decode(cmd.Payload, &pl); err != nil {
 			return err
 		}
-		return h.rt.NotifyWake(ctx, req)
-	case "converse":
-		var req agentruntime.ConverseRequest
-		if err := decode(cmd.Payload, &req); err != nil {
+		return h.rt.NotifyWake(ctx, wakeRequestOf(pl))
+	case cmdTypeAgentConverse:
+		var pl conversePayload
+		if err := decode(cmd.Payload, &pl); err != nil {
 			return err
 		}
-		return h.rt.NotifyConverse(ctx, req)
-	case "work_available":
-		var p struct {
-			TaskID string `json:"task_id"`
-		}
-		if err := decode(cmd.Payload, &p); err != nil {
+		return h.rt.NotifyConverse(ctx, converseRequestOf(pl))
+	case cmdTypeWorkAvailable:
+		var pl workAvailablePayload
+		if err := decode(cmd.Payload, &pl); err != nil {
 			return err
 		}
-		return h.rt.NotifyWorkAvailable(ctx, p.TaskID)
+		return h.rt.NotifyWorkAvailable(ctx, pl.TaskID)
 	default:
 		return fmt.Errorf("agent-runtime: unknown control command type %q", cmd.Type)
 	}

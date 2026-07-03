@@ -26,6 +26,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
+	"github.com/oopslink/agent-center/internal/workerdaemon/workercontroller"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -207,7 +208,21 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	if v := strings.TrimSpace(os.Getenv("AC_EXECUTOR_GIT_WORKTREE")); v == "1" || strings.EqualFold(v, "true") {
 		gitWorktreeEnabled = true
 	}
-	if controller, cerr := NewAgentController(AgentControllerConfig{
+	// T854 D6 §4.5: when the worker-controller path is enabled, the worker launches one
+	// `worker agent-runtime` process per agent and PROXIES control commands to them
+	// (cursor-gated), instead of hosting N runtimes in-process. Gated during rollout —
+	// OFF keeps the pre-D6 in-process AgentController path byte-for-byte.
+	var wctrl *workercontroller.Controller
+	if workerControllerEnabled() {
+		wc, werr := buildWorkerController(opts, targetSpec, token, fingerprint, logf)
+		if werr != nil {
+			return fmt.Errorf("worker daemon: controller: %w", werr)
+		}
+		wctrl = wc
+		reconcileControllerFromResumeState(ctx, wctrl, client, opts.WorkerID, logf)
+		rtCfg.ControlHandler = controllerHandler{ctrl: wctrl, log: logf}
+		logf("worker running in CONTROLLER mode (process-per-agent, AC_WORKER_CONTROLLER=1)")
+	} else if controller, cerr := NewAgentController(AgentControllerConfig{
 		Reporter:           client,
 		Resumer:            client,
 		ToolCaller:         client, // W2: *AdminClient.CallAgentTool → executor writeback
@@ -232,6 +247,14 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	}
 
 	rt := NewRuntime(rtCfg, client)
+	if wctrl != nil {
+		// Stop the agent processes when the worker drains.
+		defer func() {
+			shutCtx, cancelSh := context.WithTimeout(context.Background(), 15*time.Second)
+			_ = wctrl.Shutdown(shutCtx)
+			cancelSh()
+		}()
+	}
 
 	// Signal-aware context (SIGINT/SIGTERM → cancel → graceful drain).
 	runCtx, cancel := context.WithCancel(ctx)

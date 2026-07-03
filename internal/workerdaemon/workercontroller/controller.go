@@ -157,6 +157,15 @@ func (c *Controller) Deliver(ctx context.Context, cmd agentcontrol.Command) erro
 	return c.clientFor(cmd.AgentID).Deliver(ctx, cmd)
 }
 
+// StopAgent tears down one agent's process (desired-stopped) and drops its client.
+func (c *Controller) StopAgent(agentID string) error {
+	err := c.launcher.Stop(agentID)
+	c.mu.Lock()
+	delete(c.clients, agentID)
+	c.mu.Unlock()
+	return err
+}
+
 // Running returns the launched agent ids (sorted).
 func (c *Controller) Running() []string {
 	ids := c.launcher.Running()

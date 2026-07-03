@@ -65,7 +65,7 @@ func TestNewExecStarter_DefaultsBinaryToSelf(t *testing.T) {
 		t.Fatalf("NewExecStarter: %v", err)
 	}
 	self, _ := os.Executable()
-	if s.binaryPath != self || s.subcommand != "agent-runtime" {
-		t.Errorf("defaults wrong: binary=%q sub=%q", s.binaryPath, s.subcommand)
+	if s.binaryPath != self || len(s.subcommands) != 2 || s.subcommands[0] != "worker" || s.subcommands[1] != "agent-runtime" {
+		t.Errorf("defaults wrong: binary=%q sub=%v", s.binaryPath, s.subcommands)
 	}
 }
