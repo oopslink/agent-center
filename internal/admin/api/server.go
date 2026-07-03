@@ -378,6 +378,10 @@ func (s *Server) routes() {
 	// v2.14.0 F7 (issue I14): get_my_work + the work-item fail_task/pause_task/
 	// resume_task routes were removed — AgentWorkItem retired (no compat).
 	s.mux.HandleFunc("POST /admin/agent-tools/list_my_tasks", s.listMyTasksHandler)
+	// Runtime-facing reconcile query (§4.2): the UNFILTERED in-flight (open/running)
+	// set — includes deps-unsatisfied tasks list_my_tasks drops. Admin-only agent-tool
+	// (the runtime's center client calls it; not an MCP tool for the supervisor).
+	s.mux.HandleFunc("POST /admin/agent-tools/list_my_inflight_tasks", s.listMyInflightTasksHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/heartbeat", s.heartbeatHandler)
 	// report_usage (v2.15.0 I28/F2): worker-initiated per-turn usage ingest — not
 	// LLM-facing (deliberately absent from the agent-facing MCP set).

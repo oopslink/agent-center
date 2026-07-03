@@ -380,6 +380,37 @@ func TestCreateTask_InvalidAssignee_400(t *testing.T) {
 	}
 }
 
+// list_my_inflight_tasks (§4.2) is the runtime-facing reconcile query — the UNFILTERED
+// in-flight (open/running) set (ListAssignedAgentTasks). It surfaces the agent's
+// assigned active task; here the task is runnable so it appears (the endpoint's extra
+// value over list_my_tasks — INCLUDING deps-unsatisfied tasks — rides on
+// ListAssignedAgentTasks, which is covered in the pm service). This test pins the new
+// admin route is wired + own-scoped-authed + returns the §5.2 wire shape.
+func TestListMyInflightTasks_SurfacesAssignedTask(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "project_id": string(pid), "title": "inflight",
+			"assignee": "agent:" + atAgent1, "dispatch": true})
+	if status != http.StatusOK {
+		t.Fatalf("create_task status = %d, body = %v", status, body)
+	}
+	f.drain(t)
+	tid, _ := body["task_id"].(string)
+
+	st, work := postBearer(t, srv.URL, "/admin/agent-tools/list_my_inflight_tasks", "acat_w1",
+		map[string]any{"agent_id": atAgent1})
+	if st != http.StatusOK {
+		t.Fatalf("list_my_inflight_tasks status = %d, body = %v", st, work)
+	}
+	if !listMyTasksHasTask(work, tid) {
+		t.Fatalf("list_my_inflight_tasks missing assigned task %s: %v", tid, work)
+	}
+}
+
 // listMyTasksHasTask reports whether the list_my_tasks response surfaces taskID in
 // its "tasks" array (each entry carries the task identity as "task_id").
 func listMyTasksHasTask(resp map[string]any, taskID string) bool {

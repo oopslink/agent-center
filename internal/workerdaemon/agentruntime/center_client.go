@@ -10,6 +10,7 @@ package agentruntime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
@@ -70,6 +71,86 @@ func (a *centerClientAdapter) PostMessage(ctx context.Context, agentID, conversa
 		"content":  content,
 	}
 	return a.caller.CallAgentTool(ctx, "post_message", body, nil)
+}
+
+// InflightTask is one entry from list_my_inflight_tasks — an agent's active
+// (open/running) task in the UNFILTERED in-flight set (design §4.2), including tasks
+// whose deps are unsatisfied (which list_my_tasks drops). The reconcile pass (§4.4)
+// reconciles each on-disk executor Record against this set: present ⇒ adopt/recover;
+// absent (discarded / completed / reassigned / plan stopped) ⇒ stop + clean up.
+type InflightTask struct {
+	TaskID            string `json:"task_id"`
+	Title             string `json:"title"`
+	Status            string `json:"status"`
+	BlockedReason     string `json:"blocked_reason"`
+	BlockedReasonType string `json:"blocked_reason_type"`
+	BlockedComment    string `json:"blocked_comment"`
+	LeaseExpiresAt    string `json:"lease_expires_at"`
+}
+
+// InflightTaskLister is the reconcile-facing read seam: list THIS agent's full
+// in-flight task set from the center. Kept SEPARATE from orchestrator.CenterClient
+// (the executor writeback surface — complete/block/post) because it is a reconcile
+// concern, not an executor-writeback one. *centerClientAdapter satisfies it, so the
+// runtime can build one over any ToolCaller (the daemon-injected *AdminClient OR its
+// self-built *CenterHTTPClient).
+type InflightTaskLister interface {
+	ListMyInflightTasks(ctx context.Context, agentID string) ([]InflightTask, error)
+}
+
+// compile-time check.
+var _ InflightTaskLister = (*centerClientAdapter)(nil)
+
+// NewInflightTaskLister wraps a ToolCaller as an InflightTaskLister (nil ⇒ nil, matching
+// newCenterClient's graceful-degrade contract). The reconcile pass builds one from the
+// runtime's center client (daemon-injected or self-built).
+func NewInflightTaskLister(caller ToolCaller) InflightTaskLister {
+	if caller == nil {
+		return nil
+	}
+	return &centerClientAdapter{caller: caller}
+}
+
+// ListMyInflightTasks → POST /admin/agent-tools/list_my_inflight_tasks {agent_id}. The
+// center returns the UNFILTERED active set (ListAssignedAgentTasks), so a running task
+// with unsatisfied deps is INCLUDED (unlike list_my_tasks). Returns an empty slice for
+// a well-formed empty response.
+func (a *centerClientAdapter) ListMyInflightTasks(ctx context.Context, agentID string) ([]InflightTask, error) {
+	body := map[string]any{"agent_id": agentID}
+	var raw json.RawMessage
+	if err := a.caller.CallAgentTool(ctx, "list_my_inflight_tasks", body, &raw); err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Tasks []InflightTask `json:"tasks"`
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			return nil, fmt.Errorf("agentruntime: list_my_inflight_tasks: decode response: %w", err)
+		}
+	}
+	if resp.Tasks == nil {
+		resp.Tasks = []InflightTask{}
+	}
+	return resp.Tasks, nil
+}
+
+// CenterInflightLister returns an InflightTaskLister for this runtime's boot reconcile
+// (§4.4). It PREFERS the daemon-injected center transport (cfg.ToolCaller, when the
+// daemon hands one in) and FALLS BACK to a self-built *CenterHTTPClient from the
+// runtime's OWN config (AdminURL / ServerFingerprint / WorkerToken) — the §4.2
+// "runtime self-builds its center client" capability, so a runtime hosted WITHOUT a
+// daemon-injected caller (the k8s target) still reconciles. Errors only when the
+// fallback self-build fails (e.g. an unparseable AdminURL).
+func (r *LocalRuntime) CenterInflightLister() (InflightTaskLister, error) {
+	if tc := r.toolCaller(); tc != nil {
+		return NewInflightTaskLister(tc), nil
+	}
+	c, err := NewCenterHTTPClient(r.cfg.AdminURL, r.cfg.ServerFingerprint, r.cfg.WorkerToken, 0)
+	if err != nil {
+		return nil, err
+	}
+	return NewInflightTaskLister(c), nil
 }
 
 // usageReporterAdapter implements orchestrator.UsageReporter over a ToolCaller

@@ -123,6 +123,42 @@ func (s *Server) listMyTasksHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})
 }
 
+// listMyInflightTasksHandler is the RUNTIME-facing reconcile query (design §4.2):
+// it returns ALL of the agent's active (open/running) tasks — the UNFILTERED
+// ListAssignedAgentTasks, NOT ListRunnableAgentTasks. The difference matters for
+// self-recovery: a running-but-deps-unsatisfied task (e.g. a resumed executor whose
+// upstream is not yet done) is dropped by the runnable filter but MUST appear here so
+// the runtime's boot reconcile reconciles every in-flight executor Record against the
+// agent's true in-flight set (adopt / recover / cancel). Same own-scoped auth + wire
+// shape as list_my_tasks; it is an admin-only agent-tool route (called by the runtime's
+// center client, not exposed as an MCP tool to the supervisor).
+func (s *Server) listMyInflightTasksHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req listMyTasksReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	tasks, err := d.PMService.ListAssignedAgentTasks(r.Context(), pm.IdentityRef(agentActor(a)))
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, agentRunnableTaskMap(t))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tasks": out})
+}
+
 // agentRunnableTaskMap projects a pm.Task to the list_my_tasks §5.2 wire shape:
 // the identity + status + the blocked annotation (so the agent sees what an Unblock
 // left in blocked_comment) + the execution lease deadline (null when none).
