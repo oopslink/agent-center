@@ -88,6 +88,22 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 	// Condition node per decision, gating that decision's conditional (pass) targets.
 	// condOf[D] = the condition node interposed after decision D.
 	condOf := make(map[pm.TaskID]orch.NodeID)
+	// T800: track business-node in/out degree across every edge added below, so
+	// after wiring we can connect the seeded Start/End control anchors — Start→each
+	// ROOT business node (no incoming), each SINK business node (no outgoing)→End.
+	// buildPlanGraph previously left Start/End as orphans (End had no incoming edge),
+	// which the DAG renderer then mis-laid-out. Anchor control nodes are treated as
+	// satisfied by ReadyNodes, so these anchor edges are non-breaking for dispatch.
+	hasIncoming := make(map[orch.NodeID]bool)
+	hasOutgoing := make(map[orch.NodeID]bool)
+	addEdge := func(from, to orch.NodeID) error {
+		if eerr := s.orch.AddEdge(txCtx, graphID, from, to); eerr != nil {
+			return eerr
+		}
+		hasOutgoing[from] = true
+		hasIncoming[to] = true
+		return nil
+	}
 	for _, t := range tasks {
 		if !pm.IsDecisionNode(edges, t.ID()) {
 			continue
@@ -118,7 +134,7 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 		}
 		condOf[t.ID()] = condID
 		// node(D) → C_D (C_D gated behind the decision completing).
-		if eerr := s.orch.AddEdge(txCtx, graphID, dNode, condID); eerr != nil {
+		if eerr := addEdge(dNode, condID); eerr != nil {
 			return eerr
 		}
 		// C_D → node(X) for each conditional target X (X gated behind the condition).
@@ -127,7 +143,7 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 			if !ok {
 				continue
 			}
-			if eerr := s.orch.AddEdge(txCtx, graphID, condID, xNode); eerr != nil {
+			if eerr := addEdge(condID, xNode); eerr != nil {
 				return eerr
 			}
 		}
@@ -145,8 +161,35 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 		if !ok1 || !ok2 {
 			continue // edge referencing a task not selected into the plan — skip defensively.
 		}
-		if eerr := s.orch.AddEdge(txCtx, graphID, from, to); eerr != nil {
+		if eerr := addEdge(from, to); eerr != nil {
 			return eerr
+		}
+	}
+	// T800: wire the structural Start/End anchors so the graph has a single inlined
+	// source and sink (fixes the DAG renderer laying End out as an orphan). Start →
+	// every ROOT business node (no incoming graph edge); every SINK business node
+	// (no outgoing) → End. A loopback dep is NOT a graph edge, so a loop target still
+	// counts as a root and correctly gets a Start edge. Anchor edges are seq-kinded
+	// (Start/End aren't condition nodes) and, per ReadyNodes, never gate dispatch.
+	g, gerr := s.orch.GetGraph(txCtx, graphID)
+	if gerr != nil {
+		return gerr
+	}
+	startID, endID := g.StartNodeID(), g.EndNodeID()
+	for _, t := range tasks {
+		nid, ok := nodeOf[t.ID()]
+		if !ok {
+			continue
+		}
+		if !hasIncoming[nid] {
+			if eerr := s.orch.AddEdge(txCtx, graphID, startID, nid); eerr != nil {
+				return eerr
+			}
+		}
+		if !hasOutgoing[nid] {
+			if eerr := s.orch.AddEdge(txCtx, graphID, nid, endID); eerr != nil {
+				return eerr
+			}
 		}
 	}
 	if serr := s.orch.StartGraph(txCtx, graphID); serr != nil {
