@@ -331,6 +331,7 @@
       "assignmentPool": "Assignment Pool",
       "addToPlan": "Add to plan",
       "unassigned": "Unassigned",
+      "openAgentActivity": "View agent activity",
       "overflow_one": "…and {{count}} more",
       "overflow_other": "…and {{count}} more",
       "backlog": {

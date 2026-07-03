@@ -92,6 +92,45 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
     expect(cardsWrap.className).toContain('max-h-');
   });
 
+  // Owner ask (2026-07-03): a backlog card shows its human task id (T123).
+  it('backlog card shows the human task id (org_ref T-number)', async () => {
+    server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
+    server.use(
+      http.get('/api/projects/:pid/tasks', ({ request, params }) => {
+        const unplanned = new URL(request.url).searchParams.get('unplanned');
+        if (unplanned === '1') {
+          return HttpResponse.json({
+            tasks: [{
+              id: 'TS-BL9', project_id: String(params.pid), title: 'backlog with id',
+              description: '', status: 'open', assignee: 'agent:builder', org_ref: 'T42',
+              version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z',
+            }],
+          });
+        }
+        return HttpResponse.json({ tasks: [] });
+      }),
+    );
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('backlog-card')).toBeInTheDocument());
+    expect(screen.getByTestId('backlog-card')).toHaveTextContent('T42');
+  });
+
+  // Owner ask (2026-07-03): clicking an AGENT assignee on a board card opens the
+  // shared agent-activity sidebar.
+  it('clicking an agent assignee opens the agent activity sidebar', async () => {
+    server.use(http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)));
+    wrap('/projects/proj-a/plans');
+    await waitFor(() => expect(screen.getByTestId('backlog-card')).toBeInTheDocument());
+    // Sidebar is closed until an agent name is clicked.
+    expect(screen.queryByTestId('sender-sidebar')).not.toBeInTheDocument();
+    // The default backlog task's assignee (agent:builder) is now a clickable button.
+    const assignee = within(screen.getByTestId('backlog-card')).getByTestId('assignee');
+    expect(assignee.tagName).toBe('BUTTON');
+    expect(assignee).toHaveAttribute('data-kind', 'agent');
+    fireEvent.click(assignee);
+    expect(await screen.findByTestId('sender-sidebar')).toBeInTheDocument();
+  });
+
   // task-0543ece9: the "…and N more" overflow is now ONLY a belt-and-braces
   // safety net for a DEGRADED partial payload (node_count > nodes_preview.length).
   // The happy path (full preview) never truncates; a degraded one still hints.
