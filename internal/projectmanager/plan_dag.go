@@ -125,6 +125,27 @@ func ValidateNoCycle(edges []Dependency) error {
 	return nil
 }
 
+// ValidateControlEdgeShape validates a control edge's SHAPE independent of the
+// existing graph (T802 — the add_plan_dependency authoring guard): the Kind must be
+// a known kind and a conditional edge must carry a When (the outcome it routes on).
+// Loopback ancestry + round bound are validated separately by ValidateLoopback
+// (they need the existing edge set); seq needs nothing.
+func ValidateControlEdgeShape(add Dependency) error {
+	switch NormalizeEdgeKind(add.Kind) {
+	case EdgeSeq:
+		return nil
+	case EdgeConditional:
+		if add.When == "" {
+			return ErrConditionalNeedsWhen
+		}
+		return nil
+	case EdgeLoopback:
+		return nil
+	default:
+		return ErrInvalidEdgeKind
+	}
+}
+
 // ValidateLoopback validates a single loopback edge against the plan's FORWARD graph
 // (B1 §6.6): the edge must carry a When label and MaxRounds≥1, and its To must be a
 // forward ANCESTOR of its From (so the back-edge re-activates an already-upstream

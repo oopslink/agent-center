@@ -139,7 +139,13 @@ var (
 	ErrSelfDependency = errors.New("projectmanager: a task cannot depend on itself")
 	// ErrInvalidLoopback (v2.13.0 I18/B1): a loopback edge must carry a When label,
 	// MaxRounds≥1, and point To a forward ancestor of From (a real bounded loop).
-	ErrInvalidLoopback       = errors.New("projectmanager: invalid loopback edge (needs When + MaxRounds>=1 + To must be a forward ancestor of From)")
+	ErrInvalidLoopback = errors.New("projectmanager: invalid loopback edge (needs When + MaxRounds>=1 + To must be a forward ancestor of From)")
+	// ErrConditionalNeedsWhen (T802): a conditional edge routes by a decision's
+	// outcome, so it MUST carry the When (outcome label) it activates on.
+	ErrConditionalNeedsWhen = errors.New("projectmanager: conditional edge needs a When (outcome label)")
+	// ErrInvalidEdgeKind (T802): edge kind must be one of seq/conditional/loopback
+	// (empty normalizes to seq).
+	ErrInvalidEdgeKind       = errors.New("projectmanager: invalid edge kind (want seq/conditional/loopback)")
 	ErrIllegalPlanTransition = errors.New("projectmanager: illegal plan status transition")
 	ErrInvalidPlanStatus     = errors.New("projectmanager: invalid plan status")
 	ErrPlanNotDraft          = errors.New("projectmanager: plan dependencies/tasks editable only in draft")
