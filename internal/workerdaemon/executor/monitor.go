@@ -321,6 +321,28 @@ func (m *Monitor) stalledCompletion(executorID string, st *Status) Completion {
 	return c
 }
 
+// Scan rebuilds in-flight executor state from durable files WITHOUT any side effect —
+// no adopt, no finalize, no writeback (design §12; the pure Reconciler). The recovery
+// DRIVER (boot self-reconcile) uses it so IT decides, per executor, whether to adopt /
+// tier-recover / finalize — instead of Recover's unconditional "adopt alive, finalize
+// the rest", which finalizes+tears-down a dead-but-should-continue executor BEFORE the
+// §4.3 tier ladder can resume it (the T854 D6 P0-2 boot-recovery bug). Recover remains
+// for callers wanting the old adopt-or-finalize batch.
+func (m *Monitor) Scan() ([]Reconciled, error) {
+	if m.recon == nil {
+		return nil, errors.New("executor: monitor reconciler required for scan")
+	}
+	return m.recon.Reconcile()
+}
+
+// FinalizeRecovered finalizes a terminal orphan reconstructed from durable files at
+// restart (Recovered=true), used by the boot driver for the executors it decides NOT
+// to recover (succeeded / a legitimately-failed one). Best-effort at the call site.
+func (m *Monitor) FinalizeRecovered(ctx context.Context, c Completion) error {
+	c.Recovered = true
+	return m.Finalize(ctx, c)
+}
+
 // Recover rebuilds in-flight state at orchestrator startup (design §12) and acts
 // on each orphan exactly once: terminal/crashed orphans are finalized (their
 // result is not lost across the restart); still-alive orphans are re-adopted into

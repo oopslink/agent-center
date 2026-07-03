@@ -81,46 +81,92 @@ func (r *LocalRuntime) reapOrphanWorktrees(ctx context.Context, ee *ExecutorEngi
 type reconcileAction int
 
 const (
-	// reconcileLeave — do nothing: don't adopt, don't cancel. Used for an executor with
-	// no task ref (untracked/ownerless) and for the degraded dead case — there is no
-	// POSITIVE evidence to cancel, so we leave the process alone and let the monitor's
-	// terminal finalize reap it if/when it dies. Never SIGKILL without cancel evidence.
+	// reconcileLeave — do nothing: don't adopt, don't finalize, don't cancel. Used for an
+	// ALIVE ownerless executor (no task ref) — there is no positive evidence to act, so
+	// leave it running.
 	reconcileLeave reconcileAction = iota
-	// reconcileAdopt — the task is still in-flight AND the process is alive: re-adopt
-	// it into the watchdog (no re-spawn), exactly the survivor-restart case.
+	// reconcileAdopt — the task is still in-flight AND the process is alive: re-adopt it
+	// into the pool + watchdog (no re-spawn), the survivor-restart case.
 	reconcileAdopt
-	// reconcileRecover — the task is still in-flight but the process is dead: bring it
-	// back via the D3 RecoveryPlanner ladder (resume / rerun / fresh).
+	// reconcileRecover — the task is still in-flight, the process is DEAD, and it died
+	// WITHOUT a valid result verdict (a crash/kill, not a legit failure): bring it back
+	// via the D3 RecoveryPlanner ladder (resume / rerun / fresh). This is the §4.4 core —
+	// it must run on the SURVIVING worktree/session, so the scan must NOT have finalized
+	// (torn down) the executor first (T854 D6 P0-2).
 	reconcileRecover
+	// reconcileFinalize — report the terminal result (writeback) + tear down: a succeeded
+	// executor, a LEGITIMATELY-failed one (dead WITH a valid output verdict — §9: don't
+	// re-run a real failure), or the degraded/ownerless dead case. Best-effort per
+	// executor so one writeback failure does not wedge the whole reconcile.
+	reconcileFinalize
 	// reconcileVerifyCancel — the task is ABSENT from this agent's in-flight set: a
 	// CANDIDATE for cancel, NOT an immediate one. Absence ≠ cancel evidence (the set may
 	// be incomplete), so the enactment first get_task-verifies and cancels ONLY on
 	// positive proof (terminal, or reassigned to another agent). PD ruling (T848 review):
-	// losing an in-flight-but-live executor is worse than leaving a zombie (whose
-	// writeback is already rejected by the terminal task), so cancel needs proof.
+	// losing an in-flight-but-live executor is worse than leaving a zombie.
 	reconcileVerifyCancel
 )
 
-// classifyExecutorReconcile is the PURE §4.4 decision for one executor: its task ref
-// × liveness × the agent's in-flight task set.
-//   - no task ref (ownerless/untracked) → leave (no cancel evidence).
-//   - task absent from the in-flight set → verify-cancel CANDIDATE (get_task decides).
-//   - task in the set: live → adopt; dead → recover via the ladder.
-func classifyExecutorReconcile(taskRef string, alive bool, inflight map[string]bool) reconcileAction {
-	if taskRef == "" {
-		return reconcileLeave
-	}
-	if !inflight[taskRef] {
-		return reconcileVerifyCancel
-	}
-	if alive {
-		return reconcileAdopt
-	}
-	return reconcileRecover
+// execReconcileFacts are the PURE inputs to the §4.4 boot decision for one executor.
+type execReconcileFacts struct {
+	Kind            executor.OutcomeKind // Succeeded / Failed / Crashed / Running
+	HasValidVerdict bool                 // a valid output.json result exists (⇒ a legit conclusion, not a death)
+	TaskRef         string
+	Alive           bool
+	Inflight        map[string]bool
+	HaveInflight    bool
 }
 
-// execReconcileDecision is one executor's classified outcome plus the durable facts
-// the enactment needs. Plan is set only for reconcileRecover (the D3 ladder verdict).
+// classifyExecutor is the PURE §4.4 boot decision. It distinguishes a DEATH (recover
+// via the ladder) from a legitimate terminal result (finalize), and only cancels an
+// absent task with positive evidence.
+func classifyExecutor(f execReconcileFacts) reconcileAction {
+	// A succeeded executor's work is DONE regardless of the inflight set → report + teardown.
+	if f.Kind == executor.OutcomeSucceeded {
+		return reconcileFinalize
+	}
+	if f.Alive {
+		if !f.HaveInflight {
+			return reconcileAdopt // degraded: adopt the alive (fail-safe, never cancel)
+		}
+		if f.TaskRef == "" {
+			return reconcileLeave // ownerless but alive: leave it running
+		}
+		if !f.Inflight[f.TaskRef] {
+			return reconcileVerifyCancel
+		}
+		return reconcileAdopt
+	}
+	// Dead (Crashed / Failed).
+	if !f.HaveInflight {
+		// Degraded (inflight query failed): we can't confirm should-continue, so preserve
+		// the pre-D6 behavior — report the dead executor's result (finalize), don't strand it.
+		return reconcileFinalize
+	}
+	if f.TaskRef == "" {
+		return reconcileFinalize // ownerless dead: report + teardown
+	}
+	if !f.Inflight[f.TaskRef] {
+		return reconcileVerifyCancel
+	}
+	// In-flight (should-continue) + dead: DEATH (no valid verdict) → tier recover; a
+	// legitimate failure (valid verdict) → finalize (§9: don't auto-re-run a real failure).
+	if isDeath(f.Kind, f.HasValidVerdict) {
+		return reconcileRecover
+	}
+	return reconcileFinalize
+}
+
+// isDeath reports whether a terminal executor DIED without concluding (crash / kill /
+// no-valid-output) — the recoverable case — vs reached a legitimate failure verdict.
+// Mirrors the D5 mid-life discriminator (comp.Output!=nil ⟺ a valid verdict).
+func isDeath(kind executor.OutcomeKind, hasValidVerdict bool) bool {
+	return kind == executor.OutcomeCrashed || (kind == executor.OutcomeFailed && !hasValidVerdict)
+}
+
+// execReconcileDecision is one executor's classified outcome plus the durable facts the
+// enactment needs. Plan is set only for reconcileRecover; Completion carries the result
+// for reconcileFinalize.
 type execReconcileDecision struct {
 	ExecutorID string
 	TaskRef    string
@@ -128,37 +174,32 @@ type execReconcileDecision struct {
 	Alive      bool
 	PID        int
 	Record     *executor.Record
+	Completion executor.Completion
 	Plan       orchestrator.RecoveryPlan
 }
 
-// planExecutorReconcile is the PURE core: it maps each recovered executor × the
-// in-flight set → a decision (+ the D3 ladder plan for the recover branch), with NO
-// side effects. haveInflight=false means the center inflight query failed/absent — a
-// fail-SAFE degrade: never cancel (that could kill live work), fall back to liveness-
-// only (adopt the alive, leave the rest to the monitor's terminal finalize).
+// planExecutorReconcile is the PURE core: it maps each SCANNED executor × the in-flight
+// set → a decision (+ the D3 ladder plan for the recover branch), with NO side effects.
+// It operates on a NON-FINALIZING scan, so a dead-but-should-continue executor is routed
+// to reconcileRecover with its worktree/session INTACT (the T854 D6 P0-2 fix); the
+// enactment finalizes only the executors classifyExecutor marks reconcileFinalize.
 func planExecutorReconcile(items []executor.Reconciled, inflight map[string]bool, haveInflight bool, planner *orchestrator.RecoveryPlanner) []execReconcileDecision {
 	out := make([]execReconcileDecision, 0, len(items))
 	for _, it := range items {
-		d := execReconcileDecision{ExecutorID: it.ExecutorID, Record: it.Record}
+		d := execReconcileDecision{ExecutorID: it.ExecutorID, Record: it.Record, Completion: it.Completion}
 		d.TaskRef = taskRefOf(it.Snapshot)
 		d.Alive = it.Completion.Kind == executor.OutcomeRunning && it.Record != nil && it.Record.PID > 0
 		if d.Alive {
 			d.PID = it.Record.PID
 		}
-
-		if !haveInflight {
-			// Degraded (center inflight query failed): adopt the alive, leave the rest —
-			// NEVER cancel (that could kill live work behind a transient query failure).
-			if d.Alive {
-				d.Action = reconcileAdopt
-			} else {
-				d.Action = reconcileLeave // monitor's terminal finalize handles it
-			}
-			out = append(out, d)
-			continue
-		}
-
-		d.Action = classifyExecutorReconcile(d.TaskRef, d.Alive, inflight)
+		d.Action = classifyExecutor(execReconcileFacts{
+			Kind:            it.Completion.Kind,
+			HasValidVerdict: it.Completion.Output != nil,
+			TaskRef:         d.TaskRef,
+			Alive:           d.Alive,
+			Inflight:        inflight,
+			HaveInflight:    haveInflight,
+		})
 		if d.Action == reconcileRecover && planner != nil {
 			d.Plan = planner.Plan(it.ExecutorID, it.Record)
 		}
@@ -181,9 +222,12 @@ func taskRefOf(snap executor.Snapshot) string {
 // inflight set, and enacts. Enactment is best-effort per executor: one failure logs
 // and moves on (a stuck reconcile must not wedge boot).
 func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngine) error {
-	items, err := ee.monitor.Recover(ctx)
+	// NON-FINALIZING scan (T854 D6 P0-2): unlike Recover, Scan does NOT finalize the dead
+	// ones — so a dead-but-should-continue executor still has its worktree/session for the
+	// tier ladder. The driver below decides, per executor, adopt / recover / finalize.
+	items, err := ee.monitor.Scan()
 	if err != nil {
-		r.log("agent=%s self-reconcile recover: %v", r.cfg.AgentID, err)
+		r.log("agent=%s self-reconcile scan: %v", r.cfg.AgentID, err)
 		return err
 	}
 	inflight, haveInflight := r.inflightTaskSet(ctx)
@@ -193,15 +237,23 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 	}
 
 	decisions := planExecutorReconcile(items, inflight, haveInflight, planner)
-	var adopted, recovered, cancelled, kept int
+	var adopted, recovered, finalized, cancelled, kept int
 	for _, d := range decisions {
 		switch d.Action {
 		case reconcileAdopt:
-			ee.addOrphan(d.ExecutorID, d.PID)
+			ee.adoptAlive(d.ExecutorID, d.PID) // pool slot + watchdog
 			adopted++
 		case reconcileRecover:
 			r.enactRecover(ctx, ee, d)
 			recovered++
+		case reconcileFinalize:
+			// Report the terminal result + teardown. Best-effort: a writeback failure
+			// (e.g. block_task 404) logs and moves on — it must NOT abort the whole
+			// reconcile (the pre-fix monitor.Recover aborted on the first such failure).
+			if ferr := ee.monitor.FinalizeRecovered(ctx, d.Completion); ferr != nil {
+				r.log("agent=%s self-reconcile finalize executor=%s: %v (continuing)", r.cfg.AgentID, d.ExecutorID, ferr)
+			}
+			finalized++
 		case reconcileVerifyCancel:
 			// Absence is not cancel evidence: get_task-verify, cancel only on proof.
 			if r.verifyThenCancel(ctx, ee, d) {
@@ -213,9 +265,9 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 			kept++
 		}
 	}
-	if adopted+recovered+cancelled+kept > 0 {
-		r.log("agent=%s self-reconcile: scanned=%d adopted=%d recovered=%d cancelled=%d kept=%d inflight_known=%t",
-			r.cfg.AgentID, len(items), adopted, recovered, cancelled, kept, haveInflight)
+	if adopted+recovered+finalized+cancelled+kept > 0 {
+		r.log("agent=%s self-reconcile: scanned=%d adopted=%d recovered=%d finalized=%d cancelled=%d kept=%d inflight_known=%t",
+			r.cfg.AgentID, len(items), adopted, recovered, finalized, cancelled, kept, haveInflight)
 	}
 	return nil
 }

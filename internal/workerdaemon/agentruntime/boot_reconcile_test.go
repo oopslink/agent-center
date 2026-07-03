@@ -12,26 +12,38 @@ import (
 
 var errBoom = errors.New("boom")
 
-func TestClassifyExecutorReconcile(t *testing.T) {
+func TestClassifyExecutor(t *testing.T) {
 	inflight := map[string]bool{"task-1": true}
+	f := func(kind executor.OutcomeKind, validVerdict bool, taskRef string, alive bool) execReconcileFacts {
+		return execReconcileFacts{Kind: kind, HasValidVerdict: validVerdict, TaskRef: taskRef, Alive: alive, Inflight: inflight, HaveInflight: true}
+	}
 	cases := []struct {
-		name    string
-		taskRef string
-		alive   bool
-		want    reconcileAction
+		name  string
+		facts execReconcileFacts
+		want  reconcileAction
 	}{
-		{"inflight+alive → adopt", "task-1", true, reconcileAdopt},
-		{"inflight+dead → recover", "task-1", false, reconcileRecover},
-		// Absent from inflight → a CANDIDATE for cancel (get_task-verified), not cancel.
-		{"not-inflight → verify-cancel", "task-9", true, reconcileVerifyCancel},
-		{"not-inflight+dead → verify-cancel", "task-9", false, reconcileVerifyCancel},
-		// No task ref (ownerless) → leave (never SIGKILL without cancel evidence).
-		{"no task ref → leave", "", true, reconcileLeave},
+		{"inflight+alive → adopt", f(executor.OutcomeRunning, false, "task-1", true), reconcileAdopt},
+		// DEATH (crash / failed-no-verdict) + should-continue → tier recover (the P0-2 fix).
+		{"inflight+dead(crash) → recover", f(executor.OutcomeCrashed, false, "task-1", false), reconcileRecover},
+		{"inflight+dead(failed,no verdict) → recover", f(executor.OutcomeFailed, false, "task-1", false), reconcileRecover},
+		// LEGIT failure (valid verdict) + should-continue → finalize, NOT re-run (§9).
+		{"inflight+dead(failed,valid verdict) → finalize", f(executor.OutcomeFailed, true, "task-1", false), reconcileFinalize},
+		// Succeeded → finalize regardless of inflight (work is done).
+		{"succeeded → finalize", f(executor.OutcomeSucceeded, true, "task-1", false), reconcileFinalize},
+		// Absent from inflight → verify-cancel candidate (get_task-verified).
+		{"not-inflight+alive → verify-cancel", f(executor.OutcomeRunning, false, "task-9", true), reconcileVerifyCancel},
+		{"not-inflight+dead → verify-cancel", f(executor.OutcomeCrashed, false, "task-9", false), reconcileVerifyCancel},
+		// Ownerless: alive → leave (running), dead → finalize (report + teardown).
+		{"ownerless alive → leave", f(executor.OutcomeRunning, false, "", true), reconcileLeave},
+		{"ownerless dead → finalize", f(executor.OutcomeCrashed, false, "", false), reconcileFinalize},
+		// Degraded (inflight query failed): adopt alive, finalize dead (never cancel).
+		{"degraded alive → adopt", execReconcileFacts{Kind: executor.OutcomeRunning, Alive: true, HaveInflight: false}, reconcileAdopt},
+		{"degraded dead → finalize", execReconcileFacts{Kind: executor.OutcomeCrashed, Alive: false, HaveInflight: false}, reconcileFinalize},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := classifyExecutorReconcile(tc.taskRef, tc.alive, inflight); got != tc.want {
-				t.Errorf("classify(%q, %v) = %v, want %v", tc.taskRef, tc.alive, got, tc.want)
+			if got := classifyExecutor(tc.facts); got != tc.want {
+				t.Errorf("classifyExecutor(%+v) = %v, want %v", tc.facts, got, tc.want)
 			}
 		})
 	}
@@ -98,8 +110,10 @@ func TestPlanExecutorReconcile_DegradedNeverCancels(t *testing.T) {
 	if got[0].Action != reconcileAdopt {
 		t.Errorf("degraded: alive executor should still be adopted, got %v", got[0].Action)
 	}
-	if got[1].Action != reconcileLeave {
-		t.Errorf("degraded: dead executor should be left to monitor finalize, got %v", got[1].Action)
+	// Degraded dead → finalize (report its result); the pre-D6 behavior, now explicit
+	// since Scan no longer finalizes for us.
+	if got[1].Action != reconcileFinalize {
+		t.Errorf("degraded: dead executor should be finalized, got %v", got[1].Action)
 	}
 }
 

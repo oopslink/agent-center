@@ -155,6 +155,17 @@ func (ee *ExecutorEngine) addOrphan(id string, pid int) {
 	ee.orphans[id] = pid
 }
 
+// adoptAlive re-adopts a recovered STILL-ALIVE executor at boot: it takes a pool slot
+// (so the survivor counts toward max_concurrent again) AND registers it for watchdog
+// polling. The boot driver (reconcileExecutors) uses it because Scan — unlike the old
+// Recover — does NOT re-adopt into the pool, so the driver must (T854 D6 P0-2). Best-
+// effort pool.Adopt: a full pool / unknown id is not fatal (the executor keeps running;
+// worst case is transient over-admission, never a lost executor).
+func (ee *ExecutorEngine) adoptAlive(id string, pid int) {
+	_ = ee.engine.Pool().Adopt(id)
+	ee.addOrphan(id, pid)
+}
+
 // snapshotOrphans returns a copy of the orphan set for lock-free iteration by the
 // watchdog tick.
 func (ee *ExecutorEngine) snapshotOrphans() map[string]int {
