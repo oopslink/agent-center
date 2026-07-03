@@ -84,6 +84,9 @@ func (r *LocalRuntime) execEngine() *ExecutorEngine {
 // plain isolated directories — PD ruling B: production agents have no per-agent
 // source git repo, so the F1 worktree step is skipped. agentRoot is the per-agent home.
 func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) (*ExecutorEngine, error) {
+	// T848 §4.4: self-hold the config so boot self-reconcile can relaunch a recovered
+	// executor with the same env / model routing WITHOUT a daemon-side cache.
+	r.cacheExecConfig(pl)
 	clk := funcClock{now: r.cfg.Now}
 	layout, err := executor.NewLayout(agentRoot)
 	if err != nil {

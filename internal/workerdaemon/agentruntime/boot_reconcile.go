@@ -1,0 +1,362 @@
+package agentruntime
+
+// boot_reconcile.go — T848 D4 §4.4: the runtime SELF-TRIGGERS its own boot
+// reconcile (self-recovery), instead of the daemon driving it from the outside.
+//
+// Boot(ctx) is the entry a durable, k8s-hosted runtime calls when it comes up. It
+// ties together this plan's earlier tracks:
+//   - D2 (list_my_inflight_tasks): the center's UNFILTERED active-task set for THIS
+//     agent — the authority on "which of my on-disk executors are still mine".
+//   - D3 (orchestrator.RecoveryPlanner): the three-rung degradation ladder that says
+//     HOW to bring a should-continue-but-dead executor back (resume / rerun / fresh).
+//
+// The executor reconcile (selfReconcile) is a PURE decision (planExecutorReconcile)
+// followed by a thin best-effort enactment, mirroring executor.Reconciler's
+// no-loss/no-duplication discipline: every on-disk executor Record is classified
+// exactly once against the inflight set + its liveness, then adopted / recovered /
+// cancelled.
+//
+// The supervisor-SESSION recovery decision (decideBootAction) is ported here as the
+// runtime-owned pure primitive (the "决策搬进 runtime"); its probe→reattach/relaunch
+// enactment continues to run through the existing session primitives (Start /
+// ReattachSupervisorSession), which the runtime already owns.
+
+import (
+	"context"
+	"os"
+	"syscall"
+
+	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
+	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
+)
+
+// Boot runs the runtime's self-triggered boot recovery (§4.4). It is safe to call
+// once per runtime bring-up: the executor reconcile is guarded so it scans the
+// durable executor dirs exactly once per runtime (recovered-once), and a runtime
+// with no executor engine (single-claude agent) is a no-op.
+func (r *LocalRuntime) Boot(ctx context.Context) error {
+	return r.selfReconcile(ctx)
+}
+
+// selfReconcile reconciles this agent's on-disk executors against its center
+// inflight set (§4.4). Guarded by the per-runtime recovered-once flag so a later
+// in-process engine rebuild does not re-scan and double-finalize an orphan already
+// classified this process (the semantics of the migrated daemon guard).
+func (r *LocalRuntime) selfReconcile(ctx context.Context) error {
+	ee := r.execEngine()
+	if ee == nil {
+		return nil // single-claude agent: no executors to reconcile
+	}
+	if !r.markRecoveredOnce() {
+		return nil // already reconciled this runtime
+	}
+	if err := r.reconcileExecutors(ctx, ee); err != nil {
+		return err
+	}
+	// Non-regression: after reconcile has re-adopted the still-live orphans, reap
+	// worktrees left by a prior process whose executor is gone (the v2.31.1 boot-hook
+	// behavior the daemon's Recover did; isLive = the post-reconcile snapshot).
+	r.reapOrphanWorktrees(ctx, ee)
+	return nil
+}
+
+// reapOrphanWorktrees tears down worktrees whose executor is no longer live (extracted
+// from Recover so both the legacy daemon path and Boot share it). Fail-safe KEEP: an
+// executor id present in the live snapshot is never reaped. No-op without a materializer.
+func (r *LocalRuntime) reapOrphanWorktrees(ctx context.Context, ee *ExecutorEngine) {
+	if r.cfg.Materializer == nil {
+		return
+	}
+	live := r.liveExecIDs(ee)
+	if n, err := r.cfg.Materializer.ReapOrphanWorktrees(ctx, func(id string) bool { return live[id] }); err != nil {
+		r.log("agent=%s boot orphan-worktree reap: %v (non-fatal)", r.cfg.AgentID, err)
+	} else if n > 0 {
+		r.log("agent=%s boot-reaped %d orphan worktree(s)", r.cfg.AgentID, n)
+	}
+}
+
+// reconcileAction is the verdict for one on-disk executor.
+type reconcileAction int
+
+const (
+	// reconcileAdopt — the task is still in-flight AND the process is alive: re-adopt
+	// it into the watchdog (no re-spawn), exactly the survivor-restart case.
+	reconcileAdopt reconcileAction = iota + 1
+	// reconcileRecover — the task is still in-flight but the process is dead: bring it
+	// back via the D3 RecoveryPlanner ladder (resume / rerun / fresh).
+	reconcileRecover
+	// reconcileCancel — the task is no longer in this agent's in-flight set (discarded
+	// / completed / reassigned / plan stopped) or the executor is untracked: stop the
+	// process (if any) and clean up its workspace.
+	reconcileCancel
+)
+
+// classifyExecutorReconcile is the PURE §4.4 decision for one executor: its task ref
+// × liveness × the agent's in-flight task set. An executor whose task is absent from
+// the in-flight set (or that carries no task ref) is cancelled; otherwise a live one
+// is adopted and a dead one is recovered via the ladder.
+func classifyExecutorReconcile(taskRef string, alive bool, inflight map[string]bool) reconcileAction {
+	if taskRef == "" || !inflight[taskRef] {
+		return reconcileCancel
+	}
+	if alive {
+		return reconcileAdopt
+	}
+	return reconcileRecover
+}
+
+// execReconcileDecision is one executor's classified outcome plus the durable facts
+// the enactment needs. Plan is set only for reconcileRecover (the D3 ladder verdict).
+type execReconcileDecision struct {
+	ExecutorID string
+	Action     reconcileAction
+	Alive      bool
+	PID        int
+	Record     *executor.Record
+	Plan       orchestrator.RecoveryPlan
+}
+
+// planExecutorReconcile is the PURE core: it maps each recovered executor × the
+// in-flight set → a decision (+ the D3 ladder plan for the recover branch), with NO
+// side effects. haveInflight=false means the center inflight query failed/absent — a
+// fail-SAFE degrade: never cancel (that could kill live work), fall back to liveness-
+// only (adopt the alive, leave the rest to the monitor's terminal finalize).
+func planExecutorReconcile(items []executor.Reconciled, inflight map[string]bool, haveInflight bool, planner *orchestrator.RecoveryPlanner) []execReconcileDecision {
+	out := make([]execReconcileDecision, 0, len(items))
+	for _, it := range items {
+		d := execReconcileDecision{ExecutorID: it.ExecutorID, Record: it.Record}
+		d.Alive = it.Completion.Kind == executor.OutcomeRunning && it.Record != nil && it.Record.PID > 0
+		if d.Alive {
+			d.PID = it.Record.PID
+		}
+		taskRef := taskRefOf(it.Snapshot)
+
+		if !haveInflight {
+			// Degraded: adopt the alive, skip everything else (no cancel).
+			if d.Alive {
+				d.Action = reconcileAdopt
+			} else {
+				d.Action = 0 // leave to monitor's terminal finalize
+			}
+			out = append(out, d)
+			continue
+		}
+
+		d.Action = classifyExecutorReconcile(taskRef, d.Alive, inflight)
+		if d.Action == reconcileRecover && planner != nil {
+			d.Plan = planner.Plan(it.ExecutorID, it.Record)
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// taskRefOf extracts the executor's task ref from its input.json snapshot (the same
+// id list_my_inflight_tasks returns; SpawnExecutor sets TaskRef == task_id). Empty
+// when the input is unreadable — such an executor is untracked and gets cancelled.
+func taskRefOf(snap executor.Snapshot) string {
+	if snap.Input == nil {
+		return ""
+	}
+	return snap.Input.Source.TaskRef
+}
+
+// reconcileExecutors scans the durable executor Records, plans each against the
+// inflight set, and enacts. Enactment is best-effort per executor: one failure logs
+// and moves on (a stuck reconcile must not wedge boot).
+func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngine) error {
+	items, err := ee.monitor.Recover(ctx)
+	if err != nil {
+		r.log("agent=%s self-reconcile recover: %v", r.cfg.AgentID, err)
+		return err
+	}
+	inflight, haveInflight := r.inflightTaskSet(ctx)
+	planner, perr := orchestrator.NewRecoveryPlanner(ee.fx.Layout(), nil)
+	if perr != nil {
+		return perr
+	}
+
+	decisions := planExecutorReconcile(items, inflight, haveInflight, planner)
+	var adopted, recovered, cancelled int
+	for _, d := range decisions {
+		switch d.Action {
+		case reconcileAdopt:
+			ee.addOrphan(d.ExecutorID, d.PID)
+			adopted++
+		case reconcileRecover:
+			r.enactRecover(ctx, ee, d)
+			recovered++
+		case reconcileCancel:
+			r.enactCancel(ctx, ee, d)
+			cancelled++
+		}
+	}
+	if adopted+recovered+cancelled > 0 {
+		r.log("agent=%s self-reconcile: scanned=%d adopted=%d recovered=%d cancelled=%d inflight_known=%t",
+			r.cfg.AgentID, len(items), adopted, recovered, cancelled, haveInflight)
+	}
+	return nil
+}
+
+// inflightTaskSet fetches this agent's UNFILTERED in-flight task set from the center
+// (D2). Returns (set, true) on success, (nil, false) on any failure/absent lister —
+// the fail-safe signal that reconcile must not cancel.
+func (r *LocalRuntime) inflightTaskSet(ctx context.Context) (map[string]bool, bool) {
+	lister, err := r.CenterInflightLister()
+	if err != nil || lister == nil {
+		if err != nil {
+			r.log("agent=%s self-reconcile inflight lister: %v", r.cfg.AgentID, err)
+		}
+		return nil, false
+	}
+	tasks, err := lister.ListMyInflightTasks(ctx, r.cfg.AgentID)
+	if err != nil {
+		r.log("agent=%s self-reconcile list_my_inflight_tasks: %v", r.cfg.AgentID, err)
+		return nil, false
+	}
+	set := make(map[string]bool, len(tasks))
+	for _, t := range tasks {
+		if t.TaskID != "" {
+			set[t.TaskID] = true
+		}
+	}
+	return set, true
+}
+
+// enactRecover brings a dead-but-should-continue executor back per the D3 ladder:
+// tier 1/2 relaunch the executor process in its surviving workspace (--resume argv
+// for tier 1, the persisted argv for tier 2) and re-adopt it; tier 3 (workspace
+// gone) cleans the residue so the agent's normal dispatch re-forks fresh.
+func (r *LocalRuntime) enactRecover(ctx context.Context, ee *ExecutorEngine, d execReconcileDecision) {
+	switch d.Plan.Action {
+	case orchestrator.RecoverResume, orchestrator.RecoverRerun:
+		r.relaunchExecutor(ee, d.ExecutorID, d.Plan.RunnerCmd)
+	default: // RecoverFresh (or no plan): clean up; normal dispatch re-forks fresh.
+		r.enactCancel(ctx, ee, d)
+	}
+}
+
+// relaunchExecutor re-forks the executor process for id with runnerCmd into its
+// EXISTING workspace and re-adopts it into the watchdog. Best-effort: a missing
+// cached config or spawn error logs and returns (the task stays in-flight, so the
+// normal dispatch loop can still re-fork it fresh).
+func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd []string) {
+	cfg, ok := r.cachedExecConfig()
+	if !ok || len(runnerCmd) == 0 {
+		r.log("agent=%s self-reconcile relaunch executor=%s skipped (config_cached=%t cmd_len=%d)",
+			r.cfg.AgentID, id, ok, len(runnerCmd))
+		return
+	}
+	home, _, _, err := r.agentPaths(r.cfg.AgentID)
+	if err != nil {
+		r.log("agent=%s self-reconcile relaunch executor=%s paths: %v", r.cfg.AgentID, id, err)
+		return
+	}
+	h, err := executor.NewSpawner().Spawn(executor.SpawnSpec{
+		BinaryPath: r.cfg.BinaryPath,
+		ExecutorID: id,
+		AgentRoot:  home,
+		RunnerCmd:  runnerCmd,
+		AgentEnv:   runtimeAgentEnv(cfg.AgentID, cfg.DisplayName, cfg.EnvVars),
+	})
+	if err != nil {
+		r.log("agent=%s self-reconcile relaunch executor=%s spawn: %v", r.cfg.AgentID, id, err)
+		return
+	}
+	ee.addOrphan(id, h.PID)
+	r.log("agent=%s self-reconcile relaunched executor=%s pid=%d", r.cfg.AgentID, id, h.PID)
+}
+
+// enactCancel stops a no-longer-ours executor and cleans its residue: kill the live
+// process, tear down its repo worktree (if repo-backed + a materializer is wired —
+// never the canonical source, design §10), and remove the executor dir so it is not
+// re-reconciled. Best-effort throughout.
+func (r *LocalRuntime) enactCancel(ctx context.Context, ee *ExecutorEngine, d execReconcileDecision) {
+	if d.Alive && d.PID > 0 {
+		// SIGKILL the whole process group (executors run in their own group, spawn.go).
+		_ = syscall.Kill(-d.PID, syscall.SIGKILL)
+	}
+	if d.Record != nil && d.Record.RepoKey != "" && r.cfg.Materializer != nil {
+		if ws, err := ee.fx.Layout().WorkspaceDir(d.ExecutorID); err == nil {
+			_ = materializerCleaner{m: r.cfg.Materializer}.RemoveWorktree(ctx, d.Record.RepoKey, d.Record.SourcePath, ws)
+		}
+	}
+	if dir, err := ee.fx.Layout().Dir(d.ExecutorID); err == nil {
+		_ = os.RemoveAll(dir)
+	}
+	ee.dropOrphan(d.ExecutorID)
+}
+
+// ---------------------------------------------------------------------------
+// Supervisor-session boot decision (ported from daemon boot_reconcile.go, §4.4:
+// "把 daemon 的探测→reattach/relaunch 决策搬进 runtime"). This is the PURE decision
+// over (local probe state × center desired record); the reattach/relaunch enactment
+// runs through the runtime's existing session primitives (Start / ReattachSupervisor
+// Session).
+// ---------------------------------------------------------------------------
+
+// bootActionKind is the supervisor-session boot action chosen by decideBootAction.
+type bootActionKind int
+
+const (
+	bootNoop bootActionKind = iota
+	// bootReattach — a live, reattachable supervisor the center still wants running:
+	// re-attach to it (never a fresh spawn, so no lost context).
+	bootReattach
+	// bootReapRelaunch — the supervisor is gone but the center wants it running: reap
+	// residue and relaunch (Mode-B self-heal; resume the prior session iff it had a
+	// completed turn).
+	bootReapRelaunch
+	// bootStopReap — a live supervisor the center no longer wants running (or an
+	// orphan): stop + reap.
+	bootStopReap
+	// bootReapOnly — the supervisor is gone and the center does not want it running:
+	// reap residue only.
+	bootReapOnly
+)
+
+// bootAction pairs the kind with whether a relaunch should nudge (drive the resumed
+// turn). Nudge is meaningful only for bootReapRelaunch.
+type bootAction struct {
+	Kind  bootActionKind
+	Nudge bool
+}
+
+// centerRecord is the center's desired view of this agent (nil ⇒ the center has no
+// record — an orphan). wantsRunning drives the decision.
+type centerRecord struct {
+	DesiredLifecycle string
+	HasActive        bool
+	ActiveTaskID     string
+}
+
+func (r *centerRecord) wantsRunning() bool {
+	return r != nil && r.DesiredLifecycle == "running"
+}
+
+// decideBootAction is the PURE supervisor-recovery decision (§4.4). It maps the
+// local supervisor probe state × the center's desired record to one action, with no
+// I/O — fully unit-testable over the probe × record grid.
+//
+//   - Reattachable: wantsRunning ⇒ reattach (never nudge); else stop+reap (desired-
+//     stopped wins, and an orphan reattachable session is stopped).
+//   - Unavailable: wantsRunning ⇒ reap+relaunch (Mode-B self-heal, nudge iff a task
+//     is active); else reap only.
+//   - anything else (unknown probe) ⇒ conservative noop.
+func decideBootAction(probe supervisormanager.ProbeState, rec *centerRecord) bootAction {
+	switch probe {
+	case supervisormanager.Reattachable:
+		if rec.wantsRunning() {
+			return bootAction{Kind: bootReattach}
+		}
+		return bootAction{Kind: bootStopReap}
+	case supervisormanager.Unavailable:
+		if rec.wantsRunning() {
+			return bootAction{Kind: bootReapRelaunch, Nudge: rec.HasActive}
+		}
+		return bootAction{Kind: bootReapOnly}
+	default:
+		return bootAction{Kind: bootNoop}
+	}
+}

@@ -384,11 +384,12 @@ type AgentController struct {
 	// Guarded by mu. See concurrent_exec.go (W3).
 	lastExecWatchdogAt time.Time
 
-	// recoveredExec records which agents have already had their executor crash
-	// recovery run in THIS daemon process (W3). Crash recovery (scan executors/ +
-	// re-adopt orphans) runs exactly ONCE per agent per process — at the first engine
-	// attach after a (re)start — because a later in-process engine rebuild's running
-	// executors are this process's own children, not orphans. Guarded by mu.
+	// recoveredExec records which agents have already had their executor boot reconcile
+	// run in THIS daemon process. It GATES the once-per-agent-per-process rt.Boot call
+	// in this transitional daemon: a relaunch builds a fresh runtime, so the runtime's
+	// OWN per-runtime guard (markRecoveredOnce) cannot yet stand alone — this daemon-
+	// level guard preserves the "防重扫 double-finalize" semantics until the runtime is
+	// durable (范围甲/D5), at which point the per-runtime guard takes over. Guarded by mu.
 	recoveredExec map[string]bool
 
 	// execConfig caches the concurrency-relevant reconcile config (CLI + the F3
@@ -666,11 +667,16 @@ func (c *AgentController) maybeAttachExecutorEngine(ctx context.Context, pl reco
 	c.mu.Unlock()
 	c.log("agent=%s concurrent-execution enabled (max=%d, executors=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedExecutors))
 
-	// First attach this process → recover orphans from a prior process (design §12).
-	// The recovery-once-per-agent-per-process guard (recoveredExec) stays DAEMON-level
-	// so a later in-process rebuild does NOT re-scan (would double-finalize/double-adopt).
+	// First attach this process → the runtime self-triggers its own boot reconcile
+	// (T848 §4.4 rt.Boot, superseding the old rt.Recover): it reconciles each on-disk
+	// executor against the center's inflight set (D2) and recovers the dead via the D3
+	// ladder, then reaps orphan worktrees. The daemon-level firstAttach guard still
+	// GATES the call in this transitional daemon (a relaunch builds a fresh runtime, so
+	// a per-runtime-only guard would re-scan). Boot ALSO self-guards (markRecoveredOnce)
+	// — the guard that takes over once the runtime is durable (范围甲/D5), preserving the
+	// once-per-agent-per-process "防重扫 double-finalize" semantics throughout.
 	if firstAttach {
-		_ = rt.Recover(ctx)
+		_ = rt.Boot(ctx)
 	}
 }
 

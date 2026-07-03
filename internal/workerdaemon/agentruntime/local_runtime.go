@@ -141,6 +141,51 @@ type LocalRuntime struct {
 	// forks for one agent cannot both pass the pool cap. SEPARATE from r.mu (the
 	// SessionState lock) — a different concern; never guards the same field.
 	forkMu sync.Mutex
+
+	// execConfig caches the concurrency ExecutorConfig this runtime last built its
+	// engine from (T848 §4.4 migration: was AgentController.execConfig, keyed by agent).
+	// A durable, per-runtime runtime now self-holds it so boot self-reconcile can
+	// re-derive the executor env / model routing for a recovery relaunch WITHOUT a
+	// daemon-side cache. Guarded by r.mu; execConfigSet gates "have we built one yet".
+	execConfig    ExecutorConfig
+	execConfigSet bool
+
+	// recoveredOnce is the per-runtime "executor crash-recovery has run once" guard
+	// (T848 §4.4 migration: was AgentController.recoveredExec[agentID]). A durable,
+	// per-runtime runtime owns its own guard so a second in-process engine rebuild
+	// does NOT re-scan the executor dirs and double-finalize an orphan already
+	// classified this process. Guarded by r.mu.
+	recoveredOnce bool
+}
+
+// cacheExecConfig records the ExecutorConfig this runtime's engine was built from
+// (T848 §4.4 migration). Boot self-reconcile reads it back to relaunch a recovered
+// executor with the same env / model routing. Idempotent; last write wins.
+func (r *LocalRuntime) cacheExecConfig(pl ExecutorConfig) {
+	r.mu.Lock()
+	r.execConfig = pl
+	r.execConfigSet = true
+	r.mu.Unlock()
+}
+
+// cachedExecConfig returns the cached ExecutorConfig and whether one was ever set.
+func (r *LocalRuntime) cachedExecConfig() (ExecutorConfig, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.execConfig, r.execConfigSet
+}
+
+// markRecoveredOnce sets the per-runtime recovery guard and reports whether THIS
+// call was the first (i.e. recovery should run now). Mirrors the daemon's
+// firstAttach := !c.recoveredExec[id]; c.recoveredExec[id] = true.
+func (r *LocalRuntime) markRecoveredOnce() (first bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.recoveredOnce {
+		return false
+	}
+	r.recoveredOnce = true
+	return true
 }
 
 // StateMu is the per-agent SessionState lock the daemon uses during the transitional
