@@ -107,135 +107,18 @@ func (f *autoFixture) decisionNode(t *testing.T) (pm.PlanID, pm.TaskID, pm.TaskI
 	return planID, dec, down
 }
 
-// addFailureFinding injects a kind=failure finding ON the given task (B3's interim
-// open-review-comment signal), bypassing admission rules via the repo directly.
-func (f *autoFixture) addFailureFinding(t *testing.T, planID pm.PlanID, taskID pm.TaskID, pid pm.ProjectID) {
-	t.Helper()
-	fnd, err := pm.NewPlanFinding(pm.NewPlanFindingInput{
-		ID: pm.PlanFindingID("f-" + string(taskID)), PlanID: planID, TaskID: taskID, ProjectID: pid,
-		AuthorRef: "user:rev", Kind: pm.FindingFailure, Content: "review objection", CreatedAt: f.clk.Now(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := f.svc.findings.Save(f.ctx, fnd); err != nil {
-		t.Fatal(err)
-	}
-}
+// T810 ⑤: the B3 auto-decision (ComputeAutoDecision) was DELETED — the gate was removed
+// in v2.28.0 so it always deferred, and the orchestration engine now owns routing. The
+// tests below cover what remains: RecordDecisionOutcome (the engine's decision input)
+// and NotifyDecisionDeferred (the deferral @mention for a decision completed without a
+// manual outcome — now self-determining "is a decision node" via pm.IsDecisionNode).
 
-func (f *autoFixture) projectOf(t *testing.T, tid pm.TaskID) pm.ProjectID {
-	t.Helper()
-	tk, err := f.tasks.FindByID(f.ctx, tid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return tk.ProjectID()
-}
-
-// With branch/base removed from Task, evaluateGate always returns GateUnknown,
-// so all gate-dependent auto-decisions now defer to a human.
-
-func TestComputeAutoDecision_AlwaysDefersWithoutBranchBase(t *testing.T) {
-	f := newAutoFixture(t)
-	_, dec, _ := f.decisionNode(t)
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ad.IsDecision {
-		t.Fatalf("got %+v; want IsDecision", ad)
-	}
-	// Gate always returns unknown (no branch/base on Task) → defers.
-	if ad.Decided {
-		t.Fatalf("got %+v; want !Decided (gate always unknown without branch/base)", ad)
-	}
-	if ad.Gate != pm.GateUnknown {
-		t.Fatalf("got gate=%v; want unknown", ad.Gate)
-	}
-}
-
-func TestComputeAutoDecision_GateUnknown_Defers(t *testing.T) {
-	f := newAutoFixture(t)
-	_, dec, _ := f.decisionNode(t)
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ad.IsDecision || ad.Decided {
-		t.Fatalf("got %+v; want IsDecision && !Decided (unknown gate → human)", ad)
-	}
-}
-
-func TestComputeAutoDecision_NoGateWired_Defers(t *testing.T) {
-	f := newAutoFixture(t) // gate always GateUnknown
-	_, dec, _ := f.decisionNode(t)
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ad.IsDecision || ad.Decided || ad.Gate != pm.GateUnknown {
-		t.Fatalf("got %+v; want IsDecision && !Decided && gate unknown (nil gate)", ad)
-	}
-}
-
-func TestComputeAutoDecision_OrdinaryNode_NoOp(t *testing.T) {
-	f := newAutoFixture(t)
-	_, _, down := f.decisionNode(t) // downstream node has no routing OUT-edge
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, down)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ad.IsDecision {
-		t.Fatalf("downstream/ordinary node must not be a decision: %+v", ad)
-	}
-}
-
-func TestComputeAutoDecision_TaskNotInPlan_NoOp(t *testing.T) {
-	f := newAutoFixture(t)
-	pid, err := f.svc.CreateProject(f.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P2", CreatedBy: "user:pd"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	tid, err := f.svc.CreateTask(f.ctx, CreateTaskCommand{ProjectID: pid, Title: "loose", CreatedBy: "user:pd"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, tid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ad.IsDecision {
-		t.Fatalf("a task with no plan cannot be a decision node: %+v", ad)
-	}
-}
-
-func TestNotifyDecisionDeferred_PingsHuman(t *testing.T) {
-	f := newAutoFixture(t)
-	_, dec, _ := f.decisionNode(t)
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := f.svc.NotifyDecisionDeferred(f.ctx, dec, ad); err != nil {
-		t.Fatal(err)
-	}
-	if f.disp.posts != 1 {
-		t.Fatalf("expected 1 deferral @mention, got %d", f.disp.posts)
-	}
-	if f.disp.lastTarget != "user:pd" { // unassigned decision → plan creator
-		t.Fatalf("deferral target = %q, want user:pd (plan creator fallback)", f.disp.lastTarget)
-	}
-}
-
-// TestAutoDecision_ManualRecordRoundTrip exercises the handler path where a human
-// manually sets a decision outcome (since auto-decisions now always defer without
-// branch/base on the Task).
-func TestAutoDecision_ManualRecordRoundTrip(t *testing.T) {
+// TestRecordDecisionOutcome_RoundTrip: a human records a decision's outcome; it is
+// persisted as the decision-routing input driveGraphDecisions consumes.
+func TestRecordDecisionOutcome_RoundTrip(t *testing.T) {
 	f := newAutoFixture(t)
 	planID, dec, _ := f.decisionNode(t)
-
-	// The auto-decision defers (no branch/base → GateUnknown), so record manually.
-	if err := f.svc.SetDecisionOutcome(f.ctx, dec, pm.OutcomePass, "user:pd"); err != nil {
+	if err := f.svc.RecordDecisionOutcome(f.ctx, dec, pm.OutcomePass, "user:pd"); err != nil {
 		t.Fatal(err)
 	}
 	outs, err := f.svc.plans.ListDecisionOutcomes(f.ctx, planID)
@@ -253,21 +136,31 @@ func TestAutoDecision_ManualRecordRoundTrip(t *testing.T) {
 	}
 }
 
-// An UNDECIDED (deferred) decision triggers a deferral @mention.
-func TestNotifyDecisionDeferred_PostsWhenUndecided(t *testing.T) {
+// TestNotifyDecisionDeferred_PingsHuman: a DECISION node completed without a manual
+// outcome @mentions a human (the plan creator, absent an assignee).
+func TestNotifyDecisionDeferred_PingsHuman(t *testing.T) {
 	f := newAutoFixture(t)
 	_, dec, _ := f.decisionNode(t)
-	ad, err := f.svc.ComputeAutoDecision(f.ctx, dec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ad.Decided {
-		t.Fatalf("precondition: expected an undecided auto-decision (gate=unknown), got %+v", ad)
-	}
-	if err := f.svc.NotifyDecisionDeferred(f.ctx, dec, ad); err != nil {
+	if err := f.svc.NotifyDecisionDeferred(f.ctx, dec); err != nil {
 		t.Fatal(err)
 	}
 	if f.disp.posts != 1 {
-		t.Fatalf("an undecided decision must @mention a human, got %d posts", f.disp.posts)
+		t.Fatalf("expected 1 deferral @mention, got %d", f.disp.posts)
+	}
+	if f.disp.lastTarget != "user:pd" { // unassigned decision → plan creator
+		t.Fatalf("deferral target = %q, want user:pd (plan creator fallback)", f.disp.lastTarget)
+	}
+}
+
+// TestNotifyDecisionDeferred_OrdinaryNode_NoOp: a NON-decision node does not @mention
+// (NotifyDecisionDeferred now self-determines the decision-ness via pm.IsDecisionNode).
+func TestNotifyDecisionDeferred_OrdinaryNode_NoOp(t *testing.T) {
+	f := newAutoFixture(t)
+	_, _, down := f.decisionNode(t) // downstream node has no routing OUT-edge → not a decision
+	if err := f.svc.NotifyDecisionDeferred(f.ctx, down); err != nil {
+		t.Fatal(err)
+	}
+	if f.disp.posts != 0 {
+		t.Fatalf("an ordinary node must NOT @mention, got %d posts", f.disp.posts)
 	}
 }

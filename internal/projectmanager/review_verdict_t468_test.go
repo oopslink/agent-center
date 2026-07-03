@@ -2,28 +2,9 @@ package projectmanager
 
 import "testing"
 
-// T468: the pure verdict-driven B3 rule (applied on a green gate).
-func TestAutoDecideFromVerdict(t *testing.T) {
-	cases := []struct {
-		verdict  string
-		blocking bool
-		outcome  string
-		decided  bool
-	}{
-		{ReviewPass, false, OutcomePass, true},     // non-blocking pass → pass (the nit-no-longer-wedges fix)
-		{ReviewPass, true, OutcomeReject, true},    // blocking pass → reject
-		{ReviewReject, false, OutcomeReject, true}, // reject → reject
-		{ReviewReject, true, OutcomeReject, true},  // reject (blocking) → reject
-		{"", false, "", false},                     // no verdict → no decision
-		{"garbage", false, "", false},              // unknown label → no decision
-	}
-	for _, c := range cases {
-		o, d := AutoDecideFromVerdict(c.verdict, c.blocking)
-		if o != c.outcome || d != c.decided {
-			t.Errorf("AutoDecideFromVerdict(%q,%t) = (%q,%t); want (%q,%t)", c.verdict, c.blocking, o, d, c.outcome, c.decided)
-		}
-	}
-}
+// T810 ⑤: TestAutoDecideFromVerdict was removed — the verdict-driven B3 rule
+// (AutoDecideFromVerdict) was deleted (B3 auto-decision is gone; the engine owns
+// routing). The verdict RECORDING (RecordReviewVerdict) is unaffected and still tested.
 
 func TestValidReviewVerdict(t *testing.T) {
 	for v, want := range map[string]bool{"pass": true, "reject": true, "": false, "approve": false} {

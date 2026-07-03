@@ -39,7 +39,7 @@ func taskIDFromRef(ref string) (string, bool) {
 //   - list_my_tasks returns only runnable tasks (ListRunnableAgentTasks), so an agent
 //     never treats a dependency-blocked task as work it can pull.
 //
-// The dependency check reuses the engine's own readiness derivation (ComputePlanView
+// The dependency check reuses the engine's own readiness derivation (DerivePlanView
 // via planNodeStatus) so the gate and the dispatcher agree on "deps satisfied" for
 // BOTH hard-AND (seq) and conditional edges — one source of truth, no drift.
 //

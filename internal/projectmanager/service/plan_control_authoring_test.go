@@ -90,26 +90,25 @@ func TestAddPlanControlEdge_AuthorsCyclePlan_ViaAgentTools(t *testing.T) {
 	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.SetDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
+	if err := h.svc.RecordDecisionOutcome(ctx, dec, "reject", "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	h.setTaskStatus(t, dec, pm.TaskCompleted)
-	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
-		t.Fatal(err)
-	}
-	p, _ = h.plans.FindByID(ctx, planID)
-	if p.Status() == pm.PlanDone {
-		t.Fatal("plan done on reject — the loopback pass branch (Integrate) should stay gated")
-	}
-	if err := h.svc.applyLoopbacks(ctx, p, dec); err != nil {
-		t.Fatalf("applyLoopbacks: %v", err)
-	}
+	// T805 ③: the loopback is now driven by the engine inside this advance
+	// (driveGraphDecisions), so the reject re-dispatches Dev in the SAME pass — no
+	// separate applyLoopbacks step (gated off for graphed plans).
 	dLoop, err := h.svc.AdvancePlan(ctx, planID, "user:a")
 	if err != nil {
-		t.Fatalf("AdvancePlan loopback: %v", err)
+		t.Fatalf("AdvancePlan reject/loopback: %v", err)
 	}
 	if !graphHasTaskID(dLoop, dev) {
 		t.Fatalf("after reject, dispatch = %v, want Dev re-dispatched (loopback)", dLoop)
+	}
+	if graphHasTaskID(dLoop, integ) {
+		t.Fatalf("Integrate released on reject: %v, must stay gated", dLoop)
+	}
+	if p, _ := h.plans.FindByID(ctx, planID); p.Status() == pm.PlanDone {
+		t.Fatal("plan done on reject — the loopback pass branch (Integrate) should stay gated")
 	}
 	_ = integ
 }

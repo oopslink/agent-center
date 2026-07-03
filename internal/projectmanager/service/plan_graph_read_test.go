@@ -173,7 +173,7 @@ func TestGetPlanGraph_StartEndAnchorsWired(t *testing.T) {
 
 // TestGetPlanGraph_NoGraph_FallbackSignal is the NON-BREAKING guard: a plan with NO
 // graph (never started — no graph_id) returns ErrPlanHasNoGraph, which the handler
-// maps to has_graph:false so the FE renders the legacy ComputePlanView DAG. Zero
+// maps to has_graph:false so the FE renders the legacy DerivePlanView DAG. Zero
 // regression for pre-T768 / draft plans.
 func TestGetPlanGraph_NoGraph_FallbackSignal(t *testing.T) {
 	h, _ := planGraphSetup(t)
@@ -188,20 +188,6 @@ func TestGetPlanGraph_NoGraph_FallbackSignal(t *testing.T) {
 	}
 }
 
-// TestGetPlanGraph_EngineUnwired_FallbackSignal proves the fallback also holds when
-// the orchestration engine is UNWIRED (Deps.Orch nil) — even a STARTED plan has no
-// graph_id, so GetPlanGraph returns ErrPlanHasNoGraph and the legacy DAG is used.
-func TestGetPlanGraph_EngineUnwired_FallbackSignal(t *testing.T) {
-	h := planAdvanceSetup(t) // no Orch wired
-	ctx := h.ctx
-	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
-	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "unwired", CreatedBy: "user:a"})
-	h.drain(t)
-	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
-	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
-		t.Fatalf("StartPlan: %v", err)
-	}
-	if _, err := h.svc.GetPlanGraph(ctx, planID); !errors.Is(err, ErrPlanHasNoGraph) {
-		t.Fatalf("GetPlanGraph with engine unwired = %v, want ErrPlanHasNoGraph", err)
-	}
-}
+// T810 ⑤: TestGetPlanGraph_EngineUnwired_FallbackSignal was removed — the engine is now
+// MANDATORY (New auto-wires it), so a STARTED plan always has a graph. GetPlanGraph still
+// returns ErrPlanHasNoGraph for a DRAFT (never-started) plan; that is covered elsewhere.

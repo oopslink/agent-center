@@ -610,7 +610,11 @@ func (s *Service) planDetail(ctx context.Context, p *pm.Plan) (*PlanDetail, erro
 	if err != nil {
 		return nil, err
 	}
-	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.ComputePlanView(tasks, edges, records, outcomes, paused)}, nil
+	// T807 ④: read the plan view off DerivePlanView (the graph-era read-view derivation)
+	// — the reader path no longer references DerivePlanView. Also covers the runnable
+	// gate (planNodeStatus reads this detail's View). Byte-for-byte with the prior
+	// DerivePlanView (same pure algorithm), over LIVE task/dep/outcome/dispatch state.
+	return &PlanDetail{Plan: p, Tasks: tasks, View: pm.DerivePlanView(tasks, edges, records, outcomes, paused)}, nil
 }
 
 // pausedSet queries the optional PausedTaskPort (T53) for the given tasks' ids,
@@ -654,7 +658,7 @@ func (s *Service) pausedSet(ctx context.Context, tasks []*pm.Task) (map[pm.TaskI
 //  3. plans.ListDependenciesByPlans   → ALL plans' DAG edges in one IN(...) query.
 //  4. plans.ListDispatchRecordsByPlans → ALL plans' dispatch records in one query.
 //
-// Then each plan's view is derived purely in-memory via ComputePlanView over its
+// Then each plan's view is derived purely in-memory via DerivePlanView over its
 // grouped tasks/edges/records — no per-plan repo round-trip (no 3×N N+1). The
 // project-wide task list is ordered (created_at, id) identically to ListByPlan, so
 // each plan's grouped task slice — and therefore its derived node order — matches
@@ -859,7 +863,9 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 	out := make([]*PlanDetail, 0, len(plans))
 	for _, p := range plans {
 		tasks := tasksByPlan[p.ID()]
-		view := pm.ComputePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused)
+		// T807 ④: list enrich reads the plan view off DerivePlanView (no DerivePlanView
+		// in the reader path); byte-for-byte with the prior derivation.
+		view := pm.DerivePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused)
 		detail := &PlanDetail{Plan: p, Tasks: tasks, View: view}
 		// v2.18.3 BE-2: the Work Board pool card shows the starved badge → fill the
 		// starved set for the builtin pool plan (a no-op for every structured plan, and
