@@ -93,9 +93,9 @@ func TestAPIError_SchedulesResumeAndOnTickResumes(t *testing.T) {
 	// Work NOT abandoned; resume scheduled at now+base (2s) on the FIRST retry.
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask := ma.currentTaskID
-	gotResumeAt := ma.rateLimitResumeAt
-	gotRetries := ma.apiErrorRetries
+	gotTask := ma.state.CurrentTaskID
+	gotResumeAt := ma.state.RateLimitResumeAt
+	gotRetries := ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if gotTask != "wi-1" {
 		t.Fatalf("transient-error turn must PRESERVE currentTaskID for resume, got %q", gotTask)
@@ -121,7 +121,7 @@ func TestAPIError_SchedulesResumeAndOnTickResumes(t *testing.T) {
 		t.Fatalf("OnTick must inject the resume nudge once after the backoff, got %+v", msgs)
 	}
 	c.mu.Lock()
-	cleared := c.agents["agent-1"].rateLimitResumeAt.IsZero()
+	cleared := c.agents["agent-1"].state.RateLimitResumeAt.IsZero()
 	c.mu.Unlock()
 	if !cleared {
 		t.Fatalf("resume slot must be consumed after resume")
@@ -152,7 +152,7 @@ func TestAPIError_BoundedRetriesThenFails(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		fs.emit(errEv)
 		c.mu.Lock()
-		task, retries := c.agents["agent-1"].currentTaskID, c.agents["agent-1"].apiErrorRetries
+		task, retries := c.agents["agent-1"].state.CurrentTaskID, c.agents["agent-1"].state.APIErrorRetries
 		c.mu.Unlock()
 		if task != "wi-1" {
 			t.Fatalf("retry %d: work must stay in-flight, got %q", i, task)
@@ -166,7 +166,7 @@ func TestAPIError_BoundedRetriesThenFails(t *testing.T) {
 	fs.emit(errEv)
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask, gotResumeAt, gotRetries := ma.currentTaskID, ma.rateLimitResumeAt, ma.apiErrorRetries
+	gotTask, gotResumeAt, gotRetries := ma.state.CurrentTaskID, ma.state.RateLimitResumeAt, ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if gotTask != "" {
 		t.Fatalf("budget spent → surfaceTurnFailure must clear currentTaskID, got %q", gotTask)
@@ -197,7 +197,7 @@ func TestAPIError_CleanTurnResetsRetryBudget(t *testing.T) {
 
 	fs.emit(claudestream.StreamEvent{Type: "result", IsError: true, Result: "API Error: Connection closed mid-response."})
 	c.mu.Lock()
-	mid := c.agents["agent-1"].apiErrorRetries
+	mid := c.agents["agent-1"].state.APIErrorRetries
 	c.mu.Unlock()
 	if mid != 1 {
 		t.Fatalf("transient error must increment retries, got %d", mid)
@@ -206,7 +206,7 @@ func TestAPIError_CleanTurnResetsRetryBudget(t *testing.T) {
 	// A clean turn-end (the resume recovered) must zero the budget.
 	fs.emit(claudestream.StreamEvent{Type: "result", IsError: false, Result: "done", Subtype: "success"})
 	c.mu.Lock()
-	after := c.agents["agent-1"].apiErrorRetries
+	after := c.agents["agent-1"].state.APIErrorRetries
 	c.mu.Unlock()
 	if after != 0 {
 		t.Fatalf("clean turn-end must reset apiErrorRetries, got %d", after)
@@ -234,7 +234,7 @@ func TestAPIError_OrdinaryErrorStillFails(t *testing.T) {
 
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask, gotResumeAt, gotRetries := ma.currentTaskID, ma.rateLimitResumeAt, ma.apiErrorRetries
+	gotTask, gotResumeAt, gotRetries := ma.state.CurrentTaskID, ma.state.RateLimitResumeAt, ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if gotTask != "" {
 		t.Fatalf("an ordinary is_error turn must clear currentTaskID, got %q", gotTask)
@@ -264,7 +264,7 @@ func TestAPIError_NoResumeWhenNoInflightWork(t *testing.T) {
 
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	resumeAt, retries := ma.rateLimitResumeAt, ma.apiErrorRetries
+	resumeAt, retries := ma.state.RateLimitResumeAt, ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if !resumeAt.IsZero() {
 		t.Fatalf("no in-flight work → must NOT schedule a resume, got %s", resumeAt)
@@ -296,7 +296,7 @@ func TestAPIError_RateLimitTakesPrecedence(t *testing.T) {
 
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask, gotResumeAt, gotRetries := ma.currentTaskID, ma.rateLimitResumeAt, ma.apiErrorRetries
+	gotTask, gotResumeAt, gotRetries := ma.state.CurrentTaskID, ma.state.RateLimitResumeAt, ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if gotTask != "wi-1" {
 		t.Fatalf("rate-limit resume must preserve currentTaskID, got %q", gotTask)

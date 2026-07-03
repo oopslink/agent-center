@@ -55,13 +55,13 @@ func (c *AgentController) drainLeaseRenewals(ctx context.Context, now time.Time)
 		// detach is in progress → its lease should be allowed to lapse) and currently
 		// has a task injected. currentTaskID empty → idle/converse-only session, no
 		// task lease to keep alive.
-		if ma == nil || ma.session == nil || ma.expectedStop || ma.detaching {
+		if ma == nil || ma.state == nil || ma.state.Session == nil || ma.state.ExpectedStop || ma.state.Detaching {
 			continue
 		}
-		if ma.currentTaskID == "" {
+		if ma.state.CurrentTaskID == "" {
 			continue
 		}
-		targets = append(targets, leaseRenewTarget{agentID: id, taskID: ma.currentTaskID})
+		targets = append(targets, leaseRenewTarget{agentID: id, taskID: ma.state.CurrentTaskID})
 	}
 	c.mu.Unlock()
 

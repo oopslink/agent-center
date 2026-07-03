@@ -402,11 +402,11 @@ func (c *AgentController) launchExecutor(ctx context.Context, agentID, taskID st
 
 	// Mirror the inject path's work-state bookkeeping (L2 error surface / self-heal).
 	c.mu.Lock()
-	if cur := c.agents[agentID]; cur != nil {
-		cur.hadWork = true
+	if cur := c.agents[agentID]; cur != nil && cur.state != nil {
+		cur.state.HadWork = true
 		if taskID != "" {
-			cur.currentTaskID = taskID
-			cur.currentConversationID = ""
+			cur.state.CurrentTaskID = taskID
+			cur.state.CurrentConversationID = ""
 		}
 	}
 	c.mu.Unlock()

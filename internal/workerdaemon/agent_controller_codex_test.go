@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 )
 
 // fakeCodexSess is the TEST-ONLY agentSession for the cli=codex path: it records
@@ -14,7 +15,7 @@ import (
 // would fire — without spawning codex. Mirrors fakeSession but holds a
 // CodexSessionConfig.
 type fakeCodexSess struct {
-	cfg CodexSessionConfig
+	cfg agentruntime.CodexSpec
 
 	mu       sync.Mutex
 	injected []string
@@ -76,7 +77,7 @@ type recordingCodexStarter struct {
 	nextErr  error
 }
 
-func (s *recordingCodexStarter) start(_ context.Context, cfg CodexSessionConfig) (agentSession, error) {
+func (s *recordingCodexStarter) start(_ context.Context, cfg agentruntime.CodexSpec) (agentSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.nextErr != nil {

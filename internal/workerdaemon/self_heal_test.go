@@ -138,7 +138,7 @@ func TestSelfHeal_OnTickRelaunchesAfterBackoff(t *testing.T) {
 	c.mu.Lock()
 	reboundWI := ""
 	if ma := c.agents["ag-1"]; ma != nil {
-		reboundWI = ma.currentTaskID
+		reboundWI = ma.state.CurrentTaskID
 	}
 	c.mu.Unlock()
 	if reboundWI != "wi-7" {
@@ -245,17 +245,11 @@ func TestSelfHeal_RelaunchFailCircuitBreaks(t *testing.T) {
 	// ticks until the entry latches failed (bounded — must terminate, not limbo).
 	prevCount := 0
 	for i := 0; i < 20; i++ {
-		c.mu.Lock()
-		e := c.selfHeal["ag-1"]
-		if e != nil && e.failed {
-			c.mu.Unlock()
+		ccount, cfailed, _ := c.selfHealEntryForTest("ag-1")
+		if cfailed {
 			break
 		}
-		prevCount = 0
-		if e != nil {
-			prevCount = e.crashCount
-		}
-		c.mu.Unlock()
+		prevCount = ccount
 
 		rs.mu.Lock()
 		rs.nextErr = errSelfHealRelaunchTest // the relaunch fails to come up
@@ -265,22 +259,13 @@ func TestSelfHeal_RelaunchFailCircuitBreaks(t *testing.T) {
 		c.OnTick(context.Background())
 
 		// Each failed relaunch must advance the count (no silent-limbo / no stall).
-		c.mu.Lock()
-		e = c.selfHeal["ag-1"]
-		newCount := 0
-		if e != nil {
-			newCount = e.crashCount
-		}
-		c.mu.Unlock()
-		if !(e != nil && e.failed) && newCount <= prevCount {
+		newCount, nfailed, _ := c.selfHealEntryForTest("ag-1")
+		if !nfailed && newCount <= prevCount {
 			t.Fatalf("relaunch-fail must advance the crash count toward the cap (was %d, now %d) — not silent-limbo", prevCount, newCount)
 		}
 	}
 
-	c.mu.Lock()
-	e := c.selfHeal["ag-1"]
-	failed := e != nil && e.failed
-	c.mu.Unlock()
+	_, failed, _ := c.selfHealEntryForTest("ag-1")
 	if !failed {
 		t.Fatal("repeated relaunch-fails must circuit-break to terminal failed (bounded, not limbo)")
 	}
@@ -352,10 +337,7 @@ func TestSelfHeal_CircuitBreaksAndClearUnlatches(t *testing.T) {
 			t.Fatalf("crash #%d: report state = %q, want %q", i+1, state, want)
 		}
 	}
-	c.mu.Lock()
-	e := c.selfHeal["ag-1"]
-	failed := e != nil && e.failed
-	c.mu.Unlock()
+	_, failed, _ := c.selfHealEntryForTest("ag-1")
 	if !failed {
 		t.Fatal("6 consecutive crashes must circuit-break to terminal failed")
 	}
@@ -369,9 +351,7 @@ func TestSelfHeal_CircuitBreaksAndClearUnlatches(t *testing.T) {
 
 	// clearSelfHeal (command-driven reset/restart) un-latches it.
 	c.clearSelfHeal("ag-1")
-	c.mu.Lock()
-	_, present := c.selfHeal["ag-1"]
-	c.mu.Unlock()
+	_, _, present := c.selfHealEntryForTest("ag-1")
 	if present {
 		t.Fatal("clearSelfHeal must drop the entry (un-latch terminal-failed)")
 	}

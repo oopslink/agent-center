@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 )
 
@@ -102,7 +103,7 @@ func dirGone(t *testing.T, fx *executor.FileExchange, id string) bool {
 func TestRecoverExecutors_AdoptsRunningFinalizesTerminal(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-rec")
 	c.mu.Lock()
-	c.agents["agent-rec"] = &managedAgent{agentID: "agent-rec", exec: ee}
+	c.agents["agent-rec"] = &managedAgent{agentID: "agent-rec", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 
 	fx, tr := seedExchange(t, home)
@@ -147,7 +148,7 @@ func TestRecoverExecutors_AdoptsRunningFinalizesTerminal(t *testing.T) {
 func TestExecutorWatchdog_PollsAdoptedOrphanToCompletion(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-wd")
 	c.mu.Lock()
-	c.agents["agent-wd"] = &managedAgent{agentID: "agent-wd", exec: ee}
+	c.agents["agent-wd"] = &managedAgent{agentID: "agent-wd", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 
 	fx, tr := seedExchange(t, home)
@@ -196,7 +197,7 @@ func TestMaybeAttach_RecoversOnlyOnFirstAttach(t *testing.T) {
 	pl := reconcilePayload{AgentID: "agent-once", MaxConcurrentTasks: 2, AllowedExecutors: testExecs, AllowedModels: []string{"m"}, DefaultExecutorModel: "d"}
 	// First attach → recovery runs → the terminal orphan is finalized (dir gone).
 	c.mu.Lock()
-	c.agents["agent-once"] = &managedAgent{agentID: "agent-once"}
+	c.agents["agent-once"] = &managedAgent{agentID: "agent-once", state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 	c.maybeAttachExecutorEngine(context.Background(), pl)
 	if !dirGone(t, fx, "exec-ddd444") {

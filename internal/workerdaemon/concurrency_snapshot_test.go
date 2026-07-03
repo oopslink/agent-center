@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/concurrency"
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
@@ -96,7 +97,7 @@ func TestAgentController_SnapshotConcurrency_PerAgent(t *testing.T) {
 
 	// Attach the engine to a managed agent (mirrors maybeAttachExecutorEngine).
 	c.mu.Lock()
-	c.agents["agent-agg"] = &managedAgent{agentID: "agent-agg", exec: ee}
+	c.agents["agent-agg"] = &managedAgent{agentID: "agent-agg", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 
 	all := c.SnapshotConcurrency()

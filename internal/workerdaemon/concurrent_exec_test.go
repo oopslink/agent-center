@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/modelrouter"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
@@ -91,7 +92,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 	// Reserve managedAgents the way startSession does (attach targets an existing entry).
 	for _, id := range []string{"a-on", "a-codex", "a-off"} {
 		c.mu.Lock()
-		c.agents[id] = &managedAgent{agentID: id}
+		c.agents[id] = &managedAgent{agentID: id, state: &agentruntime.SessionState{}}
 		c.mu.Unlock()
 	}
 
@@ -125,7 +126,7 @@ func TestMaybeAttachExecutorEngine(t *testing.T) {
 
 	// Path-resolution failure (empty home base) → logs + falls back, no attach/panic.
 	c.mu.Lock()
-	c.agents["a-badpath"] = &managedAgent{agentID: "a-badpath"}
+	c.agents["a-badpath"] = &managedAgent{agentID: "a-badpath", state: &agentruntime.SessionState{}}
 	savedBase := c.cfg.AgentHomeBase
 	c.cfg.AgentHomeBase = ""
 	c.mu.Unlock()
@@ -192,7 +193,7 @@ func TestBuildExecutorEngine_ForksAndDrainFreesSlot(t *testing.T) {
 func TestWorkViaExecutor_ForksAndRegistersRouting(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-y")
 	c.mu.Lock()
-	c.agents["agent-y"] = &managedAgent{agentID: "agent-y", exec: ee}
+	c.agents["agent-y"] = &managedAgent{agentID: "agent-y", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 
 	err := c.workViaExecutor(context.Background(), workPayload{
@@ -216,7 +217,7 @@ func TestWorkViaExecutor_ForksAndRegistersRouting(t *testing.T) {
 	}
 	// currentTaskID bookkeeping was set (mirrors the inject path).
 	c.mu.Lock()
-	got := c.agents["agent-y"].currentTaskID
+	got := c.agents["agent-y"].state.CurrentTaskID
 	c.mu.Unlock()
 	if got != "t-1" {
 		t.Errorf("currentTaskID = %q, want t-1", got)
@@ -288,7 +289,7 @@ func TestReattachExecutorEngineFromCache(t *testing.T) {
 
 	// 1) First reconcile attaches the engine AND caches the config.
 	c.mu.Lock()
-	c.agents["a-cc"] = &managedAgent{agentID: "a-cc"}
+	c.agents["a-cc"] = &managedAgent{agentID: "a-cc", state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 	pl := reconcilePayload{AgentID: "a-cc", MaxConcurrentTasks: 2, AllowedExecutors: testExecs, AllowedModels: []string{"m"}}
 	c.maybeAttachExecutorEngine(context.Background(), pl)
@@ -299,7 +300,7 @@ func TestReattachExecutorEngineFromCache(t *testing.T) {
 	// 2) Simulate a relaunch: the crash deletes the managedAgent; bootReapRelaunch's
 	// startSession creates a FRESH one with exec==nil. (No reconcile command arrives.)
 	c.mu.Lock()
-	c.agents["a-cc"] = &managedAgent{agentID: "a-cc"} // fresh, exec=nil
+	c.agents["a-cc"] = &managedAgent{agentID: "a-cc", state: &agentruntime.SessionState{}} // fresh, exec=nil
 	c.mu.Unlock()
 
 	// 3) The relaunch path re-attaches from the cache → engine back, concurrency kept.
@@ -319,7 +320,7 @@ func TestReattachExecutorEngineFromCache_NoOpForDefaultAgent(t *testing.T) {
 	base := t.TempDir()
 	c, _, _ := newTestController(t, base)
 	c.mu.Lock()
-	c.agents["a-default"] = &managedAgent{agentID: "a-default"}
+	c.agents["a-default"] = &managedAgent{agentID: "a-default", state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 
 	// No cached config → no-op.

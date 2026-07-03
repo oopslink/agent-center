@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
 )
@@ -126,7 +127,7 @@ func TestBuildWorkItem(t *testing.T) {
 func TestForkOnWorkAvailable_AdmitsThenForks(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-fork")
 	c.mu.Lock()
-	c.agents["agent-fork"] = &managedAgent{agentID: "agent-fork", exec: ee}
+	c.agents["agent-fork"] = &managedAgent{agentID: "agent-fork", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 	sc := &scriptedToolCaller{getTaskBody: map[string]any{
 		"id": "task-9", "title": "Fix the bug", "description": "do the fix", "status": "open", "model": "claude-haiku",
@@ -146,7 +147,7 @@ func TestForkOnWorkAvailable_AdmitsThenForks(t *testing.T) {
 		t.Fatalf("expected one problem bound to task-9, got %+v", probs)
 	}
 	c.mu.Lock()
-	got := c.agents["agent-fork"].currentTaskID
+	got := c.agents["agent-fork"].state.CurrentTaskID
 	c.mu.Unlock()
 	if got != "task-9" {
 		t.Errorf("currentTaskID = %q, want task-9", got)
@@ -158,7 +159,7 @@ func TestForkOnWorkAvailable_AdmitsThenForks(t *testing.T) {
 func TestForkOnWorkAvailable_StartTaskDeclinedSkipsFork(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-cap")
 	c.mu.Lock()
-	c.agents["agent-cap"] = &managedAgent{agentID: "agent-cap", exec: ee}
+	c.agents["agent-cap"] = &managedAgent{agentID: "agent-cap", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 	sc := &scriptedToolCaller{
 		getTaskBody: map[string]any{"id": "task-2", "title": "t", "status": "open"},
@@ -175,7 +176,7 @@ func TestForkOnWorkAvailable_StartTaskDeclinedSkipsFork(t *testing.T) {
 		t.Errorf("declined admission must NOT fork, got problems %+v", probs)
 	}
 	c.mu.Lock()
-	got := c.agents["agent-cap"].currentTaskID
+	got := c.agents["agent-cap"].state.CurrentTaskID
 	c.mu.Unlock()
 	if got != "" {
 		t.Errorf("currentTaskID = %q, want empty (no fork)", got)
@@ -187,7 +188,7 @@ func TestForkOnWorkAvailable_StartTaskDeclinedSkipsFork(t *testing.T) {
 func TestForkOnWorkAvailable_AlreadyRunningSkips(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-again")
 	c.mu.Lock()
-	c.agents["agent-again"] = &managedAgent{agentID: "agent-again", exec: ee}
+	c.agents["agent-again"] = &managedAgent{agentID: "agent-again", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 	sc := &scriptedToolCaller{getTaskBody: map[string]any{"id": "task-3", "title": "t", "status": "running"}}
 	c.cfg.ToolCaller = sc
@@ -205,7 +206,7 @@ func TestForkOnWorkAvailable_AlreadyRunningSkips(t *testing.T) {
 func TestForkOnWorkAvailable_GetTaskErrorSkips(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-gterr")
 	c.mu.Lock()
-	c.agents["agent-gterr"] = &managedAgent{agentID: "agent-gterr", exec: ee}
+	c.agents["agent-gterr"] = &managedAgent{agentID: "agent-gterr", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 	sc := &scriptedToolCaller{getTaskErr: errors.New("403 not_agents_task")}
 	c.cfg.ToolCaller = sc
@@ -223,7 +224,7 @@ func TestForkOnWorkAvailable_GetTaskErrorSkips(t *testing.T) {
 func TestForkOnWorkAvailable_MalformedGetTaskSkips(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-bad")
 	c.mu.Lock()
-	c.agents["agent-bad"] = &managedAgent{agentID: "agent-bad", exec: ee}
+	c.agents["agent-bad"] = &managedAgent{agentID: "agent-bad", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 	sc := &scriptedToolCaller{getTaskRaw: []byte("{not json")}
 	c.cfg.ToolCaller = sc
@@ -242,7 +243,7 @@ func TestForkOnWorkAvailable_NoToolCallerLeavesQueued(t *testing.T) {
 	c, ee, home := engineForAgent(t, "agent-noc")
 	c.cfg.ToolCaller = nil // explicit: no agent-tool transport
 	c.mu.Lock()
-	c.agents["agent-noc"] = &managedAgent{agentID: "agent-noc", exec: ee}
+	c.agents["agent-noc"] = &managedAgent{agentID: "agent-noc", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 
 	c.forkOnWorkAvailable(context.Background(), "agent-noc", "task-5", ee) // must not panic
@@ -268,7 +269,7 @@ func TestForkOnWorkAvailable_EmptyTaskID(t *testing.T) {
 func TestForkOnWorkAvailable_ForkFailsAfterAdmission(t *testing.T) {
 	c, ee, _ := engineForAgent(t, "agent-skew") // pool max 2
 	c.mu.Lock()
-	c.agents["agent-skew"] = &managedAgent{agentID: "agent-skew", exec: ee}
+	c.agents["agent-skew"] = &managedAgent{agentID: "agent-skew", exec: ee, state: &agentruntime.SessionState{}}
 	c.mu.Unlock()
 	// Saturate the pool (2 held, undrained).
 	for i := 0; i < 2; i++ {
