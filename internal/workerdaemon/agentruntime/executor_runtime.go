@@ -65,6 +65,26 @@ func (r *LocalRuntime) AttachExecutor(ee *ExecutorEngine) {
 	r.mu.Unlock()
 }
 
+// AttachExecutorEngine builds this agent's executor engine from pl and installs it,
+// computing its OWN home (so a standalone agent-runtime process can attach without the
+// daemon's agentPaths). It is the process-model equivalent of the daemon's
+// maybeAttachExecutorEngine (T854 D6 fix): the agent-runtime process calls it BEFORE
+// Boot — so selfReconcile has an engine to recover in-flight executors after a restart
+// — and on the first concurrency-enabling reconcile. A no-op'd caller (empty/plain
+// config) simply never calls it, leaving the single-active inject path.
+func (r *LocalRuntime) AttachExecutorEngine(pl ExecutorConfig) error {
+	home, _, _, err := r.agentPaths(r.cfg.AgentID)
+	if err != nil {
+		return err
+	}
+	ee, err := r.BuildExecutorEngine(home, pl)
+	if err != nil {
+		return err
+	}
+	r.AttachExecutor(ee)
+	return nil
+}
+
 // HasExecutor reports whether an executor engine is attached (the exec-vs-session
 // branch predicate — exactly today's ma.exec != nil semantics).
 func (r *LocalRuntime) HasExecutor() bool {

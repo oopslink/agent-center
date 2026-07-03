@@ -26,9 +26,11 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
+	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
+	"github.com/oopslink/agent-center/internal/workerdaemon/reporepo"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
 
@@ -67,7 +69,25 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 	// 2) construct the single runtime (SelfHeal/RemoveAgent nil — crash=process exit).
 	rt := buildAgentRuntime(opts, cfg, client, targetSpec, token, fingerprint, logf)
 
-	// 3) Boot self-recovery — BEFORE serving any command (ordering red line).
+	// 2b) 🔴 ENGINE-ATTACH-BEFORE-BOOT (T854 D6 fix, sibling to Boot-before-serve): a
+	// crash-rebuilt agent-runtime process gets NO reconcile command (the center has not
+	// re-pushed), so the executor engine MUST be attached from DURABLE config before
+	// Boot — otherwise selfReconcile has no engine and in-flight executors can never be
+	// recovered (the §4.4 core). The config comes from the center's ResumeState, which
+	// survives the restart (in-process memory does not). Best-effort: no engine ⇒
+	// single-active until the first reconcile re-attaches it.
+	if ecfg, enabled, ferr := agentExecConfig(ctx, client, opts.Run.WorkerID, opts.AgentID); ferr != nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s exec-config at boot: %v (single-active until reconcile)", opts.AgentID, ferr))
+	} else if enabled {
+		if aerr := rt.AttachExecutorEngine(ecfg); aerr != nil {
+			logf(fmt.Sprintf("agent-runtime agent=%s attach executor engine: %v", opts.AgentID, aerr))
+		} else {
+			logf(fmt.Sprintf("agent-runtime agent=%s executor engine attached (max=%d) before Boot", opts.AgentID, ecfg.MaxConcurrentTasks))
+		}
+	}
+
+	// 3) Boot self-recovery — AFTER the engine is attached, BEFORE serving any command
+	// (both ordering red lines).
 	if berr := rt.Boot(ctx); berr != nil {
 		// A boot-reconcile failure is not fatal on its own (best-effort recovery), but
 		// it is logged so a persistent failure is visible; we still serve.
@@ -170,6 +190,7 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 	if v := strings.TrimSpace(os.Getenv("AGENT_CENTER_DISABLE_USAGE_REPORT")); v == "1" || strings.EqualFold(v, "true") {
 		disableUsage = true
 	}
+	homeBase := agentHomeBase(cfg, opts.Run.ConfigPath, opts.Run.WorkerID)
 	rc := agentruntime.LocalRuntimeConfig{
 		AgentID:            opts.AgentID,
 		Reporter:           client,
@@ -181,7 +202,9 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		WorkerToken:        token,
 		ServerFingerprint:  fingerprint,
 		BinaryPath:         binPath,
-		AgentHomeBase:      agentHomeBase(cfg, opts.Run.ConfigPath, opts.Run.WorkerID),
+		ClaudeBinary:       strings.TrimSpace(os.Getenv("AGENT_CENTER_CLAUDE_BINARY")),
+		CodexBinary:        strings.TrimSpace(os.Getenv("AGENT_CENTER_CODEX_BINARY")),
+		AgentHomeBase:      homeBase,
 		Log:                func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) },
 		DisableUsageReport: func() bool { return disableUsage },
 		TaskDirManager:     taskexec.NewDirManager(),
@@ -191,7 +214,63 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		SelfHeal:    nil,
 		RemoveAgent: nil,
 	}
+	// Repo-workspace (AC_EXECUTOR_GIT_WORKTREE): wire a per-agent materializer so
+	// SpawnExecutor prepares an isolated git worktree per executor (required for the
+	// §4.3 worktree tiers — without it the three-tier ladder only ever sees plain dirs).
+	// Mirrors the daemon's maybeWireMaterializer; home layout matches r.agentPaths.
+	if gitWorktreeFlagEnabled() {
+		home := filepath.Join(homeBase, "agents", opts.AgentID)
+		reposRoot := filepath.Join(home, "repos")
+		if mat, merr := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil); merr != nil {
+			logf(fmt.Sprintf("agent-runtime agent=%s repo-workspace: %v (plain-dir)", opts.AgentID, merr))
+		} else {
+			rc.Materializer = mat
+			rc.ReposRoot = reposRoot
+		}
+	}
 	return agentruntime.NewLocalRuntime(rc, &agentruntime.SessionState{})
+}
+
+// gitWorktreeFlagEnabled reports whether AC_EXECUTOR_GIT_WORKTREE is on (mirrors the
+// daemon's RunDaemon check).
+func gitWorktreeFlagEnabled() bool {
+	v := strings.TrimSpace(os.Getenv("AC_EXECUTOR_GIT_WORKTREE"))
+	return v == "1" || strings.EqualFold(v, "true")
+}
+
+// agentExecConfig fetches THIS agent's executor config from the center ResumeState —
+// the DURABLE source that survives a process restart (T854 D6 fix): the launcher
+// rebuilds the process with no reconcile command, so the boot engine-attach reads the
+// center's desired config here rather than lost in-process memory. Returns (config,
+// concurrencyEnabled, err); a missing agent in the resume set is (zero, false, nil).
+func agentExecConfig(ctx context.Context, client *AdminClient, workerID, agentID string) (agentruntime.ExecutorConfig, bool, error) {
+	state, err := client.ResumeState(ctx, workerID)
+	if err != nil {
+		return agentruntime.ExecutorConfig{}, false, err
+	}
+	for _, ra := range state.Agents {
+		if ra.AgentID == agentID {
+			return execConfigFromResumeAgent(ra)
+		}
+	}
+	return agentruntime.ExecutorConfig{}, false, nil
+}
+
+// execConfigFromResumeAgent projects a ResumeAgent's concurrency fields into the neutral
+// ExecutorConfig BuildExecutorEngine consumes, plus whether concurrency is enabled (the
+// SAME predicate the daemon's concurrencyEnabled uses).
+func execConfigFromResumeAgent(ra ResumeAgent) (agentruntime.ExecutorConfig, bool, error) {
+	enabled := agent.Profile{MaxConcurrentTasks: ra.MaxConcurrentTasks, AllowedExecutors: ra.AllowedExecutors}.ConcurrencyEnabled()
+	return agentruntime.ExecutorConfig{
+		AgentID:              ra.AgentID,
+		DisplayName:          ra.DisplayName,
+		EnvVars:              ra.EnvVars,
+		MaxConcurrentTasks:   ra.MaxConcurrentTasks,
+		AllowedExecutors:     ra.AllowedExecutors,
+		OrchestratorModel:    ra.OrchestratorModel,
+		DefaultExecutorModel: ra.DefaultExecutorModel,
+		CLI:                  ra.CLI,
+	}, enabled, nil
 }
 
 // agentControlHandler maps a proxied control Command to the runtime's command entry.
@@ -214,7 +293,19 @@ func (h agentControlHandler) Handle(ctx context.Context, cmd agentcontrol.Comman
 		if err := decode(cmd.Payload, &pl); err != nil {
 			return err
 		}
-		return h.rt.Start(ctx, startSpecOf(pl))
+		if err := h.rt.Start(ctx, startSpecOf(pl)); err != nil {
+			return err
+		}
+		// Steady-state / first-dispatch path: attach the executor engine when the
+		// reconcile enables concurrency and it isn't already attached (the boot path
+		// attaches from ResumeState; this covers a config that turns concurrency ON
+		// after boot). Idempotent via HasExecutor so we don't drop live orphans.
+		if concurrencyEnabled(pl) && !h.rt.HasExecutor() {
+			if err := h.rt.AttachExecutorEngine(execConfigOf(pl)); err != nil {
+				return err
+			}
+		}
+		return nil
 	case cmdTypeAgentWork:
 		var pl workPayload
 		if err := decode(cmd.Payload, &pl); err != nil {
