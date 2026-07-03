@@ -37,6 +37,13 @@ type Record struct {
 	// without re-deriving them (the orchestrator already chose them at spawn).
 	BaseRef   string   `json:"base_ref,omitempty"`
 	RunnerCmd []string `json:"runner_cmd,omitempty"`
+	// RepoKey / SourcePath are the durable teardown handle for a repo-materializer
+	// worktree (P5). Written ONLY for worktree-backed executors; empty otherwise, so a
+	// plain-dir executor's Record is byte-for-byte as before. Finalize (and a restarted
+	// daemon's recovery) tears the worktree down via a WorktreeCleaner when RepoKey is
+	// set — never touching the canonical source (design §10).
+	RepoKey    string `json:"repo_key,omitempty"`
+	SourcePath string `json:"source_path,omitempty"`
 }
 
 // Validate enforces the fields recovery relies on.

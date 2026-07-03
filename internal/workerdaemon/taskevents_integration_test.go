@@ -50,7 +50,7 @@ var realClaudeTaskRun = []string{
 func TestRealClaudeStream_ProducesDeployArtifacts(t *testing.T) {
 	c, rep, _ := newTestController(t, t.TempDir())
 	c.cfg.TaskDirManager = taskexec.NewDirManager()
-	c.agents["agent-1"] = &managedAgent{agentID: "agent-1"} // pull model: no currentTaskID
+	c.installTestAgent("agent-1") // pull model: no currentTaskID
 
 	for _, line := range realClaudeTaskRun {
 		evs, err := claudestream.ParseStreamLine([]byte(line))

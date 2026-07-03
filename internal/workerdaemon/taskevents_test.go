@@ -22,7 +22,8 @@ func newTaskEventController(t *testing.T, taskID string, segMax, logMax int64) (
 	c.cfg.TaskDirManager = taskexec.NewDirManager()
 	c.cfg.SegmentMaxBytes = segMax
 	c.cfg.TaskLogMaxBytes = logMax
-	c.agents["agent-1"] = &managedAgent{agentID: "agent-1", currentTaskID: taskID}
+	st := c.installTestAgent("agent-1")
+	st.CurrentTaskID = taskID
 	_, tasksDir, _, err := c.agentPaths("agent-1")
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +174,7 @@ func TestSealOnCompletion(t *testing.T) {
 		t.Fatalf("offset after seal = %+v, want current/0", off)
 	}
 	// task.log closed (writer cleared) but file persists with content.
-	if c.agents["agent-1"].taskLog != nil {
+	if c.agents["agent-1"].state.TaskLog != nil {
 		t.Error("task.log writer should be closed after seal")
 	}
 	if b, _ := os.ReadFile(filepath.Join(taskDir, "task.log")); len(b) == 0 {
@@ -276,7 +277,7 @@ func TestOnEvent_PullModelTaskBoundary(t *testing.T) {
 	c.cfg.TaskDirManager = taskexec.NewDirManager()
 	// No currentTaskID — exactly the pull model: the controller never injected a
 	// brief; the agent self-serves.
-	c.agents["agent-1"] = &managedAgent{agentID: "agent-1"}
+	c.installTestAgent("agent-1")
 
 	mcp := func(name, input string) claudestream.StreamEvent {
 		return claudestream.StreamEvent{Type: "tool_use", ToolName: name, ToolUseID: name, ToolInput: json.RawMessage(input)}
@@ -322,8 +323,8 @@ func TestOnEvent_PullModelTaskBoundary(t *testing.T) {
 		t.Errorf("want 5 Center activities, got %d", len(rep.activities))
 	}
 	// Routing anchor cleared after completion.
-	if c.agents["agent-1"].eventTaskID != "" {
-		t.Errorf("eventTaskID should be cleared after complete_task, got %q", c.agents["agent-1"].eventTaskID)
+	if c.agents["agent-1"].state.EventTaskID != "" {
+		t.Errorf("eventTaskID should be cleared after complete_task, got %q", c.agents["agent-1"].state.EventTaskID)
 	}
 }
 
@@ -333,7 +334,8 @@ func TestOnEvent_PullModelTaskBoundary(t *testing.T) {
 func TestOnEvent_EndToEnd(t *testing.T) {
 	c, rep, _ := newTestController(t, t.TempDir())
 	c.cfg.TaskDirManager = taskexec.NewDirManager()
-	c.agents["agent-1"] = &managedAgent{agentID: "agent-1", currentTaskID: "task-Z"}
+	st := c.installTestAgent("agent-1")
+	st.CurrentTaskID = "task-Z"
 
 	c.onEvent("agent-1", textEvent("driven via onEvent"))
 

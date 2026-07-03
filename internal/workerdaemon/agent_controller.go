@@ -42,86 +42,13 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
-	"github.com/oopslink/agent-center/internal/claudestream"
-	"github.com/oopslink/agent-center/internal/conversation"
-	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
-	"github.com/oopslink/agent-center/internal/workerdaemon/tasklog"
 )
 
-// agentSession is the NARROW control surface the AgentController needs from one
-// agent's session (v2.7 D2-f s3b-2b). The whole point of the supervisor model is
-// that the SUPERVISOR solely owns claude, so this interface exposes only socket-
-// mediated control — Inject (→ claude stdin), Stop (terminate the supervisor),
-// Detach (daemon-shutdown SURVIVAL: drop the socket, keep claude alive) — never a
-// process handle the controller could exec/kill directly.
-//
-// 🔴 OWNERSHIP INVARIANT (PM s3b-2b condition): PRODUCTION code wires ONLY the real
-// *SupervisorSession (via startSupervisorSessionAdapter → StartSupervisorSession →
-// supervisormanager.SpawnSupervisor; claude's parent is the supervisor, never the
-// daemon). The interface exists so controller LOGIC (reconcile/work/wake/onExit
-// three-state) is unit-testable with a lightweight fake — but that fake lives ONLY
-// in _test.go and MUST NEVER appear in a production path. The interface is NOT a
-// backdoor to direct-exec claude: grep-clean ownership = no direct claude exec on
-// any production path; the test fake is a test artifact, not a session.
-type agentSession interface {
-	// Inject writes msg to claude's held-open stdin over the supervisor socket.
-	// Returns ErrSessionClosed once Stop/Detach has begun.
-	Inject(ctx context.Context, msg string) error
-	// Stop is the EXPLICIT-terminate path: SIGTERM the supervisor (which stops
-	// claude + exits), then join the event-pump. Fires OnExit exactly once.
-	Stop(ctx context.Context) error
-	// Detach is the daemon-shutdown SURVIVAL path: close the socket WITHOUT
-	// signalling, so the supervisor + claude keep running for a future re-attach.
-	// Fires OnExit(nil) exactly once.
-	Detach()
-}
-
-// compile-time: the real *SupervisorSession is an agentSession (the ONLY
-// production impl). A test fake also satisfies it but lives in _test.go.
-var _ agentSession = (*SupervisorSession)(nil)
-
-// sessionStarter is the factory the controller uses to start a session. Production
-// = startSupervisorSessionAdapter (real supervisor spawn). Tests inject a fake
-// starter that returns a fake agentSession (controller-logic unit tests, no real
-// spawn). Injected via the unexported AgentControllerConfig.starter field, which
-// only same-package _test.go can set — so production ALWAYS gets the real adapter.
-type sessionStarter func(ctx context.Context, cfg SupervisorSessionConfig) (agentSession, error)
-
-// startSupervisorSessionAdapter is the PRODUCTION session starter: it spawns the
-// real persistent supervisor (which solely owns claude). The explicit nil-on-error
-// return avoids the typed-nil-interface gotcha (a nil *SupervisorSession wrapped in
-// a non-nil agentSession).
-func startSupervisorSessionAdapter(ctx context.Context, cfg SupervisorSessionConfig) (agentSession, error) {
-	s, err := StartSupervisorSession(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	return s, nil
-}
-
-// cliCodex is the canonical agent.cli value for the codex execution path (equals
-// codex.AdapterName / the worker's reported capability name). An agent whose
-// reconcile payload carries this cli is started via the CodexSession path instead
-// of the claude supervisor.
-const cliCodex = "codex"
-
-// codexSessionStarter is the cli=codex session factory (test seam; same contract
-// as sessionStarter). Production = startCodexSessionAdapter.
-type codexSessionStarter func(ctx context.Context, cfg CodexSessionConfig) (agentSession, error)
-
-// startCodexSessionAdapter is the PRODUCTION codex session starter. The explicit
-// nil-on-error return avoids the typed-nil-interface gotcha.
-func startCodexSessionAdapter(ctx context.Context, cfg CodexSessionConfig) (agentSession, error) {
-	s, err := StartCodexSession(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	return s, nil
-}
 
 // Command types (mirror the projector constants — kept local so the controller
 // does not import the Environment/PM service packages).
@@ -132,16 +59,6 @@ const (
 	cmdTypeAgentConverse  = "agent.converse"       // v2.7 #185: DM/channel message → inject (no WorkItem)
 	cmdTypeWorkAvailable  = "agent.work_available" // v2.8.1 #278 D pull-model WAKE (PR2 emit / PR3 handle)
 )
-
-// wakeDedupCap bounds the per-agent set of already-injected wake message IDs
-// (D2-e-i Q3 dedup). At-least-once delivery + reconnect replay can re-deliver the
-// same agent.wake command; the cap keeps a recent window so a replay within it is
-// recognised and NOT re-injected. The window only needs to outlast a reconnect
-// burst — older IDs evicting is acceptable (a very stale replay would at worst
-// re-inject once). The set is also dropped entirely on session restart (the
-// managedAgent is recreated), which is fine: a fresh session has no prior context
-// to duplicate against.
-const wakeDedupCap = 256
 
 // mcpServerName is the `mcpServers` map key for the per-agent worker mcp-host
 // server in the generated --mcp-config document.
@@ -301,6 +218,13 @@ type AgentControllerConfig struct {
 	// (AGENT_CENTER_DISABLE_USAGE_REPORT=1) stops new reports immediately.
 	DisableUsageReport bool
 
+	// GitWorktreeEnabled turns ON per-executor git repo workspaces (design §4
+	// AC_EXECUTOR_GIT_WORKTREE). Default (false) = OFF: no repo materializer is created
+	// and SpawnExecutor/pool/monitor/recovery behave byte-for-byte as before (the
+	// zero-regression contract). When true, newRuntimeFor injects a per-agent
+	// reporepo.LocalGitMaterializer rooted at <agent_home>/repos.
+	GitWorktreeEnabled bool
+
 	// Resumer queries the center for this worker's boot-resume state (s4b boot
 	// reconcile). Nil → ReconcileOnBoot is a no-op (additive/dormant). The daemon's
 	// *AdminClient satisfies resumeStateQuerier.
@@ -385,201 +309,40 @@ type AgentControllerConfig struct {
 	codexStarter codexSessionStarter
 }
 
-// managedAgent tracks one live (or recently-live) agent session (backed by a
-// persistent supervisor in s3b-2b).
+// managedAgent tracks one live (or recently-live) agent session. Phase 0b: the
+// per-agent SESSION state moved into agentruntime.SessionState (shared with the
+// LocalRuntime by pointer under the SHARED mutex); managedAgent keeps only the
+// daemon-owned handles (runtime + executor面 + the pull-model work_available dedup +
+// the reconcile-replay version).
 type managedAgent struct {
 	agentID string
-	session agentSession
 
-	// exec is the W1 per-agent concurrent-execution wiring (orchestration Engine +
-	// reaping Monitor), attached by reconcileRunning ONLY when the agent's profile
-	// opts into concurrency (concurrencyEnabled). nil ⇒ the agent uses the legacy
-	// single-claude inject path. Guarded by AgentController.mu; recreated on restart.
-	exec *executorEngine
+	// runtime is the per-agent execution面 (docs §4.0). Notify* / Start / Stop /
+	// Tick route through it. Concrete type (the daemon needs lifecycle methods
+	// beyond the Runtime interface). Guarded by AgentController.mu.
+	runtime *agentruntime.LocalRuntime
 
-	// appliedVersion is the highest reconcile version applied. A reconcile with
-	// version <= appliedVersion is a replay → no-op (no restart).
+	// state is the SHARED per-agent session state (the SAME *SessionState the
+	// runtime holds). nil for a stub managedAgent (recordVersion / recordWorkAvail
+	// before a session exists). Every field is guarded by AgentController.mu.
+	state *agentruntime.SessionState
+
+	// (Phase 0c) the per-agent executor engine moved OFF managedAgent onto the
+	// runtime (LocalRuntime.exec). Presence is queried via runtime.HasExecutor() and
+	// installed via runtime.AttachExecutor(ee).
+
+	// appliedVersion is the highest reconcile version applied (replay guard).
 	appliedVersion int
 
-	// expectedStop records that an intentional Stop (stopped/stopping/resetting)
-	// is in progress, so the session's OnExit does NOT also report a crash. The
-	// reconcile/reset flow is then the sole lifecycle reporter.
-	expectedStop bool
-
-	// detaching records that a daemon-shutdown SURVIVAL detach is in progress
-	// (s3b-2b). Detach closes the socket WITHOUT killing claude and fires
-	// OnExit(nil); without this flag onExit would mis-report that nil exit as a
-	// CRASH ("error") on every clean shutdown. detaching → onExit only logs and
-	// reports NOTHING (the agent stays desired-running; its supervisor + claude
-	// survive for the next daemon's s4 re-attach). SAFETY (PM): this transient
-	// signal cannot mask a REAL crash — if claude actually died during shutdown,
-	// the next daemon-boot s4 probe (pidfile kill-0) detects the dead process and
-	// drives the mode-B relaunch. Truth is recomputed by boot-probe, not this flag.
-	detaching bool
-
-	// lifecycleOnce guards the lifecycle RESULT report for this process instance
-	// so it fires EXACTLY ONCE per stop, whether the reporter is the reconcile
-	// flow (expected stop) or OnExit (crash).
-	lifecycleOnce sync.Once
-
-	// wakeSeen is the bounded per-agent set of wake message IDs already injected
-	// (D2-e-i Q3 dedup). wakeOrder is the insertion order used for FIFO eviction
-	// when the set exceeds wakeDedupCap. Guarded by AgentController.mu. Recreated
-	// (empty) on session restart along with the managedAgent.
-	wakeSeen  map[string]struct{}
-	wakeOrder []string
-
-	// workAvailSeen is the bounded per-agent set of agent.work_available
-	// work_item_ids already noted (v2.8.1 #278 D PR3 coalesce). The wake fires
-	// per-WI at two emit points (enqueue + reemit-on-running) + flap/reconnect
-	// replay, so this dedup collapses the re-emits so the daemon does not spam
-	// (and, in PR4, does not re-inject the pull nudge). FIFO eviction at
-	// wakeDedupCap; recreated empty on session restart. Guarded by AgentController.mu.
+	// workAvailSeen / workAvailOrder is the bounded agent.work_available coalesce set
+	// (pull model, 0c). FIFO eviction at wakeDedupCap. Guarded by AgentController.mu.
 	workAvailSeen  map[string]struct{}
 	workAvailOrder []string
+}
 
-	// hadWork records that work was INJECTED into this session (a WorkItem went
-	// active). On an unexpected crash it drives the self-heal relaunch nudge (re-
-	// drive the interrupted turn); an idle agent that crashes relaunches without a
-	// nudge. Guarded by AgentController.mu.
-	hadWork bool
-
-	// currentTaskID is the LAST WorkItem injected into this session (work/wake),
-	// used by the L2 no-silent-failure surface: when claude emits a `result` event
-	// with is_error=true, onEvent fails THIS WorkItem (active→failed) so a failed
-	// turn never sits silently "active". Guarded by AgentController.mu; cleared
-	// (empty) on session restart with the managedAgent.
-	//
-	// 🕒 DEFERRED-WITH-TRIGGER (PM): this is the "last injected" WI, NOT a precise
-	// per-turn correlation. The result event is delivered async by the session pump
-	// (~50ms lag); if a SECOND work() injects before the first turn's result is
-	// pumped, the result is mis-attributed — and the race is two-sided: result(A)
-	// charged to B both wrongly fails B AND leaves A silently active (A's failure
-	// never surfaces). v2.7 injects sequentially with low/﹦1 max_concurrent, so the
-	// window is effectively unreachable. TRIGGER: max_concurrent>1 OR an observed
-	// mis-attribution → add precise correlation (a turn-seq/token claude echoes back,
-	// since the result line carries no WorkItem id). (CHANGELOG + Tester §A.)
-	currentTaskID string
-
-	// currentConversationID is the conversation of the LAST agent.converse inject
-	// (a DM/channel turn, which has NO WorkItem). It is the converse analogue of
-	// currentTaskID for the L2 no-silent-failure surface: when a converse turn
-	// ends is_error (e.g. an invalid model → claude 404), onEvent posts a visible
-	// "couldn't process the message" SYSTEM message into this conversation instead
-	// of leaving the human in a silent black hole (UX Rule 9). currentTaskID
-	// and currentConversationID are mutually exclusive — whichever context was
-	// injected last is set, the other cleared. Same "last injected" imprecision +
-	// deferred-with-trigger caveat as currentTaskID. Guarded by mu.
-	currentConversationID string
-
-	// toolNames correlates a claude tool_use_id → tool_name within a turn (v2.7.1
-	// #216): the claude tool_result event carries only the tool_use_id, but the
-	// Activity stream wants the tool_name on the tool_result row. Populated on each
-	// tool_use, read on the matching tool_result. Reset at session-init / result so
-	// it never grows unbounded across turns. Guarded by mu.
-	toolNames map[string]string
-
-	// taskLog / taskLogID are the W4 per-task log sink for the in-flight task: the
-	// open rotating tasks/{taskLogID}/task.log writer onEvent tees each stream event
-	// into, and the task id it belongs to. Lazily opened on the first event of a
-	// task, rotated (closed + reopened) when the in-flight task changes, and closed
-	// on task completion / session exit. eventSeq is a monotonic per-session counter
-	// that makes each local RawEvent.ID unique within a task. Guarded by mu;
-	// see taskevents.go.
-	taskLog   *tasklog.Writer
-	taskLogID string
-	eventSeq  uint64
-
-	// eventTaskID is the task the W3/W4 local sink routes stream events to. UNLIKE
-	// currentTaskID (the "last WorkItem injected" anchor, which the pull model never
-	// sets), it is derived from the agent's OWN MCP calls observed in the stream:
-	// a start_task/claim_task tool_use opens it, a complete_task/discard_task closes
-	// it. This is the real per-task output boundary in the supervisor-inline pull
-	// model — the only place the controller learns which task the resident claude is
-	// working on. Guarded by mu; see taskevents.go + onEvent.
-	eventTaskID string
-
-	// lastEventTaskID preserves the task a terminal tool (complete_task/discard_task)
-	// just closed, ONLY until that same turn's `result` event is processed. It exists
-	// because a single-turn task (start_task..complete_task in one turn) clears
-	// eventTaskID at the complete_task tool_use — BEFORE the turn-end `result` fires —
-	// so per-turn usage accounting (maybeReportUsage, on `result`) would see "" and
-	// attribute the cost to no task (issue-af03da2f: Top Cost Tasks 永远空). The result
-	// handler reads eventTaskID||lastEventTaskID then clears this, so it never leaks
-	// into a later converse/idle turn. Guarded by mu.
-	lastEventTaskID string
-
-	// model is the agent's configured claude --model (Profile.Model, threaded from the
-	// reconcile command). Held here so a mid-run self-heal relaunch — which gets NO
-	// fresh reconcile and deletes this managedAgent on crash — can carry it across the
-	// crash via selfHealEntry.model and spawn the re-driven claude with the SAME model
-	// (else self-heal would silently fall back to claude's default). Guarded by mu.
-	model string
-
-	// displayName is the agent's human-readable display_name (threaded from the
-	// reconcile command). Held here for the SAME reason as model: a mid-run self-heal
-	// relaunch gets NO fresh reconcile and deletes this managedAgent on crash, so it
-	// carries displayName across the crash via selfHealEntry.displayName and spawns
-	// the re-driven supervisor with the SAME git author NAME (else self-heal would
-	// silently fall back to the ULID AgentID, T469). Guarded by mu.
-	displayName string
-
-	// promptDescription is the already-gated description text injected into the agent's
-	// system prompt (T728), threaded from the reconcile command. Held here for the SAME
-	// reason as model/displayName: a mid-run self-heal relaunch gets NO fresh reconcile
-	// and deletes this managedAgent on crash, so it carries promptDescription across the
-	// crash via selfHealEntry.promptDescription and spawns the re-driven supervisor with
-	// the SAME persona段 (else self-heal would silently drop it). Guarded by mu.
-	promptDescription string
-
-	// envVars is the persisted per-agent profile env overlay. Held for the same
-	// reason as model/displayName: self-heal relaunch gets no fresh reconcile.
-	envVars map[string]string
-
-	// cli is the agent's execution CLI ("codex" → CodexSession; empty / "claude-code"
-	// → claude supervisor). Read in onExit to route a codex agent away from the
-	// supervisor self-heal machinery (codex has no epoch/fork/reattach). Guarded by mu.
-	cli string
-
-	// rlRetryAfterSecs / rlResetAtUnix remember the rate-limit window from the most
-	// recent "rate_limit" event in the current turn (carried from the rate_limit_event
-	// line by claudestream). If the turn then ENDS in a rate-limit is_error result,
-	// scheduleRateLimitResume uses this window to time the automatic resume. Reset at
-	// turn boundaries (system-init / a non-rate-limit result). Guarded by mu.
-	rlRetryAfterSecs int
-	rlResetAtUnix    int64
-
-	// rateLimitResumeAt is non-zero when a turn ended in a transient, retryable
-	// failure and an automatic resume nudge is DUE at this time. OnTick injects
-	// DefaultResumeNudge into the still-live session when now ≥ this, then clears it
-	// — re-driving the interrupted work instead of leaving it silently abandoned. It
-	// is the single resume slot SHARED by two recovery reasons (the drain is reason-
-	// agnostic — it just re-drives the live turn): an LLM server-side rate-limit
-	// (rate_limit.go, issue: LLM 服务端限流自动恢复) and a transient API/connection
-	// error (api_error.go, T475: "API Error: Connection closed mid-response"). The
-	// session stays alive across both (no crash), so this is the live-session
-	// analogue of selfHealEntry.nextRelaunchAt. Guarded by mu.
-	rateLimitResumeAt time.Time
-
-	// apiErrorRetries counts the consecutive transient-API-error resumes already
-	// scheduled for the in-flight turn (api_error.go, T475). Unlike a rate-limit —
-	// which carries a server window and re-schedules until the window clears — a
-	// connection error has no window, so the resume is bounded: after the configured
-	// max it falls through to surfaceTurnFailure rather than re-driving (and re-
-	// paying) an endlessly failing turn forever. Reset to 0 on any CLEAN (non-error)
-	// turn-end and when the cap is hit. Guarded by mu.
-	apiErrorRetries int
-
-	// sawIncompleteTurn is set when THIS turn's assistant_text carried a truncation
-	// marker ("Connection closed mid-response" / "the response above may be
-	// incomplete") — claude prints the connection-drop as ordinary assistant TEXT and
-	// may still end the turn with a `result` is_error=FALSE, so isTransientAPIError
-	// (which only inspects a `result` is_error) never sees it. Recorded on the
-	// assistant_text event, consumed + cleared on the turn-end `result` (and on a
-	// fresh system/init) so the controller can schedule the SAME bounded resume for a
-	// truncated turn that would otherwise be silently incomplete (快修 T799). Guarded
-	// by mu.
-	sawIncompleteTurn bool
+// live reports whether this managedAgent has a live session. Caller must hold c.mu.
+func (ma *managedAgent) live() bool {
+	return ma != nil && ma.state != nil && ma.state.Session != nil
 }
 
 // AgentController implements CommandHandler. State is a map of agentID →
@@ -602,9 +365,11 @@ type AgentController struct {
 	// from the pump goroutine, which Detach joins before Wait — so no Add races Wait.
 	bg sync.WaitGroup
 
-	// selfHeal tracks mid-run crash recovery per agent (backoff/cap/terminal). It
-	// SURVIVES the managedAgent delete on crash. Guarded by mu. See self_heal.go.
-	selfHeal map[string]*selfHealEntry
+	// selfHeal is the daemon-level mid-run crash-recovery survival store (the
+	// decide/record logic lives in agentruntime.SelfHealStore). It SURVIVES the
+	// managedAgent delete on crash. Guarded by mu (the SAME shared mutex the store
+	// holds). Both onExit (via the runtime) and OnTick reach this SAME instance.
+	selfHeal *agentruntime.SelfHealStore
 
 	// nextLeaseRenewAt gates the T456 process-alive lease auto-renew sweep so it runs
 	// at most every cfg.LeaseRenewEvery even though OnTick fires on the (sub-second)
@@ -673,14 +438,31 @@ func NewAgentController(cfg AgentControllerConfig) (*AgentController, error) {
 	if strings.TrimSpace(cfg.BinaryPath) == "" {
 		cfg.BinaryPath = "agent-center"
 	}
-	return &AgentController{
+	c := &AgentController{
 		cfg:           cfg,
 		agents:        map[string]*managedAgent{},
-		selfHeal:      map[string]*selfHealEntry{},
 		recoveredExec: map[string]bool{},
 		execConfig:    map[string]reconcilePayload{},
 		eventWriter:   taskexec.NewEventStreamWriter(),
-	}, nil
+	}
+	// The self-heal survival store shares the controller's mutex + clock + logger
+	// (decide/record logic in agentruntime; store stays daemon-level so it survives
+	// the managedAgent delete onExit does on a crash).
+	c.selfHeal = agentruntime.NewSelfHealStore(&c.mu, agentruntime.SelfHealParams{
+		MaxAttempts: cfg.SelfHealMaxAttempts,
+		BackoffBase: cfg.SelfHealBackoffBase,
+		BackoffCap:  cfg.SelfHealBackoffCap,
+		ResetWindow: cfg.SelfHealResetWindow,
+	}, c.log)
+	return c, nil
+}
+
+// now returns the controller clock (test seam; defaults to time.Now).
+func (c *AgentController) now() time.Time {
+	if c.cfg.Now != nil {
+		return c.cfg.Now()
+	}
+	return time.Now()
 }
 
 func (c *AgentController) log(format string, args ...any) {
@@ -706,21 +488,21 @@ func (c *AgentController) Handle(ctx context.Context, cmd ControlCommand) error 
 			c.log("work decode (offset=%d): %v — skipping", cmd.Offset, err)
 			return nil
 		}
-		return c.work(ctx, pl)
+		return c.routeWork(ctx, pl)
 	case cmdTypeAgentWake:
 		var pl wakePayload
 		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
 			c.log("wake decode (offset=%d): %v — skipping", cmd.Offset, err)
 			return nil
 		}
-		return c.wake(ctx, pl)
+		return c.routeWake(ctx, pl)
 	case cmdTypeAgentConverse:
 		var pl conversePayload
 		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
 			c.log("converse decode (offset=%d): %v — skipping", cmd.Offset, err)
 			return nil
 		}
-		return c.converse(ctx, pl)
+		return c.routeConverse(ctx, pl)
 	case cmdTypeWorkAvailable:
 		var pl workAvailablePayload
 		if err := json.Unmarshal([]byte(cmd.Payload), &pl); err != nil {
@@ -796,7 +578,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
-	hasLive := ma != nil && ma.session != nil
+	hasLive := ma.live()
 	c.mu.Unlock()
 
 	if hasLive {
@@ -804,7 +586,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 		// Restart: stop the old instance (expected stop, but we are about to
 		// replace it so we suppress the lifecycle report — a restart should NOT
 		// emit a "stopped" feedback that would settle the agent's lifecycle).
-		c.stopSession(ctx, pl.AgentID, false /*reportLifecycle*/)
+		c.stopViaRuntime(ctx, pl.AgentID, false /*reportLifecycle*/)
 	}
 
 	// forkResume=false: an intent-driven start/restart is NOT a crash recovery. A
@@ -812,7 +594,7 @@ func (c *AgentController) reconcileRunning(ctx context.Context, pl reconcilePayl
 	// (lock released), so a plain resume of the same session-id is correct. Only the
 	// Mode-B crash-relaunch paths (bootReapRelaunch) fork (the killed claude's lock
 	// is still held).
-	if err := c.startSession(ctx, pl.AgentID, pl.Version, false /*forkResume*/, false /*resume*/, pl.Model, pl.DisplayName, pl.CLI, pl.PromptDescription, pl.EnvVars, concurrencyEnabled(pl)); err != nil {
+	if err := c.bringUpSession(ctx, startSpecOf(pl)); err != nil {
 		// Start failure IS retryable (transient FS / launch error) — return the
 		// error so the command stays un-acked and is retried next tick.
 		return fmt.Errorf("agent_controller: start agent=%s: %w", pl.AgentID, err)
@@ -844,31 +626,50 @@ func (c *AgentController) maybeAttachExecutorEngine(ctx context.Context, pl reco
 	// ma.exec stays nil after a restart and concurrency silently degrades to single-active.
 	c.mu.Lock()
 	c.execConfig[pl.AgentID] = pl
+	rt := c.runtimeForLocked(pl.AgentID)
 	c.mu.Unlock()
+
+	// The engine installs onto the agent's LocalRuntime (rt.AttachExecutor). Without a
+	// runtime there is nothing to attach to (a stub managedAgent with no session) —
+	// leave it for the next bring-up's reattach-from-cache.
+	if rt == nil {
+		c.log("agent=%s executor engine: no runtime yet (falling back to inject until bring-up)", pl.AgentID)
+		return
+	}
 
 	home, _, _, perr := c.agentPaths(pl.AgentID)
 	if perr != nil {
 		c.log("agent=%s executor engine paths: %v (falling back to inject)", pl.AgentID, perr)
 		return
 	}
-	ee, err := c.buildExecutorEngine(home, pl)
+	ee, err := rt.BuildExecutorEngine(home, execConfigOf(pl))
 	if err != nil {
 		c.log("agent=%s build executor engine: %v (falling back to inject)", pl.AgentID, err)
 		return
 	}
+	rt.AttachExecutor(ee)
+
 	c.mu.Lock()
-	if cur := c.agents[pl.AgentID]; cur != nil {
-		cur.exec = ee
-	}
 	firstAttach := !c.recoveredExec[pl.AgentID]
 	c.recoveredExec[pl.AgentID] = true
 	c.mu.Unlock()
 	c.log("agent=%s concurrent-execution enabled (max=%d, executors=%d)", pl.AgentID, pl.MaxConcurrentTasks, len(pl.AllowedExecutors))
 
 	// First attach this process → recover orphans from a prior process (design §12).
+	// The recovery-once-per-agent-per-process guard (recoveredExec) stays DAEMON-level
+	// so a later in-process rebuild does NOT re-scan (would double-finalize/double-adopt).
 	if firstAttach {
-		c.recoverExecutors(ctx, pl.AgentID, ee)
+		_ = rt.Recover(ctx)
 	}
+}
+
+// runtimeForLocked returns the agent's runtime (or nil). Caller MUST hold c.mu.
+func (c *AgentController) runtimeForLocked(agentID string) *agentruntime.LocalRuntime {
+	ma := c.agents[agentID]
+	if ma == nil {
+		return nil
+	}
+	return ma.runtime
 }
 
 // reattachExecutorEngineFromCache re-attaches the per-agent executor engine after a
@@ -912,7 +713,7 @@ func (c *AgentController) seedExecConfig(pl reconcilePayload) {
 func (c *AgentController) reconcileStop(ctx context.Context, pl reconcilePayload) error {
 	c.clearSelfHeal(pl.AgentID) // desired-stopped → no self-heal relaunch
 	c.recordVersion(pl.AgentID, pl.Version)
-	c.stopSession(ctx, pl.AgentID, true /*reportLifecycle*/)
+	c.stopViaRuntime(ctx, pl.AgentID, true /*reportLifecycle*/)
 	return nil
 }
 
@@ -952,7 +753,7 @@ func (c *AgentController) reconcileReset(ctx context.Context, pl reconcilePayloa
 
 	// 1. SIGTERM the old supervisor (expected stop) — suppress the lifecycle
 	//    report until AFTER the wipe+bump so we never settle "stopped" early.
-	c.stopSession(ctx, pl.AgentID, false /*reportLifecycle*/)
+	c.stopViaRuntime(ctx, pl.AgentID, false /*reportLifecycle*/)
 
 	// 2. Wipe the per-scope dirs under the agent home (contained).
 	if err := c.cleanReset(pl.AgentID, pl.ResetScope); err != nil {
@@ -985,351 +786,59 @@ func (c *AgentController) reconcileReset(ctx context.Context, pl reconcilePayloa
 // session should be up. This is the lower-surprise option: we never silently
 // drop work, and we never start an un-reconciled session (start is the
 // reconcile's job — keeping a single source of truth for lifecycle).
-func (c *AgentController) work(ctx context.Context, pl workPayload) error {
-	if strings.TrimSpace(pl.AgentID) == "" {
-		c.log("work missing agent_id — skipping")
-		return nil
-	}
-
-	c.mu.Lock()
-	ma := c.agents[pl.AgentID]
-	var sess agentSession
-	var exec *executorEngine
-	if ma != nil {
-		sess = ma.session
-		exec = ma.exec
-	}
-	c.mu.Unlock()
-
-	if sess == nil {
-		// No running session yet — retry after the reconcile(running) lands.
-		return fmt.Errorf("agent_controller: work for agent=%s but no running session (retry after reconcile)", pl.AgentID)
-	}
-
-	if c.cfg.TaskDirManager != nil {
-		_, tasksDir, _, pathErr := c.agentPaths(pl.AgentID)
-		if pathErr != nil {
-			c.log("agent=%s task=%s resolve paths: %v", pl.AgentID, pl.TaskID, pathErr)
-		} else {
-			now := c.now()
-			meta := taskexec.TaskExecutionMeta{
-				TaskID:    pl.TaskID,
-				Status:    taskexec.StatusPending,
-				CreatedAt: now,
-				UpdatedAt: now,
-			}
-			if createErr := c.cfg.TaskDirManager.Create(tasksDir, meta, taskexec.ExecutionContext{}); createErr != nil {
-				c.log("agent=%s task=%s create task dir: %v", pl.AgentID, pl.TaskID, createErr)
-			}
-		}
-	}
-
-	// W1 concurrent path (opt-in): when the agent has an executor engine, fork an
-	// isolated executor for this work instead of injecting the brief into the single
-	// resident claude — this is what makes "one agent runs N tasks in parallel" real.
-	if exec != nil {
-		return c.workViaExecutor(ctx, pl, exec)
-	}
-
-	if err := sess.Inject(ctx, pl.Brief); err != nil {
-		if errors.Is(err, ErrSessionClosed) {
-			// The session closed between the lookup and the inject — retry.
-			return fmt.Errorf("agent_controller: inject agent=%s: %w", pl.AgentID, err)
-		}
-		return fmt.Errorf("agent_controller: inject agent=%s: %w", pl.AgentID, err)
-	}
-
-	// Work was injected (a WorkItem is now active) — mark it so an unexpected crash
-	// self-heal relaunches WITH a resume nudge (re-drive the interrupted turn), and
-	// record it as the in-flight WorkItem so an is_error turn surfaces against it (L2).
-	c.mu.Lock()
-	if cur := c.agents[pl.AgentID]; cur != nil {
-		cur.hadWork = true
-		if pl.TaskID != "" {
-			cur.currentTaskID = pl.TaskID
-			cur.currentConversationID = "" // work context supersedes any converse context
-		}
-	}
-	c.mu.Unlock()
-
-	// v2.14.0 F7 (issue I14): the ReportWorkItemState(active) feedback was removed —
-	// AgentWorkItem retired. The brief is injected; currentTaskID is still set
-	// above for the L2 error surface.
-	return nil
-}
-
-// wake injects a message posted into the agent's TASK conversation into the
-// agent's long-lived claude session and reports the WorkItem active (the OQ5
-// immediate-wakeup path, waiting_input→active). It mirrors work()'s session
-// lookup + no-session policy for consistency: if there is NO running session, it
-// returns an ERROR so the ControlLoop re-pulls the wake next tick (the reconcile
-// that starts the session bumped its version first). We never silently drop a
-// wake, and we never start an un-reconciled session.
-//
-// Dedup (Q3): a per-agent bounded set of already-injected message IDs absorbs
-// at-least-once redelivery + reconnect replay — a wake whose message_id was
-// already injected for this agent is a no-op (return nil). The id is recorded
-// ONLY after a successful inject (at-least-once: a failed inject retries; we
-// prefer a rare duplicate over a dropped wake).
-func (c *AgentController) wake(ctx context.Context, pl wakePayload) error {
-	if strings.TrimSpace(pl.AgentID) == "" {
-		c.log("wake missing agent_id — skipping")
-		return nil
-	}
-
-	c.mu.Lock()
-	ma := c.agents[pl.AgentID]
-	var sess agentSession
-	if ma != nil {
-		sess = ma.session
-		// Dedup check under the lock: a replay of an already-injected message_id
-		// is a no-op.
-		if pl.MessageID != "" && ma.wakeSeen != nil {
-			if _, seen := ma.wakeSeen[pl.MessageID]; seen {
-				c.mu.Unlock()
-				c.log("wake agent=%s message=%s already injected — dedup no-op", pl.AgentID, pl.MessageID)
-				return nil
-			}
-		}
-	}
-	c.mu.Unlock()
-
-	if sess == nil {
-		// No running session yet — retry after the reconcile(running) lands
-		// (same policy as work()).
-		return fmt.Errorf("agent_controller: wake for agent=%s but no running session (retry after reconcile)", pl.AgentID)
-	}
-
-	if err := sess.Inject(ctx, pl.MessageText); err != nil {
-		// Session closed between lookup and inject (or write failed) — retry so the
-		// wake is not lost (do NOT record dedup, since nothing was injected).
-		return fmt.Errorf("agent_controller: wake inject agent=%s: %w", pl.AgentID, err)
-	}
-
-	// Record the message_id as injected (dedup) only after a successful inject.
-	c.recordWake(pl.AgentID, pl.MessageID)
-
-	// D2-e-ii (OQ5 method 甲): advance the agent participant's read-state cursor
-	// to the newest delivered message so the NEXT batch flush (the dormant
-	// conversational batch-flush trigger) does not re-deliver what was injected here.
-	// This applies to BOTH the e-i immediate wake (single message) and the e-ii
-	// batch flush. Best-effort: a mark-seen failure is logged, not fatal (the
-	// FIFO dedup set already guards crash-replay; the cursor is the batch boundary
-	// and a stale cursor at worst re-delivers a duplicate the model can ignore).
-	if pl.ConversationID != "" && pl.MessageID != "" {
-		if err := c.cfg.Reporter.ReportMarkSeen(ctx, pl.AgentID, pl.ConversationID, pl.MessageID, time.Now()); err != nil {
-			c.log("wake agent=%s mark-seen conv=%s msg=%s: %v", pl.AgentID, pl.ConversationID, pl.MessageID, err)
-		}
-	}
-
-	if pl.TaskID != "" {
-		// Record as the in-flight WorkItem so an is_error turn surfaces against it (L2).
-		c.mu.Lock()
-		if cur := c.agents[pl.AgentID]; cur != nil {
-			cur.currentTaskID = pl.TaskID
-			cur.currentConversationID = "" // work context supersedes any converse context
-		}
-		c.mu.Unlock()
-		// v2.14.0 F7 (issue I14): the ReportWorkItemState(active) feedback was removed
-		// — AgentWorkItem retired. The message is injected; currentTaskID above
-		// still anchors the L2 error surface.
-	}
-	return nil
-}
-
-// converse handles an agent.converse command (v2.7 #185): a DM/channel message
-// from a human, injected into the agent's running session WITHOUT a WorkItem.
-// It mirrors wake()'s session lookup + dedup + mark-seen, but builds a
-// context-rich brief (who/where + how to reply) and never touches a WorkItem.
-func (c *AgentController) converse(ctx context.Context, pl conversePayload) error {
-	if strings.TrimSpace(pl.AgentID) == "" {
-		c.log("converse missing agent_id — skipping")
-		return nil
-	}
-
-	c.mu.Lock()
-	ma := c.agents[pl.AgentID]
-	var sess agentSession
-	if ma != nil {
-		sess = ma.session
-		// Dedup: a replay of an already-injected message is a no-op (reuses the
-		// same per-agent wakeSeen FIFO set, keyed by conversation message id).
-		if pl.MessageID != "" && ma.wakeSeen != nil {
-			if _, seen := ma.wakeSeen[pl.MessageID]; seen {
-				c.mu.Unlock()
-				c.log("converse agent=%s message=%s already injected — dedup no-op", pl.AgentID, pl.MessageID)
-				return nil
-			}
-		}
-	}
-	c.mu.Unlock()
-
-	if sess == nil {
-		// Not running (shouldn't normally reach here — the projector only enqueues
-		// converse for running agents + posts a system notice otherwise). Retry so
-		// a converse racing a just-started session is not lost.
-		return fmt.Errorf("agent_controller: converse for agent=%s but no running session (retry after reconcile)", pl.AgentID)
-	}
-
-	if err := sess.Inject(ctx, buildConverseBrief(pl)); err != nil {
-		return fmt.Errorf("agent_controller: converse inject agent=%s: %w", pl.AgentID, err)
-	}
-	c.recordWake(pl.AgentID, pl.MessageID)
-
-	// message_delivered (docs/design/features/agent-message-consumption-activity.md):
-	// 消息已真正注入 agent 上下文 → 埋一条一等 activity，让排障时能分清「没收到」与
-	// 「收到了卡在处理中」。best-effort：失败仅记日志，绝不影响注入。
-	if err := c.cfg.Reporter.ReportAgentActivity(
-		context.Background(), pl.AgentID, agent.EventTypeMessageDelivered,
-		messageDeliveredPayload(pl), "" /*taskRef*/, "" /*interactionRef*/, time.Now(),
-	); err != nil {
-		c.log("converse agent=%s message_delivered report: %v", pl.AgentID, err)
-	}
-
-	// L2 no-silent-failure (converse): record this as the in-flight CONVERSATION
-	// (no WorkItem) so an is_error turn surfaces a system message into it. Clear
-	// any stale WorkItem context — a converse turn is not work.
-	c.mu.Lock()
-	if cur := c.agents[pl.AgentID]; cur != nil {
-		cur.currentConversationID = pl.ConversationID
-		cur.currentTaskID = ""
-	}
-	c.mu.Unlock()
-
-	// Advance the agent's read-state cursor so a later batch flush doesn't
-	// re-deliver this message. Best-effort (dedup set already guards replay).
-	if pl.ConversationID != "" && pl.MessageID != "" {
-		if err := c.cfg.Reporter.ReportMarkSeen(ctx, pl.AgentID, pl.ConversationID, pl.MessageID, time.Now()); err != nil {
-			c.log("converse agent=%s mark-seen conv=%s msg=%s: %v", pl.AgentID, pl.ConversationID, pl.MessageID, err)
-		}
-	}
-	return nil
-}
-
-// messageDeliveredPayload renders the message_delivered activity JSON payload
-// (snapshot of the moment the message was injected into the agent's context).
-// content_preview is truncated to 200 chars to avoid activity bloat.
-func messageDeliveredPayload(pl conversePayload) string {
-	preview := pl.MessageText
-	if r := []rune(preview); len(r) > 200 {
-		preview = string(r[:200])
-	}
-	b, err := json.Marshal(map[string]any{
-		"conversation_id":   pl.ConversationID,
-		"message_id":        pl.MessageID,
-		"sender_ref":        pl.SenderRef,
-		"sender_display":    pl.SenderDisplay,
-		"content_preview":   preview,
-		"attachments_count": pl.AttachmentCount,
-	})
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
-}
-
-// buildConverseBrief renders the stdin brief injected for an agent.converse: who
-// messaged, where (DM vs channel), the text, and how to reply (post_message with
-// the conversation_id). Kept deterministic + plain so claude can act on it.
-func buildConverseBrief(pl conversePayload) string {
-	sender := strings.TrimSpace(pl.SenderDisplay)
-	if sender == "" {
-		sender = strings.TrimSpace(pl.SenderRef)
-	}
-	var header string
-	// T254 (I19): owner_ref → OwnerContext is now a SINGLE resolution table, so
-	// plan / issue / task / project chats all render an id-anchored header and a
-	// "this {kind}" disambiguation note — not just plans. DM/channel briefs stay
-	// byte-identical (channel resolves but is not Anchored; a dm has no owner_ref).
-	//
-	// anchorNote pins "this {kind}" to {kind}_id for any destructive action;
-	// showConvNote keeps the legacy "this is a conversation, not a task" clause for
-	// dm/channel/plan (byte-stable) but DROPS it for issue/task/project chats where
-	// it was actively misleading (those ARE about a task/issue).
-	var anchorNote string
-	showConvNote := true
-	if oc, ok := conversation.ResolveOwnerContext(pl.OwnerRef); ok && oc.Anchored {
-		oc.Name = strings.TrimSpace(pl.ConvName) // env-resolved title (T255); empty → id-only framing
-		if oc.Name != "" {
-			header = fmt.Sprintf("[%s chat — %q (%s=%s)] %s mentioned you:", oc.Label, oc.Name, oc.IDField, oc.ID, sender)
-		} else {
-			header = fmt.Sprintf("[%s chat (%s=%s)] %s mentioned you:", oc.Label, oc.IDField, oc.ID, sender)
-		}
-		anchorNote = fmt.Sprintf("(This message belongs to %s=%s. When it refers to \"this %s\" — e.g. completing, archiving, or editing it — act on THAT %s, not any other %s you may also be in.)", oc.IDField, oc.ID, string(oc.Kind), oc.IDField, string(oc.Kind))
-		if oc.Kind != conversation.OwnerKindPlan {
-			showConvNote = false
-		}
-	} else if pl.ConvKind == "channel" {
-		where := strings.TrimSpace(pl.ConvName)
-		if where == "" {
-			where = "a channel"
-		}
-		header = fmt.Sprintf("[Channel #%s] %s mentioned you:", where, sender)
-	} else {
-		header = fmt.Sprintf("[Direct message from %s]:", sender)
-	}
-	// F4: when the mention is INSIDE a thread, tell the agent to reply in that thread
-	// (pass parent_message_id=<root>) so its answer lands in the thread, not at
-	// conversation top-level. Empty RootMessageID → an ordinary top-level reply.
-	convNote := ""
-	if showConvNote {
-		convNote = " This is a conversation, not a task — there is no work item to complete."
-	}
-	replyHint := fmt.Sprintf("(To reply, use the post_message tool with conversation_id=%q.%s)", pl.ConversationID, convNote)
-	if root := strings.TrimSpace(pl.RootMessageID); root != "" {
-		replyHint = fmt.Sprintf("(You were mentioned INSIDE a thread. To reply IN that thread, use the post_message tool with conversation_id=%q AND parent_message_id=%q — do not omit parent_message_id, or your reply will land outside the thread.)", pl.ConversationID, root)
-	}
-	// T254: prepend the owner-disambiguation note AFTER the thread reply-hint
-	// substitution, so both top-level and in-thread briefs carry the {kind}_id
-	// (empty for dm/channel). Mirrors the T250 planNote placement.
-	if anchorNote != "" {
-		replyHint = anchorNote + "\n" + replyHint
-	}
-	body := pl.MessageText
-	// v2.10.0 [T74]: tell the agent the message carries file attachment(s) (e.g. a
-	// screenshot a human sent) and how to fetch them — the wake brief only inlines
-	// text, so without this an image-only or text+image message reads as text-only.
-	if pl.AttachmentCount > 0 {
-		noun := "attachment"
-		if pl.AttachmentCount > 1 {
-			noun = "attachments"
-		}
-		// T247 (issue-2dfd42a1): download_file is a CORE tool (always in the agent's
-		// surface), so this hint is actionable as-is. It SAVES the blob into the
-		// workspace — to view an image, download_file it then read the saved file.
-		body = fmt.Sprintf("%s\n\n[This message has %d file %s. Call get_my_unread to get their file_uri(s), then download_file each into your workspace and read the saved file (images included) to view them.]", body, pl.AttachmentCount, noun)
-	}
-	return fmt.Sprintf("%s\n%s\n\n%s", header, body, replyHint)
-}
-
-// recordWake records messageID in the agent's bounded wake-dedup set, evicting
-// the oldest entry FIFO when the set exceeds wakeDedupCap. Creates a stub
-// managedAgent if none exists (defensive; wake() only reaches here with a live
-// session, so an entry normally exists).
-func (c *AgentController) recordWake(agentID, messageID string) {
-	if messageID == "" {
-		return
-	}
+// runtimeFor returns the per-agent runtime for an existing managedAgent, or nil when
+// none exists (a signal arriving before reconcile started the session). Guarded by mu.
+func (c *AgentController) runtimeFor(agentID string) *agentruntime.LocalRuntime {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	ma := c.agents[agentID]
 	if ma == nil {
-		ma = &managedAgent{agentID: agentID}
-		c.agents[agentID] = ma
+		return nil
 	}
-	if ma.wakeSeen == nil {
-		ma.wakeSeen = make(map[string]struct{}, wakeDedupCap)
+	return ma.runtime
+}
+
+// routeWork dispatches an agent.work command through the per-agent runtime's
+// NotifyWork, which now owns the exec-vs-session decision (Phase 0c): a
+// concurrency-enabled runtime (r.exec != nil) forks an executor; otherwise it injects
+// the brief into the resident session. The no-running-session error surface is
+// preserved inside NotifyWork (byte-identical message).
+func (c *AgentController) routeWork(ctx context.Context, pl workPayload) error {
+	if strings.TrimSpace(pl.AgentID) == "" {
+		c.log("work missing agent_id — skipping")
+		return nil
 	}
-	if _, ok := ma.wakeSeen[messageID]; ok {
-		return
+	rt := c.runtimeFor(pl.AgentID)
+	if rt == nil {
+		return fmt.Errorf("agent_controller: work for agent=%s but no running session (retry after reconcile)", pl.AgentID)
 	}
-	ma.wakeSeen[messageID] = struct{}{}
-	ma.wakeOrder = append(ma.wakeOrder, messageID)
-	for len(ma.wakeOrder) > wakeDedupCap {
-		oldest := ma.wakeOrder[0]
-		ma.wakeOrder = ma.wakeOrder[1:]
-		delete(ma.wakeSeen, oldest)
+	return rt.NotifyWork(ctx, workRequestOf(pl))
+}
+
+// routeWake dispatches an agent.wake command through the per-agent runtime.
+func (c *AgentController) routeWake(ctx context.Context, pl wakePayload) error {
+	if strings.TrimSpace(pl.AgentID) == "" {
+		c.log("wake missing agent_id — skipping")
+		return nil
 	}
+	rt := c.runtimeFor(pl.AgentID)
+	if rt == nil {
+		return fmt.Errorf("agent_controller: wake for agent=%s but no running session (retry after reconcile)", pl.AgentID)
+	}
+	return rt.NotifyWake(ctx, wakeRequestOf(pl))
+}
+
+// routeConverse dispatches an agent.converse command through the per-agent runtime.
+func (c *AgentController) routeConverse(ctx context.Context, pl conversePayload) error {
+	if strings.TrimSpace(pl.AgentID) == "" {
+		c.log("converse missing agent_id — skipping")
+		return nil
+	}
+	rt := c.runtimeFor(pl.AgentID)
+	if rt == nil {
+		return fmt.Errorf("agent_controller: converse for agent=%s but no running session (retry after reconcile)", pl.AgentID)
+	}
+	return rt.NotifyConverse(ctx, converseRequestOf(pl))
 }
 
 // recordWorkAvail notes a work_item_id under the per-agent agent.work_available
@@ -1380,24 +889,26 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 	c.mu.Lock()
 	ma := c.agents[pl.AgentID]
 	var sess agentSession
-	var exec *executorEngine
+	var rt *agentruntime.LocalRuntime
 	if ma != nil {
-		sess = ma.session
-		exec = ma.exec
+		if ma.state != nil {
+			sess = ma.state.Session
+		}
+		rt = ma.runtime
 	}
 	c.mu.Unlock()
 
-	// W4a / F1 (issue I55): a CONCURRENCY-ENABLED agent (executorEngine attached by
-	// maybeAttachExecutorEngine — opt-in, non-codex) forks an isolated executor for the
-	// queued task instead of nudging the resident claude. This is the LIVE producer
-	// that makes W1 executor concurrency fire in production. MUTUALLY EXCLUSIVE with the
-	// nudge/relaunch path below: we fork (or leave queued) and ALWAYS short-circuit
-	// return — never also Inject the pull nudge — so the executor and the resident
-	// session can't both drive the same task (防双跑). The executor is independent of
-	// the resident session, so this runs whether or not a session is live. Best-effort
-	// + non-wedging: forkOnWorkAvailable logs every failure and the wake is always acked.
-	if exec != nil {
-		c.forkOnWorkAvailable(ctx, pl.AgentID, pl.TaskID, exec)
+	// W4a / F1 (issue I55): a CONCURRENCY-ENABLED agent (executor engine attached to
+	// its runtime — opt-in, non-codex) forks an isolated executor for the queued task
+	// instead of nudging the resident claude. This is the LIVE producer that makes
+	// executor concurrency fire in production. MUTUALLY EXCLUSIVE with the nudge/relaunch
+	// path below: we fork (or leave queued) and ALWAYS short-circuit return — never also
+	// Inject the pull nudge — so the executor and the resident session can't both drive
+	// the same task (防双跑). The executor is independent of the resident session, so
+	// this runs whether or not a session is live. Best-effort + non-wedging:
+	// SpawnExecutor logs every failure and the wake is always acked.
+	if rt != nil && rt.HasExecutor() {
+		_, _ = rt.SpawnExecutor(ctx, agentruntime.SpawnRequest{TaskID: pl.TaskID})
 		return nil
 	}
 
@@ -1411,12 +922,10 @@ func (c *AgentController) workAvailable(ctx context.Context, pl workAvailablePay
 		c.log("work_available agent=%s: concurrency-enabled but no executor engine attached — re-attaching (degradation guard)", pl.AgentID)
 		c.reattachExecutorEngineFromCache(ctx, pl.AgentID)
 		c.mu.Lock()
-		if ma := c.agents[pl.AgentID]; ma != nil {
-			exec = ma.exec
-		}
+		rt = c.runtimeForLocked(pl.AgentID)
 		c.mu.Unlock()
-		if exec != nil {
-			c.forkOnWorkAvailable(ctx, pl.AgentID, pl.TaskID, exec)
+		if rt != nil && rt.HasExecutor() {
+			_, _ = rt.SpawnExecutor(ctx, agentruntime.SpawnRequest{TaskID: pl.TaskID})
 			return nil
 		}
 	}
@@ -1512,227 +1021,11 @@ func (c *AgentController) relaunchForWake(ctx context.Context, agentID, taskID s
 // only nudges the agent to run that loop when new work arrives.
 const workAvailableNudge = "📥 New work is available in your queue. When you reach a stopping point on your current task, run your work loop: call list_my_tasks, then start_task the next item. (Need a tool you don't see — e.g. get_issue to read a task's spec from its source issue? It's deferred, not missing: run search_tools first before assuming it's absent or blocking.)"
 
-// startSession generates the per-agent mcp-config (written to a FILE the
-// supervisor reads by path — minimal key surface), resolves the agent home +
-// workspace + DURABLE reset epoch, and starts a SupervisorSession (via the
-// injected starter — production = real supervisor spawn) wiring OnEvent→activity
-// and OnExit→three-state coordination. Records the applied version on success.
-//
-// OWNERSHIP: this method NEVER execs claude. It spawns ONLY the supervisor (the
-// starter → StartSupervisorSession → SpawnSupervisor); the supervisor solely owns
-// claude. grep-clean: no exec.Command(claude…) on this path.
-func (c *AgentController) startSession(ctx context.Context, agentID string, version int, forkResume, resume bool, model, displayName, cli, promptDescription string, envVars map[string]string, concurrencyEnabled bool) error {
-	home, tasksDir, _, err := c.agentPaths(agentID)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(tasksDir, 0o700); err != nil {
-		return fmt.Errorf("agent_controller: mkdir tasks: %w", err)
-	}
-	// cli=codex: a fundamentally different execution model (one-shot `codex exec`
-	// + resume, NO persistent supervisor / epoch / session-id lock). Route to the
-	// self-contained CodexSession path before any of the claude/supervisor setup
-	// below. The claude path (cli empty / "claude-code") is untouched.
-	if cli == cliCodex {
-		return c.startCodexSession(ctx, agentID, version, home, tasksDir, model, displayName, envVars)
-	}
-	// v2.7 #182: claude runs with cwd=tasks and `--setting-sources user,project`,
-	// so its "project" settings source resolves to <tasks>/.claude. Create the
-	// directory as the agent's own project-config load point. It is left EMPTY —
-	// agent-center never pre-fills settings/hooks here (no indirect pollution); the
-	// agent (or a future feature) may drop a settings.json into it.
-	if err := os.MkdirAll(filepath.Join(tasksDir, ".claude"), 0o700); err != nil {
-		return fmt.Errorf("agent_controller: mkdir tasks/.claude: %w", err)
-	}
-
-	mcpBytes, err := mcphost.GenerateMCPConfig(mcphost.MCPConfigParams{
-		ServerName:        mcpServerName,
-		Command:           c.cfg.BinaryPath,
-		Args:              []string{"worker", "mcp-host"},
-		AgentID:           agentID,
-		AdminURL:          c.cfg.AdminURL,
-		WorkerToken:       c.cfg.WorkerToken,
-		ServerFingerprint: c.cfg.ServerFingerprint,
-		AgentRoot:         tasksDir,
-	})
-	if err != nil {
-		return fmt.Errorf("agent_controller: generate mcp-config: %w", err)
-	}
-	// Write the mcp-config to a file under the agent home; the supervisor receives
-	// only the PATH (--mcp-config-path), never the token-bearing bytes.
-	mcpPath, err := writeMCPConfig(home, mcpBytes)
-	if err != nil {
-		return fmt.Errorf("agent_controller: write mcp-config: %w", err)
-	}
-
-	// Resolve the DURABLE reset epoch. A normal start / crash-relaunch reads the
-	// CURRENT epoch (NOT 0) so it re-derives the SAME claude session-id and resumes
-	// the conversation; only a reset (BumpEpochForReset) advances it. A CORRUPT
-	// epoch file is surfaced as an error — we must NOT spawn at epoch 0 and
-	// silently start a fresh session (the context-loss trap).
-	epochState, err := supervisormanager.ReadEpoch(home)
-	if err != nil {
-		return fmt.Errorf("agent_controller: read epoch agent=%s: %w", agentID, err)
-	}
-
-	// Mode-B crash-relaunch FORK (v2.7 GATE-7): a hard-killed claude never releases
-	// its session-id lock, so re-deriving the SAME id would hit "Session ID already
-	// in use" and fail to boot (the A-seg ship-blocker). On a fork relaunch we ALWAYS
-	// bump+persist the generation BEFORE spawn (per-attempt monotonic; persist-first
-	// so a daemon death between bump and spawn never re-collides on the next boot-
-	// reconcile) and spawn a FRESH never-locked next-gen id — this lock-avoidance is
-	// unconditional for every relaunch (idle OR with-work).
-	//
-	// FINDING-3 (#117 part B): whether that fresh session RESUMES the prior session's
-	// conversation is now decoupled from the gen-bump and gated on `resume` (==hadWork
-	// — there is in-flight active work to recover):
-	//   - resume==true  (hadWork): emit `--resume <prevGenId> --fork-session` so claude
-	//     forks the prior conversation into the new id — the A-seg verified mid-turn
-	//     resume, BYTE-IDENTICAL to before.
-	//   - resume==false (idle/no-work): leave resumeFrom EMPTY → the new id starts a
-	//     FRESH claude session (no --resume/--fork-session). This avoids the crash-loop
-	//     where `--resume` of a no-completed-turn session makes claude immediately emit
-	//     is_error subtype=error_during_execution (the IDLE-agent self-heal terminal
-	//     trap). Continuity note: idle→fresh intentionally drops prior session history,
-	//     which is acceptable for a session with no in-flight turn to recover.
-	//
-	// A NORMAL start (forkResume=false) keeps the current generation and does NOT fork —
-	// a clean stop released the lock, so a plain resume of the same id is correct (and
-	// the initial start is generation 0). The gen=0 byte-equivalence is untouched.
-	generation := epochState.Generation
-	resumeFrom := ""
-	if forkResume {
-		if resume {
-			resumeFrom = claudestream.SessionUUIDGen(agentID, epochState.Epoch, epochState.Generation)
-		}
-		bumped, berr := supervisormanager.BumpGenerationForRelaunch(home)
-		if berr != nil {
-			return fmt.Errorf("agent_controller: bump generation agent=%s: %w", agentID, berr)
-		}
-		generation = bumped.Generation
-	}
-
-	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit (which fire on the
-	// event-pump goroutine the instant the process speaks) find their entry. The
-	// session field is filled in after the starter returns.
-	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model, displayName: displayName, promptDescription: promptDescription, envVars: cloneEnvVars(envVars)}
-	c.mu.Lock()
-	c.agents[agentID] = ma
-	c.mu.Unlock()
-
-	sess, err := c.cfg.starter(ctx, SupervisorSessionConfig{
-		AgentID:             agentID,
-		HomeDir:             home,
-		MCPConfigPath:       mcpPath,
-		TasksDir:            tasksDir,
-		BinaryPath:          c.cfg.BinaryPath,
-		ClaudeBin:           c.cfg.ClaudeBinary,
-		Model:               model,
-		DisplayName:         displayName,
-		AgentEnv:            envVars,
-		PromptDescription:   promptDescription,
-		Epoch:               epochState.Epoch,
-		Generation:          generation,
-		ResumeFromSessionID: resumeFrom,
-		ConcurrencyEnabled:  concurrencyEnabled,
-		StopGrace:           c.cfg.StopGrace,
-		Logger:              c.cfg.Logger,
-		OnEvent: func(ev claudestream.StreamEvent) {
-			c.onEvent(agentID, ev)
-		},
-		OnExit: func(exitErr error) {
-			c.onExit(agentID, exitErr)
-		},
-	})
-	if err != nil {
-		// Spawn failed: roll back the reservation so a retry starts clean.
-		c.mu.Lock()
-		if c.agents[agentID] == ma {
-			delete(c.agents, agentID)
-		}
-		c.mu.Unlock()
-		return fmt.Errorf("agent_controller: start session: %w", err)
-	}
-
-	c.mu.Lock()
-	ma.session = sess
-	c.mu.Unlock()
-
-	// Record the single-instance lease so crash-recovery and boot-reconcile can
-	// detect an unclean prior exit (prev_crash_at) and track session lineage
-	// (generation, prev_pid). Best-effort: a write failure is logged but does NOT
-	// abort the already-running session — the lease file is observability/recovery
-	// metadata, not a gate for the session itself.
-	sessionID := claudestream.SessionUUIDGen(agentID, epochState.Epoch, generation)
-	if _, lerr := sessioninstance.AcquireInstance(home, sessionID, os.Getpid()); lerr != nil {
-		c.log("started agent=%s: write session.instance: %v (non-fatal)", agentID, lerr)
-	}
-
-	c.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, version, epochState.Epoch, generation, forkResume, resume, home)
-	return nil
-}
-
-// startCodexSession starts a cli=codex agent via the CodexSession path (one-shot
-// `codex exec` + resume; NO supervisor / epoch / mcp-config). It persists a cli
-// marker under home so boot-recovery routes this agent away from the claude
-// supervisor probe/relaunch (which would otherwise spawn claude for it).
-//
-// OWNERSHIP: this never execs claude. It starts a CodexSession (via the injected
-// codexStarter), whose per-turn `codex exec` process is owned by the session.
-func (c *AgentController) startCodexSession(ctx context.Context, agentID string, version int, home, workspace, model, displayName string, envVars map[string]string) error {
-	if err := writeAgentCLIMarker(home, cliCodex); err != nil {
-		return fmt.Errorf("agent_controller: write codex cli marker: %w", err)
-	}
-	// Reserve the managedAgent BEFORE launch so OnEvent/OnExit find their entry.
-	ma := &managedAgent{agentID: agentID, appliedVersion: version, model: model, displayName: displayName, envVars: cloneEnvVars(envVars), cli: cliCodex}
-	c.mu.Lock()
-	c.agents[agentID] = ma
-	c.mu.Unlock()
-
-	sess, err := c.cfg.codexStarter(ctx, CodexSessionConfig{
-		AgentID:  agentID,
-		TasksDir: workspace,
-		Binary:   c.cfg.CodexBinary,
-		Model:    model,
-		Env:      runtimeAgentEnv(agentID, displayName, envVars),
-		Logger:   c.cfg.Logger,
-		OnEvent: func(ev StreamEvent) {
-			c.onEvent(agentID, ev)
-		},
-		OnExit: func(exitErr error) {
-			c.onExit(agentID, exitErr)
-		},
-	})
-	if err != nil {
-		c.mu.Lock()
-		if c.agents[agentID] == ma {
-			delete(c.agents, agentID)
-		}
-		c.mu.Unlock()
-		return fmt.Errorf("agent_controller: start codex session: %w", err)
-	}
-	c.mu.Lock()
-	ma.session = sess
-	c.mu.Unlock()
-	c.log("started codex agent=%s version=%d home=%s", agentID, version, home)
-	return nil
-}
-
 // agentCLIMarkerFile is the per-agent-home file recording the agent's execution
 // cli, written at codex start so boot-recovery can route the agent to the right
 // path WITHOUT re-deriving the cli from the center (which does not carry it on the
 // boot resume-set). Absent → the claude/supervisor path (the default).
 const agentCLIMarkerFile = "agent.cli"
-
-func writeAgentCLIMarker(home, cli string) error {
-	if home == "" {
-		return errors.New("agent_controller: home required for cli marker")
-	}
-	if err := os.MkdirAll(home, 0o700); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(home, agentCLIMarkerFile), []byte(cli), 0o600)
-}
 
 // readAgentCLIMarker returns the persisted cli for an agent home, or "" if no
 // marker exists (the claude/supervisor default).
@@ -1742,702 +1035,6 @@ func readAgentCLIMarker(home string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(b))
-}
-
-// stopSession stops the live session for agentID (if any) — the EXPLICIT-terminate
-// path: SIGTERM the supervisor (which stops claude + exits). When reportLifecycle
-// is true the stop flow is the SOLE lifecycle reporter and emits "stopped" once
-// (guarded by the per-instance sync.Once). expectedStop is always set so the
-// session's OnExit does NOT report a crash for this intentional stop.
-func (c *AgentController) stopSession(ctx context.Context, agentID string, reportLifecycle bool) {
-	c.mu.Lock()
-	ma := c.agents[agentID]
-	if ma == nil || ma.session == nil {
-		c.mu.Unlock()
-		if reportLifecycle {
-			// No live process, but the desired state is stopped — settle it.
-			c.reportLifecycleOnce(ctx, agentID, "stopped", "")
-		}
-		return
-	}
-	ma.expectedStop = true
-	sess := ma.session
-	c.mu.Unlock()
-
-	// Stop blocks until the event-pump joins + OnExit fired (no leak).
-	if err := sess.Stop(ctx); err != nil {
-		c.log("stop agent=%s: %v", agentID, err)
-	}
-
-	// Release the session instance lease so the next AcquireInstance knows
-	// this was a clean shutdown (not a crash). Best-effort.
-	if home, _, _, pathErr := c.agentPaths(agentID); pathErr == nil {
-		if relErr := sessioninstance.ReleaseInstance(home); relErr != nil {
-			c.log("stop agent=%s release instance: %v", agentID, relErr)
-		}
-	}
-
-	if reportLifecycle {
-		c.reportLifecycleOnce(ctx, agentID, "stopped", "")
-	}
-}
-
-// onEvent is the stdout→activity sink: it maps a parsed StreamEvent (the D2
-// claude 2.1.156 stream-json event) to a ReportAgentActivity call. event_type =
-// StreamEvent.Type ("assistant_text" | "thinking" | "tool_use" | "tool_result"
-// | "system" | "result" | "rate_limit" | "unknown"); payload = the StreamEvent
-// marshaled to a JSON object. It NEVER posts to a Conversation (only the
-// activity endpoint). Best-effort: a feedback failure is logged, not fatal.
-func (c *AgentController) onEvent(agentID string, ev StreamEvent) {
-	// Stamp the in-flight WorkItem onto the activity so the observability
-	// projection can aggregate tool_calls / tokens / current_activity per
-	// work-item (#111: previously hardcoded ""). Read under the lock, mirroring
-	// surfaceTurnFailure — this callback runs on the session reader goroutine and
-	// the agents map + currentTaskID are mutex-guarded. Empty when idle (no
-	// in-flight work), which is the pre-#111 behaviour.
-	c.mu.Lock()
-	var workItemRef, toolName string
-	// rlRetryAfter / rlResetAt snapshot the rate-limit window remembered for THIS
-	// turn (set by a prior rate_limit event) at the moment the turn ends, so the
-	// is_error branch below can schedule a resume with claude's own window before we
-	// clear it. Zero unless a rate_limit event preceded the result.
-	var rlRetryAfter int
-	var rlResetAt int64
-	// taskForEvent is the task this event is routed to for the LOCAL W3/W4 sink
-	// (events.current.jsonl + task.log). clearEventTask requests dropping the
-	// routing anchor AFTER this event is recorded (a terminal-tool call). See the
-	// eventTaskID field doc: in the pull model the controller has no per-task brief
-	// inject, so the in-flight task is derived from the agent's own start_task /
-	// complete_task MCP calls observed in the stream — NOT currentTaskID (which the
-	// pull path never sets).
-	var taskForEvent string
-	var clearEventTask bool
-	// sawIncomplete snapshots whether THIS turn was cut short by a connection drop
-	// (an assistant_text truncation marker seen earlier this turn), read at turn-end
-	// so the `result` branch below can schedule a bounded resume even when the result
-	// is is_error=false (快修 T799).
-	var sawIncomplete bool
-	if ma := c.agents[agentID]; ma != nil {
-		workItemRef = ma.currentTaskID
-		// v2.7.1 #216: maintain the per-turn tool_use_id→tool_name correlation so the
-		// tool_result activity can carry the tool_name (the claude tool_result event
-		// only has the id). Reset at turn boundaries (system-init / result).
-		switch ev.Type {
-		case "tool_use":
-			if ev.ToolUseID != "" {
-				if ma.toolNames == nil {
-					ma.toolNames = map[string]string{}
-				}
-				ma.toolNames[ev.ToolUseID] = ev.ToolName
-			}
-			// W3/W4 routing: a start/claim tool call opens a task; a terminal tool
-			// call (complete/discard) closes it. The opening call and the closing
-			// call themselves belong to that task's segment, so set BEFORE / clear
-			// AFTER recording this event.
-			if tid := taskIDFromStartTool(ev.ToolName, ev.ToolInput); tid != "" {
-				ma.eventTaskID = tid
-			}
-			if isTaskTerminalTool(ev.ToolName) {
-				clearEventTask = true
-			}
-		case "assistant_text":
-			// T799: claude prints "API Error: Connection closed mid-response. The
-			// response above may be incomplete." as ordinary assistant text; flag the
-			// turn so the terminal `result` schedules a resume even if is_error=false.
-			if isIncompleteTurnMarker(ev.Text) {
-				ma.sawIncompleteTurn = true
-			}
-		case "tool_result":
-			toolName = ma.toolNames[ev.ToolUseID]
-		case "rate_limit":
-			// Remember the window (retry_after / resets_at) for a possible later
-			// is_error turn-end; a bare rate_limit event does NOT end the turn, so we
-			// only record it here (claude may still recover on its own).
-			ma.rlRetryAfterSecs = ev.RetryAfterSecs
-			ma.rlResetAtUnix = ev.ResetAtUnix
-		case "system":
-			ma.toolNames = nil
-			if ev.Subtype == "init" {
-				ma.rlRetryAfterSecs, ma.rlResetAtUnix = 0, 0 // fresh turn → drop a stale window
-				ma.sawIncompleteTurn = false                 // fresh turn → drop a stale truncation marker
-			}
-		case "result":
-			ma.toolNames = nil
-			rlRetryAfter, rlResetAt = ma.rlRetryAfterSecs, ma.rlResetAtUnix
-			ma.rlRetryAfterSecs, ma.rlResetAtUnix = 0, 0 // turn ended → consume the window
-			sawIncomplete = ma.sawIncompleteTurn
-			ma.sawIncompleteTurn = false // turn ended → consume the truncation marker
-		}
-		taskForEvent = ma.eventTaskID
-	}
-	c.mu.Unlock()
-
-	payload, err := json.Marshal(streamActivityPayload(ev, toolName))
-	reportOK := false
-	if err != nil {
-		c.log("activity agent=%s marshal event: %v", agentID, err)
-		// Still attempt the L2 failure surface below — the activity record is
-		// best-effort, but a failed turn must not be swallowed by a marshal error.
-	} else if rerr := c.cfg.Reporter.ReportAgentActivity(
-		context.Background(), agentID, activityEventType(ev), string(payload),
-		workItemRef, "" /*interactionRef*/, time.Now(),
-	); rerr != nil {
-		c.log("activity agent=%s report: %v", agentID, rerr)
-	} else {
-		reportOK = true
-	}
-
-	// W3/W4 (issue-5753e8fa): persist the SAME stream event to the in-flight task's
-	// local on-disk stream — append to tasks/{id}/events.current.jsonl, tee a line
-	// into tasks/{id}/task.log, ack+roll archived segments. The Center activity
-	// report above is the REMOTE telemetry path; this is the LOCAL audit/recovery
-	// path the design names the "唯一可信源" (§8.1/§10). reportOK gates the local ack
-	// (a delivered event is "acked"); a failed report still persists the event but
-	// leaves it un-acked so it is never archived away before delivery. taskForEvent
-	// is derived from the agent's own start_task/complete_task calls (pull model),
-	// falling back to currentTaskID for any push-injected work.
-	routeTask := taskForEvent
-	if routeTask == "" {
-		routeTask = workItemRef
-	}
-	if err == nil {
-		c.recordTaskEvent(agentID, routeTask, ev, activityEventType(ev), string(payload), reportOK)
-	}
-	// Drop the routing anchor after a terminal-tool call so post-completion idle
-	// events don't reopen the finished task's segment.
-	if clearEventTask {
-		c.mu.Lock()
-		if ma := c.agents[agentID]; ma != nil {
-			// Preserve the just-closed task for THIS turn's usage accounting
-			// (issue-af03da2f): the turn-end `result` (maybeReportUsage) fires after
-			// this clear, so without this it would attribute the completing turn's
-			// cost to no task. The result handler consumes + clears lastEventTaskID,
-			// so it never survives into a later turn.
-			ma.lastEventTaskID = ma.eventTaskID
-			ma.eventTaskID = ""
-		}
-		c.mu.Unlock()
-	}
-
-	// L2 no-silent-failure: a `result` event with is_error=true means the turn
-	// ENDED in failure (API/auth error, max_turns, …). The in-flight WorkItem was
-	// reported "active" at inject and would otherwise sit silently active forever
-	// (task stuck "running"). Surface it by failing the WorkItem (active→failed via
-	// the NORMAL feedback edge — the agent is still alive, only its turn failed; NOT
-	// the B3 agent-death cascade, which is for a crashed/result-less claude). The
-	// failure detail is preserved in the result activity above (is_error/subtype/result).
-	if ev.Type == "result" && ev.IsError {
-		// LLM 服务端限流自动恢复: if the turn ended because of a server-side rate-limit,
-		// schedule an automatic resume (re-drive the SAME work after the window clears)
-		// instead of abandoning it via surfaceTurnFailure. Falls through to the normal
-		// failure surface when it is not a rate-limit / there is nothing to resume.
-		if c.maybeScheduleRateLimitResume(agentID, ev, rlRetryAfter, rlResetAt) {
-			return
-		}
-		// T475: a transient API/connection error ("Connection closed mid-response",
-		// 5xx, …) is retryable too — schedule a bounded, backed-off resume of the SAME
-		// work instead of abandoning it. Falls through to surfaceTurnFailure when the
-		// error is not transient, there is nothing to resume, or the retry budget is
-		// spent (so a persistently-failing turn still surfaces, never loops forever).
-		if c.maybeScheduleAPIErrorResume(agentID, ev, sawIncomplete) {
-			return
-		}
-		c.surfaceTurnFailure(agentID, ev)
-	}
-
-	// T799: a turn CUT SHORT by a connection drop can end with is_error=FALSE — claude
-	// prints "…the response above may be incomplete." as ordinary assistant text and
-	// then closes the turn "successfully", so isTransientAPIError (which only inspects
-	// a `result` is_error) never fires. Handle it HERE, before the clean-turn T341
-	// path: schedule the SAME bounded resume of the still-live turn. Does NOT return
-	// when there is nothing to resume or the budget is spent, so the normal clean-turn
-	// handling below still runs (the truncation marker was consumed above).
-	if ev.Type == "result" && !ev.IsError && sawIncomplete {
-		if c.maybeScheduleAPIErrorResume(agentID, ev, sawIncomplete) {
-			return
-		}
-	}
-
-	// T341 reply-guardrail (方案 A): a CLEAN turn-end is the natural "the agent
-	// reached a stopping point" moment. Ask the center whether this agent still
-	// owes any human/agent-directed reply it perceived but never sent, and inject
-	// a bounded re-inject nudge so the agent itself discharges it. Runs only on a
-	// non-error `result` (an is_error turn is handled above). Off the reader
-	// goroutine — the fetch is a network round-trip and must not stall the stream.
-	if ev.Type == "result" && !ev.IsError {
-		// T475: a clean turn-end clears the transient-API-error retry budget so a
-		// later, UNRELATED connection error starts fresh with the full retry count
-		// (the previous burst recovered — its budget must not carry over).
-		c.resetAPIErrorRetries(agentID)
-		// 重启不丢上下文: persist that this generation has completed a clean turn,
-		// so a later boot can safely --resume this session (resuming a session that
-		// never completed a turn triggers a Claude no-completed-turn crash loop —
-		// see boot_reconcile.go). Best-effort, off the reader goroutine: this
-		// process holds the agent and serializes its instance-file writes, and the
-		// atomic temp+rename is the second-line defense, so no home flock is needed.
-		// A write failure only costs a fresh (non-resumed) relaunch next boot.
-		// SCOPED to claude-supervisor agents: a cli=codex session uses its own
-		// `codex exec` resume path and never reads session.instance on boot, so the
-		// lease write is pointless there (and would only add a stray async file
-		// write to its home).
-		var isCodex bool
-		c.mu.Lock()
-		if ma := c.agents[agentID]; ma != nil {
-			isCodex = ma.cli == cliCodex
-		}
-		c.mu.Unlock()
-		if !isCodex {
-			if home, _, _, pathErr := c.agentPaths(agentID); pathErr == nil {
-				// Tracked on c.bg so Shutdown can drain this home write before the
-				// caller removes the agent home (T672). Add runs here on the pump
-				// goroutine (Detach joins it before Wait), so Add never races Wait.
-				c.bg.Add(1)
-				go func() {
-					defer c.bg.Done()
-					if merrr := sessioninstance.MarkCompletedTurn(home); merrr != nil {
-						c.log("restart-recovery: MarkCompletedTurn(%s) failed: %v", agentID, merrr)
-					}
-				}()
-			}
-		}
-		go c.maybeReplyNudge(agentID)
-		// v2.15.0 I28/F2: a clean turn-end carries the result line's usage totals
-		// — report them to the center for per-turn cost accounting. Off the reader
-		// goroutine (network round-trip) and best-effort (failures only logged).
-		// issue-af03da2f: capture the in-flight task SYNCHRONOUSLY here (the only
-		// place ordered w.r.t. the eventTaskID clear) — eventTaskID for a still-open
-		// task, else lastEventTaskID for one this turn just completed — then clear
-		// lastEventTaskID so it never bills a later converse turn. Pass it in rather
-		// than letting the goroutine re-read (which would race the clear).
-		var usageTaskID string
-		c.mu.Lock()
-		if ma := c.agents[agentID]; ma != nil {
-			usageTaskID = ma.usageTaskAtResult()
-		}
-		c.mu.Unlock()
-		go c.maybeReportUsage(agentID, ev, usageTaskID)
-	}
-}
-
-// maybeReplyNudge is the worker half of the reply-guardrail turn-end hook (T341).
-// It asks the center for the directed replies this agent still owes and injects
-// each returned prompt into the live session so the agent replies (or explicitly
-// declines) itself (方案 A). The SERVER is the actual guardrail — it derives
-// obligations from the message log + read-state, gates agent-authored ones through
-// the shared wake-guardrail, and bounds re-injects by max_nudges + cooldown — so
-// this side stays deliberately thin: it fires once per clean turn-end and trusts
-// the server to return an empty slice in the (common) no-obligation case.
-//
-// It skips when the agent is anchored to an in-flight CONVERSATION turn
-// (currentConversationID != ""): that agent is actively conversing and its own
-// reply loop owns the discharge; nudging mid-conversation would be premature
-// (design §5-②, "不误伤" an agent that is already replying). It does NOT gate on
-// currentTaskID — that pointer lingers as the "last work injected" anchor and
-// would over-suppress; the server's cooldown + perceived/discharge gating is the
-// real bound. Best-effort throughout: a missing session or a fetch error is
-// logged and dropped (the guardrail is a safety net, never a critical path).
-func (c *AgentController) maybeReplyNudge(agentID string) {
-	c.mu.Lock()
-	var sess agentSession
-	var inConverse bool
-	if ma := c.agents[agentID]; ma != nil {
-		sess = ma.session
-		inConverse = ma.currentConversationID != ""
-	}
-	c.mu.Unlock()
-	if sess == nil || inConverse {
-		return
-	}
-	if c.cfg.Reporter == nil {
-		return
-	}
-	ctx := context.Background()
-	prompts, err := c.cfg.Reporter.FetchReplyNudges(ctx, agentID)
-	if err != nil {
-		c.log("reply-guardrail agent=%s fetch nudges: %v", agentID, err)
-		return
-	}
-	for _, p := range prompts {
-		if strings.TrimSpace(p) == "" {
-			continue
-		}
-		if err := sess.Inject(ctx, p); err != nil {
-			c.log("reply-guardrail agent=%s inject nudge: %v", agentID, err)
-			return // session closed mid-loop — stop; a later turn-end will retry
-		}
-		c.log("reply-guardrail agent=%s injected directed-reply nudge", agentID)
-	}
-}
-
-// usageTaskAtResult returns the task this turn's usage should be billed to and
-// consumes the just-completed-task carry-over (issue-af03da2f). A still-open task
-// (eventTaskID) wins; otherwise a task this same turn just completed
-// (lastEventTaskID, set when the terminal tool cleared eventTaskID). Clearing
-// lastEventTaskID here guarantees it bills exactly the completing turn and never a
-// later converse/idle turn. The CALLER must hold c.mu.
-func (ma *managedAgent) usageTaskAtResult() string {
-	t := ma.eventTaskID
-	if t == "" {
-		t = ma.lastEventTaskID
-	}
-	ma.lastEventTaskID = ""
-	return t
-}
-
-// maybeReportUsage is the worker half of the F2 per-turn usage hook (v2.15.0
-// I28). On a clean turn-end it ships the result line's token totals (input /
-// output / cache read / cache write) to the center's report_usage tool, tagged
-// with the agent's model and the in-flight task. It is deliberately thin and
-// best-effort: gated by the DisableUsageReport kill-switch, it skips empty turns,
-// resolves model under the lock, and logs (never surfaces) any error so a failed
-// report can never stall or fail the agent loop. taskID is captured by the caller
-// at the `result` boundary (issue-af03da2f): the pull model never sets
-// currentTaskID, so usage is attributed to the agent-derived eventTaskID /
-// lastEventTaskID instead — empty on a converse/idle turn (non-task overhead).
-func (c *AgentController) maybeReportUsage(agentID string, ev StreamEvent, taskID string) {
-	if c.cfg.DisableUsageReport || c.cfg.Reporter == nil {
-		return
-	}
-	// Nothing observed this turn → nothing to account.
-	if ev.TokensIn == 0 && ev.TokensOut == 0 && ev.CacheReadTokens == 0 && ev.CacheWriteTokens == 0 {
-		return
-	}
-	c.mu.Lock()
-	var model string
-	if ma := c.agents[agentID]; ma != nil {
-		model = ma.model
-	}
-	c.mu.Unlock()
-	if model == "" {
-		return // no model resolvable (agent not started here) — skip rather than guess
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := c.cfg.Reporter.ReportUsage(ctx, UsageReport{
-		AgentID:          agentID,
-		Model:            model,
-		TaskID:           taskID,
-		InputTokens:      ev.TokensIn,
-		OutputTokens:     ev.TokensOut,
-		CacheReadTokens:  ev.CacheReadTokens,
-		CacheWriteTokens: ev.CacheWriteTokens,
-		At:               time.Now(),
-	}); err != nil {
-		c.log("report_usage agent=%s: %v", agentID, err)
-	}
-}
-
-// surfaceTurnFailure fails the agent's in-flight WorkItem after an is_error turn
-// (L2). It reads currentTaskID under the lock, then reports the failure
-// outside the lock (the reporter is a network call). With no in-flight WorkItem
-// (an is_error turn on an idle agent — e.g. an unsolicited error) it logs a
-// VISIBLE warning rather than silently dropping it. On success it clears the
-// in-flight pointer so a stray second result cannot re-fail an already-failed WI.
-func (c *AgentController) surfaceTurnFailure(agentID string, ev StreamEvent) {
-	c.mu.Lock()
-	var wiID, convID string
-	if ma := c.agents[agentID]; ma != nil {
-		wiID = ma.currentTaskID
-		convID = ma.currentConversationID
-	}
-	c.mu.Unlock()
-
-	if wiID == "" {
-		// No WorkItem. If the in-flight context is a CONVERSATION (agent.converse),
-		// surface the failure as a VISIBLE system message in that conversation (UX
-		// Rule 9 — a DM/channel turn that errored, e.g. invalid model → claude 404,
-		// must not leave the human waiting in silence). Otherwise (truly idle) log.
-		if convID != "" {
-			c.surfaceConverseFailure(agentID, convID, ev)
-			return
-		}
-		c.log("L2 agent=%s is_error turn with NO in-flight WorkItem (subtype=%q) — surfaced as warning, not silently dropped", agentID, ev.Subtype)
-		return
-	}
-
-	// v2.14.0 F7 (issue I14): the ReportWorkItemState(failed) feedback was removed —
-	// AgentWorkItem retired. The is_error turn is surfaced loudly in the log (and
-	// remains observable in the activity stream); the in-flight pointer is cleared so
-	// a stray second result cannot re-fail an already-handled turn.
-	c.log("L2 agent=%s work_item=%s failed (is_error turn, subtype=%q)", agentID, wiID, ev.Subtype)
-
-	c.mu.Lock()
-	if ma := c.agents[agentID]; ma != nil && ma.currentTaskID == wiID {
-		ma.currentTaskID = ""
-	}
-	c.mu.Unlock()
-}
-
-// surfaceConverseFailure posts a VISIBLE system message into the conversation of
-// a failed agent.converse turn (no WorkItem) so the human sees the agent errored
-// instead of waiting in silence (UX Rule 9 / #185 follow-up). Best-effort: a
-// report failure is logged (the is_error is still in the activity stream). Clears
-// the in-flight conversation pointer so a stray second result doesn't double-post.
-func (c *AgentController) surfaceConverseFailure(agentID, convID string, ev StreamEvent) {
-	if err := c.cfg.Reporter.ReportConverseError(
-		context.Background(), agentID, convID, converseErrorSummary(ev), time.Now(),
-	); err != nil {
-		c.log("L2 agent=%s conv=%s converse-error report: %v", agentID, convID, err)
-		return
-	}
-	c.log("L2 agent=%s conv=%s converse turn failed (is_error, subtype=%q) — system notice posted", agentID, convID, ev.Subtype)
-	c.mu.Lock()
-	if ma := c.agents[agentID]; ma != nil && ma.currentConversationID == convID {
-		ma.currentConversationID = ""
-	}
-	c.mu.Unlock()
-}
-
-// converseErrorSummary builds a short, human-readable failure summary from the
-// result event for the conversation system message (subtype + a bounded slice of
-// the result text). The full detail remains in the result activity record.
-func converseErrorSummary(ev StreamEvent) string {
-	s := strings.TrimSpace(ev.Subtype)
-	if s == "" {
-		s = "error"
-	}
-	if r := strings.TrimSpace(ev.Result); r != "" {
-		const max = 200
-		if len(r) > max {
-			r = r[:max] + "…"
-		}
-		s = s + ": " + r
-	}
-	return s
-}
-
-// streamActivityPayload builds the JSON activity payload for a StreamEvent,
-// emitting only the fields relevant to its Type so the activity record is a
-// meaningful, compact object (omitempty drops the rest).
-func streamActivityPayload(ev StreamEvent, toolName string) map[string]any {
-	p := map[string]any{"type": ev.Type}
-	switch ev.Type {
-	case "assistant_text", "thinking":
-		p["text"] = ev.Text
-	case "tool_use":
-		p["tool_name"] = ev.ToolName
-		p["tool_use_id"] = ev.ToolUseID
-		// v2.7.1 #216: `args` is the standardized field the Activity stream reads
-		// (frontend truncates it for the tool_use preview). Keep tool_input too for
-		// back-compat with any existing consumer.
-		if len(ev.ToolInput) > 0 {
-			p["args"] = ev.ToolInput
-			p["tool_input"] = ev.ToolInput
-		}
-	case "tool_result":
-		p["tool_use_id"] = ev.ToolUseID
-		// v2.7.1 #216: tool_name correlated from the matching tool_use (the claude
-		// tool_result event only carries the id). Omitted when unresolved.
-		if toolName != "" {
-			p["tool_name"] = toolName
-		}
-		// `ok` = NOT is_error, parsed from the claude tool_result block content
-		// (which carries an is_error flag); defaults true when absent.
-		p["ok"] = !toolResultIsError(ev.ToolResult)
-		if len(ev.ToolResult) > 0 {
-			p["tool_result"] = ev.ToolResult
-		}
-	case "system":
-		p["subtype"] = ev.Subtype
-		// v2.7.1 #216: the session-init system line carries {model, session_id,
-		// mcp_servers} — surface them as standardized fields for the system_init
-		// activity (parsed from the raw line; absent fields omitted).
-		if ev.Subtype == "init" {
-			mergeSystemInitFields(p, ev.Raw)
-		}
-	case "result":
-		p["subtype"] = ev.Subtype
-		p["result"] = ev.Result
-		p["stop_reason"] = ev.StopReason
-		p["is_error"] = ev.IsError
-		p["cost_usd"] = ev.CostUSD
-		p["tokens_in"] = ev.TokensIn
-		p["tokens_out"] = ev.TokensOut
-	}
-	if len(ev.Raw) > 0 {
-		p["raw"] = ev.Raw
-	}
-	return p
-}
-
-// activityEventType maps a StreamEvent to the standardized activity event_type
-// (v2.7.1 #216). The claude session-init system line becomes "system_init"; every
-// other type keeps its stream value (which already matches the agent BC's
-// EventType* constants). The worker stays decoupled from the agent BC (§ 0.4) — it
-// emits the event_type as a STRING; these literals MUST match agent.EventType*.
-func activityEventType(ev StreamEvent) string {
-	if ev.Type == "system" && ev.Subtype == "init" {
-		return "system_init"
-	}
-	return ev.Type
-}
-
-// toolResultIsError reports whether a claude tool_result content block carries an
-// is_error flag (v2.7.1 #216 → payload.ok = !is_error). Best-effort: empty /
-// unparseable → false (treated as ok).
-func toolResultIsError(raw json.RawMessage) bool {
-	if len(raw) == 0 {
-		return false
-	}
-	var probe struct {
-		IsError bool `json:"is_error"`
-	}
-	_ = json.Unmarshal(raw, &probe)
-	return probe.IsError
-}
-
-// mergeSystemInitFields extracts {model, session_id, mcp_servers} from the raw
-// claude system-init line into the system_init activity payload (v2.7.1 #216).
-// Absent fields are omitted; a parse failure leaves p unchanged.
-func mergeSystemInitFields(p map[string]any, raw json.RawMessage) {
-	if len(raw) == 0 {
-		return
-	}
-	var probe struct {
-		Model      string          `json:"model"`
-		SessionID  string          `json:"session_id"`
-		MCPServers json.RawMessage `json:"mcp_servers"`
-	}
-	if err := json.Unmarshal(raw, &probe); err != nil {
-		return
-	}
-	if probe.Model != "" {
-		p["model"] = probe.Model
-	}
-	if probe.SessionID != "" {
-		p["session_id"] = probe.SessionID
-	}
-	if len(probe.MCPServers) > 0 {
-		p["mcp_servers"] = probe.MCPServers
-	}
-}
-
-// onExit coordinates the EXACTLY-ONE lifecycle report on session exit, across the
-// THREE exit kinds (s3b-2b):
-//   - detaching (daemon-shutdown SURVIVAL) → Detach fired OnExit(nil) but claude
-//     is STILL ALIVE under the supervisor for a future re-attach. Report NOTHING
-//     (the agent stays desired-running); just log. SAFETY (PM): this cannot mask a
-//     real crash — if claude actually died, the next daemon-boot s4 probe detects
-//     it and drives mode-B relaunch. Truth is recomputed by boot-probe.
-//   - expected stop (set by stopSession/reset) → the reconcile/reset flow is the
-//     sole reporter; OnExit does NOT report (the sync.Once may already be spent,
-//     and an expected stop's lifecycle is owned by the stop flow).
-//   - unexpected (the supervisor/claude died while desired=running) → OnExit
-//     reports "error" with the exit err, exactly once.
-//
-// The managedAgent entry is cleared on exit so a fresh start re-creates it.
-func (c *AgentController) onExit(agentID string, exitErr error) {
-	c.mu.Lock()
-	ma := c.agents[agentID]
-	if ma == nil {
-		c.mu.Unlock()
-		return
-	}
-	detaching := ma.detaching
-	expected := ma.expectedStop
-	version := ma.appliedVersion              // captured for a possible self-heal relaunch
-	hadWork := ma.hadWork                     // injected work → nudge on self-heal relaunch
-	taskID := ma.currentTaskID                // in-flight WI → rebind on relaunch so a failed re-drive surfaces (L2×Mode-B)
-	model := ma.model                         // agent's --model → carry across crash so self-heal re-drive uses the SAME model
-	displayName := ma.displayName             // agent's display_name → carry across crash so self-heal re-drive keeps git author NAME (T469)
-	promptDescription := ma.promptDescription // T728: injected persona段 → carry across crash so self-heal re-drive keeps it
-	envVars := cloneEnvVars(ma.envVars)       // profile env → carry across crash so self-heal re-drive keeps runtime env
-	cli := ma.cli                             // codex agents skip the supervisor self-heal machinery (no epoch/fork)
-	wasConcurrent := ma.exec != nil           // concurrent mode → carry across crash so self-heal re-drive uses the orchestrator prompt
-	// W4: flush+close any open per-task log writer so the session's exit doesn't
-	// leak the fd (and so a later workspace wipe isn't racing a live writer).
-	taskLog := ma.taskLog
-	ma.taskLog, ma.taskLogID = nil, ""
-	// Clear the entry: this daemon no longer tracks the session (on detach the
-	// supervisor + claude survive, owned by init, for the next daemon's re-attach).
-	delete(c.agents, agentID)
-	c.mu.Unlock()
-
-	if taskLog != nil {
-		_ = taskLog.Close()
-	}
-
-	if detaching {
-		// Daemon-shutdown survival: claude lives on; report nothing.
-		c.log("agent=%s detached (supervisor + claude survive for re-attach)", agentID)
-		return
-	}
-
-	if expected {
-		// The stop/reset flow owns the lifecycle report for this instance.
-		c.log("agent=%s exited (expected stop)", agentID)
-		return
-	}
-
-	// Unexpected crash while desired=running → report error exactly once.
-	msg := ""
-	if exitErr != nil {
-		msg = exitErr.Error()
-	} else {
-		msg = "process exited unexpectedly"
-	}
-	c.log("agent=%s crashed: %s", agentID, msg)
-	// cli=codex: the CodexSession has no supervisor / epoch / session-id lock, so the
-	// Mode-B supervisor self-heal (which would spawn a claude supervisor) does NOT
-	// apply. Report the crash lifecycle once and stop; v1 does not auto-relaunch a
-	// crashed codex agent (an operator stop→start re-runs it).
-	if cli == cliCodex {
-		ma.lifecycleOnce.Do(func() {
-			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "error", msg, time.Now()); err != nil {
-				c.log("agent=%s (codex) report error: %v", agentID, err)
-			}
-		})
-		return
-	}
-	// Mid-run crash self-heal (GATE-7 Mode-B, slice B): record the crash + schedule a
-	// backed-off relaunch (or circuit-break to terminal after the cap). This NEVER
-	// starts a session — OnTick performs the relaunch on the ControlLoop goroutine. It
-	// returns the lifecycle state to report: "error" (transient, still auto-retrying)
-	// or "failed" (terminal circuit-breaker), reported once for this crash instance.
-	state := c.recordCrashAndSchedule(agentID, version, hadWork, taskID, model, displayName, promptDescription, envVars, wasConcurrent, msg)
-	if state != "" {
-		ma.lifecycleOnce.Do(func() {
-			if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, state, msg, time.Now()); err != nil {
-				c.log("agent=%s report %s: %v", agentID, state, err)
-			}
-		})
-	}
-}
-
-// reportLifecycleOnce emits a lifecycle RESULT exactly once per managed instance
-// (guarded by the per-instance sync.Once). When the entry is already gone (the
-// process exited first), it still emits — the once is then keyed to a transient
-// managedAgent, which is acceptable for the no-process-settle path.
-func (c *AgentController) reportLifecycleOnce(ctx context.Context, agentID, state, errMsg string) {
-	c.mu.Lock()
-	ma := c.agents[agentID]
-	c.mu.Unlock()
-
-	emit := func() {
-		if err := c.cfg.Reporter.ReportAgentLifecycle(ctx, agentID, state, errMsg, time.Now()); err != nil {
-			c.log("agent=%s report %s: %v", agentID, state, err)
-		}
-	}
-	if ma != nil {
-		ma.lifecycleOnce.Do(emit)
-		return
-	}
-	emit()
-}
-
-// reportRecovered tells the center a crashed agent's session is back up (issue I13)
-// so it clears lifecycle error → running: the agent becomes AVAILABLE for dispatch
-// again and the UI stops showing it crashed. Called from the RECOVERY paths only
-// (boot reattach/relaunch + mid-run self-heal relaunch, which routes through
-// bootReapRelaunch). It is IDEMPOTENT at the center — MarkAgentRecovered is a no-op
-// unless the agent is in `error` — so calling it whenever a recovery path brings a
-// session up is safe even when the center already considers the agent running.
-// Best-effort: a report failure is logged, never fatal (the session is already live).
-func (c *AgentController) reportRecovered(agentID string) {
-	if err := c.cfg.Reporter.ReportAgentLifecycle(context.Background(), agentID, "running", "", time.Now()); err != nil {
-		c.log("agent=%s report running (recovery): %v", agentID, err)
-	}
 }
 
 // recordVersion advances appliedVersion for agentID, creating a stub
@@ -2588,18 +1185,19 @@ func (c *AgentController) wipeContained(home, target string) error {
 // Detach joins the session's event-pump.
 func (c *AgentController) Shutdown(ctx context.Context) {
 	c.mu.Lock()
-	sessions := make([]agentSession, 0, len(c.agents))
+	rts := make([]*agentruntime.LocalRuntime, 0, len(c.agents))
 	for _, ma := range c.agents {
-		if ma.session != nil {
-			ma.detaching = true
-			sessions = append(sessions, ma.session)
+		if ma.runtime != nil && ma.live() {
+			rts = append(rts, ma.runtime)
 		}
 	}
 	c.mu.Unlock()
 
-	for _, s := range sessions {
-		// Detach is no-signal + joins the pump; claude survives.
-		s.Detach()
+	for _, rt := range rts {
+		// Detach marks the session detaching (so its OnExit(nil) is a survival
+		// detach, not a crash) then closes the socket without signalling; claude
+		// survives, and Detach joins the pump.
+		rt.Detach()
 	}
 	// Detach joined every event-pump above, so no NEW clean-turn goroutine can be
 	// spawned past this point (no further c.bg.Add). Drain the ones already in

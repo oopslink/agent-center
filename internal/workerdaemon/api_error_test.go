@@ -93,9 +93,9 @@ func TestAPIError_SchedulesResumeAndOnTickResumes(t *testing.T) {
 	// Work NOT abandoned; resume scheduled at now+base (2s) on the FIRST retry.
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask := ma.currentTaskID
-	gotResumeAt := ma.rateLimitResumeAt
-	gotRetries := ma.apiErrorRetries
+	gotTask := ma.state.CurrentTaskID
+	gotResumeAt := ma.state.RateLimitResumeAt
+	gotRetries := ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if gotTask != "wi-1" {
 		t.Fatalf("transient-error turn must PRESERVE currentTaskID for resume, got %q", gotTask)
@@ -121,7 +121,7 @@ func TestAPIError_SchedulesResumeAndOnTickResumes(t *testing.T) {
 		t.Fatalf("OnTick must inject the resume nudge once after the backoff, got %+v", msgs)
 	}
 	c.mu.Lock()
-	cleared := c.agents["agent-1"].rateLimitResumeAt.IsZero()
+	cleared := c.agents["agent-1"].state.RateLimitResumeAt.IsZero()
 	c.mu.Unlock()
 	if !cleared {
 		t.Fatalf("resume slot must be consumed after resume")
@@ -152,7 +152,7 @@ func TestAPIError_BoundedRetriesThenFails(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		fs.emit(errEv)
 		c.mu.Lock()
-		task, retries := c.agents["agent-1"].currentTaskID, c.agents["agent-1"].apiErrorRetries
+		task, retries := c.agents["agent-1"].state.CurrentTaskID, c.agents["agent-1"].state.APIErrorRetries
 		c.mu.Unlock()
 		if task != "wi-1" {
 			t.Fatalf("retry %d: work must stay in-flight, got %q", i, task)
@@ -166,7 +166,7 @@ func TestAPIError_BoundedRetriesThenFails(t *testing.T) {
 	fs.emit(errEv)
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask, gotResumeAt, gotRetries := ma.currentTaskID, ma.rateLimitResumeAt, ma.apiErrorRetries
+	gotTask, gotResumeAt, gotRetries := ma.state.CurrentTaskID, ma.state.RateLimitResumeAt, ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if gotTask != "" {
 		t.Fatalf("budget spent → surfaceTurnFailure must clear currentTaskID, got %q", gotTask)
@@ -197,7 +197,7 @@ func TestAPIError_CleanTurnResetsRetryBudget(t *testing.T) {
 
 	fs.emit(claudestream.StreamEvent{Type: "result", IsError: true, Result: "API Error: Connection closed mid-response."})
 	c.mu.Lock()
-	mid := c.agents["agent-1"].apiErrorRetries
+	mid := c.agents["agent-1"].state.APIErrorRetries
 	c.mu.Unlock()
 	if mid != 1 {
 		t.Fatalf("transient error must increment retries, got %d", mid)
@@ -206,7 +206,7 @@ func TestAPIError_CleanTurnResetsRetryBudget(t *testing.T) {
 	// A clean turn-end (the resume recovered) must zero the budget.
 	fs.emit(claudestream.StreamEvent{Type: "result", IsError: false, Result: "done", Subtype: "success"})
 	c.mu.Lock()
-	after := c.agents["agent-1"].apiErrorRetries
+	after := c.agents["agent-1"].state.APIErrorRetries
 	c.mu.Unlock()
 	if after != 0 {
 		t.Fatalf("clean turn-end must reset apiErrorRetries, got %d", after)
@@ -234,7 +234,7 @@ func TestAPIError_OrdinaryErrorStillFails(t *testing.T) {
 
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask, gotResumeAt, gotRetries := ma.currentTaskID, ma.rateLimitResumeAt, ma.apiErrorRetries
+	gotTask, gotResumeAt, gotRetries := ma.state.CurrentTaskID, ma.state.RateLimitResumeAt, ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if gotTask != "" {
 		t.Fatalf("an ordinary is_error turn must clear currentTaskID, got %q", gotTask)
@@ -264,7 +264,7 @@ func TestAPIError_NoResumeWhenNoInflightWork(t *testing.T) {
 
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	resumeAt, retries := ma.rateLimitResumeAt, ma.apiErrorRetries
+	resumeAt, retries := ma.state.RateLimitResumeAt, ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if !resumeAt.IsZero() {
 		t.Fatalf("no in-flight work → must NOT schedule a resume, got %s", resumeAt)
@@ -296,7 +296,7 @@ func TestAPIError_RateLimitTakesPrecedence(t *testing.T) {
 
 	c.mu.Lock()
 	ma := c.agents["agent-1"]
-	gotTask, gotResumeAt, gotRetries := ma.currentTaskID, ma.rateLimitResumeAt, ma.apiErrorRetries
+	gotTask, gotResumeAt, gotRetries := ma.state.CurrentTaskID, ma.state.RateLimitResumeAt, ma.state.APIErrorRetries
 	c.mu.Unlock()
 	if gotTask != "wi-1" {
 		t.Fatalf("rate-limit resume must preserve currentTaskID, got %q", gotTask)
@@ -328,132 +328,4 @@ func hasAPIErrorResumeActivity(calls []activityCall) bool {
 		}
 	}
 	return false
-}
-
-// TestIsIncompleteTurnMarker pins the T799 truncation detector: the connection-drop
-// phrases claude prints as assistant TEXT match (case-insensitively); ordinary text
-// and empty text do not.
-func TestIsIncompleteTurnMarker(t *testing.T) {
-	cases := []struct {
-		name string
-		text string
-		want bool
-	}{
-		{"connection closed mid-response", "API Error: Connection closed mid-response.", true},
-		{"response above may be incomplete", "The response above may be incomplete.", true},
-		{"full issue line", "API Error: Connection closed mid-response. The response above may be incomplete.", true},
-		{"case-insensitive", "connection CLOSED MID-response", true},
-		{"ordinary text", "Here is the answer you asked for.", false},
-		{"empty", "", false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := isIncompleteTurnMarker(tc.text); got != tc.want {
-				t.Fatalf("isIncompleteTurnMarker(%q) = %v, want %v", tc.text, got, tc.want)
-			}
-		})
-	}
-}
-
-// TestAPIError_IncompleteMarkerSchedulesResumeOnCleanResult is the core T799 fix: a
-// turn whose assistant_text carried the truncation marker but ended with a `result`
-// is_error=FALSE (claude "succeeded" after printing the connection-drop as text) must
-// STILL schedule a bounded resume of the in-flight work — instead of being treated as
-// a clean turn and left silently incomplete.
-func TestAPIError_IncompleteMarkerSchedulesResumeOnCleanResult(t *testing.T) {
-	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
-	c, rep, rs := newTestController(t, t.TempDir())
-	c.cfg.Now = clock.now
-	defer c.Shutdown(context.Background())
-
-	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
-	if err := c.Handle(context.Background(), workCmd(t, "agent-1", "wi-1", "do the thing", 2)); err != nil {
-		t.Fatalf("work: %v", err)
-	}
-	fs := rs.last()
-
-	// The turn prints the connection-drop as ordinary assistant TEXT, then ends the
-	// turn "successfully" (is_error=false) — the shape that escaped isTransientAPIError.
-	fs.emit(claudestream.StreamEvent{Type: "assistant_text", Text: "API Error: Connection closed mid-response. The response above may be incomplete."})
-	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
-
-	c.mu.Lock()
-	ma := c.agents["agent-1"]
-	gotTask, gotResumeAt, gotRetries := ma.currentTaskID, ma.rateLimitResumeAt, ma.apiErrorRetries
-	gotFlag := ma.sawIncompleteTurn
-	c.mu.Unlock()
-	if gotTask != "wi-1" {
-		t.Fatalf("incomplete turn must PRESERVE currentTaskID for resume, got %q", gotTask)
-	}
-	if gotRetries != 1 {
-		t.Fatalf("incomplete turn must set apiErrorRetries=1, got %d", gotRetries)
-	}
-	if gotFlag {
-		t.Fatalf("sawIncompleteTurn must be consumed at turn-end, still set")
-	}
-	if want := clock.now().Add(2 * time.Second); !gotResumeAt.Equal(want) {
-		t.Fatalf("resumeAt = %s, want %s", gotResumeAt, want)
-	}
-	if !hasAPIErrorResumeActivity(rep.activityCalls()) {
-		t.Fatalf("expected an api_error resume_scheduled activity, got %+v", rep.activityCalls())
-	}
-
-	// Backoff elapsed → OnTick injects the resume nudge into the still-live session.
-	clock.advance(3 * time.Second)
-	c.OnTick(context.Background())
-	msgs := fs.injectedMsgs()
-	if len(msgs) == 0 || msgs[len(msgs)-1] != DefaultResumeNudge {
-		t.Fatalf("OnTick must inject the resume nudge after the backoff, got %+v", msgs)
-	}
-}
-
-// TestAPIError_IncompleteMarkerResumesConverseTurn covers the T799 guard relaxation:
-// a DM/@mention (agent.converse) turn has NO WorkItem but DOES have an in-flight
-// conversation — a truncated converse turn must resume (re-drive the same turn)
-// instead of only posting a system notice.
-func TestAPIError_IncompleteMarkerResumesConverseTurn(t *testing.T) {
-	clock := &fakeClock{t: time.Unix(1_000_000, 0)}
-	c, _, rs := newTestController(t, t.TempDir())
-	c.cfg.Now = clock.now
-	defer c.Shutdown(context.Background())
-
-	if err := c.Handle(context.Background(), reconcileCmd(t, "agent-1", "running", 1, "", 1)); err != nil {
-		t.Fatalf("reconcile: %v", err)
-	}
-	// A converse turn: sets currentConversationID, leaves currentTaskID empty.
-	if err := c.Handle(context.Background(), converseCmd(t, "agent-1", "conv-1", "m1", "hi agent", 2)); err != nil {
-		t.Fatalf("converse: %v", err)
-	}
-	fs := rs.last()
-
-	fs.emit(claudestream.StreamEvent{Type: "assistant_text", Text: "…the response above may be incomplete."})
-	fs.emit(claudestream.StreamEvent{Type: "result", Subtype: "success", IsError: false})
-
-	c.mu.Lock()
-	ma := c.agents["agent-1"]
-	gotConv, gotTask := ma.currentConversationID, ma.currentTaskID
-	gotResumeAt, gotRetries := ma.rateLimitResumeAt, ma.apiErrorRetries
-	c.mu.Unlock()
-	if gotTask != "" {
-		t.Fatalf("converse turn must have no WorkItem, got currentTaskID=%q", gotTask)
-	}
-	if gotConv != "conv-1" {
-		t.Fatalf("converse resume must PRESERVE currentConversationID, got %q", gotConv)
-	}
-	if gotRetries != 1 {
-		t.Fatalf("truncated converse turn must set apiErrorRetries=1, got %d", gotRetries)
-	}
-	if gotResumeAt.IsZero() {
-		t.Fatalf("truncated converse turn must schedule a resume (guard relaxed to convID)")
-	}
-
-	// The resume drains into the live session like any other.
-	clock.advance(3 * time.Second)
-	c.OnTick(context.Background())
-	msgs := fs.injectedMsgs()
-	if len(msgs) == 0 || msgs[len(msgs)-1] != DefaultResumeNudge {
-		t.Fatalf("OnTick must inject the resume nudge for the converse turn, got %+v", msgs)
-	}
 }
