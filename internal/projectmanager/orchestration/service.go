@@ -202,6 +202,21 @@ func (s *Service) CompleteNode(ctx context.Context, id NodeID, outcome string) e
 	return s.nodes.Update(ctx, n)
 }
 
+// ReopenNode transitions a completed node back to reopen status (Completed→Reopen)
+// with the given reason, so it re-enters the ready-set for another round. Used by
+// the T768 graph dispatch to propagate a task that was reopened (e.g. a decision
+// loopback re-activating an upstream node) onto its bound graph node.
+func (s *Service) ReopenNode(ctx context.Context, id NodeID, reason string) error {
+	n, err := s.nodes.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := n.Reopen(reason, s.clock.Now()); err != nil {
+		return err
+	}
+	return s.nodes.Update(ctx, n)
+}
+
 // DiscardNode transitions a node to discarded status.
 func (s *Service) DiscardNode(ctx context.Context, id NodeID) error {
 	n, err := s.nodes.FindByID(ctx, id)
@@ -290,6 +305,15 @@ func (s *Service) GetNode(ctx context.Context, id NodeID) (*Node, error) {
 // ListNodes returns all nodes belonging to a graph.
 func (s *Service) ListNodes(ctx context.Context, graphID GraphID) ([]*Node, error) {
 	return s.nodes.ListByGraph(ctx, graphID)
+}
+
+// ListEdges returns all directed edges belonging to a graph (from→to). It is the
+// read counterpart of AddEdge/RemoveEdge: a straight passthrough to the edge repo
+// (edges carry no domain state beyond their endpoints, so no aggregate rehydrate
+// is needed). Used by the webconsole plan-detail graph read (T769) to render the
+// DAG's edges alongside ListNodes.
+func (s *Service) ListEdges(ctx context.Context, graphID GraphID) ([]Edge, error) {
+	return s.edges.ListByGraph(ctx, graphID)
 }
 
 // GetReadyNodes loads the full graph and returns nodes whose upstream

@@ -93,6 +93,14 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		if err := s.plans.Update(txCtx, p); err != nil {
 			return err
 		}
+		// T768: build the orchestration graph for this plan (business node per task +
+		// seq-dependency edges) and stamp plan.graph_id, so dispatch/advance switch to
+		// the new engine (graphReadySet). No-op when the engine is unwired or the plan
+		// has control-flow edges (those stay on the legacy plan-DAG path). Joins THIS
+		// tx (orch.Service shares the reentrant RunInTx) → plan+graph commit atomically.
+		if err := s.buildPlanGraph(txCtx, p, tasks, edges, now); err != nil {
+			return err
+		}
 		// v2.9 P2-1 auto-advance: emit pm.plan.started so the orchestrator projector
 		// dispatches the Plan's INITIAL ready nodes (no manual Advance). The project's
 		// org is carried so the payload mirrors planEventPayload (the orchestrator
@@ -245,7 +253,30 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	if err != nil {
 		return nil, err
 	}
-	view := pm.ComputePlanView(tasks, edges, records, outcomes, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
+	// T768: the ready-source switch. A graphed plan (plan.graph_id set) is dispatched
+	// off the orchestration engine — graphReadySet syncs the graph to task state then
+	// reads GetReadyNodes (dispatch-record-idempotent) + graph.IsAutoDone. A plan
+	// without a graph_id (legacy / in-flight / control-flow) keeps the proven
+	// ComputePlanView path unchanged — zero regression.
+	var readySet []pm.TaskID
+	var allDone bool
+	if s.graphDispatchEnabled(p) {
+		if serr := s.syncGraphToTasks(txCtx, p, tasks); serr != nil {
+			return nil, serr
+		}
+		// Release conditional (pass) branches whose decision has recorded a pass-outcome
+		// (a non-pass leaves the branch gated; loopback re-run is task-level).
+		if cerr := s.driveGraphConditions(txCtx, p, outcomes); cerr != nil {
+			return nil, cerr
+		}
+		readySet, allDone, err = s.graphReadySet(txCtx, p, records)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		view := pm.ComputePlanView(tasks, edges, records, outcomes, nil) // dispatch path: pause never changes ready-set/AllDone (T53)
+		readySet, allDone = view.ReadySet, view.AllDone
+	}
 
 	// v2.10 (ADR-0053): load the Plan's shared findings ONCE and format them into a
 	// compact block appended to every newly-dispatched node's @mention, so a
@@ -284,7 +315,7 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 	// dispatch record — ComputePlanView derives `dispatched` from the records,
 	// so a dispatched-but-not-running node is NodeDispatched, never NodeReady).
 	var dispatched []pm.TaskID
-	for _, taskID := range view.ReadySet {
+	for _, taskID := range readySet {
 		assignee := assigneeOf[taskID]
 		// content is the BODY only — the dispatcher resolves assignee → display_name
 		// and prepends "@<display_name> " so the wake+mention path (#220) fires.
@@ -341,7 +372,7 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 
 	// §9.1: a Plan is done iff EVERY node is done. Mark it here so a final
 	// advance (after the last task completes) transitions running→done.
-	if view.AllDone {
+	if allDone {
 		if merr := p.MarkDone(now); merr != nil {
 			return nil, merr
 		}

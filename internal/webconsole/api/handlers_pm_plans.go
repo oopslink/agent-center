@@ -340,6 +340,73 @@ func (s *Server) pmGetPlanHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pmPlanDetailMap(detail))
 }
 
+// pmGetPlanGraphHandler — GET …/plans/{plan_id}/graph (T769). Returns the plan's
+// orchestration-engine GRAPH read model: control nodes (Start/End/Condition) +
+// business nodes bound to tasks (status/org_ref) + edges by kind
+// (seq/conditional/loopback). The plan-detail DAG reads THIS to reflect the real
+// engine graph rather than the client-side ComputePlanView reconstruction.
+//
+// NON-BREAKING: a plan with NO graph_id (pre-T768 / draft / never-started, or the
+// engine unwired) yields ErrPlanHasNoGraph → a 200 {has_graph:false} body, and the
+// FE falls back to the legacy plan-DAG rendering. Membership + plan-in-project
+// gated exactly like pmGetPlanHandler.
+func (s *Server) pmGetPlanGraphHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, _, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	view, err := d.PM.GetPlanGraph(r.Context(), pl.ID())
+	if err != nil {
+		if errors.Is(err, pmservice.ErrPlanHasNoGraph) {
+			// The non-breaking fallback signal — tell the FE to render the legacy DAG.
+			writeJSON(w, http.StatusOK, map[string]any{"has_graph": false})
+			return
+		}
+		mapPlanError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, pmPlanGraphMap(view))
+}
+
+// pmPlanGraphMap renders a PlanGraphView to the graph-read JSON shape:
+// {has_graph:true, graph_id, status, nodes[{id,category,control_kind,title,status,
+// task_id?,task_status?,org_ref?,assignee_ref?}], edges[{from,to,kind}]}.
+func pmPlanGraphMap(v *pmservice.PlanGraphView) map[string]any {
+	nodes := make([]map[string]any, 0, len(v.Nodes))
+	for _, n := range v.Nodes {
+		node := map[string]any{
+			"id":       n.ID,
+			"category": n.Category,
+			"title":    n.Title,
+			"status":   n.Status,
+		}
+		if n.ControlKind != "" {
+			node["control_kind"] = n.ControlKind
+		}
+		if n.TaskID != "" {
+			node["task_id"] = n.TaskID
+			node["task_status"] = n.TaskStatus
+			node["assignee_ref"] = n.Assignee
+		}
+		if n.TaskOrgRef != "" {
+			node["org_ref"] = n.TaskOrgRef
+		}
+		nodes = append(nodes, node)
+	}
+	edges := make([]map[string]any, 0, len(v.Edges))
+	for _, e := range v.Edges {
+		edges = append(edges, map[string]any{"from": e.From, "to": e.To, "kind": e.Kind})
+	}
+	return map[string]any{
+		"has_graph": true,
+		"graph_id":  v.GraphID,
+		"status":    v.Status,
+		"nodes":     nodes,
+		"edges":     edges,
+	}
+}
+
 // pmRelatedPlansHandler — GET …/plans/{plan_id}/related-plans (T581). The OTHER
 // structured plans derived from the SAME source issue as this plan, for the plan
 // detail rail's "Related Plans" list. Membership + plan-in-project gated like
