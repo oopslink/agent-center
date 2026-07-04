@@ -110,7 +110,7 @@
     "marking": "标记中…",
     "markAllRead": "全部标记为已读",
     "emptyTitle": "你已全部看完",
-    "emptyBody": "没有未读会话。新的未读频道、私信以及任务/问题/计划讨论串将显示在这里。",
+    "emptyBody": "没有未读会话。新的未读频道、私信以及任务/问题/计划专题将显示在这里。",
     "filtersAriaLabel": "未读筛选",
     "filterAll": "全部",
     "filterMentions": "@我",
@@ -121,7 +121,7 @@
   "conversation": {
     "loadingMessages": "正在加载消息…",
     "tabParticipants": "成员",
-    "tabThreads": "讨论串",
+    "tabThreads": "专题",
     "tabFiles": "文件",
     "tabChat": "聊天",
     "sidebarAriaLabel": "会话侧边栏",
@@ -130,10 +130,10 @@
     "collapseDetails": "收起会话详情",
     "collapse": "收起",
     "showDetails": "显示会话详情",
-    "threadsHeader": "讨论串",
-    "loadingThreads": "正在加载讨论串…",
-    "threadsLoadError": "无法加载讨论串。",
-    "noThreads": "暂无讨论串。",
+    "threadsHeader": "专题",
+    "loadingThreads": "正在加载专题…",
+    "threadsLoadError": "无法加载专题。",
+    "noThreads": "暂无专题。",
     "deletedSender": "(已删除)",
     "panelLabel": "会话面板"
   },
@@ -185,18 +185,18 @@
       "roleMember": "成员"
     },
     "thread": {
-      "dialogAriaLabel": "消息话题",
-      "resizeAriaLabel": "调整话题面板大小",
-      "title": "话题",
+      "dialogAriaLabel": "消息专题",
+      "resizeAriaLabel": "调整专题面板大小",
+      "title": "专题",
       "noReplies": "暂无回复",
       "replyCount_one": "{{count}} 条回复",
       "replyCount_other": "{{count}} 条回复",
-      "closeAriaLabel": "关闭话题"
+      "closeAriaLabel": "关闭专题"
     },
     "threadButton": {
-      "openThread_one": "打开话题 — {{count}} 条回复",
-      "openThread_other": "打开话题 — {{count}} 条回复",
-      "replyInThread": "在话题中回复"
+      "openThread_one": "打开专题 — {{count}} 条回复",
+      "openThread_other": "打开专题 — {{count}} 条回复",
+      "replyInThread": "在专题中回复"
     },
     "sharedFiles": {
       "ariaLabel": "共享文件",
