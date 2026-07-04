@@ -604,9 +604,7 @@
       "capabilitiesLabel": "所需能力",
       "cancel": "取消",
       "submit": "保存更改",
-      "submitting": "保存中……",
-      "skipMergeCheckLabel": "跳过合并检查",
-      "skipMergeCheckHint": "开启后，该节点将不受 F3 集成合并检查（Integrate 完成时的合并守卫）约束——用于没有可达代码库的项目。"
+      "submitting": "保存中……"
     },
     "sidebar": {
       "ariaLabel": "任务详情",

@@ -604,9 +604,7 @@
       "capabilitiesLabel": "Required capabilities",
       "cancel": "Cancel",
       "submit": "Save changes",
-      "submitting": "Saving…",
-      "skipMergeCheckLabel": "Skip merge check",
-      "skipMergeCheckHint": "When on, this node is exempt from the F3 Integrate-complete merge guard — use for projects with no reachable code repo."
+      "submitting": "Saving…"
     },
     "sidebar": {
       "ariaLabel": "Task details",

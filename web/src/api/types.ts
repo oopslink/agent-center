@@ -682,14 +682,10 @@ export interface Task {
   // this task to be auto-assigned (strict subset gate). Empty = no requirement.
   // The DTO always emits an array ([] when none); optional for legacy payloads.
   required_capabilities?: string[];
-  // v2.13.0 I18/F2+F3: cycle-node git metadata. Present only for scaffolded nodes
-  // (branch/base set) or when skip_merge_check is true — pmTaskMap omits all three
-  // for an ordinary backlog task, so absent skip_merge_check means false.
+  // v2.13.0 I18/F2: cycle-node git metadata. Present only for scaffolded nodes
+  // (branch/base set) — pmTaskMap omits them for an ordinary backlog task.
   branch?: string;
   base?: string;
-  // skip_merge_check structurally exempts an Integrate node from the F3 merge-check
-  // guard. Editable after creation via the batch PATCH (skip_merge_check field).
-  skip_merge_check?: boolean;
   version: number;
   created_at: string;
   updated_at: string;
