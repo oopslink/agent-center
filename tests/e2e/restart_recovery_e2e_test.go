@@ -508,11 +508,11 @@ secret_management:
 	}
 	t.Logf("ASSERT-Readopt NEGATIVE PASS: no relaunch, no new claude (survivor adopted in place, not interrupted)")
 
-	t.Logf("\n========== RESULT: PASSED (worker-restart re-adopt survivor) ==========\n"+
-		"live survivor across worker restart:       yes\n"+
-		"worker RE-ADOPTED (not relaunched):        yes\n"+
-		"claude NOT re-exec'd (adopted in place):   yes\n"+
-		"boot-session reattach (agent-runtime restart): deferred to tester3 §6.10\n"+
+	t.Logf("\n========== RESULT: PASSED (worker-restart re-adopt survivor) ==========\n" +
+		"live survivor across worker restart:       yes\n" +
+		"worker RE-ADOPTED (not relaunched):        yes\n" +
+		"claude NOT re-exec'd (adopted in place):   yes\n" +
+		"boot-session reattach (agent-runtime restart): deferred to tester3 §6.10\n" +
 		"=======================================================================")
 }
 
