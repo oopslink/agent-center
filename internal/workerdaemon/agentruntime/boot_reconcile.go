@@ -364,6 +364,16 @@ func (r *LocalRuntime) relaunchExecutor(ee *ExecutorEngine, id string, runnerCmd
 		return
 	}
 	ee.addOrphan(id, h.PID)
+	// Reap this self-forked orphan (T877 bug3): relaunchExecutor's Spawn makes THIS
+	// agent-runtime the child's parent, so we MUST Wait() it — otherwise on exit it
+	// becomes a <defunct> zombie and the orphan-poll's liveness probe (kill(pid,0)) reports
+	// it still ALIVE forever, so CheckOrphanNoFinalize never sees it terminal and the task
+	// is stranded in limbo. The reaper ONLY reaps (the terminal outcome is decided from
+	// output.json/status by the orphan-poll); it is the SOLE Waiter for h, bounded (one per
+	// relaunch, ends when the process exits). ONLY self-forked relaunches need this — a
+	// boot-adopted orphan is a PRIOR process's child, reaped by init (Wait on a non-child
+	// would error), so this reaper is never wired there.
+	go func() { _ = h.Wait() }()
 	r.log("agent=%s self-reconcile relaunched executor=%s pid=%d", r.cfg.AgentID, id, h.PID)
 }
 
