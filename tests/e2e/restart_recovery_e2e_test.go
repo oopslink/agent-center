@@ -259,26 +259,31 @@ secret_management:
 		w2.sigkill(t)
 	})
 
-	// ---- ASSERT 3a: the agent's supervisor session is RELAUNCHED + RESUMED --
-	// Controller / process-per-agent model (T860 ③): "relaunch" is the agent-runtime
-	// re-starting the supervisor session, observable as local_runtime.go's
-	// `started agent=<id> ... resume=<bool>` (child log prefixed [agent-runtime <id>]
-	// merged into worker stdout) — the pre-D6 daemon boot_reconcile "RELAUNCHED" string
-	// is gone. resume=true proves the relaunch RESUMED the prior session.
-	// BASELINE NOTE: this asserts the relaunch OUTCOME (trigger-agnostic). It holds
-	// whether the relaunch is control-driven (a68defe9) or autonomous at boot (after
-	// the gap6 fold-in); the fold-in adds a stronger assertion on the boot-reconcile
-	// autonomous-relaunch log on top of this.
+	// ---- ASSERT 3a: the agent-runtime AUTONOMOUSLY relaunches + resumes the session --
+	// Controller / process-per-agent model + gap6 fold-in (T860): on restart the
+	// agent-runtime process re-boots and AUTONOMOUSLY relaunches the desired-running
+	// agent's supervisor session from local durable ResumeState — it does NOT wait for
+	// a control reconcile command (the pre-D6 daemon boot_reconcile "RELAUNCHED" string
+	// is gone). Double anchor, both in worker stdout (child log prefixed [agent-runtime <id>]):
+	//   - `boot-session relaunch agent=<id> resume=true` — proves the relaunch was decided
+	//     AUTONOMOUSLY at boot (DecideBootSession → ReapRelaunch), not control-driven. This
+	//     is the anchor that would stay red if gap6 were dead-coded (control never fires a
+	//     reconcile for an already-desired-running agent — the deadlock this feature fixes).
+	//   - `started agent=<id> ... resume=true` — proves the session actually STARTED and
+	//     RESUMED the prior generation (resume gated on the prior clean turn).
+	relaunchMarker := "boot-session relaunch agent=" + agentID
 	startedMarker := "started agent=" + agentID
 	if !waitFor(40*time.Second, func() bool {
 		out := w2.out()
-		return strings.Contains(out, startedMarker) && strings.Contains(out, "resume=true")
+		return strings.Contains(out, relaunchMarker) &&
+			strings.Contains(out, startedMarker) &&
+			strings.Contains(out, "resume=true")
 	}) {
-		t.Fatalf("ASSERT-3a FAILED: agent-runtime did not relaunch+resume the supervisor session "+
-			"(want %q + resume=true) after restart.\nworker2 out:\n%s\nfakeclaude.log:\n%s",
-			startedMarker, w2.out(), safeRead(fcLog))
+		t.Fatalf("ASSERT-3a FAILED: agent-runtime did not AUTONOMOUSLY relaunch+resume the supervisor "+
+			"session after restart (want %q + %q + resume=true).\nworker2 out:\n%s\nfakeclaude.log:\n%s",
+			relaunchMarker, startedMarker, w2.out(), safeRead(fcLog))
 	}
-	t.Logf("ASSERT-3a PASS: agent-runtime RELAUNCHED + RESUMED the supervisor session after restart")
+	t.Logf("ASSERT-3a PASS: agent-runtime AUTONOMOUSLY RELAUNCHED + RESUMED the supervisor session at boot")
 
 	// ---- ASSERT 3b: the relaunch RESUMED (resume gated on completed_turn) ---
 	// The fix: because the prior generation completed a clean turn, boot-reconcile
