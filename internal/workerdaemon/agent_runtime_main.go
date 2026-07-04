@@ -310,8 +310,16 @@ func agentResumeRecord(ctx context.Context, client *AdminClient, workerID, agent
 // exactly one action:
 //   - Reattachable + desired-running → reattach the live survivor (never interrupt it),
 //   - Unavailable  + desired-running → reap + relaunch (resume-gated on the prior
-//     completed turn) + WI-rebind + ResumeNudge (in-flight work) + reply-guardrail,
+//     completed turn) + re-trigger the reply-guardrail,
 //   - desired-stopped / orphan       → reap residue only.
+//
+// NOTE (v2.14.0 I14): there is deliberately NO per-agent WorkItem rebind / resume-nudge
+// here. AgentWorkItem was retired — resume-state carries no in-flight tasks, and a
+// task's continuity across a restart is handled at the TASK layer (its execution lease
+// lapses when this session no longer renews it → the center re-dispatches it). Rebinding
+// CurrentTaskID at boot would renew a lease for a task the resumed session is not driving
+// and BLOCK that re-dispatch recovery; a resume-nudge would risk double-driving it. The
+// resumed session's continuity is its conversation context (--resume) + the reply-guardrail.
 //
 // Best-effort: a per-step failure is logged; the process still serves. Idempotent with a
 // later control reconcile via the rt.Start no-double-start guard.
@@ -327,13 +335,6 @@ func bootStartSupervisorSession(ctx context.Context, rt *agentruntime.LocalRunti
 		return
 	}
 	desiredRunning := strings.EqualFold(strings.TrimSpace(ra.DesiredLifecycle), "running")
-	hasActive, activeTaskID := false, ""
-	for _, t := range ra.Tasks {
-		if t.Status == "active" {
-			hasActive, activeTaskID = true, t.TaskID
-			break
-		}
-	}
 	home := filepath.Join(agentHomeBase(cfg, opts.Run.ConfigPath, opts.Run.WorkerID), "agents", agentID)
 
 	pr, perr := supervisormanager.ProbeAgent(ctx, home)
@@ -341,7 +342,7 @@ func bootStartSupervisorSession(ctx context.Context, rt *agentruntime.LocalRunti
 		logf(fmt.Sprintf("agent-runtime agent=%s boot-session probe: %v — treating as unavailable", agentID, perr))
 		pr = supervisormanager.ProbeResult{State: supervisormanager.Unavailable}
 	}
-	action := agentruntime.DecideBootSession(pr.State, desiredRunning, hasActive)
+	action := agentruntime.DecideBootSession(pr.State, desiredRunning)
 	logf(fmt.Sprintf("boot-session decide agent=%s probe=%d desired-running=%v action=%d", agentID, pr.State, desiredRunning, action))
 
 	switch action {
@@ -349,7 +350,7 @@ func bootStartSupervisorSession(ctx context.Context, rt *agentruntime.LocalRunti
 		bootReattachSupervisor(ctx, rt, agentID, home, pr, logf)
 	case agentruntime.BootSessionReapRelaunch:
 		closeProbeClient(pr)
-		bootReapRelaunchSupervisor(ctx, rt, agentID, home, ra, hasActive, activeTaskID, logf)
+		bootReapRelaunchSupervisor(ctx, rt, agentID, home, ra, logf)
 	case agentruntime.BootSessionStopReap, agentruntime.BootSessionReapOnly:
 		closeProbeClient(pr)
 		if rerr := supervisormanager.ReapResidual(home); rerr != nil {
@@ -372,7 +373,7 @@ func closeProbeClient(pr supervisormanager.ProbeResult) {
 // resume-gated on whether the PRIOR generation completed a clean turn (else the
 // no-completed-turn crash loop). Mirrors the retired daemon bootReapRelaunch; the
 // executor engine was already attached at boot step 2b.
-func bootReapRelaunchSupervisor(ctx context.Context, rt *agentruntime.LocalRuntime, agentID, home string, ra ResumeAgent, hasActive bool, activeTaskID string, logf func(string)) {
+func bootReapRelaunchSupervisor(ctx context.Context, rt *agentruntime.LocalRuntime, agentID, home string, ra ResumeAgent, logf func(string)) {
 	if rerr := supervisormanager.ReapResidual(home); rerr != nil {
 		logf(fmt.Sprintf("agent-runtime agent=%s boot-session reap before relaunch: %v", agentID, rerr))
 	}
@@ -402,16 +403,9 @@ func bootReapRelaunchSupervisor(ctx context.Context, rt *agentruntime.LocalRunti
 		return
 	}
 	logf(fmt.Sprintf("boot-session relaunch agent=%s resume=%v version=%d", agentID, resume, ra.Version))
-	if hasActive {
-		// WI-rebind: an is_error re-driven turn must surface via L2 (else the WorkItem
-		// stays silently active). ResumeNudge: re-drive the interrupted turn.
-		rt.SetResumedTask(activeTaskID)
-		if nerr := rt.InjectResumeNudge(ctx); nerr != nil {
-			logf(fmt.Sprintf("agent-runtime agent=%s boot-session resume-nudge: %v", agentID, nerr))
-		}
-	}
 	// Reply-guardrail re-trigger (T341 fix B): proactively re-inject an unanswered directed
-	// message after the relaunch (independent of in-flight work).
+	// message after the relaunch. (No per-agent WorkItem resume — see the note on
+	// bootStartSupervisorSession: task continuity is the lease/re-dispatch layer's job.)
 	rt.MaybeReplyNudge(agentID)
 }
 

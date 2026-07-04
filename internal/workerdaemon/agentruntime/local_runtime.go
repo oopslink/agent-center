@@ -710,34 +710,6 @@ func (r *LocalRuntime) ReportLifecycleOnce(ctx context.Context, state, errMsg st
 // ResumeNudgeText exposes the resume nudge for the daemon boot-relaunch path.
 func (r *LocalRuntime) ResumeNudgeText() string { return r.resumeNudgeText() }
 
-// SetResumedTask rebinds the in-flight WorkItem id onto the freshly-relaunched session
-// (T860 fold-in, WI-rebind): the boot relaunch builds a fresh SessionState with no
-// currentTaskID, so an is_error turn on the resumed session would have NO WorkItem for
-// L2 surfaceTurnFailure to fail — leaving it silently active. Binding it to the SAME
-// field surfaceTurnFailure reads preserves the no-silent-failure guarantee for a
-// single-active agent. Empty taskID (idle relaunch) is a no-op.
-func (r *LocalRuntime) SetResumedTask(taskID string) {
-	if strings.TrimSpace(taskID) == "" {
-		return
-	}
-	r.mu.Lock()
-	r.state.CurrentTaskID = taskID
-	r.mu.Unlock()
-}
-
-// InjectResumeNudge injects the resume nudge into the LIVE session to re-drive an
-// interrupted turn after a boot relaunch that resumed a prior conversation (T860 fold-in,
-// ResumeNudge parity with the retired daemon). No-op when no session is live.
-func (r *LocalRuntime) InjectResumeNudge(ctx context.Context) error {
-	r.mu.Lock()
-	sess := r.state.Session
-	r.mu.Unlock()
-	if sess == nil {
-		return nil
-	}
-	return sess.Inject(ctx, r.resumeNudgeText())
-}
-
 // NotifyWorkAvailable is the interface entry for a work_available signal that routes
 // straight to a fork (SpawnExecutor). The daemon's workAvailable command handler owns
 // the dedup/relaunch/nudge orchestration and calls SpawnExecutor directly for the

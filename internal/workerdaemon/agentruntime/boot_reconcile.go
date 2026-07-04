@@ -491,9 +491,11 @@ const (
 // DecideBootSession is the exported pure boot-session decision over (local supervisor
 // probe × desired state), delegating to decideBootAction. The agent-runtime process
 // probes locally, calls this, and enacts the returned action with its session
-// primitives — the wiring the migration left dead-coded.
-func DecideBootSession(probe supervisormanager.ProbeState, desiredRunning, hasActive bool) BootSessionAction {
-	rec := &centerRecord{HasActive: hasActive}
+// primitives — the wiring the migration left dead-coded. The ACTION KIND depends only on
+// (probe × desired-running); the pre-I14 in-flight-work nudge flag is not modelled here
+// (per-agent WorkItems were retired in v2.14.0, so resume-state carries no tasks).
+func DecideBootSession(probe supervisormanager.ProbeState, desiredRunning bool) BootSessionAction {
+	rec := &centerRecord{}
 	if desiredRunning {
 		rec.DesiredLifecycle = "running"
 	}

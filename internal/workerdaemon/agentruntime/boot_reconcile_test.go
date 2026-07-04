@@ -277,17 +277,15 @@ func TestDecideBootSession(t *testing.T) {
 		name           string
 		probe          supervisormanager.ProbeState
 		desiredRunning bool
-		hasActive      bool
 		want           BootSessionAction
 	}{
-		{"reattachable+running → reattach", supervisormanager.Reattachable, true, false, BootSessionReattach},
-		{"reattachable+stopped → stop-reap", supervisormanager.Reattachable, false, false, BootSessionStopReap},
-		{"unavailable+running → reap-relaunch", supervisormanager.Unavailable, true, false, BootSessionReapRelaunch},
-		{"unavailable+running+active → reap-relaunch", supervisormanager.Unavailable, true, true, BootSessionReapRelaunch},
-		{"unavailable+stopped → reap-only", supervisormanager.Unavailable, false, false, BootSessionReapOnly},
+		{"reattachable+running → reattach", supervisormanager.Reattachable, true, BootSessionReattach},
+		{"reattachable+stopped → stop-reap", supervisormanager.Reattachable, false, BootSessionStopReap},
+		{"unavailable+running → reap-relaunch", supervisormanager.Unavailable, true, BootSessionReapRelaunch},
+		{"unavailable+stopped → reap-only", supervisormanager.Unavailable, false, BootSessionReapOnly},
 	}
 	for _, tc := range cases {
-		if got := DecideBootSession(tc.probe, tc.desiredRunning, tc.hasActive); got != tc.want {
+		if got := DecideBootSession(tc.probe, tc.desiredRunning); got != tc.want {
 			t.Errorf("%s: DecideBootSession = %d, want %d", tc.name, got, tc.want)
 		}
 	}
