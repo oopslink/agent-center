@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/clock"
@@ -87,6 +88,10 @@ type Engine struct {
 	pool    *executor.Pool
 	routing *executor.RoutingStore
 	router  *modelrouter.Router
+	// rcfgMu guards rcfg: HandleWork reads it per-fork while a live profile change
+	// (UpdateRouterConfig, driven by a config-edit reconcile) may replace it. A plain
+	// field would race under concurrent forks + a reconcile.
+	rcfgMu  sync.RWMutex
 	rcfg    modelrouter.Config
 	runners map[string]RunnerCmdBuilder
 	ids     IDMinter
@@ -129,6 +134,19 @@ func NewEngine(cfg EngineConfig) (*Engine, error) {
 		ids:     cfg.IDs,
 		clk:     clk,
 	}, nil
+}
+
+// UpdateRouterConfig replaces the agent's model-routing config in place so a live
+// profile change (web-console edit → config-triggered reconcile) propagates to
+// SUBSEQUENT forks WITHOUT rebuilding the engine. The pool, monitor, tracker, and any
+// in-flight/orphan executors are untouched — an in-flight executor keeps the model it
+// was forked with; only new HandleWork forks see the updated config. This is what lets
+// an agent's config change reach a RUNNING agent without a restart (k8s: each
+// agent-runtime is its own process; the reconcile command is the only channel).
+func (e *Engine) UpdateRouterConfig(cfg modelrouter.Config) {
+	e.rcfgMu.Lock()
+	e.rcfg = cfg
+	e.rcfgMu.Unlock()
 }
 
 // Pool exposes the underlying Pool (the daemon checks Available()/drives completion).
@@ -174,8 +192,13 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 		}
 	}
 
-	// 2. F3 routing (priority chain §5) — resolves the executor {cli, model}.
-	modelDec, err := e.router.ResolveExecutor(ctx, item.TaskModel, item.Goal, e.rcfg)
+	// 2. F3 routing (priority chain §5) — resolves the executor {cli, model}. Snapshot
+	// rcfg under the read lock so a concurrent UpdateRouterConfig (live config edit)
+	// cannot tear the config out from under this fork.
+	e.rcfgMu.RLock()
+	rcfg := e.rcfg
+	e.rcfgMu.RUnlock()
+	modelDec, err := e.router.ResolveExecutor(ctx, item.TaskModel, item.Goal, rcfg)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: resolve executor: %w", err)
 	}

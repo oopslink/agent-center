@@ -90,6 +90,36 @@ func (r *LocalRuntime) AttachExecutorEngine(pl ExecutorConfig) error {
 	return nil
 }
 
+// routerConfigOf projects an ExecutorConfig onto the model-routing Config. The SINGLE
+// source of truth for both the boot-time engine build (BuildExecutorEngine) and the
+// live in-place refresh (UpdateExecutorConfig) so the two can never drift.
+func routerConfigOf(pl ExecutorConfig) modelrouter.Config {
+	return modelrouter.Config{
+		OrchestratorModel:    pl.OrchestratorModel,
+		AllowedExecutors:     routerCandidates(pl.AllowedExecutors),
+		DefaultExecutorModel: pl.DefaultExecutorModel,
+		SupervisorModel:      pl.SupervisorModel,
+		DefaultCLI:           pl.CLI,
+	}
+}
+
+// UpdateExecutorConfig refreshes the model-routing config of the ALREADY-ATTACHED
+// engine in place — the counterpart to AttachExecutorEngine for the HasExecutor case.
+// A live profile edit (config-triggered reconcile) must update the pool's model routing
+// WITHOUT rebuilding the engine, because a rebuild would drop live executors/orphans
+// (exactly the invariant the reconcile handler's !HasExecutor() guard protects). Only
+// subsequent forks see the new model; in-flight executors keep running. Also refreshes
+// the self-held exec config so a later boot self-reconcile / relaunch uses the new
+// routing. No-op when no engine is attached.
+func (r *LocalRuntime) UpdateExecutorConfig(pl ExecutorConfig) {
+	ee := r.execEngine()
+	if ee == nil {
+		return
+	}
+	ee.engine.UpdateRouterConfig(routerConfigOf(pl))
+	r.cacheExecConfig(pl)
+}
+
 // HasExecutor reports whether an executor engine is attached (the exec-vs-session
 // branch predicate — exactly today's ma.exec != nil semantics).
 func (r *LocalRuntime) HasExecutor() bool {
@@ -148,13 +178,7 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 		Pool:    pool,
 		Routing: routing,
 		Router:  modelrouter.NewRouter(nil),
-		RouterConfig: modelrouter.Config{
-			OrchestratorModel:    pl.OrchestratorModel,
-			AllowedExecutors:     routerCandidates(pl.AllowedExecutors),
-			DefaultExecutorModel: pl.DefaultExecutorModel,
-			SupervisorModel:      pl.SupervisorModel,
-			DefaultCLI:           pl.CLI,
-		},
+		RouterConfig: routerConfigOf(pl),
 		Runners: map[string]orchestrator.RunnerCmdBuilder{
 			agent.DefaultExecutorCLI: orchestrator.NewClaudeRunnerBuilder(r.cfg.ClaudeBinary),
 			CLICodex:                 orchestrator.NewCodexRunnerBuilder(r.cfg.CodexBinary),

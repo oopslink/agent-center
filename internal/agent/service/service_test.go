@@ -257,6 +257,64 @@ func TestLifecycle_StartStopRestart(t *testing.T) {
 	}
 }
 
+// ADR-0049 §5 update (k8s live-config): a config edit to a RUNNING agent emits a
+// lifecycle event so the reconcile projector live-propagates the new config to the
+// isolated agent-runtime (no restart). A config edit to a STOPPED agent stays
+// persist-only (config applies on next spawn) — emitting would spawn a stopped agent.
+func TestUpdateAgentConfig_LivePropagatesOnlyWhenRunning(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	id := f.createAgent(t, testWorker)
+
+	cfg := func(model string) UpdateAgentConfigCommand {
+		return UpdateAgentConfigCommand{
+			Model: model, CLI: "claude-code", Reasoning: "medium",
+			AllowedExecutors: []agent.ExecutorProfile{{CLI: "claude-code", Model: model}},
+		}
+	}
+
+	// STOPPED: config edit is persist-only — no new outbox event.
+	base := f.outboxCount(t)
+	if err := f.svc.UpdateAgentConfig(context.Background(), id, cfg("opus-4-8")); err != nil {
+		t.Fatalf("UpdateAgentConfig (stopped): %v", err)
+	}
+	if c := f.outboxCount(t); c != base {
+		t.Fatalf("stopped config edit emitted %d events, want 0 (persist-only)", c-base)
+	}
+
+	// Start → running.
+	if err := f.svc.StartAgent(context.Background(), id); err != nil {
+		t.Fatalf("StartAgent: %v", err)
+	}
+	base = f.outboxCount(t)
+	a, _ := f.svc.GetAgent(context.Background(), id)
+	verBefore := a.Version()
+
+	// RUNNING: config edit emits exactly one lifecycle_changed carrying the new config.
+	if err := f.svc.UpdateAgentConfig(context.Background(), id, cfg("claude-opus-4-8")); err != nil {
+		t.Fatalf("UpdateAgentConfig (running): %v", err)
+	}
+	if c := f.outboxCount(t); c != base+1 {
+		t.Fatalf("running config edit emitted %d events, want 1", c-base)
+	}
+	last := f.outboxEvents(t)[base]
+	if last.EventType != EvtAgentLifecycleChanged {
+		t.Fatalf("event = %s, want lifecycle_changed", last.EventType)
+	}
+	// The event must carry the NEW model so the reconcile pushes fresh config downstream.
+	if !strings.Contains(last.Payload, "claude-opus-4-8") {
+		t.Errorf("event payload missing new model claude-opus-4-8: %s", last.Payload)
+	}
+	// Version bumped → the projector's version-keyed idempotency won't dedupe the push.
+	a, _ = f.svc.GetAgent(context.Background(), id)
+	if a.Version() <= verBefore {
+		t.Errorf("version did not bump on config edit: %d <= %d", a.Version(), verBefore)
+	}
+	if a.Lifecycle() != agent.LifecycleRunning {
+		t.Errorf("config edit changed lifecycle to %s, want running", a.Lifecycle())
+	}
+}
+
 // T338: each user-triggered lifecycle action records a "lifecycle" activity event
 // (event=started/restarted/stopped/reset) so it shows in the AgentDetail timeline.
 func TestLifecycle_RecordsActivity(t *testing.T) {

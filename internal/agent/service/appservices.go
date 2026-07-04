@@ -236,11 +236,20 @@ func resolveAllowedExecutors(execs []agent.ExecutorProfile, models []string, cli
 }
 
 // UpdateAgentConfig edits an agent's LLM config (model/cli/reasoning/mode/
-// provider) and persists it. Per ADR-0049 §5 this does NOT itself restart the
-// process — the change applies on the next spawn, so the UI pairs it with a
-// restart (whose lifecycle event carries the now-persisted profile to the
-// daemon). Persist-only (no outbox emit): a pure config write must not enqueue a
-// reconcile command on its own. Validates CLI + reasoning up front (→ 400).
+// provider) and persists it. Validates CLI + reasoning up front (→ 400).
+//
+// ADR-0049 §5 update (k8s live-config, oopslink 2026-07-04): a config edit to a
+// RUNNING agent now propagates LIVE. It emits agent.lifecycle_changed so the
+// Environment AgentControlProjector pushes a reconcile carrying the now-persisted
+// profile; the agent-runtime refreshes its model routing IN PLACE (no restart, no
+// dropped in-flight executors). This is required for k8s process isolation — the
+// reconcile command is the only channel from center to the isolated agent-runtime, so
+// a restart-only propagation is unacceptable (bouncing a pod drops live work).
+// UpdateProfile bumps the version, so the reconcile is not deduped by the projector's
+// version-keyed idempotency; rt.Start's version guard no-ops the live session (no
+// session restart). A STOPPED/terminal agent keeps the old persist-only semantics
+// (config applies on next spawn) — emitting for it could spawn an intentionally-stopped
+// agent.
 func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd UpdateAgentConfigCommand) error {
 	if !agent.IsSupportedExecutionCLI(cmd.CLI) {
 		return agent.ErrUnsupportedCLI
@@ -287,7 +296,15 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err
 		}
-		return s.agents.Update(txCtx, a)
+		if err := s.agents.Update(txCtx, a); err != nil {
+			return err
+		}
+		// Live-propagate to a RUNNING agent (see doc comment). Stopped/terminal agents
+		// keep persist-only semantics (config applies on next spawn).
+		if a.Lifecycle() == agent.LifecycleRunning {
+			return s.emit(txCtx, EvtAgentLifecycleChanged, a, "")
+		}
+		return nil
 	})
 }
 

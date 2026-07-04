@@ -480,10 +480,20 @@ func (h agentControlHandler) Handle(ctx context.Context, cmd agentcontrol.Comman
 		// Steady-state / first-dispatch path: attach the executor engine when the
 		// reconcile enables concurrency and it isn't already attached (the boot path
 		// attaches from ResumeState; this covers a config that turns concurrency ON
-		// after boot). Idempotent via HasExecutor so we don't drop live orphans.
-		if concurrencyEnabled(pl) && !h.rt.HasExecutor() {
-			if err := h.rt.AttachExecutorEngine(execConfigOf(pl)); err != nil {
-				return err
+		// after boot).
+		if concurrencyEnabled(pl) {
+			if !h.rt.HasExecutor() {
+				if err := h.rt.AttachExecutorEngine(execConfigOf(pl)); err != nil {
+					return err
+				}
+			} else {
+				// Already attached (boot or a prior reconcile): a live profile edit must
+				// refresh the model routing IN PLACE. Re-attaching would rebuild the
+				// engine and drop live executors/orphans — the invariant the old
+				// !HasExecutor() guard protected — so we update the config only. This is
+				// what makes a web-console config change reach a RUNNING concurrent agent
+				// without a restart (k8s: the reconcile payload carries the fresh config).
+				h.rt.UpdateExecutorConfig(execConfigOf(pl))
 			}
 		}
 		return nil

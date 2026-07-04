@@ -264,6 +264,45 @@ func TestEngine_HandleWork_NoModelResolvableSurfaces(t *testing.T) {
 	}
 }
 
+// UpdateRouterConfig live-refresh: a config edit to a RUNNING agent (config-triggered
+// reconcile) must make SUBSEQUENT forks resolve the NEW model without rebuilding the
+// engine. The pool_fallback source is the exact path oopslink hit (allowed_executors
+// pool, no task.model / default) — refreshing the pool's model must take effect.
+func TestEngine_UpdateRouterConfig_TakesEffectOnNextFork(t *testing.T) {
+	fr := &fakeRunner{}
+	eng, _, _ := newTestEngine(t, 3, modelrouter.Config{
+		AllowedExecutors: []modelrouter.ExecutorCandidate{{CLI: "claude-code", Model: "opus-4-8"}},
+	}, fr)
+
+	// Before: the stale pool model (mirrors the boot-cached bug value).
+	got, err := eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "g1"}, ChatID: "c1"})
+	if err != nil {
+		t.Fatalf("HandleWork before: %v", err)
+	}
+	defer reap(t, got.Handle)
+	if got.Model != "opus-4-8" || got.ModelSource != modelrouter.SourcePoolFallback {
+		t.Fatalf("before: model=%q/%v, want opus-4-8/pool_fallback", got.Model, got.ModelSource)
+	}
+
+	// Live edit: the corrected pool model arrives via a reconcile.
+	eng.UpdateRouterConfig(modelrouter.Config{
+		AllowedExecutors: []modelrouter.ExecutorCandidate{{CLI: "claude-code", Model: "claude-opus-4-8"}},
+	})
+
+	// After: the very next fork resolves the NEW model — no engine rebuild, no restart.
+	got2, err := eng.HandleWork(context.Background(), WorkItem{Goal: executor.Goal{Title: "g2"}, ChatID: "c2"})
+	if err != nil {
+		t.Fatalf("HandleWork after: %v", err)
+	}
+	defer reap(t, got2.Handle)
+	if got2.Model != "claude-opus-4-8" || got2.ModelSource != modelrouter.SourcePoolFallback {
+		t.Errorf("after: model=%q/%v, want claude-opus-4-8/pool_fallback", got2.Model, got2.ModelSource)
+	}
+	if fr.lastModel != "claude-opus-4-8" {
+		t.Errorf("runner saw stale model=%q, want claude-opus-4-8", fr.lastModel)
+	}
+}
+
 func TestNewEngine_Validation(t *testing.T) {
 	if _, err := NewEngine(EngineConfig{}); err == nil {
 		t.Error("empty config must error")
