@@ -69,3 +69,43 @@ func TestEnactRecover_Resume_NoResetTask(t *testing.T) {
 		t.Fatalf("tier-1 resume must NOT call reset_task; tools seen: %v", tc.toolsSeen())
 	}
 }
+
+// (residual, THE-gate root) The recovery-exhausted escalate must ALSO stop renewing the
+// task's lease: it blocks the task (running + blocked_reason, non-terminal) for PD triage,
+// so leaving state.CurrentTaskID set would make lease_gc 续租 it forever → the lease never
+// lapses → a later MANUAL PD reset (confirmedDead=false) hits ErrLeaseStillLive. Mirror of
+// resetRecoveredTask's clear.
+func TestEscalateRecoveryExhausted_ClearsCurrentTaskID_T887(t *testing.T) {
+	rt, _, _ := engineForAgent(t, "agent-x")
+	tc := &scriptedToolCaller{}
+	setToolCaller(rt, tc)
+	rt.state.CurrentTaskID = "task-77"
+
+	rt.escalateRecoveryExhausted(context.Background(), "task-77", "exec-1", true)
+
+	body, ok := tc.callFor("block_task")
+	if !ok {
+		t.Fatalf("escalate must call block_task; tools seen: %v", tc.toolsSeen())
+	}
+	if body["task_id"] != "task-77" {
+		t.Fatalf("block_task task_id = %v, want task-77", body["task_id"])
+	}
+	if rt.state.CurrentTaskID != "" {
+		t.Fatalf("escalate must clear CurrentTaskID (stop lease renewal), got %q", rt.state.CurrentTaskID)
+	}
+}
+
+// Guard: the clear is task-id scoped — an unrelated executor's escalate must NOT clear a
+// DIFFERENT task the supervisor is currently tracking.
+func TestEscalateRecoveryExhausted_LeavesOtherTask_T887(t *testing.T) {
+	rt, _, _ := engineForAgent(t, "agent-x")
+	tc := &scriptedToolCaller{}
+	setToolCaller(rt, tc)
+	rt.state.CurrentTaskID = "task-OTHER"
+
+	rt.escalateRecoveryExhausted(context.Background(), "task-77", "exec-1", false)
+
+	if rt.state.CurrentTaskID != "task-OTHER" {
+		t.Fatalf("escalate for task-77 must not clear a different CurrentTaskID, got %q", rt.state.CurrentTaskID)
+	}
+}

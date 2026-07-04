@@ -215,6 +215,19 @@ func (r *LocalRuntime) readExecutorRecord(ee *ExecutorEngine, execID string) *ex
 // whether the task itself is bad (discard) or the environment is (fix + redispatch)).
 // Best-effort: a missing transport just logs.
 func (r *LocalRuntime) escalateRecoveryExhausted(ctx context.Context, taskRef, execID string, wasStall bool) {
+	// Stop renewing the exhausted task's execution lease FIRST, unconditionally. Recovery
+	// gave up and the executor is finalized, but the task stays running + blocked_reason (a
+	// PD-triage annotation, not terminal). Leaving state.CurrentTaskID set makes lease_gc keep
+	// 续租'ing it forever → the lease never lapses → a later MANUAL PD reset (reset_task with
+	// confirmedDead=false) hits ErrLeaseStillLive and can never reset. Same root as the tier-3
+	// path — mirror resetRecoveredTask's guarded clear (guarded by task-id so a concurrent
+	// supervisor task is untouched).
+	r.mu.Lock()
+	if r.state != nil && r.state.CurrentTaskID == taskRef {
+		r.state.CurrentTaskID = ""
+	}
+	r.mu.Unlock()
+
 	cause := "crashes"
 	if wasStall {
 		cause = "stalls"
