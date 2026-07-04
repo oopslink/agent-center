@@ -215,8 +215,10 @@ function executorPreview(p: Record<string, unknown>): string {
   const task = truncate(str(p.title) || str(p.task_ref), 60);
   // scope is the emitter's precomputed one-word summary: model (start),
   // outcome[:reason] (stop), or state (progress); fall back to the raw fields.
-  const detail = str(p.scope) || str(p.outcome) || str(p.state);
-  return [kind, exec && `exec ${exec}`, task, detail].filter(Boolean).join(' · ');
+  const scope = str(p.scope) || str(p.outcome) || str(p.state);
+  // T880: the sanitized "what it's doing" activity note, when present.
+  const activity = truncate(str(p.detail), 40);
+  return [kind, exec && `exec ${exec}`, task, scope, activity].filter(Boolean).join(' · ');
 }
 
 function truncate(s: string, n: number): string {
@@ -546,6 +548,10 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
   // Prefer the structured task_ref field; fall back to the payload copy.
   const taskRef = latest?.task_ref || str(p.task_ref);
   const state = titleCase(str(p.state) || str(p.scope));
+  // T880: the latest heartbeat's short sanitized "what it's doing" note ("读 task.go",
+  // "跑 go test") — surfaced on the folded row so an operator sees the current action
+  // without expanding. Empty until the run streams its first tool/text activity.
+  const detail = truncate(str(p.detail), 40);
   return (
     <li data-testid="agent-activity-executor-group" data-count={n} data-executor-id={str(p.executor_id)}>
       <button
@@ -572,7 +578,14 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
                 {', '}
               </>
             )}
-            exec {exec}){state ? ` ${t('activity.executorGroup.is')} ${state}` : ''} × {n}
+            exec {exec}){state ? ` ${t('activity.executorGroup.is')} ${state}` : ''}
+            {detail ? (
+              <span className="font-normal text-text-muted" data-testid="agent-activity-executor-detail">
+                {' · '}
+                {detail}
+              </span>
+            ) : null}{' '}
+            × {n}
           </span>
         </span>
         <span className="shrink-0 tabular-nums font-normal text-text-muted">

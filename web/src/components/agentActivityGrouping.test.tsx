@@ -15,7 +15,7 @@ const ev = (id: string, event_type: string, time = '01:00'): AgentActivityEvent 
 const prog = (
   id: string,
   execId: string,
-  opts: { state?: string; taskRef?: string; time?: string } = {},
+  opts: { state?: string; taskRef?: string; time?: string; detail?: string } = {},
 ): AgentActivityEvent =>
   ({
     id,
@@ -26,6 +26,7 @@ const prog = (
       executor_id: execId,
       state: opts.state ?? 'running',
       ...(opts.taskRef ? { task_ref: opts.taskRef } : {}),
+      ...(opts.detail ? { detail: opts.detail } : {}),
     }),
     occurred_at: `2026-05-24T${opts.time ?? '01:00'}:00Z`,
   }) as AgentActivityEvent;
@@ -157,6 +158,33 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
     const region = screen.getByTestId('agent-activity-executor-expanded');
     expect(toggle).toHaveAttribute('aria-controls', region.id);
     expect(screen.getAllByTestId('agent-activity-row')).toHaveLength(3);
+  });
+
+  // T880: the folded row surfaces the LATEST heartbeat's sanitized "what it's doing"
+  // note (detail), so an operator sees the current action without expanding.
+  it('surfaces the latest heartbeat detail ("跑 go test") on the folded summary', () => {
+    const events = [
+      prog('3', 'exec-2b8d4fe9', { time: '03:00', detail: '跑 go test' }), // latest
+      prog('2', 'exec-2b8d4fe9', { time: '02:00', detail: '读 task.go' }),
+      prog('1', 'exec-2b8d4fe9', { time: '01:00' }),
+    ];
+    render(
+      <ul>
+        <ExecutorProgressGroup events={events} />
+      </ul>,
+    );
+    expect(screen.getByTestId('agent-activity-executor-detail')).toHaveTextContent('跑 go test');
+    // the older heartbeat's detail is NOT the one shown on the fold
+    expect(screen.getByTestId('agent-activity-executor-summary')).not.toHaveTextContent('读 task.go');
+  });
+
+  it('omits the detail chip when the latest heartbeat has no activity note', () => {
+    render(
+      <ul>
+        <ExecutorProgressGroup events={[prog('1', 'exec-2b8d4fe9')]} />
+      </ul>,
+    );
+    expect(screen.queryByTestId('agent-activity-executor-detail')).toBeNull();
   });
 
   // oopslink DM 2026-07-04: the task in the summary must render as its HUMAN

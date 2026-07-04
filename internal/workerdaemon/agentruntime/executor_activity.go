@@ -162,6 +162,7 @@ func executorProgressPayload(ev executor.ProgressEvent) map[string]any {
 		p["last_progress_at"] = ev.LastProgressAt.UTC().Format(time.RFC3339)
 	}
 	putIfSet(p, "summary", ev.Summary)
+	putIfSet(p, "detail", ev.Detail) // T880: short sanitized "what it's doing" note
 	return p
 }
 

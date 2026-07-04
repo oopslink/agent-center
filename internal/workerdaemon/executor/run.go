@@ -132,8 +132,11 @@ func RunExecutor(ctx context.Context, cfg RunConfig) error {
 	progress := func(phase, message string) {
 		entry := ProgressEntry{At: clk.Now(), Phase: phase, Message: message}
 		_ = fx.AppendProgress(in.ExecutorID, entry) // best-effort relay
-		// Refresh the watchdog timestamp so a long but live run is not judged stalled.
+		// Refresh the watchdog timestamp so a long but live run is not judged stalled,
+		// and carry the (already sanitized) note into the status so the executor.progress
+		// event says WHAT the runner is doing, not just that it is alive (T880).
 		st.LastProgressAt = clk.Now()
+		st.Detail = message
 		_ = fx.WriteStatus(st)
 	}
 
@@ -271,12 +274,25 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 	// heavy run (reading a big codebase, a multi-minute build) with no start/done in
 	// between had last_progress_at frozen and was falsely stall-killed. Throttled so a
 	// chatty stream does not flood progress.jsonl / status writes.
+	// Also peek each streamed line for a short sanitized "what it's doing" note
+	// (T880 — read/edit which file, run which command, generating) so the throttled
+	// heartbeat says something specific instead of a static "active". streamLineActivity
+	// keeps only a tool name + a truncated structural hint; the latest meaningful note
+	// rides the next heartbeat's message (→ status.detail → the executor.progress event).
 	var lastBeat time.Time
-	onLine := func(string) {
+	var lastActivity string
+	onLine := func(line string) {
+		if a := streamLineActivity([]byte(line)); a != "" {
+			lastActivity = a
+		}
 		now := time.Now()
 		if now.Sub(lastBeat) >= runnerHeartbeatInterval {
 			lastBeat = now
-			rc.Progress("running", "executor active (streaming)")
+			msg := lastActivity
+			if msg == "" {
+				msg = "executor active (streaming)"
+			}
+			rc.Progress("running", msg)
 		}
 	}
 	out, err := r.run(ctx, rc.WorkspaceDir, r.cmd, onLine)

@@ -73,10 +73,14 @@ type StopEvent struct {
 // signal the watchdog already watches). Summary is the executor's optional
 // human-readable progress note.
 type ProgressEvent struct {
-	ExecutorID     string
-	TaskRef        string
-	State          string
-	Summary        string
+	ExecutorID string
+	TaskRef    string
+	State      string
+	Summary    string
+	// Detail is the current-activity note (T880): a short sanitized "what it's doing"
+	// hint ("读 task.go", "跑 go test") sampled from status.detail. Empty when the run
+	// has not surfaced an activity yet.
+	Detail         string
 	LastProgressAt time.Time
 	At             time.Time
 }

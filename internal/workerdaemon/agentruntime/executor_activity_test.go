@@ -141,7 +141,7 @@ func TestExecutorProgressPayload_Schema(t *testing.T) {
 	at := time.Unix(1700000123, 0)
 	p := executorProgressPayload(executor.ProgressEvent{
 		ExecutorID: "exec-run", TaskRef: "T758", State: "running",
-		Summary: "wrote tests", LastProgressAt: at,
+		Summary: "wrote tests", Detail: "读 task.go", LastProgressAt: at,
 	})
 	if p["event"] != "executor.progress" {
 		t.Fatalf("event = %v", p["event"])
@@ -155,6 +155,9 @@ func TestExecutorProgressPayload_Schema(t *testing.T) {
 	if p["summary"] != "wrote tests" {
 		t.Fatalf("summary = %v", p["summary"])
 	}
+	if p["detail"] != "读 task.go" {
+		t.Fatalf("detail = %v", p["detail"])
+	}
 	if p["last_progress_at"] != at.UTC().Format(time.RFC3339) {
 		t.Fatalf("last_progress_at = %v", p["last_progress_at"])
 	}
@@ -164,6 +167,9 @@ func TestExecutorProgressPayload_OmitsEmptySummary(t *testing.T) {
 	p := executorProgressPayload(executor.ProgressEvent{ExecutorID: "e1", State: "running"})
 	if _, ok := p["summary"]; ok {
 		t.Errorf("empty summary must be omitted: %+v", p)
+	}
+	if _, ok := p["detail"]; ok {
+		t.Errorf("empty detail must be omitted: %+v", p)
 	}
 	if _, ok := p["last_progress_at"]; ok {
 		t.Errorf("zero last_progress_at must be omitted: %+v", p)
