@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -116,6 +117,44 @@ func TestRunExecutor_FailureWritesErrorAndFailedStatus(t *testing.T) {
 	}
 	if st.State != StateFailed || st.Error == nil {
 		t.Errorf("status = %+v, want failed with error", st)
+	}
+}
+
+// TestRunExecutor_FailurePersistErrorNotSilent pins the v2.34.0 dogfood cleanup: when the
+// failure path cannot PERSIST output.json, the persist error is no longer swallowed — it
+// is surfaced in the returned (exit) error, while the ROOT-CAUSE runner error stays
+// recoverable via errors.Is (the exit-code signal is unchanged).
+func TestRunExecutor_FailurePersistErrorNotSilent(t *testing.T) {
+	_, root := runHarness(t, "exec-persistfail")
+	// Force WriteOutput to fail deterministically (no chmod/root fragility): plant a
+	// DIRECTORY where output.json goes, so the atomic write's final rename cannot land.
+	layout, err := NewLayout(root)
+	if err != nil {
+		t.Fatalf("NewLayout: %v", err)
+	}
+	outPath, err := layout.OutputPath("exec-persistfail")
+	if err != nil {
+		t.Fatalf("OutputPath: %v", err)
+	}
+	if err := os.MkdirAll(outPath, 0o700); err != nil {
+		t.Fatalf("plant output.json dir: %v", err)
+	}
+
+	runnerErr := errors.New("compute exploded")
+	err = RunExecutor(context.Background(), RunConfig{
+		AgentRoot:  root,
+		ExecutorID: "exec-persistfail",
+		Runner:     &fakeComputeRunner{err: runnerErr},
+		Clock:      clock.NewFakeClock(time.Unix(1700000000, 0)),
+	})
+	if err == nil {
+		t.Fatal("failure path must return a non-nil error (exit non-zero)")
+	}
+	if !errors.Is(err, runnerErr) {
+		t.Errorf("returned error must still wrap the root-cause runner error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "write failure output") {
+		t.Errorf("a WriteOutput persist failure must be surfaced (not silent), got: %v", err)
 	}
 }
 

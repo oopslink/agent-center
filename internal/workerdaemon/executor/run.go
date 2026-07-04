@@ -160,6 +160,12 @@ func recordSuccess(fx *FileExchange, in Input, st *Status, clk clock.Clock, res 
 
 // recordFailure writes output.json (error) + status=failed and returns runErr so
 // the process exits non-zero (the orchestrator's exit-code signal, design §9).
+//
+// runErr stays the ROOT-CAUSE signal (recoverable via errors.Is on the return), but a
+// failure to PERSIST the error output/status is no longer swallowed (v2.34.0 dogfood
+// cleanup): it is joined onto the returned error so it surfaces in the process's exit
+// error instead of vanishing. A silent WriteOutput failure here means the orchestrator
+// reads no output.json and can only guess from the exit code, so it must be visible.
 func recordFailure(fx *FileExchange, in Input, st *Status, clk clock.Clock, runErr error) error {
 	detail := &ErrorDetail{Kind: "runner_failed", Message: runErr.Error()}
 	out := Output{
@@ -168,13 +174,17 @@ func recordFailure(fx *FileExchange, in Input, st *Status, clk clock.Clock, runE
 		Error:      detail,
 		FinishedAt: clk.Now(),
 	}
-	// Best-effort: even if writing output/status fails, return the original runErr.
-	_ = fx.WriteOutput(out)
+	err := runErr
+	if werr := fx.WriteOutput(out); werr != nil {
+		err = errors.Join(err, fmt.Errorf("executor: write failure output: %w", werr))
+	}
 	st.State = StateFailed
 	st.Error = detail
 	st.LastProgressAt = clk.Now()
-	_ = fx.WriteStatus(*st)
-	return runErr
+	if serr := fx.WriteStatus(*st); serr != nil {
+		err = errors.Join(err, fmt.Errorf("executor: write failed status: %w", serr))
+	}
+	return err
 }
 
 // CommandRunner is the default production Runner: it runs a command (the model
