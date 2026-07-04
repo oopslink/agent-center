@@ -328,6 +328,194 @@ secret_management:
 		"====================================", gen0Session, resumeFrom)
 }
 
+// TestE2E_RestartRecovery_ReadoptSurvivor is the worker-restart "don't interrupt the
+// survivor" counterpart of the relaunch test above (T860 gap6, gap5 survivor invariant).
+// When ONLY the worker is SIGKILLed (a worker-only crash/restart, not a full-host crash),
+// its agent-runtime PROCESS setsid-ESCAPED and stays ALIVE; the restarted worker must
+// RE-ADOPT that surviving process in place — NOT relaunch it and NOT re-exec its claude.
+// Behaviorally asserted:
+//   - POSITIVE: `re-adopted surviving agent=<id>` (the launcher re-adopts the live process).
+//   - NEGATIVE (the "did not re-exec" invariant): after the restart boundary there is NO
+//     `boot-session relaunch` and NO new `RESUME_FROM` — no new claude was spawned.
+//
+// SCOPE NOTE — this covers the LAUNCHER-level survivor invariant (worker restart, agent-
+// runtime process alive → re-adopt). The BOOT-SESSION-level reattach (`boot-session
+// reattach`: a FRESH agent-runtime process boots and ProbeAgent → Reattachable → reattaches
+// a surviving SUPERVISOR) is NOT cleanly triggerable in this CI harness — a worker-only
+// restart re-adopts the live agent-runtime PROCESS (observed: `agentlauncher: adopted
+// surviving`) so no fresh agent-runtime boot runs the DecideBootSession reattach branch.
+// Constructing it needs surgically killing the agent-runtime process while preserving its
+// supervisor (fragile, architecture-specific) → deferred to tester3 §6.10 real-machine.
+func TestE2E_RestartRecovery_ReadoptSurvivor(t *testing.T) {
+	if testing.Short() {
+		t.Skip("deployment-level e2e (spawns real server+worker+supervisor) — skipped in -short")
+	}
+
+	sandboxRoot := "/tmp"
+	if err := os.MkdirAll(sandboxRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sandbox, err := os.MkdirTemp(sandboxRoot, "p46-reattach-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("SANDBOX=%s", sandbox)
+	keep := false
+	t.Cleanup(func() {
+		if keep || t.Failed() {
+			t.Logf("SANDBOX RETAINED for triage: %s", sandbox)
+			return
+		}
+		_ = os.RemoveAll(sandbox)
+	})
+
+	bin := ensureBinary(t)
+	binDir := filepath.Join(sandbox, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fakeClaude := filepath.Join(binDir, "claude")
+	buildBin(t, "github.com/oopslink/agent-center/tests/e2e/cmd/fakeclaude", fakeClaude)
+
+	dbPath := filepath.Join(sandbox, "agent-center.db")
+	sock := filepath.Join(sandbox, "admin.sock")
+	masterKey := filepath.Join(sandbox, "master.key")
+	cfgPath := filepath.Join(sandbox, "config.yaml")
+	bootstrapPath := filepath.Join(sandbox, "bootstrap_token")
+	fcLog := filepath.Join(sandbox, "fakeclaude.log")
+
+	if err := writeE2ETestMasterKey(masterKey); err != nil {
+		t.Fatal(err)
+	}
+	cfg := fmt.Sprintf(`server:
+  listen_addr: "127.0.0.1:0"
+  sqlite_path: "%s"
+  admin_socket_path: "%s"
+secret_management:
+  master_key_file: "%s"
+  skip_perms_check: true
+`, dbPath, sock, masterKey)
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// ---- PHASE 1: real server up -------------------------------------------
+	srv := spawn(t, bin, []string{"--config=" + cfgPath, "server"},
+		[]string{"AGENT_CENTER_INVOCATION_ID="})
+	t.Cleanup(func() { srv.sigterm() })
+	waitFile(t, sock, 10*time.Second)
+	waitFile(t, bootstrapPath, 10*time.Second)
+	bootstrap := readTrim(t, bootstrapPath)
+	t.Logf("server up; bootstrap token len=%d", len(bootstrap))
+
+	const workerID = "w-p46r"
+	const agentID = "agent-p46r-0001"
+	const orgID = "organization-p46r001"
+	const convID = "conv-p46r-dm-0001"
+	const userRef = "user:tester"
+	const msgID = "msg-p46r-0000000001"
+
+	// Reap any setsid-escaped survivor at the very end (this test INTENTIONALLY leaves
+	// the survivor alive across the restart to exercise reattach, so cleanup MUST reap it).
+	t.Cleanup(func() { reapStrays(t, fakeClaude, agentID) })
+
+	workerToken := mintToken(t, sock, bootstrap, "worker:"+workerID, []string{
+		"workforce:enroll", "dispatch:pull", "task:*", "secret:resolve", "blob:put",
+	})
+
+	seedBase(t, dbPath, seedParams{
+		orgID: orgID, agentID: agentID, workerID: workerID,
+		convID: convID, userRef: userRef, msgID: msgID,
+	})
+
+	// ---- PHASE 2: real worker daemon up ------------------------------------
+	pathEnv := "PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH")
+	workerEnv := []string{
+		pathEnv,
+		"AGENT_CENTER_INVOCATION_ID=",
+		"CLAUDE_FAKE_LOG=" + fcLog,
+		"CLAUDE_FAKE_RESULT_ON_START=1",
+	}
+	workerArgs := []string{
+		"--config=" + cfgPath, "worker", "run",
+		"--worker-id=" + workerID,
+		"--admin-target=unix:" + sock,
+		"--admin-token=" + workerToken,
+		"--poll-interval=300ms",
+	}
+	w1 := spawn(t, bin, workerArgs, workerEnv)
+	w1Killed := false
+	t.Cleanup(func() {
+		if !w1Killed {
+			w1.sigkill(t)
+		}
+	})
+	orgEnrollWorker(t, dbPath, workerID, orgID)
+
+	agentHome := filepath.Join(sandbox, "agents", agentID)
+	instanceFile := filepath.Join(agentHome, "session.instance")
+
+	// ---- ASSERT 1: a clean turn brings up a live supervisor session --------
+	if !waitFor(40*time.Second, func() bool {
+		return readCompletedTurn(instanceFile)
+	}) {
+		t.Fatalf("ASSERT-1 FAILED: completed_turn never became true in %s\nfakeclaude.log:\n%s\nworker out:\n%s",
+			instanceFile, safeRead(fcLog), w1.out())
+	}
+	t.Logf("ASSERT-1 PASS: live supervisor session up (completed_turn=true)")
+
+	// ---- kill the WORKER ONLY — leave the setsid-escaped survivor ALIVE -----
+	// This is the reattach precondition: unlike the relaunch test (which reapStrays to
+	// model a full-host crash), here ONLY the worker dies; the supervisor + claude
+	// survive (setsid-escape) so the restarted worker finds a Reattachable session.
+	preRestartLogLen := len(safeRead(fcLog))
+	w1.sigkill(t)
+	w1Killed = true
+	t.Logf("worker SIGKILLed; supervisor+claude survivor left ALIVE (reattach precondition)")
+
+	// ---- PHASE 3: restart the worker (SAME config + worker-id + home) -------
+	w2 := spawn(t, bin, workerArgs, workerEnv)
+	t.Cleanup(func() {
+		_ = os.WriteFile(filepath.Join(sandbox, "worker2.out"), []byte(w2.out()), 0o600)
+		w2.sigkill(t)
+	})
+
+	// ---- ASSERT: the restarted worker RE-ADOPTS the live survivor in place --
+	readoptMarker := "re-adopted surviving agent=" + agentID
+	if !waitFor(40*time.Second, func() bool {
+		return strings.Contains(w2.out(), readoptMarker)
+	}) {
+		t.Fatalf("ASSERT-Readopt FAILED: restarted worker did not re-adopt the live survivor "+
+			"(want %q) — it may have relaunched instead of adopting.\nworker2 out:\n%s\nfakeclaude.log:\n%s",
+			readoptMarker, w2.out(), safeRead(fcLog))
+	}
+	t.Logf("ASSERT-Readopt PASS: worker RE-ADOPTED the surviving agent-runtime in place (%q)", readoptMarker)
+
+	// ---- NEGATIVE invariant: re-adopt did NOT relaunch or re-exec claude ----
+	// Re-adopting the live process in place must NOT relaunch (no `boot-session relaunch`)
+	// and must NOT spawn a new claude (no new RESUME_FROM after the restart boundary).
+	// Give any errant relaunch a moment to appear.
+	time.Sleep(2 * time.Second)
+	if strings.Contains(w2.out(), "boot-session relaunch agent="+agentID) {
+		t.Fatalf("ASSERT-Readopt NEGATIVE FAILED: worker ALSO relaunched (boot-session relaunch present) "+
+			"— the live survivor was interrupted instead of adopted.\nworker2 out:\n%s", w2.out())
+	}
+	postLog := safeRead(fcLog)
+	if len(postLog) > preRestartLogLen && strings.Contains(postLog[preRestartLogLen:], "RESUME_FROM") {
+		t.Fatalf("ASSERT-Readopt NEGATIVE FAILED: a new claude was spawned after restart (RESUME_FROM appeared post-boundary) "+
+			"— re-adopt must keep the running claude, not re-exec.\nfakeclaude.log (post-restart):\n%s",
+			postLog[preRestartLogLen:])
+	}
+	t.Logf("ASSERT-Readopt NEGATIVE PASS: no relaunch, no new claude (survivor adopted in place, not interrupted)")
+
+	t.Logf("\n========== RESULT: PASSED (worker-restart re-adopt survivor) ==========\n"+
+		"live survivor across worker restart:       yes\n"+
+		"worker RE-ADOPTED (not relaunched):        yes\n"+
+		"claude NOT re-exec'd (adopted in place):   yes\n"+
+		"boot-session reattach (agent-runtime restart): deferred to tester3 §6.10\n"+
+		"=======================================================================")
+}
+
 // ---------------------------------------------------------------------------
 // seeding
 // ---------------------------------------------------------------------------
