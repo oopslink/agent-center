@@ -176,19 +176,6 @@ function planHandlers() {
         }),
       ),
     ),
-    // GET /:id/unmerged-branches — F4 ship-gate board (un-done Integrate nodes).
-    // Default mock = empty board (all merged); tests override to exercise rows.
-    http.get('/api/projects/:pid/plans/:id/unmerged-branches', ({ params }) =>
-      ok({
-        plan_id: String(params.id),
-        project_id: String(params.pid),
-        plan_name: 'Onboarding flow',
-        plan_status: 'running',
-        all_merged: true,
-        unmerged_count: 0,
-        unmerged: [],
-      }),
-    ),
     // PATCH /:id — draft-only edit (name/goal/target_date).
     http.patch('/api/projects/:pid/plans/:id', async ({ params, request }) => {
       const body = (await request.json()) as Record<string, unknown>;

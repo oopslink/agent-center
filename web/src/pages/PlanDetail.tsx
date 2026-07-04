@@ -17,7 +17,6 @@ import {
   usePatchPlan,
   useDeletePlan,
   useArchivePlan,
-  useUnmergedBranches,
   friendlyDestructivePlanError,
   type Plan,
   type PlanNode,
@@ -168,12 +167,6 @@ export default function PlanDetail(): React.ReactElement {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && <PlanTitleBar plan={p} />}
-
-        {/* v2.13.0 / I18 F4 — the ship-gate board (cycle Integrate nodes not yet
-            merged). @oopslink: on DESKTOP it now lives in the right-hand PlanInfoRail;
-            MOBILE (no rail) keeps it in-flow here. Renders only when there is unmerged
-            work to reconcile (a non-cycle / fully-merged plan shows nothing). */}
-        {isMobile && <UnmergedBranchesPanel projectId={id} planId={p.id} />}
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
@@ -822,11 +815,6 @@ function PlanInfoRail({
         </div>
       )}
 
-      {/* @oopslink: the unmerged-branch ship-gate board sits in the rail, just BEFORE
-          Up next. Renders nothing when there is no unmerged work (no space on a clean
-          plan). */}
-      <UnmergedBranchesPanel projectId={projectId} planId={plan.id} />
-
       {/* Up next (collapsible) */}
       <div className="border-b border-border-base p-5" data-testid="plan-upnext-section">
         <button
@@ -1383,126 +1371,6 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
       {s.icon}
       {t(`plan.detail.nodeStatus.${known}`)}
     </span>
-  );
-}
-
-// UnmergedBranchesPanel (v2.13.0 / I18 F4) — the PD's ship-gate board: the cycle
-// plan's `Integrate(T)` nodes that have NOT yet merged back into the integration
-// trunk (= unmerged feature branches), GET …/plans/{id}/unmerged-branches. It is
-// the structural counterpart of the §2.5 集成完成 Gate: while any row remains, the
-// gate is not clear and the plan must not ship.
-//
-// It renders NOTHING when there is nothing to reconcile — a non-cycle plan (no
-// node metadata) or a fully-merged cycle plan both return an empty board, and an
-// empty board has no actionable content, so the panel stays out of the way rather
-// than printing a misleading "all merged" on every plan. When rows exist it shows
-// a warning-styled checklist (branch → base, derived node_status, owner) so the PD
-// sees exactly which branches still owe a merge and why each is still open.
-function UnmergedBranchesPanel({
-  projectId,
-  planId,
-  className = '',
-}: {
-  projectId: string;
-  planId: string;
-  // Optional extra classes for the section wrapper. By default the panel is a
-  // plain rail section (same shape as Up next) — no boxed card; the rail/mobile
-  // call sites no longer need to pass margins.
-  className?: string;
-}): React.ReactElement | null {
-  const { t } = useTranslation('work');
-  const board = useUnmergedBranches(projectId, planId);
-  const rows = board.data?.unmerged ?? [];
-  // T315: the panel is collapsible (the PD asked) — a long unmerged list was a
-  // cramped wall on the plan view. Default OPEN so the ship-gate detail stays
-  // visible; the header toggles it.
-  const [open, setOpen] = useState(true);
-  // Stay silent while loading, on error, or when there is nothing unmerged — this
-  // is an alert surface, not a permanent fixture (a failed fetch must not block
-  // the rest of the plan view).
-  if (rows.length === 0) {
-    return null;
-  }
-  return (
-    // @oopslink: unified with the Up next section — a plain bordered-bottom rail
-    // section (NO boxed warning card; the old `overflow-hidden` card clipped the
-    // status chip on the right). The warning semantics now live only in the
-    // header color + count badge, matching the rest of the rail's typography.
-    <section
-      className={`border-b border-border-base p-5 ${className}`}
-      data-testid="plan-unmerged-board"
-      data-unmerged-count={rows.length}
-    >
-      {/* T315: clickable header = collapse toggle (chevron rotates when open).
-          Same shape/size as the Up next toggle, tinted warning. */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="mb-3 flex w-full items-center gap-2 text-[0.625rem] font-semibold uppercase tracking-wide text-warning hover:text-warning/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/40"
-        data-testid="plan-unmerged-toggle"
-      >
-        <svg
-          viewBox="0 0 12 12"
-          aria-hidden="true"
-          className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
-        >
-          <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span>{t('plan.detail.unmerged.title')}</span>
-        <span
-          className="inline-flex items-center rounded-full bg-warning/15 px-1.5 py-0.5 text-[0.625rem] font-bold text-warning"
-          data-testid="plan-unmerged-count"
-        >
-          {rows.length}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-left font-normal normal-case tracking-normal text-text-muted">
-          {t('plan.detail.unmerged.clearBeforeShip')}
-        </span>
-      </button>
-      {open && (
-        <ul className="space-y-2" data-testid="plan-unmerged-list">
-          {rows.map((u) => (
-            <li
-              key={u.task_id}
-              className="rounded-lg border border-border-base bg-bg-subtle px-3 py-2"
-              data-testid="plan-unmerged-row"
-              data-task-id={u.task_id}
-            >
-              {/* line 1: id · title · status — the at-a-glance row. min-w-0 +
-                  shrink-0 on the chips lets the title truncate so nothing is
-                  clipped at the rail's right edge (the prior occlusion). */}
-              <div className="flex items-center gap-2 text-xs">
-                <TaskIdTag taskId={u.task_id} orgRef={u.org_ref} testId="plan-unmerged-ref" />
-                <span className="min-w-0 flex-1 truncate font-medium text-text-primary" title={u.title}>
-                  {u.title}
-                </span>
-                {u.skip_merge_check && (
-                  <span
-                    className="inline-flex shrink-0 items-center rounded bg-bg-base px-1 py-0.5 text-[0.625rem] font-medium text-text-muted"
-                    data-testid="plan-unmerged-skipcheck"
-                    title={t('plan.detail.unmerged.skipCheckTitle')}
-                  >
-                    {t('plan.detail.unmerged.skipCheck')}
-                  </span>
-                )}
-                <NodeStateChip status={u.node_status} />
-              </div>
-              {/* line 2: branch → base, secondary (truncates instead of wrapping). */}
-              <div className="mt-1 flex items-center gap-1 font-mono text-[0.625rem] text-text-secondary">
-                <span className="min-w-0 truncate" title={u.branch || u.task_id}>
-                  {u.branch || u.task_id}
-                </span>
-                <span className="shrink-0 text-text-muted">→</span>
-                <span className="min-w-0 shrink-0 truncate text-text-muted" title={u.base || 'trunk'}>
-                  {u.base || 'trunk'}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 

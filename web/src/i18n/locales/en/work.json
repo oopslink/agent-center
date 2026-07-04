@@ -235,12 +235,6 @@
         "planNotRunning": "The plan isn't running, so its nodes can't be resumed.",
         "generic": "Couldn't resume this node. Please try again."
       },
-      "unmerged": {
-        "title": "Unmerged branches",
-        "clearBeforeShip": "— clear before Ship",
-        "skipCheck": "skip-check",
-        "skipCheckTitle": "merge check structurally skipped (no-code feature); still counts until done"
-      },
       "nodeStatus": {
         "blocked": "blocked",
         "ready": "ready",

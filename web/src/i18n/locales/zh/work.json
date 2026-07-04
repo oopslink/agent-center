@@ -235,12 +235,6 @@
         "planNotRunning": "计划未在运行，因此其节点无法被恢复。",
         "generic": "无法恢复此节点。请重试。"
       },
-      "unmerged": {
-        "title": "未合并的分支",
-        "clearBeforeShip": "— 发布前需清空",
-        "skipCheck": "跳过检查",
-        "skipCheckTitle": "结构上跳过合并检查（无代码特性）；在完成前仍计入"
-      },
       "nodeStatus": {
         "blocked": "受阻",
         "ready": "就绪",
