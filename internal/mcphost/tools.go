@@ -443,6 +443,23 @@ func makeUnblockTask(cfg Config) mcp.ToolHandlerFor[unblockTaskArgs, any] {
 	}
 }
 
+type resetTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the orphaned running task to reset back to the pool"`
+}
+
+// makeResetTask resets a confirmed-dead running task back to the pool (running→open,
+// assignee/lease cleared → auto-assigned to a fresh executor). Tier-3 recovery for a
+// task stranded running under an executor whose workspace is gone / node changed.
+func makeResetTask(cfg Config) mcp.ToolHandlerFor[resetTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args resetTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "reset_task", body)
+	}
+}
+
 type rerunFailedNodeArgs struct {
 	PlanID string `json:"plan_id" jsonschema:"the plan the node belongs to"`
 	TaskID string `json:"task_id" jsonschema:"the plan node's task to re-run"`

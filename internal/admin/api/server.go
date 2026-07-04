@@ -413,12 +413,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
 	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/reset_task", s.resetTaskHandler) // T862 tier-3 recovery
 	s.mux.HandleFunc("POST /admin/agent-tools/rerun_failed_node", s.rerunFailedNodeHandler)
 	// T53: operator resume of a paused plan node (un-stick a set-aside node).
 	s.mux.HandleFunc("POST /admin/agent-tools/resume_paused_node", s.resumePausedNodeHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/complete_task", s.completeTaskHandler)
-	s.mux.HandleFunc("POST /admin/agent-tools/discard_task", s.discardTaskHandler)                        // T119
-	s.mux.HandleFunc("POST /admin/agent-tools/set_task_issue", s.setTaskIssueHandler)                     // T192: (re)set/clear derived_from_issue
+	s.mux.HandleFunc("POST /admin/agent-tools/discard_task", s.discardTaskHandler)    // T119
+	s.mux.HandleFunc("POST /admin/agent-tools/set_task_issue", s.setTaskIssueHandler) // T192: (re)set/clear derived_from_issue
 	// T206: Reminder agent tools (Cognition BC). tool name == route segment.
 	s.mux.HandleFunc("POST /admin/agent-tools/create_reminder", s.createReminderHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_reminders", s.listRemindersHandler)

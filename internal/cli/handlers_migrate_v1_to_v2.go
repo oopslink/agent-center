@@ -147,7 +147,9 @@ func MigrateV1ToV2Command() *Command {
 // Template added 0094 (pm_templates — workflow template management).
 // v2.28 added 0095 (worker_system_info — worker host/build identity fields).
 // T-lifecycle-time added 0096 (agents.last_lifecycle_transition_at — additive ADD COLUMN).
-const targetSchemaVersion = 96
+// T862 added 0097 (pm_tasks.recovery_reset_count — additive ADD COLUMN NOT NULL DEFAULT 0,
+// the durable tier-3 recovery reset circuit-breaker tally for reset_task).
+const targetSchemaVersion = 97
 
 func runMigrateV1ToV2(
 	ctx context.Context,
