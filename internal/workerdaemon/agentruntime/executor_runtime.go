@@ -175,9 +175,9 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 		return nil, err
 	}
 	eng, err := orchestrator.NewEngine(orchestrator.EngineConfig{
-		Pool:    pool,
-		Routing: routing,
-		Router:  modelrouter.NewRouter(nil),
+		Pool:         pool,
+		Routing:      routing,
+		Router:       modelrouter.NewRouter(nil),
 		RouterConfig: routerConfigOf(pl),
 		Runners: map[string]orchestrator.RunnerCmdBuilder{
 			agent.DefaultExecutorCLI: orchestrator.NewClaudeRunnerBuilder(r.cfg.ClaudeBinary),
