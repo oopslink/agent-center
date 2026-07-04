@@ -100,6 +100,9 @@ var secondaryTools = []struct{ name, summary string }{
 	// templates — workflow template catalog
 	{"list_templates", "list available workflow templates"},
 	{"get_template", "get a workflow template's content"},
+	{"create_template", "create a new workflow template"},
+	{"update_template", "update a non-builtin workflow template"},
+	{"delete_template", "delete a non-builtin workflow template"},
 }
 
 // secondaryToolNames returns the deferred tool names (for RemoveTools on the

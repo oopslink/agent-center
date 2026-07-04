@@ -359,3 +359,61 @@ func makeGetTemplate(cfg Config) mcp.ToolHandlerFor[getTemplateArgs, any] {
 		return callAdmin(ctx, cfg, "get_template", body)
 	}
 }
+
+// --- create_template ---------------------------------------------------------
+
+type createTemplateArgs struct {
+	Name        string `json:"name" jsonschema:"The template name"`
+	Description string `json:"description" jsonschema:"Short description of the template"`
+	Content     string `json:"content" jsonschema:"The full markdown content describing the orchestration rules"`
+}
+
+func makeCreateTemplate(cfg Config) mcp.ToolHandlerFor[createTemplateArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args createTemplateArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":    cfg.AgentID,
+			"name":        args.Name,
+			"description": args.Description,
+			"content":     args.Content,
+		}
+		return callAdmin(ctx, cfg, "create_template", body)
+	}
+}
+
+// --- update_template ---------------------------------------------------------
+
+type updateTemplateArgs struct {
+	TemplateID  string `json:"template_id" jsonschema:"The template ID to update"`
+	Name        string `json:"name" jsonschema:"The new template name"`
+	Description string `json:"description" jsonschema:"The new description"`
+	Content     string `json:"content" jsonschema:"The new full markdown content"`
+}
+
+func makeUpdateTemplate(cfg Config) mcp.ToolHandlerFor[updateTemplateArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args updateTemplateArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":    cfg.AgentID,
+			"template_id": args.TemplateID,
+			"name":        args.Name,
+			"description": args.Description,
+			"content":     args.Content,
+		}
+		return callAdmin(ctx, cfg, "update_template", body)
+	}
+}
+
+// --- delete_template ---------------------------------------------------------
+
+type deleteTemplateArgs struct {
+	TemplateID string `json:"template_id" jsonschema:"The template ID to delete"`
+}
+
+func makeDeleteTemplate(cfg Config) mcp.ToolHandlerFor[deleteTemplateArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args deleteTemplateArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":    cfg.AgentID,
+			"template_id": args.TemplateID,
+		}
+		return callAdmin(ctx, cfg, "delete_template", body)
+	}
+}

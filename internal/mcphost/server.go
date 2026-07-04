@@ -527,6 +527,18 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Name:        "get_template",
 		Description: "Get a workflow template by ID. Returns the full markdown content that describes the orchestration rules. Read this content to understand how to scaffold a graph using the orchestration tools.",
 	}, makeGetTemplate(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "create_template",
+		Description: "Create a new workflow template in your organization. Provide name, description, and the full markdown content (the orchestration rules agents read to scaffold graphs).",
+	}, makeCreateTemplate(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "update_template",
+		Description: "Update an existing (non-builtin) workflow template's name/description/content by template_id. Builtin templates cannot be modified.",
+	}, makeUpdateTemplate(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "delete_template",
+		Description: "Delete a non-builtin workflow template by template_id. Builtin templates cannot be deleted.",
+	}, makeDeleteTemplate(cfg))
 
 	// --- file tools ----------------------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{

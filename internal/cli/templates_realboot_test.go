@@ -116,40 +116,67 @@ func TestTemplateTools_RealBoot_ReturnBuiltin(t *testing.T) {
 		return resp.StatusCode, m, string(b)
 	}
 
+	// No builtin templates anymore (2026-07 复盘: builtin type removed). Exercise
+	// the full template CRUD agent tools end-to-end: create → list → get → update → delete.
+
+	// --- create_template ----------------------------------------------------
+	status, body, rawCreate := post(t, "/admin/agent-tools/create_template",
+		map[string]any{"agent_id": agentID, "name": "test-tmpl", "description": "realboot test", "content": "# test\nhello"})
+	t.Logf("create_template → HTTP %d\n%s", status, rawCreate)
+	if errCode, _ := body["error"].(string); errCode == "templates_not_wired" {
+		t.Fatalf("create_template returns templates_not_wired — wiring gap not closed")
+	}
+	if status != http.StatusCreated {
+		t.Fatalf("create_template status = %d (want 201); body = %s", status, rawCreate)
+	}
+	tmplID, _ := body["id"].(string)
+	if tmplID == "" {
+		t.Fatalf("create_template returned no id; body = %s", rawCreate)
+	}
+
 	// --- list_templates -----------------------------------------------------
 	status, body, rawList := post(t, "/admin/agent-tools/list_templates", map[string]any{"agent_id": agentID})
 	t.Logf("list_templates → HTTP %d\n%s", status, rawList)
 	if status != http.StatusOK {
 		t.Fatalf("list_templates status = %d (want 200); body = %s", status, rawList)
 	}
-	if errCode, _ := body["error"].(string); errCode == "templates_not_wired" {
-		t.Fatalf("list_templates still returns templates_not_wired — wiring gap not closed")
-	}
 	items, _ := body["templates"].([]any)
-	if len(items) == 0 {
-		t.Fatalf("list_templates returned no templates — builtin seed did not run; body = %s", rawList)
-	}
-	var cycleID string
+	found := false
 	for _, it := range items {
-		m, _ := it.(map[string]any)
-		if m["name"] == "cycle" {
-			if b, _ := m["builtin"].(bool); b {
-				cycleID, _ = m["id"].(string)
+		if m, _ := it.(map[string]any); m != nil {
+			if id, _ := m["id"].(string); id == tmplID {
+				found = true
 			}
 		}
 	}
-	if cycleID == "" {
-		t.Fatalf("builtin 'cycle' template not present in list_templates; body = %s", rawList)
+	if !found {
+		t.Fatalf("created template %s not present in list_templates; body = %s", tmplID, rawList)
 	}
 
 	// --- get_template -------------------------------------------------------
 	status, body, rawGet := post(t, "/admin/agent-tools/get_template",
-		map[string]any{"agent_id": agentID, "template_id": cycleID})
-	t.Logf("get_template(%s) → HTTP %d\n%s", cycleID, status, rawGet)
+		map[string]any{"agent_id": agentID, "template_id": tmplID})
+	t.Logf("get_template(%s) → HTTP %d\n%s", tmplID, status, rawGet)
 	if status != http.StatusOK {
 		t.Fatalf("get_template status = %d (want 200); body = %s", status, rawGet)
 	}
-	if content, _ := body["content"].(string); content == "" {
-		t.Fatalf("get_template returned empty content; body = %s", rawGet)
+	if content, _ := body["content"].(string); content != "# test\nhello" {
+		t.Fatalf("get_template content mismatch; body = %s", rawGet)
+	}
+
+	// --- update_template ----------------------------------------------------
+	status, _, rawUpd := post(t, "/admin/agent-tools/update_template",
+		map[string]any{"agent_id": agentID, "template_id": tmplID, "name": "test-tmpl", "description": "updated", "content": "# test\nupdated"})
+	t.Logf("update_template → HTTP %d\n%s", status, rawUpd)
+	if status != http.StatusOK {
+		t.Fatalf("update_template status = %d (want 200); body = %s", status, rawUpd)
+	}
+
+	// --- delete_template ----------------------------------------------------
+	status, _, rawDel := post(t, "/admin/agent-tools/delete_template",
+		map[string]any{"agent_id": agentID, "template_id": tmplID})
+	t.Logf("delete_template → HTTP %d\n%s", status, rawDel)
+	if status != http.StatusOK {
+		t.Fatalf("delete_template status = %d (want 200); body = %s", status, rawDel)
 	}
 }

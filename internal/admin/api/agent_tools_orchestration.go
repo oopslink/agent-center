@@ -1,6 +1,8 @@
 package api
 
 import (
+	crand "crypto/rand"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -784,4 +786,163 @@ func (s *Server) getTemplateHandler(w http.ResponseWriter, r *http.Request) {
 		"content":     t.Content(),
 		"builtin":     t.IsBuiltin(),
 	})
+}
+
+// =============================================================================
+// Template write tools: create_template / update_template / delete_template
+// (agent-facing CUD, mirrors the webconsole handlers. Builtin templates are
+// immutable — 403. 2026-07 复盘: agent 直接管模版，不用人肉 UI。)
+// =============================================================================
+
+func newTemplateID() (string, error) {
+	var b [8]byte
+	if _, err := crand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return "tmpl-" + hex.EncodeToString(b[:]), nil
+}
+
+type createTemplateReq struct {
+	AgentID     string `json:"agent_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+}
+
+func (s *Server) createTemplateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req createTemplateReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.TemplateRepo == nil {
+		writeError(w, http.StatusNotImplemented, "templates_not_wired", "")
+		return
+	}
+	id, err := newTemplateID()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "id_gen_failed", err.Error())
+		return
+	}
+	t, err := pm.NewTemplate(pm.NewTemplateInput{
+		ID:          pm.TemplateID(id),
+		OrgID:       string(a.OrganizationID()),
+		Name:        req.Name,
+		Description: req.Description,
+		Content:     req.Content,
+		Builtin:     false,
+		CreatedBy:   pm.IdentityRef(agentActor(a)),
+		CreatedAt:   time.Now().UTC(),
+	})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
+		return
+	}
+	if err := d.TemplateRepo.Save(r.Context(), t); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id": string(t.ID()), "name": t.Name(), "description": t.Description(), "builtin": false,
+	})
+}
+
+type updateTemplateReq struct {
+	AgentID     string `json:"agent_id"`
+	TemplateID  string `json:"template_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+}
+
+func (s *Server) updateTemplateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req updateTemplateReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.TemplateRepo == nil {
+		writeError(w, http.StatusNotImplemented, "templates_not_wired", "")
+		return
+	}
+	t, err := d.TemplateRepo.FindByID(r.Context(), pm.TemplateID(req.TemplateID))
+	if err != nil {
+		if errors.Is(err, pm.ErrTemplateNotFound) {
+			writeError(w, http.StatusNotFound, "template_not_found", err.Error())
+			return
+		}
+		mapDomainError(w, err)
+		return
+	}
+	if t.OrgID() != string(a.OrganizationID()) {
+		writeError(w, http.StatusNotFound, "template_not_found", "not found")
+		return
+	}
+	if t.IsBuiltin() {
+		writeError(w, http.StatusForbidden, "forbidden", "builtin templates cannot be modified")
+		return
+	}
+	if err := t.Update(req.Name, req.Description, req.Content, time.Now().UTC()); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
+		return
+	}
+	if err := d.TemplateRepo.Update(r.Context(), t); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": string(t.ID()), "name": t.Name()})
+}
+
+type deleteTemplateReq struct {
+	AgentID    string `json:"agent_id"`
+	TemplateID string `json:"template_id"`
+}
+
+func (s *Server) deleteTemplateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req deleteTemplateReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.TemplateRepo == nil {
+		writeError(w, http.StatusNotImplemented, "templates_not_wired", "")
+		return
+	}
+	t, err := d.TemplateRepo.FindByID(r.Context(), pm.TemplateID(req.TemplateID))
+	if err != nil {
+		if errors.Is(err, pm.ErrTemplateNotFound) {
+			writeError(w, http.StatusNotFound, "template_not_found", err.Error())
+			return
+		}
+		mapDomainError(w, err)
+		return
+	}
+	if t.OrgID() != string(a.OrganizationID()) {
+		writeError(w, http.StatusNotFound, "template_not_found", "not found")
+		return
+	}
+	if t.IsBuiltin() {
+		writeError(w, http.StatusForbidden, "forbidden", "builtin templates cannot be deleted")
+		return
+	}
+	if err := d.TemplateRepo.Delete(r.Context(), pm.TemplateID(req.TemplateID)); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
