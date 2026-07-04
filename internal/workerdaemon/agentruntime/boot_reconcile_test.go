@@ -153,6 +153,55 @@ func TestTaskCancelEvidence(t *testing.T) {
 	}
 }
 
+// TestTaskCancelEvidence_IdentityNamespace_T872 locks the T872 root cause: the
+// should-continue check must compare a task's assignee against the agent's CENTER
+// identity-member ref (the "agent:<member>" namespace), NOT the runtime ULID AgentID.
+// With the ULID, a still-mine task's "agent:agent-20d5e05c" assignee reads as
+// "reassigned" → the crashed executor is finalized instead of tier-1 resumed. The
+// original TestTaskCancelEvidence used a same-namespace id (me="agent-a" vs
+// "agent:agent-a") so it never caught this — the exact "stub passes, real claude fails"
+// masking. This test uses DIFFERENT namespaces (ULID runtime id vs center ref assignee).
+func TestTaskCancelEvidence_IdentityNamespace_T872(t *testing.T) {
+	const ulid = "01KTVBCSTHCBN1ZFGZQB6XTNW7" // runtime AgentID (r.cfg.AgentID)
+	const ref = "agent-20d5e05c"              // center identity-member ref (r.identityRef())
+	stillMine := &centerTaskDetail{Status: "running", Assignee: "agent:agent-20d5e05c"}
+
+	// Hazard (the bug): comparing against the ULID misjudges the still-mine task as
+	// reassigned. This asserts WHY the old code finalized instead of recovering.
+	if !taskCancelEvidence(stillMine, ulid) {
+		t.Fatal("precondition: with the ULID a still-mine task reads as reassigned (the T872 bug)")
+	}
+	// Fix: comparing against the center ref correctly keeps it (not cancel evidence) →
+	// the executor is recovered/tier-1 resumed.
+	if taskCancelEvidence(stillMine, ref) {
+		t.Error("with the center agent-ref, a still-mine task must NOT be cancel evidence (T872 fix)")
+	}
+	// A genuinely reassigned task is still detected with the ref.
+	reassigned := &centerTaskDetail{Status: "running", Assignee: "agent:agent-someone-else"}
+	if !taskCancelEvidence(reassigned, ref) {
+		t.Error("a task reassigned to another agent must remain cancel evidence")
+	}
+}
+
+// TestIdentityRef_T872 locks the call-site half: identityRef returns the seeded center
+// ref (so the should-continue check keys on the assignee namespace), and falls back to
+// the ULID when the ref was never seeded (old center without the agent_ref projection).
+func TestIdentityRef_T872(t *testing.T) {
+	const ulid = "01KTVBCSTHCBN1ZFGZQB6XTNW7"
+	r := NewLocalRuntime(LocalRuntimeConfig{AgentID: ulid}, &SessionState{})
+	if got := r.identityRef(); got != ulid {
+		t.Errorf("unseeded identityRef = %q, want ULID fallback %q", got, ulid)
+	}
+	r.SetAgentRef("agent-20d5e05c")
+	if got := r.identityRef(); got != "agent-20d5e05c" {
+		t.Errorf("seeded identityRef = %q, want the center ref", got)
+	}
+	r.SetAgentRef("   ") // a blank ref must not clear a good value
+	if got := r.identityRef(); got != "agent-20d5e05c" {
+		t.Errorf("blank SetAgentRef cleared the ref → %q", got)
+	}
+}
+
 // TestVerifyThenCancel_IncompleteInflightDoesNotKill is the PD-required guard: when
 // the inflight set omits a task that get_task shows is STILL MINE and running, the
 // live executor is KEPT (adopted), never cancelled — an incomplete inflight set must
@@ -167,6 +216,29 @@ func TestVerifyThenCancel_IncompleteInflightDoesNotKill(t *testing.T) {
 
 	if cancelled := rt.verifyThenCancel(context.Background(), ee, d); cancelled {
 		t.Fatal("still-mine running task must NOT be cancelled (incomplete inflight set)")
+	}
+	if _, ok := ee.snapshotOrphans()["e-keep"]; !ok {
+		t.Error("a kept live executor must be adopted as an orphan")
+	}
+}
+
+// TestVerifyThenCancel_CrossNamespace_T872 locks the boot self-reconcile CALL SITE with
+// production-shaped ids: the runtime AgentID is a ULID, but the still-mine task's
+// assignee is the center ref "agent:<member>". verifyThenCancel must KEEP it (recover),
+// not cancel — because it now compares via r.identityRef() (the seeded ref), not the
+// ULID. The sibling _IncompleteInflightDoesNotKill test used same-namespace ids and so
+// masked the T872 bug; this one reproduces the real namespace split.
+func TestVerifyThenCancel_CrossNamespace_T872(t *testing.T) {
+	const ulid = "01KTVBCSTHCBN1ZFGZQB6XTNW7"
+	rt, ee, _ := engineForAgent(t, ulid)
+	attach(rt, ee)
+	rt.SetAgentRef("agent-20d5e05c") // seed the center identity ref, as Boot does
+	setToolCaller(rt, &scriptedToolCaller{
+		getTaskRaw: []byte(`{"id":"task-1","status":"running","assignee":"agent:agent-20d5e05c"}`),
+	})
+	d := execReconcileDecision{ExecutorID: "e-keep", TaskRef: "task-1", Alive: true, PID: 424242}
+	if cancelled := rt.verifyThenCancel(context.Background(), ee, d); cancelled {
+		t.Fatal("still-mine task (center-ref assignee, ULID runtime id) must NOT be cancelled with the seeded ref (T872)")
 	}
 	if _, ok := ee.snapshotOrphans()["e-keep"]; !ok {
 		t.Error("a kept live executor must be adopted as an orphan")

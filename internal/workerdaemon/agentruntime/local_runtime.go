@@ -161,6 +161,43 @@ type LocalRuntime struct {
 	// agent-runtime process itself — self-contained, k8s-aligned). Guarded by r.mu.
 	nextLeaseRenewAt time.Time
 	lastGCAt         time.Time
+
+	// agentRef is the agent's STABLE identity-member ref (bare, e.g. "agent-20d5e05c"),
+	// seeded once at Boot from ResumeState (SetAgentRef). It is the id namespace
+	// task.assignee uses ("agent:"+ref); the executor self-recovery should-continue check
+	// compares a task's assignee against THIS ref, not the ULID cfg.AgentID, so a crashed
+	// executor's still-mine task is not misjudged "reassigned" and IS tier-1 resumed
+	// (T872). SEPARATE from execConfig (which a reconcile overwrites) because identity is
+	// stable and must survive config changes. Empty ⇒ identityRef falls back to the ULID.
+	// Guarded by r.mu.
+	agentRef string
+}
+
+// SetAgentRef seeds the agent's stable identity-member ref (from ResumeState at Boot).
+// A blank ref is ignored so a partial/old ResumeState never clears a good value.
+func (r *LocalRuntime) SetAgentRef(ref string) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return
+	}
+	r.mu.Lock()
+	r.agentRef = ref
+	r.mu.Unlock()
+}
+
+// identityRef returns the agent's center identity-member ref (the namespace
+// task.assignee uses), falling back to the ULID cfg.AgentID when the ref was never
+// seeded (e.g. an old center without the agent_ref projection). The self-recovery
+// should-continue check keys on this so a crashed executor's task is matched to THIS
+// agent instead of being falsely read as reassigned (T872).
+func (r *LocalRuntime) identityRef() string {
+	r.mu.Lock()
+	ref := r.agentRef
+	r.mu.Unlock()
+	if ref != "" {
+		return ref
+	}
+	return r.cfg.AgentID
 }
 
 // cacheExecConfig records the ExecutorConfig this runtime's engine was built from

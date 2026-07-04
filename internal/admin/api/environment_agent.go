@@ -456,6 +456,12 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 		p := a.Profile()
 		out = append(out, map[string]any{
 			"agent_id": string(a.ID()),
+			// agent_ref (T872): the agent's identity-member ref (bare, e.g. "agent-20d5e05c")
+			// — the id namespace task.assignee uses ("agent:"+ref). The runtime keys on the
+			// bare ULID a.ID() everywhere else, but the executor self-recovery should-continue
+			// check must compare a task's assignee against THIS ref, not the ULID, or every
+			// crashed executor is misjudged "reassigned" and never tier-1 resumed.
+			"agent_ref": a.IdentityMemberID(),
 			// Report the INTENT, not the literal lifecycle: the daemon keys on
 			// desired_lifecycle=="running" (boot_reconcile.wantsRunning) to reattach /
 			// relaunch. A running agent's lifecycle already == "running"; an error agent

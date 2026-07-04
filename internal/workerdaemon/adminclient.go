@@ -424,7 +424,13 @@ type ResumeState struct {
 // ResumeAgent is one resumable agent: its desired lifecycle + version (+
 // reset_scope reserved for f-3) and its in-flight WorkItems.
 type ResumeAgent struct {
-	AgentID          string `json:"agent_id"`
+	AgentID string `json:"agent_id"`
+	// AgentRef is the agent's identity-member ref (bare, e.g. "agent-20d5e05c") — the id
+	// namespace task.assignee uses ("agent:"+ref). Carried so executor self-recovery's
+	// should-continue check compares a task's assignee against THIS ref (not the ULID
+	// AgentID), fixing the "every crash misjudged reassigned → never tier-1 resumed" bug
+	// (T872). Absent (old center) ⇒ empty ⇒ the runtime falls back to the ULID.
+	AgentRef         string `json:"agent_ref,omitempty"`
 	DesiredLifecycle string `json:"desired_lifecycle"`
 	Model            string `json:"model"`
 	// DisplayName is the agent's human-readable display_name (resume-state), carried

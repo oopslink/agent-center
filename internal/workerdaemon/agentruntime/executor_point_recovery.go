@@ -90,7 +90,11 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	// when the center confirms it is still ours and non-terminal; a terminal/reassigned
 	// task — OR an uncertain query — falls to terminal finalize (never resume a gone task).
 	detail, err := r.fetchCenterTask(ctx, r.cfg.AgentID, taskRef)
-	if err != nil || detail == nil || taskCancelEvidence(detail, r.cfg.AgentID) {
+	// Identity compare uses the center agent-ref (assignee namespace), NOT the ULID
+	// AgentID (get_task auth id) — the ULID never matches "agent:<member>" so every
+	// crash was misjudged "reassigned" → finalize (T872). fetchCenterTask above keeps
+	// the ULID (that IS the auth id).
+	if err != nil || detail == nil || taskCancelEvidence(detail, r.identityRef()) {
 		// fail-loud: log EXACTLY why we cannot confirm should-continue — this is the
 		// prime suspect for "clean crash didn't tier-1 resume" (get_task erroring in
 		// production while writeback works = different center path/permission).

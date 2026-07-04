@@ -383,7 +383,10 @@ func (r *LocalRuntime) verifyThenCancel(ctx context.Context, ee *ExecutorEngine,
 		}
 		return false
 	}
-	if taskCancelEvidence(detail, r.cfg.AgentID) {
+	// Identity compare uses the center agent-ref (assignee namespace), NOT the ULID
+	// AgentID — else boot self-reconcile misjudges every still-mine in-flight task as
+	// reassigned and cancels its recovered executor (T872, same root as point-recovery).
+	if taskCancelEvidence(detail, r.identityRef()) {
 		r.enactCancel(ctx, ee, d)
 		return true
 	}

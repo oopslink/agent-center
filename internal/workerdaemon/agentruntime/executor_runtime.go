@@ -46,7 +46,12 @@ const DefaultExecutorWatchdogInterval = defaultExecutorWatchdogInterval
 // reads. The daemon converts reconcilePayload → ExecutorConfig at the boundary so
 // agentruntime stays free of the daemon's wire payload type.
 type ExecutorConfig struct {
-	AgentID              string
+	AgentID string
+	// AgentRef is the agent's identity-member ref (bare, e.g. "agent-20d5e05c") — the id
+	// namespace task.assignee uses. Carried from ResumeState so the runtime seeds its
+	// stable identity ref for the self-recovery should-continue check (T872). Empty ⇒ the
+	// runtime falls back to the ULID AgentID.
+	AgentRef             string
 	DisplayName          string
 	EnvVars              map[string]string
 	MaxConcurrentTasks   int

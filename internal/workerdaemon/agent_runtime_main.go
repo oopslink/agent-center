@@ -89,11 +89,18 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 	// single-active until the first reconcile re-attaches it.
 	if ecfg, enabled, ferr := agentExecConfig(ctx, client, opts.Run.WorkerID, opts.AgentID); ferr != nil {
 		logf(fmt.Sprintf("agent-runtime agent=%s exec-config at boot: %v (single-active until reconcile)", opts.AgentID, ferr))
-	} else if enabled {
-		if aerr := rt.AttachExecutorEngine(ecfg); aerr != nil {
-			logf(fmt.Sprintf("agent-runtime agent=%s attach executor engine: %v", opts.AgentID, aerr))
-		} else {
-			logf(fmt.Sprintf("agent-runtime agent=%s executor engine attached (max=%d) before Boot", opts.AgentID, ecfg.MaxConcurrentTasks))
+	} else {
+		// Seed the stable identity ref (from ResumeState) BEFORE Boot's self-reconcile —
+		// it drives the should-continue check's assignee comparison (T872). Set regardless
+		// of concurrency so an agent that turns concurrent via a later reconcile still has
+		// its ref (identity is stable; reconcile never overwrites it).
+		rt.SetAgentRef(ecfg.AgentRef)
+		if enabled {
+			if aerr := rt.AttachExecutorEngine(ecfg); aerr != nil {
+				logf(fmt.Sprintf("agent-runtime agent=%s attach executor engine: %v", opts.AgentID, aerr))
+			} else {
+				logf(fmt.Sprintf("agent-runtime agent=%s executor engine attached (max=%d) before Boot", opts.AgentID, ecfg.MaxConcurrentTasks))
+			}
 		}
 	}
 
@@ -439,6 +446,7 @@ func execConfigFromResumeAgent(ra ResumeAgent) (agentruntime.ExecutorConfig, boo
 	enabled := agent.Profile{MaxConcurrentTasks: ra.MaxConcurrentTasks, AllowedExecutors: ra.AllowedExecutors}.ConcurrencyEnabled()
 	return agentruntime.ExecutorConfig{
 		AgentID:              ra.AgentID,
+		AgentRef:             ra.AgentRef,
 		DisplayName:          ra.DisplayName,
 		EnvVars:              ra.EnvVars,
 		MaxConcurrentTasks:   ra.MaxConcurrentTasks,
