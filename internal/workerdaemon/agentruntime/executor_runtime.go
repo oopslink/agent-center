@@ -53,7 +53,12 @@ type ExecutorConfig struct {
 	AllowedExecutors     []agent.ExecutorProfile
 	OrchestratorModel    string
 	DefaultExecutorModel string
-	CLI                  string
+	// SupervisorModel is the agent's own model (profile.model — what the supervisor
+	// session runs under), threaded through as the router's last-resort executor-model
+	// fallback so an executor always has a model even when neither default_executor_model
+	// nor orchestrator_model is configured.
+	SupervisorModel string
+	CLI             string
 }
 
 // AttachExecutor installs the executor engine onto the runtime (under the shared
@@ -147,6 +152,7 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 			OrchestratorModel:    pl.OrchestratorModel,
 			AllowedExecutors:     routerCandidates(pl.AllowedExecutors),
 			DefaultExecutorModel: pl.DefaultExecutorModel,
+			SupervisorModel:      pl.SupervisorModel,
 			DefaultCLI:           pl.CLI,
 		},
 		Runners: map[string]orchestrator.RunnerCmdBuilder{

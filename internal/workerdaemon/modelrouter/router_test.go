@@ -111,7 +111,8 @@ func TestResolve_SameModelBothCLIs_FirstMatchWins(t *testing.T) {
 	if dec.CLI != "claude-code" {
 		t.Errorf("override cli = %q, want claude-code (first-match)", dec.CLI)
 	}
-	// And the default-fallback path resolves the same way.
+	// And the default-fallback path resolves the same way (explicit default beats the
+	// pool fallback; first-match CLI).
 	cfg.DefaultExecutorModel = "shared-model"
 	dec, err = r.ResolveExecutor(context.Background(), "", testGoal, cfg)
 	if err != nil {
@@ -358,9 +359,9 @@ func TestResolve_ExplicitDefault_WinsOverOrchestrator(t *testing.T) {
 func TestResolve_Unresolvable_Errors(t *testing.T) {
 	j := &fakeJudge{err: ErrInconclusive}
 	r := NewRouter(j)
-	cfg := baseCfg()
-	cfg.DefaultExecutorModel = ""
-	cfg.OrchestratorModel = "" // no last-resort default either
+	// Truly nothing resolvable: no pool (else the pool fallback resolves it), no default,
+	// no orchestrator, no supervisor model.
+	cfg := Config{}
 
 	_, err := r.ResolveExecutor(context.Background(), "", testGoal, cfg)
 	if err == nil {
@@ -369,10 +370,9 @@ func TestResolve_Unresolvable_Errors(t *testing.T) {
 	if !errors.Is(err, ErrNoExecutorModel) {
 		t.Errorf("err = %v, want ErrNoExecutorModel", err)
 	}
-	// The underlying judge reason must remain inspectable on the returned error.
-	if !errors.Is(err, ErrInconclusive) {
-		t.Errorf("err = %v, want it to also wrap the judge reason", err)
-	}
+	// (No pool ⇒ the judge never ran, so there is no judge reason to wrap. A judge only
+	// runs with a pool, which now always resolves via the pool fallback — the judge
+	// reason is surfaced on that Decision's JudgeError, not on an error here.)
 }
 
 // task.model override works even when nothing else is configured (no judge, no
@@ -448,5 +448,64 @@ func TestOrchestratorModel(t *testing.T) {
 
 	if _, err := r.OrchestratorModel(Config{OrchestratorModel: "   "}); !errors.Is(err, ErrNoOrchestratorModel) {
 		t.Errorf("empty orchestrator_model err = %v, want ErrNoOrchestratorModel", err)
+	}
+}
+
+// TestResolve_PoolFallback_NoJudge pins the fix for "allowed_executors is configured but
+// never selected": with a nil judge (the LLM judge is an unwired follow-up) and no
+// task.model, a configured pool is used deterministically (first candidate) rather than
+// bypassed — SourcePoolFallback.
+func TestResolve_PoolFallback_NoJudge(t *testing.T) {
+	r := NewRouter(nil) // judge unwired — the real-world config that stranded pools
+	cfg := Config{AllowedExecutors: []ExecutorCandidate{
+		{CLI: "claude-code", Model: "opus-hard"},
+		{CLI: "codex", Model: "gpt-5.5"},
+	}}
+	dec, err := r.ResolveExecutor(context.Background(), "", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if dec.CLI != "claude-code" || dec.Model != "opus-hard" || dec.Source != SourcePoolFallback {
+		t.Errorf("got (%q,%q,%q), want (claude-code, opus-hard, %q) — first pool candidate", dec.CLI, dec.Model, dec.Source, SourcePoolFallback)
+	}
+}
+
+// TestResolve_PoolFallback_JudgeInconclusive pins that a judge failure no longer strands
+// a configured pool: the pool fallback resolves it and the judge reason is surfaced on
+// the Decision (not swallowed, not turned into ErrNoExecutorModel).
+func TestResolve_PoolFallback_JudgeInconclusive(t *testing.T) {
+	r := NewRouter(&fakeJudge{err: ErrInconclusive})
+	cfg := Config{AllowedExecutors: []ExecutorCandidate{{CLI: "claude-code", Model: "opus-hard"}}}
+	dec, err := r.ResolveExecutor(context.Background(), "", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if dec.Model != "opus-hard" || dec.Source != SourcePoolFallback {
+		t.Errorf("got (%q,%q), want (opus-hard, %q)", dec.Model, dec.Source, SourcePoolFallback)
+	}
+	if !errors.Is(dec.JudgeError, ErrInconclusive) {
+		t.Errorf("JudgeError = %v, want it to carry the judge reason", dec.JudgeError)
+	}
+}
+
+// TestResolve_SupervisorModelFallback pins the restored last-resort fallback: no pool, no
+// default_executor_model, no orchestrator_model, but the agent's own supervisor model is
+// set → the executor runs under it ("use whatever the supervisor uses") instead of
+// ErrNoExecutorModel.
+func TestResolve_SupervisorModelFallback(t *testing.T) {
+	r := NewRouter(nil)
+	cfg := Config{SupervisorModel: "claude-opus-4-8"} // only the agent's own model
+	dec, err := r.ResolveExecutor(context.Background(), "", testGoal, cfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if dec.Model != "claude-opus-4-8" || dec.Source != SourceDefault {
+		t.Errorf("got (%q,%q), want (claude-opus-4-8, %q) — supervisor-model fallback", dec.Model, dec.Source, SourceDefault)
+	}
+	// Ordering: an explicit default_executor_model still beats the supervisor fallback.
+	cfg.DefaultExecutorModel = "sonnet-mid"
+	dec, _ = r.ResolveExecutor(context.Background(), "", testGoal, cfg)
+	if dec.Model != "sonnet-mid" {
+		t.Errorf("default must beat supervisor fallback: got %q, want sonnet-mid", dec.Model)
 	}
 }

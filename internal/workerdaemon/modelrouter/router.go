@@ -41,6 +41,11 @@ const (
 	SourceJudged Source = "llm_judged"
 	// SourceDefault — difficulty was unjudgeable; default_executor_model fallback.
 	SourceDefault Source = "default_fallback"
+	// SourcePoolFallback — allowed_executors is configured but no judge is wired (or the
+	// judge was inconclusive), so a candidate is picked deterministically from the pool
+	// rather than ignoring the configured pool. Distinct provenance so logs show the
+	// pool WAS used (not silently bypassed) pending a real difficulty judge.
+	SourcePoolFallback Source = "pool_fallback"
 )
 
 // Sentinel errors (errors.Is-matchable) for the unhappy paths.
@@ -93,6 +98,11 @@ type Config struct {
 	// / default is paired with the CLI of its matching entry.
 	AllowedExecutors     []ExecutorCandidate
 	DefaultExecutorModel string // profile.default_executor_model — fallback model when unjudgeable
+	// SupervisorModel is the agent's OWN model (profile.model — what the supervisor
+	// session runs under). It is the ABSOLUTE last-resort fallback so an executor always
+	// has a model to run — "use whatever the supervisor uses" — instead of failing to
+	// spawn when neither default_executor_model nor orchestrator_model is configured.
+	SupervisorModel string
 	// DefaultCLI is the CLI paired with the task.model override / default_executor_model
 	// when that model is not found in AllowedExecutors and the candidates are not
 	// single-CLI (typically the agent's own cli). Empty → fallbackCLI ("claude-code").
@@ -149,12 +159,14 @@ func NewRouter(judge DifficultyJudge) *Router {
 // the executor for this task will run under (v2.18.1 BE-2). taskModel is task.model
 // ("" = unset).
 //
-//  1. taskModel set            → SourceTaskOverride (judge never consulted); CLI paired via resolveCLI
-//  2. judge picks an allowed   → SourceJudged (CLI is the chosen candidate's)
-//  3. default OR orchestrator  → SourceDefault (default_executor_model, else orchestrator_model
-//                                 as last-resort default — T743); JudgeError carries why, if a
-//                                 judge ran; CLI paired via resolveCLI
-//  4. nothing resolvable       → ErrNoExecutorModel (wrapping the judge reason)
+//  1. taskModel set             → SourceTaskOverride (judge never consulted); CLI paired via resolveCLI
+//  2. judge picks an allowed    → SourceJudged (CLI is the chosen candidate's)
+//     2b. allowed_executors set,   → SourcePoolFallback: pick the first candidate deterministically —
+//     judge unwired/inconclusive  a configured pool must be used, not bypassed for lack of a judge
+//  3. default/orchestrator/     → SourceDefault (default_executor_model, else orchestrator_model,
+//     supervisor model            else the agent's own supervisor model — always resolvable);
+//     JudgeError carries why, if a judge ran; CLI paired via resolveCLI
+//  4. nothing resolvable        → ErrNoExecutorModel (wrapping the judge reason)
 //
 // The CLI for the model-only override / default paths is paired by resolveCLI:
 // the matching candidate's CLI if the model is in allowed_executors, else the sole
@@ -190,12 +202,9 @@ func (r *Router) ResolveExecutor(ctx context.Context, taskModel string, goal exe
 		}
 	}
 
-	// 3. Default fallback — profile.default_executor_model, or (when that is unset)
-	// profile.orchestrator_model as a last-resort default. An agent that configured
-	// only an orchestrator_model (no default_executor_model, no judge/allowed set)
-	// therefore still spawns an executor under that model instead of failing with
-	// ErrNoExecutorModel — the common single-model profile no longer strands its
-	// no-task.model tasks in a fork-fail loop (T743).
+	// 3. Explicit default — profile.default_executor_model, or (when unset)
+	// profile.orchestrator_model as a last-resort default (T743). An operator's explicit
+	// default beats the deterministic pool/supervisor fallbacks below.
 	d := strings.TrimSpace(cfg.DefaultExecutorModel)
 	if d == "" {
 		d = strings.TrimSpace(cfg.OrchestratorModel)
@@ -204,9 +213,27 @@ func (r *Router) ResolveExecutor(ctx context.Context, taskModel string, goal exe
 		return Decision{CLI: resolveCLI(cfg, d), Model: d, Source: SourceDefault, JudgeError: judgeErr}, nil
 	}
 
-	// 4. Nothing resolvable — surface the judge reason (if any) alongside the
-	// fatal sentinel (errors.Join keeps BOTH errors.Is-matchable) so callers can
-	// see WHY the fallback was empty too.
+	// 3b. Pool fallback — no judge/default/orchestrator resolved a model, but an
+	// allowed_executors pool IS configured. A configured pool must be USED, not silently
+	// bypassed because the LLM judge port is unwired (or the judge was inconclusive): pick
+	// the first candidate deterministically so the agent's configured pool actually drives
+	// the executor model. A real difficulty judge over the pool is the follow-up.
+	if len(cfg.AllowedExecutors) > 0 {
+		c := cfg.AllowedExecutors[0]
+		return Decision{CLI: c.CLI, Model: c.Model, Source: SourcePoolFallback, JudgeError: judgeErr}, nil
+	}
+
+	// 3c. Supervisor-model fallback — nothing above resolved, but the agent's OWN model
+	// (what the supervisor session runs under) is known. Spawn the executor under it ("use
+	// whatever the supervisor uses") instead of failing with ErrNoExecutorModel and
+	// stranding no-task.model tasks in a silent fork-fail loop.
+	if s := strings.TrimSpace(cfg.SupervisorModel); s != "" {
+		return Decision{CLI: resolveCLI(cfg, s), Model: s, Source: SourceDefault, JudgeError: judgeErr}, nil
+	}
+
+	// 4. Nothing resolvable — no task.model, no judged/pool model, no default/orchestrator/
+	// supervisor model. Fatal for this task (the file-exchange protocol needs a non-empty
+	// model before spawn), rather than a silent guess. Surface the judge reason if any.
 	if judgeErr != nil {
 		return Decision{}, errors.Join(ErrNoExecutorModel, judgeErr)
 	}
