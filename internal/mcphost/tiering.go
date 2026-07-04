@@ -71,25 +71,18 @@ var secondaryTools = []struct{ name, summary string }{
 	// plan shared findings
 	{"record_finding", "record a shared finding on a plan"},
 	{"list_findings", "list a plan's shared findings"},
-	// orchestration engine (P2-T2) — low-frequency graph authoring tools
-	{"create_graph", "create an orchestration graph for a plan"},
-	{"get_graph", "get graph detail with nodes and edges"},
-	{"start_graph", "start an orchestration graph (draft to running)"},
-	{"finish_graph", "finish an orchestration graph (running to done)"},
-	{"add_graph_node", "add a node to an orchestration graph"},
-	{"remove_graph_node", "remove a node from an orchestration graph"},
-	{"update_graph_node", "update a graph node's title or metadata"},
-	{"start_graph_node", "start a graph node (transition to running)"},
-	{"complete_graph_node", "complete a graph node with an outcome"},
-	{"discard_graph_node", "discard a graph node"},
-	{"resolve_condition", "resolve a condition node (success/failure)"},
-	{"add_graph_edge", "add a dependency edge between graph nodes"},
-	{"remove_graph_edge", "remove a dependency edge between graph nodes"},
-	{"list_graph_nodes", "list all nodes in an orchestration graph"},
-	{"get_graph_node", "get a single graph node by ID"},
-	{"get_ready_nodes", "get graph nodes whose dependencies are satisfied"},
-	{"bind_task_to_node", "bind a task to a graph node"},
-	{"unbind_task_from_node", "unbind the task from a graph node"},
+	// orchestration engine graph tools were formerly DEFERRED here, but the DAG
+	// cycle-plan workflow is the mandatory orchestrator delivery path — so they are
+	// now CORE (kept OUT of this deferred manifest). A deferred tool is invisible to
+	// the HARNESS's own tool-search until this server advertises it via a
+	// search_tools call first (tools/list carries only non-deferred tools) — the
+	// SAME double-hidden I4 anti-pattern that promoted reminders + download_file to
+	// core. Keeping the graph tools deferred meant an orchestrator agent building a
+	// DAG could not discover create_graph / add_graph_node / … at all until it ran
+	// a lucky native search_tools query first (issue-74df441a, 2026-07). Promoting
+	// them to core makes the mandated DAG tools directly discoverable. A future
+	// per-role tiering (issue: agents have no role concept yet) could re-defer them
+	// for executor-only agents; for now they are core for every agent.
 	// files — T247 (issue-2dfd42a1): download_file + upload_file are CORE (kept
 	// OUT of this deferred manifest). An agent that receives an image/file
 	// attachment must be able to fetch it WITHOUT first discovering the tool via
