@@ -56,6 +56,12 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	}
 	defer ee.endRecovery(execID)
 
+	// fail-loud (T872 dogfood): make the whole recover-vs-terminal decision visible in
+	// the log — the §6.2 "kill→tier-1 resume" path was silent, so a production divergence
+	// (real claude crash NOT recovering) could not be diagnosed from logs.
+	r.log("agent=%s point-recovery executor=%s: kind=%v output_present=%v wasStall=%v thisProcess=%v — deciding recover-vs-terminal",
+		r.cfg.AgentID, execID, comp.Kind, comp.Output != nil, wasStall, thisProcess)
+
 	// Only a DEATH or STALL is a recovery candidate. A SUCCESS, or a definite failure the
 	// executor itself CONCLUDED — OutcomeFailed WITH a harvested output.json verdict — is
 	// terminal: the executor ran and reported an outcome, so we finalize + writeback (this
@@ -66,6 +72,8 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	deathOrStall := wasStall || comp.Kind == executor.OutcomeCrashed ||
 		(comp.Kind == executor.OutcomeFailed && comp.Output == nil)
 	if !deathOrStall {
+		r.log("agent=%s point-recovery executor=%s → TERMINAL: not death/stall (kind=%v output_present=%v = executor concluded a verdict) — finalizing, no recover",
+			r.cfg.AgentID, execID, comp.Kind, comp.Output != nil)
 		r.finalizeTerminal(ctx, ee, execID, comp)
 		return
 	}
@@ -73,6 +81,7 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	taskRef := r.executorTaskRef(ee, execID)
 	if taskRef == "" {
 		// Untracked/ownerless executor — no task to reconcile against. Finalize.
+		r.log("agent=%s point-recovery executor=%s → TERMINAL: no task ref on executor input — finalizing", r.cfg.AgentID, execID)
 		r.finalizeTerminal(ctx, ee, execID, comp)
 		return
 	}
@@ -82,14 +91,32 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	// task — OR an uncertain query — falls to terminal finalize (never resume a gone task).
 	detail, err := r.fetchCenterTask(ctx, r.cfg.AgentID, taskRef)
 	if err != nil || detail == nil || taskCancelEvidence(detail, r.cfg.AgentID) {
+		// fail-loud: log EXACTLY why we cannot confirm should-continue — this is the
+		// prime suspect for "clean crash didn't tier-1 resume" (get_task erroring in
+		// production while writeback works = different center path/permission).
+		switch {
+		case err != nil:
+			r.log("agent=%s point-recovery executor=%s task=%s → TERMINAL: get_task ERROR (cannot confirm should-continue): %v — finalizing, NO tier-1 resume",
+				r.cfg.AgentID, execID, taskRef, err)
+		case detail == nil:
+			r.log("agent=%s point-recovery executor=%s task=%s → TERMINAL: get_task returned nil detail — finalizing, NO tier-1 resume",
+				r.cfg.AgentID, execID, taskRef)
+		default:
+			r.log("agent=%s point-recovery executor=%s task=%s → TERMINAL: cancel-evidence (task terminal/reassigned, status=%q assignee=%q) — finalizing",
+				r.cfg.AgentID, execID, taskRef, detail.Status, detail.Assignee)
+		}
 		r.finalizeTerminal(ctx, ee, execID, comp)
 		ee.clearRecoverBudget(taskRef)
 		return
 	}
+	r.log("agent=%s point-recovery executor=%s task=%s → should-continue CONFIRMED (status=%q) — proceeding to recover",
+		r.cfg.AgentID, execID, taskRef, detail.Status)
 
 	// should-continue. Within this task's recovery budget (stall stricter than crash)?
 	if !ee.tryConsumeRecoverBudget(taskRef, wasStall) {
 		// §9 bounded floor exhausted: finalize as a definite failure + escalate to PD.
+		r.log("agent=%s point-recovery executor=%s task=%s → TERMINAL: recovery budget exhausted (wasStall=%v) — finalizing + escalating",
+			r.cfg.AgentID, execID, taskRef, wasStall)
 		r.finalizeTerminal(ctx, ee, execID, comp)
 		r.escalateRecoveryExhausted(ctx, taskRef, execID, wasStall)
 		ee.clearRecoverBudget(taskRef)
@@ -125,6 +152,8 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	// Observability continuity (§4.6 "事件流不断"): emit executor.recover BEFORE the
 	// relaunch so the activity stream shows the recovery and keeps flowing across it.
 	r.emitExecutorRecover(r.cfg.AgentID, taskRef, execID, plan, wasStall)
+	r.log("agent=%s point-recovery executor=%s task=%s → RECOVER tier=%v (wasStall=%v) — relaunching in place",
+		r.cfg.AgentID, execID, taskRef, plan.Action, wasStall)
 
 	// enactRecover: tier1/2 relaunch into the surviving workspace + re-adopt as an
 	// orphan (the watchdog then polls it); tier3 cleans residue so normal dispatch
