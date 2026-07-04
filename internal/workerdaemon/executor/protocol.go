@@ -221,6 +221,11 @@ type Status struct {
 	LastProgressAt time.Time    `json:"last_progress_at"`
 	Error          *ErrorDetail `json:"error,omitempty"`
 	Summary        string       `json:"summary,omitempty"`
+	// Detail is the current-activity note while running ("读 task.go", "跑 go test") —
+	// a SHORT, SANITIZED hint of what the runner is doing, refreshed on each heartbeat
+	// (T880). It rides the executor.progress event so an operator sees the live action;
+	// unlike Summary (the final one-line result, set at done) it changes during the run.
+	Detail string `json:"detail,omitempty"`
 }
 
 // Validate enforces the state/error correspondence (design §9): only a failed

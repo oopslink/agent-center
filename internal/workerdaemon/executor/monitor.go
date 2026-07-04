@@ -530,6 +530,7 @@ func (m *Monitor) SampleProgress() {
 			TaskRef:        m.taskRef(h.ExecutorID),
 			State:          string(st.State),
 			Summary:        st.Summary,
+			Detail:         st.Detail,
 			LastProgressAt: st.LastProgressAt,
 			At:             m.clk.Now(),
 		})
