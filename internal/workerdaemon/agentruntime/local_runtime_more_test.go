@@ -121,3 +121,37 @@ func TestAgentCLIMarker_RoundTrip(t *testing.T) {
 		t.Fatal("WriteAgentCLIMarker with empty home must error")
 	}
 }
+
+// TestSetResumedTask_BindsCurrentTask pins the T860 fold-in WI-rebind (supervisor-execute
+// mode: the supervisor DIRECTLY holds task work, so a relaunch must rebind the in-flight
+// WorkItem so an is_error re-driven turn surfaces via L2 instead of leaving it silently
+// active). Empty is a no-op (idle relaunch must not clobber).
+func TestSetResumedTask_BindsCurrentTask(t *testing.T) {
+	rt, st, _ := newTestRuntime(t)
+	rt.SetResumedTask("wi-42")
+	if st.CurrentTaskID != "wi-42" {
+		t.Fatalf("CurrentTaskID = %q, want wi-42", st.CurrentTaskID)
+	}
+	rt.SetResumedTask("") // idle relaunch
+	if st.CurrentTaskID != "wi-42" {
+		t.Errorf("empty SetResumedTask must not clear the bound task: got %q", st.CurrentTaskID)
+	}
+}
+
+// TestInjectResumeNudge pins the T860 fold-in ResumeNudge: on a relaunch with in-flight
+// work it injects the resume nudge into the LIVE session to re-drive the interrupted turn;
+// with no live session it is a safe no-op.
+func TestInjectResumeNudge(t *testing.T) {
+	rt, st, _ := newTestRuntime(t)
+	if err := rt.InjectResumeNudge(context.Background()); err != nil {
+		t.Fatalf("InjectResumeNudge (no session) = %v, want nil", err)
+	}
+	fs := &fakeSession{}
+	st.Session = fs
+	if err := rt.InjectResumeNudge(context.Background()); err != nil {
+		t.Fatalf("InjectResumeNudge = %v", err)
+	}
+	if msgs := fs.msgs(); len(msgs) != 1 || msgs[0] != DefaultResumeNudge {
+		t.Fatalf("injected = %v, want [%q]", msgs, DefaultResumeNudge)
+	}
+}
