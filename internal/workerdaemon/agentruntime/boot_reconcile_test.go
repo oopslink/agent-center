@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
@@ -161,6 +162,31 @@ func TestTaskCancelEvidence(t *testing.T) {
 // original TestTaskCancelEvidence used a same-namespace id (me="agent-a" vs
 // "agent:agent-a") so it never caught this — the exact "stub passes, real claude fails"
 // masking. This test uses DIFFERENT namespaces (ULID runtime id vs center ref assignee).
+// TestWithRerunSessionID_T877 locks bug2: a RecoverRerun relaunch must swap claude's
+// --session-id for a FRESH id (the prior hard-killed claude's session lock survives
+// SIGKILL, so reusing it collides "Session ID already in use"). A non-claude argv is
+// left unchanged, and the input slice is not mutated (Resume must keep its session).
+func TestWithRerunSessionID_T877(t *testing.T) {
+	orig := claudestream.SessionUUID("exec-x", 0)
+	argv := []string{"claude", "-p", "task", "--session-id", orig, "--verbose"}
+	got := withRerunSessionID(argv, "exec-x")
+	var gotSession string
+	for i := 0; i+1 < len(got); i++ {
+		if got[i] == "--session-id" {
+			gotSession = got[i+1]
+		}
+	}
+	if gotSession == "" || gotSession == orig {
+		t.Errorf("rerun session-id not freshened: got %q (orig %q)", gotSession, orig)
+	}
+	if argv[4] != orig {
+		t.Errorf("input argv was mutated (must copy): %v", argv)
+	}
+	if plain := withRerunSessionID([]string{"codex", "run"}, "exec-x"); len(plain) != 2 || plain[0] != "codex" {
+		t.Errorf("non-claude argv (no --session-id) must be unchanged: %v", plain)
+	}
+}
+
 func TestTaskCancelEvidence_IdentityNamespace_T872(t *testing.T) {
 	const ulid = "01KTVBCSTHCBN1ZFGZQB6XTNW7" // runtime AgentID (r.cfg.AgentID)
 	const ref = "agent-20d5e05c"              // center identity-member ref (r.identityRef())

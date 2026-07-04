@@ -27,6 +27,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
 	"github.com/oopslink/agent-center/internal/workerdaemon/orchestrator"
@@ -303,11 +304,36 @@ func (r *LocalRuntime) inflightTaskSet(ctx context.Context) (map[string]bool, bo
 // gone) cleans the residue so the agent's normal dispatch re-forks fresh.
 func (r *LocalRuntime) enactRecover(ctx context.Context, ee *ExecutorEngine, d execReconcileDecision) {
 	switch d.Plan.Action {
-	case orchestrator.RecoverResume, orchestrator.RecoverRerun:
+	case orchestrator.RecoverResume:
+		// tier-1: resume the SAME claude session in place (--resume argv). MUST keep the
+		// same session-id — resume-in-place relies on continuing that conversation state.
 		r.relaunchExecutor(ee, d.ExecutorID, d.Plan.RunnerCmd)
+	case orchestrator.RecoverRerun:
+		// tier-2: fresh LLM state → a FRESH claude session. Reusing the prior --session-id
+		// collides ("Session ID … is already in use") because the hard-killed claude's
+		// session registration is not released on SIGKILL (T877 bug2). Mint a new id.
+		// RERUN-ONLY — a Resume above must never have its session swapped.
+		r.relaunchExecutor(ee, d.ExecutorID, withRerunSessionID(d.Plan.RunnerCmd, d.ExecutorID))
 	default: // RecoverFresh (or no plan): clean up; normal dispatch re-forks fresh.
 		r.enactCancel(ctx, ee, d)
 	}
+}
+
+// withRerunSessionID returns a copy of argv with claude's --session-id replaced by a
+// FRESH id (a distinct SessionUUID epoch), for a RecoverRerun relaunch (T877 bug2 —
+// the prior hard-killed claude's session lock is not released on SIGKILL, so reusing
+// its id collides). A non-claude argv (no --session-id) is returned unchanged. NEVER
+// use this for a Resume — tier-1 resume-in-place must keep the same session.
+func withRerunSessionID(argv []string, execID string) []string {
+	fresh := claudestream.SessionUUID(execID, 1) // epoch 1 ≠ the original spawn's epoch 0
+	out := append([]string(nil), argv...)
+	for i := 0; i+1 < len(out); i++ {
+		if out[i] == "--session-id" {
+			out[i+1] = fresh
+			return out
+		}
+	}
+	return out
 }
 
 // relaunchExecutor re-forks the executor process for id with runnerCmd into its

@@ -17,13 +17,25 @@ package executor
 // executor's isolated workspace. Tests inject a fake Runner.
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
+)
+
+const (
+	// runnerHeartbeatInterval throttles the progress refresh while a runner command
+	// streams output. Well below the watchdog stall timeout so a long-but-active run
+	// keeps last_progress_at fresh, yet coarse enough not to flood progress.jsonl.
+	runnerHeartbeatInterval = 15 * time.Second
+	// maxRunnerLine bounds a single streamed line (claude stream-json lines carrying a
+	// large tool result can be big) so bufio.Scanner does not error with "token too long".
+	maxRunnerLine = 16 << 20 // 16 MiB
 )
 
 // Runner performs the executor's compute inside its isolated workspace and
@@ -194,7 +206,9 @@ func recordFailure(fx *FileExchange, in Input, st *Status, clk clock.Clock, runE
 // the run loop is unit-testable without a real CLI.
 type CommandRunner struct {
 	cmd []string
-	run func(ctx context.Context, dir string, name string, args ...string) (string, error)
+	// run streams the command's output line-by-line via onLine (so Run can refresh the
+	// watchdog progress timestamp mid-run) and returns the full combined output.
+	run func(ctx context.Context, dir string, cmd []string, onLine func(line string)) (string, error)
 }
 
 // NewCommandRunner builds a CommandRunner for cmd (name + args). An empty cmd is
@@ -204,14 +218,46 @@ func NewCommandRunner(cmd []string) *CommandRunner {
 	return &CommandRunner{cmd: cmd, run: execRun}
 }
 
-// execRun is the production exec seam: run name+args under dir, returning combined
-// output. The executor process's own (already-sanitized, mcp-free) environment is
-// inherited — no center credentials are reachable to pass down.
-func execRun(ctx context.Context, dir string, name string, args ...string) (string, error) {
-	c := exec.CommandContext(ctx, name, args...)
+// execRun is the production exec seam: it streams the command's STDOUT line-by-line
+// (invoking onLine per line, so the caller can refresh last_progress_at while a long
+// runner — e.g. claude emitting stream-json throughout a multi-minute run — is still
+// working, instead of being falsely stall-killed), captures STDERR, and returns the
+// full combined output (stdout then stderr). Preserving stderr matters: a runner
+// failure's diagnostic (e.g. claude's "Session ID … already in use") is on stderr and
+// must survive into the returned output (matching the prior CombinedOutput contract).
+// The executor process's own sanitized (mcp-free, no center creds) environment is
+// inherited.
+func execRun(ctx context.Context, dir string, cmd []string, onLine func(line string)) (string, error) {
+	if len(cmd) == 0 {
+		return "", errors.New("executor: empty runner command")
+	}
+	c := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
 	c.Dir = dir
-	out, err := c.CombinedOutput()
-	return string(out), err
+	stdout, err := c.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	var stderrBuf strings.Builder
+	c.Stderr = &stderrBuf
+	if err := c.Start(); err != nil {
+		return "", err
+	}
+	var outBuf strings.Builder
+	sc := bufio.NewScanner(stdout)
+	sc.Buffer(make([]byte, 0, 64*1024), maxRunnerLine)
+	for sc.Scan() {
+		line := sc.Text()
+		outBuf.WriteString(line)
+		outBuf.WriteByte('\n')
+		if onLine != nil {
+			onLine(line)
+		}
+	}
+	// Read stdout to EOF above, THEN Wait (Wait closes the pipe + reaps + joins the
+	// stderr copier goroutine). A scanner error (e.g. an over-long line) is non-fatal —
+	// we still Wait for the authoritative exit status and return what we captured.
+	werr := c.Wait()
+	return outBuf.String() + stderrBuf.String(), werr
 }
 
 // Run executes the configured command in rc.WorkspaceDir.
@@ -220,7 +266,20 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 		return RunResult{}, errors.New("executor: no runner command configured (orchestrator must supply the model-routed agent CLI)")
 	}
 	rc.Progress("start", "running "+r.cmd[0])
-	out, err := r.run(ctx, rc.WorkspaceDir, r.cmd[0], r.cmd[1:]...)
+	// Heartbeat: refresh the watchdog progress timestamp while the command streams
+	// output. Before this, Run touched progress only at start/done, so a legitimate
+	// heavy run (reading a big codebase, a multi-minute build) with no start/done in
+	// between had last_progress_at frozen and was falsely stall-killed. Throttled so a
+	// chatty stream does not flood progress.jsonl / status writes.
+	var lastBeat time.Time
+	onLine := func(string) {
+		now := time.Now()
+		if now.Sub(lastBeat) >= runnerHeartbeatInterval {
+			lastBeat = now
+			rc.Progress("running", "executor active (streaming)")
+		}
+	}
+	out, err := r.run(ctx, rc.WorkspaceDir, r.cmd, onLine)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("runner command %q: %w: %s", r.cmd[0], err, strings.TrimSpace(out))
 	}

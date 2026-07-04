@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -177,8 +178,11 @@ func TestCommandRunner_RunsCommandInWorkspace(t *testing.T) {
 	var gotArgs []string
 	cr := &CommandRunner{
 		cmd: []string{"echo", "hello"},
-		run: func(_ context.Context, dir, name string, args ...string) (string, error) {
-			gotDir, gotName, gotArgs = dir, name, args
+		run: func(_ context.Context, dir string, cmd []string, _ func(string)) (string, error) {
+			gotDir = dir
+			if len(cmd) > 0 {
+				gotName, gotArgs = cmd[0], cmd[1:]
+			}
 			return "hello world\nsecond line", nil
 		},
 	}
@@ -255,7 +259,7 @@ func TestCommandRunner_ParsesUsageFromStream(t *testing.T) {
 	}, "\n")
 	cr := &CommandRunner{
 		cmd: []string{"claude", "--stream"},
-		run: func(_ context.Context, _, _ string, _ ...string) (string, error) {
+		run: func(_ context.Context, _ string, _ []string, _ func(string)) (string, error) {
 			return streamOut, nil
 		},
 	}
@@ -280,13 +284,74 @@ func TestCommandRunner_EmptyCommandErrors(t *testing.T) {
 func TestCommandRunner_CommandFailurePropagates(t *testing.T) {
 	cr := &CommandRunner{
 		cmd: []string{"false"},
-		run: func(_ context.Context, _, _ string, _ ...string) (string, error) {
+		run: func(_ context.Context, _ string, _ []string, _ func(string)) (string, error) {
 			return "boom output", errors.New("exit status 1")
 		},
 	}
 	_, err := cr.Run(context.Background(), RunContext{Progress: func(string, string) {}})
 	if err == nil || !strings.Contains(err.Error(), "boom output") {
 		t.Errorf("expected command failure with output, got %v", err)
+	}
+}
+
+// TestCommandRunner_HeartbeatsDuringStream_T877 locks the stall-fix: the runner must
+// refresh progress ("running" heartbeat) WHILE the command streams output, not only at
+// start/done. Before, CombinedOutput blocked to completion so last_progress_at was
+// frozen the whole run and a legit heavy claude run was falsely stall-killed.
+func TestCommandRunner_HeartbeatsDuringStream_T877(t *testing.T) {
+	cr := &CommandRunner{
+		cmd: []string{"claude", "--stream"},
+		run: func(_ context.Context, _ string, _ []string, onLine func(string)) (string, error) {
+			for i := 0; i < 5; i++ { // simulate a long stream of stream-json lines
+				onLine(`{"type":"assistant","message":{"content":[]}}`)
+			}
+			return "final answer", nil
+		},
+	}
+	var phases []string
+	if _, err := cr.Run(context.Background(), RunContext{
+		Progress: func(phase, _ string) { phases = append(phases, phase) },
+	}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	running := 0
+	for _, p := range phases {
+		if p == "running" {
+			running++
+		}
+	}
+	if running < 1 {
+		t.Errorf("no 'running' heartbeat during stream; phases=%v — a heavy run would falsely stall", phases)
+	}
+	if len(phases) < 2 || phases[0] != "start" || phases[len(phases)-1] != "done" {
+		t.Errorf("phases = %v, want start…running…done", phases)
+	}
+}
+
+// TestExecRun_StreamsStdoutAndPreservesStderr_T877 locks the production exec seam: it
+// invokes onLine per STDOUT line (the heartbeat source) AND keeps STDERR in the
+// returned output (pd Gate: a runner_failed diagnostic like claude's "Session ID … in
+// use" is on stderr and must not be dropped when we switch off CombinedOutput).
+func TestExecRun_StreamsStdoutAndPreservesStderr_T877(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skipf("sh unavailable: %v", err)
+	}
+	var lines []string
+	out, rerr := execRun(context.Background(), t.TempDir(),
+		[]string{sh, "-c", "echo L1; echo L2; echo ERRTEXT 1>&2; echo L3"},
+		func(l string) { lines = append(lines, l) })
+	if rerr != nil {
+		t.Fatalf("execRun: %v", rerr)
+	}
+	if len(lines) != 3 {
+		t.Errorf("onLine calls = %d (%v), want 3 stdout lines", len(lines), lines)
+	}
+	if !strings.Contains(out, "L1") || !strings.Contains(out, "L3") {
+		t.Errorf("stdout content lost: %q", out)
+	}
+	if !strings.Contains(out, "ERRTEXT") {
+		t.Errorf("stderr DROPPED — pd Gate requires preserving it: %q", out)
 	}
 }
 

@@ -24,8 +24,12 @@ import (
 
 // DefaultStallTimeout is how long status.last_progress_at may stand still before
 // a running executor is judged stalled. Chosen well above a normal progress
-// cadence so a slow-but-live step is not killed.
-const DefaultStallTimeout = 5 * time.Minute
+// cadence so a slow-but-live step is not killed. Raised 5m→10m (T877): with the
+// runner now heart-beating on streamed stdout (run.go), an active claude refreshes
+// progress continuously; the larger window is defense-in-depth for the narrow case
+// of a single long SILENT command (e.g. a first `go build`) that emits no stdout
+// for minutes. (A deeper "child-process-alive also heartbeats" fix is a follow-up.)
+const DefaultStallTimeout = 10 * time.Minute
 
 // DefaultGraceTimeout is how long a SIGTERM'd executor is given to exit on its
 // own before the watchdog escalates to SIGKILL.
