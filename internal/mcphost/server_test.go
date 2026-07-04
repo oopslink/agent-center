@@ -140,6 +140,7 @@ var wantTools = []string{
 	"upload_file", "download_file", "attach_file",
 	// templates
 	"list_templates", "get_template",
+	"create_template", "update_template", "delete_template",
 }
 
 // planTools is the v2.9 P3 Stage C (#285) plan agent-tool catalog: every plan

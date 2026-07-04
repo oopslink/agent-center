@@ -149,7 +149,8 @@ func MigrateV1ToV2Command() *Command {
 // T-lifecycle-time added 0096 (agents.last_lifecycle_transition_at — additive ADD COLUMN).
 // T862 added 0097 (pm_tasks.recovery_reset_count — additive ADD COLUMN NOT NULL DEFAULT 0,
 // the durable tier-3 recovery reset circuit-breaker tally for reset_task).
-const targetSchemaVersion = 97
+// 2026-07 template quick-fix added 0098 (remove builtin cycle template row).
+const targetSchemaVersion = 98
 
 func runMigrateV1ToV2(
 	ctx context.Context,
