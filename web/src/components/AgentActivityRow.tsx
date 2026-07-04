@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { AgentActivityEvent } from '@/api/types';
 import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
+import { ActivityRefText } from './ActivityRefText';
 
 // v2.7.1 #228 PR(c): the activity timeline labels each event by a user-facing
 // CATEGORY ("what is the agent doing") rather than the raw event type. The raw
@@ -381,7 +382,9 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
               {event.task_ref && (
                 <>
                   <dt>{t('activity.detail.task')}</dt>
-                  <dd className="truncate font-mono" data-testid="agent-activity-task-ref">{event.task_ref}</dd>
+                  <dd className="truncate font-mono" data-testid="agent-activity-task-ref">
+                    <ActivityRefText text={event.task_ref} />
+                  </dd>
                 </>
               )}
               {event.interaction_ref && (
@@ -404,7 +407,7 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
             className="overflow-x-auto rounded bg-bg-subtle p-2 font-mono text-[0.6875rem] text-text-secondary"
             data-testid="agent-activity-payload-json"
           >
-            {JSON.stringify(payload, null, 2)}
+            <ActivityRefText text={JSON.stringify(payload, null, 2)} />
           </pre>
         </div>
       )}

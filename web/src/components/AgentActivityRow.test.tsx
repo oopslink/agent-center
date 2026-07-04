@@ -1,5 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { server } from '@/test/mswServer';
+import { OrgContext } from '@/OrgContext';
 import { AgentActivityRow } from './AgentActivityRow';
 import type { AgentActivityEvent } from '@/api/types';
 
@@ -14,13 +18,24 @@ function ev(event_type: string, payload: unknown, extra: Partial<AgentActivityEv
   };
 }
 
+// The expanded detail now linkifies entity ids via ActivityRefText, whose agent
+// resolver always loads the org members list. Provide an empty default so the
+// non-linkify tests don't trip onUnhandledRequest:'error'; the task/plan/issue
+// resolvers stay disabled here (no OrgContext → no slug → no fetch).
+beforeEach(() => {
+  server.use(http.get('/api/members', () => HttpResponse.json([])));
+});
+
 function row(e: AgentActivityEvent) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <table>
-      <tbody>
-        <AgentActivityRow event={e} />
-      </tbody>
-    </table>,
+    <QueryClientProvider client={qc}>
+      <table>
+        <tbody>
+          <AgentActivityRow event={e} />
+        </tbody>
+      </table>
+    </QueryClientProvider>,
   );
 }
 
@@ -276,5 +291,71 @@ describe('AgentActivityRow (#228 categories)', () => {
   it('renders message_acknowledged as an Acknowledged row', () => {
     row(ev('message_acknowledged', { conversation_id: 'c1', message_id: 'm9' }));
     expect(screen.getByText(/Acknowledged/i)).toBeInTheDocument();
+  });
+});
+
+// oopslink DM 2026-07-04: the expanded activity detail must render entity ids as
+// ref links (the screenshot case: an executor.progress event whose task_ref is a
+// bare `task-<id>`). This asserts the AgentActivityRow ↔ ActivityRefText wiring
+// end-to-end: within an org, a known task-<id> in BOTH the structured task field
+// AND the payload JSON becomes a link to the task detail page.
+describe('AgentActivityRow ref-link wiring (oopslink 2026-07-04)', () => {
+  afterEach(() => cleanup());
+
+  function rowInOrg(e: AgentActivityEvent, slug = 'test-org') {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={qc}>
+        <OrgContext.Provider value={{ slug, orgId: 'O', orgName: 'Test Org' }}>
+          <table>
+            <tbody>
+              <AgentActivityRow event={e} />
+            </tbody>
+          </table>
+        </OrgContext.Provider>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('linkifies a bare task-<id> in the task field AND the payload JSON to the task detail page', async () => {
+    server.use(
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/plans', () => HttpResponse.json({ items: [], total: 0 })),
+      http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 'task-5779df52', org_ref: 'T77', project: { id: 'proj-x', name: 'X' },
+              title: 'the running task', status: 'running', assignee: null,
+              updated_at: 'x', created_at: 'x',
+            },
+          ],
+          total: 1,
+        }),
+      ),
+    );
+    // Mirrors the screenshot's executor.progress event: task_ref both as the
+    // structured field AND inside the payload.
+    rowInOrg(
+      ev(
+        'lifecycle',
+        { event: 'executor.progress', executor_id: 'exec-86303eb9', state: 'running', task_ref: 'task-5779df52' },
+        { task_ref: 'task-5779df52', interaction_ref: 'executor:exec-86303eb9' },
+      ),
+    );
+    fireEvent.click(screen.getByTestId('agent-activity-toggle'));
+    // Both the structured task field and the JSON payload resolve to task links.
+    const links = await screen.findAllByTestId('activity-task-ref-link');
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    for (const link of links) {
+      expect(link.tagName).toBe('A');
+      expect(link).toHaveTextContent('task-5779df52'); // literal id preserved (debug-faithful)
+      expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-5779df52');
+      expect(link).toHaveAttribute('target', '_blank');
+    }
+    // exec-<id> has no detail page → stays plain text (never a dangling link).
+    expect(screen.queryByTestId('activity-agent-ref-link')).toBeNull();
+    expect(screen.getByTestId('agent-activity-payload-json')).toHaveTextContent('exec-86303eb9');
   });
 });
