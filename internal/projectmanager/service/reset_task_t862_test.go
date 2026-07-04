@@ -34,7 +34,7 @@ func TestResetTask_ReturnsToPoolAndIncrementsCount(t *testing.T) {
 	addMember(t, h, pid, "agent:pd")
 	h.clk.Advance(DefaultExecutionLeaseTTL + time.Hour) // lease lapses → confirmed dead
 
-	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd"); err != nil {
+	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd", false); err != nil {
 		t.Fatalf("ResetTask: %v", err)
 	}
 	got, _ := h.svc.GetTask(h.ctx, tid)
@@ -58,7 +58,7 @@ func TestResetTask_LiveLeaseRejected(t *testing.T) {
 	addMember(t, h, pid, "agent:pd")
 	// Do NOT advance the clock — the lease granted by StartTask is still live.
 
-	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd"); err != pm.ErrLeaseStillLive {
+	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd", false); err != pm.ErrLeaseStillLive {
 		t.Fatalf("ResetTask with live lease = %v, want ErrLeaseStillLive", err)
 	}
 	got, _ := h.svc.GetTask(h.ctx, tid)
@@ -67,6 +67,45 @@ func TestResetTask_LiveLeaseRejected(t *testing.T) {
 	}
 	if got.RecoveryResetCount() != 0 {
 		t.Fatalf("rejected reset incremented count to %d", got.RecoveryResetCount())
+	}
+}
+
+// (THE-gate) OWNER + confirmedDead resets a task whose lease is STILL LIVE: the owner
+// runtime tier-3-confirmed its own executor dead, and it is the one renewing the lease
+// (which would therefore never lapse). actor == assignee → bypassLease → the reset
+// succeeds on the first call. This is the case the whole fix exists for.
+func TestResetTask_OwnerConfirmedDeadBypassesLiveLease(t *testing.T) {
+	h, _, _ := autoAssignInject(t)
+	pid, tid := runningLeasedPoolTask(t, h, "org-1", "P", "agent:owner")
+	addMember(t, h, pid, "agent:pd")
+	// Do NOT advance the clock — the lease is still live. The OWNER itself resets.
+	if err := h.svc.ResetTask(h.ctx, tid, "agent:owner", true); err != nil {
+		t.Fatalf("owner confirmed-dead reset of a live lease must succeed, got %v", err)
+	}
+	got, _ := h.svc.GetTask(h.ctx, tid)
+	if got.Status() != pm.TaskOpen || got.Assignee() != "" {
+		t.Fatalf("owner reset must return to pool: status=%s assignee=%q", got.Status(), got.Assignee())
+	}
+	if got.RecoveryResetCount() != 1 {
+		t.Fatalf("owner reset must increment count, got %d", got.RecoveryResetCount())
+	}
+}
+
+// (THE-gate guard) A STRANGER asserting confirmedDead on a live-leased task is STILL
+// rejected — bypassLease requires actor == assignee, so only the owner can force-reset
+// its own confirmed-dead task; a different agent must wait for a genuine lapse. Protects
+// a slow-but-alive owner from a stranger's mis-fire.
+func TestResetTask_StrangerConfirmedDeadStillRejectedOnLiveLease(t *testing.T) {
+	h, _, _ := autoAssignInject(t)
+	pid, tid := runningLeasedPoolTask(t, h, "org-1", "P", "agent:owner")
+	addMember(t, h, pid, "agent:pd")
+	// Live lease; a NON-owner claims confirmed-dead → must not bypass.
+	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd", true); err != pm.ErrLeaseStillLive {
+		t.Fatalf("stranger confirmed-dead on live lease = %v, want ErrLeaseStillLive", err)
+	}
+	got, _ := h.svc.GetTask(h.ctx, tid)
+	if got.Status() != pm.TaskRunning || got.Assignee() != "agent:owner" {
+		t.Fatalf("rejected stranger reset mutated task: status=%s assignee=%q", got.Status(), got.Assignee())
 	}
 }
 
@@ -80,7 +119,7 @@ func TestResetTask_CapTripsBlock(t *testing.T) {
 	// Reset MaxRecoveryResets times, re-driving to running+lapsed each round.
 	for i := 0; i < pm.MaxRecoveryResets; i++ {
 		h.clk.Advance(DefaultExecutionLeaseTTL + time.Hour)
-		if err := h.svc.ResetTask(h.ctx, tid, "agent:pd"); err != nil {
+		if err := h.svc.ResetTask(h.ctx, tid, "agent:pd", false); err != nil {
 			t.Fatalf("reset #%d: %v", i+1, err)
 		}
 		// Re-arm: reassign + start so the next round has a running+leased task.
@@ -98,7 +137,7 @@ func TestResetTask_CapTripsBlock(t *testing.T) {
 	}
 	// The (cap+1)th reset trips the breaker: BLOCK, not reset.
 	h.clk.Advance(DefaultExecutionLeaseTTL + time.Hour)
-	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd"); err != nil {
+	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd", false); err != nil {
 		t.Fatalf("cap-trip ResetTask: %v", err)
 	}
 	got, _ = h.svc.GetTask(h.ctx, tid)
@@ -129,7 +168,7 @@ func TestResetTask_RedispatchesToFreshAgent(t *testing.T) {
 	}
 	h.clk.Advance(DefaultExecutionLeaseTTL + time.Hour)
 
-	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd"); err != nil {
+	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd", false); err != nil {
 		t.Fatalf("ResetTask: %v", err)
 	}
 	got, _ := h.svc.GetTask(h.ctx, tid)
@@ -162,7 +201,7 @@ func TestResetTask_ConcurrentSingleIncrement(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			errs[i] = h.svc.ResetTask(h.ctx, tid, "agent:pd")
+			errs[i] = h.svc.ResetTask(h.ctx, tid, "agent:pd", false)
 		}(i)
 	}
 	close(start)

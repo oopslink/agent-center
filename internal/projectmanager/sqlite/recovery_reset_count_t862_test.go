@@ -32,7 +32,7 @@ func TestTaskRepo_RecoveryResetCount_RoundTrip(t *testing.T) {
 	if err := got.Start(t0.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if err := got.ResetToOpen(t0.Add(2 * time.Hour)); err != nil {
+	if err := got.ResetToOpen(t0.Add(2*time.Hour), false); err != nil {
 		t.Fatal(err)
 	}
 	if err := tr.Update(ctx, got); err != nil {

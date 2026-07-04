@@ -16,6 +16,10 @@ func TestEnactRecover_Fresh_CallsResetTask(t *testing.T) {
 	tc := &scriptedToolCaller{}
 	setToolCaller(rt, tc)
 
+	// The supervisor is tracking this task (lease_gc renews on state.CurrentTaskID); the
+	// tier-3 reset must stop that renewal, else the lease never lapses (THE-gate root).
+	rt.state.CurrentTaskID = "task-42"
+
 	d := execReconcileDecision{
 		ExecutorID: "e-gone",
 		TaskRef:    "task-42",
@@ -33,6 +37,16 @@ func TestEnactRecover_Fresh_CallsResetTask(t *testing.T) {
 	}
 	if body["agent_id"] != "agent-x" {
 		t.Fatalf("reset_task agent_id = %v, want agent-x", body["agent_id"])
+	}
+	// 修1: the owner's tier-3 confirmation must ride along so the center skips the
+	// live-lease guard the owner is itself renewing.
+	if body["confirmed_dead"] != true {
+		t.Fatalf("reset_task confirmed_dead = %v, want true", body["confirmed_dead"])
+	}
+	// 修2: CurrentTaskID must be cleared so lease_gc stops renewing the dead executor's
+	// lease (and won't reclaim the task once it is re-dispatched).
+	if rt.state.CurrentTaskID != "" {
+		t.Fatalf("tier-3 reset must clear CurrentTaskID, got %q", rt.state.CurrentTaskID)
 	}
 }
 

@@ -63,13 +63,16 @@ func (a *centerClientAdapter) BlockTask(ctx context.Context, agentID, taskID, re
 	return a.caller.CallAgentTool(ctx, "block_task", body, nil)
 }
 
-// ResetTask → POST /admin/agent-tools/reset_task {agent_id, task_id}. The center resets a
-// confirmed-dead running task back to the pool (running→open, assignee/lease cleared) and
-// re-dispatches it to a fresh executor. T862 tier-3 recovery.
-func (a *centerClientAdapter) ResetTask(ctx context.Context, agentID, taskID string) error {
+// ResetTask → POST /admin/agent-tools/reset_task {agent_id, task_id, confirmed_dead}. The
+// center resets a confirmed-dead running task back to the pool (running→open, assignee/lease
+// cleared) and re-dispatches it to a fresh executor. T862 tier-3 recovery. confirmedDead is
+// the owner's tier-3 assertion (RecoverFresh path) that lets the reset skip the live-lease
+// guard the owner is itself still renewing — see task.ResetToOpen bypassLease.
+func (a *centerClientAdapter) ResetTask(ctx context.Context, agentID, taskID string, confirmedDead bool) error {
 	body := map[string]any{
-		"agent_id": agentID,
-		"task_id":  taskID,
+		"agent_id":       agentID,
+		"task_id":        taskID,
+		"confirmed_dead": confirmedDead,
 	}
 	return a.caller.CallAgentTool(ctx, "reset_task", body, nil)
 }

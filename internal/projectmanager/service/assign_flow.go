@@ -383,6 +383,15 @@ func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 // reset). Lapse alone is insufficient (it would be re-续租'd by the nudge sweep), so both
 // hold before a running task is reclaimed.
 //
+// OWNER FAST-PATH (§THE-gate): the owner runtime's tier-3 confirmation arrives as
+// confirmedDead=true. When the caller IS the current lease owner (actor == assignee) we
+// pass bypassLease=true so guard (a) is skipped — the owner is still renewing its own
+// lease, so it would NEVER lapse and the task would sit running forever waiting for a lapse
+// that can't come. The ownership check keeps this safe: a STRANGER asserting confirmedDead
+// still faces guard (a) (actor != assignee → bypassLease=false), and a manual reset
+// (confirmedDead=false) always requires a genuinely lapsed lease. confirmedDead never
+// bypasses the cap — reset×N still trips the circuit breaker below.
+//
 // CIRCUIT BREAKER (§2B, durable): recovery_reset_count caps consecutive resets. At
 // MaxRecoveryResets the task is NOT reset again — it is BLOCKED for PD triage ("tier-3
 // 恢复耗尽 reset×N 需triage"), because a reset loop is a bad-task / broken-environment
@@ -401,7 +410,7 @@ func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 // ClaimableInPool still passes. For determinism it also fires a synchronous
 // TriggerAutoAssignForProject after the state change commits. Cross-agent by design
 // (project-member gated, no own-task requirement).
-func (s *Service) ResetTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+func (s *Service) ResetTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef, confirmedDead bool) error {
 	now := s.clock.Now()
 	var projectID pm.ProjectID
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
@@ -434,8 +443,11 @@ func (s *Service) ResetTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 			return s.emitTaskStateChanged(txCtx, t, prevStatus, reason)
 		}
 		// Under cap: reset to pool (ResetToOpen increments recovery_reset_count + gates
-		// on a live lease).
-		if rerr := t.ResetToOpen(now); rerr != nil {
+		// on a live lease). The owner's tier-3 confirmation (confirmedDead) skips that gate
+		// ONLY for the current lease owner — a stranger cannot force-reset a slow-but-alive
+		// owner, and a manual reset (confirmedDead=false) still requires a lapsed lease.
+		bypassLease := confirmedDead && actor == t.Assignee()
+		if rerr := t.ResetToOpen(now, bypassLease); rerr != nil {
 			return rerr
 		}
 		if uerr := s.tasks.Update(txCtx, t); uerr != nil {

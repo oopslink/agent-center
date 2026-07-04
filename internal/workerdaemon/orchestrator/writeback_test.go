@@ -30,7 +30,7 @@ func (f *fakeCenter) CompleteTask(_ context.Context, a, t, s string) error {
 	f.completes = append(f.completes, [3]string{a, t, s})
 	return f.err
 }
-func (f *fakeCenter) ResetTask(_ context.Context, a, t string) error {
+func (f *fakeCenter) ResetTask(_ context.Context, a, t string, _ bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.resets = append(f.resets, [2]string{a, t})

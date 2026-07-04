@@ -16,7 +16,7 @@ func TestResetToOpen_ClearsAndReturnsToPool(t *testing.T) {
 		t.Fatalf("RenewLease: %v", err)
 	}
 	at := t0.Add(time.Hour) // well past the 1-minute lease
-	if err := tk.ResetToOpen(at); err != nil {
+	if err := tk.ResetToOpen(at, false); err != nil {
 		t.Fatalf("ResetToOpen: %v", err)
 	}
 	if tk.Status() != TaskOpen {
@@ -46,7 +46,7 @@ func TestResetToOpen_ClearsAndReturnsToPool(t *testing.T) {
 // A nil lease (no live run) also passes the guard — reset succeeds.
 func TestResetToOpen_NilLeasePasses(t *testing.T) {
 	tk := running(t, "agent:dead") // no RenewLease → nil lease
-	if err := tk.ResetToOpen(t0.Add(time.Minute)); err != nil {
+	if err := tk.ResetToOpen(t0.Add(time.Minute), false); err != nil {
 		t.Fatalf("ResetToOpen with nil lease must succeed, got %v", err)
 	}
 	if tk.Status() != TaskOpen || tk.RecoveryResetCount() != 1 {
@@ -62,7 +62,7 @@ func TestResetToOpen_LiveLeaseRejected(t *testing.T) {
 		t.Fatalf("RenewLease: %v", err)
 	}
 	// Reset "now" is BEFORE the lease deadline → still live.
-	if err := tk.ResetToOpen(t0.Add(time.Minute)); err != ErrLeaseStillLive {
+	if err := tk.ResetToOpen(t0.Add(time.Minute), false); err != ErrLeaseStillLive {
 		t.Fatalf("live-lease reset must be ErrLeaseStillLive, got %v", err)
 	}
 	if tk.Status() != TaskRunning || tk.Assignee() != "agent:maybe-alive" {
@@ -73,9 +73,44 @@ func TestResetToOpen_LiveLeaseRejected(t *testing.T) {
 	}
 }
 
+// THE-gate fix: bypassLease=true (owner + tier-3-confirmed dead) resets a task whose
+// lease is STILL LIVE — the owner is itself renewing that lease, so it would never lapse
+// and the task would sit running forever. The service only sets bypassLease for the lease
+// owner, so this can never let a stranger force-reset a live owner.
+func TestResetToOpen_BypassLeaseResetsLiveLease(t *testing.T) {
+	tk := running(t, "agent:dead-owner")
+	if err := tk.RenewLease(time.Hour, t0); err != nil {
+		t.Fatalf("RenewLease: %v", err)
+	}
+	// Reset "now" is BEFORE the lease deadline → the lease is still live, yet bypassLease
+	// must let it through.
+	if err := tk.ResetToOpen(t0.Add(time.Minute), true); err != nil {
+		t.Fatalf("bypassLease reset of a live lease must succeed, got %v", err)
+	}
+	if tk.Status() != TaskOpen || tk.Assignee() != "" || tk.ExecutionLeaseExpiresAt() != nil {
+		t.Fatalf("bypass reset must clear to pool: status=%s assignee=%q lease=%v",
+			tk.Status(), tk.Assignee(), tk.ExecutionLeaseExpiresAt())
+	}
+	if tk.RecoveryResetCount() != 1 {
+		t.Fatalf("bypass reset must still increment the count, got %d", tk.RecoveryResetCount())
+	}
+}
+
+// bypassLease does NOT loosen the other guards: a blocked (paused) task is still refused
+// even with the owner's tier-3 confirmation (a block is recovered via unblock, not reset).
+func TestResetToOpen_BypassLeaseStillRejectsBlocked(t *testing.T) {
+	tk := running(t, "agent:c")
+	if err := tk.Block("stuck", BlockReasonObstacle, "agent:c", t0); err != nil {
+		t.Fatalf("Block: %v", err)
+	}
+	if err := tk.ResetToOpen(t0.Add(time.Hour), true); err != ErrTaskBlocked {
+		t.Fatalf("bypass reset on a blocked task must still be ErrTaskBlocked, got %v", err)
+	}
+}
+
 func TestResetToOpen_RejectsNonRunning(t *testing.T) {
 	tk := newTask(t) // open
-	if err := tk.ResetToOpen(t0); err != ErrIllegalTransition {
+	if err := tk.ResetToOpen(t0, false); err != ErrIllegalTransition {
 		t.Fatalf("reset on open must be ErrIllegalTransition, got %v", err)
 	}
 }
@@ -85,7 +120,7 @@ func TestResetToOpen_RejectsBlocked(t *testing.T) {
 	if err := tk.Block("stuck", BlockReasonObstacle, "agent:c", t0); err != nil {
 		t.Fatalf("Block: %v", err)
 	}
-	if err := tk.ResetToOpen(t0.Add(time.Hour)); err != ErrTaskBlocked {
+	if err := tk.ResetToOpen(t0.Add(time.Hour), false); err != ErrTaskBlocked {
 		t.Fatalf("reset on a blocked (paused) task must be ErrTaskBlocked, got %v", err)
 	}
 }
@@ -93,7 +128,7 @@ func TestResetToOpen_RejectsBlocked(t *testing.T) {
 // Complete zeroes the recovery tally (consecutive-since-last-success semantics).
 func TestComplete_ZeroesRecoveryResetCount(t *testing.T) {
 	tk := running(t, "agent:dead")
-	if err := tk.ResetToOpen(t0.Add(time.Minute)); err != nil {
+	if err := tk.ResetToOpen(t0.Add(time.Minute), false); err != nil {
 		t.Fatalf("ResetToOpen: %v", err)
 	}
 	if tk.RecoveryResetCount() != 1 {

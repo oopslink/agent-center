@@ -898,10 +898,18 @@ func (t *Task) ExpireLease(at time.Time) error {
 // recovery_reset_count (the §2B circuit-breaker tally); the service checks the cap
 // BEFORE calling this and blocks-for-triage instead once exhausted.
 //
+// bypassLease (§THE-gate): the OWNER runtime, having tier-3-CONFIRMED its own executor
+// dead (workspace/worktree gone), passes bypassLease=true so guard (a) is skipped and the
+// reset succeeds on the FIRST call rather than waiting for the lease to lapse. The lease
+// never lapses on its own here — the same owner is still renewing it — so without this the
+// task sits running forever. Safe because the service only sets it when the CALLER == the
+// lease owner (a stranger cannot force-reset a slow-but-alive owner); a manual reset leaves
+// it false and still requires a lapsed lease.
+//
 // Rejections: archived → ErrTaskArchived; not running → ErrIllegalTransition; a legally
 // blocked (paused) task → ErrTaskBlocked (a block is recovered via unblock, never reset);
-// a live lease → ErrLeaseStillLive.
-func (t *Task) ResetToOpen(at time.Time) error {
+// a live lease (without bypassLease) → ErrLeaseStillLive.
+func (t *Task) ResetToOpen(at time.Time, bypassLease bool) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
 	}
@@ -913,7 +921,9 @@ func (t *Task) ResetToOpen(at time.Time) error {
 	}
 	// Guard (a): a still-live lease means the agent may be alive → refuse (it belongs to
 	// the nudge path, not reset). A nil lease (no live run) or a LAPSED lease passes.
-	if t.executionLeaseExpiresAt != nil && at.Before(*t.executionLeaseExpiresAt) {
+	// bypassLease (owner + tier-3-confirmed dead) skips this: the owner reclaiming its own
+	// confirmed-dead task must not have to wait for a lease it is itself still renewing.
+	if !bypassLease && t.executionLeaseExpiresAt != nil && at.Before(*t.executionLeaseExpiresAt) {
 		return ErrLeaseStillLive
 	}
 	prev := t.assignee

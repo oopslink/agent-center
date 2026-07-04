@@ -318,10 +318,10 @@ func (r *LocalRuntime) enactRecover(ctx context.Context, ee *ExecutorEngine, d e
 		// tier-3: the workspace/worktree is GONE (or the k8s node changed) → the executor
 		// is CONFIRMED dead. Clean its residue, then RESET the still-running-under-a-dead-
 		// owner task back to the pool (T862) so a FRESH executor is auto-assigned rather
-		// than leaving the task marked running forever. enactCancel is the tier-3
-		// confirmation (guard b); the center still hard-rejects if the lease is somehow
-		// live (guard a), in which case reset is a best-effort no-op and the periodic
-		// backstop / next reconcile retries once the lease lapses.
+		// than leaving the task marked running forever. resetRecoveredTask stops renewing
+		// the lease + sends the owner's tier-3 confirmation (confirmed_dead=true) so the
+		// reset succeeds on the FIRST call — it does NOT wait for a lease lapse that can
+		// never come while this runtime is the one renewing it (THE-gate fix).
 		r.enactCancel(ctx, ee, d)
 		r.resetRecoveredTask(ctx, d.TaskRef, d.ExecutorID)
 	default: // no plan: clean up; normal dispatch re-forks fresh.
@@ -338,12 +338,28 @@ func (r *LocalRuntime) resetRecoveredTask(ctx context.Context, taskRef, execID s
 	if taskRef == "" {
 		return
 	}
+	// Stop renewing the dead executor's lease FIRST, unconditionally. The executor is
+	// tier-3-CONFIRMED dead, so continuing to 续租 its task's lease is wrong on two counts:
+	// (a) it is the reason the lease never lapses (the supervisor's lease_gc renews
+	// state.CurrentTaskID every tick — see drainLeaseRenewals), and (b) once the task is
+	// reset + re-dispatched, a stale CurrentTaskID would keep renewing/reclaiming a task
+	// this runtime no longer executes. We clear it regardless of the reset's outcome
+	// (even a cap-triggered block leaves no live executor to renew for).
+	r.mu.Lock()
+	if r.state != nil && r.state.CurrentTaskID == taskRef {
+		r.state.CurrentTaskID = ""
+	}
+	r.mu.Unlock()
+
 	client := newCenterClient(r.toolCaller())
 	if client == nil {
 		r.log("agent=%s tier-3 reset task=%s executor=%s: no transport", r.cfg.AgentID, taskRef, execID)
 		return
 	}
-	if err := client.ResetTask(ctx, r.cfg.AgentID, taskRef); err != nil {
+	// confirmedDead=true: this is the owner runtime asserting its OWN executor is
+	// tier-3-dead, so the center lets the reset skip the live-lease guard (the lease we
+	// were renewing would otherwise never lapse → task stuck running forever).
+	if err := client.ResetTask(ctx, r.cfg.AgentID, taskRef, true); err != nil {
 		r.log("agent=%s tier-3 reset task=%s executor=%s: %v", r.cfg.AgentID, taskRef, execID, err)
 		return
 	}

@@ -798,6 +798,13 @@ func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 type resetTaskReq struct {
 	AgentID string `json:"agent_id"`
 	TaskID  string `json:"task_id"`
+	// ConfirmedDead is the OWNER runtime's tier-3 confirmation that its own executor is
+	// dead (workspace/worktree gone). Set true only by the RecoverFresh path; combined
+	// with owner identity (agentActor == assignee) it lets the reset skip the live-lease
+	// guard — the owner is still renewing a lease that would otherwise never lapse. A
+	// manual/human reset leaves it false → the reset still requires a genuinely lapsed
+	// lease (back-compat: older callers omit the field → false).
+	ConfirmedDead bool `json:"confirmed_dead"`
 }
 
 // resetTaskHandler RESETS a confirmed-dead running task back to the pool: running→open
@@ -829,7 +836,7 @@ func (s *Server) resetTaskHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	if err := d.PMService.ResetTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+	if err := d.PMService.ResetTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a)), req.ConfirmedDead); err != nil {
 		mapDomainError(w, err)
 		return
 	}
