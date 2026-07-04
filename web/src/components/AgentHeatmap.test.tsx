@@ -95,6 +95,22 @@ describe('AgentHeatmap', () => {
     expect(cellAt(container, '2026-06-23')).toHaveAttribute('title', 'Jun 23, 2026: $2.50');
   });
 
+  it('anchors the initial scroll to the right edge so the newest weeks are shown (@oopslink 100% 空)', () => {
+    // jsdom does no layout, so scrollWidth is 0 by default — stub it to a value
+    // wider than the viewport so "anchor right" is observable. Pre-fix the scroller
+    // stayed at scrollLeft=0 (oldest, empty weeks) and the populated right edge was
+    // scrolled out of view, reading as "no data" at 100% zoom.
+    const SCROLL_WIDTH = 900;
+    const proto = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollWidth');
+    Object.defineProperty(HTMLElement.prototype, 'scrollWidth', { configurable: true, get: () => SCROLL_WIDTH });
+    try {
+      render(<AgentHeatmap cells={[cell('2026-06-23', { events: 5 })]} today={TODAY} />);
+      expect(screen.getByTestId('heatmap-scroller').scrollLeft).toBe(SCROLL_WIDTH);
+    } finally {
+      if (proto) Object.defineProperty(HTMLElement.prototype, 'scrollWidth', proto);
+    }
+  });
+
   it('exposes the active 口径 in the grid aria-label', () => {
     render(<AgentHeatmap cells={[]} today={TODAY} initialMetric="cost" />);
     expect(screen.getByRole('grid')).toHaveAttribute('aria-label', expect.stringContaining('Cost'));

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -179,6 +179,30 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
     return { columns: cols, monthLabels: labels };
   }, [byDay, today]);
 
+  // T-heatmap-scroll (@oopslink 2026-07-04): the 53-week grid is a fixed ~800px
+  // wide strip inside an overflow-x-auto scroller. Activity lives in the MOST
+  // RECENT (rightmost) weeks, but a fresh scroller sits at scrollLeft=0 — the
+  // oldest, empty weeks. When the panel is narrower than the grid (≈100% zoom on
+  // the two-column analytics layout) the populated right edge is scrolled out of
+  // view and the visible level-0 cells read as "no data" (@oopslink: 100% 就是空的,
+  // 90% 才有). Anchor the initial scroll to the right end so the newest activity
+  // is what you see, matching the GitHub contribution graph. useLayoutEffect runs
+  // before paint (no left→right flash); a resize listener re-anchors on zoom.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [columns]);
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const anchorRight = (): void => {
+      el.scrollLeft = el.scrollWidth;
+    };
+    window.addEventListener('resize', anchorRight);
+    return () => window.removeEventListener('resize', anchorRight);
+  }, []);
+
   const active = METRICS.find((m) => m.id === metric) ?? METRICS[0];
   const activeLabel = t(active.labelKey);
 
@@ -225,7 +249,7 @@ export function AgentHeatmap({ cells, today, initialMetric = 'activity' }: Agent
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col justify-center overflow-x-auto">
+      <div ref={scrollerRef} data-testid="heatmap-scroller" className="flex flex-1 flex-col justify-center overflow-x-auto">
         {/* month labels row, aligned to the week columns (15px pitch = 12px cell + 3px gap) */}
         <div className="ml-8 flex min-w-max" aria-hidden="true" data-testid="heatmap-months">
           {columns.map((_, w) => {
