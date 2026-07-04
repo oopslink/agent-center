@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import type { AgentActivityEvent } from '@/api/types';
 import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
 import { ActivityRefText } from './ActivityRefText';
+import { useTaskRefResolver } from './MentionText';
 
 // v2.7.1 #228 PR(c): the activity timeline labels each event by a user-facing
 // CATEGORY ("what is the agent doing") rather than the raw event type. The raw
@@ -495,13 +496,43 @@ function titleCase(s: string): string {
   return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
+// ExecutorTaskLink (oopslink DM 2026-07-04): the executor-group summary shows the
+// task by its HUMAN org_ref ("T879"), not the raw `task-<id>`. Unlike
+// ActivityRefText (which deliberately keeps the literal id for operator/JSON
+// surfaces), the group header is a human-facing summary — so here we resolve the
+// ref to its "T879" label via the SAME resolver MentionText uses (org task list,
+// keyed by task-<id> → {label,href}). A KNOWN task links to its detail page with
+// the T-label; an unknown/out-of-org ref falls back to ActivityRefText (literal
+// id, plain unless linkable) — verify-not-trust, never a dangling link.
+// stopPropagation so a link click doesn't toggle the group disclosure.
+function ExecutorTaskLink({ taskRef }: { taskRef: string }): React.ReactElement {
+  const resolveTask = useTaskRefResolver();
+  const resolved = resolveTask(taskRef);
+  if (!resolved) return <ActivityRefText text={taskRef} />;
+  return (
+    <a
+      href={resolved.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      data-testid="activity-executor-task-link"
+      data-task-ref={taskRef}
+      className="rounded text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      {resolved.label}
+    </a>
+  );
+}
+
 // v2.31.1 (oopslink DM 2026-07-04): a folded run of consecutive
 // `executor.progress` heartbeats from the SAME executor — collapsed into ONE
-// row "Executor (exec <id> on <task>) is <State> × N" + the run's time range,
+// row "Executor (<task>, exec <id>) is <State> × N" + the run's time range,
 // with a disclosure that reveals each raw heartbeat (lossless, like
-// CheckingGroup). The task ref is rendered via ActivityRefText so it links to
-// the task detail page. All rows in the run share one executor_id (the group key
-// from executorProgressKey), so a single exec/task/state summary is accurate.
+// CheckingGroup). The whole summary is bold so the folded row stands out from
+// the surrounding timeline (oopslink: "不够醒目"); the task links via
+// ExecutorTaskLink (human "T879" org_ref). All rows in the run share one
+// executor_id (the group key from executorProgressKey), so a single
+// exec/task/state summary is accurate.
 export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[] }): React.ReactElement {
   const { t } = useTranslation('insights');
   const [expanded, setExpanded] = useState(false);
@@ -519,7 +550,7 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
     <li data-testid="agent-activity-executor-group" data-count={n} data-executor-id={str(p.executor_id)}>
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-2 py-2 text-left text-xs text-status-violet-fg hover:bg-bg-subtle"
+        className="flex w-full items-center justify-between gap-2 py-2 text-left text-xs font-semibold text-status-violet-fg hover:bg-bg-subtle"
         data-testid="agent-activity-executor-toggle"
         aria-expanded={expanded}
         aria-controls={regionId}
@@ -531,21 +562,20 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
       >
         <span className="flex min-w-0 items-center gap-1">
           <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-status-violet-solid" />
+          {/* "Executor (T879, exec 2b8d4fe9) is Running × N" — task first (human
+              org_ref link), then the short exec id (oopslink DM 2026-07-04). */}
           <span className="min-w-0 truncate" data-testid="agent-activity-executor-summary">
-            {t('activity.category.executor')} (exec {exec}
+            {t('activity.category.executor')} (
             {taskRef && (
               <>
-                {' '}
-                {t('activity.executorGroup.on')}{' '}
-                {/* stopPropagation lives inside ActivityRefText's anchor so a
-                    task-link click routes without toggling the disclosure. */}
-                <ActivityRefText text={taskRef} />
+                <ExecutorTaskLink taskRef={taskRef} />
+                {', '}
               </>
             )}
-            ){state ? ` ${t('activity.executorGroup.is')} ${state}` : ''} × {n}
+            exec {exec}){state ? ` ${t('activity.executorGroup.is')} ${state}` : ''} × {n}
           </span>
         </span>
-        <span className="shrink-0 tabular-nums text-text-muted">
+        <span className="shrink-0 tabular-nums font-normal text-text-muted">
           {timeOf(earliest?.occurred_at ?? '')}–{timeOf(latest?.occurred_at ?? '')}
         </span>
       </button>

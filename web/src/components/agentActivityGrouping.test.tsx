@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { server } from '@/test/mswServer';
+import { OrgContext } from '@/OrgContext';
 import type { AgentActivityEvent } from '@/api/types';
 import { groupActivity } from './agentActivityGrouping';
 import { CheckingGroup, ExecutorProgressGroup } from './AgentActivityRow';
@@ -153,6 +157,57 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
     const region = screen.getByTestId('agent-activity-executor-expanded');
     expect(toggle).toHaveAttribute('aria-controls', region.id);
     expect(screen.getAllByTestId('agent-activity-row')).toHaveLength(3);
+  });
+
+  // oopslink DM 2026-07-04: the task in the summary must render as its HUMAN
+  // org_ref ("T879") link (task FIRST, then exec), not the raw task-<id>. Needs
+  // the org resolvers → QueryClient + OrgContext + msw (mirrors ActivityRefText).
+  it('renders the task as its "T879" org_ref label linking to the task detail page', async () => {
+    server.use(
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/plans', () => HttpResponse.json({ items: [], total: 0 })),
+      http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 'task-4b2339ec',
+              org_ref: 'T879',
+              project: { id: 'proj-x', name: 'X' },
+              title: 't',
+              status: 'running',
+              assignee: null,
+              updated_at: 'x',
+              created_at: 'x',
+            },
+          ],
+          total: 1,
+        }),
+      ),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <OrgContext.Provider value={{ slug: 'test-org', orgId: 'O', orgName: 'Test Org' }}>
+          <ul>
+            <ExecutorProgressGroup
+              events={[prog('1', 'exec-2b8d4fe9', { taskRef: 'task-4b2339ec' })]}
+            />
+          </ul>
+        </OrgContext.Provider>
+      </QueryClientProvider>,
+    );
+    const link = await screen.findByTestId('activity-executor-task-link');
+    expect(link.tagName).toBe('A');
+    expect(link).toHaveTextContent('T879');
+    expect(link).not.toHaveTextContent('task-4b2339ec');
+    expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-4b2339ec');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('data-task-ref', 'task-4b2339ec');
+    // task renders BEFORE the exec id in the summary (T879, exec …).
+    const summary = screen.getByTestId('agent-activity-executor-summary').textContent ?? '';
+    expect(summary.indexOf('T879')).toBeGreaterThanOrEqual(0);
+    expect(summary.indexOf('T879')).toBeLessThan(summary.indexOf('exec'));
   });
 });
 
