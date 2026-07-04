@@ -27,6 +27,7 @@ function mockApi({ threads = [], messages = [] }: { threads?: unknown[]; message
   server.use(
     http.get('/api/conversations/:id/threads', () => HttpResponse.json(threads)),
     http.get('/api/conversations/:id/messages', () => HttpResponse.json(messages)),
+    http.get('/api/conversations/:id/messages/:rootId/replies', () => HttpResponse.json([])),
   );
 }
 
@@ -91,6 +92,25 @@ describe('ConversationSidebar (T184 shared col④ 3-tab)', () => {
     const panel = screen.getByTestId('conversation-panel-files');
     await waitFor(() => expect(within(panel).getByTestId('conversation-files-empty')).toBeInTheDocument());
     expect(screen.queryByTestId('conversation-tab-files-count')).not.toBeInTheDocument();
+  });
+
+  // Regression: this sidebar mounts as a SIBLING of ConversationView, so it must
+  // carry its own ThreadSidebarProvider — otherwise clicking a thread row is a
+  // silent no-op (useThreadSidebar() → null). Guards the reported bug where
+  // sidebar Thread entries wouldn't open.
+  it('clicking a thread row opens the ThreadSidebar', async () => {
+    mockApi({
+      threads: [
+        { root: msg({ id: 'R1', content: 'spec talk' }), reply_count: 2, thread_last_activity_at: '2026-05-24T02:00:00Z' },
+      ],
+    });
+    wrap();
+    fireEvent.click(screen.getByTestId('conversation-tab-threads'));
+    const panel = screen.getByTestId('conversation-panel-threads');
+    const row = await within(panel).findByTestId('thread-list-row');
+    expect(screen.queryByTestId('thread-sidebar')).not.toBeInTheDocument();
+    fireEvent.click(row);
+    expect(await screen.findByTestId('thread-sidebar')).toBeInTheDocument();
   });
 
   // T184: DMs are a fixed 1:1 — no Participants tab; Threads is the default.

@@ -6,6 +6,7 @@ import { useConversationThreads } from '@/api/conversations';
 import { ParticipantsPanel } from './ParticipantsPanel';
 import { ConversationThreadList } from './ConversationThreadList';
 import { SharedFilesPanel, useSharedFiles } from './SharedFilesPanel';
+import { ThreadSidebarProvider } from './ThreadSidebarContext';
 import { useContextPanelCollapse } from '@/shell/contextPanel';
 
 // ============================================================================
@@ -156,7 +157,16 @@ export function ConversationSidebar({
           hidden={tab !== 'threads'}
           data-testid="conversation-panel-threads"
         >
-          {tab === 'threads' && <ConversationThreadList conversationId={conversationId} embedded />}
+          {/* T325: this sidebar renders as a SIBLING of ConversationView (which owns
+              the message-list ThreadSidebarProvider), so it has no provider ancestor
+              of its own. Without one, useThreadSidebar() returns null and the thread
+              rows' onClick is a silent no-op. Wrap the list in its own provider —
+              mirrors the ConversationMobileTabs precedent. */}
+          {tab === 'threads' && (
+            <ThreadSidebarProvider>
+              <ConversationThreadList conversationId={conversationId} embedded />
+            </ThreadSidebarProvider>
+          )}
         </div>
         <div
           role="tabpanel"
