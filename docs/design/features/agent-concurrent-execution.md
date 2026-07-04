@@ -231,6 +231,15 @@ executor」，不必提前二选一。
 |---|---|
 | `model`（可空） | 设了则**硬覆盖**，优先级最高，不问监工 |
 
+### 10.1 运行中 agent 的 exec config 免重启即时生效（k8s live-config, T869 / oopslink 2026-07-04）
+
+> **反转记录**：早前的语义（Agent BC 配置「改后下次 spawn 才生效、UI 配一次重启」，代码里以 `ADR-0049 §5` 引用）**已作废**。改上表任一 exec config 字段（`allowed_models` / `default_executor_model` / `orchestrator_model` 等）对**运行中的并发 agent 现在即时生效、无需重启**。
+
+- **为什么**：k8s 进程隔离下每个 agent-runtime 是独立进程，center 到它的**唯一通道是 reconcile 命令**；「只能重启才生效」意味着改配置要弹 pod，会 **drop 掉在飞的 executor / live work**，不可接受。这是 oopslink 要的 k8s 价值。
+- **机制（两层，整链打通）**：
+  1. **中心 Layer1**（`internal/agent/service` `UpdateAgentConfig`）：对 `Lifecycle()==running` 的 agent emit `agent.lifecycle_changed` → Environment `AgentControlProjector` push 一条 reconcile，**载新 profile**。`UpdateProfile` bump version，故 reconcile 不被 projector 的 version-keyed 幂等吞掉；同时 `rt.Start` 的 version 守卫使 live session **不重启**。**stopped/终态 agent 保持 persist-only**（不 emit，避免唤醒故意停的 agent；配置仍下次 spawn 生效）。
+  2. **运行时 Layer2**（`internal/workerdaemon`）：reconcile handler 分路 —— `!HasExecutor()→AttachExecutorEngine`（原路径），**已 attach → `UpdateExecutorConfig`（in-place）**。后者只调 `Engine.UpdateRouterConfig` 在 `rcfgMu` 写锁下换 `RouterConfig`，**不重建引擎** —— pool / monitor / tracker / **在飞 executor / orphan 全不动**（正是原 `!HasExecutor()` 守卫要护的不变量）。只有**后续新 fork** 看到新 model；`HandleWork` 每次 fork 在 `RLock` 下快照 rcfg，防「并发 fork × reconcile」数据竞争。
+
 ---
 
 ## 11. 两个主流程
