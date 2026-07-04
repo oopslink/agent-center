@@ -793,6 +793,49 @@ func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
 }
 
+// --- reset_task (T862 tier-3 recovery) ---------------------------------------
+
+type resetTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// resetTaskHandler RESETS a confirmed-dead running task back to the pool: running→open
+// with the assignee/block/lease cleared, then a fresh re-dispatch (EvtTaskStateChanged →
+// the auto-assign trigger picks a new executor). This is the tier-3 recovery entry point
+// for the "worktree gone / k8s node changed → the running executor is gone but the task
+// is still marked running under a dead owner" class (T862): the task otherwise sits
+// running forever with no live executor.
+//
+// Cross-agent BY DESIGN — an owner/PD (or the recovering runtime) resets ANOTHER agent's
+// orphaned task — so it does NOT requireOwnTask; the pm service enforces project
+// membership (+ rejects an archived project). The service ALSO hard-rejects a task whose
+// execution lease is still live (ErrLeaseStillLive → 409): a live lease means the agent
+// may be alive and must be NUDGED, not reset. At the per-task recovery cap the service
+// blocks the task for triage instead (still a 200 — the task moved to a blocked
+// annotation).
+func (s *Server) resetTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req resetTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if err := d.PMService.ResetTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "open"})
+}
+
 // --- rerun_failed_node (v2.9.1 P0 recovery, plan-aware) ----------------------
 
 type rerunFailedNodeReq struct {
@@ -1091,4 +1134,3 @@ func (s *Server) setTaskIssueHandler(w http.ResponseWriter, r *http.Request) {
 		"ok": true, "task_id": req.TaskID, "derived_from_issue": string(issueID),
 	})
 }
-

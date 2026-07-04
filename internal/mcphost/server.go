@@ -301,6 +301,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Clear the block on a task (the counterpart of block_task): wipe its blocked_reason — leaving your note in blocked_comment — and re-wake its assignee so it continues. The task was already running and assigned (block doesn't change that); this just unsticks it. Use for an obstacle you've resolved, or to recover a task stuck blocked after a restart.",
 	}, makeUnblockTask(cfg))
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "reset_task",
+		Description: "Tier-3 recovery for a task stranded RUNNING under a dead executor (its workspace/worktree is gone or its node changed, so it will never make progress): reset it back to the pool (running→open, assignee/lease cleared) so a FRESH executor is auto-assigned and re-dispatched. Only use when you've confirmed the executor is truly gone — a task whose lease is still live is rejected (a live agent is nudged, not reset). Distinct from unblock_task (that recovers a BLOCKED task and keeps its owner); reset_task changes the owner. After repeated resets the center blocks the task for triage instead.",
+	}, makeResetTask(cfg))
+
 	// rerun_failed_node/resume_paused_node are the OPERATOR-RECOVERY half of the
 	// pause/resume model (T200 WS4): an owner/PD un-sticks ANOTHER agent's plan node
 	// — the cross-agent counterpart of resume_task (which only resumes YOUR OWN

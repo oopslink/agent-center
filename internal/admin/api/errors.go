@@ -76,6 +76,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskBlocked):
 		writeError(w, http.StatusConflict, "task_blocked", err.Error())
 
+	// ---- lease_still_live (409) — T862 reset_task mis-fire guard: reset_task on a task
+	// whose execution lease has NOT yet lapsed. A live lease means the agent may be alive
+	// and must be NUDGED (续租 + @-owner), never reset. The caller must wait for the lease
+	// to lapse (or the runtime's tier-3 confirmation) before retrying. ----
+	case errors.Is(err, pm.ErrLeaseStillLive):
+		writeError(w, http.StatusConflict, "lease_still_live", err.Error())
+
 	// v2.14.0 F7 (issue I14): the work_item_reassigned (409) mapping for
 	// agent.ErrWorkItemReassigned was removed — AgentWorkItem retired (the agent
 	// optimistic-lock race now lives on the Task model via pm version conflicts).

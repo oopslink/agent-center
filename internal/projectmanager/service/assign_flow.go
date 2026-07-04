@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -363,6 +364,99 @@ func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		}
 		return t.Discard(now)
 	}, "")
+}
+
+// ResetTask is the T862 tier-3 RECOVERY reset: it returns a CONFIRMED-DEAD running task
+// to the builtin pool (running→open, assignee/block/lease cleared) so a FRESH executor is
+// auto-assigned, then re-dispatches via the SAME event chain a fresh pool task uses. It is
+// the center half of the "worktree真没 / k8s换节点" recovery the runtime's tier-3
+// (enactRecover→RecoverFresh) drives.
+//
+// DISTINCT from the T456 lease-nudge (NudgeOnLeaseExpiry): a lease that merely LAPSED is
+// nudged (续租 + @-mention the SAME owner, status stays running) because the owner may yet
+// be alive; reset is the confirmed-dead path that CHANGES owner (clears assignee → back to
+// pool). The two must never be conflated — hence the guards below.
+//
+// MIS-FIRE GUARD (§2②): (a) the domain ResetToOpen hard-rejects a still-LIVE lease
+// (ErrLeaseStillLive) — a live lease alone would just be nudged; and (b) the CALLER must
+// have tier-3-confirmed the executor is dead (a live executor is nudged/adopted, never
+// reset). Lapse alone is insufficient (it would be re-续租'd by the nudge sweep), so both
+// hold before a running task is reclaimed.
+//
+// CIRCUIT BREAKER (§2B, durable): recovery_reset_count caps consecutive resets. At
+// MaxRecoveryResets the task is NOT reset again — it is BLOCKED for PD triage ("tier-3
+// 恢复耗尽 reset×N 需triage"), because a reset loop is a bad-task / broken-environment
+// symptom auto-recovery cannot fix. Read-cap-check-increment-reset runs in ONE tx with an
+// in-tx FindByID re-read; the whole-tx replay on write conflict (RunInTx) makes concurrent
+// resets converge — the loser re-reads a now-open task and its ResetToOpen fails
+// ErrIllegalTransition, so exactly one +1 lands.
+//
+// Re-dispatch chain (all existing): ResetTask → EvtTaskStateChanged →
+// AutoAssignTriggerProjector → TriggerAutoAssignForProject → autoAssignPoolTask (selects a
+// fresh online+capable+free-slot agent, ClaimIfUnassigned CAS, emits EvtTaskAssigned →
+// DispatchWakeProjector wakes it → fork). It emits EvtTaskStateChanged (NOT EvtTaskAssigned:
+// reset CLEARED the assignee, so a DispatchWakeProjector keyed on assignee would wake 0
+// people — silent no-op). ResetTask deliberately does NOT ClearPlan / touch the dispatch
+// record, so the pool membership (NodeDispatched, derived from that record) survives and
+// ClaimableInPool still passes. For determinism it also fires a synchronous
+// TriggerAutoAssignForProject after the state change commits. Cross-agent by design
+// (project-member gated, no own-task requirement).
+func (s *Service) ResetTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	now := s.clock.Now()
+	var projectID pm.ProjectID
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		// In-tx re-read = the row snapshot the cap check + reset act on; RunInTx's
+		// whole-tx replay serialises concurrent resets (§2B atomicity).
+		t, ferr := s.tasks.FindByID(txCtx, taskID)
+		if ferr != nil {
+			return ferr
+		}
+		if merr := s.requireProjectMember(txCtx, t.ProjectID(), actor); merr != nil {
+			return merr
+		}
+		if merr := s.requireProjectMutable(txCtx, t.ProjectID()); merr != nil {
+			return merr
+		}
+		projectID = t.ProjectID()
+		prevStatus := t.Status()
+		// Circuit breaker: budget spent → block for triage instead of resetting again.
+		if t.RecoveryResetCount() >= pm.MaxRecoveryResets {
+			reason := fmt.Sprintf("tier-3 recovery exhausted: reset×%d — needs PD triage (task bad → discard, or environment broken → fix + redispatch)", t.RecoveryResetCount())
+			if berr := t.BlockForResetExhaustion(reason, now); berr != nil {
+				return berr
+			}
+			if uerr := s.tasks.Update(txCtx, t); uerr != nil {
+				return uerr
+			}
+			if ferr := s.flushActionLogs(txCtx, t); ferr != nil {
+				return ferr
+			}
+			return s.emitTaskStateChanged(txCtx, t, prevStatus, reason)
+		}
+		// Under cap: reset to pool (ResetToOpen increments recovery_reset_count + gates
+		// on a live lease).
+		if rerr := t.ResetToOpen(now); rerr != nil {
+			return rerr
+		}
+		if uerr := s.tasks.Update(txCtx, t); uerr != nil {
+			return uerr
+		}
+		if ferr := s.flushActionLogs(txCtx, t); ferr != nil {
+			return ferr
+		}
+		return s.emitTaskStateChanged(txCtx, t, prevStatus, "tier-3 recovery reset")
+	})
+	if err != nil {
+		return err
+	}
+	// Determinism (§2③): re-scan the project pool synchronously so a fresh assignee is
+	// matched in-line (the AutoAssignTriggerProjector also fires async off the emitted
+	// event — both are CAS-safe, so the double-trigger never double-assigns). Best-effort:
+	// a sweep error does not fail the reset (the periodic backstop covers it).
+	if projectID != "" {
+		_, _ = s.TriggerAutoAssignForProject(ctx, projectID)
+	}
+	return nil
 }
 
 // BlockTask records a stuck-reason ANNOTATION on a running task (ADR-0046: status

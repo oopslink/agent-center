@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -190,11 +191,20 @@ func (s *Service) autoAssignOne(ctx context.Context, sw *autoAssignSweepCtx, t *
 	if !enabled {
 		return false, nil // project master switch OFF → no auto-assign
 	}
-	pick, _, err := s.selectAutoAssignee(ctx, sw, t, projectID)
+	pick, starved, err := s.selectAutoAssignee(ctx, sw, t, projectID)
 	if err != nil {
 		return false, err
 	}
 	if pick == "" {
+		// T862 §2A starvation observability: an ownerless pool task (incl. one a
+		// reset_task just returned to the pool) that finds NO capable agent at all —
+		// not merely all-busy — is stuck waiting on SUPPLY, not on a free slot. Surface
+		// it as a WARN so the "reset → nobody to take it" case is visible, not silent.
+		// Only the true-starved case warns (capable-but-busy is normal backpressure).
+		if starved {
+			slog.WarnContext(ctx, "auto-assign: task ownerless with no eligible assignee — stuck in pool awaiting capable-agent supply",
+				"task_id", string(t.ID()), "project_id", string(projectID), "required_capabilities", t.RequiredCapabilities())
+		}
 		return false, nil // no eligible agent (strict) → stays in pool
 	}
 	won, matched, err := s.autoAssignPoolTask(ctx, t.ID(), pick, t.RequiredCapabilities(), sw.candidateCount)

@@ -54,6 +54,10 @@ type CenterClient interface {
 	// BlockTask blocks taskID with reason (reasonType "obstacle" | "input_required");
 	// reason is posted to the task's conversation in the SAME center tx.
 	BlockTask(ctx context.Context, agentID, taskID, reason, reasonType string) error
+	// ResetTask resets a confirmed-dead running task back to the pool (T862 tier-3
+	// recovery): running→open, assignee/lease cleared, re-dispatched to a fresh
+	// executor. The center hard-rejects a task whose lease is still live.
+	ResetTask(ctx context.Context, agentID, taskID string) error
 	// PostMessage posts content to a conversation (the fallback relay when a work
 	// item has a source chat but no center task).
 	PostMessage(ctx context.Context, agentID, conversationID, content string) error

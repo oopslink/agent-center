@@ -19,6 +19,7 @@ type fakeCenter struct {
 	mu        sync.Mutex
 	completes [][3]string // agentID, taskID, summary
 	blocks    [][4]string // agentID, taskID, reason, reasonType
+	resets    [][2]string // agentID, taskID
 	posts     [][3]string // agentID, conversationID, content
 	err       error       // returned by every call when set
 }
@@ -27,6 +28,12 @@ func (f *fakeCenter) CompleteTask(_ context.Context, a, t, s string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.completes = append(f.completes, [3]string{a, t, s})
+	return f.err
+}
+func (f *fakeCenter) ResetTask(_ context.Context, a, t string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resets = append(f.resets, [2]string{a, t})
 	return f.err
 }
 func (f *fakeCenter) BlockTask(_ context.Context, a, t, r, rt string) error {

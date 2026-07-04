@@ -114,6 +114,13 @@ var (
 	// task cannot renew its execution lease (a block is a lease-free pause).
 	ErrNotTaskAssignee = errors.New("projectmanager: actor is not the task assignee")
 	ErrTaskBlocked     = errors.New("projectmanager: task is blocked (no execution lease)")
+	// ErrLeaseStillLive guards ResetToOpen (T862 reset_task): a tier-3 recovery reset
+	// (running→open, orphan back to pool) is only legal once the running agent's
+	// execution lease has ALSO LAPSED — a still-live lease means the agent may yet be
+	// alive (and would otherwise be nudged/续租 by NudgeOnLeaseExpiry, NOT reset). This
+	// is the domain half of the two-part mis-fire guard (§2②a): the caller's tier-3
+	// confirmation is guard (b); this is the hard server-side guard (a).
+	ErrLeaseStillLive = errors.New("projectmanager: task execution lease is still live (cannot reset)")
 	// ErrAgentHasActiveTask (v2.14.0 I14/F3 §13.B/§13.F-①; generalized v2.18.0 W4c)
 	// — the run-slot cap: an agent may have at most EffectiveConcurrencyCap running,
 	// non-blocked Tasks at a time (1 for a default agent — single-active, no

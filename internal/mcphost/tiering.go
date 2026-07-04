@@ -54,6 +54,8 @@ var secondaryTools = []struct{ name, summary string }{
 	// plan node recovery
 	{"rerun_failed_node", "rerun a failed plan node"},
 	{"resume_paused_node", "resume a paused plan node"},
+	// tier-3 task recovery (T862): reset a task stranded running under a dead executor
+	{"reset_task", "reset a dead-executor task back to the pool for a fresh executor"},
 	// plan authoring / lifecycle
 	{"create_plan", "create a draft plan (a DAG of tasks)"},
 	{"add_task_to_plan", "add a backlog task as a node in a draft plan"},

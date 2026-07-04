@@ -63,6 +63,17 @@ func (a *centerClientAdapter) BlockTask(ctx context.Context, agentID, taskID, re
 	return a.caller.CallAgentTool(ctx, "block_task", body, nil)
 }
 
+// ResetTask → POST /admin/agent-tools/reset_task {agent_id, task_id}. The center resets a
+// confirmed-dead running task back to the pool (running→open, assignee/lease cleared) and
+// re-dispatches it to a fresh executor. T862 tier-3 recovery.
+func (a *centerClientAdapter) ResetTask(ctx context.Context, agentID, taskID string) error {
+	body := map[string]any{
+		"agent_id": agentID,
+		"task_id":  taskID,
+	}
+	return a.caller.CallAgentTool(ctx, "reset_task", body, nil)
+}
+
 // PostMessage → POST /admin/agent-tools/post_message {agent_id, target{conversation}, content}.
 func (a *centerClientAdapter) PostMessage(ctx context.Context, agentID, conversationID, content string) error {
 	body := map[string]any{

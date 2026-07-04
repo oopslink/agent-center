@@ -132,7 +132,25 @@ const (
 	// woken to continue — the task never leaves running and the assignee never changes.
 	TaskActionLeaseNudged TaskAction = "lease_nudge"
 	TaskActionCompleted   TaskAction = "completed"
+	// TaskActionReset (T862) records a tier-3 recovery RESET: a confirmed-dead running
+	// task whose lease has ALSO lapsed is returned to open with the assignee cleared so
+	// the pool re-dispatches it to a FRESH executor. Distinct from lease_expired (which
+	// is the unwired old reclaim path) and lease_nudge (续租+@同owner): reset is the
+	// worktree-gone / k8s-node-change recovery load-bearer.
+	TaskActionReset TaskAction = "reset"
+	// TaskActionResetExhausted (T862 §2B) records the circuit-breaker trip: the
+	// per-task recovery_reset_count reached the cap, so ResetTask BLOCKED the task for
+	// triage instead of resetting it again (a reset loop is a symptom of a bad task or
+	// a broken environment that auto-recovery cannot fix).
+	TaskActionResetExhausted TaskAction = "reset_exhausted"
 )
+
+// MaxRecoveryResets caps the per-task tier-3 recovery reset count (T862 §2B, durable
+// circuit-breaker). recovery_reset_count is the CONSECUTIVE-since-last-success reset
+// tally (Complete zeroes it); on the cap-th reset attempt ResetTask stops resetting and
+// blocks the task for PD triage. 3 gives real recovery headroom (transient
+// node/worktree loss) while catching a genuine reset loop quickly.
+const MaxRecoveryResets = 3
 
 // TaskActionLog is an immutable, append-only record of a key Task lifecycle event
 // (issue I14 §2.4). It supersedes the AgentWorkItem transition log: reassignment
@@ -229,6 +247,12 @@ type Task struct {
 	// issue-577a7b0e). nil/empty = unrestricted. The BE-2 auto-assign reconciler
 	// matches it against an agent's capability_tags. Set via NewTask / SetRequiredCapabilities.
 	requiredCapabilities []string
+	// recoveryResetCount is the durable tier-3 recovery reset tally (T862 §2B,
+	// migration 0097). Semantics: CONSECUTIVE resets since the last successful
+	// progress — ResetToOpen increments it, Complete zeroes it. When it reaches
+	// MaxRecoveryResets the service blocks the task for triage instead of resetting
+	// again (circuit breaker against a reset loop). 0 for rows predating the column.
+	recoveryResetCount int
 }
 
 // NewTaskInput captures constructor args.
@@ -312,10 +336,10 @@ type RehydrateTaskInput struct {
 	StatusChangedAt  time.Time
 	// CompletedAt is the persisted completion timestamp (T570 follow-up, migration
 	// 0088); zero when not currently completed.
-	CompletedAt    time.Time
-	PlanID         PlanID
-	ArchivedAt *time.Time
-	ArchivedBy IdentityRef
+	CompletedAt time.Time
+	PlanID      PlanID
+	ArchivedAt  *time.Time
+	ArchivedBy  IdentityRef
 	// v2.14.0 I14 — block annotation + lease + action log (F2 round-trip).
 	BlockedReasonType       BlockReasonType
 	BlockedComment          string
@@ -328,6 +352,9 @@ type RehydrateTaskInput struct {
 	RequiredCapabilities []string
 	// NodeID is the orchestration engine node ID (v2.2.8); "" when not wired.
 	NodeID string
+	// RecoveryResetCount is the persisted tier-3 recovery reset tally (T862 §2B,
+	// migration 0097); 0 for rows predating the column.
+	RecoveryResetCount int
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -372,6 +399,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		model:                   in.Model,
 		requiredCapabilities:    NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:                  in.NodeID,
+		recoveryResetCount:      in.RecoveryResetCount,
 	}, nil
 }
 
@@ -439,6 +467,11 @@ func (t *Task) ActionLogs() []TaskActionLog {
 // design §5 & §10). "" = unset → the executor model is selected from the agent's
 // allowed/default models.
 func (t *Task) Model() string { return t.model }
+
+// RecoveryResetCount exposes the durable tier-3 recovery reset tally (T862 §2B):
+// consecutive resets since the last successful progress (Complete zeroes it). The
+// service reads it to trip the circuit breaker at MaxRecoveryResets.
+func (t *Task) RecoveryResetCount() int { return t.recoveryResetCount }
 
 // IsArchived reports the ORTHOGONAL archived state (v2.9 P3). Independent of
 // status: a task may be archived in any status.
@@ -843,6 +876,88 @@ func (t *Task) ExpireLease(at time.Time) error {
 	return nil
 }
 
+// ResetToOpen is the T862 tier-3 RECOVERY reset: it returns a CONFIRMED-DEAD running
+// task to open with the assignee/block/lease cleared so the builtin pool re-dispatches
+// it to a FRESH executor (worktree-gone / k8s-node-change recovery). It reuses
+// ExpireLease's clear-body (running→open, wipe assignee + block* + lease) but differs in
+// its gate and its intent:
+//
+//   - vs ExpireLease (unwired old reclaim): ExpireLease is a silent no-op on any
+//     ineligible task; ResetToOpen returns an EXPLICIT error so the operator/runtime
+//     caller learns WHY a reset was refused.
+//   - vs NudgeOnLeaseExpiry (T456 lease-lapse handling): a merely-lapsed lease is
+//     NUDGED (续租 + @-nudge the SAME owner, status stays running) — the owner may still
+//     be alive. reset is the DIFFERENT path taken only when the executor is confirmed
+//     dead: it changes owner (clears assignee, back to pool) rather than nudging.
+//
+// The two-part mis-fire guard (§2②): (a) the HARD server-side gate here rejects a
+// still-LIVE lease with ErrLeaseStillLive — a live lease means the agent may yet be
+// alive and would be nudged, not reset (a lapsed lease alone is not enough: it gets
+// 续租'd by the nudge path, so reset additionally requires (b) the caller's tier-3
+// confirmation, enforced at the service/runtime layer). It also increments the durable
+// recovery_reset_count (the §2B circuit-breaker tally); the service checks the cap
+// BEFORE calling this and blocks-for-triage instead once exhausted.
+//
+// Rejections: archived → ErrTaskArchived; not running → ErrIllegalTransition; a legally
+// blocked (paused) task → ErrTaskBlocked (a block is recovered via unblock, never reset);
+// a live lease → ErrLeaseStillLive.
+func (t *Task) ResetToOpen(at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if t.status != TaskRunning {
+		return ErrIllegalTransition
+	}
+	if t.blockedReason != "" {
+		return ErrTaskBlocked // legal pause — recovered by unblock, not reset
+	}
+	// Guard (a): a still-live lease means the agent may be alive → refuse (it belongs to
+	// the nudge path, not reset). A nil lease (no live run) or a LAPSED lease passes.
+	if t.executionLeaseExpiresAt != nil && at.Before(*t.executionLeaseExpiresAt) {
+		return ErrLeaseStillLive
+	}
+	prev := t.assignee
+	t.status = TaskOpen
+	t.statusChangedAt = at.UTC()
+	t.blockedReason = ""
+	t.blockedReasonType = ""
+	t.blockedComment = ""
+	t.executionLeaseExpiresAt = nil
+	t.assignee = ""
+	t.recoveryResetCount++
+	t.appendLog(TaskActionReset, IdentityRef("system"), prev, "tier-3 recovery: reset to pool (executor confirmed dead)", at)
+	t.touch(at)
+	return nil
+}
+
+// BlockForResetExhaustion trips the T862 §2B circuit breaker: a running task whose
+// recovery_reset_count has reached MaxRecoveryResets is BLOCKED (obstacle annotation,
+// lease cleared — a legal pause) for PD triage INSTEAD of being reset again, because a
+// reset loop signals a bad task or a broken environment auto-recovery cannot fix. Unlike
+// Block it is a SYSTEM action (no assignee-match requirement — the assignee is the dead
+// executor) and logs the DISTINCT reset_exhausted action so triage can tell a
+// recovery-loop trip from a normal agent block. Requires a running task + non-empty
+// reason; does NOT change status (blocked is a running annotation, ADR-0046) and does NOT
+// touch recovery_reset_count (the tally stays at the cap as the durable record).
+func (t *Task) BlockForResetExhaustion(reason string, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if t.status != TaskRunning {
+		return ErrIllegalTransition
+	}
+	if strings.TrimSpace(reason) == "" {
+		return ErrBlockReasonRequired
+	}
+	t.blockedReason = reason
+	t.blockedReasonType = BlockReasonObstacle
+	t.blockedComment = ""
+	t.executionLeaseExpiresAt = nil
+	t.appendLog(TaskActionResetExhausted, IdentityRef("system"), t.assignee, reason, at)
+	t.touch(at)
+	return nil
+}
+
 // RecordReassignment reassigns the task to newAssignee and logs it (issue I14
 // §2.5 — the replacement for AgentWorkItem Supersede+New). It reuses Assign (which
 // validates newAssignee and rejects an archived/terminal task), then clears any
@@ -875,7 +990,10 @@ func (t *Task) appendLog(action TaskAction, actor, agent IdentityRef, note strin
 }
 
 // Complete moves running→completed and records who completed it. ADR-0046: clears
-// any blocked_reason (a completed task is not stuck).
+// any blocked_reason (a completed task is not stuck). T862 §2B: completion is
+// "successful progress", so it ZEROES recovery_reset_count — the reset tally is
+// consecutive-since-last-success, so a task that recovers and finishes starts its next
+// (post-reopen) life with a fresh recovery budget rather than inheriting a stale count.
 func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
@@ -890,6 +1008,7 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	t.statusChangedAt = at.UTC()
 	t.completedBy = by
 	t.blockedReason = ""
+	t.recoveryResetCount = 0
 	t.touch(at)
 	return nil
 }
