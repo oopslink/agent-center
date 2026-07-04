@@ -232,6 +232,12 @@
       "aria_other": "Checking messages, {{count}} events, {{state}}",
       "expanded": "expanded",
       "collapsed": "collapsed"
+    },
+    "executorGroup": {
+      "on": "on",
+      "is": "is",
+      "aria_one": "Executor progress, {{count}} heartbeat, {{state}}",
+      "aria_other": "Executor progress, {{count}} heartbeats, {{state}}"
     }
   }
 }

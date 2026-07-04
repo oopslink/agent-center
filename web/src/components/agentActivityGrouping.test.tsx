@@ -2,10 +2,29 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import type { AgentActivityEvent } from '@/api/types';
 import { groupActivity } from './agentActivityGrouping';
-import { CheckingGroup } from './AgentActivityRow';
+import { CheckingGroup, ExecutorProgressGroup } from './AgentActivityRow';
 
 const ev = (id: string, event_type: string, time = '01:00'): AgentActivityEvent =>
   ({ id, agent_id: 'A1', event_type, payload: '{}', occurred_at: `2026-05-24T${time}:00Z` }) as AgentActivityEvent;
+
+// an executor.progress heartbeat (event_type='lifecycle', payload.event=executor.progress).
+const prog = (
+  id: string,
+  execId: string,
+  opts: { state?: string; taskRef?: string; time?: string } = {},
+): AgentActivityEvent =>
+  ({
+    id,
+    agent_id: 'A1',
+    event_type: 'lifecycle',
+    payload: JSON.stringify({
+      event: 'executor.progress',
+      executor_id: execId,
+      state: opts.state ?? 'running',
+      ...(opts.taskRef ? { task_ref: opts.taskRef } : {}),
+    }),
+    occurred_at: `2026-05-24T${opts.time ?? '01:00'}:00Z`,
+  }) as AgentActivityEvent;
 
 // The group range renders local wall-clock (toLocaleTimeString), so derive the
 // expected text the same way — keeps the assertion timezone-independent.
@@ -53,6 +72,87 @@ describe('groupActivity (#274 Checking fold)', () => {
     const items = groupActivity([evt('1', 'system_init'), evt('2', 'message_delivered'), evt('3', 'rate_limit')]);
     // delivered must surface as its own 'event' item, not swallowed by a checking-group.
     expect(items.some((i) => i.kind === 'event' && i.event.event_type === 'message_delivered')).toBe(true);
+  });
+});
+
+describe('groupActivity (v2.31.1 executor.progress fold)', () => {
+  it('folds consecutive same-executor progress heartbeats into one group', () => {
+    const items = groupActivity([
+      prog('1', 'exec-A'),
+      prog('2', 'exec-A'),
+      prog('3', 'exec-A'),
+    ]);
+    expect(items.map((i) => i.kind)).toEqual(['executor-progress-group']);
+    if (items[0].kind === 'executor-progress-group') expect(items[0].events).toHaveLength(3);
+  });
+
+  it('renders a LONE progress heartbeat as a normal event (no "× 1" group)', () => {
+    const items = groupActivity([ev('1', 'result'), prog('2', 'exec-A'), ev('3', 'result')]);
+    expect(items.map((i) => i.kind)).toEqual(['event', 'event', 'event']);
+  });
+
+  it('starts a fresh group when the executor_id changes', () => {
+    const items = groupActivity([
+      prog('1', 'exec-A'),
+      prog('2', 'exec-A'),
+      prog('3', 'exec-B'),
+      prog('4', 'exec-B'),
+    ]);
+    expect(items.map((i) => i.kind)).toEqual([
+      'executor-progress-group',
+      'executor-progress-group',
+    ]);
+  });
+
+  it('does not fold executor.start / .stop — only .progress heartbeats', () => {
+    const stop: AgentActivityEvent = {
+      id: 's',
+      agent_id: 'A1',
+      event_type: 'lifecycle',
+      payload: JSON.stringify({ event: 'executor.stop', executor_id: 'exec-A' }),
+      occurred_at: '2026-05-24T01:00:00Z',
+    } as AgentActivityEvent;
+    const items = groupActivity([stop, prog('1', 'exec-A'), prog('2', 'exec-A')]);
+    expect(items.map((i) => i.kind)).toEqual(['event', 'executor-progress-group']);
+  });
+
+  it('a non-executor event flushes the progress run', () => {
+    const items = groupActivity([prog('1', 'exec-A'), prog('2', 'exec-A'), ev('3', 'result')]);
+    expect(items.map((i) => i.kind)).toEqual(['executor-progress-group', 'event']);
+  });
+});
+
+describe('ExecutorProgressGroup (v2.31.1)', () => {
+  afterEach(() => cleanup());
+
+  it('shows the executor summary, "× N", state, time range + expandable raw rows', () => {
+    // newest-first: [0]=03:00 latest, [2]=01:00 earliest. No taskRef → the link
+    // (which needs a QueryClient) isn't mounted, keeping the test provider-free.
+    const events = [
+      prog('3', 'exec-2b8d4fe9', { time: '03:00' }),
+      prog('2', 'exec-2b8d4fe9', { time: '02:00' }),
+      prog('1', 'exec-2b8d4fe9', { time: '01:00' }),
+    ];
+    render(
+      <ul>
+        <ExecutorProgressGroup events={events} />
+      </ul>,
+    );
+    const toggle = screen.getByTestId('agent-activity-executor-toggle');
+    // "Executor (exec 2b8d4fe9) is Running × 3" — shortExecId trims to the tail.
+    expect(toggle).toHaveTextContent('2b8d4fe9');
+    expect(toggle).toHaveTextContent('Running');
+    expect(toggle).toHaveTextContent('× 3');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByTestId('agent-activity-executor-group')).toHaveTextContent(
+      `${localHM('01:00')}–${localHM('03:00')}`,
+    );
+    expect(screen.queryByTestId('agent-activity-executor-expanded')).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const region = screen.getByTestId('agent-activity-executor-expanded');
+    expect(toggle).toHaveAttribute('aria-controls', region.id);
+    expect(screen.getAllByTestId('agent-activity-row')).toHaveLength(3);
   });
 });
 

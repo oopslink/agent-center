@@ -20,7 +20,7 @@ import { useModalA11y } from './useModalA11y';
 import { useOpenDm } from './useOpenDm';
 import { Avatar } from './Avatar';
 import { LifecycleBadge, AvailabilityBadge } from './AgentBadges';
-import { AgentActivityRow, CheckingGroup } from './AgentActivityRow';
+import { AgentActivityRow, CheckingGroup, ExecutorProgressGroup } from './AgentActivityRow';
 import { groupActivity } from './agentActivityGrouping';
 
 // SenderDetailSidebar (v2.8.1 7th DM redesign, increment 2). A right slide-in
@@ -498,6 +498,8 @@ function AgentActivitySection({
             {groupActivity(events).map((item) =>
               item.kind === 'checking-group' ? (
                 <CheckingGroup key={item.events[0].id} events={item.events} />
+              ) : item.kind === 'executor-progress-group' ? (
+                <ExecutorProgressGroup key={item.events[0].id} events={item.events} />
               ) : (
                 <AgentActivityRow key={item.event.id} event={item.event} />
               ),

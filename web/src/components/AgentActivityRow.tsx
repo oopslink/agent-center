@@ -181,6 +181,22 @@ export function isCheckingEvent(event: AgentActivityEvent): boolean {
   return categoryOf(event.event_type, parsePayload(event.payload)) === CAT_CHECKING;
 }
 
+// v2.31.1 (oopslink DM 2026-07-04): a forked executor heartbeats an
+// `executor.progress` event every ~15-20s while it runs — one per row, they
+// flood the timeline (the screenshot showed a solid column of identical
+// "progress · exec … · task-…" rows). executorProgressKey identifies such an
+// event and returns its GROUP KEY (the executor_id) so groupActivity can fold a
+// consecutive run of the SAME executor's progress heartbeats into one collapsible
+// "Executor … × N" row. Only `executor.progress` folds — `executor.start` /
+// `.stop` are distinct lifecycle moments and stay as their own rows. Returns null
+// for any non-progress event.
+export function executorProgressKey(event: AgentActivityEvent): string | null {
+  const p = parsePayload(event.payload);
+  if (!isExecutorEvent(event.event_type, p)) return null;
+  if (str(p.event) !== 'executor.progress') return null;
+  return str(p.executor_id);
+}
+
 // shortExecId trims a long executor id to a readable tail for the row preview
 // (the full executor:<id> stays in the expanded interaction_ref).
 function shortExecId(id: string): string {
@@ -463,6 +479,81 @@ export function CheckingGroup({ events }: { events: AgentActivityEvent[] }): Rea
           id={regionId}
           className="ml-4 border-l border-border-base pl-2"
           data-testid="agent-activity-checking-expanded"
+        >
+          {events.map((ev) => (
+            <AgentActivityRow key={ev.id} event={ev} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+// titleCase the raw executor state ("running" → "Running") for the summary; the
+// state is a free-form emitter string so we only touch the first char.
+function titleCase(s: string): string {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+// v2.31.1 (oopslink DM 2026-07-04): a folded run of consecutive
+// `executor.progress` heartbeats from the SAME executor — collapsed into ONE
+// row "Executor (exec <id> on <task>) is <State> × N" + the run's time range,
+// with a disclosure that reveals each raw heartbeat (lossless, like
+// CheckingGroup). The task ref is rendered via ActivityRefText so it links to
+// the task detail page. All rows in the run share one executor_id (the group key
+// from executorProgressKey), so a single exec/task/state summary is accurate.
+export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[] }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const [expanded, setExpanded] = useState(false);
+  const regionId = useId();
+  const n = events.length;
+  // events are newest-first (ULID DESC) → [0] = latest, [n-1] = earliest.
+  const latest = events[0];
+  const earliest = events[n - 1];
+  const p = parsePayload(latest?.payload ?? '');
+  const exec = shortExecId(str(p.executor_id));
+  // Prefer the structured task_ref field; fall back to the payload copy.
+  const taskRef = latest?.task_ref || str(p.task_ref);
+  const state = titleCase(str(p.state) || str(p.scope));
+  return (
+    <li data-testid="agent-activity-executor-group" data-count={n} data-executor-id={str(p.executor_id)}>
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-2 py-2 text-left text-xs text-status-violet-fg hover:bg-bg-subtle"
+        data-testid="agent-activity-executor-toggle"
+        aria-expanded={expanded}
+        aria-controls={regionId}
+        aria-label={t('activity.executorGroup.aria', {
+          count: n,
+          state: expanded ? t('activity.checkingGroup.expanded') : t('activity.checkingGroup.collapsed'),
+        })}
+        onClick={() => setExpanded((e) => !e)}
+      >
+        <span className="flex min-w-0 items-center gap-1">
+          <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-status-violet-solid" />
+          <span className="min-w-0 truncate" data-testid="agent-activity-executor-summary">
+            {t('activity.category.executor')} (exec {exec}
+            {taskRef && (
+              <>
+                {' '}
+                {t('activity.executorGroup.on')}{' '}
+                {/* stopPropagation lives inside ActivityRefText's anchor so a
+                    task-link click routes without toggling the disclosure. */}
+                <ActivityRefText text={taskRef} />
+              </>
+            )}
+            ){state ? ` ${t('activity.executorGroup.is')} ${state}` : ''} × {n}
+          </span>
+        </span>
+        <span className="shrink-0 tabular-nums text-text-muted">
+          {timeOf(earliest?.occurred_at ?? '')}–{timeOf(latest?.occurred_at ?? '')}
+        </span>
+      </button>
+      {expanded && (
+        <ul
+          id={regionId}
+          className="ml-4 border-l border-border-base pl-2"
+          data-testid="agent-activity-executor-expanded"
         >
           {events.map((ev) => (
             <AgentActivityRow key={ev.id} event={ev} />

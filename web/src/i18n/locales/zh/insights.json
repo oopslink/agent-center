@@ -232,6 +232,12 @@
       "aria_other": "检查消息，{{count}} 个事件，{{state}}",
       "expanded": "已展开",
       "collapsed": "已折叠"
+    },
+    "executorGroup": {
+      "on": "关联",
+      "is": "当前",
+      "aria_one": "执行器进度，{{count}} 次心跳，{{state}}",
+      "aria_other": "执行器进度，{{count}} 次心跳，{{state}}"
     }
   }
 }

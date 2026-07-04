@@ -19,7 +19,7 @@ import {
 import { AgentBacklogBadge, AgentLoadBadge, AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { ForceDeleteModal } from '@/components/ForceDeleteModal';
-import { AgentActivityRow, CheckingGroup } from '@/components/AgentActivityRow';
+import { AgentActivityRow, CheckingGroup, ExecutorProgressGroup } from '@/components/AgentActivityRow';
 import { groupActivity } from '@/components/agentActivityGrouping';
 import { AgentProfile } from '@/components/AgentProfile';
 import { AgentRuntime } from '@/components/AgentRuntime';
@@ -411,6 +411,8 @@ export default function AgentDetail(): React.ReactElement {
               {groupActivity(activityEvents).map((item) =>
                 item.kind === 'checking-group' ? (
                   <CheckingGroup key={item.events[0].id} events={item.events} />
+                ) : item.kind === 'executor-progress-group' ? (
+                  <ExecutorProgressGroup key={item.events[0].id} events={item.events} />
                 ) : (
                   <AgentActivityRow key={item.event.id} event={item.event} />
                 ),
