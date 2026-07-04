@@ -28,9 +28,11 @@ import (
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/config"
+	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
 	"github.com/oopslink/agent-center/internal/workerdaemon/reporepo"
+	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
 	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
 )
 
@@ -102,6 +104,17 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 		// it is logged so a persistent failure is visible; we still serve.
 		logf(fmt.Sprintf("agent-runtime agent=%s boot reconcile: %v (continuing)", opts.AgentID, berr))
 	}
+
+	// 3b) 🔴 AUTONOMOUS SUPERVISOR-SESSION SELF-START (T860 gap6 fold-in): the agent-runtime
+	// process starts its OWN supervisor session from local durable ResumeState HERE. The
+	// center does NOT re-push a reconcile command for an already-desired-running agent (no
+	// creation event), so without this a restarted/relaunched agent's session would never
+	// come up — the restart-recovery deadlock the deleted daemon boot_reconcile guarded
+	// against (empirically reconfirmed on a68defe9: control connects, but 0 reconcile → 0
+	// rt.Start → session never starts). Runs AFTER executor self-reconcile (step 3), BEFORE
+	// serving control (step 4) so a later reconcile — if any — hits the rt.Start idempotency
+	// guard and converges on ONE session (no double-start).
+	bootStartSupervisorSession(ctx, rt, client, opts, cfg, logf)
 
 	// 4) control server — opened ONLY after Boot returned.
 	sockPath := filepath.Join(opts.SockDir, agentcontrol.SocketName(opts.AgentID))
@@ -271,6 +284,158 @@ func agentExecConfig(ctx context.Context, client *AdminClient, workerID, agentID
 		}
 	}
 	return agentruntime.ExecutorConfig{}, false, nil
+}
+
+// agentResumeRecord fetches THIS agent's full resume record (desired lifecycle + in-flight
+// work + start config) from the center ResumeState, for the boot supervisor-session
+// reconcile. ok=false when the center has no record for the agent (an orphan).
+func agentResumeRecord(ctx context.Context, client *AdminClient, workerID, agentID string) (ResumeAgent, bool, error) {
+	state, err := client.ResumeState(ctx, workerID)
+	if err != nil {
+		return ResumeAgent{}, false, err
+	}
+	for _, ra := range state.Agents {
+		if ra.AgentID == agentID {
+			return ra, true, nil
+		}
+	}
+	return ResumeAgent{}, false, nil
+}
+
+// bootStartSupervisorSession is the T860 gap6 fold-in enactment: it wires the previously
+// dead-coded supervisor-session boot decision (agentruntime.DecideBootSession) so the
+// agent-runtime process autonomously (re)starts its supervisor session from local durable
+// state — instead of waiting for a control reconcile command the center does NOT re-push
+// for an already-desired-running agent. Probes the local supervisor, decides, and enacts
+// exactly one action:
+//   - Reattachable + desired-running → reattach the live survivor (never interrupt it),
+//   - Unavailable  + desired-running → reap + relaunch (resume-gated on the prior
+//     completed turn) + WI-rebind + ResumeNudge (in-flight work) + reply-guardrail,
+//   - desired-stopped / orphan       → reap residue only.
+//
+// Best-effort: a per-step failure is logged; the process still serves. Idempotent with a
+// later control reconcile via the rt.Start no-double-start guard.
+func bootStartSupervisorSession(ctx context.Context, rt *agentruntime.LocalRuntime, client *AdminClient, opts AgentRuntimeOptions, cfg config.Config, logf func(string)) {
+	agentID := opts.AgentID
+	ra, ok, ferr := agentResumeRecord(ctx, client, opts.Run.WorkerID, agentID)
+	if ferr != nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session resume-state: %v (skip autonomous start)", agentID, ferr))
+		return
+	}
+	if !ok {
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session: no center record — skip", agentID))
+		return
+	}
+	desiredRunning := strings.EqualFold(strings.TrimSpace(ra.DesiredLifecycle), "running")
+	hasActive, activeTaskID := false, ""
+	for _, t := range ra.Tasks {
+		if t.Status == "active" {
+			hasActive, activeTaskID = true, t.TaskID
+			break
+		}
+	}
+	home := filepath.Join(agentHomeBase(cfg, opts.Run.ConfigPath, opts.Run.WorkerID), "agents", agentID)
+
+	pr, perr := supervisormanager.ProbeAgent(ctx, home)
+	if perr != nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session probe: %v — treating as unavailable", agentID, perr))
+		pr = supervisormanager.ProbeResult{State: supervisormanager.Unavailable}
+	}
+	action := agentruntime.DecideBootSession(pr.State, desiredRunning, hasActive)
+	logf(fmt.Sprintf("boot-session decide agent=%s probe=%d desired-running=%v action=%d", agentID, pr.State, desiredRunning, action))
+
+	switch action {
+	case agentruntime.BootSessionReattach:
+		bootReattachSupervisor(ctx, rt, agentID, home, pr, logf)
+	case agentruntime.BootSessionReapRelaunch:
+		closeProbeClient(pr)
+		bootReapRelaunchSupervisor(ctx, rt, agentID, home, ra, hasActive, activeTaskID, logf)
+	case agentruntime.BootSessionStopReap, agentruntime.BootSessionReapOnly:
+		closeProbeClient(pr)
+		if rerr := supervisormanager.ReapResidual(home); rerr != nil {
+			logf(fmt.Sprintf("agent-runtime agent=%s boot-session reap: %v", agentID, rerr))
+		}
+	default: // BootSessionNoop
+		closeProbeClient(pr)
+	}
+}
+
+// closeProbeClient closes a probe's attach client when we are NOT reattaching (Unavailable
+// carries a nil client; a Reattachable one we choose not to take over must be closed).
+func closeProbeClient(pr supervisormanager.ProbeResult) {
+	if pr.Client != nil {
+		_ = pr.Client.Close()
+	}
+}
+
+// bootReapRelaunchSupervisor reaps residue then relaunches a fresh supervisor session,
+// resume-gated on whether the PRIOR generation completed a clean turn (else the
+// no-completed-turn crash loop). Mirrors the retired daemon bootReapRelaunch; the
+// executor engine was already attached at boot step 2b.
+func bootReapRelaunchSupervisor(ctx context.Context, rt *agentruntime.LocalRuntime, agentID, home string, ra ResumeAgent, hasActive bool, activeTaskID string, logf func(string)) {
+	if rerr := supervisormanager.ReapResidual(home); rerr != nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session reap before relaunch: %v", agentID, rerr))
+	}
+	// Read the prior instance BEFORE Start — Start's AcquireInstance bumps the generation
+	// and writes a fresh instance with CompletedTurn=false.
+	prev, prevErr := sessioninstance.ReadInstance(home)
+	if prevErr != nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session read session.instance: %v — relaunch fresh (no resume)", agentID, prevErr))
+		prev = sessioninstance.InstanceState{}
+	}
+	cli := strings.TrimSpace(ra.CLI)
+	isCodex := cli == "codex"
+	resume := !isCodex && prev.CompletedTurn // codex is one-shot per turn — no resume
+	if serr := rt.Start(ctx, agentruntime.StartSpec{
+		AgentID:            agentID,
+		Version:            ra.Version,
+		ForkResume:         !isCodex,
+		Resume:             resume,
+		Model:              ra.Model,
+		DisplayName:        ra.DisplayName,
+		CLI:                cli,
+		PromptDescription:  ra.PromptDescription,
+		EnvVars:            ra.EnvVars,
+		ConcurrencyEnabled: agent.Profile{MaxConcurrentTasks: ra.MaxConcurrentTasks, AllowedExecutors: ra.AllowedExecutors}.ConcurrencyEnabled(),
+	}); serr != nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session relaunch: %v — skip", agentID, serr))
+		return
+	}
+	logf(fmt.Sprintf("boot-session relaunch agent=%s resume=%v version=%d", agentID, resume, ra.Version))
+	if hasActive {
+		// WI-rebind: an is_error re-driven turn must surface via L2 (else the WorkItem
+		// stays silently active). ResumeNudge: re-drive the interrupted turn.
+		rt.SetResumedTask(activeTaskID)
+		if nerr := rt.InjectResumeNudge(ctx); nerr != nil {
+			logf(fmt.Sprintf("agent-runtime agent=%s boot-session resume-nudge: %v", agentID, nerr))
+		}
+	}
+	// Reply-guardrail re-trigger (T341 fix B): proactively re-inject an unanswered directed
+	// message after the relaunch (independent of in-flight work).
+	rt.MaybeReplyNudge(agentID)
+}
+
+// bootReattachSupervisor takes over a live survivor supervisor without interrupting it
+// (the "don't re-exec a mid-turn claude" invariant — the supervisor-session analog of the
+// executor adopt-alive path). The probe carries the open client; the reattached session
+// takes it over.
+func bootReattachSupervisor(ctx context.Context, rt *agentruntime.LocalRuntime, agentID, home string, pr supervisormanager.ProbeResult, logf func(string)) {
+	ref := supervisormanager.RefFromProbe(home, pr)
+	if ref == nil || ref.Client == nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session reattach: probe carried no live ref/client — skip", agentID))
+		closeProbeClient(pr)
+		return
+	}
+	sess, err := ReattachSupervisorSession(ctx, ref, ref.Client,
+		rt.OnEventCallback(), rt.OnExitCallback(),
+		func(msg string) { logf(msg) },
+		pr.Hello.BaseOffset)
+	if err != nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s boot-session reattach: %v", agentID, err))
+		return
+	}
+	rt.Attach(sess)
+	logf(fmt.Sprintf("boot-session reattach agent=%s from offset=%d", agentID, pr.Hello.BaseOffset))
 }
 
 // execConfigFromResumeAgent projects a ResumeAgent's concurrency fields into the neutral

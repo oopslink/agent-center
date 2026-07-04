@@ -467,6 +467,50 @@ func (r *centerRecord) wantsRunning() bool {
 	return r != nil && r.DesiredLifecycle == "running"
 }
 
+// BootSessionAction is the exported supervisor-session boot action (T860 fold-in) — the
+// wired counterpart of the pure decideBootAction. The agent-runtime process boot
+// orchestration (which owns the reattach/relaunch primitives, living in the parent
+// workerdaemon package) consumes this so the dead-coded decision is finally enacted.
+type BootSessionAction int
+
+const (
+	// BootSessionNoop — leave as-is (unknown probe / conservative).
+	BootSessionNoop BootSessionAction = iota
+	// BootSessionReattach — a live survivor the center still wants running: reattach,
+	// never interrupt it.
+	BootSessionReattach
+	// BootSessionReapRelaunch — the supervisor is gone but desired running: reap +
+	// relaunch (resume-gated on the prior completed turn).
+	BootSessionReapRelaunch
+	// BootSessionStopReap — a live supervisor no longer wanted (or orphan): stop + reap.
+	BootSessionStopReap
+	// BootSessionReapOnly — gone and not wanted: reap residue only.
+	BootSessionReapOnly
+)
+
+// DecideBootSession is the exported pure boot-session decision over (local supervisor
+// probe × desired state), delegating to decideBootAction. The agent-runtime process
+// probes locally, calls this, and enacts the returned action with its session
+// primitives — the wiring the migration left dead-coded.
+func DecideBootSession(probe supervisormanager.ProbeState, desiredRunning, hasActive bool) BootSessionAction {
+	rec := &centerRecord{HasActive: hasActive}
+	if desiredRunning {
+		rec.DesiredLifecycle = "running"
+	}
+	switch decideBootAction(probe, rec).Kind {
+	case bootReattach:
+		return BootSessionReattach
+	case bootReapRelaunch:
+		return BootSessionReapRelaunch
+	case bootStopReap:
+		return BootSessionStopReap
+	case bootReapOnly:
+		return BootSessionReapOnly
+	default:
+		return BootSessionNoop
+	}
+}
+
 // decideBootAction is the PURE supervisor-recovery decision (§4.4). It maps the
 // local supervisor probe state × the center's desired record to one action, with no
 // I/O — fully unit-testable over the probe × record grid.

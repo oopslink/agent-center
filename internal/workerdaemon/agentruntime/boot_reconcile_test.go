@@ -269,3 +269,55 @@ func mustLayout(t *testing.T) *executor.Layout {
 	}
 	return l
 }
+
+// TestDecideBootSession pins the EXPORTED boot-session decision (T860 fold-in) — the
+// wired counterpart the agent-runtime process consumes to enact autonomous session start.
+func TestDecideBootSession(t *testing.T) {
+	cases := []struct {
+		name           string
+		probe          supervisormanager.ProbeState
+		desiredRunning bool
+		hasActive      bool
+		want           BootSessionAction
+	}{
+		{"reattachable+running → reattach", supervisormanager.Reattachable, true, false, BootSessionReattach},
+		{"reattachable+stopped → stop-reap", supervisormanager.Reattachable, false, false, BootSessionStopReap},
+		{"unavailable+running → reap-relaunch", supervisormanager.Unavailable, true, false, BootSessionReapRelaunch},
+		{"unavailable+running+active → reap-relaunch", supervisormanager.Unavailable, true, true, BootSessionReapRelaunch},
+		{"unavailable+stopped → reap-only", supervisormanager.Unavailable, false, false, BootSessionReapOnly},
+	}
+	for _, tc := range cases {
+		if got := DecideBootSession(tc.probe, tc.desiredRunning, tc.hasActive); got != tc.want {
+			t.Errorf("%s: DecideBootSession = %d, want %d", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestStart_IdempotentWhenSessionRunning pins the T860 fold-in no-double-start guard: with
+// a live session (autonomous boot start), a later control reconcile does NOT start a
+// second session — a stale/dup trigger is dropped, a strictly-newer one records the
+// version but keeps the live session. This is what converges the two trigger paths onto
+// ONE session (no split-brain).
+func TestStart_IdempotentWhenSessionRunning(t *testing.T) {
+	rt, st, _ := newTestRuntime(t)
+	st.Session = &fakeSession{} // a session is already live (boot self-start)
+	st.Version = 5
+
+	// Stale/duplicate reconcile (version ≤ current) → no-op, no second start, version kept.
+	if err := rt.Start(context.Background(), StartSpec{AgentID: "agent-x", Version: 3}); err != nil {
+		t.Fatalf("Start (running, stale) = %v, want nil", err)
+	}
+	if st.Version != 5 {
+		t.Errorf("a stale reconcile must not lower the running version: got %d, want 5", st.Version)
+	}
+	// Strictly-newer reconcile → still no restart, but version recorded.
+	if err := rt.Start(context.Background(), StartSpec{AgentID: "agent-x", Version: 8}); err != nil {
+		t.Fatalf("Start (running, newer) = %v, want nil", err)
+	}
+	if st.Version != 8 {
+		t.Errorf("a newer reconcile must record the version: got %d, want 8", st.Version)
+	}
+	if st.Session == nil {
+		t.Error("the live session must be preserved (no second start / no teardown)")
+	}
+}

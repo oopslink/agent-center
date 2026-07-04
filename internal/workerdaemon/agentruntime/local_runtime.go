@@ -439,8 +439,27 @@ func (r *LocalRuntime) recordWake(messageID string) {
 // state. On failure the daemon rolls back the reservation.
 func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	agentID := spec.AgentID
-	// Session-scoped config carried across a crash (self-heal gets no fresh reconcile).
+	// Idempotency guard (T860 fold-in): the supervisor session now has TWO possible
+	// triggers — the autonomous boot self-start (from local ResumeState) and a later
+	// control reconcile command. They MUST converge on ONE session. If a session is
+	// already live, never start a second: a stale/duplicate trigger (Version ≤ the
+	// running session's) is dropped; a strictly-newer reconcile keeps the live session
+	// (no mid-session hot-swap in this scope) but records the version so a subsequent
+	// relaunch resolves from it. This is the no-double-start / no-split-brain guard —
+	// check-and-set under a single lock so the boot-start and a racing reconcile can't
+	// both pass. (The boot self-start runs before the control server serves, so in
+	// practice they are ordered; the guard hardens the general case.)
 	r.mu.Lock()
+	if r.state.Session != nil {
+		cur := r.state.Version
+		if spec.Version > cur {
+			r.state.Version = spec.Version
+		}
+		r.mu.Unlock()
+		r.log("start agent=%s: session already running (incoming v%d, current v%d) — no second start", agentID, spec.Version, cur)
+		return nil
+	}
+	// Session-scoped config carried across a crash (self-heal gets no fresh reconcile).
 	r.state.Version = spec.Version
 	r.state.Model = spec.Model
 	r.state.DisplayName = spec.DisplayName
@@ -690,6 +709,34 @@ func (r *LocalRuntime) ReportLifecycleOnce(ctx context.Context, state, errMsg st
 
 // ResumeNudgeText exposes the resume nudge for the daemon boot-relaunch path.
 func (r *LocalRuntime) ResumeNudgeText() string { return r.resumeNudgeText() }
+
+// SetResumedTask rebinds the in-flight WorkItem id onto the freshly-relaunched session
+// (T860 fold-in, WI-rebind): the boot relaunch builds a fresh SessionState with no
+// currentTaskID, so an is_error turn on the resumed session would have NO WorkItem for
+// L2 surfaceTurnFailure to fail — leaving it silently active. Binding it to the SAME
+// field surfaceTurnFailure reads preserves the no-silent-failure guarantee for a
+// single-active agent. Empty taskID (idle relaunch) is a no-op.
+func (r *LocalRuntime) SetResumedTask(taskID string) {
+	if strings.TrimSpace(taskID) == "" {
+		return
+	}
+	r.mu.Lock()
+	r.state.CurrentTaskID = taskID
+	r.mu.Unlock()
+}
+
+// InjectResumeNudge injects the resume nudge into the LIVE session to re-drive an
+// interrupted turn after a boot relaunch that resumed a prior conversation (T860 fold-in,
+// ResumeNudge parity with the retired daemon). No-op when no session is live.
+func (r *LocalRuntime) InjectResumeNudge(ctx context.Context) error {
+	r.mu.Lock()
+	sess := r.state.Session
+	r.mu.Unlock()
+	if sess == nil {
+		return nil
+	}
+	return sess.Inject(ctx, r.resumeNudgeText())
+}
 
 // NotifyWorkAvailable is the interface entry for a work_available signal that routes
 // straight to a fork (SpawnExecutor). The daemon's workAvailable command handler owns
