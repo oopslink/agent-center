@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
@@ -185,6 +186,37 @@ func TestWithRerunSessionID_T877(t *testing.T) {
 	if plain := withRerunSessionID([]string{"codex", "run"}, "exec-x"); len(plain) != 2 || plain[0] != "codex" {
 		t.Errorf("non-claude argv (no --session-id) must be unchanged: %v", plain)
 	}
+}
+
+// TestRelaunchExecutor_ReapsOrphan_T877 locks bug3: a relaunched (self-forked) orphan
+// that exits must be REAPED so the liveness probe reports it gone (kill(pid,0)→ESRCH) and
+// the orphan-poll can finalize it. Without the reaper the exited child is a <defunct>
+// zombie whose kill(pid,0) lies "alive" forever → CheckOrphanNoFinalize never sees it
+// terminal → the task is stranded in limbo.
+func TestRelaunchExecutor_ReapsOrphan_T877(t *testing.T) {
+	trueBin := lookTrue(t)
+	rt, ee, _ := engineForAgent(t, "agent-a")
+	rt.cacheExecConfig(ExecutorConfig{AgentID: "agent-a", MaxConcurrentTasks: 1})
+	rt.relaunchExecutor(ee, "exec-z", []string{trueBin})
+	var pid int
+	for id, p := range ee.snapshotOrphans() {
+		if id == "exec-z" {
+			pid = p
+		}
+	}
+	if pid <= 0 {
+		t.Fatalf("relaunched orphan not registered: %v", ee.snapshotOrphans())
+	}
+	// `true` exits at once; the reaper must Wait() it so liveness reports gone.
+	probe := executor.SignalLiveness{}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if !probe.Alive(pid) {
+			return // reaped → gone; the orphan-poll would now classify it terminal.
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Errorf("orphan pid %d still 'alive' 3s after exit — not reaped (zombie), T877 bug3", pid)
 }
 
 func TestTaskCancelEvidence_IdentityNamespace_T872(t *testing.T) {
