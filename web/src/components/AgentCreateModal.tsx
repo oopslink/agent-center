@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAddAgentMember } from '@/api/members';
 import { useFleet } from '@/api/fleet';
-import { DEFAULT_AGENT_MODEL } from '@/config/agent-defaults';
+import { DEFAULT_AGENT_MODEL, KNOWN_MODELS } from '@/config/agent-defaults';
 import { EntitySelect } from './EntitySelect';
 import { ToggleSwitch } from './ToggleSwitch';
 
@@ -131,13 +131,21 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         </div>
 
         <Field label={t('agents.create.modelLabel')} hint={t('agents.create.modelHint')} htmlFor="agent-create-model-input">
+          {/* Editable dropdown: preset models as <datalist> suggestions while
+              the field stays free text (backend accepts any model string). */}
           <input
             id="agent-create-model-input"
             data-testid="agent-create-model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
+            list="agent-create-model-list"
             className={inputClass}
           />
+          <datalist id="agent-create-model-list" data-testid="agent-create-model-list">
+            {KNOWN_MODELS.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
         </Field>
 
         <Field label={t('agents.create.cliLabel')} hint={t('agents.create.cliHint')} htmlFor="agent-create-cli-input">

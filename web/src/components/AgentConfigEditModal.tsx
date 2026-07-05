@@ -11,6 +11,7 @@ import type { Agent, ExecutorProfile } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { ConfirmModal } from './ConfirmModal';
 import { executorBadgeClass, MODEL_SUGGESTIONS } from './executorProfiles';
+import { KNOWN_MODELS } from '@/config/agent-defaults';
 import { ToggleSwitch } from './ToggleSwitch';
 
 interface Props {
@@ -178,14 +179,22 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
           </Field>
 
           <Field label={t('agentRuntime.configModal.fields.model')} htmlFor="agent-config-model-input">
+            {/* Editable dropdown: preset models as <datalist> suggestions while
+                the field stays free text (backend accepts any model string). */}
             <input
               id="agent-config-model-input"
               data-testid="agent-config-model"
               className={inputClass}
               value={model}
               onChange={(e) => setModel(e.target.value)}
+              list="agent-config-model-list"
               placeholder={t('agentRuntime.configModal.fields.modelPlaceholder')}
             />
+            <datalist id="agent-config-model-list" data-testid="agent-config-model-list">
+              {KNOWN_MODELS.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
           </Field>
 
           <Field label={t('agentRuntime.configModal.fields.reasoning')} hint={t('agentRuntime.configModal.fields.reasoningHint')} htmlFor="agent-config-reasoning-input">

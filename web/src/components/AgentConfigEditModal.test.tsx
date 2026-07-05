@@ -6,6 +6,7 @@ import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
 import { AgentConfigEditModal } from './AgentConfigEditModal';
+import { KNOWN_MODELS } from '@/config/agent-defaults';
 import type { Agent } from '@/api/types';
 
 const base: Agent = {
@@ -226,6 +227,37 @@ describe('AgentConfigEditModal (T236)', () => {
   it('T728: include-description toggle echoes the persisted false value', () => {
     wrap({ ...base, include_description_in_system_prompt: false });
     expect(screen.getByTestId('agent-config-include-description')).toHaveAttribute('aria-checked', 'false');
+  });
+
+  // Editable model dropdown: preset <datalist> suggestions + free text.
+  it('model: renders the KNOWN_MODELS presets as a datalist bound to the input', () => {
+    wrap(base);
+    const input = screen.getByTestId('agent-config-model') as HTMLInputElement;
+    expect(input.getAttribute('list')).toBe('agent-config-model-list');
+    const list = screen.getByTestId('agent-config-model-list');
+    const values = Array.from(list.querySelectorAll('option')).map((o) => (o as HTMLOptionElement).value);
+    expect(values).toEqual(KNOWN_MODELS);
+    expect(values).toContain('claude-opus-4-8');
+  });
+
+  it('model: a free-typed non-preset value is NOT restricted and PATCHes through', async () => {
+    let patchBody: Record<string, unknown> | undefined;
+    server.use(
+      http.patch('/api/agents/:id/config', async ({ request }) => {
+        patchBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...base });
+      }),
+      http.post('/api/agents/:id/restart', () => HttpResponse.json({ ...base })),
+    );
+    wrap(base);
+    const custom = 'my-org/custom-model-2099';
+    expect(KNOWN_MODELS).not.toContain(custom);
+    fireEvent.change(screen.getByTestId('agent-config-model'), { target: { value: custom } });
+    expect((screen.getByTestId('agent-config-model') as HTMLInputElement).value).toBe(custom);
+    fireEvent.click(screen.getByTestId('agent-config-edit-save'));
+    fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
+    await waitFor(() => expect(patchBody).toBeDefined());
+    expect(patchBody).toMatchObject({ model: custom });
   });
 
   it('Cancel on the confirm keeps the modal open (no PATCH)', async () => {
