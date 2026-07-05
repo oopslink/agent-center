@@ -29,7 +29,7 @@ func mkAgent(t *testing.T, id agent.AgentID, worker string) *agent.Agent {
 	a, err := agent.NewAgent(agent.NewAgentInput{
 		ID: id, OrganizationID: "org", WorkerID: worker,
 		Profile: agent.Profile{Name: "coder", Description: "d", Model: "claude", CLI: "claudecode", EnvVars: map[string]string{"K": "V"}},
-		Skills:  []string{"go", "rust"}, CreatedBy: "user:a", CreatedAt: t0,
+		CreatedBy: "user:a", CreatedAt: t0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +52,7 @@ func TestAgentRepo_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.WorkerID() != "W1" || got.Profile().Name != "coder" || got.Profile().EnvVars["K"] != "V" ||
-		len(got.Skills()) != 2 || got.Lifecycle() != agent.LifecycleStopped {
+		got.Lifecycle() != agent.LifecycleStopped {
 		t.Fatalf("round-trip lost fields: %+v", got)
 	}
 	if _, err := r.FindByID(ctx, "nope"); err != agent.ErrAgentNotFound {
@@ -248,12 +248,11 @@ func TestAgentRepo_UpdateKeepsWorkerImmutable(t *testing.T) {
 	got, _ := r.FindByID(ctx, "A1")
 	_ = got.Start(t0)
 	_ = got.UpdateProfile(agent.Profile{Name: "coder2"}, t0)
-	got.SetSkills([]string{"python"}, t0)
 	if err := r.Update(ctx, got); err != nil {
 		t.Fatal(err)
 	}
 	re, _ := r.FindByID(ctx, "A1")
-	if re.Lifecycle() != agent.LifecycleRunning || re.Profile().Name != "coder2" || len(re.Skills()) != 1 {
+	if re.Lifecycle() != agent.LifecycleRunning || re.Profile().Name != "coder2" {
 		t.Fatalf("update not persisted: %+v", re)
 	}
 	// worker_id is immutable — Update never changes it.

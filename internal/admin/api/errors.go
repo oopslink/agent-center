@@ -151,7 +151,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	// ---- bad_request (400) ----------------------------------------------
 	case errors.Is(err, secretmgmt.ErrMasterKeyNotLoaded),
 		errors.Is(err, pm.ErrBlockReasonRequired),
-		errors.Is(err, pm.ErrInvalidBlockReasonType):
+		errors.Is(err, pm.ErrInvalidBlockReasonType),
+		// issue-4a45e9cc: a reported installed-skill with an unknown layer.
+		errors.Is(err, agent.ErrInvalidSkillLayer):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 
 	default:

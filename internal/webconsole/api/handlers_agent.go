@@ -98,18 +98,12 @@ func mapAgentError(w http.ResponseWriter, err error) {
 
 func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]any {
 	p := a.Profile()
-	// v2.7 #183 (FINDING): emit skills/env_vars as [] / {} never null. Go nil
-	// slices/maps marshal to JSON null, but the SPA types them non-null
-	// (skills: string[]) and reads a.skills.length — a freshly-created agent
-	// with no skills sent "skills": null → AgentDetail crashed
-	// (Cannot read properties of null (reading 'length')). Honor the contract
-	// at the serializer so every consumer (get/list/create) is safe.
-	skills := a.Skills()
-	if skills == nil {
-		skills = []string{}
-	}
-	// T461: capability tags — emit [] never null (same contract as skills) so the
-	// SPA can read .length safely.
+	// v2.7 #183 (FINDING): emit env_vars/capability_tags as [] / {} never null. Go
+	// nil slices/maps marshal to JSON null, but the SPA types them non-null and reads
+	// .length — honor the contract at the serializer so every consumer (get/list/
+	// create) is safe. (The declared `skills` list was dropped in issue-4a45e9cc:
+	// skills are now OBSERVED per-agent via agent_installed_skills, not declared.)
+	// T461: capability tags — emit [] never null so the SPA can read .length safely.
 	tags := a.CapabilityTags()
 	if tags == nil {
 		tags = []string{}
@@ -145,7 +139,7 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		"auto_assignable": p.AutoAssignable,
 		// T728: per-agent inject-description-into-system-prompt flag (true = inject); FE回显.
 		"include_description_in_system_prompt": p.IncludeDescriptionInSystemPrompt,
-		"env_vars":                             envVars, "skills": skills, "capability_tags": tags, "worker_id": a.WorkerID(),
+		"env_vars":                             envVars, "capability_tags": tags, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
 		// v2.7 #157: kept for back-compat (equals id now). Lets the Members page
@@ -184,9 +178,10 @@ func bareRefID(s string) string {
 //
 // NOTE the deliberate v2.7.1 omissions (frontend shows static/fallback, real
 // values are v2.8 schema work): runtime config reasoning_level/mode/provider
-// (#229 — Profile only models Model+CLI), skills global/local indicator + path
-// (#230 — skills is a name list, origin is a worker FS property), and the
-// worker's daemon version (no Worker BC field). We never fabricate these here.
+// (#229 — Profile only models Model+CLI), and the worker's daemon version (no
+// Worker BC field). We never fabricate these here. Installed skills (issue-4a45e9cc,
+// the OBSERVED per-layer skill set) ARE attached here from the agent_installed_skills
+// projection once the runtime has reported them.
 func (s *Server) agentDetailEnrich(ctx context.Context, d HandlerDeps, a *agentbc.Agent, m map[string]any) {
 	// Creator display name (created_by is a "user:"/"agent:" actor ref → bare id).
 	if d.IdentityRepo != nil {
@@ -223,6 +218,26 @@ func (s *Server) agentDetailEnrich(ctx context.Context, d HandlerDeps, a *agentb
 		}
 	}
 	m["created_agents"] = created
+
+	// Installed skills (issue-4a45e9cc): the OBSERVED per-layer effective skill set the
+	// agent-runtime reported. Always a slice, never null (#183 contract) — empty until
+	// the runtime uploads its first report. The FE groups by layer, shows description,
+	// marks shadowed, and (when the computer is offline) renders collected_at.
+	installed := []map[string]any{}
+	if d.AgentSvc != nil {
+		if skills, err := d.AgentSvc.ListInstalledSkills(ctx, a.ID()); err == nil {
+			for _, sk := range skills {
+				installed = append(installed, map[string]any{
+					"layer":        string(sk.Layer),
+					"name":         sk.Name,
+					"description":  sk.Description,
+					"shadowed":     sk.Shadowed,
+					"collected_at": sk.CollectedAt.Format(time.RFC3339Nano),
+				})
+			}
+		}
+	}
+	m["installed_skills"] = installed
 }
 
 // agentTaskExecMap renders one of an agent's active executions — a non-terminal

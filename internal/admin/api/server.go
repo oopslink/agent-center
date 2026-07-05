@@ -386,6 +386,9 @@ func (s *Server) routes() {
 	// report_usage (v2.15.0 I28/F2): worker-initiated per-turn usage ingest — not
 	// LLM-facing (deliberately absent from the agent-facing MCP set).
 	s.mux.HandleFunc("POST /admin/agent-tools/report_usage", s.reportUsageHandler)
+	// report_installed_skills (issue-4a45e9cc): agent-runtime OBSERVED skill report —
+	// worker-initiated, not LLM-facing. Replaces the agent's agent_installed_skills set.
+	s.mux.HandleFunc("POST /admin/agent-tools/report_installed_skills", s.reportInstalledSkillsHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/start_task", s.startWorkHandler)
 	// T83: claim an open built-in assignment-pool task — atomic assign+run, fail-closed.
 	s.mux.HandleFunc("POST /admin/agent-tools/claim_task", s.claimTaskHandler)

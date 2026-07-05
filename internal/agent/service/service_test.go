@@ -54,6 +54,7 @@ func newFixture(t *testing.T) *fixture {
 		DB:       db,
 		Agents:   agentsql.NewAgentRepo(db),
 		Activity: agentsql.NewActivityEventRepo(db),
+		Skills:   agentsql.NewInstalledSkillRepo(db),
 		Workers:  workers,
 		Outbox:   ob,
 		IDGen:    idgen.NewGenerator(clk),

@@ -74,8 +74,8 @@ func TestMigration0059_BuiltinPlanBackfill(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("re-Up (apply 0057+0058+0059): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 100 {
-		t.Fatalf("version after re-Up: got %d want 100", v)
+	if v, _ := mig.Version(ctx); v != 102 {
+		t.Fatalf("version after re-Up: got %d want 102", v)
 	}
 
 	// The builtin pool exists for P1: status running, is_builtin=1, deterministic id.

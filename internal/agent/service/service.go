@@ -60,6 +60,7 @@ type Service struct {
 	db       *sql.DB
 	agents   agent.Repository
 	activity agent.ActivityEventRepository
+	skills   agent.InstalledSkillRepository
 	workers  workforce.WorkerRepository
 	outbox   outbox.Repository
 	idgen    idgen.Generator
@@ -80,10 +81,14 @@ type Deps struct {
 	DB       *sql.DB
 	Agents   agent.Repository
 	Activity agent.ActivityEventRepository
-	Workers  workforce.WorkerRepository
-	Outbox   outbox.Repository
-	IDGen    idgen.Generator
-	Clock    clock.Clock
+	// Skills is the OBSERVED installed-skill projection (issue-4a45e9cc). Optional:
+	// nil leaves ReportInstalledSkills/ListInstalledSkills as safe no-ops (empty),
+	// which the pre-feature test fixtures rely on.
+	Skills  agent.InstalledSkillRepository
+	Workers workforce.WorkerRepository
+	Outbox  outbox.Repository
+	IDGen   idgen.Generator
+	Clock   clock.Clock
 }
 
 // New constructs the Service.
@@ -93,7 +98,7 @@ func New(d Deps) *Service {
 		clk = clock.SystemClock{}
 	}
 	return &Service{
-		db: d.DB, agents: d.Agents, activity: d.Activity,
+		db: d.DB, agents: d.Agents, activity: d.Activity, skills: d.Skills,
 		workers: d.Workers, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 	}
 }

@@ -84,6 +84,7 @@ func newAgentToolsFixture(t *testing.T) *agentToolsFixture {
 		DB:       db,
 		Agents:   agents,
 		Activity: agentsql.NewActivityEventRepo(db),
+		Skills:   agentsql.NewInstalledSkillRepo(db),
 		Workers:  workers,
 		Outbox:   outboxsql.NewOutboxRepo(db),
 		IDGen:    gen,
