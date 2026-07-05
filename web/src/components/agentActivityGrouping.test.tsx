@@ -187,6 +187,56 @@ describe('ExecutorProgressGroup (v2.31.1)', () => {
     expect(screen.queryByTestId('agent-activity-executor-detail')).toBeNull();
   });
 
+  // v2.31.2 (oopslink DM 2026-07-05): the folded detail is no longer crudely cut
+  // at 40 chars ("跑 cd …"). A note ≤120 chars renders in full on the collapsed
+  // summary teaser (the row is CSS-truncated to fit, but the text is intact).
+  it('shows the folded detail at top-level granularity — no crude 40-char "…" cut', () => {
+    const long = '跑 go test ./internal/workerdaemon/executor -run TestProgressDetail -count=1';
+    expect(long.length).toBeGreaterThan(40);
+    render(
+      <ul>
+        <ExecutorProgressGroup events={[prog('1', 'exec-2b8d4fe9', { detail: long })]} />
+      </ul>,
+    );
+    const chip = screen.getByTestId('agent-activity-executor-detail');
+    expect(chip).toHaveTextContent(long);
+    expect(chip.textContent ?? '').not.toContain('…');
+  });
+
+  // The FULL "what it's doing" note (parity with the top-level row's expanded
+  // detail) is revealed only on expand — the collapsed teaser is clipped, but
+  // expanding surfaces the complete note un-truncated at second level.
+  it('reveals the FULL un-truncated detail on expand; hidden while collapsed', () => {
+    const veryLong = `跑 ${'x'.repeat(200)}`; // > 120 → the teaser must clip with "…"
+    const events = [
+      prog('2', 'exec-2b8d4fe9', { time: '02:00', detail: veryLong }), // latest
+      prog('1', 'exec-2b8d4fe9', { time: '01:00' }),
+    ];
+    render(
+      <ul>
+        <ExecutorProgressGroup events={events} />
+      </ul>,
+    );
+    // collapsed: no full-detail block, and the teaser is truncated ("…").
+    expect(screen.queryByTestId('agent-activity-executor-detail-full')).toBeNull();
+    expect(screen.getByTestId('agent-activity-executor-detail').textContent ?? '').toContain('…');
+    fireEvent.click(screen.getByTestId('agent-activity-executor-toggle'));
+    // expanded: the complete note renders un-truncated.
+    const full = screen.getByTestId('agent-activity-executor-detail-full');
+    expect(full).toHaveTextContent(veryLong);
+    expect(full.textContent ?? '').not.toContain('…');
+  });
+
+  it('renders no full-detail block on expand when the latest heartbeat has no note', () => {
+    render(
+      <ul>
+        <ExecutorProgressGroup events={[prog('1', 'exec-2b8d4fe9')]} />
+      </ul>,
+    );
+    fireEvent.click(screen.getByTestId('agent-activity-executor-toggle'));
+    expect(screen.queryByTestId('agent-activity-executor-detail-full')).toBeNull();
+  });
+
   // oopslink DM 2026-07-04: the task in the summary must render as its HUMAN
   // org_ref ("T879") link (task FIRST, then exec), not the raw task-<id>. Needs
   // the org resolvers → QueryClient + OrgContext + msw (mirrors ActivityRefText).

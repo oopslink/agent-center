@@ -241,6 +241,19 @@ describe('AgentActivityRow (#228 categories)', () => {
     expect(screen.getByTestId('agent-activity-preview')).toHaveTextContent('running');
   });
 
+  // v2.31.2 (oopslink DM 2026-07-05): the executor "what it's doing" detail is
+  // surfaced at top-level granularity (120), not the old crude 40-char cut that
+  // rendered "跑 cd …". A detail under 120 chars shows in full in the row preview.
+  it('executor.progress preview shows the full detail note (no crude 40-char "…" cut)', () => {
+    const detail = '跑 go test ./internal/workerdaemon/executor -run TestProgressDetail -count=1';
+    expect(detail.length).toBeGreaterThan(40);
+    expect(detail.length).toBeLessThanOrEqual(120);
+    row(ev('lifecycle', { event: 'executor.progress', executor_id: 'exec-5', state: 'running', detail }));
+    const preview = screen.getByTestId('agent-activity-preview');
+    expect(preview).toHaveTextContent(detail);
+    expect(preview.textContent ?? '').not.toContain('…');
+  });
+
   it('non-executor lifecycle still maps to Control (session control ops unchanged)', () => {
     row(ev('lifecycle', { event: 'stopped' }));
     const badge = screen.getByTestId('agent-activity-badge');

@@ -217,7 +217,11 @@ function executorPreview(p: Record<string, unknown>): string {
   // outcome[:reason] (stop), or state (progress); fall back to the raw fields.
   const scope = str(p.scope) || str(p.outcome) || str(p.state);
   // T880: the sanitized "what it's doing" activity note, when present.
-  const activity = truncate(str(p.detail), 40);
+  // v2.31.2 (oopslink DM 2026-07-05): bounded to the SAME granularity as the
+  // top-level assistant_text/thinking preview (120, not the old crude 40 that
+  // rendered "跑 cd …") — the executor detail is a first-class summary, not a
+  // second-class chip. The row's own CSS `truncate` still clips it to fit.
+  const activity = truncate(str(p.detail), 120);
   return [kind, exec && `exec ${exec}`, task, scope, activity].filter(Boolean).join(' · ');
 }
 
@@ -548,10 +552,15 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
   // Prefer the structured task_ref field; fall back to the payload copy.
   const taskRef = latest?.task_ref || str(p.task_ref);
   const state = titleCase(str(p.state) || str(p.scope));
-  // T880: the latest heartbeat's short sanitized "what it's doing" note ("读 task.go",
-  // "跑 go test") — surfaced on the folded row so an operator sees the current action
-  // without expanding. Empty until the run streams its first tool/text activity.
-  const detail = truncate(str(p.detail), 40);
+  // T880: the latest heartbeat's sanitized "what it's doing" note ("读 task.go",
+  // "跑 go test", "跑 cd …") — surfaced so an operator sees the current action.
+  // v2.31.2 (oopslink DM 2026-07-05): the COLLAPSED summary shows a teaser at
+  // top-level granularity (120 — same as assistant_text, not the old crude 40
+  // that read "跑 cd …"; the summary is CSS-truncated to fit). The FULL note
+  // renders un-truncated in the expanded region below, so expanding reveals the
+  // complete command/summary without digging into the raw heartbeat JSON.
+  const detailFull = str(p.detail);
+  const detail = truncate(detailFull, 120);
   return (
     <li data-testid="agent-activity-executor-group" data-count={n} data-executor-id={str(p.executor_id)}>
       <button
@@ -593,15 +602,26 @@ export function ExecutorProgressGroup({ events }: { events: AgentActivityEvent[]
         </span>
       </button>
       {expanded && (
-        <ul
-          id={regionId}
-          className="ml-4 border-l border-border-base pl-2"
-          data-testid="agent-activity-executor-expanded"
-        >
-          {events.map((ev) => (
-            <AgentActivityRow key={ev.id} event={ev} />
-          ))}
-        </ul>
+        <div id={regionId} data-testid="agent-activity-executor-expanded">
+          {/* v2.31.2 (oopslink DM 2026-07-05): the latest heartbeat's FULL
+              "what it's doing" note, un-truncated (backend already bounds +
+              sanitizes it). The collapsed summary above shows only a CSS-clipped
+              teaser — expanding surfaces the complete command/summary at second
+              level, parity with the top-level row's full expanded detail. */}
+          {detailFull && (
+            <p
+              className="ml-4 whitespace-pre-wrap break-words border-l border-border-base py-1 pl-2 text-[0.6875rem] text-text-secondary"
+              data-testid="agent-activity-executor-detail-full"
+            >
+              {detailFull}
+            </p>
+          )}
+          <ul className="ml-4 border-l border-border-base pl-2">
+            {events.map((ev) => (
+              <AgentActivityRow key={ev.id} event={ev} />
+            ))}
+          </ul>
+        </div>
       )}
     </li>
   );
