@@ -406,13 +406,28 @@ func (s *Service) RemovePlanDependency(ctx context.Context, planID pm.PlanID, fr
 		if p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft
 		}
+		// Detect whether the edge actually exists BEFORE the (idempotent) delete so a
+		// no-op removal (missing/empty from→to) produces NO ledger row (只读不产/no-op
+		// 不产 — §coverage). This also fixes the empty detail.from/to row E-1.
+		existed := false
+		if edges, lerr := s.plans.ListDependencies(txCtx, planID); lerr == nil {
+			for _, e := range edges {
+				if e.FromTaskID == fromTaskID && e.ToTaskID == toTaskID {
+					existed = true
+					break
+				}
+			}
+		}
 		if err := s.plans.RemoveDependency(txCtx, pm.Dependency{PlanID: planID, FromTaskID: fromTaskID, ToTaskID: toTaskID}); err != nil {
 			return err
 		}
-		// audit §5: dependency edge removed (显式审计写 — no event on this path).
-		s.auditPlan(txCtx, p, pm.AuditPlanDependencyRemvd, actor, map[string]any{
-			"from": string(fromTaskID), "to": string(toTaskID),
-		})
+		// audit §5: dependency edge removed (显式审计写 — no event on this path). Only when
+		// an edge was actually removed (no-op不产).
+		if existed {
+			s.auditPlan(txCtx, p, pm.AuditPlanDependencyRemvd, actor, map[string]any{
+				"from": string(fromTaskID), "to": string(toTaskID),
+			})
+		}
 		return nil
 	})
 }

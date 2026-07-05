@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import type React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
+import i18n from '@/i18n';
 import { ObjectAuditTimeline } from './ObjectAuditTimeline';
 import type { AuditEntry } from '@/api/audit';
 
@@ -98,5 +99,73 @@ describe('ObjectAuditTimeline', () => {
     await waitFor(() => expect(screen.getByTestId('audit-list')).toBeInTheDocument());
     expect(screen.getByText(/added dependency T1 → T2/)).toBeInTheDocument();
     expect(screen.getByText(/started the plan/)).toBeInTheDocument();
+  });
+
+  it('renders plan gate decision_outcome + loopback from structured detail', async () => {
+    server.use(
+      http.get('/api/projects/:pid/plans/:planId/audit', () =>
+        HttpResponse.json({
+          entries: [
+            entry({
+              id: 'g2',
+              object_type: 'plan',
+              change_type: 'loopback',
+              actor: 'system:plan-engine',
+              detail: { round: 1, from: 'T1', to: 'T3' },
+            }),
+            entry({
+              id: 'g1',
+              object_type: 'plan',
+              change_type: 'decision_outcome',
+              from: '',
+              to: '',
+              actor: 'user:pd',
+              detail: { outcome: 'reject', decision: 'Ship?' },
+            }),
+          ],
+          next_cursor: '',
+        }),
+      ),
+    );
+    renderWithProvider(<ObjectAuditTimeline objectType="plan" projectId="proj-a" objectId="plan-1" />);
+    await waitFor(() => expect(screen.getByTestId('audit-list')).toBeInTheDocument());
+    // gate ruling reads its outcome from detail; loopback reads its round.
+    expect(screen.getByText(/decision outcome reject/)).toBeInTheDocument();
+    expect(screen.getByText(/loopback re-run \(round 1\)/)).toBeInTheDocument();
+    // system actor renders via localized copy, not a raw "system:plan-engine".
+    expect(screen.getByText(/@system \(plan-engine\)/)).toBeInTheDocument();
+  });
+
+  describe('i18n (H-1: no hardcoded English)', () => {
+    afterEach(async () => {
+      await i18n.changeLanguage('en');
+    });
+
+    it('renders section copy + sentences in Chinese under the zh locale', async () => {
+      await i18n.changeLanguage('zh');
+      server.use(
+        http.get('/api/projects/:pid/tasks/:tid/audit', () =>
+          HttpResponse.json({
+            entries: [entry({ id: 'z1', change_type: 'status_changed', from: 'open', to: 'running', actor: 'user:alice' })],
+            next_cursor: '',
+          }),
+        ),
+      );
+      renderWithProvider(<ObjectAuditTimeline objectType="task" projectId="proj-a" objectId="task-1" />);
+      await waitFor(() => expect(screen.getByTestId('audit-list')).toBeInTheDocument());
+      // Section heading + status category label + sentence are all localized.
+      expect(screen.getByText('变更记录')).toBeInTheDocument();
+      expect(screen.getByTestId('audit-badge')).toHaveTextContent('状态');
+      expect(screen.getByTestId('audit-sentence')).toHaveTextContent('状态变更 open → running');
+    });
+
+    it('renders the empty state in Chinese', async () => {
+      await i18n.changeLanguage('zh');
+      server.use(
+        http.get('/api/projects/:pid/tasks/:tid/audit', () => HttpResponse.json({ entries: [], next_cursor: '' })),
+      );
+      renderWithProvider(<ObjectAuditTimeline objectType="task" projectId="proj-a" objectId="task-1" />);
+      await waitFor(() => expect(screen.getByTestId('audit-empty')).toHaveTextContent('暂无变更记录。'));
+    });
   });
 });

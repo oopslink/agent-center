@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,6 +152,54 @@ func TestAudit_IssueAndReadOnly(t *testing.T) {
 	}
 	if after := len(auditOf(t, svc, ctx, pm.AuditObjectIssue, string(iid))); after != before {
 		t.Fatalf("read produced audit entries: before=%d after=%d", before, after)
+	}
+}
+
+// TestAudit_PlanDependency_NoOpNotRecorded proves the plan dependency write-points:
+// adding an edge records dependency_added (with from/to detail), removing a NON-existent
+// edge records NOTHING (no-op不产 — E-1: no empty-detail ledger row), and removing the
+// real edge records exactly one dependency_removed with the from/to detail populated.
+func TestAudit_PlanDependency_NoOpNotRecorded(t *testing.T) {
+	svc, ctx := auditSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "dep", CreatedBy: "user:a"})
+	a, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
+	b, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "B", CreatedBy: "user:a"})
+	if err := svc.SelectTaskIntoPlan(ctx, planID, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, b, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+
+	// add: B depends_on A → dependency_added with from/to detail.
+	if err := svc.AddPlanDependency(ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	added := hasChange(auditOf(t, svc, ctx, pm.AuditObjectPlan, string(planID)), pm.AuditPlanDependencyAdded)
+	if added == nil {
+		t.Fatal("no dependency_added ledger row")
+	}
+
+	// no-op remove: an edge that does not exist must NOT append a ledger row.
+	before := len(auditOf(t, svc, ctx, pm.AuditObjectPlan, string(planID)))
+	if err := svc.RemovePlanDependency(ctx, planID, a, b, "user:a"); err != nil { // reversed → no such edge
+		t.Fatal(err)
+	}
+	if after := len(auditOf(t, svc, ctx, pm.AuditObjectPlan, string(planID))); after != before {
+		t.Fatalf("no-op dependency remove produced a ledger row: before=%d after=%d", before, after)
+	}
+
+	// real remove: the existing B→A edge → exactly one dependency_removed with from/to.
+	if err := svc.RemovePlanDependency(ctx, planID, b, a, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	removed := hasChange(auditOf(t, svc, ctx, pm.AuditObjectPlan, string(planID)), pm.AuditPlanDependencyRemvd)
+	if removed == nil {
+		t.Fatal("no dependency_removed ledger row after removing the real edge")
+	}
+	if removed.Detail == "" || !strings.Contains(removed.Detail, string(b)) || !strings.Contains(removed.Detail, string(a)) {
+		t.Fatalf("dependency_removed detail missing from/to: %q", removed.Detail)
 	}
 }
 
