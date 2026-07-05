@@ -990,6 +990,27 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// arg; absent one, the completed decision is deferred to a human via
 	// NotifyDecisionDeferred AFTER the tx.
 	manualOutcome := strings.TrimSpace(req.Outcome)
+	// issue-74df441a deferred-decision recovery: a DECISION node can end up
+	// already-completed WITHOUT its outcome recorded (deferred to a human). Re-running
+	// complete_task with an outcome must then record the outcome + advance the plan
+	// (route its conditional/loopback edges) WITHOUT re-completing the terminal task —
+	// re-completing would 409 illegal_transition, the bug that stranded the cycle at the
+	// decision node. For a still-running decision the normal atomic path below applies.
+	if manualOutcome != "" {
+		if t, terr := d.PMService.GetTask(r.Context(), pm.TaskID(req.TaskID)); terr == nil && pm.TaskIsDone(t.Status()) && t.PlanID() != "" {
+			if err := d.PMService.RecordDecisionOutcome(r.Context(), pm.TaskID(req.TaskID),
+				manualOutcome, pm.IdentityRef(agentActor(a))); err != nil {
+				mapDomainError(w, err)
+				return
+			}
+			if _, err := d.PMService.AdvancePlan(r.Context(), t.PlanID(), pm.IdentityRef(agentActor(a))); err != nil {
+				mapDomainError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
+			return
+		}
+	}
 	if err := d.PMService.PrecheckCompleteTask(r.Context(), pm.TaskID(req.TaskID)); err != nil {
 		mapDomainError(w, err)
 		return

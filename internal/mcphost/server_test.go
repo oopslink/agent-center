@@ -128,14 +128,10 @@ var wantTools = []string{
 	"delete_plan", "archive_plan",
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared context)
 	"record_finding", "list_findings",
-	// orchestration engine (P2-T2)
-	"create_graph", "get_graph", "start_graph", "finish_graph",
-	"add_graph_node", "remove_graph_node", "update_graph_node",
-	"start_graph_node", "complete_graph_node", "discard_graph_node",
-	"resolve_condition",
-	"add_graph_edge", "remove_graph_edge",
-	"list_graph_nodes", "get_graph_node", "get_ready_nodes",
-	"bind_task_to_node", "unbind_task_from_node",
+	// orchestration graph tools are NOT agent-facing (issue-74df441a): the graph is
+	// the internal execution engine that StartPlan compiles the plan into. Agents
+	// author/drive DAGs via the plan API (create_plan/add_task_to_plan/
+	// add_plan_dependency/start_plan) + task tools, and read the DAG via get_plan.
 	// files
 	"upload_file", "download_file", "attach_file",
 	// templates

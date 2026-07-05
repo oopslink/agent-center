@@ -427,97 +427,6 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "List the shared findings recorded in a plan so far (oldest-first): each has a kind (fact/failure/constraint/patch_summary), the source task, the author, and the gist. Read this before starting plan work to reuse what others already learned.",
 	}, makeListFindings(cfg))
 
-	// --- orchestration engine tools (P2-T2) ----------------------------------
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "create_graph",
-		Description: "Create a new orchestration graph (DAG) for a plan. Returns the graph ID. The graph starts with auto-created start and end control nodes.",
-	}, makeCreateGraph(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_graph",
-		Description: "Get an orchestration graph's full detail: its nodes, edges, status, and start/end control node IDs.",
-	}, makeGetGraph(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "start_graph",
-		Description: "Transition an orchestration graph from draft to running.",
-	}, makeStartGraph(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "finish_graph",
-		Description: "Transition an orchestration graph from running to done.",
-	}, makeFinishGraph(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "add_graph_node",
-		Description: "Add a new business or control node to an orchestration graph. Returns the new node ID.",
-	}, makeAddGraphNode(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "remove_graph_node",
-		Description: "Remove a node (and its edges) from an orchestration graph. Running/completed nodes cannot be removed.",
-	}, makeRemoveGraphNode(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "update_graph_node",
-		Description: "Update a graph node's title and/or metadata.",
-	}, makeUpdateGraphNode(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "start_graph_node",
-		Description: "Transition a graph node to running status.",
-	}, makeStartGraphNode(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "complete_graph_node",
-		Description: "Transition a graph node to completed status with the given outcome.",
-	}, makeCompleteGraphNode(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "discard_graph_node",
-		Description: "Terminally discard a graph node (open/running to discarded).",
-	}, makeDiscardGraphNode(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "resolve_condition",
-		Description: "Resolve a condition control node with a result (success or failure). On failure, reopens upstream chain nodes.",
-	}, makeResolveCondition(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "add_graph_edge",
-		Description: "Add a directed dependency edge (from_node_id -> to_node_id) within an orchestration graph. Self-edges and cycles are rejected.",
-	}, makeAddGraphEdge(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "remove_graph_edge",
-		Description: "Remove a directed edge from an orchestration graph. Idempotent (removing a missing edge is a no-op).",
-	}, makeRemoveGraphEdge(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_graph_nodes",
-		Description: "List all nodes belonging to an orchestration graph.",
-	}, makeListGraphNodes(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_graph_node",
-		Description: "Get a single orchestration graph node by ID.",
-	}, makeGetGraphNode(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_ready_nodes",
-		Description: "Get nodes in an orchestration graph whose upstream dependencies are all completed or discarded (the ready set).",
-	}, makeGetReadyNodes(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "bind_task_to_node",
-		Description: "Bind a task ID to an orchestration graph node (stores it in the node's metadata).",
-	}, makeBindTaskToNode(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "unbind_task_from_node",
-		Description: "Unbind the task from an orchestration graph node (removes task_id from node metadata).",
-	}, makeUnbindTaskFromNode(cfg))
-
 	// --- template tools ------------------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_templates",
@@ -525,7 +434,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeListTemplates(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_template",
-		Description: "Get a workflow template by ID. Returns the full markdown content that describes the orchestration rules. Read this content to understand how to scaffold a graph using the orchestration tools.",
+		Description: "Get a workflow template by ID. Returns the full markdown content that describes the workflow. Read it to understand how to author a plan DAG via the plan tools (create_plan / add_task_to_plan / add_plan_dependency / start_plan).",
 	}, makeGetTemplate(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_template",
