@@ -1,0 +1,48 @@
+$ # Item I — 纯加法/零回归 + best-effort 审计写不阻塞主 mutation
+
+$ # (1) Migration 0099 is purely additive: a NEW empty table + 2 indexes, nothing else touched.
+$ #     Before any write point is exercised, the table is empty => existing behavior unchanged.
+$ #     (baseline captured at install time, before the driver ran):  SELECT COUNT(*) = 0
+
+$ # (2) recordChange wraps every audit insert in a SAVEPOINT so a failed audit row
+$ #     can NEVER poison / roll back the parent business transaction (internal/projectmanager/service/service.go):
+----------------------------------------------------------------------------------------------------
+	// Wrap in a savepoint so a failed audit insert cannot poison the parent tx (some
+	// SQLite errors abort the enclosing statement's changes; the savepoint bounds the
+	// blast radius to the audit row). If the backend rejects SAVEPOINT, fall back to a
+	// plain best-effort append.
+	if _, sperr := exec.ExecContext(ctx, "SAVEPOINT pm_audit"); sperr != nil {
+		if aerr := s.audit.Append(ctx, e); aerr != nil {
+			slog.WarnContext(ctx, "pm: audit append failed (best-effort, mutation unaffected)", "err", aerr, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
+		}
+		return
+	}
+	if aerr := s.audit.Append(ctx, e); aerr != nil {
+		slog.WarnContext(ctx, "pm: audit append failed (best-effort, mutation unaffected)", "err", aerr, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
+		_, _ = exec.ExecContext(ctx, "ROLLBACK TO pm_audit")
+	}
+	_, _ = exec.ExecContext(ctx, "RELEASE pm_audit")
+}
+
+----------------------------------------------------------------------------------------------------
+
+$ # (3) Positive proof end-to-end: across 10 task + 4 issue + 7 plan real mutations on instance audit1,
+$ #     every primary API call returned its normal success result AND the ledger recorded — no mutation
+$ #     was blocked or errored by the audit write.  Total ledger rows now on the isolated instance:
+sqlite> SELECT object_type, COUNT(*) FROM pm_audit_log GROUP BY object_type;
+issue  6
+plan  7
+task  17
+
+sqlite> SELECT change_type, COUNT(*) FROM pm_audit_log GROUP BY change_type ORDER BY change_type;
+assigned  3
+created  7
+dependency_added  1
+dependency_removed  1
+metadata_edited  1
+node_added  2
+reassigned  1
+started  1
+status_changed  11
+stopped  1
+unassigned  1

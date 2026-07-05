@@ -1,0 +1,13 @@
+$ curl -s -b <session> $BASE/tasks/$TID/audit   # real web API on isolated instance audit1
+# object_type=task  object_id=task-68d5b3e8   (newest-first)
+----------------------------------------------------------------------------------------------------
+unassigned         field=assignee  user:helper-bob→           actor=user:user-38eefc04  
+reassigned         field=assignee  user:38eefc04→user:helper-bob actor=user:user-38eefc04  
+assigned           field=assignee  →user:38eefc04             actor=user:user-38eefc04  
+status_changed     field=status    open→running               actor=user:user-38eefc04  
+status_changed     field=status    completed→open             actor=user:user-38eefc04  
+status_changed     field=status    running→completed          actor=user:user-38eefc04  
+status_changed     field=status    blocked→running            actor=user:user-38eefc04  
+status_changed     field=status    running→blocked            actor=user:user-38eefc04    reason=waiting upstream  reason_type=obstacle
+status_changed     field=status    open→running               actor=user:user-38eefc04  
+created            field=-         →open                      actor=user:user-38eefc04    title=Audit demo task

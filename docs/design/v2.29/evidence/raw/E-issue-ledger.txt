@@ -1,0 +1,7 @@
+$ curl -s -b <session> $BASE/issues/$IID/audit
+# object_type=issue  object_id=issue-eb40b94b   (newest-first)
+----------------------------------------------------------------------------------------------------
+metadata_edited    field=-         -                          actor=user:user-38eefc04    fields=['title']
+status_changed     field=status    in_progress→resolved       actor=user:user-38eefc04  
+status_changed     field=status    open→in_progress           actor=user:user-38eefc04  
+created            field=-         →open                      actor=user:user-38eefc04    title=Audit demo issue

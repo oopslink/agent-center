@@ -1,0 +1,29 @@
+$ # Item F — system / gate-driven change_types: write-point audit (design §4.2 / §5)
+$ #
+$ # WIRED (write-point + system-actor present; fire only from reconciler/gate timing, verified on built tree):
+$   auto_closed     -> resolved_issue_closer.go:73   actor = system:resolved-issue-closer
+       73:			s.auditIssueStatusChange(txCtx, i, prev, pm.AuditIssueAutoClosed, pm.SystemActor("resolved-issue-closer"))
+$   auto_assigned   -> auto_assign_reconciler.go:362 actor = system:auto-assign
+       362:			ChangeType: pm.AuditTaskAutoAssigned,
+$   claimed         -> claim_flow.go:111
+       111:		s.auditTaskAssign(txCtx, t, pm.AuditTaskClaimed, "", actor)
+$   review_verdict  -> decision_auto.go:83
+       83:			ChangeType: pm.AuditTaskReviewVerdict,
+
+$ # >>> FINDING F-1 (design §5 write-point MISSING) <<<
+$ #     Design §4.2 + §5 list plan change_types 'decision_outcome' and 'loopback' as write-points
+$ #     (SetDecisionOutcome / applyLoopbacks). The enum constants exist and the FRONTEND renders them,
+$ #     but NO code path appends these audit rows — the plan's gate outcome + loopback go UNRECORDED,
+$ #     which is exactly the 'gate 判了 reject —— 事后查不到' case the feature's §1 motivation cites.
+
+$ grep -rn 'AuditPlanDecisionOutcome|AuditPlanLoopback' internal/ (excluding _test.go)
+  internal/projectmanager/audit.go:42:	AuditPlanDecisionOutcome AuditChangeType = "decision_outcome"
+  internal/projectmanager/audit.go:43:	AuditPlanLoopback        AuditChangeType = "loopback"
+  ^-- only the two const declarations in audit.go; ZERO write-points.
+
+$ # The decision/loopback logic that SHOULD audit (but doesn't):
+$ grep -n 'func .*RecordDecisionOutcome|func .*reopenLoopSubgraph' internal/projectmanager/service/plan_orchestration_graph.go
+  260:func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges []pm.Dependency, outcomes []pm.DecisionOutcome) error {
+  541:func (s *Service) RecordDecisionOutcome(ctx context.Context, taskID pm.TaskID, outcome string, actor pm.IdentityRef) error {
+  569:func (s *Service) reopenLoopSubgraph(txCtx context.Context, planID pm.PlanID, edges []pm.Dependency, to, from pm.TaskID, now time.Time) error {
+  (none contain an auditPlan/recordChange call — verified by inspection)
