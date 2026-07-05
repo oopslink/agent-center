@@ -149,7 +149,9 @@
     "retry": "Retry",
     "attachFile": "Attach file",
     "sendTitle": "Send (Enter)",
-    "send": "Send"
+    "send": "Send",
+    "quoting": "Quoting {{name}}",
+    "cancelQuote": "Cancel quote"
   },
   "mention": {
     "noMatches": "No matches",
@@ -174,7 +176,12 @@
     "system": "System",
     "messageFailed": "Message failed",
     "hide": "Hide",
-    "details": "Details"
+    "details": "Details",
+    "quoteMessage": "Quote message",
+    "quote": {
+      "jumpToOriginal": "Jump to the quoted message",
+      "originalUnavailable": "Original message unavailable"
+    }
   },
   "panels": {
     "participants": {

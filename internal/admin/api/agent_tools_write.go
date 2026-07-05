@@ -287,6 +287,10 @@ type postMessageReq struct {
 	// thread, the thread root id — so its reply lands in-thread instead of at
 	// conversation top-level. Empty for an ordinary top-level message.
 	ParentMessageID string `json:"parent_message_id"`
+	// QuotedMessageID (引用): the id of an earlier message in the SAME destination
+	// conversation this message quotes — renders a preview card. Orthogonal to a
+	// thread reply. Empty for no quote; a missing/cross-conversation target 404s.
+	QuotedMessageID string `json:"quoted_message_id"`
 	// Attachments (T44): already-uploaded files to attach to this message — the
 	// agent-side dual of the human chat-box attachment. Optional.
 	Attachments []agentAttachmentReq `json:"attachments"`
@@ -541,6 +545,7 @@ func (s *Server) postMessageHandler(w http.ResponseWriter, r *http.Request) {
 			Direction:        conversation.DirectionOutbound,
 			Content:          req.Content,
 			ParentMessageID:  conversation.MessageID(req.ParentMessageID), // F4: reply in-thread
+			QuotedMessageID:  conversation.MessageID(req.QuotedMessageID), // 引用: quote an earlier message
 			Attachments:      atts,
 			MentionRefs:      normalizeMentionRefs(req.MentionRefs), // T460 ①: typo-proof structural @mention
 			Actor:            observability.Actor(agentActor(a)),

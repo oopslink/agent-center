@@ -1,0 +1,11 @@
+-- 0099_message_quote_ref.up.sql — Chat 引用消息 (quote / 引用)
+--
+-- A message may QUOTE one earlier message: a lightweight inline pointer that
+-- renders a preview card of the quoted message above the new message, distinct
+-- from and orthogonal to the thread parent/root refs (0057). A quote does not
+-- change thread grouping — it can point at any single message in the same
+-- conversation. Soft reference (no FK): the quoted message may later be removed
+-- when its conversation is archived/cleared, so the read side degrades instead
+-- of failing. NULL for a message that quotes nothing, so existing rows stay
+-- valid.
+ALTER TABLE messages ADD COLUMN quoted_message_id TEXT;

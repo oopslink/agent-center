@@ -255,4 +255,8 @@ var (
 	// this also blocks cross-org thread stitching). The HTTP edge maps it to 404
 	// (existence-non-disclosure, §5.7).
 	ErrMessageParentMismatch = errors.New("conversation: parent message is in a different conversation")
+	// ErrMessageInvalidQuote guards the 引用 (quote) ref: a message may not quote
+	// itself, and (at the writer) the quoted message must exist in the SAME
+	// conversation. The HTTP edge maps it to 404 (existence-non-disclosure, §5.7).
+	ErrMessageInvalidQuote = errors.New("conversation: quoted message invalid (must exist in the same conversation and not be self)")
 )

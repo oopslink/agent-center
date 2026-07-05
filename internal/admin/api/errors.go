@@ -26,6 +26,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	// ---- not_found (404) -------------------------------------------------
 	case errors.Is(err, conversation.ErrConversationNotFound),
 		errors.Is(err, conversation.ErrMessageNotFound),
+		// 引用 (quote): a missing/cross-conversation quoted target reads as not-found
+		// at the edge (existence non-disclosure, §5.7).
+		errors.Is(err, conversation.ErrMessageInvalidQuote),
 		errors.Is(err, workforce.ErrWorkerNotFound),
 		errors.Is(err, workforce.ErrBootstrapTokenNotFound),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound),

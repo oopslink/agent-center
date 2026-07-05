@@ -149,7 +149,9 @@
     "retry": "重试",
     "attachFile": "添加附件",
     "sendTitle": "发送（回车）",
-    "send": "发送"
+    "send": "发送",
+    "quoting": "正在引用 {{name}}",
+    "cancelQuote": "取消引用"
   },
   "mention": {
     "noMatches": "无匹配项",
@@ -174,7 +176,12 @@
     "system": "系统",
     "messageFailed": "消息发送失败",
     "hide": "收起",
-    "details": "详情"
+    "details": "详情",
+    "quoteMessage": "引用消息",
+    "quote": {
+      "jumpToOriginal": "跳转到被引用的消息",
+      "originalUnavailable": "原消息已不可用"
+    }
   },
   "panels": {
     "participants": {

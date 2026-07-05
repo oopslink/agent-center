@@ -7,6 +7,7 @@ import { useSSEConversationSubscribe } from '@/sse/useSSEConversationSubscribe';
 import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ThreadSidebarProvider } from '@/components/ThreadSidebarContext';
+import { QuoteProvider } from '@/components/QuoteContext';
 
 // v2.8 #264 P1: the surface-agnostic conversation shell. channel / DM /
 // task-thread / issue-thread all render through ONE <ConversationView> — the
@@ -57,28 +58,32 @@ export function ConversationView({
   }, [conversationId, latestMessageId]);
 
   const body = (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {messages.isLoading && (
-        <p className="p-4 text-sm text-text-muted" role="status" data-testid="conversation-loading">
-          {t('conversation.loadingMessages')}
-        </p>
-      )}
-      {messages.isError && (
-        <p className="p-4 text-sm text-danger" role="alert" data-testid="conversation-error">
-          {(messages.error as Error).message}
-        </p>
-      )}
-      {messages.isSuccess && (
-        <MessageList
-          messages={messages.messages}
-          surface={surface}
-          onLoadOlder={messages.loadOlder}
-          hasOlder={messages.hasOlder}
-          isLoadingOlder={messages.isLoadingOlder}
-        />
-      )}
-      <MessageComposer conversationId={conversationId} />
-    </div>
+    // 引用 (quote): one QuoteProvider around the list + composer so a per-message
+    // Quote action drives the composer's quoting bar (shared state, no store).
+    <QuoteProvider>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {messages.isLoading && (
+          <p className="p-4 text-sm text-text-muted" role="status" data-testid="conversation-loading">
+            {t('conversation.loadingMessages')}
+          </p>
+        )}
+        {messages.isError && (
+          <p className="p-4 text-sm text-danger" role="alert" data-testid="conversation-error">
+            {(messages.error as Error).message}
+          </p>
+        )}
+        {messages.isSuccess && (
+          <MessageList
+            messages={messages.messages}
+            surface={surface}
+            onLoadOlder={messages.loadOlder}
+            hasOlder={messages.hasOlder}
+            isLoadingOlder={messages.isLoadingOlder}
+          />
+        )}
+        <MessageComposer conversationId={conversationId} />
+      </div>
+    </QuoteProvider>
   );
 
   return (

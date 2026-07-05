@@ -537,6 +537,10 @@ type postMessageArgs struct {
 	// ParentMessageID (v2.9.1 Thread F4): set to reply IN a thread — pass the thread
 	// root message id the wake brief gave you. Omit for a normal top-level message.
 	ParentMessageID string `json:"parent_message_id,omitempty" jsonschema:"to reply inside a thread, the thread root message id from the brief; omit for a top-level message"`
+	// QuotedMessageID (引用): set to quote an earlier message — the UI renders a
+	// preview card of it above your message. The quoted message must be in the SAME
+	// conversation you are posting to. Orthogonal to a thread reply; omit for none.
+	QuotedMessageID string `json:"quoted_message_id,omitempty" jsonschema:"to quote an earlier message (renders a preview card above yours), its message id in the SAME conversation; omit if not quoting"`
 	// Attachments (T44): files to share in the conversation, rendered as preview
 	// cards. Upload each via upload_file first, then pass the returned file_uri here.
 	Attachments []postMessageAttachment `json:"attachments,omitempty" jsonschema:"optional files to attach (upload each via upload_file first, then pass the returned file_uri as uri); the UI renders them as preview cards"`
@@ -563,6 +567,9 @@ func makePostMessage(cfg Config) mcp.ToolHandlerFor[postMessageArgs, any] {
 		}
 		if args.ParentMessageID != "" {
 			body["parent_message_id"] = args.ParentMessageID
+		}
+		if args.QuotedMessageID != "" {
+			body["quoted_message_id"] = args.QuotedMessageID
 		}
 		if len(args.MentionRefs) > 0 {
 			body["mention_refs"] = args.MentionRefs

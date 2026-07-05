@@ -56,6 +56,43 @@ func TestMessageRepo_AppendAndFind(t *testing.T) {
 	}
 }
 
+// 引用 (quote): the quoted_message_id column round-trips through Append/Find,
+// and a message quoting nothing reads back with an empty quote ref.
+func TestMessageRepo_QuotedMessageID_RoundTrip(t *testing.T) {
+	convR, msgR := setupMsgDB(t)
+	_ = convR.Save(context.Background(), mkConv(t, "c-1", conversation.ConversationKindDM, ""))
+	if err := msgR.Append(context.Background(), mkMsg(t, "m-1", "c-1")); err != nil {
+		t.Fatal(err)
+	}
+	quoting, err := conversation.NewMessage(conversation.NewMessageInput{
+		ID: "m-2", ConversationID: "c-1", SenderIdentityID: "user:hayang",
+		ContentKind: conversation.MessageContentText, Content: "quoting m-1",
+		Direction: conversation.DirectionInbound, PostedAt: time.Now().UTC(),
+		QuotedMessageID: "m-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := msgR.Append(context.Background(), quoting); err != nil {
+		t.Fatal(err)
+	}
+	got, err := msgR.FindByID(context.Background(), "m-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.QuotedMessageID() != "m-1" {
+		t.Fatalf("got quoted=%q, want m-1", got.QuotedMessageID())
+	}
+	// A message that quotes nothing has an empty ref (NULL column).
+	plain, err := msgR.FindByID(context.Background(), "m-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.QuotedMessageID() != "" {
+		t.Fatalf("got quoted=%q, want empty", plain.QuotedMessageID())
+	}
+}
+
 func TestMessageRepo_FindByIDs_Batch(t *testing.T) {
 	convR, msgR := setupMsgDB(t)
 	_ = convR.Save(context.Background(), mkConv(t, "c-1", conversation.ConversationKindDM, ""))

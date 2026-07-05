@@ -149,6 +149,24 @@ export interface Message {
   // (latest reply id > my conversation last_seen). Drives the thread-button dot.
   // Absent/false on older payloads or for agents (no read state).
   has_new_activity?: boolean;
+  // 引用 (quote): when this message quotes an earlier one, `quoted_message_id` is
+  // the raw pointer and `quoted_message` is the server-resolved preview card
+  // (batched, no N+1). A quoted target whose message was removed (soft ref)
+  // degrades to `{ id, is_deleted: true }` so the UI shows an "original
+  // unavailable" placeholder. Both absent when the message quotes nothing.
+  quoted_message_id?: string;
+  quoted_message?: QuotedMessagePreview;
+}
+
+// QuotedMessagePreview is the inlined preview of the message a quoting message
+// points at (引用). `content_snippet` + `sender_identity_id` are present when the
+// target still exists; when it was removed, only `id` + `is_deleted:true` come
+// back and the UI renders an "original unavailable" placeholder.
+export interface QuotedMessagePreview {
+  id: string;
+  is_deleted: boolean;
+  sender_identity_id?: string;
+  content_snippet?: string;
 }
 
 // v2.9.1 Threads P2 (mock=contract, P2-BE in parallel — VERIFY vs the real
@@ -848,6 +866,10 @@ export interface SendMessageInput {
   // thread (POST /conversations/{id}/messages body carries parent_message_id).
   // Absent → a normal top-level message. Mirrors the BE sendMessageReq add.
   parent_message_id?: string;
+  // 引用 (quote): the id of an earlier message in THIS conversation to quote.
+  // Renders a preview card above the sent message. Orthogonal to a thread reply;
+  // absent → no quote. Mirrors the BE sendMessageReq `quoted_message_id`.
+  quoted_message_id?: string;
 }
 
 export interface SendMessageResult {

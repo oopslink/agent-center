@@ -1069,6 +1069,11 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		arr[i] = mm
 	}
+	// 引用 (quote): resolve each quoting message's preview card in one batch query.
+	if err := attachQuotePreviews(r.Context(), d.MsgRepo, arr); err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, arr)
 }
 
@@ -1101,6 +1106,11 @@ func (s *Server) listThreadRepliesHandler(w http.ResponseWriter, r *http.Request
 	arr := make([]map[string]any, len(replies))
 	for i, m := range replies {
 		arr[i] = msgPublicMap(m)
+	}
+	// 引用 (quote): resolve preview cards for any replies that quote a message.
+	if err := attachQuotePreviews(r.Context(), d.MsgRepo, arr); err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
 	}
 	writeJSON(w, http.StatusOK, arr)
 }
@@ -1165,6 +1175,10 @@ type sendMessageReq struct {
 	// service derives the root (depth-1) and rejects a parent in another
 	// conversation. Empty for a top-level message.
 	ParentMessageID string `json:"parent_message_id"`
+	// QuotedMessageID (引用) makes this message quote an earlier message in the
+	// SAME conversation — orthogonal to a thread reply. The service validates it
+	// exists locally and rejects a cross-conversation target. Empty for no quote.
+	QuotedMessageID string `json:"quoted_message_id"`
 }
 
 // msgAttachmentJSON is the wire shape for a message attachment (v2.7 #133):
@@ -1270,6 +1284,7 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 			InputRequestRef:  req.InputRequestRef,
 			Attachments:      atts,
 			ParentMessageID:  conversation.MessageID(req.ParentMessageID),
+			QuotedMessageID:  conversation.MessageID(req.QuotedMessageID),
 			Actor:            d.Actor,
 		})
 		if err != nil {
@@ -1752,6 +1767,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		// v2.9.1 Thread P1: a reply targeting a parent in another conversation is
 		// indistinguishable from "not found" at the edge (existence non-disclosure).
 		errors.Is(err, conversation.ErrMessageParentMismatch),
+		// 引用 (quote): a missing / cross-conversation quoted target is likewise
+		// indistinguishable from "not found" at the edge (existence non-disclosure).
+		errors.Is(err, conversation.ErrMessageInvalidQuote),
 		errors.Is(err, secretmgmt.ErrUserSecretNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, conversation.ErrConversationVersionConflict),
@@ -1841,6 +1859,13 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 	if rid := m.RootMessageID(); rid != "" {
 		out["root_message_id"] = string(rid)
 	}
+	// 引用 (quote): emit the raw pointer for every message that quotes another.
+	// The resolved preview card (sender + snippet, or a deleted stub) is injected
+	// separately by the list handler via quoted_message so it stays an O(1) batch
+	// lookup instead of a per-message round-trip (see attachQuotePreviews).
+	if qid := m.QuotedMessageID(); qid != "" {
+		out["quoted_message_id"] = string(qid)
+	}
 	// context_refs lets the UI segment a task conversation's messages by
 	// AgentWorkItem across re-dispatches (v2.7 #137). Emitted only when set
 	// (daemon writes task_ref/agent_ref; empty for plain chat).
@@ -1867,6 +1892,80 @@ func msgPublicMap(m *conversation.Message) map[string]any {
 		out["attachments"] = arr
 	}
 	return out
+}
+
+// quoteSnippetMaxRunes bounds the quoted-message preview text the read model
+// inlines so a huge quoted message can't bloat every list response.
+const quoteSnippetMaxRunes = 120
+
+// quoteSnippet returns a single-line, rune-safe truncation of a quoted message's
+// content for the preview card. Newlines collapse to spaces so the card is one
+// line; over the cap it appends an ellipsis.
+func quoteSnippet(content string) string {
+	s := strings.Join(strings.Fields(content), " ")
+	r := []rune(s)
+	if len(r) <= quoteSnippetMaxRunes {
+		return s
+	}
+	return string(r[:quoteSnippetMaxRunes]) + "…"
+}
+
+// attachQuotePreviews resolves the 引用 (quote) preview card for every message in
+// dtos that carries a quoted_message_id, in ONE batch query (no N+1). Each such
+// message gets a quoted_message object:
+//
+//	{ id, sender_identity_id, content_snippet, is_deleted }
+//
+// A quoted target that no longer exists (its conversation was archived/cleared —
+// soft reference) degrades to { id, is_deleted: true } so the UI can render an
+// "original unavailable" placeholder instead of failing. Targets are looked up
+// by id only; the enclosing list is already org/conversation-scoped, and a quote
+// can only ever point inside the same conversation (enforced at write time).
+func attachQuotePreviews(ctx context.Context, repo conversation.MessageRepository, dtos []map[string]any) error {
+	var ids []conversation.MessageID
+	seen := make(map[string]struct{})
+	for _, mm := range dtos {
+		qid, ok := mm["quoted_message_id"].(string)
+		if !ok || qid == "" {
+			continue
+		}
+		if _, dup := seen[qid]; dup {
+			continue
+		}
+		seen[qid] = struct{}{}
+		ids = append(ids, conversation.MessageID(qid))
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	quoted, err := repo.FindByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	byID := make(map[string]*conversation.Message, len(quoted))
+	for _, q := range quoted {
+		byID[string(q.ID())] = q
+	}
+	for _, mm := range dtos {
+		qid, ok := mm["quoted_message_id"].(string)
+		if !ok || qid == "" {
+			continue
+		}
+		if q := byID[qid]; q != nil {
+			mm["quoted_message"] = map[string]any{
+				"id":                 string(q.ID()),
+				"sender_identity_id": string(q.SenderIdentityID()),
+				"content_snippet":    quoteSnippet(q.Content()),
+				"is_deleted":         false,
+			}
+		} else {
+			mm["quoted_message"] = map[string]any{
+				"id":         qid,
+				"is_deleted": true,
+			}
+		}
+	}
+	return nil
 }
 
 // =============================================================================

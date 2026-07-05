@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Message } from '@/api/types';
+import type { Message, QuotedMessagePreview } from '@/api/types';
 import { withOrgSlug } from '@/api/client';
 import { useDisplayNameResolver, isResolvedName, normalizeIdentityRef, isSystemSender } from '@/api/members';
 import { useAppStore } from '@/store/app';
@@ -9,6 +9,8 @@ import { Avatar } from './Avatar';
 import { formatChatTime, formatLocalTime } from '@/utils/time';
 import { MarkdownMessage } from './MarkdownMessage';
 import { MessageCopyButton } from './MessageCopyButton';
+import { MessageQuoteButton } from './MessageQuoteButton';
+import { useQuote } from './QuoteContext';
 import type { ConversationSurface } from './ConversationView';
 import { SenderDetailSidebar } from './SenderDetailSidebar';
 import { useSenderSidebar } from './SenderSidebarContext';
@@ -138,6 +140,28 @@ export function MessageList({
   const [localThreadRoot, setLocalThreadRoot] = useState<Message | null>(null);
   const openThread = providerOpenThread ?? setLocalThreadRoot;
 
+  // 引用 (quote): the shared quote target (owned by QuoteContext, mounted by
+  // ConversationView). Null when rendered standalone (no provider) — the Quote
+  // action is then omitted so the list keeps working in tests / inside threads.
+  const quote = useQuote();
+  // Transient highlight for the message a quote card just scrolled to. Holds the
+  // target message id for ~1.5s, then clears; drives a brief ring on the row.
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(highlightTimerRef.current), []);
+
+  // scrollToMessage — jump to the quoted original and briefly highlight it. Looks
+  // the row up by its data-message-id inside the scroll container; a no-op when
+  // the target is not in the currently-loaded window.
+  const scrollToMessage = (id: string) => {
+    const el = containerRef.current?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedId(id);
+    window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => setHighlightedId(null), 1500);
+  };
+
   useEffect(() => {
     if (latestId === prevLatestIdRef.current) return;
     prevLatestIdRef.current = latestId;
@@ -231,6 +255,12 @@ export function MessageList({
     // v2.8.1 chat-rightalign: own = the viewer's own message. Normalize both
     // sides so the user:/agent: prefix never breaks the compare.
     const isOwn = meKey !== '' && normalizeIdentityRef(m.sender_identity_id) === meKey;
+    // 引用: transient highlight ring applied to the row a quote card just jumped
+    // to (cleared after ~1.5s by scrollToMessage's timer).
+    const rowHighlight =
+      highlightedId === m.id
+        ? 'rounded-xl ring-2 ring-accent ring-offset-2 ring-offset-bg-base motion-safe:transition-shadow'
+        : '';
     const hasCodeBlock = m.content.includes('```');
     // v2.10.1 [M2] mobile: bubbles fill the FULL width of the full-screen
     // conversation (@oopslink: 移动端聊天气泡宽度应该占 100%) — the narrow
@@ -320,6 +350,10 @@ export function MessageList({
             Lives in the header line so it shares the own/other alignment (the
             line reverses for own messages). */}
         <MessageCopyButton content={m.content} />
+        {/* 引用: per-message Quote action — queues this message as the composer's
+            quote target. Only shown under a QuoteProvider (the real conversation
+            surface); omitted standalone so the list keeps working without it. */}
+        {quote && <MessageQuoteButton onQuote={() => quote.setTarget(m)} />}
       </div>
     );
 
@@ -329,6 +363,18 @@ export function MessageList({
     // (theme tokens) — no more white-alpha-on-indigo variants.
     const bubbleBody = (
       <div className="min-w-0">
+        {/* 引用: when this message quotes an earlier one, render the quoted
+            preview card ABOVE the content (left-bar indented block). Clicking a
+            live card scrolls to + highlights the original; a removed target
+            degrades to a muted, non-clickable "original unavailable" placeholder. */}
+        {m.quoted_message && (
+          <QuotedPreviewCard
+            quoted={m.quoted_message}
+            displayName={displayName}
+            onJump={scrollToMessage}
+            isOwn={isOwn}
+          />
+        )}
         {/* #276: message content renders as markdown (GFM + strict-escape);
             long fenced code collapses via the shared CollapsibleCodeBlock. */}
         {/* both-mode命门: the own bubble is a FIXED light #D1E3FF that does NOT
@@ -411,7 +457,7 @@ export function MessageList({
       return (
         <article
           key={m.id}
-          className="flex flex-col items-end text-sm"
+          className={`flex flex-col items-end text-sm ${rowHighlight}`}
           data-testid="message-row"
           data-message-id={m.id}
           data-own="true"
@@ -433,7 +479,7 @@ export function MessageList({
     return (
       <article
         key={m.id}
-        className="flex items-start gap-3 text-sm"
+        className={`flex items-start gap-3 text-sm ${rowHighlight}`}
         data-testid="message-row"
         data-message-id={m.id}
         data-own="false"
@@ -633,6 +679,74 @@ function SystemNotificationRow({ m }: { m: Message }): React.ReactElement {
         )}
       </div>
     </div>
+  );
+}
+
+// QuotedPreviewCard (引用) — the inlined preview of the message a quoting message
+// points at, rendered as a left-bar indented block ABOVE the quoting message's
+// content. A LIVE target is a <button> that scrolls to + highlights the original
+// (onJump); a REMOVED target (is_deleted) degrades to a muted, non-clickable
+// "original unavailable" placeholder. On the own bubble the surface is the FIXED
+// light-blue #D1E3FF, so the bar/text use the same fixed dark chatbubble tokens
+// as the body; the other bubble is theme-adaptive.
+function QuotedPreviewCard({
+  quoted,
+  displayName,
+  onJump,
+  isOwn,
+}: {
+  quoted: QuotedMessagePreview;
+  displayName: (ref: string) => string;
+  onJump: (id: string) => void;
+  isOwn: boolean;
+}): React.ReactElement {
+  const { t } = useTranslation('chat');
+  const barClass = isOwn ? 'border-chatbubble-fg/40' : 'border-accent';
+  const nameClass = isOwn ? 'text-chatbubble-fg' : 'text-text-secondary';
+  const snippetClass = isOwn ? 'text-chatbubble-fg/80' : 'text-text-muted';
+
+  // Removed target: a muted, non-interactive placeholder (no scroll target).
+  if (quoted.is_deleted) {
+    return (
+      <div
+        className={`mb-1.5 border-l-2 pl-2 text-xs italic ${barClass} ${snippetClass}`}
+        data-testid="message-quote-card"
+        data-quote-deleted="true"
+      >
+        {t('message.quote.originalUnavailable')}
+      </div>
+    );
+  }
+
+  const senderName = quoted.sender_identity_id ? displayName(quoted.sender_identity_id) : '';
+  const senderHandle = quoted.sender_identity_id
+    ? normalizeIdentityRef(quoted.sender_identity_id)
+    : '';
+  const resolved = quoted.sender_identity_id
+    ? isResolvedName(quoted.sender_identity_id, senderName)
+    : false;
+  return (
+    <button
+      type="button"
+      onClick={() => onJump(quoted.id)}
+      aria-label={t('message.quote.jumpToOriginal')}
+      title={t('message.quote.jumpToOriginal')}
+      data-testid="message-quote-card"
+      data-quote-target={quoted.id}
+      className={`mb-1.5 flex w-full flex-col items-start rounded-r border-l-2 pl-2 text-left hover:opacity-80 focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-opacity ${barClass}`}
+    >
+      {/* Resolved name, else the CLEAN handle (prefix stripped) — never the raw
+          `agent:agent-xxx` ref (#192); the full ref stays on the title below. */}
+      <span
+        className={`text-xs font-medium ${nameClass}`}
+        title={quoted.sender_identity_id ?? undefined}
+      >
+        {resolved ? senderName : senderHandle}
+      </span>
+      <span className={`max-w-full truncate text-xs ${snippetClass}`} title={quoted.content_snippet}>
+        {quoted.content_snippet}
+      </span>
+    </button>
   );
 }
 

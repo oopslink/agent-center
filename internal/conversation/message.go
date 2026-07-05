@@ -27,6 +27,12 @@ type Message struct {
 	// two are always equal for a reply.
 	parentMessageID MessageID
 	rootMessageID   MessageID
+	// quotedMessageID (引用) is a lightweight inline pointer to ONE earlier message
+	// this message quotes. Orthogonal to the thread parent/root refs: a quote does
+	// not change thread grouping, it just renders a preview of the quoted message.
+	// Empty when the message quotes nothing. Soft reference — the target may be
+	// gone by read time, so the read side degrades rather than failing.
+	quotedMessageID MessageID
 	postedAt        time.Time
 	createdAt       time.Time
 }
@@ -47,6 +53,10 @@ type NewMessageInput struct {
 	// the reply target via ResolveReplyPlacement before constructing the Message.
 	ParentMessageID MessageID
 	RootMessageID   MessageID
+	// QuotedMessageID (引用) is the resolved id of the message being quoted (empty
+	// when nothing is quoted). The caller (MessageWriter.AddMessage) validates it
+	// exists in the same conversation before constructing the Message.
+	QuotedMessageID MessageID
 	PostedAt        time.Time
 }
 
@@ -73,6 +83,9 @@ func NewMessage(in NewMessageInput) (*Message, error) {
 	if err := validateThreadRefs(in.ID, in.ParentMessageID, in.RootMessageID); err != nil {
 		return nil, err
 	}
+	if in.QuotedMessageID != "" && in.QuotedMessageID == in.ID {
+		return nil, ErrMessageInvalidQuote // a message cannot quote itself
+	}
 	at := in.PostedAt.UTC()
 	return &Message{
 		id:               in.ID,
@@ -86,6 +99,7 @@ func NewMessage(in NewMessageInput) (*Message, error) {
 		attachments:      append([]MessageAttachment(nil), in.Attachments...),
 		parentMessageID:  in.ParentMessageID,
 		rootMessageID:    in.RootMessageID,
+		quotedMessageID:  in.QuotedMessageID,
 		postedAt:         at,
 		createdAt:        at,
 	}, nil
@@ -123,6 +137,7 @@ type RehydrateMessageInput struct {
 	Attachments      []MessageAttachment
 	ParentMessageID  MessageID
 	RootMessageID    MessageID
+	QuotedMessageID  MessageID
 	PostedAt         time.Time
 	CreatedAt        time.Time
 }
@@ -147,6 +162,7 @@ func RehydrateMessage(in RehydrateMessageInput) (*Message, error) {
 		attachments:      append([]MessageAttachment(nil), in.Attachments...),
 		parentMessageID:  in.ParentMessageID,
 		rootMessageID:    in.RootMessageID,
+		quotedMessageID:  in.QuotedMessageID,
 		postedAt:         in.PostedAt.UTC(),
 		createdAt:        in.CreatedAt.UTC(),
 	}, nil
@@ -164,6 +180,7 @@ func (m *Message) InputRequestRef() string         { return m.inputRequestRef }
 func (m *Message) ContextRefs() ContextRefs        { return m.contextRefs }
 func (m *Message) ParentMessageID() MessageID      { return m.parentMessageID }
 func (m *Message) RootMessageID() MessageID        { return m.rootMessageID }
+func (m *Message) QuotedMessageID() MessageID      { return m.quotedMessageID }
 func (m *Message) PostedAt() time.Time             { return m.postedAt }
 func (m *Message) CreatedAt() time.Time            { return m.createdAt }
 

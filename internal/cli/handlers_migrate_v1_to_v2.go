@@ -150,7 +150,9 @@ func MigrateV1ToV2Command() *Command {
 // T862 added 0097 (pm_tasks.recovery_reset_count — additive ADD COLUMN NOT NULL DEFAULT 0,
 // the durable tier-3 recovery reset circuit-breaker tally for reset_task).
 // 2026-07 template quick-fix added 0098 (remove builtin cycle template row).
-const targetSchemaVersion = 98
+// 2026-07 chat 引用 added 0099 (messages.quoted_message_id — additive ADD COLUMN,
+// the soft quote/reply pointer for the chat "quote a message" feature).
+const targetSchemaVersion = 99
 
 func runMigrateV1ToV2(
 	ctx context.Context,

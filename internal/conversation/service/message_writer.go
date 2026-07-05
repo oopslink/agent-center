@@ -247,6 +247,12 @@ type AddMessageCommand struct {
 	// depth-1: a reply always hangs off a root; a reply to a reply is merged into
 	// the same thread). The parent must live in the SAME conversation.
 	ParentMessageID conversation.MessageID
+	// QuotedMessageID (引用) makes this message quote an earlier message — a
+	// lightweight inline pointer, orthogonal to the thread parent/root refs. The
+	// quoted message must exist in the SAME conversation (validated here); a miss
+	// or a cross-conversation target is rejected (ErrMessageInvalidQuote). Empty
+	// when the message quotes nothing.
+	QuotedMessageID conversation.MessageID
 	// MentionRefs (T460 ①) are explicit, typo-proof agent mention refs ("agent:<id>")
 	// the sender passed structurally — they ride the cross-BC message_added wake event
 	// so the WakeProjector wakes the named candidate even without a matching
@@ -299,6 +305,24 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			}
 			parentRef, rootRef = conversation.ResolveReplyPlacement(parent)
 		}
+		// 引用 (quote): when set, the quoted message must exist AND live in the SAME
+		// conversation. Soft reference at rest (no FK), but validated at write time
+		// so a quote is always resolvable when created; a cross-conversation target
+		// is rejected (same non-disclosure posture as thread parents, §5.7).
+		var quotedRef conversation.MessageID
+		if strings.TrimSpace(string(cmd.QuotedMessageID)) != "" {
+			quoted, err := w.msgRepo.FindByID(txCtx, cmd.QuotedMessageID)
+			if err != nil {
+				if errors.Is(err, conversation.ErrMessageNotFound) {
+					return conversation.ErrMessageInvalidQuote
+				}
+				return err
+			}
+			if quoted.ConversationID() != cmd.ConversationID {
+				return conversation.ErrMessageInvalidQuote
+			}
+			quotedRef = quoted.ID()
+		}
 		m, err := conversation.NewMessage(conversation.NewMessageInput{
 			ID:               conversation.MessageID(w.idgen.NewULID()),
 			ConversationID:   cmd.ConversationID,
@@ -310,6 +334,7 @@ func (w *MessageWriter) AddMessage(ctx context.Context, cmd AddMessageCommand) (
 			Attachments:      cmd.Attachments,
 			ParentMessageID:  parentRef,
 			RootMessageID:    rootRef,
+			QuotedMessageID:  quotedRef,
 			PostedAt:         w.clock.Now(),
 		})
 		if err != nil {

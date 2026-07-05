@@ -488,6 +488,63 @@ func TestAddMessage_ThreadReply_ParentInOtherConversation(t *testing.T) {
 	}
 }
 
+// --- 引用 (quote): the writer resolves + validates quoted_message_id ---
+
+// Quoting an existing message in the same conversation persists the ref.
+func TestAddMessage_Quote_Happy(t *testing.T) {
+	w, msgRepo := setupWithRepos(t)
+	conv := openDM(t, w)
+	targetID := addMsg(t, w, conv, "")
+
+	res, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind: conversation.MessageContentText, Content: "quoting", Direction: conversation.DirectionInbound,
+		QuotedMessageID: targetID, Actor: observability.Actor("user:hayang"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := msgRepo.FindByID(context.Background(), res.MessageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.QuotedMessageID() != targetID {
+		t.Fatalf("got quoted=%q, want %q", got.QuotedMessageID(), targetID)
+	}
+}
+
+// Quoting a non-existent message is rejected as an invalid quote (NOT a bare
+// not-found — the edge maps ErrMessageInvalidQuote to 404 for non-disclosure).
+func TestAddMessage_Quote_NotFound(t *testing.T) {
+	w, _ := setupWithRepos(t)
+	conv := openDM(t, w)
+	_, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: conv, SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind: conversation.MessageContentText, Content: "x", Direction: conversation.DirectionInbound,
+		QuotedMessageID: "ghost", Actor: observability.Actor("user:hayang"),
+	})
+	if !errors.Is(err, conversation.ErrMessageInvalidQuote) {
+		t.Fatalf("got %v, want ErrMessageInvalidQuote", err)
+	}
+}
+
+// A quote may not point at a message in a DIFFERENT conversation.
+func TestAddMessage_Quote_CrossConversation(t *testing.T) {
+	w, _ := setupWithRepos(t)
+	convA := openDM(t, w)
+	convB := openDM(t, w)
+	inA := addMsg(t, w, convA, "")
+
+	_, err := w.AddMessage(context.Background(), AddMessageCommand{
+		ConversationID: convB, SenderIdentityID: conversation.IdentityRef("user:hayang"),
+		ContentKind: conversation.MessageContentText, Content: "x", Direction: conversation.DirectionInbound,
+		QuotedMessageID: inA, Actor: observability.Actor("user:hayang"),
+	})
+	if !errors.Is(err, conversation.ErrMessageInvalidQuote) {
+		t.Fatalf("got %v, want ErrMessageInvalidQuote", err)
+	}
+}
+
 // v2.7 #187: conversation ids are user-facing "<kind>-<8hex>" for channel/DM;
 // task (and other internal) conversations keep the ULID (navigated via owner_ref).
 func TestNewConversationID_PrefixByKind(t *testing.T) {

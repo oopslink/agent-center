@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { uploadMessageAttachment, useSendMessage } from '@/api/conversations';
 import type { MessageAttachment } from '@/api/types';
+import { isResolvedName, normalizeIdentityRef, useDisplayNameResolver } from '@/api/members';
+import { useQuote } from './QuoteContext';
 import { useMentionAutocomplete } from './useMentionAutocomplete';
 import { MentionPicker } from './MentionPicker';
 import {
@@ -64,6 +66,22 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
   const send = useSendMessage();
   // v2.8 #275: #/@ mention picker wired to the textarea.
   const mention = useMentionAutocomplete({ setValue: setDraft, textareaRef });
+  // 引用 (quote): the shared quote target + setter (owned by QuoteContext). Null
+  // when rendered standalone (no provider) — the quoting bar is then omitted and
+  // the composer sends normally.
+  const quote = useQuote();
+  const quoteTarget = quote?.target ?? null;
+  const displayName = useDisplayNameResolver();
+  // Resolve the quoted sender's name (falling back to the deleted-sender label
+  // for an unresolved ref, never the raw prefixed form) + a one-line snippet.
+  const quoteResolvedName = quoteTarget ? displayName(quoteTarget.sender_identity_id) : '';
+  const quoteSenderName =
+    quoteTarget && isResolvedName(quoteTarget.sender_identity_id, quoteResolvedName)
+      ? quoteResolvedName
+      : quoteTarget
+        ? normalizeIdentityRef(quoteTarget.sender_identity_id)
+        : '';
+  const quoteSnippet = quoteTarget ? quoteTarget.content.replace(/\s+/g, ' ').trim() : '';
 
   const uploading = attachments.some((a) => a.status === 'uploading');
   const disabled =
@@ -226,9 +244,14 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         // Only attach parent_message_id when this is a thread composer — a
         // top-level composer leaves it undefined (omitted from the POST body).
         ...(parentMessageId ? { parent_message_id: parentMessageId } : {}),
+        // 引用: when a message is queued, quote it — omitted otherwise.
+        ...(quoteTarget ? { quoted_message_id: quoteTarget.id } : {}),
       });
       setDraft('');
       clearAttachments();
+      // 引用: clear the quote target only after a successful send (a failed send
+      // keeps it so the user can retry without re-selecting the quoted message).
+      quote?.setTarget(null);
     } catch {
       // Error surfaces in send.error; leave draft + (now-uploaded) attachments
       // intact so the user can retry the send without re-uploading.
@@ -310,6 +333,34 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
           data-testid="composer-dropzone"
         >
           {t('composer.dropToAttach')}
+        </div>
+      )}
+      {/* 引用: quoting bar — a small preview of the queued message (sender + a
+          one-line snippet) with an ✕ to cancel. Mirrors the attachments tray:
+          rendered above the input, cleared on ✕ or after a successful send. */}
+      {quoteTarget && (
+        <div
+          className="flex items-start gap-2 rounded border-l-2 border-accent bg-bg-subtle px-2 py-1.5 text-xs"
+          data-testid="composer-quote-bar"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="font-medium text-text-secondary" data-testid="composer-quote-sender">
+              {t('composer.quoting', { name: quoteSenderName })}
+            </div>
+            <div className="truncate text-text-muted" title={quoteSnippet} data-testid="composer-quote-snippet">
+              {quoteSnippet}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded px-1 text-base leading-none text-text-muted hover:text-text-primary"
+            aria-label={t('composer.cancelQuote')}
+            title={t('composer.cancelQuote')}
+            onClick={() => quote?.setTarget(null)}
+            data-testid="composer-quote-cancel"
+          >
+            ×
+          </button>
         </div>
       )}
       <div className="relative">
