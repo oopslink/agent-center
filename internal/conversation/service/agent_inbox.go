@@ -42,6 +42,11 @@ type UnreadItem struct {
 	// mention is "可回可不回" — reply only if content warrants, else SilentAck
 	// (mark_seen). Derived from SenderRef (cognition/04-wake-guardrail.md §3.6).
 	ActorKind conversation.MentionActorKind
+	// QuotedMessageID (引用) is the raw pointer to the message this one quotes
+	// (empty when it quotes nothing). The get_my_unread handler resolves it into a
+	// preview so the agent sees WHAT was quoted — inbound parity with the UI, which
+	// otherwise leaves an agent blind to a quote a human attached to its @mention.
+	QuotedMessageID conversation.MessageID
 }
 
 // AgentInboxService answers "what unread messages are directed at this agent?"
@@ -143,7 +148,7 @@ func (s *AgentInboxService) scanUnread(
 	exec, _ := persistence.ExecutorFromCtx(ctx, s.db)
 	// v2.10.0 [T74]: also read `attachments` so inbound messages surface their
 	// file_uri + metadata to the agent (inbound parity with outbound post_message).
-	const stmt = `SELECT id, sender_identity_id, content, attachments, posted_at
+	const stmt = `SELECT id, sender_identity_id, content, attachments, posted_at, quoted_message_id
 		FROM messages
 		WHERE conversation_id = ? AND id > ?
 		ORDER BY id ASC
@@ -157,8 +162,8 @@ func (s *AgentInboxService) scanUnread(
 	var items []UnreadItem
 	for rows.Next() {
 		var id, sender, content, postedAt string
-		var attachmentsJSON sql.NullString
-		if err := rows.Scan(&id, &sender, &content, &attachmentsJSON, &postedAt); err != nil {
+		var attachmentsJSON, quotedMessageID sql.NullString
+		if err := rows.Scan(&id, &sender, &content, &attachmentsJSON, &postedAt, &quotedMessageID); err != nil {
 			return nil, err
 		}
 		// Never surface the agent's own messages back to it (sender ∈ any of refs).
@@ -187,6 +192,7 @@ func (s *AgentInboxService) scanUnread(
 			Attachments:      atts,
 			PostedAt:         pt,
 			ActorKind:        conversation.IdentityRef(sender).ActorKind(),
+			QuotedMessageID:  conversation.MessageID(quotedMessageID.String),
 		})
 	}
 	return items, rows.Err()

@@ -73,6 +73,11 @@ func (s *Server) getMyUnreadHandler(w http.ResponseWriter, r *http.Request) {
 			"actor_kind":     string(it.ActorKind),
 			"reply_required": it.ActorKind == conversation.ActorKindHuman,
 		}
+		// 引用 (quote): carry the raw pointer; the preview card is resolved in one
+		// batch below so an agent sees WHAT a human quoted onto its @mention.
+		if it.QuotedMessageID != "" {
+			m["quoted_message_id"] = string(it.QuotedMessageID)
+		}
 		// v2.10.0 [T74]: surface inbound attachments (file_uri + metadata) so the
 		// agent can perceive + download_file a screenshot a human sent. Present
 		// only when the message carries attachments. Each uri is from a
@@ -91,6 +96,9 @@ func (s *Server) getMyUnreadHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		out[i] = m
 	}
+	// 引用 (quote): resolve every quoted-message preview in one batch so unread items
+	// carrying a quote surface {sender, snippet} (or a deleted stub) to the agent.
+	attachQuotePreviews(r.Context(), d.MsgRepo, out)
 	writeJSON(w, http.StatusOK, map[string]any{"unread": out})
 }
 

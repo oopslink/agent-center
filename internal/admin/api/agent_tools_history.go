@@ -144,6 +144,9 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	for i, m := range msgs {
 		out[i] = messageMap(m)
 	}
+	// 引用 (quote): resolve the inline preview card for every quoting message in the
+	// page so a browsing agent sees WHAT was quoted, not just a bare pointer.
+	attachQuotePreviews(r.Context(), d.MsgRepo, out)
 	resp := map[string]any{
 		"conversation_id":   string(conv.ID()),
 		"conversation_kind": string(conv.Kind()),

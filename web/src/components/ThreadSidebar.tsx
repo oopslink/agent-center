@@ -7,6 +7,7 @@ import { useMarkSeen } from '@/api/readState';
 import { useModalA11y } from './useModalA11y';
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
+import { QuoteProvider } from './QuoteContext';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizablePanel } from './useResizablePanel';
 
@@ -134,21 +135,29 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
           </button>
         </div>
 
-        {/* Body: root message + replies, via the shared MessageList. */}
-        <div className="flex min-h-0 flex-1 flex-col">
-          {replies.isError ? (
-            <p className="p-4 text-sm text-danger" data-testid="thread-sidebar-error">
-              {(replies.error as Error).message}
-            </p>
-          ) : (
-            <MessageList messages={threadMessages} surface="task-thread" showThreads={false} />
-          )}
-        </div>
+        {/* 引用 (quote): one QuoteProvider around the thread's list + composer so a
+            per-message Quote action works INSIDE a thread too (quoted_message_id is
+            orthogonal to the thread parent/root — a reply can quote another message).
+            Without this provider useQuote() is null and the Quote action is hidden —
+            the reason threads previously couldn't quote. */}
+        <QuoteProvider>
+          {/* Body: root message + replies, via the shared MessageList. */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            {replies.isError ? (
+              <p className="p-4 text-sm text-danger" data-testid="thread-sidebar-error">
+                {(replies.error as Error).message}
+              </p>
+            ) : (
+              <MessageList messages={threadMessages} surface="task-thread" showThreads={false} />
+            )}
+          </div>
 
-        {/* Footer: the thread composer — every send carries parent_message_id. */}
-        {conversationId && (
-          <MessageComposer conversationId={conversationId} parentMessageId={rootMessage.id} />
-        )}
+          {/* Footer: the thread composer — every send carries parent_message_id (and,
+              when a message is queued, quoted_message_id from the shared QuoteContext). */}
+          {conversationId && (
+            <MessageComposer conversationId={conversationId} parentMessageId={rootMessage.id} />
+          )}
+        </QuoteProvider>
       </div>
     </>
   );

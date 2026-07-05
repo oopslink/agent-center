@@ -793,7 +793,10 @@ func (p *WakeProjector) deliverConverse(ctx context.Context, conv *conversation.
 		MessageID:      pl.MessageID,
 		// T103: append the inbound attachment file_uri(s) inline so the agent can
 		// download_file directly (the converse inject advances the read cursor).
-		MessageText:     pl.Text + renderInboundAttachments(pl.Attachments),
+		// 引用 (quote): also inline the quoted-message context so a woken agent
+		// perceives WHAT the sender quoted — the push wake advances the read cursor,
+		// so a later get_my_unread is empty; the quote MUST ride the push like attachments.
+		MessageText:     pl.Text + p.renderQuotedContext(ctx, pl.MessageID) + renderInboundAttachments(pl.Attachments),
 		RootMessageID:   pl.RootMessageID,   // F4: carry thread root → agent replies in-thread
 		AttachmentCount: pl.AttachmentCount, // T74: carry attachment count → brief hints at file(s)
 		OwnerRef:        pl.OwnerRef,        // T250: carry owner_ref → brief disambiguates "this plan"
@@ -1314,6 +1317,48 @@ func (p *WakeProjector) displayNameOr(ctx context.Context, identityID, fallback 
 // Authorization is fail-closed at fetch time: the uri only reaches the
 // conversation's own participant agents (the wake recipients), and download_file
 // independently re-checks conversation membership (a non-participant gets 403).
+// wakeQuoteSnippetMaxRunes bounds the quoted-message preview text inlined into a
+// converse brief so a huge quoted message can't bloat the wake payload.
+const wakeQuoteSnippetMaxRunes = 120
+
+// wakeQuoteSnippet is a single-line, rune-safe truncation of a quoted message's
+// content for the brief (newlines collapse to spaces; over the cap → ellipsis).
+func wakeQuoteSnippet(content string) string {
+	s := strings.Join(strings.Fields(content), " ")
+	r := []rune(s)
+	if len(r) <= wakeQuoteSnippetMaxRunes {
+		return s
+	}
+	return string(r[:wakeQuoteSnippetMaxRunes]) + "…"
+}
+
+// renderQuotedContext (引用) returns the quote-preview block appended to a woken
+// agent's converse brief, so the agent perceives WHAT the sender quoted — not just
+// the bare reply. "" when the triggering message quotes nothing, the msg repo is
+// unwired, or the triggering message can't be re-read (never blocks the wake). A
+// deleted / absent quoted target renders an "original unavailable" stub so the
+// reference is surfaced, never silently dropped. Resolved center-side (the repo is
+// here) so no quoted_message_id plumbing has to cross the control-log boundary.
+func (p *WakeProjector) renderQuotedContext(ctx context.Context, triggeringMessageID string) string {
+	if p.msgRepo == nil || strings.TrimSpace(triggeringMessageID) == "" {
+		return ""
+	}
+	trig, err := p.msgRepo.FindByID(ctx, conversation.MessageID(triggeringMessageID))
+	if err != nil {
+		return ""
+	}
+	qid := trig.QuotedMessageID()
+	if qid == "" {
+		return ""
+	}
+	q, err := p.msgRepo.FindByID(ctx, qid)
+	if err != nil {
+		return "\n\n[引用 (quote) → original unavailable]"
+	}
+	who, _ := p.displayNameOr(ctx, string(q.SenderIdentityID()), string(q.SenderIdentityID()))
+	return "\n\n[引用 (quote) @" + who + ": " + wakeQuoteSnippet(q.Content()) + "]"
+}
+
 func renderInboundAttachments(atts []wakeAttachment) string {
 	if len(atts) == 0 {
 		return ""

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -635,7 +637,7 @@ func convMap(c *conversation.Conversation) map[string]any {
 }
 
 func messageMap(m *conversation.Message) map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"id":                 string(m.ID()),
 		"conversation_id":    string(m.ConversationID()),
 		"sender_identity_id": string(m.SenderIdentityID()),
@@ -644,6 +646,85 @@ func messageMap(m *conversation.Message) map[string]any {
 		"direction":          string(m.Direction()),
 		"input_request_ref":  m.InputRequestRef(),
 		"posted_at":          m.PostedAt().Format(time.RFC3339Nano),
+	}
+	// 引用 (quote): emit the raw pointer for a quoting message; the resolved preview
+	// (sender + snippet, or a deleted stub) is injected separately by the agent read
+	// handlers via attachQuotePreviews — an O(1) batch lookup, not a per-msg round-trip.
+	// Mirrors the UI serializer (webconsole handlers.go) so agent + UI see quotes alike.
+	if qid := m.QuotedMessageID(); qid != "" {
+		out["quoted_message_id"] = string(qid)
+	}
+	return out
+}
+
+// quoteSnippetMaxRunes bounds the inlined quoted-message preview text so a huge
+// quoted message can't bloat every agent read response (matches the UI read model).
+const quoteSnippetMaxRunes = 120
+
+// quoteSnippet returns a single-line, rune-safe truncation of a quoted message's
+// content for the agent-facing preview (newlines collapse to spaces; over the cap
+// appends an ellipsis). Byte-identical to the UI's quoteSnippet.
+func quoteSnippet(content string) string {
+	s := strings.Join(strings.Fields(content), " ")
+	r := []rune(s)
+	if len(r) <= quoteSnippetMaxRunes {
+		return s
+	}
+	return string(r[:quoteSnippetMaxRunes]) + "…"
+}
+
+// attachQuotePreviews resolves the 引用 (quote) preview for every agent-facing message
+// DTO that carries a quoted_message_id: it injects a `quoted_message` object
+// {id, sender_identity_id, content_snippet, is_deleted} so the agent sees WHAT was
+// quoted, not just the bare pointer. Missing / deleted target → {id, is_deleted:true}.
+// One batch FindByIDs for the whole page (mirrors the UI's attachQuotePreviews). A
+// resolution error is non-fatal — the raw quoted_message_id still rides the DTO.
+func attachQuotePreviews(ctx context.Context, repo conversation.MessageRepository, dtos []map[string]any) {
+	if repo == nil {
+		return
+	}
+	var ids []conversation.MessageID
+	seen := make(map[string]struct{})
+	for _, mm := range dtos {
+		qid, ok := mm["quoted_message_id"].(string)
+		if !ok || qid == "" {
+			continue
+		}
+		if _, dup := seen[qid]; dup {
+			continue
+		}
+		seen[qid] = struct{}{}
+		ids = append(ids, conversation.MessageID(qid))
+	}
+	if len(ids) == 0 {
+		return
+	}
+	quoted, err := repo.FindByIDs(ctx, ids)
+	if err != nil {
+		return // non-fatal: the raw quoted_message_id still rides each DTO.
+	}
+	byID := make(map[string]*conversation.Message, len(quoted))
+	for _, q := range quoted {
+		byID[string(q.ID())] = q
+	}
+	for _, mm := range dtos {
+		qid, ok := mm["quoted_message_id"].(string)
+		if !ok || qid == "" {
+			continue
+		}
+		if q := byID[qid]; q != nil {
+			mm["quoted_message"] = map[string]any{
+				"id":                 string(q.ID()),
+				"sender_identity_id": string(q.SenderIdentityID()),
+				"content_snippet":    quoteSnippet(q.Content()),
+				"is_deleted":         false,
+			}
+		} else {
+			mm["quoted_message"] = map[string]any{
+				"id":         qid,
+				"is_deleted": true,
+			}
+		}
 	}
 }
 

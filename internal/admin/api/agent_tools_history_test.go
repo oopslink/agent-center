@@ -53,6 +53,68 @@ func appendMsg(t *testing.T, f *writeToolsFixture, convID, sender, content strin
 	return string(res.MessageID)
 }
 
+// appendMsgQuote writes a message quoting an earlier one and returns its id.
+func appendMsgQuote(t *testing.T, f *writeToolsFixture, convID, sender, content, quotedID string) string {
+	t.Helper()
+	res, err := f.deps.MessageWriter.AddMessage(context.Background(), convservice.AddMessageCommand{
+		ConversationID:   conversation.ConversationID(convID),
+		SenderIdentityID: conversation.IdentityRef(sender),
+		ContentKind:      conversation.MessageContentText,
+		Direction:        conversation.DirectionInbound,
+		Content:          content,
+		QuotedMessageID:  conversation.MessageID(quotedID),
+		Actor:            observability.Actor(sender),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(res.MessageID)
+}
+
+// 引用 (quote): list_messages must surface both the raw quoted_message_id AND the
+// resolved preview card (sender + snippet) so a browsing agent sees WHAT was quoted
+// — inbound parity with the UI, which otherwise leaves the agent blind to the quote.
+func TestListMessages_ResolvesQuotePreview(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	seedChannelWithMember(t, f, "ch-q", "general", atTestOrg, "agent:"+atAgent1)
+	origID := appendMsg(t, f, "ch-q", "user:alice", "the original referenced text")
+	appendMsgQuote(t, f, "ch-q", "user:bob", "replying with a quote", origID)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/list_messages", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "conversation_id": "ch-q"})
+	if status != http.StatusOK {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	msgs, _ := body["messages"].([]any)
+	if len(msgs) != 2 {
+		t.Fatalf("want 2 messages, got %d (%v)", len(msgs), body["messages"])
+	}
+	quoting := msgs[1].(map[string]any) // newest = the quoting reply
+	if quoting["quoted_message_id"] != origID {
+		t.Fatalf("quoted_message_id=%v want %q", quoting["quoted_message_id"], origID)
+	}
+	preview, ok := quoting["quoted_message"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing resolved quoted_message preview: %v", quoting)
+	}
+	if preview["id"] != origID || preview["is_deleted"] != false {
+		t.Fatalf("quoted_message meta=%v", preview)
+	}
+	if preview["content_snippet"] != "the original referenced text" {
+		t.Fatalf("content_snippet=%v want the original text", preview["content_snippet"])
+	}
+	if preview["sender_identity_id"] != "user:alice" {
+		t.Fatalf("sender_identity_id=%v want user:alice", preview["sender_identity_id"])
+	}
+	// the non-quoting original carries no quote keys.
+	orig := msgs[0].(map[string]any)
+	if _, has := orig["quoted_message_id"]; has {
+		t.Fatalf("non-quoting message should carry no quoted_message_id: %v", orig)
+	}
+}
+
 // A participant agent reads a channel's full history — including messages it was
 // never @mentioned in (the gap get_my_unread could not fill).
 func TestListMessages_ParticipantReadsHistory(t *testing.T) {

@@ -84,6 +84,15 @@ describe('ThreadSidebar', () => {
     expect(screen.queryAllByTestId('thread-button')).toHaveLength(0);
   });
 
+  // 引用 (quote): the thread body is wrapped in a QuoteProvider, so the per-message
+  // Quote action is available INSIDE a thread (previously hidden — useQuote() was
+  // null with no provider). Regression guard for "can't quote in a thread".
+  it('exposes the per-message Quote action inside a thread', async () => {
+    render(<ThreadSidebar open rootMessage={root} onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText('first reply')).toBeInTheDocument());
+    expect(screen.getAllByTestId('message-quote-btn').length).toBeGreaterThan(0);
+  });
+
   it('sends a reply carrying parent_message_id', async () => {
     let seenParent: string | undefined;
     server.use(

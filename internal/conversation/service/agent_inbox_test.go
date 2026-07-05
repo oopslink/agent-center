@@ -147,6 +147,51 @@ func TestAgentInbox_SurfacesAttachments_T74(t *testing.T) {
 	}
 }
 
+// 引用 (quote): an unread message that quotes an earlier one surfaces its
+// QuotedMessageID so the get_my_unread handler can resolve the preview — otherwise
+// an agent @-mentioned with a quote attached would be blind to WHAT was quoted.
+func TestAgentInbox_SurfacesQuotedMessageID(t *testing.T) {
+	f := setupInbox(t)
+	ctx := context.Background()
+	const agent = conversation.IdentityRef("agent:bot-1")
+	f.seedConv(t, "dm-1", conversation.ConversationKindDM, "org-1", agent, "user:alice")
+	f.seedMsg(t, "dm-1-orig", "dm-1", "user:alice", "the original message being referenced")
+	// A reply that quotes dm-1-orig.
+	f.clock.Advance(time.Millisecond)
+	quoting, err := conversation.NewMessage(conversation.NewMessageInput{
+		ID: "dm-1-quote", ConversationID: "dm-1", SenderIdentityID: "user:alice",
+		ContentKind: conversation.MessageContentText, Content: "see above @Bot",
+		Direction: conversation.DirectionInbound, PostedAt: f.clock.Now(),
+		QuotedMessageID: "dm-1-orig",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.msgRepo.Append(ctx, quoting); err != nil {
+		t.Fatal(err)
+	}
+	f.seedMsg(t, "dm-1-plain", "dm-1", "user:alice", "no quote here")
+
+	got, err := f.inbox.ListUnreadForIdentity(ctx, []conversation.IdentityRef{agent}, "org-1", "Bot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[conversation.MessageID]UnreadItem{}
+	for _, it := range got {
+		byID[it.MessageID] = it
+	}
+	q, ok := byID["dm-1-quote"]
+	if !ok {
+		t.Fatalf("quoting message not surfaced (got %d items)", len(got))
+	}
+	if q.QuotedMessageID != "dm-1-orig" {
+		t.Errorf("QuotedMessageID = %q, want dm-1-orig", q.QuotedMessageID)
+	}
+	if plain, ok := byID["dm-1-plain"]; ok && plain.QuotedMessageID != "" {
+		t.Errorf("non-quoting message carries QuotedMessageID %q, want empty", plain.QuotedMessageID)
+	}
+}
+
 // I7-D2: each unread item carries the sender's ActorKind so the agent can apply
 // the reply obligation — a human sender is "must reply", an agent sender is
 // SilentAck-eligible. Covers DM (human + agent senders) and channel @mention
