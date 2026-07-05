@@ -11,7 +11,7 @@ import type { Agent } from '@/api/types';
 const base: Agent = {
   id: 'A1', organization_id: 'O-1', name: 'bot-1', description: '',
   model: 'claude-opus-4-8', cli: 'claude-code', reasoning: '', mode: '', provider: '',
-  env_vars: {}, skills: [], worker_id: 'w-1', lifecycle: 'running', availability: 'busy',
+  env_vars: {}, worker_id: 'w-1', lifecycle: 'running', availability: 'busy',
   created_by: 'user:hayang', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
 };
 

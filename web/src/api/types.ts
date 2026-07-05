@@ -206,6 +206,20 @@ export type AgentLifecycle =
 
 export type Availability = 'available' | 'busy' | 'unavailable';
 
+// issue-4a45e9cc: the four claude-code skill-resolution precedence layers, low→high.
+export type SkillLayer = 'built-in' | 'plugin' | 'user' | 'project';
+
+// InstalledSkill is one OBSERVED skill the agent-runtime resolved on disk. shadowed =
+// a higher-precedence layer defines the same name, so this copy is inert. collected_at
+// is the RFC3339 batch collection time (rendered when the agent's computer is offline).
+export interface InstalledSkill {
+  layer: SkillLayer;
+  name: string;
+  description: string;
+  shadowed: boolean;
+  collected_at: string;
+}
+
 export interface Agent {
   id: string;
   organization_id: string;
@@ -219,7 +233,10 @@ export interface Agent {
   mode?: string;
   provider?: string;
   env_vars: Record<string, string>;
-  skills: string[];
+  // issue-4a45e9cc: the OBSERVED per-layer effective skill set the agent-runtime
+  // reported. Present on the agent DETAIL response (GET /api/agents/{id}); absent on
+  // the list endpoint. Empty until the runtime uploads its first report.
+  installed_skills?: InstalledSkill[];
   worker_id: string;
   lifecycle: AgentLifecycle;
   availability: Availability;

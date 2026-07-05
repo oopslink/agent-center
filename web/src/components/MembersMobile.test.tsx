@@ -24,7 +24,7 @@ afterEach(() => cleanup());
 
 const fullAgent = (id: string, identityMemberID: string, availability = 'available', lifecycle = 'running') => ({
   id, organization_id: 'O-1', name: id, description: '', model: 'claude-opus', cli: 'claudecode',
-  env_vars: {}, skills: [], worker_id: 'w-1', lifecycle, availability, created_by: 'user:hayang',
+  env_vars: {}, worker_id: 'w-1', lifecycle, availability, created_by: 'user:hayang',
   identity_member_id: identityMemberID, version: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 });
 

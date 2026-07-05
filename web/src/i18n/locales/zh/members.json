@@ -454,7 +454,15 @@
       "createdAgents": "创建的智能体",
       "createdAgentsEmpty": "暂无创建的智能体。",
       "skills": "技能",
-      "skillsEmpty": "暂无技能。"
+      "skillsEmpty": "尚未上报技能。",
+      "skillsCollectedAt": "采集于 {{time}}",
+      "skillShadowed": "被覆盖",
+      "skillLayer": {
+        "built-in": "内置",
+        "plugin": "插件",
+        "user": "用户",
+        "project": "项目"
+      }
     },
     "create": {
       "title": "添加智能体",
@@ -467,9 +475,6 @@
       "modelHint": "可选。",
       "cliLabel": "CLI",
       "cliHint": "v2.7 仅运行 claude-code（codex/opencode 将在 v2.8 支持）。",
-      "skillsLabel": "技能",
-      "skillsHint": "可选。以逗号分隔。",
-      "skillsPlaceholder": "review, planning",
       "workerLabel": "工作节点",
       "workerHint": "来源于环境（Environment）。",
       "workerSelectPlaceholder": "选择一台工作节点…",

@@ -123,7 +123,7 @@ describe('DMDetail page', () => {
           model: 'claude-opus',
           cli: 'claudecode',
           env_vars: {},
-          skills: [],
+
           worker_id: 'w-1',
           lifecycle: 'running',
           availability: 'available',
@@ -161,7 +161,7 @@ describe('DMDetail page', () => {
           model: 'claude-opus',
           cli: 'claudecode',
           env_vars: {},
-          skills: [],
+
           worker_id: 'w-1',
           lifecycle: 'stopped',
           availability: 'unavailable',
@@ -232,7 +232,7 @@ describe('DMDetail page', () => {
           model: 'claude-opus',
           cli: 'claudecode',
           env_vars: {},
-          skills: [],
+
           worker_id: 'w-1',
           lifecycle: 'running',
           availability: 'available',
@@ -354,7 +354,7 @@ describe('DMDetail page', () => {
             model: 'claude-opus',
             cli: 'claudecode',
             env_vars: {},
-            skills: [],
+
             worker_id: 'w-1',
             lifecycle: 'running',
             availability: 'available',
