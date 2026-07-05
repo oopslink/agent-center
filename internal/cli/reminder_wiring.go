@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -11,7 +12,10 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/outbox"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 // reminderDirectory is the concrete cognition Directory: it resolves the
@@ -197,10 +201,58 @@ func buildReminderTickHook(a *App, logf func(string)) func(context.Context) {
 	// delivery projector wakes the remindee (F1). Same DB-backed outbox the relay
 	// drains, so the Append and the projector see one table.
 	scheduler := cogservice.NewReminderScheduler(a.DB, repo, a.Sink, a.OutboxRepo, a.IDGen)
+	// reminder-event: record a reminder_fired change on the triggering entity's ledger
+	// when an event-driven reminder fires (best-effort; nil sink = no-op).
+	scheduler.SetAudit(buildReminderAuditSink(a))
 	tp := cogservice.NewReminderTickProjector(scheduler, a.Clock, func(err error) {
 		if logf != nil {
 			logf("reminder tick: " + err.Error())
 		}
 	})
 	return tp.OnTick
+}
+
+// reminderAuditAdapter maps the Cognition reminder audit port
+// (cogservice.ReminderAuditSink) onto the ProjectManager change-log ledger
+// (pm.AuditLogRepository). It lets the reminder event-projector + scheduler record
+// reminder_armed / reminder_fired entries on the TRIGGERING pm entity's ledger
+// without the Cognition BC importing pm's audit types directly (the adapter — living
+// in the cli composition root, which already depends on both BCs — bridges them).
+type reminderAuditAdapter struct{ repo pm.AuditLogRepository }
+
+func (a *reminderAuditAdapter) AppendReminderAudit(ctx context.Context, e cogservice.ReminderAuditEntry) error {
+	detail, err := json.Marshal(e.Detail)
+	if err != nil {
+		return err
+	}
+	return a.repo.Append(ctx, pm.AuditEntry{
+		ProjectID:  pm.ProjectID(e.ProjectID),
+		ObjectType: pm.AuditObjectType(e.ObjectType), // "plan"|"task"|"issue" (matches pm.AuditObject*)
+		ObjectID:   e.ObjectID,
+		ChangeType: pm.AuditChangeType(e.ChangeType), // "reminder_armed"|"reminder_fired"
+		ActorRef:   pm.SystemActor("reminder-event"),
+		Detail:     string(detail),
+		OccurredAt: e.OccurredAt,
+	})
+}
+
+// buildReminderAuditSink builds the change-log audit adapter for reminder-event
+// firing/arming. Returns nil (⇒ audit is a no-op) when the DB/idgen are missing.
+func buildReminderAuditSink(a *App) cogservice.ReminderAuditSink {
+	if a == nil || a.DB == nil || a.IDGen == nil {
+		return nil
+	}
+	return &reminderAuditAdapter{repo: pmsql.NewAuditLogRepo(a.DB, a.IDGen)}
+}
+
+// buildReminderEventProjector builds the outbox projector that ARMS event-driven
+// reminders on matching pm entity state-change events (reminder-event feature). It
+// must be registered on the relay (like the other cross-BC projectors) or on_event
+// reminders would never arm. Returns nil when prerequisites are missing.
+func buildReminderEventProjector(a *App, applied outbox.AppliedStore) *cogservice.ReminderEventProjector {
+	if a == nil || a.DB == nil || applied == nil {
+		return nil
+	}
+	repo := remindersqlite.NewReminderRepo(a.DB)
+	return cogservice.NewReminderEventProjector(a.DB, repo, applied, a.Clock, buildReminderAuditSink(a))
 }

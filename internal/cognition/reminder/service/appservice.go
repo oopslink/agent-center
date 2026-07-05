@@ -75,10 +75,14 @@ func NewReminderAppService(db *sql.DB, repo reminder.Repository, dir Directory, 
 type CreateReminderCommand struct {
 	OrganizationID  string // the operating agent's org (handler-resolved)
 	CreatorRef      string
-	RemindeeAgentID string
+	RemindeeAgentID string // == the @target for an on_event reminder (the wake target)
 	Schedule        reminder.Schedule
-	Content         string
-	SkipIfOverlap   bool
+	// OnEvent, when non-nil, creates an EVENT-DRIVEN reminder (reminder-event
+	// feature): it stays dormant until the watched pm entity transition fires, then
+	// fires once after OnEvent.Delay. Schedule is ignored in that case.
+	OnEvent       *reminder.OnEvent
+	Content       string
+	SkipIfOverlap bool
 	// DeliverAsCreator (F-B): when true the delivered reminder is posted as the
 	// creator's identity; when false as the system identity. Handler defaults ON.
 	DeliverAsCreator bool
@@ -102,6 +106,7 @@ func (s *ReminderAppService) CreateReminder(ctx context.Context, cmd CreateRemin
 		CreatorProjectID: rc.CreatorProjectID,
 		RemindeeAgentID:  cmd.RemindeeAgentID,
 		Schedule:         cmd.Schedule,
+		OnEvent:          cmd.OnEvent,
 		Content:          cmd.Content,
 		SkipIfOverlap:    cmd.SkipIfOverlap,
 		DeliverAsCreator: cmd.DeliverAsCreator,

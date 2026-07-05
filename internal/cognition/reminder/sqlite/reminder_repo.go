@@ -26,7 +26,8 @@ func NewReminderRepo(db *sql.DB) *ReminderRepo { return &ReminderRepo{db: db} }
 var _ reminder.Repository = (*ReminderRepo)(nil)
 
 const reminderCols = `id, organization_id, project_id, creator_ref, remindee_agent_id, schedule, content,
-	status, next_run_at, last_fired_at, skip_if_overlap, deliver_as_creator, end_condition, fired_count, version, created_at, updated_at`
+	status, next_run_at, last_fired_at, skip_if_overlap, deliver_as_creator, end_condition, fired_count, version, created_at, updated_at,
+	on_event_entity_type, on_event_entity_id, on_event_event, on_event_delay_seconds`
 
 func (r *ReminderRepo) Save(ctx context.Context, rm *reminder.Reminder) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
@@ -38,12 +39,24 @@ func (r *ReminderRepo) Save(ctx context.Context, rm *reminder.Reminder) error {
 	if err != nil {
 		return err
 	}
+	oeType, oeID, oeEvent, oeDelay := onEventCols(rm.OnEvent())
 	_, err = exec.ExecContext(ctx,
-		`INSERT INTO reminders (`+reminderCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO reminders (`+reminderCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		rm.ID().String(), rm.OrganizationID(), rm.ProjectID(), rm.CreatorRef(), rm.RemindeeAgentID(),
 		sched, rm.Content(), string(rm.Status()), tsPtr(rm.NextRunAt()), tsPtr(rm.LastFiredAt()),
-		boolToInt(rm.SkipIfOverlap()), boolToInt(rm.DeliverAsCreator()), end, rm.FiredCount(), rm.Version(), ts(rm.CreatedAt()), ts(rm.UpdatedAt()))
+		boolToInt(rm.SkipIfOverlap()), boolToInt(rm.DeliverAsCreator()), end, rm.FiredCount(), rm.Version(), ts(rm.CreatedAt()), ts(rm.UpdatedAt()),
+		oeType, oeID, oeEvent, oeDelay)
 	return err
+}
+
+// onEventCols flattens an OnEvent VO into the 4 nullable columns (all NULL for a
+// time/cron reminder). The on_event trigger is immutable (set at creation), so
+// only Save writes these — Update never touches them.
+func onEventCols(oe *reminder.OnEvent) (entityType, entityID, event, delay any) {
+	if oe == nil {
+		return nil, nil, nil, nil
+	}
+	return string(oe.EntityType), oe.EntityID, oe.Event, int64(oe.Delay / time.Second)
 }
 
 // Update persists a mutated reminder with optimistic concurrency on version
@@ -299,9 +312,12 @@ func scanReminder(scan func(...any) error) (*reminder.Reminder, error) {
 		nextRaw, lastRaw                                                    sql.NullString
 		skip, deliverAsCreator, firedCount, version                         int
 		createdRaw, updatedRaw                                              string
+		oeType, oeID, oeEvent                                               sql.NullString
+		oeDelay                                                             sql.NullInt64
 	)
 	if err := scan(&id, &org, &proj, &creator, &remindee, &schedRaw, &content, &status,
-		&nextRaw, &lastRaw, &skip, &deliverAsCreator, &endRaw, &firedCount, &version, &createdRaw, &updatedRaw); err != nil {
+		&nextRaw, &lastRaw, &skip, &deliverAsCreator, &endRaw, &firedCount, &version, &createdRaw, &updatedRaw,
+		&oeType, &oeID, &oeEvent, &oeDelay); err != nil {
 		return nil, err
 	}
 	sched, err := decodeSchedule(schedRaw)
@@ -314,12 +330,47 @@ func scanReminder(scan func(...any) error) (*reminder.Reminder, error) {
 	}
 	return reminder.Rehydrate(reminder.RehydrateInput{
 		ID: id, OrganizationID: org, ProjectID: proj, CreatorRef: creator, RemindeeAgentID: remindee,
-		Schedule: sched, Content: content, Status: reminder.ReminderStatus(status),
+		Schedule: sched, OnEvent: decodeOnEvent(oeType, oeID, oeEvent, oeDelay),
+		Content: content, Status: reminder.ReminderStatus(status),
 		NextRunAt: parseTimePtr(nextRaw), LastFiredAt: parseTimePtr(lastRaw),
 		SkipIfOverlap: skip != 0, DeliverAsCreator: deliverAsCreator != 0,
 		EndCondition: end, FiredCount: firedCount, Version: version,
 		CreatedAt: parseTime(createdRaw), UpdatedAt: parseTime(updatedRaw),
 	})
+}
+
+// decodeOnEvent rebuilds an *OnEvent from the 4 nullable columns (nil for a
+// time/cron reminder — all columns NULL).
+func decodeOnEvent(entityType, entityID, event sql.NullString, delay sql.NullInt64) *reminder.OnEvent {
+	if !entityType.Valid || entityType.String == "" {
+		return nil
+	}
+	return &reminder.OnEvent{
+		EntityType: reminder.EntityType(entityType.String),
+		EntityID:   entityID.String,
+		Event:      event.String,
+		Delay:      time.Duration(delay.Int64) * time.Second,
+	}
+}
+
+// FindArmedByEvent returns the DORMANT event-driven reminders that a just-fired
+// entity event (entityType, entityID, event) should ARM: status=active AND
+// next_run_at IS NULL (not yet armed) AND the on_event triple matches. Already-armed
+// or terminal reminders are excluded so a repeated/redelivered event never re-arms
+// (one-shot consumption is enforced here + in Reminder.Arm).
+func (r *ReminderRepo) FindArmedByEvent(ctx context.Context, entityType reminder.EntityType, entityID, event string) ([]*reminder.Reminder, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		`SELECT `+reminderCols+` FROM reminders
+		 WHERE status=? AND next_run_at IS NULL
+		   AND on_event_entity_type=? AND on_event_entity_id=? AND on_event_event=?
+		 ORDER BY id`,
+		string(reminder.StatusActive), string(entityType), entityID, event)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectReminders(rows)
 }
 
 // --- VO JSON codecs ---------------------------------------------------------

@@ -77,6 +77,12 @@ type Repository interface {
 	ListByOrgPage(ctx context.Context, organizationID string, f ListFilter) ([]*Reminder, int, error)
 	// FindDue returns active reminders whose next_run_at <= now (§3.3 scan predicate).
 	FindDue(ctx context.Context, now time.Time) ([]*Reminder, error)
+	// FindArmedByEvent returns DORMANT event-driven reminders (status=active,
+	// next_run_at IS NULL) whose on_event trigger matches a just-fired entity event
+	// (entityType, entityID, event) — the set the ReminderEventProjector arms.
+	// Already-armed/terminal reminders are excluded so a repeated event never re-arms
+	// (one-shot consumption).
+	FindArmedByEvent(ctx context.Context, entityType EntityType, entityID, event string) ([]*Reminder, error)
 	// AppendFiring writes one append-only reminder_firings row.
 	AppendFiring(ctx context.Context, f Firing) error
 	// HasPendingFiring reports whether the reminder has a still-in-flight fire —

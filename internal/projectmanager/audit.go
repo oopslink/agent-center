@@ -47,6 +47,13 @@ const (
 	AuditIssueStatusChanged  AuditChangeType = "status_changed"
 	AuditIssueMetadataEdited AuditChangeType = "metadata_edited"
 	AuditIssueAutoClosed     AuditChangeType = "auto_closed"
+
+	// cognition reminder (event-driven). Recorded on the TRIGGERING pm object's
+	// ledger (the plan/task/issue whose state change is watched) so the entity's
+	// change-log shows that an on_event reminder was armed by, then fired from, its
+	// transition (reminder-event feature). Actor is a system reconciler ref.
+	AuditReminderArmed AuditChangeType = "reminder_armed"
+	AuditReminderFired AuditChangeType = "reminder_fired"
 )
 
 // ActorSystem prefixes an actor ref for a SYSTEM-driven change (auto-assign,

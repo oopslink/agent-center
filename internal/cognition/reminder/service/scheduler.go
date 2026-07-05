@@ -49,6 +49,7 @@ type ReminderScheduler struct {
 	sink   EventEmitter
 	outbox outbox.Repository
 	idGen  IDGen
+	audit  ReminderAuditSink // optional: change-log audit for event-driven fires
 }
 
 // NewReminderScheduler constructs the scheduler. outboxRepo is REQUIRED for
@@ -58,6 +59,12 @@ type ReminderScheduler struct {
 func NewReminderScheduler(db *sql.DB, repo reminder.Repository, sink EventEmitter, outboxRepo outbox.Repository, idGen IDGen) *ReminderScheduler {
 	return &ReminderScheduler{db: db, repo: repo, sink: sink, outbox: outboxRepo, idGen: idGen}
 }
+
+// SetAudit attaches the (optional) change-log audit sink used to record a
+// reminder_fired entry on the triggering entity when an EVENT-DRIVEN reminder fires
+// (reminder-event feature). Best-effort: a nil sink or an audit error never aborts
+// the fire. Wired post-construction so the existing constructor signature is stable.
+func (s *ReminderScheduler) SetAudit(audit ReminderAuditSink) { s.audit = audit }
 
 // Tick scans for due reminders (status=active, next_run_at<=now) and fires each
 // once. Each fire is its own tx (RecordFire + Update-CAS + reminder_firings +
@@ -160,6 +167,10 @@ func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, n
 		}); err != nil {
 			return err
 		}
+		// fired → change-log audit (reminder-event feature). For an EVENT-DRIVEN
+		// reminder, record a reminder_fired entry on the triggering entity's ledger
+		// (best-effort). Time/cron reminders have no watched entity → no ledger write.
+		s.writeFiredAudit(txCtx, r, now)
 		// fired → outbox (drives the ReminderDeliveryProjector). The delivery
 		// projector drains the OUTBOX, not the events table, so without this
 		// Append the remindee is never delivered/woken (F1 ship-blocker). Same
@@ -182,6 +193,31 @@ func (s *ReminderScheduler) fireOne(ctx context.Context, r *reminder.Reminder, n
 		return nil
 	})
 	return didFire, err
+}
+
+// writeFiredAudit records a reminder_fired change on the triggering entity's ledger
+// when an event-driven reminder fires (best-effort; nil sink / non-on_event / audit
+// error are all silent no-ops so the fire is never aborted).
+func (s *ReminderScheduler) writeFiredAudit(ctx context.Context, r *reminder.Reminder, now time.Time) {
+	if s.audit == nil || !r.IsOnEvent() || r.OnEvent() == nil {
+		return
+	}
+	oe := r.OnEvent()
+	_ = s.audit.AppendReminderAudit(ctx, ReminderAuditEntry{
+		ProjectID:  r.ProjectID(),
+		ObjectType: string(oe.EntityType),
+		ObjectID:   oe.EntityID,
+		ChangeType: auditReminderFired,
+		ReminderID: r.ID().String(),
+		Event:      oe.Event,
+		Detail: map[string]any{
+			"reminder_id":       r.ID().String(),
+			"remindee_agent_id": r.RemindeeAgentID(),
+			"event":             oe.Event,
+			"fired_count":       r.FiredCount(),
+		},
+		OccurredAt: now,
+	})
 }
 
 // firedOutboxPayload is the JSON the ReminderDeliveryProjector decodes off the

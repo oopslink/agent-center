@@ -153,8 +153,9 @@ func MigrateV1ToV2Command() *Command {
 // 2026-07 chat 引用 added 0099 (messages.quoted_message_id — additive ADD COLUMN,
 // the soft quote/reply pointer for the chat "quote a message" feature).
 // change-log/audit added 0100 (pm_audit_log — the object-level semantic change ledger;
-// renumbered from 0099 at ship-merge to land after main's 0099 message-quote).
-const targetSchemaVersion = 100
+// renumbered from 0099 at ship-merge to land after main's 0099 message-quote);
+// reminder-event added 0101 (reminders.on_event_* — event-driven reminder trigger).
+const targetSchemaVersion = 101
 
 func runMigrateV1ToV2(
 	ctx context.Context,
