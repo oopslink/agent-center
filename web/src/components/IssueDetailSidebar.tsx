@@ -10,6 +10,7 @@ import { StatusChip, refLabel } from '@/components/workItemDisplay';
 import { taskDetailPath } from '@/components/TaskTitleLink';
 import { tagColorFor } from '@/components/tagColors';
 import { formatLocalTime, formatStatusDuration } from '@/utils/time';
+import { ObjectAuditTimeline } from '@/components/ObjectAuditTimeline';
 
 // IssueDetailSidebar — the @oopslink mockup's TWO-SECTION Issue detail sidebar,
 // a visual mirror of TaskDetailSidebar (symmetric: TaskDetail→TaskDetailSidebar,
@@ -173,6 +174,10 @@ export function IssueDetailSidebar({
           </span>
         </div>
       </section>
+
+      {/* 变更记录 / audit-trail (change-log design §7): this issue's semantic change
+          history timeline (status transitions, close/reopen, metadata edits). */}
+      <ObjectAuditTimeline objectType="issue" projectId={iss.project_id} objectId={iss.id} />
     </aside>
   );
 }

@@ -52,6 +52,7 @@ func (s *Service) CloseResolvedIssues(ctx context.Context, delay time.Duration) 
 				}
 				return err
 			}
+			prev := i.Status()
 			if err := i.SetStatus(pm.IssueClosed, now); err != nil {
 				return err
 			}
@@ -59,12 +60,18 @@ func (s *Service) CloseResolvedIssues(ctx context.Context, delay time.Duration) 
 				return err
 			}
 			did = true
-			return s.emit(txCtx, EvtIssueStateChanged,
+			if err := s.emit(txCtx, EvtIssueStateChanged,
 				refsJSON(map[string]string{"issue_id": string(i.ID()), "project_id": string(i.ProjectID())}),
 				issueEventPayload{
 					IssueID: string(i.ID()), ProjectID: string(i.ProjectID()),
 					OwnerRef: "pm://issues/" + string(i.ID()), Status: string(i.Status()),
-				})
+				}); err != nil {
+				return err
+			}
+			// audit §5: system-driven auto-close — actor is 'system:resolved-issue-closer'
+			// (design §5: never blank / never misattributed to the object owner).
+			s.auditIssueStatusChange(txCtx, i, prev, pm.AuditIssueAutoClosed, pm.SystemActor("resolved-issue-closer"))
+			return nil
 		}); err != nil {
 			return closed, err
 		}

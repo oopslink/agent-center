@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -241,6 +242,12 @@ type Service struct {
 	// (the realtime annotation columns still are). When wired, the log-producing flows
 	// flush the domain's freshly-appended TaskActionLog entries to pm_task_action_logs.
 	actionLogs pm.TaskActionLogRepository
+	// audit is OPTIONAL (nil-safe, change-log/audit design §4). nil ⇒ recordChange is
+	// a no-op and no object-level change ledger is written (纯加法零回归 — pre-audit
+	// constructions keep working unchanged). When wired, the semantic write points
+	// append AuditEntry rows to pm_audit_log in the SAME tx (best-effort — an audit
+	// failure NEVER rolls back the primary mutation, see recordChange).
+	audit pm.AuditLogRepository
 	// autoAssignDir is OPTIONAL (nil-safe, v2.18.3 BE-2). nil ⇒ the auto-assign
 	// reconciler has no candidate source and AutoAssignSweep is a no-op (pool tasks
 	// stay claim-only, pre-BE-2 behaviour). When wired, it lists each org's agents
@@ -325,6 +332,10 @@ type Deps struct {
 	// task flows (block/unblock/lease-expiry/reassign) flush the domain's appended
 	// TaskActionLog entries to pm_task_action_logs. nil ⇒ no live log persistence.
 	TaskActionLogs pm.TaskActionLogRepository
+	// Audit is OPTIONAL (change-log/audit design §4): when set, the semantic write
+	// points record object-level change-ledger entries into pm_audit_log (in-tx,
+	// best-effort). nil ⇒ recordChange is a no-op (zero-regression).
+	Audit pm.AuditLogRepository
 	// AutoAssignDir is OPTIONAL (v2.18.3 BE-2): when set, the auto-assign reconciler
 	// can list each org's candidate agents. nil ⇒ AutoAssignSweep is a no-op.
 	AutoAssignDir AutoAssignDirectory
@@ -362,6 +373,7 @@ func New(d Deps) *Service {
 		agentDir: d.AgentDir, codeRepoResolver: d.CodeRepoResolver, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
 		actionLogs:         d.TaskActionLogs,
+		audit:              d.Audit,
 		autoAssignDir:      d.AutoAssignDir,
 		autoAssignSettings: d.AutoAssignSettings,
 		orch:               orchSvc,
@@ -383,6 +395,64 @@ func (s *Service) flushActionLogs(ctx context.Context, t *pm.Task) error {
 		return nil
 	}
 	return s.actionLogs.Append(ctx, t.ID(), logs)
+}
+
+// recordChange appends one object-level change-ledger entry (design §5) into
+// pm_audit_log. It is the single in-tx write收口 the semantic write points call
+// (紧挨 s.emit). Contract, honoring the two design constraints that pull opposite
+// directions:
+//
+//   - 即时可见 / 无最终一致性延迟: it writes in the caller's AMBIENT tx, so on commit
+//     the audit row lands atomically with the change it records — "刚改完就查变更记录"
+//     is consistent, no async projector lag.
+//   - 审计写不阻塞主 mutation: it is BEST-EFFORT — an audit failure must never fail or
+//     roll back the primary business operation. The insert is wrapped in a SAVEPOINT
+//     so a failed audit write rolls back ONLY the audit row (not the mutation), and any
+//     error is swallowed (logged via observability, not returned). A missing tx / a
+//     savepoint the backend rejects degrades to a plain best-effort append.
+//
+// nil audit repo ⇒ no-op (zero-regression). The whole-tx BUSY replay in RunInTx
+// re-invokes the write points, so recordChange needs no per-tx buffer: each replay
+// re-appends fresh entries (new ULIDs) — the losing attempt's rows never committed.
+func (s *Service) recordChange(ctx context.Context, e pm.AuditEntry) {
+	if s.audit == nil {
+		return
+	}
+	if e.OccurredAt.IsZero() {
+		e.OccurredAt = s.clock.Now()
+	}
+	exec, err := persistence.ExecutorFromCtx(ctx, s.db)
+	if err != nil {
+		// No tx and no db — nothing we can do; audit is best-effort.
+		return
+	}
+	// Wrap in a savepoint so a failed audit insert cannot poison the parent tx (some
+	// SQLite errors abort the enclosing statement's changes; the savepoint bounds the
+	// blast radius to the audit row). If the backend rejects SAVEPOINT, fall back to a
+	// plain best-effort append.
+	if _, sperr := exec.ExecContext(ctx, "SAVEPOINT pm_audit"); sperr != nil {
+		if aerr := s.audit.Append(ctx, e); aerr != nil {
+			slog.WarnContext(ctx, "pm: audit append failed (best-effort, mutation unaffected)", "err", aerr, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
+		}
+		return
+	}
+	if aerr := s.audit.Append(ctx, e); aerr != nil {
+		slog.WarnContext(ctx, "pm: audit append failed (best-effort, mutation unaffected)", "err", aerr, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
+		_, _ = exec.ExecContext(ctx, "ROLLBACK TO pm_audit")
+	}
+	_, _ = exec.ExecContext(ctx, "RELEASE pm_audit")
+}
+
+// ListObjectAudit returns an object's change ledger newest-first with cursor
+// pagination (design §6), backing the read API. nil audit repo ⇒ empty page (a
+// pre-audit construction has no ledger — not an error). It does NOT gate membership
+// itself; the HTTP handler resolves the object-in-project (which enforces project
+// membership) BEFORE calling this.
+func (s *Service) ListObjectAudit(ctx context.Context, objType pm.AuditObjectType, objID, cursor string, limit int) ([]pm.AuditEntry, string, error) {
+	if s.audit == nil {
+		return nil, "", nil
+	}
+	return s.audit.ListByObject(ctx, objType, objID, cursor, limit)
 }
 
 // poolLimit resolves the configured per-agent pool-claim cap, defaulting to

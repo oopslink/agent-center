@@ -40,6 +40,16 @@ function renderWithProvider(ui: React.ReactElement) {
   );
 }
 
+// renderQC wraps a test that supplies its OWN MemoryRouter (the no-SenderSidebar-
+// provider cases) in just a QueryClientProvider — the sidebar now embeds
+// ObjectAuditTimeline (change-log §7), which useQuery's the audit endpoint. No msw
+// handler is registered here, so the query stays pending/errors harmlessly; these
+// tests assert the surrounding layout, not the (independently tested) timeline.
+function renderQC(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
+
 describe('TaskDetailSidebar — assignee → agent activity sidebar (T102)', () => {
   afterEach(() => cleanup());
 
@@ -61,7 +71,7 @@ describe('TaskDetailSidebar — assignee → agent activity sidebar (T102)', () 
   });
 
   it('without a provider the assignee is non-interactive (no-op safe, still shown)', () => {
-    render(
+    renderQC(
       <MemoryRouter>
         <TaskDetailSidebar task={makeTask()} projectName="Project A" assigneeName="Bot Nine" onEdit={() => {}} editable />
       </MemoryRouter>,
@@ -83,7 +93,7 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
   afterEach(() => cleanup());
 
   it('shows a clickable Plan link to the plan detail when the task is in a plan', () => {
-    render(
+    renderQC(
       <MemoryRouter>
         <TaskDetailSidebar
           task={makeTask({ plan_id: 'plan-xyz' })}
@@ -103,7 +113,7 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
   });
 
   it('hides the Plan section for a backlog task / built-in pool (no plan passed)', () => {
-    render(
+    renderQC(
       <MemoryRouter>
         <TaskDetailSidebar task={makeTask()} projectName="Project A" onEdit={() => {}} editable />
       </MemoryRouter>,
@@ -113,7 +123,7 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
 
   // T193: the "Related Issue" row (derived_from_issue → issue ref + title, click).
   it('shows the Related Issue row (ref + title) linking to the issue when derivedIssue is passed', () => {
-    render(
+    renderQC(
       <MemoryRouter>
         <TaskDetailSidebar
           task={makeTask({ derived_from_issue: 'issue-abc' })}
@@ -134,7 +144,7 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
   });
 
   it('hides the Related Issue row when the task has no derived issue', () => {
-    render(
+    renderQC(
       <MemoryRouter>
         <TaskDetailSidebar task={makeTask()} projectName="Project A" onEdit={() => {}} editable />
       </MemoryRouter>,

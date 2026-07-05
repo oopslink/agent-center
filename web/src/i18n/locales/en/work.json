@@ -133,7 +133,8 @@
       "tabs": {
         "chat": "Chat",
         "dag": "DAG",
-        "tasks": "Task List"
+        "tasks": "Task List",
+        "history": "Change History"
       },
       "chat": {
         "restore": "Restore chat",

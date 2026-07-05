@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Issue } from '@/api/types';
 import { IssueDetailSidebar } from './IssueDetailSidebar';
 
@@ -26,7 +27,16 @@ function makeIssue(over: Partial<Issue> = {}): Issue {
 }
 
 function renderSidebar(ui: React.ReactElement) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>);
+  // The sidebar now embeds ObjectAuditTimeline (change-log §7), which useQuery's
+  // the audit endpoint — a QueryClientProvider is required. No msw handler is
+  // registered here, so the query stays pending/errors harmlessly; these tests
+  // assert the surrounding layout, not the (independently tested) timeline.
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 describe('IssueDetailSidebar (v2.8.1 sidebar-align)', () => {

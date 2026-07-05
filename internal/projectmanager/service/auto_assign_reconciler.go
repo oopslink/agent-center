@@ -343,13 +343,29 @@ func (s *Service) autoAssignPoolTask(ctx context.Context, taskID pm.TaskID, agen
 			return perr
 		}
 		// Audit trail (who/what/which caps).
-		return s.emit(txCtx, EvtTaskAutoAssigned,
+		if eerr := s.emit(txCtx, EvtTaskAutoAssigned,
 			refsJSON(map[string]string{"task_id": string(t.ID()), "project_id": string(t.ProjectID())}),
 			taskAutoAssignedPayload{
 				TaskID: string(t.ID()), ProjectID: string(t.ProjectID()),
 				OwnerRef: "pm://tasks/" + string(t.ID()), Assignee: string(agentRef),
 				MatchedCaps: matchedCaps, CandidateCount: candidateCount,
-			})
+			}); eerr != nil {
+			return eerr
+		}
+		// audit §5: system-driven auto-assign. actor = 'system:auto-assign' (design §5:
+		// never misattributed to the picked agent — the SYSTEM chose it). The picked
+		// agent rides to_value (the new assignee) + detail.
+		s.recordChange(txCtx, pm.AuditEntry{
+			ProjectID:  t.ProjectID(),
+			ObjectType: pm.AuditObjectTask,
+			ObjectID:   string(t.ID()),
+			ChangeType: pm.AuditTaskAutoAssigned,
+			Field:      "assignee",
+			ToValue:    string(agentRef),
+			ActorRef:   pm.SystemActor("auto-assign"),
+			Detail:     auditDetail(map[string]any{"matched_caps": matchedCaps, "candidate_count": candidateCount}),
+		})
+		return nil
 	})
 	return won, matched, err
 }

@@ -133,7 +133,8 @@
       "tabs": {
         "chat": "对话",
         "dag": "DAG",
-        "tasks": "任务列表"
+        "tasks": "任务列表",
+        "history": "变更记录"
       },
       "chat": {
         "restore": "还原对话",

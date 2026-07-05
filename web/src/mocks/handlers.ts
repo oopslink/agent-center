@@ -772,6 +772,14 @@ const baseHandlers = [
     ok({ max_depth: 4, cycle_window_sec: 300, cycle_threshold: 3, rate_per_min: 10, chain_token_budget: 16 }),
   ),
   http.put('/api/system/wake-guardrail', async ({ request }) => ok(await request.json())),
+
+  // 变更记录 / audit-trail (change-log §6): the object-level change ledger read
+  // endpoints. Default to an empty ledger so the detail-view sidebars/tab (which
+  // now embed ObjectAuditTimeline) don't trip onUnhandledRequest:'error' on a
+  // full-tree render; tests that assert real entries override these with server.use.
+  http.get('/api/projects/:pid/issues/:id/audit', () => ok({ entries: [], next_cursor: '' })),
+  http.get('/api/projects/:pid/tasks/:id/audit', () => ok({ entries: [], next_cursor: '' })),
+  http.get('/api/projects/:pid/plans/:id/audit', () => ok({ entries: [], next_cursor: '' })),
 ];
 
 // v2.9 org-routing: the web client now path-routes org-scoped calls as

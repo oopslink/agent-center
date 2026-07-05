@@ -70,9 +70,23 @@ func (s *Service) RecordReviewVerdict(ctx context.Context, taskID pm.TaskID, ver
 				return err
 			}
 		}
-		return s.plans.RecordReviewVerdict(txCtx, t.PlanID(), pm.ReviewVerdict{
+		if err := s.plans.RecordReviewVerdict(txCtx, t.PlanID(), pm.ReviewVerdict{
 			PlanID: t.PlanID(), TaskID: taskID, Verdict: verdict, Blocking: blocking, Reason: reason, SHA: sha, Round: round,
-		}, now)
+		}, now); err != nil {
+			return err
+		}
+		// audit §5: the reviewer's gate verdict, recorded against the Review task.
+		s.recordChange(txCtx, pm.AuditEntry{
+			ProjectID:  t.ProjectID(),
+			ObjectType: pm.AuditObjectTask,
+			ObjectID:   string(taskID),
+			ChangeType: pm.AuditTaskReviewVerdict,
+			Field:      "verdict",
+			ToValue:    verdict,
+			ActorRef:   actor,
+			Detail:     auditDetail(map[string]any{"blocking": blocking, "reason": reason, "round": round, "plan_id": string(t.PlanID())}),
+		})
+		return nil
 	})
 }
 
