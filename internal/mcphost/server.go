@@ -366,23 +366,28 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_task_to_plan",
-		Description: "Add an existing backlog task to a draft plan as a node. The plan must be in draft (stop_plan first if running) and the task must be in the plan's project. Use create_task to make the task first if it doesn't exist.",
+		Description: "DEPRECATED — prefer edit_plan_topology (which also works on RUNNING plans and batches multiple changes atomically). Add an existing backlog task to a draft plan as a node. The plan must be in draft (stop_plan first if running) and the task must be in the plan's project. Use create_task to make the task first if it doesn't exist.",
 	}, makePlanTask(cfg, "add_task_to_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "remove_task_from_plan",
-		Description: "Remove a task node from a draft plan (returns it to the backlog). The plan must be in draft — except the always-running built-in assignment pool, whose task-set is freely editable.",
+		Description: "DEPRECATED — prefer edit_plan_topology (remove_node), which also works on RUNNING plans. Remove a task node from a draft plan (returns it to the backlog). The plan must be in draft — except the always-running built-in assignment pool, whose task-set is freely editable.",
 	}, makePlanTask(cfg, "remove_task_from_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_plan_dependency",
-		Description: "Add an edge to a draft plan's DAG. Default (kind=seq, or omitted) is a hard depends_on: from_task_id runs after to_task_id. For control flow, set kind: 'conditional' routes a branch only when to_task_id (a decision node) completes with outcome==when; 'loopback' is a bounded back-edge — when from_task_id (a decision) completes with outcome==when, the to_task_id subgraph (a forward ancestor, e.g. Dev) re-runs, up to max_rounds. Conditional and loopback REQUIRE when; loopback also requires max_rounds>=1 and its to_task_id must be a forward ancestor. With create_plan + add_task_to_plan this authors a full Decision/loopback cycle plan. Both tasks must already be nodes in the plan; self-edges and forward cycles are rejected.",
+		Description: "DEPRECATED — prefer edit_plan_topology (add_edge), which also works on RUNNING plans and batches with node changes atomically. Add an edge to a draft plan's DAG. Default (kind=seq, or omitted) is a hard depends_on: from_task_id runs after to_task_id. For control flow, set kind: 'conditional' routes a branch only when to_task_id (a decision node) completes with outcome==when; 'loopback' is a bounded back-edge — when from_task_id (a decision) completes with outcome==when, the to_task_id subgraph (a forward ancestor, e.g. Dev) re-runs, up to max_rounds. Conditional and loopback REQUIRE when; loopback also requires max_rounds>=1 and its to_task_id must be a forward ancestor. With create_plan + add_task_to_plan this authors a full Decision/loopback cycle plan. Both tasks must already be nodes in the plan; self-edges and forward cycles are rejected.",
 	}, makeAddPlanDep(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "remove_plan_dependency",
-		Description: "Remove a depends_on edge (from_task_id depends_on to_task_id) from a draft plan's DAG. Idempotent — removing a missing edge is a no-op.",
+		Description: "DEPRECATED — prefer edit_plan_topology (remove_edge), which also works on RUNNING plans. Remove a depends_on edge (from_task_id depends_on to_task_id) from a draft plan's DAG. Idempotent — removing a missing edge is a no-op.",
 	}, makePlanDep(cfg, "remove_plan_dependency"))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "edit_plan_topology",
+		Description: "Atomically edit a plan's DAG with a batch of ops — the SINGLE topology-edit entrypoint, for DRAFT and RUNNING plans alike. Pass base_version (read from get_plan) for optimistic concurrency: if another edit landed first you get a version conflict — re-read and retry. ops is an ordered list of {op, ...}: add_node{task_id}, remove_node{task_id}, add_edge{from_task_id,to_task_id,kind?,when?,max_rounds?}, remove_edge{from_task_id,to_task_id}. Only the FINAL shape is validated (a reorder may pass through a transient cycle), so it must be acyclic and, when running, every node must have a resolvable assignee. On a RUNNING plan you may only restructure a node that has not started (blocked/ready): editing the in-edges of, or removing, a dispatched/running/completed node is rejected (reopen/loopback to undo executed work). Newly-ready nodes are dispatched immediately. Prefer this over add_task_to_plan/add_plan_dependency (draft-only, deprecated).",
+	}, makeEditPlanTopology(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_plan",

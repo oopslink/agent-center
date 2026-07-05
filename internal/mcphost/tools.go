@@ -782,6 +782,48 @@ func makeAddPlanDep(cfg Config) mcp.ToolHandlerFor[addPlanDepArgs, any] {
 	}
 }
 
+// --- edit_plan_topology ------------------------------------------------------
+
+// topologyOpArgs is one op in an edit_plan_topology batch. Only the fields relevant
+// to `op` are read (task_id for node ops; from/to + control-flow fields for edges).
+type topologyOpArgs struct {
+	Op         string `json:"op" jsonschema:"one of add_node | remove_node | add_edge | remove_edge"`
+	TaskID     string `json:"task_id,omitempty" jsonschema:"node task id (add_node / remove_node)"`
+	FromTaskID string `json:"from_task_id,omitempty" jsonschema:"edge dependent task (add_edge / remove_edge)"`
+	ToTaskID   string `json:"to_task_id,omitempty" jsonschema:"edge prerequisite task (add_edge / remove_edge)"`
+	Kind       string `json:"kind,omitempty" jsonschema:"add_edge kind: seq (default) | conditional | loopback"`
+	When       string `json:"when,omitempty" jsonschema:"add_edge outcome label (required for conditional/loopback)"`
+	MaxRounds  int    `json:"max_rounds,omitempty" jsonschema:"add_edge loopback round cap (>=1)"`
+}
+
+type editPlanTopologyArgs struct {
+	PlanID      string           `json:"plan_id" jsonschema:"the plan whose DAG to edit (draft or running)"`
+	BaseVersion int              `json:"base_version" jsonschema:"the plan version read from get_plan — the commit is rejected if it is stale (a concurrent edit landed)"`
+	Ops         []topologyOpArgs `json:"ops" jsonschema:"ordered list of topology ops to apply as one atomic batch"`
+}
+
+// makeEditPlanTopology backs edit_plan_topology. Body keys match the admin handler's
+// editPlanTopologyReq exactly (ops passed through as a list of maps).
+func makeEditPlanTopology(cfg Config) mcp.ToolHandlerFor[editPlanTopologyArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args editPlanTopologyArgs) (*mcp.CallToolResult, any, error) {
+		ops := make([]map[string]any, 0, len(args.Ops))
+		for _, o := range args.Ops {
+			ops = append(ops, map[string]any{
+				"op": o.Op, "task_id": o.TaskID,
+				"from_task_id": o.FromTaskID, "to_task_id": o.ToTaskID,
+				"kind": o.Kind, "when": o.When, "max_rounds": o.MaxRounds,
+			})
+		}
+		body := map[string]any{
+			"agent_id":     cfg.AgentID,
+			"plan_id":      args.PlanID,
+			"base_version": args.BaseVersion,
+			"ops":          ops,
+		}
+		return callAdmin(ctx, cfg, "edit_plan_topology", body)
+	}
+}
+
 // --- start_plan / stop_plan / delete_plan / archive_plan ---------------------
 
 type planIDArgs struct {

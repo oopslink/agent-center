@@ -107,6 +107,29 @@ func DeriveNodeStatus(taskStatus TaskStatus, upstreamAllDone bool, dispatched bo
 	}
 }
 
+// NodeMutable reports the live-topology-edit MUTABILITY predicate (2026-07-05
+// plan-live-topology-edit design §2.1):
+//
+//	node mutable ⟺ NO dispatch record AND task non-terminal / non-running
+//	             ⟺ node_status ∈ {blocked, ready}
+//
+// A mutable node has not started executing (no @mention/dispatch posted, the task is
+// not running, not done, not failed), so its DAG structure — its in-edges, or its very
+// presence — can be live-edited on a RUNNING plan without disturbing in-flight work. A
+// dispatched / running / done / failed node is IMMUTABLE (undo it via reopen/loopback,
+// not a topology edit). It reuses the SAME terminal/running predicates as
+// DeriveNodeStatus (taskIsDone/taskIsFailed/TaskRunning) so the "is this node settled?"
+// rule lives in one place — the mutability judgement never drifts from the derivation.
+func NodeMutable(status TaskStatus, dispatched bool) bool {
+	if dispatched {
+		return false
+	}
+	if taskIsDone(status) || taskIsFailed(status) || status == TaskRunning {
+		return false
+	}
+	return true
+}
+
 // Claimable reports whether a task can be CLAIMED (open→running) right now — a
 // DERIVED predicate, never stored (ADR-0047 §1,守 §9.2 derive-not-store). A task
 // is claimable iff it is not archived, still `open` (un-started; claim = open→

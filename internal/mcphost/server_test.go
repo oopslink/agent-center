@@ -123,7 +123,7 @@ var wantTools = []string{
 	"resume_paused_node",
 	// v2.9 P3 Stage C (#285): plan orchestration tools (see planTools)
 	"create_plan", "add_task_to_plan", "remove_task_from_plan",
-	"add_plan_dependency", "remove_plan_dependency",
+	"add_plan_dependency", "remove_plan_dependency", "edit_plan_topology",
 	"start_plan", "stop_plan", "get_plan", "list_plans",
 	"delete_plan", "archive_plan",
 	// v2.10 Plan Shared Findings (ADR-0053 — DeLM shared context)
