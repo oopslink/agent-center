@@ -336,6 +336,21 @@ func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 	if got := auditDetailField(t, lb, "round"); got != "1" {
 		t.Fatalf("loopback detail.round = %q, want 1", got)
 	}
+
+	// issue-74df441a: the loopback-driven reopen must ALSO hit the reopened task's OWN
+	// ledger (not only the plan's) — parity with the manual reopen path; the acceptance
+	// finding this closes (reopenLoopSubgraph previously bypassed auditTaskStatusChange).
+	taskAudit := auditOf(t, h.svc, ctx, pm.AuditObjectTask, string(dec))
+	var sawLoopbackReopen bool
+	for _, e := range taskAudit {
+		if e.ChangeType == pm.AuditTaskStatusChanged && e.ToValue == string(pm.TaskReopened) && e.ActorRef == pm.SystemActor("plan-engine") {
+			sawLoopbackReopen = true
+			break
+		}
+	}
+	if !sawLoopbackReopen {
+		t.Fatal("loopback-reopened task has no completed→reopened row (actor=system:plan-engine) in its OWN ledger — reopenLoopSubgraph audit gap (issue-74df441a)")
+	}
 }
 
 // auditDetailField unmarshals the entry's JSON detail blob and returns key as a

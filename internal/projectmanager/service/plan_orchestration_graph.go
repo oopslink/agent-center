@@ -599,12 +599,18 @@ func (s *Service) reopenLoopSubgraph(txCtx context.Context, planID pm.PlanID, ed
 			return err
 		}
 		if pm.TaskIsDone(nt.Status()) { // Completed→Reopened (a re-dispatchable non-terminal state)
+			prevStatus := nt.Status() // terminal status BEFORE reopen (for the audit entry)
 			if rerr := nt.Reopen(now); rerr != nil {
 				return rerr
 			}
 			if uerr := s.tasks.Update(txCtx, nt); uerr != nil {
 				return uerr
 			}
+			// issue-74df441a: audit the loopback-driven task reopen so the task's OWN
+			// change history shows it (parity with the manual reopen path). Closes the
+			// acceptance finding — reopenLoopSubgraph previously bypassed
+			// auditTaskStatusChange, leaving loopback re-runs invisible in the task ledger.
+			s.auditTaskStatusChange(txCtx, nt, prevStatus, pm.SystemActor("plan-engine"))
 		}
 		if cerr := s.plans.ClearDispatch(txCtx, planID, nodeID); cerr != nil {
 			return cerr
