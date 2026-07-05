@@ -336,8 +336,8 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
         </div>
       )}
       {/* 引用: quoting bar — a small preview of the queued message (sender + a
-          one-line snippet) with an ✕ to cancel. Mirrors the attachments tray:
-          rendered above the input, cleared on ✕ or after a successful send. */}
+          one-line snippet) with an x to cancel. Mirrors the attachments tray:
+          rendered above the input, cleared on x or after a successful send. */}
       {quoteTarget && (
         <div
           className="flex items-start gap-2 rounded border-l-2 border-accent bg-bg-subtle px-2 py-1.5 text-xs"

@@ -249,14 +249,19 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCommand) (pm.I
 		if err := s.issues.Save(txCtx, i); err != nil {
 			return err
 		}
-		return s.emit(txCtx, EvtIssueCreated,
+		if err := s.emit(txCtx, EvtIssueCreated,
 			refsJSON(map[string]string{"issue_id": string(i.ID()), "project_id": string(cmd.ProjectID)}),
 			issueEventPayload{
 				IssueID: string(i.ID()), ProjectID: string(cmd.ProjectID),
 				OrganizationID: proj.OrganizationID(),
 				OwnerRef:       "pm://issues/" + string(i.ID()), Status: string(i.Status()),
 				EffectiveSubscribers: EffectiveIssueSubscribers(i, nil),
-			})
+			}); err != nil {
+			return err
+		}
+		// audit §5: record the issue's creation.
+		s.auditIssueCreated(txCtx, i, cmd.CreatedBy)
+		return nil
 	})
 	if err != nil {
 		return "", err
@@ -343,6 +348,8 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 			}); err != nil {
 			return err
 		}
+		// audit §5: record the task's creation (紧挨 the EvtTaskCreated emit).
+		s.auditTaskCreated(txCtx, t, cmd.CreatedBy)
 		// T199/WS3 one-step dispatch+assign — same tx (atomic with the create, so a
 		// rejected assignee/missing pool rolls back the whole operation, no orphan
 		// task). Dispatch first (sets plan_id) so the subsequent assign can additively

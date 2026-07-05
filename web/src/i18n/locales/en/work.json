@@ -1,4 +1,50 @@
 {
+  "audit": {
+    "title": "Change history",
+    "loading": "Loading…",
+    "error": "Failed to load change history.",
+    "empty": "No changes recorded yet.",
+    "actorSystem": "system",
+    "actorSystemNamed": "system ({{reconciler}})",
+    "category": {
+      "created": "Created",
+      "status": "Status",
+      "assigned": "Assigned",
+      "reassigned": "Reassigned",
+      "unassigned": "Unassigned",
+      "structure": "Structure",
+      "plan": "Plan",
+      "review": "Review",
+      "edited": "Edited",
+      "autoClosed": "Auto-closed"
+    },
+    "sentence": {
+      "createdPlan": "created plan \"{{name}}\"",
+      "created": "created",
+      "statusChanged": "changed status {{from}} → {{to}}",
+      "assigned": "assigned to {{to}}",
+      "reassigned": "reassigned {{from}} → {{to}}",
+      "unassigned": "unassigned {{from}}",
+      "claimed": "claimed the task",
+      "autoAssigned": "auto-assigned to {{to}}",
+      "reviewVerdict": "gate verdict {{verdict}}",
+      "reviewVerdictRound": "gate verdict {{verdict}} (round {{round}})",
+      "editedFields": "edited {{fields}}",
+      "editedMetadata": "edited metadata",
+      "autoClosed": "auto-closed {{from}} → {{to}}",
+      "started": "started the plan",
+      "stopped": "stopped the plan",
+      "dependencyAdded": "added dependency {{from}} → {{to}}",
+      "dependencyAddedKind": "added dependency {{from}} → {{to}} ({{kind}})",
+      "dependencyRemoved": "removed dependency {{from}} → {{to}}",
+      "nodeAdded": "added task {{task}} to the plan",
+      "nodeRemoved": "removed task {{task}} from the plan",
+      "decisionOutcome": "decision outcome {{outcome}}",
+      "decisionOutcomeExhausted": "decision outcome {{outcome}} (loopback exhausted)",
+      "loopback": "loopback re-run (round {{round}})",
+      "fieldChange": "{{field}}: {{from}} → {{to}}"
+    }
+  },
   "status": {
     "open": "open",
     "in_progress": "in progress",
@@ -133,7 +179,8 @@
       "tabs": {
         "chat": "Chat",
         "dag": "DAG",
-        "tasks": "Task List"
+        "tasks": "Task List",
+        "history": "Change History"
       },
       "chat": {
         "restore": "Restore chat",

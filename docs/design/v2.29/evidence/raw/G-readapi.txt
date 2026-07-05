@@ -1,0 +1,16 @@
+$ # Read API — cursor pagination + validation + auth (design §6)
+$ curl $BASE/tasks/$TID/audit?limit=1        # page 1
+  entries=1  top.change_type=unassigned  next_cursor=01KWQYNCP1CW933TBKC6XF24PK...
+$ curl $BASE/tasks/$TID/audit?limit=1&cursor=<next>   # page 2 via cursor
+  entries=1  change_type=reassigned  (distinct from page 1 -> real keyset paging)
+
+$ curl -w 'HTTP %{http_code}' $BASE/tasks/$TID/audit?limit=-5   # bad limit rejected
+  HTTP 400  {"error":"invalid_limit","message":"limit must be a non-negative integer"}
+
+
+$ # membership auth — unauthenticated request rejected (project members only, design §6)
+$ curl -w 'HTTP %{http_code}' $BASE/tasks/$TID/audit   (no session cookie)
+  HTTP 401  (401 — audit gated behind project membership)
+
+$ # DTO shape (structured fields; human sentence composed on frontend, design §6)
+  keys: ['actor', 'change_type', 'detail', 'field', 'from', 'id', 'object_id', 'object_type', 'occurred_at', 'to']

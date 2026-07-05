@@ -1,0 +1,10 @@
+$ curl -s -b <session> $BASE/plans/$PID/audit
+# object_type=plan  object_id=plan-7e6ffb3e   (newest-first)
+----------------------------------------------------------------------------------------------------
+stopped            field=-         -                          actor=user:user-38eefc04    status=draft
+started            field=-         -                          actor=user:user-38eefc04    status=running
+dependency_removed field=-         -                          actor=user:user-38eefc04    from=  to=
+dependency_added   field=-         -                          actor=user:user-38eefc04    from=task-31f2ed94  kind=  max_rounds=0  to=task-d3beb5a9  when=
+node_added         field=-         -                          actor=user:user-38eefc04    task=task-d3beb5a9  task_title=Plan node B (Review)
+node_added         field=-         -                          actor=user:user-38eefc04    task=task-31f2ed94  task_title=Plan node A (Dev)
+created            field=-         -                          actor=user:user-38eefc04    name=Audit demo plan

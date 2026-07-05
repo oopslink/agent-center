@@ -152,7 +152,9 @@ func MigrateV1ToV2Command() *Command {
 // 2026-07 template quick-fix added 0098 (remove builtin cycle template row).
 // 2026-07 chat 引用 added 0099 (messages.quoted_message_id — additive ADD COLUMN,
 // the soft quote/reply pointer for the chat "quote a message" feature).
-const targetSchemaVersion = 99
+// change-log/audit added 0100 (pm_audit_log — the object-level semantic change ledger;
+// renumbered from 0099 at ship-merge to land after main's 0099 message-quote).
+const targetSchemaVersion = 100
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -84,6 +84,12 @@ func (s *Service) AssignTask(ctx context.Context, taskID pm.TaskID, assignee, ac
 		if err := s.emitTaskAssignEvent(txCtx, t, evt, string(prev)); err != nil {
 			return err
 		}
+		// audit §5: first assignment vs reassignment (from→to on the assignee field).
+		changeType := pm.AuditTaskAssigned
+		if prev != "" {
+			changeType = pm.AuditTaskReassigned
+		}
+		s.auditTaskAssign(txCtx, t, changeType, prev, actor)
 		// BUG B (v2.9 assign-after-select): if this task is already in a plan,
 		// emit pm.plan.participants_changed so the NEW assignee additively joins the
 		// Plan conversation (#284). SelectTaskIntoPlan only syncs the assignee that
@@ -172,7 +178,12 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, ""); err != nil {
+			return err
+		}
+		// audit §5: StartTask has its own tx (not via taskStateOp) — record here.
+		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
+		return nil
 	})
 }
 
@@ -516,6 +527,8 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
 		}
+		// audit §5: record the block as a human-facing running→blocked status change.
+		s.auditTaskBlocked(txCtx, t, reasonType, reason, actor)
 		// F6 §3: an input_required block needs a USER reply → emit a SECOND event in
 		// THIS tx so the TaskInputConversationProjector surfaces an interactive
 		// input_request message in the task's bound Conversation (sender=assignee).
@@ -604,6 +617,8 @@ func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error
 		if err := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); err != nil {
 			return err
 		}
+		// audit §5: record the unblock as a human-facing blocked→running status change.
+		s.auditTaskUnblocked(txCtx, t, cmd.Actor)
 		// F6 §4: an input_required unblock IS the user's reply → emit EvtTaskInputReplied
 		// in THIS tx so the TaskInputConversationProjector posts an input_reply message
 		// (sender=actor, threaded under the original input_request). An obstacle unblock
@@ -785,7 +800,14 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, ""); err != nil {
+			return err
+		}
+		// audit §5: record the unassign (only when there WAS an assignee to drop).
+		if prev != "" {
+			s.auditTaskAssign(txCtx, t, pm.AuditTaskUnassigned, prev, actor)
+		}
+		return nil
 	})
 }
 
@@ -825,7 +847,12 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, ""); err != nil {
+			return err
+		}
+		// audit §5: ReopenTask has its own tx (not taskStateOp) — record the reopen.
+		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
+		return nil
 	})
 }
 
@@ -867,6 +894,9 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
 		}
+		// audit §5: record the status transition (shared闸 for Discard/SetStatus/
+		// Complete/Reopen/Reset — every taskStateOp caller). No-op when status didn't move.
+		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
 		// T464: if this transition just concluded a derived task and that makes ALL of
 		// its issue's derived tasks terminal, nudge the issue owner to review + close.
 		return s.maybeNotifyIssueDerivedTasksDone(txCtx, t, prevStatus)
@@ -923,7 +953,8 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
-		prevStatus := t.Status() // snapshot BEFORE patch.Status applies (if any).
+		prevStatus := t.Status()     // snapshot BEFORE patch.Status applies (if any).
+		prevAssignee := t.Assignee() // snapshot BEFORE patch.Assignee applies (if any).
 		if patch.Title != nil {
 			if err := t.Rename(*patch.Title, now); err != nil {
 				return err
@@ -973,7 +1004,23 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		return s.emitTaskStateChanged(txCtx, t, prevStatus, "")
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, ""); err != nil {
+			return err
+		}
+		// audit §5: BatchUpdateTask inlines its own tx (bypasses taskStateOp) and can
+		// change status AND/OR assignee in one shot — record each that actually moved.
+		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
+		if t.Assignee() != prevAssignee {
+			switch {
+			case t.Assignee() == "":
+				s.auditTaskAssign(txCtx, t, pm.AuditTaskUnassigned, prevAssignee, actor)
+			case prevAssignee == "":
+				s.auditTaskAssign(txCtx, t, pm.AuditTaskAssigned, prevAssignee, actor)
+			default:
+				s.auditTaskAssign(txCtx, t, pm.AuditTaskReassigned, prevAssignee, actor)
+			}
+		}
+		return nil
 	})
 }
 

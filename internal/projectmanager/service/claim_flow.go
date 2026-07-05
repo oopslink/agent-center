@@ -106,6 +106,9 @@ func (s *Service) ClaimPoolTask(ctx context.Context, taskID pm.TaskID, actor pm.
 		if err := s.emitTaskStateChanged(txCtx, t, prev, ""); err != nil {
 			return err
 		}
+		// audit §5: a pool claim is an assignee change with its own semantic
+		// (claimed-from-pool), distinct from a directed assign.
+		s.auditTaskAssign(txCtx, t, pm.AuditTaskClaimed, "", actor)
 		// claimer joins the pool conversation (additive; NO work-item/wake).
 		return s.syncPlanParticipantOnAssign(txCtx, t, actor)
 	})

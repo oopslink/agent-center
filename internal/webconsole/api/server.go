@@ -268,6 +268,10 @@ func (s *Server) routes() {
 	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
 	// Change-status menu. Symmetric task + issue.
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}/status", s.pmSetIssueStatusHandler)
+	// 变更记录 / audit trail (change-log design §6): an object's semantic change
+	// ledger, newest-first with cursor pagination, project-member gated (the require
+	// helper enforces membership). Symmetric issue / task / plan.
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/issues/{issue_id}/audit", s.pmIssueAuditHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/tasks", s.pmListTasksHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks", s.pmCreateTaskHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}", s.pmGetTaskHandler)
@@ -284,6 +288,7 @@ func (s *Server) routes() {
 	// Change-status menu. The typed endpoints above remain for the agent's
 	// structured self-reports.
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/status", s.pmSetTaskStatusHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/audit", s.pmTaskAuditHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/subscribe", s.pmSubscribeTaskHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/unsubscribe", s.pmUnsubscribeTaskHandler)
 
@@ -300,6 +305,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/related-plans", s.pmRelatedPlansHandler)
 	// Plan detail rail "Related Issues": the source issue(s) this plan's tasks derive from.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/related-issues", s.pmRelatedIssuesHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/audit", s.pmPlanAuditHandler)
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}", s.pmUpdatePlanHandler)
 	// v2.9 P3: hard-delete (non-running; unloads tasks to backlog + deletes the
 	// plan + its conversation) and archive (non-running; cascade-archives tasks,

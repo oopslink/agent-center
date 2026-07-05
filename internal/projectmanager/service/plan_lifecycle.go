@@ -109,13 +109,18 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		if perr != nil {
 			return perr
 		}
-		return s.emit(txCtx, EvtPlanStarted,
+		if err := s.emit(txCtx, EvtPlanStarted,
 			refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),
 			planEventPayload{
 				PlanID: string(p.ID()), ProjectID: string(p.ProjectID()),
 				OrganizationID: proj.OrganizationID(),
 				OwnerRef:       "pm://plans/" + string(p.ID()),
-			})
+			}); err != nil {
+			return err
+		}
+		// audit §5: record the draft→running start.
+		s.auditPlan(txCtx, p, pm.AuditPlanStarted, actor, map[string]any{"status": string(p.Status())})
+		return nil
 	})
 }
 
@@ -473,7 +478,12 @@ func (s *Service) StopPlan(ctx context.Context, planID pm.PlanID, actor pm.Ident
 		if err := p.Stop(now); err != nil {
 			return err
 		}
-		return s.plans.Update(txCtx, p)
+		if err := s.plans.Update(txCtx, p); err != nil {
+			return err
+		}
+		// audit §5: record the running→draft stop (显式审计写 — no event on this path).
+		s.auditPlan(txCtx, p, pm.AuditPlanStopped, actor, map[string]any{"status": string(p.Status())})
+		return nil
 	})
 }
 

@@ -1,4 +1,50 @@
 {
+  "audit": {
+    "title": "变更记录",
+    "loading": "加载中…",
+    "error": "无法加载变更记录。",
+    "empty": "暂无变更记录。",
+    "actorSystem": "系统",
+    "actorSystemNamed": "系统（{{reconciler}}）",
+    "category": {
+      "created": "创建",
+      "status": "状态",
+      "assigned": "分配",
+      "reassigned": "改派",
+      "unassigned": "取消分配",
+      "structure": "结构",
+      "plan": "计划",
+      "review": "评审",
+      "edited": "编辑",
+      "autoClosed": "自动关闭"
+    },
+    "sentence": {
+      "createdPlan": "创建了计划「{{name}}」",
+      "created": "创建",
+      "statusChanged": "状态变更 {{from}} → {{to}}",
+      "assigned": "分配给 {{to}}",
+      "reassigned": "改派 {{from}} → {{to}}",
+      "unassigned": "取消分配 {{from}}",
+      "claimed": "认领了任务",
+      "autoAssigned": "自动分配给 {{to}}",
+      "reviewVerdict": "评审结论 {{verdict}}",
+      "reviewVerdictRound": "评审结论 {{verdict}}（第 {{round}} 轮）",
+      "editedFields": "编辑了 {{fields}}",
+      "editedMetadata": "编辑了元数据",
+      "autoClosed": "自动关闭 {{from}} → {{to}}",
+      "started": "启动了计划",
+      "stopped": "停止了计划",
+      "dependencyAdded": "新增依赖 {{from}} → {{to}}",
+      "dependencyAddedKind": "新增依赖 {{from}} → {{to}}（{{kind}}）",
+      "dependencyRemoved": "移除依赖 {{from}} → {{to}}",
+      "nodeAdded": "将任务 {{task}} 加入计划",
+      "nodeRemoved": "将任务 {{task}} 移出计划",
+      "decisionOutcome": "决策结果 {{outcome}}",
+      "decisionOutcomeExhausted": "决策结果 {{outcome}}（回环已耗尽）",
+      "loopback": "回环重开（第 {{round}} 轮）",
+      "fieldChange": "{{field}}：{{from}} → {{to}}"
+    }
+  },
   "status": {
     "open": "待处理",
     "in_progress": "进行中",
@@ -133,7 +179,8 @@
       "tabs": {
         "chat": "对话",
         "dag": "DAG",
-        "tasks": "任务列表"
+        "tasks": "任务列表",
+        "history": "变更记录"
       },
       "chat": {
         "restore": "还原对话",

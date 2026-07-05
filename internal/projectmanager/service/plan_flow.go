@@ -83,7 +83,7 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 		if serr := s.plans.Save(txCtx, p); serr != nil {
 			return serr
 		}
-		return s.emit(txCtx, EvtPlanCreated,
+		if err := s.emit(txCtx, EvtPlanCreated,
 			refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(cmd.ProjectID)}),
 			planEventPayload{
 				PlanID: string(p.ID()), ProjectID: string(cmd.ProjectID),
@@ -92,7 +92,12 @@ func (s *Service) CreatePlan(ctx context.Context, cmd CreatePlanCommand) (pm.Pla
 				CreatorRef:     string(cmd.CreatedBy),
 				// ADD-ONLY (additive §9.5): the creator is the first participant.
 				Participants: []string{string(cmd.CreatedBy)},
-			})
+			}); err != nil {
+			return err
+		}
+		// audit §5: record the plan's creation.
+		s.auditPlan(txCtx, p, pm.AuditPlanCreated, cmd.CreatedBy, map[string]any{"name": p.Name()})
+		return nil
 	})
 	if err != nil {
 		return "", err
@@ -164,13 +169,18 @@ func (s *Service) SelectTaskIntoPlan(ctx context.Context, planID pm.PlanID, task
 		if a := string(t.Assignee()); a != "" {
 			participants = []string{a}
 		}
-		return s.emit(txCtx, EvtPlanParticipantsChanged,
+		if err := s.emit(txCtx, EvtPlanParticipantsChanged,
 			refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),
 			planEventPayload{
 				PlanID: string(p.ID()), ProjectID: string(p.ProjectID()),
 				OrganizationID: "", OwnerRef: "pm://plans/" + string(p.ID()),
 				Participants: participants,
-			})
+			}); err != nil {
+			return err
+		}
+		// audit §5: a task selected into the plan is a节点增 (node added).
+		s.auditPlan(txCtx, p, pm.AuditPlanNodeAdded, actor, map[string]any{"task": string(t.ID()), "task_title": t.Title()})
+		return nil
 	})
 }
 
@@ -228,7 +238,12 @@ func (s *Service) RemoveTaskFromPlan(ctx context.Context, planID pm.PlanID, task
 		if err := t.ClearPlan(now); err != nil {
 			return err
 		}
-		return s.tasks.Update(txCtx, t)
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		// audit §5: a task removed from the plan is a节点删 (node removed).
+		s.auditPlan(txCtx, p, pm.AuditPlanNodeRemoved, actor, map[string]any{"task": string(t.ID()), "task_title": t.Title()})
+		return nil
 	})
 }
 
@@ -356,7 +371,17 @@ func (s *Service) addPlanEdge(ctx context.Context, planID pm.PlanID, dep pm.Depe
 				return pm.ErrPlanProjectMismatch
 			}
 		}
-		return s.plans.AddDependency(txCtx, dep)
+		if err := s.plans.AddDependency(txCtx, dep); err != nil {
+			return err
+		}
+		// audit §5: dependency edge added. This entry point emits NO event (§3
+		// rationale — a projector would miss it), so this is the显式审计写. Detail
+		// carries the edge shape (from/to task + kind/when/max_rounds).
+		s.auditPlan(txCtx, p, pm.AuditPlanDependencyAdded, actor, map[string]any{
+			"from": string(dep.FromTaskID), "to": string(dep.ToTaskID),
+			"kind": string(dep.Kind), "when": dep.When, "max_rounds": dep.MaxRounds,
+		})
+		return nil
 	})
 }
 
@@ -381,6 +406,28 @@ func (s *Service) RemovePlanDependency(ctx context.Context, planID pm.PlanID, fr
 		if p.Status() != pm.PlanDraft {
 			return pm.ErrPlanNotDraft
 		}
-		return s.plans.RemoveDependency(txCtx, pm.Dependency{PlanID: planID, FromTaskID: fromTaskID, ToTaskID: toTaskID})
+		// Detect whether the edge actually exists BEFORE the (idempotent) delete so a
+		// no-op removal (missing/empty from→to) produces NO ledger row (只读不产/no-op
+		// 不产 — §coverage). This also fixes the empty detail.from/to row E-1.
+		existed := false
+		if edges, lerr := s.plans.ListDependencies(txCtx, planID); lerr == nil {
+			for _, e := range edges {
+				if e.FromTaskID == fromTaskID && e.ToTaskID == toTaskID {
+					existed = true
+					break
+				}
+			}
+		}
+		if err := s.plans.RemoveDependency(txCtx, pm.Dependency{PlanID: planID, FromTaskID: fromTaskID, ToTaskID: toTaskID}); err != nil {
+			return err
+		}
+		// audit §5: dependency edge removed (显式审计写 — no event on this path). Only when
+		// an edge was actually removed (no-op不产).
+		if existed {
+			s.auditPlan(txCtx, p, pm.AuditPlanDependencyRemvd, actor, map[string]any{
+				"from": string(fromTaskID), "to": string(toTaskID),
+			})
+		}
+		return nil
 	})
 }

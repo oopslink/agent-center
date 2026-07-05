@@ -106,6 +106,7 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCommand) error
 		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
 			return err
 		}
+		prevTitle, prevDesc := i.Title(), i.Description()
 		if cmd.Title != nil {
 			if err := i.Rename(*cmd.Title, now); err != nil {
 				return err
@@ -114,6 +115,20 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCommand) error
 		if cmd.Description != nil {
 			i.SetDescription(*cmd.Description, now)
 		}
-		return s.issues.Update(txCtx, i)
+		if err := s.issues.Update(txCtx, i); err != nil {
+			return err
+		}
+		// audit §5: coarse metadata_edited — record WHICH of {title,description}
+		// changed, never the full-text diff (design §2). This entry point emits no
+		// event, so the audit here is a显式审计写 (design §3 rationale).
+		var edited []string
+		if i.Title() != prevTitle {
+			edited = append(edited, "title")
+		}
+		if i.Description() != prevDesc {
+			edited = append(edited, "description")
+		}
+		s.auditIssueMetadataEdited(txCtx, i, edited, cmd.Actor)
+		return nil
 	})
 }

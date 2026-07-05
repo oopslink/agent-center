@@ -324,6 +324,13 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 			if ferr != nil {
 				return ferr
 			}
+			// Ledger: the engine-driven terminal gate result (bounded loopback exhausted).
+			s.auditPlanByID(txCtx, p.ProjectID(), p.ID(), pm.AuditPlanDecisionOutcome, pm.SystemActor("plan-engine"), map[string]any{
+				"decision_id": decisionID,
+				"decision":    dt.Title(),
+				"outcome":     exhausted,
+				"exhausted":   true,
+			})
 			if eerr := s.escalateExhaustion(txCtx, p, dt); eerr != nil {
 				return eerr
 			}
@@ -337,6 +344,15 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 		if rerr := s.reopenLoopSubgraph(txCtx, p.ID(), edges, lb.ToTaskID, lb.FromTaskID, now); rerr != nil {
 			return rerr
 		}
+		// Ledger: the engine-driven bounded loopback re-run (design §4.2/§5 — the reject
+		// that reopened the subgraph). System actor; best-effort via recordChange.
+		s.auditPlanByID(txCtx, p.ProjectID(), p.ID(), pm.AuditPlanLoopback, pm.SystemActor("plan-engine"), map[string]any{
+			"decision_id": decisionID,
+			"outcome":     outcome,
+			"round":       round,
+			"from":        string(lb.FromTaskID),
+			"to":          string(lb.ToTaskID),
+		})
 	}
 	return nil
 }
@@ -554,7 +570,17 @@ func (s *Service) RecordDecisionOutcome(ctx context.Context, taskID pm.TaskID, o
 		if t.PlanID() == "" {
 			return fmt.Errorf("projectmanager: task %s is not in a plan — no decision outcome to record", taskID)
 		}
-		return s.plans.RecordDecisionOutcome(txCtx, t.PlanID(), taskID, outcome, now)
+		if rerr := s.plans.RecordDecisionOutcome(txCtx, t.PlanID(), taskID, outcome, now); rerr != nil {
+			return rerr
+		}
+		// Ledger: the human's gate ruling (design §4.2/§5 — the '事后查不到 gate 判了什么'
+		// case §1 motivates). actor is the real member; best-effort via recordChange.
+		s.auditPlanByID(txCtx, t.ProjectID(), t.PlanID(), pm.AuditPlanDecisionOutcome, actor, map[string]any{
+			"decision_id": string(taskID),
+			"decision":    t.Title(),
+			"outcome":     outcome,
+		})
+		return nil
 	})
 }
 
@@ -573,12 +599,18 @@ func (s *Service) reopenLoopSubgraph(txCtx context.Context, planID pm.PlanID, ed
 			return err
 		}
 		if pm.TaskIsDone(nt.Status()) { // Completed→Reopened (a re-dispatchable non-terminal state)
+			prevStatus := nt.Status() // terminal status BEFORE reopen (for the audit entry)
 			if rerr := nt.Reopen(now); rerr != nil {
 				return rerr
 			}
 			if uerr := s.tasks.Update(txCtx, nt); uerr != nil {
 				return uerr
 			}
+			// issue-74df441a: audit the loopback-driven task reopen so the task's OWN
+			// change history shows it (parity with the manual reopen path). Closes the
+			// acceptance finding — reopenLoopSubgraph previously bypassed
+			// auditTaskStatusChange, leaving loopback re-runs invisible in the task ledger.
+			s.auditTaskStatusChange(txCtx, nt, prevStatus, pm.SystemActor("plan-engine"))
 		}
 		if cerr := s.plans.ClearDispatch(txCtx, planID, nodeID); cerr != nil {
 			return cerr

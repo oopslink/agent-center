@@ -38,6 +38,7 @@ import {
 } from '@/api/members';
 import { formatLocalTime } from '@/utils/time';
 import { Skeleton } from '@/components/Skeleton';
+import { ObjectAuditTimeline } from '@/components/ObjectAuditTimeline';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
@@ -75,7 +76,7 @@ import { dependencyEdgeError, validDropTargets } from './planDagEdit';
 
 // v2.9.1 UX point 4: chat / DAG / Task list as three independent tabs (default
 // chat). Replaces the prior DAG|Task two-tab + resizable chat side-splitter.
-type Tab = 'chat' | 'dag' | 'tasks';
+type Tab = 'chat' | 'dag' | 'tasks' | 'history';
 
 // (v2.9.1 point 4) The DAG↔chat resizable side-splitter (v2.9 Stage A8) was
 // removed — chat is now a top-level tab (see the 3-tab layout above), so the
@@ -185,6 +186,9 @@ export default function PlanDetail(): React.ReactElement {
             <TabButton id="tasks" active={tab === 'tasks'} onSelect={setTab}>
               {t('plan.detail.tabs.tasks')}
             </TabButton>
+            <TabButton id="history" active={tab === 'history'} onSelect={setTab}>
+              {t('plan.detail.tabs.history')}
+            </TabButton>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-2 pl-2">
             {/* T347: the chat maximize toggle lives on the tab row (was floating
@@ -282,6 +286,16 @@ export default function PlanDetail(): React.ReactElement {
             className={tab === 'tasks' ? 'min-h-0 flex-1 overflow-auto p-3 md:p-4' : undefined}
           >
             {tab === 'tasks' && <PlanTaskList projectId={id} plan={p} />}
+          </div>
+          {/* 变更记录 / audit-trail (change-log design §7): the plan's semantic change
+              history as a tab (create/start/stop/node add-remove/dependency edits). */}
+          <div
+            role="tabpanel"
+            hidden={tab !== 'history'}
+            data-testid="plan-panel-history"
+            className={tab === 'history' ? 'min-h-0 flex-1 overflow-auto p-3 md:p-4' : undefined}
+          >
+            {tab === 'history' && <ObjectAuditTimeline objectType="plan" projectId={id} objectId={p.id} />}
           </div>
         </div>
         </div>

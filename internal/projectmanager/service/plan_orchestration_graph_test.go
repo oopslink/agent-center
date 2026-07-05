@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -58,7 +60,8 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 		OrgSeq:         pmsql.NewOrgSequenceRepo(db),
 		AgentDir:       allOrgDir("org-1"),
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, planTestDisplayName),
-		Orch:           orchSvc, // T768: graph-backed dispatch
+		Orch:           orchSvc,                        // T768: graph-backed dispatch
+		Audit:          pmsql.NewAuditLogRepo(db, gen), // v2.29: change-ledger (decision_outcome/loopback write-points)
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
@@ -310,6 +313,61 @@ func TestGraphCycle_Loopback_RejectReopensDev(t *testing.T) {
 	}
 	_ = rev
 	_ = integ
+
+	// v2.29 F-1: the gate ruling + the engine-driven loopback both hit the change ledger.
+	planAudit := auditOf(t, h.svc, ctx, pm.AuditObjectPlan, string(planID))
+	dec2 := hasChange(planAudit, pm.AuditPlanDecisionOutcome)
+	if dec2 == nil {
+		t.Fatal("no decision_outcome ledger row after RecordDecisionOutcome(reject)")
+	}
+	if dec2.ActorRef != "user:a" {
+		t.Fatalf("decision_outcome actor = %q, want user:a (the human ruling)", dec2.ActorRef)
+	}
+	if got := auditDetailField(t, dec2, "outcome"); got != "reject" {
+		t.Fatalf("decision_outcome detail.outcome = %q, want reject", got)
+	}
+	lb := hasChange(planAudit, pm.AuditPlanLoopback)
+	if lb == nil {
+		t.Fatal("no loopback ledger row after the engine reopened the subgraph")
+	}
+	if lb.ActorRef != pm.SystemActor("plan-engine") {
+		t.Fatalf("loopback actor = %q, want system:plan-engine", lb.ActorRef)
+	}
+	if got := auditDetailField(t, lb, "round"); got != "1" {
+		t.Fatalf("loopback detail.round = %q, want 1", got)
+	}
+
+	// issue-74df441a: the loopback-driven reopen must ALSO hit the reopened task's OWN
+	// ledger (not only the plan's) — parity with the manual reopen path; the acceptance
+	// finding this closes (reopenLoopSubgraph previously bypassed auditTaskStatusChange).
+	taskAudit := auditOf(t, h.svc, ctx, pm.AuditObjectTask, string(dec))
+	var sawLoopbackReopen bool
+	for _, e := range taskAudit {
+		if e.ChangeType == pm.AuditTaskStatusChanged && e.ToValue == string(pm.TaskReopened) && e.ActorRef == pm.SystemActor("plan-engine") {
+			sawLoopbackReopen = true
+			break
+		}
+	}
+	if !sawLoopbackReopen {
+		t.Fatal("loopback-reopened task has no completed→reopened row (actor=system:plan-engine) in its OWN ledger — reopenLoopSubgraph audit gap (issue-74df441a)")
+	}
+}
+
+// auditDetailField unmarshals the entry's JSON detail blob and returns key as a
+// string ("" if absent) — a fmt.Sprint keeps ints/strings uniform for assertions.
+func auditDetailField(t *testing.T, e *pm.AuditEntry, key string) string {
+	t.Helper()
+	if e.Detail == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(e.Detail), &m); err != nil {
+		t.Fatalf("unmarshal detail %q: %v", e.Detail, err)
+	}
+	if v, ok := m[key]; ok {
+		return fmt.Sprint(v)
+	}
+	return ""
 }
 
 // TestGraphCycle_Loopback_BoundedRoundsThenExhausts is the T805 ③ bounded-loopback +

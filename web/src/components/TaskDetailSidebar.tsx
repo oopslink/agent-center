@@ -10,6 +10,7 @@ import { refLabel, IssueRefTag } from '@/components/workItemDisplay';
 import { PlanRefTag } from '@/components/planDisplay';
 import { tagColorFor } from '@/components/tagColors';
 import { formatLocalTime, formatStatusDuration } from '@/utils/time';
+import { ObjectAuditTimeline } from '@/components/ObjectAuditTimeline';
 
 // TaskDetailSidebar — the @oopslink mockup's TWO-SECTION Task detail sidebar.
 // It is TaskDetail-specific (the editable/read-only split + the live status
@@ -277,6 +278,10 @@ export function TaskDetailSidebar({
           </span>
         </div>
       </section>
+
+      {/* 变更记录 / audit-trail (change-log design §7): this task's semantic change
+          history rendered as a human-readable timeline, after the read-only block. */}
+      <ObjectAuditTimeline objectType="task" projectId={tk.project_id} objectId={tk.id} />
     </aside>
   );
 }

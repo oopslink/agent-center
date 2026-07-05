@@ -1,0 +1,28 @@
+$ sqlite3 agent-center.db  # isolated test instance audit1 (real install config)
+sqlite> SELECT sql FROM sqlite_master WHERE name='pm_audit_log';
+CREATE TABLE pm_audit_log (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL,
+    object_type TEXT NOT NULL,
+    object_id   TEXT NOT NULL,
+    change_type TEXT NOT NULL,
+    field       TEXT NOT NULL DEFAULT '',
+    from_value  TEXT NOT NULL DEFAULT '',
+    to_value    TEXT NOT NULL DEFAULT '',
+    actor_ref   TEXT NOT NULL,
+    detail      TEXT NOT NULL DEFAULT '{}',
+    occurred_at TEXT NOT NULL
+)
+
+sqlite> SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='pm_audit_log';
+idx_pm_audit_log_object
+idx_pm_audit_log_project
+
+sqlite> -- FK-free check (design: uniformly FK-free / app-managed)
+sqlite> SELECT COUNT(*) AS references_count FROM (SELECT sql FROM sqlite_master WHERE name='pm_audit_log') WHERE sql LIKE '%REFERENCES%';
+0
+
+sqlite> -- migration head (0099 applied, prev 98)
+sqlite> SELECT version, name FROM schema_migrations ORDER BY version DESC LIMIT 2;
+99  v229_pm_audit_log
+98  remove_builtin_cycle_template

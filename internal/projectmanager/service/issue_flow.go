@@ -26,18 +26,24 @@ func (s *Service) TransitionIssue(ctx context.Context, issueID pm.IssueID, to pm
 		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
 			return err
 		}
+		prev := i.Status()
 		if err := i.Transition(to, now); err != nil {
 			return err
 		}
 		if err := s.issues.Update(txCtx, i); err != nil {
 			return err
 		}
-		return s.emit(txCtx, EvtIssueStateChanged,
+		if err := s.emit(txCtx, EvtIssueStateChanged,
 			refsJSON(map[string]string{"issue_id": string(i.ID()), "project_id": string(i.ProjectID())}),
 			issueEventPayload{
 				IssueID: string(i.ID()), ProjectID: string(i.ProjectID()),
 				OwnerRef: "pm://issues/" + string(i.ID()), Status: string(i.Status()),
-			})
+			}); err != nil {
+			return err
+		}
+		// audit §5: record the issue status transition (covers close/reopen).
+		s.auditIssueStatusChange(txCtx, i, prev, pm.AuditIssueStatusChanged, actor)
+		return nil
 	})
 }
 
@@ -59,18 +65,24 @@ func (s *Service) SetIssueStatus(ctx context.Context, issueID pm.IssueID, target
 		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
 			return err
 		}
+		prev := i.Status()
 		if err := i.SetStatus(target, now); err != nil {
 			return err
 		}
 		if err := s.issues.Update(txCtx, i); err != nil {
 			return err
 		}
-		return s.emit(txCtx, EvtIssueStateChanged,
+		if err := s.emit(txCtx, EvtIssueStateChanged,
 			refsJSON(map[string]string{"issue_id": string(i.ID()), "project_id": string(i.ProjectID())}),
 			issueEventPayload{
 				IssueID: string(i.ID()), ProjectID: string(i.ProjectID()),
 				OwnerRef: "pm://issues/" + string(i.ID()), Status: string(i.Status()),
-			})
+			}); err != nil {
+			return err
+		}
+		// audit §5: record the issue status override.
+		s.auditIssueStatusChange(txCtx, i, prev, pm.AuditIssueStatusChanged, actor)
+		return nil
 	})
 }
 
@@ -105,6 +117,7 @@ func (s *Service) BatchUpdateIssue(ctx context.Context, issueID pm.IssueID, patc
 		if err := s.requireProjectMutable(txCtx, i.ProjectID()); err != nil {
 			return err
 		}
+		prevStatus, prevTitle, prevDesc := i.Status(), i.Title(), i.Description()
 		if patch.Title != nil {
 			if err := i.Rename(*patch.Title, now); err != nil {
 				return err
@@ -126,11 +139,26 @@ func (s *Service) BatchUpdateIssue(ctx context.Context, issueID pm.IssueID, patc
 		if err := s.issues.Update(txCtx, i); err != nil {
 			return err
 		}
-		return s.emit(txCtx, EvtIssueStateChanged,
+		if err := s.emit(txCtx, EvtIssueStateChanged,
 			refsJSON(map[string]string{"issue_id": string(i.ID()), "project_id": string(i.ProjectID())}),
 			issueEventPayload{
 				IssueID: string(i.ID()), ProjectID: string(i.ProjectID()),
 				OwnerRef: "pm://issues/" + string(i.ID()), Status: string(i.Status()),
-			})
+			}); err != nil {
+			return err
+		}
+		// audit §5: a batch edit can move status AND/OR edit title/description in one
+		// tx — record the status transition (if any) + a coarse metadata_edited (no
+		// full-text diff, design §2) listing which of {title,description} changed.
+		s.auditIssueStatusChange(txCtx, i, prevStatus, pm.AuditIssueStatusChanged, actor)
+		var edited []string
+		if i.Title() != prevTitle {
+			edited = append(edited, "title")
+		}
+		if i.Description() != prevDesc {
+			edited = append(edited, "description")
+		}
+		s.auditIssueMetadataEdited(txCtx, i, edited, actor)
+		return nil
 	})
 }

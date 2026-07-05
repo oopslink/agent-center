@@ -9,7 +9,7 @@ import type { Message } from '@/api/types';
 //
 // Unlike those (which expose only an opener), quoting is bidirectional: the list
 // SETS the target when the user clicks Quote, while the composer READS it (to
-// render the preview bar) and CLEARS it (✕ / after a successful send). So the
+// render the preview bar) and CLEARS it (x / after a successful send). So the
 // context value carries both the current target and its setter.
 //
 // `useQuote()` returns the value, or null when there is no provider — the

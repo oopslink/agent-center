@@ -307,6 +307,24 @@ type TaskActionLogRepository interface {
 	ListByTask(ctx context.Context, taskID TaskID) ([]TaskActionLog, error)
 }
 
+// AuditLogRepository persists the append-only object-level change ledger
+// (pm_audit_log, migration 0099 — design §4.3). Like TaskActionLogRepository the
+// aggregate never mints infra IDs: Append assigns a ULID to any entry whose ID is
+// empty, then inserts it in the caller's ambient tx (so the audit row commits
+// atomically with the change it records — no eventual-consistency gap). ListByObject
+// returns one object's ledger time-DESCENDING (newest first) with cursor pagination
+// for the read API (design §6).
+type AuditLogRepository interface {
+	// Append inserts entry, minting a fresh ULID when entry.ID is empty. Runs in the
+	// caller's ambient tx when ctx carries one.
+	Append(ctx context.Context, entry AuditEntry) error
+	// ListByObject returns (objType, objID)'s ledger newest-first. cursor is the
+	// opaque id of the last row from the previous page ("" = first page); limit caps
+	// the page size (<=0 ⇒ a default). The returned nextCursor is "" when the page is
+	// the last one.
+	ListByObject(ctx context.Context, objType AuditObjectType, objID string, cursor string, limit int) (entries []AuditEntry, nextCursor string, err error)
+}
+
 // CodeRepoRefRepository persists CodeRepoRef records attached to a Project.
 type CodeRepoRefRepository interface {
 	Save(ctx context.Context, c *CodeRepoRef) error
