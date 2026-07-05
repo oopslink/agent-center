@@ -58,6 +58,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"reset_task", "reset a dead-executor task back to the pool for a fresh executor"},
 	// plan authoring / lifecycle
 	{"create_plan", "create a draft plan (a DAG of tasks)"},
+	{"edit_plan_topology", "atomically edit a plan's DAG (add/remove nodes+edges) on a draft OR running plan — the unified topology-edit tool"},
 	{"add_task_to_plan", "add a backlog task as a node in a draft plan"},
 	{"remove_task_from_plan", "remove a task node from a draft plan"},
 	{"add_plan_dependency", "wire a plan edge: seq depends_on, or a conditional/loopback control-flow edge (Decision/cycle authoring)"},

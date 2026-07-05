@@ -217,6 +217,21 @@ func (p *Plan) SetGraphID(id string, at time.Time) {
 	p.touch(at)
 }
 
+// SetVersion overwrites the plan version + updatedAt. It exists for the live-topology
+// commit (edit_plan_topology, 2026-07-05 design §4): a whole ops batch is ONE commit
+// that advances the plan to exactly base_version+1, regardless of how many internal
+// touch()es happen inside the same tx (e.g. a running-plan graph rebuild's SetGraphID).
+// The optimistic-concurrency CAS is the caller's (compare the loaded version to
+// base_version) under SQLite's single-writer serialization; this stamps the agreed
+// next version deterministically so the commit is a single, well-defined increment.
+func (p *Plan) SetVersion(v int, at time.Time) {
+	p.version = v
+	if at.IsZero() {
+		at = time.Now()
+	}
+	p.updatedAt = at.UTC()
+}
+
 // Rename updates the display name.
 func (p *Plan) Rename(name string, at time.Time) error {
 	if strings.TrimSpace(name) == "" {

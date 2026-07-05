@@ -210,6 +210,17 @@ var (
 	ErrPlanUnresolvableAssignee = errors.New("projectmanager: a plan task's assignee is unresolvable (identity missing or agent archived/deleted)")
 	// ErrPlanNotRunning rejects advance on a Plan that is not running (§9.6/§3).
 	ErrPlanNotRunning = errors.New("projectmanager: plan is not running")
+	// Live topology edit (2026-07-05 plan-live-topology-edit design).
+	// ErrPlanVersionConflict is the edit_plan_topology CAS failure (§4.1): the
+	// commit tx rejects when plan.version != base_version — a concurrent edit already
+	// advanced the plan, so the caller must re-read (rebase) and retry (edit vs edit).
+	ErrPlanVersionConflict = errors.New("projectmanager: plan version conflict — base_version is stale, re-read the plan and retry")
+	// ErrPlanNodeInFlight is the edit_plan_topology mutability failure (§4/§6): a
+	// running-plan edit may only restructure a MUTABLE node (no dispatch record AND
+	// task non-terminal/non-running — node_status ∈ {blocked, ready}). Editing the
+	// in-edges of / removing an in-flight (dispatched/running/done/failed) node is
+	// rejected — undo an executed node via reopen/loopback, not a topology edit.
+	ErrPlanNodeInFlight = errors.New("projectmanager: plan node is in-flight (dispatched/running/terminal) — its structure cannot be live-edited")
 	// v2.9 P3 (delete + archive).
 	// ErrPlanRunning rejects DeletePlan/ArchivePlan on a RUNNING Plan: a running
 	// plan must be stopped (or finished) before it can be deleted or archived

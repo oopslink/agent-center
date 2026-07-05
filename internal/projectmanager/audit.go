@@ -41,6 +41,11 @@ const (
 	AuditPlanNodeRemoved     AuditChangeType = "node_removed"
 	AuditPlanDecisionOutcome AuditChangeType = "decision_outcome"
 	AuditPlanLoopback        AuditChangeType = "loopback"
+	// AuditPlanTopologyCommit is one whole edit_plan_topology batch (2026-07-05
+	// live-topology design §5 layer 2): the from_version→to_version commit plus the
+	// ops/diff, recorded ONCE per commit (not per-op) so a plan's edit history is
+	// reconstructable/replayable from the audit ledger.
+	AuditPlanTopologyCommit AuditChangeType = "topology_commit"
 
 	// issue
 	AuditIssueCreated        AuditChangeType = "created"

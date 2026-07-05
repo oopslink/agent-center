@@ -59,7 +59,11 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrProjectArchived),
+		errors.Is(err, pm.ErrPlanVersionConflict), errors.Is(err, pm.ErrPlanNodeInFlight),
 		errors.Is(err, pm.ErrPlanHasRunningTasks):
+		// Live-topology edit conflicts (§4): a stale base_version (rebase & retry) and
+		// an in-flight node whose structure can't be live-edited are both STATE
+		// conflicts → 409 plan_conflict, consistent with the other plan-state guards.
 		// v2.9 #297: a plan op on an ARCHIVED PARENT PROJECT also conflicts → 409.
 		// v2.9 #299: archive rejected while a member task is still running → 409.
 		// v2.9 P3: STATE-conflict class — the plan's status blocks the op → 409
@@ -137,7 +141,6 @@ func (s *Server) createPlanHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"plan_id": string(planID)})
 }
-
 
 // --- add_task_to_plan --------------------------------------------------------
 
@@ -251,6 +254,79 @@ func (s *Server) removePlanDependencyHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// --- edit_plan_topology ------------------------------------------------------
+
+type topologyOpReq struct {
+	Op         string `json:"op"`
+	TaskID     string `json:"task_id"`
+	FromTaskID string `json:"from_task_id"`
+	ToTaskID   string `json:"to_task_id"`
+	Kind       string `json:"kind"`
+	When       string `json:"when"`
+	MaxRounds  int    `json:"max_rounds"`
+}
+
+type editPlanTopologyReq struct {
+	AgentID     string          `json:"agent_id"`
+	PlanID      string          `json:"plan_id"`
+	BaseVersion int             `json:"base_version"`
+	Ops         []topologyOpReq `json:"ops"`
+}
+
+// editPlanTopologyHandler applies a whole topology-edit batch to a draft or running
+// plan via pm.EditPlanTopology (actor=agent). It is the single DAG-edit entrypoint
+// (2026-07-05 live-topology design §3): CAS on base_version, terminal-only validation,
+// running-plan mutability guard, then (running) rebuild + dispatch. Domain guards
+// (ErrPlanVersionConflict / ErrPlanNodeInFlight / ErrPlanCycle / …) surface as tool
+// errors via mapPlanToolError.
+func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req editPlanTopologyReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, gateOK := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !gateOK {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	ops := make([]pmservice.TopologyOp, 0, len(req.Ops))
+	for _, o := range req.Ops {
+		ops = append(ops, pmservice.TopologyOp{
+			Kind:       pmservice.TopologyOpKind(strings.TrimSpace(o.Op)),
+			TaskID:     pm.TaskID(o.TaskID),
+			FromTaskID: pm.TaskID(o.FromTaskID),
+			ToTaskID:   pm.TaskID(o.ToTaskID),
+			EdgeKind:   pm.EdgeKind(strings.TrimSpace(o.Kind)),
+			When:       o.When,
+			MaxRounds:  o.MaxRounds,
+		})
+	}
+	dispatched, err := d.PMService.EditPlanTopology(r.Context(), pmservice.EditPlanTopologyCommand{
+		PlanID:      pm.PlanID(req.PlanID),
+		BaseVersion: req.BaseVersion,
+		Ops:         ops,
+		Actor:       pm.IdentityRef(agentActor(a)),
+	})
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	out := make([]string, 0, len(dispatched))
+	for _, id := range dispatched {
+		out = append(out, string(id))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": req.BaseVersion + 1, "dispatched": out})
 }
 
 // --- start_plan / stop_plan --------------------------------------------------
