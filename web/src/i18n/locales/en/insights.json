@@ -223,7 +223,8 @@
     },
     "detail": {
       "task": "task",
-      "interaction": "interaction"
+      "interaction": "interaction",
+      "executorDetail": "current command"
     },
     "checkingGroup": {
       "label_one": "Checking messages × {{count}}",

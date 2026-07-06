@@ -334,6 +334,13 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
   // 'output'): prefer the human-readable .content, else the pretty-printed
   // nested tool_result JSON (Lock 12). #192: output body is content-exempt.
   const toolOutput = cat.key === 'tool_result' ? extractToolOutput(payload) : '';
+  // v2.31.3 (oopslink "完全对齐"): a lone executor.progress heartbeat (not folded
+  // into ExecutorProgressGroup) must ALSO expand to its FULL "what it's doing"
+  // detail — the backend now carries the REAL, un-redacted command (parity with
+  // the supervisor's own tool_use activity). The collapsed preview shows a
+  // CSS-truncated teaser; expanding reveals the complete command verbatim, the
+  // same way the grouped executor row does (agent-activity-executor-detail-full).
+  const executorDetailFull = isExecutorEvent(event.event_type, payload) ? str(payload.detail) : '';
 
   return (
     <li
@@ -417,6 +424,17 @@ export function AgentActivityRow({ event }: { event: AgentActivityEvent }): Reac
                 </>
               )}
             </dl>
+          )}
+          {/* v2.31.3 (oopslink "完全对齐"): the executor's FULL current-action
+              detail (the REAL command, un-truncated) — parity with the
+              supervisor's tool_use expansion and with the grouped executor row. */}
+          {executorDetailFull && (
+            <div data-testid="agent-activity-executor-detail-full">
+              <div className="text-[0.6875rem] text-text-muted">{t('activity.detail.executorDetail')}</div>
+              <p className="whitespace-pre-wrap break-words font-mono text-[0.6875rem] text-text-secondary">
+                {executorDetailFull}
+              </p>
+            </div>
           )}
           {/* #274: tool_result output rendered via the shared collapsible block
               (long output auto-collapses; copy/expand a11y from #187). */}

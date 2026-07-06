@@ -16,20 +16,21 @@ func TestStreamLineActivity_Tools(t *testing.T) {
 		line string
 		want string
 	}{
-		{"read basename only", asstTool("Read", `{"file_path":"/Users/x/agent-center/internal/projectmanager/task.go"}`), "读 task.go"},
-		{"write basename", asstTool("Write", `{"file_path":"web/src/App.tsx"}`), "写 App.tsx"},
-		{"edit basename", asstTool("Edit", `{"file_path":"internal/foo/assign_flow.go"}`), "改 assign_flow.go"},
-		{"multiedit basename", asstTool("MultiEdit", `{"file_path":"a/b/run.go"}`), "改 run.go"},
-		{"notebookedit", asstTool("NotebookEdit", `{"notebook_path":"nb/x.ipynb"}`), "改 x.ipynb"},
-		{"grep pattern", asstTool("Grep", `{"pattern":"func Reset"}`), "搜 func Reset"},
-		{"glob pattern", asstTool("Glob", `{"pattern":"**/*.go"}`), "找 **/*.go"},
-		{"unknown tool", asstTool("WebFetch", `{"url":"https://x"}`), "调 WebFetch"},
+		// The detail now renders the REAL, un-redacted tool input as
+		// `ToolName(<args>)` — aligned with the supervisor's own activity
+		// (AgentActivityRow.preview `${tool_name}(${summarizeArgs(args)})`).
+		{"read full path (no basename redaction)", asstTool("Read", `{"file_path":"/Users/x/agent-center/internal/projectmanager/task.go"}`), `Read({"file_path":"/Users/x/agent-center/internal/projectmanager/task.go"})`},
+		{"write full path", asstTool("Write", `{"file_path":"web/src/App.tsx"}`), `Write({"file_path":"web/src/App.tsx"})`},
+		{"edit full path", asstTool("Edit", `{"file_path":"internal/foo/assign_flow.go"}`), `Edit({"file_path":"internal/foo/assign_flow.go"})`},
+		{"grep pattern", asstTool("Grep", `{"pattern":"func Reset"}`), `Grep({"pattern":"func Reset"})`},
+		{"glob pattern", asstTool("Glob", `{"pattern":"**/*.go"}`), `Glob({"pattern":"**/*.go"})`},
+		{"unknown tool keeps its args", asstTool("WebFetch", `{"url":"https://x"}`), `WebFetch({"url":"https://x"})`},
 		{"assistant text → generic label", `{"type":"assistant","message":{"content":[{"type":"text","text":"Let me plan the change to the router"}]}}`, "生成中"},
-		{"bash bareword subcmd", asstTool("Bash", `{"command":"go test ./..."}`), "跑 go test"},
-		{"bash git push (drops remote/branch)", asstTool("Bash", `{"command":"git push origin feat/x"}`), "跑 git push"},
-		{"bash npm install", asstTool("Bash", `{"command":"npm install"}`), "跑 npm install"},
-		{"bash binary only", asstTool("Bash", `{"command":"ls"}`), "跑 ls"},
-		{"bash abs-path binary → basename", asstTool("Bash", `{"command":"/usr/local/bin/go build"}`), "跑 go build"},
+		// Bash commands now show the FULL command verbatim (args no longer dropped).
+		{"bash full command", asstTool("Bash", `{"command":"go test ./..."}`), `Bash({"command":"go test ./..."})`},
+		{"bash git push keeps remote/branch", asstTool("Bash", `{"command":"git push origin feat/x"}`), `Bash({"command":"git push origin feat/x"})`},
+		{"bash cd && go test (the report case)", asstTool("Bash", `{"command":"cd /x && go test"}`), `Bash({"command":"cd /x && go test"})`},
+		{"bash abs-path binary kept as-is", asstTool("Bash", `{"command":"/usr/local/bin/go build"}`), `Bash({"command":"/usr/local/bin/go build"})`},
 		// result / system / non-JSON → no activity (caller keeps previous)
 		{"result line", `{"type":"result","subtype":"success","result":"done","usage":{"input_tokens":1}}`, ""},
 		{"system line", `{"type":"system","subtype":"init"}`, ""},
@@ -46,19 +47,18 @@ func TestStreamLineActivity_Tools(t *testing.T) {
 	}
 }
 
-// The core PD-gate guarantee: a Bash command carrying a secret or a path must
-// NEVER leak its args/values into the activity note.
-func TestStreamLineActivity_BashSanitization(t *testing.T) {
+// Owner directive ("完全对齐 with supervisor activity"): the executor detail must
+// show the REAL command/args, NOT the old sanitized note. These cases prove a
+// Bash command's args (paths, flags, sub-commands) are now VISIBLE, not redacted.
+func TestStreamLineActivity_BashArgsVisible(t *testing.T) {
 	cases := []struct {
 		name, cmd, want string
-		mustNotContain  string
+		mustContain     string
 	}{
-		{"auth header token", `curl -H "Authorization: Bearer sk-secret-123" https://api`, "跑 curl …", "sk-secret"},
-		{"env-assign secret prefix", `TOKEN=sk-abc go test ./...`, "跑 go test", "sk-abc"},
-		{"path arg hidden", `cat /etc/passwd`, "跑 cat …", "passwd"},
-		{"flag value hidden", `psql -c "SELECT * FROM users"`, "跑 psql …", "SELECT"},
-		{"pipe/redirect hidden", `echo hi > /root/.ssh/authorized_keys`, "跑 echo …", "authorized_keys"},
-		{"only env assign", `FOO=bar`, "跑 …", "bar"},
+		{"path arg now visible", `cat /etc/passwd`, `Bash({"command":"cat /etc/passwd"})`, "/etc/passwd"},
+		{"flag value now visible", `psql -c "SELECT * FROM users"`, `Bash({"command":"psql -c \"SELECT * FROM users\""})`, "SELECT"},
+		{"cd chain now visible", `cd /x && go test ./...`, `Bash({"command":"cd /x && go test ./..."})`, "cd /x && go test"},
+		{"env prefix now visible", `TOKEN=abc go test ./...`, `Bash({"command":"TOKEN=abc go test ./..."})`, "TOKEN=abc"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -66,23 +66,24 @@ func TestStreamLineActivity_BashSanitization(t *testing.T) {
 			if got != c.want {
 				t.Fatalf("bash %q → %q, want %q", c.cmd, got, c.want)
 			}
-			if c.mustNotContain != "" && strings.Contains(got, c.mustNotContain) {
-				t.Fatalf("LEAK: %q contains %q", got, c.mustNotContain)
+			if c.mustContain != "" && !strings.Contains(got, c.mustContain) {
+				t.Fatalf("expected %q to contain %q (args must be visible now)", got, c.mustContain)
 			}
 		})
 	}
 }
 
-// Long paths/patterns are clipped so a note stays short (defense-in-depth over the
-// 80-rune overall cap).
+// A pathologically long command is clipped to the (generous) maxDetailLen so a
+// note never floods the status file / event, while still preserving enough for
+// the expandable view.
 func TestStreamLineActivity_Truncation(t *testing.T) {
-	long := strings.Repeat("a", 100)
-	got := streamLineActivity([]byte(asstTool("Read", `{"file_path":"`+long+".go"+`"}`)))
-	if !strings.HasPrefix(got, "读 ") || !strings.HasSuffix(got, "…") {
-		t.Fatalf("expected clipped read note, got %q", got)
+	long := strings.Repeat("a", maxDetailLen+500)
+	got := streamLineActivity([]byte(asstTool("Bash", `{"command":`+jsonQuote(long)+`}`)))
+	if !strings.HasPrefix(got, `Bash({"command":"`) || !strings.HasSuffix(got, "…") {
+		t.Fatalf("expected a clipped bash note, got %q", got)
 	}
-	if len([]rune(got)) > maxDetailLen+2 { // "读 " prefix + cap
-		t.Fatalf("note too long (%d runes): %q", len([]rune(got)), got)
+	if len([]rune(got)) > maxDetailLen+1 { // cap + the ellipsis rune
+		t.Fatalf("note too long (%d runes)", len([]rune(got)))
 	}
 }
 

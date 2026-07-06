@@ -1,62 +1,52 @@
 package executor
 
-// activity_detail.go — T880: turn one claude stream-json line into a SHORT,
-// SANITIZED "what is the executor doing right now" note ("读 task.go", "跑 go test",
-// "生成中") for the executor.progress `detail` field. It reuses the exact parser the
-// bug1 heartbeat already runs per line (claudestream.ParseStreamLine), so this adds
-// a lightweight per-line peek, not a second pass.
+// activity_detail.go — turn one claude stream-json line into a "what is the
+// executor doing right now" note for the executor.progress `detail` field. It
+// reuses the exact parser the bug1 heartbeat already runs per line
+// (claudestream.ParseStreamLine), so this adds a lightweight per-line peek, not a
+// second pass.
 //
-// SANITIZATION IS THE POINT (design + PD gate). Only a tool name plus a truncated,
-// STRUCTURAL hint ever escapes to the activity stream:
-//   - a file's BASENAME (never its directory),
-//   - a Bash BINARY + a clean sub-command WORD (never a flag, path, arg value, or
-//     a `VAR=secret` env prefix — a `curl -H "Authorization: Bearer sk-…"` token
-//     lives in the args, so Bash args are dropped),
-//   - a truncated grep/glob PATTERN.
-// Assistant / thinking CONTENT is replaced by a generic "生成中" label. The raw
-// ToolInput and the full stream-json line NEVER leave the wrapper.
+// SANITIZATION WAS INTENTIONALLY REMOVED (owner directive — oopslink, "完全对齐
+// with supervisor activity"). This file used to redact every tool_use down to a
+// binary basename plus a structural hint ("跑 cd …", "读 task.go"), dropping all
+// args/paths so no secret could escape. That made the second-level executor
+// detail useless (an operator saw "跑 cd …" and learned nothing), and it did NOT
+// match how the SUPERVISOR's OWN activity is rendered on the frontend
+// (AgentActivityRow.preview case 'tool_use' → `${tool_name}(${summarizeArgs})`,
+// the REAL command/args, un-redacted). Per the owner directive the executor's
+// second-level detail must be FULLY ALIGNED with the supervisor's: it now renders
+// the tool_use the same way — `ToolName(<real args>)` — with the FULL command
+// preserved so the frontend's expandable/collapsible view can show it verbatim.
+//
+// ACCEPTED TRADEOFF (owner-directed): a forked executor's real commands — and any
+// secret embedded in a command (a `curl -H "Authorization: Bearer sk-…"`, a
+// `TOKEN=sk-… go test`) — are now surfaced in the activity stream, exactly as the
+// supervisor's own commands already are. This is the same exposure the supervisor
+// activity already carries; the owner chose parity over the executor-only
+// redaction.
 
 import (
+	"bytes"
 	"encoding/json"
-	"path"
-	"regexp"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
 )
 
-// maxDetailLen bounds a rendered detail note (defense-in-depth over the per-field
-// truncation below).
-const maxDetailLen = 80
+// maxDetailLen bounds a rendered detail note. It is deliberately generous: the
+// single `detail` field must carry the FULL command so the frontend can render an
+// expandable/collapsible view (a short CSS-truncated teaser in the collapsed row,
+// the complete command when expanded — AgentActivityRow.ExecutorProgressGroup /
+// the executor.progress detail block). The bound only guards against a
+// pathologically huge tool input flooding the status file / event.
+const maxDetailLen = 2000
 
-// bashWord matches a clean, secret-free command token: a Bash sub-command like
-// "test" / "push" / "install". No leading "-" (a flag), no "." or "/" (a path or
-// filename), no "=" (an env value) — so nothing that could carry a path or secret
-// passes. Used for the Bash sub-command; the binary basename uses binWord (which
-// also allows "." for script names like deploy.sh).
-var (
-	bashWord = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_:-]{0,20}$`)
-	binWord  = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_:.-]{0,20}$`)
-)
-
-// subcmdTools are the well-known multi-command dev tools whose FIRST positional is
-// a verb sub-command (git push, go test, npm install) — safe to surface. For any
-// OTHER binary the first positional could be a value/token/path (e.g. `mytool
-// sk-secret`), so we show the binary alone. This is the guard that keeps a
-// bareword-shaped secret out of the note even when it passes bashWord.
-var subcmdTools = map[string]bool{
-	"git": true, "go": true, "npm": true, "pnpm": true, "yarn": true, "bun": true,
-	"cargo": true, "docker": true, "kubectl": true, "make": true, "pip": true,
-	"pip3": true, "gh": true, "terraform": true, "deno": true, "brew": true,
-	"apt": true, "apt-get": true, "systemctl": true, "helm": true, "gcloud": true,
-	"aws": true, "poetry": true, "uv": true, "gradle": true, "mvn": true,
-}
-
-// streamLineActivity peeks one stream-json line and returns a short sanitized note
-// of the executor's current action, or "" when there is nothing worth surfacing (a
-// non-JSON line, a parse miss, a system/result/tool_result event) — the caller then
-// keeps the previous note. A line may carry several events; the LAST tool_use wins
-// (the most recent action), else an assistant text block yields the generic label.
+// streamLineActivity peeks one stream-json line and returns a note of the
+// executor's current action, or "" when there is nothing worth surfacing (a
+// non-JSON line, a parse miss, a system/result/tool_result event) — the caller
+// then keeps the previous note. A line may carry several events; the LAST tool_use
+// wins (the most recent action), else an assistant text block yields a generic
+// label.
 func streamLineActivity(line []byte) string {
 	evs, err := claudestream.ParseStreamLine(line)
 	if err != nil {
@@ -71,104 +61,53 @@ func streamLineActivity(line []byte) string {
 			}
 		case "assistant_text":
 			if detail == "" && strings.TrimSpace(ev.Text) != "" {
-				detail = "生成中" // generic label — never the assistant CONTENT
+				detail = "生成中" // generic label — the assistant CONTENT is not a command
 			}
 		}
 	}
 	return clip(detail, maxDetailLen)
 }
 
-// toolActivity renders a tool_use as a sanitized note from its name + one
-// structural param. Unknown tools fall back to the (clipped) tool name alone.
+// toolActivity renders a tool_use exactly as the supervisor's activity does —
+// `ToolName(<real args>)` — with the REAL, un-redacted argument content, so the
+// executor's second-level detail is aligned byte-for-byte in shape with the
+// supervisor's `${tool_name}(${summarizeArgs(args)})`. No field is dropped and no
+// value is redacted (owner directive "完全对齐"). An empty tool name yields "".
 func toolActivity(name string, input json.RawMessage) string {
-	var m map[string]any
-	_ = json.Unmarshal(input, &m) // best-effort; m stays nil on any error
-	str := func(k string) string {
-		s, _ := m[k].(string)
-		return strings.TrimSpace(s)
-	}
-	switch name {
-	case "Read":
-		if p := str("file_path"); p != "" {
-			return "读 " + baseName(p)
-		}
-		return "读文件"
-	case "Write":
-		if p := str("file_path"); p != "" {
-			return "写 " + baseName(p)
-		}
-		return "写文件"
-	case "Edit", "MultiEdit":
-		if p := str("file_path"); p != "" {
-			return "改 " + baseName(p)
-		}
-		return "改文件"
-	case "NotebookEdit":
-		if p := str("notebook_path"); p != "" {
-			return "改 " + baseName(p)
-		}
-		return "改文件"
-	case "Bash":
-		return "跑 " + bashSummary(str("command"))
-	case "Grep":
-		if p := str("pattern"); p != "" {
-			return "搜 " + clip(p, 40)
-		}
-		return "搜索"
-	case "Glob":
-		if p := str("pattern"); p != "" {
-			return "找 " + clip(p, 40)
-		}
-		return "查找文件"
-	case "":
+	if strings.TrimSpace(name) == "" {
 		return ""
-	default:
-		return "调 " + clip(name, 24)
 	}
+	args := argsSummary(input)
+	if args == "" {
+		return name
+	}
+	return name + "(" + args + ")"
 }
 
-// bashSummary renders a Bash command as a SECRET-SAFE hint: the binary basename,
-// plus — only when the next token is a clean sub-command word — that word. Never a
-// flag, path, arg value, or a leading `VAR=value` env prefix (its value may be a
-// secret). Examples: `go test ./...`→"go test", `git push origin main`→"git push",
-// `curl -H "Authorization: …"`→"curl …", `TOKEN=sk-x go test`→"go test", `cat
-// /etc/passwd`→"cat …".
-func bashSummary(cmd string) string {
-	fields := strings.Fields(cmd)
-	// Drop leading `VAR=value` env-assignment prefixes — the value may be a secret.
-	for len(fields) > 0 && isEnvAssign(fields[0]) {
-		fields = fields[1:]
+// argsSummary renders a tool_use's raw input the same way the supervisor frontend
+// AgentActivityRow.summarizeArgs does: a bare JSON string value renders unquoted;
+// anything else renders as its compact JSON (whitespace stripped so the note is a
+// single line). The REAL content is preserved — nothing is dropped or redacted —
+// so a Bash command's full text (e.g. `cd /x && go test`) is visible and carried
+// for the expandable view.
+func argsSummary(input json.RawMessage) string {
+	s := strings.TrimSpace(string(input))
+	if s == "" || s == "null" {
+		return ""
 	}
-	if len(fields) == 0 {
-		return "…"
+	// A JSON string value renders unquoted (parity with summarizeArgs'
+	// `typeof args === 'string'` branch).
+	var str string
+	if err := json.Unmarshal(input, &str); err == nil {
+		return strings.TrimSpace(str)
 	}
-	bin := path.Base(fields[0])
-	if !binWord.MatchString(bin) {
-		return "…" // an unusual binary token → do not echo it
+	// Otherwise compact the JSON (object/array/number) onto a single line —
+	// parity with the frontend's JSON.stringify(args).
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, input); err == nil {
+		return buf.String()
 	}
-	// Surface the sub-command verb ONLY for known multi-command tools; for any other
-	// binary the first positional may be a secret/token/path, so show the binary alone.
-	if subcmdTools[bin] && len(fields) >= 2 && bashWord.MatchString(fields[1]) {
-		return bin + " " + fields[1]
-	}
-	if len(fields) >= 2 {
-		return bin + " …" // args exist but are hidden (not a known-tool sub-command)
-	}
-	return bin
-}
-
-// isEnvAssign reports whether s is a `KEY=value` env-assignment prefix (the key,
-// before the first "=", is a bare word with no path separator) — such a value may
-// carry a secret and must never be surfaced.
-func isEnvAssign(s string) bool {
-	i := strings.IndexByte(s, '=')
-	return i > 0 && !strings.ContainsAny(s[:i], "/\\.")
-}
-
-// baseName is path.Base clipped — the file's name without its (possibly sensitive)
-// directory.
-func baseName(p string) string {
-	return clip(path.Base(strings.TrimSpace(p)), 48)
+	return s
 }
 
 // clip trims s to at most n runes, appending an ellipsis when it truncates.

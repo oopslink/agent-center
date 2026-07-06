@@ -244,14 +244,30 @@ describe('AgentActivityRow (#228 categories)', () => {
   // v2.31.2 (oopslink DM 2026-07-05): the executor "what it's doing" detail is
   // surfaced at top-level granularity (120), not the old crude 40-char cut that
   // rendered "跑 cd …". A detail under 120 chars shows in full in the row preview.
-  it('executor.progress preview shows the full detail note (no crude 40-char "…" cut)', () => {
-    const detail = '跑 go test ./internal/workerdaemon/executor -run TestProgressDetail -count=1';
+  // v2.31.3 (oopslink "完全对齐"): the backend now carries the REAL command
+  // (`Bash({"command":"cd /x && go test"})`), NOT the old sanitized "跑 cd …".
+  it('executor.progress preview shows the real command (no crude 40-char "…" cut, no sanitization)', () => {
+    const detail = 'Bash({"command":"cd /x && go test ./..."})';
     expect(detail.length).toBeGreaterThan(40);
     expect(detail.length).toBeLessThanOrEqual(120);
     row(ev('lifecycle', { event: 'executor.progress', executor_id: 'exec-5', state: 'running', detail }));
     const preview = screen.getByTestId('agent-activity-preview');
-    expect(preview).toHaveTextContent(detail);
+    expect(preview).toHaveTextContent('cd /x && go test');
     expect(preview.textContent ?? '').not.toContain('…');
+  });
+
+  // v2.31.3 (oopslink "完全对齐"): a lone executor.progress row must EXPAND to the
+  // FULL command verbatim (parity with the supervisor's tool_use expansion and
+  // with the grouped executor row's detail-full block). The collapsed preview may
+  // be CSS-truncated; expanding reveals the complete command.
+  it('executor.progress row expands to the full command detail', () => {
+    const detail = 'Bash({"command":"cd /very/long/path && go test ./internal/agentruntime/executor/... -run TestX -count=1 -v"})';
+    row(ev('lifecycle', { event: 'executor.progress', executor_id: 'exec-9', state: 'running', detail }));
+    expect(screen.queryByTestId('agent-activity-executor-detail-full')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('agent-activity-toggle'));
+    const full = screen.getByTestId('agent-activity-executor-detail-full');
+    expect(full).toHaveTextContent('cd /very/long/path && go test');
+    expect(full).toHaveTextContent('-count=1 -v');
   });
 
   it('non-executor lifecycle still maps to Control (session control ops unchanged)', () => {

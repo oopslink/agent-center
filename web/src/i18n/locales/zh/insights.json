@@ -223,7 +223,8 @@
     },
     "detail": {
       "task": "任务",
-      "interaction": "交互"
+      "interaction": "交互",
+      "executorDetail": "当前命令"
     },
     "checkingGroup": {
       "label_one": "检查消息 × {{count}}",
