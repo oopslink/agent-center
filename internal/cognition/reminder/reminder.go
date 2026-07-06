@@ -25,6 +25,7 @@ var (
 	ErrInvalidEndCondition   = errors.New("cognition: invalid reminder end condition")
 	ErrReminderContentEmpty  = errors.New("cognition: reminder content required")
 	ErrReminderRemindeeEmpty = errors.New("cognition: reminder remindee required")
+	ErrInvalidOnEvent        = errors.New("cognition: invalid on_event trigger")
 )
 
 // cronParser parses the standard 5-field cron expression (minute hour dom month
@@ -40,7 +41,81 @@ type ScheduleKind string
 const (
 	ScheduleOnce ScheduleKind = "once"
 	ScheduleCron ScheduleKind = "cron"
+	// ScheduleEvent is an event-driven reminder: it has no fixed time at creation
+	// and stays DORMANT (next_run_at nil) until a matching entity state-change event
+	// ARMS it (Arm → next_run_at = eventAt + OnEvent.Delay). It then fires exactly
+	// once and completes (one-shot, like ScheduleOnce). The trigger spec lives in the
+	// Reminder's OnEvent VO, not in this Schedule.
+	ScheduleEvent ScheduleKind = "on_event"
 )
+
+// --- OnEvent trigger VO (event-driven reminder) ------------------------------
+
+// EntityType is the kind of project-manager entity whose state change arms an
+// on_event reminder.
+type EntityType string
+
+const (
+	EntityPlan  EntityType = "plan"
+	EntityTask  EntityType = "task"
+	EntityIssue EntityType = "issue"
+)
+
+// AllowedEvents is the event vocabulary per entity type (aligned with the existing
+// pm lifecycle events — plan: completed/failed/stopped; task: completed/blocked/
+// reopened/discarded; issue: closed/reopened). An on_event reminder may only watch
+// one of these transitions. Exported so the tool/API layers can validate + advertise.
+var AllowedEvents = map[EntityType][]string{
+	EntityPlan:  {"completed", "failed", "stopped"},
+	EntityTask:  {"completed", "blocked", "reopened", "discarded"},
+	EntityIssue: {"closed", "reopened"},
+}
+
+// eventAllowed reports whether event is in the vocabulary for entityType.
+func eventAllowed(entityType EntityType, event string) bool {
+	for _, e := range AllowedEvents[entityType] {
+		if e == event {
+			return true
+		}
+	}
+	return false
+}
+
+// OnEvent is the event-trigger VO: arm this reminder when Event happens to the
+// entity (EntityType, EntityID), then fire once after Delay. A zero Delay fires at
+// the first tick after the event.
+type OnEvent struct {
+	EntityType EntityType
+	EntityID   string
+	Event      string
+	Delay      time.Duration
+}
+
+// validate checks the on_event trigger legality.
+func (o OnEvent) validate() error {
+	if _, ok := AllowedEvents[o.EntityType]; !ok {
+		return fmt.Errorf("%w: unknown entity_type %q (want plan|task|issue)", ErrInvalidOnEvent, o.EntityType)
+	}
+	if strings.TrimSpace(o.EntityID) == "" {
+		return fmt.Errorf("%w: entity_id required", ErrInvalidOnEvent)
+	}
+	if !eventAllowed(o.EntityType, o.Event) {
+		return fmt.Errorf("%w: event %q not valid for %s (want one of %v)", ErrInvalidOnEvent, o.Event, o.EntityType, AllowedEvents[o.EntityType])
+	}
+	if o.Delay < 0 {
+		return fmt.Errorf("%w: delay must be >= 0", ErrInvalidOnEvent)
+	}
+	return nil
+}
+
+// Matches reports whether an entity event (type, id, event) arms this trigger.
+func (o OnEvent) Matches(entityType EntityType, entityID, event string) bool {
+	return o.EntityType == entityType && o.EntityID == entityID && o.Event == event
+}
+
+// EventScheduleFor builds the Schedule marker for an on_event reminder (the trigger
+// details live in the OnEvent VO passed alongside it in NewReminderInput).
+func EventScheduleFor() Schedule { return Schedule{Kind: ScheduleEvent} }
 
 // Schedule is OnceSchedule{at} | CronSchedule{expr, timezone}. Timezone applies
 // to cron only (Invariant #7); once is an absolute instant.
@@ -96,6 +171,10 @@ func (s Schedule) Validate(now time.Time) error {
 			return fmt.Errorf("%w: bad cron expr %q: %v", ErrInvalidSchedule, s.CronExpr, err)
 		}
 		return nil
+	case ScheduleEvent:
+		// Event-driven: no time to validate here — the OnEvent VO validates the
+		// trigger. next_run_at is set later by Arm.
+		return nil
 	default:
 		return fmt.Errorf("%w: unknown schedule kind %q", ErrInvalidSchedule, s.Kind)
 	}
@@ -122,6 +201,10 @@ func (s Schedule) nextAfter(after time.Time) (time.Time, error) {
 			return time.Time{}, fmt.Errorf("%w: %v", ErrInvalidSchedule, err)
 		}
 		return sched.Next(after.In(loc)), nil
+	case ScheduleEvent:
+		// Event-driven schedule never self-derives a run: it is armed externally by
+		// Arm when the trigger event fires. Zero = no scheduled run.
+		return time.Time{}, nil
 	default:
 		return time.Time{}, fmt.Errorf("%w: unknown schedule kind %q", ErrInvalidSchedule, s.Kind)
 	}
@@ -218,6 +301,7 @@ type Reminder struct {
 	creatorRef       string
 	remindeeAgentID  string
 	schedule         Schedule
+	onEvent          *OnEvent // set iff schedule.Kind==on_event (event-driven trigger)
 	content          string
 	status           ReminderStatus
 	nextRunAt        *time.Time
@@ -244,8 +328,12 @@ type NewReminderInput struct {
 	CreatorProjectID string // creator agent's project (ignored when owner)
 	RemindeeAgentID  string
 	Schedule         Schedule
-	Content          string
-	SkipIfOverlap    bool
+	// OnEvent, when non-nil, makes this an event-driven reminder (Schedule.Kind must
+	// be ScheduleEvent). The reminder is created DORMANT (next_run_at nil) and armed
+	// later by a matching entity state-change event.
+	OnEvent       *OnEvent
+	Content       string
+	SkipIfOverlap bool
 	// DeliverAsCreator selects the delivered reminder's identity (F-B): when true
 	// the to-the-remindee message is posted as the CREATOR's identity (the agent /
 	// owner who set it); when false it is posted as the system identity. Default ON
@@ -274,6 +362,37 @@ func NewReminder(in NewReminderInput) (*Reminder, error) {
 	// project; owner may cross projects.
 	if !in.CreatorIsOwner && in.CreatorProjectID != in.ProjectID {
 		return nil, ErrCrossProjectReminder
+	}
+	// Event-driven (on_event) reminder: created DORMANT with no next_run_at. It is
+	// armed later by a matching entity state-change event (Arm), then fires once and
+	// completes (one-shot). The schedule carries no time; the OnEvent VO holds the trigger.
+	if in.Schedule.Kind == ScheduleEvent || in.OnEvent != nil {
+		if in.OnEvent == nil {
+			return nil, fmt.Errorf("%w: on_event reminder requires an on_event trigger", ErrInvalidOnEvent)
+		}
+		oe := *in.OnEvent
+		if err := oe.validate(); err != nil {
+			return nil, err
+		}
+		return &Reminder{
+			id:               ReminderID(in.ID),
+			organizationID:   in.OrganizationID,
+			projectID:        in.ProjectID,
+			creatorRef:       in.CreatorRef,
+			remindeeAgentID:  in.RemindeeAgentID,
+			schedule:         Schedule{Kind: ScheduleEvent},
+			onEvent:          &oe,
+			content:          strings.TrimSpace(in.Content),
+			status:           StatusActive, // active == "armed, awaiting event"; next_run_at nil
+			nextRunAt:        nil,
+			skipIfOverlap:    in.SkipIfOverlap,
+			deliverAsCreator: in.DeliverAsCreator,
+			endCondition:     NeverEnd(),
+			firedCount:       0,
+			version:          1,
+			createdAt:        in.Now,
+			updatedAt:        in.Now,
+		}, nil
 	}
 	if err := in.Schedule.Validate(in.Now); err != nil {
 		return nil, err
@@ -319,6 +438,7 @@ type RehydrateInput struct {
 	CreatorRef       string
 	RemindeeAgentID  string
 	Schedule         Schedule
+	OnEvent          *OnEvent
 	Content          string
 	Status           ReminderStatus
 	NextRunAt        *time.Time
@@ -350,6 +470,7 @@ func Rehydrate(in RehydrateInput) (*Reminder, error) {
 		creatorRef:       in.CreatorRef,
 		remindeeAgentID:  in.RemindeeAgentID,
 		schedule:         in.Schedule,
+		onEvent:          in.OnEvent,
 		content:          in.Content,
 		status:           in.Status,
 		nextRunAt:        in.NextRunAt,
@@ -371,6 +492,8 @@ func (r *Reminder) ProjectID() string          { return r.projectID }
 func (r *Reminder) CreatorRef() string         { return r.creatorRef }
 func (r *Reminder) RemindeeAgentID() string    { return r.remindeeAgentID }
 func (r *Reminder) Schedule() Schedule         { return r.schedule }
+func (r *Reminder) OnEvent() *OnEvent          { return r.onEvent }
+func (r *Reminder) IsOnEvent() bool            { return r.schedule.Kind == ScheduleEvent }
 func (r *Reminder) Content() string            { return r.content }
 func (r *Reminder) Status() ReminderStatus     { return r.status }
 func (r *Reminder) NextRunAt() *time.Time      { return r.nextRunAt }
@@ -481,8 +604,9 @@ func (r *Reminder) RecordFire(at time.Time) error {
 	}
 	r.lastFiredAt = &at
 	r.firedCount++
-	if r.schedule.Kind == ScheduleOnce {
-		// once fires exactly once → completed (Invariant #5).
+	if r.schedule.Kind == ScheduleOnce || r.schedule.Kind == ScheduleEvent {
+		// once + on_event fire exactly once → completed (Invariant #5; on_event is
+		// one-shot consumption — after firing it never re-arms).
 		r.status = StatusCompleted
 		r.nextRunAt = nil
 		r.bump(at)
@@ -520,8 +644,8 @@ func (r *Reminder) RecordSkip(at time.Time) error {
 	if r.status != StatusActive {
 		return fmt.Errorf("cognition: cannot skip a %s reminder", r.status)
 	}
-	if r.schedule.Kind == ScheduleOnce {
-		// A once reminder has no further run; a skipped once is done.
+	if r.schedule.Kind == ScheduleOnce || r.schedule.Kind == ScheduleEvent {
+		// once + on_event have no further run; a skipped occurrence completes them.
 		r.status = StatusCompleted
 		r.nextRunAt = nil
 		r.bump(at)
@@ -542,6 +666,43 @@ func (r *Reminder) RecordSkip(at time.Time) error {
 	r.nextRunAt = &next
 	r.bump(at)
 	return nil
+}
+
+// Arm schedules a DORMANT on_event reminder to fire at eventAt + OnEvent.Delay,
+// in response to a matching entity state-change event. It is the entry point for
+// event-driven reminders (the ReminderEventProjector calls it). Only an ACTIVE,
+// not-yet-armed on_event reminder can be armed:
+//   - terminal (completed/canceled) → ErrReminderTerminal (already consumed/cancelled);
+//   - not an on_event reminder → error;
+//   - paused → error (a paused reminder does not arm, Invariant #3);
+//   - already armed (next_run_at set) → no-op (idempotent — the same event delivered
+//     twice, or a second occurrence before the first fires, must not re-arm or shift
+//     the fire time). This one-shot arming is what makes an on_event reminder fire at
+//     most once per creation.
+func (r *Reminder) Arm(eventAt time.Time, at time.Time) error {
+	if r.status.IsTerminal() {
+		return ErrReminderTerminal
+	}
+	if r.schedule.Kind != ScheduleEvent || r.onEvent == nil {
+		return fmt.Errorf("%w: not an on_event reminder", ErrInvalidOnEvent)
+	}
+	if r.status != StatusActive {
+		return fmt.Errorf("cognition: cannot arm a %s reminder", r.status)
+	}
+	if r.nextRunAt != nil {
+		return nil // already armed — idempotent no-op
+	}
+	next := eventAt.Add(r.onEvent.Delay)
+	r.nextRunAt = &next
+	r.bump(at)
+	return nil
+}
+
+// IsArmed reports whether an on_event reminder has been armed (its trigger fired
+// and it is now scheduled to run). A dormant on_event reminder is active with a nil
+// next_run_at; an armed one has next_run_at set.
+func (r *Reminder) IsArmed() bool {
+	return r.schedule.Kind == ScheduleEvent && r.status == StatusActive && r.nextRunAt != nil
 }
 
 // IsDue reports whether an active reminder is due to fire at-or-before `now`

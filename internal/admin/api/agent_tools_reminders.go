@@ -39,6 +39,32 @@ func (d scheduleDTO) toDomain() (reminder.Schedule, error) {
 	}
 }
 
+// onEventDTO is the wire shape of an OnEvent trigger on the agent-tools boundary
+// (reminder-event feature). entity_type ∈ plan|task|issue; event is the watched
+// transition (validated by the domain factory against the per-type vocabulary).
+type onEventDTO struct {
+	EntityType string `json:"entity_type"`
+	EntityID   string `json:"entity_id"`
+	Event      string `json:"event"`
+}
+
+// parseDelay parses the optional on_event delay: a Go duration string ("5m",
+// "30s", "0") or empty (⇒ 0 = fire at the next tick after the event).
+func parseDelay(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, errors.New("delay must be a duration like 5m, 30s, or 0")
+	}
+	if d < 0 {
+		return 0, errors.New("delay must be >= 0")
+	}
+	return d, nil
+}
+
 // endConditionDTO is the wire shape of an EndCondition.
 type endConditionDTO struct {
 	Kind     string `json:"kind"`      // "never" | "until" | "max_count"
@@ -81,6 +107,14 @@ func reminderMap(r *reminder.Reminder) map[string]any {
 		"created_at":         r.CreatedAt().UTC().Format(time.RFC3339Nano),
 		"updated_at":         r.UpdatedAt().UTC().Format(time.RFC3339Nano),
 	}
+	if oe := r.OnEvent(); oe != nil {
+		m["on_event"] = map[string]any{
+			"entity_type":   string(oe.EntityType),
+			"entity_id":     oe.EntityID,
+			"event":         oe.Event,
+			"delay_seconds": int64(oe.Delay / time.Second),
+		}
+	}
 	if r.NextRunAt() != nil {
 		m["next_run_at"] = r.NextRunAt().UTC().Format(time.RFC3339Nano)
 	}
@@ -109,6 +143,7 @@ func writeReminderError(w http.ResponseWriter, err error) {
 	case errors.Is(err, reminder.ErrReminderTerminal):
 		writeError(w, http.StatusConflict, "reminder_terminal", err.Error())
 	case errors.Is(err, reminder.ErrInvalidSchedule), errors.Is(err, reminder.ErrInvalidEndCondition),
+		errors.Is(err, reminder.ErrInvalidOnEvent),
 		errors.Is(err, reminder.ErrReminderContentEmpty), errors.Is(err, reminder.ErrReminderRemindeeEmpty):
 		writeError(w, http.StatusBadRequest, "invalid_reminder", err.Error())
 	default:
@@ -126,6 +161,13 @@ type createReminderReq struct {
 	SkipIfOverlap    *bool           `json:"skip_if_overlap"`
 	DeliverAsCreator *bool           `json:"deliver_as_creator"`
 	EndCondition     endConditionDTO `json:"end_condition"`
+	// reminder-event feature. When on_event is set the reminder is EVENT-DRIVEN:
+	// schedule/end_condition are ignored; it arms on the watched pm entity transition
+	// and fires once after delay. target is the @target agent to wake (defaults to
+	// remindee_agent_id when omitted).
+	OnEvent *onEventDTO `json:"on_event"`
+	Delay   string      `json:"delay"`  // duration ("5m"|"30s"|"0"); on_event only
+	Target  string      `json:"target"` // @target agent id; on_event only
 }
 
 func (s *Server) createReminderHandler(w http.ResponseWriter, r *http.Request) {
@@ -143,16 +185,6 @@ func (s *Server) createReminderHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "reminder_not_wired", "")
 		return
 	}
-	sched, err := req.Schedule.toDomain()
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_schedule", err.Error())
-		return
-	}
-	end, err := req.EndCondition.toDomain()
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_end_condition", err.Error())
-		return
-	}
 	skip := true
 	if req.SkipIfOverlap != nil {
 		skip = *req.SkipIfOverlap
@@ -161,16 +193,50 @@ func (s *Server) createReminderHandler(w http.ResponseWriter, r *http.Request) {
 	if req.DeliverAsCreator != nil {
 		deliverAsCreator = *req.DeliverAsCreator
 	}
-	rem, err := d.ReminderSvc.CreateReminder(r.Context(), cogservice.CreateReminderCommand{
+	cmd := cogservice.CreateReminderCommand{
 		OrganizationID:   a.OrganizationID(),
 		CreatorRef:       agentActor(a),
-		RemindeeAgentID:  strings.TrimSpace(req.RemindeeAgentID),
-		Schedule:         sched,
 		Content:          req.Content,
 		SkipIfOverlap:    skip,
 		DeliverAsCreator: deliverAsCreator,
-		EndCondition:     end,
-	})
+	}
+	if req.OnEvent != nil {
+		// Event-driven reminder: build the OnEvent trigger; @target defaults to the
+		// remindee. The domain factory validates the entity_type/event vocabulary.
+		delay, derr := parseDelay(req.Delay)
+		if derr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_delay", derr.Error())
+			return
+		}
+		target := strings.TrimSpace(req.Target)
+		if target == "" {
+			target = strings.TrimSpace(req.RemindeeAgentID)
+		}
+		cmd.RemindeeAgentID = target
+		cmd.Schedule = reminder.EventScheduleFor()
+		cmd.OnEvent = &reminder.OnEvent{
+			EntityType: reminder.EntityType(strings.ToLower(strings.TrimSpace(req.OnEvent.EntityType))),
+			EntityID:   strings.TrimSpace(req.OnEvent.EntityID),
+			Event:      strings.ToLower(strings.TrimSpace(req.OnEvent.Event)),
+			Delay:      delay,
+		}
+		cmd.EndCondition = reminder.NeverEnd()
+	} else {
+		sched, err := req.Schedule.toDomain()
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_schedule", err.Error())
+			return
+		}
+		end, err := req.EndCondition.toDomain()
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_end_condition", err.Error())
+			return
+		}
+		cmd.RemindeeAgentID = strings.TrimSpace(req.RemindeeAgentID)
+		cmd.Schedule = sched
+		cmd.EndCondition = end
+	}
+	rem, err := d.ReminderSvc.CreateReminder(r.Context(), cmd)
 	if err != nil {
 		writeReminderError(w, err)
 		return

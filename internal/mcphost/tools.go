@@ -586,13 +586,25 @@ type reminderEndArg struct {
 	MaxCount int    `json:"max_count,omitempty" jsonschema:"max fire count (kind=max_count)"`
 }
 
+// reminderOnEventArg is the wire shape of an event-driven trigger (reminder-event
+// feature): arm the reminder when a pm entity hits a state transition.
+type reminderOnEventArg struct {
+	EntityType string `json:"entity_type" jsonschema:"plan | task | issue"`
+	EntityID   string `json:"entity_id" jsonschema:"the id of the plan/task/issue to watch"`
+	Event      string `json:"event" jsonschema:"the transition to watch — plan: completed|failed|stopped; task: completed|blocked|reopened|discarded; issue: closed|reopened"`
+}
+
 type createReminderArgs struct {
-	RemindeeAgentID  string              `json:"remindee_agent_id" jsonschema:"the agent to remind (must be in your project; owner may cross projects)"`
-	Schedule         reminderScheduleArg `json:"schedule" jsonschema:"when to fire — once{once_at} or cron{cron_expr,timezone}"`
-	Content          string              `json:"content" jsonschema:"the reminder text injected to the remindee when it fires"`
+	RemindeeAgentID  string              `json:"remindee_agent_id,omitempty" jsonschema:"the agent to remind for a time/cron reminder (must be in your project; owner may cross projects). For an on_event reminder use target instead."`
+	Schedule         reminderScheduleArg `json:"schedule,omitempty" jsonschema:"when to fire a TIME reminder — once{once_at} or cron{cron_expr,timezone}. Omit when on_event is set."`
+	Content          string              `json:"content" jsonschema:"the reminder text injected to the remindee/@target when it fires"`
 	SkipIfOverlap    *bool               `json:"skip_if_overlap,omitempty" jsonschema:"skip a fire if the previous one is still being handled (default true)"`
 	DeliverAsCreator *bool               `json:"deliver_as_creator,omitempty" jsonschema:"deliver the reminder as YOUR identity instead of the system identity (default true). Ignored for a self-reminder, which always wakes via the system identity."`
 	EndCondition     reminderEndArg      `json:"end_condition,omitempty" jsonschema:"when a recurring reminder stops (never|until|max_count)"`
+	// reminder-event feature: event-driven trigger.
+	OnEvent *reminderOnEventArg `json:"on_event,omitempty" jsonschema:"make this an EVENT-DRIVEN reminder: arm when the watched pm entity transitions, then fire ONCE after delay. Overrides schedule."`
+	Delay   string              `json:"delay,omitempty" jsonschema:"on_event only: how long after the event before firing — a duration like 5m, 30s, or 0 (default 0 = the next tick)"`
+	Target  string              `json:"target,omitempty" jsonschema:"on_event only: the @target agent to wake when it fires (defaults to remindee_agent_id)"`
 }
 
 func makeCreateReminder(cfg Config) mcp.ToolHandlerFor[createReminderArgs, any] {
@@ -609,6 +621,13 @@ func makeCreateReminder(cfg Config) mcp.ToolHandlerFor[createReminderArgs, any] 
 		}
 		if args.DeliverAsCreator != nil {
 			body["deliver_as_creator"] = *args.DeliverAsCreator
+		}
+		if args.OnEvent != nil {
+			body["on_event"] = args.OnEvent
+			body["delay"] = args.Delay
+			if args.Target != "" {
+				body["target"] = args.Target
+			}
 		}
 		return callAdmin(ctx, cfg, "create_reminder", body)
 	}

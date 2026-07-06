@@ -386,6 +386,11 @@ func (s *Service) dispatchReadyNodes(txCtx context.Context, p *pm.Plan) ([]pm.Ta
 		if uerr := s.plans.Update(txCtx, p); uerr != nil {
 			return nil, uerr
 		}
+		// reminder-event: emit pm.plan.completed so on_event reminders watching this
+		// plan (event=completed) are armed. Additive marker — no other consumer.
+		if eerr := s.emitPlanLifecycle(txCtx, p, EvtPlanCompleted); eerr != nil {
+			return nil, eerr
+		}
 	}
 	return dispatched, nil
 }
@@ -483,7 +488,9 @@ func (s *Service) StopPlan(ctx context.Context, planID pm.PlanID, actor pm.Ident
 		}
 		// audit §5: record the running→draft stop (显式审计写 — no event on this path).
 		s.auditPlan(txCtx, p, pm.AuditPlanStopped, actor, map[string]any{"status": string(p.Status())})
-		return nil
+		// reminder-event: emit pm.plan.stopped so on_event reminders watching this
+		// plan (event=stopped) are armed. Additive marker — no other consumer.
+		return s.emitPlanLifecycle(txCtx, p, EvtPlanStopped)
 	})
 }
 

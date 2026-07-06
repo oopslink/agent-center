@@ -156,7 +156,9 @@ func MigrateV1ToV2Command() *Command {
 // renumbered from 0099 at ship-merge to land after main's 0099 message-quote).
 // skill observability (issue-4a45e9cc) added 0101 (agent_installed_skills — the OBSERVED
 // per-agent effective skill projection) + 0102 (drop the declared agents.skills column).
-const targetSchemaVersion = 102
+// renumbered from 0099 at ship-merge to land after main's 0099 message-quote);
+// reminder-event added 0103 (reminders.on_event_* — event-driven reminder trigger).
+const targetSchemaVersion = 103
 
 func runMigrateV1ToV2(
 	ctx context.Context,
