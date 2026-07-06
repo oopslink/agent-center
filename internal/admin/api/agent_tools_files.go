@@ -107,6 +107,13 @@ func mapFilesError(w http.ResponseWriter, err error) {
 //     dual of the human chat-box attachment. Org-scoped by construction (Find is
 //     a.OrganizationID()-filtered) so a cross-org conversation never appears — a
 //     non-participant agent simply has no such scope (§5.7 fail-closed).
+//   - per PROJECT the agent is a MEMBER of (agentProjectMemberConvScopes): the
+//     task/issue/plan work of that project → {ScopeTask}/{ScopeIssue} and their
+//     bound {ScopeConversation}. This mirrors the post_message project-member gate
+//     (requireTaskAccess / GetIssueForMember) in the FILE domain, so an agent
+//     @mentioned in a task/issue/plan conversation of a project it belongs to — but
+//     holding no assigned work-item and not a formal participant — can DOWNLOAD an
+//     attachment there, not just reply. Org-scoped + membership-gated (fail-closed).
 //
 // The result is deduped. Per-task lookup errors are TOLERATED (skip that task's
 // derived scopes) — fail-closed: a scope we cannot resolve simply does not
@@ -139,7 +146,105 @@ func (s *Server) agentOwnDomainScopes(d HandlerDeps, r *http.Request, a *agent.A
 		}
 	}
 	scopes = append(scopes, s.agentParticipantConvScopes(d, r, a)...)
+	scopes = append(scopes, s.agentProjectMemberConvScopes(d, r, a)...)
 	return dedupScopeRefs(scopes), nil
+}
+
+// agentProjectMemberConvScopes returns the file-domain scopes for the task/issue/
+// plan work of every project the agent is a MEMBER of — the file-domain
+// realization of the post_message PROJECT-MEMBER gate (requireTaskAccess /
+// GetIssueForMember).
+//
+// THE GAP THIS CLOSES: an agent @mentioned in a TASK conversation whose owning
+// project it is a member of — but that holds NO assigned work-item and is not a
+// formal active participant — could post_message a reply (requireTaskAccess admits
+// the project member, T183) yet got 403 file_not_reachable when it tried to
+// download an attachment posted in that same conversation. agentOwnDomainScopes
+// only enumerated the file-scopes of the agent's ASSIGNED (runnable) tasks and its
+// active-participant conversations, so a member-but-not-assignee/participant had no
+// {ScopeConversation, taskConvID} — the download was narrower than the reply.
+// v2.7.1 #227 (issue @mention → project-member auto-join) and v2.9 #306 (plan
+// @mention → project-member broaden) already broadened the WAKE path at the
+// project-member boundary; TASK/ISSUE/PLAN conversations lacked the equivalent
+// FILE-domain broadening. This adds it at the SAME project-member boundary
+// post_message enforces — no authz widening.
+//
+// For each project in the agent's OWN org where the agent is a member it grants:
+//   - per task:  {ScopeTask, taskID}; derived {ScopeIssue, issueID} when set; and
+//     the task's bound {ScopeConversation, convID}.
+//   - per issue: {ScopeIssue, issueID}; and the issue's bound {ScopeConversation}.
+//   - per plan:  the plan's bound {ScopeConversation, convID}.
+//
+// Fail-closed by construction: ListProjects is org-filtered (a cross-org project
+// never appears) and each project is admitted only after an explicit membership
+// match, so a non-member — of another project or another org — gains nothing. A
+// nil PMService/ConvRepo, an empty org, or any per-list error yields NO scopes
+// (denied, never wrongly granted). The result is deduped with the rest of the
+// own-domain set by the caller. Never grants {ScopeProject} (a project-scoped ref
+// stays unreachable, preserving the existing project-scope denial).
+func (s *Server) agentProjectMemberConvScopes(d HandlerDeps, r *http.Request, a *agent.Agent) []filesservice.ScopeRef {
+	if d.PMService == nil || d.ConvRepo == nil {
+		return nil
+	}
+	orgID := a.OrganizationID()
+	if orgID == "" {
+		return nil
+	}
+	ctx := r.Context()
+	self := agentActor(a)
+	projects, err := d.PMService.ListProjects(ctx, orgID)
+	if err != nil {
+		return nil // fail-closed: cannot enumerate projects → grant nothing
+	}
+	var out []filesservice.ScopeRef
+	for _, p := range projects {
+		members, merr := d.PMService.ListMembers(ctx, p.ID())
+		if merr != nil {
+			continue // fail-closed: skip a project we cannot resolve membership for
+		}
+		isMember := false
+		for _, m := range members {
+			if string(m.IdentityID()) == self {
+				isMember = true
+				break
+			}
+		}
+		if !isMember {
+			continue // not a member → no scopes from this project (fail-closed)
+		}
+		// Tasks: {ScopeTask} + derived {ScopeIssue} + bound conversation.
+		if tasks, terr := d.PMService.ListTasks(ctx, p.ID()); terr == nil {
+			for _, tk := range tasks {
+				taskID := string(tk.ID())
+				out = append(out, filesservice.ScopeRef{Scope: files.ScopeTask, ScopeID: taskID})
+				if iss := string(tk.DerivedFromIssue()); iss != "" {
+					out = append(out, filesservice.ScopeRef{Scope: files.ScopeIssue, ScopeID: iss})
+				}
+				if conv, cerr := d.ConvRepo.FindByOwnerRef(ctx, conversation.NewTaskOwnerRef(taskID)); cerr == nil && conv != nil {
+					out = append(out, filesservice.ScopeRef{Scope: files.ScopeConversation, ScopeID: string(conv.ID())})
+				}
+			}
+		}
+		// Issues: {ScopeIssue} + bound conversation.
+		if issues, ierr := d.PMService.ListIssues(ctx, p.ID()); ierr == nil {
+			for _, is := range issues {
+				issueID := string(is.ID())
+				out = append(out, filesservice.ScopeRef{Scope: files.ScopeIssue, ScopeID: issueID})
+				if conv, cerr := d.ConvRepo.FindByOwnerRef(ctx, conversation.NewIssueOwnerRef(issueID)); cerr == nil && conv != nil {
+					out = append(out, filesservice.ScopeRef{Scope: files.ScopeConversation, ScopeID: string(conv.ID())})
+				}
+			}
+		}
+		// Plans: bound conversation (no plan file-scope kind — reached via its conv).
+		if plans, perr := d.PMService.ListPlans(ctx, p.ID()); perr == nil {
+			for _, pl := range plans {
+				if conv, cerr := d.ConvRepo.FindByOwnerRef(ctx, conversation.NewPlanOwnerRef(string(pl.ID()))); cerr == nil && conv != nil {
+					out = append(out, filesservice.ScopeRef{Scope: files.ScopeConversation, ScopeID: string(conv.ID())})
+				}
+			}
+		}
+	}
+	return out
 }
 
 // agentParticipantConvScopes returns a {ScopeConversation, convID} scope for every
