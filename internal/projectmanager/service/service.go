@@ -70,6 +70,15 @@ const (
 	// ARCHIVES the plan's conversation (UpdateArchive) for consistency.
 	EvtPlanDeleted  = "pm.plan.deleted"
 	EvtPlanArchived = "pm.plan.archived"
+	// reminder-event feature: plan lifecycle transition events. Historically the
+	// plan running→done (complete), running→draft (stop) and task-failure paths
+	// emitted NO dedicated outbox event (audit-only / creator-wake-only). These are
+	// additive markers so the Cognition ReminderEventProjector can arm on_event
+	// reminders watching a plan (entity_type=plan; event=completed|stopped|failed).
+	// Each carries a planEventPayload (PlanID + ProjectID + OrganizationID).
+	EvtPlanCompleted = "pm.plan.completed"
+	EvtPlanStopped   = "pm.plan.stopped"
+	EvtPlanFailed    = "pm.plan.failed"
 	// v2.9 P3 (failure→agent-creator-wake, §9.1 / decision-1). Emitted by the
 	// PlanOrchestratorProjector's notifyCreatorOnFailure — IN THE SAME TX as the
 	// failure @mention PostMention — ONLY when the Plan creator is an AGENT
@@ -633,6 +642,26 @@ func (s *Service) emit(ctx context.Context, eventType, refs string, payload any)
 		Payload:   string(pb),
 		CreatedAt: s.clock.Now(),
 	})
+}
+
+// emitPlanLifecycle appends an additive plan lifecycle marker event (completed /
+// stopped / failed) inside the caller's tx (reminder-event feature). The org id is
+// best-effort (looked up from the plan's project; absence is non-fatal — the
+// Cognition ReminderEventProjector matches on plan_id + event, org is diagnostic).
+func (s *Service) emitPlanLifecycle(txCtx context.Context, p *pm.Plan, eventType string) error {
+	orgID := ""
+	if proj, perr := s.projects.FindByID(txCtx, p.ProjectID()); perr == nil && proj != nil {
+		orgID = proj.OrganizationID()
+	}
+	return s.emit(txCtx, eventType,
+		refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),
+		planEventPayload{
+			PlanID:         string(p.ID()),
+			ProjectID:      string(p.ProjectID()),
+			OrganizationID: orgID,
+			OwnerRef:       "pm://plans/" + string(p.ID()),
+			CreatorRef:     string(p.CreatorRef()),
+		})
 }
 
 func refsJSON(kv map[string]string) string {

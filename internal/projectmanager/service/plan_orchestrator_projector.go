@@ -191,6 +191,13 @@ func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context
 	if prevFailed || !pm.TaskIsFailed(t.Status()) {
 		return nil // not a →failed transition (already failed, or not failed) → nothing to notify.
 	}
+	// reminder-event: a plan task's →failed edge is the plan's "failed" signal (the
+	// plan aggregate has no failed state of its own). Emit pm.plan.failed IN THIS SAME
+	// TX so on_event reminders watching this plan (event=failed) are armed — regardless
+	// of whether the creator is an agent (the creator-wake below is agent-only).
+	if eerr := p.svc.emitPlanLifecycle(txCtx, plan, EvtPlanFailed); eerr != nil {
+		return eerr
+	}
 	if p.svc.planDispatcher == nil {
 		return ErrDispatcherUnavailable
 	}

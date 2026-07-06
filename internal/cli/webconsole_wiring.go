@@ -409,7 +409,7 @@ func (a *App) outboxProjectors(
 	// periodic loop is the completeness backstop. MUST be registered here or only the
 	// periodic path runs (a defined-but-unregistered projector has no prod consumer).
 	autoAssignTriggerProj := pmservice.NewAutoAssignTriggerProjector(a.PMService, nil)
-	return []outbox.Projector{
+	projectors := []outbox.Projector{
 		participantProj,
 		planParticipantProj,
 		taskInputConvProj,
@@ -419,7 +419,15 @@ func (a *App) outboxProjectors(
 		dispatchWakeProj,
 		msgAckProj,
 		autoAssignTriggerProj,
-	}, wakeProj
+	}
+	// reminder-event: the ReminderEventProjector arms on_event reminders when a
+	// watched pm entity transitions (pm.task/issue.state_changed, pm.plan.completed/
+	// stopped/failed). MUST be registered or on_event reminders never arm (and the
+	// wiring parity test requires every emitted plan.* type to have a consumer).
+	if evProj := buildReminderEventProjector(a, appliedRepo); evProj != nil {
+		projectors = append(projectors, evProj)
+	}
+	return projectors, wakeProj
 }
 
 // runWebConsole binds + serves the Web Console HTTP API at addr,
