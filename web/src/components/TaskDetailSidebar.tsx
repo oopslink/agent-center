@@ -279,6 +279,10 @@ export function TaskDetailSidebar({
         </div>
       </section>
 
+      {/* Divider before the change-history block — separates it from the read-only
+          meta, mirroring the editable↔read-only divider above. */}
+      <hr className="border-border-base" data-testid="task-sidebar-history-divider" />
+
       {/* 变更记录 / audit-trail (change-log design §7): this task's semantic change
           history rendered as a human-readable timeline, after the read-only block. */}
       <ObjectAuditTimeline objectType="task" projectId={tk.project_id} objectId={tk.id} />

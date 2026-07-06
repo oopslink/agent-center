@@ -87,6 +87,15 @@ describe('TaskDetailSidebar — assignee → agent activity sidebar (T102)', () 
     expect(screen.queryByTestId('task-assignee-open')).not.toBeInTheDocument();
     expect(screen.getByTestId('task-assignee-empty')).toBeInTheDocument();
   });
+
+  it('renders a divider before the change-history timeline', () => {
+    renderQC(
+      <MemoryRouter>
+        <TaskDetailSidebar task={makeTask()} projectName="Project A" assigneeName="Bot Nine" onEdit={() => {}} editable />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('task-sidebar-history-divider')).toBeInTheDocument();
+  });
 });
 
 describe('TaskDetailSidebar — owning plan link (T106)', () => {

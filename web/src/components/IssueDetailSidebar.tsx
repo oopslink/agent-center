@@ -175,6 +175,10 @@ export function IssueDetailSidebar({
         </div>
       </section>
 
+      {/* Divider before the change-history block — separates it from the meta above,
+          mirroring the dividers between the other sidebar sections. */}
+      <hr className="border-border-base" data-testid="issue-sidebar-history-divider" />
+
       {/* 变更记录 / audit-trail (change-log design §7): this issue's semantic change
           history timeline (status transitions, close/reopen, metadata edits). */}
       <ObjectAuditTimeline objectType="issue" projectId={iss.project_id} objectId={iss.id} />
