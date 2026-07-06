@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/workerdaemon/skillscan"
+	"github.com/oopslink/agent-center/internal/agentruntime/skillscan"
 )
 
 // countingCaller records every report_installed_skills call and its payload.

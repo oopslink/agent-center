@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/workerdaemon/skillscan"
+	"github.com/oopslink/agent-center/internal/agentruntime/skillscan"
 )
 
 // skillReportScanInterval rate-limits the disk scan on the (possibly 4s-fast) Tick
