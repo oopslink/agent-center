@@ -1461,15 +1461,14 @@ function AssigneeTag({ assigneeRef }: { assigneeRef: string }): React.ReactEleme
 }
 
 // ── DAG (the core) ──────────────────────────────────────────────────────────
-// Layered left→right layout from node.depends_on:
+// Layered TOP→BOTTOM layout from node.depends_on:
 //   level(n) = 0 if no (in-plan) deps else max(level(dep))+1   (longest-path)
-//   x = level * COL_W;  y = even vertical spread within the level.
-// Edges: SVG path from each dep node's RIGHT-mid → this node's LEFT-mid, with an
+//   y = level * (NODE_H + LEVEL_GAP);  x = even horizontal spread within the level.
+// Edges: SVG path from each dep node's BOTTOM-mid → this node's TOP-mid, with an
 // arrow marker (upstream → downstream). node_status is DERIVED → display only.
 const COL_W = 200;
 const NODE_W = 168;
 const NODE_H = 84;
-const ROW_GAP = 28;
 const PAD_X = 14;
 const PAD_Y = 16;
 // T800: control-node marker cell width (circle 56 / diamond 64 + breathing room) and
@@ -1478,6 +1477,11 @@ const PAD_Y = 16;
 // don't float in an over-wide column (the "过大空列" around a condition).
 const CTRL_W = 76;
 const COL_GAP = COL_W - NODE_W; // 32 — preserves the prior business-column spacing
+// Top-to-bottom layout: LEVEL_GAP is the vertical gap between successive dependency
+// LEVELS (each level is a horizontal row, flow runs downward), sized to leave room
+// for the connecting arrows. COL_GAP is reused as the horizontal gap between sibling
+// nodes within a level.
+const LEVEL_GAP = 48;
 
 interface Positioned {
   node: PlanNode;
@@ -1543,14 +1547,15 @@ function layoutDag(nodes: PlanNode[]): {
     byLevel.set(lvl, arr);
   }
 
-  // Reserve a left gutter column for the Start anchor when there are any nodes,
-  // so real nodes are shifted right by one column (Start sits at x≈PAD_X, real
-  // level-0 nodes at PAD_X + COL_W). Empty plan ⇒ no gutter, no anchors.
+  // Reserve a TOP gutter band for the Start anchor when there are any nodes, so
+  // real nodes are shifted DOWN one band (Start sits at y≈PAD_Y, real level-0 nodes
+  // below). Empty plan ⇒ no gutter, no anchors.
   const hasNodes = nodes.length > 0;
-  const SYNTH_COL = COL_W; // width of each synthetic gutter column
-  const baseX = PAD_X + (hasNodes ? SYNTH_COL : 0);
+  const SYNTH_ROW = NODE_H + LEVEL_GAP; // height of each synthetic gutter band
+  const baseY = PAD_Y + (hasNodes ? SYNTH_ROW : 0);
 
-  // Even vertical spread within each level.
+  // Top-to-bottom flow: each level is a horizontal ROW stacked downward; sibling
+  // nodes within a level spread left→right.
   const positioned: Positioned[] = [];
   let maxRows = 0;
   for (const [lvl, group] of byLevel) {
@@ -1559,8 +1564,8 @@ function layoutDag(nodes: PlanNode[]): {
       positioned.push({
         node,
         level: lvl,
-        x: baseX + lvl * COL_W,
-        y: PAD_Y + row * (NODE_H + ROW_GAP),
+        x: PAD_X + row * (NODE_W + COL_GAP),
+        y: baseY + lvl * (NODE_H + LEVEL_GAP),
       });
     });
   }
@@ -1570,8 +1575,8 @@ function layoutDag(nodes: PlanNode[]): {
   const dependedOn = new Set<string>();
   for (const n of nodes) for (const d of depsOf(n)) dependedOn.add(d);
 
-  const contentHeight = Math.max(PAD_Y * 2 + maxRows * (NODE_H + ROW_GAP) - ROW_GAP, 200);
-  const midY = contentHeight / 2;
+  const contentWidth = Math.max(PAD_X * 2 + maxRows * (NODE_W + COL_GAP) - COL_GAP, 200);
+  const midX = contentWidth / 2;
 
   let start: SyntheticAnchor | null = null;
   let end: SyntheticAnchor | null = null;
@@ -1579,27 +1584,27 @@ function layoutDag(nodes: PlanNode[]): {
     const roots = positioned.filter((p) => p.level === 0);
     const leaves = positioned.filter((p) => !dependedOn.has(p.node.task_id));
     start = {
-      cx: PAD_X + SYNTH_R,
-      cy: midY,
-      // edge endpoint = root node's LEFT-mid
-      links: roots.map((p) => ({ taskId: p.node.task_id, x: p.x, y: p.y + NODE_H / 2 })),
+      cx: midX,
+      cy: PAD_Y + SYNTH_R,
+      // edge endpoint = root node's TOP-mid
+      links: roots.map((p) => ({ taskId: p.node.task_id, x: p.x + NODE_W / 2, y: p.y })),
     };
-    const endCx = baseX + (maxLevel + 1) * COL_W + SYNTH_R;
+    const endCy = baseY + (maxLevel + 1) * (NODE_H + LEVEL_GAP) + SYNTH_R;
     end = {
-      cx: endCx,
-      cy: midY,
-      // edge endpoint = leaf node's RIGHT-mid
-      links: leaves.map((p) => ({ taskId: p.node.task_id, x: p.x + NODE_W, y: p.y + NODE_H / 2 })),
+      cx: midX,
+      cy: endCy,
+      // edge endpoint = leaf node's BOTTOM-mid
+      links: leaves.map((p) => ({ taskId: p.node.task_id, x: p.x + NODE_W / 2, y: p.y + NODE_H })),
     };
   }
 
-  // Width spans from PAD_X (Start) to End marker (when present), else the real
+  // Height spans from PAD_Y (Start) to the End marker (when present), else the real
   // layout extent.
-  const realRight = baseX + maxLevel * COL_W + NODE_W;
-  const width = hasNodes
-    ? (end ? end.cx + SYNTH_R + PAD_X : realRight + PAD_X)
-    : PAD_X * 2 + (maxLevel + 1) * COL_W - (COL_W - NODE_W);
-  const height = contentHeight;
+  const realBottom = baseY + maxLevel * (NODE_H + LEVEL_GAP) + NODE_H;
+  const height = hasNodes
+    ? (end ? end.cy + SYNTH_R + PAD_Y : realBottom + PAD_Y)
+    : PAD_Y * 2 + (maxLevel + 1) * (NODE_H + LEVEL_GAP) - LEVEL_GAP;
+  const width = contentWidth;
   return { positioned, width, height, start, end };
 }
 
@@ -1777,35 +1782,31 @@ export function layoutGraph(
     byLevel.set(lvl, [...(byLevel.get(lvl) ?? []), n]);
   }
 
-  // Per-level column width: a level holding ONLY control markers (start / end /
-  // condition) is slim (CTRL_W); a business — or mixed — level keeps the full card
-  // width. Then lay columns out left→right with a uniform gap, so a lone condition
-  // diamond no longer reserves a full card column beside its neighbours.
+  // Top-to-bottom flow: each dependency LEVEL is a horizontal ROW stacked downward
+  // (levelY[l]); sibling nodes within a level spread left→right by their own width.
+  // A control marker (start / end / condition) keeps its slim width, so a lone
+  // condition diamond doesn't reserve a full card's worth of horizontal space.
   const nodeW = (n: PlanGraphNode): number => (n.category === 'control' ? CTRL_W : NODE_W);
-  const colW: number[] = [];
-  const colX: number[] = [];
-  let acc = PAD_X;
+  const levelY: number[] = [];
+  let accY = PAD_Y;
   for (let l = 0; l <= maxLevel; l++) {
-    const group = byLevel.get(l) ?? [];
-    const allControl = group.length > 0 && group.every((n) => n.category === 'control');
-    colW[l] = allControl ? CTRL_W : NODE_W;
-    colX[l] = acc;
-    acc += colW[l] + COL_GAP;
+    levelY[l] = accY;
+    accY += NODE_H + LEVEL_GAP;
   }
 
   const positioned: GraphPositioned[] = [];
-  let maxRows = 0;
+  let maxRowRight = 0;
   for (const [lvl, group] of byLevel) {
-    maxRows = Math.max(maxRows, group.length);
-    group.forEach((node, row) => {
+    let x = PAD_X;
+    group.forEach((node) => {
       const w = nodeW(node);
-      // Center a slim control marker within a wider (mixed/business) column.
-      const x = colX[lvl] + (colW[lvl] - w) / 2;
-      positioned.push({ node, level: lvl, x, y: PAD_Y + row * (NODE_H + ROW_GAP), w });
+      positioned.push({ node, level: lvl, x, y: levelY[lvl], w });
+      x += w + COL_GAP;
     });
+    maxRowRight = Math.max(maxRowRight, x - COL_GAP); // right edge of the last node in the row
   }
-  const width = acc - COL_GAP + PAD_X;
-  const height = Math.max(PAD_Y * 2 + maxRows * (NODE_H + ROW_GAP) - ROW_GAP, 200);
+  const width = Math.max(maxRowRight + PAD_X, 200);
+  const height = accY - LEVEL_GAP + PAD_Y;
   return { positioned, width, height };
 }
 
@@ -1876,8 +1877,9 @@ function PlanGraphDag({
   const { positioned, width, height } = useMemo(() => layoutGraph(nodes, edges), [nodes, edges]);
   const posById = useMemo(() => new Map(positioned.map((p) => [p.node.id, p])), [positioned]);
 
-  // Edge paths. Forward edges: right-mid → left-mid cubic. Loopback: a return arc
-  // over the top (from the decision back to its upstream target).
+  // Edge paths (top-to-bottom flow). Forward edges: source BOTTOM-mid → target
+  // TOP-mid vertical cubic. Loopback: a return arc around the LEFT side (from the
+  // decision back UP to its upstream target). Arrow markers auto-orient to the path.
   const drawnEdges = useMemo(() => {
     const out: { key: string; d: string; kind: PlanGraphEdgeKind }[] = [];
     for (const e of edges) {
@@ -1885,20 +1887,20 @@ function PlanGraphDag({
       const b = posById.get(e.to);
       if (!a || !b) continue;
       if (e.kind === 'loopback') {
-        const x1 = a.x + a.w / 2;
-        const y1 = a.y;
-        const x2 = b.x + b.w / 2;
-        const y2 = b.y;
-        const topY = Math.min(y1, y2) - 34;
-        out.push({ key: `loop-${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${x1},${topY} ${x2},${topY} ${x2},${y2}` });
+        const x1 = a.x;
+        const y1 = a.y + NODE_H / 2;
+        const x2 = b.x;
+        const y2 = b.y + NODE_H / 2;
+        const leftX = Math.min(x1, x2) - 34;
+        out.push({ key: `loop-${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${leftX},${y1} ${leftX},${y2} ${x2},${y2}` });
         continue;
       }
-      const x1 = a.x + a.w;
-      const y1 = a.y + NODE_H / 2;
-      const x2 = b.x;
-      const y2 = b.y + NODE_H / 2;
-      const midX = (x1 + x2) / 2;
-      out.push({ key: `${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}` });
+      const x1 = a.x + a.w / 2;
+      const y1 = a.y + NODE_H;
+      const x2 = b.x + b.w / 2;
+      const y2 = b.y;
+      const midY = (y1 + y2) / 2;
+      out.push({ key: `${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}` });
     }
     return out;
   }, [edges, posById]);
@@ -2153,8 +2155,8 @@ function LegacyPlanDag({
     [positioned],
   );
 
-  // Edges: dep (upstream) → node (downstream). Path from dep right-mid to node
-  // left-mid; a horizontal-ease cubic for a clean orthogonal-ish curve.
+  // Edges: dep (upstream) → node (downstream). Top-to-bottom flow: path from dep
+  // BOTTOM-mid to node TOP-mid; a vertical-ease cubic for a clean orthogonal-ish curve.
   const edges = useMemo(() => {
     // Each real edge: dep (upstream `to`) → node (downstream `from`). The plan
     // node `p` lists `depId` in depends_on, i.e. "p depends on depId" ⟺
@@ -2166,45 +2168,45 @@ function LegacyPlanDag({
       for (const depId of p.node.depends_on) {
         const dep = posById.get(depId);
         if (!dep) continue;
-        const x1 = dep.x + NODE_W;
-        const y1 = dep.y + NODE_H / 2;
-        const x2 = p.x;
-        const y2 = p.y + NODE_H / 2;
-        const midX = (x1 + x2) / 2;
+        const x1 = dep.x + NODE_W / 2;
+        const y1 = dep.y + NODE_H;
+        const x2 = p.x + NODE_W / 2;
+        const y2 = p.y;
+        const midY = (y1 + y2) / 2;
         out.push({
           key: `${depId}->${p.node.task_id}`,
-          d: `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`,
+          d: `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`,
           from: p.node.task_id,
           to: depId,
-          mx: midX,
-          my: (y1 + y2) / 2,
+          mx: (x1 + x2) / 2,
+          my: midY,
         });
       }
     }
     return out;
   }, [positioned, posById]);
 
-  // v2.9 A5: synthetic flow edges — Start anchor → each root's left-mid, and
-  // each leaf's right-mid → End anchor. Same cubic shape as real edges; kept on
-  // a SEPARATE testid (`plan-dag-synthetic-edge`) so real-edge assertions/counts
+  // v2.9 A5: synthetic flow edges — Start anchor (above) → each root's top-mid, and
+  // each leaf's bottom-mid → End anchor (below). Same cubic shape as real edges; kept
+  // on a SEPARATE testid (`plan-dag-synthetic-edge`) so real-edge assertions/counts
   // are unaffected. A dashed/lighter stroke reads as a flow anchor, not a dep.
   const synthEdges = useMemo(() => {
     const out: { key: string; d: string }[] = [];
     if (start) {
       for (const l of start.links) {
-        const midX = (start.cx + l.x) / 2;
+        const midY = (start.cy + l.y) / 2;
         out.push({
           key: `start->${l.taskId}`,
-          d: `M${start.cx},${start.cy} C${midX},${start.cy} ${midX},${l.y} ${l.x},${l.y}`,
+          d: `M${start.cx},${start.cy} C${start.cx},${midY} ${l.x},${midY} ${l.x},${l.y}`,
         });
       }
     }
     if (end) {
       for (const l of end.links) {
-        const midX = (l.x + end.cx) / 2;
+        const midY = (l.y + end.cy) / 2;
         out.push({
           key: `${l.taskId}->end`,
-          d: `M${l.x},${l.y} C${midX},${l.y} ${midX},${end.cy} ${end.cx},${end.cy}`,
+          d: `M${l.x},${l.y} C${l.x},${midY} ${end.cx},${midY} ${end.cx},${end.cy}`,
         });
       }
     }
