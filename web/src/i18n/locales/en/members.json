@@ -457,6 +457,7 @@
       "skillsEmpty": "No skills reported yet.",
       "skillsCollectedAt": "Collected {{time}}",
       "skillShadowed": "Overridden",
+      "skillsHelp": "Skills the runtime actually resolved on disk, grouped by claude-code's four precedence layers (low→high): built-in < plugin < user < project. When a higher layer defines the same name, the lower copy is marked \"Overridden\" and only the top layer is effective. Click a layer header to collapse/expand it.",
       "skillLayer": {
         "built-in": "Built-in",
         "plugin": "Plugin",

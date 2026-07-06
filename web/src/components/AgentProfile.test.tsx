@@ -189,6 +189,31 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(screen.getByText('project review')).toBeInTheDocument();
   });
 
+  it('collapses a layer group when its header is clicked, and re-expands on a second click', () => {
+    wrap(base);
+    // default expanded: the project layer's skill is visible.
+    expect(screen.getByText('project review')).toBeInTheDocument();
+    const toggle = screen.getByTestId('agent-profile-skill-layer-toggle-project');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    // collapse → the group's skills disappear (the header stays).
+    fireEvent.click(toggle);
+    expect(screen.getByTestId('agent-profile-skill-layer-toggle-project')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('project review')).toBeNull();
+    expect(screen.getByTestId('agent-profile-skill-layer-project')).toBeInTheDocument();
+    // other layers are unaffected (independent collapse state).
+    expect(screen.getByText('planner')).toBeInTheDocument();
+    // re-expand.
+    fireEvent.click(screen.getByTestId('agent-profile-skill-layer-toggle-project'));
+    expect(screen.getByText('project review')).toBeInTheDocument();
+  });
+
+  it('renders a help "?" affordance on the Skills section whose title explains the layers', () => {
+    wrap(base);
+    const help = screen.getByTestId('agent-profile-skills-help');
+    expect(help).toBeInTheDocument();
+    expect(help).toHaveAttribute('title', expect.stringContaining('built-in'));
+  });
+
   it('shows collected-at only when the computer is offline', () => {
     // stopped agent (no computer connected) → collected-at surfaces.
     wrap(base);

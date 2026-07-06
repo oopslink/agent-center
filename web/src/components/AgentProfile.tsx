@@ -151,18 +151,37 @@ function Section({
   label,
   count,
   testId,
+  help,
   children,
 }: {
   label: string;
   count?: number;
   testId?: string;
+  // Optional help text: renders a "?" affordance after the label whose native
+  // title tooltip shows `help` on hover/focus (house idiom — see AgentBadges).
+  help?: string;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
     <section data-testid={testId}>
-      <h3 className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
-        {label}
-        {count !== undefined && <span className="ml-1 text-text-muted">({count})</span>}
+      <h3 className="mb-1.5 flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-text-muted">
+        <span>
+          {label}
+          {count !== undefined && <span className="ml-1 text-text-muted">({count})</span>}
+        </span>
+        {help && (
+          <span
+            className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-border-base text-[0.5625rem] font-semibold normal-case text-text-muted"
+            title={help}
+            tabIndex={0}
+            role="note"
+            aria-label={help}
+            data-testid={testId ? `${testId}-help` : undefined}
+          >
+            {/* plain ASCII "?" (no icon glyph) per the no-emoji-icon a11y guardrail. */}
+            ?
+          </span>
+        )}
       </h3>
       {children}
     </section>
@@ -185,6 +204,9 @@ function InstalledSkillsPanel({
   offline: boolean;
 }): React.ReactElement {
   const { t } = useTranslation('members');
+  // Per-layer collapse state (layer → collapsed?). Default expanded; click the
+  // layer header to fold that group. No persistence (matches CollapsibleCodeBlock).
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // Most-recent collection time across the reported set (all rows share the batch
   // stamp, but Max is robust to any drift).
   const collectedAt = skills.reduce<string>((acc, s) => (s.collected_at > acc ? s.collected_at : acc), '');
@@ -194,7 +216,12 @@ function InstalledSkillsPanel({
   })).filter((g) => g.items.length > 0);
 
   return (
-    <Section label={t('agents.profile.skills')} count={skills.length} testId="agent-profile-skills">
+    <Section
+      label={t('agents.profile.skills')}
+      count={skills.length}
+      testId="agent-profile-skills"
+      help={t('agents.profile.skillsHelp')}
+    >
       {offline && collectedAt && (
         <p className="mb-2 text-[0.6875rem] text-text-muted" data-testid="agent-profile-skills-collected">
           {t('agents.profile.skillsCollectedAt', { time: formatDate(collectedAt) })}
@@ -202,13 +229,29 @@ function InstalledSkillsPanel({
       )}
       {byLayer.length > 0 ? (
         <div className="space-y-3">
-          {byLayer.map((group) => (
+          {byLayer.map((group) => {
+            const isCollapsed = collapsed[group.layer] ?? false;
+            const listId = `agent-profile-skill-list-${group.layer}`;
+            return (
             <div key={group.layer} data-testid={`agent-profile-skill-layer-${group.layer}`}>
-              <h4 className="mb-1 flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
+              <button
+                type="button"
+                onClick={() => setCollapsed((c) => ({ ...c, [group.layer]: !isCollapsed }))}
+                aria-expanded={!isCollapsed}
+                aria-controls={listId}
+                className="mb-1 flex w-full items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted hover:text-text-secondary"
+                data-testid={`agent-profile-skill-layer-toggle-${group.layer}`}
+              >
+                {/* pure-CSS caret (no glyph): points right, rotates to down when expanded. */}
+                <span
+                  aria-hidden="true"
+                  className={`inline-block h-0 w-0 border-y-[3px] border-l-[4px] border-y-transparent border-l-current transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                />
                 {t(`agents.profile.skillLayer.${group.layer}`)}
                 <span className="text-text-muted">({group.items.length})</span>
-              </h4>
-              <ul className="space-y-1.5">
+              </button>
+              {!isCollapsed && (
+              <ul id={listId} className="space-y-1.5">
                 {group.items.map((s) => (
                   <li
                     key={`${group.layer}:${s.name}`}
@@ -244,8 +287,10 @@ function InstalledSkillsPanel({
                   </li>
                 ))}
               </ul>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="text-xs italic text-text-muted" data-testid="agent-profile-skills-empty">

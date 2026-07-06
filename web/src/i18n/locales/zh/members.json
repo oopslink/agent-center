@@ -457,6 +457,7 @@
       "skillsEmpty": "尚未上报技能。",
       "skillsCollectedAt": "采集于 {{time}}",
       "skillShadowed": "被覆盖",
+      "skillsHelp": "运行时实际解析到的技能，按 claude-code 的四个优先级层级分组（低→高）：内置 < 插件 < 用户 < 项目。同名技能被更高层级覆盖时，低层那份标记为“被覆盖”，仅最高层生效。点击层级标题可折叠/展开。",
       "skillLayer": {
         "built-in": "内置",
         "plugin": "插件",
