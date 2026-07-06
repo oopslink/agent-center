@@ -4,8 +4,10 @@ import { useTranslation } from 'react-i18next';
 import {
   useCreateReminder,
   useUpdateReminder,
+  REMINDER_EVENTS,
   type Reminder,
   type ReminderEndCondition,
+  type ReminderEntityType,
   type ReminderScheduleKind,
 } from '@/api/reminders';
 import { useAgents } from '@/api/agents';
@@ -13,6 +15,10 @@ import { Avatar } from './Avatar';
 import { EntityMultiSelect } from './EntityMultiSelect';
 import type { EntityOption } from './EntitySelect';
 import { IconClose, IconCalendar, IconClock } from './icons';
+
+// The entity kinds an on_event reminder may watch, in tab order (event options
+// derive from REMINDER_EVENTS so an entity_type/event pair is always legal).
+const ENTITY_TYPES: ReadonlyArray<ReminderEntityType> = ['plan', 'task', 'issue'];
 
 // =============================================================================
 // T207 [提醒-3] — screens ② (新建·周期 cron) + ③ (新建·一次性 once), 1:1 to the
@@ -78,6 +84,11 @@ export interface ReminderPrefill {
   cronExpr?: string; // cron expression (recurring)
   tz?: string; // IANA tz (cron preview / payload)
   content?: string;
+  // on_event trigger prefill (kind === 'on_event').
+  entityType?: ReminderEntityType;
+  entityId?: string;
+  eventName?: string;
+  delay?: string; // duration ("5m"|"30s"|"0")
 }
 
 // reminderToPrefill maps an existing reminder onto a create/edit prefill — used by
@@ -91,7 +102,12 @@ export function reminderToPrefill(r: Reminder, remindeeName?: string): ReminderP
     kind: r.schedule.kind,
     content: r.content,
   };
-  if (r.schedule.kind === 'cron') {
+  if (r.schedule.kind === 'on_event' && r.on_event) {
+    p.entityType = r.on_event.entity_type as ReminderEntityType;
+    p.entityId = r.on_event.entity_id;
+    p.eventName = r.on_event.event;
+    p.delay = r.on_event.delay_seconds > 0 ? `${r.on_event.delay_seconds}s` : '0';
+  } else if (r.schedule.kind === 'cron') {
     p.cronExpr = r.schedule.cron_expr;
     p.tz = r.schedule.timezone;
   } else if (r.schedule.once_at) {
@@ -128,15 +144,36 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
   const [tz, setTz] = useState(prefill?.tz ?? browserTz);
   const [onceDate, setOnceDate] = useState(prefill?.onceDate ?? '');
   const [onceTime, setOnceTime] = useState(prefill?.onceTime ?? '09:00');
+  // on_event trigger — entity_type/entity_id/event + delay. eventName tracks the
+  // per-entity vocabulary (REMINDER_EVENTS) and is reset whenever entity_type
+  // changes so an illegal (entity_type, event) pair can't be submitted.
+  const [entityType, setEntityType] = useState<ReminderEntityType>(prefill?.entityType ?? 'plan');
+  const [entityId, setEntityId] = useState(prefill?.entityId ?? '');
+  const [eventName, setEventName] = useState(prefill?.eventName ?? REMINDER_EVENTS[prefill?.entityType ?? 'plan'][0]);
+  const [delay, setDelay] = useState(prefill?.delay ?? '0');
   const [skipOverlap, setSkipOverlap] = useState(true);
   const [deliverAsCreator, setDeliverAsCreator] = useState(true); // F-B: default ON per mockup
   const [endKind, setEndKind] = useState<ReminderEndCondition['kind']>('never');
   const [err, setErr] = useState<string | null>(null);
 
+  // When entity_type changes, snap the event to the first legal option for the
+  // new type (unless the current one is still valid), so the (type,event) pair
+  // stays a combination the backend accepts.
+  function changeEntityType(next: ReminderEntityType): void {
+    setEntityType(next);
+    if (!REMINDER_EVENTS[next].includes(eventName)) {
+      setEventName(REMINDER_EVENTS[next][0]);
+    }
+  }
+
   const canSubmit =
     remindees.length > 0 &&
     content.trim() !== '' &&
-    (kind === 'cron' ? cronExpr.trim() !== '' : onceDate !== '');
+    (kind === 'cron'
+      ? cronExpr.trim() !== ''
+      : kind === 'on_event'
+        ? entityId.trim() !== '' && eventName !== ''
+        : onceDate !== '');
 
   const remindeeOptions = useMemo<EntityOption[]>(() => {
     const opts: EntityOption[] = (agents ?? []).map((a) => ({
@@ -170,15 +207,21 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
 
   async function submit(): Promise<void> {
     setErr(null);
-    const schedule =
-      kind === 'cron'
+    const isEvent = kind === 'on_event';
+    // schedule applies to once|cron only; on_event omits it and rides the trigger
+    // in the on_event block instead (the backend ignores schedule for on_event).
+    // Guard the once Date() so an empty on_event date never throws Invalid time.
+    const schedule = isEvent
+      ? undefined
+      : kind === 'cron'
         ? { kind: 'cron' as const, cron_expr: cronExpr.trim(), timezone: tz }
         : { kind: 'once' as const, once_at: new Date(`${onceDate}T${onceTime}:00`).toISOString() };
     const end_condition: ReminderEndCondition = { kind: endKind };
 
     // T477 edit: PATCH the existing reminder's schedule + content in place (the
     // remindee is fixed — edit can't retarget). No fan-out, no end-condition/
-    // overlap re-send (those aren't part of the edit contract).
+    // overlap re-send (those aren't part of the edit contract). on_event isn't in
+    // the edit contract, so the on_event tab is create-only (hidden when editing).
     if (isEdit && editId) {
       try {
         await update.mutateAsync({ id: editId, action: 'edit', schedule, content: content.trim() });
@@ -192,16 +235,32 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
     // Fan out one create per remindee; report a partial-failure summary rather
     // than aborting the rest (mirrors the batch-lifecycle pattern). The API
     // takes a single remindee_agent_id, so multi-target is a client-side loop.
+    // For on_event the remindee is also the @target agent woken when the event
+    // fires (the backend defaults target = remindee), so we omit a separate target.
     const results = await Promise.allSettled(
       remindees.map((id) =>
-        create.mutateAsync({
-          remindee_agent_id: id,
-          schedule,
-          content: content.trim(),
-          skip_if_overlap: skipOverlap,
-          deliver_as_creator: deliverAsCreator,
-          end_condition,
-        }),
+        create.mutateAsync(
+          isEvent
+            ? {
+                remindee_agent_id: id,
+                content: content.trim(),
+                deliver_as_creator: deliverAsCreator,
+                on_event: {
+                  entity_type: entityType,
+                  entity_id: entityId.trim(),
+                  event: eventName,
+                },
+                delay: delay.trim() || '0',
+              }
+            : {
+                remindee_agent_id: id,
+                schedule,
+                content: content.trim(),
+                skip_if_overlap: skipOverlap,
+                deliver_as_creator: deliverAsCreator,
+                end_condition,
+              },
+        ),
       ),
     );
     const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
@@ -262,7 +321,9 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
           <div>
             <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.triggerLabel')}</label>
             <div className="inline-flex rounded-md bg-bg-subtle p-0.5" role="tablist" aria-label={t('reminders.create.triggerTypeAria')}>
-              {(['once', 'cron'] as const).map((k) => (
+              {/* on_event isn't part of the edit contract (edit is schedule +
+                  content only), so the third tab is create-only. */}
+              {(isEdit ? (['once', 'cron'] as const) : (['once', 'cron', 'on_event'] as const)).map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -272,13 +333,17 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
                   onClick={() => setKind(k)}
                   className={`rounded px-3 py-1 text-xs font-semibold ${kind === k ? 'bg-brand text-white' : 'text-text-secondary'}`}
                 >
-                  {k === 'once' ? t('reminders.create.tabOnce') : t('reminders.create.tabRecurring')}
+                  {k === 'once'
+                    ? t('reminders.create.tabOnce')
+                    : k === 'cron'
+                      ? t('reminders.create.tabRecurring')
+                      : t('reminders.create.tabOnEvent')}
                 </button>
               ))}
             </div>
           </div>
 
-          {kind === 'cron' ? (
+          {kind === 'cron' && (
             <>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.cronLabel')}</label>
@@ -364,7 +429,9 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
               </div>
               )}
             </>
-          ) : (
+          )}
+
+          {kind === 'once' && (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.triggerTimeLabel')}</label>
               <div className="flex gap-2">
@@ -388,6 +455,85 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
                 data-testid="reminder-preview"
               >
                 <IconClock className="h-3.5 w-3.5 shrink-0" /> <span>{oncePreview}</span>
+              </div>
+            </div>
+          )}
+
+          {kind === 'on_event' && (
+            <div className="space-y-3" data-testid="reminder-on-event">
+              {/* entity_type — plan | task | issue. Changing it re-scopes the event
+                  dropdown to the type's legal vocabulary. */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.entityTypeLabel')}</label>
+                <select
+                  value={entityType}
+                  onChange={(e) => changeEntityType(e.target.value as ReminderEntityType)}
+                  className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 text-sm"
+                  data-testid="reminder-entity-type"
+                >
+                  {ENTITY_TYPES.map((et) => (
+                    <option key={et} value={et}>
+                      {t(`reminders.create.entityType.${et}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* entity_id — the watched entity within the current project. */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.entityIdLabel')}</label>
+                <input
+                  value={entityId}
+                  onChange={(e) => setEntityId(e.target.value)}
+                  placeholder={t('reminders.create.entityIdPlaceholder')}
+                  className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 font-mono text-sm"
+                  data-testid="reminder-entity-id"
+                />
+                <p className="mt-1.5 text-xs text-text-muted">{t('reminders.create.entityIdHint')}</p>
+              </div>
+
+              {/* event — the state transition that arms the reminder (scoped to the
+                  entity_type's vocabulary). */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.eventLabel')}</label>
+                <select
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 text-sm"
+                  data-testid="reminder-event"
+                >
+                  {REMINDER_EVENTS[entityType].map((ev) => (
+                    <option key={ev} value={ev}>
+                      {t(`reminders.create.event.${ev}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* delay — how long after the event to fire (duration string). */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.delayLabel')}</label>
+                <input
+                  value={delay}
+                  onChange={(e) => setDelay(e.target.value)}
+                  placeholder={t('reminders.create.delayPlaceholder')}
+                  className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 font-mono text-sm"
+                  data-testid="reminder-delay"
+                />
+                <p className="mt-1.5 text-xs text-text-muted">{t('reminders.create.delayHint')}</p>
+              </div>
+
+              <div
+                className="flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info"
+                data-testid="reminder-preview"
+              >
+                <IconCalendar className="h-3.5 w-3.5 shrink-0" />{' '}
+                <span>
+                  {t('reminders.create.onEventPreview', {
+                    entity: t(`reminders.create.entityType.${entityType}`),
+                    event: t(`reminders.create.event.${eventName}`),
+                  })}
+                </span>
               </div>
             </div>
           )}

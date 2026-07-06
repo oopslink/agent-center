@@ -22,6 +22,19 @@ export interface ReminderSchedule {
   timezone?: string; // IANA tz (cron)
 }
 
+// ReminderEntityType is the project-manager entity whose state change arms an
+// on_event reminder.
+export type ReminderEntityType = 'plan' | 'task' | 'issue';
+
+// REMINDER_EVENTS is the per-entity event vocabulary (aligned with the backend
+// AllowedEvents map). The create modal's event dropdown derives its options from
+// this so a submitted (entity_type, event) pair is always a legal combination.
+export const REMINDER_EVENTS: Record<ReminderEntityType, readonly string[]> = {
+  plan: ['completed', 'failed', 'stopped'],
+  task: ['completed', 'blocked', 'reopened', 'discarded'],
+  issue: ['closed', 'reopened'],
+};
+
 // ReminderOnEvent is the event-driven trigger spec (kind === 'on_event'): the
 // reminder stays dormant until the named entity state-change event fires, then
 // arms (+delay) and fires once. Emitted alongside schedule by the API.
@@ -133,13 +146,29 @@ export function useReminder(slug: string | undefined, id: string | undefined) {
 // Writes
 // ---------------------------------------------------------------------------
 
+// CreateReminderOnEvent is the on_event trigger block the create call carries when
+// building an event-driven reminder (mirrors the agent-tools wire shape).
+export interface CreateReminderOnEvent {
+  entity_type: ReminderEntityType;
+  entity_id: string;
+  event: string;
+}
+
 export interface CreateReminderInput {
   remindee_agent_id: string;
-  schedule: ReminderSchedule;
+  // schedule is present for once|cron reminders and OMITTED for on_event (the
+  // trigger rides in on_event/delay instead — the backend ignores schedule then).
+  schedule?: ReminderSchedule;
   content: string;
   skip_if_overlap?: boolean;
   deliver_as_creator?: boolean; // F-B: deliver as creator identity vs system (default ON)
   end_condition?: ReminderEndCondition;
+  // on_event trigger (event-driven). When set, schedule is omitted; delay is an
+  // optional duration string ("5m"|"30s"|"0", default 0); target defaults to the
+  // remindee on the server.
+  on_event?: CreateReminderOnEvent;
+  delay?: string;
+  target?: string;
 }
 
 export function useCreateReminder() {

@@ -105,6 +105,80 @@ describe('ReminderCreateModal — remindee multi-select + toggles', () => {
   });
 });
 
+// New reminder — on_event (event-driven) trigger tab. The third Trigger option
+// shows the entity_type / entity_id / event / delay fields, keeps the event
+// dropdown scoped to the entity_type's vocabulary, and submits an on_event
+// payload (no schedule) matching the backend create_reminder contract.
+describe('ReminderCreateModal — on_event trigger', () => {
+  afterEach(() => {
+    cleanup();
+    mutateAsync.mockClear();
+  });
+
+  it('offers three trigger tabs (once / cron / on_event)', () => {
+    renderModal();
+    expect(screen.getByTestId('reminder-kind-once')).toBeInTheDocument();
+    expect(screen.getByTestId('reminder-kind-cron')).toBeInTheDocument();
+    expect(screen.getByTestId('reminder-kind-on_event')).toBeInTheDocument();
+  });
+
+  it('shows on_event fields and hides cron/once fields when selected', () => {
+    renderModal();
+    fireEvent.click(screen.getByTestId('reminder-kind-on_event'));
+    expect(screen.getByTestId('reminder-entity-type')).toBeInTheDocument();
+    expect(screen.getByTestId('reminder-entity-id')).toBeInTheDocument();
+    expect(screen.getByTestId('reminder-event')).toBeInTheDocument();
+    expect(screen.getByTestId('reminder-delay')).toBeInTheDocument();
+    // cron/once controls are gone.
+    expect(screen.queryByTestId('reminder-cron')).toBeNull();
+    expect(screen.queryByTestId('reminder-once-date')).toBeNull();
+  });
+
+  it('re-scopes the event dropdown when entity_type changes (no illegal combo)', () => {
+    renderModal();
+    fireEvent.click(screen.getByTestId('reminder-kind-on_event'));
+    const eventSel = screen.getByTestId('reminder-event') as HTMLSelectElement;
+    // plan (default) → completed | failed | stopped.
+    expect(Array.from(eventSel.options).map((o) => o.value)).toEqual(['completed', 'failed', 'stopped']);
+    fireEvent.change(screen.getByTestId('reminder-entity-type'), { target: { value: 'issue' } });
+    // issue → closed | reopened; event snaps to the first legal option.
+    expect(Array.from(eventSel.options).map((o) => o.value)).toEqual(['closed', 'reopened']);
+    expect(eventSel.value).toBe('closed');
+  });
+
+  it('submits an on_event payload (on_event + delay, no schedule)', async () => {
+    renderModal();
+    fireEvent.click(screen.getByTestId('reminder-kind-on_event'));
+    pickRemindee('agent-1');
+    fireEvent.change(screen.getByTestId('reminder-entity-type'), { target: { value: 'task' } });
+    fireEvent.change(screen.getByTestId('reminder-event'), { target: { value: 'blocked' } });
+    fireEvent.change(screen.getByTestId('reminder-entity-id'), { target: { value: 'task_123' } });
+    fireEvent.change(screen.getByTestId('reminder-delay'), { target: { value: '5m' } });
+    fireEvent.change(screen.getByTestId('reminder-content'), { target: { value: 'ping' } });
+    fireEvent.click(screen.getByTestId('reminder-submit'));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    const payload = mutateAsync.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      remindee_agent_id: 'agent-1',
+      content: 'ping',
+      delay: '5m',
+      on_event: { entity_type: 'task', entity_id: 'task_123', event: 'blocked' },
+    });
+    // on_event mode omits schedule.
+    expect(payload.schedule).toBeUndefined();
+  });
+
+  it('keeps submit disabled until entity_id is filled', () => {
+    renderModal();
+    fireEvent.click(screen.getByTestId('reminder-kind-on_event'));
+    pickRemindee('agent-1');
+    fireEvent.change(screen.getByTestId('reminder-content'), { target: { value: 'ping' } });
+    expect((screen.getByTestId('reminder-submit') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByTestId('reminder-entity-id'), { target: { value: 'plan_9' } });
+    expect((screen.getByTestId('reminder-submit') as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
 // T474 — the prefill prop: open the modal with a remindee pre-selected and, for
 // a detected session-limit reset, a one-shot trigger time + content filled in.
 describe('ReminderCreateModal — T474 prefill', () => {

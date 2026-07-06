@@ -129,7 +129,31 @@
         "thursday": "周四",
         "friday": "周五",
         "saturday": "周六"
-      }
+      },
+      "tabOnEvent": "事件触发",
+      "entityTypeLabel": "实体类型",
+      "entityType": {
+        "plan": "计划",
+        "task": "任务",
+        "issue": "问题"
+      },
+      "entityIdLabel": "实体 ID",
+      "entityIdPlaceholder": "如 plan_01H…",
+      "entityIdHint": "要监听的计划 / 任务 / 问题（须在当前项目内）。",
+      "eventLabel": "事件",
+      "event": {
+        "completed": "已完成",
+        "failed": "已失败",
+        "stopped": "已停止",
+        "blocked": "已阻塞",
+        "reopened": "已重开",
+        "discarded": "已废弃",
+        "closed": "已关闭"
+      },
+      "delayLabel": "延迟",
+      "delayPlaceholder": "0",
+      "delayHint": "事件命中后延迟触发的时长（如 5m、30s 或 0）。",
+      "onEventPreview": "当 {{entity}} {{event}} 时触发一次"
     },
     "detail": {
       "ariaLabel": "提醒详情",

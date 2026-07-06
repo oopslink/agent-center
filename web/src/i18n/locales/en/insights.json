@@ -129,7 +129,31 @@
         "thursday": "Thursday",
         "friday": "Friday",
         "saturday": "Saturday"
-      }
+      },
+      "tabOnEvent": "On event",
+      "entityTypeLabel": "Entity type",
+      "entityType": {
+        "plan": "Plan",
+        "task": "Task",
+        "issue": "Issue"
+      },
+      "entityIdLabel": "Entity ID",
+      "entityIdPlaceholder": "e.g. plan_01H…",
+      "entityIdHint": "The plan / task / issue to watch (must be in this project).",
+      "eventLabel": "Event",
+      "event": {
+        "completed": "Completed",
+        "failed": "Failed",
+        "stopped": "Stopped",
+        "blocked": "Blocked",
+        "reopened": "Reopened",
+        "discarded": "Discarded",
+        "closed": "Closed"
+      },
+      "delayLabel": "Delay",
+      "delayPlaceholder": "0",
+      "delayHint": "Fire this long after the event (e.g. 5m, 30s, or 0).",
+      "onEventPreview": "Fires once when a {{entity}} is {{event}}"
     },
     "detail": {
       "ariaLabel": "Reminder details",
