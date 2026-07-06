@@ -79,6 +79,17 @@ var (
 type ExecutorCandidate struct {
 	CLI   string
 	Model string
+	// Catalog annotations (issue-93dd8daa ②): joined from the org model catalog by
+	// Model (== catalog model_id) at the center wiring seam. Zero/empty when the model
+	// is NOT in the catalog (the join warns + leaves them neutral, never silent). The
+	// difficulty judge reads Tier (free-text capability description) for semantic
+	// matching and the costs/context to prefer the cheapest sufficient model. Purely
+	// additive: a plain ExecutorCandidate{CLI, Model} is unchanged (no judge input).
+	DisplayName   string
+	InputCost     float64
+	OutputCost    float64
+	ContextWindow int
+	Tier          string
 }
 
 // fallbackCLI is the CLI paired with a model-only override / default that does not
