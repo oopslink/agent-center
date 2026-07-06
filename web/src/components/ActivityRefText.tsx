@@ -23,6 +23,14 @@ import {
 // regression. That is the one intentional divergence from MentionText, which
 // renders resolved labels for chat prose.
 //
+// variant="label" (Plan Change History, oopslink DM 2026-07-06): a HUMAN-facing
+// consumer (ObjectAuditTimeline) reuses this SAME tokenizer + resolvers but wants
+// the short-ref LABEL as link text — task→"T90", plan→"P10", issue→"I50" (the
+// site refLabel convention, via the resolvers' `.label`), and an agent→its
+// display_name (not the raw `agent-<id>`). The id stays on `title`/`data-*` and
+// drives the href; only the visible text differs. Default stays "id" so the
+// activity/debug surfaces are untouched.
+//
 // Divergences from MentionText's TOKEN_RE, by design:
 //   - only the BARE `<kind>-<id>` forms (no @handle, no T/P/I org_ref) — activity
 //     payloads carry entity ids, not human org_refs.
@@ -42,6 +50,11 @@ interface ActivityRefTextProps {
   /** The plain text (a ref field value or pretty-printed payload JSON) to linkify. */
   text: string;
   className?: string;
+  /** Link-text form. "id" (default) keeps the LITERAL id (debug-faithful — the
+   * activity feed / payload JSON). "label" renders the short-ref label
+   * (T90/P10/I50) or the agent's display_name — for human-facing surfaces like
+   * the Plan Change History timeline. Href / data-* / title always carry the id. */
+  variant?: 'id' | 'label';
 }
 
 // ActivityRefText tokenizes one plain string, turning each STANDALONE, RESOLVABLE
@@ -49,7 +62,7 @@ interface ActivityRefTextProps {
 // stopPropagation — mirroring MentionText's task/plan/issue anchors). An
 // unknown / out-of-org / non-linkable id (incl. every exec-<id>) stays plain
 // text, so no link ever dangles.
-export function ActivityRefText({ text, className }: ActivityRefTextProps): React.ReactElement {
+export function ActivityRefText({ text, className, variant = 'id' }: ActivityRefTextProps): React.ReactElement {
   const ctx = useOptionalOrgContext();
   const slug = ctx?.slug;
   const resolveTask = useTaskRefResolver();
@@ -74,6 +87,9 @@ export function ActivityRefText({ text, className }: ActivityRefTextProps): Reac
     // The kind-specific data-* attribute (mirrors MentionText's data-task-id etc.)
     // so tests / tooling can anchor on the exact linked id.
     let dataAttrs: Record<string, string> = {};
+    // The resolved short-ref label / display_name, used as link text in the
+    // "label" variant; the literal id stays the default.
+    let label = token;
 
     if (taskRef !== undefined) {
       const r = resolveTask(taskRef);
@@ -81,6 +97,7 @@ export function ActivityRefText({ text, className }: ActivityRefTextProps): Reac
         href = r.href;
         testId = 'activity-task-ref-link';
         dataAttrs = { 'data-task-id': taskRef };
+        label = r.label;
       }
     } else if (planRef !== undefined) {
       const r = resolvePlan(planRef);
@@ -88,6 +105,7 @@ export function ActivityRefText({ text, className }: ActivityRefTextProps): Reac
         href = r.href;
         testId = 'activity-plan-ref-link';
         dataAttrs = { 'data-plan-id': planRef };
+        label = r.label;
       }
     } else if (issueRef !== undefined) {
       const r = resolveIssue(issueRef);
@@ -95,6 +113,7 @@ export function ActivityRefText({ text, className }: ActivityRefTextProps): Reac
         href = r.href;
         testId = 'activity-issue-ref-link';
         dataAttrs = { 'data-issue-id': issueRef };
+        label = r.label;
       }
     } else if (agentRef !== undefined) {
       // Only a KNOWN agent linkifies (verify-not-trust); the bare token IS the
@@ -104,6 +123,7 @@ export function ActivityRefText({ text, className }: ActivityRefTextProps): Reac
         href = orgPath(`/agents/${encodeURIComponent(agentRef)}`, slug);
         testId = 'activity-agent-ref-link';
         dataAttrs = { 'data-agent-ref': a.ref };
+        label = a.label; // the agent's display_name (T337)
       }
     }
 
@@ -123,9 +143,13 @@ export function ActivityRefText({ text, className }: ActivityRefTextProps): Reac
         onClick={(e) => e.stopPropagation()}
         data-testid={testId}
         {...dataAttrs}
+        // "label" variant swaps the visible text to the short ref / display_name
+        // but keeps the raw id on hover (title) so the underlying id stays
+        // discoverable — the href/data-* already carry it.
+        title={variant === 'label' ? token : undefined}
         className={LINK_CLASS}
       >
-        {token}
+        {variant === 'label' ? label : token}
       </a>,
     );
     last = match.index + token.length;

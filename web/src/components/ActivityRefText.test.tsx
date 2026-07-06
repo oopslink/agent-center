@@ -180,6 +180,89 @@ describe('ActivityRefText', () => {
     expect(screen.getByText(/exec-86303eb9/)).toBeInTheDocument();
   });
 
+  // variant="label" (Plan Change History): the SAME tokenizer/resolvers, but the
+  // link text is the short-ref label (T90/P10/I50) / agent display_name instead of
+  // the literal id. The raw id stays on `title` + data-* and still drives the href.
+  describe('variant="label" (short-ref labels for human-facing surfaces)', () => {
+    it('renders a task-<id> as its "T90" short ref (not the raw id), id on hover', async () => {
+      mockEmpty();
+      server.use(
+        http.get('/api/tasks', () =>
+          HttpResponse.json({
+            items: [{ id: 'task-5779df52', org_ref: 'T90', project: { id: 'proj-x', name: 'X' }, title: 't', status: 'running', assignee: null, updated_at: 'x', created_at: 'x' }],
+            total: 1,
+          }),
+        ),
+      );
+      renderInOrg(<ActivityRefText variant="label" text={'task-5779df52'} />);
+      const link = await screen.findByTestId('activity-task-ref-link');
+      expect(link).toHaveTextContent('T90');
+      expect(link).not.toHaveTextContent('task-5779df52');
+      // raw id preserved on hover + data-* + href (discoverable, drives routing).
+      expect(link).toHaveAttribute('title', 'task-5779df52');
+      expect(link).toHaveAttribute('data-task-id', 'task-5779df52');
+      expect(link).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-5779df52');
+    });
+
+    it('renders a plan-<id> as its "P42" short ref', async () => {
+      mockEmpty();
+      server.use(
+        http.get('/api/plans', () =>
+          HttpResponse.json({
+            items: [{ id: 'plan-abc', org_ref: 'P42', project: { id: 'proj-x', name: 'X' }, name: 'p', status: 'running', has_failed: false, progress: { done: 0, total: 0 }, created_at: 'x', updated_at: 'x' }],
+            total: 1,
+          }),
+        ),
+      );
+      renderInOrg(<ActivityRefText variant="label" text={'plan-abc'} />);
+      const link = await screen.findByTestId('activity-plan-ref-link');
+      expect(link).toHaveTextContent('P42');
+      expect(link).not.toHaveTextContent('plan-abc');
+      expect(link).toHaveAttribute('title', 'plan-abc');
+    });
+
+    it('renders an issue-<id> as its "I7" short ref', async () => {
+      mockEmpty();
+      server.use(
+        http.get('/api/issues', () =>
+          HttpResponse.json({
+            items: [{ id: 'issue-abc', org_ref: 'I7', project: { id: 'proj-x', name: 'X' }, title: 'i', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' }],
+            total: 1,
+          }),
+        ),
+      );
+      renderInOrg(<ActivityRefText variant="label" text={'issue-abc'} />);
+      const link = await screen.findByTestId('activity-issue-ref-link');
+      expect(link).toHaveTextContent('I7');
+      expect(link).not.toHaveTextContent('issue-abc');
+      expect(link).toHaveAttribute('title', 'issue-abc');
+    });
+
+    it('renders an agent-<id> as its display_name (not the raw agent id)', async () => {
+      mockEmpty();
+      server.use(
+        http.get('/api/members', () =>
+          HttpResponse.json([
+            { id: 'mem-1', organization_id: 'O', identity_id: 'agent-35ac0e16', display_name: 'agent-center-dev2', kind: 'agent', role: 'member', status: 'joined', joined_at: 'x' },
+          ]),
+        ),
+      );
+      renderInOrg(<ActivityRefText variant="label" text={'agent-35ac0e16'} />);
+      const link = await screen.findByTestId('activity-agent-ref-link');
+      expect(link).toHaveTextContent('agent-center-dev2');
+      expect(link).not.toHaveTextContent('agent-35ac0e16');
+      expect(link).toHaveAttribute('title', 'agent-35ac0e16');
+      expect(link).toHaveAttribute('href', '/organizations/test-org/agents/agent-35ac0e16');
+    });
+
+    it('still leaves an unknown id plain text in label variant (verify-not-trust)', async () => {
+      mockEmpty();
+      renderInOrg(<ActivityRefText variant="label" text={'task-zzz unknown'} />);
+      await waitFor(() => expect(screen.getByText(/task-zzz unknown/)).toBeInTheDocument());
+      expect(screen.queryByTestId('activity-task-ref-link')).toBeNull();
+    });
+  });
+
   it('stays plain text (no crash) with NO org context — resolvers disabled', async () => {
     // No OrgContext: slug undefined → task/plan/issue queries disabled. Members
     // still loads (empty), so the agent resolver simply finds nothing.

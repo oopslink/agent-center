@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 import type React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { server } from '@/test/mswServer';
+import { OrgContext } from '@/OrgContext';
 import i18n from '@/i18n';
 import { ObjectAuditTimeline } from './ObjectAuditTimeline';
 import type { AuditEntry } from '@/api/audit';
@@ -11,6 +12,28 @@ import type { AuditEntry } from '@/api/audit';
 function renderWithProvider(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
+
+// renderInOrg wraps the timeline in an OrgContext so the entity-ref resolvers
+// (task/plan/issue are slug-gated) are enabled and can linkify.
+function renderInOrg(ui: React.ReactElement, slug = 'test-org') {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <OrgContext.Provider value={{ slug, orgId: 'O', orgName: 'Test Org' }}>{ui}</OrgContext.Provider>
+    </QueryClientProvider>,
+  );
+}
+
+// Default-empty org lists so a render doesn't trip an unhandled request — every
+// audit row loads members + tasks + plans + issues via the ref resolvers.
+function mockEmptyOrgLists() {
+  server.use(
+    http.get('/api/members', () => HttpResponse.json([])),
+    http.get('/api/tasks', () => HttpResponse.json({ items: [], total: 0 })),
+    http.get('/api/plans', () => HttpResponse.json({ items: [], total: 0 })),
+    http.get('/api/issues', () => HttpResponse.json({ items: [], total: 0 })),
+  );
 }
 
 function entry(over: Partial<AuditEntry>): AuditEntry {
@@ -134,6 +157,103 @@ describe('ObjectAuditTimeline', () => {
     expect(screen.getByText(/loopback re-run \(round 1\)/)).toBeInTheDocument();
     // system actor renders via localized copy, not a raw "system:plan-engine".
     expect(screen.getByText(/@system \(plan-engine\)/)).toBeInTheDocument();
+  });
+
+  // Plan Change History (oopslink DM 2026-07-06): entity ids in a history row —
+  // the structured actor + the raw task/plan/issue/agent ids interpolated into the
+  // composed sentence (incl. a dependency's from→to, TWO ids on one line) — render
+  // as clickable short-ref links, reusing the site ref resolvers.
+  describe('entity ref links in history rows', () => {
+    it('linkifies BOTH task ids on a dependency row to their T-refs (two links, one line)', async () => {
+      mockEmptyOrgLists();
+      server.use(
+        http.get('/api/tasks', () =>
+          HttpResponse.json({
+            items: [
+              { id: 'task-6b5a3d51', org_ref: 'T90', project: { id: 'proj-x', name: 'X' }, title: 'a', status: 'running', assignee: null, updated_at: 'x', created_at: 'x' },
+              { id: 'task-6f17013d', org_ref: 'T91', project: { id: 'proj-x', name: 'X' }, title: 'b', status: 'open', assignee: null, updated_at: 'x', created_at: 'x' },
+            ],
+            total: 2,
+          }),
+        ),
+        http.get('/api/projects/:pid/plans/:planId/audit', () =>
+          HttpResponse.json({
+            entries: [
+              entry({
+                id: 'd1',
+                object_type: 'plan',
+                change_type: 'dependency_added',
+                from: '',
+                to: '',
+                actor: 'user:pd',
+                // raw entity ids (as the backend ships them), one line, from → to.
+                detail: { from: 'task-6b5a3d51', to: 'task-6f17013d', kind: 'seq' },
+              }),
+            ],
+            next_cursor: '',
+          }),
+        ),
+      );
+      renderInOrg(<ObjectAuditTimeline objectType="plan" projectId="proj-a" objectId="plan-1" />);
+
+      const links = await screen.findAllByTestId('activity-task-ref-link');
+      expect(links).toHaveLength(2);
+      // Each raw id becomes its own link, labelled with the T-ref (not the raw id).
+      expect(links[0]).toHaveTextContent('T90');
+      expect(links[0]).toHaveAttribute('data-task-id', 'task-6b5a3d51');
+      expect(links[0]).toHaveAttribute('href', '/organizations/test-org/projects/proj-x/tasks/task-6b5a3d51');
+      expect(links[1]).toHaveTextContent('T91');
+      expect(links[1]).toHaveAttribute('data-task-id', 'task-6f17013d');
+      // The raw ids are no longer shown as plain text.
+      expect(screen.queryByText(/task-6b5a3d51/)).toBeNull();
+    });
+
+    it('renders an AGENT actor as its display_name link (not the raw agent-<id>)', async () => {
+      mockEmptyOrgLists();
+      server.use(
+        http.get('/api/members', () =>
+          HttpResponse.json([
+            { id: 'mem-1', organization_id: 'O', identity_id: 'agent-b5036ea8', display_name: 'agent-center-dev2', kind: 'agent', role: 'member', status: 'joined', joined_at: 'x' },
+          ]),
+        ),
+        http.get('/api/projects/:pid/plans/:planId/audit', () =>
+          HttpResponse.json({
+            entries: [
+              entry({ id: 's1', object_type: 'plan', change_type: 'started', actor: 'agent:agent-b5036ea8', detail: { status: 'running' } }),
+            ],
+            next_cursor: '',
+          }),
+        ),
+      );
+      renderInOrg(<ObjectAuditTimeline objectType="plan" projectId="proj-a" objectId="plan-1" />);
+
+      const actor = await screen.findByTestId('audit-actor-agent-link');
+      expect(actor).toHaveTextContent('agent-center-dev2');
+      expect(actor).not.toHaveTextContent('agent-b5036ea8'); // raw id not shown as text
+      expect(actor).toHaveAttribute('data-agent-ref', 'agent:agent-b5036ea8');
+      expect(actor).toHaveAttribute('href', '/organizations/test-org/agents/agent-b5036ea8');
+    });
+
+    it('leaves a user actor + an unknown agent as plain text (verify-not-trust)', async () => {
+      mockEmptyOrgLists();
+      server.use(
+        http.get('/api/projects/:pid/plans/:planId/audit', () =>
+          HttpResponse.json({
+            entries: [
+              entry({ id: 'u1', object_type: 'plan', change_type: 'started', actor: 'agent:agent-unknown', detail: {} }),
+              entry({ id: 'u0', object_type: 'plan', change_type: 'started', actor: 'user:alice', detail: {} }),
+            ],
+            next_cursor: '',
+          }),
+        ),
+      );
+      renderInOrg(<ObjectAuditTimeline objectType="plan" projectId="proj-a" objectId="plan-1" />);
+      await waitFor(() => expect(screen.getByTestId('audit-list')).toBeInTheDocument());
+      // Unknown agent → no link, plain "@agent-unknown"; user → plain "@alice".
+      expect(screen.queryByTestId('audit-actor-agent-link')).toBeNull();
+      expect(screen.getByText(/@agent-unknown/)).toBeInTheDocument();
+      expect(screen.getByText(/@alice/)).toBeInTheDocument();
+    });
   });
 
   describe('i18n (H-1: no hardcoded English)', () => {

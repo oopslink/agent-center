@@ -2,6 +2,9 @@ import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useObjectAudit, type AuditEntry, type AuditObjectType } from '@/api/audit';
+import { useOptionalOrgContext, orgPath } from '@/OrgContext';
+import { ActivityRefText } from './ActivityRefText';
+import { useAgentRefResolver } from './MentionText';
 
 // ObjectAuditTimeline (变更记录 / audit-trail — change-log design §7). Renders an
 // object's semantic change ledger as a human-readable timeline: a left time rail +
@@ -155,6 +158,41 @@ function formatTime(iso: string): string {
   return dt.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+// ActorRef renders the change actor. An AGENT actor (identity scheme
+// "agent:agent-<id>") linkifies to its display_name + the org-scoped agent detail
+// page (reusing the SAME member resolver as ActivityRefText / MentionText — no new
+// wheel); a KNOWN agent shows its NAME (not the raw `agent-<id>`, oopslink DM
+// 2026-07-06). A user/system actor stays plain `@name` (unchanged), and an unknown
+// agent falls back to plain text too (verify-not-trust → never a dangling link).
+function ActorRef({ actor }: { actor: string }): React.ReactElement {
+  const { t } = useTranslation('work');
+  const ctx = useOptionalOrgContext();
+  const slug = ctx?.slug;
+  const resolveAgent = useAgentRefResolver();
+  const name = actorName(t, actor); // for an agent this IS the bare `agent-<id>`
+  const agent = actor.startsWith('agent:') ? resolveAgent(name) : null;
+  if (agent && agent.ref.startsWith('agent:')) {
+    return (
+      <span className="font-medium text-text-primary">
+        @
+        <a
+          href={orgPath(`/agents/${encodeURIComponent(name)}`, slug)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          data-testid="audit-actor-agent-link"
+          data-agent-ref={agent.ref}
+          title={name}
+          className="rounded font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {agent.label}
+        </a>
+      </span>
+    );
+  }
+  return <span className="font-medium text-text-primary">@{name}</span>;
+}
+
 function AuditRow({ entry }: { entry: AuditEntry }): React.ReactElement {
   const { t } = useTranslation('work');
   const cat = category(entry.change_type);
@@ -180,7 +218,12 @@ function AuditRow({ entry }: { entry: AuditEntry }): React.ReactElement {
             {categoryLabel(t, entry.change_type, cat)}
           </span>
           <span className="min-w-0 text-text-secondary" data-testid="audit-sentence">
-            <span className="font-medium text-text-primary">@{actorName(t, entry.actor)}</span> {sentence(t, entry)}
+            {/* Actor + sentence both linkify entity ids to ref links: the actor
+                (structured) → agent display_name; the sentence carries raw
+                task-/plan-/issue-/agent-<id> tokens (e.g. a dependency's from→to,
+                two ids on one line) → short-ref (T90/P10/I50) / display_name links.
+                An unknown / out-of-org id stays plain text (verify-not-trust). */}
+            <ActorRef actor={entry.actor} /> <ActivityRefText variant="label" text={sentence(t, entry)} />
           </span>
         </span>
       </div>
