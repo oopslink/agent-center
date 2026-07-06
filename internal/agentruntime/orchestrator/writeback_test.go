@@ -16,12 +16,14 @@ var wbNow = time.Date(2026, 6, 28, 12, 0, 0, 0, time.UTC)
 
 // fakeCenter records the writeback's center calls.
 type fakeCenter struct {
-	mu        sync.Mutex
-	completes [][3]string // agentID, taskID, summary
-	blocks    [][4]string // agentID, taskID, reason, reasonType
-	resets    [][2]string // agentID, taskID
-	posts     [][3]string // agentID, conversationID, content
-	err       error       // returned by every call when set
+	mu         sync.Mutex
+	completes  [][3]string // agentID, taskID, summary
+	blocks     [][4]string // agentID, taskID, reason, reasonType
+	resets     [][2]string // agentID, taskID
+	posts      [][3]string // agentID, conversationID, content
+	injections []string    // option b: judgment prompts injected to the supervisor
+	err        error       // returned by every center call when set
+	injErr     error       // returned by the supervisor injector when set
 }
 
 func (f *fakeCenter) CompleteTask(_ context.Context, a, t, s string) error {
@@ -73,6 +75,14 @@ func newWB(t *testing.T, fc *fakeCenter, in executor.Input) (*CenterWriteback, *
 	if err != nil {
 		t.Fatal(err)
 	}
+	// option b: wire a capturing supervisor injector so Report delivers a judgment
+	// prompt instead of auto-completing.
+	wb.WithSupervisorInjector(func(_ context.Context, text string) error {
+		fc.mu.Lock()
+		defer fc.mu.Unlock()
+		fc.injections = append(fc.injections, text)
+		return fc.injErr
+	})
 	return wb, fx
 }
 
@@ -100,7 +110,23 @@ func TestNewCenterWriteback_Validation(t *testing.T) {
 	}
 }
 
-func TestReport_Succeeded_CompletesTask(t *testing.T) {
+// oneInjection returns the single judgment prompt injected to the supervisor,
+// asserting exactly one injection and NO auto-complete/block/post (option b: the
+// writeback delivers a judgment, the SUPERVISOR writes status).
+func oneInjection(t *testing.T, fc *fakeCenter) string {
+	t.Helper()
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if len(fc.injections) != 1 {
+		t.Fatalf("want 1 judgment injection, got %d: %v", len(fc.injections), fc.injections)
+	}
+	if len(fc.completes) != 0 || len(fc.blocks) != 0 || len(fc.posts) != 0 {
+		t.Fatalf("option b: must NOT auto-complete/block/post; completes=%v blocks=%v posts=%v", fc.completes, fc.blocks, fc.posts)
+	}
+	return fc.injections[0]
+}
+
+func TestReport_Succeeded_InjectsJudgment(t *testing.T) {
 	fc := &fakeCenter{}
 	in := baseInput("exec-1")
 	wb, _ := newWB(t, fc, in)
@@ -113,15 +139,11 @@ func TestReport_Succeeded_CompletesTask(t *testing.T) {
 	if err := wb.Report(context.Background(), c); err != nil {
 		t.Fatalf("Report: %v", err)
 	}
-	if len(fc.completes) != 1 {
-		t.Fatalf("want 1 complete, got %v", fc.completes)
-	}
-	got := fc.completes[0]
-	if got[0] != "agent-x" || got[1] != "task-1" || got[2] != "built and tested" {
-		t.Errorf("complete args = %v", got)
-	}
-	if len(fc.blocks) != 0 || len(fc.posts) != 0 {
-		t.Errorf("unexpected block/post calls")
+	j := oneInjection(t, fc)
+	for _, want := range []string{"task-1", "succeeded", "built and tested", "complete_task", "block_task"} {
+		if !strings.Contains(j, want) {
+			t.Errorf("judgment missing %q: %q", want, j)
+		}
 	}
 }
 
@@ -138,8 +160,8 @@ func TestReport_Succeeded_SummaryFallback(t *testing.T) {
 	if err := wb.Report(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
-	if fc.completes[0][2] != "the result" {
-		t.Errorf("summary = %q want result fallback", fc.completes[0][2])
+	if j := oneInjection(t, fc); !strings.Contains(j, "the result") {
+		t.Errorf("judgment = %q want result fallback", j)
 	}
 
 	// Neither summary nor result → falls back to goal title text.
@@ -150,8 +172,8 @@ func TestReport_Succeeded_SummaryFallback(t *testing.T) {
 	if err := wb2.Report(context.Background(), c2); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(fc2.completes[0][2], "do thing") {
-		t.Errorf("summary = %q want goal title fallback", fc2.completes[0][2])
+	if j := oneInjection(t, fc2); !strings.Contains(j, "do thing") {
+		t.Errorf("judgment = %q want goal title fallback", j)
 	}
 }
 
@@ -167,15 +189,11 @@ func TestReport_Failed_BlocksTask(t *testing.T) {
 	if err := wb.Report(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
-	if len(fc.blocks) != 1 {
-		t.Fatalf("want 1 block, got %v", fc.blocks)
-	}
-	b := fc.blocks[0]
-	if b[1] != "task-1" || b[3] != "obstacle" {
-		t.Errorf("block args = %v", b)
-	}
-	if !strings.Contains(b[2], "runner_failed") || !strings.Contains(b[2], "boom") || !strings.Contains(b[2], "failed") {
-		t.Errorf("block reason = %q", b[2])
+	j := oneInjection(t, fc)
+	for _, want := range []string{"task-1", "failed", "runner_failed", "boom", "block_task"} {
+		if !strings.Contains(j, want) {
+			t.Errorf("judgment missing %q: %q", want, j)
+		}
 	}
 }
 
@@ -192,8 +210,8 @@ func TestReport_Crashed_BlocksRetryable(t *testing.T) {
 	if err := wb.Report(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
-	if len(fc.blocks) != 1 || !strings.Contains(fc.blocks[0][2], "crashed (retryable)") {
-		t.Errorf("crash block = %v", fc.blocks)
+	if j := oneInjection(t, fc); !strings.Contains(j, "crashed (retryable)") {
+		t.Errorf("crash judgment = %q", j)
 	}
 }
 
@@ -205,8 +223,8 @@ func TestReport_Failed_NoErrorDetail(t *testing.T) {
 	if err := wb.Report(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(fc.blocks[0][2], "no error detail") {
-		t.Errorf("reason = %q", fc.blocks[0][2])
+	if j := oneInjection(t, fc); !strings.Contains(j, "no error detail") {
+		t.Errorf("judgment = %q", j)
 	}
 }
 
@@ -283,15 +301,15 @@ func TestReport_UnknownKind_Errors(t *testing.T) {
 	}
 }
 
-func TestReport_CenterError_Propagates(t *testing.T) {
-	fc := &fakeCenter{err: errors.New("center down")}
+func TestReport_InjectError_Propagates(t *testing.T) {
+	fc := &fakeCenter{injErr: errors.New("session gone")}
 	wb, _ := newWB(t, fc, baseInput("exec-11"))
 	err := wb.Report(context.Background(), executor.Completion{
 		ExecutorID: "exec-11", Kind: executor.OutcomeSucceeded,
 		Status: &executor.Status{ExecutorID: "exec-11", State: executor.StateDone, Summary: "s", StartedAt: wbNow},
 	})
-	if err == nil || !strings.Contains(err.Error(), "complete_task") {
-		t.Fatalf("want complete_task error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "inject judgment") {
+		t.Fatalf("want inject-judgment error, got %v", err)
 	}
 }
 
@@ -376,9 +394,9 @@ func TestReport_Usage_ReportedWithBoundTaskID(t *testing.T) {
 	if !s.At.Equal(wbNow) {
 		t.Errorf("sample at = %v, want %v (output.FinishedAt)", s.At, wbNow)
 	}
-	// Task completion still happened (usage is orthogonal).
-	if len(fc.completes) != 1 {
-		t.Errorf("want task completed, got %v", fc.completes)
+	// Task judgment still delivered (usage is orthogonal to result routing).
+	if len(fc.injections) != 1 {
+		t.Errorf("want task judgment injected, got %v", fc.injections)
 	}
 }
 
@@ -424,8 +442,8 @@ func TestReport_Usage_ReportedOnFailure(t *testing.T) {
 	if len(fu.samples) != 1 {
 		t.Errorf("want usage reported on failure, got %v", fu.samples)
 	}
-	if len(fc.blocks) != 1 {
-		t.Errorf("want task blocked, got %v", fc.blocks)
+	if len(fc.injections) != 1 {
+		t.Errorf("want task judgment injected on failure, got %v", fc.injections)
 	}
 }
 
@@ -442,8 +460,8 @@ func TestReport_Usage_BestEffort(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("usage error must be swallowed, got %v", err)
 	}
-	if len(fc.completes) != 1 {
-		t.Errorf("task must still complete despite usage error")
+	if len(fc.injections) != 1 {
+		t.Errorf("task judgment must still be injected despite usage error")
 	}
 }
 
@@ -503,6 +521,12 @@ func TestReport_SoleWriterSerializes(t *testing.T) {
 	layout, _ := executor.NewLayout(t.TempDir())
 	fx, _ := executor.NewFileExchange(layout, clock.NewFakeClock(wbNow))
 	wb, _ := NewCenterWriteback(fc, fx, "agent-x")
+	wb.WithSupervisorInjector(func(_ context.Context, text string) error {
+		fc.mu.Lock()
+		defer fc.mu.Unlock()
+		fc.injections = append(fc.injections, text)
+		return fc.injErr
+	})
 	const n = 8
 	for i := 0; i < n; i++ {
 		id := "exec-c" + string(rune('a'+i))
@@ -528,7 +552,7 @@ func TestReport_SoleWriterSerializes(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if len(fc.completes) != n {
-		t.Errorf("want %d completes, got %d", n, len(fc.completes))
+	if len(fc.injections) != n {
+		t.Errorf("want %d judgment injections, got %d", n, len(fc.injections))
 	}
 }

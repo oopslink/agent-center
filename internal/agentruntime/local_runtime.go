@@ -266,6 +266,22 @@ func NewLocalRuntime(cfg LocalRuntimeConfig, state *SessionState) *LocalRuntime 
 // SAME instance).
 func (r *LocalRuntime) State() *SessionState { return r.state }
 
+// injectToSupervisor delivers text to this agent's supervisor session as a turn —
+// the option-b judgment-delivery seam (issue-68ccb310): a finished executor's result
+// is handed to the supervisor, which reviews REAL delivery and calls
+// complete_task/block_task itself. Guards r.state access under r.mu; a nil session
+// (no supervisor / mid-restart) errors so the writeback surfaces "cannot judge"
+// rather than silently auto-completing.
+func (r *LocalRuntime) injectToSupervisor(ctx context.Context, text string) error {
+	r.mu.Lock()
+	sess := r.state.Session
+	r.mu.Unlock()
+	if sess == nil {
+		return fmt.Errorf("agentruntime: no supervisor session to inject executor judgment (agent %s)", r.cfg.AgentID)
+	}
+	return sess.Inject(ctx, text)
+}
+
 // AgentID reports the agent this runtime serves.
 func (r *LocalRuntime) AgentID() string { return r.cfg.AgentID }
 

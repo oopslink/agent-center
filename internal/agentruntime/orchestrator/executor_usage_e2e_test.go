@@ -127,6 +127,14 @@ func TestE2E_ForkedExecutorUsageReportedWithTaskID(t *testing.T) {
 		t.Fatal(err)
 	}
 	wb.WithUsageReporter(fu)
+	// option b: wire a capturing supervisor injector so Report delivers a judgment
+	// instead of erroring (no auto-complete).
+	wb.WithSupervisorInjector(func(_ context.Context, text string) error {
+		fc.mu.Lock()
+		defer fc.mu.Unlock()
+		fc.injections = append(fc.injections, text)
+		return fc.injErr
+	})
 	if err := wb.Report(context.Background(), executor.Completion{
 		ExecutorID: execID,
 		Kind:       executor.OutcomeSucceeded,
@@ -153,9 +161,9 @@ func TestE2E_ForkedExecutorUsageReportedWithTaskID(t *testing.T) {
 	if s.Usage != wantUsage {
 		t.Errorf("reported usage = %+v, want %+v", s.Usage, wantUsage)
 	}
-	// The task is completed too (usage relay is orthogonal to completion).
-	if len(fc.completes) != 1 || fc.completes[0][1] != taskRef {
-		t.Errorf("want task %q completed, got %v", taskRef, fc.completes)
+	// The task judgment is delivered too (usage relay is orthogonal to result routing).
+	if len(fc.injections) != 1 {
+		t.Errorf("want task %q judgment injected, got %v", taskRef, fc.injections)
 	}
 }
 
