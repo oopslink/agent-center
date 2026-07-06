@@ -28,6 +28,39 @@ vi.mock('@/api/agents', () => ({
     isLoading: false,
   }),
 }));
+// on_event entity_id is now a searchable dropdown fed by the org plan / task /
+// issue lists — mock them so a test can pick a real entity from the popover.
+vi.mock('@/api/plans', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/plans')>();
+  return {
+    ...actual,
+    useOrgPlans: () => ({
+      data: {
+        items: [
+          { id: 'plan_9', org_ref: 'P9', name: 'Ship reminders', status: 'running', project: { id: 'proj-1', name: 'Core' } },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+    }),
+  };
+});
+vi.mock('@/api/orgWorkItems', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/orgWorkItems')>();
+  return {
+    ...actual,
+    useOrgWorkItems: (kind: 'task' | 'issue') => ({
+      data: {
+        items:
+          kind === 'task'
+            ? [{ id: 'task_123', org_ref: 'T123', title: 'Fix filter', status: 'running', project: { id: 'proj-1', name: 'Core' } }]
+            : [{ id: 'issue_1', org_ref: 'I1', title: 'Bad bug', status: 'open', project: { id: 'proj-1', name: 'Core' } }],
+        total: 1,
+      },
+      isLoading: false,
+    }),
+  };
+});
 
 import { ReminderCreateModal, reminderToPrefill } from './ReminderCreateModal';
 import type { Reminder } from '@/api/reminders';
@@ -46,6 +79,16 @@ function pickRemindee(id: string) {
     .getAllByTestId('reminder-remindee-option')
     .find((el) => el.getAttribute('data-value') === id);
   if (!opt) throw new Error(`no remindee option ${id}`);
+  fireEvent.click(opt);
+}
+
+// Open the on_event entity_id dropdown and click the option with data-value === id.
+function pickEntity(id: string) {
+  fireEvent.click(screen.getByTestId('reminder-entity-id-trigger'));
+  const opt = screen
+    .getAllByTestId('reminder-entity-id-option')
+    .find((el) => el.getAttribute('data-value') === id);
+  if (!opt) throw new Error(`no entity option ${id}`);
   fireEvent.click(opt);
 }
 
@@ -126,7 +169,7 @@ describe('ReminderCreateModal — on_event trigger', () => {
     renderModal();
     fireEvent.click(screen.getByTestId('reminder-kind-on_event'));
     expect(screen.getByTestId('reminder-entity-type')).toBeInTheDocument();
-    expect(screen.getByTestId('reminder-entity-id')).toBeInTheDocument();
+    expect(screen.getByTestId('reminder-entity-id-trigger')).toBeInTheDocument();
     expect(screen.getByTestId('reminder-event')).toBeInTheDocument();
     expect(screen.getByTestId('reminder-delay')).toBeInTheDocument();
     // cron/once controls are gone.
@@ -152,7 +195,7 @@ describe('ReminderCreateModal — on_event trigger', () => {
     pickRemindee('agent-1');
     fireEvent.change(screen.getByTestId('reminder-entity-type'), { target: { value: 'task' } });
     fireEvent.change(screen.getByTestId('reminder-event'), { target: { value: 'blocked' } });
-    fireEvent.change(screen.getByTestId('reminder-entity-id'), { target: { value: 'task_123' } });
+    pickEntity('task_123');
     fireEvent.change(screen.getByTestId('reminder-delay'), { target: { value: '5m' } });
     fireEvent.change(screen.getByTestId('reminder-content'), { target: { value: 'ping' } });
     fireEvent.click(screen.getByTestId('reminder-submit'));
@@ -174,7 +217,7 @@ describe('ReminderCreateModal — on_event trigger', () => {
     pickRemindee('agent-1');
     fireEvent.change(screen.getByTestId('reminder-content'), { target: { value: 'ping' } });
     expect((screen.getByTestId('reminder-submit') as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.change(screen.getByTestId('reminder-entity-id'), { target: { value: 'plan_9' } });
+    pickEntity('plan_9');
     expect((screen.getByTestId('reminder-submit') as HTMLButtonElement).disabled).toBe(false);
   });
 });

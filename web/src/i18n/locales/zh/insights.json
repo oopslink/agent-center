@@ -139,7 +139,11 @@
       },
       "entityIdLabel": "实体 ID",
       "entityIdPlaceholder": "如 plan_01H…",
-      "entityIdHint": "要监听的计划 / 任务 / 问题（须在当前项目内）。",
+      "entityIdSelectPlaceholder": "选择计划 / 任务 / 问题…",
+      "entityIdSearchPlaceholder": "按 ID（如 P1）或标题搜索…",
+      "entityIdLoading": "加载中…",
+      "entityIdEmpty": "无匹配的实体",
+      "entityIdHint": "选择要监听的计划 / 任务 / 问题——可按 ID（如 P1）或标题搜索。",
       "eventLabel": "事件",
       "event": {
         "completed": "已完成",

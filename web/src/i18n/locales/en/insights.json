@@ -139,7 +139,11 @@
       },
       "entityIdLabel": "Entity ID",
       "entityIdPlaceholder": "e.g. plan_01H…",
-      "entityIdHint": "The plan / task / issue to watch (must be in this project).",
+      "entityIdSelectPlaceholder": "Select a plan / task / issue…",
+      "entityIdSearchPlaceholder": "Search by ID (e.g. P1) or title…",
+      "entityIdLoading": "Loading…",
+      "entityIdEmpty": "No matching entity",
+      "entityIdHint": "Pick the plan / task / issue to watch — search by ID (e.g. P1) or title.",
       "eventLabel": "Event",
       "event": {
         "completed": "Completed",

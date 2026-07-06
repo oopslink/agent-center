@@ -11,9 +11,13 @@ import {
   type ReminderScheduleKind,
 } from '@/api/reminders';
 import { useAgents } from '@/api/agents';
+import { useOrgPlans } from '@/api/plans';
+import { useOrgWorkItems } from '@/api/orgWorkItems';
+import { useOptionalOrgContext } from '@/OrgContext';
 import { Avatar } from './Avatar';
 import { EntityMultiSelect } from './EntityMultiSelect';
-import type { EntityOption } from './EntitySelect';
+import { EntitySelect, type EntityOption } from './EntitySelect';
+import { refLabel } from './workItemDisplay';
 import { IconClose, IconCalendar, IconClock } from './icons';
 
 // The entity kinds an on_event reminder may watch, in tab order (event options
@@ -119,6 +123,72 @@ export function reminderToPrefill(r: Reminder, remindeeName?: string): ReminderP
     }
   }
   return p;
+}
+
+// EntityIdSelect — the searchable picker for an on_event reminder's watched
+// entity. Instead of pasting a raw id, the user types a fragment of the human
+// ref ("P1", "T80") or the title and picks from the matching plans / tasks /
+// issues across the org; the submitted value is the entity's real id while the
+// label shows "<ref> <title>" for at-a-glance selection.
+//
+// All three org lists ride the app-wide query cache (the MentionText ref
+// resolvers already prime them), so fetching the inactive kinds is a cache hit,
+// not extra network — and calling every hook unconditionally keeps the hook
+// order constant regardless of entity_type.
+function EntityIdSelect({
+  entityType,
+  value,
+  onChange,
+}: {
+  entityType: ReminderEntityType;
+  value: string;
+  onChange: (v: string) => void;
+}): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const slug = useOptionalOrgContext()?.slug;
+  const plans = useOrgPlans(slug);
+  const tasks = useOrgWorkItems('task', slug, { status: ['all'] });
+  const issues = useOrgWorkItems('issue', slug, { status: ['all'] });
+
+  const loading =
+    entityType === 'plan' ? plans.isLoading : entityType === 'task' ? tasks.isLoading : issues.isLoading;
+
+  const options = useMemo<EntityOption[]>(() => {
+    const rows: EntityOption[] =
+      entityType === 'plan'
+        ? (plans.data?.items ?? []).map((p) => ({
+            value: p.id,
+            label: `${refLabel(p.org_ref, p.id)} ${p.name}`.trim(),
+            hint: p.project?.name,
+            badge: p.status,
+          }))
+        : ((entityType === 'task' ? tasks.data : issues.data)?.items ?? []).map((it) => ({
+            value: it.id,
+            label: `${refLabel(it.org_ref, it.id)} ${it.title}`.trim(),
+            hint: it.project?.name,
+            badge: it.status,
+          }));
+    // Keep a prefilled / already-chosen id that isn't in the fetched list visible
+    // (e.g. a cloned reminder, or a list still loading) so the trigger shows it
+    // and the value round-trips instead of silently blanking.
+    if (value && !rows.some((o) => o.value === value)) {
+      rows.unshift({ value, label: value });
+    }
+    return rows;
+  }, [entityType, plans.data, tasks.data, issues.data, value]);
+
+  return (
+    <EntitySelect
+      testId="reminder-entity-id"
+      options={options}
+      value={value}
+      onChange={onChange}
+      placeholder={t('reminders.create.entityIdSelectPlaceholder')}
+      searchPlaceholder={t('reminders.create.entityIdSearchPlaceholder')}
+      emptyLabel={loading ? t('reminders.create.entityIdLoading') : t('reminders.create.entityIdEmpty')}
+      ariaLabel={t('reminders.create.entityIdLabel')}
+    />
+  );
 }
 
 interface Props {
@@ -479,16 +549,13 @@ export function ReminderCreateModal({ onClose, prefill, editId }: Props): React.
                 </select>
               </div>
 
-              {/* entity_id — the watched entity within the current project. */}
+              {/* entity_id — the watched entity, picked from a searchable dropdown
+                  (type a human ref fragment like "P1" / "T80" or a title) instead
+                  of pasting a raw id. The label shows "<ref> <title>" and the
+                  selected value is the entity's real id. */}
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-text-secondary">{t('reminders.create.entityIdLabel')}</label>
-                <input
-                  value={entityId}
-                  onChange={(e) => setEntityId(e.target.value)}
-                  placeholder={t('reminders.create.entityIdPlaceholder')}
-                  className="w-full rounded-md border border-border-base bg-bg-base px-3 py-2 font-mono text-sm"
-                  data-testid="reminder-entity-id"
-                />
+                <EntityIdSelect entityType={entityType} value={entityId} onChange={setEntityId} />
                 <p className="mt-1.5 text-xs text-text-muted">{t('reminders.create.entityIdHint')}</p>
               </div>
 
