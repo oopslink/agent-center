@@ -84,12 +84,33 @@ func toolActivity(name string, input json.RawMessage) string {
 	return name + "(" + args + ")"
 }
 
+// bulkyArgKeys are tool_use input fields that carry a large content BLOB (a whole
+// file body, a full replacement string, a notebook cell) rather than a command or
+// an identifier. They flood the activity note — a Write's `content` is the entire
+// file — so argsSummary drops them and keeps the salient fields (file_path, …).
+//
+// This is NOT the old blanket redaction (owner directive "完全对齐"): commands,
+// paths, patterns, urls and every other arg stay FULLY visible; only these
+// oversized editor payloads are elided, because the supervisor's own activity
+// never shows them either (its summarizeArgs truncates to 40 chars, so a Write's
+// content is clipped off there too). oopslink DM 2026-07-06: a forked executor's
+// Write was dumping a whole Go test file into the ACTIVITY panel.
+var bulkyArgKeys = map[string]bool{
+	"content":    true, // Write
+	"new_string": true, // Edit
+	"old_string": true, // Edit
+	"edits":      true, // MultiEdit
+	"new_source": true, // NotebookEdit
+}
+
 // argsSummary renders a tool_use's raw input the same way the supervisor frontend
 // AgentActivityRow.summarizeArgs does: a bare JSON string value renders unquoted;
 // anything else renders as its compact JSON (whitespace stripped so the note is a
-// single line). The REAL content is preserved — nothing is dropped or redacted —
-// so a Bash command's full text (e.g. `cd /x && go test`) is visible and carried
-// for the expandable view.
+// single line). Real commands/args are preserved — nothing is redacted — so a
+// Bash command's full text (e.g. `cd /x && go test`) is visible and carried for
+// the expandable view. The one exception: oversized editor content blobs
+// (bulkyArgKeys) are dropped so a Write/Edit shows its file_path, not the whole
+// file body.
 func argsSummary(input json.RawMessage) string {
 	s := strings.TrimSpace(string(input))
 	if s == "" || s == "null" {
@@ -101,6 +122,11 @@ func argsSummary(input json.RawMessage) string {
 	if err := json.Unmarshal(input, &str); err == nil {
 		return strings.TrimSpace(str)
 	}
+	// A JSON object: drop the oversized editor content blobs (keep file_path etc.)
+	// so a Write/Edit note doesn't carry the entire file body.
+	if stripped, ok := stripBulkyArgs(input); ok {
+		return stripped
+	}
 	// Otherwise compact the JSON (object/array/number) onto a single line —
 	// parity with the frontend's JSON.stringify(args).
 	var buf bytes.Buffer
@@ -108,6 +134,33 @@ func argsSummary(input json.RawMessage) string {
 		return buf.String()
 	}
 	return s
+}
+
+// stripBulkyArgs, for a JSON OBJECT input carrying one or more bulkyArgKeys,
+// returns the object re-serialized WITHOUT those keys (compact, single line) and
+// ok=true. For a non-object, or an object with no bulky key, it returns ok=false
+// so the caller keeps the untouched compact form. Marshalling a map sorts keys,
+// which is fine for a one-line note.
+func stripBulkyArgs(input json.RawMessage) (string, bool) {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(input, &obj); err != nil || len(obj) == 0 {
+		return "", false
+	}
+	dropped := false
+	for k := range bulkyArgKeys {
+		if _, ok := obj[k]; ok {
+			delete(obj, k)
+			dropped = true
+		}
+	}
+	if !dropped {
+		return "", false
+	}
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return "", false
+	}
+	return string(b), true
 }
 
 // clip trims s to at most n runes, appending an ellipsis when it truncates.

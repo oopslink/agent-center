@@ -47,6 +47,70 @@ func TestStreamLineActivity_Tools(t *testing.T) {
 	}
 }
 
+// oopslink DM 2026-07-06: an editor tool_use (Write/Edit/MultiEdit/NotebookEdit)
+// carries a large content BLOB that used to be dumped verbatim into the note (a
+// whole Go file flooding ACTIVITY). The blob fields are now elided while the
+// salient file_path stays — commands/patterns/urls are untouched.
+func TestStreamLineActivity_EditorContentElided(t *testing.T) {
+	cases := []struct {
+		name, line, want string
+	}{
+		{
+			"write drops the whole-file content, keeps file_path",
+			asstTool("Write", `{"file_path":"internal/foo/bar.go","content":"package foo\n\nimport \"fmt\"\nfunc X(){fmt.Println(\"hi\")}"}`),
+			`Write({"file_path":"internal/foo/bar.go"})`,
+		},
+		{
+			"edit drops old/new string, keeps file_path",
+			asstTool("Edit", `{"file_path":"web/src/App.tsx","old_string":"const a = 1","new_string":"const a = 2"}`),
+			`Edit({"file_path":"web/src/App.tsx"})`,
+		},
+		{
+			"edit keeps a non-blob field (replace_all)",
+			asstTool("Edit", `{"file_path":"a.go","old_string":"x","new_string":"y","replace_all":true}`),
+			`Edit({"file_path":"a.go","replace_all":true})`,
+		},
+		{
+			"multiedit drops the edits array, keeps file_path",
+			asstTool("MultiEdit", `{"file_path":"a.go","edits":[{"old_string":"a","new_string":"b"},{"old_string":"c","new_string":"d"}]}`),
+			`MultiEdit({"file_path":"a.go"})`,
+		},
+		{
+			"notebookedit drops new_source, keeps notebook_path",
+			asstTool("NotebookEdit", `{"notebook_path":"nb.ipynb","new_source":"print('long cell body')"}`),
+			`NotebookEdit({"notebook_path":"nb.ipynb"})`,
+		},
+		{
+			"write with only file_path (no content) is unchanged",
+			asstTool("Write", `{"file_path":"web/src/App.tsx"}`),
+			`Write({"file_path":"web/src/App.tsx"})`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := streamLineActivity([]byte(c.line))
+			if got != c.want {
+				t.Fatalf("streamLineActivity = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// A Write whose content is a whole large file must NOT flood the note — the blob
+// is elided, so the note stays tiny regardless of file size (contrast the old
+// behavior which carried the full content up to maxDetailLen).
+func TestStreamLineActivity_LargeWriteContentNotDumped(t *testing.T) {
+	huge := strings.Repeat("x", maxDetailLen*3)
+	line := asstTool("Write", `{"file_path":"big.go","content":`+jsonQuote(huge)+`}`)
+	got := streamLineActivity([]byte(line))
+	if got != `Write({"file_path":"big.go"})` {
+		t.Fatalf("expected the content blob elided, got %q", got)
+	}
+	if strings.Contains(got, "xxxx") {
+		t.Fatalf("note still carries file content: %q", got)
+	}
+}
+
 // Owner directive ("完全对齐 with supervisor activity"): the executor detail must
 // show the REAL command/args, NOT the old sanitized note. These cases prove a
 // Bash command's args (paths, flags, sub-commands) are now VISIBLE, not redacted.
