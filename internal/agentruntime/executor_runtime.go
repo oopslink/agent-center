@@ -463,7 +463,27 @@ func (r *LocalRuntime) RunWatchdog(ctx context.Context) {
 			r.reconcileOneExecutor(ctx, ee, id, comp, wasStall, false /*orphan*/)
 		}
 	}
+	// 3. Delayed-teardown reap (issue-f30b7e7b): remove terminal executors retained by
+	//    the delayed teardown once they pass the TTL / exceed the count cap. This is the
+	//    k8s TTL-after-finished + terminated-pod-GC analog, run agent-runtime-local (the
+	//    center only holds the writeback). Best-effort; a reap error never fails the tick.
+	if n, err := ee.monitor.ReapFinalized(ctx, finalizedRetainTTL, finalizedRetainCap); err != nil {
+		r.log("agent=%s finalized-executor reap: %v (non-fatal)", agentID, err)
+	} else if n > 0 {
+		r.log("agent=%s reaped %d finalized executor(s)", agentID, n)
+	}
 }
+
+// finalizedRetainTTL / finalizedRetainCap bound the delayed teardown of TERMINAL
+// executors (issue-f30b7e7b). A finished executor's dir + worktree are RETAINED for
+// up to the TTL (long enough for the supervisor to push its branch + audit its work,
+// short enough to bound disk), and at most Cap are kept regardless of TTL (the oldest
+// beyond that are reaped early). Consts for now — promote to worker config if
+// per-deployment tuning is needed.
+const (
+	finalizedRetainTTL = 30 * time.Minute
+	finalizedRetainCap = 20
+)
 
 // SnapshotConcurrency returns this agent's executor snapshots (nil when no engine).
 func (r *LocalRuntime) SnapshotConcurrency() []concurrency.ExecutorSnapshot {

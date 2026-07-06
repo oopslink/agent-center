@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 )
@@ -21,6 +22,11 @@ const (
 	outputFileName   = "output.json"
 	statusFileName   = "status"
 	progressFileName = "progress.jsonl"
+	// finalizedFileName marks a TERMINAL executor whose teardown is DEFERRED (the
+	// k8s TTL-after-finished analog): Finalize retains the dir/worktree and stamps
+	// this file; the periodic reaper removes it after the TTL / when the retained
+	// count exceeds the cap. Its presence = "this terminal executor is retained".
+	finalizedFileName = "finalized"
 )
 
 // ErrPathEscapesWorkspace is returned when a path resolves outside the executor's
@@ -324,6 +330,71 @@ func (fx *FileExchange) Remove(executorID string) error {
 		return fmt.Errorf("executor: remove %q: %w", contained, err)
 	}
 	return nil
+}
+
+// FinalizedRef is a terminal executor whose teardown was deferred: its id + the
+// time Finalize stamped it (the reaper's TTL/cap key).
+type FinalizedRef struct {
+	ExecutorID string
+	At         time.Time
+}
+
+type finalizedMarker struct {
+	FinalizedAt string `json:"finalized_at"`
+}
+
+// FinalizedPath is <dir>/finalized.
+func (l *Layout) FinalizedPath(executorID string) (string, error) {
+	return l.join(executorID, finalizedFileName)
+}
+
+// MarkFinalized stamps the executor dir as terminal-retained at `at` (delayed
+// teardown). Written atomically so a concurrent reaper never reads a torn marker.
+func (fx *FileExchange) MarkFinalized(executorID string, at time.Time) error {
+	path, err := fx.layout.FinalizedPath(executorID)
+	if err != nil {
+		return err
+	}
+	return writeJSONAtomic(path, finalizedMarker{FinalizedAt: at.UTC().Format(time.RFC3339Nano)})
+}
+
+// ListFinalized returns every retained-terminal executor (those carrying a
+// `finalized` marker) with its stamp — the reaper's input. A dir without the marker
+// (live / retryable-crash-retained) is skipped; an unreadable/corrupt marker is
+// treated as finalized at time zero so it reaps promptly (never leaks).
+func (fx *FileExchange) ListFinalized() ([]FinalizedRef, error) {
+	root := fx.layout.ExecutorsDir()
+	ents, err := os.ReadDir(root)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("executor: list finalized %q: %w", root, err)
+	}
+	var out []FinalizedRef
+	for _, e := range ents {
+		if !e.IsDir() {
+			continue
+		}
+		id := e.Name()
+		if validateExecutorID(id) != nil || strings.HasPrefix(id, ".") {
+			continue
+		}
+		path, err := fx.layout.FinalizedPath(id)
+		if err != nil {
+			continue
+		}
+		var m finalizedMarker
+		if err := readJSON(path, &m); err != nil {
+			continue // no marker (or unreadable) → not a retained-terminal dir
+		}
+		at, perr := time.Parse(time.RFC3339Nano, m.FinalizedAt)
+		if perr != nil {
+			at = time.Time{} // corrupt stamp → reap promptly
+		}
+		out = append(out, FinalizedRef{ExecutorID: id, At: at})
+	}
+	return out, nil
 }
 
 // -----------------------------------------------------------------------------

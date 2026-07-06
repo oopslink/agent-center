@@ -125,16 +125,13 @@ func TestMonitor_FinalizeCallsCleanerForWorktreeRecord(t *testing.T) {
 	if err := mon.Finalize(context.Background(), Completion{ExecutorID: wtID, Kind: OutcomeSucceeded}); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
-	if cleaner.count() != 1 {
-		t.Fatalf("cleaner calls = %d, want 1", cleaner.count())
-	}
-	got := cleaner.calls[0]
-	wantWS, _ := layout.WorkspaceDir(wtID)
-	if got.repoKey != "rk-9" || got.sourcePath != "/src/rk-9/source" || got.workspacePath != wantWS {
-		t.Fatalf("cleaner args = %+v, want rk-9//src/rk-9/source/%s", got, wantWS)
+	// Delayed teardown (issue-f30b7e7b): Finalize RETAINS the terminal executor and
+	// stamps it — the worktree cleaner runs on the REAPER pass, not at Finalize.
+	if cleaner.count() != 0 {
+		t.Fatalf("cleaner calls at finalize = %d, want 0 (delayed teardown)", cleaner.count())
 	}
 
-	// (b) plain-dir executor (no RepoKey) → cleaner NOT invoked (today's behavior).
+	// (b) plain-dir executor (no RepoKey) → also retained; cleaner is a no-op for it.
 	plainID := "exec-plain1"
 	if _, err := fx.Provision(plainID); err != nil {
 		t.Fatalf("provision: %v", err)
@@ -145,11 +142,25 @@ func TestMonitor_FinalizeCallsCleanerForWorktreeRecord(t *testing.T) {
 	if err := mon.Finalize(context.Background(), Completion{ExecutorID: plainID, Kind: OutcomeSucceeded}); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
-	if cleaner.count() != 1 {
-		t.Fatalf("cleaner calls = %d after plain-dir finalize, want still 1 (no-op)", cleaner.count())
+
+	// Reap both retained terminals (ttl<=0). The cleaner is invoked exactly ONCE —
+	// for the RepoKey executor (wtID); the plain-dir executor is a no-op.
+	if _, err := mon.ReapFinalized(context.Background(), 0, 0); err != nil {
+		t.Fatalf("ReapFinalized: %v", err)
 	}
-	// The worktree dir was removed alongside the executor dir teardown.
+	if cleaner.count() != 1 {
+		t.Fatalf("cleaner calls after reap = %d, want 1 (only the RepoKey executor)", cleaner.count())
+	}
+	got := cleaner.calls[0]
+	wantWS, _ := layout.WorkspaceDir(wtID)
+	if got.repoKey != "rk-9" || got.sourcePath != "/src/rk-9/source" || got.workspacePath != wantWS {
+		t.Fatalf("cleaner args = %+v, want rk-9//src/rk-9/source/%s", got, wantWS)
+	}
+	// Both executor dirs are removed by the reap.
 	if _, err := os.Stat(filepath.Join(root, executorsDirName, wtID)); !os.IsNotExist(err) {
-		t.Fatalf("executor dir should be removed by finalize, stat err = %v", err)
+		t.Fatalf("wtID executor dir should be removed by reap, stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, executorsDirName, plainID)); !os.IsNotExist(err) {
+		t.Fatalf("plainID executor dir should be removed by reap, stat err = %v", err)
 	}
 }

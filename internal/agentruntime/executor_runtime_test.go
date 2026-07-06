@@ -487,11 +487,23 @@ func TestRecover_AdoptsRunningFinalizesTerminal(t *testing.T) {
 	if ee.engine.Pool().Active() != 1 {
 		t.Errorf("pool active = %d, want 1 (A re-adopted toward the cap)", ee.engine.Pool().Active())
 	}
-	if !dirGone(t, fx, "exec-bbb222") {
-		t.Error("terminal orphan B dir must be torn down by recovery")
+	// Delayed teardown (issue-f30b7e7b): recovery RETAINS the terminal orphan (marks it
+	// finalized) rather than tearing it down inline; a later ReapFinalized pass removes it.
+	if dirGone(t, fx, "exec-bbb222") {
+		t.Error("terminal orphan B dir must be RETAINED by recovery (delayed teardown)")
 	}
 	if dirGone(t, fx, "exec-aaa111") {
 		t.Error("running orphan A dir must be retained")
+	}
+	// The reaper removes the finalized terminal (B), never the running orphan (A, no marker).
+	if _, err := ee.monitor.ReapFinalized(context.Background(), 0, 0); err != nil {
+		t.Fatalf("ReapFinalized: %v", err)
+	}
+	if !dirGone(t, fx, "exec-bbb222") {
+		t.Error("reap must remove the finalized terminal orphan B dir")
+	}
+	if dirGone(t, fx, "exec-aaa111") {
+		t.Error("running orphan A dir must survive the reap (no finalized marker)")
 	}
 }
 

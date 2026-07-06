@@ -453,11 +453,14 @@ func TestRecover_Repo_CleansWorktreeSourceSurvives(t *testing.T) {
 	if err := rt.Recover(context.Background()); err != nil {
 		t.Fatalf("Recover: %v", err)
 	}
-	_ = ee
-
+	// Delayed teardown (issue-f30b7e7b): recovery retains + marks the terminal executor;
+	// the worktree cleaner runs on the reaper pass, not inline at recovery-finalize.
+	if _, err := ee.monitor.ReapFinalized(context.Background(), 0, 0); err != nil {
+		t.Fatalf("ReapFinalized: %v", err)
+	}
 	rm := mat.removeCalls()
 	if len(rm) != 1 || rm[0].repoKey != "key-rec" || rm[0].sourcePath != sourceDir {
-		t.Fatalf("recovery RemoveWorktree = %+v, want one for key-rec/%s", rm, sourceDir)
+		t.Fatalf("recovery+reap RemoveWorktree = %+v, want one for key-rec/%s", rm, sourceDir)
 	}
 	if _, err := os.Stat(sourceDir); err != nil {
 		t.Fatalf("canonical source must survive recovery cleanup: %v", err)

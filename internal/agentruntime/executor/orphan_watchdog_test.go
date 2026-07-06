@@ -120,9 +120,7 @@ func TestCheckOrphan_AliveStalled_KilledAndFailed(t *testing.T) {
 	if got := f.wb.kinds(); len(got) != 1 || got[0] != OutcomeFailed {
 		t.Errorf("writeback = %v, want [failed]", got)
 	}
-	if dirExists(t, f.fx, id) {
-		t.Error("terminal failure must tear down the executor dir")
-	}
+	assertDelayedTeardown(t, f.mon, f.fx, id)
 }
 
 // A gone orphan that left a success output.json is finalized as Succeeded (it
@@ -152,9 +150,7 @@ func TestCheckOrphan_GoneWithSuccess_Succeeded(t *testing.T) {
 	if got := f.wb.kinds(); len(got) != 1 || got[0] != OutcomeSucceeded {
 		t.Errorf("writeback = %v, want [succeeded]", got)
 	}
-	if dirExists(t, f.fx, id) {
-		t.Error("succeeded orphan dir must be torn down")
-	}
+	assertDelayedTeardown(t, f.mon, f.fx, id)
 }
 
 // A gone orphan whose status was still "running" and left no output is the core §9

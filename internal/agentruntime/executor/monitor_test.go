@@ -102,6 +102,24 @@ func dirExists(t *testing.T, fx *FileExchange, id string) bool {
 	return statErr == nil
 }
 
+// assertDelayedTeardown asserts a terminal executor is RETAINED after Finalize
+// (delayed teardown, issue-f30b7e7b) and then removed by the reaper (ttl<=0 reaps
+// all finalized). Use for single-terminal-executor tests.
+func assertDelayedTeardown(t *testing.T, mon *Monitor, fx *FileExchange, id string) {
+	t.Helper()
+	if !dirExists(t, fx, id) {
+		t.Errorf("terminal executor %s must be RETAINED until reaped (delayed teardown)", id)
+	}
+	if n, err := mon.ReapFinalized(context.Background(), 0, 0); err != nil {
+		t.Fatalf("ReapFinalized: %v", err)
+	} else if n < 1 {
+		t.Errorf("ReapFinalized reaped %d, want >=1", n)
+	}
+	if dirExists(t, fx, id) {
+		t.Errorf("reap must remove the retained terminal executor dir %s", id)
+	}
+}
+
 // startRealProc starts a tiny real process that exits with code, so Handle.Wait
 // reaps a genuine child (the live completion path needs a reapable process).
 func startRealProc(t *testing.T, id string, code int, sig groupSignaler) *Handle {
@@ -159,9 +177,7 @@ func TestMonitor_AwaitCompletion_Success(t *testing.T) {
 	if f.pool.Active() != 0 {
 		t.Errorf("slot must be released, Active = %d", f.pool.Active())
 	}
-	if dirExists(t, f.fx, id) {
-		t.Error("terminal success must remove the executor dir")
-	}
+	assertDelayedTeardown(t, f.mon, f.fx, id)
 }
 
 func TestMonitor_AwaitCompletion_Failure(t *testing.T) {
@@ -181,8 +197,44 @@ func TestMonitor_AwaitCompletion_Failure(t *testing.T) {
 	if c.Error == nil || c.Error.Kind != "stk" {
 		t.Errorf("failure detail should come from status.error, got %+v", c.Error)
 	}
-	if dirExists(t, f.fx, id) {
-		t.Error("terminal failure must remove the executor dir")
+	assertDelayedTeardown(t, f.mon, f.fx, id)
+}
+
+// ReapFinalized removes retained terminal executors by TTL (age) and, independently,
+// by a count cap (oldest beyond the cap reaped even within the TTL). Delayed teardown.
+func TestMonitor_ReapFinalized_TTLAndCap(t *testing.T) {
+	f := newMonitorFixture(t, 10)
+	// Finalize 4 terminals at t, t+1m, t+2m, t+3m (advance the clock between each).
+	for _, id := range []string{"e0", "e1", "e2", "e3"} {
+		mustProvision(t, f.fx, id)
+		if err := f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded}); err != nil {
+			t.Fatalf("Finalize %s: %v", id, err)
+		}
+		f.clk.Advance(time.Minute)
+	}
+	// All 4 retained + marked (now = t+4m; ages e0=4m e1=3m e2=2m e3=1m).
+	if refs, _ := f.fx.ListFinalized(); len(refs) != 4 {
+		t.Fatalf("ListFinalized = %d, want 4", len(refs))
+	}
+	// TTL = 2m30s → reap e0(4m) + e1(3m); keep e2(2m) + e3(1m).
+	if n, err := f.mon.ReapFinalized(context.Background(), 150*time.Second, 0); err != nil || n != 2 {
+		t.Fatalf("TTL reap = %d,%v, want 2,nil", n, err)
+	}
+	if dirExists(t, f.fx, "e0") || dirExists(t, f.fx, "e1") {
+		t.Error("e0/e1 (over TTL) must be reaped")
+	}
+	if !dirExists(t, f.fx, "e2") || !dirExists(t, f.fx, "e3") {
+		t.Error("e2/e3 (within TTL) must be retained")
+	}
+	// cap=1 with a huge TTL: keep the NEWEST (e3), reap the oldest over cap (e2).
+	if n, err := f.mon.ReapFinalized(context.Background(), time.Hour, 1); err != nil || n != 1 {
+		t.Fatalf("cap reap = %d,%v, want 1,nil", n, err)
+	}
+	if dirExists(t, f.fx, "e2") {
+		t.Error("e2 (oldest, over cap) must be reaped")
+	}
+	if !dirExists(t, f.fx, "e3") {
+		t.Error("e3 (newest, within cap) must be retained")
 	}
 }
 
@@ -296,12 +348,24 @@ func TestMonitor_Recover_FinalizesAndAdopts(t *testing.T) {
 	if !poolHas(f.pool, "e-alive") {
 		t.Error("alive orphan must be re-adopted into the pool")
 	}
-	// Terminal success dir removed; retryable crash dir retained.
-	if dirExists(t, f.fx, "e-done") {
-		t.Error("e-done (succeeded) dir should be removed")
+	// Delayed teardown: terminal success (e-done) is RETAINED + marked finalized until
+	// reaped; the retryable crash (e-crash) is retained with NO marker (for re-launch).
+	if !dirExists(t, f.fx, "e-done") {
+		t.Error("e-done (succeeded) dir should be retained until reaped")
 	}
 	if !dirExists(t, f.fx, "e-crash") {
 		t.Error("e-crash (retryable) dir should be retained")
+	}
+	// The reaper removes ONLY the finalized terminal (e-done), NEVER the retryable
+	// crash (e-crash has no marker → it is left for the re-launch).
+	if n, err := f.mon.ReapFinalized(context.Background(), 0, 0); err != nil || n != 1 {
+		t.Fatalf("ReapFinalized = %d,%v, want 1,nil (only e-done)", n, err)
+	}
+	if dirExists(t, f.fx, "e-done") {
+		t.Error("reap must remove the finalized e-done dir")
+	}
+	if !dirExists(t, f.fx, "e-crash") {
+		t.Error("reap must NOT remove the retryable-crash e-crash dir (no finalized marker)")
 	}
 }
 
@@ -354,9 +418,8 @@ func TestMonitor_Finalize_NoWritebackStillTearsDown(t *testing.T) {
 	if err := mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeFailed, Error: &ErrorDetail{Kind: "k", Message: "m"}}); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
-	if dirExists(t, fx, id) {
-		t.Error("terminal outcome must remove the dir even with no writeback")
-	}
+	// Delayed teardown applies even with no writeback: retained + marked, then reaped.
+	assertDelayedTeardown(t, mon, fx, id)
 }
 
 func TestNewMonitor_Validation(t *testing.T) {

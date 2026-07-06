@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -425,27 +426,77 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	// is still resolvable from the (not-yet-removed) input.json. Best-effort +
 	// observational: it never affects the finalize outcome (activity.go contract).
 	m.emitStop(c)
-	// 3) Teardown durable state — only for terminal outcomes; retain a retryable
-	// crash's dir/worktree for re-launch + inspection (design §7 "清理或保留").
+	// 3) Teardown durable state. A retryable crash RETAINS its dir/worktree for
+	// re-launch + inspection (design §7 "清理或保留").
 	if c.Retryable {
 		return nil
 	}
+	// DELAYED teardown (k8s TTL-after-finished analog): a TERMINAL (Succeeded/Failed)
+	// executor's dir + worktree are RETAINED and stamped `finalized`; the periodic
+	// ReapFinalized sweep removes them after the TTL / when the retained count exceeds
+	// the cap. This leaves a window for the supervisor to push the executor's branch
+	// and audit its work before the worktree is destroyed — closing the gap that lost
+	// review-only commits (issue-f30b7e7b). All GC is agent-runtime-local (the center
+	// only holds the writeback above), matching k8s's node-agent-owns-local-GC model.
+	if err := m.fx.MarkFinalized(c.ExecutorID, m.clk.Now()); err != nil {
+		// Can't stamp the retain marker → fall back to immediate teardown. Never leak:
+		// a lost retain window is far better than an un-reaped dir/worktree.
+		return m.tearDownExecutor(ctx, c.ExecutorID)
+	}
+	return nil
+}
+
+// tearDownExecutor removes a terminal executor's worktree + dir — the actual cleanup,
+// deferred from Finalize to ReapFinalized (delayed teardown). Best-effort worktree
+// removal (it may already be gone); the dir RemoveAll is the authoritative cleanup.
+func (m *Monitor) tearDownExecutor(ctx context.Context, executorID string) error {
 	if m.worktrees != nil {
-		if ws, err := m.fx.Layout().WorkspaceDir(c.ExecutorID); err == nil {
-			// Best-effort: the worktree may already be gone (crash mid-teardown); that
-			// is the desired end state, not an error worth aborting cleanup over.
+		if ws, err := m.fx.Layout().WorkspaceDir(executorID); err == nil {
 			_ = m.worktrees.Remove(ctx, ws)
 		}
 	}
-	// P4/P5: tear down a repo-materializer worktree (never the canonical source). Runs
-	// on BOTH the live drain path (AwaitCompletion→Finalize) and crash recovery
-	// (Recover→Finalize). No-op when no cleaner/tracker is wired or the Record carries
-	// no RepoKey (a plain-dir executor) — today's behavior, byte-for-byte.
-	m.cleanupPreparedWorktree(ctx, c.ExecutorID)
-	if err := m.fx.Remove(c.ExecutorID); err != nil {
-		return fmt.Errorf("executor: remove dir %s: %w", c.ExecutorID, err)
+	// P4/P5: tear down a repo-materializer worktree (never the canonical source).
+	// No-op when no cleaner/tracker is wired or the Record carries no RepoKey.
+	m.cleanupPreparedWorktree(ctx, executorID)
+	if err := m.fx.Remove(executorID); err != nil {
+		return fmt.Errorf("executor: remove dir %s: %w", executorID, err)
 	}
 	return nil
+}
+
+// ReapFinalized removes retained-terminal executors (delayed teardown / k8s TTL-
+// after-finished + terminated-pod GC): it reaps any `finalized` dir older than ttl,
+// and — bounding disk — reaps the OLDEST beyond `maxKeep` even if within ttl (keeps
+// at most `maxKeep` newest). ttl<=0 reaps every finalized dir; maxKeep<=0 disables
+// the count bound. Returns the number reaped. Best-effort per dir (a reap error is
+// skipped, not fatal). Idempotent + safe to call every reconcile tick.
+func (m *Monitor) ReapFinalized(ctx context.Context, ttl time.Duration, maxKeep int) (int, error) {
+	refs, err := m.fx.ListFinalized()
+	if err != nil {
+		return 0, err
+	}
+	if len(refs) == 0 {
+		return 0, nil
+	}
+	// Oldest first (finalizedAt ascending) so the count bound keeps the NEWEST maxKeep.
+	sort.Slice(refs, func(i, j int) bool { return refs[i].At.Before(refs[j].At) })
+	now := m.clk.Now()
+	keepFrom := 0 // indices [0,keepFrom) are over-cap → reaped; 0 = no count-based reaping
+	if maxKeep > 0 && len(refs) > maxKeep {
+		keepFrom = len(refs) - maxKeep // reap the oldest (len-maxKeep), keep the newest maxKeep
+	}
+	reaped := 0
+	for i, ref := range refs {
+		overTTL := ttl <= 0 || now.Sub(ref.At) >= ttl
+		overCap := i < keepFrom
+		if !overTTL && !overCap {
+			continue
+		}
+		if err := m.tearDownExecutor(ctx, ref.ExecutorID); err == nil {
+			reaped++
+		}
+	}
+	return reaped, nil
 }
 
 // cleanupPreparedWorktree removes a repo-materializer worktree for a finalized
