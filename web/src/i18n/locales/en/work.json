@@ -16,7 +16,8 @@
       "plan": "Plan",
       "review": "Review",
       "edited": "Edited",
-      "autoClosed": "Auto-closed"
+      "autoClosed": "Auto-closed",
+      "reminder": "Reminder"
     },
     "sentence": {
       "createdPlan": "created plan \"{{name}}\"",
@@ -42,6 +43,9 @@
       "decisionOutcome": "decision outcome {{outcome}}",
       "decisionOutcomeExhausted": "decision outcome {{outcome}} (loopback exhausted)",
       "loopback": "loopback re-run (round {{round}})",
+      "reminderArmed": "armed a reminder for {{remindee}} on {{event}}",
+      "reminderArmedDelay": "armed a reminder for {{remindee}} on {{event}} ({{delay}})",
+      "reminderFired": "reminder fired → {{remindee}}",
       "fieldChange": "{{field}}: {{from}} → {{to}}"
     }
   },

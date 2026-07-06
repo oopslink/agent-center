@@ -16,7 +16,8 @@
       "plan": "计划",
       "review": "评审",
       "edited": "编辑",
-      "autoClosed": "自动关闭"
+      "autoClosed": "自动关闭",
+      "reminder": "提醒"
     },
     "sentence": {
       "createdPlan": "创建了计划「{{name}}」",
@@ -42,6 +43,9 @@
       "decisionOutcome": "决策结果 {{outcome}}",
       "decisionOutcomeExhausted": "决策结果 {{outcome}}（回环已耗尽）",
       "loopback": "回环重开（第 {{round}} 轮）",
+      "reminderArmed": "为 {{remindee}} 布设提醒，触发条件 {{event}}",
+      "reminderArmedDelay": "为 {{remindee}} 布设提醒，触发条件 {{event}}（{{delay}}）",
+      "reminderFired": "提醒已触发 → {{remindee}}",
       "fieldChange": "{{field}}：{{from}} → {{to}}"
     }
   },

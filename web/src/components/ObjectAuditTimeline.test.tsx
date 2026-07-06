@@ -159,6 +159,92 @@ describe('ObjectAuditTimeline', () => {
     expect(screen.getByText(/@system \(plan-engine\)/)).toBeInTheDocument();
   });
 
+  // reminder-event (issue-c7629d30 #2): the cognition reminder projector records
+  // reminder_armed / reminder_fired on the triggering entity's ledger. Each needs a
+  // human-readable sentence (not the raw change_type) + a category badge.
+  describe('reminder-event rows', () => {
+    it('composes reminder_armed with remindee, event + a compact +delay suffix', async () => {
+      server.use(
+        http.get('/api/projects/:pid/tasks/:tid/audit', () =>
+          HttpResponse.json({
+            entries: [
+              entry({
+                id: 'r1',
+                object_type: 'task',
+                change_type: 'reminder_armed',
+                from: '',
+                to: '',
+                actor: 'system:reminder-event',
+                detail: { reminder_id: 'rem-1', remindee_agent_id: 'agent-r1', event: 'completed', delay_seconds: 300 },
+              }),
+            ],
+            next_cursor: '',
+          }),
+        ),
+      );
+      renderWithProvider(<ObjectAuditTimeline objectType="task" projectId="proj-a" objectId="task-1" />);
+      await waitFor(() => expect(screen.getByTestId('audit-list')).toBeInTheDocument());
+      const row = screen.getByTestId('audit-row');
+      expect(row).toHaveAttribute('data-change-type', 'reminder_armed');
+      // Badge is the localized "Reminder" label, not the raw change_type.
+      expect(screen.getByTestId('audit-badge')).toHaveTextContent('Reminder');
+      // Sentence: verb phrase + remindee id + on <event> + (+5m); actor prefixed.
+      expect(row).toHaveTextContent(/armed a reminder for agent-r1 on completed \(\+5m\)/);
+      expect(row).toHaveTextContent('@system (reminder-event)');
+    });
+
+    it('composes reminder_fired with the delivery target', async () => {
+      server.use(
+        http.get('/api/projects/:pid/tasks/:tid/audit', () =>
+          HttpResponse.json({
+            entries: [
+              entry({
+                id: 'r2',
+                object_type: 'task',
+                change_type: 'reminder_fired',
+                from: '',
+                to: '',
+                actor: 'system:reminder-event',
+                detail: { reminder_id: 'rem-1', remindee_agent_id: 'agent-r1', event: 'completed', fired_count: 1 },
+              }),
+            ],
+            next_cursor: '',
+          }),
+        ),
+      );
+      renderWithProvider(<ObjectAuditTimeline objectType="task" projectId="proj-a" objectId="task-1" />);
+      await waitFor(() => expect(screen.getByTestId('audit-list')).toBeInTheDocument());
+      const row = screen.getByTestId('audit-row');
+      expect(row).toHaveAttribute('data-change-type', 'reminder_fired');
+      expect(screen.getByTestId('audit-badge')).toHaveTextContent('Reminder');
+      expect(row).toHaveTextContent(/reminder fired → agent-r1/);
+    });
+
+    it('degrades gracefully when reminder detail fields are missing (no crash, em-dash)', async () => {
+      server.use(
+        http.get('/api/projects/:pid/tasks/:tid/audit', () =>
+          HttpResponse.json({
+            entries: [
+              // reminder_armed with an empty detail — no remindee, no event, no delay.
+              entry({ id: 'r3', object_type: 'task', change_type: 'reminder_armed', from: '', to: '', actor: 'system:reminder-event', detail: {} }),
+              // reminder_fired with an empty detail.
+              entry({ id: 'r4', object_type: 'task', change_type: 'reminder_fired', from: '', to: '', actor: 'system:reminder-event', detail: {} }),
+            ],
+            next_cursor: '',
+          }),
+        ),
+      );
+      renderWithProvider(<ObjectAuditTimeline objectType="task" projectId="proj-a" objectId="task-1" />);
+      await waitFor(() => expect(screen.getByTestId('audit-list')).toBeInTheDocument());
+      const rows = screen.getAllByTestId('audit-row');
+      expect(rows).toHaveLength(2);
+      // Missing fields fall back to the em-dash placeholder; no +delay suffix, no throw.
+      expect(rows[0]).toHaveTextContent('armed a reminder for — on —');
+      expect(rows[0]).not.toHaveTextContent('(+');
+      expect(rows[1]).toHaveTextContent('reminder fired → —');
+    });
+  });
+
   // Plan Change History (oopslink DM 2026-07-06): entity ids in a history row —
   // the structured actor + the raw task/plan/issue/agent ids interpolated into the
   // composed sentence (incl. a dependency's from→to, TWO ids on one line) — render

@@ -52,6 +52,11 @@ function category(changeType: string): Cat {
       return { labelKey: 'edited', cls: 'text-text-muted', dot: 'bg-text-muted' };
     case 'auto_closed':
       return { labelKey: 'autoClosed', cls: 'text-status-orange-strong', dot: 'bg-status-orange-solid' };
+    case 'reminder_armed':
+    case 'reminder_fired':
+      // cognition reminder (event-driven): a system reconciler arms/fires a reminder
+      // on this entity's transition — its own cyan lane, distinct from status/plan.
+      return { labelKey: 'reminder', cls: 'text-status-cyan-fg', dot: 'bg-status-cyan-solid' };
     default:
       return { labelKey: '', cls: 'text-text-secondary', dot: 'bg-text-secondary' };
   }
@@ -82,6 +87,18 @@ function detailStr(detail: Record<string, unknown>, key: string): string {
 
 // EMPTY is the em-dash placeholder shown where a from/to value is absent.
 const EMPTY = '—';
+
+// formatDelay renders a reminder's `delay_seconds` as a compact +duration suffix
+// (e.g. "+30s", "+5m", "+2h", "+1d"). Returns '' for a zero / missing / malformed
+// value so the caller can drop the suffix entirely (graceful degradation).
+function formatDelay(v: unknown): string {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 60) return `+${Math.round(n)}s`;
+  if (n < 3600) return `+${Math.round(n / 60)}m`;
+  if (n < 86400) return `+${Math.round(n / 3600)}h`;
+  return `+${Math.round(n / 86400)}d`;
+}
 
 // sentence composes the localized human-readable description from the structured
 // entry. It is deliberately terse and free of raw entity ids where a value already
@@ -145,6 +162,21 @@ function sentence(t: TFunction, e: AuditEntry): string {
     }
     case 'loopback':
       return t('audit.sentence.loopback', { round: detailStr(d, 'round') || '—' });
+    case 'reminder_armed': {
+      // detail: { remindee_agent_id, event, delay_seconds }. The remindee id is a raw
+      // agent-<id> → linkified downstream by ActivityRefText; a missing field degrades
+      // to the em-dash. The +delay suffix is dropped when the delay is zero/absent.
+      const remindee = detailStr(d, 'remindee_agent_id') || EMPTY;
+      const event = detailStr(d, 'event') || EMPTY;
+      const delay = formatDelay(d.delay_seconds);
+      return delay
+        ? t('audit.sentence.reminderArmedDelay', { remindee, event, delay })
+        : t('audit.sentence.reminderArmed', { remindee, event });
+    }
+    case 'reminder_fired':
+      // detail: { remindee_agent_id, event, fired_count }. The remindee is the
+      // delivery/wakeup target; degrades to the em-dash when absent.
+      return t('audit.sentence.reminderFired', { remindee: detailStr(d, 'remindee_agent_id') || EMPTY });
     default:
       return e.field
         ? t('audit.sentence.fieldChange', { field: e.field, from: e.from || EMPTY, to: e.to || EMPTY })
