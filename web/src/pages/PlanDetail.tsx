@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -1483,6 +1483,75 @@ const COL_GAP = COL_W - NODE_W; // 32 — preserves the prior business-column sp
 // nodes within a level.
 const LEVEL_GAP = 48;
 
+// DagCanvas is the shared DESKTOP scroll viewport for both DAG renderers (graph +
+// legacy). It (1) CENTERS the graph in view by default — small graphs are flex-
+// centered, larger ones scroll-centered on mount / when the content size changes —
+// and (2) supports GRAB-TO-PAN: drag the background to pan the whole canvas. Panning
+// starts only on the background (SVG / dot-grid / card body) — a pointerdown that
+// lands on an interactive element (node link, assignee, button) is left alone so
+// clicks still work. Re-centers when contentW/contentH change (e.g. the compact toggle).
+function DagCanvas({
+  contentW,
+  contentH,
+  compact,
+  testId,
+  children,
+}: {
+  contentW: number;
+  contentH: number;
+  compact: boolean;
+  testId: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Center the view on the content's middle whenever the content size changes (mount,
+  // compact toggle, graph edit). max(0, …) keeps small content pinned so flex centering
+  // (below) can take over.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
+    el.scrollTop = Math.max(0, (el.scrollHeight - el.clientHeight) / 2);
+  }, [contentW, contentH, compact]);
+
+  // Grab-to-pan: a background mousedown starts a drag that scrolls the canvas; the
+  // move/up listeners live on window so the drag continues even if the cursor leaves
+  // the canvas, and are torn down on release. A mousedown on an interactive child
+  // (node link / button) is left alone so clicks still work.
+  const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // primary button only
+    if ((e.target as HTMLElement).closest('a, button, input, select, textarea, [role="button"]')) return;
+    const el = ref.current;
+    if (!el) return;
+    const start = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+    const onMove = (ev: MouseEvent) => {
+      el.scrollLeft = start.sl - (ev.clientX - start.x);
+      el.scrollTop = start.st - (ev.clientY - start.y);
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  return (
+    <div
+      ref={ref}
+      className="relative hidden cursor-grab overflow-auto rounded-lg border border-border-base bg-bg-subtle hex-dot-grid active:cursor-grabbing md:block md:min-h-0 md:flex-1"
+      data-testid={testId}
+      data-compact={compact ? 'true' : 'false'}
+      onMouseDown={onMouseDown}
+    >
+      {/* min-w/h-full + flex centering handles the small-graph case (centered in the
+          viewport); the scroll-center effect handles the larger-than-viewport case. */}
+      <div className="flex min-h-full min-w-full items-center justify-center">{children}</div>
+    </div>
+  );
+}
+
 interface Positioned {
   node: PlanNode;
   level: number;
@@ -1936,12 +2005,8 @@ function PlanGraphDag({
             ))}
         </ol>
 
-        {/* Desktop canvas. */}
-        <div
-          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle hex-dot-grid md:block md:min-h-0 md:flex-1"
-          data-testid="plan-dag-canvas"
-          data-compact={compact ? 'true' : 'false'}
-        >
+        {/* Desktop canvas — centered by default + grab-to-pan (DagCanvas). */}
+        <DagCanvas contentW={width * scale} contentH={height * scale} compact={compact} testId="plan-dag-canvas">
           <div style={{ width: width * scale, height: height * scale }}>
             <div
               className="relative"
@@ -2017,7 +2082,7 @@ function PlanGraphDag({
               })}
             </div>
           </div>
-        </div>
+        </DagCanvas>
 
         {/* Edge-kind legend so seq/conditional/loopback are decodable. */}
         <div className="mt-2 hidden flex-wrap items-center gap-3 text-[0.625rem] text-text-muted md:flex" data-testid="plan-graph-legend">
@@ -2260,16 +2325,10 @@ function LegacyPlanDag({
             </div>
           </div>
         )}
-        <div
-          className="relative hidden overflow-auto rounded-lg border border-border-base bg-bg-subtle hex-dot-grid md:block md:min-h-0 md:flex-1"
-          data-testid="plan-dag-canvas"
-          data-compact={compact ? 'true' : 'false'}
-          // T347: a subtle dot-grid gives the DAG a "canvas" feel instead of a flat
-          // panel (@oopslink: 太素了).
-          // T579: was a fixed maxHeight:480 box that left dead space below it; now
-          // flex-1 + min-h-0 inside the flex-column plan-dag so the canvas FILLS the
-          // pane height and scrolls internally when the graph overflows.
-        >
+        {/* Desktop canvas — centered by default + grab-to-pan (DagCanvas). T347: the
+            dot-grid gives a "canvas" feel; T579: flex-1 + min-h-0 fills the pane and
+            scrolls internally when the graph overflows. */}
+        <DagCanvas contentW={width * scale} contentH={height * scale} compact={compact} testId="plan-dag-canvas">
           {/* Sizing wrapper reserves the SCALED extent so the scroll area is
               correct; the inner layer keeps its natural size and is zoomed via
               transform (transform doesn't affect layout box). */}
@@ -2450,7 +2509,7 @@ function LegacyPlanDag({
             {end && <SyntheticAnchorMarker kind="end" anchor={end} />}
           </div>
           </div>
-        </div>
+        </DagCanvas>
         </>
       )}
 

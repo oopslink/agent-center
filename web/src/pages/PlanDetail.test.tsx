@@ -372,6 +372,40 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(legend).getByText('dispatched').className).toContain('bg-status-violet-bg');
   });
 
+  // The desktop DAG canvas is grab-to-pannable: dragging the background scrolls the
+  // whole canvas; a drag that starts on a node link is left alone so clicks still work.
+  // (jsdom has no layout → it clamps scrollLeft/Top, so the properties are overridden
+  // with plain backing storage to observe the handler's computed offset.)
+  it('DAG canvas pans on a background drag but not when starting on a node link', async () => {
+    mockPlan();
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    const canvas = screen.getByTestId('plan-dag-canvas');
+    expect(canvas.className).toContain('cursor-grab'); // pan affordance
+    let sl = 0;
+    let st = 0;
+    Object.defineProperty(canvas, 'scrollLeft', { configurable: true, get: () => sl, set: (v: number) => { sl = v; } });
+    Object.defineProperty(canvas, 'scrollTop', { configurable: true, get: () => st, set: (v: number) => { st = v; } });
+
+    // Background drag from (200,150) → (170,110): scroll moves by the negative delta.
+    fireEvent.mouseDown(canvas, { button: 0, clientX: 200, clientY: 150 });
+    fireEvent.mouseMove(window, { clientX: 170, clientY: 110 });
+    expect(sl).toBe(30); // 0 - (170 - 200)
+    expect(st).toBe(40); // 0 - (110 - 150)
+    fireEvent.mouseUp(window);
+    // After release the window listeners are gone → no further panning.
+    fireEvent.mouseMove(window, { clientX: 0, clientY: 0 });
+    expect(sl).toBe(30);
+
+    // A drag that STARTS on a node link must not pan (the click is preserved).
+    const link = screen.getByTestId('plan-dag').querySelector('a');
+    expect(link).not.toBeNull();
+    fireEvent.mouseDown(link as HTMLElement, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(window, { clientX: 50, clientY: 50 });
+    expect(sl).toBe(30); // unchanged — no pan started from the link
+  });
+
   // T53: `paused` is a first-class node state — its legend chip renders with the
   // distinct stone palette (not the default/blocked fallback), so a node whose
   // agent paused its work item reads truthfully instead of as phantom `running`.
