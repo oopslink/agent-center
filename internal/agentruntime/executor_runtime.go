@@ -66,6 +66,19 @@ type ExecutorConfig struct {
 	CLI             string
 }
 
+// ConcurrencyEnabled reports whether this config opts the agent into the executor
+// concurrency path (MaxConcurrentTasks>0 AND ≥1 allowed executor); otherwise the
+// agent keeps the legacy single-active inject path. Delegates to
+// agent.Profile.ConcurrencyEnabled so the daemon pool gate and the center's ≤N start
+// cap share ONE predicate (issue-b8687f2a §2). Moved from the daemon's
+// concurrent_exec.go into the runtime domain (issue-68ccb310 domain cleanup).
+func (c ExecutorConfig) ConcurrencyEnabled() bool {
+	return agent.Profile{
+		MaxConcurrentTasks: c.MaxConcurrentTasks,
+		AllowedExecutors:   c.AllowedExecutors,
+	}.ConcurrencyEnabled()
+}
+
 // AttachExecutor installs the executor engine onto the runtime (under the shared
 // mutex, exactly as ma.exec was set under c.mu). Called by the daemon's
 // maybeAttachExecutorEngine / reattach paths.

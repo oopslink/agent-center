@@ -127,6 +127,23 @@ func startSpecOf(pl reconcilePayload) agentruntime.StartSpec {
 		CLI:                pl.CLI,
 		PromptDescription:  pl.PromptDescription,
 		EnvVars:            pl.EnvVars,
-		ConcurrencyEnabled: concurrencyEnabled(pl),
+		ConcurrencyEnabled: execConfigOf(pl).ConcurrencyEnabled(),
+	}
+}
+
+// execConfigOf converts a reconcile payload into the neutral ExecutorConfig the
+// runtime's BuildExecutorEngine consumes (the daemon→runtime boundary — agentruntime
+// never sees the daemon's wire payload type). The concurrency predicate itself now
+// lives on ExecutorConfig in the runtime domain (ExecutorConfig.ConcurrencyEnabled).
+func execConfigOf(pl reconcilePayload) agentruntime.ExecutorConfig {
+	return agentruntime.ExecutorConfig{
+		AgentID:              pl.AgentID,
+		DisplayName:          pl.DisplayName,
+		EnvVars:              pl.EnvVars,
+		MaxConcurrentTasks:   pl.MaxConcurrentTasks,
+		AllowedExecutors:     pl.AllowedExecutors,
+		OrchestratorModel:    pl.OrchestratorModel,
+		DefaultExecutorModel: pl.DefaultExecutorModel,
+		CLI:                  pl.CLI,
 	}
 }

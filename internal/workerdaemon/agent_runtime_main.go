@@ -489,7 +489,7 @@ func (h agentControlHandler) Handle(ctx context.Context, cmd agentcontrol.Comman
 		// reconcile enables concurrency and it isn't already attached (the boot path
 		// attaches from ResumeState; this covers a config that turns concurrency ON
 		// after boot).
-		if concurrencyEnabled(pl) {
+		if execConfigOf(pl).ConcurrencyEnabled() {
 			if !h.rt.HasExecutor() {
 				if err := h.rt.AttachExecutorEngine(execConfigOf(pl)); err != nil {
 					return err
