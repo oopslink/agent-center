@@ -30,10 +30,10 @@ import (
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
-	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
-	"github.com/oopslink/agent-center/internal/workerdaemon/reporepo"
-	"github.com/oopslink/agent-center/internal/workerdaemon/sessioninstance"
-	"github.com/oopslink/agent-center/internal/workerdaemon/taskexec"
+	"github.com/oopslink/agent-center/internal/agentruntime"
+	"github.com/oopslink/agent-center/internal/agentruntime/reporepo"
+	"github.com/oopslink/agent-center/internal/agentruntime/sessioninstance"
+	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
 )
 
 // AgentRuntimeOptions parameterises one agent-runtime process.

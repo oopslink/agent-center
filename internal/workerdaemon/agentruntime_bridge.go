@@ -9,7 +9,7 @@ package workerdaemon
 import (
 	"context"
 
-	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
+	"github.com/oopslink/agent-center/internal/agentruntime"
 )
 
 // --- Type aliases (moved DOWN; daemon aliases back). ---

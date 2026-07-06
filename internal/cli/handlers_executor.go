@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
+	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 )
 
 // ExecutorCommand is the F1 (agent-concurrent-execution §4/§11.2) per-task

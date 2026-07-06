@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
-	"github.com/oopslink/agent-center/internal/workerdaemon/executor"
+	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 )
 
 func TestRunExecutor_UsageErrors(t *testing.T) {

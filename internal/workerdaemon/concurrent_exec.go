@@ -8,7 +8,7 @@ package workerdaemon
 
 import (
 	"github.com/oopslink/agent-center/internal/agent"
-	"github.com/oopslink/agent-center/internal/workerdaemon/agentruntime"
+	"github.com/oopslink/agent-center/internal/agentruntime"
 )
 
 // concurrencyEnabled is the opt-in gate (PD ruling, decision 2): the executor
