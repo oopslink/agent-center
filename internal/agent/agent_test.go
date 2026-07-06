@@ -12,7 +12,7 @@ func newAgent(t *testing.T) *Agent {
 	t.Helper()
 	a, err := NewAgent(NewAgentInput{
 		ID: "A1", OrganizationID: "org", Profile: Profile{Name: "coder", Model: "claude", CLI: "claudecode", EnvVars: map[string]string{"K": "V"}},
-		Skills: []string{"go"}, WorkerID: "W1", CreatedBy: "user:a", CreatedAt: t0,
+		WorkerID: "W1", CreatedBy: "user:a", CreatedAt: t0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -348,7 +348,7 @@ func TestAgentFailed(t *testing.T) {
 	}
 }
 
-func TestAgentUpdateProfileAndSkills(t *testing.T) {
+func TestAgentUpdateProfile(t *testing.T) {
 	a := newAgent(t)
 	v := a.Version()
 	if err := a.UpdateProfile(Profile{Name: ""}, t0); err == nil {
@@ -357,9 +357,8 @@ func TestAgentUpdateProfileAndSkills(t *testing.T) {
 	if err := a.UpdateProfile(Profile{Name: "coder2", Model: "m"}, t0); err != nil {
 		t.Fatal(err)
 	}
-	a.SetSkills([]string{"go", "rust"}, t0)
-	if a.Profile().Name != "coder2" || len(a.Skills()) != 2 || a.Version() <= v {
-		t.Fatalf("update profile/skills wrong: %+v v%d", a.Profile(), a.Version())
+	if a.Profile().Name != "coder2" || a.Version() <= v {
+		t.Fatalf("update profile wrong: %+v v%d", a.Profile(), a.Version())
 	}
 }
 
@@ -419,7 +418,7 @@ func TestIdentityRefValidate(t *testing.T) {
 // TestAgent_LastLifecycleTransitionAt verifies the dedicated lifecycle-transition
 // timestamp: it seeds to creation time, advances on every lifecycle STATE change
 // (start / restart / stop / mark-stopped / mark-error / …), and — unlike
-// updatedAt — is NOT moved by a config edit (UpdateProfile / SetSkills).
+// updatedAt — is NOT moved by a config edit (UpdateProfile).
 func TestAgent_LastLifecycleTransitionAt(t *testing.T) {
 	a := newAgent(t) // fresh → stopped
 	if !a.LastLifecycleTransitionAt().Equal(t0) {

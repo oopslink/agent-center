@@ -26,6 +26,7 @@ import (
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
+	"github.com/oopslink/agent-center/internal/agentruntime/skillscan"
 )
 
 // Shared constants moved down with the session面 (workerdaemon aliases them back).
@@ -112,6 +113,13 @@ type LocalRuntimeConfig struct {
 	// ReposRoot is the canonical <agent_home>/repos root the Materializer is anchored
 	// at (informational; the Materializer already carries it). Empty when the flag is off.
 	ReposRoot string
+
+	// SkillLayerRoots resolves the four claude-code skill-layer directories to scan for
+	// the OBSERVED installed-skill report (issue-4a45e9cc). It is injected so tests can
+	// point at temp dirs; nil ⇒ the runtime's default resolver derived from the agent
+	// home (home/skills + tasks/.claude/skills = project) and $HOME/.claude (user +
+	// plugins). home is the agent home dir, tasksDir is its project cwd.
+	SkillLayerRoots func(home, tasksDir string) skillscan.LayerRoots
 }
 
 // LocalRuntime is the in-process Runtime for one agent.
@@ -171,6 +179,13 @@ type LocalRuntime struct {
 	// stable and must survive config changes. Empty ⇒ identityRef falls back to the ULID.
 	// Guarded by r.mu.
 	agentRef string
+
+	// skill observability (issue-4a45e9cc): lastSkillFingerprint holds the hash of the
+	// installed-skill set last reported to the center, so a Tick re-reports ONLY when it
+	// changes ("变了才重报"); lastSkillScanAt rate-limits the disk scan so a fast (active)
+	// heartbeat cadence does not re-walk the skill tree every few seconds. Guarded by r.mu.
+	lastSkillFingerprint string
+	lastSkillScanAt      time.Time
 }
 
 // SetAgentRef seeds the agent's stable identity-member ref (from ResumeState at Boot).
@@ -589,6 +604,10 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	}
 
 	r.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, spec.Version, epochState.Epoch, generation, spec.ForkResume, spec.Resume, home)
+	// issue-4a45e9cc: BOOT installed-skill report (best-effort, off the start path so a
+	// slow disk scan / center never blocks session start). force=true bypasses the scan
+	// rate-limit so the panel populates on first online.
+	r.kickInstalledSkillsReport()
 	return nil
 }
 
@@ -617,6 +636,8 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	r.state.Session = sess
 	r.mu.Unlock()
 	r.log("started codex agent=%s version=%d home=%s", agentID, spec.Version, home)
+	// issue-4a45e9cc: BOOT installed-skill report (best-effort, off the start path).
+	r.kickInstalledSkillsReport()
 	return nil
 }
 
@@ -715,6 +736,9 @@ func (r *LocalRuntime) Tick(ctx context.Context, now time.Time) error {
 	// self-contained in the agent-runtime process. Both internally rate-limited.
 	r.drainLeaseRenewals(ctx, now)
 	r.maybeRunGC(now)
+	// issue-4a45e9cc: HEARTBEAT installed-skill re-report — rate-limited scan, POSTs only
+	// when the fingerprint changed since the last report ("变了才重报").
+	r.reportInstalledSkillsIfChanged(ctx, now, false)
 	return nil
 }
 

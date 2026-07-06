@@ -35,7 +35,9 @@ const agent = (extra: Record<string, unknown> = {}) => ({
   model: 'claude-opus',
   cli: 'claudecode',
   env_vars: {},
-  skills: ['review'],
+  installed_skills: [
+    { layer: 'user', name: 'review', description: 'code review', shadowed: false, collected_at: '2026-07-05T09:00:00Z' },
+  ],
   worker_id: 'w-1',
   lifecycle: 'stopped',
   availability: 'available',
@@ -228,10 +230,10 @@ describe('AgentDetail page', () => {
     expect(link.getAttribute('href')).toContain('/projects/proj-x/tasks/task-9');
   });
 
-  it('renders without crashing when skills is null (FINDING #183: fresh agent, no skills)', async () => {
-    // Pre-#183 the backend sent "skills": null for a no-skills agent and
-    // AgentDetail read a.skills.length → TypeError crashed the whole page.
-    stubAgent({ skills: null });
+  it('renders the Skills panel without crashing when no skills were reported (issue-4a45e9cc)', async () => {
+    // The declared skills list was retired; a fresh agent reports no installed skills
+    // (installed_skills absent). The panel must still render its empty state, not crash.
+    stubAgent({ installed_skills: undefined });
     wrap('/agents/A1');
     await waitFor(() => expect(screen.getByRole('heading', { name: 'bot-1' })).toBeInTheDocument());
     expect(screen.getByText(/Skills/)).toBeInTheDocument();

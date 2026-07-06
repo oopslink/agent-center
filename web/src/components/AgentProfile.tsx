@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { EntityRef } from '@/components/EntityRef';
 import { AgentConfigEditModal } from '@/components/AgentConfigEditModal';
 import { normalizeIdentityRef } from '@/api/members';
-import type { Agent } from '@/api/types';
+import type { Agent, InstalledSkill, SkillLayer } from '@/api/types';
 import { executorBadgeClass } from '@/components/executorProfiles';
 import { lifecycleTimeLabelKey } from '@/utils/agentLifecycleTime';
 
@@ -15,11 +15,14 @@ import { lifecycleTimeLabelKey } from '@/utils/agentLifecycleTime';
 //      real persisted config now (T236); an empty field renders its value as
 //      "Default" with the default badge. Editable via the "Edit" affordance →
 //      AgentConfigEditModal (save + restart-to-apply).
-//   3. Skills name cards (no global/local badge or path — that origin metadata
-//      is v2.8 #230).
+//   3. Installed skills (issue-4a45e9cc) — the OBSERVED effective skill set the
+//      agent-runtime reported, grouped by the four precedence layers (built-in /
+//      plugin / user / project). Each skill shows its description and a "shadowed"
+//      marker when a higher layer overrides the same name; when the agent's computer
+//      is offline the panel shows when the set was last collected.
 export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
   const { t } = useTranslation('members');
-  const skills = agent.skills ?? [];
+  const installedSkills = agent.installed_skills ?? [];
   const computer = agent.computer;
   // T236: the Edit-config modal (model/cli/reasoning/mode/provider + restart).
   const [editingConfig, setEditingConfig] = useState(false);
@@ -128,28 +131,10 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
 
         {/* RIGHT */}
         <div className="space-y-4">
-          <Section label={t('agents.profile.skills')} count={skills.length} testId="agent-profile-skills">
-            {skills.length > 0 ? (
-              // design1: a card grid of skill names. Skill source/description
-              // (global/local · path) is v2.8 #230 → name-only cards here.
-              <ul className="grid grid-cols-2 gap-2">
-                {skills.map((s) => (
-                  <li
-                    key={s}
-                    className="truncate rounded border border-border-base bg-bg-subtle px-2.5 py-1.5 text-xs font-medium text-text-secondary"
-                    data-testid="agent-profile-skill"
-                    title={s}
-                  >
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs italic text-text-muted" data-testid="agent-profile-skills-empty">
-                {t('agents.profile.skillsEmpty')}
-              </p>
-            )}
-          </Section>
+          <InstalledSkillsPanel
+            skills={installedSkills}
+            offline={!computer || !computer.connected}
+          />
         </div>
       </div>
 
@@ -181,6 +166,93 @@ function Section({
       </h3>
       {children}
     </section>
+  );
+}
+
+// SKILL_LAYERS is the fixed render order (precedence low→high) so the panel groups
+// consistently regardless of the row order the API returns.
+const SKILL_LAYERS: SkillLayer[] = ['built-in', 'plugin', 'user', 'project'];
+
+// InstalledSkillsPanel renders the OBSERVED installed-skill set (issue-4a45e9cc)
+// grouped by layer, each skill with its description and a "shadowed/overridden" marker.
+// When the agent's computer is offline it surfaces the last-collected time so the
+// operator knows the data may be stale.
+function InstalledSkillsPanel({
+  skills,
+  offline,
+}: {
+  skills: InstalledSkill[];
+  offline: boolean;
+}): React.ReactElement {
+  const { t } = useTranslation('members');
+  // Most-recent collection time across the reported set (all rows share the batch
+  // stamp, but Max is robust to any drift).
+  const collectedAt = skills.reduce<string>((acc, s) => (s.collected_at > acc ? s.collected_at : acc), '');
+  const byLayer = SKILL_LAYERS.map((layer) => ({
+    layer,
+    items: skills.filter((s) => s.layer === layer),
+  })).filter((g) => g.items.length > 0);
+
+  return (
+    <Section label={t('agents.profile.skills')} count={skills.length} testId="agent-profile-skills">
+      {offline && collectedAt && (
+        <p className="mb-2 text-[0.6875rem] text-text-muted" data-testid="agent-profile-skills-collected">
+          {t('agents.profile.skillsCollectedAt', { time: formatDate(collectedAt) })}
+        </p>
+      )}
+      {byLayer.length > 0 ? (
+        <div className="space-y-3">
+          {byLayer.map((group) => (
+            <div key={group.layer} data-testid={`agent-profile-skill-layer-${group.layer}`}>
+              <h4 className="mb-1 flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-muted">
+                {t(`agents.profile.skillLayer.${group.layer}`)}
+                <span className="text-text-muted">({group.items.length})</span>
+              </h4>
+              <ul className="space-y-1.5">
+                {group.items.map((s) => (
+                  <li
+                    key={`${group.layer}:${s.name}`}
+                    className={`rounded border px-2.5 py-1.5 ${
+                      s.shadowed
+                        ? 'border-dashed border-border-base bg-transparent opacity-60'
+                        : 'border-border-base bg-bg-subtle'
+                    }`}
+                    data-testid="agent-profile-skill"
+                    data-shadowed={s.shadowed}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-xs font-medium ${s.shadowed ? 'text-text-muted line-through' : 'text-text-primary'}`}
+                        title={s.name}
+                      >
+                        {s.name}
+                      </span>
+                      {s.shadowed && (
+                        <span
+                          className="rounded bg-bg-elevated px-1 py-0.5 text-[0.5625rem] uppercase tracking-wide text-text-muted"
+                          data-testid="agent-profile-skill-shadowed"
+                        >
+                          {t('agents.profile.skillShadowed')}
+                        </span>
+                      )}
+                    </div>
+                    {s.description && (
+                      <p className="mt-0.5 text-[0.6875rem] leading-snug text-text-secondary" data-testid="agent-profile-skill-desc">
+                        {s.description}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs italic text-text-muted" data-testid="agent-profile-skills-empty">
+          {t('agents.profile.skillsEmpty')}
+        </p>
+      )}
+    </Section>
   );
 }
 

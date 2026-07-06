@@ -53,7 +53,7 @@ describe('SenderDetailSidebar', () => {
           model: 'claude-opus',
           cli: 'claudecode',
           env_vars: {},
-          skills: [],
+
           worker_id: 'w-9',
           lifecycle: 'running',
           availability: 'busy',
@@ -94,7 +94,7 @@ describe('SenderDetailSidebar', () => {
           model: 'claude-opus',
           cli: 'claudecode',
           env_vars: {},
-          skills: [],
+
           worker_id: 'w-9',
           lifecycle: 'running',
           availability: 'available',
@@ -122,7 +122,7 @@ describe('SenderDetailSidebar', () => {
           model: 'claude-opus-4-8',
           cli: 'claude-code',
           env_vars: {},
-          skills: [],
+
           worker_id: 'worker001',
           lifecycle: 'running',
           availability: 'busy',
@@ -233,7 +233,7 @@ describe('SenderDetailSidebar', () => {
       http.get('/api/agents/:id', ({ params }) =>
         HttpResponse.json({
           id: String(params.id), organization_id: 'O-1', name: 'builder-bot', description: '',
-          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-9',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, worker_id: 'w-9',
           lifecycle: 'running', availability: 'busy', created_by: 'user:hayang', version: 1,
           created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
         }),
@@ -268,7 +268,7 @@ describe('SenderDetailSidebar', () => {
       http.get('/api/agents/:id', ({ params }) =>
         HttpResponse.json({
           id: String(params.id), organization_id: 'O-1', name: 'builder-bot', description: '',
-          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-9',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, worker_id: 'w-9',
           lifecycle: 'running', availability: 'busy', created_by: 'user:hayang', version: 1,
           created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
         }),
@@ -313,7 +313,7 @@ describe('SenderDetailSidebar', () => {
       http.get('/api/agents/:id', ({ params }) =>
         HttpResponse.json({
           id: String(params.id), organization_id: 'O-1', name: 'builder-bot', description: '',
-          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-9',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, worker_id: 'w-9',
           lifecycle: 'running', availability: 'busy', created_by: 'user:hayang', version: 1,
           created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
         }),
@@ -468,7 +468,7 @@ describe('SenderDetailSidebar', () => {
           model: 'claude-opus-4-8',
           cli: 'claude-code',
           env_vars: {},
-          skills: [],
+
           worker_id: 'w-1',
           lifecycle: 'running',
           availability: 'busy',
@@ -519,7 +519,7 @@ describe('SenderDetailSidebar', () => {
           model: 'claude-opus-4-8',
           cli: 'claude-code',
           env_vars: {},
-          skills: [],
+
           worker_id: 'w-1',
           lifecycle: 'running',
           availability: 'busy',

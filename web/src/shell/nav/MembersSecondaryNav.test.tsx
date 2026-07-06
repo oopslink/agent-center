@@ -16,7 +16,7 @@ const NOW = Date.now();
 function agentRow(over: Record<string, unknown>) {
   return {
     id: 'A-x', organization_id: 'O-1', name: 'agent-x', description: '',
-    model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-1',
+    model: 'claude-opus', cli: 'claudecode', env_vars: {}, worker_id: 'w-1',
     lifecycle: 'stopped', availability: 'available', created_by: 'user:hayang', version: 1,
     created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T02:00:00Z',
     ...over,

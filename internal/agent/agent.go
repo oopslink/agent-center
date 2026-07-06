@@ -1,5 +1,5 @@
 // Package agent is the Agent bounded context (v2.7, ADR-0049): a logically
-// long-running Agent product entity — profile, skills, runtime config, and
+// long-running Agent product entity — profile, runtime config, and
 // lifecycle INTENT. There is no AgentRun concept; observability is the Agent's
 // status + activity stream, not a run.
 //
@@ -185,7 +185,7 @@ type Profile struct {
 	// the center cap; it is kept as a DERIVED mirror (the distinct models of
 	// AllowedExecutors) so the F3 model router (which still reads it until BE-2
 	// migrates routing to {cli, model}) keeps working. Persisted as a JSON string
-	// array like EnvVars/skills/tags.
+	// array like EnvVars/tags.
 	AllowedModels []string
 	// AutoAssignable is the per-agent opt-OUT for the BE-2 auto-assign reconciler
 	// (v2.18.3 BE-1, issue-577a7b0e): true (the default — column DEFAULT 1) means the
@@ -367,7 +367,6 @@ type Agent struct {
 	id             AgentID
 	organizationID string
 	profile        Profile
-	skills         []string
 	// capabilityTags are free-form specialty labels (FE / BE / platform / test /
 	// integration / docs ...) the PD reads to dispatch work by capability + load
 	// (T461). Distinct from skills (runtime CLI skill names): tags describe the
@@ -389,7 +388,7 @@ type Agent struct {
 	// lastLifecycleTransitionAt stamps the time of the most recent lifecycle
 	// STATE transition (start / stop / restart / reset / archive / the Mark*
 	// feedbacks) — distinct from updatedAt, which also bumps on config edits
-	// (UpdateProfile / SetSkills / SetCapabilityTags). The UI renders it as the
+	// (UpdateProfile / SetCapabilityTags). The UI renders it as the
 	// "started/restarted" time when running and the "stopped" time when stopped.
 	lastLifecycleTransitionAt time.Time
 	version                   int
@@ -400,7 +399,6 @@ type NewAgentInput struct {
 	ID             AgentID
 	OrganizationID string
 	Profile        Profile
-	Skills         []string
 	CapabilityTags []string // free-form dispatch labels (T461); optional
 	WorkerID       string   // required; immutable thereafter
 	CreatedBy      IdentityRef
@@ -436,7 +434,6 @@ func NewAgent(in NewAgentInput) (*Agent, error) {
 		id:               in.ID,
 		organizationID:   in.OrganizationID,
 		profile:          in.Profile,
-		skills:           append([]string(nil), in.Skills...),
 		capabilityTags:   normalizeTags(in.CapabilityTags),
 		workerID:         in.WorkerID,
 		lifecycle:        LifecycleStopped,
@@ -483,7 +480,6 @@ type RehydrateAgentInput struct {
 	ID               AgentID
 	OrganizationID   string
 	Profile          Profile
-	Skills           []string
 	CapabilityTags   []string
 	WorkerID         string
 	Lifecycle        AgentLifecycle
@@ -511,7 +507,6 @@ func RehydrateAgent(in RehydrateAgentInput) (*Agent, error) {
 		id:               in.ID,
 		organizationID:   in.OrganizationID,
 		profile:          in.Profile,
-		skills:           append([]string(nil), in.Skills...),
 		capabilityTags:   normalizeTags(in.CapabilityTags),
 		workerID:         in.WorkerID,
 		lifecycle:        in.Lifecycle,
@@ -553,16 +548,6 @@ func (a *Agent) UpdatedAt() time.Time      { return a.updatedAt }
 func (a *Agent) LastLifecycleTransitionAt() time.Time { return a.lastLifecycleTransitionAt }
 
 func (a *Agent) Version() int { return a.version }
-
-// Skills returns a defensive copy.
-func (a *Agent) Skills() []string {
-	if len(a.skills) == 0 {
-		return nil
-	}
-	out := make([]string, len(a.skills))
-	copy(out, a.skills)
-	return out
-}
 
 // CapabilityTags returns a defensive copy of the dispatch labels (T461).
 func (a *Agent) CapabilityTags() []string {
@@ -762,12 +747,6 @@ func (a *Agent) UpdateProfile(p Profile, at time.Time) error {
 	return nil
 }
 
-// SetSkills replaces the skill list (also applies on next restart).
-func (a *Agent) SetSkills(skills []string, at time.Time) {
-	a.skills = append([]string(nil), skills...)
-	a.touch(at)
-}
-
 // SetCapabilityTags replaces the dispatch labels (T461). Tags are normalized
 // (trimmed, blanks dropped, case-insensitively de-duplicated). Pure metadata —
 // it does not affect the runtime, so unlike a profile edit it carries no restart
@@ -787,7 +766,7 @@ func (a *Agent) touch(at time.Time) {
 
 // touchLifecycle is touch() plus stamping lastLifecycleTransitionAt. Called by
 // the lifecycle STATE transitions (start / stop / restart / reset / archive and
-// the Mark* feedbacks) — NOT by config edits (UpdateProfile / SetSkills /
+// the Mark* feedbacks) — NOT by config edits (UpdateProfile /
 // SetCapabilityTags), which use plain touch() so a profile edit does not move
 // the "started/stopped" time.
 func (a *Agent) touchLifecycle(at time.Time) {

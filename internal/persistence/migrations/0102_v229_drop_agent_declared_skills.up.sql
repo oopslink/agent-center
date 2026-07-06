@@ -1,0 +1,13 @@
+-- 0102_v229_drop_agent_declared_skills.up.sql — retire the declared agents.skills
+-- column (issue-4a45e9cc). The column held a static, never-verified WISH list of
+-- skill names entered at agent-create; it told nobody which skills the runtime
+-- actually resolved. It is superseded by the OBSERVED agent_installed_skills table
+-- (0101), which the agent-runtime populates with the real per-layer effective set.
+--
+-- The column was created by 0042_v27_agents (`skills TEXT NOT NULL DEFAULT '[]'`).
+-- No code reads or writes it after this feature (domain field / repo columns / API
+-- DTOs all removed), so dropping it is purely additive-in-reverse: zero live reads.
+--
+-- DIALECT NOTE: ALTER TABLE ... DROP COLUMN is in the SQLite (3.35+) + PG common
+-- subset — mirrors 0093/0095 which drop/add columns the same way.
+ALTER TABLE agents DROP COLUMN skills;

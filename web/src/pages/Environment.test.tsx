@@ -52,7 +52,7 @@ const agent = (id: string, workerID: string, extra: Record<string, unknown> = {}
   model: 'claude-opus',
   cli: 'claudecode',
   env_vars: {},
-  skills: [],
+
   worker_id: workerID,
   lifecycle: 'running',
   availability: 'busy',

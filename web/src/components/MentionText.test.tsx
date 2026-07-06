@@ -43,7 +43,7 @@ describe('MentionText (#281 entry ②)', () => {
       http.get('/api/agents/:id', ({ params }) =>
         HttpResponse.json({
           id: String(params.id), organization_id: 'O', name: 'Bot One', description: '',
-          model: 'claude-opus', cli: 'claudecode', env_vars: {}, skills: [], worker_id: 'w-1',
+          model: 'claude-opus', cli: 'claudecode', env_vars: {}, worker_id: 'w-1',
           lifecycle: 'running', availability: 'available', created_by: 'user:hayang',
           version: 1, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
         }),
@@ -71,7 +71,7 @@ describe('MentionText (#281 entry ②)', () => {
       http.get('/api/agents/:id', ({ params }) =>
         HttpResponse.json({
           id: String(params.id), organization_id: 'O', name: 'Bot One', description: '',
-          model: 'm', cli: 'c', env_vars: {}, skills: [], worker_id: 'w', lifecycle: 'running',
+          model: 'm', cli: 'c', env_vars: {}, worker_id: 'w', lifecycle: 'running',
           availability: 'available', created_by: 'user:hayang', version: 1,
           created_at: 'x', updated_at: 'x',
         }),

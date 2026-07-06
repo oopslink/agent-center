@@ -483,6 +483,8 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// retired. The pm Service's PausedTaskPort is left unwired (it degrades to a
 	// nil-safe no-op: plan view shows no paused nodes).
 	agentActivityRepo := agentsql.NewActivityEventRepo(db)
+	// issue-4a45e9cc: OBSERVED installed-skill projection (agent_installed_skills).
+	agentInstalledSkillRepo := agentsql.NewInstalledSkillRepo(db)
 
 	// Usage BC (v2.15.0 I28/F2): plain db-backed repos for the report_usage tool.
 	usageEventRepo := usagesql.NewUsageEventRepo(db)
@@ -492,6 +494,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		DB:       db,
 		Agents:   agentRepo,
 		Activity: agentActivityRepo,
+		Skills:   agentInstalledSkillRepo,
 		Workers:  wr,
 		Outbox:   outboxsql.NewOutboxRepo(db),
 		IDGen:    gen,

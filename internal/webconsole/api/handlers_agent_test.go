@@ -95,10 +95,11 @@ func TestAPI_Agent_FullLifecycle(t *testing.T) {
 	if got["lifecycle"] != "stopped" {
 		t.Fatalf("created lifecycle = %v, want stopped", got["lifecycle"])
 	}
-	// v2.7 #183 (FINDING): a no-skills agent must serialize skills/env_vars as
-	// [] / {} never null — the SPA types them non-null and reads a.skills.length.
-	if _, ok := got["skills"].([]any); !ok {
-		t.Fatalf("skills must be a JSON array (not null), got %T %v", got["skills"], got["skills"])
+	// v2.7 #183 (FINDING): env_vars/capability_tags must serialize as {} / [] never
+	// null — the SPA types them non-null and reads .length. (The declared `skills`
+	// field was dropped in issue-4a45e9cc; skills are now OBSERVED, not on the agent DTO.)
+	if _, ok := got["skills"]; ok {
+		t.Fatalf("declared skills field must be gone from the agent DTO, got %v", got["skills"])
 	}
 	if _, ok := got["env_vars"].(map[string]any); !ok {
 		t.Fatalf("env_vars must be a JSON object (not null), got %T %v", got["env_vars"], got["env_vars"])

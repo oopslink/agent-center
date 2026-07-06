@@ -454,7 +454,15 @@
       "createdAgents": "Created agents",
       "createdAgentsEmpty": "No created agents.",
       "skills": "Skills",
-      "skillsEmpty": "No skills."
+      "skillsEmpty": "No skills reported yet.",
+      "skillsCollectedAt": "Collected {{time}}",
+      "skillShadowed": "Overridden",
+      "skillLayer": {
+        "built-in": "Built-in",
+        "plugin": "Plugin",
+        "user": "User",
+        "project": "Project"
+      }
     },
     "create": {
       "title": "Add Agent",
@@ -467,9 +475,6 @@
       "modelHint": "Optional.",
       "cliLabel": "CLI",
       "cliHint": "v2.7 runs claude-code only (codex/opencode coming in v2.8).",
-      "skillsLabel": "Skills",
-      "skillsHint": "Optional. Comma-separated.",
-      "skillsPlaceholder": "review, planning",
       "workerLabel": "Worker",
       "workerHint": "Sourced from Environment.",
       "workerSelectPlaceholder": "Select a worker…",

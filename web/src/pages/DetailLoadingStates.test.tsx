@@ -137,7 +137,7 @@ describe('Detail pages — loading + error branches', () => {
           model: 'claude-opus',
           cli: 'claudecode',
           env_vars: {},
-          skills: [],
+
           worker_id: 'w-1',
           lifecycle: 'stopped',
           availability: 'available',

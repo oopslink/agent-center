@@ -28,20 +28,20 @@ func nullString(s string) any {
 
 func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	env, skills, tags, allowedModels, allowedExecutors, err := marshalProfileJSON(a)
+	env, tags, allowedModels, allowedExecutors, err := marshalProfileJSON(a)
 	if err != nil {
 		return err
 	}
 	p := a.Profile()
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO agents (id, organization_id, name, description, model, cli, reasoning, mode, provider,
-			orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars, skills,
+			orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars,
 			capability_tags, auto_assignable, include_description_in_system_prompt, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, last_lifecycle_transition_at, version)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(a.ID()), a.OrganizationID(), p.Name, nullString(p.Description), nullString(p.Model),
 		nullString(p.CLI), nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
 		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors,
-		env, skills, tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
+		env, tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), a.WorkerID(), string(a.Lifecycle()), nullString(a.LifecycleError()),
 		string(a.CreatedBy()), nullString(a.IdentityMemberID()), ts(a.CreatedAt()), ts(a.UpdatedAt()), ts(a.LastLifecycleTransitionAt()), a.Version())
 	if persistence.IsUniqueViolation(err) {
 		return agent.ErrAgentExists
@@ -51,7 +51,7 @@ func (r *AgentRepo) Save(ctx context.Context, a *agent.Agent) error {
 
 func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	env, skills, tags, allowedModels, allowedExecutors, err := marshalProfileJSON(a)
+	env, tags, allowedModels, allowedExecutors, err := marshalProfileJSON(a)
 	if err != nil {
 		return err
 	}
@@ -59,11 +59,11 @@ func (r *AgentRepo) Update(ctx context.Context, a *agent.Agent) error {
 	// worker_id is intentionally NOT in the SET list — the binding is immutable.
 	res, err := exec.ExecContext(ctx,
 		`UPDATE agents SET name=?, description=?, model=?, cli=?, reasoning=?, mode=?, provider=?,
-			orchestrator_model=?, default_executor_model=?, max_concurrent_tasks=?, allowed_models=?, allowed_executors=?, env_vars=?, skills=?,
+			orchestrator_model=?, default_executor_model=?, max_concurrent_tasks=?, allowed_models=?, allowed_executors=?, env_vars=?,
 			capability_tags=?, auto_assignable=?, include_description_in_system_prompt=?, lifecycle=?, lifecycle_error=?, updated_at=?, last_lifecycle_transition_at=?, version=? WHERE id=?`,
 		p.Name, nullString(p.Description), nullString(p.Model), nullString(p.CLI),
 		nullString(p.Reasoning), nullString(p.Mode), nullString(p.Provider),
-		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors, env, skills,
+		nullString(p.OrchestratorModel), nullString(p.DefaultExecutorModel), p.MaxConcurrentTasks, allowedModels, allowedExecutors, env,
 		tags, boolToInt(p.AutoAssignable), boolToInt(p.IncludeDescriptionInSystemPrompt), string(a.Lifecycle()), nullString(a.LifecycleError()), ts(a.UpdatedAt()), ts(a.LastLifecycleTransitionAt()), a.Version(), string(a.ID()))
 	if err != nil {
 		return err
@@ -178,7 +178,7 @@ func (r *AgentRepo) list(ctx context.Context, q, arg string) ([]*agent.Agent, er
 }
 
 const agentSelect = `SELECT id, organization_id, name, description, model, cli, reasoning, mode, provider,
-	orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars, skills,
+	orchestrator_model, default_executor_model, max_concurrent_tasks, allowed_models, allowed_executors, env_vars,
 	capability_tags, auto_assignable, include_description_in_system_prompt, worker_id, lifecycle, lifecycle_error, created_by, identity_member_id, created_at, updated_at, last_lifecycle_transition_at, version FROM agents`
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
@@ -191,7 +191,7 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string, allowedModels string, allowedExecutors string, err error) {
+func marshalProfileJSON(a *agent.Agent) (env string, tags string, allowedModels string, allowedExecutors string, err error) {
 	p := a.Profile()
 	ev := p.EnvVars
 	if ev == nil {
@@ -199,15 +199,7 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string,
 	}
 	eb, err := json.Marshal(ev)
 	if err != nil {
-		return "", "", "", "", "", err
-	}
-	sk := a.Skills()
-	if sk == nil {
-		sk = []string{}
-	}
-	sb, err := json.Marshal(sk)
-	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", err
 	}
 	tg := a.CapabilityTags()
 	if tg == nil {
@@ -215,7 +207,7 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string,
 	}
 	tb, err := json.Marshal(tg)
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", err
 	}
 	// allowed_executors is the authoritative list; allowed_models is written as its
 	// DERIVED mirror (distinct models) so legacy model-only readers (the F3 router,
@@ -227,7 +219,7 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string,
 	}
 	xeb, err := json.Marshal(xe)
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", err
 	}
 	am := p.AllowedModels
 	if len(p.AllowedExecutors) > 0 {
@@ -238,9 +230,9 @@ func marshalProfileJSON(a *agent.Agent) (env string, skills string, tags string,
 	}
 	amb, err := json.Marshal(am)
 	if err != nil {
-		return "", "", "", "", "", err
+		return "", "", "", "", err
 	}
-	return string(eb), string(sb), string(tb), string(amb), string(xeb), nil
+	return string(eb), string(tb), string(amb), string(xeb), nil
 }
 
 func scanAgent(scan func(...any) error) (*agent.Agent, error) {
@@ -252,22 +244,18 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 		orchestratorModel, defaultExecutorModel                             sql.NullString
 		maxConcurrentTasks                                                  sql.NullInt64
 		allowedModelsJSON, allowedExecutorsJSON                             sql.NullString
-		envJSON, skillsJSON, tagsJSON                                       string
+		envJSON, tagsJSON                                                   string
 		autoAssignable                                                      sql.NullInt64
 		includeDescInPrompt                                                 sql.NullInt64
 		version                                                             int
 	)
 	if err := scan(&id, &org, &name, &desc, &model, &cli, &reasoning, &mode, &provider,
-		&orchestratorModel, &defaultExecutorModel, &maxConcurrentTasks, &allowedModelsJSON, &allowedExecutorsJSON, &envJSON, &skillsJSON,
+		&orchestratorModel, &defaultExecutorModel, &maxConcurrentTasks, &allowedModelsJSON, &allowedExecutorsJSON, &envJSON,
 		&tagsJSON, &autoAssignable, &includeDescInPrompt, &workerID, &lifecycle, &lifecycleErr, &createdBy, &identityMemberID, &createdAt, &updatedAt, &lastLifecycleTransitionAt, &version); err != nil {
 		return nil, err
 	}
 	var env map[string]string
 	if err := json.Unmarshal([]byte(envJSON), &env); err != nil {
-		return nil, err
-	}
-	var skills []string
-	if err := json.Unmarshal([]byte(skillsJSON), &skills); err != nil {
 		return nil, err
 	}
 	var tags []string
@@ -299,7 +287,7 @@ func scanAgent(scan func(...any) error) (*agent.Agent, error) {
 			// T728: NOT NULL DEFAULT 1; a defensive NULL reads as "inject" (feature default ON).
 			IncludeDescriptionInSystemPrompt: !includeDescInPrompt.Valid || includeDescInPrompt.Int64 != 0,
 		},
-		Skills: skills, CapabilityTags: tags, WorkerID: workerID,
+		CapabilityTags: tags, WorkerID: workerID,
 		Lifecycle: agent.AgentLifecycle(lifecycle), LifecycleError: lifecycleErr.String,
 		CreatedBy:        agent.IdentityRef(createdBy),
 		IdentityMemberID: identityMemberID.String,
