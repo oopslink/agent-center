@@ -103,7 +103,14 @@ type CenterWriteback struct {
 	agentID string
 	mem     MemoryWriter  // optional; nil in W2
 	usage   UsageReporter // optional; nil disables usage reporting (T613)
-	mu      sync.Mutex
+	// inject delivers a judgment prompt to the agent's supervisor session (option b,
+	// issue-68ccb310): the supervisor reviews the executor's REAL delivery and calls
+	// complete_task/block_task ITSELF. Replaces the daemon-side auto-writeback
+	// (CompleteTask/BlockTask on exit outcome) — the "binding" + "complete without
+	// delivering" root cause. nil ⇒ no supervisor to judge (single-claude/degraded);
+	// the task path then errors rather than silently auto-completing.
+	inject func(ctx context.Context, taskRef, text string) error
+	mu     sync.Mutex
 }
 
 // NewCenterWriteback validates deps and builds the writeback.
@@ -129,6 +136,16 @@ func (w *CenterWriteback) WithMemoryWriter(m MemoryWriter) *CenterWriteback {
 // WithUsageReporter attaches the optional UsageReporter (the T613 usage seam).
 func (w *CenterWriteback) WithUsageReporter(u UsageReporter) *CenterWriteback {
 	w.usage = u
+	return w
+}
+
+// WithSupervisorInjector wires the option-b seam (issue-68ccb310): it injects a
+// judgment prompt into the agent's supervisor session so the supervisor reviews the
+// executor's REAL delivery and calls complete_task/block_task itself, instead of the
+// daemon auto-completing on exit outcome. Always wired in production (a concurrent
+// agent that forks executors has a supervisor); nil only on the degraded/test path.
+func (w *CenterWriteback) WithSupervisorInjector(fn func(ctx context.Context, taskRef, text string) error) *CenterWriteback {
+	w.inject = fn
 	return w
 }
 
@@ -170,8 +187,11 @@ func (w *CenterWriteback) Report(ctx context.Context, c executor.Completion) err
 func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, c executor.Completion) error {
 	summary := successSummary(in, c)
 	if taskRef := strings.TrimSpace(in.Source.TaskRef); taskRef != "" {
-		if err := w.client.CompleteTask(ctx, w.agentID, taskRef, summary); err != nil {
-			return fmt.Errorf("orchestrator: writeback complete_task %s: %w", taskRef, err)
+		// option b (issue-68ccb310): do NOT auto-complete. Deliver the result to the
+		// supervisor as a judgment turn; the supervisor reviews REAL delivery and calls
+		// complete_task/block_task itself.
+		if err := w.deliverJudgment(ctx, taskRef, "succeeded", summary); err != nil {
+			return err
 		}
 		return w.writeMemory(ctx, in, c)
 	}
@@ -187,11 +207,15 @@ func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, 
 func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, c executor.Completion) error {
 	reason := failureReason(c)
 	if taskRef := strings.TrimSpace(in.Source.TaskRef); taskRef != "" {
-		// Both failed and crashed block with reason_type "obstacle" (needs owner/PM
-		// attention); a real auto re-queue strategy for crashes is a follow-up (the
-		// Monitor already retains a crashed executor's dir for relaunch).
-		if err := w.client.BlockTask(ctx, w.agentID, taskRef, reason, "obstacle"); err != nil {
-			return fmt.Errorf("orchestrator: writeback block_task %s: %w", taskRef, err)
+		// option b: deliver the failure to the supervisor for a JUDGED outcome. The
+		// supervisor still decides — a failed/crashed run usually blocks (retryable),
+		// but partial delivery may warrant complete; either way the supervisor writes.
+		outcome := "failed"
+		if c.Kind == executor.OutcomeCrashed {
+			outcome = "crashed"
+		}
+		if err := w.deliverJudgment(ctx, taskRef, outcome, reason); err != nil {
+			return err
 		}
 		return w.writeMemory(ctx, in, c)
 	}
@@ -199,6 +223,40 @@ func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, 
 		return err
 	}
 	return w.writeMemory(ctx, in, c)
+}
+
+// deliverJudgment injects a judgment prompt into the supervisor session (option b,
+// issue-68ccb310): the supervisor reviews the executor's REAL delivery and calls
+// complete_task/block_task itself. Errors if no injector is wired (no supervisor to
+// judge) — the task is NEVER silently auto-completed on exit outcome.
+func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome, summary string) error {
+	if w.inject == nil {
+		return fmt.Errorf("orchestrator: writeback no supervisor injector for task %s (cannot judge — refusing to auto-complete)", taskRef)
+	}
+	if err := w.inject(ctx, taskRef, judgmentPrompt(taskRef, outcome, summary)); err != nil {
+		return fmt.Errorf("orchestrator: writeback inject judgment for task %s: %w", taskRef, err)
+	}
+	return nil
+}
+
+// judgmentPrompt renders the supervisor-facing judgment turn for a finished executor
+// (option b). It instructs the supervisor to judge REAL delivery — not exit status —
+// before completing or blocking, which is what roots out "complete without delivering".
+func judgmentPrompt(taskRef, outcome, summary string) string {
+	s := strings.TrimSpace(summary)
+	if len(s) > maxRelayChars {
+		s = s[:maxRelayChars]
+	}
+	return fmt.Sprintf(
+		"[executor finished] Your forked executor for task %s exited: outcome=%s.\n"+
+			"Its self-reported summary/reason:\n%s\n\n"+
+			"Now JUDGE the real delivery — check git (a new commit / pushed to the branch?), "+
+			"whether the task's objective was actually met — then call complete_task(task_id=%q) "+
+			"if it TRULY delivered, or block_task(task_id=%q, reason=...) if it did not deliver or "+
+			"failed. Do NOT complete on exit status alone: a run that produced nothing must be "+
+			"blocked (retryable), never completed.",
+		taskRef, outcome, s, taskRef, taskRef,
+	)
 }
 
 // relayToChat posts content to the first source chat conversation. With neither a
