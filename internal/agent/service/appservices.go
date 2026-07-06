@@ -38,7 +38,6 @@ type CreateAgentCommand struct {
 	// into its system prompt (T728). nil → the default (true = inject).
 	IncludeDescriptionInSystemPrompt *bool
 	EnvVars                          map[string]string
-	Skills                           []string
 	WorkerID                         string
 	CreatedBy                        agent.IdentityRef
 	// IdentityMemberID (optional, v2.7 #157) — the identity-member id this
@@ -81,7 +80,6 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 			IncludeDescriptionInSystemPrompt: cmd.IncludeDescriptionInSystemPrompt == nil || *cmd.IncludeDescriptionInSystemPrompt,
 			EnvVars:                          cmd.EnvVars,
 		},
-		Skills:           cmd.Skills,
 		WorkerID:         cmd.WorkerID,
 		CreatedBy:        cmd.CreatedBy,
 		IdentityMemberID: cmd.IdentityMemberID,
@@ -176,7 +174,7 @@ func (s *Service) RestartAgent(ctx context.Context, id agent.AgentID) error {
 }
 
 // UpdateAgentConfigCommand carries the editable runtime config (T236 + later
-// profile knobs). Name / Description / Skills are preserved from the existing
+// profile knobs). Name / Description are preserved from the existing
 // profile. Empty string fields are written as-is (empty = the runtime/center
 // default).
 type UpdateAgentConfigCommand struct {
@@ -267,7 +265,7 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		if err != nil {
 			return err
 		}
-		p := a.Profile() // preserve Name/Description/Skills; edit runtime fields only.
+		p := a.Profile() // preserve Name/Description; edit runtime fields only.
 		p.Model = cmd.Model
 		p.CLI = cmd.CLI
 		p.Reasoning = cmd.Reasoning
@@ -549,4 +547,40 @@ func (s *Service) ListActivity(ctx context.Context, id agent.AgentID, limit int,
 // agent_activity_events partition key). Agents with no events have no map entry.
 func (s *Service) LatestActivityByAgents(ctx context.Context, ids []agent.AgentID) (map[agent.AgentID]*agent.AgentActivityEvent, error) {
 	return s.activity.LatestByAgents(ctx, ids)
+}
+
+// ReportInstalledSkills replaces an agent's OBSERVED installed-skill set with the
+// runtime's latest report (issue-4a45e9cc). The set is normalized (blank names
+// dropped, layer validated, shadowed recomputed from precedence — defense in depth)
+// then swapped wholesale by the repo. collectedAt stamps the whole batch so an
+// offline agent's panel can show "last collected X ago"; a zero value defaults to the
+// service clock. nil Skills repo → a safe no-op (feature not wired). Reporting an
+// empty set clears the agent's rows (the runtime resolved nothing).
+func (s *Service) ReportInstalledSkills(ctx context.Context, id agent.AgentID, skills []agent.InstalledSkill, collectedAt time.Time) error {
+	if s.skills == nil {
+		return nil
+	}
+	if collectedAt.IsZero() {
+		collectedAt = s.clock.Now()
+	}
+	collectedAt = collectedAt.UTC()
+	norm, err := agent.NormalizeInstalledSkills(skills)
+	if err != nil {
+		return err
+	}
+	for i := range norm {
+		norm[i].AgentRef = id
+		norm[i].CollectedAt = collectedAt
+	}
+	return s.skills.ReplaceForAgent(ctx, id, norm)
+}
+
+// ListInstalledSkills returns an agent's OBSERVED installed skills ordered by layer
+// precedence (built-in→project) then name. nil Skills repo → empty (feature not
+// wired). The web console groups the result by layer and marks shadowed entries.
+func (s *Service) ListInstalledSkills(ctx context.Context, id agent.AgentID) ([]agent.InstalledSkill, error) {
+	if s.skills == nil {
+		return nil, nil
+	}
+	return s.skills.ListByAgent(ctx, id)
 }

@@ -179,7 +179,6 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		IncludeDescriptionInSystemPrompt *bool             `json:"include_description_in_system_prompt"`
 		WorkerID                         string            `json:"worker_id"`
 		EnvVars                          map[string]string `json:"env_vars"`
-		Skills                           []string          `json:"skills"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -270,7 +269,6 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			AutoAssignable:                   body.AutoAssignable,
 			IncludeDescriptionInSystemPrompt: body.IncludeDescriptionInSystemPrompt,
 			EnvVars:                          body.EnvVars,
-			Skills:                           body.Skills,
 			WorkerID:                         body.WorkerID,
 			CreatedBy:                        agentCallerRef(callerID),
 			IdentityMemberID:                 idn.ID(),

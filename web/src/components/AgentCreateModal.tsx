@@ -2,8 +2,9 @@
 // was removed ("no middle state" — agent always has a member id), so this posts
 // to the unified POST /api/members/agent (atomic identity-member + execution
 // Agent, #157). The Worker picker is sourced from the Environment snapshot
-// (useFleet().workers); name + worker_id are required; description/model/cli/
-// skills optional. The created agent's business id = response identity_id.
+// (useFleet().workers); name + worker_id are required; description/model/cli
+// optional. (Declared skills removed in issue-4a45e9cc — skills are now OBSERVED
+// per-agent.) The created agent's business id = response identity_id.
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAddAgentMember } from '@/api/members';
@@ -28,7 +29,6 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   // option select (no free text) so the form can't create an agent bound to a
   // CLI the runtime won't run; codex/opencode open up in v2.8 (#180).
   const [cli, setCli] = useState('claude-code');
-  const [skills, setSkills] = useState('');
   const [workerId, setWorkerId] = useState('');
   // T728 (issue-0619f315): inject the description into the agent's system prompt.
   // Default ON — matches the backend default (nil → true).
@@ -40,16 +40,9 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
   const trimmedName = name.trim();
   const canSubmit = trimmedName.length > 0 && workerId.length > 0 && !create.isPending;
 
-  const parseSkills = (raw: string): string[] =>
-    raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    const parsedSkills = parseSkills(skills);
     try {
       await create.mutateAsync({
         display_name: trimmedName,
@@ -57,7 +50,6 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
         role: 'member',
         model: model.trim() || undefined,
         cli,
-        skills: parsedSkills.length > 0 ? parsedSkills : undefined,
         worker_id: workerId,
         include_description_in_system_prompt: includeDescription,
       });
@@ -158,17 +150,6 @@ export function AgentCreateModal({ onClose }: Props): React.ReactElement {
           >
             <option value="claude-code">claude-code</option>
           </select>
-        </Field>
-
-        <Field label={t('agents.create.skillsLabel')} hint={t('agents.create.skillsHint')} htmlFor="agent-create-skills-input">
-          <input
-            id="agent-create-skills-input"
-            data-testid="agent-create-skills"
-            value={skills}
-            onChange={(e) => setSkills(e.target.value)}
-            placeholder={t('agents.create.skillsPlaceholder')}
-            className={inputClass}
-          />
         </Field>
 
         <Field label={t('agents.create.workerLabel')} required hint={t('agents.create.workerHint')}>

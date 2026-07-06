@@ -92,7 +92,6 @@ export interface AddAgentMemberPayload {
   model?: string;
   cli?: string;
   worker_id?: string;
-  skills?: string[];
   // T728: inject the description into the system prompt (omitted ⇒ backend default true).
   include_description_in_system_prompt?: boolean;
 }

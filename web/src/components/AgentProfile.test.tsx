@@ -13,7 +13,11 @@ const base: Agent = {
   model: 'claude-opus-4-8',
   cli: 'claude-code',
   env_vars: {},
-  skills: ['review', 'planning'],
+  installed_skills: [
+    { layer: 'built-in', name: 'review', description: 'builtin review', shadowed: true, collected_at: '2026-07-05T09:00:00Z' },
+    { layer: 'project', name: 'review', description: 'project review', shadowed: false, collected_at: '2026-07-05T09:00:00Z' },
+    { layer: 'user', name: 'planning', description: 'planner', shadowed: false, collected_at: '2026-07-05T09:00:00Z' },
+  ],
   worker_id: 'w-1',
   lifecycle: 'stopped',
   availability: 'available',
@@ -171,11 +175,32 @@ describe('AgentProfile (#228 PR(b))', () => {
     expect(screen.getByTestId('agent-profile-tag-auto-assignable')).toHaveTextContent('Off');
   });
 
-  it('renders skills as name cards (no path/badge), empty → placeholder', () => {
+  it('renders installed skills grouped by layer with description + shadowed marker (issue-4a45e9cc)', () => {
     wrap(base);
-    expect(screen.getAllByTestId('agent-profile-skill')).toHaveLength(2);
+    // three reported skills across built-in / user / project.
+    expect(screen.getAllByTestId('agent-profile-skill')).toHaveLength(3);
+    // layer groups present for the layers that have entries.
+    expect(screen.getByTestId('agent-profile-skill-layer-built-in')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-profile-skill-layer-user')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-profile-skill-layer-project')).toBeInTheDocument();
+    // the shadowed built-in review shows the "overridden" marker; the effective ones do not.
+    expect(screen.getAllByTestId('agent-profile-skill-shadowed')).toHaveLength(1);
+    // descriptions rendered.
+    expect(screen.getByText('project review')).toBeInTheDocument();
+  });
+
+  it('shows collected-at only when the computer is offline', () => {
+    // stopped agent (no computer connected) → collected-at surfaces.
+    wrap(base);
+    expect(screen.getByTestId('agent-profile-skills-collected')).toBeInTheDocument();
     cleanup();
-    wrap({ ...base, skills: [] });
+    // connected computer → no stale-collection notice.
+    wrap({ ...base, computer: { worker_id: 'w-1', name: 'box', status: 'online', connected: true } });
+    expect(screen.queryByTestId('agent-profile-skills-collected')).toBeNull();
+  });
+
+  it('shows the empty placeholder when no skills were reported', () => {
+    wrap({ ...base, installed_skills: [] });
     expect(screen.getByTestId('agent-profile-skills-empty')).toBeInTheDocument();
   });
 
