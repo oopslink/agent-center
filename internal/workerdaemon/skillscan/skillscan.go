@@ -132,7 +132,7 @@ func scanRoot(layer Layer, root string) []Skill {
 	}
 	var out []Skill
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !entryIsDir(root, e) {
 			continue
 		}
 		mdPath := filepath.Join(root, e.Name(), "SKILL.md")
@@ -146,6 +146,24 @@ func scanRoot(layer Layer, root string) []Skill {
 		out = append(out, Skill{Layer: layer, Name: name, Description: desc})
 	}
 	return out
+}
+
+// entryIsDir reports whether a skills-root child is a directory, FOLLOWING symlinks
+// (F1). The real ~/.claude/skills layout symlinks each skill dir into a shared store
+// (e.g. <name> → ../../.agents/skills/<name>); os.ReadDir's DirEntry.IsDir() is false
+// for a symlink (its type is symlink, not dir), so a plain e.IsDir() silently drops
+// every symlinked skill. For a symlink we os.Stat the path (Stat follows the link) and
+// accept it when the target is a directory. A dangling/broken link Stats with an error
+// and is skipped.
+func entryIsDir(root string, e os.DirEntry) bool {
+	if e.IsDir() {
+		return true
+	}
+	if e.Type()&os.ModeSymlink == 0 {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(root, e.Name()))
+	return err == nil && info.IsDir()
 }
 
 // skillFrontmatter is the subset of SKILL.md YAML frontmatter we surface.

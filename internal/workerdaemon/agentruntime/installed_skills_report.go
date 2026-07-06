@@ -9,6 +9,7 @@ package agentruntime
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"time"
@@ -131,19 +132,48 @@ func defaultSkillLayerRoots(home, tasksDir string) skillscan.LayerRoots {
 	return roots
 }
 
-// pluginSkillRoots enumerates <pluginsDir>/<plugin>/skills for every plugin dir. A
-// missing plugins dir yields nil (no plugin layer).
+// pluginSkillRoots resolves the plugin-layer skill roots from installed_plugins.json
+// (F2 — "以 installed_plugins.json 为准"). The pre-fix version enumerated
+// <pluginsDir>/<child>/skills over the plugins dir's IMMEDIATE children — but those
+// children are cache/, marketplaces/, data/ and the JSON manifests, NOT plugin dirs,
+// so every derived root (e.g. <plugins>/cache/skills) is non-existent → the plugin
+// layer was ALWAYS empty and real plugin skills (superpowers-class) never surfaced.
+//
+// The real install layout records each installed plugin's on-disk location in
+// <pluginsDir>/installed_plugins.json as
+//
+//	{ "plugins": { "<name>@<marketplace>": [ { "installPath": "/abs/.../<plugin>/<ver>", ... } ] } }
+//
+// and that plugin's skills live at <installPath>/skills/<skill>/SKILL.md. We parse the
+// manifest defensively (unknown fields ignored; a missing/garbage manifest yields nil →
+// no plugin layer, never an error) and return each installPath/skills root, de-duped.
 func pluginSkillRoots(pluginsDir string) []string {
-	entries, err := os.ReadDir(pluginsDir)
+	b, err := os.ReadFile(filepath.Join(pluginsDir, "installed_plugins.json"))
 	if err != nil {
-		return nil
+		return nil // no manifest → no plugin layer
+	}
+	var manifest struct {
+		Plugins map[string][]struct {
+			InstallPath string `json:"installPath"`
+		} `json:"plugins"`
+	}
+	if err := json.Unmarshal(b, &manifest); err != nil {
+		return nil // unparseable manifest → degrade to no plugin layer
 	}
 	var out []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
+	seen := map[string]bool{}
+	for _, installs := range manifest.Plugins {
+		for _, inst := range installs {
+			if inst.InstallPath == "" {
+				continue
+			}
+			root := filepath.Join(inst.InstallPath, "skills")
+			if seen[root] {
+				continue
+			}
+			seen[root] = true
+			out = append(out, root)
 		}
-		out = append(out, filepath.Join(pluginsDir, e.Name(), "skills"))
 	}
 	return out
 }

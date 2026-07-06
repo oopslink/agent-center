@@ -26,6 +26,42 @@ func writeSkill(t *testing.T, root, dir, name, desc string) {
 	}
 }
 
+// TestScan_FollowsSymlinkedSkillDirs is the F1 regression (tester1 acceptance): a
+// skills root whose skill dirs are SYMLINKS (the real ~/.claude/skills layout — each
+// <name> is a symlink into ../../.agents/skills/<name>) must still be scanned.
+// os.ReadDir's DirEntry.IsDir() is FALSE for a symlink (its type is symlink, not dir),
+// so the pre-fix `!e.IsDir()` guard silently dropped every symlinked skill — on the
+// acceptance host all 6 user skills are symlinks → 0 reported. RED pre-fix (finds only
+// the 1 real dir), GREEN post-fix (Stat follows the link → all 3).
+func TestScan_FollowsSymlinkedSkillDirs(t *testing.T) {
+	tmp := t.TempDir()
+	root := filepath.Join(tmp, "user")   // the skills container that gets scanned
+	store := filepath.Join(tmp, "store") // real skill dirs live here (symlink targets)
+
+	writeSkill(t, root, "real", "real", "a real dir skill")
+	writeSkill(t, store, "linked-a", "linked-a", "symlinked skill a")
+	writeSkill(t, store, "linked-b", "linked-b", "symlinked skill b")
+	for _, n := range []string{"linked-a", "linked-b"} {
+		if err := os.Symlink(filepath.Join(store, n), filepath.Join(root, n)); err != nil {
+			t.Fatalf("symlink %s: %v", n, err)
+		}
+	}
+
+	got := Scan(LayerRoots{User: []string{root}})
+	if len(got) != 3 {
+		t.Fatalf("want 3 skills (1 real dir + 2 symlinked dirs), got %d: %+v", len(got), got)
+	}
+	names := map[string]bool{}
+	for _, s := range got {
+		names[s.Name] = true
+	}
+	for _, want := range []string{"real", "linked-a", "linked-b"} {
+		if !names[want] {
+			t.Fatalf("missing skill %q — symlinked skill dir dropped; got=%+v", want, got)
+		}
+	}
+}
+
 func TestScan_LayersAndShadowing(t *testing.T) {
 	tmp := t.TempDir()
 	userRoot := filepath.Join(tmp, "user")
