@@ -193,7 +193,7 @@ describe('ProjectDetail page', () => {
       http.get('/api/projects/proj-a/tasks', () =>
         HttpResponse.json({
           tasks: [
-            { id: 'task-01KT8DXYZ123', project_id: 'proj-a', title: 'rebuild docs', description: '', status: 'running', blocked_reason: 'waiting on review', assignee: 'agent:bot-9', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
+            { id: 'task-01KT8DXYZ123', project_id: 'proj-a', title: 'rebuild docs', description: '', status: 'running', blocked_reason: 'waiting on review', assignee: 'agent:bot-9', creator_ref: 'user:owner', plan_id: 'plan-01KT8DPLAN', plan_name: 'Onboarding flow', version: 1, created_at: '2026-05-24T01:00:00Z', updated_at: '2026-05-24T01:00:00Z' },
           ],
         }),
       ),
@@ -227,6 +227,28 @@ describe('ProjectDetail page', () => {
     expect(screen.getByTestId('task-assignee')).toHaveTextContent('Bot Nine');
     expect(screen.getByTestId('task-priority')).toHaveTextContent('—');
     expect(screen.getByTestId('status-chip')).toHaveAttribute('data-status', 'running');
+    // Creator column (owner ask): creator_ref resolves to a clean handle when no
+    // member row matches — never blank / "—" / the raw "user:" form.
+    const creator = screen.getByTestId('task-creator');
+    expect(creator).toHaveTextContent('owner');
+    expect(creator).not.toHaveTextContent('—');
+    expect(creator).toHaveAttribute('title', 'user:owner');
+    // PLAN column shows the plan_id (with the plan_name).
+    const plan = screen.getByTestId('task-plan');
+    expect(plan).toHaveTextContent('Onboarding flow');
+    expect(screen.getByTestId('task-plan-id')).toHaveTextContent('plan-01KT8DPLAN');
+    // Created/Updated render the FULL date-time WITH timezone (not relative),
+    // raw ISO on hover. Compare against the same explicit-component format.
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short',
+      });
+    const created = screen.getByTestId('task-created');
+    expect(created).toHaveTextContent(fmt('2026-05-24T01:00:00Z'));
+    expect(created.textContent).toMatch(/:\d{2}:\d{2}/);
+    expect(created).toHaveAttribute('title', '2026-05-24T01:00:00Z');
+    expect(screen.getByTestId('task-updated')).toHaveAttribute('title', '2026-05-24T01:00:00Z');
   });
 
   it('shows org_ref (T<n>/I<n>) in the ID column when present, hash id on hover (#245)', async () => {

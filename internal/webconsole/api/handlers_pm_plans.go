@@ -59,6 +59,9 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 		"task_status":  string(n.TaskStatus),
 		"node_status":  string(n.NodeStatus),
 		"depends_on":   depends,
+		// The task's creation time (always present) so the Plan detail task list
+		// can show a "Created" column with a full local timestamp. RFC3339Nano.
+		"created_at": l.createdAtOf[n.TaskID],
 		// v2.9 P3 Stage B: orthogonal archived state (ArchivePlan cascades to every
 		// task) so the DAG-node / task-list "已归档" badge renders here too — not just
 		// on board cards (which read the task DTO). Coexists with task_status.
@@ -111,6 +114,10 @@ type planNodeLookup struct {
 	// completed_at so the task list shows WHEN a DONE node finished. Empty when the
 	// task is not currently completed.
 	completedAtOf map[pm.TaskID]string
+	// createdAtOf maps a task id → its creation time (RFC3339Nano). Always present
+	// (a task always has a CreatedAt); surfaced as the node's created_at so the
+	// Plan detail task list can render a "Created" column.
+	createdAtOf map[pm.TaskID]string
 	// starvedOf (v2.18.3 BE-2) maps a task id → true when it is auto-assign STARVED.
 	// Sourced from PlanDetail.Starved (populated by the FE-facing reads for builtin
 	// pool plans); nil/absent ⇒ false (the common case for structured-plan nodes).
@@ -126,6 +133,7 @@ func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 		archivedAtOf:  make(map[pm.TaskID]string, len(detail.Tasks)),
 		orgRefOf:      make(map[pm.TaskID]string, len(detail.Tasks)),
 		completedAtOf: make(map[pm.TaskID]string, len(detail.Tasks)),
+		createdAtOf:   make(map[pm.TaskID]string, len(detail.Tasks)),
 		starvedOf:     detail.Starved,
 	}
 	for _, t := range detail.Tasks {
@@ -134,6 +142,7 @@ func planNodeLookups(detail *pmservice.PlanDetail) planNodeLookup {
 		l.archivedOf[t.ID()] = t.IsArchived()
 		l.archivedAtOf[t.ID()] = rfc3339OrEmptyPtr(t.ArchivedAt())
 		l.orgRefOf[t.ID()] = orgRefToken("T", t.OrgNumber())
+		l.createdAtOf[t.ID()] = t.CreatedAt().Format(time.RFC3339Nano)
 		if at := t.CompletedAt(); !at.IsZero() {
 			l.completedAtOf[t.ID()] = at.UTC().Format(time.RFC3339Nano)
 		}

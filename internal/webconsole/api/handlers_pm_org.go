@@ -327,6 +327,11 @@ func (s *Server) orgTaskRow(r *http.Request, d HandlerDeps, t *pm.Task, p *pm.Pr
 		// "" on both when the task is not blocked.
 		"blocked_reason":      t.BlockedReason(),
 		"blocked_reason_type": string(t.BlockedReasonType()),
+		// creator identity ref (agent:/user: or a system sentinel). Always
+		// non-empty in the domain; the FE (useCreatorLabel) resolves it to a
+		// human name, degrading to a clean handle — never blank. Without this
+		// the FE it.creator_ref is undefined → the Creator column shows "—".
+		"creator_ref": string(t.CreatedBy()),
 	}
 	if ref := orgRefToken("T", t.OrgNumber()); ref != "" {
 		m["org_ref"] = ref

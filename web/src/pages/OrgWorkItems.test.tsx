@@ -49,6 +49,9 @@ const taskRow = (extra: Record<string, unknown> = {}) => ({
   priority: null,
   updated_at: '2026-06-04T02:00:00Z',
   created_at: '2026-06-01T02:00:00Z',
+  creator_ref: 'agent:agent-bot9',
+  plan_id: 'plan-01KT8DPLAN',
+  plan_name: 'Onboarding flow',
   ...extra,
 });
 
@@ -410,6 +413,99 @@ describe('OrgWorkItems page (#258)', () => {
     wrap('issue', '/organizations/acme/issues');
     await screen.findByTestId('org-workitem-row');
     expect(screen.getByTestId('org-workitem-created')).toBeInTheDocument();
+  });
+
+  // FIX 1 (owner ask): the Creator column resolves creator_ref to the member's
+  // NAME (never "—") when it's set. With the member fixture loaded the agent ref
+  // resolves to "Bot Nine"; the raw ref stays on hover (title).
+  it('tasks: Creator column shows the resolved creator NAME (not "—") from creator_ref', async () => {
+    server.use(
+      http.get('/api/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })),
+      http.get('/api/members', () =>
+        HttpResponse.json([
+          {
+            id: 'mem-2', organization_id: 'org-test', identity_id: 'agent-bot9',
+            kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z',
+            display_name: 'Bot Nine',
+          },
+        ]),
+      ),
+    );
+    wrap('task', '/organizations/acme/tasks');
+    await screen.findByTestId('org-workitem-row');
+    const creator = await screen.findByTestId('org-workitem-creator');
+    await waitFor(() => expect(creator).toHaveTextContent('Bot Nine'));
+    expect(creator).not.toHaveTextContent('—');
+    // raw ref preserved on hover.
+    expect(creator).toHaveAttribute('title', 'agent:agent-bot9');
+  });
+
+  // FIX 1 fallback: an UNRESOLVABLE creator_ref (no member row) degrades to a
+  // clean scheme-stripped handle — NEVER blank / "—" / the raw "agent:" form.
+  it('tasks: Creator falls back to a clean handle for an unresolvable creator_ref (never blank)', async () => {
+    server.use(
+      http.get('/api/tasks', () =>
+        HttpResponse.json({ items: [taskRow({ creator_ref: 'agent:agent-ghost' })], total: 1 }),
+      ),
+    );
+    wrap('task', '/organizations/acme/tasks');
+    const creator = await screen.findByTestId('org-workitem-creator');
+    expect(creator).toHaveTextContent('agent-ghost');
+    expect(creator).not.toHaveTextContent('—');
+    expect(creator).not.toHaveTextContent('agent:agent-ghost'); // scheme prefix stripped
+  });
+
+  // FIX 2 (owner ask): Created/Updated render the FULL local date-time WITH the
+  // timezone (not the relative "Yesterday"/"14:09"). Assert the visible text
+  // equals the full-format string and carries a timezone token; raw ISO on title.
+  it('renders Created/Updated as a full date-time WITH timezone (raw ISO on title)', async () => {
+    server.use(http.get('/api/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })));
+    wrap('task', '/organizations/acme/tasks');
+    await screen.findByTestId('org-workitem-row');
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short',
+      });
+    const created = screen.getByTestId('org-workitem-created');
+    const updated = screen.getByTestId('org-workitem-updated');
+    expect(created).toHaveTextContent(fmt('2026-06-01T02:00:00Z'));
+    expect(updated).toHaveTextContent(fmt('2026-06-04T02:00:00Z'));
+    // full format includes seconds (medium timeStyle) — not the relative shortDate.
+    expect(created.textContent).toMatch(/:\d{2}:\d{2}/);
+    // raw ISO preserved on hover.
+    expect(created).toHaveAttribute('title', '2026-06-01T02:00:00Z');
+    expect(updated).toHaveAttribute('title', '2026-06-04T02:00:00Z');
+  });
+
+  // FIX 3 (owner ask): the PLAN column shows the plan_id (in addition to the
+  // plan_name), and still degrades to '—' when there's no plan.
+  it('renders the plan_id in the PLAN column (with plan_name), and — when absent', async () => {
+    server.use(http.get('/api/tasks', () => HttpResponse.json({ items: [taskRow()], total: 1 })));
+    wrap('task', '/organizations/acme/tasks');
+    await screen.findByTestId('org-workitem-row');
+    const plan = screen.getByTestId('org-workitem-plan');
+    expect(plan).toHaveTextContent('Onboarding flow');
+    expect(screen.getByTestId('org-workitem-plan-id')).toHaveTextContent('plan-01KT8DPLAN');
+    cleanup();
+    // no plan → em-dash, no plan-id node.
+    server.use(
+      http.get('/api/tasks', () =>
+        HttpResponse.json({
+          items: [taskRow({ plan_id: undefined, plan_name: undefined })],
+          total: 1,
+        }),
+      ),
+    );
+    wrap('task', '/organizations/acme/tasks');
+    await screen.findByTestId('org-workitem-row');
+    expect(screen.getByTestId('org-workitem-plan')).toHaveTextContent('—');
+    expect(screen.queryByTestId('org-workitem-plan-id')).toBeNull();
   });
 
   it('Create button opens the cross-project create modal with a project picker', async () => {

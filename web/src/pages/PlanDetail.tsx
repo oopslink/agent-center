@@ -43,7 +43,7 @@ import { Breadcrumb } from '@/components/Breadcrumb';
 import { ErrorState } from '@/components/ErrorState';
 import { Avatar } from '@/components/Avatar';
 import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
-import { StatusChip, refLabel } from '@/components/workItemDisplay';
+import { StatusChip, refLabel, fullDateTime } from '@/components/workItemDisplay';
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar, EmbeddedConversationSidebar, EmbeddedSidebarToggle } from '@/components/ConversationSidebar';
@@ -2588,7 +2588,8 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
                     <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colTitle')}</th>
                     <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colAssignee')}</th>
                     <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colTaskStatus')}</th>
-                    <th className="py-1.5 font-medium">{t('plan.detail.taskList.colNodeStatus')}</th>
+                    <th className="py-1.5 pr-3 font-medium">{t('plan.detail.taskList.colNodeStatus')}</th>
+                    <th className="py-1.5 font-medium">{t('plan.detail.taskList.colCreated')}</th>
                     {canRemove && <th className="py-1.5 pl-3 text-right font-medium">{t('plan.detail.taskList.colAction')}</th>}
                   </tr>
                 </thead>
@@ -2812,6 +2813,11 @@ function PlanTaskRow({
             {resumeNodeErrorMessage(resume.error, t)}
           </span>
         )}
+      </td>
+      {/* Created column (owner ask): the underlying task's creation time as a
+          full local timestamp WITH timezone; raw ISO on hover. "—" if absent. */}
+      <td className="py-1.5 tabular-nums text-text-muted" data-testid="plan-row-created" title={node.created_at ?? ''}>
+        {node.created_at ? fullDateTime(node.created_at) : '—'}
       </td>
       {canRemove && (
         <td className="py-1.5 pl-3 text-right">

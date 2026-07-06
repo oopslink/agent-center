@@ -52,6 +52,10 @@ export interface PlanNode {
   task_status: string;
   node_status: PlanNodeStatus;
   depends_on: string[];
+  // The underlying task's creation time (RFC3339). Always emitted by the backend
+  // node DTO (pmPlanNodeMap); optional here for legacy payloads. The Plan detail
+  // task list shows it in a "Created" column (full local timestamp + tz).
+  created_at?: string;
   dispatched_at?: string | null;
   // T570: when node_status is 'done', the task's completion time (statusChangedAt
   // of the terminal transition). Present only on done nodes — the task list shows

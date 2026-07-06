@@ -588,6 +588,35 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(completed[0]).toHaveAttribute('title', '2026-06-20T10:00:00Z');
   });
 
+  // Owner ask: the Plan detail task list has a "Created" column showing the
+  // task's creation time as a full local timestamp WITH timezone (raw ISO on
+  // hover); "—" when the node carries no created_at.
+  it('task list shows a Created column with a full timestamp + timezone (— when absent)', async () => {
+    mockPlan({
+      nodes: [
+        { task_id: 'c1', title: 'has created', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [], created_at: '2026-06-01T02:00:00Z' },
+        { task_id: 'c2', title: 'no created', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [] },
+      ],
+    });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    const table = await screen.findByTestId('plan-task-list-table');
+    // header present.
+    expect(within(table).getByText('Created')).toBeInTheDocument();
+    const cells = within(table).getAllByTestId('plan-row-created');
+    expect(cells).toHaveLength(2);
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short',
+      });
+    expect(cells[0]).toHaveTextContent(fmt('2026-06-01T02:00:00Z'));
+    expect(cells[0].textContent).toMatch(/:\d{2}:\d{2}/);
+    expect(cells[0]).toHaveAttribute('title', '2026-06-01T02:00:00Z');
+    // absent created_at → em-dash.
+    expect(cells[1]).toHaveTextContent('—');
+  });
+
   it('T570: rail drops the Threads/Files panel; title bar has no bottom border', async () => {
     mockPlan();
     wrap();

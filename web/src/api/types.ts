@@ -707,6 +707,11 @@ export interface Task {
   // v2.7.1 #245: org-internal display/reference token ("T1234"); hash `id`
   // (task-xxx) stays the stable internal ref. Absent → UI falls back to handle.
   org_ref?: string;
+  // creator identity ref (user:xxx / agent:xxx / system). Always set by the
+  // backend (pmTaskMap → t.CreatedBy()); optional here for legacy payloads. The
+  // project Tasks tab resolves it to a name via useCreatorLabel (degrades to a
+  // clean handle, never blank).
+  creator_ref?: string;
   // T106: the owning plan's id when the task is selected into a plan; absent for
   // a backlog task. The Task detail sidebar shows + links to the plan.
   plan_id?: string;

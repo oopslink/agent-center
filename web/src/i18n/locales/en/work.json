@@ -302,6 +302,7 @@
         "colAssignee": "Assignee",
         "colTaskStatus": "Task status",
         "colNodeStatus": "Node status",
+        "colCreated": "Created",
         "colAction": "Action",
         "unassigned": "Unassigned",
         "searchMembers": "Search members…",

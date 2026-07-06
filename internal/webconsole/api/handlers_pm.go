@@ -115,6 +115,10 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		"blocked_reason": t.BlockedReason(), "blocked_reason_type": string(t.BlockedReasonType()), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 		"tags": tags, "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
+		// creator identity ref (agent:/user: or a system sentinel). Always non-empty
+		// in the domain; the FE (useCreatorLabel) resolves it to a human name, else a
+		// clean handle. Without it the project Tasks tab Creator column shows "—".
+		"creator_ref": string(t.CreatedBy()),
 		// T570 follow-up: authoritative completion time — set on →completed, cleared
 		// on reopen. "" when not currently completed.
 		"completed_at": rfc3339OrEmpty(t.CompletedAt()),

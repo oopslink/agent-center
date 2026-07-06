@@ -28,7 +28,7 @@ import { ConfirmModal } from '@/components/ConfirmModal';
 import { ProjectMemberAddModal } from '@/components/ProjectMemberAddModal';
 import { Skeleton } from '@/components/Skeleton';
 import { Breadcrumb } from '@/components/Breadcrumb';
-import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
+import { StatusChip, refLabel, shortDate, fullDateTime } from '@/components/workItemDisplay';
 import { SortHeader, Pagination, useListControls } from '@/components/listControls';
 import { PlanStatusChip, planProgressLabel, PlanFailedIndicator, planStatusClass } from '@/components/planDisplay';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
@@ -1095,6 +1095,8 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
   const [createOpen, setCreateOpen] = useState(false);
   // v2.7.1 #242: resolve the assignee ref → display name (raw ref on hover, #192).
   const resolveName = useDisplayNameResolver();
+  // Owner ask: surface the creator's NAME (agent / human), not the raw id.
+  const creatorLabel = useCreatorLabel();
   const data = tasks.data?.items ?? [];
   const total = tasks.data?.total ?? 0;
   const setPage = controls.setPage;
@@ -1161,6 +1163,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                 <th className="py-1.5 pr-3 font-medium">{t('project.table.plan')}</th>
                 <th className="py-1.5 pr-3 font-medium">{t('project.table.priority')}</th>
                 <SortHeader label={t('project.table.created')} sortKey="created_at" controls={controls} className="py-1.5 pr-3 font-medium" />
+                <th className="py-1.5 pr-3 font-medium">{t('project.table.creator')}</th>
                 <SortHeader label={t('project.table.updated')} sortKey="updated_at" controls={controls} className="py-1.5 font-medium" />
               </tr>
             </thead>
@@ -1193,15 +1196,29 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                       '—'
                     )}
                   </td>
-                  <td className="py-1.5 pr-3 text-text-muted" data-testid="task-plan" title={tk.plan_name || undefined}>
-                    {tk.plan_name || '—'}
+                  <td className="py-1.5 pr-3 text-text-muted" data-testid="task-plan" title={tk.plan_id || undefined}>
+                    {/* PLAN: plan_name on top (when named) + the plan_id in small
+                        muted text beneath; '—' when the task has no plan. */}
+                    {tk.plan_id ? (
+                      <span className="flex flex-col leading-tight">
+                        {tk.plan_name && <span className="text-text-secondary">{tk.plan_name}</span>}
+                        <span className="font-mono text-[0.625rem] text-text-muted" data-testid="task-plan-id">
+                          {tk.plan_id}
+                        </span>
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="py-1.5 pr-3 text-text-muted" data-testid="task-priority">—</td>
-                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" title={formatLocalTime(tk.created_at)}>
-                    {shortDate(tk.created_at)}
+                  <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="task-created" title={tk.created_at}>
+                    {fullDateTime(tk.created_at)}
                   </td>
-                  <td className="py-1.5 tabular-nums text-text-muted" title={formatLocalTime(tk.updated_at)}>
-                    {shortDate(tk.updated_at)}
+                  <td className="py-1.5 pr-3 text-text-secondary" data-testid="task-creator" title={tk.creator_ref ?? ''}>
+                    {creatorLabel(tk.creator_ref)}
+                  </td>
+                  <td className="py-1.5 tabular-nums text-text-muted" data-testid="task-updated" title={tk.updated_at}>
+                    {fullDateTime(tk.updated_at)}
                   </td>
                 </tr>
               ))}

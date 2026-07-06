@@ -71,6 +71,9 @@ function planHandlers() {
     // Work Board card shows the human Task id. Derive a stable default from the
     // task-id tail; a node can override via extra.
     org_ref: `T${taskId.replace(/\D/g, '') || '0'}`,
+    // The underlying task's creation time — the Plan detail task list renders it
+    // in a "Created" column (full local timestamp + tz).
+    created_at: '2026-06-01T02:00:00Z',
     ...extra,
   });
   const basePlan = (pid: string, id: string, extra: Record<string, unknown> = {}) => ({
@@ -465,6 +468,11 @@ const baseHandlers = [
         description: '',
         status: 'open',
         version: 1,
+        // creator_ref → the project Tasks tab Creator column resolves it to a name
+        // (degrades to a clean handle); plan_id → the Plan column shows the id too.
+        creator_ref: 'user:owner',
+        plan_id: 'plan-01KT8DPLAN',
+        plan_name: 'Onboarding flow',
         created_at: '2026-05-24T01:00:00Z',
         updated_at: '2026-05-24T01:00:00Z',
       },

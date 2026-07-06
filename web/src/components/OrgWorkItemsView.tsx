@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { OrgLink } from '@/OrgContext';
-import { StatusChip, refLabel, shortDate } from '@/components/workItemDisplay';
+import { StatusChip, refLabel, fullDateTime } from '@/components/workItemDisplay';
 import { useCreatorLabel } from '@/api/members';
 import { ContextPanel } from '@/shell/contextPanel';
 import { WorkItemFilterBar, type DateRange } from '@/components/WorkItemFilterBar';
@@ -222,17 +222,28 @@ export function OrgWorkItemsView({
                       '—'
                     )}
                   </td>
-                  <td className="py-1.5 pr-3 text-text-muted" data-testid="org-workitem-plan" title={it.plan_name || undefined}>
-                    {it.plan_name || '—'}
+                  <td className="py-1.5 pr-3 text-text-muted" data-testid="org-workitem-plan" title={it.plan_id || undefined}>
+                    {/* PLAN: plan_name on top (when named), the plan_id in small
+                        muted text beneath so both are visible; '—' when no plan. */}
+                    {it.plan_id ? (
+                      <span className="flex flex-col leading-tight">
+                        {it.plan_name && <span className="text-text-secondary">{it.plan_name}</span>}
+                        <span className="font-mono text-[0.625rem] text-text-muted" data-testid="org-workitem-plan-id">
+                          {it.plan_id}
+                        </span>
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="py-1.5 pr-3 tabular-nums text-text-muted" data-testid="org-workitem-created" title={it.created_at}>
-                    {shortDate(it.created_at)}
+                    {fullDateTime(it.created_at)}
                   </td>
                   <td className="py-1.5 pr-3 text-text-secondary" data-testid="org-workitem-creator" title={it.creator_ref ?? ''}>
                     {creatorLabel(it.creator_ref)}
                   </td>
                   <td className="py-1.5 tabular-nums text-text-muted" data-testid="org-workitem-updated" title={it.updated_at}>
-                    {shortDate(it.updated_at)}
+                    {fullDateTime(it.updated_at)}
                   </td>
                 </tr>
                 );
@@ -306,7 +317,7 @@ export function OrgWorkItemsView({
                       </span>
                     )}
                     <span className="ml-auto tabular-nums" title={it.updated_at}>
-                      {shortDate(it.updated_at)}
+                      {fullDateTime(it.updated_at)}
                     </span>
                   </div>
                 </div>
@@ -409,8 +420,8 @@ function WorkItemMetaPanel({
         <MetaKV k={t('workItem.meta.id')}>
           <span className="font-mono text-[0.6875rem]">{refLabel(item.org_ref, item.id)}</span>
         </MetaKV>
-        <MetaKV k={t('workItem.meta.created')}><span className="tabular-nums">{shortDate(item.created_at)}</span></MetaKV>
-        <MetaKV k={t('workItem.meta.updated')}><span className="tabular-nums">{shortDate(item.updated_at)}</span></MetaKV>
+        <MetaKV k={t('workItem.meta.created')}><span className="tabular-nums" title={item.created_at}>{fullDateTime(item.created_at)}</span></MetaKV>
+        <MetaKV k={t('workItem.meta.updated')}><span className="tabular-nums" title={item.updated_at}>{fullDateTime(item.updated_at)}</span></MetaKV>
       </div>
 
       <h2 className="px-4 pb-1 pt-3 text-[0.625rem] font-semibold uppercase tracking-wider text-text-muted">

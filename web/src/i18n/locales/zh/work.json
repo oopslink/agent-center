@@ -302,6 +302,7 @@
         "colAssignee": "负责人",
         "colTaskStatus": "任务状态",
         "colNodeStatus": "节点状态",
+        "colCreated": "创建时间",
         "colAction": "操作",
         "unassigned": "未分配",
         "searchMembers": "搜索成员…",

@@ -114,3 +114,25 @@ export function shortDate(iso: string): string {
   if (d.toDateString() === yesterday.toDateString()) return i18n.t('work:shared.yesterday');
   return d.toLocaleDateString();
 }
+
+// fullDateTime — the FULL local date-time INCLUDING the timezone (owner ask:
+// the Tasks list Created/Updated columns must show an unambiguous absolute
+// instant, not the relative "Yesterday"/"14:09" of shortDate). Renders e.g.
+// "Jun 1, 2026, 2:00:00 AM GMT+8". Falls back to the raw ISO on an unparseable
+// value (mirrors shortDate). Callers keep the raw ISO on the `title` attr.
+export function fullDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  // NB: explicit component options — `dateStyle`/`timeStyle` CANNOT be combined
+  // with `timeZoneName` (spec throws "Invalid option"); we need the zone, so we
+  // list the components. Yields e.g. "Jun 1, 2026, 2:00:00 AM GMT+8".
+  return d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  });
+}
