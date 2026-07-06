@@ -453,6 +453,7 @@ func execConfigFromResumeAgent(ra ResumeAgent) (agentruntime.ExecutorConfig, boo
 		AllowedExecutors:     ra.AllowedExecutors,
 		OrchestratorModel:    ra.OrchestratorModel,
 		DefaultExecutorModel: ra.DefaultExecutorModel,
+		JudgeEnabled:         ra.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
 		// ra.Model = the agent's own (supervisor) model — the router's last-resort
 		// executor-model fallback ("use whatever the supervisor uses"). Previously dropped
 		// here, so an agent with no default/orchestrator/pool config stranded its tasks in

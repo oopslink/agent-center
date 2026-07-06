@@ -485,6 +485,7 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			"max_concurrent_tasks":   p.MaxConcurrentTasks,
 			"allowed_executors":      executorProfilesToMaps(annotateExecutorsFromCatalog(r.Context(), d.ModelCatalogRepo, a.OrganizationID(), p.AllowedExecutors)),
 			"orchestrator_model":     p.OrchestratorModel,
+			"judge_enabled":          p.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
 			"default_executor_model": p.DefaultExecutorModel,
 			"env_vars":               p.EnvVars,
 			"version":                a.Version(),

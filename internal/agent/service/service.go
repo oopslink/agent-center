@@ -144,7 +144,11 @@ type agentEventPayload struct {
 	MaxConcurrentTasks   int                     `json:"max_concurrent_tasks,omitempty"`
 	AllowedModels        []string                `json:"allowed_models,omitempty"`
 	AllowedExecutors     []agent.ExecutorProfile `json:"allowed_executors,omitempty"`
-	EnvVars              map[string]string       `json:"env_vars,omitempty"`
+	// JudgeEnabled is the per-agent LLM-judge opt-in (T950 ②), carried the SAME way as
+	// the F3 routing fields (snapshotted at the (re)start that emitted this event).
+	// ADDITIVE: absent → false → judge OFF (byte-identical routing).
+	JudgeEnabled bool              `json:"judge_enabled,omitempty"`
+	EnvVars      map[string]string `json:"env_vars,omitempty"`
 	// PromptDescription is the ALREADY-GATED description text to inject into the
 	// agent's system prompt (T728). The center collapses the per-agent switch here:
 	// it is Profile.Description when IncludeDescriptionInSystemPrompt is true, else
@@ -189,6 +193,7 @@ func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, re
 		MaxConcurrentTasks:   a.Profile().MaxConcurrentTasks,
 		AllowedModels:        a.Profile().AllowedModels,
 		AllowedExecutors:     a.Profile().AllowedExecutors,
+		JudgeEnabled:         a.Profile().JudgeEnabled, // T950 ②: per-agent judge opt-in
 		EnvVars:              a.Profile().EnvVars,
 		PromptDescription:    promptDescription(a.Profile()),
 	})

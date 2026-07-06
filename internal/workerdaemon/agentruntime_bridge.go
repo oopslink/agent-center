@@ -144,6 +144,7 @@ func execConfigOf(pl reconcilePayload) agentruntime.ExecutorConfig {
 		AllowedExecutors:     pl.AllowedExecutors,
 		OrchestratorModel:    pl.OrchestratorModel,
 		DefaultExecutorModel: pl.DefaultExecutorModel,
+		JudgeEnabled:         pl.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
 		CLI:                  pl.CLI,
 	}
 }

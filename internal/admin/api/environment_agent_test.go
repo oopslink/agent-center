@@ -758,6 +758,7 @@ func TestEnvWorkerResumeState_CarriesConcurrencyConfig(t *testing.T) {
 			CLI:                "claude-code",
 			MaxConcurrentTasks: 3,
 			AllowedExecutors:   []agent.ExecutorProfile{{CLI: "claude-code", Model: "opus-4-8"}},
+			JudgeEnabled:       true, // T950 ②: per-agent judge opt-in must reach the worker
 			EnvVars:            map[string]string{"FOO": "bar", "EMPTY": ""},
 		},
 		WorkerID: atWorker1, Lifecycle: agent.LifecycleRunning, CreatedBy: "system",
@@ -793,6 +794,10 @@ func TestEnvWorkerResumeState_CarriesConcurrencyConfig(t *testing.T) {
 	e0, _ := execs[0].(map[string]any)
 	if e0["cli"] != "claude-code" || e0["model"] != "opus-4-8" {
 		t.Fatalf("allowed_executors[0] = %v, want {claude-code, opus-4-8}", e0)
+	}
+	// T950 ②: the per-agent judge opt-in must ride the resume-state to the worker.
+	if je, _ := row["judge_enabled"].(bool); !je {
+		t.Fatalf("judge_enabled = %v, want true", row["judge_enabled"])
 	}
 	env, ok := row["env_vars"].(map[string]any)
 	if !ok || env["FOO"] != "bar" || env["EMPTY"] != "" {
