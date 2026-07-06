@@ -186,6 +186,12 @@ type LocalRuntime struct {
 	// heartbeat cadence does not re-walk the skill tree every few seconds. Guarded by r.mu.
 	lastSkillFingerprint string
 	lastSkillScanAt      time.Time
+
+	// pending is the durable option-b judgment store (issue-68ccb310): executor results
+	// awaiting the supervisor's judged completion. nil ⇒ the reconcile is disabled
+	// (degraded/test). nextPendingReconcileAt rate-limits the per-Tick reconcile sweep.
+	pending                *pendingStore
+	nextPendingReconcileAt time.Time
 }
 
 // SetAgentRef seeds the agent's stable identity-member ref (from ResumeState at Boot).
@@ -259,27 +265,46 @@ var _ Runtime = (*LocalRuntime)(nil)
 
 // NewLocalRuntime builds a LocalRuntime over the shared state pointer.
 func NewLocalRuntime(cfg LocalRuntimeConfig, state *SessionState) *LocalRuntime {
-	return &LocalRuntime{cfg: cfg, state: state}
+	r := &LocalRuntime{cfg: cfg, state: state}
+	// option b (issue-68ccb310): load the durable pending-judgment store from the agent
+	// home so a relaunch re-drives dropped judgments (boot recovery). nil when the home
+	// isn't resolvable (single-claude/test path) ⇒ the reconcile is disabled.
+	if strings.TrimSpace(cfg.AgentHomeBase) != "" && strings.TrimSpace(cfg.AgentID) != "" {
+		r.pending = newPendingStore(filepath.Join(cfg.AgentHomeBase, "agents", cfg.AgentID, "pending_judgments.json"))
+	}
+	return r
 }
 
 // State returns the shared SessionState (the daemon's managedAgent points at the
 // SAME instance).
 func (r *LocalRuntime) State() *SessionState { return r.state }
 
-// injectToSupervisor delivers text to this agent's supervisor session as a turn —
-// the option-b judgment-delivery seam (issue-68ccb310): a finished executor's result
-// is handed to the supervisor, which reviews REAL delivery and calls
-// complete_task/block_task itself. Guards r.state access under r.mu; a nil session
-// (no supervisor / mid-restart) errors so the writeback surfaces "cannot judge"
-// rather than silently auto-completing.
-func (r *LocalRuntime) injectToSupervisor(ctx context.Context, text string) error {
+// injectSession delivers text to this agent's supervisor session as a turn (option b,
+// issue-68ccb310). Guards r.state under r.mu; a nil session (no supervisor / mid-
+// restart) errors so the writeback surfaces "cannot judge" rather than auto-completing.
+// injectToSupervisor wraps this to ALSO record a pending judgment; the reconcile uses
+// injectSession directly for nudges (which must NOT reset the pending clock).
+func (r *LocalRuntime) injectSession(ctx context.Context, text string) error {
 	r.mu.Lock()
 	sess := r.state.Session
 	r.mu.Unlock()
 	if sess == nil {
-		return fmt.Errorf("agentruntime: no supervisor session to inject executor judgment (agent %s)", r.cfg.AgentID)
+		return fmt.Errorf("agentruntime: no supervisor session to inject (agent %s)", r.cfg.AgentID)
 	}
 	return sess.Inject(ctx, text)
+}
+
+// injectToSupervisor is the writeback's option-b seam: deliver a judgment prompt AND
+// record the pending judgment so the reconcile re-drives it if the supervisor drops
+// it. Recorded (keyed by taskRef) only after a successful inject.
+func (r *LocalRuntime) injectToSupervisor(ctx context.Context, taskRef, text string) error {
+	if err := r.injectSession(ctx, text); err != nil {
+		return err
+	}
+	if r.pending != nil && strings.TrimSpace(taskRef) != "" {
+		r.pending.record(taskRef, text, r.now())
+	}
+	return nil
 }
 
 // AgentID reports the agent this runtime serves.
@@ -755,6 +780,10 @@ func (r *LocalRuntime) Tick(ctx context.Context, now time.Time) error {
 	// issue-4a45e9cc: HEARTBEAT installed-skill re-report — rate-limited scan, POSTs only
 	// when the fingerprint changed since the last report ("变了才重报").
 	r.reportInstalledSkillsIfChanged(ctx, now, false)
+	// issue-68ccb310 (option b): low-frequency heartbeat reconcile — re-drive any executor
+	// judgment the supervisor dropped (or lost across a crash/restart) so no finished
+	// executor strands its task. STRICT: never writes task status from Go. Rate-limited.
+	r.reconcilePendingJudgments(ctx, now)
 	return nil
 }
 

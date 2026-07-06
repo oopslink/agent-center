@@ -77,7 +77,7 @@ func newWB(t *testing.T, fc *fakeCenter, in executor.Input) (*CenterWriteback, *
 	}
 	// option b: wire a capturing supervisor injector so Report delivers a judgment
 	// prompt instead of auto-completing.
-	wb.WithSupervisorInjector(func(_ context.Context, text string) error {
+	wb.WithSupervisorInjector(func(_ context.Context, _, text string) error {
 		fc.mu.Lock()
 		defer fc.mu.Unlock()
 		fc.injections = append(fc.injections, text)
@@ -521,7 +521,7 @@ func TestReport_SoleWriterSerializes(t *testing.T) {
 	layout, _ := executor.NewLayout(t.TempDir())
 	fx, _ := executor.NewFileExchange(layout, clock.NewFakeClock(wbNow))
 	wb, _ := NewCenterWriteback(fc, fx, "agent-x")
-	wb.WithSupervisorInjector(func(_ context.Context, text string) error {
+	wb.WithSupervisorInjector(func(_ context.Context, _, text string) error {
 		fc.mu.Lock()
 		defer fc.mu.Unlock()
 		fc.injections = append(fc.injections, text)

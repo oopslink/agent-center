@@ -1,7 +1,9 @@
 package agentruntime
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -164,4 +166,88 @@ func loadPendingFile(path string) map[string]pendingJudgment {
 		m = map[string]pendingJudgment{}
 	}
 	return m
+}
+
+// reconcile tuning (option b). Deliberately low-frequency + generous grace: the
+// supervisor is usually just busy, not dropped, so give it room before nudging.
+const (
+	pendingReconcileEvery = 30 * time.Second // rate-limit the reconcile sweep
+	pendingNudgeInterval  = 2 * time.Minute  // min gap before each (re-)nudge
+	pendingMaxNudges      = 3                // final escalation after this many nudges
+)
+
+// reconcilePendingJudgments is the option-b heartbeat backstop (issue-68ccb310), run
+// from Tick (rate-limited). For each pending judgment it cross-checks the center's
+// in-flight task set:
+//   - task no longer in the RUNNING set (completed, or blocked so it left running) →
+//     the supervisor judged it → drop.
+//   - still running, grace elapsed, under budget → re-inject the judgment (nudge).
+//   - budget exhausted → ONE final "resolve or block_task(input_required)" nudge + a
+//     WARN log, then mark escalated (kept for boot-recovery, no more nudges).
+//
+// STRICT (issue-68ccb310): this NEVER writes task status from Go — it only DRIVES the
+// supervisor (nudge) or surfaces to a human (escalation nudge + log). A center read
+// error is transient: skip this sweep (never assume terminal on a failed read).
+func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.Time) {
+	if r.pending == nil || r.pending.len() == 0 {
+		return
+	}
+	if now.Before(r.nextPendingReconcileAt) {
+		return
+	}
+	r.nextPendingReconcileAt = now.Add(pendingReconcileEvery)
+
+	lister := NewInflightTaskLister(r.toolCaller())
+	if lister == nil {
+		return
+	}
+	tasks, err := lister.ListMyInflightTasks(ctx, r.cfg.AgentID)
+	if err != nil {
+		r.log("agent=%s pending-reconcile list_my_inflight_tasks: %v", r.cfg.AgentID, err)
+		return
+	}
+	running := make(map[string]bool, len(tasks))
+	for _, t := range tasks {
+		if t.Status == "running" {
+			running[t.TaskID] = true
+		}
+	}
+
+	for _, p := range r.pending.snapshot() {
+		if !running[p.TaskRef] {
+			r.pending.drop(p.TaskRef) // supervisor judged it (completed / blocked)
+			continue
+		}
+		if p.Escalated {
+			continue // already escalated — kept for boot-recovery, no more nudges
+		}
+		if now.Sub(p.InjectedAt) < time.Duration(p.NudgeCount+1)*pendingNudgeInterval {
+			continue // give the supervisor time before the next (re-)nudge
+		}
+		if p.NudgeCount >= pendingMaxNudges {
+			r.log("WARN agent=%s task=%s: executor finished but supervisor has not judged after %d nudges — escalating", r.cfg.AgentID, p.TaskRef, p.NudgeCount)
+			_ = r.injectSession(ctx, escalationPrompt(p.TaskRef)) // best-effort; never writes status
+			r.pending.markEscalated(p.TaskRef)
+			continue
+		}
+		if err := r.injectSession(ctx, p.Prompt); err != nil {
+			// Session down (mid-restart/crash) — self-heal relaunches it; retry next Tick.
+			r.log("agent=%s task=%s pending-nudge inject: %v", r.cfg.AgentID, p.TaskRef, err)
+			continue
+		}
+		r.pending.bumpNudge(p.TaskRef)
+	}
+}
+
+// escalationPrompt is the FINAL nudge after the nudge budget is exhausted: it tells
+// the supervisor to resolve the task or surface it to a human via
+// block_task(input_required). Go never writes the status itself.
+func escalationPrompt(taskRef string) string {
+	return fmt.Sprintf(
+		"[reminder] You still have NOT judged the finished executor for task %s after several nudges. "+
+			"Resolve it NOW: call complete_task(task_id=%q) if it delivered, or "+
+			"block_task(task_id=%q, reason=\"executor finished but delivery could not be judged — needs attention\", "+
+			"reason_type=\"input_required\") to surface it to a human. Do not leave it pending.",
+		taskRef, taskRef, taskRef,
+	)
 }

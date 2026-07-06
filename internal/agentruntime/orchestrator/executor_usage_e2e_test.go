@@ -129,7 +129,7 @@ func TestE2E_ForkedExecutorUsageReportedWithTaskID(t *testing.T) {
 	wb.WithUsageReporter(fu)
 	// option b: wire a capturing supervisor injector so Report delivers a judgment
 	// instead of erroring (no auto-complete).
-	wb.WithSupervisorInjector(func(_ context.Context, text string) error {
+	wb.WithSupervisorInjector(func(_ context.Context, _, text string) error {
 		fc.mu.Lock()
 		defer fc.mu.Unlock()
 		fc.injections = append(fc.injections, text)

@@ -109,7 +109,7 @@ type CenterWriteback struct {
 	// (CompleteTask/BlockTask on exit outcome) — the "binding" + "complete without
 	// delivering" root cause. nil ⇒ no supervisor to judge (single-claude/degraded);
 	// the task path then errors rather than silently auto-completing.
-	inject func(ctx context.Context, text string) error
+	inject func(ctx context.Context, taskRef, text string) error
 	mu     sync.Mutex
 }
 
@@ -144,7 +144,7 @@ func (w *CenterWriteback) WithUsageReporter(u UsageReporter) *CenterWriteback {
 // executor's REAL delivery and calls complete_task/block_task itself, instead of the
 // daemon auto-completing on exit outcome. Always wired in production (a concurrent
 // agent that forks executors has a supervisor); nil only on the degraded/test path.
-func (w *CenterWriteback) WithSupervisorInjector(fn func(ctx context.Context, text string) error) *CenterWriteback {
+func (w *CenterWriteback) WithSupervisorInjector(fn func(ctx context.Context, taskRef, text string) error) *CenterWriteback {
 	w.inject = fn
 	return w
 }
@@ -233,7 +233,7 @@ func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome,
 	if w.inject == nil {
 		return fmt.Errorf("orchestrator: writeback no supervisor injector for task %s (cannot judge — refusing to auto-complete)", taskRef)
 	}
-	if err := w.inject(ctx, judgmentPrompt(taskRef, outcome, summary)); err != nil {
+	if err := w.inject(ctx, taskRef, judgmentPrompt(taskRef, outcome, summary)); err != nil {
 		return fmt.Errorf("orchestrator: writeback inject judgment for task %s: %w", taskRef, err)
 	}
 	return nil
