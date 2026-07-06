@@ -71,25 +71,37 @@ func TestNormalizeInstalledSkills_ShadowRecompute(t *testing.T) {
 }
 
 func TestNormalizeInstalledSkills_SameLayerDup(t *testing.T) {
-	// two "dup" in the SAME layer: first-seen effective, the rest shadowed.
+	// SAME-layer same-name (case-insensitive) COLLAPSES to the FIRST seen — one
+	// effective skill per name per layer (issue-4a45e9cc real-machine blocker: two
+	// same-layer copies minted the same store id → UNIQUE constraint → whole report
+	// rejected → panel empty). Cross-layer dups are handled separately (shadowed).
 	in := []InstalledSkill{
 		{Layer: SkillLayerUser, Name: "dup", Description: "first"},
-		{Layer: SkillLayerUser, Name: "dup", Description: "second"},
+		{Layer: SkillLayerUser, Name: "DUP", Description: "second"}, // case-insensitive dup
+		{Layer: SkillLayerUser, Name: "solo", Description: "kept"},
 	}
 	got, err := NormalizeInstalledSkills(in)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 2 {
-		t.Fatalf("want 2, got %d", len(got))
+		t.Fatalf("same-layer dup must collapse to one: want 2 (dup+solo), got %d: %+v", len(got), got)
 	}
-	effective := 0
+	byName := map[string]InstalledSkill{}
 	for _, s := range got {
-		if !s.Shadowed {
-			effective++
+		if _, seen := byName[s.Name]; seen {
+			t.Fatalf("name %q appears twice in the same layer — not collapsed: %+v", s.Name, got)
 		}
+		byName[s.Name] = s
 	}
-	if effective != 1 {
-		t.Fatalf("exactly one effective copy expected, got %d", effective)
+	dup, ok := byName["dup"]
+	if !ok {
+		t.Fatalf("first-seen 'dup' must survive: %+v", got)
+	}
+	if dup.Description != "first" {
+		t.Fatalf("keep-first: want description %q, got %q", "first", dup.Description)
+	}
+	if dup.Shadowed {
+		t.Fatalf("the single surviving same-layer skill must not be shadowed: %+v", dup)
 	}
 }

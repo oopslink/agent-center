@@ -78,15 +78,22 @@ var ErrInvalidSkillLayer = errors.New("agent: invalid skill layer (want built-in
 // unknown layer, and RECOMPUTES the shadowed flag from layer precedence so the stored
 // truth is internally consistent regardless of what the reporter set (defense in
 // depth — the runtime already computes it, but the center is the system of record).
-// Within a single name, the highest-ranked layer is effective and every other copy is
-// shadowed; ties inside the same layer keep the first seen and shadow the rest. The
-// result is sorted by layer rank (built-in→project) then name for a stable read order.
-// A nil/empty input returns nil.
+// SAME-LAYER duplicate names COLLAPSE to the first seen (issue-4a45e9cc real-machine
+// blocker): the store keys a row by (agent_ref, layer, name) and Claude Code resolves
+// only ONE skill per name within a layer, so two same-layer copies of a name (a
+// multi-plugin / multi-version install of e.g. skill-creator or frontend-design) are
+// the SAME effective skill — keep one, drop the rest. Without this collapse the two
+// copies mint the SAME store id and the whole report is rejected (UNIQUE constraint on
+// agent_installed_skills.id) → the agent's panel stays empty. CROSS-layer duplicates
+// are KEPT and expressed via the shadowed flag (highest-ranked layer effective, lower
+// copies shadowed). The result is sorted by layer rank (built-in→project) then name for
+// a stable read order. A nil/empty input returns nil.
 func NormalizeInstalledSkills(in []InstalledSkill) ([]InstalledSkill, error) {
 	if len(in) == 0 {
 		return nil, nil
 	}
 	out := make([]InstalledSkill, 0, len(in))
+	seenInLayer := make(map[string]struct{}, len(in))
 	for _, s := range in {
 		s.Name = strings.TrimSpace(s.Name)
 		s.Description = strings.TrimSpace(s.Description)
@@ -96,27 +103,30 @@ func NormalizeInstalledSkills(in []InstalledSkill) ([]InstalledSkill, error) {
 		if !s.Layer.IsValid() {
 			return nil, ErrInvalidSkillLayer
 		}
+		// Collapse same-layer same-name to the first seen (one effective skill per name
+		// per layer). Case-insensitive on name, matching the store id + shadow keys.
+		lk := string(s.Layer) + "\x1f" + strings.ToLower(s.Name)
+		if _, dup := seenInLayer[lk]; dup {
+			continue
+		}
+		seenInLayer[lk] = struct{}{}
 		out = append(out, s)
 	}
 	if len(out) == 0 {
 		return nil, nil
 	}
-	// Determine the winning (highest-rank, first-seen) copy per name.
-	type winner struct {
-		rank int
-		idx  int
-	}
-	best := make(map[string]winner, len(out))
-	for i, s := range out {
+	// Cross-layer shadowing: for each name the highest-ranked layer is effective; every
+	// lower-layer copy is shadowed. After the same-layer collapse there is at most one
+	// copy per (layer, name), so a name appears at most once per layer.
+	bestRank := make(map[string]int, len(out))
+	for _, s := range out {
 		key := strings.ToLower(s.Name)
-		w, ok := best[key]
-		if !ok || s.Layer.Rank() > w.rank {
-			best[key] = winner{rank: s.Layer.Rank(), idx: i}
+		if r, ok := bestRank[key]; !ok || s.Layer.Rank() > r {
+			bestRank[key] = s.Layer.Rank()
 		}
 	}
 	for i := range out {
-		key := strings.ToLower(out[i].Name)
-		out[i].Shadowed = best[key].idx != i
+		out[i].Shadowed = out[i].Layer.Rank() < bestRank[strings.ToLower(out[i].Name)]
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if ri, rj := out[i].Layer.Rank(), out[j].Layer.Rank(); ri != rj {

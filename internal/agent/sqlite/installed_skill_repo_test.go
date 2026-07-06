@@ -102,3 +102,54 @@ func TestInstalledSkillRepo_PerAgentIsolation(t *testing.T) {
 		t.Fatalf("A2 rows must survive A1 replace, got %+v", got)
 	}
 }
+
+// TestInstalledSkillRepo_SameLayerDupReport_NormalizesAndPersists is the
+// issue-4a45e9cc real-machine BLOCKER regression (tester1 A/B: case B returned 500).
+// A report with SAME-LAYER duplicate names (a multi-plugin / multi-version install of
+// e.g. skill-creator) must, after NormalizeInstalledSkills, persist WITHOUT the
+// "UNIQUE constraint failed: agent_installed_skills.id" error — the two copies would
+// otherwise mint the SAME store id (agent_ref\x1flayer\x1fname) and roll back the whole
+// report. Post-fix the normalizer collapses same-layer dups to one row per name, so
+// ReplaceForAgent succeeds. This crosses the normalize↔store seam that each side's own
+// unit test missed (normalize kept both dups; the store required id uniqueness).
+func TestInstalledSkillRepo_SameLayerDupReport_NormalizesAndPersists(t *testing.T) {
+	db := newSkillDB(t)
+	r := NewInstalledSkillRepo(db)
+	ctx := context.Background()
+	at := time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC)
+
+	// A real ~/.claude-shaped report: two plugin-layer copies of "skill-creator" (two
+	// installs) + a distinct plugin skill + a user skill.
+	report := []agent.InstalledSkill{
+		{AgentRef: "A1", Layer: agent.SkillLayerPlugin, Name: "skill-creator", Description: "install-a", CollectedAt: at},
+		{AgentRef: "A1", Layer: agent.SkillLayerPlugin, Name: "skill-creator", Description: "install-b", CollectedAt: at},
+		{AgentRef: "A1", Layer: agent.SkillLayerPlugin, Name: "brainstorming", Description: "bs", CollectedAt: at},
+		{AgentRef: "A1", Layer: agent.SkillLayerUser, Name: "slack", Description: "user slack", CollectedAt: at},
+	}
+	norm, err := agent.NormalizeInstalledSkills(report)
+	if err != nil {
+		t.Fatalf("normalize: %v", err)
+	}
+	if len(norm) != 3 {
+		t.Fatalf("normalize should collapse the same-layer dup to one: want 3 (skill-creator+brainstorming+slack), got %d: %+v", len(norm), norm)
+	}
+	// The store id is agent_ref\x1flayer\x1fname; pre-fix the two "skill-creator" plugin
+	// rows collided here → this ReplaceForAgent returned the UNIQUE 500 and stored 0 rows.
+	if err := r.ReplaceForAgent(ctx, "A1", norm); err != nil {
+		t.Fatalf("same-layer-dup report must persist after normalize (blocker regression): %v", err)
+	}
+	got, err := r.ListByAgent(ctx, "A1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("want 3 persisted rows, got %d: %+v", len(got), got)
+	}
+	perName := map[string]int{}
+	for _, s := range got {
+		perName[string(s.Layer)+"/"+s.Name]++
+	}
+	if perName["plugin/skill-creator"] != 1 {
+		t.Fatalf("skill-creator must persist exactly once in the plugin layer, got %d: %+v", perName["plugin/skill-creator"], got)
+	}
+}
