@@ -121,6 +121,8 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
 		// repo the admin agent-tools use (list_templates / get_template).
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
+		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
+		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -536,6 +538,8 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		// Template CRUD — org-scoped webconsole surface backed by the same sqlite
 		// repo the admin agent-tools use (list_templates / get_template).
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
+		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
+		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),

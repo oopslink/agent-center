@@ -72,6 +72,7 @@ function TopLevelWorkspaceNav({ orgBase }: { orgBase: string }): React.ReactElem
     // the default → the page was sidebar-orphaned. Restored here.
     { to: `${orgBase}/repos`, label: t('shell.workspace.repos'), Icon: ReposIcon },
     { to: `${orgBase}/templates`, label: t('shell.workspace.templates'), Icon: TemplatesIcon },
+    { to: `${orgBase}/model-catalog`, label: t('shell.workspace.modelCatalog'), Icon: TemplatesIcon },
     // T207: Reminders moved OUT to a top-level module (peer of Members) — see
     // buildModules() in AppLayout. It is no longer a Workspace col② item.
   ];

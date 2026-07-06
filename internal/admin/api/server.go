@@ -503,6 +503,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/create_template", s.createTemplateHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/update_template", s.updateTemplateHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/delete_template", s.deleteTemplateHandler)
+	// model catalog (issue-93dd8daa ①): org-level user-managed model catalog CRUD + import.
+	s.mux.HandleFunc("POST /admin/agent-tools/list_model_catalog_entry", s.listModelCatalogHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/create_model_catalog_entry", s.createModelCatalogHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/update_model_catalog_entry", s.updateModelCatalogHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/delete_model_catalog_entry", s.deleteModelCatalogHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/import_model_catalog", s.importModelCatalogHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/upload_file", s.uploadFileHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/attach_file", s.attachFileHandler)
 	s.mux.HandleFunc("PUT /admin/files/transfer/{transfer_id}", s.putAgentBlobHandler)

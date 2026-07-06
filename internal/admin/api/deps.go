@@ -165,6 +165,10 @@ type HandlerDeps struct {
 	// TemplateRepo backs the list_templates / get_template agent tools.
 	// nil when not wired (handlers return templates_not_wired 501).
 	TemplateRepo projectmanager.TemplateRepository
+	// ModelCatalogRepo backs the *_model_catalog_entry / import_model_catalog agent
+	// tools (issue-93dd8daa ①). nil when not wired (handlers return
+	// model_catalog_not_wired 501).
+	ModelCatalogRepo projectmanager.ModelCatalogRepository
 	// PMProjectRepo is the new-model (pm) project repo backing the
 	// operator/admin-token project find-* read endpoints. v2.7 #131 PR-3:
 	// repointed off the retired workforce.Project model. Operator-scoped —

@@ -34,6 +34,7 @@ const OrgPlans = lazy(() => import('./pages/OrgPlans'));
 // T575 (issue-f980c8de): workspace-level code-repo registry (Workspace > Repos).
 const OrgRepos = lazy(() => import('./pages/OrgRepos'));
 const OrgTemplates = lazy(() => import('./pages/OrgTemplates'));
+const OrgModelCatalog = lazy(() => import('./pages/OrgModelCatalog'));
 const Reminders = lazy(() => import('./pages/Reminders'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
@@ -98,6 +99,8 @@ export function App(): React.ReactElement {
               registry (CRUD + credentials + remote viewing). */}
           <Route path="repos" element={<OrgRepos />} />
           <Route path="templates" element={<OrgTemplates />} />
+          {/* issue-93dd8daa ①: org model catalog (Workspace > Model catalog). */}
+          <Route path="model-catalog" element={<OrgModelCatalog />} />
           {/* T207 [提醒-3]: Reminder management (Cognition BC). */}
           <Route path="reminders" element={<Reminders />} />
           <Route path="secrets" element={<Secrets />} />

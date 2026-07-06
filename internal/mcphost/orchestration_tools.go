@@ -417,3 +417,69 @@ func makeDeleteTemplate(cfg Config) mcp.ToolHandlerFor[deleteTemplateArgs, any] 
 		return callAdmin(ctx, cfg, "delete_template", body)
 	}
 }
+
+// --- model catalog tools (issue-93dd8daa ①) ----------------------------------
+
+type listModelCatalogArgs struct{}
+
+func makeListModelCatalog(cfg Config) mcp.ToolHandlerFor[listModelCatalogArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args listModelCatalogArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "list_model_catalog_entry", map[string]any{"agent_id": cfg.AgentID})
+	}
+}
+
+type modelCatalogFieldsArgs struct {
+	ModelID       string  `json:"model_id" jsonschema:"The provider model id (unique within the org), e.g. claude-opus-4-8"`
+	DisplayName   string  `json:"display_name" jsonschema:"Human-readable name (defaults to model_id when empty)"`
+	InputCost     float64 `json:"input_cost" jsonschema:"Per-MTok input price (>= 0)"`
+	OutputCost    float64 `json:"output_cost" jsonschema:"Per-MTok output price (>= 0)"`
+	ContextWindow int     `json:"context_window" jsonschema:"Max context window in tokens (>= 0)"`
+	Tier          string  `json:"tier" jsonschema:"Free-text capability/fit description the difficulty judge matches against"`
+}
+
+func (a modelCatalogFieldsArgs) body(cfg Config) map[string]any {
+	return map[string]any{
+		"agent_id": cfg.AgentID, "model_id": a.ModelID, "display_name": a.DisplayName,
+		"input_cost": a.InputCost, "output_cost": a.OutputCost, "context_window": a.ContextWindow, "tier": a.Tier,
+	}
+}
+
+func makeCreateModelCatalog(cfg Config) mcp.ToolHandlerFor[modelCatalogFieldsArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args modelCatalogFieldsArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "create_model_catalog_entry", args.body(cfg))
+	}
+}
+
+type updateModelCatalogArgs struct {
+	ID string `json:"id" jsonschema:"The catalog entry id to update"`
+	modelCatalogFieldsArgs
+}
+
+func makeUpdateModelCatalog(cfg Config) mcp.ToolHandlerFor[updateModelCatalogArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args updateModelCatalogArgs) (*mcp.CallToolResult, any, error) {
+		body := args.modelCatalogFieldsArgs.body(cfg)
+		body["id"] = args.ID
+		return callAdmin(ctx, cfg, "update_model_catalog_entry", body)
+	}
+}
+
+type deleteModelCatalogArgs struct {
+	ID string `json:"id" jsonschema:"The catalog entry id to delete"`
+}
+
+func makeDeleteModelCatalog(cfg Config) mcp.ToolHandlerFor[deleteModelCatalogArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args deleteModelCatalogArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "delete_model_catalog_entry", map[string]any{"agent_id": cfg.AgentID, "id": args.ID})
+	}
+}
+
+type importModelCatalogArgs struct {
+	JSON string `json:"json" jsonschema:"A JSON array of catalog entries [{model_id, display_name, input_cost, output_cost, context_window, tier}]. Validation failure (bad schema, duplicate model_id, negative cost) rejects the WHOLE batch."`
+	Mode string `json:"mode" jsonschema:"upsert (default: insert-or-update by model_id) or replace (swap the whole org catalog)"`
+}
+
+func makeImportModelCatalog(cfg Config) mcp.ToolHandlerFor[importModelCatalogArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args importModelCatalogArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "import_model_catalog", map[string]any{"agent_id": cfg.AgentID, "json": args.JSON, "mode": args.Mode})
+	}
+}

@@ -294,6 +294,8 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// no "test green but prod 501" gap. Parallels webconsole_wiring.go's
 		// TemplateRepo line; builtin rows are seeded at boot in NewApp.
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
+		// issue-93dd8daa ①: org model catalog repo backing the *_model_catalog_entry tools.
+		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
 		// v2.18.4 BE-2 (issue-f980c8de) — workspace CodeRepo svc backing the agent
 		// repo-info MCP tools (list_project_repos / get_repo_info live).
 		CodeRepoSvc: a.CodeRepoService,
