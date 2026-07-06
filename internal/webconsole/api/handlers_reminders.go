@@ -124,7 +124,8 @@ func writeRemErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, reminder.ErrReminderTerminal):
 		writeError(w, http.StatusConflict, "reminder_terminal", err.Error())
 	case errors.Is(err, reminder.ErrInvalidSchedule), errors.Is(err, reminder.ErrInvalidEndCondition),
-		errors.Is(err, reminder.ErrReminderContentEmpty), errors.Is(err, reminder.ErrReminderRemindeeEmpty):
+		errors.Is(err, reminder.ErrReminderContentEmpty), errors.Is(err, reminder.ErrReminderRemindeeEmpty),
+		errors.Is(err, reminder.ErrRemindeeNotInProject):
 		writeError(w, http.StatusBadRequest, "invalid_reminder", err.Error())
 	default:
 		mapDomainError(w, err)

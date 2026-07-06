@@ -2,10 +2,12 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/cognition/reminder"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
@@ -196,6 +198,21 @@ func TestResolveReminderContext_CrossProjectStillRejected(t *testing.T) {
 	}
 	if rc.CreatorProjectID != "" {
 		t.Fatalf("cross-project: CreatorProjectID must stay empty so the aggregate rejects, got %q", rc.CreatorProjectID)
+	}
+}
+
+// TestResolveReminderContext_RemindeeNotInProject pins the [minor] fix: when the
+// remindee is a member of NO project in the org, ResolveReminderContext returns the
+// typed reminder.ErrRemindeeNotInProject sentinel (not a bare error) so the HTTP
+// boundary maps it to a 400 invalid_reminder instead of a 500 "internal".
+func TestResolveReminderContext_RemindeeNotInProject(t *testing.T) {
+	svc, ctx := newPMService(t, fakeAgentDir{"CREATOR": "org-1", "GHOST": "org-1"})
+	_ = memberProject(t, svc, ctx, "org-1", "P-creator", "CREATOR") // creator has a project; remindee GHOST is in none
+
+	dir := &reminderDirectory{pmSvc: svc}
+	_, err := dir.ResolveReminderContext(ctx, "org-1", "agent:CREATOR", "GHOST")
+	if !errors.Is(err, reminder.ErrRemindeeNotInProject) {
+		t.Fatalf("want ErrRemindeeNotInProject sentinel (→400), got %v", err)
 	}
 }
 

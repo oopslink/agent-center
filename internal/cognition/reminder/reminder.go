@@ -26,6 +26,7 @@ var (
 	ErrReminderContentEmpty  = errors.New("cognition: reminder content required")
 	ErrReminderRemindeeEmpty = errors.New("cognition: reminder remindee required")
 	ErrInvalidOnEvent        = errors.New("cognition: invalid on_event trigger")
+	ErrRemindeeNotInProject  = errors.New("cognition: remindee is not a member of any project in this org")
 )
 
 // cronParser parses the standard 5-field cron expression (minute hour dom month

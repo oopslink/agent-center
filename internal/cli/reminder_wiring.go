@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/cognition/reminder"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	remindersqlite "github.com/oopslink/agent-center/internal/cognition/reminder/sqlite"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -86,7 +87,7 @@ func (d *reminderDirectory) ResolveReminderContext(ctx context.Context, orgID, c
 		}
 	}
 	if remindeeProject == "" {
-		return cogservice.ReminderContext{}, errors.New("cognition: remindee is not a member of any project in this org")
+		return cogservice.ReminderContext{}, reminder.ErrRemindeeNotInProject
 	}
 	// remindee found but the agent creator shares no project → let the aggregate
 	// reject with ErrCrossProjectReminder (CreatorProjectID left empty ≠ ProjectID).
