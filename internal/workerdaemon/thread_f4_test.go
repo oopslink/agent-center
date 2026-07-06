@@ -1,8 +1,9 @@
 package workerdaemon
 
-import "strings"
-
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // F4: when the triggering mention is INSIDE a thread (RootMessageID set), the
 // converse brief must tell the agent to reply in-thread by passing

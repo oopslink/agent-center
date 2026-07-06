@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
+	"github.com/oopslink/agent-center/internal/concurrency"
 )
 
 func TestFirstNonEmptyLine(t *testing.T) {

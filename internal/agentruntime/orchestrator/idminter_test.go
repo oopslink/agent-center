@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
+	"github.com/oopslink/agent-center/internal/clock"
 )
 
 func TestULIDMinter_PathSafeAndUnique(t *testing.T) {

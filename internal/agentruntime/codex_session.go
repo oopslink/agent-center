@@ -16,14 +16,14 @@
 // process exiting at end-of-turn does NOT end the session (it stays ready for the
 // next Inject). OnExit fires only on Stop / Detach / a fatal spawn failure.
 //
-// It satisfies the same agentSession control surface (Inject / Stop / Detach) the
+// It satisfies the same Session control surface (Inject / Stop / Detach) the
 // AgentController needs, and emits the SAME claudestream.StreamEvent type the
 // controller's onEvent consumes — so it is drop-in for a future cli-aware
 // sessionStarter (see IMPLEMENTATION_PLAN.md Stage 3). It is NOT yet wired into
 // the controller (agent.cli is not plumbed to the worker today), so this file is
 // exercised by unit tests + the env-gated real-codex integration test, not by a
 // production path.
-package workerdaemon
+package agentruntime
 
 import (
 	"bufio"
@@ -342,10 +342,10 @@ type CodexSession struct {
 	done     chan struct{}
 }
 
-// compile-time: CodexSession satisfies the controller's agentSession contract,
+// compile-time: CodexSession satisfies the controller's Session contract,
 // so a future cli-aware sessionStarter can return it interchangeably with the
 // claude-owning SupervisorSession.
-var _ agentSession = (*CodexSession)(nil)
+var _ Session = (*CodexSession)(nil)
 
 // StartCodexSession starts the run-loop and returns an immediately-usable
 // session. It does not spawn codex until the first Inject.

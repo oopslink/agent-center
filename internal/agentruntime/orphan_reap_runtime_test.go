@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/reporepo"
+	"github.com/oopslink/agent-center/internal/clock"
 )
 
 func gitOK() bool { _, err := exec.LookPath("git"); return err == nil }

@@ -20,12 +20,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/claudestream"
-	"github.com/oopslink/agent-center/internal/mcphost"
-	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/agentruntime/reporepo"
 	"github.com/oopslink/agent-center/internal/agentruntime/sessioninstance"
 	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
+	"github.com/oopslink/agent-center/internal/claudestream"
+	"github.com/oopslink/agent-center/internal/mcphost"
+	"github.com/oopslink/agent-center/internal/supervisormanager"
 )
 
 // Shared constants moved down with the session面 (workerdaemon aliases them back).

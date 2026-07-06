@@ -33,8 +33,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
+	"github.com/oopslink/agent-center/internal/clock"
 )
 
 // Sentinel errors (wrapped with repo_key context; match with errors.Is). None of
@@ -413,7 +413,7 @@ func execIDFromWorkspacePath(p string) string {
 	if filepath.Base(p) != "workspace" {
 		return ""
 	}
-	idDir := filepath.Dir(p)                  // .../executors/<id>
+	idDir := filepath.Dir(p) // .../executors/<id>
 	if filepath.Base(filepath.Dir(idDir)) != "executors" {
 		return ""
 	}

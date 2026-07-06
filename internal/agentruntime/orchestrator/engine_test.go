@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/modelrouter"
+	"github.com/oopslink/agent-center/internal/clock"
 )
 
 // fakeIDMinter hands out deterministic, path-safe ids.
@@ -39,7 +39,7 @@ func (m *fakeIDMinter) NewProblemID() string {
 // model instead). cli labels which builder ran (so cli-dispatch tests can tell which
 // runner the engine selected).
 type fakeRunner struct {
-	cli                              string
+	cli                             string
 	lastModel, lastPrompt, lastSess string
 }
 

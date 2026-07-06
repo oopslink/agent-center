@@ -17,7 +17,7 @@
 // Testability: the process is reached only through the procLauncher /
 // sessionProc seam, so unit tests inject a fake that records stdin + emits
 // canned stdout lines — no real claude binary required.
-package workerdaemon
+package agentruntime
 
 import (
 	"bufio"
@@ -309,7 +309,6 @@ func StartClaudeSession(ctx context.Context, cfg ClaudeSessionConfig) (*ClaudeSe
 
 // mcpConfigFileName is the file the session writes the --mcp-config document
 // to under HomeDir.
-const mcpConfigFileName = "mcp_config.runtime.json"
 
 // writeMCPConfig writes the config bytes under homeDir and returns the path.
 // Returns ("", nil) when there is nothing to write.

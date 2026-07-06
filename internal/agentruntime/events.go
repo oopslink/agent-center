@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/agentruntime/sessioninstance"
+	"github.com/oopslink/agent-center/internal/claudestream"
 )
 
 // onEvent maps a parsed StreamEvent to a ReportAgentActivity call + the local

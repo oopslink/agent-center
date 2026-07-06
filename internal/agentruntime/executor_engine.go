@@ -17,11 +17,11 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
-	"github.com/oopslink/agent-center/internal/clock"
-	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/modelrouter"
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
+	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/concurrency"
 )
 
 // ExecutorEngine bundles the per-agent W1 wiring: the orchestration Engine (the

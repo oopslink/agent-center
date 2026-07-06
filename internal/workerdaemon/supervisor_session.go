@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agentruntime"
 	"github.com/oopslink/agent-center/internal/agentsupervisor"
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
@@ -367,12 +368,12 @@ func (s *SupervisorSession) tryReconnect() bool {
 
 // Inject sends msg over the socket; the supervisor wraps it as a stream-json user
 // line and writes it to claude's held-open stdin. Concurrency-safe. Returns
-// ErrSessionClosed once Stop/Detach has begun.
+// agentruntime.ErrSessionClosed once Stop/Detach has begun.
 func (s *SupervisorSession) Inject(ctx context.Context, msg string) error {
 	s.mu.Lock()
 	if s.closed || s.client == nil {
 		s.mu.Unlock()
-		return ErrSessionClosed
+		return agentruntime.ErrSessionClosed
 	}
 	client := s.client
 	s.mu.Unlock()

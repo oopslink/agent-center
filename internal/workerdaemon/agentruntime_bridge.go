@@ -95,10 +95,10 @@ func startSupervisorSessionAdapter(ctx context.Context, cfg SupervisorSessionCon
 }
 
 // startCodexSessionAdapter is the PRODUCTION codex session starter. It converts the
-// neutral CodexSpec → CodexSessionConfig (computing the merged runtime env) and
+// neutral CodexSpec → agentruntime.CodexSessionConfig (computing the merged runtime env) and
 // starts the real CodexSession.
 func startCodexSessionAdapter(ctx context.Context, spec agentruntime.CodexSpec) (agentSession, error) {
-	s, err := StartCodexSession(ctx, CodexSessionConfig{
+	s, err := agentruntime.StartCodexSession(ctx, agentruntime.CodexSessionConfig{
 		AgentID:  spec.AgentID,
 		TasksDir: spec.TasksDir,
 		Binary:   spec.Binary,

@@ -27,10 +27,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/oopslink/agent-center/internal/claudestream"
-	"github.com/oopslink/agent-center/internal/supervisormanager"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
+	"github.com/oopslink/agent-center/internal/claudestream"
+	"github.com/oopslink/agent-center/internal/supervisormanager"
 )
 
 // Boot runs the runtime's self-triggered boot recovery (§4.4). It is safe to call

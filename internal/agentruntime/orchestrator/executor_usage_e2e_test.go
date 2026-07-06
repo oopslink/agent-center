@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
+	"github.com/oopslink/agent-center/internal/clock"
 )
 
 // ensureWorkspace creates the executor's workspace dir (the production Spawner

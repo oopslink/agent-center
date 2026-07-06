@@ -1,5 +1,5 @@
 // Package workerdaemon — secret_resolver.go: adminClientSecretResolver
-// adapts the AdminClient.ResolveSecret RPC to the local SecretResolver
+// adapts the AdminClient.ResolveSecret RPC to the local agentruntime.SecretResolver
 // interface that MCPInjector consumes (ADR-0027 § 7).
 //
 // v2.3-3b (task #29). Worker daemons construct one of these at boot
@@ -8,11 +8,15 @@
 // the runtime file.
 package workerdaemon
 
-import "context"
+import (
+	"context"
 
-// adminClientSecretResolver delegates SecretResolver.Resolve to the
+	"github.com/oopslink/agent-center/internal/agentruntime"
+)
+
+// adminClientSecretResolver delegates agentruntime.SecretResolver.Resolve to the
 // transport-level AdminClient. The thin wrapper lets us keep
-// MCPInjector + SecretResolver decoupled from the HTTP shape (any
+// MCPInjector + agentruntime.SecretResolver decoupled from the HTTP shape (any
 // future cross-host worker daemon transport plugs in here without
 // touching the injector).
 type adminClientSecretResolver struct {
@@ -22,7 +26,7 @@ type adminClientSecretResolver struct {
 // NewAdminClientSecretResolver constructs the resolver. Returns nil
 // when client is nil so callers can fall back to a no-op injector
 // path in tests / dry-runs.
-func NewAdminClientSecretResolver(c *AdminClient) SecretResolver {
+func NewAdminClientSecretResolver(c *AdminClient) agentruntime.SecretResolver {
 	if c == nil {
 		return nil
 	}
