@@ -28,7 +28,7 @@ func mkAgent(t *testing.T, id agent.AgentID, worker string) *agent.Agent {
 	t.Helper()
 	a, err := agent.NewAgent(agent.NewAgentInput{
 		ID: id, OrganizationID: "org", WorkerID: worker,
-		Profile: agent.Profile{Name: "coder", Description: "d", Model: "claude", CLI: "claudecode", EnvVars: map[string]string{"K": "V"}},
+		Profile:   agent.Profile{Name: "coder", Description: "d", Model: "claude", CLI: "claudecode", EnvVars: map[string]string{"K": "V"}},
 		CreatedBy: "user:a", CreatedAt: t0,
 	})
 	if err != nil {
