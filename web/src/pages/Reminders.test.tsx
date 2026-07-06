@@ -37,11 +37,23 @@ const once: Reminder = {
   schedule: { kind: 'once', once_at: '2099-01-01T17:00:00Z' },
   next_run_at: null,
 };
+// event-driven (on_event) reminder — the wire nit's target: it must render an
+// "Event" badge + its trigger, NOT be mislabeled "Recurring".
+const onEvent: Reminder = {
+  ...cron,
+  id: 'rmd-3',
+  remindee_agent_id: 'agent-dev2',
+  content: '任务完成后收尾',
+  status: 'active',
+  schedule: { kind: 'on_event' },
+  on_event: { entity_type: 'task', entity_id: 'task-abc', event: 'completed', delay_seconds: 0 },
+  next_run_at: null,
+};
 
 vi.mock('@/api/reminders', () => ({
   useReminders: (_slug: string | undefined, params: unknown) => {
     lastListParams = params;
-    return { data: { items: [cron, once], total: 2 }, isLoading: false, isError: false };
+    return { data: { items: [cron, once, onEvent], total: 3 }, isLoading: false, isError: false };
   },
   useUpdateReminder: () => ({ mutate, isPending: false }),
   useDeleteReminder: () => ({ mutate: deleteMutate, isPending: false, isError: false, error: null, reset: vi.fn() }),
@@ -85,13 +97,18 @@ describe('Reminders page', () => {
     lastListParams = null;
   });
 
-  it('renders the stats, both rows, and the kind badges', () => {
+  it('renders the stats, all rows, and the kind badges (incl. on_event → Event, not Recurring)', () => {
     renderPage();
-    expect(screen.getByTestId('stat-active').textContent).toContain('1');
+    expect(screen.getByTestId('stat-active').textContent).toContain('2'); // cron + on_event
     expect(screen.getByTestId('stat-paused').textContent).toContain('1');
-    expect(screen.getAllByTestId('reminder-row')).toHaveLength(2);
+    expect(screen.getAllByTestId('reminder-row')).toHaveLength(3);
     expect(screen.getByText('Once')).toBeTruthy();
     expect(screen.getByText('Recurring')).toBeTruthy();
+    // the on_event reminder renders an "Event" badge (was mislabeled "Recurring")
+    // and its trigger summary — NOT a second "Recurring".
+    expect(screen.getByText('Event')).toBeTruthy();
+    expect(screen.getByTestId('reminder-trigger-onevent').textContent).toContain('completed');
+    expect(screen.getAllByText('Recurring')).toHaveLength(1);
     // the paused row shows the "— Paused" next-trigger affordance.
     expect(screen.getByText('— Paused')).toBeTruthy();
   });
@@ -175,10 +192,10 @@ describe('Reminders page', () => {
 
   it('delete is available on EVERY row (incl. terminal) but edit only on active/paused', () => {
     renderPage();
-    // two rows, both deletable; only the active row is editable (paused IS editable
-    // too — both rmd-1 active and rmd-2 paused qualify → 2 edit buttons here).
-    expect(screen.getAllByTestId('reminder-delete')).toHaveLength(2);
-    expect(screen.getAllByTestId('reminder-clone')).toHaveLength(2);
-    expect(screen.getAllByTestId('reminder-edit')).toHaveLength(2);
+    // three rows, all deletable; all are active/paused so all are editable
+    // (rmd-1 active, rmd-2 paused, rmd-3 on_event active → 3 each).
+    expect(screen.getAllByTestId('reminder-delete')).toHaveLength(3);
+    expect(screen.getAllByTestId('reminder-clone')).toHaveLength(3);
+    expect(screen.getAllByTestId('reminder-edit')).toHaveLength(3);
   });
 });

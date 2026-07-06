@@ -42,12 +42,26 @@ function relTime(t: (key: string, opts?: Record<string, unknown>) => string, iso
 
 function KindBadge({ r }: { r: Reminder }): React.ReactElement {
   const { t } = useTranslation('insights');
-  const once = r.schedule.kind === 'once';
-  return (
-    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${once ? 'bg-violet/15 text-violet' : 'bg-brand/15 text-brand'}`}>
-      {once ? t('reminders.kind.once') : t('reminders.kind.recurring')}
-    </span>
-  );
+  const kind = r.schedule.kind;
+  // once = violet, on_event = accent (distinct from recurring/cron = brand), so an
+  // event-driven reminder is no longer mislabeled as "Recurring".
+  const cls =
+    kind === 'once'
+      ? 'bg-violet/15 text-violet'
+      : kind === 'on_event'
+        ? 'bg-accent/15 text-accent'
+        : 'bg-brand/15 text-brand';
+  const label = kind === 'once' ? t('reminders.kind.once') : kind === 'on_event' ? t('reminders.kind.event') : t('reminders.kind.recurring');
+  return <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`} data-testid="reminder-kind-badge">{label}</span>;
+}
+
+// onEventSummary renders an on_event trigger as "<entity> <event>" (+ delay when > 0),
+// e.g. "task completed" or "plan failed +30s". i18n-driven for entity/event nouns.
+function onEventSummary(r: Reminder, t: (k: string, o?: Record<string, unknown>) => string): string {
+  const oe = r.on_event;
+  if (!oe) return '—';
+  const base = t('reminders.onEvent.summary', { entity: oe.entity_type, event: oe.event });
+  return oe.delay_seconds > 0 ? `${base} +${oe.delay_seconds}s` : base;
 }
 
 function StatusBadge({ status }: { status: ReminderStatus }): React.ReactElement {
@@ -242,6 +256,8 @@ export default function Reminders(): React.ReactElement {
                           <KindBadge r={r} />
                           {r.schedule.kind === 'cron' ? (
                             <span className="rounded bg-bg-subtle px-1.5 py-0.5 font-mono text-xs text-text-secondary">{r.schedule.cron_expr}</span>
+                          ) : r.schedule.kind === 'on_event' ? (
+                            <span className="text-xs text-text-secondary" data-testid="reminder-trigger-onevent">{onEventSummary(r, t)}</span>
                           ) : (
                             <span className="text-xs text-text-secondary">{r.schedule.once_at ? formatLocalTime(r.schedule.once_at) : '—'}</span>
                           )}

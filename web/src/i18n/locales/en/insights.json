@@ -37,7 +37,11 @@
     },
     "kind": {
       "once": "Once",
-      "recurring": "Recurring"
+      "recurring": "Recurring",
+      "event": "Event"
+    },
+    "onEvent": {
+      "summary": "on {{entity}} {{event}}"
     },
     "relTime": {
       "overdue": "Overdue",

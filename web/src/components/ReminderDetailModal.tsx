@@ -91,6 +91,13 @@ function ReminderDetailBody({ data }: { data: ReminderDetail }): React.ReactElem
           <span className="font-mono text-xs">
             {data.schedule.cron_expr} · {data.schedule.timezone}
           </span>
+        ) : data.schedule.kind === 'on_event' ? (
+          <span data-testid="reminder-detail-onevent">
+            {data.on_event
+              ? t('reminders.onEvent.summary', { entity: data.on_event.entity_type, event: data.on_event.event }) +
+                (data.on_event.delay_seconds > 0 ? ` +${data.on_event.delay_seconds}s` : '')
+              : '—'}
+          </span>
         ) : (
           <span>{data.schedule.once_at ? formatLocalTime(data.schedule.once_at) : '—'}</span>
         )}

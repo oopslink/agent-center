@@ -125,10 +125,18 @@ func reminderMap(r *reminder.Reminder) map[string]any {
 }
 
 func scheduleToMap(s reminder.Schedule) map[string]any {
-	if s.Kind == reminder.ScheduleOnce {
+	switch s.Kind {
+	case reminder.ScheduleOnce:
 		return map[string]any{"kind": "once", "once_at": s.OnceAt.UTC().Format(time.RFC3339Nano)}
+	case reminder.ScheduleEvent:
+		// on_event: event-driven, no fixed time in the schedule (the trigger spec
+		// rides in the separate on_event block). Report the real kind so
+		// list/get_reminder — and the Web Reminders Trigger column — don't mislabel
+		// it as "cron" / "Recurring".
+		return map[string]any{"kind": "on_event"}
+	default:
+		return map[string]any{"kind": "cron", "cron_expr": s.CronExpr, "timezone": s.Timezone}
 	}
-	return map[string]any{"kind": "cron", "cron_expr": s.CronExpr, "timezone": s.Timezone}
 }
 
 // writeReminderError maps cognition reminder domain/app errors to HTTP.

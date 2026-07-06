@@ -13,13 +13,23 @@ import { qk } from './queryKeys';
 
 export type ReminderStatus = 'active' | 'paused' | 'completed' | 'canceled';
 
-export type ReminderScheduleKind = 'once' | 'cron';
+export type ReminderScheduleKind = 'once' | 'cron' | 'on_event';
 
 export interface ReminderSchedule {
   kind: ReminderScheduleKind;
   once_at?: string; // RFC3339 (once)
   cron_expr?: string; // (cron)
   timezone?: string; // IANA tz (cron)
+}
+
+// ReminderOnEvent is the event-driven trigger spec (kind === 'on_event'): the
+// reminder stays dormant until the named entity state-change event fires, then
+// arms (+delay) and fires once. Emitted alongside schedule by the API.
+export interface ReminderOnEvent {
+  entity_type: string; // plan | task | issue
+  entity_id: string;
+  event: string; // e.g. completed | failed | blocked | closed
+  delay_seconds: number;
 }
 
 export type ReminderEndKind = 'never' | 'until' | 'max_count';
@@ -43,6 +53,7 @@ export interface Reminder {
   fired_count: number;
   version: number;
   schedule: ReminderSchedule;
+  on_event?: ReminderOnEvent; // present when schedule.kind === 'on_event'
   next_run_at?: string | null;
   last_fired_at?: string | null;
   created_at: string;

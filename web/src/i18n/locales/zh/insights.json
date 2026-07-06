@@ -37,7 +37,11 @@
     },
     "kind": {
       "once": "一次性",
-      "recurring": "周期"
+      "recurring": "周期",
+      "event": "事件"
+    },
+    "onEvent": {
+      "summary": "当 {{entity}} {{event}} 时"
     },
     "relTime": {
       "overdue": "已逾期",
