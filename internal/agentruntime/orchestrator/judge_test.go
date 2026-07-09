@@ -84,13 +84,43 @@ func TestSubprocessJudge_Unparseable_FallsBack(t *testing.T) {
 	}
 }
 
-// A half-configured judge (no orchestrator model or binary) is nil → the caller wires
-// NewRouter(nil) = pure pool[0] fallback, never a broken judge.
+// The judge is nil ONLY when there is no orchestrator model (nothing to run it on) →
+// the caller wires NewRouter(nil) = pure pool[0] fallback. A missing BINARY is NOT
+// unconfigured — it defaults to PATH "claude" (see
+// TestNewSubprocessJudge_EmptyBinary_DefaultsToClaude below).
 func TestNewSubprocessJudge_NilWhenUnconfigured(t *testing.T) {
 	if NewSubprocessJudge(JudgeConfig{Binary: "claude"}) != nil {
 		t.Error("no orchestrator model → want nil judge")
 	}
-	if NewSubprocessJudge(JudgeConfig{OrchestratorModel: "haiku"}) != nil {
-		t.Error("no binary → want nil judge")
+	if NewSubprocessJudge(JudgeConfig{}) != nil {
+		t.Error("empty config (no orchestrator model) → want nil judge")
+	}
+}
+
+// TestNewSubprocessJudge_EmptyBinary_DefaultsToClaude is the REGRESSION LOCK for the
+// tester3 P1 deployment bug: the worker's ClaudeBinary comes from the normally-UNSET
+// AGENT_CENTER_CLAUDE_BINARY env, so an EMPTY binary is the COMMON production case —
+// not a misconfiguration. The judge MUST still build (non-nil) and invoke PATH
+// "claude". The old code returned nil here, making judge_enabled=true 100% inert in
+// production with no signal. Every OTHER judge test injects Binary, so this real
+// deployment-default path was the exact blind spot that let the bug ship past unit
+// tests + Gate + three code-review rounds.
+func TestNewSubprocessJudge_EmptyBinary_DefaultsToClaude(t *testing.T) {
+	var gotArgv []string
+	j := NewSubprocessJudge(JudgeConfig{
+		OrchestratorModel: "haiku", // Binary intentionally left "" — the deployment default
+		Run: func(_ context.Context, argv []string) (string, error) {
+			gotArgv = argv
+			return `{"type":"result","result":"{\"difficulty\":\"low\",\"cli\":\"claude-code\",\"model\":\"haiku\",\"rationale\":\"x\"}"}`, nil
+		},
+	})
+	if j == nil {
+		t.Fatal("empty binary must NOT disable the judge — want non-nil (PATH claude default)")
+	}
+	if _, err := j.Judge(context.Background(), judgeReq()); err != nil {
+		t.Fatalf("Judge err: %v", err)
+	}
+	if len(gotArgv) == 0 || gotArgv[0] != "claude" {
+		t.Errorf("empty binary must invoke PATH \"claude\", got argv[0]=%v", gotArgv)
 	}
 }

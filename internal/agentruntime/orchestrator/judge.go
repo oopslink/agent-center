@@ -50,12 +50,23 @@ type JudgeConfig struct {
 
 const defaultJudgeTimeout = 45 * time.Second
 
-// NewSubprocessJudge builds a SubprocessJudge. Returns nil when it can't run (no
-// orchestrator model or binary) so the caller wires NewRouter(nil) → pure pool[0]
-// fallback (never a half-configured judge).
+// NewSubprocessJudge builds a SubprocessJudge. Returns nil ONLY when there is no
+// orchestrator model (nothing to run the judge on) so the caller wires NewRouter(nil)
+// → pure pool[0] fallback.
+//
+// DEPLOYMENT DEFAULT (T950 re-Dev, tester3 P1): an EMPTY Binary defaults to "claude"
+// on PATH — the SAME convention as NewClaudeRunnerBuilder / the CLI adapter. The
+// worker's ClaudeBinary comes from the (normally UNSET) AGENT_CENTER_CLAUDE_BINARY
+// env, so an empty binary is the COMMON production case, not a misconfiguration.
+// Returning nil on empty binary (the old behavior) made judge_enabled=true 100% inert
+// in production with no signal — the asymmetric silent death a full-real run caught.
 func NewSubprocessJudge(cfg JudgeConfig) *SubprocessJudge {
-	if strings.TrimSpace(cfg.OrchestratorModel) == "" || strings.TrimSpace(cfg.Binary) == "" {
+	if strings.TrimSpace(cfg.OrchestratorModel) == "" {
 		return nil
+	}
+	binary := strings.TrimSpace(cfg.Binary)
+	if binary == "" {
+		binary = "claude" // PATH default, mirroring NewClaudeRunnerBuilder
 	}
 	to := cfg.Timeout
 	if to <= 0 {
@@ -67,7 +78,7 @@ func NewSubprocessJudge(cfg JudgeConfig) *SubprocessJudge {
 	}
 	return &SubprocessJudge{
 		orchestratorModel: cfg.OrchestratorModel,
-		binary:            cfg.Binary,
+		binary:            binary,
 		timeout:           to,
 		run:               run,
 		log:               cfg.Log,
