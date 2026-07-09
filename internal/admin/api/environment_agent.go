@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -481,8 +483,9 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			// command, which a boot/self-heal relaunch never gets).
 			"cli":                    p.CLI,
 			"max_concurrent_tasks":   p.MaxConcurrentTasks,
-			"allowed_executors":      executorProfilesToMaps(p.AllowedExecutors),
+			"allowed_executors":      executorProfilesToMaps(annotateExecutorsFromCatalog(r.Context(), d.ModelCatalogRepo, a.OrganizationID(), p.AllowedExecutors)),
 			"orchestrator_model":     p.OrchestratorModel,
+			"judge_enabled":          p.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
 			"default_executor_model": p.DefaultExecutorModel,
 			"env_vars":               p.EnvVars,
 			"version":                a.Version(),
@@ -499,7 +502,64 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 func executorProfilesToMaps(execs []agent.ExecutorProfile) []map[string]any {
 	out := make([]map[string]any, 0, len(execs))
 	for _, e := range execs {
-		out = append(out, map[string]any{"cli": e.CLI, "model": e.Model})
+		m := map[string]any{"cli": e.CLI, "model": e.Model}
+		// T950 ②: emit the catalog annotations (omit empties so an unannotated pool
+		// stays byte-identical to the pre-catalog {cli,model} wire). The worker decodes
+		// these back into agent.ExecutorProfile via the matching json tags.
+		if e.DisplayName != "" {
+			m["display_name"] = e.DisplayName
+		}
+		if e.InputCost > 0 {
+			m["input_cost"] = e.InputCost
+		}
+		if e.OutputCost > 0 {
+			m["output_cost"] = e.OutputCost
+		}
+		if e.ContextWindow > 0 {
+			m["context_window"] = e.ContextWindow
+		}
+		if e.Tier != "" {
+			m["tier"] = e.Tier
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// annotateExecutorsFromCatalog joins the agent's allowed-executor pool with the org's
+// model catalog (pm_model_catalog) by model id (T950 ②), so the difficulty judge sees
+// each candidate's tier/cost/context. Catalog-derived + transient: it returns COPIES
+// with the annotation fields filled. A model with no catalog row is left NEUTRAL (all
+// zero) and logged fail-loud — never silently dropped. A nil repo / empty pool / empty
+// org / lookup error returns execs unchanged (judge degrades to name-only routing).
+func annotateExecutorsFromCatalog(ctx context.Context, repo pm.ModelCatalogRepository, orgID string, execs []agent.ExecutorProfile) []agent.ExecutorProfile {
+	if repo == nil || len(execs) == 0 || strings.TrimSpace(orgID) == "" {
+		return execs
+	}
+	entries, err := repo.ListByOrg(ctx, orgID)
+	if err != nil {
+		slog.Warn("resume-state: model-catalog lookup failed; executor pool left unannotated (judge sees neutral costs)",
+			"org", orgID, "err", err)
+		return execs
+	}
+	byModel := make(map[string]*pm.ModelCatalogEntry, len(entries))
+	for _, e := range entries {
+		byModel[e.ModelID()] = e
+	}
+	out := make([]agent.ExecutorProfile, len(execs))
+	for i, p := range execs {
+		out[i] = p
+		e, ok := byModel[p.Model]
+		if !ok {
+			slog.Warn("resume-state: allowed-executor model not in org model-catalog; judge sees neutral annotation",
+				"org", orgID, "cli", p.CLI, "model", p.Model)
+			continue
+		}
+		out[i].DisplayName = e.DisplayName()
+		out[i].InputCost = e.InputCost()
+		out[i].OutputCost = e.OutputCost()
+		out[i].ContextWindow = e.ContextWindow()
+		out[i].Tier = e.Tier()
 	}
 	return out
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,42 @@ func TestBuildExecutorEngine_ErrorOnBadRoot(t *testing.T) {
 	rt := newExecRuntime(t, t.TempDir(), "agent-bad", "true")
 	if _, err := rt.BuildExecutorEngine("", ExecutorConfig{MaxConcurrentTasks: 1, AllowedExecutors: testExecs}); err == nil {
 		t.Error("empty agent root must surface an error")
+	}
+}
+
+// TestBuildExecutorEngine_JudgeEnabledButNoModel_WarnsLoud is the FAIL-LOUD half of the
+// tester3 P1 fix: when judge_enabled=true but no orchestrator_model is resolvable the
+// judge can't build, and BuildExecutorEngine MUST emit a LOUD warning rather than
+// silently fall back (a no-signal inert switch is what shipped the original bug). Note
+// ClaudeBinary is left EMPTY here (the deployment default) — that alone no longer
+// disables the judge, so the only disable reason left is the missing model.
+func TestBuildExecutorEngine_JudgeEnabledButNoModel_WarnsLoud(t *testing.T) {
+	var mu sync.Mutex
+	var logs []string
+	agentID := "agent-judgewarn"
+	rt := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID:       agentID,
+		Reporter:      &nopReporter{},
+		WorkerID:      "w-1",
+		AgentHomeBase: t.TempDir(),
+		BinaryPath:    lookTrue(t),
+		// ClaudeBinary intentionally empty = the deployment default (unset env).
+		Log: func(f string, a ...any) { mu.Lock(); logs = append(logs, fmt.Sprintf(f, a...)); mu.Unlock() },
+	}, &SessionState{})
+	home, _, _, err := rt.agentPaths(agentID)
+	if err != nil {
+		t.Fatalf("agentPaths: %v", err)
+	}
+	if _, err := rt.BuildExecutorEngine(home, ExecutorConfig{
+		AgentID: agentID, JudgeEnabled: true, MaxConcurrentTasks: 1, // no OrchestratorModel → judge nil
+	}); err != nil {
+		t.Fatalf("BuildExecutorEngine: %v", err)
+	}
+	mu.Lock()
+	joined := strings.Join(logs, "\n")
+	mu.Unlock()
+	if !strings.Contains(joined, "judge_enabled=true but judge DISABLED") {
+		t.Errorf("want loud warn for enabled-but-no-orchestrator-model judge; got logs:\n%s", joined)
 	}
 }
 

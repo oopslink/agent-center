@@ -129,6 +129,36 @@ func TestAgentControlProjector_PassesModel(t *testing.T) {
 	}
 }
 
+// TestAgentControlProjector_PassesJudgeEnabled (T950 ②) pins the judge_enabled
+// passthrough: a lifecycle event carrying the per-agent judge opt-in is forwarded into
+// the reconcile command so the live-reconcile path reaches ExecutorConfig.JudgeEnabled.
+// A judge_enabled=false event omits it (omitempty → OFF, byte-identical).
+func TestAgentControlProjector_PassesJudgeEnabled(t *testing.T) {
+	f := newProjectorFixture(t)
+	on := outbox.Event{
+		ID:        "EVJ",
+		EventType: agentsvc.EvtAgentLifecycleChanged,
+		Payload:   `{"agent_id":"AG1","worker_id":"W1","lifecycle":"running","version":2,"judge_enabled":true}`,
+		CreatedAt: time.Unix(1_700_000_000, 0).UTC(),
+	}
+	if err := f.proj.Project(f.ctx, on); err != nil {
+		t.Fatalf("Project: %v", err)
+	}
+	cmds := f.commandsFor(t, "W1")
+	if len(cmds) != 1 || !strings.Contains(cmds[0].Payload(), `"judge_enabled":true`) {
+		t.Fatalf("reconcile command must carry judge_enabled, got: %s", cmds[0].Payload())
+	}
+
+	// judge_enabled-less event → no key in the command (omitempty, OFF backward-compat).
+	f2 := newProjectorFixture(t)
+	if err := f2.proj.Project(f2.ctx, lifecycleEvent("EVJ2", "AG2", "W2", "running", 1, "")); err != nil {
+		t.Fatalf("Project no-judge: %v", err)
+	}
+	if c := f2.commandsFor(t, "W2"); len(c) != 1 || strings.Contains(c[0].Payload(), `"judge_enabled"`) {
+		t.Fatalf("judge_enabled-less event must omit it, got: %s", c[0].Payload())
+	}
+}
+
 // TestAgentControlProjector_PassesPromptDescription (T728) pins the prompt_description
 // passthrough: a lifecycle event carrying the already-gated inject-text is forwarded
 // into the reconcile command so the worker→supervisor injects it into the system prompt.

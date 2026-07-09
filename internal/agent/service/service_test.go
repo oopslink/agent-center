@@ -625,3 +625,54 @@ func TestAutoAssignable_ServiceDefaults(t *testing.T) {
 		t.Fatal("update true → want auto_assignable=true")
 	}
 }
+
+// TestJudgeEnabled_ServiceRoundTrip covers T950 ②: the per-agent LLM-judge opt-in is a
+// real producer — CreateAgent defaults it OFF, an explicit true opts in, and
+// UpdateAgentConfig preserves it when the field is omitted (nil) and flips it when
+// present. This proves the config-surface → command → Profile → persistence round-trip
+// (the source half of the producer chain that feeds ExecutorConfig.JudgeEnabled).
+func TestJudgeEnabled_ServiceRoundTrip(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	ctx := context.Background()
+
+	// Create without the field → default OFF (byte-identical routing).
+	id, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
+		OrganizationID: testOrg, Name: "a", CLI: "claude-code", WorkerID: testWorker, CreatedBy: "user:a",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.svc.GetAgent(ctx, id); a.Profile().JudgeEnabled {
+		t.Fatal("create without field → want judge_enabled=false (default OFF)")
+	}
+
+	// Create with explicit true → opted in.
+	id2, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
+		OrganizationID: testOrg, Name: "b", CLI: "claude-code", WorkerID: testWorker, CreatedBy: "user:a",
+		JudgeEnabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.svc.GetAgent(ctx, id2); !a.Profile().JudgeEnabled {
+		t.Fatal("create with true → want judge_enabled=true")
+	}
+
+	// Update omitting the field (nil) → preserve the existing true.
+	if err := f.svc.UpdateAgentConfig(ctx, id2, UpdateAgentConfigCommand{CLI: "claude-code"}); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.svc.GetAgent(ctx, id2); !a.Profile().JudgeEnabled {
+		t.Fatal("update nil → want preserved true")
+	}
+
+	// Update with explicit false → flips OFF.
+	no := false
+	if err := f.svc.UpdateAgentConfig(ctx, id2, UpdateAgentConfigCommand{CLI: "claude-code", JudgeEnabled: &no}); err != nil {
+		t.Fatal(err)
+	}
+	if a, _ := f.svc.GetAgent(ctx, id2); a.Profile().JudgeEnabled {
+		t.Fatal("update false → want judge_enabled=false")
+	}
+}

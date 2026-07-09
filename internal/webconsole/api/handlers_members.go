@@ -176,9 +176,11 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 		AutoAssignable *bool `json:"auto_assignable"`
 		// T728: per-agent switch to inject description into the system prompt.
 		// nil → default (true = inject).
-		IncludeDescriptionInSystemPrompt *bool             `json:"include_description_in_system_prompt"`
-		WorkerID                         string            `json:"worker_id"`
-		EnvVars                          map[string]string `json:"env_vars"`
+		IncludeDescriptionInSystemPrompt *bool `json:"include_description_in_system_prompt"`
+		// T950 ②: per-agent LLM-judge opt-in at create. absent → false → OFF.
+		JudgeEnabled bool              `json:"judge_enabled"`
+		WorkerID     string            `json:"worker_id"`
+		EnvVars      map[string]string `json:"env_vars"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_body", err.Error())
@@ -268,6 +270,7 @@ func (s *Server) addAgentMemberHandler(w http.ResponseWriter, r *http.Request) {
 			AllowedExecutors:                 body.AllowedExecutors,
 			AutoAssignable:                   body.AutoAssignable,
 			IncludeDescriptionInSystemPrompt: body.IncludeDescriptionInSystemPrompt,
+			JudgeEnabled:                     body.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
 			EnvVars:                          body.EnvVars,
 			WorkerID:                         body.WorkerID,
 			CreatedBy:                        agentCallerRef(callerID),

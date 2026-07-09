@@ -174,6 +174,16 @@ type Profile struct {
 	OrchestratorModel    string
 	DefaultExecutorModel string
 	MaxConcurrentTasks   int
+	// JudgeEnabled is the per-agent opt-IN for the LLM difficulty judge (T950,
+	// issue-93dd8daa ②): when true, the model router consults a difficulty judge on
+	// the cheap orchestrator model to pick the cheapest-sufficient executor from
+	// AllowedExecutors; when false (the DEFAULT — column DEFAULT 0) routing is
+	// byte-identical to today (deterministic pool[0] fallback, zero extra cost). Sits
+	// at the SAME config layer as AllowedExecutors/DefaultExecutorModel and is carried
+	// the SAME way (domain → repo/migration 0105 → service → resume-state + reconcile
+	// → ExecutorConfig.JudgeEnabled). Defaults to false for a hand-built Profile
+	// (opt-in, unlike AutoAssignable), so no create-boundary default is needed.
+	JudgeEnabled bool
 	// AllowedExecutors is the AUTHORITATIVE executor-candidate list (v2.18.1 BE-1,
 	// issue-8746a5b9): each entry is a {cli, model} profile, because an executor need
 	// not share the orchestrator's CLI (e.g. a claude-code supervisor dispatching a
@@ -214,6 +224,16 @@ type Profile struct {
 type ExecutorProfile struct {
 	CLI   string `json:"cli"`
 	Model string `json:"model"`
+	// Catalog annotations (T950 ②): filled at resume-state build time by joining the
+	// org's model catalog (pm_model_catalog) on Model. DERIVED + TRANSIENT — a stored
+	// profile is only {cli,model}; these are empty until the center join populates them
+	// and are never persisted. The difficulty judge reads tier/cost to pick the
+	// cheapest sufficient model; a model with no catalog row stays neutral (all zero).
+	DisplayName   string  `json:"display_name,omitempty"`
+	InputCost     float64 `json:"input_cost,omitempty"`
+	OutputCost    float64 `json:"output_cost,omitempty"`
+	ContextWindow int     `json:"context_window,omitempty"`
+	Tier          string  `json:"tier,omitempty"`
 }
 
 // SupportedExecutorCLIs is the closed set of executor CLIs the worker daemon can

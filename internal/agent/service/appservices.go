@@ -31,6 +31,9 @@ type CreateAgentCommand struct {
 	// AllowedExecutors is the authoritative {cli, model} candidate list (v2.18.1
 	// BE-1). When set it wins; otherwise AllowedModels is lifted via the agent's cli.
 	AllowedExecutors []agent.ExecutorProfile
+	// JudgeEnabled opts the agent in to the LLM difficulty judge (T950 ②). Default
+	// false = OFF (byte-identical to today); absent input zero-values to OFF.
+	JudgeEnabled bool
 	// AutoAssignable opts the agent in/out of the BE-2 auto-assign reconciler
 	// (v2.18.3 BE-1). nil → the default (true = assignable).
 	AutoAssignable *bool
@@ -72,6 +75,7 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 			CLI: cmd.CLI, Reasoning: cmd.Reasoning, Mode: cmd.Mode, Provider: cmd.Provider,
 			OrchestratorModel: cmd.OrchestratorModel, DefaultExecutorModel: cmd.DefaultExecutorModel,
 			MaxConcurrentTasks: cmd.MaxConcurrentTasks, AllowedModels: models, AllowedExecutors: execs,
+			JudgeEnabled: cmd.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
 			// v2.18.3 BE-1: a fresh agent is auto-assignable by default (nil → true);
 			// the owner opts out by sending auto_assignable=false.
 			AutoAssignable: cmd.AutoAssignable == nil || *cmd.AutoAssignable,
@@ -207,6 +211,10 @@ type UpdateAgentConfigCommand struct {
 	// into its system prompt (T728). nil → preserve the existing value (a config edit
 	// that omits the field must not silently flip it).
 	IncludeDescriptionInSystemPrompt *bool
+	// JudgeEnabled opts the agent in/out of the LLM difficulty judge (T950 ②). nil →
+	// preserve the existing value (a config edit that omits the field must not silently
+	// flip it), same rule as AutoAssignable.
+	JudgeEnabled *bool
 }
 
 // resolveAllowedExecutors canonicalizes the executor-candidate input into the
@@ -290,6 +298,10 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		// T728: same preserve-unless-sent rule as AutoAssignable.
 		if cmd.IncludeDescriptionInSystemPrompt != nil {
 			p.IncludeDescriptionInSystemPrompt = *cmd.IncludeDescriptionInSystemPrompt
+		}
+		// T950 ②: same preserve-unless-sent rule (nil → keep current judge opt-in).
+		if cmd.JudgeEnabled != nil {
+			p.JudgeEnabled = *cmd.JudgeEnabled
 		}
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err

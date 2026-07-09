@@ -64,6 +64,12 @@ type ExecutorConfig struct {
 	// nor orchestrator_model is configured.
 	SupervisorModel string
 	CLI             string
+	// JudgeEnabled (issue-93dd8daa ②, per-agent gated, DEFAULT OFF) turns on the LLM
+	// difficulty judge: when true AND an orchestrator_model + claude binary are
+	// available, the router consults a one-shot SubprocessJudge over the
+	// catalog-annotated pool. OFF (the default) wires NewRouter(nil) → the existing
+	// deterministic pool[0] fallback, byte-identical to today (zero cost, zero change).
+	JudgeEnabled bool
 }
 
 // ConcurrencyEnabled reports whether this config opts the agent into the executor
@@ -192,10 +198,34 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 	if err != nil {
 		return nil, err
 	}
+	// issue-93dd8daa ②: per-agent gated (default OFF) LLM difficulty judge. OFF →
+	// NewRouter(nil) = the existing deterministic pool[0] fallback, byte-identical to
+	// today. ON → a one-shot SubprocessJudge on the cheap orchestrator model (an empty
+	// ClaudeBinary defaults to PATH "claude", the deployment norm). It is nil ONLY when
+	// no orchestrator_model is resolvable → NewRouter(nil) fallback.
+	//
+	// FAIL-LOUD (T950 re-Dev, tester3 P1): if judge_enabled=true but the judge ends up
+	// nil, we MUST log a LOUD warning. The original bug was exactly this path failing
+	// SILENTLY (empty binary → nil judge → judge_enabled inert in production with no
+	// signal). A no-warning inert switch is more dangerous than a hard error.
+	var judge modelrouter.DifficultyJudge
+	if pl.JudgeEnabled {
+		if sj := orchestrator.NewSubprocessJudge(orchestrator.JudgeConfig{
+			OrchestratorModel: pl.OrchestratorModel,
+			Binary:            r.cfg.ClaudeBinary,
+			Log:               r.log,
+		}); sj != nil {
+			judge = sj
+		} else {
+			r.log("modelrouter judge: WARNING judge_enabled=true but judge DISABLED "+
+				"(no orchestrator_model resolvable) — routing falls back to deterministic "+
+				"pool[0]; set the agent's orchestrator_model to enable the difficulty judge (agent=%s)", pl.AgentID)
+		}
+	}
 	eng, err := orchestrator.NewEngine(orchestrator.EngineConfig{
 		Pool:         pool,
 		Routing:      routing,
-		Router:       modelrouter.NewRouter(nil),
+		Router:       modelrouter.NewRouter(judge),
 		RouterConfig: routerConfigOf(pl),
 		Runners: map[string]orchestrator.RunnerCmdBuilder{
 			agent.DefaultExecutorCLI: orchestrator.NewClaudeRunnerBuilder(r.cfg.ClaudeBinary),

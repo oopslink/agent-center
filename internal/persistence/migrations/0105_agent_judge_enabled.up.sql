@@ -1,0 +1,13 @@
+-- 0105_agent_judge_enabled.up.sql — per-agent LLM difficulty-judge opt-in
+-- (issue-93dd8daa ② / T950). Add agents.judge_enabled: the source-of-truth switch,
+-- at the SAME config layer as orchestrator_model / default_executor_model /
+-- allowed_executors (0082/0085). When 1 the model router consults the difficulty
+-- judge to pick cheapest-sufficient from allowed_executors; when 0 routing is
+-- byte-identical to today (deterministic pool[0] fallback).
+--
+-- UPGRADE SAFETY: purely additive ADD COLUMN with INTEGER NOT NULL DEFAULT 0 — every
+-- existing row backfills to 0 (OFF), so the feature is inert until an owner opts an
+-- agent in. No other column touched, no row dropped = 零回归. ADD COLUMN (and DROP
+-- COLUMN in the down) are in the SQLite (>=3.35) + PG common subset; the 1/0 integer
+-- boolean mirrors auto_assignable (0086) / include_description_in_system_prompt.
+ALTER TABLE agents ADD COLUMN judge_enabled INTEGER NOT NULL DEFAULT 0;

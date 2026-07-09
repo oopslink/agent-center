@@ -276,7 +276,16 @@ func routerCandidates(execs []agent.ExecutorProfile) []modelrouter.ExecutorCandi
 	}
 	out := make([]modelrouter.ExecutorCandidate, 0, len(execs))
 	for _, e := range execs {
-		out = append(out, modelrouter.ExecutorCandidate{CLI: e.CLI, Model: e.Model})
+		out = append(out, modelrouter.ExecutorCandidate{
+			CLI: e.CLI, Model: e.Model,
+			// T950 ②: carry the catalog annotations the center joined in, so the
+			// difficulty judge sees each candidate's tier/cost/context.
+			DisplayName:   e.DisplayName,
+			InputCost:     e.InputCost,
+			OutputCost:    e.OutputCost,
+			ContextWindow: e.ContextWindow,
+			Tier:          e.Tier,
+		})
 	}
 	return out
 }
