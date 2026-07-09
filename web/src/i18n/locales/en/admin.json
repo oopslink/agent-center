@@ -271,6 +271,37 @@
       "save": "Save"
     }
   },
+  "modelCatalog": {
+    "title": "Model catalog",
+    "subtitle": "The org-level, user-managed set of models your agents may run. No built-in entries — you manage them all.",
+    "add": "+ Add model",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "save": "Save",
+    "empty": "No models yet",
+    "emptyDesc": "Add a model or import a JSON catalog below.",
+    "addTitle": "Add model",
+    "editTitle": "Edit model",
+    "deleteTitle": "Delete model",
+    "deleteConfirm": "Delete model \"{{name}}\" from the catalog?",
+    "col": {
+      "modelId": "Model ID",
+      "displayName": "Display name",
+      "inputCost": "Input $/MTok",
+      "outputCost": "Output $/MTok",
+      "contextWindow": "Context",
+      "tier": "Tier"
+    },
+    "import": {
+      "title": "Bulk import (JSON)",
+      "help": "Paste a JSON array of entries. Upsert merges by model_id; replace swaps the whole catalog. Any invalid entry (bad schema, duplicate model_id, negative cost) rejects the whole batch.",
+      "upsert": "Upsert",
+      "replace": "Replace",
+      "run": "Import",
+      "ok": "Imported {{count}} entries."
+    }
+  },
   "templates": {
     "title": "Templates",
     "subtitle": "Workflow templates define orchestration rules for plans. Agents read these to scaffold graphs.",

@@ -195,6 +195,10 @@ type HandlerDeps struct {
 	// (GET/POST/PUT/DELETE /api/orgs/{slug}/templates). Optional — nil degrades
 	// the endpoints to 501.
 	TemplateRepo pm.TemplateRepository
+	// ModelCatalogRepo backs the webconsole model-catalog endpoints
+	// (GET/POST/PUT/DELETE /api/orgs/{slug}/model-catalog + POST .../import,
+	// issue-93dd8daa ①). Optional — nil degrades the endpoints to 501.
+	ModelCatalogRepo pm.ModelCatalogRepository
 }
 
 // hd retrieves the typed dep bag from the request context.

@@ -137,6 +137,9 @@ var wantTools = []string{
 	// templates
 	"list_templates", "get_template",
 	"create_template", "update_template", "delete_template",
+	// issue-93dd8daa ①: org model catalog CRUD + import
+	"list_model_catalog_entry", "create_model_catalog_entry", "update_model_catalog_entry",
+	"delete_model_catalog_entry", "import_model_catalog",
 }
 
 // planTools is the v2.9 P3 Stage C (#285) plan agent-tool catalog: every plan

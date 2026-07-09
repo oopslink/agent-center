@@ -97,6 +97,12 @@ var secondaryTools = []struct{ name, summary string }{
 	{"create_template", "create a new workflow template"},
 	{"update_template", "update a non-builtin workflow template"},
 	{"delete_template", "delete a non-builtin workflow template"},
+	// model catalog — org-level user-managed model catalog (issue-93dd8daa ①)
+	{"list_model_catalog_entry", "list the org's model catalog"},
+	{"create_model_catalog_entry", "add a model to the org catalog"},
+	{"update_model_catalog_entry", "update a model catalog entry"},
+	{"delete_model_catalog_entry", "delete a model catalog entry"},
+	{"import_model_catalog", "bulk import the model catalog from JSON (upsert|replace)"},
 }
 
 // secondaryToolNames returns the deferred tool names (for RemoveTools on the

@@ -191,16 +191,17 @@ func newWriteToolsFixture(t *testing.T) *writeToolsFixture {
 
 	verifier := &fakeVerifier{tokens: map[string]*admintoken.AdminToken{}}
 	deps := HandlerDeps{
-		DB:            db,
-		Actor:         observability.Actor("system"),
-		AgentSvc:      agentSvc,
-		WorkerRepo:    workers,
-		ConvRepo:      convRepo,
-		MsgRepo:       msgRepo,
-		MessageWriter: writer,
-		PMService:     pmSvc,
-		CodeRepoSvc:   codeRepoSvc,
-		OutboxRepo:    outboxRepo,
+		DB:               db,
+		Actor:            observability.Actor("system"),
+		AgentSvc:         agentSvc,
+		WorkerRepo:       workers,
+		ConvRepo:         convRepo,
+		MsgRepo:          msgRepo,
+		MessageWriter:    writer,
+		PMService:        pmSvc,
+		CodeRepoSvc:      codeRepoSvc,
+		OutboxRepo:       outboxRepo,
+		ModelCatalogRepo: pmsql.NewModelCatalogRepo(db),
 	}
 	return &writeToolsFixture{
 		deps: deps, verifier: verifier, db: db, agents: agents, pmSvc: pmSvc, codeRepoSvc: codeRepoSvc, convRepo: convRepo,

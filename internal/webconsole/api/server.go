@@ -253,6 +253,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/templates", s.createTemplateHandler)
 	s.mux.HandleFunc("PUT /api/orgs/{slug}/templates/{id}", s.updateTemplateHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/templates/{id}", s.deleteTemplateHandler)
+	// issue-93dd8daa ①: org model catalog CRUD + JSON import (settings 模型类目 panel).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/model-catalog", s.listModelCatalogHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/model-catalog", s.createModelCatalogHandler)
+	s.mux.HandleFunc("PUT /api/orgs/{slug}/model-catalog/{id}", s.updateModelCatalogHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/model-catalog/{id}", s.deleteModelCatalogHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/model-catalog/import", s.importModelCatalogHandler)
 	// v2.18.4 BE-2: remote viewing (commits / branches) — member-readable, via the
 	// provider abstraction (go-github / git fallback); no clone, credential never returned.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/code-repos/{repo_id}/commits", s.listCodeRepoCommitsHandler)

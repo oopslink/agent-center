@@ -271,6 +271,37 @@
       "save": "保存"
     }
   },
+  "modelCatalog": {
+    "title": "模型类目",
+    "subtitle": "组织级、用户自管的可用模型集合——你的 agent 可运行这些模型。无内置条目,全部由你管理。",
+    "add": "+ 添加模型",
+    "edit": "编辑",
+    "delete": "删除",
+    "cancel": "取消",
+    "save": "保存",
+    "empty": "暂无模型",
+    "emptyDesc": "在下方添加一个模型或导入 JSON 类目。",
+    "addTitle": "添加模型",
+    "editTitle": "编辑模型",
+    "deleteTitle": "删除模型",
+    "deleteConfirm": "从类目中删除模型「{{name}}」?",
+    "col": {
+      "modelId": "模型 ID",
+      "displayName": "显示名",
+      "inputCost": "输入 $/MTok",
+      "outputCost": "输出 $/MTok",
+      "contextWindow": "上下文",
+      "tier": "档位/描述"
+    },
+    "import": {
+      "title": "批量导入 (JSON)",
+      "help": "粘贴条目的 JSON 数组。upsert 按 model_id 合并;replace 替换整个类目。任何非法条目(schema 错、model_id 重复、负成本)都会整批拒绝。",
+      "upsert": "增量合并",
+      "replace": "整体替换",
+      "run": "导入",
+      "ok": "已导入 {{count}} 条。"
+    }
+  },
   "templates": {
     "title": "模板",
     "subtitle": "工作流模板定义了计划的编排规则。Agent 读取模板后构建编排图。",

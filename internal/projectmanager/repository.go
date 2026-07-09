@@ -349,6 +349,25 @@ type TemplateRepository interface {
 	Delete(ctx context.Context, id TemplateID) error
 }
 
+// ModelCatalogRepository persists the org-level user-managed model catalog
+// (issue-93dd8daa phase ①). Save/Update enforce (org_id, model_id) uniqueness
+// (ErrModelCatalogEntryExists on collision). ReplaceForOrg + UpsertForOrg back the
+// JSON bulk import (whole batch applied atomically in one tx).
+type ModelCatalogRepository interface {
+	Save(ctx context.Context, e *ModelCatalogEntry) error
+	Update(ctx context.Context, e *ModelCatalogEntry) error
+	FindByID(ctx context.Context, id ModelCatalogEntryID) (*ModelCatalogEntry, error)
+	FindByModelID(ctx context.Context, orgID, modelID string) (*ModelCatalogEntry, error)
+	ListByOrg(ctx context.Context, orgID string) ([]*ModelCatalogEntry, error)
+	Delete(ctx context.Context, id ModelCatalogEntryID) error
+	// ReplaceForOrg (import mode=replace): atomically delete ALL of the org's entries
+	// and insert the given set (whole-batch swap).
+	ReplaceForOrg(ctx context.Context, orgID string, entries []*ModelCatalogEntry) error
+	// UpsertForOrg (import mode=upsert): atomically insert-or-update each entry by
+	// (org_id, model_id); existing rows are updated in place, new ones inserted.
+	UpsertForOrg(ctx context.Context, orgID string, entries []*ModelCatalogEntry) error
+}
+
 // OrgSequenceRepository allocates per-organization, per-entity-type monotonic
 // numbers (v2.7.1 #245 — the T<n>/I<n> display/reference tokens). Allocate is
 // atomic + race-safe (one SQL UPSERT...RETURNING; SQLite serializes per-row

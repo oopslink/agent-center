@@ -454,6 +454,28 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Delete a non-builtin workflow template by template_id. Builtin templates cannot be deleted.",
 	}, makeDeleteTemplate(cfg))
 
+	// --- model catalog tools (issue-93dd8daa ①) ------------------------------
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_model_catalog_entry",
+		Description: "List your organization's model catalog — the user-managed set of models agents may run (each with model_id, display_name, per-MTok input/output cost, context_window, and a free-text tier/capability description).",
+	}, makeListModelCatalog(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "create_model_catalog_entry",
+		Description: "Add a model to your organization's catalog. model_id must be unique in the org; costs and context_window must be >= 0; tier is a free-text capability/fit description.",
+	}, makeCreateModelCatalog(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "update_model_catalog_entry",
+		Description: "Update a model catalog entry by id (model_id, display_name, costs, context_window, tier).",
+	}, makeUpdateModelCatalog(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "delete_model_catalog_entry",
+		Description: "Delete a model catalog entry by id.",
+	}, makeDeleteModelCatalog(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "import_model_catalog",
+		Description: "Bulk-import the model catalog from a JSON array. mode=upsert (insert-or-update by model_id) or replace (swap the whole org catalog). Any invalid entry (bad schema, duplicate model_id, negative cost) rejects the WHOLE batch — nothing is half-applied.",
+	}, makeImportModelCatalog(cfg))
+
 	// --- file tools ----------------------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "upload_file",
