@@ -31,6 +31,20 @@ import (
 
 const supervisorSessionTestComeUpTimeout = 45 * time.Second
 
+// supervisorSessionTestEventWait bounds how long a test waits for the event-pump
+// to deliver the first come-up "system" event (or for a reattached pump to resume
+// / a probe to report Reattachable). It is tied to supervisorSessionTestComeUpTimeout
+// on purpose: the pump can only deliver once the real supervisor+claude subprocesses
+// have come up, so asserting a tighter deadline than the come-up budget itself is a
+// bug. Under `go test ./...` the Go runner runs packages concurrently across all
+// CPUs; the resulting CPU starvation can push real subprocess come-up well past a few
+// seconds — which made TestSupervisorSession_DetachSurvives flake a false RED and
+// pollute the integration Gate (T960). This is a generous UPPER bound: every wait
+// polls and returns the instant the event arrives, so idle/fast runs are unaffected;
+// only a genuine hang burns the full budget (still bounded, so a real regression
+// still fails deterministically).
+const supervisorSessionTestEventWait = supervisorSessionTestComeUpTimeout
+
 // buildAgentCenter builds the real agent-center CLI binary once and returns its
 // path (carries the `worker agent-supervisor` subcommand the session spawns).
 func buildAgentCenter(t *testing.T) string {
@@ -461,14 +475,14 @@ func TestSupervisorSession_DetachSurvives(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartSupervisorSession: %v", err)
 	}
-	col.waitForType(t, "system", 10*time.Second)
+	col.waitForType(t, "system", supervisorSessionTestEventWait)
 	rec := readInstance(t, home)
 
 	// Detach: no signal; supervisor + claude survive; pump joins.
 	sess.Detach()
 	select {
 	case <-sess.Done():
-	case <-time.After(2 * time.Second):
+	case <-time.After(supervisorSessionTestEventWait):
 		t.Fatal("pump did not join after Detach")
 	}
 	time.Sleep(200 * time.Millisecond)
@@ -481,7 +495,7 @@ func TestSupervisorSession_DetachSurvives(t *testing.T) {
 
 	// A fresh daemon re-attaches via ProbeAgent → Reattachable, then resumes the
 	// event-pump from the last-acked offset (here: the supervisor's baseOffset).
-	pr := waitProbeReattachable(t, home, 15*time.Second)
+	pr := waitProbeReattachable(t, home, supervisorSessionTestEventWait)
 	ref := supervisormanager.RefFromProbe(home, pr)
 	col2 := &eventCollector{}
 	sess2, err := workerdaemon.ReattachSupervisorSession(
@@ -494,7 +508,7 @@ func TestSupervisorSession_DetachSurvives(t *testing.T) {
 
 	// The reattached pump continues to deliver ticking events (no spawn happened —
 	// the same supervisor/claude are still running).
-	col2.waitForType(t, "system", 10*time.Second)
+	col2.waitForType(t, "system", supervisorSessionTestEventWait)
 	if col2.count() == 0 {
 		t.Fatal("reattached pump delivered no events")
 	}
