@@ -165,7 +165,9 @@ func (p *execCodexProc) Wait() error       { return p.cmd.Wait() }
 //   - item.completed{agent_message,text}        → assistant_text  (the reply)
 //   - item.completed{reasoning,text}            → thinking
 //   - turn.completed{usage}                     → result (success, tokens)
-//   - turn.failed / error                       → result (IsError=true)
+//   - turn.failed                               → result (IsError=true) [TERMINAL]
+//   - error                                     → error/transient (IsError=true) [NON-terminal,
+//     issue-c7a1fe3e: a reconnect blip must not false-kill the turn]
 //   - anything else                             → unknown (forward-compatible)
 func mapCodexLine(line []byte) (events []claudestream.StreamEvent, threadID string, err error) {
 	if len(line) == 0 {
@@ -205,7 +207,10 @@ func mapCodexLine(line []byte) (events []claudestream.StreamEvent, threadID stri
 			ev.TokensOut = top.Usage.OutputTokens
 		}
 		return []claudestream.StreamEvent{ev}, "", nil
-	case "turn.failed", "error":
+	case "turn.failed":
+		// TERMINAL: the turn genuinely failed → a result/error event ends the turn (the
+		// session's sawResult gate + the events.go turn-end handler both key on
+		// Type=="result").
 		msg := top.Message
 		if top.Error != nil && top.Error.Message != "" {
 			msg = top.Error.Message
@@ -213,6 +218,28 @@ func mapCodexLine(line []byte) (events []claudestream.StreamEvent, threadID stri
 		return []claudestream.StreamEvent{{
 			Type:    "result",
 			Subtype: "error",
+			IsError: true,
+			Result:  msg,
+			Raw:     cloneRaw(line),
+		}}, "", nil
+	case "error":
+		// issue-c7a1fe3e: a bare `error` event is codex reporting a TRANSIENT / recoverable
+		// condition mid-stream (a reconnect blip under network jitter), NOT a terminal turn
+		// failure — codex keeps going and still emits turn.completed. The old code mapped it
+		// to a terminal `result`(IsError) event, so a transient blip FALSE-KILLED the session
+		// (assumed dead) even though the turn later completed. Emit it as a NON-"result"
+		// diagnostic: visible/logged (never swallowed), but the session's sawResult gate and
+		// the events.go turn-end handler both ignore non-"result" types, so consumption
+		// continues. Genuine terminality still comes from turn.failed (above) OR the stream
+		// closing without a turn.completed (the synthesize-failed path below) — a truly fatal
+		// error therefore STILL fails loud; only a transient one no longer false-kills.
+		msg := top.Message
+		if top.Error != nil && top.Error.Message != "" {
+			msg = top.Error.Message
+		}
+		return []claudestream.StreamEvent{{
+			Type:    "error", // NON-terminal (not "result"): sawResult / turn-end handler ignore it
+			Subtype: "transient",
 			IsError: true,
 			Result:  msg,
 			Raw:     cloneRaw(line),
@@ -443,8 +470,14 @@ func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
 			s.mu.Unlock()
 		}
 		for _, ev := range events {
-			if ev.Type == "result" {
+			switch {
+			case ev.Type == "result":
 				sawResult = true
+			case ev.Type == "error" && ev.Subtype == "transient":
+				// issue-c7a1fe3e: surface the transient codex error LOUD (never silent),
+				// but do NOT terminate — the turn continues to its real turn.completed /
+				// turn.failed. Fail-loud, not false-death.
+				s.cfg.Logger(fmt.Sprintf("[worker] codex_session: transient codex error (non-terminal, continuing): %s", ev.Result))
 			}
 			s.cfg.OnEvent(ev)
 		}
