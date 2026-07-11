@@ -33,6 +33,48 @@ const codexHomeDirName = "codex-home"
 // codexConfigFileName is the file codex loads from $CODEX_HOME.
 const codexConfigFileName = "config.toml"
 
+// codexAuthFileName is the codex login credential file under $CODEX_HOME.
+const codexAuthFileName = "auth.json"
+
+// resolveSourceCodexHome returns the worker's REAL CODEX_HOME (where `codex login` wrote
+// auth.json): the CODEX_HOME env if set (read at the worker process, BEFORE the per-agent
+// override is applied to the child), else ~/.codex.
+func resolveSourceCodexHome() string {
+	if h := strings.TrimSpace(os.Getenv("CODEX_HOME")); h != "" {
+		return h
+	}
+	if hd, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(hd, ".codex")
+	}
+	return ""
+}
+
+// provisionCodexAuth links the source codex login's auth.json into the per-agent
+// codex-home so a codex supervisor can AUTHENTICATE (T977 fix). Codex reads BOTH
+// config.toml AND auth.json from $CODEX_HOME; the dedicated per-agent home has the
+// generated config.toml but NOT the login auth (which lives in the worker's real
+// CODEX_HOME / ~/.codex), so without this codex 401s and the entire MCP chain is
+// unreachable. Returns a non-empty WARNING string when it cannot provision (source
+// unresolved / auth.json missing / symlink error) so the caller logs FAIL-LOUD — never a
+// silent 401, the same discipline as the executor's codexAuthPreflight. Re-links on every
+// launch (removes any stale link/copy first) so a source token refresh propagates.
+func provisionCodexAuth(codexHome, sourceCodexHome string) string {
+	src := strings.TrimSpace(sourceCodexHome)
+	if src == "" {
+		return "source CODEX_HOME unresolved — cannot provision auth.json (run `codex login` + set CODEX_HOME)"
+	}
+	srcAuth := filepath.Join(src, codexAuthFileName)
+	if _, err := os.Stat(srcAuth); err != nil {
+		return fmt.Sprintf("source auth.json missing at %s (run `codex login`)", srcAuth)
+	}
+	dstAuth := filepath.Join(codexHome, codexAuthFileName)
+	_ = os.Remove(dstAuth) // re-link each launch (handles a stale link/copy + token refresh)
+	if err := os.Symlink(srcAuth, dstAuth); err != nil {
+		return fmt.Sprintf("symlink auth.json into codex-home failed: %v", err)
+	}
+	return ""
+}
+
 // WriteCodexMCPConfig translates the canonical mcp_config.runtime.json into codex
 // config.toml and writes it under a per-agent CODEX_HOME ("<home>/codex-home"),
 // returning that CODEX_HOME directory (to export as $CODEX_HOME to the codex

@@ -34,6 +34,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -153,6 +154,22 @@ func (p *execCodexProc) Wait() error       { return p.cmd.Wait() }
 // codex JSONL → claudestream.StreamEvent mapping.
 // ---------------------------------------------------------------------------
 
+// isPermanentCodexError reports whether a codex error message is a PERMANENT failure
+// (auth / 401 / missing bearer / forbidden) rather than a transient reconnect blip
+// (T977). A permanent error must fail-loud FAST — retrying it as transient just hammers
+// a doomed session (the codex supervisor auth-401 amplifier tester3 caught). codex error
+// events carry no machine code, so this is a case-insensitive substring match on the
+// stable auth-failure phrases.
+func isPermanentCodexError(msg string) bool {
+	m := strings.ToLower(msg)
+	for _, sig := range []string{"401", "unauthorized", "missing bearer", "invalid api key", "forbidden", "authentication failed"} {
+		if strings.Contains(m, sig) {
+			return true
+		}
+	}
+	return false
+}
+
 // ⚠️ KEEP IN SYNC with ParseCodexRunnerStream (agentruntime/executor/codex_usage.go):
 // both decode the same codex --json event schema (the executor-side parser is a lean
 // parallel copy because the executor package cannot import this one — import cycle). If
@@ -241,6 +258,19 @@ func mapCodexLine(line []byte) (events []claudestream.StreamEvent, threadID stri
 		msg := top.Message
 		if top.Error != nil && top.Error.Message != "" {
 			msg = top.Error.Message
+		}
+		if isPermanentCodexError(msg) {
+			// T977: a PERMANENT error (401 / missing bearer / auth) is NOT a transient
+			// reconnect blip — treating it as transient hammers a DOOMED session 5x
+			// (the codex supervisor auth bug's amplifier) instead of failing fast. Map it
+			// to a TERMINAL result/error so the turn fails FAST + loud.
+			return []claudestream.StreamEvent{{
+				Type:    "result",
+				Subtype: "error",
+				IsError: true,
+				Result:  msg,
+				Raw:     cloneRaw(line),
+			}}, "", nil
 		}
 		return []claudestream.StreamEvent{{
 			Type:    "error", // NON-terminal (not "result"): sawResult / turn-end handler ignore it

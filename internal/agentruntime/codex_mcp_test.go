@@ -108,6 +108,42 @@ func TestWriteCodexMCPConfig_NoHome(t *testing.T) {
 	}
 }
 
+// T977: provisionCodexAuth symlinks the source login auth.json into the per-agent
+// codex-home so codex authenticates; a missing source auth returns a fail-loud warning
+// (never a silent 401).
+func TestProvisionCodexAuth(t *testing.T) {
+	src := t.TempDir()
+	codexHome := t.TempDir()
+
+	// Source auth.json missing → fail-loud warning, no symlink created.
+	if w := provisionCodexAuth(codexHome, src); w == "" || !strings.Contains(w, "auth.json missing") {
+		t.Errorf("missing source auth must warn fail-loud, got %q", w)
+	}
+	if _, err := os.Lstat(filepath.Join(codexHome, "auth.json")); err == nil {
+		t.Error("no symlink should exist when source auth is missing")
+	}
+
+	// Source auth present → symlinked into codex-home, no warning.
+	if err := os.WriteFile(filepath.Join(src, "auth.json"), []byte(`{"token":"x"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if w := provisionCodexAuth(codexHome, src); w != "" {
+		t.Fatalf("provision with source present should not warn, got %q", w)
+	}
+	got, err := os.Readlink(filepath.Join(codexHome, "auth.json"))
+	if err != nil {
+		t.Fatalf("auth.json should be a symlink: %v", err)
+	}
+	if got != filepath.Join(src, "auth.json") {
+		t.Errorf("symlink target = %q, want source auth.json", got)
+	}
+
+	// Empty source → fail-loud (unresolved CODEX_HOME).
+	if w := provisionCodexAuth(codexHome, ""); w == "" {
+		t.Error("empty source CODEX_HOME must warn fail-loud")
+	}
+}
+
 // Special characters in command/env values are TOML-escaped (no broken config).
 func TestCodexMCPConfigTOML_Escaping(t *testing.T) {
 	runtime := []byte(`{"mcpServers":{"s":{"command":"a\"b\\c","args":[],"env":{"K":"line1\nline2"}}}}`)
