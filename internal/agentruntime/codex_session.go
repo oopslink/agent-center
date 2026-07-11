@@ -153,6 +153,11 @@ func (p *execCodexProc) Wait() error       { return p.cmd.Wait() }
 // codex JSONL → claudestream.StreamEvent mapping.
 // ---------------------------------------------------------------------------
 
+// ⚠️ KEEP IN SYNC with ParseCodexRunnerStream (agentruntime/executor/codex_usage.go):
+// both decode the same codex --json event schema (the executor-side parser is a lean
+// parallel copy because the executor package cannot import this one — import cycle). If
+// codex changes its event shape, update BOTH.
+//
 // mapCodexLine maps ONE `codex exec --json` JSONL line to zero or more
 // claudestream.StreamEvent (the type the AgentController consumes) and extracts
 // the thread_id when the line is a thread.started event.

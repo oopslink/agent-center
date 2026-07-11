@@ -205,6 +205,77 @@ func TestCommandRunner_RunsCommandInWorkspace(t *testing.T) {
 	}
 }
 
+// TestCommandRunner_CodexBranch_CapturesThreadID covers the T969 run.go cli-branch: a
+// `codex exec` runner's captured --json output is parsed by ParseCodexRunnerStream, so
+// RunResult carries the clean result + the captured thread_id (→ Record.SessionID).
+func TestCommandRunner_CodexBranch_CapturesThreadID(t *testing.T) {
+	cr := &CommandRunner{
+		cmd: []string{"codex", "exec", "--json", "-m", "gpt-5.5", "do it"},
+		run: func(_ context.Context, _ string, _ []string, _ func(string)) (string, error) {
+			return strings.Join([]string{
+				`{"type":"thread.started","thread_id":"th_run1"}`,
+				`{"type":"item.completed","item":{"type":"agent_message","text":"codex result"}}`,
+				`{"type":"turn.completed","usage":{"input_tokens":9,"output_tokens":2}}`,
+			}, "\n"), nil
+		},
+	}
+	res, err := cr.Run(context.Background(), RunContext{WorkspaceDir: "/ws/e1", Progress: func(string, string) {}})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.ThreadID != "th_run1" {
+		t.Errorf("ThreadID = %q, want th_run1 (captured for resume)", res.ThreadID)
+	}
+	if res.Result != "codex result" {
+		t.Errorf("Result = %q, want clean 'codex result' (not raw JSONL)", res.Result)
+	}
+	if res.Usage.OutputTokens != 2 {
+		t.Errorf("usage out = %d, want 2", res.Usage.OutputTokens)
+	}
+}
+
+// TestCommandRunner_ClaudeUnchanged is the T969 CLAUDE ZERO-REGRESSION lock: a non-codex
+// runner still parses via ParseRunnerStream and carries an EMPTY ThreadID — the codex
+// branch must never touch the claude path.
+func TestCommandRunner_ClaudeUnchanged(t *testing.T) {
+	cr := &CommandRunner{
+		cmd: []string{"claude", "-p", "do it", "--output-format", "stream-json"},
+		run: func(_ context.Context, _ string, _ []string, _ func(string)) (string, error) {
+			return `{"type":"result","subtype":"success","result":"claude answer","usage":{"input_tokens":5,"output_tokens":1}}`, nil
+		},
+	}
+	res, err := cr.Run(context.Background(), RunContext{WorkspaceDir: "/ws/e2", Progress: func(string, string) {}})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.ThreadID != "" {
+		t.Errorf("claude ThreadID = %q, want empty (codex branch must not touch claude)", res.ThreadID)
+	}
+	if res.Result != "claude answer" {
+		t.Errorf("claude Result = %q, want 'claude answer' via ParseRunnerStream", res.Result)
+	}
+}
+
+// TestIsCodexRunnerCmd pins the cli detection that gates the parser branch.
+func TestIsCodexRunnerCmd(t *testing.T) {
+	cases := []struct {
+		cmd  []string
+		want bool
+	}{
+		{[]string{"codex", "exec", "--json"}, true},
+		{[]string{"/opt/codex", "exec", "resume", "t"}, true},
+		{[]string{"claude", "-p", "x"}, false},
+		{[]string{"codex"}, false},            // no exec subcommand
+		{[]string{"codexish", "exec"}, false}, // basename must be exactly "codex"
+		{nil, false},
+	}
+	for _, c := range cases {
+		if got := isCodexRunnerCmd(c.cmd); got != c.want {
+			t.Errorf("isCodexRunnerCmd(%v) = %v, want %v", c.cmd, got, c.want)
+		}
+	}
+}
+
 func TestRunExecutor_RecordsUsageInOutput(t *testing.T) {
 	fx, root := runHarness(t, "exec-usage")
 	fr := &fakeComputeRunner{res: RunResult{

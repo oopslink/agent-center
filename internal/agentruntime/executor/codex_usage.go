@@ -20,6 +20,10 @@ import (
 // minimal shape below is cheaper to duplicate than to relocate. BEST-EFFORT +
 // format-tolerant: non-JSON / unrecognized lines are skipped.
 //
+// ⚠️ KEEP IN SYNC with mapCodexLine (agentruntime/codex_session.go): both decode the
+// same codex --json event schema (thread.started / item.completed{agent_message} /
+// turn.completed). If codex changes the event shape, update BOTH.
+//
 // The returned threadID is what the orchestrator persists into Record.SessionID for
 // tier-1 resume; an EMPTY threadID (thread.started never arrived / stream truncated)
 // signals the caller to degrade to tier-2 rerun (fail-loud), never a resume-with-empty-id.
