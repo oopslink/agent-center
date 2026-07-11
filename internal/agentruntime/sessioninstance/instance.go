@@ -137,6 +137,32 @@ func MarkCompletedTurn(home string) error {
 	return writeInstanceAtomic(home, st)
 }
 
+// MarkSessionID persists sessionID into the current instance (read-modify-write,
+// preserving Generation/PID/CompletedTurn), so a session whose LLM session id is minted
+// at RUNTIME — codex: the thread_id from the first thread.started event — can be durably
+// captured for a later resume. Unlike claude (whose session id is pre-assigned at
+// AcquireInstance), codex has nothing to resume until this early-persist runs. Idempotent
+// when sessionID is unchanged; an EMPTY sessionID is a no-op (it never CLEARS a captured
+// id). Must be called by the process holding the agent (the agent_controller serializes
+// its writes); the atomic temp-file+rename is the second-line defense.
+func MarkSessionID(home, sessionID string) error {
+	if home == "" {
+		return errors.New("sessioninstance: home required")
+	}
+	if sessionID == "" {
+		return nil // never clear a captured id
+	}
+	st, err := ReadInstance(home)
+	if err != nil {
+		return err
+	}
+	if st.SessionID == sessionID {
+		return nil
+	}
+	st.SessionID = sessionID
+	return writeInstanceAtomic(home, st)
+}
+
 // writeInstanceAtomic persists st to <home>/session.instance via a temp file +
 // rename so a crash mid-write never leaves a torn/partial file. The home
 // directory is created if missing (0700).

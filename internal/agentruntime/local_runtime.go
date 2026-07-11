@@ -683,17 +683,39 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		return fmt.Errorf("agent_controller: write codex mcp-config: %w", err)
 	}
 
+	// T972 supervisor resume (early-persist): read the prior generation's captured
+	// thread_id (persisted via OnThreadID→MarkSessionID) so this relaunch RESUMES it,
+	// then claim the single-instance lease (like the claude path) seeded with it. A
+	// relaunch (a prior generation existed) that left NO thread_id can't resume → a
+	// FRESH session, logged fail-loud (codex mints its thread_id only at thread.started,
+	// so a session that died before its first event has nothing to resume — the safe,
+	// visible fallback, never a silent loss).
+	prior, _ := sessioninstance.ReadInstance(home)
+	resumeThreadID := prior.SessionID
+	if prior.Generation > 0 && resumeThreadID == "" {
+		r.log("codex agent=%s: prior generation left no thread_id (thread.started never captured) — starting a FRESH codex session, prior conversation NOT resumed", agentID)
+	}
+	if _, lerr := sessioninstance.AcquireInstance(home, resumeThreadID, os.Getpid()); lerr != nil {
+		return fmt.Errorf("agent_controller: acquire codex instance: %w", lerr)
+	}
+
 	sess, err := r.cfg.CodexStarter(ctx, CodexSpec{
-		AgentID:     agentID,
-		TasksDir:    tasksDir,
-		Binary:      r.cfg.CodexBinary,
-		Model:       spec.Model,
-		DisplayName: spec.DisplayName,
-		EnvVars:     spec.EnvVars,
-		CodexHome:   codexHome,
-		Logger:      r.rawLogger(),
-		OnEvent:     func(ev claudestream.StreamEvent) { r.onEvent(ev) },
-		OnExit:      func(exitErr error) { r.onExit(exitErr) },
+		AgentID:        agentID,
+		TasksDir:       tasksDir,
+		Binary:         r.cfg.CodexBinary,
+		Model:          spec.Model,
+		DisplayName:    spec.DisplayName,
+		EnvVars:        spec.EnvVars,
+		CodexHome:      codexHome,
+		ResumeThreadID: resumeThreadID,
+		OnThreadID: func(tid string) {
+			if merr := sessioninstance.MarkSessionID(home, tid); merr != nil {
+				r.log("codex agent=%s: persist thread_id failed: %v (resume unavailable on next restart)", agentID, merr)
+			}
+		},
+		Logger:  r.rawLogger(),
+		OnEvent: func(ev claudestream.StreamEvent) { r.onEvent(ev) },
+		OnExit:  func(exitErr error) { r.onExit(exitErr) },
 	})
 	if err != nil {
 		return fmt.Errorf("agent_controller: start codex session: %w", err)

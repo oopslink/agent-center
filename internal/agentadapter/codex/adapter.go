@@ -235,11 +235,15 @@ func (a *Adapter) BuildMCPConfigArg(_ string) (agentadapter.MCPSetup, error) {
 	return agentadapter.MCPSetup{}, nil
 }
 
-// BuildSkillMountSetup returns zero SkillMountSetup (codex skill path
-// unverified). DispatchService rejects skill-bearing agents on codex
-// workers per SupportedFeatures().SupportsSkills=false.
+// BuildSkillMountSetup — codex skills are explicitly N/A for T972 (SupportsSkills=false):
+// codex has no claude-style `--skill-path` mount; its native instruction mechanism is an
+// AGENTS.md rules file, which is a DIFFERENT model (content, not a mounted skill dir) and
+// is deferred to a follow-up. Until then a skill-bearing agent is REJECTED at
+// DispatchService.FeatureCheck (SupportsSkills=false) — an explicit fail-loud reject,
+// never a SILENT skill drop. This method therefore stays an error (it must never be
+// reached for codex given the false feature flag).
 func (a *Adapter) BuildSkillMountSetup(_, _ string) (agentadapter.SkillMountSetup, error) {
-	return agentadapter.SkillMountSetup{}, errors.New("codex: skill mount not yet supported")
+	return agentadapter.SkillMountSetup{}, errors.New("codex: skills are N/A (no skill-mount; AGENTS.md mapping is a follow-up) — SupportsSkills=false rejects skill-bearing agents upstream")
 }
 
 // init self-registers the adapter on import.

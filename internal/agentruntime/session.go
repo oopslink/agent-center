@@ -59,9 +59,16 @@ type CodexSpec struct {
 	// process so codex loads the generated $CODEX_HOME/config.toml (its [mcp_servers.*]
 	// agent-center tables). "" → no CODEX_HOME override (codex uses its default).
 	CodexHome string
-	OnEvent   func(ev claudestream.StreamEvent)
-	OnExit    func(err error)
-	Logger    func(msg string)
+	// ResumeThreadID is the codex thread_id captured from a PRIOR generation (persisted
+	// in session.instance.SessionID), threaded on a boot-reconcile relaunch so the first
+	// turn is `codex exec resume <thread_id>` (T972 supervisor resume). "" → fresh session.
+	ResumeThreadID string
+	// OnThreadID persists the thread_id the FIRST turn mints (thread.started) so a later
+	// relaunch can resume it (early-persist, wired to sessioninstance.MarkSessionID).
+	OnThreadID func(threadID string)
+	OnEvent    func(ev claudestream.StreamEvent)
+	OnExit     func(err error)
+	Logger     func(msg string)
 }
 
 // SupervisorSessionConfig configures a claude supervisor session start. Moved from
