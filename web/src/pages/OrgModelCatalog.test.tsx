@@ -30,14 +30,57 @@ function wrap() {
 afterEach(() => cleanup());
 
 describe('OrgModelCatalog', () => {
-  it('renders the catalog rows + add button + import panel', async () => {
+  it('renders the catalog rows + add button + bulk-import button', async () => {
     server.use(http.get('/api/model-catalog', () => HttpResponse.json({ entries: [entry] })));
     wrap();
     const row = await screen.findByTestId('model-catalog-row');
     expect(row).toHaveAttribute('data-model-id', 'claude-opus-4-8');
     expect(screen.getByText('Opus 4.8')).toBeInTheDocument();
     expect(screen.getByTestId('model-catalog-add-btn')).toBeInTheDocument();
+    // The import UI is a standalone top-right button; the modal is closed until clicked.
+    expect(screen.getByTestId('model-catalog-import-btn')).toBeInTheDocument();
+    expect(screen.queryByTestId('model-catalog-import')).not.toBeInTheDocument();
+  });
+
+  it('opens the bulk-import modal from the top-right button', async () => {
+    server.use(http.get('/api/model-catalog', () => HttpResponse.json({ entries: [] })));
+    wrap();
+    await screen.findByTestId('model-catalog-empty');
+    expect(screen.queryByTestId('model-catalog-import')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('model-catalog-import-btn'));
     expect(screen.getByTestId('model-catalog-import')).toBeInTheDocument();
+    expect(screen.getByTestId('model-catalog-import-json')).toBeInTheDocument();
+    // Close returns to the catalog with the modal gone.
+    fireEvent.click(screen.getByTestId('model-catalog-import-close'));
+    expect(screen.queryByTestId('model-catalog-import')).not.toBeInTheDocument();
+  });
+
+  it('rejects malformed JSON client-side without calling the server', async () => {
+    let called = false;
+    server.use(
+      http.get('/api/model-catalog', () => HttpResponse.json({ entries: [] })),
+      http.post('/api/model-catalog/import', () => {
+        called = true;
+        return HttpResponse.json({ ok: true, mode: 'upsert', imported: 0 });
+      }),
+    );
+    wrap();
+    await screen.findByTestId('model-catalog-empty');
+    fireEvent.click(screen.getByTestId('model-catalog-import-btn'));
+    fireEvent.change(screen.getByTestId('model-catalog-import-json'), { target: { value: '[{bad json' } });
+    fireEvent.click(screen.getByTestId('model-catalog-import-run'));
+    await waitFor(() => expect(screen.getByTestId('model-catalog-import-parse-error')).toBeInTheDocument());
+    expect(called).toBe(false);
+  });
+
+  it('rejects non-array JSON client-side', async () => {
+    server.use(http.get('/api/model-catalog', () => HttpResponse.json({ entries: [] })));
+    wrap();
+    await screen.findByTestId('model-catalog-empty');
+    fireEvent.click(screen.getByTestId('model-catalog-import-btn'));
+    fireEvent.change(screen.getByTestId('model-catalog-import-json'), { target: { value: '{"model_id":"x"}' } });
+    fireEvent.click(screen.getByTestId('model-catalog-import-run'));
+    await waitFor(() => expect(screen.getByTestId('model-catalog-import-parse-error')).toBeInTheDocument());
   });
 
   it('surfaces a whole-batch import rejection error', async () => {
@@ -49,6 +92,7 @@ describe('OrgModelCatalog', () => {
     );
     wrap();
     await screen.findByTestId('model-catalog-empty');
+    fireEvent.click(screen.getByTestId('model-catalog-import-btn'));
     fireEvent.change(screen.getByTestId('model-catalog-import-json'), {
       target: { value: '[{"model_id":"x"},{"model_id":"x"}]' },
     });
@@ -64,9 +108,11 @@ describe('OrgModelCatalog', () => {
     );
     wrap();
     await screen.findByTestId('model-catalog-empty');
+    fireEvent.click(screen.getByTestId('model-catalog-import-btn'));
     fireEvent.change(screen.getByTestId('model-catalog-import-json'), { target: { value: '[{"model_id":"a"},{"model_id":"b"}]' } });
     fireEvent.click(screen.getByTestId('model-catalog-import-replace'));
     fireEvent.click(screen.getByTestId('model-catalog-import-run'));
     await waitFor(() => expect(screen.getByTestId('model-catalog-import-ok')).toBeInTheDocument());
+    expect(screen.getByTestId('model-catalog-import-ok').textContent).toContain('2');
   });
 });

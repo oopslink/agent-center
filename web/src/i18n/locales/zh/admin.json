@@ -294,11 +294,17 @@
       "tier": "档位/描述"
     },
     "import": {
+      "button": "批量导入 (JSON)",
       "title": "批量导入 (JSON)",
       "help": "粘贴条目的 JSON 数组。upsert 按 model_id 合并;replace 替换整个类目。任何非法条目(schema 错、model_id 重复、负成本)都会整批拒绝。",
       "upsert": "增量合并",
       "replace": "整体替换",
       "run": "导入",
+      "close": "关闭",
+      "parseError": "JSON 解析失败:{{detail}}",
+      "notArray": "JSON 非法:需要一个条目数组。",
+      "failed": "导入失败——{{count}} 条中 0 条生效。",
+      "result": "已导入 {{imported}} 条(失败 {{failed}} 条)。",
       "ok": "已导入 {{count}} 条。"
     }
   },

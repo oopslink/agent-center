@@ -20,6 +20,7 @@ export default function OrgModelCatalog(): React.ReactElement {
   const catalog = useModelCatalog();
   const del = useDeleteModelCatalogEntry();
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<ModelCatalogEntry | null>(null);
   const [deleting, setDeleting] = useState<ModelCatalogEntry | null>(null);
 
@@ -40,17 +41,27 @@ export default function OrgModelCatalog(): React.ReactElement {
           <h1 className="font-heading text-2xl font-semibold text-text-primary">{t('modelCatalog.title')}</h1>
           <p className="text-xs text-text-muted">{t('modelCatalog.subtitle')}</p>
         </div>
-        <button
-          type="button"
-          className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
-          onClick={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-          data-testid="model-catalog-add-btn"
-        >
-          {t('modelCatalog.add')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded border border-border-base px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-subtle"
+            onClick={() => setImportOpen(true)}
+            data-testid="model-catalog-import-btn"
+          >
+            {t('modelCatalog.import.button')}
+          </button>
+          <button
+            type="button"
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+            data-testid="model-catalog-add-btn"
+          >
+            {t('modelCatalog.add')}
+          </button>
+        </div>
       </header>
 
       {catalog.isLoading && (
@@ -118,7 +129,7 @@ export default function OrgModelCatalog(): React.ReactElement {
         </div>
       )}
 
-      <ImportPanel />
+      {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
 
       {formOpen && <ModelCatalogFormModal entry={editing ?? undefined} onClose={() => setFormOpen(false)} />}
 
@@ -204,25 +215,49 @@ function ModelCatalogFormModal({ entry, onClose }: { entry?: ModelCatalogEntry; 
   );
 }
 
-function ImportPanel(): React.ReactElement {
+// ImportModal is the standalone "Bulk import (JSON)" dialog opened from the
+// top-right toolbar button. It parses/validates the pasted JSON client-side
+// (a parse failure never hits the server), then reuses useImportModelCatalog —
+// the same batch endpoint the rest of the page writes through. The backend
+// validates the whole batch, so a rejection means 0 imported / all failed.
+function ImportModal({ onClose }: { onClose: () => void }): React.ReactElement {
   const { t } = useTranslation('admin');
   const imp = useImportModelCatalog();
   const [json, setJson] = useState('');
   const [mode, setMode] = useState<'upsert' | 'replace'>('upsert');
+  const [parseError, setParseError] = useState('');
+  const [total, setTotal] = useState(0);
+
   const run = async () => {
+    setParseError('');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch (err) {
+      setParseError(t('modelCatalog.import.parseError', { detail: (err as Error).message }));
+      return;
+    }
+    if (!Array.isArray(parsed)) {
+      setParseError(t('modelCatalog.import.notArray'));
+      return;
+    }
+    setTotal(parsed.length);
     try {
       await imp.mutateAsync({ json, mode });
     } catch {
       /* surfaced via imp.error */
     }
   };
+
+  const failed = total - (imp.data?.imported ?? 0);
+
   return (
-    <details className="rounded-lg border border-border-base p-3" data-testid="model-catalog-import">
-      <summary className="cursor-pointer text-sm font-medium text-text-secondary">{t('modelCatalog.import.title')}</summary>
-      <div className="mt-3 space-y-2">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" data-testid="model-catalog-import">
+      <div className="w-full max-w-lg space-y-3 rounded-lg border border-border-base bg-bg-elevated p-4 shadow-2">
+        <h2 className="text-lg font-semibold text-text-primary">{t('modelCatalog.import.title')}</h2>
         <p className="text-xs text-text-muted">{t('modelCatalog.import.help')}</p>
         <textarea
-          rows={6}
+          rows={8}
           className="w-full rounded border border-border-base bg-bg-subtle px-2 py-1 font-mono text-xs"
           placeholder='[{"model_id":"opus","input_cost":15,"output_cost":75,"context_window":200000,"tier":"hardest tasks"}]'
           value={json}
@@ -238,9 +273,25 @@ function ImportPanel(): React.ReactElement {
             <input type="radio" checked={mode === 'replace'} onChange={() => setMode('replace')} data-testid="model-catalog-import-replace" />
             {t('modelCatalog.import.replace')}
           </label>
+        </div>
+        {parseError && <p className="text-xs text-danger" data-testid="model-catalog-import-parse-error">{parseError}</p>}
+        {imp.isError && (
+          <p className="text-xs text-danger" data-testid="model-catalog-import-error">
+            {t('modelCatalog.import.failed', { count: total })} {(imp.error as Error).message}
+          </p>
+        )}
+        {imp.isSuccess && (
+          <p className="text-xs text-status-emerald-fg" data-testid="model-catalog-import-ok">
+            {t('modelCatalog.import.result', { imported: imp.data.imported, failed })}
+          </p>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" className="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle" onClick={onClose} data-testid="model-catalog-import-close">
+            {t('modelCatalog.import.close')}
+          </button>
           <button
             type="button"
-            className="ml-auto rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
             onClick={() => void run()}
             disabled={imp.isPending || json.trim() === ''}
             data-testid="model-catalog-import-run"
@@ -248,9 +299,7 @@ function ImportPanel(): React.ReactElement {
             {t('modelCatalog.import.run')}
           </button>
         </div>
-        {imp.isError && <p className="text-xs text-danger" data-testid="model-catalog-import-error">{(imp.error as Error).message}</p>}
-        {imp.isSuccess && <p className="text-xs text-status-emerald-fg" data-testid="model-catalog-import-ok">{t('modelCatalog.import.ok', { count: imp.data.imported })}</p>}
       </div>
-    </details>
+    </div>
   );
 }

@@ -294,11 +294,17 @@
       "tier": "Tier"
     },
     "import": {
+      "button": "Bulk import (JSON)",
       "title": "Bulk import (JSON)",
       "help": "Paste a JSON array of entries. Upsert merges by model_id; replace swaps the whole catalog. Any invalid entry (bad schema, duplicate model_id, negative cost) rejects the whole batch.",
       "upsert": "Upsert",
       "replace": "Replace",
       "run": "Import",
+      "close": "Close",
+      "parseError": "Invalid JSON: {{detail}}",
+      "notArray": "Invalid JSON: expected an array of entries.",
+      "failed": "Import failed — 0 of {{count}} entries applied.",
+      "result": "Imported {{imported}} entries ({{failed}} failed).",
       "ok": "Imported {{count}} entries."
     }
   },
