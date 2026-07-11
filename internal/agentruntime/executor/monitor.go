@@ -75,6 +75,9 @@ type MonitorConfig struct {
 	// unexported seam (tests set it to avoid signalling a real pid); nil →
 	// realGroupSignal (production killpg).
 	signal groupSignaler
+	// Log is the fail-loud sink for the T969 codex thread_id capture (a codex run with
+	// no captured thread_id logs loud that resume is unavailable). OPTIONAL — nil → no-op.
+	Log func(format string, args ...any)
 }
 
 // Monitor is the orchestrator-side lifecycle engine. Safe for the single
@@ -93,6 +96,9 @@ type Monitor struct {
 	live      LivenessProbe
 	killSig   groupSignaler
 	clk       clock.Clock
+	// log is the fail-loud sink (T969 codex thread_id capture); never nil after
+	// NewMonitor (defaults to a no-op).
+	log func(format string, args ...any)
 
 	// mu guards the two small activity-tracking maps below. The Monitor is otherwise
 	// lock-free (design §3: the orchestrator is the sole coordinator), but these are
@@ -125,6 +131,10 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 	if killSig == nil {
 		killSig = realGroupSignal
 	}
+	logf := cfg.Log
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
 	return &Monitor{
 		fx:          cfg.Exchange,
 		worktrees:   cfg.Worktrees,
@@ -138,6 +148,7 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 		live:        live,
 		killSig:     killSig,
 		clk:         clk,
+		log:         logf,
 		stallKilled: make(map[string]struct{}),
 		progressAt:  make(map[string]time.Time),
 	}, nil
@@ -406,10 +417,51 @@ func (m *Monitor) ReleaseSlot(executorID string) {
 // have their dir + worktree removed; a retryable Crash RETAINS them so the
 // orchestrator can re-launch from the preserved input.json. Running is a no-op
 // (not a completion).
+// captureCodexThreadID persists a completed codex executor's captured thread_id (from
+// output.json, parsed by ParseCodexRunnerStream) into its recovery Record.SessionID, so
+// a later resume can `codex exec resume <thread_id>` (T969 option A: capture at
+// completion). No-op for a claude executor (its Record.RunnerCmd is not `codex exec`) or
+// when no tracker is wired — the claude path is byte-identical. A codex run that captured
+// NO thread_id (thread.started missing / stream truncated) is logged FAIL-LOUD: recovery
+// then degrades to a tier-2 rerun (the safe fallback), never a resume-with-empty-id.
+func (m *Monitor) captureCodexThreadID(c Completion) {
+	if m.tracker == nil {
+		return
+	}
+	rec, err := m.tracker.Read(c.ExecutorID)
+	if err != nil {
+		return // never tracked / already reaped — nothing to update
+	}
+	if !isCodexRunnerCmd(rec.RunnerCmd) {
+		return // claude / non-codex: capture is a no-op (path unchanged)
+	}
+	var tid string
+	if c.Output != nil {
+		tid = strings.TrimSpace(c.Output.ThreadID)
+	}
+	if tid == "" {
+		m.log("codex executor=%s: no thread_id captured (thread.started missing / stream truncated) — "+
+			"tier-1 resume unavailable, recovery will tier-2 rerun", c.ExecutorID)
+		return
+	}
+	rec.SessionID = tid
+	if err := m.tracker.Write(rec); err != nil {
+		m.log("codex executor=%s: persist thread_id to Record.SessionID failed: %v (recovery will tier-2 rerun)", c.ExecutorID, err)
+	}
+}
+
 func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	if c.Kind == OutcomeRunning {
 		return nil
 	}
+	// T969 (option A): persist a codex executor's captured thread_id into
+	// Record.SessionID BEFORE teardown, so a later resume can `codex exec resume
+	// <thread_id>`. codex mints its thread_id at runtime (thread.started), unlike
+	// claude's pre-allocated session id, so it lands at completion here rather than at
+	// Launch. Fail-loud: a codex run with NO captured thread_id logs loud (recovery then
+	// tier-2 reruns — the safe fallback), never a silent resume-with-empty-id (Build also
+	// guards that: an empty sessionID yields a plain `exec`, not `resume`).
+	m.captureCodexThreadID(c)
 	// 1) Report — the only center write. Must succeed before we drop durable state,
 	// so a writeback failure leaves the dir intact for a retry (no silent loss).
 	if m.wb != nil {

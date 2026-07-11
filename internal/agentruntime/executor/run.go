@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -60,6 +61,9 @@ type RunContext struct {
 type RunResult struct {
 	Result  string // full result written to output.json
 	Summary string // one-line summary written to status (chat relay)
+	// ThreadID is the codex thread_id parsed from a cli=codex --json run (T969), empty
+	// for claude. Flows into Output.ThreadID → Record.SessionID for tier-1 resume.
+	ThreadID string
 	// Usage is the run's aggregate token usage parsed from the runner stream
 	// (v2.20.0 F2 / T613). The zero value means none observed — recordSuccess then
 	// leaves output.json's usage nil. The orchestrator relays a non-zero usage to
@@ -153,6 +157,7 @@ func recordSuccess(fx *FileExchange, in Input, st *Status, clk clock.Clock, res 
 		ExecutorID: in.ExecutorID,
 		Success:    true,
 		Result:     res.Result,
+		ThreadID:   res.ThreadID, // T969: codex thread_id (empty for claude) → Record.SessionID
 		FinishedAt: clk.Now(),
 	}
 	// Record the run's token usage when the runner observed any (v2.20.0 F2 / T613).
@@ -307,11 +312,31 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 	// answer text + the usage; when the output is NOT stream-json (a codex plain run,
 	// an error transcript) result comes back empty and we relay the raw output so a
 	// non-claude runner's result is never lost.
-	result, usage := ParseRunnerStream(out)
+	// cli branch (T969): a codex --json run emits codex's own JSONL event stream, NOT
+	// claude stream-json, so it needs the codex parser (which also captures thread_id
+	// for tier-1 resume). The claude path is byte-identical to before — an empty
+	// ThreadID and the same ParseRunnerStream result/usage.
+	var (
+		result, threadID string
+		usage            TokenUsage
+	)
+	if isCodexRunnerCmd(r.cmd) {
+		result, threadID, usage = ParseCodexRunnerStream(out)
+	} else {
+		result, usage = ParseRunnerStream(out)
+	}
 	if strings.TrimSpace(result) == "" {
 		result = out
 	}
-	return RunResult{Result: result, Summary: summarize(result), Usage: usage}, nil
+	return RunResult{Result: result, Summary: summarize(result), Usage: usage, ThreadID: threadID}, nil
+}
+
+// isCodexRunnerCmd reports whether a runner argv is a `codex exec ...` invocation, so
+// CommandRunner.Run picks the codex JSONL parser (T969). Keyed on the binary basename
+// (NewCodexRunnerBuilder defaults to "codex", but a deployment may set an absolute
+// path) + the `exec` subcommand, so it never mis-fires on the claude runner.
+func isCodexRunnerCmd(cmd []string) bool {
+	return len(cmd) >= 2 && filepath.Base(cmd[0]) == "codex" && cmd[1] == "exec"
 }
 
 // summarize takes the first non-empty line of out (trimmed) as the chat-relay

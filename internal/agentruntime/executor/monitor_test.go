@@ -3,8 +3,10 @@ package executor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -373,6 +375,76 @@ func TestMonitor_Recover_NoReconciler(t *testing.T) {
 	mon, _ := NewMonitor(MonitorConfig{Exchange: mustExchange(t)})
 	if _, err := mon.Recover(context.Background()); err == nil {
 		t.Error("Recover without a reconciler must error")
+	}
+}
+
+// TestMonitor_Finalize_CapturesCodexThreadID covers T969 (option A): at finalize a
+// COMPLETED codex executor's captured thread_id is persisted into Record.SessionID (for
+// tier-1 resume); a codex run with NO thread_id logs fail-loud + leaves SessionID empty
+// (tier-2 fallback); and a claude executor's Record is UNTOUCHED (claude zero-regression).
+func TestMonitor_Finalize_CapturesCodexThreadID(t *testing.T) {
+	f := newMonitorFixture(t, 4)
+	var logs []string
+	mon, err := NewMonitor(MonitorConfig{
+		Exchange: f.fx, Tracker: f.tr, Writeback: f.wb, Clock: f.clk,
+		Log: func(format string, a ...any) { logs = append(logs, fmt.Sprintf(format, a...)) },
+	})
+	if err != nil {
+		t.Fatalf("NewMonitor: %v", err)
+	}
+	codexRec := func(id string) Record {
+		return Record{ExecutorID: id, PID: 42, SpawnedAt: f.clk.Now(),
+			RunnerCmd: []string{"codex", "exec", "--json", "-m", "gpt-5.5", "do it"}}
+	}
+	fin := func(id, threadID string) {
+		must(t, mon.Finalize(context.Background(), Completion{
+			ExecutorID: id, Kind: OutcomeSucceeded,
+			Output: &Output{ExecutorID: id, Success: true, ThreadID: threadID},
+		}))
+	}
+	prov := func(id string) {
+		if _, e := f.fx.Provision(id); e != nil {
+			t.Fatalf("provision %s: %v", id, e)
+		}
+	}
+
+	// (1) codex + captured thread_id → persisted into Record.SessionID.
+	hit := "exec-codex-hit"
+	prov("hit")
+	must(t, f.tr.Write(codexRec(hit)))
+	fin(hit, "th_captured")
+	if rec, err := f.tr.Read(hit); err != nil {
+		t.Fatalf("read hit: %v", err)
+	} else if rec.SessionID != "th_captured" {
+		t.Errorf("codex Record.SessionID = %q, want th_captured", rec.SessionID)
+	}
+
+	// (2) codex + NO thread_id → SessionID empty + fail-loud log.
+	miss := "exec-codex-miss"
+	prov("miss")
+	must(t, f.tr.Write(codexRec(miss)))
+	fin(miss, "")
+	if rec, _ := f.tr.Read(miss); rec.SessionID != "" {
+		t.Errorf("no-thread_id codex SessionID = %q, want empty (tier-2 fallback)", rec.SessionID)
+	}
+	var loud bool
+	for _, l := range logs {
+		if strings.Contains(l, "no thread_id captured") {
+			loud = true
+		}
+	}
+	if !loud {
+		t.Errorf("missing fail-loud log for codex without thread_id; logs=%v", logs)
+	}
+
+	// (3) claude executor → capture is a no-op, pre-allocated SessionID UNTOUCHED.
+	cl := "exec-claude"
+	prov("cl")
+	must(t, f.tr.Write(Record{ExecutorID: cl, PID: 7, SpawnedAt: f.clk.Now(),
+		RunnerCmd: []string{"claude", "-p", "do it"}, SessionID: "claude-preassigned"}))
+	fin(cl, "should-be-ignored")
+	if rec, _ := f.tr.Read(cl); rec.SessionID != "claude-preassigned" {
+		t.Errorf("claude Record.SessionID = %q, want unchanged 'claude-preassigned'", rec.SessionID)
 	}
 }
 

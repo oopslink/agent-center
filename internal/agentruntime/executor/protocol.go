@@ -177,6 +177,12 @@ type Output struct {
 	// executor observed none. The orchestrator's writeback relays it to the center's
 	// report_usage; nil/zero means there is nothing to account for this run.
 	Usage *TokenUsage `json:"usage,omitempty"`
+	// ThreadID is the codex thread_id captured from a cli=codex `--json` run's
+	// thread.started event (T969). Empty for claude executors (claude uses a
+	// pre-allocated session id) and for a codex run whose thread.started never
+	// arrived. The orchestrator persists a non-empty value into Record.SessionID so a
+	// later resume can `codex exec resume <thread_id>`; empty → tier-2 rerun.
+	ThreadID string `json:"thread_id,omitempty"`
 }
 
 // Validate enforces the success/error symmetry: a failure MUST carry an

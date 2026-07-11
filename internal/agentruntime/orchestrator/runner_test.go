@@ -60,9 +60,14 @@ func TestCodexRunnerBuilder_Build(t *testing.T) {
 			t.Errorf("argv %q missing %q", joined, want)
 		}
 	}
-	// One-shot text capture: NO --json (the executor harvests plain combined output).
-	if strings.Contains(joined, "--json") {
-		t.Errorf("codex executor runner must be plain text, not --json: %q", joined)
+	// T969: the codex executor now streams --json so the orchestrator can extract the
+	// result + capture the thread_id (thread.started) for tier-1 resume.
+	if !strings.Contains(joined, "--json") {
+		t.Errorf("codex executor runner must stream --json (T969): %q", joined)
+	}
+	// A fresh run is a plain `exec` (no resume subcommand).
+	if strings.Contains(joined, "resume") {
+		t.Errorf("fresh codex run must not carry a resume subcommand: %q", joined)
 	}
 	// No mcp / center access.
 	if strings.Contains(joined, "mcp") {
@@ -75,6 +80,24 @@ func TestCodexRunnerBuilder_Build(t *testing.T) {
 	}
 	if !strings.Contains(last, "do the thing") {
 		t.Errorf("codex prompt should contain the goal: %q", last)
+	}
+}
+
+// TestCodexRunnerBuilder_Resume covers the T969 tier-1 resume argv: a non-empty
+// sessionID (a codex thread_id captured from a prior run) makes Build emit
+// `codex exec resume <threadID> --json ...`; an empty one is a plain `exec` (tier-2).
+func TestCodexRunnerBuilder_Resume(t *testing.T) {
+	b := NewCodexRunnerBuilder("")
+	argv, err := b.Build("gpt-5.5", "continue the work", "th_abc123")
+	if err != nil {
+		t.Fatalf("Build resume: %v", err)
+	}
+	if argv[0] != "codex" || argv[1] != "exec" || argv[2] != "resume" || argv[3] != "th_abc123" {
+		t.Fatalf("resume argv head = %q, want [codex exec resume th_abc123]", argv[:min(4, len(argv))])
+	}
+	joined := strings.Join(argv, " ")
+	if !strings.Contains(joined, "--json") || !strings.Contains(joined, "-m gpt-5.5") {
+		t.Errorf("resume argv must keep --json + -m: %q", joined)
 	}
 }
 
@@ -119,16 +142,8 @@ func TestClaudeRunnerBuilder_SessionID(t *testing.T) {
 	}
 }
 
-func TestCodexRunnerBuilder_IgnoresSessionID(t *testing.T) {
-	// codex mints its own thread id — a passed session id must not leak into the argv.
-	argv, err := NewCodexRunnerBuilder("").Build("gpt-5.5", "p", "some-session")
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-	if strings.Contains(strings.Join(argv, " "), "some-session") {
-		t.Errorf("codex argv must not carry a pre-assigned session id: %q", argv)
-	}
-}
+// (TestCodexRunnerBuilder_IgnoresSessionID removed in T969: codex now USES sessionID as
+// the captured thread_id to build a `resume` argv — see TestCodexRunnerBuilder_Resume.)
 
 func TestResumeSessionArgv(t *testing.T) {
 	// A claude fresh argv rewrites --session-id <sid> → --resume <sid>, preserving

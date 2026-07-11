@@ -115,26 +115,35 @@ func NewCodexRunnerBuilder(binary string) *CodexRunnerBuilder {
 
 // Build assembles the executor's codex argv:
 //
-//	codex exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox
-//	           -m <model> <executor-framed prompt>
+//	fresh:  codex exec [resume <threadID>] --json --skip-git-repo-check
+//	        --dangerously-bypass-approvals-and-sandbox -m <model> <executor-framed prompt>
 //
-// NO --json (plain combined output captured into output.json), NO mcp (codex carries
-// none by default).
+// --json (T969): unlike the pre-T969 plain-output executor, the codex executor now
+// streams its JSONL event stream into output.json so the orchestrator can (a) extract
+// the final result via the codex parser (ParseCodexRunnerStream → mapCodexLine) and
+// (b) capture the thread_id (thread.started) → persist into Record.SessionID for tier-1
+// resume. NO mcp (codex carries none by default).
 //
-// sessionID is IGNORED: `codex exec` mints its own thread id (captured from the
-// first turn's thread.started event) and has no flag to pre-assign one, so the
-// orchestrator cannot bind the session ahead of time. A crashed codex executor
-// therefore recovers via the ladder's tier-2 rerun (design §4.3), not a resume.
+// sessionID is the codex thread_id captured from a PRIOR run: when non-empty, Build
+// emits `resume <threadID>` (tier-1 recovery, full-context continuation, mirroring
+// codex_session.go buildCodexArgv); when empty (a fresh run OR thread_id was never
+// captured) it is a plain `exec` and recovery falls to the ladder's tier-2 rerun.
+// codex resume relies on the executor process cwd for the workspace (no -C), same as
+// the resident session.
 func (b *CodexRunnerBuilder) Build(model, prompt, sessionID string) ([]string, error) {
-	_ = sessionID // codex has no pre-assignable session id (see doc above)
 	if strings.TrimSpace(model) == "" {
 		return nil, errors.New("orchestrator: runner model required")
 	}
 	if strings.TrimSpace(prompt) == "" {
 		return nil, errors.New("orchestrator: runner prompt required")
 	}
-	return []string{
-		b.binary, "exec",
+	argv := []string{b.binary, "exec"}
+	if tid := strings.TrimSpace(sessionID); tid != "" {
+		// tier-1 resume: continue the captured codex thread with full context.
+		argv = append(argv, "resume", tid)
+	}
+	argv = append(argv,
+		"--json",
 		// Auth + autonomous permissions — same rationale + flags as the resident
 		// cli=codex session (codex_session.go buildCodexArgv): the worker/workspace is
 		// the isolation boundary, not codex's approval prompt or internal sandbox.
@@ -142,8 +151,9 @@ func (b *CodexRunnerBuilder) Build(model, prompt, sessionID string) ([]string, e
 		"--dangerously-bypass-approvals-and-sandbox",
 		"-m", model,
 		// codex exec has no --append-system-prompt: the executor framing rides in the prompt.
-		executorSystemPrompt + "\n\n" + prompt,
-	}, nil
+		executorSystemPrompt+"\n\n"+prompt,
+	)
+	return argv, nil
 }
 
 // ClaudeRunnerBuilder builds the production executor runner: a ONE-SHOT, no-mcp

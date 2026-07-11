@@ -142,6 +142,27 @@ func TestMapCodexLine_TurnFailed_ResultError(t *testing.T) {
 	}
 }
 
+// issue-c7a1fe3e: a bare `error` event (transient reconnect blip) must map to a
+// NON-"result" diagnostic — the session/events terminal gate is Type=="result", so a
+// terminal mapping (the old bug) false-killed the turn. turn.failed stays terminal
+// (above); error is non-terminal here.
+func TestMapCodexLine_TransientError_NonTerminal(t *testing.T) {
+	evs, _, err := mapCodexLine([]byte(`{"type":"error","message":"stream disconnected, reconnecting"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 {
+		t.Fatalf("want 1 event, got %d: %+v", len(evs), evs)
+	}
+	if evs[0].Type == "result" {
+		t.Fatalf("transient error must NOT be a terminal result event (would false-kill): %+v", evs[0])
+	}
+	if evs[0].Type != "error" || evs[0].Subtype != "transient" || !evs[0].IsError ||
+		evs[0].Result != "stream disconnected, reconnecting" {
+		t.Fatalf("transient error event shape: %+v", evs[0])
+	}
+}
+
 func TestMapCodexLine_TurnStarted_NoEvent(t *testing.T) {
 	evs, _, err := mapCodexLine([]byte(`{"type":"turn.started"}`))
 	if err != nil {
@@ -329,6 +350,52 @@ func TestCodexSession_SingleTurn_FreshThenResume(t *testing.T) {
 	if h.exitErr != nil {
 		t.Fatalf("clean stop should exit nil: %v", h.exitErr)
 	}
+}
+
+// TestCodexSession_TransientErrorThenCompleted_NoFalseDeath is the issue-c7a1fe3e
+// regression lock at the SESSION level: a transient `error` mid-turn (reconnect blip)
+// followed by a normal turn.completed must yield a SUCCESS result — the blip must not
+// false-terminate. Before the fix, the error mapped to a terminal result(IsError) and
+// waitResult would return that error; now the terminal result is the turn.completed.
+func TestCodexSession_TransientErrorThenCompleted_NoFalseDeath(t *testing.T) {
+	lr := &fakeCodexLauncher{turns: [][]string{{
+		`{"type":"thread.started","thread_id":"T1"}`,
+		`{"type":"error","message":"stream disconnected, reconnecting"}`, // transient blip
+		`{"type":"item.completed","item":{"id":"m","type":"agent_message","text":"recovered"}}`,
+		`{"type":"turn.completed","usage":{"input_tokens":5,"output_tokens":1}}`,
+	}}}
+	h := newHarness()
+	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
+		AgentID: "agent-1", Launcher: lr, OnEvent: h.onEvent, OnExit: h.onExit,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Inject(context.Background(), "go"); err != nil {
+		t.Fatal(err)
+	}
+	r := h.waitResult(t)
+	// The terminal result is the turn.completed SUCCESS, NOT a false error from the blip.
+	if r.IsError {
+		t.Fatalf("transient error false-killed the turn: %+v", r)
+	}
+	if r.TokensOut != 1 {
+		t.Fatalf("terminal result should be the turn.completed (out=1), got: %+v", r)
+	}
+	// Consumption continued past the blip: the post-blip assistant text surfaced.
+	var texts []string
+	for _, ev := range h.snapshot() {
+		if ev.Type == "assistant_text" {
+			texts = append(texts, ev.Text)
+		}
+	}
+	if !slices.Contains(texts, "recovered") {
+		t.Fatalf("post-blip event was not consumed; texts=%v", texts)
+	}
+	if err := s.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	<-h.exited
 }
 
 func TestCodexSession_ToolEvents(t *testing.T) {

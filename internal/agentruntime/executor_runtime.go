@@ -276,6 +276,7 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 		WorktreeCleaner: cleaner,
 		Clock:           clk,
 		Observer:        executorActivityObserver{r: r, agentID: pl.AgentID},
+		Log:             r.log, // T969: fail-loud sink for codex thread_id capture
 	})
 	if err != nil {
 		return nil, err
