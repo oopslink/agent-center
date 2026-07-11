@@ -1,6 +1,8 @@
 package agentruntime
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -45,6 +47,64 @@ func TestCodexMCPConfigTOML_Empty(t *testing.T) {
 	}
 	if strings.Contains(string(got), "[mcp_servers.") {
 		t.Errorf("empty config must have no server tables; got:\n%s", got)
+	}
+}
+
+// WriteCodexMCPConfig writes the translated config.toml under a per-agent CODEX_HOME
+// ("<home>/codex-home") and returns that dir — the value the daemon exports as
+// $CODEX_HOME so codex loads the [mcp_servers.*] tables.
+func TestWriteCodexMCPConfig(t *testing.T) {
+	home := t.TempDir()
+	runtime := []byte(`{"mcpServers":{"agent-center":{` +
+		`"command":"/opt/agent-center-worker",` +
+		`"args":["worker","mcp-host"],` +
+		`"env":{"AC_MCP_AGENT_ID":"agent-1"}}}}`)
+	codexHome, err := WriteCodexMCPConfig(home, runtime)
+	if err != nil {
+		t.Fatalf("WriteCodexMCPConfig: %v", err)
+	}
+	wantHome := filepath.Join(home, "codex-home")
+	if codexHome != wantHome {
+		t.Errorf("codexHome = %q, want %q", codexHome, wantHome)
+	}
+	cfgPath := filepath.Join(codexHome, "config.toml")
+	b, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("read config.toml: %v", err)
+	}
+	s := string(b)
+	for _, want := range []string{
+		"[mcp_servers.agent-center]",
+		`command = "/opt/agent-center-worker"`,
+		`AC_MCP_AGENT_ID = "agent-1"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("config.toml missing %q; got:\n%s", want, s)
+		}
+	}
+}
+
+// An empty runtimeJSON yields a header-only config.toml (no servers), not an error —
+// a codex agent with no MCP still gets a valid CODEX_HOME.
+func TestWriteCodexMCPConfig_Empty(t *testing.T) {
+	home := t.TempDir()
+	codexHome, err := WriteCodexMCPConfig(home, nil)
+	if err != nil {
+		t.Fatalf("WriteCodexMCPConfig(nil): %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(codexHome, "config.toml"))
+	if err != nil {
+		t.Fatalf("read config.toml: %v", err)
+	}
+	if strings.Contains(string(b), "[mcp_servers.") {
+		t.Errorf("empty config must have no server tables; got:\n%s", b)
+	}
+}
+
+// A missing home is rejected (the caller must resolve the agent home first).
+func TestWriteCodexMCPConfig_NoHome(t *testing.T) {
+	if _, err := WriteCodexMCPConfig("", []byte(`{"mcpServers":{}}`)); err == nil {
+		t.Fatal("WriteCodexMCPConfig(\"\") must error")
 	}
 }
 

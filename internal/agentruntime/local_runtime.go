@@ -659,6 +659,30 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	if err := WriteAgentCLIMarker(home, CLICodex); err != nil {
 		return fmt.Errorf("agent_controller: write codex cli marker: %w", err)
 	}
+
+	// codex supervisor MCP (T972): generate the SAME canonical mcp_config.runtime.json
+	// the claude supervisor gets (agent-center host binary + per-agent AC_MCP_* creds),
+	// then translate it into $CODEX_HOME/config.toml so the codex supervisor reaches the
+	// same center tools (create_task/complete_task/post_message) via config.toml instead
+	// of claude's --mcp-config. CODEX_HOME is exported to the codex process (below).
+	mcpBytes, err := mcphost.GenerateMCPConfig(mcphost.MCPConfigParams{
+		ServerName:        MCPServerName,
+		Command:           r.cfg.BinaryPath,
+		Args:              []string{"worker", "mcp-host"},
+		AgentID:           agentID,
+		AdminURL:          r.cfg.AdminURL,
+		WorkerToken:       r.cfg.WorkerToken,
+		ServerFingerprint: r.cfg.ServerFingerprint,
+		AgentRoot:         tasksDir,
+	})
+	if err != nil {
+		return fmt.Errorf("agent_controller: generate codex mcp-config: %w", err)
+	}
+	codexHome, err := WriteCodexMCPConfig(home, mcpBytes)
+	if err != nil {
+		return fmt.Errorf("agent_controller: write codex mcp-config: %w", err)
+	}
+
 	sess, err := r.cfg.CodexStarter(ctx, CodexSpec{
 		AgentID:     agentID,
 		TasksDir:    tasksDir,
@@ -666,6 +690,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		Model:       spec.Model,
 		DisplayName: spec.DisplayName,
 		EnvVars:     spec.EnvVars,
+		CodexHome:   codexHome,
 		Logger:      r.rawLogger(),
 		OnEvent:     func(ev claudestream.StreamEvent) { r.onEvent(ev) },
 		OnExit:      func(exitErr error) { r.onExit(exitErr) },

@@ -55,9 +55,13 @@ type CodexSpec struct {
 	Model       string
 	DisplayName string
 	EnvVars     map[string]string
-	OnEvent     func(ev claudestream.StreamEvent)
-	OnExit      func(err error)
-	Logger      func(msg string)
+	// CodexHome is the per-agent $CODEX_HOME the daemon adapter exports to the codex
+	// process so codex loads the generated $CODEX_HOME/config.toml (its [mcp_servers.*]
+	// agent-center tables). "" → no CODEX_HOME override (codex uses its default).
+	CodexHome string
+	OnEvent   func(ev claudestream.StreamEvent)
+	OnExit    func(err error)
+	Logger    func(msg string)
 }
 
 // SupervisorSessionConfig configures a claude supervisor session start. Moved from

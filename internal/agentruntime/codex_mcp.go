@@ -13,12 +13,54 @@ package agentruntime
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/mcphost"
 )
+
+// codexHomeDirName is the per-agent CODEX_HOME subdirectory under the agent home.
+// codex reads $CODEX_HOME/config.toml on startup; giving each codex supervisor a
+// DEDICATED CODEX_HOME (rather than the shared user ~/.codex) keeps its generated
+// [mcp_servers.*] tables + creds isolated per agent and lets a self-heal relaunch
+// regenerate them deterministically.
+const codexHomeDirName = "codex-home"
+
+// codexConfigFileName is the file codex loads from $CODEX_HOME.
+const codexConfigFileName = "config.toml"
+
+// WriteCodexMCPConfig translates the canonical mcp_config.runtime.json into codex
+// config.toml and writes it under a per-agent CODEX_HOME ("<home>/codex-home"),
+// returning that CODEX_HOME directory (to export as $CODEX_HOME to the codex
+// process). It is the codex counterpart to WriteMCPConfig: the same canonical
+// runtime.json feeds BOTH the claude supervisor (via --mcp-config) and the codex
+// supervisor (via $CODEX_HOME/config.toml), so a cli=codex supervisor reaches the
+// SAME agent-center MCP host + per-agent creds. An empty runtimeJSON yields a
+// header-only config.toml (no servers) rather than an error.
+func WriteCodexMCPConfig(home string, runtimeJSON []byte) (string, error) {
+	if home == "" {
+		return "", errors.New("codex_session: home required to write codex mcp-config")
+	}
+	if len(runtimeJSON) == 0 {
+		runtimeJSON = []byte("{}") // header-only config (no servers)
+	}
+	toml, err := codexMCPConfigTOML(runtimeJSON)
+	if err != nil {
+		return "", err
+	}
+	codexHome := filepath.Join(home, codexHomeDirName)
+	if err := os.MkdirAll(codexHome, 0o700); err != nil {
+		return "", fmt.Errorf("codex_session: mkdir codex-home: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(codexHome, codexConfigFileName), toml, 0o600); err != nil {
+		return "", fmt.Errorf("codex_session: write codex config.toml: %w", err)
+	}
+	return codexHome, nil
+}
 
 // codexMCPConfigTOML translates a canonical mcp_config.runtime.json document
 // ({"mcpServers":{<name>:{command,args,env}}}) into codex config.toml content with one
