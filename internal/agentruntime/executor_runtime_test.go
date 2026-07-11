@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +21,31 @@ func TestBuildExecutorEngine_ErrorOnBadRoot(t *testing.T) {
 	rt := newExecRuntime(t, t.TempDir(), "agent-bad", "true")
 	if _, err := rt.BuildExecutorEngine("", ExecutorConfig{MaxConcurrentTasks: 1, AllowedExecutors: testExecs}); err == nil {
 		t.Error("empty agent root must surface an error")
+	}
+}
+
+// TestCodexAuthPreflight is the unit lock for the T962 HARD acceptance point (pd):
+// a cli=codex executor with missing $CODEX_HOME/auth.json must fail LOUD (warn), never
+// silently fork-fail — the same config-source-missing discipline as the T950 judge P1.
+func TestCodexAuthPreflight(t *testing.T) {
+	ok := func(string) error { return nil }
+	missing := func(string) error { return os.ErrNotExist }
+
+	// A non-codex cli never warns (claude auth is a different namespace).
+	if msg, warn := codexAuthPreflight("claude-code", "", missing); warn {
+		t.Errorf("claude cli must not codex-warn; got %q", msg)
+	}
+	// codex + CODEX_HOME unset → loud warn naming CODEX_HOME.
+	if msg, warn := codexAuthPreflight(CLICodex, "", ok); !warn || !strings.Contains(msg, "CODEX_HOME") {
+		t.Errorf("codex + unset CODEX_HOME must warn about CODEX_HOME; got warn=%v msg=%q", warn, msg)
+	}
+	// codex + CODEX_HOME set but auth.json missing → loud warn naming auth.json.
+	if msg, warn := codexAuthPreflight(CLICodex, "/home/agent/.codex", missing); !warn || !strings.Contains(msg, "auth.json") {
+		t.Errorf("codex + missing auth.json must warn about auth.json; got warn=%v msg=%q", warn, msg)
+	}
+	// codex + CODEX_HOME set + auth.json present → healthy, no warn.
+	if msg, warn := codexAuthPreflight(CLICodex, "/home/agent/.codex", ok); warn {
+		t.Errorf("healthy codex auth must not warn; got %q", msg)
 	}
 }
 

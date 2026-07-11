@@ -26,9 +26,12 @@ func TestBuildExecutorEnv_AllowsSystemAndAuth(t *testing.T) {
 		"HTTPS_PROXY=http://proxy:8080",
 		"ANTHROPIC_API_KEY=sk-secret-but-claudes-own",
 		"CLAUDE_FOO=bar",
+		// v2.18.1 BE-2: a cli=codex executor authenticates via $CODEX_HOME/auth.json —
+		// the codex analogue of claude's own auth namespace, must pass through.
+		"CODEX_HOME=/home/agent/.codex",
 	}
 	got := envMap(BuildExecutorEnv(src, nil))
-	for _, k := range []string{"PATH", "HOME", "LANG", "LC_ALL", "TZ", "HTTPS_PROXY", "ANTHROPIC_API_KEY", "CLAUDE_FOO"} {
+	for _, k := range []string{"PATH", "HOME", "LANG", "LC_ALL", "TZ", "HTTPS_PROXY", "ANTHROPIC_API_KEY", "CLAUDE_FOO", "CODEX_HOME"} {
 		if _, ok := got[k]; !ok {
 			t.Errorf("expected allowlisted %q to be present", k)
 		}
