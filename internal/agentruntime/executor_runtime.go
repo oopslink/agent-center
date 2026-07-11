@@ -310,6 +310,31 @@ func (r *LocalRuntime) launchExecutor(ctx context.Context, agentID, taskID strin
 	return err
 }
 
+// codexAuthPreflight returns a fail-loud warning (and true) when a cli=codex executor
+// is about to fork but its $CODEX_HOME/auth.json login state is not resolvable — either
+// CODEX_HOME is unset (so the executor won't inherit it via the allowlist) or auth.json
+// is missing. Returns ("", false) for healthy codex auth or any non-codex cli. Pure over
+// (cli, codexHome, statFn) so the T962 hard-acceptance fail-loud is unit-locked (mirrors
+// the T950 judge fail-loud regression lock — a silent config-source-missing death is the
+// worst mode).
+func codexAuthPreflight(cli, codexHome string, statFn func(string) error) (string, bool) {
+	if cli != CLICodex {
+		return "", false
+	}
+	home := strings.TrimSpace(codexHome)
+	if home == "" {
+		return "CODEX_HOME is unset in the worker env — cannot inherit $CODEX_HOME/auth.json, " +
+			"codex will FAIL authentication; run `codex login` and set CODEX_HOME", true
+	}
+	if err := statFn(filepath.Join(home, "auth.json")); err != nil {
+		return "CODEX_HOME=" + home + " but auth.json is missing — codex will FAIL authentication; run `codex login`", true
+	}
+	return "", false
+}
+
+// statErr adapts os.Stat to the codexAuthPreflight statFn signature.
+func statErr(path string) error { _, err := os.Stat(path); return err }
+
 // launchExecutorLocked forks an executor for a fully-built WorkItem and wires the
 // reap + work-state bookkeeping. The CALLER MUST hold forkMu (SpawnExecutor holds it
 // across the whole get_task→start_task→launch sequence; launchExecutor holds it for
@@ -326,6 +351,16 @@ func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID
 	}
 	r.log("agent=%s task=%s forked executor=%s cli=%s model=%s(%s) problem=%s",
 		agentID, taskID, launched.ExecutorID, launched.CLI, launched.Model, launched.ModelSource, launched.ProblemID)
+
+	// T962 BE-2 HARD fail-loud (pd acceptance point): a cli=codex executor authenticates
+	// via $CODEX_HOME/auth.json, which reaches the executor ONLY if CODEX_HOME is set in
+	// the worker env (the allowlist then passes it through, executorenv.go). If CODEX_HOME
+	// is unset OR auth.json is missing, the codex exec will fail auth — warn LOUDLY at fork
+	// rather than let it die opaquely or silently fork-fail (the codex analogue of the T950
+	// judge fail-loud; a silent config-source-missing death is the worst mode).
+	if msg, warn := codexAuthPreflight(launched.CLI, os.Getenv("CODEX_HOME"), statErr); warn {
+		r.log("agent=%s executor=%s WARNING codex executor: %s", agentID, launched.ExecutorID, msg)
+	}
 
 	// T758: the fork just succeeded — emit executor.start into the activity stream.
 	r.emitExecutorStart(agentID, item.TaskRef, item.Goal.Title, launched)

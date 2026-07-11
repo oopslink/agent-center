@@ -35,10 +35,14 @@ var envAllowExact = map[string]bool{
 	"http_proxy": true, "https_proxy": true, "no_proxy": true, "all_proxy": true,
 }
 
-// envAllowPrefix mirrors agentsupervisor.envAllowPrefix: locale + claude's OWN
-// auth/config namespaces. The executor still runs an LLM (its own keychain /login
-// or ANTHROPIC_* auth), so these are required and are NOT center credentials.
-var envAllowPrefix = []string{"LC_", "ANTHROPIC_", "CLAUDE_"}
+// envAllowPrefix mirrors agentsupervisor.envAllowPrefix: locale + the executor
+// CLIs' OWN auth/config namespaces. The executor still runs an LLM (its own
+// keychain /login or ANTHROPIC_* auth), so these are required and are NOT center
+// credentials. CODEX_* (incl. CODEX_HOME → $CODEX_HOME/auth.json login state) is
+// codex's own auth/config namespace, the codex analogue of CLAUDE_* — a cli=codex
+// executor (v2.18.1 BE-2) needs it inherited to authenticate, and like the claude
+// namespaces it carries NO center credential (those are AGENT_CENTER_* / AC_MCP_*).
+var envAllowPrefix = []string{"LC_", "ANTHROPIC_", "CLAUDE_", "CODEX_"}
 
 // envAllowed reports whether an inherited system env var name is allowlisted.
 // The two CLAUDE_* carve-outs match agentsupervisor: CLAUDE_CONFIG_DIR is dropped
