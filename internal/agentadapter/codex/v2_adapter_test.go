@@ -5,16 +5,28 @@ import (
 	"testing"
 )
 
-func TestCodex_SupportedFeatures_ConservativeDefaults(t *testing.T) {
+// T972: codex SupportsMCP is now TRUE (a codex supervisor reaches the MCP host via
+// $CODEX_HOME/config.toml). Skills/Session stay false (skills→AGENTS.md separately;
+// codex has no pre-assignable session id — resume is via captured thread_id).
+func TestCodex_SupportedFeatures_MCPEnabled(t *testing.T) {
 	got := New("").SupportedFeatures()
-	if got.SupportsMCP || got.SupportsSkills || got.SupportsSession {
-		t.Fatalf("codex stub should default all features to false: %+v", got)
+	if !got.SupportsMCP {
+		t.Errorf("codex SupportsMCP should be true (T972): %+v", got)
+	}
+	if got.SupportsSkills || got.SupportsSession {
+		t.Errorf("codex Skills/Session should stay false: %+v", got)
 	}
 }
 
-func TestCodex_BuildMCPConfigArg_NotSupported(t *testing.T) {
-	if _, err := New("").BuildMCPConfigArg("/x"); err == nil {
-		t.Fatal("expected not-supported error")
+// BuildMCPConfigArg is not on the codex path (codex reads config.toml, not --mcp-config)
+// — it returns a clean zero MCPSetup (no error) now that SupportsMCP is true.
+func TestCodex_BuildMCPConfigArg_NoOp(t *testing.T) {
+	setup, err := New("").BuildMCPConfigArg("/x")
+	if err != nil {
+		t.Fatalf("codex BuildMCPConfigArg should no-op (config.toml path), got err: %v", err)
+	}
+	if len(setup.Args) != 0 {
+		t.Errorf("codex must not inject --mcp-config args: %+v", setup)
 	}
 }
 

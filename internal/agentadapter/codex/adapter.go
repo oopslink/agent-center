@@ -208,22 +208,31 @@ func (a *Adapter) Probe(ctx context.Context) (bool, string, error) {
 	return true, strings.TrimSpace(string(out)), nil
 }
 
-// SupportedFeatures — v2 conservative defaults. Codex MCP support is
-// uncertain; mark false until probed. Session continuation likewise false.
-// Skills support is also unknown; default false. Revisit after CLI probe.
+// SupportedFeatures — SupportsMCP is TRUE as of T972: a cli=codex supervisor reaches
+// the agent-center MCP host via a generated $CODEX_HOME/config.toml [mcp_servers.*]
+// table (LocalRuntime.startCodex), so codex workers can carry MCP agents — the
+// atomic counterpart to that start-path wiring (flipping this before the config.toml
+// write was real would mis-route MCP agents to a codex worker that couldn't serve them
+// — "capability declared before capability real"). Skills default false (mapped to
+// AGENTS.md separately); SupportsSession is the adapter-level session-id flag (codex
+// exec mints its own thread id at runtime, so false here — supervisor resume is done
+// by CodexSession via the captured thread_id, not a pre-assignable session id).
 func (a *Adapter) SupportedFeatures() agentadapter.FeatureSet {
 	return agentadapter.FeatureSet{
-		SupportsMCP:     false,
+		SupportsMCP:     true,
 		SupportsSkills:  false,
 		SupportsSession: false,
 	}
 }
 
-// BuildMCPConfigArg returns zero MCPSetup (codex MCP path unverified).
-// DispatchService.FeatureCheck rejects MCP-bearing agents on codex workers
-// per SupportedFeatures().SupportsMCP=false before this is called.
+// BuildMCPConfigArg is NOT on the codex path: codex reads its MCP servers from
+// $CODEX_HOME/config.toml (written by LocalRuntime.startCodex, T972), not from a
+// claude-style --mcp-config ARG. This method is only invoked by the claude argv
+// builder (claudestream/argv.go); it returns a zero MCPSetup (no extra args) for codex
+// so a defensive caller gets a clean no-op rather than an error now that SupportsMCP is
+// true.
 func (a *Adapter) BuildMCPConfigArg(_ string) (agentadapter.MCPSetup, error) {
-	return agentadapter.MCPSetup{}, errors.New("codex: MCP injection not yet supported")
+	return agentadapter.MCPSetup{}, nil
 }
 
 // BuildSkillMountSetup returns zero SkillMountSetup (codex skill path
