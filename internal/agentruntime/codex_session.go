@@ -34,6 +34,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -153,6 +154,22 @@ func (p *execCodexProc) Wait() error       { return p.cmd.Wait() }
 // codex JSONL → claudestream.StreamEvent mapping.
 // ---------------------------------------------------------------------------
 
+// isPermanentCodexError reports whether a codex error message is a PERMANENT failure
+// (auth / 401 / missing bearer / forbidden) rather than a transient reconnect blip
+// (T977). A permanent error must fail-loud FAST — retrying it as transient just hammers
+// a doomed session (the codex supervisor auth-401 amplifier tester3 caught). codex error
+// events carry no machine code, so this is a case-insensitive substring match on the
+// stable auth-failure phrases.
+func isPermanentCodexError(msg string) bool {
+	m := strings.ToLower(msg)
+	for _, sig := range []string{"401", "unauthorized", "missing bearer", "invalid api key", "forbidden", "authentication failed"} {
+		if strings.Contains(m, sig) {
+			return true
+		}
+	}
+	return false
+}
+
 // ⚠️ KEEP IN SYNC with ParseCodexRunnerStream (agentruntime/executor/codex_usage.go):
 // both decode the same codex --json event schema (the executor-side parser is a lean
 // parallel copy because the executor package cannot import this one — import cycle). If
@@ -241,6 +258,19 @@ func mapCodexLine(line []byte) (events []claudestream.StreamEvent, threadID stri
 		msg := top.Message
 		if top.Error != nil && top.Error.Message != "" {
 			msg = top.Error.Message
+		}
+		if isPermanentCodexError(msg) {
+			// T977: a PERMANENT error (401 / missing bearer / auth) is NOT a transient
+			// reconnect blip — treating it as transient hammers a DOOMED session 5x
+			// (the codex supervisor auth bug's amplifier) instead of failing fast. Map it
+			// to a TERMINAL result/error so the turn fails FAST + loud.
+			return []claudestream.StreamEvent{{
+				Type:    "result",
+				Subtype: "error",
+				IsError: true,
+				Result:  msg,
+				Raw:     cloneRaw(line),
+			}}, "", nil
 		}
 		return []claudestream.StreamEvent{{
 			Type:    "error", // NON-terminal (not "result"): sawResult / turn-end handler ignore it
@@ -339,6 +369,10 @@ type CodexSessionConfig struct {
 	Binary string
 	// Model is an optional `codex -m` override.
 	Model string
+	// ResumeThreadID seeds the session's thread_id from a PRIOR generation (T972
+	// supervisor resume): non-empty → the first turn is `codex exec resume <id>`
+	// (continuation with full history); "" → a fresh session.
+	ResumeThreadID string
 	// Env is merged into each turn's child environment.
 	Env map[string]string
 	// Launcher starts each turn's process. Defaults to execCodexLauncher when nil.
@@ -350,6 +384,14 @@ type CodexSessionConfig struct {
 	// spawn failure). err is nil for a clean Stop/Detach, non-nil for a fatal
 	// spawn failure.
 	OnExit func(err error)
+	// OnThreadID is invoked ONCE, from the run-loop, the first time a thread.started
+	// event yields the codex thread_id (T972 supervisor resume early-persist). The
+	// starter wires it to durably persist the id (sessioninstance.MarkSessionID) so a
+	// boot-reconcile relaunch can `codex exec resume <thread_id>`. Because a supervisor
+	// is long-lived and never "completes" per turn, capturing at thread.started (the
+	// first event) is the ONLY point to persist — there is no completion to capture at.
+	// nil → not persisted (no resume; a fresh session on restart, logged fail-loud).
+	OnThreadID func(threadID string)
 	// Logger receives one-line ops messages. nil → discard.
 	Logger func(msg string)
 	// InjectBuffer bounds the pending-inject queue (0 → 64).
@@ -369,9 +411,10 @@ type CodexSession struct {
 	closed   bool
 	threadID string
 
-	stopOnce sync.Once
-	exitOnce sync.Once
-	done     chan struct{}
+	stopOnce     sync.Once
+	exitOnce     sync.Once
+	threadIDOnce sync.Once
+	done         chan struct{}
 }
 
 // compile-time: CodexSession satisfies the controller's Session contract,
@@ -404,6 +447,13 @@ func StartCodexSession(ctx context.Context, cfg CodexSessionConfig) (*CodexSessi
 		cancel:   cancel,
 		injectCh: make(chan string, cfg.InjectBuffer),
 		done:     make(chan struct{}),
+		// T972 resume: seed the thread_id from a prior generation so the FIRST turn is
+		// `codex exec resume <id>` (buildCodexArgv reads s.threadID). It is already
+		// captured/persisted → don't re-fire OnThreadID for a seeded id (consume it).
+		threadID: cfg.ResumeThreadID,
+	}
+	if cfg.ResumeThreadID != "" {
+		s.threadIDOnce.Do(func() {}) // seeded id is already persisted; skip re-persist
 	}
 	go s.runLoop(loopCtx)
 	return s, nil
@@ -473,6 +523,13 @@ func (s *CodexSession) runTurn(ctx context.Context, msg string) error {
 			s.mu.Lock()
 			s.threadID = tid
 			s.mu.Unlock()
+			// T972 supervisor resume early-persist: the FIRST thread.started yields the
+			// codex thread_id — persist it NOW (via OnThreadID) so a boot-reconcile
+			// relaunch can `codex exec resume <thread_id>`. A long-lived supervisor never
+			// "completes" a turn to capture at, so first-event is the only capture point.
+			if s.cfg.OnThreadID != nil {
+				s.threadIDOnce.Do(func() { s.cfg.OnThreadID(tid) })
+			}
 		}
 		for _, ev := range events {
 			switch {

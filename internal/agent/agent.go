@@ -125,12 +125,13 @@ var (
 	// {claude-code, codex}; the model is free text but must be non-empty.
 	ErrInvalidExecutorProfile = errors.New("agent: invalid executor profile (cli must be claude-code|codex and model must be non-empty)")
 	// ErrUnsupportedCLI rejects creating an agent bound to a cli the runtime
-	// cannot execute end-to-end (#181 / FINDING-F). Only "claude-code" is
-	// runtime-dispatchable today; codex/opencode are probe-only (discovered +
-	// shown in the Environment view, but agent.cli is not yet plumbed to the
-	// worker's session starter — see IMPLEMENTATION_PLAN.md). empty / codex /
-	// opencode / unknown are rejected.
-	ErrUnsupportedCLI = errors.New("agent: unsupported cli (only claude-code is runtime-executable; codex/opencode are probe-only)")
+	// cannot execute end-to-end (#181 / FINDING-F). "claude-code" and "codex" are
+	// runtime-dispatchable (codex as executor since v2.40.0, and as supervisor once
+	// the cli-aware session starter is wired — T972); opencode remains probe-only
+	// (discovered + shown in the Environment view, but not runtime-executable).
+	// Empty / opencode / unknown are rejected — the supported set is
+	// supportedExecutionCLIs (cli.go).
+	ErrUnsupportedCLI = errors.New("agent: unsupported cli (claude-code and codex are runtime-executable; opencode is probe-only)")
 	// ErrUnsupportedReasoning rejects a reasoning effort outside the allowlist
 	// (T236). Empty is accepted (= runtime default). Maps to 400.
 	ErrUnsupportedReasoning = errors.New("agent: unsupported reasoning effort (want one of minimal|low|medium|high)")

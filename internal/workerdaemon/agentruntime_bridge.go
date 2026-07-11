@@ -98,15 +98,26 @@ func startSupervisorSessionAdapter(ctx context.Context, cfg SupervisorSessionCon
 // neutral CodexSpec → agentruntime.CodexSessionConfig (computing the merged runtime env) and
 // starts the real CodexSession.
 func startCodexSessionAdapter(ctx context.Context, spec agentruntime.CodexSpec) (agentSession, error) {
+	env := runtimeAgentEnv(spec.AgentID, spec.DisplayName, spec.EnvVars)
+	if spec.CodexHome != "" {
+		// Export the per-agent CODEX_HOME so codex loads the generated config.toml
+		// ([mcp_servers.agent-center] → center tools) instead of the shared ~/.codex.
+		if env == nil {
+			env = map[string]string{}
+		}
+		env["CODEX_HOME"] = spec.CodexHome
+	}
 	s, err := agentruntime.StartCodexSession(ctx, agentruntime.CodexSessionConfig{
-		AgentID:  spec.AgentID,
-		TasksDir: spec.TasksDir,
-		Binary:   spec.Binary,
-		Model:    spec.Model,
-		Env:      runtimeAgentEnv(spec.AgentID, spec.DisplayName, spec.EnvVars),
-		Logger:   spec.Logger,
-		OnEvent:  spec.OnEvent,
-		OnExit:   spec.OnExit,
+		AgentID:        spec.AgentID,
+		TasksDir:       spec.TasksDir,
+		Binary:         spec.Binary,
+		Model:          spec.Model,
+		Env:            env,
+		ResumeThreadID: spec.ResumeThreadID, // T972 resume: seed prior thread_id
+		OnThreadID:     spec.OnThreadID,     // T972 early-persist: capture new thread_id
+		Logger:         spec.Logger,
+		OnEvent:        spec.OnEvent,
+		OnExit:         spec.OnExit,
 	})
 	if err != nil {
 		return nil, err

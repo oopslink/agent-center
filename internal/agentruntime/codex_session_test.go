@@ -398,6 +398,95 @@ func TestCodexSession_TransientErrorThenCompleted_NoFalseDeath(t *testing.T) {
 	<-h.exited
 }
 
+// T972 supervisor resume early-persist: the FIRST thread.started fires OnThreadID ONCE
+// with the codex thread_id (which the starter persists via sessioninstance.MarkSessionID).
+func TestCodexSession_OnThreadID_EarlyPersist(t *testing.T) {
+	var captured []string
+	lr := &fakeCodexLauncher{turns: [][]string{{
+		`{"type":"thread.started","thread_id":"th_new"}`,
+		`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+	}}}
+	h := newHarness()
+	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
+		AgentID: "a", Launcher: lr, OnEvent: h.onEvent, OnExit: h.onExit,
+		OnThreadID: func(tid string) { captured = append(captured, tid) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Inject(context.Background(), "go"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitResult(t)
+	if len(captured) != 1 || captured[0] != "th_new" {
+		t.Errorf("OnThreadID = %v, want [th_new] exactly once (early-persist)", captured)
+	}
+	_ = s.Stop(context.Background())
+	<-h.exited
+}
+
+// T972 resume: a ResumeThreadID (persisted from a prior generation) seeds the session so
+// the FIRST turn is `codex exec resume <id>`; a seeded (already-persisted) id must NOT
+// re-fire OnThreadID.
+func TestCodexSession_ResumeThreadID_SeedsResume(t *testing.T) {
+	var rePersist []string
+	lr := &fakeCodexLauncher{turns: [][]string{{
+		// A resumed turn: no thread.started (codex continues the prior thread).
+		`{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+	}}}
+	h := newHarness()
+	s, err := StartCodexSession(context.Background(), CodexSessionConfig{
+		AgentID: "a", Launcher: lr, OnEvent: h.onEvent, OnExit: h.onExit,
+		ResumeThreadID: "th_prior",
+		OnThreadID:     func(tid string) { rePersist = append(rePersist, tid) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Inject(context.Background(), "continue"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitResult(t)
+	if got := lr.specAt(0).ThreadID; got != "th_prior" {
+		t.Errorf("first turn thread id = %q, want resume th_prior", got)
+	}
+	if len(rePersist) != 0 {
+		t.Errorf("a seeded (already-persisted) thread_id must not re-fire OnThreadID: %v", rePersist)
+	}
+	_ = s.Stop(context.Background())
+	<-h.exited
+}
+
+// T977: a PERMANENT auth error (401 / missing bearer) is TERMINAL (fast-fail), not a
+// transient reconnect blip — the fix for the codex-supervisor-401 retry amplifier.
+func TestMapCodexLine_PermanentAuthError_Terminal(t *testing.T) {
+	evs, _, err := mapCodexLine([]byte(`{"type":"error","message":"401 Unauthorized: Missing bearer or basic authentication"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evs) != 1 || evs[0].Type != "result" || !evs[0].IsError {
+		t.Fatalf("permanent 401 must be a TERMINAL result/error (fast-fail): %+v", evs)
+	}
+	// A transient reconnect stays non-terminal (issue-c7a1fe3e behavior unchanged).
+	tevs, _, _ := mapCodexLine([]byte(`{"type":"error","message":"Reconnecting... 2/5"}`))
+	if len(tevs) != 1 || tevs[0].Type == "result" {
+		t.Fatalf("transient reconnect must stay non-terminal: %+v", tevs)
+	}
+}
+
+func TestIsPermanentCodexError(t *testing.T) {
+	for _, m := range []string{"401 Unauthorized", "Missing bearer token", "Invalid API key", "403 Forbidden"} {
+		if !isPermanentCodexError(m) {
+			t.Errorf("%q should classify PERMANENT", m)
+		}
+	}
+	for _, m := range []string{"Reconnecting... 1/5", "stream disconnected, retrying", "read timeout"} {
+		if isPermanentCodexError(m) {
+			t.Errorf("%q should classify transient", m)
+		}
+	}
+}
+
 func TestCodexSession_ToolEvents(t *testing.T) {
 	lr := &fakeCodexLauncher{turns: [][]string{{
 		`{"type":"thread.started","thread_id":"T"}`,

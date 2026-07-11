@@ -656,19 +656,88 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 // adapter fills Launcher + merged env).
 func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tasksDir string) error {
 	agentID := spec.AgentID
+	// T977 fix #3: read the PRIOR generation's cli BEFORE overwriting the marker. A
+	// cli-switch (e.g. claude→codex) leaves a session_id from the OTHER cli in
+	// session.instance; feeding a claude session id to `codex exec resume` yields a
+	// "no rollout" error, so we only resume when the prior generation was ALSO codex.
+	priorCLI := ReadAgentCLIMarker(home)
 	if err := WriteAgentCLIMarker(home, CLICodex); err != nil {
 		return fmt.Errorf("agent_controller: write codex cli marker: %w", err)
 	}
+
+	// codex supervisor MCP (T972): generate the SAME canonical mcp_config.runtime.json
+	// the claude supervisor gets (agent-center host binary + per-agent AC_MCP_* creds),
+	// then translate it into $CODEX_HOME/config.toml so the codex supervisor reaches the
+	// same center tools (create_task/complete_task/post_message) via config.toml instead
+	// of claude's --mcp-config. CODEX_HOME is exported to the codex process (below).
+	mcpBytes, err := mcphost.GenerateMCPConfig(mcphost.MCPConfigParams{
+		ServerName:        MCPServerName,
+		Command:           r.cfg.BinaryPath,
+		Args:              []string{"worker", "mcp-host"},
+		AgentID:           agentID,
+		AdminURL:          r.cfg.AdminURL,
+		WorkerToken:       r.cfg.WorkerToken,
+		ServerFingerprint: r.cfg.ServerFingerprint,
+		AgentRoot:         tasksDir,
+	})
+	if err != nil {
+		return fmt.Errorf("agent_controller: generate codex mcp-config: %w", err)
+	}
+	codexHome, err := WriteCodexMCPConfig(home, mcpBytes)
+	if err != nil {
+		return fmt.Errorf("agent_controller: write codex mcp-config: %w", err)
+	}
+	// T977 fix #1: provision the codex login auth.json into the per-agent CODEX_HOME.
+	// codex reads auth from $CODEX_HOME; the dedicated per-agent home has the generated
+	// config.toml but NOT the login auth (which lives in the worker's real CODEX_HOME /
+	// ~/.codex), so without this codex 401s and the ENTIRE MCP chain is unreachable
+	// (tester3 T977 — the config-source-reaches-process blind spot). Fail-loud (loud
+	// warn, the executor codexAuthPreflight discipline) if it can't be provisioned —
+	// never a silent 401.
+	if w := provisionCodexAuth(codexHome, resolveSourceCodexHome()); w != "" {
+		r.log("codex agent=%s: WARNING codex supervisor auth NOT provisioned into %s — codex will FAIL auth (401) and MCP will be UNREACHABLE; %s", agentID, codexHome, w)
+	}
+
+	// T972 supervisor resume (early-persist): read the prior generation's captured
+	// thread_id (persisted via OnThreadID→MarkSessionID) so this relaunch RESUMES it,
+	// then claim the single-instance lease (like the claude path) seeded with it. A
+	// relaunch (a prior generation existed) that left NO thread_id can't resume → a
+	// FRESH session, logged fail-loud (codex mints its thread_id only at thread.started,
+	// so a session that died before its first event has nothing to resume — the safe,
+	// visible fallback, never a silent loss).
+	prior, _ := sessioninstance.ReadInstance(home)
+	resumeThreadID := prior.SessionID
+	// T977 fix #3: never resume across a cli-switch — a session_id from a non-codex prior
+	// generation is a claude session id, not a codex thread_id (`codex exec resume` →
+	// "no rollout"). Discard it + start fresh, logged.
+	if resumeThreadID != "" && priorCLI != "" && priorCLI != CLICodex {
+		r.log("codex agent=%s: prior generation was cli=%q (not codex) — discarding its stale session_id, starting a FRESH codex session (no cross-cli resume)", agentID, priorCLI)
+		resumeThreadID = ""
+	}
+	if prior.Generation > 0 && resumeThreadID == "" {
+		r.log("codex agent=%s: prior generation left no thread_id (thread.started never captured) — starting a FRESH codex session, prior conversation NOT resumed", agentID)
+	}
+	if _, lerr := sessioninstance.AcquireInstance(home, resumeThreadID, os.Getpid()); lerr != nil {
+		return fmt.Errorf("agent_controller: acquire codex instance: %w", lerr)
+	}
+
 	sess, err := r.cfg.CodexStarter(ctx, CodexSpec{
-		AgentID:     agentID,
-		TasksDir:    tasksDir,
-		Binary:      r.cfg.CodexBinary,
-		Model:       spec.Model,
-		DisplayName: spec.DisplayName,
-		EnvVars:     spec.EnvVars,
-		Logger:      r.rawLogger(),
-		OnEvent:     func(ev claudestream.StreamEvent) { r.onEvent(ev) },
-		OnExit:      func(exitErr error) { r.onExit(exitErr) },
+		AgentID:        agentID,
+		TasksDir:       tasksDir,
+		Binary:         r.cfg.CodexBinary,
+		Model:          spec.Model,
+		DisplayName:    spec.DisplayName,
+		EnvVars:        spec.EnvVars,
+		CodexHome:      codexHome,
+		ResumeThreadID: resumeThreadID,
+		OnThreadID: func(tid string) {
+			if merr := sessioninstance.MarkSessionID(home, tid); merr != nil {
+				r.log("codex agent=%s: persist thread_id failed: %v (resume unavailable on next restart)", agentID, merr)
+			}
+		},
+		Logger:  r.rawLogger(),
+		OnEvent: func(ev claudestream.StreamEvent) { r.onEvent(ev) },
+		OnExit:  func(exitErr error) { r.onExit(exitErr) },
 	})
 	if err != nil {
 		return fmt.Errorf("agent_controller: start codex session: %w", err)

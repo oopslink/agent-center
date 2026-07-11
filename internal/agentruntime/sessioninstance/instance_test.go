@@ -285,6 +285,38 @@ func TestWriteInstanceAtomic_RenameFailure_ReturnsError(t *testing.T) {
 
 // 重启不丢上下文 改动 A: MarkCompletedTurn read-modify-writes CompletedTurn=true on the
 // CURRENT instance, preserving the rest of the lease, and is observable by ReadInstance.
+// T972: MarkSessionID persists a runtime-minted session id (codex thread_id) into the
+// current instance, preserving Generation/PID/CompletedTurn; an empty id never CLEARS a
+// captured one; it is idempotent when unchanged.
+func TestMarkSessionID_SetsPreservesAndGuards(t *testing.T) {
+	home := t.TempDir()
+	if _, err := AcquireInstance(home, "", 100); err != nil { // codex starts with no session id
+		t.Fatalf("acquire: %v", err)
+	}
+	if err := MarkCompletedTurn(home); err != nil {
+		t.Fatalf("mark turn: %v", err)
+	}
+	// Capture the thread_id (early-persist).
+	if err := MarkSessionID(home, "th_abc"); err != nil {
+		t.Fatalf("MarkSessionID: %v", err)
+	}
+	st, _ := ReadInstance(home)
+	if st.SessionID != "th_abc" {
+		t.Fatalf("SessionID = %q, want th_abc", st.SessionID)
+	}
+	// Preserves the rest of the lease (read-modify-write).
+	if st.Generation != 1 || st.PID != 100 || !st.CompletedTurn {
+		t.Fatalf("MarkSessionID clobbered the lease: %+v", st)
+	}
+	// Empty id is a no-op (never clears a captured id).
+	if err := MarkSessionID(home, ""); err != nil {
+		t.Fatalf("empty MarkSessionID: %v", err)
+	}
+	if st, _ := ReadInstance(home); st.SessionID != "th_abc" {
+		t.Fatalf("empty id must not clear captured: %q", st.SessionID)
+	}
+}
+
 func TestMarkCompletedTurn_SetsAndPersists(t *testing.T) {
 	home := t.TempDir()
 	if _, err := AcquireInstance(home, "sess-1", 100); err != nil {
