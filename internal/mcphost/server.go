@@ -489,6 +489,9 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Bulk-import the model catalog from a JSON array. mode=upsert (insert-or-update by model_id) or replace (swap the whole org catalog). Any invalid entry (bad schema, duplicate model_id, negative cost) rejects the WHOLE batch — nothing is half-applied.",
 	}, makeImportModelCatalog(cfg))
 
+	// --- team tools (Team Phase-1 wiring, design §4/§6/§7/§9) -----------------
+	registerTeamTools(srv, cfg)
+
 	// --- file tools ----------------------------------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "upload_file",

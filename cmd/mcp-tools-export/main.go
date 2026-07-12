@@ -62,6 +62,7 @@ var domainOrder = []struct{ key, title string }{
 	{"files", "文件 · Files"},
 	{"findings", "Findings"},
 	{"reminders", "提醒 · Reminders"},
+	{"team", "团队 · Teams"},
 }
 
 // toolDomain maps each agent-facing tool to its docs domain. Curated on purpose
@@ -94,6 +95,10 @@ var toolDomain = map[string]string{
 	"upload_file": "files", "download_file": "files", "attach_file": "files",
 	// findings
 	"record_finding": "findings", "list_findings": "findings",
+	// team (Team Phase-1 wiring)
+	"create_team": "team", "update_team": "team", "delete_team": "team", "get_team": "team",
+	"list_teams": "team", "add_member": "team", "remove_member": "team", "associate_project": "team",
+	"create_team_template": "team", "instantiate_team": "team", "extract_from_team": "team", "assign_roles": "team",
 	// WS5 tiering meta-tool: discovers + loads the deferred (secondary) tools on
 	// demand. Only present in the tiered (production) catalog.
 	"search_tools": "identity",

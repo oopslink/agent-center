@@ -103,6 +103,23 @@ var secondaryTools = []struct{ name, summary string }{
 	{"update_model_catalog_entry", "update a model catalog entry"},
 	{"delete_model_catalog_entry", "delete a model catalog entry"},
 	{"import_model_catalog", "bulk import the model catalog from JSON (upsert|replace)"},
+	// team — Team BC management (Team Phase-1 wiring, design §4/§6/§7/§9). Low-
+	// frequency org/team administration, deferred like templates + model catalog.
+	{"create_team", "create a team with its template-declared roles"},
+	{"update_team", "update a team's name/description"},
+	{"delete_team", "delete a team"},
+	{"get_team", "read a team and its roles"},
+	{"list_teams", "list your organization's teams"},
+	{"add_member", "add an agent/human member to a team under a declared role"},
+	{"remove_member", "remove a member from a team"},
+	{"associate_project", "associate a project with a team"},
+	{"create_team_template", "author + validate a reusable team template"},
+	{"curate_team_template", "mark a team template curated after manual review (export gate)"},
+	{"export_team_template", "export a curated team template to a shareable JSON document (cross-org)"},
+	{"import_team_template", "import a team template from an exported JSON document into your org"},
+	{"instantiate_team", "instantiate a team template onto a project (creates team + agents + memory)"},
+	{"extract_from_team", "snapshot a live team into a draft template (roles + portable experiences, scrub highlights)"},
+	{"assign_roles", "resolve plan-node roles to concrete agents off a team's roster"},
 }
 
 // secondaryToolNames returns the deferred tool names (for RemoveTools on the

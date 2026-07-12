@@ -29,6 +29,12 @@ var (
 	ErrPushRetriesExhausted = errors.New("centergit: push retries exhausted")
 	// ErrInvalidEntry means an Entry failed validation.
 	ErrInvalidEntry = errors.New("centergit: invalid entry")
+	// errMalformedEntry marks a file that is NOT a well-formed memory entry — a
+	// missing / unterminated frontmatter fence or un-parseable YAML header. It is a
+	// CONTENT problem (a stray, non-standard file a member pushed into the repo),
+	// NOT an IO error. The extract read path (ReadEntries) treats it as skippable so
+	// one non-standard file cannot crash the whole extract (design §6).
+	errMalformedEntry = errors.New("centergit: malformed entry (not a memory entry)")
 )
 
 // Author is the git identity a Store commits under.
@@ -193,24 +199,94 @@ func (s *Store) ListEntries() ([]indexRow, error) {
 
 // parseFrontmatter extracts the leading YAML frontmatter block of a file.
 func parseFrontmatter(path string) (entryFrontmatter, error) {
+	fm, _, err := parseEntry(path)
+	return fm, err
+}
+
+// parseEntry extracts BOTH the frontmatter and the markdown body of an entry file
+// (the round-trip counterpart to renderEntry). ReadEntries needs the body + type
+// that ListEntries discards.
+func parseEntry(path string) (entryFrontmatter, string, error) {
 	var fm entryFrontmatter
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return fm, err
+		return fm, "", err
 	}
 	text := string(raw)
 	if !strings.HasPrefix(text, "---\n") {
-		return fm, fmt.Errorf("missing frontmatter")
+		return fm, "", fmt.Errorf("%w: missing frontmatter", errMalformedEntry)
 	}
 	rest := text[len("---\n"):]
 	end := strings.Index(rest, "\n---")
 	if end < 0 {
-		return fm, fmt.Errorf("unterminated frontmatter")
+		return fm, "", fmt.Errorf("%w: unterminated frontmatter", errMalformedEntry)
 	}
 	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
-		return fm, err
+		return fm, "", fmt.Errorf("%w: %v", errMalformedEntry, err)
 	}
-	return fm, nil
+	// The body is everything after the closing "\n---" fence: renderEntry writes
+	// "---\n\n<body>\n", so trim the leading blank line(s) and the trailing newline.
+	body := strings.TrimRight(strings.TrimLeft(rest[end+len("\n---"):], "\n"), "\n")
+	return fm, body, nil
+}
+
+// ReadEntries parses every entries/*.md file into a FULL Entry (frontmatter +
+// body + type). Unlike ListEntries — which yields only the index projection
+// (name/description/file) — this reconstructs each experience so a caller such as
+// extract_from_team can carry it into a draft template. Sorted by (slug, file) for
+// a deterministic order.
+//
+// DEFENSIVE (design §6 extract): a team member may push ANY non-standard / stray
+// file into the shared team repo (a note without frontmatter, a scratch file, …).
+// A single malformed file must NOT crash the whole extract. Such files are SKIPPED
+// and their names returned in `skipped` so the caller can flag "skipped N
+// non-standard entries" in the draft/response for the curator. Only a genuine IO
+// error (not a content-format problem) surfaces as an error. This read path is
+// deliberately lenient; the WRITE-side index derivation (ListEntries /
+// RegenerateIndex) stays strict — a writer controls its own files.
+func (s *Store) ReadEntries() (entries []Entry, skipped []string, err error) {
+	dir := filepath.Join(s.dir, entriesDir)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil, nil
+		}
+		return nil, nil, err
+	}
+	type rec struct {
+		file  string
+		entry Entry
+	}
+	var recs []rec
+	for _, de := range ents {
+		if de.IsDir() || !strings.HasSuffix(de.Name(), ".md") {
+			continue
+		}
+		fm, body, perr := parseEntry(filepath.Join(dir, de.Name()))
+		if perr != nil {
+			if errors.Is(perr, errMalformedEntry) {
+				skipped = append(skipped, de.Name())
+				continue
+			}
+			return nil, nil, fmt.Errorf("parse %s: %w", de.Name(), perr)
+		}
+		recs = append(recs, rec{
+			file:  de.Name(),
+			entry: Entry{Slug: fm.Name, Title: fm.Title, Description: fm.Description, Body: body, Type: fm.Type},
+		})
+	}
+	sort.Slice(recs, func(i, j int) bool {
+		if recs[i].entry.Slug != recs[j].entry.Slug {
+			return recs[i].entry.Slug < recs[j].entry.Slug
+		}
+		return recs[i].file < recs[j].file
+	})
+	sort.Strings(skipped)
+	out := make([]Entry, len(recs))
+	for i, r := range recs {
+		out[i] = r.entry
+	}
+	return out, skipped, nil
 }
 
 // RegenerateIndex rebuilds MEMORY.md purely from the entry files (§9: 索引从条目
