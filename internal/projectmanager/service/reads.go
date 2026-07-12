@@ -545,7 +545,17 @@ func (s *Service) GetPlanDetailForMember(ctx context.Context, id pm.PlanID, acto
 	if err := s.requireProjectMember(ctx, p.ProjectID(), actor); err != nil {
 		return nil, err
 	}
-	return s.planDetail(ctx, p)
+	detail, err := s.planDetail(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	// issue-77d9beff ②: the agent-facing get_plan path — make the read stage-aware
+	// (barrier-held entry ready→blocked, out of ready_set) + surface the gate nodes so
+	// the plan owner/PD sees which gate to resolve.
+	if err := s.enrichStageView(ctx, detail); err != nil {
+		return nil, err
+	}
+	return detail, nil
 }
 
 // PlanDetail bundles a Plan with its selected tasks and the DERIVED view (§9.2):
@@ -562,6 +572,25 @@ type PlanDetail struct {
 	// for builtin pool plans; nil on the internal planDetail path (the reconciler /
 	// claim flow don't pay the directory read). A nil/absent entry ⇒ not starved.
 	Starved map[pm.TaskID]bool
+	// Gates (issue-77d9beff ②) surfaces the plan's STAGE GATE condition nodes so the
+	// plan owner / PD can see which gates are pending and resolve them (get_plan
+	// otherwise exposes only business task nodes, hiding the gate node_id to resolve).
+	// Populated ONLY by the READ-facing GetPlanDetail / GetPlanDetailForMember (they
+	// have the orch graph); nil on the internal planDetail path. Nil for a plan with no
+	// stages / no graph (§8 zero-regression).
+	Gates []StageGateView
+}
+
+// StageGateView is one stage GATE (a condition control node) surfaced to the plan
+// owner (issue-77d9beff ②): the node id to resolve, the owning stage, and whether the
+// gate is still pending (unresolved) so the caller knows which barrier holds the
+// downstream stages.
+type StageGateView struct {
+	NodeID    string
+	StageID   pm.StageID
+	StageName string
+	Status    string // raw engine node status: open|running|completed|reopen|discarded
+	Pending   bool   // true while unresolved (not completed/discarded) — barrier holds
 }
 
 // GetPlanDetail loads a Plan + its tasks + edges + dispatch records and derives
@@ -579,6 +608,11 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 		return nil, err
 	}
 	if err := s.fillStarved(ctx, detail); err != nil {
+		return nil, err
+	}
+	// issue-77d9beff ②: correct the stage-UNAWARE DerivePlanView (barrier-held
+	// entry ready→blocked, dropped from ready_set) + surface the stage gate nodes.
+	if err := s.enrichStageView(ctx, detail); err != nil {
 		return nil, err
 	}
 	return detail, nil

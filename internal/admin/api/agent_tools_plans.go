@@ -820,6 +820,21 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m["ready_set"] = readySet
 	m["has_failed"] = detail.View.HasFailed
 	m["progress"] = map[string]any{"done": detail.View.Progress.Done, "total": detail.View.Progress.Total}
+	// issue-77d9beff ②: surface the stage GATE condition nodes so the plan owner/PD
+	// sees which gate to resolve (get_plan otherwise exposes only business task nodes).
+	if len(detail.Gates) > 0 {
+		gates := make([]map[string]any, 0, len(detail.Gates))
+		for _, g := range detail.Gates {
+			gates = append(gates, map[string]any{
+				"node_id":    g.NodeID,
+				"stage_id":   string(g.StageID),
+				"stage_name": g.StageName,
+				"status":     g.Status,
+				"pending":    g.Pending,
+			})
+		}
+		m["gates"] = gates
+	}
 	return m
 }
 

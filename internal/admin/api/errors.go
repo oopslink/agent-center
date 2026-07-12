@@ -86,6 +86,13 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrLeaseStillLive):
 		writeError(w, http.StatusConflict, "lease_still_live", err.Error())
 
+	// ---- reset_not_pool_task (409) — issue-77d9beff ①: reset_task on a STRUCTURED
+	// (staged/DAG) plan node. reset_task is the built-in pool dead-executor recovery
+	// only; a structured node has no pool re-assign path, so resetting it wedges it
+	// open. Recover a structured node via reopen / loopback / plan advance instead. ----
+	case errors.Is(err, pm.ErrResetNotPoolTask):
+		writeError(w, http.StatusConflict, "reset_not_pool_task", err.Error())
+
 	// v2.14.0 F7 (issue I14): the work_item_reassigned (409) mapping for
 	// agent.ErrWorkItemReassigned was removed — AgentWorkItem retired (the agent
 	// optimistic-lock race now lives on the Task model via pm version conflicts).

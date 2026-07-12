@@ -439,6 +439,22 @@ func (s *Service) ResetTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		}
 		projectID = t.ProjectID()
 		prevStatus := t.Status()
+		// issue-77d9beff ①: reset_task is the built-in Assignment Pool's dead-executor
+		// recovery ONLY. A STRUCTURED (staged/DAG) plan node has no pool auto-assign path,
+		// so resetting it (running→open, assignee cleared) drops it into an unrecoverable
+		// open-wedge — start_task then fails task_not_runnable and complete_task
+		// invalid_transition, with no MCP transfer to close it. Reject it here so a
+		// structured node is only ever recovered via reopen / loopback / plan advance. A
+		// built-in pool member (IsBuiltin) and a pure backlog task (no plan) are unaffected.
+		if pid := t.PlanID(); pid != "" {
+			p, perr := s.plans.FindByID(txCtx, pid)
+			if perr != nil {
+				return perr
+			}
+			if !p.IsBuiltin() {
+				return pm.ErrResetNotPoolTask
+			}
+		}
 		// Circuit breaker: budget spent → block for triage instead of resetting again.
 		if t.RecoveryResetCount() >= pm.MaxRecoveryResets {
 			reason := fmt.Sprintf("tier-3 recovery exhausted: reset×%d — needs PD triage (task bad → discard, or environment broken → fix + redispatch)", t.RecoveryResetCount())
