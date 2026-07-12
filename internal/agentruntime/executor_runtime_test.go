@@ -297,6 +297,37 @@ func TestSpawnExecutor_AlreadyRunningSkips(t *testing.T) {
 	}
 }
 
+// TestSpawnExecutor_ForksForeignAssignee_ReproCrossNamespace is the RUNNABLE repro of
+// issue-d118b5dc sub-bug ②: SpawnExecutor (the agent.work_available fork path) has NO
+// assignee guard — it force-starts + forks a task even when the task is assigned to a
+// DIFFERENT agent. Here agent-self receives a work_available for task-x assigned to
+// agent-OTHER and STILL calls start_task (as agent-self) + forks a cross-namespace
+// executor. This documents the CURRENT (buggy) behavior so the instrument logs
+// (DISPATCH-CROSS-NAMESPACE) have a locked repro; the FIX (guard/skip a foreign task) is
+// deferred to PD's fix-scope decision — when it lands, this test flips to assert
+// get_task-only + no fork.
+func TestSpawnExecutor_ForksForeignAssignee_ReproCrossNamespace(t *testing.T) {
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-x", "title": "assigned to another agent", "status": "open",
+		"assignee": "agent:agent-OTHER", "model": "claude-haiku",
+	}}
+	rt, _, home := spawn(t, "agent-self", "task-x", sc)
+
+	// BUG (②): despite assignee=agent-OTHER, agent-self force-starts + forks it.
+	if seen := sc.toolsSeen(); len(seen) != 2 || seen[0] != "get_task" || seen[1] != "start_task" {
+		t.Fatalf("tool calls = %v — current buggy path force-starts a foreign task (want [get_task start_task])", seen)
+	}
+	if body, ok := sc.callFor("start_task"); !ok || body["agent_id"] != "agent-self" {
+		t.Errorf("start_task issued by NON-assignee agent-self (cross-namespace): body=%v", body)
+	}
+	if probs := loadRouting(t, home); len(probs) != 1 {
+		t.Fatalf("foreign task was forked cross-namespace (repro of ②): problems=%+v", probs)
+	}
+	if got := rt.State().CurrentTaskID; got != "task-x" {
+		t.Errorf("currentTaskID = %q, want task-x (foreign task forked)", got)
+	}
+}
+
 func TestSpawnExecutor_GetTaskErrorSkips(t *testing.T) {
 	sc := &scriptedToolCaller{getTaskErr: errors.New("403 not_agents_task")}
 	_, _, home := spawn(t, "agent-gterr", "task-4", sc)

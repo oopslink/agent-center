@@ -343,6 +343,12 @@ func statErr(path string) error { _, err := os.Stat(path); return err }
 // fork error is wrapped. On success it detaches a drain goroutine (freeing the pool
 // slot when the executor exits) and mirrors the inject path's hadWork/currentTaskID.
 func (r *LocalRuntime) launchExecutorLocked(ctx context.Context, agentID, taskID string, item orchestrator.WorkItem, ee *ExecutorEngine) (*orchestrator.Launched, error) {
+	// issue-d118b5dc instrument: the single commit point where an executor fork is actually
+	// launched (reached from BOTH SpawnExecutor(work_available) and workViaExecutor(work)).
+	// Fail-loud entry log with the forking runtime's namespace so a repro can correlate WHICH
+	// runtime committed the fork for a given task_id (pairs with the DISPATCH-DECISION logs to
+	// prove a ① dual fan-out / ② cross-namespace fork). Instrument-only, no behavior change.
+	r.log("DISPATCH-FORK-ENTRY agent_namespace=%s task_id=%s — launchExecutorLocked committing an executor fork", agentID, taskID)
 	launched, err := ee.engine.HandleWork(ctx, item)
 	if err != nil {
 		if errors.Is(err, executor.ErrAtCapacity) {
@@ -585,6 +591,13 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return nil, nil
 	}
 
+	// issue-d118b5dc instrument: the agent.work_available → NotifyWorkAvailable → SpawnExecutor
+	// route ALWAYS resolves to a FORK (unconditional, no dispatch-mode XOR with the agent.work
+	// inject path). Fail-loud decision log so a ① dual fan-out (this firing for a task that ALSO
+	// got an agent.work inject) is visible. Instrument-only, no behavior change.
+	r.log("DISPATCH-DECISION route=NotifyWorkAvailable(agent.work_available) dispatch_mode=executor-fork agent_namespace=%s task_id=%s — SpawnExecutor entry",
+		agentID, taskID)
+
 	r.forkMu.Lock()
 	defer r.forkMu.Unlock()
 
@@ -603,6 +616,24 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	if err != nil {
 		r.log("work_available agent=%s task=%s get_task: %v — left queued", agentID, taskID, err)
 		return nil, nil
+	}
+
+	// issue-d118b5dc instrument (sub-bug ②): SpawnExecutor forks for whatever task_id the
+	// agent.work_available command carried WITHOUT checking that THIS runtime is the task's
+	// assignee. If a work_available for a task assigned to agent B reaches agent A's runtime,
+	// agent A forks an executor for B's task = a cross-namespace fork. Fail-loud when the
+	// fetched task's assignee names an agent OTHER than this runtime. Instrument-only: we log
+	// and still proceed (no behavior change) so the repro shows the current (buggy) path;
+	// the FIX (guard/skip) is deferred to PD's fix-scope decision.
+	//
+	// The compare MUST key on the center agent-ref (identityRef — the "agent:<ref>" namespace
+	// task.Assignee is rendered in), NOT the ULID r.cfg.AgentID: assignee is never a ULID, so
+	// taskReassigned(assignee, cfg.AgentID) would report "reassigned" for EVERY normal
+	// same-agent fork (false positive → ② noise on every dispatch). This mirrors the
+	// boot-reconcile / point-recovery identity compare (taskCancelEvidence uses identityRef).
+	if ref := r.identityRef(); taskReassigned(task.Assignee, ref) {
+		r.log("DISPATCH-CROSS-NAMESPACE agent_namespace=%s agent_ref=%s task_id=%s task_assignee=%q — WARNING work_available fork on a task NOT assigned to this runtime (issue-d118b5dc ②); forking anyway (instrument-only)",
+			agentID, ref, taskID, task.Assignee)
 	}
 
 	// Cheap idempotency precheck: only an OPEN/REOPENED task is startable.
