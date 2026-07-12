@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Issue, Task } from './types';
+import type { Issue, Task, TaskStatus } from './types';
 
 // Plans — v2.9 Plan Orchestration P1 (#286 foundation + backlog→Plan selection).
 //
@@ -328,6 +328,53 @@ export function usePlanGraph(projectId: string | undefined, planId: string | und
   return useQuery({
     queryKey: [...qk.plan(planId ?? ''), 'graph'],
     queryFn: () => api.get<PlanGraphView>(`${plansBase(projectId ?? '')}/${planId}/graph`),
+    enabled: !!projectId && !!planId,
+  });
+}
+
+// --- Stage read model (T981, plan-stage-model §7) --------------------------
+// A Plan may be organized as a DAG of Stages (Spark-style), each stage being a
+// sub-DAG of nodes closed by a barrier + optional gate. Stage status is a DERIVED
+// projection (never stored): open → nothing started; running → a member runs or the
+// gate is pending; reopen → a gate reject reopened the sub-DAG for another bounded
+// round; done → all members done + gate passed.
+export type PlanStageStatus = 'open' | 'running' | 'reopen' | 'done';
+
+// One member node of a stage — the bound task's identity + its live status (the raw
+// task status, open|running|completed|discarded|reopened). The FE groups the plan's
+// graph/DAG nodes into stages by matching these task_ids.
+export interface PlanStageMember {
+  task_id: string;
+  title: string;
+  task_status: TaskStatus;
+}
+
+// One stage's derived read model. rounds = completed gate-reject reopen rounds;
+// max_rounds = the stage-local bounded-retry cap.
+export interface PlanStage {
+  id: string;
+  name: string;
+  status: PlanStageStatus;
+  rounds: number;
+  max_rounds: number;
+  depends_on_stages: string[];
+  gate_node_id: string;
+  members: PlanStageMember[];
+}
+
+// GET /{id}/stages — the plan's stage-level read model (T981 §7). Returns an EMPTY
+// array for a plan with no stages (the FE then renders the legacy no-stage view,
+// byte-identical to before — §8 backward compat). Cached under the plan key so it
+// invalidates alongside the plan detail / graph.
+export function usePlanStages(projectId: string | undefined, planId: string | undefined) {
+  return useQuery({
+    queryKey: [...qk.plan(planId ?? ''), 'stages'],
+    queryFn: async () => {
+      const resp = await api.get<{ stages: PlanStage[] }>(
+        `${plansBase(projectId ?? '')}/${planId}/stages`,
+      );
+      return resp.stages ?? [];
+    },
     enabled: !!projectId && !!planId,
   });
 }

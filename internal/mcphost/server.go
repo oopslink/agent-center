@@ -366,13 +366,26 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_task_to_plan",
-		Description: "DEPRECATED — prefer edit_plan_topology (which also works on RUNNING plans and batches multiple changes atomically). Add an existing backlog task to a draft plan as a node. The plan must be in draft (stop_plan first if running) and the task must be in the plan's project. Use create_task to make the task first if it doesn't exist.",
+		Description: "DEPRECATED — prefer edit_plan_topology (which also works on RUNNING plans and batches multiple changes atomically). Add an existing backlog task to a draft plan as a node. The plan must be in draft (stop_plan first if running) and the task must be in the plan's project. Use create_task to make the task first if it doesn't exist. Optional `stage` (a stage_id from create_stage) groups the task under a Plan Stage — a barrier-bounded batch with an acceptance gate.",
 	}, makePlanTask(cfg, "add_task_to_plan"))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "remove_task_from_plan",
 		Description: "DEPRECATED — prefer edit_plan_topology (remove_node), which also works on RUNNING plans. Remove a task node from a draft plan (returns it to the backlog). The plan must be in draft — except the always-running built-in assignment pool, whose task-set is freely editable.",
 	}, makePlanTask(cfg, "remove_task_from_plan"))
+
+	// 2026-07-03 plan-stage-model §6: Stage authoring + read. A Stage groups a batch of
+	// a plan's tasks into a sub-DAG bounded by a barrier + an optional acceptance gate;
+	// stages themselves form a DAG (depends_on_stages) so batches can run in parallel.
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "create_stage",
+		Description: "Create a Stage in a draft plan — a barrier-bounded batch of tasks (like a Spark stage). Add tasks to it with add_task_to_plan(stage=<stage_id>). A downstream stage started only once every stage in depends_on_stages is fully done and its acceptance gate passes (a gate reject re-runs the stage, bounded by max_rounds, then escalates to a human). Stages form a DAG, so independent stages run in parallel. Returns stage_id.",
+	}, makeCreateStage(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_stage",
+		Description: "Read a Stage's derived status (open/running/reopen/done), its member task nodes, and its current bounded-retry round. Status is projected from the member nodes — it is not a separately-tracked state.",
+	}, makeGetStage(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "add_plan_dependency",

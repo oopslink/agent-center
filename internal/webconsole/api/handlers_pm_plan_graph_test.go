@@ -44,6 +44,7 @@ func setupPlanGraphAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 		IssueSubs:    pmsql.NewIssueSubscriberRepo(db),
 		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db),
 		Plans:        plans,
+		Stages:       pmsql.NewStageRepo(db), // T981: wire the Stage aggregate so stage-level reads work
 		Outbox:       ob,
 		IDGen:        gen,
 		Clock:        clk,
@@ -196,5 +197,112 @@ func TestPlanGraphAPI_NoGraph_FallbackShape(t *testing.T) {
 	body := decodeBody(t, resp)
 	if body["has_graph"] != false {
 		t.Fatalf("has_graph=%v want false (legacy fallback)", body["has_graph"])
+	}
+}
+
+// TestPlanStagesAPI_StagedPlan_ServesProjection (T981, plan-stage-model §7): a plan with
+// a stage → GET …/plans/{id}/stages returns the stage-level DERIVED read model (id/name/
+// status/rounds/max_rounds/members), so the FE can render "Stage x/y" + per-stage progress.
+func TestPlanStagesAPI_StagedPlan_ServesProjection(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanGraphAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "staged", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.drain(t)
+
+	tid, err := fx.deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "A1", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	who := "user:a1"
+	if err := fx.deps.PM.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &who}, caller); err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.deps.PM.SelectTaskIntoPlan(ctx, planID, tid, caller); err != nil {
+		t.Fatal(err)
+	}
+	stageID, err := fx.deps.PM.CreateStage(ctx, pmservice.CreateStageCommand{PlanID: planID, Name: "Alpha", MaxRounds: 3, Actor: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.deps.PM.AssignTaskToStage(ctx, planID, tid, stageID, caller); err != nil {
+		t.Fatal(err)
+	}
+	fx.drain(t)
+	if err := fx.deps.PM.StartPlan(ctx, planID, caller); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+
+	resp := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/stages", sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("stages status=%d want 200", resp.StatusCode)
+	}
+	body := decodeBody(t, resp)
+	stages, _ := body["stages"].([]any)
+	if len(stages) != 1 {
+		t.Fatalf("stages len=%d want 1; body=%v", len(stages), body)
+	}
+	st := stages[0].(map[string]any)
+	if st["name"] != "Alpha" {
+		t.Fatalf("stage name=%v want Alpha", st["name"])
+	}
+	if st["status"] == "" || st["status"] == nil {
+		t.Fatalf("stage status missing (projection); stage=%v", st)
+	}
+	if st["max_rounds"].(float64) != 3 {
+		t.Fatalf("stage max_rounds=%v want 3", st["max_rounds"])
+	}
+	members, _ := st["members"].([]any)
+	if len(members) != 1 {
+		t.Fatalf("members len=%d want 1; stage=%v", len(members), st)
+	}
+	m := members[0].(map[string]any)
+	if m["task_id"] != string(tid) {
+		t.Fatalf("member task_id=%v want %s", m["task_id"], tid)
+	}
+}
+
+// TestPlanStagesAPI_NoStage_EmptyShape (T981 §8 zero-regression): a plan with NO stages
+// → GET …/plans/{id}/stages returns {stages:[]}, the signal the FE uses to render the
+// legacy no-stage view unchanged.
+func TestPlanStagesAPI_NoStage_EmptyShape(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanGraphAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "nostage", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fx.drain(t)
+
+	resp := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/stages", sess)
+	if resp.StatusCode != 200 {
+		t.Fatalf("stages status=%d want 200", resp.StatusCode)
+	}
+	body := decodeBody(t, resp)
+	stages, ok := body["stages"].([]any)
+	if !ok || len(stages) != 0 {
+		t.Fatalf("stages=%v want empty array (§8 zero-regression)", body["stages"])
 	}
 }

@@ -734,6 +734,10 @@ func makeCreatePlan(cfg Config) mcp.ToolHandlerFor[createPlanArgs, any] {
 type planTaskArgs struct {
 	PlanID string `json:"plan_id" jsonschema:"the draft plan to modify"`
 	TaskID string `json:"task_id" jsonschema:"the task to add to / remove from the plan"`
+	// Stage (add_task_to_plan only, optional) puts the task into a Plan Stage — a
+	// barrier-bounded batch created with create_stage. Omit for a plain (stageless)
+	// plan node. Ignored by remove_task_from_plan.
+	Stage string `json:"stage,omitempty" jsonschema:"optional stage_id to group this task under a Plan Stage (from create_stage); omit for a plain plan node"`
 }
 
 // makePlanTask backs BOTH add_task_to_plan and remove_task_from_plan. The tool
@@ -744,6 +748,9 @@ func makePlanTask(cfg Config, tool string) mcp.ToolHandlerFor[planTaskArgs, any]
 			"agent_id": cfg.AgentID,
 			"plan_id":  args.PlanID,
 			"task_id":  args.TaskID,
+		}
+		if args.Stage != "" {
+			body["stage"] = args.Stage
 		}
 		return callAdmin(ctx, cfg, tool, body)
 	}
@@ -840,6 +847,41 @@ func makeEditPlanTopology(cfg Config) mcp.ToolHandlerFor[editPlanTopologyArgs, a
 			"ops":          ops,
 		}
 		return callAdmin(ctx, cfg, "edit_plan_topology", body)
+	}
+}
+
+// --- create_stage / get_stage (2026-07-03 plan-stage-model §6) ---------------
+
+type createStageArgs struct {
+	PlanID          string   `json:"plan_id" jsonschema:"the draft plan to add the stage to"`
+	Name            string   `json:"name" jsonschema:"the stage's display name (its addressable label)"`
+	DependsOnStages []string `json:"depends_on_stages,omitempty" jsonschema:"stage_ids this stage barriers on — it starts only once every upstream stage is fully done AND its gate passes; omit for a root stage"`
+	MaxRounds       int      `json:"max_rounds,omitempty" jsonschema:"stage-local retry cap: how many times a gate reject may re-run this stage before it escalates to a human (default 3)"`
+}
+
+// makeCreateStage backs create_stage. Body keys match createStageReq exactly.
+func makeCreateStage(cfg Config) mcp.ToolHandlerFor[createStageArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args createStageArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":          cfg.AgentID,
+			"plan_id":           args.PlanID,
+			"name":              args.Name,
+			"depends_on_stages": args.DependsOnStages,
+			"max_rounds":        args.MaxRounds,
+		}
+		return callAdmin(ctx, cfg, "create_stage", body)
+	}
+}
+
+type getStageArgs struct {
+	StageID string `json:"stage_id" jsonschema:"the stage to read"`
+}
+
+// makeGetStage backs get_stage — the derived stage status + member nodes + retry round.
+func makeGetStage(cfg Config) mcp.ToolHandlerFor[getStageArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args getStageArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID, "stage_id": args.StageID}
+		return callAdmin(ctx, cfg, "get_stage", body)
 	}
 }
 

@@ -440,6 +440,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		CodeRepoRefs:     codeRepoRefRepo,
 		CodeRepoResolver: codeRepoSvc,
 		Plans:            pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
+		Stages:           pmsql.NewStageRepo(db),       // 2026-07-03 plan-stage-model: Stage aggregate (barrier/gate落图)
 		Findings:         pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
 		// v2.14.0 I14/F3 §7.3: persist the append-only Task lifecycle log (block/unblock/
 		// lease_expired/reassigned) to pm_task_action_logs from the log-producing flows.
