@@ -174,14 +174,49 @@ func (s *Service) GetStage(ctx context.Context, stageID pm.StageID) (*StageDetai
 	if err != nil {
 		return nil, err
 	}
-	members, err := s.tasks.ListByPlan(ctx, st.PlanID())
+	planTasks, err := s.tasks.ListByPlan(ctx, st.PlanID())
 	if err != nil {
 		return nil, err
 	}
+	return s.projectStage(ctx, st, planTasks), nil
+}
+
+// ListStagesForPlan returns the DERIVED read model for EVERY stage of a plan (§7 stage-
+// level monitoring: the detail page lists a plan's stages + their projected status /
+// rounds / members). It shares the SINGLE projection path with GetStage via projectStage
+// — never a second copy of the status/rounds/members derivation, so a single stage and
+// the list can never drift. Returns an empty slice for a plan with no stages (the FE then
+// renders the legacy no-stage view — §8 backward compat). The plan's tasks are listed
+// ONCE and grouped, rather than re-listed per stage.
+func (s *Service) ListStagesForPlan(ctx context.Context, planID pm.PlanID) ([]*StageDetail, error) {
+	if s.stages == nil {
+		return nil, ErrStagesUnavailable
+	}
+	stages, err := s.stages.ListByPlan(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	planTasks, err := s.tasks.ListByPlan(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*StageDetail, 0, len(stages))
+	for _, st := range stages {
+		out = append(out, s.projectStage(ctx, st, planTasks))
+	}
+	return out, nil
+}
+
+// projectStage is the SINGLE SOURCE of the stage read-model projection (§4.1) shared by
+// GetStage and ListStagesForPlan (pd constraint: never duplicate the derivation). It
+// derives one stage's members + status + retry round from the plan's already-listed
+// tasks: member states come from the member TASKS' statuses (the graph nodes are kept
+// lock-step, §9.2); the gate state + round come from the gate CONDITION node.
+func (s *Service) projectStage(ctx context.Context, st *pm.Stage, planTasks []*pm.Task) *StageDetail {
 	var views []StageMemberView
 	var memberStates []pm.StageMemberState
-	for _, t := range members {
-		if t.StageID() != stageID {
+	for _, t := range planTasks {
+		if t.StageID() != st.ID() {
 			continue
 		}
 		views = append(views, StageMemberView{TaskID: t.ID(), Title: t.Title(), TaskStatus: t.Status()})
@@ -193,7 +228,7 @@ func (s *Service) GetStage(ctx context.Context, stageID pm.StageID) (*StageDetai
 		Members: views,
 		Status:  pm.ProjectStageStatus(memberStates, gateState),
 		Rounds:  rounds,
-	}, nil
+	}
 }
 
 // taskToStageMemberState maps a task status onto the coarse member state the stage

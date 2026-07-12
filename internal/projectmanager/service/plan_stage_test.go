@@ -253,6 +253,65 @@ func TestStage_ZeroRegression(t *testing.T) {
 	}
 }
 
+// TestListStagesForPlan_SharesProjectionWithGetStage locks the T981 §7 web-read glue:
+// ListStagesForPlan returns EVERY stage's projection, and each one is IDENTICAL to
+// GetStage(stageID) — proving the single shared projStage path (pd constraint 1: no
+// second copy of the derivation that could drift). Also covers the §8 no-stage empty.
+func TestListStagesForPlan_SharesProjectionWithGetStage(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+
+	// No-stage plan → ListStagesForPlan is empty (§8 backward compat).
+	noStage, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "nostages", CreatedBy: "user:a"})
+	h.drain(t)
+	if dets, err := h.svc.ListStagesForPlan(ctx, noStage); err != nil || len(dets) != 0 {
+		t.Fatalf("ListStagesForPlan(no-stage) = (%d stages, %v), want (0, nil)", len(dets), err)
+	}
+
+	// Two-stage plan, driven into a mixed state (stage A members done, gate pending →
+	// running; stage B not started → open), so the projection has something to compare.
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	_, _, _, stageA, stageB := seedTwoStagePlan(t, h, pid, planID, 3)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+
+	dets, err := h.svc.ListStagesForPlan(ctx, planID)
+	if err != nil {
+		t.Fatalf("ListStagesForPlan: %v", err)
+	}
+	if len(dets) != 2 {
+		t.Fatalf("ListStagesForPlan returned %d stages, want 2", len(dets))
+	}
+	byID := map[pm.StageID]*StageDetail{}
+	for _, d := range dets {
+		byID[d.Stage.ID()] = d
+	}
+	// Each listed stage must be byte-for-byte the same projection as GetStage — the
+	// single-source guarantee.
+	for _, sid := range []pm.StageID{stageA, stageB} {
+		listed, ok := byID[sid]
+		if !ok {
+			t.Fatalf("ListStagesForPlan missing stage %s", sid)
+		}
+		got, err := h.svc.GetStage(ctx, sid)
+		if err != nil {
+			t.Fatalf("GetStage(%s): %v", sid, err)
+		}
+		if listed.Status != got.Status || listed.Rounds != got.Rounds || len(listed.Members) != len(got.Members) {
+			t.Fatalf("stage %s: list projection {status=%q rounds=%d members=%d} != get {status=%q rounds=%d members=%d} — projection drift",
+				sid, listed.Status, listed.Rounds, len(listed.Members), got.Status, got.Rounds, len(got.Members))
+		}
+		for i := range listed.Members {
+			if listed.Members[i] != got.Members[i] {
+				t.Fatalf("stage %s member[%d] drift: list=%+v get=%+v", sid, i, listed.Members[i], got.Members[i])
+			}
+		}
+	}
+}
+
 // TestStage_CrossEdge_RejectedAtBuild asserts the §5 build-time invariant: a manual
 // plan edge between two DIFFERENT stages is rejected at StartPlan (graph build).
 func TestStage_CrossEdge_RejectedAtBuild(t *testing.T) {

@@ -307,6 +307,9 @@ func (s *Server) routes() {
 	// T769 — plan-detail DAG reads the orchestration-engine graph (control nodes +
 	// edge kinds); a no-graph plan yields has_graph:false → legacy DAG fallback.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/graph", s.pmGetPlanGraphHandler)
+	// T981 (plan-stage-model §7) — stage-level read model: the plan's stages + projected
+	// status/rounds/members; empty {stages:[]} for a no-stage plan (legacy fallback).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/stages", s.pmListPlanStagesHandler)
 	// T581 — plan detail rail "Related Plans": other plans from the same source issue.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/projects/{project_id}/plans/{plan_id}/related-plans", s.pmRelatedPlansHandler)
 	// Plan detail rail "Related Issues": the source issue(s) this plan's tasks derive from.
