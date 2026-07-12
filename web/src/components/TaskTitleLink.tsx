@@ -29,11 +29,17 @@ export function TaskTitleLink({
   taskId,
   title,
   className,
+  wrap,
 }: {
   projectId: string;
   taskId: string;
   title: React.ReactNode;
   className?: string;
+  // wrap: render up to 2 lines (line-clamp) instead of the default single-line
+  // truncate. Default false everywhere this was already single-line (list rows,
+  // cards) — opt in only where the layout has room to breathe (e.g. the DAG
+  // node card), so a long title reads in full instead of "…" after a few chars.
+  wrap?: boolean;
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const ctx = useOptionalOrgContext();
@@ -50,7 +56,7 @@ export function TaskTitleLink({
       data-testid={`task-open-link-${taskId}`}
       title={t('widgets.taskTitleLink.openInNewTab')}
     >
-      <span className="truncate">{title}</span>
+      <span className={wrap ? 'line-clamp-2 whitespace-normal break-words' : 'truncate'}>{title}</span>
       <OpenInNewTabIcon />
     </a>
   );

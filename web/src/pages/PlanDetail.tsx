@@ -1886,6 +1886,197 @@ export function layoutGraph(
   return { positioned, width, height };
 }
 
+// ── T981 follow-up: stage-grouped canvas layout ─────────────────────────────
+// Two-level layout: an OUTER stage DAG (stage boxes positioned by
+// depends_on_stages, longest-path leveled exactly like layoutGraph levels
+// business/control nodes) wrapping an INNER sub-DAG per stage (the stage's own
+// member nodes, laid out with the existing layoutGraph so within-stage flow is
+// unchanged). A node belongs to a stage when its bound task_id appears in that
+// stage's members (§7 read model — PlanStage.members).
+//
+// The stage's gate (a real graph CONDITION node, §4.2) and the Start/End
+// anchors are folded into the SAME `positioned` list the flat layout produces
+// — at their computed canvas coordinates — rather than re-deriving stage-to-
+// -stage connectivity separately. This matters: buildStages already wires the
+// barrier edges directly onto the graph (business → gate, gate → downstream
+// entries, T800 Start→root / sink→End), so `graph.edges` is ALREADY the
+// complete, authoritative connectivity. Reusing the existing edge-drawing
+// pass (posById lookup by node id) means the canvas can never show a
+// stage-boundary connection that doesn't correspond to a real graph edge, and
+// there is only one edge-kind system (seq/conditional/loopback) at every
+// zoom level instead of a second invented "stage edge" style.
+//
+// Any node that ends up neither a stage member nor Start/End/gate (§8: a plan
+// whose graph predates staging for some nodes) is defensively laid out with
+// the plain algorithm in a trailing row so nothing is silently dropped.
+const STAGE_HEADER_H = 40;
+const STAGE_ROW_GAP_X = 40; // gap between sibling stage boxes in the same row
+const STAGE_LEVEL_GAP_Y = NODE_H + 60; // gap between rows — fits a gate/anchor cell + edges
+
+export interface StageBox {
+  stage: PlanStage;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+export interface StagedGraphLayout {
+  positioned: GraphPositioned[];
+  boxes: StageBox[];
+  width: number;
+  height: number;
+}
+
+// Longest-path leveling over a stage DAG's depends_on_stages — the exact same
+// algebra as layoutGraph's node leveling, just over stage ids instead of node
+// ids (§4.2: "the outer stage DAG").
+function levelOfStages(stages: PlanStage[]): Map<string, number> {
+  const byId = new Map(stages.map((s) => [s.id, s]));
+  const cache = new Map<string, number>();
+  const inStack = new Set<string>();
+  function level(id: string): number {
+    if (cache.has(id)) return cache.get(id)!;
+    if (inStack.has(id)) return 0; // cycle guard (defensive; the backend already validates acyclicity)
+    inStack.add(id);
+    const st = byId.get(id);
+    const deps = (st?.depends_on_stages ?? []).filter((d) => byId.has(d));
+    const lvl = deps.length === 0 ? 0 : Math.max(...deps.map((d) => level(d) + 1));
+    inStack.delete(id);
+    cache.set(id, lvl);
+    return lvl;
+  }
+  const out = new Map<string, number>();
+  for (const s of stages) out.set(s.id, level(s.id));
+  return out;
+}
+
+export function layoutStagedGraph(
+  nodes: PlanGraphNode[],
+  edges: PlanGraphEdge[],
+  stages: PlanStage[],
+): StagedGraphLayout {
+  if (stages.length === 0) {
+    // No stages on this plan (§8 zero-regression) — degrade to the flat layout,
+    // wrapped in the staged shape so callers don't need to branch.
+    const flat = layoutGraph(nodes, edges);
+    return { positioned: flat.positioned, boxes: [], width: flat.width, height: flat.height };
+  }
+
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const stageIdOfTask = new Map<string, string>();
+  for (const st of stages) for (const m of st.members) stageIdOfTask.set(m.task_id, st.id);
+  const gateNodeIdOfStage = new Map<string, string>();
+  for (const st of stages) if (st.gate_node_id) gateNodeIdOfStage.set(st.id, st.gate_node_id);
+
+  const groupOf = new Map<string, string>(); // node.id -> stage.id (business members only)
+  for (const n of nodes) {
+    if (n.category === 'business' && n.task_id && stageIdOfTask.has(n.task_id)) {
+      groupOf.set(n.id, stageIdOfTask.get(n.task_id)!);
+    }
+  }
+
+  const stageLevel = levelOfStages(stages);
+  const rows = new Map<number, PlanStage[]>();
+  let maxRow = 0;
+  for (const st of stages) {
+    const lvl = stageLevel.get(st.id) ?? 0;
+    maxRow = Math.max(maxRow, lvl);
+    rows.set(lvl, [...(rows.get(lvl) ?? []), st]);
+  }
+
+  // Inner sub-DAG per stage: the stage's own members + the edges strictly
+  // between them. Cross-stage edges (barrier edges through the gate) are
+  // rendered by the component's existing edge pass once every node — members,
+  // gate, Start/End — carries a canvas position (below).
+  const innerOf = new Map<string, ReturnType<typeof layoutGraph>>();
+  for (const st of stages) {
+    const memberNodes = nodes.filter((n) => groupOf.get(n.id) === st.id);
+    const memberEdges = edges.filter((e) => groupOf.get(e.from) === st.id && groupOf.get(e.to) === st.id);
+    innerOf.set(st.id, layoutGraph(memberNodes, memberEdges));
+  }
+
+  // Pass 1: row content widths (boxes only, gap-separated) to find the widest
+  // row — every row is then centered against that width so the outer DAG reads
+  // as one balanced flow instead of a ragged left-aligned stack.
+  const rowWidth = (row: PlanStage[]): number => {
+    const boxW = row.map((st) => Math.max(innerOf.get(st.id)!.width, NODE_W + 2 * PAD_X));
+    return boxW.reduce((a, b) => a + b, 0) + STAGE_ROW_GAP_X * Math.max(0, row.length - 1);
+  };
+  let canvasWidth = 0;
+  for (let l = 0; l <= maxRow; l++) canvasWidth = Math.max(canvasWidth, rowWidth(rows.get(l) ?? []));
+  canvasWidth = Math.max(canvasWidth, CTRL_W) + 2 * PAD_X;
+
+  // Pass 2: place boxes row by row, each row centered within canvasWidth;
+  // stack rows downward leaving STAGE_LEVEL_GAP_Y for a gate cell + edges.
+  const boxes: StageBox[] = [];
+  const boxOf = new Map<string, StageBox>();
+  const positioned: GraphPositioned[] = [];
+  const covered = new Set<string>();
+  let y = PAD_Y + NODE_H + STAGE_LEVEL_GAP_Y / 2; // room for the Start anchor above row 0
+  for (let l = 0; l <= maxRow; l++) {
+    const row = rows.get(l) ?? [];
+    const w = rowWidth(row);
+    let x = PAD_X + (canvasWidth - 2 * PAD_X - w) / 2;
+    let rowH = 0;
+    for (const st of row) {
+      const inner = innerOf.get(st.id)!;
+      const boxW = Math.max(inner.width, NODE_W + 2 * PAD_X);
+      const boxH = inner.height + STAGE_HEADER_H;
+      const box: StageBox = { stage: st, x, y, w: boxW, h: boxH };
+      boxes.push(box);
+      boxOf.set(st.id, box);
+      rowH = Math.max(rowH, boxH);
+      for (const p of inner.positioned) {
+        positioned.push({ ...p, x: box.x + p.x, y: box.y + STAGE_HEADER_H + p.y });
+        covered.add(p.node.id);
+      }
+      const gateNodeId = gateNodeIdOfStage.get(st.id);
+      const gateNode = gateNodeId ? nodeById.get(gateNodeId) : undefined;
+      if (gateNode) {
+        positioned.push({
+          node: gateNode,
+          level: l,
+          x: box.x + boxW / 2 - CTRL_W / 2,
+          y: box.y + boxH + (STAGE_LEVEL_GAP_Y - NODE_H) / 2,
+          w: CTRL_W,
+        });
+        covered.add(gateNode.id);
+      }
+      x += boxW + STAGE_ROW_GAP_X;
+    }
+    y += rowH + STAGE_LEVEL_GAP_Y;
+  }
+  const bottomY = y - STAGE_LEVEL_GAP_Y / 2;
+
+  // Start/End anchors + any leftover node not covered by a stage (defensive).
+  let start: PlanGraphNode | undefined;
+  let end: PlanGraphNode | undefined;
+  const orphans: PlanGraphNode[] = [];
+  for (const n of nodes) {
+    if (covered.has(n.id)) continue;
+    if (n.control_kind === 'start') { start = n; continue; }
+    if (n.control_kind === 'end') { end = n; continue; }
+    orphans.push(n);
+  }
+  if (start) positioned.push({ node: start, level: -1, x: canvasWidth / 2 - CTRL_W / 2, y: PAD_Y, w: CTRL_W });
+
+  let height = bottomY;
+  if (orphans.length > 0) {
+    const orphanEdges = edges.filter((e) => orphans.some((o) => o.id === e.from) || orphans.some((o) => o.id === e.to));
+    const flat = layoutGraph(orphans, orphanEdges);
+    for (const p of flat.positioned) positioned.push({ ...p, level: maxRow + 1, x: p.x + PAD_X, y: p.y + height });
+    height += flat.height;
+  }
+  if (end) {
+    positioned.push({ node: end, level: maxRow + 2, x: canvasWidth / 2 - CTRL_W / 2, y: height, w: CTRL_W });
+    height += NODE_H + PAD_Y;
+  } else {
+    height += PAD_Y;
+  }
+
+  return { positioned, boxes, width: canvasWidth, height };
+}
+
 // Per-kind edge stroke class + dash. seq = neutral, conditional = accent (routed
 // by a decision), loopback = amber dashed return arc.
 const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; marker: string }> = {
@@ -1942,6 +2133,12 @@ function PlanGraphDag({
   const nodes = graph.nodes;
   const edges = graph.edges;
 
+  // §7: group the canvas by Plan Stage when the plan has any (T981 follow-up —
+  // the outer Stage DAG wraps each stage's own inner sub-DAG). Empty for a
+  // no-stage plan, so layoutStagedGraph degrades to the identical flat layout.
+  const stagesQuery = usePlanStages(projectId, plan.id);
+  const stages = stagesQuery.data ?? [];
+
   // Bound task → derived 6-state node_status (for the business-node chip), taken
   // from the plan detail's PlanNode list so the graph chips match the plan view.
   const nodeStatusOf = useMemo(() => {
@@ -1950,7 +2147,10 @@ function PlanGraphDag({
     return m;
   }, [plan.nodes]);
 
-  const { positioned, width, height } = useMemo(() => layoutGraph(nodes, edges), [nodes, edges]);
+  const { positioned, boxes, width, height } = useMemo(
+    () => layoutStagedGraph(nodes, edges, stages),
+    [nodes, edges, stages],
+  );
   const posById = useMemo(() => new Map(positioned.map((p) => [p.node.id, p])), [positioned]);
 
   // Edge paths (top-to-bottom flow). Forward edges: source BOTTOM-mid → target
@@ -2020,6 +2220,46 @@ function PlanGraphDag({
               data-testid="plan-dag-scaler"
               style={{ width, height, transform: scale === 1 ? undefined : `scale(${scale})`, transformOrigin: 'top left' }}
             >
+              {/* Stage boxes render FIRST (bottom layer) — the sub-DAG's own
+                  svg/cards paint over them in normal DOM-order stacking, and
+                  they carry no z-index so they never cover the edges/cards
+                  drawn after them. One box per Plan Stage (§7); a no-stage
+                  plan gets none, so the canvas is byte-identical to before. */}
+              {boxes.map((b) => (
+                <div
+                  key={b.stage.id}
+                  className="absolute rounded-lg border border-border-base bg-bg-surface"
+                  style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
+                  data-testid={`plan-stage-box-${b.stage.id}`}
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-1.5">
+                    <span className="truncate text-xs font-semibold text-text-primary">{b.stage.name}</span>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded px-1.5 py-0.5 text-[0.625rem] font-medium ${STAGE_STATUS_CLASS[b.stage.status]}`}
+                        data-testid={`plan-stage-status-${b.stage.id}`}
+                      >
+                        {t(`plan.detail.stages.status.${b.stage.status}`)}
+                      </span>
+                      <span className="text-[0.6875rem] text-text-secondary" data-testid={`plan-stage-progress-${b.stage.id}`}>
+                        {t('plan.detail.stages.memberProgress', {
+                          done: b.stage.members.filter((m) => stageMemberDone(m.task_status)).length,
+                          total: b.stage.members.length,
+                        })}
+                      </span>
+                      {b.stage.rounds > 0 && (
+                        <span
+                          className="inline-flex items-center rounded bg-warning/10 px-1.5 py-0.5 text-[0.625rem] text-warning"
+                          data-testid={`plan-stage-rounds-${b.stage.id}`}
+                        >
+                          {t('plan.detail.stages.retryRound', { round: b.stage.rounds, max: b.stage.max_rounds })}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              ))}
+
               <svg className="absolute left-0 top-0" width={width} height={height} data-testid="plan-graph-svg" aria-hidden="true">
                 <defs>
                   <marker id="plan-graph-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -2079,7 +2319,7 @@ function PlanGraphDag({
                       <NodeStateChip status={status} />
                     </div>
                     <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
-                      <TaskTitleLink projectId={projectId} taskId={taskId} title={p.node.title || refLabel(p.node.org_ref, taskId)} />
+                      <TaskTitleLink projectId={projectId} taskId={taskId} title={p.node.title || refLabel(p.node.org_ref, taskId)} wrap />
                     </div>
                     <div className="flex min-w-0 text-[0.6875rem]">
                       <AssigneeTag assigneeRef={p.node.assignee_ref ?? ''} />

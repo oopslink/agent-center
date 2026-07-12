@@ -1,0 +1,507 @@
+<title>DAG 画布优化 Mockup — in-page</title>
+<style>
+  :root{
+    --bg:#0c0c12;
+    --panel:#15151c;
+    --panel-2:#1b1b25;
+    --border:#26262f;
+    --border-2:#33333f;
+    --text:#eae8f2;
+    --text-dim:#9997a8;
+    --text-faint:#68677a;
+    --accent:#8a7cf0;
+    --accent-soft:rgba(138,124,240,0.15);
+    --done:#4fb477;
+    --running:#e0973c;
+    --ready:#5b9dee;
+    --blocked-bg:#23232e;
+    --blocked-text:#9896a8;
+    --gate:#d9a441;
+    --edge-seq:#5c5b6d;
+    --edge-cond:#8a7cf0;
+    --edge-loop:#a98aa6;
+    --mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  }
+  :root[data-theme="light"]{
+    --bg:#f2f1f6; --panel:#ffffff; --panel-2:#f7f6fb;
+    --border:#e2e0ea; --border-2:#d0cedb;
+    --text:#1c1b24; --text-dim:#5c5a6b; --text-faint:#8b899a;
+    --accent:#6c58e0; --accent-soft:rgba(108,88,224,0.10);
+    --done:#2c9a5c; --running:#c67d13; --ready:#2f7fd6;
+    --blocked-bg:#eceaf1; --blocked-text:#66647a;
+    --gate:#b3860f;
+    --edge-seq:#adabbb; --edge-cond:#6c58e0; --edge-loop:#a9789e;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f2f1f6; --panel:#ffffff; --panel-2:#f7f6fb;
+      --border:#e2e0ea; --border-2:#d0cedb;
+      --text:#1c1b24; --text-dim:#5c5a6b; --text-faint:#8b899a;
+      --accent:#6c58e0; --accent-soft:rgba(108,88,224,0.10);
+      --done:#2c9a5c; --running:#c67d13; --ready:#2f7fd6;
+      --blocked-bg:#eceaf1; --blocked-text:#66647a;
+      --gate:#b3860f;
+      --edge-seq:#adabbb; --edge-cond:#6c58e0; --edge-loop:#a9789e;
+    }
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; -webkit-font-smoothing:antialiased;}
+  a{color:inherit;}
+
+  .shell{display:flex; height:100vh; min-height:640px;}
+
+  /* ---------------- left rail + nav ---------------- */
+  .rail{width:56px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:14px 0; gap:18px;}
+  .rail-logo{width:30px; height:30px; border-radius:9px; background:linear-gradient(135deg, var(--accent), #5c4fd6); flex-shrink:0;}
+  .rail-icon{width:20px; height:20px; border-radius:5px; background:var(--border-2); opacity:0.55;}
+  .rail-spacer{flex:1;}
+  .rail-badge{position:relative;}
+  .rail-badge .n{position:absolute; top:-5px; right:-6px; background:var(--running); color:#1a1200; font-size:8px; font-weight:800; width:13px; height:13px; border-radius:50%; display:flex; align-items:center; justify-content:center;}
+  .rail-dot{width:8px; height:8px; border-radius:50%; background:var(--done);}
+  .rail-ring{width:14px; height:14px; border-radius:50%; border:1.5px solid var(--text-faint);}
+
+  .nav{width:232px; flex-shrink:0; border-right:1px solid var(--border); padding:14px 14px 14px; display:flex; flex-direction:column; gap:14px; overflow-y:auto;}
+  .nav-search{display:flex; align-items:center; justify-content:space-between; border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:12px; color:var(--text-faint);}
+  .nav-search kbd{font-family:var(--mono); font-size:10px; background:var(--panel); border:1px solid var(--border); border-radius:4px; padding:1px 5px;}
+  .nav-crumb{font-size:10.5px; color:var(--text-faint); letter-spacing:0.04em; display:flex; align-items:center; gap:4px;}
+  .nav-project{font-size:14.5px; font-weight:650;}
+  .nav-list{display:flex; flex-direction:column; gap:1px;}
+  .nav-item{display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:7px; font-size:12.5px; color:var(--text-dim);}
+  .nav-item .ic{width:14px; height:14px; border-radius:3px; background:var(--text-faint); opacity:0.5; flex-shrink:0;}
+  .nav-item.active{background:var(--accent); color:#fff; font-weight:600;}
+  .nav-item.active .ic{background:#fff; opacity:0.9;}
+
+  /* ---------------- main column ---------------- */
+  .main{flex:1; display:flex; flex-direction:column; min-width:0;}
+  .topbar{border-bottom:1px solid var(--border); padding:14px 24px 0;}
+  .crumb{font-size:12px; color:var(--text-faint); margin-bottom:10px;}
+  .crumb b{color:var(--text-dim); font-weight:600;}
+  .titlerow{display:flex; align-items:baseline; gap:10px; margin-bottom:14px;}
+  .plan-id{font-family:var(--mono); font-size:12px; color:var(--text-faint); font-weight:700;}
+  .plan-title{font-size:19px; font-weight:650; letter-spacing:-0.01em;}
+  .tabs{display:flex; align-items:center; justify-content:space-between;}
+  .tab-list{display:flex; gap:6px;}
+  .tab{padding:9px 14px; font-size:13px; color:var(--text-dim); border-bottom:2px solid transparent; cursor:default;}
+  .tab.active{color:var(--text); border-color:var(--accent); font-weight:600;}
+  .tab-right{font-size:11px; color:var(--text-faint); font-family:var(--mono); padding-bottom:8px;}
+
+  .content{flex:1; display:flex; min-height:0;}
+  .content-main{flex:1; overflow-y:auto; padding:20px 24px 40px; min-width:0;}
+
+  .canvas-shell{position:relative; border:1px solid var(--border); border-radius:10px; overflow:hidden;}
+  .canvas-wrap{
+    position:relative; overflow:auto; max-height:calc(100vh - 190px);
+    background:radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 1px);
+    background-size:26px 26px; background-color:var(--bg);
+  }
+  .canvas-sizer{position:relative;}
+  .canvas{position:relative; width:900px; min-height:1040px; transform-origin:0 0;}
+
+  .zoom-controls{
+    position:absolute; top:12px; right:12px; z-index:10;
+    display:flex; align-items:center; gap:2px; border:1px solid var(--border-2);
+    border-radius:8px; background:var(--panel); box-shadow:0 4px 14px -6px rgba(0,0,0,0.5); overflow:hidden;
+  }
+  .zoom-controls button{
+    appearance:none; border:none; background:transparent; color:var(--text-dim);
+    width:30px; height:28px; font-size:15px; cursor:pointer; font-family:var(--sans); border-left:1px solid var(--border);
+  }
+  .zoom-controls button:first-child{border-left:none;}
+  .zoom-controls button:hover{background:var(--panel-2); color:var(--text);}
+  .zoom-controls .pct{font-family:var(--mono); font-size:11px; padding:0 8px; color:var(--text-faint); min-width:38px; text-align:center; user-select:none;}
+  .zoom-controls .fit{border-left:1px solid var(--border); font-size:11px; width:auto; padding:0 10px;}
+
+  .terminal{position:absolute; width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:8.5px; font-weight:800; letter-spacing:0.03em;}
+  .terminal.start{background:var(--accent); color:#fff; box-shadow:0 4px 16px -4px color-mix(in srgb, var(--accent) 60%, transparent);}
+  .terminal.end{background:var(--panel); color:var(--done); border:2px solid var(--done); box-shadow:0 0 0 3px color-mix(in srgb, var(--done) 16%, transparent) inset;}
+  .legend-fixed{
+    position:sticky; bottom:0; left:0; display:flex; gap:16px; padding:8px 14px;
+    border-top:1px solid var(--border); background:var(--panel); font-size:11px; color:var(--text-faint);
+  }
+  .legend-fixed .li{display:flex; align-items:center; gap:6px;}
+  .legend-fixed .sw{width:20px; height:0; border-top-width:2px; border-top-style:solid;}
+  .legend-fixed .sw.seq{border-color:var(--edge-seq);}
+  .legend-fixed .sw.cond{border-color:var(--edge-cond);}
+  .legend-fixed .sw.loop{border-color:var(--edge-loop); border-top-style:dotted; border-top-width:2.5px;}
+
+  .outer-edges{position:absolute; inset:0; width:900px; height:1040px; overflow:visible; pointer-events:none;}
+
+  .stage{position:absolute; border-radius:12px; background:var(--panel); border:1px solid var(--border-2);}
+  .stage-head{padding:9px 14px 8px; border-bottom:1px solid var(--border);}
+  .stage-toprow{display:flex; align-items:baseline; gap:7px;}
+  .stage-id{font-family:var(--mono); font-size:10px; color:var(--text-faint); letter-spacing:0.03em;}
+  .stage-name{font-size:12.5px; font-weight:650;}
+  .stage-metarow{display:flex; align-items:center; gap:9px; margin-top:5px;}
+  .stage-status{display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:650; letter-spacing:0.03em; text-transform:uppercase; color:var(--accent);}
+  .dot{width:6px; height:6px; border-radius:50%; flex-shrink:0; background:var(--accent);}
+  .stage-progress{flex:1; display:flex; align-items:center; gap:7px;}
+  .ptrack{flex:1; height:4px; background:var(--border-2); border-radius:99px; overflow:hidden; max-width:110px;}
+  .pfill{height:100%; background:var(--done); border-radius:99px;}
+  .pfrac{font-family:var(--mono); font-size:9.5px; color:var(--text-faint);}
+
+  .node{position:absolute; width:170px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border-2); padding:9px 11px 10px;}
+  .node .idrow{font-family:var(--mono); font-size:10px; color:var(--text-faint); display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .badge{font-size:8.5px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; padding:2px 6px; border-radius:99px; display:inline-flex; align-items:center; gap:4px;}
+  .badge .dot{width:5px; height:5px;}
+  .badge.done{color:var(--done); background:color-mix(in srgb, var(--done) 16%, transparent);}
+  .badge.done .dot{background:var(--done);}
+  .badge.running{color:var(--running); background:color-mix(in srgb, var(--running) 16%, transparent);}
+  .badge.running .dot{background:var(--running);}
+  .badge.ready{color:var(--ready); background:color-mix(in srgb, var(--ready) 16%, transparent);}
+  .badge.ready .dot{background:var(--ready);}
+  .badge.blocked{color:var(--blocked-text); background:var(--blocked-bg);}
+  .badge.blocked .dot{background:var(--blocked-text);}
+
+  .node .title{font-size:11.5px; font-weight:560; line-height:1.4; margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .node .assignee{display:flex; align-items:center; gap:6px;}
+  .avatar{width:16px; height:16px; border-radius:50%; background:linear-gradient(135deg, var(--accent), #5c4fd6); color:#fff; font-size:8.5px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .assignee-name{font-family:var(--mono); font-size:9.5px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .node.n-running{border-color:color-mix(in srgb, var(--running) 55%, var(--border-2)); box-shadow:0 0 0 1px color-mix(in srgb, var(--running) 30%, transparent);}
+  .node.n-done{opacity:0.6;}
+
+  .inner-edges{position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none;}
+
+  .gate{position:absolute; width:92px; height:92px; display:flex; align-items:center; justify-content:center;}
+  .gate-diamond{width:70px; height:70px; background:var(--panel); border:1.5px solid var(--gate); box-shadow:0 0 0 1px color-mix(in srgb, var(--gate) 30%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--gate) 55%, transparent); transform:rotate(45deg); border-radius:6px; display:flex; align-items:center; justify-content:center;}
+  .gate-label{transform:rotate(-45deg); text-align:center; line-height:1.25;}
+  .gate-label .g1{font-family:var(--mono); font-size:9px; color:var(--gate); font-weight:700; letter-spacing:0.03em;}
+  .gate-label .g2{font-size:8.5px; font-weight:600; color:var(--text-dim); margin-top:2px;}
+
+  /* ---------------- right rail ---------------- */
+  .right{width:340px; flex-shrink:0; border-left:1px solid var(--border); padding:18px 18px 30px; overflow-y:auto;}
+  .statusrow{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
+  .pill{font-size:10.5px; font-weight:700; letter-spacing:0.04em; padding:3px 9px; border-radius:99px;}
+  .pill.running{background:var(--accent-soft); color:var(--accent); border:1px solid color-mix(in srgb, var(--accent) 45%, transparent);}
+  .pill.ghost{background:var(--panel); color:var(--text-dim); border:1px solid var(--border-2); font-weight:600;}
+  .nodesdone-label{margin-left:auto; font-size:10.5px; color:var(--text-faint);}
+  .bigfrac{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px;}
+  .bigfrac .n{font-size:22px; font-weight:700; font-family:var(--mono);}
+  .bigfrac .p{font-size:12px; color:var(--text-faint); font-family:var(--mono);}
+  .track{height:6px; background:var(--border-2); border-radius:99px; overflow:hidden; margin-bottom:14px;}
+  .fill{height:100%; width:30%; background:var(--done); border-radius:99px;}
+  .actionrow{display:flex; gap:8px; margin-bottom:22px;}
+  .btn{flex:1; text-align:center; padding:8px 0; border-radius:8px; font-size:12.5px; font-weight:600; border:1px solid var(--border-2); color:var(--text-dim);}
+  .btn.danger{color:#e2836e; border-color:color-mix(in srgb, #e2836e 40%, var(--border-2));}
+
+  .r-h{display:flex; align-items:center; justify-content:space-between; font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); font-weight:650; margin-bottom:9px;}
+  .r-block{margin-bottom:22px;}
+  .goal-who{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-dim); margin-bottom:8px;}
+  .goal-text{font-size:12.5px; line-height:1.6; color:var(--text-dim);}
+  .goal-text .more{color:var(--accent); font-weight:600;}
+  .avatars{display:flex; gap:6px; flex-wrap:wrap;}
+  .avatars .avatar{width:24px; height:24px; font-size:10px;}
+  .upnext-list{display:flex; flex-direction:column; gap:2px;}
+  .upnext-item{display:flex; align-items:center; gap:8px; padding:7px 0; font-size:12px; border-top:1px solid var(--border);}
+  .upnext-item:first-child{border-top:none;}
+  .upnext-item .d{width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0;}
+  .upnext-item .t{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-dim);}
+  .upnext-item .id{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); flex-shrink:0;}
+  .viewmore{font-size:12px; color:var(--accent); margin-top:6px; display:block;}
+</style>
+
+<div class="shell">
+  <div class="rail">
+    <div class="rail-logo"></div>
+    <div class="rail-icon"></div>
+    <div class="rail-icon rail-badge"><span class="n">2</span></div>
+    <div class="rail-icon"></div>
+    <div class="rail-icon"></div>
+    <div class="rail-spacer"></div>
+    <div class="rail-icon rail-badge"><span class="n">2</span></div>
+    <div class="rail-dot"></div>
+    <div class="rail-ring"></div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-search"><span>Search</span><kbd>⌘K</kbd></div>
+    <div>
+      <div class="nav-crumb">‹ PROJECTS</div>
+      <div class="nav-project">agent-center2</div>
+    </div>
+    <div class="nav-list">
+      <div class="nav-item"><span class="ic"></span>Issues</div>
+      <div class="nav-item"><span class="ic"></span>Tasks</div>
+      <div class="nav-item"><span class="ic"></span>Plans</div>
+      <div class="nav-item"><span class="ic"></span>Code repos</div>
+      <div class="nav-item active"><span class="ic"></span>Work Board</div>
+      <div class="nav-item"><span class="ic"></span>Members</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">Projects / agent-center2 / Plans / <b>Team 一等实体 Phase 1</b></div>
+      <div class="titlerow"><span class="plan-id">P67</span><span class="plan-title">Team 一等实体 Phase 1（issue-c59e4598）</span></div>
+      <div class="tabs">
+        <div class="tab-list">
+          <div class="tab">Chat</div>
+          <div class="tab active">DAG</div>
+          <div class="tab">Task List</div>
+          <div class="tab">Change History</div>
+        </div>
+        <div class="tab-right">⌃ P67</div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="content-main">
+
+        <div class="canvas-shell">
+          <div class="zoom-controls">
+            <button id="zoom-out">−</button>
+            <span class="pct" id="zoom-pct">100%</span>
+            <button id="zoom-in">+</button>
+            <button class="fit" id="zoom-fit">Fit view</button>
+          </div>
+          <div class="canvas-wrap" id="canvas-wrap">
+           <div class="canvas-sizer" id="canvas-sizer">
+            <div class="canvas" id="canvas">
+
+              <!-- START -->
+              <div class="terminal start" style="left:424px; top:20px;">START</div>
+
+              <!-- Stage S1 -->
+              <div class="stage" style="left:20px; top:110px; width:400px; height:150px;">
+                <div class="stage-head">
+                  <div class="stage-toprow"><span class="stage-id">STAGE · S1</span><span class="stage-name">数据层</span></div>
+                  <div class="stage-metarow">
+                    <span class="stage-status"><span class="dot"></span>running</span>
+                    <div class="stage-progress"><div class="ptrack"><div class="pfill" style="width:100%"></div></div><span class="pfrac">2/2</span></div>
+                  </div>
+                </div>
+                <div class="node n-done" style="left:18px; top:58px;">
+                  <div class="idrow">T995 <span class="badge done"><span class="dot"></span>done</span></div>
+                  <div class="title">[Team S1] 初稿：数据层 schema</div>
+                  <div class="assignee"><div class="avatar">D2</div><span class="assignee-name">agent-center-dev2</span></div>
+                </div>
+                <div class="node n-done" style="left:216px; top:58px;">
+                  <div class="idrow">T997 <span class="badge done"><span class="dot"></span>done</span></div>
+                  <div class="title">[Team S1] 复审：数据层</div>
+                  <div class="assignee"><div class="avatar">D3</div><span class="assignee-name">agent-center-dev3</span></div>
+                </div>
+                <svg class="inner-edges">
+                  <defs><marker id="a-seq-1" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--edge-seq)"/></marker></defs>
+                  <path d="M 186 98 L 216 98" fill="none" stroke="var(--edge-seq)" stroke-width="2" marker-end="url(#a-seq-1)"/>
+                </svg>
+              </div>
+
+              <!-- Stage S2 -->
+              <div class="stage" style="left:480px; top:110px; width:400px; height:150px;">
+                <div class="stage-head">
+                  <div class="stage-toprow"><span class="stage-id">STAGE · S2</span><span class="stage-name">git 存储</span></div>
+                  <div class="stage-metarow">
+                    <span class="stage-status"><span class="dot"></span>running</span>
+                    <div class="stage-progress"><div class="ptrack"><div class="pfill" style="width:50%"></div></div><span class="pfrac">1/2</span></div>
+                  </div>
+                </div>
+                <div class="node n-done" style="left:18px; top:58px;">
+                  <div class="idrow">T998 <span class="badge done"><span class="dot"></span>done</span></div>
+                  <div class="title">[Team S2] 初始化：git 存储</div>
+                  <div class="assignee"><div class="avatar">D3</div><span class="assignee-name">agent-center-dev3</span></div>
+                </div>
+                <div class="node" style="left:216px; top:58px;">
+                  <div class="idrow">T999 <span class="badge ready"><span class="dot"></span>ready</span></div>
+                  <div class="title">[Team S2] 复审：git 存储</div>
+                  <div class="assignee"><div class="avatar">D4</div><span class="assignee-name">agent-center-dev4</span></div>
+                </div>
+                <svg class="inner-edges">
+                  <defs><marker id="a-seq-2" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--edge-seq)"/></marker></defs>
+                  <path d="M 186 98 L 216 98" fill="none" stroke="var(--edge-seq)" stroke-width="2" marker-end="url(#a-seq-2)"/>
+                </svg>
+              </div>
+
+              <!-- GATE -->
+              <div class="gate" style="left:388px; top:251px;">
+                <div class="gate-diamond"><div class="gate-label"><div class="g1">GATE:S2</div><div class="g2">GIT存储</div></div></div>
+              </div>
+
+              <!-- Stage S3 -->
+              <div class="stage" style="left:180px; top:446px; width:400px; height:180px;">
+                <div class="stage-head">
+                  <div class="stage-toprow"><span class="stage-id">STAGE · S3</span><span class="stage-name">加载模版实例化</span></div>
+                  <div class="stage-metarow">
+                    <span class="stage-status"><span class="dot"></span>running</span>
+                    <div class="stage-progress"><div class="ptrack"><div class="pfill" style="width:0%"></div></div><span class="pfrac">0/2</span></div>
+                  </div>
+                </div>
+                <div class="node n-running" style="left:18px; top:73px;">
+                  <div class="idrow">T1000 <span class="badge running"><span class="dot"></span>running</span></div>
+                  <div class="title">[Team S3] 加载 + 模版 + 实例化 + 角色映射</div>
+                  <div class="assignee"><div class="avatar">D5</div><span class="assignee-name">agent-center-dev5</span></div>
+                </div>
+                <div class="node" style="left:216px; top:73px;">
+                  <div class="idrow">T1001 <span class="badge blocked"><span class="dot"></span>blocked</span></div>
+                  <div class="title">[Team S3] 复审：加载/模版/实例化</div>
+                  <div class="assignee"><div class="avatar">·</div><span class="assignee-name">未分配</span></div>
+                </div>
+                <svg class="inner-edges">
+                  <defs>
+                    <marker id="a-seq-3" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--edge-seq)"/></marker>
+                    <marker id="a-loop-3" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--edge-loop)"/></marker>
+                  </defs>
+                  <path d="M 186 113 L 216 113" fill="none" stroke="var(--edge-seq)" stroke-width="2" marker-end="url(#a-seq-3)"/>
+                  <path d="M 286 73 C 256 46, 156 46, 131 73" fill="none" stroke="var(--edge-loop)" stroke-width="2" stroke-dasharray="1.5 4.5" stroke-linecap="round" marker-end="url(#a-loop-3)"/>
+                </svg>
+              </div>
+
+              <!-- Stage S4 -->
+              <div class="stage" style="left:180px; top:666px; width:400px; height:250px;">
+                <div class="stage-head">
+                  <div class="stage-toprow"><span class="stage-id">STAGE · S4</span><span class="stage-name">发布</span></div>
+                  <div class="stage-metarow">
+                    <span class="stage-status"><span class="dot"></span>running</span>
+                    <div class="stage-progress"><div class="ptrack"><div class="pfill" style="width:0%"></div></div><span class="pfrac">0/4</span></div>
+                  </div>
+                </div>
+                <div class="node" style="left:18px; top:60px;">
+                  <div class="idrow">T1002 <span class="badge blocked"><span class="dot"></span>blocked</span></div>
+                  <div class="title">[Team S4] 集成：feat → dev/team-一等实体</div>
+                  <div class="assignee"><div class="avatar">·</div><span class="assignee-name">未分配</span></div>
+                </div>
+                <div class="node" style="left:216px; top:60px;">
+                  <div class="idrow">T1003 <span class="badge blocked"><span class="dot"></span>blocked</span></div>
+                  <div class="title">[Team S4] Gate：全量 go test（含契约测试）</div>
+                  <div class="assignee"><div class="avatar">·</div><span class="assignee-name">未分配</span></div>
+                </div>
+                <div class="node" style="left:18px; top:156px;">
+                  <div class="idrow">T1004 <span class="badge blocked"><span class="dot"></span>blocked</span></div>
+                  <div class="title">[Team S4] 真跑验收：部署级 e2e</div>
+                  <div class="assignee"><div class="avatar">·</div><span class="assignee-name">未分配</span></div>
+                </div>
+                <div class="node" style="left:216px; top:156px;">
+                  <div class="idrow">T1005 <span class="badge blocked"><span class="dot"></span>blocked</span></div>
+                  <div class="title">[Team S4] 正式发布：production</div>
+                  <div class="assignee"><div class="avatar">·</div><span class="assignee-name">未分配</span></div>
+                </div>
+                <svg class="inner-edges">
+                  <defs>
+                    <marker id="a-seq-4" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--edge-seq)"/></marker>
+                    <marker id="a-cond-4" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="var(--edge-cond)"/></marker>
+                  </defs>
+                  <path d="M 186 100 L 216 100" fill="none" stroke="var(--edge-seq)" stroke-width="2" marker-end="url(#a-seq-4)"/>
+                  <path d="M 286 140 C 286 196, 91 196, 91 156" fill="none" stroke="var(--edge-seq)" stroke-width="2" marker-end="url(#a-seq-4)"/>
+                  <path d="M 186 196 L 216 196" fill="none" stroke="var(--edge-seq)" stroke-width="2" marker-end="url(#a-seq-4)"/>
+                  <path d="M 386 100 C 426 126, 426 170, 386 196" fill="none" stroke="var(--edge-cond)" stroke-width="2" marker-end="url(#a-cond-4)"/>
+                </svg>
+              </div>
+
+              <!-- END -->
+              <div class="terminal end" style="left:354px; top:946px;">END</div>
+
+              <!-- outer stage-level (still just "seq", heavier weight = macro spine) -->
+              <svg class="outer-edges">
+                <defs>
+                  <marker id="a-outer" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-seq)"/></marker>
+                </defs>
+                <path d="M 450 72 C 450 92, 300 110, 220 110" fill="none" stroke="var(--edge-seq)" stroke-width="3" marker-end="url(#a-outer)"/>
+                <path d="M 450 72 C 450 92, 600 110, 680 110" fill="none" stroke="var(--edge-seq)" stroke-width="3" marker-end="url(#a-outer)"/>
+                <path d="M 230 260 C 230 310, 350 341, 388 341" fill="none" stroke="var(--edge-seq)" stroke-width="3" marker-end="url(#a-outer)"/>
+                <path d="M 690 260 C 690 310, 570 341, 480 341" fill="none" stroke="var(--edge-seq)" stroke-width="3" marker-end="url(#a-outer)"/>
+                <path d="M 434 343 L 434 446" fill="none" stroke="var(--edge-seq)" stroke-width="3" marker-end="url(#a-outer)"/>
+                <path d="M 380 626 L 380 666" fill="none" stroke="var(--edge-seq)" stroke-width="3" marker-end="url(#a-outer)"/>
+                <path d="M 380 916 L 380 946" fill="none" stroke="var(--edge-seq)" stroke-width="3" marker-end="url(#a-outer)"/>
+              </svg>
+
+            </div>
+           </div>
+          </div>
+          <div class="legend-fixed">
+            <div class="li"><span class="sw seq"></span>seq</div>
+            <div class="li"><span class="sw cond"></span>conditional</div>
+            <div class="li"><span class="sw loop"></span>loopback</div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="right">
+        <div class="statusrow">
+          <span class="pill running">RUNNING</span>
+          <span class="pill ghost">⟳ Auto-advancing</span>
+          <span class="nodesdone-label">nodes done</span>
+        </div>
+        <div class="bigfrac"><span class="n">3/10</span><span class="p">30%</span></div>
+        <div class="track"><div class="fill"></div></div>
+        <div class="actionrow">
+          <div class="btn danger">■ Stop (→draft)</div>
+          <div class="btn">Edit</div>
+        </div>
+
+        <div class="r-block">
+          <div class="r-h">Goal</div>
+          <div class="goal-who"><div class="avatar" style="width:20px;height:20px;">A</div>@agent-center-pd</div>
+          <div class="goal-text">Team 一等实体 Phase 1（设计文档 docs/design/features/2026-07-12-team-entity-design.md §8 Phase 1）。用 Plan Stage（v2.42.0，dogfood）分 4 stage：S1 数据层…<br><span class="more">Show more</span></div>
+        </div>
+
+        <div class="r-block">
+          <div class="r-h">Participants</div>
+          <div class="avatars">
+            <div class="avatar">A</div><div class="avatar">A</div><div class="avatar">A</div><div class="avatar">A</div>
+            <div class="avatar">A</div><div class="avatar">A</div><div class="avatar">A</div><div class="avatar">A</div>
+          </div>
+        </div>
+
+        <div class="r-block">
+          <div class="r-h">Up next <span style="color:var(--text-dim); font-weight:600;">6</span></div>
+          <div class="upnext-list">
+            <div class="upnext-item"><span class="d"></span><span class="t">[Team S2] 复审：git存储</span><span class="id">T999</span></div>
+            <div class="upnext-item"><span class="d"></span><span class="t">[Team S3] 加载+模版+实例化+角色…</span><span class="id">T1000</span></div>
+            <div class="upnext-item"><span class="d"></span><span class="t">[Team S3] 复审：加载/模版/实例化/…</span><span class="id">T1001</span></div>
+            <div class="upnext-item"><span class="d"></span><span class="t">[Team S4] 集成：feat → dev/team-…</span><span class="id">T1002</span></div>
+            <div class="upnext-item"><span class="d"></span><span class="t">[Team S4] Gate：全量 go test（含…</span><span class="id">T1003</span></div>
+            <div class="upnext-item"><span class="d"></span><span class="t">[Team S4] 真跑验收：部署级 e2e</span><span class="id">T1004</span></div>
+          </div>
+          <a class="viewmore" href="#">+1 more — view DAG</a>
+        </div>
+
+        <div class="r-block">
+          <div class="r-h">Related issues</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('canvas');
+  var sizer = document.getElementById('canvas-sizer');
+  var wrap = document.getElementById('canvas-wrap');
+  var pctLabel = document.getElementById('zoom-pct');
+  var baseW = 900, baseH = 1040;
+  var scale = 1;
+  var MIN = 0.5, MAX = 1.5;
+
+  function apply(){
+    scale = Math.max(MIN, Math.min(MAX, scale));
+    canvas.style.transform = 'scale(' + scale + ')';
+    sizer.style.width = (baseW * scale) + 'px';
+    sizer.style.height = (baseH * scale) + 'px';
+    pctLabel.textContent = Math.round(scale * 100) + '%';
+  }
+
+  document.getElementById('zoom-in').addEventListener('click', function(){
+    scale += 0.1; apply();
+  });
+  document.getElementById('zoom-out').addEventListener('click', function(){
+    scale -= 0.1; apply();
+  });
+  document.getElementById('zoom-fit').addEventListener('click', function(){
+    var available = wrap.clientWidth - 24;
+    scale = Math.max(MIN, Math.min(1, available / baseW));
+    apply();
+  });
+
+  wrap.addEventListener('wheel', function(e){
+    if(!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    scale += (e.deltaY < 0 ? 0.08 : -0.08);
+    apply();
+  }, { passive:false });
+
+  apply();
+})();
+</script>
