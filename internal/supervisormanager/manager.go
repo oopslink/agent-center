@@ -500,13 +500,26 @@ func readInstance(home string) (rec instanceRecord, ok bool) {
 // On Reattachable the caller owns ProbeResult.Client; on any Unavailable the
 // probe connection (if opened) is closed before returning.
 func ProbeAgent(ctx context.Context, home string) (ProbeResult, error) {
+	// Default probe dial timeout: 2s keeps a returning daemon's restart probe snappy.
+	return ProbeAgentWithDialTimeout(ctx, home, 2*time.Second)
+}
+
+// ProbeAgentWithDialTimeout is ProbeAgent with a caller-chosen socket dial/connect
+// timeout. Production callers use ProbeAgent (2s). A caller that must tolerate a
+// live-but-CPU-starved supervisor — e.g. a test under full-suite parallel load,
+// where the process is up (an alive() check passes) but can't accept the socket
+// within 2s — passes a generous timeout so a probe that STILL can't reach reliably
+// means a genuine break (fail), not a starved-out probe (which a generous dial
+// absorbs). This is what lets the reattach test distinguish a real
+// alive-but-unreattachable regression from load starvation WITHOUT skipping.
+func ProbeAgentWithDialTimeout(ctx context.Context, home string, dialTimeout time.Duration) (ProbeResult, error) {
 	rec, ok := readInstance(home)
 	if !ok {
 		return ProbeResult{State: Unavailable, Reason: ReasonMissing}, nil
 	}
 
 	sockPath := sockPathFor(rec) // v2.7 #178: prefer recorded sock_path, fallback helper
-	dialCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	dialCtx, cancel := context.WithTimeout(ctx, dialTimeout)
 	client, err := agentsupervisor.Connect(dialCtx, sockPath)
 	cancel()
 	if err != nil {

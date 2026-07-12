@@ -13,6 +13,7 @@ package workerdaemon_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -145,43 +146,104 @@ func instancePIDBestEffort(home string) int {
 	return r.SupervisorPID
 }
 
-func waitProbeReattachable(t *testing.T, home string, timeout time.Duration) supervisormanager.ProbeResult {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	var lastState supervisormanager.ProbeState
-	var lastReason string
-	var lastErr error
+// supervisorSessionTestGenerousDial is how long the FINAL, starvation-tolerant
+// reattach probe waits to connect — far longer than ProbeAgent's production 2s dial.
+// After the quick-poll budget elapses, this generous dial REACHES a live-but-CPU-
+// starved supervisor (up but unable to accept within 2s under full-suite load) so
+// the reattach still succeeds → no false-RED. If even this can't reach, "unreachable"
+// reliably means a genuine break (or the process is gone) → real failure. This is
+// what closes the T978 pid-alive-skip coverage hole: we never skip, so an
+// alive-but-unreattachable regression can no longer hide behind a skip.
+const supervisorSessionTestGenerousDial = supervisorSessionTestComeUpTimeout
+
+// probeReattachableOutcome polls ProbeAgent (snappy 2s dial) until Reattachable for
+// `budget`, then makes ONE starvation-tolerant probe with `generousDial`. Returns the
+// ProbeResult on success, or an error describing a genuine break/death otherwise. It
+// is split out (returns an error rather than calling t.Fatal) precisely so the
+// break-vs-starve classification is unit-testable — see
+// TestWaitProbeReattachable_AliveButSocketBrokenFails, the regression lock proving a
+// live-pid + broken-socket is FAILED (not skipped).
+func probeReattachableOutcome(home string, budget, generousDial time.Duration) (supervisormanager.ProbeResult, error) {
+	deadline := time.Now().Add(budget)
 	for time.Now().Before(deadline) {
 		pr, err := supervisormanager.ProbeAgent(context.Background(), home)
-		lastErr = err
-		lastState = pr.State
-		lastReason = pr.Reason
 		if err == nil && pr.State == supervisormanager.Reattachable {
-			return pr
+			return pr, nil
 		}
 		if pr.Client != nil {
 			_ = pr.Client.Close()
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	// T978 (death-under-load flake root cause): ProbeAgent returns ReasonDead for
-	// BOTH a genuinely-gone supervisor AND a live-but-unreachable one — its socket
-	// Connect/Hello uses a 2s dial-timeout, and under `go test ./...` the runner
-	// saturates every core, so a SURVIVING supervisor can stay CPU-starved past that
-	// 2s reach for the whole budget. That false "dead" is a load artifact, not the
-	// survival/reattach defect this test guards (an earlier alive() check already
-	// proved the pid was up right after Detach). Classify by the recorded pid:
-	//   - pid GONE  → the supervisor really died → REAL regression → fail loud.
-	//   - pid ALIVE → it survived (the invariant held); only the probe was starved
-	//     out → skip, so the load artifact never false-REDs the Gate. The reattach
-	//     path is still exercised on every non-saturated run (isolation/CI-serial).
-	if pid := instancePIDBestEffort(home); pid > 0 && alive(pid) {
-		t.Skipf("supervisor pid %d SURVIVED but probe stayed %s for %s under load "+
-			"(CPU-starved past ProbeAgent's 2s dial-timeout — NOT a survival/reattach "+
-			"defect; run in isolation to exercise the reattach path)", pid, lastReason, timeout)
+	// Budget elapsed with snappy 2s probes. Before declaring failure, make ONE
+	// starvation-tolerant probe: a generous dial reaches a live-but-CPU-starved
+	// supervisor (absorbing the load artifact → success), so a probe that STILL can't
+	// reach reliably means a real break or a gone process → error. No skip → an
+	// alive-but-unreattachable regression can no longer hide.
+	pr, err := supervisormanager.ProbeAgentWithDialTimeout(context.Background(), home, generousDial)
+	if err == nil && pr.State == supervisormanager.Reattachable {
+		return pr, nil
 	}
-	t.Fatalf("probe state=%v reason=%s err=%v; want Reattachable within %s (supervisor pid gone → real death)", lastState, lastReason, lastErr, timeout)
-	return supervisormanager.ProbeResult{}
+	if pr.Client != nil {
+		_ = pr.Client.Close()
+	}
+	pidAlive := false
+	if pid := instancePIDBestEffort(home); pid > 0 {
+		pidAlive = alive(pid)
+	}
+	return supervisormanager.ProbeResult{}, fmt.Errorf(
+		"supervisor not reattachable within %s + %s generous dial: state=%v reason=%s pidAlive=%v "+
+			"(generous dial absorbs load starvation, so this is a real break/death — NOT a starved-out probe)",
+		budget, generousDial, pr.State, pr.Reason, pidAlive)
+}
+
+func waitProbeReattachable(t *testing.T, home string, timeout time.Duration) supervisormanager.ProbeResult {
+	t.Helper()
+	pr, err := probeReattachableOutcome(home, timeout, supervisorSessionTestGenerousDial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pr
+}
+
+// TestWaitProbeReattachable_AliveButSocketBrokenFails is the regression lock for the
+// T978 follow-up (PD-caught coverage hole). A supervisor whose PROCESS is alive but
+// whose reattach socket is unreachable ("alive but not reattachable") is EXACTLY the
+// defect this test family guards. The earlier pid-alive-skip fix would have SKIPPED
+// this (masking the regression); the generous-dial classification must FAIL it.
+//
+// Fixture: an instance record with a guaranteed-alive supervisor_pid (this test
+// process) but a sock_path that can never be connected → the probe can never reach,
+// yet the pid is alive. probeReattachableOutcome must return an error (not success,
+// not skip), and classify it pidAlive=true — the precise case the old skip masked.
+func TestWaitProbeReattachable_AliveButSocketBrokenFails(t *testing.T) {
+	home := t.TempDir()
+	deadSock := filepath.Join(t.TempDir(), "never-accepts.sock") // no listener → unreachable
+	rec := map[string]any{
+		"instance_id":    "inst-brokensock",
+		"agent_id":       "agent-brokensock",
+		"supervisor_pid": os.Getpid(), // THIS process → guaranteed alive
+		"child_pid":      os.Getpid(),
+		"started_at":     time.Now().Format(time.RFC3339Nano),
+		"sock_path":      deadSock,
+	}
+	b, err := json.Marshal(rec)
+	if err != nil {
+		t.Fatalf("marshal instance: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, agentsupervisor.InstanceFileName), b, 0o644); err != nil {
+		t.Fatalf("write instance: %v", err)
+	}
+
+	// Short budgets keep the test fast; connecting to a socket with no listener fails
+	// immediately, so neither the poll nor the generous dial actually waits its cap.
+	_, err = probeReattachableOutcome(home, 200*time.Millisecond, 300*time.Millisecond)
+	if err == nil {
+		t.Fatal("alive-pid + broken-socket must FAIL (real alive-but-unreattachable regression), got success — the coverage hole is open")
+	}
+	if !strings.Contains(err.Error(), "pidAlive=true") {
+		t.Fatalf("expected the outcome to classify pidAlive=true (the exact case the old skip masked), got: %v", err)
+	}
 }
 
 // reapHome best-effort kills any survivors (the whole point is survival, so the
