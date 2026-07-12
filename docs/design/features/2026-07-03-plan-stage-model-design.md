@@ -1,6 +1,6 @@
 # Plan Stage 模型设计（Spark 式 stage + task）
 
-> **状态**：设计已确认（oopslink，2026-07-03），待实现。
+> **状态**：设计已确认（oopslink，2026-07-03；2026-07-12 又经 3 轮 grill 复审并确认「按推荐来」），待实现。本文档是唯一设计记录，已合并 2026-07-12 讨论的细化。
 > **硬前置**：阶段二（issue-6a253094 / v2.32.0）ship —— orchestration graph 成为唯一权威控制流模型 + 统一建图工具（`add_plan_dependency` kind/when/max_rounds）+ ③ 的引擎有界 reopen（`ResolveCondition`/`ApplyConditionResult`/`countReopens`）。Stage 直接复用这三样。
 > **来源**：issue-d07007e5 讨论。
 
@@ -69,7 +69,8 @@ Stage {
 
 - **Stage barrier**：一个 stage 的子 DAG 派发 ⟺ 其所有上游 stage 都「子 DAG 全完成 且 gate 通过」。复用引擎 `ReadyNodes` / `IsAutoDone`（stage 子 DAG auto-done + gate 就绪）。
 - **Stage gate**：stage 内业务节点全完成 → gate condition 就绪；`pass` → 放行下游；`reject` → reopen 本 stage 子 DAG（清 dispatch/outcome、有界 `max_rounds`，复用引擎 `ResolveCondition`/`ApplyConditionResult`/`countReopens`）。
-- **Stage-local 有界重试**：gate reject 只重跑本 stage 的成员节点集；**不回退上游 stage**；耗尽 → escalate / 记 exhausted（复用阶段二的耗尽语义）。
+- **Stage-local 有界重试（重试落在节点级、不无差别重跑整 stage）**：gate reject **携带一个回环目标节点**（本 stage 内、复用节点级 loopback 的 `to` 语义），reopen 从该目标起的 stage-local 子 DAG——**不无差别重跑整个 stage 的所有成员节点**（进度是 stage 级、重试是节点级）。目标节点歧义时落 PD 人工指定。始终**不回退上游 stage**。（2026-07-12 grill 补）
+- **卡死升级（封闭 barrier 的代价）**：stage 是**封闭 barrier**——本 stage 未「全完成+gate pass」则下游 stage 全部 block。故 gate reject 有界重试 `max_rounds` **耗尽 → 升级到人**（记 exhausted，卡住的 stage 会拖住整个 plan，必须人工介入而非静默停摆）。复用阶段二耗尽语义。
 - **内层控制流正交**：stage 内子 DAG 可含普通节点级 Decision/loopback（Dev↔Review），与 stage-level gate 互不干扰。
 - **Stage 结构不变量（建图校验）**：stage 内节点只能有 stage 内的边（+ 自动 barrier）；手工连一条**绕过 gate 的跨 stage 边**（下游 stage 节点直接 `depends_on` 上游 stage 的非-gate 节点）= **建图时报错**——否则 barrier 被绕过、gate 形同虚设。stage 入口节点 = stage 内无前驱者，自动挂「上一 stage gate pass」的 barrier 边。（2026-07-12 grill 补）
 - **无 stage**：plan = 现在的节点 DAG，行为零变化。
