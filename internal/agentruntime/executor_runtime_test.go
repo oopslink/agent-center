@@ -325,6 +325,30 @@ func TestSpawnExecutor_SkipsForeignAssignee_Guard(t *testing.T) {
 	}
 }
 
+// TestSpawnExecutor_OwnAssignee_ForksNormally is the ② guard's LIVENESS lock: a task whose
+// assignee IS this runtime must still fork — the guard only refuses a FOREIGN assignee, never
+// the agent's own work. This is the critical false-positive check: if the identity compare
+// were wrong (e.g. keyed on the ULID cfg.AgentID instead of identityRef), the guard would
+// refuse EVERY dispatch and wedge all concurrency. identityRef() falls back to cfg.AgentID
+// ("agent-self") when no AgentRef is set, so an assignee of "agent:agent-self" is own.
+func TestSpawnExecutor_OwnAssignee_ForksNormally(t *testing.T) {
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-own", "title": "my own task", "status": "open",
+		"assignee": "agent:agent-self", "model": "claude-haiku",
+	}}
+	rt, _, home := spawn(t, "agent-self", "task-own", sc)
+
+	if seen := sc.toolsSeen(); len(seen) != 2 || seen[0] != "get_task" || seen[1] != "start_task" {
+		t.Fatalf("tool calls = %v — an own-assignee task must fork normally (want [get_task start_task])", seen)
+	}
+	if probs := loadRouting(t, home); len(probs) != 1 {
+		t.Fatalf("own-assignee task must fork (② guard must NOT false-positive): problems=%+v", probs)
+	}
+	if got := rt.State().CurrentTaskID; got != "task-own" {
+		t.Errorf("currentTaskID = %q, want task-own (own task forked)", got)
+	}
+}
+
 func TestSpawnExecutor_GetTaskErrorSkips(t *testing.T) {
 	sc := &scriptedToolCaller{getTaskErr: errors.New("403 not_agents_task")}
 	_, _, home := spawn(t, "agent-gterr", "task-4", sc)
