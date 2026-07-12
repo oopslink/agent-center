@@ -58,10 +58,10 @@ func TestRepoRefDirNameAndString(t *testing.T) {
 
 func TestParseRepoPath(t *testing.T) {
 	tests := []struct {
-		in       string
-		wantRef  RepoRef
-		wantSub  string
-		wantErr  bool
+		in      string
+		wantRef RepoRef
+		wantSub string
+		wantErr bool
 	}{
 		{"/agent/a1.git/info/refs", AgentRepo("a1"), "info/refs", false},
 		{"agent/a1.git/git-upload-pack", AgentRepo("a1"), "git-upload-pack", false},

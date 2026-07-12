@@ -136,11 +136,11 @@ func recorderRequest(t *testing.T, method, path, agentID string) int {
 
 func TestHandlerStatusMapping(t *testing.T) {
 	tests := []struct {
-		name    string
-		method  string
-		path    string
-		agent   string
-		want    int
+		name   string
+		method string
+		path   string
+		agent  string
+		want   int
 	}{
 		{"unauthenticated", "GET", "/git/agent/agent-1.git/info/refs?service=git-upload-pack", "", http.StatusUnauthorized},
 		{"forbidden other agent", "GET", "/git/agent/agent-2.git/info/refs?service=git-upload-pack", "agent-1", http.StatusForbidden},
