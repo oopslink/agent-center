@@ -39,6 +39,92 @@ func TestAncestorScopes_TaskChain(t *testing.T) {
 	}
 }
 
+func TestAncestorScopes_TeamLayer(t *testing.T) {
+	// A task scope carrying a TeamID pulls the team-shared layer in between
+	// global and project: global → team → project → task (broad → narrow).
+	got := memory.AncestorScopes(memory.MemoryScope{
+		Kind: memory.MemScopeTask, Key: "T1", ProjectID: "P1", TeamID: "team-xyz",
+	})
+	if len(got) != 4 {
+		t.Fatalf("want 4 scopes, got %d: %+v", len(got), got)
+	}
+	wantKinds := []memory.MemoryScopeKind{
+		memory.MemScopeGlobal, memory.MemScopeTeam, memory.MemScopeProject, memory.MemScopeTask,
+	}
+	for i, wk := range wantKinds {
+		if got[i].Kind != wk {
+			t.Errorf("scope[%d] = %v, want %v", i, got[i].Kind, wk)
+		}
+	}
+	if got[1].TeamID != "team-xyz" {
+		t.Errorf("team layer TeamID = %q, want team-xyz", got[1].TeamID)
+	}
+
+	// A project scope with a team gets global → team → project.
+	proj := memory.AncestorScopes(memory.MemoryScope{
+		Kind: memory.MemScopeProject, ProjectID: "P1", TeamID: "team-xyz",
+	})
+	if len(proj) != 3 || proj[1].Kind != memory.MemScopeTeam {
+		t.Errorf("project+team chain wrong: %+v", proj)
+	}
+
+	// Without a TeamID the chain is unchanged (backward compatible).
+	noTeam := memory.AncestorScopes(memory.MemoryScope{Kind: memory.MemScopeTask, Key: "T1", ProjectID: "P1"})
+	if len(noTeam) != 3 {
+		t.Errorf("no-team task chain should be 3 scopes, got %d: %+v", len(noTeam), noTeam)
+	}
+
+	// The team scope itself walks global → team.
+	self := memory.AncestorScopes(memory.MemoryScope{Kind: memory.MemScopeTeam, TeamID: "team-xyz"})
+	if len(self) != 2 || self[0].Kind != memory.MemScopeGlobal || self[1].Kind != memory.MemScopeTeam {
+		t.Errorf("team self chain wrong: %+v", self)
+	}
+}
+
+func TestAssembleScoped_TeamOverriddenByProject(t *testing.T) {
+	// Proves the precedence: with global, team, project and task memory all
+	// present, AssembleScoped renders them broad→narrow so project (rendered
+	// after team) can override the team convention while team overrides global.
+	eng, dir := newEngine(t)
+	ctx := context.Background()
+	if err := eng.EnsureRootInit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	writes := []struct {
+		scope memory.MemoryScope
+		body  string
+	}{
+		{memory.MemoryScope{Kind: memory.MemScopeGlobal}, "G-body"},
+		{memory.MemoryScope{Kind: memory.MemScopeTeam, TeamID: "team-xyz"}, "TEAM-body"},
+		{memory.MemoryScope{Kind: memory.MemScopeProject, ProjectID: "P1"}, "PROJ-body"},
+		{memory.MemoryScope{Kind: memory.MemScopeTask, Key: "T1", ProjectID: "P1"}, "TASK-body"},
+	}
+	for _, w := range writes {
+		if err := eng.WriteScoped(ctx, w.scope, w.body, "t", "t@x", "seed"); err != nil {
+			t.Fatalf("write %v: %v", w.scope, err)
+		}
+	}
+	out, err := eng.AssembleScoped(ctx, memory.MemoryScope{
+		Kind: memory.MemScopeTask, Key: "T1", ProjectID: "P1", TeamID: "team-xyz",
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"G-body", "TEAM-body", "PROJ-body", "TASK-body"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("assembled output missing %q:\n%s", want, out)
+		}
+	}
+	// team must render before project (project overrides team on collision).
+	if strings.Index(out, "TEAM-body") > strings.Index(out, "PROJ-body") {
+		t.Errorf("team should render before project (broad→narrow):\n%s", out)
+	}
+	if strings.Index(out, "G-body") > strings.Index(out, "TEAM-body") {
+		t.Errorf("global should render before team:\n%s", out)
+	}
+	_ = dir
+}
+
 func TestAncestorScopes_IssueAndConversation(t *testing.T) {
 	iss := memory.AncestorScopes(memory.MemoryScope{Kind: memory.MemScopeIssue, Key: "I1", ProjectID: "P1"})
 	if len(iss) != 3 || iss[1].Kind != memory.MemScopeProject || iss[2].Kind != memory.MemScopeIssue {

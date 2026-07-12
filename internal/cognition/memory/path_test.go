@@ -15,6 +15,7 @@ func TestScopeToFSPath_AllScopes(t *testing.T) {
 		want  string
 	}{
 		{"global", memory.MemoryScope{Kind: memory.MemScopeGlobal}, "MEMORY.md"},
+		{"team", memory.MemoryScope{Kind: memory.MemScopeTeam, TeamID: "team-abc123"}, "teams/team-abc123/MEMORY.md"},
 		{"supervisor", memory.MemoryScope{Kind: memory.MemScopeSupervisor}, "supervisor.md"},
 		{"project", memory.MemoryScope{Kind: memory.MemScopeProject, ProjectID: "demo"}, "projects/demo/MEMORY.md"},
 		{"task", memory.MemoryScope{Kind: memory.MemScopeTask, Key: "T-1", ProjectID: "demo"}, "projects/demo/tasks/T-1/MEMORY.md"},

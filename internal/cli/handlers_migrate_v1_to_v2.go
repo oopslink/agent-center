@@ -162,7 +162,9 @@ func MigrateV1ToV2Command() *Command {
 // 0105 (agents.judge_enabled — the per-agent difficulty-judge opt-in switch).
 // Plan Stage model (2026-07-03 design) added 0106 (pm_stages — the lightweight
 // first-class Stage aggregate + pm_tasks.stage_id node→stage membership).
-const targetSchemaVersion = 106
+// Team Phase-1 (S1-3) added 0107 (team/pm_teams tables — renumbered from 0106_v229_teams
+// at T1002 integrate to land after main's 0106_pm_stages).
+const targetSchemaVersion = 107
 
 func runMigrateV1ToV2(
 	ctx context.Context,
