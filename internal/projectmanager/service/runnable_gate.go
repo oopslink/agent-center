@@ -61,10 +61,12 @@ func taskIDFromRef(ref string) (string, bool) {
 //   - node status ready/dispatched → all blockedBy deps resolved → runnable.
 //   - node status blocked/skipped/other → deps unsatisfied / dead branch → NOT runnable.
 //
-// This is uniform for built-in pool plans (dispatched-on-select) and structured
-// (DAG) plans: a built-in member reaches `dispatched` on selection, a DAG node
-// reaches `ready`/`dispatched` only once its upstream is done — so the same
-// ready-or-dispatched test gates both without a separate built-in branch.
+// Built-in pool and structured (DAG) plans share the ready/dispatched notion but
+// take separate branches: a DAG node reaches `ready`/`dispatched` only once its
+// upstream is done (deps gated); a built-in pool member is FLAT (no upstream), so
+// `ready` already means deps-satisfied and an ASSIGNED ready member is runnable
+// even before the async dispatch record lands — only an UNASSIGNED member must
+// wait for `dispatched` (its claimable-into-pool signal).
 func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
@@ -99,12 +101,27 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 		return err
 	}
 	if p.IsBuiltin() {
-		// Built-in Assignment Pool: a member is runnable ONLY once DISPATCHED (= it is
-		// in the pool). The pool's own "claimable" path (ClaimPoolTask) is the entry
-		// into running for an ownerless pool task (§13.F-②); a not-yet-dispatched
-		// built-in task is inert here. A claimed pool task keeps its dispatch record, so
+		// Built-in Assignment Pool: a DISPATCHED member is runnable (= it is in the pool).
+		// The pool's own "claimable" path (ClaimPoolTask) is the entry into running for an
+		// ownerless pool task (§13.F-②). A claimed pool task keeps its dispatch record, so
 		// the post-claim start_task (claim→open, then run) still reads NodeDispatched.
 		if ns == pm.NodeDispatched {
+			return nil
+		}
+		// An ASSIGNED-but-not-yet-dispatched member (node_status=ready) is ALSO runnable.
+		// The built-in pool is FLAT (no upstream edges), so NodeReady already means "all
+		// (zero) blockedBy deps satisfied" — there is NO run-ahead risk, the sole concern
+		// of this gate. The dispatch RECORD only gates CLAIMABILITY (ownerless pool work)
+		// and the dispatch wake; it is written asynchronously by the pool sweep
+		// (dispatchBuiltinPool). Requiring it here coupled an assigned member's runnability
+		// to that async write, so a directly assign_task'd pool member (assignment is
+		// decoupled from dispatch — assign_flow.go) was误拒 task_not_runnable in the window
+		// before the sweep ran — AND the assign-time dispatch wake (gated on this same
+		// EnsureTaskRunnable) never fired, so the assignee could not even be nudged. An
+		// owned, dep-satisfied pool member must be startable now; the assignee gate keeps an
+		// UNASSIGNED ready member inert (it must be dispatched to become claimable — nobody
+		// owns it to start it).
+		if ns == pm.NodeReady && strings.TrimSpace(string(t.Assignee())) != "" {
 			return nil
 		}
 		return pm.ErrTaskNotRunnable
@@ -207,6 +224,107 @@ func (s *Service) stageGateBlocks(ctx context.Context, p *pm.Plan, t *pm.Task) (
 		}
 	}
 	return false, nil
+}
+
+// stageBarrierHeldSet is the BATCHED counterpart of stageGateBlocks: over a single
+// graph load it returns the set of the plan's task ids whose graph node is a
+// downstream-stage ENTRY held behind an UNRESOLVED upstream stage gate (issue-<start-
+// task-ready-node>). stageGateBlocks answers this ONE task at a time for the run gate;
+// this answers it for a WHOLE plan in O(edges+nodes) so a read model (GetPlanDetail /
+// GetPlanDetailForMember) can correct the STAGE-UNAWARE DerivePlanView without paying a
+// per-node graph round-trip.
+//
+// The rule is IDENTICAL to stageGateBlocks — an entry is held iff any of its upstream
+// graph edges originates at a stage-gate CONDITION node ("stage_gate" metadata) that is
+// not yet resolved (completed/discarded) — so the read model, the run gate, and the
+// dispatcher (graphReadySet) all agree on "barrier lifted" (one source of truth). Nil
+// (no barriers) for a plan with no engine / no graph (§8 zero-regression: a pure-node
+// DAG has no stage gates).
+func (s *Service) stageBarrierHeldSet(ctx context.Context, p *pm.Plan) (map[pm.TaskID]bool, error) {
+	if s.orch == nil || p.GraphID() == "" {
+		return nil, nil
+	}
+	graphID := orch.GraphID(p.GraphID())
+	nodes, err := s.orch.ListNodes(ctx, graphID)
+	if err != nil {
+		return nil, err
+	}
+	// Index nodes; collect the UNRESOLVED stage-gate condition node ids and the
+	// node→task binding so held entries map back to task ids.
+	taskOfNode := make(map[orch.NodeID]pm.TaskID, len(nodes))
+	unresolvedGate := make(map[orch.NodeID]bool)
+	for _, n := range nodes {
+		if tid := nodeTaskID(n); tid != "" {
+			taskOfNode[n.ID()] = tid
+		}
+		if n.Category() != orch.NodeCategoryControl || n.ControlKind() != orch.ControlKindCondition {
+			continue
+		}
+		if _, isStageGate := n.Metadata()["stage_gate"]; !isStageGate {
+			continue
+		}
+		if n.Status() != orch.NodeCompleted && n.Status() != orch.NodeDiscarded {
+			unresolvedGate[n.ID()] = true
+		}
+	}
+	if len(unresolvedGate) == 0 {
+		return nil, nil
+	}
+	edges, err := s.orch.ListEdges(ctx, graphID)
+	if err != nil {
+		return nil, err
+	}
+	held := make(map[pm.TaskID]bool)
+	for _, e := range edges {
+		if !unresolvedGate[e.FromNodeID] {
+			continue
+		}
+		if tid, ok := taskOfNode[e.ToNodeID]; ok {
+			held[tid] = true // a downstream entry behind an unresolved upstream stage gate.
+		}
+	}
+	return held, nil
+}
+
+// applyStageBarrierView corrects the STAGE-UNAWARE DerivePlanView read model on a
+// read-facing PlanDetail: DerivePlanView derives a downstream-stage ENTRY as `ready`
+// (and lists it in ReadySet) even while its upstream stage gate is unresolved, because
+// the barrier edge lives ONLY in the orchestration graph (not in task-level depends_on).
+// That misleads a caller (get_plan) into assigning + starting a node the run gate then
+// deterministically rejects (task_not_runnable) and the dispatcher never dispatches.
+//
+// This re-derives the barrier-held set (stageBarrierHeldSet) and downgrades each held
+// entry from `ready` to `blocked` + drops it from ReadySet, so the get_plan read agrees
+// with the run gate (EnsureTaskRunnable) and the dispatcher (graphReadySet) — one source
+// of truth. It touches ONLY the read model; the barrier, the run gate, and dispatch are
+// unchanged. No-op when there are no stage barriers (pure-node DAG / built-in pool).
+func (s *Service) applyStageBarrierView(ctx context.Context, detail *PlanDetail) error {
+	if detail == nil || detail.Plan == nil {
+		return nil
+	}
+	held, err := s.stageBarrierHeldSet(ctx, detail.Plan)
+	if err != nil {
+		return err
+	}
+	if len(held) == 0 {
+		return nil
+	}
+	for i := range detail.View.Nodes {
+		n := &detail.View.Nodes[i]
+		if held[n.TaskID] && n.NodeStatus == pm.NodeReady {
+			n.NodeStatus = pm.NodeBlocked // stage barrier holds it — not actually startable.
+		}
+	}
+	if len(detail.View.ReadySet) > 0 {
+		kept := detail.View.ReadySet[:0]
+		for _, id := range detail.View.ReadySet {
+			if !held[id] {
+				kept = append(kept, id)
+			}
+		}
+		detail.View.ReadySet = kept
+	}
+	return nil
 }
 
 // AgentTaskRunGate adapts the pm Service to the agentsvc.TaskRunGate port (T130).

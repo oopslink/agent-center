@@ -51,6 +51,44 @@ func TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected(t *testing.T) {
 	}
 }
 
+// A built-in pool member that is ASSIGNED but NOT yet dispatched (node_status=ready,
+// no dispatch record) IS runnable — the flat pool has no upstream deps (ready ⇒ deps
+// satisfied) and it has an owner, so requiring the async dispatch record here误拒'd a
+// directly assign_task'd pool member with task_not_runnable in the window before the
+// pool sweep wrote the record (start_task ready+assigned pool node). Contrast
+// TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected: an UNASSIGNED ready member
+// stays inert (must be dispatched to become claimable — nobody owns it).
+func TestEnsureTaskRunnable_AssignedReadyPoolMember_OK(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := findBuiltinPlan(t, h, pid)
+	tid, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{ProjectID: pid, Title: "pool-assigned", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addMember(t, h, pid, "agent:m1")
+	if err := h.svc.SelectTaskIntoPlan(h.ctx, pool.ID(), tid, "user:a"); err != nil {
+		t.Fatalf("SelectTaskIntoPlan: %v", err)
+	}
+	// assign_task the pool member to an agent — assignment is decoupled from dispatch,
+	// so the node stays `ready` (NO ReconcileRunningPlans → no dispatch record written).
+	if err := h.svc.AssignTask(h.ctx, tid, "agent:m1", "user:a"); err != nil {
+		t.Fatalf("AssignTask: %v", err)
+	}
+	// ready + assigned pool member must be runnable (the bug: rejected task_not_runnable).
+	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); err != nil {
+		t.Fatalf("ready+assigned pool member runnable = %v, want nil", err)
+	}
+	// The port adapter (what start_work calls) must agree.
+	gate := NewAgentTaskRunGate(h.svc)
+	if err := gate.EnsureTaskRunnable(h.ctx, "pm://tasks/"+string(tid)); err != nil {
+		t.Fatalf("gate(ready+assigned pool member) = %v, want nil", err)
+	}
+}
+
 // A DISPATCHED built-in pool member IS runnable (it is in the Assignment Pool).
 func TestEnsureTaskRunnable_DispatchedPoolMember_OK(t *testing.T) {
 	h := planAdvanceSetup(t)
