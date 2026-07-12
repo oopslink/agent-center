@@ -158,7 +158,11 @@ func MigrateV1ToV2Command() *Command {
 // per-agent effective skill projection) + 0102 (drop the declared agents.skills column).
 // renumbered from 0099 at ship-merge to land after main's 0099 message-quote);
 // reminder-event added 0103 (reminders.on_event_* — event-driven reminder trigger).
-const targetSchemaVersion = 105
+// model-catalog added 0104 (model_catalog — org-managed model pricing/tier catalog) +
+// 0105 (agents.judge_enabled — the per-agent difficulty-judge opt-in switch).
+// Plan Stage model (2026-07-03 design) added 0106 (pm_stages — the lightweight
+// first-class Stage aggregate + pm_tasks.stage_id node→stage membership).
+const targetSchemaVersion = 106
 
 func runMigrateV1ToV2(
 	ctx context.Context,

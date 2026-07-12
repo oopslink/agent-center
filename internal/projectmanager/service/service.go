@@ -273,6 +273,12 @@ type Service struct {
 	// stays on the legacy plan-DAG path (DerivePlanView) — the zero-regression
 	// fallback for pre-T768 constructions and in-flight (graphID=="") plans.
 	orch *orch.Service
+	// stages is OPTIONAL (nil-safe, 2026-07-03 plan-stage-model). nil ⇒ the Stage
+	// AppServices (CreateStage / GetStage) are unavailable and buildPlanGraph lays down
+	// NO stage structure (a plan is a pure-node DAG, §8 zero-regression). When wired,
+	// create_stage / add_task_to_plan(stage) author stages and buildStages lays them
+	// onto the graph as gate + barrier nodes/edges.
+	stages pm.StageRepository
 }
 
 // DefaultPoolClaimLimit is the T83 §3.6 default cap on concurrently-claimed
@@ -356,6 +362,10 @@ type Deps struct {
 	// ready-source (via plan.GraphID). nil ⇒ every plan stays on the legacy plan-DAG
 	// path (zero-regression fallback).
 	Orch *orch.Service
+	// Stages is OPTIONAL (2026-07-03 plan-stage-model): when set, the Stage AppServices
+	// are available and buildPlanGraph lays a plan's stages onto the graph. nil ⇒ Stage
+	// is inert (pure-node DAG, §8 zero-regression).
+	Stages pm.StageRepository
 }
 
 // New constructs the Service.
@@ -386,6 +396,7 @@ func New(d Deps) *Service {
 		autoAssignDir:      d.AutoAssignDir,
 		autoAssignSettings: d.AutoAssignSettings,
 		orch:               orchSvc,
+		stages:             d.Stages,
 	}
 }
 

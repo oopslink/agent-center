@@ -214,6 +214,12 @@ type Task struct {
 	// nodeID is the orchestration engine node ID that this task maps to (v2.2.8).
 	// "" when not wired to an orchestration graph node.
 	nodeID string
+	// stageID is the Plan Stage this task belongs to (2026-07-03 plan-stage-model
+	// design §4.1 "每个 task/graph 节点带 stage_id"). "" when the task is not in any
+	// stage (the pure-node-DAG default, §8). Recorded at AUTHORING time (create_stage +
+	// add_task_to_plan(stage=…)); buildPlanGraph propagates it onto the graph node when
+	// the plan starts. A pure metadata edit (SetStage) — not a status change.
+	stageID StageID
 	// archivedAt/archivedBy hold the ORTHOGONAL archived state (v2.9 P3). Archival
 	// does NOT change task.status — a task can be archived in ANY status, and its
 	// status is preserved through archive (so a verified/discarded/running task
@@ -276,6 +282,9 @@ type NewTaskInput struct {
 	// NodeID is the orchestration engine node ID that this task maps to (v2.2.8).
 	// "" when not wired to an orchestration graph node.
 	NodeID string
+	// StageID is the Plan Stage this task belongs to (2026-07-03 plan-stage-model
+	// design §4.1); "" when the task is in no stage.
+	StageID StageID
 }
 
 // NewTask constructs a fresh open Task. A Task must belong to a Project (no
@@ -313,6 +322,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		model:                in.Model,
 		requiredCapabilities: NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:               in.NodeID,
+		stageID:              in.StageID,
 	}, nil
 }
 
@@ -355,6 +365,9 @@ type RehydrateTaskInput struct {
 	// RecoveryResetCount is the persisted tier-3 recovery reset tally (T862 §2B,
 	// migration 0097); 0 for rows predating the column.
 	RecoveryResetCount int
+	// StageID is the persisted Plan Stage membership (2026-07-03 design §4.1,
+	// migration 0106); "" for rows predating the column / tasks in no stage.
+	StageID StageID
 }
 
 // RehydrateTask reconstructs without invariant checks.
@@ -399,6 +412,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		model:                   in.Model,
 		requiredCapabilities:    NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:                  in.NodeID,
+		stageID:                 in.StageID,
 		recoveryResetCount:      in.RecoveryResetCount,
 	}, nil
 }
@@ -572,6 +586,23 @@ func (t *Task) SetPlan(planID PlanID, at time.Time) error {
 func (t *Task) SetNodeID(id string, at time.Time) {
 	t.nodeID = id
 	t.touch(at)
+}
+
+// StageID exposes the Plan Stage this task belongs to (2026-07-03 design §4.1); ""
+// when in no stage.
+func (t *Task) StageID() StageID { return t.stageID }
+
+// SetStage assigns this task to a Plan Stage (or, with sid=="", clears the membership).
+// Pure metadata edit — NOT a status change (statusChangedAt untouched). The stage must
+// belong to the task's plan; that cross-aggregate invariant is enforced by the
+// AppService (which holds the stage repository — the aggregate cannot see other stages).
+func (t *Task) SetStage(sid StageID, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	t.stageID = sid
+	t.touch(at)
+	return nil
 }
 
 // ClearPlan removes this task from its Plan (back to the backlog).
