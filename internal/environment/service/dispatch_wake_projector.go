@@ -41,11 +41,13 @@ import (
 //     sweep. The "freed + next task" decision is the injected RepushTarget (authoritative
 //     re-read), so a plain open→running start/claim does NOT misfire as a re-push.
 //
-// Idempotency: ControlLog dedups on UNIQUE(worker_id, idempotency_key), and the Relay's
-// AppliedStore prevents re-projecting the same event. assign/reassign keys include the
-// triggering event id (one wake per assignment action); the re-push key intentionally omits
-// it and anchors on agent+next-task so concurrent/sequential done-events that resolve to the
-// SAME next task fold into a single wake.
+// Idempotency (issue-d118b5dc ① source-side dedup): ControlLog dedups on
+// UNIQUE(worker_id, idempotency_key), and the Relay's AppliedStore prevents re-projecting the
+// same event. ALL THREE triggers key on the SAME anchor — agent+task+worker (dispatchWakeKey),
+// with NO trigger id and NO event id — so that for ONE newly-ready task the assign arm (a) and
+// the predecessor-frees re-push arm (c) fold into a SINGLE agent.work_available instead of two
+// (the double fan-out that drove the downstream duplicate SpawnExecutor forks). A re-push to a
+// DIFFERENT next task keys on a different task and is NOT folded, so liveness is preserved.
 //
 // The 60s sweep is unchanged and remains the down-session fallback (a lost immediate signal
 // or a session that dies right after still gets recovered there); DispatchRecord is untouched.
@@ -108,9 +110,9 @@ const agentRefPrefix = "agent:"
 func (p *DispatchWakeProjector) Project(ctx context.Context, e outbox.Event) error {
 	switch e.EventType {
 	case pmservice.EvtTaskAssigned:
-		return p.projectAssign(ctx, e, "assign")
+		return p.projectAssign(ctx, e)
 	case pmservice.EvtTaskReassigned:
-		return p.projectAssign(ctx, e, "reassign")
+		return p.projectAssign(ctx, e)
 	case pmservice.EvtTaskStateChanged:
 		return p.projectStateChanged(ctx, e)
 	default:
@@ -118,7 +120,7 @@ func (p *DispatchWakeProjector) Project(ctx context.Context, e outbox.Event) err
 	}
 }
 
-func (p *DispatchWakeProjector) projectAssign(ctx context.Context, e outbox.Event, kind string) error {
+func (p *DispatchWakeProjector) projectAssign(ctx context.Context, e outbox.Event) error {
 	if p.assignTarget == nil {
 		return nil
 	}
@@ -133,9 +135,11 @@ func (p *DispatchWakeProjector) projectAssign(ctx context.Context, e outbox.Even
 	if err != nil || !ok {
 		return err
 	}
-	// One wake per assignment EVENT: the event id keys it, so a later re-assignment of the
-	// same task to the same agent still wakes (a stable agent+task key would suppress it).
-	return p.emit(ctx, tgt, "dispatch.wake:"+kind+":"+e.ID+":"+tgt.AgentID+":"+tgt.TaskID)
+	// Source-side dedup: key on the shared agent+task+worker anchor (NOT kind/event id) so an
+	// assign that races the predecessor-frees re-push for the SAME newly-ready task folds into
+	// one wake. The wake is content-free ("you have work on <task>"); a duplicate carries no
+	// extra information, so collapsing repeated signals for one task is safe.
+	return p.emit(ctx, tgt, dispatchWakeKey(tgt))
 }
 
 func (p *DispatchWakeProjector) projectStateChanged(ctx context.Context, e outbox.Event) error {
@@ -153,9 +157,18 @@ func (p *DispatchWakeProjector) projectStateChanged(ctx context.Context, e outbo
 	if err != nil || !ok {
 		return err
 	}
-	// No event id in the key: concurrent/sequential done-events that resolve to the SAME
-	// next task fold into one wake (the agent only needs to be told about that task once).
-	return p.emit(ctx, tgt, "dispatch.wake:repush:"+tgt.AgentID+":"+tgt.TaskID)
+	// Same shared anchor as the assign arm: done-events (and an assign) that resolve to the
+	// SAME next task fold into one wake; a re-push whose next task differs keys differently and
+	// is emitted (liveness for the genuinely-next task).
+	return p.emit(ctx, tgt, dispatchWakeKey(tgt))
+}
+
+// dispatchWakeKey is the SINGLE idempotency anchor shared by every wake trigger: agent+task+
+// worker, carrying no trigger kind and no event id. Two triggers (assign + re-push) that
+// resolve to the same agent+task+worker therefore collide on the ControlLog UNIQUE key and
+// fold to one agent.work_available; distinct next tasks key distinctly and are not folded.
+func dispatchWakeKey(tgt DispatchWakeTarget) string {
+	return "dispatch.wake:" + tgt.AgentID + ":" + tgt.TaskID + ":" + tgt.WorkerID
 }
 
 func (p *DispatchWakeProjector) emit(ctx context.Context, tgt DispatchWakeTarget, key string) error {

@@ -204,6 +204,89 @@ func TestDispatchWake_Repush_FoldsConcurrentDoneEvents(t *testing.T) {
 	}
 }
 
+// issue-d118b5dc ① FIX — plan-node-ready double fan-out on ONE task is folded to ONE wake.
+//
+// When a plan node becomes ready, the SAME newly-ready task can be woken by TWO of this
+// projector's triggers at once:
+//   - (a) pm.task.assigned    — the ready-set dispatch assigns the ready node to the agent.
+//   - (c) pm.task.state_changed — the PREDECESSOR node completing frees the agent's single
+//     slot, and the re-push resolver picks the very same ready node as the agent's "next".
+// Both resolve to the SAME entity/worker/task. The source-side dedup fix keys BOTH emit
+// paths on the shared agent+task+worker anchor (dispatchWakeKey — no trigger id, no event
+// id), so they collide on the ControlLog UNIQUE(worker_id, idempotency_key) and fold to ONE
+// agent.work_available for the one task_id — no downstream duplicate SpawnExecutor fork.
+//
+// This test LOCKS the folded (fixed) single-command behavior; before the fix the two arms
+// keyed differently ("dispatch.wake:assign:<eid>:…" vs "dispatch.wake:repush:…") and emitted 2.
+func TestDispatchWake_Issue_d118b5dc_AssignAndRepush_FoldsToOne(t *testing.T) {
+	h := newDispatchHarness(t)
+	const worker, entity, readyTask = "W2", "entity-B", "T-ready"
+	// (a) the ready node is assigned to agent B → wakes B for T-ready.
+	h.assignFn = func(_ context.Context, a, tk string) (DispatchWakeTarget, bool, error) {
+		return DispatchWakeTarget{WorkerID: worker, AgentID: entity, TaskID: tk}, true, nil
+	}
+	// (c) the predecessor completing frees B's slot; the re-push "next task" resolves to the
+	// SAME ready node.
+	h.repushFn = func(_ context.Context, a, tk, st, prev string) (DispatchWakeTarget, bool, error) {
+		return DispatchWakeTarget{WorkerID: worker, AgentID: entity, TaskID: readyTask}, true, nil
+	}
+	// One ready event, both arms fire for the same agent+task.
+	if err := h.proj.Project(h.ctx, taskEvent("assign-evt", pmservice.EvtTaskAssigned, "agent:B", readyTask, "open", "")); err != nil {
+		t.Fatalf("assign Project: %v", err)
+	}
+	if err := h.proj.Project(h.ctx, taskEvent("done-evt", pmservice.EvtTaskStateChanged, "agent:B", "T-pred", "completed", "running")); err != nil {
+		t.Fatalf("state_changed Project: %v", err)
+	}
+
+	cmds := h.commands(t, worker)
+	// FIX ASSERTION: assign+repush for the SAME agent+task fold to ONE work_available.
+	if len(cmds) != 1 {
+		t.Fatalf("issue-d118b5dc ①: assign+repush for the SAME agent+task must fold to 1 "+
+			"work_available (shared agent+task+worker key) — got %d", len(cmds))
+	}
+	var pl sweepWakePayload
+	_ = json.Unmarshal([]byte(cmds[0].Payload()), &pl)
+	if pl.AgentID != entity || pl.TaskID != readyTask {
+		t.Fatalf("the wake should target %s/%s (one ready task), got %s/%s",
+			entity, readyTask, pl.AgentID, pl.TaskID)
+	}
+}
+
+// issue-d118b5dc ① LIVENESS guard: the dedup must NOT swallow a re-push to a DIFFERENT next
+// task. Agent B is assigned the ready task T-ready (arm a); separately a predecessor completes
+// and the re-push resolver picks a DIFFERENT open task T-other as B's next (arm c). These are
+// two genuinely-distinct "you have work" signals and must BOTH be delivered — the shared key
+// differs on task, so they do not fold.
+func TestDispatchWake_Issue_d118b5dc_DifferentNextTask_NotFolded(t *testing.T) {
+	h := newDispatchHarness(t)
+	const worker, entity = "W2", "entity-B"
+	h.assignFn = func(_ context.Context, a, tk string) (DispatchWakeTarget, bool, error) {
+		return DispatchWakeTarget{WorkerID: worker, AgentID: entity, TaskID: "T-ready"}, true, nil
+	}
+	h.repushFn = func(_ context.Context, a, tk, st, prev string) (DispatchWakeTarget, bool, error) {
+		return DispatchWakeTarget{WorkerID: worker, AgentID: entity, TaskID: "T-other"}, true, nil
+	}
+	if err := h.proj.Project(h.ctx, taskEvent("assign-evt", pmservice.EvtTaskAssigned, "agent:B", "T-ready", "open", "")); err != nil {
+		t.Fatalf("assign Project: %v", err)
+	}
+	if err := h.proj.Project(h.ctx, taskEvent("done-evt", pmservice.EvtTaskStateChanged, "agent:B", "T-pred", "completed", "running")); err != nil {
+		t.Fatalf("state_changed Project: %v", err)
+	}
+	cmds := h.commands(t, worker)
+	if len(cmds) != 2 {
+		t.Fatalf("distinct next tasks must NOT fold — want 2 work_available (T-ready + T-other), got %d", len(cmds))
+	}
+	got := map[string]bool{}
+	for _, c := range cmds {
+		var pl sweepWakePayload
+		_ = json.Unmarshal([]byte(c.Payload()), &pl)
+		got[pl.TaskID] = true
+	}
+	if !got["T-ready"] || !got["T-other"] {
+		t.Fatalf("both distinct next tasks must be woken, got %v", got)
+	}
+}
+
 // Dormant: nil resolvers make every trigger a graceful no-op (the relay can register the
 // projector unconditionally).
 func TestDispatchWake_NilResolvers_NoOp(t *testing.T) {

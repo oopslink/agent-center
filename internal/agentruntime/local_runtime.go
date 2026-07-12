@@ -378,9 +378,21 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	// routeWork exec-vs-session decision (ma.exec != nil), which required a live
 	// session first (checked above). The fork serializes under forkMu (red line #1).
 	if ee != nil {
+		// issue-d118b5dc instrument: the agent.work → NotifyWork route resolves to a FORK
+		// here (concurrency ON, ee != nil). Fail-loud decision log so a double fan-out (this
+		// firing for a task that ALSO got an agent.work_available fork, or a single-active
+		// inject) is visible with the deciding namespace/mode. Instrument-only, no behavior change.
+		r.log("DISPATCH-DECISION route=NotifyWork(agent.work) dispatch_mode=executor-fork agent_namespace=%s task_id=%s — forking via executor engine",
+			agentID, req.TaskID)
 		r.createTaskDir(agentID, req.TaskID)
 		return r.workViaExecutor(ctx, req, ee)
 	}
+	// issue-d118b5dc instrument: the agent.work → NotifyWork route resolves to a
+	// SINGLE-ACTIVE INJECT here (concurrency OFF, ee == nil). Mode should be XOR with any
+	// fork path — if this AND a work_available fork both fire for one ready event, that is
+	// the ① dual fan-out.
+	r.log("DISPATCH-DECISION route=NotifyWork(agent.work) dispatch_mode=single-active-inject agent_namespace=%s task_id=%s — injecting into supervisor session",
+		agentID, req.TaskID)
 
 	if r.cfg.TaskDirManager != nil {
 		_, tasksDir, _, pathErr := r.agentPaths(agentID)
