@@ -27,7 +27,13 @@ import (
 
 // ServerDeps is the dependency bag for Server-level state shared
 // across handlers (NOT the per-request HandlerDeps in deps.go).
-type ServerDeps struct{}
+type ServerDeps struct {
+	// GitHandler is the center-hosted git smart-HTTP handler mounted at
+	// /admin/git/ (centergit.Handler wrapped by NewGitHandler). It is Server-level
+	// (constructed once at boot with the git Host + membership) rather than
+	// per-request. nil → the /admin/git/ route returns git_not_wired (501).
+	GitHandler http.Handler
+}
 
 // Server is the admin endpoint HTTP server. v2.2 bound only to a unix
 // socket; v2.3-7a (task #27) adds an optional concurrent TCP+TLS
@@ -512,6 +518,23 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/update_model_catalog_entry", s.updateModelCatalogHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/delete_model_catalog_entry", s.deleteModelCatalogHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/import_model_catalog", s.importModelCatalogHandler)
+	// Team BC (Team Phase-1 wiring, design §4/§6/§7/§9): CRUD + membership +
+	// project association (S1 tool facade), plus template authoring / instantiation
+	// / role→agent resolution (S3). See agent_tools_team.go.
+	s.mux.HandleFunc("POST /admin/agent-tools/create_team", s.createTeamHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/update_team", s.updateTeamHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/delete_team", s.deleteTeamHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_team", s.getTeamHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/list_teams", s.listTeamsHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/add_member", s.addMemberHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/remove_member", s.removeMemberHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/associate_project", s.associateProjectHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/create_team_template", s.createTeamTemplateHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/instantiate_team", s.instantiateTeamHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/assign_roles", s.assignRolesHandler)
+	// Center-hosted git smart-HTTP (design §4.2/§4.3): per-agent/team/global memory
+	// repos served under /admin/git/, behind the same bearer auth. See git_backend.go.
+	s.mux.Handle("/admin/git/", http.HandlerFunc(s.gitPassthrough))
 	s.mux.HandleFunc("POST /admin/agent-tools/upload_file", s.uploadFileHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/attach_file", s.attachFileHandler)
 	s.mux.HandleFunc("PUT /admin/files/transfer/{transfer_id}", s.putAgentBlobHandler)

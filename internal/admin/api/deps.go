@@ -13,6 +13,7 @@ import (
 	agentservice "github.com/oopslink/agent-center/internal/agent/service"
 	"github.com/oopslink/agent-center/internal/blobstore"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -28,8 +29,10 @@ import (
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/runtimefs"
+	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
+	teamservice "github.com/oopslink/agent-center/internal/team/service"
 	"github.com/oopslink/agent-center/internal/usage"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
@@ -213,6 +216,20 @@ type HandlerDeps struct {
 	// (ModelPriceRepo → PriceBook) and persists raw events (UsageEventRepo).
 	UsageEventRepo usage.UsageEventRepository
 	ModelPriceRepo usage.ModelPriceRepository
+
+	// Team BC (Team Phase-1 wiring, design §4/§6/§7/§9) — backs the team_*
+	// agent tools (create/get/list_teams, add/remove_member, associate_project,
+	// create_team_template, instantiate_team, assign_roles). nil → those tools
+	// return team_not_wired (501).
+	TeamSvc *teamservice.Service
+	// TeamIDGen mints ids for template/instantiation planning (team + agent ids).
+	// Reuses the app-wide ULID generator. Required whenever TeamSvc is set.
+	TeamIDGen idgen.Generator
+	// TeamGitHost is the center-hosted git provisioning surface (design §4.2/§4.3):
+	// instantiate_team provisions the team's bare repo + seeds its shared memory
+	// through it. nil → repo provisioning + memory seeding are skipped (the team is
+	// still created; memory_seeded=false in the response).
+	TeamGitHost *centergit.Host
 }
 
 type depsKey struct{}

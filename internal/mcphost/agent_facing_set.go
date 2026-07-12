@@ -97,6 +97,20 @@ var AgentFacingToolNames = []string{
 	"update_model_catalog_entry",
 	"delete_model_catalog_entry",
 	"import_model_catalog",
+	// Team BC (Team Phase-1 wiring, design §4/§6/§7/§9): CRUD + membership +
+	// project association (S1), template authoring / instantiation / role→agent
+	// resolution (S3). Each proxies to /admin/agent-tools/<name>.
+	"create_team",
+	"update_team",
+	"delete_team",
+	"get_team",
+	"list_teams",
+	"add_member",
+	"remove_member",
+	"associate_project",
+	"create_team_template",
+	"instantiate_team",
+	"assign_roles",
 }
 
 // FilesSeamTools are the agent-facing tools that move BYTES through the FileMover

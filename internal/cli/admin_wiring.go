@@ -13,9 +13,13 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/api"
 	"github.com/oopslink/agent-center/internal/admintoken"
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/observability"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
+	teampkg "github.com/oopslink/agent-center/internal/team"
+	teamservice "github.com/oopslink/agent-center/internal/team/service"
+	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 )
 
 // AdminTransportConfig captures the v2.3-7a (task #27) admin listener
@@ -84,7 +88,25 @@ func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, lo
 	}
 
 	deps := adminDepsFromApp(app)
-	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{})
+	// Center-hosted git smart-HTTP (design §4.2/§4.3): mount the centergit handler
+	// at /admin/git/ behind the same bearer auth. Git authz is backed by the LIVE
+	// team tables (teamRepoMembership). Best-effort: if git-http-backend can't be
+	// located the route degrades to 501 rather than failing boot. The global repo
+	// is provisioned up front so it is immediately readable by every agent.
+	var gitHandler http.Handler
+	if deps.TeamGitHost != nil {
+		membership := teamRepoMembership{repo: teamsql.NewRepo(app.DB)}
+		gh, gerr := api.NewGitHandler(deps.TeamGitHost, membership)
+		if gerr != nil {
+			logger("admin: center git disabled: " + gerr.Error())
+		} else {
+			gitHandler = gh
+			if perr := deps.TeamGitHost.EnsureRepo(ctx, centergit.GlobalRepo()); perr != nil {
+				logger("admin: provision global git repo: " + perr.Error())
+			}
+		}
+	}
+	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{GitHandler: gitHandler})
 	// Wrap the inner mux with deps middleware (parallel to
 	// webconsole_wiring.go pattern), then rate-limit (v2.3-7c task #27),
 	// then auth on top so every non-public request must carry a valid
@@ -353,5 +375,45 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// Usage BC (v2.15.0 I28/F2)
 		UsageEventRepo: a.UsageEventRepo,
 		ModelPriceRepo: a.ModelPriceRepo,
+
+		// Team BC (Team Phase-1 wiring, design §4/§6/§7/§9). This is the ONLY
+		// admin-api HandlerDeps builder (live server + admin_client_testhelper
+		// share it), so wiring here lands both the wiring test and the live path —
+		// no "test green but prod 501" gap. The team service is built on the SAME
+		// *sql.DB the migrations (0107_v229_teams) run against; git provisioning is
+		// wired only in server mode (a.DB != nil, sqlite path set).
+		TeamSvc:     teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
+		TeamIDGen:   a.IDGen,
+		TeamGitHost: buildTeamGitHost(a),
 	}
+}
+
+// buildTeamGitHost constructs the center-hosted git provisioning surface (design
+// §4.2/§4.3). The bare-repo tree lives alongside the SQLite DB (shared backup
+// boundary). Returns nil when there is no on-disk DB (test / client mode) so the
+// team tools degrade to "team created, memory_seeded=false" rather than erroring.
+func buildTeamGitHost(a *App) *centergit.Host {
+	sqlitePath := a.Config.Server.SqlitePath
+	if a.DB == nil || sqlitePath == "" {
+		return nil
+	}
+	root := filepath.Join(filepath.Dir(sqlitePath), "team-git")
+	return centergit.NewHost(root, nil)
+}
+
+// teamRepoMembership adapts the S1 team repository onto the centergit
+// TeamMembership seam (design §9 访问控制映射): "which team does this agent
+// belong to". The git Authorizer uses it to grant a team member rw on the team's
+// shared repo. Backing git authz with the LIVE team tables (not an in-memory
+// map) means an add_member / instantiate_team immediately unlocks git access.
+type teamRepoMembership struct {
+	repo teampkg.Repository
+}
+
+func (m teamRepoMembership) TeamOfAgent(ctx context.Context, agentID string) (string, bool, error) {
+	id, ok, err := m.repo.FindAgentTeam(ctx, teampkg.MemberRef("agent:"+agentID))
+	if err != nil {
+		return "", false, err
+	}
+	return id.String(), ok, nil
 }
