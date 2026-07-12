@@ -33,16 +33,16 @@ type Worker struct {
 	workingSeconds  int64
 	// systemInfo holds the worker-reported host + build identity (T752).
 	// Zero value until the worker uploads it on online (capabilities report).
-	systemInfo      SystemInfo
-	enrolledAt      time.Time
-	onlineAt        *time.Time
-	offlineAt       *time.Time
-	offlineReason   OfflineReason
-	offlineMessage  string
-	createdAt       time.Time
-	updatedAt       time.Time
-	version         int
-	organizationID  string
+	systemInfo     SystemInfo
+	enrolledAt     time.Time
+	onlineAt       *time.Time
+	offlineAt      *time.Time
+	offlineReason  OfflineReason
+	offlineMessage string
+	createdAt      time.Time
+	updatedAt      time.Time
+	version        int
+	organizationID string
 }
 
 // NewWorkerInput captures the constructor arguments for NewWorker

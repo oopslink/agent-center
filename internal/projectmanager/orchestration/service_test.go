@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
-	orchsqlite "github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/persistence"
+	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
+	orchsqlite "github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite"
 )
 
 var t0 = time.Date(2026, 7, 2, 0, 0, 0, 0, time.UTC)
@@ -199,7 +199,7 @@ func TestService_ResolveCondition(t *testing.T) {
 
 	// Add condition node with on_success pointing to nothing (just verify routing).
 	condMeta := map[string]any{
-		"evaluator": "manual",
+		"evaluator":  "manual",
 		"on_success": []any{},
 		"on_failure": []any{},
 	}

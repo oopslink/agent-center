@@ -607,4 +607,3 @@ func TestListPlans_Pagination(t *testing.T) {
 		t.Fatalf("plans page_size cap=%v want %d", capped["page_size"], agentListMaxPageSize)
 	}
 }
-

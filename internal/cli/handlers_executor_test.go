@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
+	"github.com/oopslink/agent-center/internal/clock"
 )
 
 func TestRunExecutor_UsageErrors(t *testing.T) {

@@ -14,8 +14,8 @@ type Template struct {
 	orgID       string
 	name        string
 	description string
-	content     string     // markdown content
-	builtin     bool       // system-preinstalled
+	content     string // markdown content
+	builtin     bool   // system-preinstalled
 	createdBy   IdentityRef
 	createdAt   time.Time
 	updatedAt   time.Time
@@ -95,16 +95,16 @@ func RehydrateTemplate(in RehydrateTemplateInput) (*Template, error) {
 }
 
 // Getters
-func (t *Template) ID() TemplateID        { return t.id }
-func (t *Template) OrgID() string         { return t.orgID }
-func (t *Template) Name() string          { return t.name }
-func (t *Template) Description() string   { return t.description }
-func (t *Template) Content() string       { return t.content }
-func (t *Template) IsBuiltin() bool       { return t.builtin }
+func (t *Template) ID() TemplateID         { return t.id }
+func (t *Template) OrgID() string          { return t.orgID }
+func (t *Template) Name() string           { return t.name }
+func (t *Template) Description() string    { return t.description }
+func (t *Template) Content() string        { return t.content }
+func (t *Template) IsBuiltin() bool        { return t.builtin }
 func (t *Template) CreatedBy() IdentityRef { return t.createdBy }
-func (t *Template) CreatedAt() time.Time  { return t.createdAt }
-func (t *Template) UpdatedAt() time.Time  { return t.updatedAt }
-func (t *Template) Version() int          { return t.version }
+func (t *Template) CreatedAt() time.Time   { return t.createdAt }
+func (t *Template) UpdatedAt() time.Time   { return t.updatedAt }
+func (t *Template) Version() int           { return t.version }
 
 // Mutations
 func (t *Template) Update(name, description, content string, at time.Time) error {
