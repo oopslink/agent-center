@@ -134,8 +134,30 @@ git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费
 
 ---
 
-## 9. 待定（open）
+## 9. 设计加固（3 轮自审）
 
-- **team-memory 并发写一致性**：多个成员同时往 team repo push 的冲突处理（git merge / 按条目版本 / last-write），细节待定。
-- **agent memory 迁移路径**（Phase 2）：从 worker 本地 repo 迁到 center-hosted 的具体步骤 + 存量迁移。
-- **与现有"直接 project 成员"并存/迁移**：现在 agent 直接是 project 成员、角色靠约定；引入 team 后 = agent 属于 team、team 参与 project，存量项目怎么迁入 team。
+对 §1–8 做了 3 轮对抗式自审，实质补充如下（细化的定案，非 open）：
+
+**并发写（细化 §4.3）**：5+ agent 同时往一个 team repo push 会频繁非-FF 冲突。解法：**每条经验一个文件**（slug/uuid 命名），并发写碰不同文件 → git 自动 merge；唯一共享的 `MEMORY.md` 索引**从条目文件派生（regenerate）、不手编**（或走 center 串行化更新）。push 前 pull-rebase-retry 兜边角。
+
+**agent memory 可用性（细化 §4.1，Phase 2）**：center-hosted 若每次 boot 全 clone → boot 网络依赖、center 挂了 agent 没记忆。解法：runtime 留**本地工作副本**（跨 boot 持久化），boot 走增量 `git fetch/pull`；center 够不着 → **回落上次本地副本**（降级但能跑）。是"本地缓存 + 可达时同步"。
+
+**角色 team 自定义（细化 §2/§7）**：角色**不硬编码** {PD/dev/integration/tester}——由 **team 模版自定义声明**（角色名 + 配比 + 每角色配置）；plan 节点引用 team 声明的角色名。固定枚举只是 agent-center 这个 team 的角色、非系统约束。
+
+**实例化 ≠ 能跑的团队（细化 §6）**：建 N 个新 agent 还需 **runtime 家 + auth**（codex/claude login、MCP token）。模版带**配置**、不带 runtime/auth（per-deployment）。所以实例化=建身份+配置+memory-repo+绑 workflow；**runtime provisioning（派到 worker、装 auth）是单独一步**（复用现有 enroll/worker-provision 流）。
+
+**抽取 curation 强制（细化 §6）**：scope 过滤不保证干净（team-scope 教训也可能提具体 repo/代号）→ **手动 curation 是 load-bearing、export/cross-org 强制**（抽取产草稿、过审再成可共享模版），防泄漏；加 **scrub 辅助**（高亮疑似专属 token：repo 名、"T950"类代号、路径）。
+
+**访问控制映射（细化 §4.2）**：center 维护 agent→team 映射，git-http 中间件判"这 token 的 agent 属不属 repo 所属 team"→rw；全局 repo 全员可读；human 多 team；实例化时给新 agent 授权其 team repo。
+
+**模版版本不 retro（细化 §6）**：模版=快照、实例独立（Q1 无 live link）、**不 retro-update**；要新经验就重抽 v2 或手动 import 特定条目。
+
+**team scope 写靠 agent 判断（软肋，记录）**：通用 vs 专属靠 agent prompted 判断（同现有 memory 纪律），判错会污染 team scope；靠模版抽取的手动 curation + 可选周期性卫生复审兜。
+
+---
+
+## 10. 待定（真 open）
+
+- **team-memory 并发写的实现细节**：每条一文件 + 索引派生 的具体落地（索引 regenerate 时机、pull-rebase-retry 上限）。
+- **与现有"直接 project 成员"并存/迁移**：存量 agent（直接 project 成员）怎么迁入 team；过渡期 team-plan 与 direct-agent-plan 并存（override 兜后向兼容）。
+- **team scope 写的纪律强化**：是否要机制（而非只靠 prompt）辅助 agent 判 scope。
