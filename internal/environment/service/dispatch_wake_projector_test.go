@@ -211,6 +211,7 @@ func TestDispatchWake_Repush_FoldsConcurrentDoneEvents(t *testing.T) {
 //   - (a) pm.task.assigned    — the ready-set dispatch assigns the ready node to the agent.
 //   - (c) pm.task.state_changed — the PREDECESSOR node completing frees the agent's single
 //     slot, and the re-push resolver picks the very same ready node as the agent's "next".
+//
 // Both resolve to the SAME entity/worker/task. The source-side dedup fix keys BOTH emit
 // paths on the shared agent+task+worker anchor (dispatchWakeKey — no trigger id, no event
 // id), so they collide on the ControlLog UNIQUE(worker_id, idempotency_key) and fold to ONE
