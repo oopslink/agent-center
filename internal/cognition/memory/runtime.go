@@ -57,19 +57,38 @@ func (e *Engine) EnsureRootInit(ctx context.Context) error {
 // prompt the most specific guidance is read last and overrides the general.
 // supervisor.md is NOT part of any walk (cognition/02 §1: it is loaded
 // explicitly) — use AssembleScoped's includeSupervisor flag for it.
+//
+// Team memory (design §3/§5): when the scope carries a TeamID, the agent's
+// team-shared memory is inserted as a layer BROADER than project but narrower
+// than global — rendered as global → team → project → (task/issue). Because the
+// chain is broadest→narrowest and the narrowest wins, this makes project facts
+// override team conventions (design §3: "项目具体事实盖团队通用规约"), while team
+// conventions still override the platform-wide global scope. The agent's own
+// task/issue notes stay most specific.
 func AncestorScopes(scope MemoryScope) []MemoryScope {
 	global := MemoryScope{Kind: MemScopeGlobal}
-	switch scope.Kind {
-	case MemScopeProject:
-		return []MemoryScope{global, scope}
-	case MemScopeTask, MemScopeIssue:
-		return []MemoryScope{
-			global,
-			{Kind: MemScopeProject, ProjectID: scope.ProjectID},
-			scope,
+	teamLayer := func() []MemoryScope {
+		if scope.TeamID == "" {
+			return nil
 		}
-	case MemScopeConversation, MemScopeWorker:
+		return []MemoryScope{{Kind: MemScopeTeam, TeamID: scope.TeamID}}
+	}
+	switch scope.Kind {
+	case MemScopeTeam:
 		return []MemoryScope{global, scope}
+	case MemScopeProject:
+		chain := []MemoryScope{global}
+		chain = append(chain, teamLayer()...)
+		return append(chain, scope)
+	case MemScopeTask, MemScopeIssue:
+		chain := []MemoryScope{global}
+		chain = append(chain, teamLayer()...)
+		chain = append(chain, MemoryScope{Kind: MemScopeProject, ProjectID: scope.ProjectID})
+		return append(chain, scope)
+	case MemScopeConversation, MemScopeWorker:
+		chain := []MemoryScope{global}
+		chain = append(chain, teamLayer()...)
+		return append(chain, scope)
 	default:
 		// global / supervisor / unknown → just the global root.
 		return []MemoryScope{global}

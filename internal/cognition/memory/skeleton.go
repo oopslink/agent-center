@@ -174,6 +174,8 @@ func scopeLabel(scope MemoryScope) string {
 		return "global"
 	case MemScopeSupervisor:
 		return "supervisor"
+	case MemScopeTeam:
+		return "team:" + scope.TeamID
 	case MemScopeProject:
 		return "project:" + scope.ProjectID
 	case MemScopeTask:
