@@ -20,6 +20,7 @@ type MemoryScopeKind string
 
 const (
 	MemScopeGlobal       MemoryScopeKind = "global"
+	MemScopeTeam         MemoryScopeKind = "team"
 	MemScopeProject      MemoryScopeKind = "project"
 	MemScopeTask         MemoryScopeKind = "task"
 	MemScopeIssue        MemoryScopeKind = "issue"
@@ -36,6 +37,11 @@ type MemoryScope struct {
 	Kind      MemoryScopeKind
 	Key       string // task_id / issue_id / ... ; empty for global+supervisor
 	ProjectID string // required for task / issue / project
+	// TeamID names the shared team the acting agent belongs to (design §3/§5).
+	// Required for the team scope itself; on a project/task/issue scope it is an
+	// OPTIONAL hint that pulls the agent's team-shared memory into the ancestor
+	// chain (AncestorScopes inserts a team layer when it is set).
+	TeamID string
 }
 
 // ScopeToFSPath returns the relative path (within MemoryDir) of the
@@ -45,6 +51,7 @@ type MemoryScope struct {
 // Layout (cognition/02 § 1):
 //
 //	global       → MEMORY.md
+//	team:M       → teams/M/MEMORY.md
 //	project:X    → projects/X/MEMORY.md
 //	task:T (in X) → projects/X/tasks/T/MEMORY.md
 //	issue:I (in X) → projects/X/issues/I/MEMORY.md
@@ -58,6 +65,8 @@ func ScopeToFSPath(scope MemoryScope) (string, error) {
 	switch scope.Kind {
 	case MemScopeGlobal:
 		return "MEMORY.md", nil
+	case MemScopeTeam:
+		return filepath.ToSlash(filepath.Join("teams", scope.TeamID, "MEMORY.md")), nil
 	case MemScopeProject:
 		return filepath.ToSlash(filepath.Join("projects", scope.ProjectID, "MEMORY.md")), nil
 	case MemScopeTask:
@@ -95,6 +104,8 @@ func validateScopeComponents(scope MemoryScope) error {
 	case MemScopeGlobal, MemScopeSupervisor:
 		// no Key / ProjectID required
 		return nil
+	case MemScopeTeam:
+		return validatePathComponent("team_id", scope.TeamID)
 	case MemScopeProject:
 		return validatePathComponent("project_id", scope.ProjectID)
 	case MemScopeTask, MemScopeIssue:

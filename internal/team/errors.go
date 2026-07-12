@@ -34,4 +34,26 @@ var (
 	ErrProjectAlreadyAssociated = errors.New("team: project already associated")
 	// ErrInvalidProject is returned for an empty project id.
 	ErrInvalidProject = errors.New("team: invalid project id")
+
+	// ErrRoleNotStaffed is returned by the role→agent resolver (design §7) when a
+	// requested role has no agent members on the current team roster.
+	ErrRoleNotStaffed = errors.New("team: role has no agent members")
+	// ErrConstraintUnsatisfiable is returned when a resolution constraint (e.g.
+	// Review ≠ Dev) leaves a role node with no eligible agent.
+	ErrConstraintUnsatisfiable = errors.New("team: role assignment constraint unsatisfiable")
+	// ErrCyclicAvoid is returned when node avoid-references form a cycle so no
+	// resolution order exists.
+	ErrCyclicAvoid = errors.New("team: cyclic avoid references")
+	// ErrUnknownNodeRef is returned when an avoid reference names a node that is
+	// not part of the resolution request set.
+	ErrUnknownNodeRef = errors.New("team: unknown node reference")
+
+	// ErrInvalidTemplate is returned when a team template fails validation.
+	ErrInvalidTemplate = errors.New("team: invalid team template")
+	// ErrTemplateNotCurated is returned when exporting / cross-org sharing a
+	// template that has not passed the mandatory manual curation (design §9).
+	ErrTemplateNotCurated = errors.New("team: template not curated (export requires manual curation)")
+	// ErrInstantiateNeedsProject is returned when instantiating a template
+	// without a target project id.
+	ErrInstantiateNeedsProject = errors.New("team: instantiation requires a project id")
 )
