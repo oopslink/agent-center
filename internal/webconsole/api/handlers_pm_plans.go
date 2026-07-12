@@ -451,7 +451,9 @@ func (s *Server) pmListPlanStagesHandler(w http.ResponseWriter, r *http.Request)
 
 // pmStageDetailMap renders one StageDetail to the stage-read JSON shape:
 // {id,name,status,rounds,max_rounds,depends_on_stages,gate_node_id,
-//  members[{task_id,title,task_status}]}. Status/rounds/members are the DERIVED
+//
+//	members[{task_id,title,task_status}]}. Status/rounds/members are the DERIVED
+//
 // projection (never stored). Mirrors the agent-tool stageDetailMap shape.
 func pmStageDetailMap(det *pmservice.StageDetail) map[string]any {
 	st := det.Stage
