@@ -316,4 +316,12 @@ var (
 	// barrier (downstream stage entry depends_on the upstream stage's gate), never a
 	// hand-drawn business→business edge.
 	ErrStageCrossEdge = errors.New("projectmanager: a plan edge may not cross stage boundaries — cross-stage flow goes through the stage gate barrier")
+	// ErrStageStagelessNode is the author-time invariant guard (design §5, quick-fix 1a):
+	// once a plan has ≥1 stage, EVERY business node must belong to a stage. A stageless
+	// business node is ungoverned by any stage gate/barrier and would "run ahead" of the
+	// staged flow (dispatched the moment its deps clear, bypassing the stage sequencing).
+	// StartPlan/buildStages reject such a plan HARD at author time, naming the orphan
+	// node(s). Control/gate nodes (auto-generated, never Tasks), a pure backlog task (not
+	// selected into any plan), and a plan with NO stages are all unaffected.
+	ErrStageStagelessNode = errors.New("projectmanager: a plan with stages may not contain a stageless business node — every node must belong to a stage")
 )

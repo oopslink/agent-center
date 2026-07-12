@@ -66,6 +66,14 @@ func (s *Service) buildStages(
 	if verr := pm.ValidateStageDAG(stages); verr != nil {
 		return nil, verr
 	}
+	// Author-time stage-coverage guard (§5, quick-fix 1a): this plan HAS stages (len>0
+	// above), so every business node must belong to one. A stageless node would run ahead
+	// of the staged flow (bypassing the gate/barrier). Reject the plan start loudly, naming
+	// the orphan node(s). Only reached when the plan has ≥1 stage — a stage-less plan
+	// returned above, so this never touches the zero-regression pure-node path.
+	if verr := pm.ValidateStageMembership(tasks); verr != nil {
+		return nil, verr
+	}
 
 	gateOf := make(map[pm.StageID]orch.NodeID, len(stages))
 	entriesOf := make(map[pm.StageID][]pm.TaskID, len(stages))
