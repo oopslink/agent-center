@@ -71,6 +71,7 @@ Stage {
 - **Stage gate**：stage 内业务节点全完成 → gate condition 就绪；`pass` → 放行下游；`reject` → reopen 本 stage 子 DAG（清 dispatch/outcome、有界 `max_rounds`，复用引擎 `ResolveCondition`/`ApplyConditionResult`/`countReopens`）。
 - **Stage-local 有界重试**：gate reject 只重跑本 stage 的成员节点集；**不回退上游 stage**；耗尽 → escalate / 记 exhausted（复用阶段二的耗尽语义）。
 - **内层控制流正交**：stage 内子 DAG 可含普通节点级 Decision/loopback（Dev↔Review），与 stage-level gate 互不干扰。
+- **Stage 结构不变量（建图校验）**：stage 内节点只能有 stage 内的边（+ 自动 barrier）；手工连一条**绕过 gate 的跨 stage 边**（下游 stage 节点直接 `depends_on` 上游 stage 的非-gate 节点）= **建图时报错**——否则 barrier 被绕过、gate 形同虚设。stage 入口节点 = stage 内无前驱者，自动挂「上一 stage gate pass」的 barrier 边。（2026-07-12 grill 补）
 - **无 stage**：plan = 现在的节点 DAG，行为零变化。
 
 ## 6. Agent 建图工具
