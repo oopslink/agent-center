@@ -110,17 +110,32 @@ git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费
 
 ---
 
-## 7. 分期
+## 7. role→agent 映射（角色 → 具体 agent）
 
-- **Phase 1（MVP）**：Team 实体 + 成员/关联（sqlite）+ **team-memory center-hosted git（方案 A）** + 渐进式加载（复用）+ Team 模版（3 路径）+ 实例化到 project + role→agent 派活解析（§8）。
+**前提（oopslink 定）**：**先有 team，plan 是照着 项目 + team 现状 制定的；team 换了就重新制定 plan。** plan **不是**"团队可移植"的产物——所以 role→agent **不是运行期晚绑定引擎**，而是 **build plan 时（author-time）照 team 名册派**。
+
+- **team = 权威名册**：实例化在项目上的 team 提供 `role → [agents]`（PD 是谁、devs 是哪几个、integration 是谁、tester 是谁）。
+- **建 plan 时的角色便利（author-time helper）**：作者给节点指一个**角色**（+ 可选约束），工具对着**当前 team 名册**解析成具体 agent：
+  - 角色 1 个成员（PD / integration）→ 就他；
+  - 角色多个成员（dev / tester）→ 按策略挑（默认**最闲的** / 轮转；capability_tags 匹配留将来）；
+  - **约束：交叉评审 `Review ≠ Dev 的 agent`** → 解析时避开指定节点（Dev）解析到的 agent。
+- **存的是具体 agent**：解析出的具体 agent 写进 plan 节点（author-time 绑定）——plan 最终跟现在一样是具体 agent，只是建的时候角色驱动（省得 ad-hoc 记 dev1-5）。
+- **team 换了 → 重新建 plan**（helper 对新名册再跑一遍）。
+
+一句话：**team 提供名册 + 建 plan 时角色便利填具体 agent + 存具体 agent + team 换重建**。
+
+---
+
+## 8. 分期
+
+- **Phase 1（MVP）**：Team 实体 + 成员/关联（sqlite）+ **team-memory center-hosted git（方案 A）** + 渐进式加载（复用）+ Team 模版（3 路径）+ 实例化到 project + role→agent 角色便利（§7）。
 - **Phase 2**：**agent memory 迁移到 center-hosted git**（比只做 team memory 大、动到跑着的东西，故拆后）。
 - **将来**：一个 team 服务多个 project；跨 org 共享（export/import 已覆盖，见 §6）。
 
 ---
 
-## 8. 待定（open）
+## 9. 待定（open）
 
-- **role→agent 派活解析**：plan 里"Review→team 的 dev"、"Ship→PD"怎么落到具体 agent —— 需 team 提供一张 role→agent 映射给 plan authoring 用。这条无论如何都要做，具体设计待定（本文档待补）。
 - **team-memory 并发写一致性**：多个成员同时往 team repo push 的冲突处理（git merge / 按条目版本 / last-write），细节待定。
 - **agent memory 迁移路径**（Phase 2）：从 worker 本地 repo 迁到 center-hosted 的具体步骤 + 存量迁移。
 - **与现有"直接 project 成员"并存/迁移**：现在 agent 直接是 project 成员、角色靠约定；引入 team 后 = agent 属于 team、team 参与 project，存量项目怎么迁入 team。
