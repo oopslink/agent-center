@@ -1,12 +1,17 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
 	teamtool "github.com/oopslink/agent-center/internal/team/tool"
@@ -41,6 +46,12 @@ func mapTeamError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "team_not_found", err.Error())
 	case errors.Is(err, team.ErrTeamNameTaken):
 		writeError(w, http.StatusConflict, "team_name_taken", err.Error())
+	case errors.Is(err, team.ErrTemplateNotCurated):
+		// Export / cross-org share is gated on the mandatory manual curation pass
+		// (design §9). A precondition-not-met conflict: the caller must run the
+		// curate action first. Distinct code so the surface can prompt precisely.
+		writeError(w, http.StatusConflict, "template_not_curated",
+			"template is not curated — run curate_team_template (mark it curated after human review) before export")
 	case errors.Is(err, team.ErrAgentAlreadyInTeam):
 		writeError(w, http.StatusConflict, "agent_already_in_team", err.Error())
 	case errors.Is(err, team.ErrMemberAlreadyInTeam):
@@ -415,6 +426,23 @@ type createTeamTemplateReq struct {
 	Experiences         []experienceReq `json:"experiences"`
 }
 
+// buildTemplate constructs a normalized TeamTemplate from an inline request in the
+// caller's org. curated is set explicitly (create authors an un-curated template;
+// curate_team_template / export mark it curated after human review).
+func buildTemplate(d HandlerDeps, orgID string, req createTeamTemplateReq, curated bool) (*team.TeamTemplate, error) {
+	return team.NewTemplate(team.NewTemplateInput{
+		ID:                  d.TeamIDGen.NewEntityID("teamtmpl"),
+		OrgID:               orgID,
+		Name:                req.Name,
+		Description:         req.Description,
+		Roles:               toRoleSlots(req.Roles),
+		WorkflowTemplateRef: req.WorkflowTemplateRef,
+		Experiences:         toExperiences(req.Experiences),
+		Curated:             curated,
+		CreatedAt:           time.Now().UTC(),
+	})
+}
+
 func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	var req createTeamTemplateReq
@@ -426,15 +454,128 @@ func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	tmpl, err := team.NewTemplate(team.NewTemplateInput{
-		ID:                  d.TeamIDGen.NewEntityID("teamtmpl"),
-		OrgID:               string(a.OrganizationID()),
-		Name:                req.Name,
-		Description:         req.Description,
-		Roles:               toRoleSlots(req.Roles),
-		WorkflowTemplateRef: req.WorkflowTemplateRef,
-		Experiences:         toExperiences(req.Experiences),
-		CreatedAt:           time.Now().UTC(),
+	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req, false)
+	if err != nil {
+		mapTeamError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, templateView(tmpl))
+}
+
+// =============================================================================
+// Template curation gate + export / import (design §6 三路径之一 + §9). Templates
+// are org-level artifacts with NO server-side catalog in phase 1, so these tools
+// operate on an INLINE template payload:
+//
+//   - curate_team_template: the mandatory manual-curation gate action (design §9).
+//     A human, after reviewing an extracted draft, marks it curated. Returns the
+//     template with curated=true — the form export accepts.
+//   - export_team_template: serialise a template to a shareable JSON document.
+//     ENFORCES the curation gate: an un-curated template is REFUSED
+//     (template_not_curated, 409) so cross-org export is always human-reviewed —
+//     this is what makes ErrTemplateNotCurated a live guard, not dead code.
+//   - import_team_template: re-home an exported JSON document into the caller's org
+//     as a fresh (curated=false) template. The cross-org share mechanism (design §6
+//     headline "可跨 org 共享"): export a file in org A, import it in org B.
+// =============================================================================
+
+// --- curate_team_template ----------------------------------------------------
+
+type curateTeamTemplateReq struct {
+	AgentID  string                `json:"agent_id"`
+	Template createTeamTemplateReq `json:"template"`
+}
+
+func (s *Server) curateTeamTemplateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req curateTeamTemplateReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	// Mark curated=true: the caller asserts they have manually reviewed the template
+	// (design §9 curation is load-bearing). The result is export-ready.
+	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req.Template, true)
+	if err != nil {
+		mapTeamError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, templateView(tmpl))
+}
+
+// --- export_team_template ----------------------------------------------------
+
+type exportTeamTemplateReq struct {
+	AgentID  string                `json:"agent_id"`
+	Template createTeamTemplateReq `json:"template"`
+	// Curated must be true for export to succeed (curation gate, design §9). The
+	// caller sets it after running curate_team_template / a human review.
+	Curated bool `json:"curated"`
+}
+
+func (s *Server) exportTeamTemplateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req exportTeamTemplateReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	tmpl, err := buildTemplate(d, string(a.OrganizationID()), req.Template, req.Curated)
+	if err != nil {
+		mapTeamError(w, err)
+		return
+	}
+	// ExportTemplate REFUSES an un-curated template → ErrTemplateNotCurated → 409.
+	// This is the enforced curation gate (design §9).
+	doc, err := team.ExportTemplate(tmpl)
+	if err != nil {
+		mapTeamError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"format":   "team-template/v1",
+		"curated":  true,
+		"document": json.RawMessage(doc),
+	})
+}
+
+// --- import_team_template ----------------------------------------------------
+
+type importTeamTemplateReq struct {
+	AgentID string `json:"agent_id"`
+	// Document is the exported team-template JSON (the export tool's "document").
+	Document json.RawMessage `json:"document"`
+}
+
+func (s *Server) importTeamTemplateHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req importTeamTemplateReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if len(strings.TrimSpace(string(req.Document))) == 0 {
+		writeError(w, http.StatusBadRequest, "invalid_input", "document is required (the exported team-template JSON)")
+		return
+	}
+	// Re-home into the CALLER's org with a fresh id; lands curated=false so the
+	// destination org re-reviews before it re-exports (design §9).
+	tmpl, err := team.ImportTemplate([]byte(req.Document), team.ImportTemplateInput{
+		OrgID: string(a.OrganizationID()),
+		NewID: d.TeamIDGen.NewEntityID("teamtmpl"),
+		Now:   time.Now().UTC(),
 	})
 	if err != nil {
 		mapTeamError(w, err)
@@ -487,7 +628,7 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	// Plan the instantiation (pure): identity+config+memory-seed + the SEPARATE
 	// runtime-provisioning plan (design §9). We then apply the identity/config
 	// part here; the runtime enrollment is returned for the operator's next step.
-	instPlan, rtPlan, err := team.PlanInstantiation(team.InstantiateInput{
+	instPlan, _, err := team.PlanInstantiation(team.InstantiateInput{
 		Template:  tmpl,
 		OrgID:     orgID,
 		ProjectID: req.ProjectID,
@@ -519,15 +660,57 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		mapTeamError(w, err)
 		return
 	}
+
+	// Build a REAL agent identity per role*count (design §6 "建 N 个新 agent 新身份"
+	// / §8). Reuse the existing identity-provision path so the identities table gets
+	// real rows and the team member ref points at a real identity id (non-dangling).
+	// The identity carries the agent's CONFIG via its team role (cli/model/tags/
+	// concurrency, persisted on CreateTeam above) and is authorized on the team repo
+	// implicitly — git authz derives from the team_members row (design §9 访问控制映射).
+	// Runtime provisioning (worker + auth) is a SEPARATE step (design §9): its plan
+	// is returned below, keyed on the real identity ids so the enroll flow binds them.
+	provisionIdentities := d.TeamIdentityProvisionSvc != nil && d.TeamMemberRepo != nil
+	var provisionerID string
+	if provisionIdentities {
+		pid, pErr := s.orgProvisioner(r.Context(), d, orgID)
+		if pErr != nil {
+			mapDomainError(w, pErr)
+			return
+		}
+		provisionerID = pid
+	}
+
 	agents := make([]map[string]any, 0, len(instPlan.Agents))
+	enrollments := make([]map[string]any, 0, len(instPlan.Agents))
+	identitiesCreated := 0
 	for _, spec := range instPlan.Agents {
-		if _, mErr := d.TeamSvc.AddMember(r.Context(), created.ID(), spec.DerivedRef(), spec.Role); mErr != nil {
+		agentID := spec.AgentID
+		ref := spec.DerivedRef()
+		if provisionIdentities {
+			provRes, pErr := d.TeamIdentityProvisionSvc.Provision(r.Context(), identity.AgentProvisionForm{
+				DisplayName: instanceDisplayName(teamName, spec),
+				Description: fmt.Sprintf("instantiated %s for team %q", spec.Role, teamName),
+				Role:        identity.RoleMember,
+			}, orgID, provisionerID)
+			if pErr != nil {
+				mapDomainError(w, pErr)
+				return
+			}
+			// The team member namespace is "agent:" + identity id (git_backend.go).
+			agentID = provRes.Identity.ID()
+			ref = team.MemberRef("agent:" + agentID)
+			identitiesCreated++
+		}
+		if _, mErr := d.TeamSvc.AddMember(r.Context(), created.ID(), ref, spec.Role); mErr != nil {
 			mapTeamError(w, mErr)
 			return
 		}
 		agents = append(agents, map[string]any{
-			"agent_id": spec.AgentID, "role": spec.Role, "cli": spec.CLI,
-			"model": spec.Model, "ordinal": spec.Ordinal, "member_ref": spec.DerivedRef().String(),
+			"agent_id": agentID, "role": spec.Role, "cli": spec.CLI,
+			"model": spec.Model, "ordinal": spec.Ordinal, "member_ref": ref.String(),
+		})
+		enrollments = append(enrollments, map[string]any{
+			"agent_id": agentID, "role": spec.Role, "cli": spec.CLI, "model": spec.Model,
 		})
 	}
 
@@ -543,13 +726,6 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	enrollments := make([]map[string]any, 0, len(rtPlan.Enrollments))
-	for _, e := range rtPlan.Enrollments {
-		enrollments = append(enrollments, map[string]any{
-			"agent_id": e.AgentID, "role": e.Role, "cli": e.CLI, "model": e.Model,
-		})
-	}
-
 	view, gErr := teamTools(d).GetTeam(r.Context(), created.ID().String())
 	if gErr != nil {
 		mapTeamError(w, gErr)
@@ -560,12 +736,61 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		"project_id":            instPlan.ProjectID,
 		"workflow_template_ref": instPlan.WorkflowTemplateRef,
 		"agents":                agents,
-		"memory_seed_count":     len(instPlan.MemorySeed),
-		"memory_seeded":         memorySeeded,
+		// identities_created counts the real identity entities built (0 in degraded
+		// wiring without the identity provision service — refs stay minted).
+		"identities_created": identitiesCreated,
+		"memory_seed_count":  len(instPlan.MemorySeed),
+		"memory_seeded":      memorySeeded,
 		// The runtime-provisioning plan is a SEPARATE step (design §9): the
 		// template carries no runtime/auth, so the operator runs enroll for each.
 		"runtime_provisioning": map[string]any{"enrollments": enrollments},
 	})
+}
+
+// orgProvisioner returns an owner/admin identity id for orgID to act as the
+// provisioner of instantiate_team's new agent identities (the identity-provision
+// path requires an owner/admin actor — design §9). Prefers the owner. Returns an
+// error when no owner/admin can be found (a well-formed org always has an owner).
+func (s *Server) orgProvisioner(ctx context.Context, d HandlerDeps, orgID string) (string, error) {
+	members, err := d.TeamMemberRepo.ListByOrganization(ctx, orgID)
+	if err != nil {
+		return "", err
+	}
+	admin := ""
+	for _, m := range members {
+		if !m.IsJoined() {
+			continue
+		}
+		if m.Role() == identity.RoleOwner {
+			return m.IdentityID(), nil
+		}
+		if admin == "" && m.Role().AtLeast(identity.RoleAdmin) {
+			admin = m.IdentityID()
+		}
+	}
+	if admin != "" {
+		return admin, nil
+	}
+	return "", fmt.Errorf("%w: no owner/admin to provision agent identities in org %q", team.ErrInvalidTeam, orgID)
+}
+
+// instanceDisplayName builds a <=40-char identity display name for an instantiated
+// agent, e.g. "squad-run dev#0". Agent display names are not required unique.
+func instanceDisplayName(teamName string, spec team.AgentSpec) string {
+	suffix := fmt.Sprintf(" %s#%d", spec.Role, spec.Ordinal)
+	tn := strings.TrimSpace(teamName)
+	if max := 40 - len(suffix); max >= 0 {
+		if len(tn) > max {
+			tn = tn[:max]
+		}
+		return strings.TrimSpace(tn + suffix)
+	}
+	// Degenerate: an extremely long role name. Fall back to a trimmed role#ordinal.
+	name := strings.TrimSpace(fmt.Sprintf("%s#%d", spec.Role, spec.Ordinal))
+	if len(name) > 40 {
+		name = name[:40]
+	}
+	return name
 }
 
 // toMemoryEntries maps portable template experiences onto centergit memory
@@ -620,13 +845,19 @@ func (s *Server) extractFromTeamHandler(w http.ResponseWriter, r *http.Request) 
 	// wired (client/test mode) → degrade to a roles-only draft rather than erroring,
 	// mirroring instantiate_team's memory_seeded=false degrade.
 	var experiences []team.Experience
+	var skipped []string
 	if d.TeamGitHost != nil {
-		entries, rErr := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeam(r.Context(), t.ID().String())
+		entries, skp, rErr := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeam(r.Context(), t.ID().String())
 		if rErr != nil {
 			mapDomainError(w, rErr)
 			return
 		}
 		experiences = experiencesFromEntries(entries)
+		// skp names any NON-STANDARD files a member pushed into the team repo (no
+		// frontmatter, stray notes, …). ReadTeam skipped them instead of crashing —
+		// we flag the count so the curator knows some content was not extractable
+		// (design §6: a member's stray push must not 500 the whole extract).
+		skipped = skp
 	}
 
 	res, err := team.ExtractFromTeam(team.TeamSnapshot{
@@ -638,7 +869,7 @@ func (s *Server) extractFromTeamHandler(w http.ResponseWriter, r *http.Request) 
 		mapTeamError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, extractView(res))
+	writeJSON(w, http.StatusOK, extractView(res, skipped))
 }
 
 // experiencesFromEntries maps center-hosted memory entries back onto template
@@ -660,22 +891,30 @@ func experiencesFromEntries(in []centergit.Entry) []team.Experience {
 }
 
 // extractView renders the draft template + the scrub findings a human must review
-// + the count of project-scoped experiences dropped.
-func extractView(res *team.ExtractResult) map[string]any {
+// + the count of project-scoped experiences dropped + any non-standard files
+// skipped while reading the team's memory repo.
+func extractView(res *team.ExtractResult, skipped []string) map[string]any {
 	findings := make([]map[string]any, 0, len(res.ScrubFindings))
 	for _, f := range res.ScrubFindings {
 		findings = append(findings, map[string]any{
 			"experience_slug": f.ExperienceSlug, "kind": string(f.Kind), "token": f.Token,
 		})
 	}
-	return map[string]any{
+	view := map[string]any{
 		"draft":           templateView(res.Draft),
 		"scrub_findings":  findings,
 		"dropped_project": res.DroppedProject,
 		// A draft is NEVER export-ready: manual curation (design §9) is still
 		// required before create_team_template / export accepts it.
 		"curated": res.Draft.Curated,
+		// Non-standard files skipped while reading the team memory repo (no
+		// frontmatter, stray pushes). Flagged, never fatal (design §6).
+		"skipped_nonstandard": len(skipped),
 	}
+	if len(skipped) > 0 {
+		view["skipped_nonstandard_files"] = skipped
+	}
+	return view
 }
 
 // --- assign_roles ------------------------------------------------------------

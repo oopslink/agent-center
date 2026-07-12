@@ -51,8 +51,20 @@ func registerTeamTools(srv *mcp.Server, cfg Config) {
 		Description: "Author + validate a team template: role composition (each role with a count/配比 and its cli/model/capability_tags), an optional referenced workflow template, and portable (team/global-scope) experiences. Returns the normalized template. Templates are org-level snapshots you then instantiate onto a project.",
 	}, makeCreateTeamTemplate(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "curate_team_template",
+		Description: "Mark a team template as CURATED after you have manually reviewed it (design §9: curation is load-bearing). Export refuses an un-curated template, so run this on an extracted/authored draft before export_team_template. Returns the template with curated=true.",
+	}, makeCurateTeamTemplate(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "export_team_template",
+		Description: "Export a team template to a shareable JSON document (design §6 import/export path). ENFORCES the curation gate: an un-curated template is refused (curate it first). The document can be imported into another org — the cross-org sharing mechanism. Set curated=true once the template has passed manual review.",
+	}, makeExportTeamTemplate(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "import_team_template",
+		Description: "Import a team template from an exported JSON document (design §6): re-homes it into YOUR organization as a fresh, un-curated template. This is how a template shared from another org lands here. Re-review + curate before you re-export it.",
+	}, makeImportTeamTemplate(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "instantiate_team",
-		Description: "Instantiate a team template onto a project: creates the team + its role composition, mints one agent identity per role*count and binds them as members, provisions the team's center-hosted memory repo and seeds it with the template's portable experiences. Returns the team, the new agent identities, and a SEPARATE runtime-provisioning plan (enroll each agent) — the template carries no runtime/auth.",
+		Description: "Instantiate a team template onto a project: creates the team + its role composition, builds one REAL agent identity per role*count and binds them as members, provisions the team's center-hosted memory repo and seeds it with the template's portable experiences. Returns the team, the new agent identities, and a SEPARATE runtime-provisioning plan (enroll each agent) — the template carries no runtime/auth.",
 	}, makeInstantiateTeam(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "extract_from_team",
@@ -219,6 +231,45 @@ func (a createTeamTemplateArgs) body(cfg Config) map[string]any {
 func makeCreateTeamTemplate(cfg Config) mcp.ToolHandlerFor[createTeamTemplateArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args createTeamTemplateArgs) (*mcp.CallToolResult, any, error) {
 		return callAdmin(ctx, cfg, "create_team_template", args.body(cfg))
+	}
+}
+
+// ---- curate / export / import (design §6 import/export path + §9 curation) ----
+
+type curateTeamTemplateArgs struct {
+	Template createTeamTemplateArgs `json:"template" jsonschema:"the team template to mark curated (after human review)"`
+}
+
+func makeCurateTeamTemplate(cfg Config) mcp.ToolHandlerFor[curateTeamTemplateArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args curateTeamTemplateArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "curate_team_template", map[string]any{
+			"agent_id": cfg.AgentID, "template": args.Template.body(cfg),
+		})
+	}
+}
+
+type exportTeamTemplateArgs struct {
+	Template createTeamTemplateArgs `json:"template" jsonschema:"the team template to export"`
+	Curated  bool                   `json:"curated,omitempty" jsonschema:"must be true — export refuses an un-curated template (curate it first)"`
+}
+
+func makeExportTeamTemplate(cfg Config) mcp.ToolHandlerFor[exportTeamTemplateArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args exportTeamTemplateArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "export_team_template", map[string]any{
+			"agent_id": cfg.AgentID, "template": args.Template.body(cfg), "curated": args.Curated,
+		})
+	}
+}
+
+type importTeamTemplateArgs struct {
+	Document any `json:"document" jsonschema:"the exported team-template JSON document (from export_team_template)"`
+}
+
+func makeImportTeamTemplate(cfg Config) mcp.ToolHandlerFor[importTeamTemplateArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args importTeamTemplateArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "import_team_template", map[string]any{
+			"agent_id": cfg.AgentID, "document": args.Document,
+		})
 	}
 }
 

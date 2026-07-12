@@ -146,7 +146,8 @@ var wantTools = []string{
 	// association (S1), template authoring / instantiation / role→agent (S3).
 	"create_team", "update_team", "delete_team", "get_team", "list_teams",
 	"add_member", "remove_member", "associate_project",
-	"create_team_template", "instantiate_team", "extract_from_team", "assign_roles",
+	"create_team_template", "curate_team_template", "export_team_template", "import_team_template",
+	"instantiate_team", "extract_from_team", "assign_roles",
 }
 
 // planTools is the v2.9 P3 Stage C (#285) plan agent-tool catalog: every plan

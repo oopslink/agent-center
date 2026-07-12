@@ -384,6 +384,11 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		TeamSvc:     teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
 		TeamIDGen:   a.IDGen,
 		TeamGitHost: buildTeamGitHost(a),
+		// instantiate_team builds REAL agent identities (design §6/§8): reuse the
+		// identity-provision path so the identities table gets real rows (not a
+		// dangling ref). TeamMemberRepo resolves the owner/admin provisioner.
+		TeamIdentityProvisionSvc: a.IdentityAgentProvisionSvc,
+		TeamMemberRepo:           a.IdentityMemberRepo,
 	}
 }
 
