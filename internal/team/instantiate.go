@@ -88,7 +88,7 @@ type InstantiateInput struct {
 	// TeamName for the instantiated team. Falls back to the template name.
 	TeamName string
 	Minter   IDMinter
-	Now       time.Time
+	Now      time.Time
 }
 
 // PlanInstantiation expands a template into the two instantiation plans (design
