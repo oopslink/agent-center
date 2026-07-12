@@ -204,6 +204,60 @@ func TestDispatchWake_Repush_FoldsConcurrentDoneEvents(t *testing.T) {
 	}
 }
 
+// issue-d118b5dc ① REPRO — plan-node-ready double fan-out on ONE task.
+//
+// When a plan node becomes ready, the SAME newly-ready task can be woken by TWO of this
+// projector's triggers at once:
+//   - (a) pm.task.assigned    — the ready-set dispatch assigns the ready node to the agent.
+//   - (c) pm.task.state_changed — the PREDECESSOR node completing frees the agent's single
+//     slot, and the re-push resolver picks the very same ready node as the agent's "next".
+// Both resolve to the SAME entity/worker/task, but the two emit paths key the ControlLog
+// AppendCommand under DIFFERENT idempotency schemes — assign includes the event id
+// ("dispatch.wake:assign:<eid>:…"), repush omits it ("dispatch.wake:repush:…"). They do
+// NOT collide, so the worker receives TWO agent.work_available commands for one task_id,
+// each of which drives an unconditional SpawnExecutor fork downstream (executor_runtime.go
+// DISPATCH-DECISION/DISPATCH-FORK-ENTRY). This is the structural fan-out the runtime logs
+// are meant to catch — the mode/dedup XOR is missing at the SOURCE, not the sink.
+//
+// This test LOCKS the current (buggy) 2-command behavior so the eventual fix (unify the
+// dedup anchor to agent+task regardless of trigger) has a failing assertion to flip.
+func TestDispatchWake_Issue_d118b5dc_AssignAndRepush_DoubleFanout(t *testing.T) {
+	h := newDispatchHarness(t)
+	const worker, entity, readyTask = "W2", "entity-B", "T-ready"
+	// (a) the ready node is assigned to agent B → wakes B for T-ready.
+	h.assignFn = func(_ context.Context, a, tk string) (DispatchWakeTarget, bool, error) {
+		return DispatchWakeTarget{WorkerID: worker, AgentID: entity, TaskID: tk}, true, nil
+	}
+	// (c) the predecessor completing frees B's slot; the re-push "next task" resolves to the
+	// SAME ready node.
+	h.repushFn = func(_ context.Context, a, tk, st, prev string) (DispatchWakeTarget, bool, error) {
+		return DispatchWakeTarget{WorkerID: worker, AgentID: entity, TaskID: readyTask}, true, nil
+	}
+	// One ready event, both arms fire for the same agent+task.
+	if err := h.proj.Project(h.ctx, taskEvent("assign-evt", pmservice.EvtTaskAssigned, "agent:B", readyTask, "open", "")); err != nil {
+		t.Fatalf("assign Project: %v", err)
+	}
+	if err := h.proj.Project(h.ctx, taskEvent("done-evt", pmservice.EvtTaskStateChanged, "agent:B", "T-pred", "completed", "running")); err != nil {
+		t.Fatalf("state_changed Project: %v", err)
+	}
+
+	cmds := h.commands(t, worker)
+	// ROOT-CAUSE ASSERTION: two work_available for ONE ready task — the double fan-out.
+	if len(cmds) != 2 {
+		t.Fatalf("issue-d118b5dc ①: assign+repush for the SAME agent+task should currently "+
+			"emit 2 work_available (non-colliding idempotency keys) — got %d; if this is now "+
+			"1 the source-side dedup fix landed, retarget this lock", len(cmds))
+	}
+	for _, c := range cmds {
+		var pl sweepWakePayload
+		_ = json.Unmarshal([]byte(c.Payload()), &pl)
+		if pl.AgentID != entity || pl.TaskID != readyTask {
+			t.Fatalf("both wakes should target %s/%s (one ready task), got %s/%s",
+				entity, readyTask, pl.AgentID, pl.TaskID)
+		}
+	}
+}
+
 // Dormant: nil resolvers make every trigger a graceful no-op (the relay can register the
 // projector unconditionally).
 func TestDispatchWake_NilResolvers_NoOp(t *testing.T) {
