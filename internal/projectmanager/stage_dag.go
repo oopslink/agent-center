@@ -1,5 +1,10 @@
 package projectmanager
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Plan Stage structural value logic (2026-07-03 plan-stage-model design §4.2/§5).
 // PURE domain — no I/O. These functions compute the stage grouping / entries and
 // enforce the build-time structural invariants that buildPlanGraph relies on to lay
@@ -82,6 +87,33 @@ func ValidateStageEdges(stageOf map[TaskID]StageID, edges []Dependency) error {
 		}
 	}
 	return nil
+}
+
+// ValidateStageMembership enforces the author-time stage-coverage invariant (§5,
+// quick-fix 1a): once a plan has ≥1 stage, EVERY business node must belong to a stage.
+// A stageless business node in a staged plan is ungoverned by any stage gate/barrier —
+// it would "run ahead" (dispatched the moment its own deps clear, bypassing the stage
+// sequencing the author declared). This is the hole ValidateStageEdges deliberately
+// leaves open (it allows a stageless endpoint); 1a closes it at the plan boundary.
+//
+// It is a NO-OP when the plan has no stages (a pure-node DAG is unaffected — §8
+// zero-regression) — the caller must skip this check when len(stages)==0. `tasks` is
+// the plan's selected task set (a pure backlog task is never selected, so it is never
+// seen here). All plan tasks are business nodes; the auto-generated gate/barrier
+// CONDITION nodes are graph-only control nodes, never Tasks, so they cannot appear here.
+// The returned error names EVERY orphan node (deterministic input order) so the author
+// can see exactly which node(s) lack a stage.
+func ValidateStageMembership(tasks []*Task) error {
+	var orphans []string
+	for _, t := range tasks {
+		if t.StageID() == "" {
+			orphans = append(orphans, string(t.ID()))
+		}
+	}
+	if len(orphans) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", ErrStageStagelessNode, strings.Join(orphans, ", "))
 }
 
 // ValidateStageDAG validates the OUTER stage DAG (§4.2): every depends_on target must

@@ -2,6 +2,7 @@ package projectmanager
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -150,6 +151,46 @@ func TestValidateStageEdges(t *testing.T) {
 	// Cross-stage business edge rejected.
 	if err := ValidateStageEdges(stageOf, []Dependency{{FromTaskID: "b1", ToTaskID: "a1"}}); !errors.Is(err, ErrStageCrossEdge) {
 		t.Fatalf("cross-stage edge = %v, want ErrStageCrossEdge", err)
+	}
+}
+
+func TestValidateStageMembership(t *testing.T) {
+	// Quick-fix 1a: a staged plan whose every node has a stage_id passes.
+	assigned := []*Task{
+		stageTask(t, "a1", "p", "A"),
+		stageTask(t, "a2", "p", "A"),
+		stageTask(t, "b1", "p", "B"),
+	}
+	if err := ValidateStageMembership(assigned); err != nil {
+		t.Fatalf("fully-assigned staged plan rejected: %v", err)
+	}
+
+	// Mixing in a stageless business node is rejected, and the error names the orphan.
+	mixed := []*Task{
+		stageTask(t, "a1", "p", "A"),
+		stageTask(t, "run-ahead", "p", ""), // stageless business node
+		stageTask(t, "b1", "p", "B"),
+	}
+	err := ValidateStageMembership(mixed)
+	if !errors.Is(err, ErrStageStagelessNode) {
+		t.Fatalf("stageless node = %v, want ErrStageStagelessNode", err)
+	}
+	if !strings.Contains(err.Error(), "run-ahead") {
+		t.Fatalf("error %q does not name the orphan node run-ahead", err)
+	}
+
+	// Every orphan is named (deterministic input order).
+	multi := []*Task{
+		stageTask(t, "orphan1", "p", ""),
+		stageTask(t, "a1", "p", "A"),
+		stageTask(t, "orphan2", "p", ""),
+	}
+	merr := ValidateStageMembership(multi)
+	if !errors.Is(merr, ErrStageStagelessNode) {
+		t.Fatalf("multi-orphan = %v, want ErrStageStagelessNode", merr)
+	}
+	if got := merr.Error(); !strings.Contains(got, "orphan1") || !strings.Contains(got, "orphan2") {
+		t.Fatalf("error %q must name both orphan1 and orphan2", got)
 	}
 }
 

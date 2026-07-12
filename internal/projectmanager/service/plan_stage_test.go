@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -325,5 +326,29 @@ func TestStage_CrossEdge_RejectedAtBuild(t *testing.T) {
 	mustAddDep(t, h, planID, pm.Dependency{PlanID: planID, FromTaskID: b1, ToTaskID: a1, Kind: pm.EdgeSeq})
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); !errors.Is(err, pm.ErrStageCrossEdge) {
 		t.Fatalf("StartPlan with cross-stage edge = %v, want ErrStageCrossEdge", err)
+	}
+}
+
+// TestStage_StagelessNode_RejectedAtBuild asserts the author-time invariant (§5,
+// quick-fix 1a): once a plan has ≥1 stage, a business node with no stage_id is rejected
+// at StartPlan (it would run ahead of the staged flow, bypassing the gate/barrier). The
+// error names the orphan node. A fully-assigned staged plan is unaffected (covered by
+// TestStage_Barrier_GatePass); a plan with NO stages is unaffected (TestStage_ZeroRegression).
+func TestStage_StagelessNode_RejectedAtBuild(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	seedTwoStagePlan(t, h, pid, planID, 3)
+	// A business task selected into the staged plan but NEVER assigned to a stage — the
+	// stageless run-ahead 1a closes.
+	orphan := h.seedAssignedTask(t, pid, planID, "run-ahead", "user:x")
+	err := h.svc.StartPlan(ctx, planID, "user:a")
+	if !errors.Is(err, pm.ErrStageStagelessNode) {
+		t.Fatalf("StartPlan with stageless business node = %v, want ErrStageStagelessNode", err)
+	}
+	if !strings.Contains(err.Error(), string(orphan)) {
+		t.Fatalf("error %q does not name the orphan node %s", err, orphan)
 	}
 }
