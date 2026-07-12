@@ -431,6 +431,18 @@ func nodeTitle(t *pm.Task) string {
 // Run at the top of graph dispatch so GetReadyNodes/IsAutoDone always reflect the
 // live task states regardless of which caller triggered dispatch.
 func (s *Service) syncGraphToTasks(txCtx context.Context, p *pm.Plan, tasks []*pm.Task) error {
+	// Load the plan's dispatch records once so advanceNodeTo can tell a genuinely-running
+	// node (dispatched → started) from a RECONCILED node awaiting re-dispatch (issue-77d9beff
+	// ①: reopenStuckPlanNode reopened it + cleared its record while its task stays running —
+	// see the TaskRunning branch of advanceNodeTo).
+	records, rerr := s.plans.ListDispatchRecords(txCtx, p.ID())
+	if rerr != nil {
+		return rerr
+	}
+	dispatched := make(map[pm.TaskID]struct{}, len(records))
+	for _, r := range records {
+		dispatched[r.TaskID] = struct{}{}
+	}
 	for _, t := range tasks {
 		if t.NodeID() == "" {
 			continue // task not mapped to a node (shouldn't happen for a graphed plan).
@@ -439,7 +451,8 @@ func (s *Service) syncGraphToTasks(txCtx context.Context, p *pm.Plan, tasks []*p
 		if err != nil {
 			return err
 		}
-		if err := s.advanceNodeTo(txCtx, n, t.Status()); err != nil {
+		_, isDispatched := dispatched[t.ID()]
+		if err := s.advanceNodeTo(txCtx, n, t.Status(), isDispatched); err != nil {
 			return err
 		}
 	}
@@ -453,7 +466,7 @@ func (s *Service) syncGraphToTasks(txCtx context.Context, p *pm.Plan, tasks []*p
 // intermediate event: a node still `open` whose task jumped straight to completed
 // is walked open→running→completed. It never moves a node backwards (a completed
 // node whose task is somehow running is left alone — no illegal reverse).
-func (s *Service) advanceNodeTo(txCtx context.Context, n *orch.Node, taskStatus pm.TaskStatus) error {
+func (s *Service) advanceNodeTo(txCtx context.Context, n *orch.Node, taskStatus pm.TaskStatus, dispatched bool) error {
 	switch {
 	case pm.TaskIsDone(taskStatus):
 		// Walk to completed: open/reopen → running → completed.
@@ -479,7 +492,17 @@ func (s *Service) advanceNodeTo(txCtx context.Context, n *orch.Node, taskStatus 
 		// (RerunFailedNode), exactly as the legacy plan-DAG failure path behaves.
 		return nil
 	case taskStatus == pm.TaskRunning:
-		if n.Status() == orch.NodeOpen || n.Status() == orch.NodeReopen {
+		if n.Status() == orch.NodeOpen {
+			return s.orch.StartNode(txCtx, orch.NodeID(n.ID()))
+		}
+		// A REOPEN node is started only once its task has actually been (re-)dispatched
+		// (issue-77d9beff ①). A reopened loop task re-dispatches (RecordDispatch) BEFORE its
+		// agent re-claims + StartTask, so by the time it is Running it carries a record →
+		// start it. But reopenStuckPlanNode reopens a node whose task NEVER left running
+		// (unblock recovery) and CLEARS its record so graphReadySet re-dispatches it — that
+		// node must stay Reopen through this sync (dispatched=false), else this StartNode
+		// would drive it straight back to Running and re-wedge it out of the ready-set.
+		if n.Status() == orch.NodeReopen && dispatched {
 			return s.orch.StartNode(txCtx, orch.NodeID(n.ID()))
 		}
 		return nil
@@ -502,6 +525,56 @@ func (s *Service) advanceNodeTo(txCtx context.Context, n *orch.Node, taskStatus 
 // transition just wrote (StartNode/CompleteNode persist, they don't mutate n).
 func (s *Service) reload(txCtx context.Context, n *orch.Node) (*orch.Node, error) {
 	return s.orch.GetNode(txCtx, orch.NodeID(n.ID()))
+}
+
+// reopenStuckPlanNode is the SHARED self-heal for issue-77d9beff ① — the unified root-cause
+// fix for a STRUCTURED (graphed, non-builtin) plan node wedged Running while its executor is
+// gone. A wedged node never re-enters graphReadySet (GetReadyNodes surfaces only open/reopen
+// nodes) and its dispatch record keeps it out of the ready-set even after reopen, so the
+// stage/plan can never re-dispatch or converge. This reopens the node (Running→NodeReopen)
+// and clears its dispatch record so the NEXT dispatch (dispatchReadyNodes) re-surfaces and
+// re-dispatches it.
+//
+// Call it from every recovery entrypoint that leaves the node's executor dead but the node
+// stuck Running:
+//   - ResetTask (tier-3 recovery: task running→open, assignee cleared), and
+//   - UnblockTask (blocked→resume: the block terminated the prior WorkItem; task stays
+//     running with no live lease).
+//
+// It is a no-op (idempotent, safe under replay / double-trigger) for: a task with no plan,
+// a built-in pool plan (pool re-dispatch IS the auto-assign path — unchanged), an ungraphed
+// plan, an unmapped task, or a node that is not currently Running.
+func (s *Service) reopenStuckPlanNode(txCtx context.Context, t *pm.Task, reason string) error {
+	pid := t.PlanID()
+	if pid == "" {
+		return nil // pure backlog task — no graph node to reconcile.
+	}
+	p, err := s.plans.FindByID(txCtx, pid)
+	if err != nil {
+		return err
+	}
+	// Built-in pool: dead-executor recovery is the auto-assign re-dispatch (the record and
+	// pool membership are kept ON PURPOSE) — leave it untouched. Ungraphed plans have no node.
+	if p.IsBuiltin() || p.GraphID() == "" {
+		return nil
+	}
+	if t.NodeID() == "" {
+		return nil // task not mapped to a node (shouldn't happen for a graphed plan).
+	}
+	n, err := s.orch.GetNode(txCtx, orch.NodeID(t.NodeID()))
+	if err != nil {
+		return err
+	}
+	if n.Status() == orch.NodeRunning {
+		if rerr := s.orch.ReopenNode(txCtx, orch.NodeID(n.ID()), reason); rerr != nil {
+			return rerr
+		}
+	}
+	// Clear the dispatch record even if the node was not Running (e.g. already reopened by a
+	// prior trigger): graphReadySet skips a node that still has a record, so the record MUST
+	// be gone for the reopened node to re-enter the ready-set. ClearDispatch is a delete —
+	// idempotent when the record is already absent.
+	return s.plans.ClearDispatch(txCtx, pid, t.ID())
 }
 
 // graphReadySet returns the plan's ready task-ids off the orchestration graph: the

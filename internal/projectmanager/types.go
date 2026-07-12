@@ -126,14 +126,6 @@ var (
 	// is the domain half of the two-part mis-fire guard (§2②a): the caller's tier-3
 	// confirmation is guard (b); this is the hard server-side guard (a).
 	ErrLeaseStillLive = errors.New("projectmanager: task execution lease is still live (cannot reset)")
-	// ErrResetNotPoolTask guards ResetTask (issue-77d9beff ①): reset_task is the
-	// built-in Assignment Pool's dead-executor recovery (running→open → auto re-assign
-	// a fresh pool executor). It must NOT act on a STRUCTURED (staged/DAG) plan node:
-	// such a node has no pool auto-assign path, so a reset drops it into an
-	// unrecoverable open-wedge (open, assignee cleared, never re-dispatched — start_task
-	// then fails task_not_runnable and complete_task invalid_transition). A structured
-	// node is recovered via reopen/loopback/plan-advance, never reset_task.
-	ErrResetNotPoolTask = errors.New("projectmanager: reset_task applies only to built-in pool tasks, not structured plan nodes (use reopen/plan advance)")
 	// ErrAgentHasActiveTask (v2.14.0 I14/F3 §13.B/§13.F-①; generalized v2.18.0 W4c)
 	// — the run-slot cap: an agent may have at most EffectiveConcurrencyCap running,
 	// non-blocked Tasks at a time (1 for a default agent — single-active, no

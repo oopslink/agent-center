@@ -439,22 +439,6 @@ func (s *Service) ResetTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		}
 		projectID = t.ProjectID()
 		prevStatus := t.Status()
-		// issue-77d9beff ①: reset_task is the built-in Assignment Pool's dead-executor
-		// recovery ONLY. A STRUCTURED (staged/DAG) plan node has no pool auto-assign path,
-		// so resetting it (running→open, assignee cleared) drops it into an unrecoverable
-		// open-wedge — start_task then fails task_not_runnable and complete_task
-		// invalid_transition, with no MCP transfer to close it. Reject it here so a
-		// structured node is only ever recovered via reopen / loopback / plan advance. A
-		// built-in pool member (IsBuiltin) and a pure backlog task (no plan) are unaffected.
-		if pid := t.PlanID(); pid != "" {
-			p, perr := s.plans.FindByID(txCtx, pid)
-			if perr != nil {
-				return perr
-			}
-			if !p.IsBuiltin() {
-				return pm.ErrResetNotPoolTask
-			}
-		}
 		// Circuit breaker: budget spent → block for triage instead of resetting again.
 		if t.RecoveryResetCount() >= pm.MaxRecoveryResets {
 			reason := fmt.Sprintf("tier-3 recovery exhausted: reset×%d — needs PD triage (task bad → discard, or environment broken → fix + redispatch)", t.RecoveryResetCount())
@@ -482,6 +466,15 @@ func (s *Service) ResetTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		}
 		if ferr := s.flushActionLogs(txCtx, t); ferr != nil {
 			return ferr
+		}
+		// issue-77d9beff ①: reset_task was the built-in pool's dead-executor recovery; a
+		// STRUCTURED (graphed) plan node used to be REJECTED here (ErrResetNotPoolTask),
+		// which only prevented new wedges and never recovered/cleaned the existing ones.
+		// Self-heal instead: reset runs normally (running→open) and the shared reconcile
+		// reopens the wedged graph node + clears its dispatch record so plan advance
+		// re-dispatches it. No-op for a built-in pool member / pure backlog task.
+		if herr := s.reopenStuckPlanNode(txCtx, t, "task_reset"); herr != nil {
+			return herr
 		}
 		return s.emitTaskStateChanged(txCtx, t, prevStatus, "tier-3 recovery reset")
 	})
@@ -629,6 +622,16 @@ func (s *Service) UnblockTask(ctx context.Context, cmd UnblockTaskCommand) error
 		// §7.3: persist the "unblocked" lifecycle log entry.
 		if err := s.flushActionLogs(txCtx, t); err != nil {
 			return err
+		}
+		// issue-77d9beff ①: for a STRUCTURED (graphed) plan node the EvtTaskAssigned re-wake
+		// below is NOT enough — the graph node is still wedged Running from the pre-block
+		// attempt (the block terminated its WorkItem; the task never left running so
+		// syncGraphToTasks keeps the node Running), and its stale dispatch record keeps it out
+		// of graphReadySet, so unblock never actually re-dispatches it (block→unblock is a
+		// name-only recovery). The shared reconcile reopens the node + clears the record so the
+		// next plan advance re-dispatches it. No-op for a built-in pool / backlog task.
+		if herr := s.reopenStuckPlanNode(txCtx, t, "task_unblock"); herr != nil {
+			return herr
 		}
 		if err := s.emitTaskAssignEvent(txCtx, t, EvtTaskAssigned, ""); err != nil {
 			return err

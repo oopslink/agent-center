@@ -64,8 +64,13 @@ func (s NodeStatus) IsValid() bool {
 }
 
 var nodeTransitions = map[NodeStatus][]NodeStatus{
-	NodeOpen:      {NodeRunning, NodeDiscarded},
-	NodeRunning:   {NodeCompleted, NodeDiscarded},
+	NodeOpen: {NodeRunning, NodeDiscarded},
+	// NodeRunning → NodeReopen (issue-77d9beff bug ①): a running attempt whose executor
+	// is confirmed dead — reset_task (tier-3 recovery, task running→open) or an
+	// unblock_task recovery (blocked→resume) — returns the node to a re-dispatchable
+	// state, mirroring the task's own recovery. Without it the node wedges Running while
+	// the task is reset/unblocked, so the stage/plan can never re-dispatch or converge.
+	NodeRunning:   {NodeCompleted, NodeDiscarded, NodeReopen},
 	NodeCompleted: {NodeReopen},
 	NodeReopen:    {NodeRunning, NodeDiscarded},
 	NodeDiscarded: {}, // terminal

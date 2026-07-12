@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
 
 // ============================================================================
@@ -12,46 +13,155 @@ import (
 // These tests are RED on the pre-fix code and GREEN after the fixes.
 // ============================================================================
 
-// startedStageEntry drives stage A's entry a1 to RUNNING (dispatch + StartTask under a
-// live lease) in a two-stage plan, returning the harness + the running structured node.
-func startedStageEntry(t *testing.T, h *planAdvanceHarness) (pm.ProjectID, pm.PlanID, pm.TaskID) {
+// nodeStatusForTask returns the orchestration node status bound to a task id (via
+// Task.NodeID → GetNode).
+func nodeStatusForTask(t *testing.T, h *planAdvanceHarness, orchSvc *orch.Service, taskID pm.TaskID) orch.NodeStatus {
 	t.Helper()
+	tk, err := h.tasks.FindByID(h.ctx, taskID)
+	if err != nil {
+		t.Fatalf("FindByID(%s): %v", taskID, err)
+	}
+	n, err := orchSvc.GetNode(h.ctx, orch.NodeID(tk.NodeID()))
+	if err != nil {
+		t.Fatalf("GetNode(%s): %v", tk.NodeID(), err)
+	}
+	return n.Status()
+}
+
+// readyNodeTaskIDs returns the set of business-task ids the ENGINE considers ready.
+func readyNodeTaskIDs(t *testing.T, h *planAdvanceHarness, orchSvc *orch.Service, graphID string) map[pm.TaskID]bool {
+	t.Helper()
+	ready, err := orchSvc.GetReadyNodes(h.ctx, orch.GraphID(graphID))
+	if err != nil {
+		t.Fatalf("GetReadyNodes: %v", err)
+	}
+	out := map[pm.TaskID]bool{}
+	for _, n := range ready {
+		if v, ok := n.Metadata()["task_id"].(string); ok {
+			out[pm.TaskID(v)] = true
+		}
+	}
+	return out
+}
+
+// Bug ① (self-heal) — reset_task on a STRUCTURED staged-plan node no longer wedges it.
+// PD replaced the forbid-guard (ErrResetNotPoolTask) with self-heal: reset runs normally
+// (task running→open) and the shared reconcile (reopenStuckPlanNode) reopens the graph
+// node + clears its dispatch record so plan advance re-dispatches it.
+//
+// PRE-FIX (forbid-guard): ResetTask returned ErrResetNotPoolTask — no recovery, no clean-up
+// of existing wedges. BEFORE that (the original bug): reset left the node wedged Running
+// while the task sat open, never re-dispatchable. This test asserts the self-heal: the node
+// heals OFF Running and re-enters the engine ready-set.
+func TestResetTask_StructuredStagePlanNode_SelfHeals(t *testing.T) {
+	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
 	h.drain(t)
 	a1, _, _, _, _ := seedTwoStagePlan(t, h, pid, planID, 3)
-	addMember(t, h, pid, "user:a1")
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatalf("StartPlan: %v", err)
 	}
-	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
-		t.Fatalf("AdvancePlan: %v", err)
+	p, _ := h.plans.FindByID(ctx, planID)
+	graphID := p.GraphID()
+
+	// Dispatch a1 (stage A entry) and drive its node to Running.
+	if d, _ := h.svc.AdvancePlan(ctx, planID, "user:a"); len(d) != 1 || d[0] != a1 {
+		t.Fatalf("dispatch #1 = %v, want [a1]", d)
 	}
-	if err := h.svc.StartTask(ctx, a1, "user:a1"); err != nil {
-		t.Fatalf("StartTask a1: %v", err)
+	h.setTaskStatus(t, a1, pm.TaskRunning)
+	h.svc.AdvancePlan(ctx, planID, "user:a") // sync flips node open→running
+	if got := nodeStatusForTask(t, h, orchSvc, a1); got != orch.NodeRunning {
+		t.Fatalf("a1 node = %q, want running before reset", got)
 	}
-	return pid, planID, a1
+
+	// Reset the confirmed-dead running task (nil lease → passes the live-lease guard).
+	if err := h.svc.ResetTask(ctx, a1, "user:a", false); err != nil {
+		t.Fatalf("ResetTask on structured node = %v, want nil (self-heal, not forbid)", err)
+	}
+	ta1, _ := h.tasks.FindByID(ctx, a1)
+	if ta1.Status() != pm.TaskOpen {
+		t.Fatalf("a1 task = %q, want open after reset", ta1.Status())
+	}
+	// The shared reconcile healed the node OFF Running (no open wedge) in the reset tx.
+	if got := nodeStatusForTask(t, h, orchSvc, a1); got == orch.NodeRunning {
+		t.Fatalf("a1 node still %q after reset — wedged Running while task is open (bug ①)", got)
+	}
+	// The dispatch record was cleared, so the node re-enters the engine ready-set.
+	if dispatchedSet(t, h, planID)[a1] {
+		t.Fatal("a1 still has a dispatch record after reset — cannot re-enter the ready-set (bug ①)")
+	}
+	if !readyNodeTaskIDs(t, h, orchSvc, graphID)[a1] {
+		t.Fatal("a1 not in engine ready-set after reset — the reset node is not re-dispatchable (bug ①)")
+	}
+	// End-to-end: plan advance re-dispatches the reset node.
+	d, _ := h.svc.AdvancePlan(ctx, planID, "user:a")
+	sawA1 := false
+	for _, id := range d {
+		if id == a1 {
+			sawA1 = true
+		}
+	}
+	if !sawA1 && !dispatchedSet(t, h, planID)[a1] {
+		t.Fatal("a1 not re-dispatched by plan advance after reset (bug ①)")
+	}
 }
 
-// Bug ① — reset_task on a STRUCTURED staged-plan node is rejected (it is a built-in
-// pool-recovery tool only). Pre-fix ResetTask returned nil and dropped the node into an
-// unrecoverable open-wedge (open, no assignee, no re-dispatch path).
-func TestResetTask_RejectsStructuredStagePlanNode(t *testing.T) {
-	h, _, _ := autoAssignInject(t)
-	pid, _, a1 := startedStageEntry(t, h)
-	addMember(t, h, pid, "agent:pd")
+// Bug ① (self-heal, unblock path) — unblock_task on a STRUCTURED staged-plan node whose
+// graph node is wedged Running (the block terminated the prior WorkItem; the task never left
+// running) must ALSO re-dispatch it. Pre-fix unblock only cleared blocked_reason + re-woke
+// the (dead) assignee and left the node wedged Running with a stale dispatch record → the
+// node never re-entered graphReadySet (block→unblock was a name-only recovery). The shared
+// reconcile now reopens the node + clears the record so plan advance re-dispatches it.
+func TestUnblockTask_StructuredStagePlanNode_SelfHeals(t *testing.T) {
+	h, orchSvc := planGraphSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	a1, _, _, _, _ := seedTwoStagePlan(t, h, pid, planID, 3)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	p, _ := h.plans.FindByID(ctx, planID)
+	graphID := p.GraphID()
 
-	err := h.svc.ResetTask(h.ctx, a1, "user:a1", true) // owner-confirmed-dead
-	if !errors.Is(err, pm.ErrResetNotPoolTask) {
-		t.Fatalf("ResetTask on structured node = %v, want ErrResetNotPoolTask", err)
+	// Dispatch a1, drive it Running (dispatch record present), then BLOCK it (obstacle):
+	// status stays running, lease cleared — the node stays Running (executor gone).
+	if d, _ := h.svc.AdvancePlan(ctx, planID, "user:a"); len(d) != 1 || d[0] != a1 {
+		t.Fatalf("dispatch #1 = %v, want [a1]", d)
 	}
-	got, _ := h.svc.GetTask(h.ctx, a1)
-	if got.Status() != pm.TaskRunning {
-		t.Fatalf("structured node status=%s after rejected reset, want running (untouched)", got.Status())
+	h.setTaskStatus(t, a1, pm.TaskRunning)
+	h.svc.AdvancePlan(ctx, planID, "user:a")
+	if err := h.svc.BlockTask(ctx, a1, "external blocker", pm.BlockReasonObstacle, "user:a"); err != nil {
+		t.Fatalf("BlockTask a1: %v", err)
 	}
-	if got.Assignee() != "user:a1" {
-		t.Fatalf("structured node assignee=%q after rejected reset, want user:a1 (untouched)", got.Assignee())
+	h.svc.AdvancePlan(ctx, planID, "user:a") // node stays Running (task still running)
+	if got := nodeStatusForTask(t, h, orchSvc, a1); got != orch.NodeRunning {
+		t.Fatalf("a1 node = %q, want running while blocked (the wedge)", got)
+	}
+	if !dispatchedSet(t, h, planID)[a1] {
+		t.Fatal("a1 lost its dispatch record before unblock — bad setup")
+	}
+
+	// Unblock → the shared reconcile reopens the wedged node + clears its record.
+	if err := h.svc.UnblockTask(ctx, UnblockTaskCommand{TaskID: a1, Comment: "resolved", Actor: "user:a"}); err != nil {
+		t.Fatalf("UnblockTask a1: %v", err)
+	}
+	if got := nodeStatusForTask(t, h, orchSvc, a1); got == orch.NodeRunning {
+		t.Fatalf("a1 node still %q after unblock — wedged Running, not re-dispatched (bug ①)", got)
+	}
+	if dispatchedSet(t, h, planID)[a1] {
+		t.Fatal("a1 still has a dispatch record after unblock — cannot re-enter the ready-set (bug ①)")
+	}
+	if !readyNodeTaskIDs(t, h, orchSvc, graphID)[a1] {
+		t.Fatal("a1 not in engine ready-set after unblock — the node is not re-dispatchable (bug ①)")
+	}
+	// End-to-end: plan advance re-dispatches the unblocked node.
+	h.svc.AdvancePlan(ctx, planID, "user:a")
+	if !dispatchedSet(t, h, planID)[a1] {
+		t.Fatal("a1 not re-dispatched by plan advance after unblock (bug ①)")
 	}
 }
 
