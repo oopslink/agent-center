@@ -78,6 +78,13 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 				return err
 			}
 		}
+		// (b'') 2026-07-03 plan-stage-model: cascade-delete the plan's stages (a plan's
+		// stages die with the plan). nil-safe (Stage-unwired constructions skip it).
+		if s.stages != nil {
+			if err := s.stages.DeleteByPlan(txCtx, planID); err != nil {
+				return err
+			}
+		}
 		// (c) emit pm.plan.deleted → projector hard-deletes the plan conversation.
 		return s.emit(txCtx, EvtPlanDeleted,
 			refsJSON(map[string]string{"plan_id": string(p.ID()), "project_id": string(p.ProjectID())}),

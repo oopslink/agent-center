@@ -54,7 +54,7 @@ import (
 // through to mapDomainError's 403.
 func mapPlanToolError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, pm.ErrPlanNotFound):
+	case errors.Is(err, pm.ErrPlanNotFound), errors.Is(err, pm.ErrStageNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotDraft), errors.Is(err, pm.ErrPlanNotRunning),
@@ -71,7 +71,8 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		// 422 here / 400 there; unified to 409 = same domain-error-class same code
 		// cross-surface). Validation-class (cycle/self/no-tasks) stays 422 below.
 		writeError(w, http.StatusConflict, "plan_conflict", err.Error())
-	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable):
+	case errors.Is(err, pmservice.ErrPlansUnavailable), errors.Is(err, pmservice.ErrDispatcherUnavailable),
+		errors.Is(err, pmservice.ErrStagesUnavailable):
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", err.Error())
 	case errors.Is(err, pm.ErrIllegalPlanTransition), errors.Is(err, pm.ErrInvalidPlanStatus),
 		errors.Is(err, pm.ErrPlanCycle), errors.Is(err, pm.ErrSelfDependency),
@@ -80,7 +81,12 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrPlanNoTasks), errors.Is(err, pm.ErrPlanUnassignedTask),
 		errors.Is(err, pm.ErrPlanUnresolvableAssignee), errors.Is(err, pm.ErrCrossOrgAssignee),
 		errors.Is(err, pm.ErrPlanProjectMismatch), errors.Is(err, pm.ErrTaskInOtherPlan),
-		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists):
+		errors.Is(err, pm.ErrEmptyPlanName), errors.Is(err, pm.ErrPlanExists),
+		// Plan Stage authoring/build guards (2026-07-03 design §5/§6) — validation class.
+		errors.Is(err, pm.ErrEmptyStageName), errors.Is(err, pm.ErrStageExists),
+		errors.Is(err, pm.ErrStageCycle), errors.Is(err, pm.ErrStageSelfDependency),
+		errors.Is(err, pm.ErrStageCrossPlanDependency), errors.Is(err, pm.ErrStageProjectMismatch),
+		errors.Is(err, pm.ErrStageCrossEdge), errors.Is(err, pmservice.ErrNotStageGate):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 	default:
 		mapDomainError(w, err)
@@ -148,6 +154,9 @@ type planTaskReq struct {
 	AgentID string `json:"agent_id"`
 	PlanID  string `json:"plan_id"`
 	TaskID  string `json:"task_id"`
+	// Stage (add_task_to_plan only, optional, 2026-07-03 plan-stage-model §6): the
+	// stage_id to group this task under. "" = a plain (stageless) plan node.
+	Stage string `json:"stage"`
 }
 
 // addTaskToPlanHandler selects a backlog task into a draft Plan via
@@ -164,6 +173,15 @@ func (s *Server) addTaskToPlanHandler(w http.ResponseWriter, r *http.Request) {
 		pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
 		mapPlanToolError(w, err)
 		return
+	}
+	// 2026-07-03 plan-stage-model §6: an optional `stage` groups the task under a Plan
+	// Stage in the same authoring step (AssignTaskToStage — draft-only, same-plan gate).
+	if strings.TrimSpace(req.Stage) != "" {
+		if err := d.PMService.AssignTaskToStage(r.Context(), pm.PlanID(req.PlanID),
+			pm.TaskID(req.TaskID), pm.StageID(strings.TrimSpace(req.Stage)), pm.IdentityRef(agentActor(a))); err != nil {
+			mapPlanToolError(w, err)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
@@ -407,6 +425,119 @@ func (s *Server) archivePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, planDetailMap(detail))
+}
+
+// --- create_stage / get_stage (2026-07-03 plan-stage-model §6) ---------------
+
+type createStageReq struct {
+	AgentID         string   `json:"agent_id"`
+	PlanID          string   `json:"plan_id"`
+	Name            string   `json:"name"`
+	DependsOnStages []string `json:"depends_on_stages"`
+	MaxRounds       int      `json:"max_rounds"`
+}
+
+// createStageHandler authors a Stage in a draft plan via pm.CreateStage (actor=agent).
+// depends_on_stages wires the outer stage DAG; the AppService validates draft-state +
+// same-plan + acyclic and surfaces the guards via mapPlanToolError. Returns the new
+// stage_id.
+func (s *Server) createStageHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req createStageReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.PlanID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_plan_id", "")
+		return
+	}
+	deps := make([]pm.StageID, 0, len(req.DependsOnStages))
+	for _, d := range req.DependsOnStages {
+		if s := strings.TrimSpace(d); s != "" {
+			deps = append(deps, pm.StageID(s))
+		}
+	}
+	stageID, err := d.PMService.CreateStage(r.Context(), pmservice.CreateStageCommand{
+		PlanID:          pm.PlanID(req.PlanID),
+		Name:            req.Name,
+		DependsOnStages: deps,
+		MaxRounds:       req.MaxRounds,
+		Actor:           pm.IdentityRef(agentActor(a)),
+	})
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"stage_id": string(stageID)})
+}
+
+type getStageReq struct {
+	AgentID string `json:"agent_id"`
+	StageID string `json:"stage_id"`
+}
+
+// getStageHandler returns a Stage's DERIVED read model (§4.1/§7): the projected status,
+// its member nodes, and the current bounded-retry round, via pm.GetStage.
+func (s *Server) getStageHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req getStageReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if _, ok := s.requireAgentOnWorker(w, r, d, req.AgentID); !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.StageID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_stage_id", "")
+		return
+	}
+	detail, err := d.PMService.GetStage(r.Context(), pm.StageID(req.StageID))
+	if err != nil {
+		mapPlanToolError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stageDetailMap(detail))
+}
+
+// stageDetailMap renders the get_stage DTO: the Stage fields + the DERIVED status +
+// member nodes + the bounded-retry round.
+func stageDetailMap(detail *pmservice.StageDetail) map[string]any {
+	st := detail.Stage
+	deps := make([]string, 0, len(st.DependsOnStages()))
+	for _, d := range st.DependsOnStages() {
+		deps = append(deps, string(d))
+	}
+	members := make([]map[string]any, 0, len(detail.Members))
+	for _, m := range detail.Members {
+		members = append(members, map[string]any{
+			"task_id": string(m.TaskID), "title": m.Title, "task_status": string(m.TaskStatus),
+		})
+	}
+	return map[string]any{
+		"id":                string(st.ID()),
+		"plan_id":           string(st.PlanID()),
+		"name":              st.Name(),
+		"depends_on_stages": deps,
+		"gate_node_id":      st.GateNodeID(),
+		"max_rounds":        st.MaxRounds(),
+		"status":            string(detail.Status),
+		"rounds":            detail.Rounds,
+		"members":           members,
+	}
 }
 
 // --- get_plan / list_plans ---------------------------------------------------

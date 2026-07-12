@@ -186,6 +186,17 @@
         "tasks": "Task List",
         "history": "Change History"
       },
+      "stages": {
+        "summary": "Stage {{done}}/{{total}}",
+        "memberProgress": "{{done}}/{{total}} done",
+        "retryRound": "retry {{round}}/{{max}}",
+        "status": {
+          "open": "open",
+          "running": "running",
+          "reopen": "reopen",
+          "done": "done"
+        }
+      },
       "chat": {
         "restore": "Restore chat",
         "maximize": "Maximize chat",

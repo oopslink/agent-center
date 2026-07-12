@@ -250,6 +250,24 @@ type PlanRepository interface {
 	ListReviewVerdicts(ctx context.Context, planID PlanID) ([]ReviewVerdict, error)
 }
 
+// StageRepository persists Stage ARs (2026-07-03 plan-stage-model design §4.1): the
+// lightweight first-class Stage aggregate that groups a Plan's nodes into a sub-DAG
+// with a barrier + optional gate. A stage is 1:1-scoped to one Plan; ListByPlan returns
+// a plan's stages (stable-ordered by created_at, id) and DeleteByPlan is the plan-delete
+// cascade (a plan's stages die with the plan). Stage status is NOT stored — it is
+// derived from the member nodes (§4.1) — so there is no status read/write here.
+type StageRepository interface {
+	Save(ctx context.Context, s *Stage) error
+	Update(ctx context.Context, s *Stage) error
+	FindByID(ctx context.Context, id StageID) (*Stage, error)
+	// ListByPlan returns one Plan's stages, stable-ordered (created_at, id).
+	ListByPlan(ctx context.Context, planID PlanID) ([]*Stage, error)
+	Delete(ctx context.Context, id StageID) error
+	// DeleteByPlan removes every stage of a Plan (the plan-delete cascade). Deleting
+	// zero rows is NOT an error (a plan may have no stages — the §8 pure-DAG default).
+	DeleteByPlan(ctx context.Context, planID PlanID) error
+}
+
 // PlanFindingRepository persists PlanFinding ARs (v2.10, ADR-0053 — the DeLM
 // plan-scoped shared-findings store). Findings are IMMUTABLE: there is Save (once)
 // + reads + Delete (retract / cascade), but no Update. ListByPlan backs both the

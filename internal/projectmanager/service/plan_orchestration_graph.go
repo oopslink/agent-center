@@ -70,9 +70,15 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 	// can resolve node ids.
 	nodeOf := make(map[pm.TaskID]orch.NodeID, len(tasks))
 	for _, t := range tasks {
-		nodeID, aerr := s.orch.AddNode(txCtx, graphID, string(orch.NodeCategoryBusiness), "", nodeTitle(t), map[string]any{
-			"task_id": string(t.ID()),
-		})
+		nodeMeta := map[string]any{"task_id": string(t.ID())}
+		// Stage落图 (2026-07-03 design §4.1/§4.2): a task's stage membership rides onto
+		// its graph node as metadata.stage_id, so the node is groupable by stage for the
+		// gate/barrier wiring (buildStages) and the status projection (get_stage) without
+		// the generic engine needing a first-class stage concept. "" (stageless) omits it.
+		if sid := t.StageID(); sid != "" {
+			nodeMeta["stage_id"] = string(sid)
+		}
+		nodeID, aerr := s.orch.AddNode(txCtx, graphID, string(orch.NodeCategoryBusiness), "", nodeTitle(t), nodeMeta)
 		if aerr != nil {
 			return aerr
 		}
@@ -187,6 +193,16 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 			return eerr
 		}
 	}
+	// Stage落图 (2026-07-03 design §4.2): group the graph nodes by stage_id, create a
+	// gate CONDITION node per stage (upstream = the stage's business nodes), and wire the
+	// outer stage DAG as barrier edges (downstream stage entry depends_on the upstream
+	// stage's gate). No-op when the plan has no stages (§8 zero-regression). It reuses the
+	// same addEdge helper so the Start/End anchoring below sees the stage edges' in/out
+	// degree. gateIDs are the created gate nodes, anchored to End below.
+	gateIDs, serr := s.buildStages(txCtx, graphID, p, tasks, edges, nodeOf, addEdge, now)
+	if serr != nil {
+		return serr
+	}
 	// T800: wire the structural Start/End anchors so the graph has a single inlined
 	// source and sink (fixes the DAG renderer laying End out as an orphan). Start →
 	// every ROOT business node (no incoming graph edge); every SINK business node
@@ -210,6 +226,16 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 		}
 		if !hasOutgoing[nid] {
 			if eerr := s.orch.AddEdge(txCtx, graphID, nid, endID); eerr != nil {
+				return eerr
+			}
+		}
+	}
+	// Anchor each terminal-stage gate (no outgoing barrier edge) to End so the renderer
+	// has a single sink even when a stage gate is the graph's true tail (parity with the
+	// business-sink anchoring above; gates are control nodes, excluded from IsAutoDone).
+	for _, gate := range gateIDs {
+		if !hasOutgoing[gate] {
+			if eerr := s.orch.AddEdge(txCtx, graphID, gate, endID); eerr != nil {
 				return eerr
 			}
 		}

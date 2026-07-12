@@ -8,6 +8,7 @@ import { ApiError } from '@/api/client';
 import {
   usePlan,
   usePlanGraph,
+  usePlanStages,
   useStartPlan,
   useStopPlan,
   useAddDependency,
@@ -25,6 +26,7 @@ import {
   type PlanGraphEdge,
   type PlanGraphEdgeKind,
   type PatchPlanInput,
+  type PlanStage,
 } from '@/api/plans';
 import { useConversation } from '@/api/conversations';
 import { useAssignTask, useUnassignTask } from '@/api/tasks';
@@ -277,7 +279,12 @@ export default function PlanDetail(): React.ReactElement {
                 : undefined
             }
           >
-            {tab === 'dag' && <PlanDag projectId={id} plan={p} compact={dagCompact} />}
+            {tab === 'dag' && (
+              <>
+                <PlanStagesPanel projectId={id} plan={p} />
+                <PlanDag projectId={id} plan={p} compact={dagCompact} />
+              </>
+            )}
           </div>
           <div
             role="tabpanel"
@@ -2101,6 +2108,84 @@ function PlanGraphDag({
 // never-started / engine unwired) returns has_graph:false and falls through to
 // the legacy depends_on renderer (NON-BREAKING, zero regression).
 //
+// --- Stage-level view (T981, plan-stage-model §7) ---------------------------
+
+// STAGE_STATUS_CLASS maps a projected stage status to its chip colour (mirrors the
+// node/plan chip palette). done=success, running=accent, reopen=warning, open=muted.
+const STAGE_STATUS_CLASS: Record<PlanStage['status'], string> = {
+  done: 'bg-success/15 text-success',
+  running: 'bg-accent/15 text-accent',
+  reopen: 'bg-warning/15 text-warning',
+  open: 'bg-bg-subtle text-text-muted',
+};
+
+// stageMemberDone mirrors the backend taskToStageMemberState "done" bucket (§4.1):
+// a member counts as done once its task is terminal (completed or discarded).
+function stageMemberDone(status: PlanStage['members'][number]['task_status']): boolean {
+  return status === 'completed' || status === 'discarded';
+}
+
+// PlanStagesPanel renders the §7 stage-level monitoring: a "Stage {done}/{total} ·
+// {status}" summary plus one row per stage (name + status chip + member sub-DAG
+// progress {done}/{total} + retry-round indicator when a gate reject has reopened it).
+//
+// NON-BREAKING (§8): a plan with NO stages (the common case) fetches an empty list and
+// this renders null, so the DAG tab is byte-identical to before. Loading/error also
+// render null (the DAG below is the primary content; stages are an additive overlay).
+function PlanStagesPanel({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement | null {
+  const { t } = useTranslation('work');
+  const stagesQuery = usePlanStages(projectId, plan.id);
+  const stages = stagesQuery.data;
+  if (!stages || stages.length === 0) {
+    return null; // no-stage plan → legacy view unchanged
+  }
+  const doneStages = stages.filter((s) => s.status === 'done').length;
+  return (
+    <div
+      data-testid="plan-stages-panel"
+      className="mb-3 shrink-0 rounded-lg border border-border-subtle bg-bg-surface p-3"
+    >
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-text-primary">
+        <span data-testid="plan-stages-summary">
+          {t('plan.detail.stages.summary', { done: doneStages, total: stages.length })}
+        </span>
+      </div>
+      <ul className="space-y-1.5">
+        {stages.map((stage) => {
+          const totalMembers = stage.members.length;
+          const doneMembers = stage.members.filter((m) => stageMemberDone(m.task_status)).length;
+          return (
+            <li
+              key={stage.id}
+              data-testid={`plan-stage-${stage.id}`}
+              className="flex flex-wrap items-center gap-2 text-sm"
+            >
+              <span className="font-medium text-text-primary">{stage.name}</span>
+              <span
+                data-testid={`plan-stage-status-${stage.id}`}
+                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[0.6875rem] font-medium ${STAGE_STATUS_CLASS[stage.status]}`}
+              >
+                {t(`plan.detail.stages.status.${stage.status}`)}
+              </span>
+              <span className="text-text-secondary" data-testid={`plan-stage-progress-${stage.id}`}>
+                {t('plan.detail.stages.memberProgress', { done: doneMembers, total: totalMembers })}
+              </span>
+              {stage.rounds > 0 && (
+                <span
+                  className="inline-flex items-center rounded bg-warning/10 px-1.5 py-0.5 text-[0.6875rem] text-warning"
+                  data-testid={`plan-stage-rounds-${stage.id}`}
+                >
+                  {t('plan.detail.stages.retryRound', { round: stage.rounds, max: stage.max_rounds })}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 // v2.30.1 fix-before-ship (React #300): PlanDag is a THIN WRAPPER — it runs the
 // single graph query, then renders EITHER <PlanGraphDag/> OR <LegacyPlanDag/> as
 // a sibling. The previous shape early-returned <PlanGraphDag/> from BETWEEN the

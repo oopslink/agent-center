@@ -61,6 +61,7 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 		AgentDir:       allOrgDir("org-1"),
 		PlanDispatcher: convservice.NewPlanDispatchAdapter(writer, planTestDisplayName),
 		Orch:           orchSvc,                        // T768: graph-backed dispatch
+		Stages:         pmsql.NewStageRepo(db),         // 2026-07-03 plan-stage-model: Stage落图/driver
 		Audit:          pmsql.NewAuditLogRepo(db, gen), // v2.29: change-ledger (decision_outcome/loopback write-points)
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)

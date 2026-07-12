@@ -214,6 +214,9 @@ function planHandlers() {
     http.post('/api/projects/:pid/plans/:id/advance', ({ params }) =>
       ok(basePlan(String(params.pid), String(params.id), { status: 'running', nodes: [] })),
     ),
+    // T981 (plan-stage-model §7) — stage-level read model. Default: no stages, so the
+    // detail page renders the legacy no-stage view (a staged plan overrides this).
+    http.get('/api/projects/:pid/plans/:id/stages', () => ok({ stages: [] })),
     // v2.9 Stage B (#280): DELETE /:id → { deleted: true }. Non-running only
     // (running → 409 plan_conflict on the real backend); the plan is gone after.
     http.delete('/api/projects/:pid/plans/:id', () => ok({ deleted: true })),

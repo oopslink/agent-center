@@ -26,6 +26,10 @@ type (
 	TaskID    string
 	MemberID  string
 	PlanID    string
+	// StageID identifies a Plan Stage (2026-07-03 plan-stage-model design §4.1): a
+	// lightweight first-class sub-DAG grouping of a plan's nodes with a barrier + an
+	// optional acceptance gate.
+	StageID string
 	// IdentityRef mirrors the kind-prefixed identity vocabulary (ADR-0033):
 	// `user:<id>` / `agent:<id>` / `system`.
 	IdentityRef string
@@ -36,6 +40,7 @@ func (id IssueID) String() string    { return string(id) }
 func (id TaskID) String() string     { return string(id) }
 func (id MemberID) String() string   { return string(id) }
 func (id PlanID) String() string     { return string(id) }
+func (id StageID) String() string    { return string(id) }
 func (r IdentityRef) String() string { return string(r) }
 
 // Validate enforces the kind-prefixed identity vocabulary (ADR-0033).
@@ -280,4 +285,27 @@ var (
 	// Template management.
 	ErrTemplateNotFound = errors.New("projectmanager: template not found")
 	ErrTemplateExists   = errors.New("projectmanager: template already exists")
+	// Plan Stage model (2026-07-03 design).
+	ErrStageNotFound = errors.New("projectmanager: stage not found")
+	ErrStageExists   = errors.New("projectmanager: stage already exists")
+	// ErrEmptyStageName rejects a Stage with no name (name is the addressable label).
+	ErrEmptyStageName = errors.New("projectmanager: stage name required")
+	// ErrStageCycle rejects a depends_on_stages set whose outer stage DAG would
+	// contain a cycle (§4.2 — stages form a DAG, not a graph with back-edges).
+	ErrStageCycle = errors.New("projectmanager: stage dependency would create a cycle")
+	// ErrStageSelfDependency rejects a stage that depends on itself.
+	ErrStageSelfDependency = errors.New("projectmanager: a stage cannot depend on itself")
+	// ErrStageProjectMismatch rejects a stage/plan combination whose plan differs, or
+	// a depends_on stage that belongs to a DIFFERENT plan (a stage DAG is 1:1-scoped
+	// to one plan, mirroring the plan node DAG §9.8).
+	ErrStageCrossPlanDependency = errors.New("projectmanager: a stage may only depend on stages of the same plan")
+	// ErrStageProjectMismatch rejects assigning a task to a Stage that belongs to a
+	// DIFFERENT plan than the task's plan (a stage groups only its own plan's nodes).
+	ErrStageProjectMismatch = errors.New("projectmanager: stage belongs to a different plan than the task")
+	// ErrStageCrossEdge is the build-time invariant guard (design §5): a manual plan
+	// edge between two tasks in DIFFERENT stages BYPASSES the stage gate/barrier and is
+	// rejected at graph-build. Cross-stage flow must go through the auto-generated gate
+	// barrier (downstream stage entry depends_on the upstream stage's gate), never a
+	// hand-drawn business→business edge.
+	ErrStageCrossEdge = errors.New("projectmanager: a plan edge may not cross stage boundaries — cross-stage flow goes through the stage gate barrier")
 )

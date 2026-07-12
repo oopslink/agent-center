@@ -34,6 +34,9 @@ var AgentFacingToolNames = []string{
 	"get_reminder",
 	"update_reminder",
 	"create_plan",
+	// 2026-07-03 plan-stage-model §6: Stage authoring + read.
+	"create_stage",
+	"get_stage",
 	// v2.9.1 P0 recovery tools (deliberately agent-facing: owner/PD recover a
 	// task stuck blocked after a restart/stale-release).
 	"unblock_task",

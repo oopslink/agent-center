@@ -416,6 +416,71 @@ func pmPlanGraphMap(v *pmservice.PlanGraphView) map[string]any {
 	}
 }
 
+// pmListPlanStagesHandler — GET …/plans/{plan_id}/stages (T981, plan-stage-model §7).
+// Returns the plan's stage-level DERIVED read model for the detail page's stage
+// rendering: each stage's projected status / retry rounds / member nodes, so the FE can
+// group the sub-DAG by member task_id and show "Stage 2/3 · running". Membership +
+// plan-in-project gated exactly like pmGetPlanGraphHandler.
+//
+// NON-BREAKING (§8): a plan with NO stages yields {stages:[]}, and the FE falls back to
+// the legacy no-stage plan rendering (byte-identical to before). The projection reuses
+// pmservice.ListStagesForPlan, which shares GetStage's single projection path.
+func (s *Server) pmListPlanStagesHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	pl, _, ok := s.pmRequirePlanInProject(w, r, d)
+	if !ok {
+		return
+	}
+	details, err := d.PM.ListStagesForPlan(r.Context(), pl.ID())
+	if err != nil {
+		// Stages unwired (no StageRepository) is a non-breaking empty, mirroring the
+		// graph handler's has_graph:false fallback — the FE renders the legacy view.
+		if errors.Is(err, pmservice.ErrStagesUnavailable) {
+			writeJSON(w, http.StatusOK, map[string]any{"stages": []any{}})
+			return
+		}
+		mapPlanError(w, err)
+		return
+	}
+	stages := make([]map[string]any, 0, len(details))
+	for _, det := range details {
+		stages = append(stages, pmStageDetailMap(det))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"stages": stages})
+}
+
+// pmStageDetailMap renders one StageDetail to the stage-read JSON shape:
+// {id,name,status,rounds,max_rounds,depends_on_stages,gate_node_id,
+//
+//	members[{task_id,title,task_status}]}. Status/rounds/members are the DERIVED
+//
+// projection (never stored). Mirrors the agent-tool stageDetailMap shape.
+func pmStageDetailMap(det *pmservice.StageDetail) map[string]any {
+	st := det.Stage
+	deps := make([]string, 0, len(st.DependsOnStages()))
+	for _, dep := range st.DependsOnStages() {
+		deps = append(deps, string(dep))
+	}
+	members := make([]map[string]any, 0, len(det.Members))
+	for _, m := range det.Members {
+		members = append(members, map[string]any{
+			"task_id":     string(m.TaskID),
+			"title":       m.Title,
+			"task_status": string(m.TaskStatus),
+		})
+	}
+	return map[string]any{
+		"id":                string(st.ID()),
+		"name":              st.Name(),
+		"status":            string(det.Status),
+		"rounds":            det.Rounds,
+		"max_rounds":        st.MaxRounds(),
+		"depends_on_stages": deps,
+		"gate_node_id":      st.GateNodeID(),
+		"members":           members,
+	}
+}
+
 // pmRelatedPlansHandler — GET …/plans/{plan_id}/related-plans (T581). The OTHER
 // structured plans derived from the SAME source issue as this plan, for the plan
 // detail rail's "Related Plans" list. Membership + plan-in-project gated like
