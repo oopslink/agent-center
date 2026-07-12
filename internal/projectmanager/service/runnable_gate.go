@@ -8,6 +8,7 @@ import (
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
 
 // taskIDFromRef extracts the Task id from a "pm://tasks/{id}" ref. v2.14.0 F7
@@ -123,10 +124,89 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	// that IS the run-ahead guard §八 would have deleted.
 	switch ns {
 	case pm.NodeReady, pm.NodeDispatched:
-		return nil // all blockedBy dependencies completed/discarded
+		// issue-b867bbe6: DerivePlanView (planNodeStatus) is STAGE-UNAWARE. A stage
+		// barrier is an orchestration-graph gate CONDITION node + edge (downstream stage
+		// ENTRY depends_on the upstream stage's gate), NOT a task-level depends_on edge.
+		// So a downstream stage's entry derives `ready` here even while its upstream
+		// stage gate is unresolved — and an assigned agent's start_work / list_my_tasks
+		// (ListRunnableAgentTasks) would bypass the closed barrier. The dispatch path
+		// (graphReadySet → GetReadyNodes) already gates this correctly off the graph; the
+		// run-gate must agree. Reuse the engine's gate: a downstream entry is runnable
+		// only once its upstream stage gate has RESOLVED (completed/discarded), mirroring
+		// orch ReadyNodes' condition-gate satisfaction test.
+		blocked, berr := s.stageGateBlocks(ctx, p, t)
+		if berr != nil {
+			return berr
+		}
+		if blocked {
+			return pm.ErrTaskNotRunnable // upstream stage gate unresolved — barrier holds
+		}
+		return nil // all blockedBy deps + upstream stage barrier(s) satisfied
 	default:
 		return pm.ErrTaskNotRunnable // deps unsatisfied (blocked) / dead branch (skipped)
 	}
+}
+
+// stageGateBlocks reports whether taskID's graph node is held behind an unresolved
+// upstream STAGE GATE — the stage barrier (issue-b867bbe6). It is the run-gate's
+// stage-aware complement to the stage-UNAWARE DerivePlanView: buildStages wires a
+// downstream stage's ENTRY node to depend_on the upstream stage's gate CONDITION
+// node, and that barrier edge lives ONLY in the orchestration graph. This mirrors the
+// engine's own ReadyNodes rule (an unresolved condition gates its downstream), so the
+// run-gate and the dispatcher agree on "barrier lifted".
+//
+// It is a pure READ (no mutation, no event) so it composes inside any caller's tx.
+// Returns false (no barrier) for a plan with no engine / no graph / a task not bound
+// to a node — the §8 zero-regression path (a pure-node DAG has no stage gates). A
+// non-entry stage member is gated by its in-stage predecessor at the task level and is
+// already held by DerivePlanView, so only the entry carries a direct gate edge here.
+func (s *Service) stageGateBlocks(ctx context.Context, p *pm.Plan, t *pm.Task) (bool, error) {
+	if s.orch == nil || p.GraphID() == "" || t.NodeID() == "" {
+		return false, nil
+	}
+	graphID := orch.GraphID(p.GraphID())
+	nodeID := orch.NodeID(t.NodeID())
+	edges, err := s.orch.ListEdges(ctx, graphID)
+	if err != nil {
+		return false, err
+	}
+	var upstream []orch.NodeID
+	for _, e := range edges {
+		if e.ToNodeID == nodeID {
+			upstream = append(upstream, e.FromNodeID)
+		}
+	}
+	if len(upstream) == 0 {
+		return false, nil
+	}
+	nodes, err := s.orch.ListNodes(ctx, graphID)
+	if err != nil {
+		return false, err
+	}
+	byID := make(map[orch.NodeID]*orch.Node, len(nodes))
+	for _, n := range nodes {
+		byID[n.ID()] = n
+	}
+	for _, up := range upstream {
+		n := byID[up]
+		if n == nil {
+			continue
+		}
+		// A stage gate = a CONDITION control node carrying "stage_gate" metadata
+		// (stamped by buildStages). It is "lifted" only once RESOLVED — mirroring
+		// orch.ReadyNodes, which treats a condition dep as satisfied only when
+		// completed/discarded. An unresolved (open/reopen) stage gate HOLDS the entry.
+		if n.Category() != orch.NodeCategoryControl || n.ControlKind() != orch.ControlKindCondition {
+			continue
+		}
+		if _, isStageGate := n.Metadata()["stage_gate"]; !isStageGate {
+			continue
+		}
+		if n.Status() != orch.NodeCompleted && n.Status() != orch.NodeDiscarded {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // AgentTaskRunGate adapts the pm Service to the agentsvc.TaskRunGate port (T130).
