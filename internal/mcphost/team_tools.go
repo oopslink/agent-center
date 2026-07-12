@@ -55,6 +55,10 @@ func registerTeamTools(srv *mcp.Server, cfg Config) {
 		Description: "Instantiate a team template onto a project: creates the team + its role composition, mints one agent identity per role*count and binds them as members, provisions the team's center-hosted memory repo and seeds it with the template's portable experiences. Returns the team, the new agent identities, and a SEPARATE runtime-provisioning plan (enroll each agent) — the template carries no runtime/auth.",
 	}, makeInstantiateTeam(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "extract_from_team",
+		Description: "Snapshot a LIVE team into a DRAFT team template (design §6): copies its role composition and keeps only the portable (team/global-scope) experiences from the team's center-hosted memory, dropping project-scoped facts. Runs a scrub pass that HIGHLIGHTS suspected proprietary tokens (repo/code names, paths, URLs) for you to review — it does NOT auto-remove them. The draft is NOT export-ready: manual curation is still required before you author it as a template.",
+	}, makeExtractFromTeam(cfg))
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "assign_roles",
 		Description: "Resolve plan-node roles to concrete agents off a team's current roster (author-time role→agent binding, design §7). Each request names a node_key + role (+ optional avoid_nodes for a Review≠Dev cross-review constraint); strategy is least_busy (default) or round_robin. Returns each node's resolved agent.",
 	}, makeAssignRoles(cfg))
@@ -229,6 +233,21 @@ func makeInstantiateTeam(cfg Config) mcp.ToolHandlerFor[instantiateTeamArgs, any
 		return callAdmin(ctx, cfg, "instantiate_team", map[string]any{
 			"agent_id": cfg.AgentID, "project_id": args.ProjectID, "team_name": args.TeamName,
 			"template": args.Template.body(cfg),
+		})
+	}
+}
+
+// ---- extract_from_team ------------------------------------------------------
+
+type extractFromTeamArgs struct {
+	TeamID string         `json:"team_id" jsonschema:"the live team to extract a template draft from"`
+	Counts map[string]int `json:"counts,omitempty" jsonschema:"optional per-role instance counts (role → count) for the draft"`
+}
+
+func makeExtractFromTeam(cfg Config) mcp.ToolHandlerFor[extractFromTeamArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args extractFromTeamArgs) (*mcp.CallToolResult, any, error) {
+		return callAdmin(ctx, cfg, "extract_from_team", map[string]any{
+			"agent_id": cfg.AgentID, "team_id": args.TeamID, "counts": args.Counts,
 		})
 	}
 }

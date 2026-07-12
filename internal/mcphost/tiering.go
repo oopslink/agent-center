@@ -115,6 +115,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"associate_project", "associate a project with a team"},
 	{"create_team_template", "author + validate a reusable team template"},
 	{"instantiate_team", "instantiate a team template onto a project (creates team + agents + memory)"},
+	{"extract_from_team", "snapshot a live team into a draft template (roles + portable experiences, scrub highlights)"},
 	{"assign_roles", "resolve plan-node roles to concrete agents off a team's roster"},
 }
 

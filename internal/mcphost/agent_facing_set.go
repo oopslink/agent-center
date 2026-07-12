@@ -110,6 +110,7 @@ var AgentFacingToolNames = []string{
 	"associate_project",
 	"create_team_template",
 	"instantiate_team",
+	"extract_from_team",
 	"assign_roles",
 }
 

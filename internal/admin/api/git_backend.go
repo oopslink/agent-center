@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
+	"github.com/oopslink/agent-center/internal/team"
 )
 
 // git_backend.go wires the center-hosted git smart-HTTP endpoint (design
@@ -62,6 +65,81 @@ func gitAgentResolver(r *http.Request) (string, bool) {
 		return "", false
 	}
 	return agentID, true
+}
+
+// =============================================================================
+// Team membership adapter (design §9 访问控制映射). Backs the centergit Authorizer
+// with the LIVE team + agent tables so an add_member / instantiate_team
+// immediately unlocks git rw on the team's shared repo.
+// =============================================================================
+
+// teamMembershipRepo is the slice of the team repository the adapter needs.
+type teamMembershipRepo interface {
+	FindAgentTeam(ctx context.Context, ref team.MemberRef) (team.TeamID, bool, error)
+}
+
+// agentDirectory resolves a runtime execution-agent id to its Agent — the adapter
+// reads IdentityMemberID off it to cross the id-namespace boundary (see below).
+type agentDirectory interface {
+	FindByID(ctx context.Context, id agent.AgentID) (*agent.Agent, error)
+}
+
+// teamMembership answers "which team does this agent belong to" for the centergit
+// Authorizer, backed by the live team + agent repositories.
+type teamMembership struct {
+	teams  teamMembershipRepo
+	agents agentDirectory
+}
+
+// NewTeamMembership adapts the S1 team repository onto the centergit
+// TeamMembership seam. agents bridges the two id namespaces (see TeamOfAgent) and
+// may be nil in degraded wiring, in which case every agent resolves to "no team".
+func NewTeamMembership(teams teamMembershipRepo, agents agentDirectory) centergit.TeamMembership {
+	return teamMembership{teams: teams, agents: agents}
+}
+
+// TeamOfAgent maps a runtime agent id to its team. gitAgentResolver authorizes on
+// the RUNTIME execution-agent id (a ULID — the SAME value agent-repo ownership
+// keys on, so the resolver must keep returning it), but team member refs are
+// stored in the identity-member namespace ("agent:agent-<...>" — the ref
+// add_member/instantiate_team persist). Querying the team tables with the raw
+// ULID therefore NEVER matches, so every real member — including instantiate_team's
+// freshly minted agents — would get 403 on its own team repo. Bridge the two
+// namespaces via the agent's IdentityMemberID before the lookup. (id-namespace
+// mismatch family — same class of ref-vs-id error as the taskReassigned
+// ULID-vs-agent-ref bug.)
+func (m teamMembership) TeamOfAgent(ctx context.Context, agentID string) (string, bool, error) {
+	ref, ok, err := m.memberRef(ctx, agentID)
+	if err != nil || !ok {
+		return "", false, err
+	}
+	id, ok, err := m.teams.FindAgentTeam(ctx, ref)
+	if err != nil {
+		return "", false, err
+	}
+	return id.String(), ok, nil
+}
+
+// memberRef resolves the runtime execution-agent id to the identity-member-facing
+// team ref ("agent:agent-<...>"). ok=false (no error) when the agent is unknown or
+// carries no identity-member id — an agent with no member identity can hold no
+// team membership, so it correctly resolves to "no team" rather than erroring.
+func (m teamMembership) memberRef(ctx context.Context, runtimeAgentID string) (team.MemberRef, bool, error) {
+	if m.agents == nil {
+		return "", false, nil
+	}
+	a, err := m.agents.FindByID(ctx, agent.AgentID(runtimeAgentID))
+	if err != nil {
+		if errors.Is(err, agent.ErrAgentNotFound) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	memberID := strings.TrimSpace(a.IdentityMemberID())
+	if memberID == "" {
+		return "", false, nil
+	}
+	return team.MemberRef("agent:" + memberID), true, nil
 }
 
 // gitPassthrough is the /admin/git/ route handler. It rides the bearer-auth +

@@ -193,24 +193,80 @@ func (s *Store) ListEntries() ([]indexRow, error) {
 
 // parseFrontmatter extracts the leading YAML frontmatter block of a file.
 func parseFrontmatter(path string) (entryFrontmatter, error) {
+	fm, _, err := parseEntry(path)
+	return fm, err
+}
+
+// parseEntry extracts BOTH the frontmatter and the markdown body of an entry file
+// (the round-trip counterpart to renderEntry). ReadEntries needs the body + type
+// that ListEntries discards.
+func parseEntry(path string) (entryFrontmatter, string, error) {
 	var fm entryFrontmatter
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return fm, err
+		return fm, "", err
 	}
 	text := string(raw)
 	if !strings.HasPrefix(text, "---\n") {
-		return fm, fmt.Errorf("missing frontmatter")
+		return fm, "", fmt.Errorf("missing frontmatter")
 	}
 	rest := text[len("---\n"):]
 	end := strings.Index(rest, "\n---")
 	if end < 0 {
-		return fm, fmt.Errorf("unterminated frontmatter")
+		return fm, "", fmt.Errorf("unterminated frontmatter")
 	}
 	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
-		return fm, err
+		return fm, "", err
 	}
-	return fm, nil
+	// The body is everything after the closing "\n---" fence: renderEntry writes
+	// "---\n\n<body>\n", so trim the leading blank line(s) and the trailing newline.
+	body := strings.TrimRight(strings.TrimLeft(rest[end+len("\n---"):], "\n"), "\n")
+	return fm, body, nil
+}
+
+// ReadEntries parses every entries/*.md file into a FULL Entry (frontmatter +
+// body + type). Unlike ListEntries — which yields only the index projection
+// (name/description/file) — this reconstructs each experience so a caller such as
+// extract_from_team can carry it into a draft template. Sorted by (slug, file) for
+// a deterministic order.
+func (s *Store) ReadEntries() ([]Entry, error) {
+	dir := filepath.Join(s.dir, entriesDir)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	type rec struct {
+		file  string
+		entry Entry
+	}
+	var recs []rec
+	for _, de := range ents {
+		if de.IsDir() || !strings.HasSuffix(de.Name(), ".md") {
+			continue
+		}
+		fm, body, perr := parseEntry(filepath.Join(dir, de.Name()))
+		if perr != nil {
+			return nil, fmt.Errorf("parse %s: %w", de.Name(), perr)
+		}
+		recs = append(recs, rec{
+			file:  de.Name(),
+			entry: Entry{Slug: fm.Name, Title: fm.Title, Description: fm.Description, Body: body, Type: fm.Type},
+		})
+	}
+	sort.Slice(recs, func(i, j int) bool {
+		if recs[i].entry.Slug != recs[j].entry.Slug {
+			return recs[i].entry.Slug < recs[j].entry.Slug
+		}
+		return recs[i].file < recs[j].file
+	})
+	out := make([]Entry, len(recs))
+	for i, r := range recs {
+		out[i] = r.entry
+	}
+	return out, nil
 }
 
 // RegenerateIndex rebuilds MEMORY.md purely from the entry files (§9: 索引从条目

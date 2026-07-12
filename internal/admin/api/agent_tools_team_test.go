@@ -8,6 +8,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
 	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 )
@@ -210,5 +211,81 @@ func TestCenterGit_InfoRefs(t *testing.T) {
 	// handler response (never 404-as-unmounted). Accept 403 OR (if same) 404.
 	if resp3.StatusCode != http.StatusForbidden && resp3.StatusCode != http.StatusNotFound {
 		t.Fatalf("cross-agent repo status=%d want 403 or 404 (a live handler response)", resp3.StatusCode)
+	}
+}
+
+// TestExtractFromTeam_LiveDraft proves the §1/§6 headline "从活 team 抽经验草稿" is
+// REACHABLE under real deployment wiring (T1019 ③): extract_from_team is NOT a 404,
+// it reads a live team's center-hosted memory, keeps the portable (team/global)
+// layer while DROPPING project scope, HIGHLIGHTS suspected proprietary tokens via
+// the scrub pass, and returns an un-curated draft. Before this wiring the domain
+// existed in template.go but no deployment surface exposed it (404).
+func TestExtractFromTeam_LiveDraft(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv, gitHost := wireTeam(t, f)
+	ctx := t.Context()
+
+	// A live team with a role composition.
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "name": "team-extract", "description": "extract me",
+		"roles": []map[string]any{{"role": "dev", "cli": "claude-code", "max_concurrency": 2}, {"role": "reviewer"}},
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("create_team status=%d body=%v", st, body)
+	}
+	teamID, _ := body["id"].(string)
+
+	// Seed the team's center-hosted memory as if agents had accumulated it: two
+	// portable experiences (one naming a proprietary token, so scrub fires) and one
+	// project-scope fact that MUST be dropped on extraction.
+	written, err := centergit.NewTeamMemoryProducer(gitHost, nil).SeedTeam(ctx, teamID, []centergit.Entry{
+		{Slug: "prefer-tests", Description: "write tests first", Body: "we learned this fixing T950 in internal/team/foo.go", Type: string(team.ExpScopeTeam)},
+		{Slug: "platform-rule", Description: "a platform-wide rule", Body: "applies everywhere", Type: string(team.ExpScopeGlobal)},
+		{Slug: "proj-secret", Description: "project-only fact", Body: "acme project credentials", Type: string(team.ExpScopeProject)},
+	})
+	if err != nil {
+		t.Fatalf("SeedTeam: %v", err)
+	}
+	if written != 3 {
+		t.Fatalf("SeedTeam wrote %d entries, want 3", written)
+	}
+
+	// extract_from_team — the headline endpoint. NON-404, produces a real draft.
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/extract_from_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "team_id": teamID,
+	})
+	if st == http.StatusNotFound {
+		t.Fatalf("extract_from_team is a 404 — the domain is still unwired")
+	}
+	if st != http.StatusOK {
+		t.Fatalf("extract_from_team status=%d body=%v", st, body)
+	}
+
+	draft, _ := body["draft"].(map[string]any)
+	if draft == nil {
+		t.Fatalf("extract_from_team returned no draft: %v", body)
+	}
+	// Roles carried over (2), portable experiences kept (2: team+global), project
+	// scope dropped (1), draft NOT export-ready (curation still required).
+	if roles, _ := draft["roles"].([]any); len(roles) != 2 {
+		t.Fatalf("draft roles=%v want 2", draft["roles"])
+	}
+	if ec, _ := draft["experience_count"].(float64); ec != 2 {
+		t.Fatalf("draft experience_count=%v want 2 (project scope dropped)", draft["experience_count"])
+	}
+	if dropped, _ := body["dropped_project"].(float64); dropped != 1 {
+		t.Fatalf("dropped_project=%v want 1", body["dropped_project"])
+	}
+	if curated, _ := body["curated"].(bool); curated {
+		t.Fatalf("extracted draft must be un-curated (manual curation still required)")
+	}
+	if name, _ := draft["name"].(string); name != "team-extract (extracted)" {
+		t.Fatalf("draft name=%q want %q", name, "team-extract (extracted)")
+	}
+	// The scrub pass HIGHLIGHTED at least the proprietary token(s) in the kept
+	// experiences (e.g. "T950" / "internal/team/foo.go") for manual curation.
+	if findings, _ := body["scrub_findings"].([]any); len(findings) == 0 {
+		t.Fatalf("scrub_findings empty — the curation-assist scrub did not run over kept experiences")
 	}
 }

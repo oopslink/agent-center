@@ -584,6 +584,100 @@ func toMemoryEntries(in []team.Experience) []centergit.Entry {
 	return out
 }
 
+// --- extract_from_team -------------------------------------------------------
+
+type extractFromTeamReq struct {
+	AgentID string `json:"agent_id"`
+	TeamID  string `json:"team_id"`
+	// Counts optionally overrides per-role instance counts (role → count) in the
+	// draft; absent roles default to 1.
+	Counts map[string]int `json:"counts"`
+}
+
+// extractFromTeamHandler snapshots a LIVE team into a DRAFT template (design §6/§9
+// "从活 team 抽经验草稿"): it copies the team's role composition, reads the team's
+// accumulated experiences from its center-hosted memory repo, keeps only the
+// portable (team/global-scope) layer, and runs the scrub pass that HIGHLIGHTS
+// suspected proprietary tokens for the human curator. The draft is returned
+// Curated=false — extraction never produces an export-ready template on its own.
+func (s *Server) extractFromTeamHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req extractFromTeamReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireTeamAgent(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	t := s.requireOwnedTeam(w, r, d, a, req.TeamID)
+	if t == nil {
+		return
+	}
+
+	// Read the live team's experiences from its center-hosted memory repo. Git not
+	// wired (client/test mode) → degrade to a roles-only draft rather than erroring,
+	// mirroring instantiate_team's memory_seeded=false degrade.
+	var experiences []team.Experience
+	if d.TeamGitHost != nil {
+		entries, rErr := centergit.NewTeamMemoryConsumer(d.TeamGitHost, nil).ReadTeam(r.Context(), t.ID().String())
+		if rErr != nil {
+			mapDomainError(w, rErr)
+			return
+		}
+		experiences = experiencesFromEntries(entries)
+	}
+
+	res, err := team.ExtractFromTeam(team.TeamSnapshot{
+		Team:        t,
+		Experiences: experiences,
+		Counts:      req.Counts,
+	}, d.TeamIDGen.NewEntityID("teamtmpl"), nil, time.Now().UTC())
+	if err != nil {
+		mapTeamError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, extractView(res))
+}
+
+// experiencesFromEntries maps center-hosted memory entries back onto template
+// experiences. The entry's Type carries the memory scope (toMemoryEntries wrote
+// it), so it round-trips into ExperienceScope — which ExtractFromTeam then uses to
+// keep the portable layer and drop project scope.
+func experiencesFromEntries(in []centergit.Entry) []team.Experience {
+	out := make([]team.Experience, 0, len(in))
+	for _, e := range in {
+		out = append(out, team.Experience{
+			Slug:        e.Slug,
+			Title:       e.Title,
+			Description: e.Description,
+			Body:        e.Body,
+			Scope:       team.ExperienceScope(e.Type),
+		})
+	}
+	return out
+}
+
+// extractView renders the draft template + the scrub findings a human must review
+// + the count of project-scoped experiences dropped.
+func extractView(res *team.ExtractResult) map[string]any {
+	findings := make([]map[string]any, 0, len(res.ScrubFindings))
+	for _, f := range res.ScrubFindings {
+		findings = append(findings, map[string]any{
+			"experience_slug": f.ExperienceSlug, "kind": string(f.Kind), "token": f.Token,
+		})
+	}
+	return map[string]any{
+		"draft":           templateView(res.Draft),
+		"scrub_findings":  findings,
+		"dropped_project": res.DroppedProject,
+		// A draft is NEVER export-ready: manual curation (design §9) is still
+		// required before create_team_template / export accepts it.
+		"curated": res.Draft.Curated,
+	}
+}
+
 // --- assign_roles ------------------------------------------------------------
 
 type assignRoleReqNode struct {

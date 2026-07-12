@@ -531,6 +531,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/associate_project", s.associateProjectHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/create_team_template", s.createTeamTemplateHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/instantiate_team", s.instantiateTeamHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/extract_from_team", s.extractFromTeamHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/assign_roles", s.assignRolesHandler)
 	// Center-hosted git smart-HTTP (design §4.2/§4.3): per-agent/team/global memory
 	// repos served under /admin/git/, behind the same bearer auth. See git_backend.go.

@@ -17,7 +17,6 @@ import (
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/observability"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
-	teampkg "github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
 	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 )
@@ -95,7 +94,7 @@ func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, lo
 	// is provisioned up front so it is immediately readable by every agent.
 	var gitHandler http.Handler
 	if deps.TeamGitHost != nil {
-		membership := teamRepoMembership{repo: teamsql.NewRepo(app.DB)}
+		membership := api.NewTeamMembership(teamsql.NewRepo(app.DB), app.AgentRepo)
 		gh, gerr := api.NewGitHandler(deps.TeamGitHost, membership)
 		if gerr != nil {
 			logger("admin: center git disabled: " + gerr.Error())
@@ -401,19 +400,6 @@ func buildTeamGitHost(a *App) *centergit.Host {
 	return centergit.NewHost(root, nil)
 }
 
-// teamRepoMembership adapts the S1 team repository onto the centergit
-// TeamMembership seam (design §9 访问控制映射): "which team does this agent
-// belong to". The git Authorizer uses it to grant a team member rw on the team's
-// shared repo. Backing git authz with the LIVE team tables (not an in-memory
-// map) means an add_member / instantiate_team immediately unlocks git access.
-type teamRepoMembership struct {
-	repo teampkg.Repository
-}
-
-func (m teamRepoMembership) TeamOfAgent(ctx context.Context, agentID string) (string, bool, error) {
-	id, ok, err := m.repo.FindAgentTeam(ctx, teampkg.MemberRef("agent:"+agentID))
-	if err != nil {
-		return "", false, err
-	}
-	return id.String(), ok, nil
-}
+// The centergit TeamMembership adapter (runtime agent-id → team, bridging the
+// identity-member ref namespace) lives in the admin/api package alongside the git
+// resolver it must agree with — see api.NewTeamMembership.

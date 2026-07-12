@@ -98,7 +98,7 @@ var toolDomain = map[string]string{
 	// team (Team Phase-1 wiring)
 	"create_team": "team", "update_team": "team", "delete_team": "team", "get_team": "team",
 	"list_teams": "team", "add_member": "team", "remove_member": "team", "associate_project": "team",
-	"create_team_template": "team", "instantiate_team": "team", "assign_roles": "team",
+	"create_team_template": "team", "instantiate_team": "team", "extract_from_team": "team", "assign_roles": "team",
 	// WS5 tiering meta-tool: discovers + loads the deferred (secondary) tools on
 	// demand. Only present in the tiered (production) catalog.
 	"search_tools": "identity",
