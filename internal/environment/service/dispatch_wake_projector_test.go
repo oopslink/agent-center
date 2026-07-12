@@ -204,24 +204,21 @@ func TestDispatchWake_Repush_FoldsConcurrentDoneEvents(t *testing.T) {
 	}
 }
 
-// issue-d118b5dc ① REPRO — plan-node-ready double fan-out on ONE task.
+// issue-d118b5dc ① FIX — plan-node-ready double fan-out on ONE task is folded to ONE wake.
 //
 // When a plan node becomes ready, the SAME newly-ready task can be woken by TWO of this
 // projector's triggers at once:
 //   - (a) pm.task.assigned    — the ready-set dispatch assigns the ready node to the agent.
 //   - (c) pm.task.state_changed — the PREDECESSOR node completing frees the agent's single
 //     slot, and the re-push resolver picks the very same ready node as the agent's "next".
-// Both resolve to the SAME entity/worker/task, but the two emit paths key the ControlLog
-// AppendCommand under DIFFERENT idempotency schemes — assign includes the event id
-// ("dispatch.wake:assign:<eid>:…"), repush omits it ("dispatch.wake:repush:…"). They do
-// NOT collide, so the worker receives TWO agent.work_available commands for one task_id,
-// each of which drives an unconditional SpawnExecutor fork downstream (executor_runtime.go
-// DISPATCH-DECISION/DISPATCH-FORK-ENTRY). This is the structural fan-out the runtime logs
-// are meant to catch — the mode/dedup XOR is missing at the SOURCE, not the sink.
+// Both resolve to the SAME entity/worker/task. The source-side dedup fix keys BOTH emit
+// paths on the shared agent+task+worker anchor (dispatchWakeKey — no trigger id, no event
+// id), so they collide on the ControlLog UNIQUE(worker_id, idempotency_key) and fold to ONE
+// agent.work_available for the one task_id — no downstream duplicate SpawnExecutor fork.
 //
-// This test LOCKS the current (buggy) 2-command behavior so the eventual fix (unify the
-// dedup anchor to agent+task regardless of trigger) has a failing assertion to flip.
-func TestDispatchWake_Issue_d118b5dc_AssignAndRepush_DoubleFanout(t *testing.T) {
+// This test LOCKS the folded (fixed) single-command behavior; before the fix the two arms
+// keyed differently ("dispatch.wake:assign:<eid>:…" vs "dispatch.wake:repush:…") and emitted 2.
+func TestDispatchWake_Issue_d118b5dc_AssignAndRepush_FoldsToOne(t *testing.T) {
 	h := newDispatchHarness(t)
 	const worker, entity, readyTask = "W2", "entity-B", "T-ready"
 	// (a) the ready node is assigned to agent B → wakes B for T-ready.
@@ -242,19 +239,51 @@ func TestDispatchWake_Issue_d118b5dc_AssignAndRepush_DoubleFanout(t *testing.T) 
 	}
 
 	cmds := h.commands(t, worker)
-	// ROOT-CAUSE ASSERTION: two work_available for ONE ready task — the double fan-out.
-	if len(cmds) != 2 {
-		t.Fatalf("issue-d118b5dc ①: assign+repush for the SAME agent+task should currently "+
-			"emit 2 work_available (non-colliding idempotency keys) — got %d; if this is now "+
-			"1 the source-side dedup fix landed, retarget this lock", len(cmds))
+	// FIX ASSERTION: assign+repush for the SAME agent+task fold to ONE work_available.
+	if len(cmds) != 1 {
+		t.Fatalf("issue-d118b5dc ①: assign+repush for the SAME agent+task must fold to 1 "+
+			"work_available (shared agent+task+worker key) — got %d", len(cmds))
 	}
+	var pl sweepWakePayload
+	_ = json.Unmarshal([]byte(cmds[0].Payload()), &pl)
+	if pl.AgentID != entity || pl.TaskID != readyTask {
+		t.Fatalf("the wake should target %s/%s (one ready task), got %s/%s",
+			entity, readyTask, pl.AgentID, pl.TaskID)
+	}
+}
+
+// issue-d118b5dc ① LIVENESS guard: the dedup must NOT swallow a re-push to a DIFFERENT next
+// task. Agent B is assigned the ready task T-ready (arm a); separately a predecessor completes
+// and the re-push resolver picks a DIFFERENT open task T-other as B's next (arm c). These are
+// two genuinely-distinct "you have work" signals and must BOTH be delivered — the shared key
+// differs on task, so they do not fold.
+func TestDispatchWake_Issue_d118b5dc_DifferentNextTask_NotFolded(t *testing.T) {
+	h := newDispatchHarness(t)
+	const worker, entity = "W2", "entity-B"
+	h.assignFn = func(_ context.Context, a, tk string) (DispatchWakeTarget, bool, error) {
+		return DispatchWakeTarget{WorkerID: worker, AgentID: entity, TaskID: "T-ready"}, true, nil
+	}
+	h.repushFn = func(_ context.Context, a, tk, st, prev string) (DispatchWakeTarget, bool, error) {
+		return DispatchWakeTarget{WorkerID: worker, AgentID: entity, TaskID: "T-other"}, true, nil
+	}
+	if err := h.proj.Project(h.ctx, taskEvent("assign-evt", pmservice.EvtTaskAssigned, "agent:B", "T-ready", "open", "")); err != nil {
+		t.Fatalf("assign Project: %v", err)
+	}
+	if err := h.proj.Project(h.ctx, taskEvent("done-evt", pmservice.EvtTaskStateChanged, "agent:B", "T-pred", "completed", "running")); err != nil {
+		t.Fatalf("state_changed Project: %v", err)
+	}
+	cmds := h.commands(t, worker)
+	if len(cmds) != 2 {
+		t.Fatalf("distinct next tasks must NOT fold — want 2 work_available (T-ready + T-other), got %d", len(cmds))
+	}
+	got := map[string]bool{}
 	for _, c := range cmds {
 		var pl sweepWakePayload
 		_ = json.Unmarshal([]byte(c.Payload()), &pl)
-		if pl.AgentID != entity || pl.TaskID != readyTask {
-			t.Fatalf("both wakes should target %s/%s (one ready task), got %s/%s",
-				entity, readyTask, pl.AgentID, pl.TaskID)
-		}
+		got[pl.TaskID] = true
+	}
+	if !got["T-ready"] || !got["T-other"] {
+		t.Fatalf("both distinct next tasks must be woken, got %v", got)
 	}
 }
 

@@ -297,34 +297,31 @@ func TestSpawnExecutor_AlreadyRunningSkips(t *testing.T) {
 	}
 }
 
-// TestSpawnExecutor_ForksForeignAssignee_ReproCrossNamespace is the RUNNABLE repro of
-// issue-d118b5dc sub-bug ②: SpawnExecutor (the agent.work_available fork path) has NO
-// assignee guard — it force-starts + forks a task even when the task is assigned to a
-// DIFFERENT agent. Here agent-self receives a work_available for task-x assigned to
-// agent-OTHER and STILL calls start_task (as agent-self) + forks a cross-namespace
-// executor. This documents the CURRENT (buggy) behavior so the instrument logs
-// (DISPATCH-CROSS-NAMESPACE) have a locked repro; the FIX (guard/skip a foreign task) is
-// deferred to PD's fix-scope decision — when it lands, this test flips to assert
-// get_task-only + no fork.
-func TestSpawnExecutor_ForksForeignAssignee_ReproCrossNamespace(t *testing.T) {
+// TestSpawnExecutor_SkipsForeignAssignee_Guard locks the issue-d118b5dc ② FIX: SpawnExecutor
+// (the agent.work_available fork path) now GUARDS on the assignee — if the fetched task is
+// assigned to a DIFFERENT agent, it stops after get_task (no start_task, no fork), leaving the
+// task queued for its real assignee. Here agent-self receives a work_available for task-x
+// assigned to agent-OTHER: it must NOT force-start or fork a cross-namespace executor. The
+// DISPATCH-CROSS-NAMESPACE decision log is still emitted (fail-loud keeper).
+func TestSpawnExecutor_SkipsForeignAssignee_Guard(t *testing.T) {
 	sc := &scriptedToolCaller{getTaskBody: map[string]any{
 		"id": "task-x", "title": "assigned to another agent", "status": "open",
 		"assignee": "agent:agent-OTHER", "model": "claude-haiku",
 	}}
 	rt, _, home := spawn(t, "agent-self", "task-x", sc)
 
-	// BUG (②): despite assignee=agent-OTHER, agent-self force-starts + forks it.
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[0] != "get_task" || seen[1] != "start_task" {
-		t.Fatalf("tool calls = %v — current buggy path force-starts a foreign task (want [get_task start_task])", seen)
+	// FIX (②): assignee=agent-OTHER → stop after get_task, no start_task, no fork.
+	if seen := sc.toolsSeen(); len(seen) != 1 || seen[0] != "get_task" {
+		t.Fatalf("tool calls = %v — foreign-assignee guard must stop after get_task (want [get_task])", seen)
 	}
-	if body, ok := sc.callFor("start_task"); !ok || body["agent_id"] != "agent-self" {
-		t.Errorf("start_task issued by NON-assignee agent-self (cross-namespace): body=%v", body)
+	if _, ok := sc.callFor("start_task"); ok {
+		t.Error("start_task must NOT be called for a task assigned to another agent (cross-namespace)")
 	}
-	if probs := loadRouting(t, home); len(probs) != 1 {
-		t.Fatalf("foreign task was forked cross-namespace (repro of ②): problems=%+v", probs)
+	if probs := loadRouting(t, home); len(probs) != 0 {
+		t.Fatalf("foreign task must NOT be forked (② guard): problems=%+v", probs)
 	}
-	if got := rt.State().CurrentTaskID; got != "task-x" {
-		t.Errorf("currentTaskID = %q, want task-x (foreign task forked)", got)
+	if got := rt.State().CurrentTaskID; got != "" {
+		t.Errorf("currentTaskID = %q, want empty (foreign task skipped)", got)
 	}
 }
 
