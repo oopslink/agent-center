@@ -29,6 +29,8 @@ import (
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	settingssql "github.com/oopslink/agent-center/internal/settings/sqlite"
+	teamservice "github.com/oopslink/agent-center/internal/team/service"
+	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 	usagesql "github.com/oopslink/agent-center/internal/usage/sqlite"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
 	"github.com/oopslink/agent-center/internal/webconsole/spa"
@@ -123,6 +125,10 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
+		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
+		// same sqlite DB the admin team tools use.
+		TeamService: teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
+		ProjectRepo: pmsql.NewProjectRepo(a.DB),
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -540,6 +546,10 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		TemplateRepo: pmsql.NewTemplateRepo(a.DB),
 		// issue-93dd8daa ①: org model catalog repo (same sqlite DB).
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
+		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
+		// same sqlite DB the admin team tools use.
+		TeamService: teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
+		ProjectRepo: pmsql.NewProjectRepo(a.DB),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),
