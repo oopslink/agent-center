@@ -74,6 +74,31 @@ func (r *NodeRepo) ListByGraph(ctx context.Context, graphID orch.GraphID) ([]*or
 	return out, rows.Err()
 }
 
+// ListByGraphs returns the nodes of ALL the given graphs in ONE IN(...) query
+// (issue-77cda494): the batched read behind the stage-aware list_plans view, so a
+// multi-plan read pays a CONSTANT number of graph reads (no N+1). Empty input ⇒ nil.
+func (r *NodeRepo) ListByGraphs(ctx context.Context, graphIDs []orch.GraphID) ([]*orch.Node, error) {
+	if len(graphIDs) == 0 {
+		return nil, nil
+	}
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	in, args := graphIDPlaceholders(graphIDs)
+	rows, err := exec.QueryContext(ctx, nodeSelect+` WHERE graph_id IN (`+in+`) ORDER BY graph_id, created_at, id`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*orch.Node
+	for rows.Next() {
+		n, err := scanNode(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 func (r *NodeRepo) Delete(ctx context.Context, id orch.NodeID) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx, `DELETE FROM pm_graph_nodes WHERE id = ?`, string(id))

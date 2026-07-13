@@ -316,6 +316,19 @@ func (s *Service) ListEdges(ctx context.Context, graphID GraphID) ([]Edge, error
 	return s.edges.ListByGraph(ctx, graphID)
 }
 
+// ListNodesByGraphs returns the nodes of ALL the given graphs in ONE batched
+// query (issue-77cda494) — the read behind the stage-aware list_plans view, so a
+// multi-plan read pays a CONSTANT number of graph reads rather than one-per-plan.
+func (s *Service) ListNodesByGraphs(ctx context.Context, graphIDs []GraphID) ([]*Node, error) {
+	return s.nodes.ListByGraphs(ctx, graphIDs)
+}
+
+// ListEdgesByGraphs returns the edges of ALL the given graphs in ONE batched query
+// (issue-77cda494), the edge counterpart of ListNodesByGraphs.
+func (s *Service) ListEdgesByGraphs(ctx context.Context, graphIDs []GraphID) ([]Edge, error) {
+	return s.edges.ListByGraphs(ctx, graphIDs)
+}
+
 // GetReadyNodes loads the full graph and returns nodes whose upstream
 // dependencies are all completed or discarded.
 func (s *Service) GetReadyNodes(ctx context.Context, graphID GraphID) ([]*Node, error) {

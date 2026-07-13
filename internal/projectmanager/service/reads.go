@@ -893,6 +893,15 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 		return nil, 0, err
 	}
 
+	// 2 batched queries (issue-77cda494): the stage-barrier-held task set for the
+	// WHOLE page in a CONSTANT number of graph reads (one ListNodesByGraphs + one
+	// ListEdgesByGraphs), so list_plans is stage-aware WITHOUT the per-plan graph
+	// load that would be N+1. nil for plans with no graph / no unresolved gate.
+	heldByPlan, err := s.stageBarrierHeldSetByPlans(ctx, plans)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	// Per-plan view derivation is pure in-memory (no query).
 	out := make([]*PlanDetail, 0, len(plans))
 	for _, p := range plans {
@@ -901,6 +910,10 @@ func (s *Service) planSummaries(ctx context.Context, projectID pm.ProjectID, inc
 		// in the reader path); byte-for-byte with the prior derivation.
 		view := pm.DerivePlanView(tasks, edgesByPlan[p.ID()], recordsByPlan[p.ID()], outcomesByPlan[p.ID()], paused)
 		detail := &PlanDetail{Plan: p, Tasks: tasks, View: view}
+		// issue-77cda494: make the summary view stage-aware — a barrier-held entry
+		// shows blocked (not ready), matching get_plan detail's enrichStageView. Pure
+		// projection off the pre-computed batched held set (no per-plan graph read).
+		applyBarrierHeldToView(detail, heldByPlan[p.ID()])
 		// v2.18.3 BE-2: the Work Board pool card shows the starved badge → fill the
 		// starved set for the builtin pool plan (a no-op for every structured plan, and
 		// at most ONE directory read per project since a project has one builtin pool).

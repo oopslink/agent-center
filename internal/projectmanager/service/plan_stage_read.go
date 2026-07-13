@@ -78,6 +78,97 @@ func (s *Service) stageBarrierHeldSet(ctx context.Context, p *pm.Plan) (map[pm.T
 	return held, nil
 }
 
+// stageBarrierHeldSetByPlans is the BATCHED, N+1-FREE counterpart of
+// stageBarrierHeldSet for the list_plans read path (issue-77cda494): it computes the
+// barrier-held task set for EVERY given plan in a CONSTANT number of graph reads
+// (one batched ListNodesByGraphs + one batched ListEdgesByGraphs), regardless of
+// plan count — NOT one graph load per plan (the N+1 the list path deliberately
+// avoided). The rule is IDENTICAL to stageBarrierHeldSet (a downstream-stage entry
+// held behind an unresolved upstream stage-gate CONDITION node), applied per plan
+// via each node's graph→plan mapping. Node ids are globally unique, so gate/task
+// membership is keyed off node ids across all graphs. Returns planID → (taskID →
+// held); a plan with no graph / no unresolved gate is simply absent. Nil when the
+// engine is unwired or no plan has a graph (§8 zero-regression: a pure-node DAG has
+// no stage gates).
+func (s *Service) stageBarrierHeldSetByPlans(ctx context.Context, plans []*pm.Plan) (map[pm.PlanID]map[pm.TaskID]bool, error) {
+	if s.orch == nil || len(plans) == 0 {
+		return nil, nil
+	}
+	planOfGraph := make(map[orch.GraphID]pm.PlanID, len(plans))
+	graphIDs := make([]orch.GraphID, 0, len(plans))
+	for _, p := range plans {
+		if p == nil || p.GraphID() == "" {
+			continue
+		}
+		gid := orch.GraphID(p.GraphID())
+		if _, dup := planOfGraph[gid]; dup {
+			continue
+		}
+		planOfGraph[gid] = p.ID()
+		graphIDs = append(graphIDs, gid)
+	}
+	if len(graphIDs) == 0 {
+		return nil, nil
+	}
+	// 1 batched query: all nodes across every plan's graph.
+	nodes, err := s.orch.ListNodesByGraphs(ctx, graphIDs)
+	if err != nil {
+		return nil, err
+	}
+	taskOfNode := make(map[orch.NodeID]pm.TaskID, len(nodes))
+	planOfNode := make(map[orch.NodeID]pm.PlanID, len(nodes))
+	unresolvedGate := make(map[orch.NodeID]bool)
+	gatedGraphs := make(map[orch.GraphID]bool)
+	for _, n := range nodes {
+		pid, ok := planOfGraph[n.GraphID()]
+		if !ok {
+			continue
+		}
+		planOfNode[n.ID()] = pid
+		if tid := nodeTaskID(n); tid != "" {
+			taskOfNode[n.ID()] = tid
+		}
+		if n.Category() != orch.NodeCategoryControl || n.ControlKind() != orch.ControlKindCondition {
+			continue
+		}
+		if _, isStageGate := n.Metadata()["stage_gate"]; !isStageGate {
+			continue
+		}
+		if n.Status() != orch.NodeCompleted && n.Status() != orch.NodeDiscarded {
+			unresolvedGate[n.ID()] = true
+			gatedGraphs[n.GraphID()] = true
+		}
+	}
+	if len(unresolvedGate) == 0 {
+		return nil, nil
+	}
+	// 1 batched query: edges only for the graphs that actually have an unresolved gate.
+	gatedIDs := make([]orch.GraphID, 0, len(gatedGraphs))
+	for gid := range gatedGraphs {
+		gatedIDs = append(gatedIDs, gid)
+	}
+	edges, err := s.orch.ListEdgesByGraphs(ctx, gatedIDs)
+	if err != nil {
+		return nil, err
+	}
+	held := make(map[pm.PlanID]map[pm.TaskID]bool)
+	for _, e := range edges {
+		if !unresolvedGate[e.FromNodeID] {
+			continue
+		}
+		tid, ok := taskOfNode[e.ToNodeID]
+		if !ok {
+			continue
+		}
+		pid := planOfNode[e.ToNodeID]
+		if held[pid] == nil {
+			held[pid] = make(map[pm.TaskID]bool)
+		}
+		held[pid][tid] = true // a downstream entry behind an unresolved upstream stage gate.
+	}
+	return held, nil
+}
+
 // applyStageBarrierView corrects the STAGE-UNAWARE DerivePlanView on a READ-facing
 // PlanDetail: it downgrades each barrier-held entry from `ready` to `blocked` and drops
 // it from ReadySet, so get_plan agrees with the run gate (EnsureTaskRunnable) and the
@@ -91,8 +182,17 @@ func (s *Service) applyStageBarrierView(ctx context.Context, detail *PlanDetail)
 	if err != nil {
 		return err
 	}
-	if len(held) == 0 {
-		return nil
+	applyBarrierHeldToView(detail, held)
+	return nil
+}
+
+// applyBarrierHeldToView is the PURE (no-IO) barrier projection shared by the single
+// (get_plan) and batched (list_plans) read paths so both surfaces tell the SAME
+// stage-aware truth: each barrier-held entry ready→blocked and dropped from ReadySet.
+// No-op when held is empty.
+func applyBarrierHeldToView(detail *PlanDetail, held map[pm.TaskID]bool) {
+	if detail == nil || len(held) == 0 {
+		return
 	}
 	for i := range detail.View.Nodes {
 		n := &detail.View.Nodes[i]
@@ -109,7 +209,6 @@ func (s *Service) applyStageBarrierView(ctx context.Context, detail *PlanDetail)
 		}
 		detail.View.ReadySet = kept
 	}
-	return nil
 }
 
 // fillStageGates surfaces the plan's STAGE GATE condition nodes onto the read-facing

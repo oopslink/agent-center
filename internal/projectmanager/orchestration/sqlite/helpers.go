@@ -10,6 +10,18 @@ import (
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
+// graphIDPlaceholders builds the "?,?,..." IN-clause + string args for a set of
+// graph ids (issue-77cda494 batched ListByGraphs).
+func graphIDPlaceholders(graphIDs []orch.GraphID) (string, []any) {
+	ph := make([]string, len(graphIDs))
+	args := make([]any, len(graphIDs))
+	for i, id := range graphIDs {
+		ph[i] = "?"
+		args[i] = string(id)
+	}
+	return strings.Join(ph, ","), args
+}
+
 func parseTime(s string) time.Time {
 	t, _ := time.Parse(time.RFC3339Nano, s)
 	return t
