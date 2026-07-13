@@ -129,6 +129,10 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		// same sqlite DB the admin team tools use.
 		TeamService: teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
 		ProjectRepo: pmsql.NewProjectRepo(a.DB),
+		// task-be4670ce: team memory read (index + on-demand entry) + extract's
+		// experience read go through the SAME center-hosted git host the /admin team
+		// tools use. nil in test/client mode → memory degrades to empty (design §6).
+		TeamGitHost: buildTeamGitHost(a),
 	}
 	srv := api.NewServer(":0", api.Deps{SSE: bus, SPA: spa.Handler()})
 	return api.WithDeps(deps)(srv.Handler())
@@ -550,6 +554,10 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		// same sqlite DB the admin team tools use.
 		TeamService: teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
 		ProjectRepo: pmsql.NewProjectRepo(a.DB),
+		// task-be4670ce: team memory read (index + on-demand entry) + extract's
+		// experience read go through the SAME center-hosted git host the /admin team
+		// tools use. nil in test/client mode → memory degrades to empty (design §6).
+		TeamGitHost: buildTeamGitHost(a),
 	}
 	srv := api.NewServer(addr, api.Deps{
 		SSE: bus, SPA: spa.Handler(),

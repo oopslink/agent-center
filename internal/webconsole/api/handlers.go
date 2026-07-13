@@ -17,6 +17,7 @@ import (
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -208,6 +209,11 @@ type HandlerDeps struct {
 	// ProjectRepo resolves a project's display name for TeamProjectLink. Optional —
 	// nil falls back to the project id.
 	ProjectRepo pm.ProjectRepository
+	// TeamGitHost is the center-hosted git provisioning surface backing the team
+	// memory read endpoints (GET /api/orgs/{slug}/teams/{id}/memory[/{slug}]) and
+	// the extract experience read. Optional — nil degrades memory to empty and
+	// extract to a roles-only draft (mirrors the /admin team tools).
+	TeamGitHost *centergit.Host
 }
 
 // hd retrieves the typed dep bag from the request context.

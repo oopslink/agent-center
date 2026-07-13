@@ -31,6 +31,10 @@ type Server struct {
 	mux  *http.ServeMux
 	srv  *http.Server
 	deps Deps
+	// teamTemplates is the Phase-1 in-memory, org-scoped team-template catalog
+	// backing the /api/orgs/{slug}/team-templates endpoints (no server-side
+	// persistence yet — design §6). Per-Server, so test servers are isolated.
+	teamTemplates *teamTemplateStore
 }
 
 // Deps is the dependency bag for handlers.
@@ -68,7 +72,7 @@ type SSEBus interface {
 
 // NewServer builds a Server bound to addr (typically "127.0.0.1:7100").
 func NewServer(addr string, deps Deps) *Server {
-	s := &Server{addr: addr, mux: http.NewServeMux(), deps: deps}
+	s := &Server{addr: addr, mux: http.NewServeMux(), deps: deps, teamTemplates: newTeamTemplateStore()}
 	s.routes()
 	s.srv = &http.Server{
 		Addr:              addr,
@@ -270,6 +274,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/teams/{id}/members/{ref}", s.removeTeamMemberHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/projects", s.listTeamProjectsHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/{id}/projects", s.associateTeamProjectHandler)
+	// Team WebUI facade P2 (task-be4670ce): update / instantiate / extract / memory
+	// + the org-level team-template catalog (in-memory, Phase-1).
+	s.mux.HandleFunc("PATCH /api/orgs/{slug}/teams/{id}", s.updateTeamHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/instantiate", s.instantiateTeamHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/extract", s.extractFromTeamHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/memory", s.teamMemoryIndexHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/memory/{entry}", s.teamMemoryDocHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/team-templates", s.listTeamTemplatesHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/team-templates", s.createTeamTemplateHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/team-templates/{tid}", s.getTeamTemplateHandler)
 	// v2.18.4 BE-2: remote viewing (commits / branches) — member-readable, via the
 	// provider abstraction (go-github / git fallback); no clone, credential never returned.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/code-repos/{repo_id}/commits", s.listCodeRepoCommitsHandler)
