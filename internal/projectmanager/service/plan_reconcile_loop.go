@@ -23,6 +23,12 @@ import (
 //
 // Slow cadence: the dispatch core is idempotent and crash-recovery is not
 // latency-critical, so the tick interval is non-critical (60s default).
+//
+// I103 §3: each sweep ALSO materializes the旁路 BlockedOn snapshots
+// (ReconcileRunningPlans → materializeBlockedOn) — a pure-observation classification
+// of why each non-terminal node is not progressing, refreshed/cleared per node. That
+// materialization is BEST-EFFORT and runs in its own tx, so it can never break the
+// dispatch safety net above (see ReconcileRunningPlans).
 type PlanReconcileLoop struct {
 	svc      *Service
 	interval time.Duration

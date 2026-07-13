@@ -543,6 +543,24 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 			}
 			// continue — a per-plan error must not abort the whole sweep.
 		}
+		// I103 §3: materialize/refresh the plan's旁路 BlockedOn snapshots. It runs in
+		// its OWN tx AFTER dispatch (so it observes the post-dispatch committed state)
+		// and is BEST-EFFORT — a materialize failure NEVER rolls back a dispatch, never
+		// sets firstErr, and never aborts the sweep. BlockedOn is pure observation, so it
+		// must not be able to break the reconciliation safety net.
+		merr := s.runInTx(ctx, func(txCtx context.Context) error {
+			fresh, ferr := s.plans.FindByID(txCtx, p.ID())
+			if ferr != nil {
+				return ferr
+			}
+			if fresh.Status() != pm.PlanRunning {
+				return nil
+			}
+			return s.materializeBlockedOn(txCtx, fresh)
+		})
+		if merr != nil && errFn != nil {
+			errFn(p.ID(), fmt.Errorf("materialize blocked_on: %w", merr))
+		}
 	}
 	return firstErr
 }
