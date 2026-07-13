@@ -73,15 +73,17 @@ describe('TeamTemplates', () => {
   });
 
   it('exports a template as JSON', async () => {
-    const createURL = vi.fn(() => 'blob:x');
-    const revoke = vi.fn();
-    vi.stubGlobal('URL', { ...URL, createObjectURL: createURL, revokeObjectURL: revoke });
+    // Spy the two static methods rather than replacing the URL global — the page
+    // now fetches templates through MSW, which needs a working `new URL()`.
+    const createURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     renderPage();
     fireEvent.click(await screen.findByTestId('template-export-tmpl-core'));
     expect(createURL).toHaveBeenCalled();
     expect(clickSpy).toHaveBeenCalled();
     clickSpy.mockRestore();
-    vi.unstubAllGlobals();
+    createURL.mockRestore();
+    revoke.mockRestore();
   });
 });

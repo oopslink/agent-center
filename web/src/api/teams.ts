@@ -349,7 +349,7 @@ export function useDisassociateProject() {
 export function useTeamMemoryIndex(id: string) {
   return useQuery({
     queryKey: teamKeys.memoryIndex(id),
-    queryFn: () => resolve(teamsStore().memoryIndex),
+    queryFn: () => api.get<MemoryIndexEntry[]>(`/teams/${id}/memory`),
     enabled: !!id,
   });
 }
@@ -357,11 +357,7 @@ export function useTeamMemoryIndex(id: string) {
 export function useTeamMemoryDoc(id: string, slug: string) {
   return useQuery({
     queryKey: teamKeys.memoryDoc(id, slug),
-    queryFn: () => {
-      const doc = teamsStore().memoryDocs[slug];
-      if (!doc) throw new Error('memory_not_found');
-      return resolve(doc);
-    },
+    queryFn: () => api.get<MemoryDoc>(`/teams/${id}/memory/${encodeURIComponent(slug)}`),
     enabled: !!id && !!slug,
   });
 }
@@ -371,17 +367,13 @@ export function useTeamMemoryDoc(id: string, slug: string) {
 // ---------------------------------------------------------------------------
 
 export function useTeamTemplates() {
-  return useQuery({ queryKey: teamKeys.templates(), queryFn: () => resolve(teamsStore().templates) });
+  return useQuery({ queryKey: teamKeys.templates(), queryFn: () => api.get<TeamTemplate[]>('/team-templates') });
 }
 
 export function useTeamTemplate(id: string) {
   return useQuery({
     queryKey: teamKeys.template(id),
-    queryFn: () => {
-      const t = teamsStore().templates.find((x) => x.id === id);
-      if (!t) throw new Error('template_not_found');
-      return resolve(t);
-    },
+    queryFn: () => api.get<TeamTemplate>(`/team-templates/${id}`),
     enabled: !!id,
   });
 }
@@ -401,11 +393,47 @@ export function useTemplateScrub(_templateId: string) {
   });
 }
 
-/** extract_from_team — scan a source team for a curation draft. */
+// FE curation enrichment. The extract facade returns only the truthful
+// {experience_slug, kind, token}; the mockup's curation gate renders
+// risk/loc/reason/default_action. Risk is deliberately CAUTIOUS — a
+// leak-prevention gate errs toward scrubbing, so identifiers and paths are high,
+// links medium; every finding defaults to `scrub` (the reviewer opts to keep).
+const SCRUB_RISK: Record<ScrubKind, ScrubFinding['risk']> = {
+  code_name: 'hi',
+  repo_name: 'hi',
+  path: 'hi',
+  url: 'md',
+};
+const SCRUB_REASON: Record<ScrubKind, string> = {
+  code_name: '疑似内部代号/标识',
+  repo_name: '疑似内部仓库名',
+  path: '疑似内部路径/主机名',
+  url: '疑似内部链接',
+};
+function enrichScrubFinding(f: { experience_slug: string; kind: ScrubKind; token: string }): ScrubFinding {
+  return {
+    experience_slug: f.experience_slug,
+    kind: f.kind,
+    token: f.token,
+    risk: SCRUB_RISK[f.kind] ?? 'md',
+    loc: f.experience_slug,
+    reason: SCRUB_REASON[f.kind] ?? '疑似敏感 token',
+    default_action: 'scrub',
+  };
+}
+
+/** extract_from_team — scan a source team for a curation draft. The facade wraps
+ *  the truthful findings under `.scrub_findings` ({experience_slug, kind, token});
+ *  the risk/loc/reason/default_action columns are FE curation enrichment. */
 export function useExtractScrub(teamId: string) {
   return useQuery({
     queryKey: [...teamKeys.scrub(teamId), 'extract'],
-    queryFn: () => resolve(teamsStore().scrub),
+    queryFn: async () => {
+      const res = await api.get<{
+        scrub_findings: Array<{ experience_slug: string; kind: ScrubKind; token: string }>;
+      }>(`/teams/${teamId}/extract`);
+      return res.scrub_findings.map(enrichScrubFinding);
+    },
     enabled: !!teamId,
   });
 }
@@ -413,38 +441,8 @@ export function useExtractScrub(teamId: string) {
 export function useInstantiateTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { template_id: string; team_name: string; roles: RoleInput[] }) => {
-      const s = teamsStore();
-      const id = `team-${(s.teams.length + 1).toString(16).padStart(6, '0')}`;
-      const team: TeamView = {
-        id,
-        org_id: 'org-ooo',
-        name: input.team_name,
-        description: '从模版实例化。',
-        version: 1,
-        glyph: input.team_name.slice(0, 2).toUpperCase(),
-        status: 'active',
-        members_count: 0,
-        projects_count: 0,
-        created: '刚刚',
-        roles: input.roles.map((r) => ({
-          role: r.role,
-          cli: r.cli,
-          model: r.model,
-          max_concurrency: r.max_concurrency,
-          count: r.count,
-          capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
-        })),
-      };
-      s.teams.push(team);
-      s.members[id] = [];
-      s.projects[id] = [];
-      const inst = s.templateInstances[input.template_id] ?? (s.templateInstances[input.template_id] = []);
-      inst.push({ id, name: team.name });
-      const tmpl = s.templates.find((x) => x.id === input.template_id);
-      if (tmpl) tmpl.instances_count = inst.length;
-      return resolve(team);
-    },
+    mutationFn: (input: { template_id: string; team_name: string; roles: RoleInput[] }) =>
+      api.post<TeamView>('/teams/instantiate', input),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.list() });
       qc.invalidateQueries({ queryKey: teamKeys.templateInstances(v.template_id) });

@@ -146,5 +146,86 @@ export function teamHandlers() {
       if (team) team.projects_count = list.length;
       return json(link, 201);
     }),
+
+    // ---- P2: team memory (read-only) ----
+    http.get('/api/teams/:id/memory', () => json(teamsStore().memoryIndex)),
+
+    http.get('/api/teams/:id/memory/:entry', ({ params }) => {
+      const doc = teamsStore().memoryDocs[String(params.entry)];
+      return doc
+        ? json(doc)
+        : HttpResponse.json({ error: 'not_found', message: 'memory_not_found' }, { status: 404 });
+    }),
+
+    // ---- P2: templates (Phase-1 in-memory; list + get only — save/import are residual) ----
+    http.get('/api/team-templates', () => json(teamsStore().templates)),
+
+    http.get('/api/team-templates/:tid', ({ params }) => {
+      const t = teamsStore().templates.find((x) => x.id === String(params.tid));
+      return t
+        ? json(t)
+        : HttpResponse.json({ error: 'not_found', message: 'template_not_found' }, { status: 404 });
+    }),
+
+    // ---- P2: extract — findings stripped to the truthful 3 fields (FE enriches) ----
+    http.get('/api/teams/:id/extract', () =>
+      json({
+        draft: {},
+        scrub_findings: teamsStore().scrub.map((f) => ({
+          experience_slug: f.experience_slug,
+          kind: f.kind,
+          token: f.token,
+        })),
+        dropped_project: 0,
+        curated: false,
+      }),
+    ),
+
+    // ---- P2: instantiate (project-decoupled) ----
+    http.post('/api/teams/instantiate', async ({ request }) => {
+      const input = (await request.json()) as {
+        template_id: string;
+        team_name: string;
+        roles: Array<{
+          role: string;
+          cli: string;
+          model: string;
+          max_concurrency: number;
+          count?: number;
+          tags?: string;
+        }>;
+      };
+      const s = teamsStore();
+      const id = `team-${(s.teams.length + 1).toString(16).padStart(6, '0')}`;
+      const team: TeamView = {
+        id,
+        org_id: 'org-ooo',
+        name: input.team_name,
+        description: '从模版实例化。',
+        version: 1,
+        glyph: input.team_name.slice(0, 2).toUpperCase(),
+        status: 'active',
+        members_count: 0,
+        projects_count: 0,
+        created: '刚刚',
+        roles: input.roles.map((r) => ({
+          role: r.role,
+          cli: r.cli,
+          model: r.model,
+          max_concurrency: r.max_concurrency,
+          count: r.count,
+          capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
+        })),
+      };
+      s.teams.push(team);
+      s.members[id] = [];
+      s.projects[id] = [];
+      const inst =
+        s.templateInstances[input.template_id] ?? (s.templateInstances[input.template_id] = []);
+      inst.push({ id, name: team.name });
+      const tmpl = s.templates.find((x) => x.id === input.template_id);
+      if (tmpl) tmpl.instances_count = inst.length;
+      return json(team, 201);
+    }),
   ];
 }
