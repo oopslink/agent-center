@@ -30,14 +30,9 @@ func (c *captureSink) byTask(id pm.TaskID) (pm.TimeoutEvent, bool) {
 	return pm.TimeoutEvent{}, false
 }
 
-// ListBlockedOn override for the shared failingPlanRepo (defined in
-// plan_blocked_on_test.go) — lets the router error-propagation test fail the list read.
-func (r *failingPlanRepo) ListBlockedOn(ctx context.Context, planID pm.PlanID) ([]pm.BlockedOn, error) {
-	if r.failOn == "list" {
-		return nil, errBoom
-	}
-	return r.PlanRepo.ListBlockedOn(ctx, planID)
-}
+// ListBlockedOn override for the shared failingPlanRepo lives in
+// plan_blocked_on_test.go (the frontier-view branch) — reused here for the router
+// error-propagation test; do not redeclare (duplicate method across merged branches).
 
 // seedBlockedPlanAB builds a running A→B plan (B depends_on A), runs one sweep so A is
 // dispatched (runnable, no snapshot) and B is blocked (upstream_completion), and returns
