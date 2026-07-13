@@ -12,6 +12,7 @@
 // change — call sites and types stay put.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from './client';
 import { currentOrgScope } from './queryKeys';
 import {
   cloneTeamsValue as clone,
@@ -218,17 +219,13 @@ function resolve<T>(value: T): Promise<T> {
 // ---------------------------------------------------------------------------
 
 export function useTeams() {
-  return useQuery({ queryKey: teamKeys.list(), queryFn: () => resolve(teamsStore().teams) });
+  return useQuery({ queryKey: teamKeys.list(), queryFn: () => api.get<TeamView[]>('/teams') });
 }
 
 export function useTeam(id: string) {
   return useQuery({
     queryKey: teamKeys.detail(id),
-    queryFn: () => {
-      const t = teamsStore().teams.find((x) => x.id === id);
-      if (!t) throw new Error('team_not_found');
-      return resolve(t);
-    },
+    queryFn: () => api.get<TeamView>(`/teams/${id}`),
     enabled: !!id,
   });
 }
@@ -243,34 +240,7 @@ export interface CreateTeamInput {
 export function useCreateTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateTeamInput) => {
-      const s = teamsStore();
-      const id = `team-${(s.teams.length + 1).toString(16).padStart(6, '0')}`;
-      const team: TeamView = {
-        id,
-        org_id: 'org-ooo',
-        name: input.name,
-        description: input.description,
-        version: 1,
-        glyph: input.name.slice(0, 2).toUpperCase(),
-        status: 'active',
-        members_count: 0,
-        projects_count: 0,
-        created: '刚刚',
-        roles: input.roles.map((r) => ({
-          role: r.role,
-          cli: r.cli,
-          model: r.model,
-          max_concurrency: r.max_concurrency,
-          count: r.count,
-          capability_tags: r.tags ? r.tags.split(',').map((x) => x.trim()).filter(Boolean) : [],
-        })),
-      };
-      s.teams.push(team);
-      s.members[id] = [];
-      s.projects[id] = [];
-      return resolve(team);
-    },
+    mutationFn: (input: CreateTeamInput) => api.post<TeamView>('/teams', input),
     onSuccess: () => qc.invalidateQueries({ queryKey: teamKeys.list() }),
   });
 }
@@ -278,13 +248,7 @@ export function useCreateTeam() {
 export function useDeleteTeam() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => {
-      const s = teamsStore();
-      s.teams = s.teams.filter((t) => t.id !== id);
-      delete s.members[id];
-      delete s.projects[id];
-      return resolve({ ok: true, team_id: id });
-    },
+    mutationFn: (id: string) => api.del(`/teams/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: teamKeys.list() }),
   });
 }
@@ -296,7 +260,7 @@ export function useDeleteTeam() {
 export function useTeamMembers(id: string) {
   return useQuery({
     queryKey: teamKeys.members(id),
-    queryFn: () => resolve(teamsStore().members[id] ?? []),
+    queryFn: () => api.get<MemberView[]>(`/teams/${id}/members`),
     enabled: !!id,
   });
 }
@@ -313,26 +277,8 @@ export interface AddMemberInput {
 export function useAddMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: AddMemberInput) => {
-      const s = teamsStore();
-      const list = s.members[input.team_id] ?? (s.members[input.team_id] = []);
-      const member: MemberView = {
-        team_id: input.team_id,
-        member_ref: input.member_ref,
-        kind: input.kind,
-        role: input.role,
-        name: input.name,
-        tags: [],
-        cli: input.kind === 'agent' ? 'claude-code' : '—',
-        model: input.kind === 'agent' ? 'sonnet-5' : '—',
-        concurrency: input.kind === 'agent' ? '0/2' : '—',
-        exclusive: input.kind === 'agent',
-      };
-      list.push(member);
-      const team = s.teams.find((t) => t.id === input.team_id);
-      if (team) team.members_count = list.length;
-      return resolve(member);
-    },
+    mutationFn: (input: AddMemberInput) =>
+      api.post<MemberView>(`/teams/${input.team_id}/members`, input),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.members(v.team_id) });
       qc.invalidateQueries({ queryKey: teamKeys.detail(v.team_id) });
@@ -344,14 +290,8 @@ export function useAddMember() {
 export function useRemoveMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { team_id: string; member_ref: string }) => {
-      const s = teamsStore();
-      const list = s.members[v.team_id] ?? [];
-      s.members[v.team_id] = list.filter((m) => m.member_ref !== v.member_ref);
-      const team = s.teams.find((t) => t.id === v.team_id);
-      if (team) team.members_count = s.members[v.team_id].length;
-      return resolve({ ok: true, ...v });
-    },
+    mutationFn: (v: { team_id: string; member_ref: string }) =>
+      api.del(`/teams/${v.team_id}/members/${encodeURIComponent(v.member_ref)}`),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.members(v.team_id) });
       qc.invalidateQueries({ queryKey: teamKeys.detail(v.team_id) });
@@ -367,7 +307,7 @@ export function useRemoveMember() {
 export function useTeamProjects(id: string) {
   return useQuery({
     queryKey: teamKeys.projects(id),
-    queryFn: () => resolve(teamsStore().projects[id] ?? []),
+    queryFn: () => api.get<TeamProjectLink[]>(`/teams/${id}/projects`),
     enabled: !!id,
   });
 }
@@ -375,22 +315,8 @@ export function useTeamProjects(id: string) {
 export function useAssociateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { team_id: string; project_id: string; name: string }) => {
-      const s = teamsStore();
-      const list = s.projects[v.team_id] ?? (s.projects[v.team_id] = []);
-      const link: TeamProjectLink = {
-        team_id: v.team_id,
-        project_id: v.project_id,
-        name: v.name,
-        glyph: v.name.slice(0, 2).toUpperCase(),
-        repo: `repo: ${v.name}`,
-        relation: list.length === 0 ? 'primary' : 'linked',
-      };
-      list.push(link);
-      const team = s.teams.find((t) => t.id === v.team_id);
-      if (team) team.projects_count = list.length;
-      return resolve(link);
-    },
+    mutationFn: (v: { team_id: string; project_id: string; name: string }) =>
+      api.post<TeamProjectLink>(`/teams/${v.team_id}/projects`, v),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.projects(v.team_id) });
       qc.invalidateQueries({ queryKey: teamKeys.detail(v.team_id) });

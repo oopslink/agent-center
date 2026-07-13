@@ -1,4 +1,5 @@
 import { http, HttpResponse, type JsonBodyType } from 'msw';
+import { teamHandlers } from './teamHandlers';
 
 // MSW handlers for all 17 Web Console endpoints. Used by tests via
 // src/test/mswServer.ts (Node setupServer). Per F4 oversight #4 these
@@ -579,6 +580,10 @@ const baseHandlers = [
   // Agents — Agent BC (v2.7 #101). Org-scoped, wrapped list shape, lifecycle
   // sub-routes + work-items / activity.
   ...agentHandlers(),
+
+  // Team WebUI Phase-1 facade (teams CRUD + members + projects) — backed by the
+  // teamsFixtures store; see teamHandlers.ts.
+  ...teamHandlers(),
 
   // Secrets
   http.get('/api/secrets', () =>
