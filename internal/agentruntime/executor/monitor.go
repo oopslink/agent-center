@@ -115,6 +115,13 @@ type Monitor struct {
 	// so the eventual Finalize can label their stop "stalled" (the reaped kill would
 	// otherwise classify as a generic nonzero_exit — the "stalled" cause is lost).
 	stallKilled map[string]struct{}
+	// fused records this-process executors FuseKillTask circuit-broke because the center
+	// revoked their task's execution lease (blocked mid-flight / reassigned / terminal —
+	// issue-88e32d98 P0). Unlike a stall this is a DELIBERATE stop the center ordered, so
+	// the recovery driver must NOT relaunch it (a fused → recover → relaunch produced an
+	// unfused executor that kept running a blocked task — the P67 Ship 事故). The drain's
+	// point-recovery consumes this mark (TakeFused) and quiet-finalizes instead.
+	fused map[string]struct{}
 	// progressAt is the last status.last_progress_at emitted per executor, so
 	// SampleProgress only emits on advance (change-only throttling).
 	progressAt map[string]time.Time
@@ -167,6 +174,7 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 		clk:         clk,
 		log:         logf,
 		stallKilled: make(map[string]struct{}),
+		fused:       make(map[string]struct{}),
 		progressAt:  make(map[string]time.Time),
 	}, nil
 }
@@ -260,12 +268,17 @@ func (m *Monitor) Sweep(ctx context.Context) ([]string, error) {
 // was blocked mid-flight (ADR-0046: a block leaves status=running, so the executor
 // would otherwise keep going — the P67 Ship 事故 that merged dead code), reassigned, or
 // terminal — so stop the process NOW. Same mechanism as the watchdog Sweep's per-handle
-// kill (mark the cause BEFORE the kill so the concurrent drain/reap labels the stop
-// correctly), just triggered by a center signal rather than a local stall. The per-
-// executor drain goroutine then observes the death and finalizes it (slot released,
-// writeback reported). Returns killed=true when a matching live handle was found and
-// graceful-killed; (false,nil) when no live pool executor runs that task (e.g. it is an
-// adopted orphan, or already gone) — best-effort, never fatal.
+// kill (mark the cause BEFORE the kill so the concurrent drain labels the stop
+// correctly), just triggered by a center signal rather than a local stall. Unlike Sweep
+// it marks the death FUSED, not stalled: a stall is a local hang the recovery driver
+// RELAUNCHES; a fuse is a center-ordered stop it must NOT relaunch (marking it stalled
+// made point-recovery treat the fuse as a recoverable stall → relaunch of a blocked task,
+// the P67 Ship 事故 — issue-88e32d98). The per-executor drain goroutine then observes the
+// death, consumes the fuse mark (TakeFused), and QUIET-finalizes it (slot released, dir
+// torn down, NO writeback — the center already owns the blocked task's state). Returns
+// killed=true when a matching live handle was found and graceful-killed; (false,nil) when
+// no live pool executor runs that task (e.g. it is an adopted orphan, or already gone) —
+// best-effort, never fatal.
 func (m *Monitor) FuseKillTask(ctx context.Context, taskRef string) (bool, error) {
 	if m.pool == nil || m.watchdog == nil || strings.TrimSpace(taskRef) == "" {
 		return false, nil
@@ -274,7 +287,7 @@ func (m *Monitor) FuseKillTask(ctx context.Context, taskRef string) (bool, error
 		if m.taskRef(h.ExecutorID) != taskRef {
 			continue
 		}
-		m.markStalled(h.ExecutorID) // label the stop before the kill (see Sweep)
+		m.MarkFused(h.ExecutorID) // label the stop FUSED (do-not-recover) before the kill
 		if err := m.watchdog.GracefulKill(ctx, h); err != nil {
 			return false, fmt.Errorf("executor: fuse-kill %s (task %s): %w", h.ExecutorID, taskRef, err)
 		}
@@ -564,6 +577,37 @@ func (m *Monitor) finalizeGitStatus(ctx context.Context, executorID string) *Fin
 	return &gs
 }
 
+// FinalizeFused terminally settles a FUSED executor (FuseKillTask circuit-break) WITHOUT
+// any center writeback (issue-88e32d98 P0). It is Finalize minus step (1) Report: the
+// center ALREADY blocked/revoked the task — that revocation is what tripped the fuse — so
+// it owns the task's state. Reporting the killed process's outcome would (a) inject a
+// spurious supervisor judgment turn that could complete/merge a task the center
+// deliberately stopped (the P67 Ship 事故), and (b) risk double-writing an already-blocked
+// task. So this only frees the pool slot, emits the terminal stop for observability, and
+// tears down durable state — never re-launchable residue (it always MarkFinalized/teardown
+// so a later boot Scan can't re-recover it). Running is a no-op.
+func (m *Monitor) FinalizeFused(ctx context.Context, c Completion) error {
+	if c.Kind == OutcomeRunning {
+		return nil
+	}
+	m.captureCodexThreadID(c)
+	// Free the concurrency slot (the process is already gone). No writeback precedes it,
+	// so — unlike Finalize's writeback-gated release — this is unconditional.
+	if m.pool != nil {
+		m.pool.Release(c.ExecutorID)
+	}
+	// Terminal stop for the activity stream (before teardown, so task_ref still resolves).
+	m.emitStop(c)
+	// Force delayed-teardown (never RETAIN as retryable): a fused executor must not leave
+	// state a later recovery/boot Scan could relaunch into a new unfused incarnation. A
+	// fused executor's work is deliberately rejected, so no git-status audit marker is
+	// captured (nil = timestamp-only) — unlike Finalize's retain-and-audit path.
+	if err := m.fx.MarkFinalized(c.ExecutorID, m.clk.Now(), nil); err != nil {
+		return m.tearDownExecutor(ctx, c.ExecutorID)
+	}
+	return nil
+}
+
 // tearDownExecutor removes a terminal executor's worktree + dir — the actual cleanup,
 // deferred from Finalize to ReapFinalized (delayed teardown). Best-effort worktree
 // removal (it may already be gone); the dir RemoveAll is the authoritative cleanup.
@@ -754,6 +798,28 @@ func (m *Monitor) ClearStalled(executorID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.stallKilled, executorID)
+}
+
+// MarkFused records that a task's live executor was circuit-broken on a center lease
+// revocation (issue-88e32d98 P0). FuseKillTask calls it before the graceful kill; the
+// write happens-before the concurrent drain's TakeFused read (both mutex-guarded), so the
+// fuse cause is never lost to a racing reap.
+func (m *Monitor) MarkFused(executorID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.fused[executorID] = struct{}{}
+}
+
+// TakeFused reports (and clears) whether FuseKillTask circuit-broke id. The point-
+// recovery driver consumes it FIRST: a fused death is a center-ordered stop that must
+// NOT be recovered/relaunched (it is quiet-finalized instead). Consuming (not peeking)
+// keeps the mark from lingering onto a later same-id incarnation.
+func (m *Monitor) TakeFused(executorID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, ok := m.fused[executorID]
+	delete(m.fused, executorID)
+	return ok
 }
 
 // advancedProgress reports whether at is newer than the last progress sample

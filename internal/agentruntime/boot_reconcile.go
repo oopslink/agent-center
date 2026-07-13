@@ -482,15 +482,26 @@ func (r *LocalRuntime) verifyThenCancel(ctx context.Context, ee *ExecutorEngine,
 
 // taskCancelEvidence is the PURE cancel-proof test: a task is safe to cancel its
 // executor for ONLY when the center says it is terminal (completed/discarded/
-// cancelled) OR it is now assigned to a DIFFERENT agent (reassigned). Anything else —
-// running/open/blocked and still mine, or an empty/unknown status — is NOT proof, so
-// the executor is kept. Absence-from-inflight alone never reaches here.
+// cancelled), it is BLOCKED (running + a non-empty blocked_reason), OR it is now
+// assigned to a DIFFERENT agent (reassigned). Anything else — running/open and still
+// mine with no block, or an empty/unknown status — is NOT proof, so the executor is
+// kept. Absence-from-inflight alone never reaches here.
+//
+// issue-88e32d98 P0: BLOCKED is cancel evidence. ADR-0046 leaves a blocked task
+// status=running, so status alone read "still mine, keep → relaunch" — which relaunched
+// a dead executor onto a task the center had deliberately blocked (the P67 Ship 事故).
+// A blocked task must NOT churn an executor; recovery finalizes instead of relaunching.
+// This only fires on a non-empty blocked_reason, so a healthy running task (blocked_reason
+// empty) still recovers normally — blocked-vs-stall stays distinguished.
 func taskCancelEvidence(detail *centerTaskDetail, agentID string) bool {
 	if detail == nil {
 		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(detail.Status)) {
 	case "completed", "discarded", "cancelled", "canceled":
+		return true
+	}
+	if strings.TrimSpace(detail.BlockedReason) != "" {
 		return true
 	}
 	return taskReassigned(detail.Assignee, agentID)

@@ -833,8 +833,14 @@ type centerTaskDetail struct {
 	// Assignee is the task's current owner ("agent:<id>" or a bare id). Used by boot
 	// self-reconcile (T848 §4.4) to detect a reassigned task as positive cancel evidence.
 	Assignee string `json:"assignee"`
-	Model    string `json:"model"`
-	OrgRef   string `json:"org_ref"`
+	// BlockedReason is the task's block annotation. ADR-0046: a blocked task stays
+	// status=running with a non-empty blocked_reason (not terminal), so status alone can't
+	// distinguish a healthy running task from a blocked one. issue-88e32d98 P0: a non-empty
+	// blocked_reason is positive cancel evidence — point-recovery must NOT relaunch a dead
+	// executor whose task the center blocked (that produced the P67 Ship 事故).
+	BlockedReason string `json:"blocked_reason"`
+	Model         string `json:"model"`
+	OrgRef        string `json:"org_ref"`
 	// v2.31.0 (issue-9f749a19 Phase 1): repo hint from the get_task projection —
 	// the project's PRIMARY repo reference (credential-free) plus base_ref (its
 	// default branch). Emitted only when the project has a primary repo; absent on

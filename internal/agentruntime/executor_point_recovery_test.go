@@ -9,20 +9,23 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 )
 
-// gettaskCaller scripts get_task with a fixed status/assignee (for should-continue vs
-// terminal/reassigned) and records whether block_task (the recovery-exhausted escalate)
-// was called.
+// gettaskCaller scripts get_task with a fixed status/assignee/blocked_reason (for
+// should-continue vs terminal/reassigned/blocked) and records whether block_task (the
+// recovery-exhausted escalate) was called and whether get_task was queried at all.
 type gettaskCaller struct {
-	status   string
-	assignee string
-	blocked  bool
+	status        string
+	assignee      string
+	blockedReason string // issue-88e32d98: non-empty ⇒ task blocked (cancel evidence)
+	blocked       bool
+	queried       bool // set when get_task was actually called (the fused path skips it)
 }
 
 func (g *gettaskCaller) CallAgentTool(_ context.Context, tool string, _ any, out *json.RawMessage) error {
 	switch tool {
 	case "get_task":
+		g.queried = true
 		if out != nil {
-			rb, _ := json.Marshal(map[string]any{"id": "task-1", "status": g.status, "assignee": g.assignee})
+			rb, _ := json.Marshal(map[string]any{"id": "task-1", "status": g.status, "assignee": g.assignee, "blocked_reason": g.blockedReason})
 			*out = append((*out)[:0], rb...)
 		}
 	case "block_task":
@@ -120,6 +123,85 @@ func TestReconcileOneExecutor_BudgetExhausted_Escalates(t *testing.T) {
 
 	if !gc.blocked {
 		t.Fatal("exhausted budget must escalate to PD via block_task")
+	}
+}
+
+// TestReconcileOneExecutor_Fused_QuietFinalizeNoRecover locks issue-88e32d98 P0 (root
+// causes ①/②/③): a FUSED death — one the runtime circuit-broke because the center revoked
+// the task's lease (block mid-flight) — must QUIET-finalize, NEVER recover/relaunch. Even
+// though get_task would report status="running" (ADR-0046: a block leaves running), the
+// fused mark short-circuits the whole should-continue/budget logic: no get_task query, no
+// recovery budget consumed, no relaunch (and thus no un-fusable orphan). This is the exact
+// steady-state 60s+ symptom the fix closes.
+func TestReconcileOneExecutor_Fused_QuietFinalizeNoRecover(t *testing.T) {
+	rt, ee, home := engineForAgent(t, "ag-fuse")
+	attach(rt, ee)
+	// get_task would say should-continue (running+mine) — the PRE-FIX relaunch trigger.
+	gc := &gettaskCaller{status: "running", assignee: "agent:ag-fuse"}
+	setToolCaller(rt, gc)
+	fx, tr := seedExchange(t, home)
+	seedExecutorWithTask(t, fx, tr, "ex-fuse", "task-1")
+
+	// The runtime fused this executor (center lease revoke) before it died.
+	ee.monitor.MarkFused("ex-fuse")
+
+	comp := executor.Completion{ExecutorID: "ex-fuse", Kind: executor.OutcomeCrashed, Retryable: true}
+	rt.reconcileOneExecutor(context.Background(), ee, "ex-fuse", comp, false /*wasStall*/, true /*thisProcess*/)
+
+	if ee.isRecovering("ex-fuse") {
+		t.Fatal("recovering claim must be cleared after reconcile returns")
+	}
+	// A fused death must NOT consume recovery budget (it is finalized, not recovered).
+	if got := remainingCrashBudget(ee, "task-1"); got != maxCrashRecover {
+		t.Fatalf("fused death must NOT consume recovery budget (no relaunch): remaining=%d, want %d", got, maxCrashRecover)
+	}
+	// The fused path is a deliberate stop: it never even queries should-continue.
+	if gc.queried {
+		t.Fatal("fused death must short-circuit BEFORE get_task (no should-continue query)")
+	}
+	// The mark is consumed so it cannot linger onto a later same-id incarnation.
+	if ee.monitor.TakeFused("ex-fuse") {
+		t.Fatal("reconcile must consume the fused mark")
+	}
+}
+
+// TestReconcileOneExecutor_BlockedTask_NoRecover is the durable net for root cause ②: even
+// WITHOUT a fused mark (e.g. an executor that crashed on its own, or a mark lost across an
+// orchestrator restart), a death whose task get_task reports as BLOCKED (status=running +
+// a non-empty blocked_reason) must NOT relaunch. blocked-as-stop keeps the P67 relaunch
+// shut on every path, not just the in-process fuse.
+func TestReconcileOneExecutor_BlockedTask_NoRecover(t *testing.T) {
+	rt, ee, home := engineForAgent(t, "ag-blk")
+	attach(rt, ee)
+	// ADR-0046: a blocked task stays status="running" but carries a blocked_reason.
+	setToolCaller(rt, &gettaskCaller{status: "running", assignee: "agent:ag-blk", blockedReason: "obstacle: needs PD triage"})
+	fx, tr := seedExchange(t, home)
+	seedExecutorWithTask(t, fx, tr, "ex-blk", "task-1")
+
+	comp := executor.Completion{ExecutorID: "ex-blk", Kind: executor.OutcomeCrashed}
+	rt.reconcileOneExecutor(context.Background(), ee, "ex-blk", comp, false, false)
+
+	if got := remainingCrashBudget(ee, "task-1"); got != maxCrashRecover {
+		t.Fatalf("a crashed executor of a BLOCKED task must NOT consume recovery budget (no relaunch): remaining=%d, want %d", got, maxCrashRecover)
+	}
+}
+
+// TestReconcileOneExecutor_RunningNotBlocked_StillRecovers is the anti-regression guard:
+// the blocked-as-stop / fused logic must NOT touch a healthy running task's normal
+// crash-recover. A crash of a running task with an EMPTY blocked_reason and no fuse mark
+// still recovers (consumes one budget) exactly as before.
+func TestReconcileOneExecutor_RunningNotBlocked_StillRecovers(t *testing.T) {
+	rt, ee, home := engineForAgent(t, "ag-run")
+	attach(rt, ee)
+	setToolCaller(rt, &gettaskCaller{status: "running", assignee: "agent:ag-run", blockedReason: ""})
+	fx, tr := seedExchange(t, home)
+	seedExecutorWithTask(t, fx, tr, "ex-run", "task-1")
+
+	comp := executor.Completion{ExecutorID: "ex-run", Kind: executor.OutcomeCrashed}
+	rt.reconcileOneExecutor(context.Background(), ee, "ex-run", comp, false, false)
+
+	if got := remainingCrashBudget(ee, "task-1"); got != maxCrashRecover-1 {
+		t.Fatalf("a healthy running (non-blocked, non-fused) crash must still recover: remaining=%d, want %d", got, maxCrashRecover-1)
 	}
 }
 
