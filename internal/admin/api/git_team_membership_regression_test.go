@@ -195,7 +195,7 @@ func TestCenterGit_TeamMember_RealRefClonePush(t *testing.T) {
 
 	// ---- instantiate_team path: a MINTED agent's real member ref -------------
 	st, body = postBearer(t, srv.URL, "/admin/agent-tools/instantiate_team", "acat_w1", map[string]any{
-		"agent_id": atAgent1, "project_id": "proj-git-rw", "team_name": "inst-git-rw",
+		"agent_id": atAgent1, "team_name": "inst-git-rw",
 		"template": map[string]any{
 			"name": "tmpl-git-rw", "description": "inst rw",
 			"roles": []map[string]any{{"role": "dev", "cli": "claude-code", "count": 1, "max_concurrency": 1}},

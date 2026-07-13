@@ -64,7 +64,6 @@ func mapTeamError(w http.ResponseWriter, err error) {
 		errors.Is(err, team.ErrInvalidMemberRef),
 		errors.Is(err, team.ErrInvalidProject),
 		errors.Is(err, team.ErrInvalidTemplate),
-		errors.Is(err, team.ErrInstantiateNeedsProject),
 		errors.Is(err, team.ErrRoleNotStaffed),
 		errors.Is(err, team.ErrConstraintUnsatisfiable),
 		errors.Is(err, team.ErrCyclicAvoid),
@@ -587,9 +586,8 @@ func (s *Server) importTeamTemplateHandler(w http.ResponseWriter, r *http.Reques
 // --- instantiate_team --------------------------------------------------------
 
 type instantiateTeamReq struct {
-	AgentID   string `json:"agent_id"`
-	ProjectID string `json:"project_id"`
-	TeamName  string `json:"team_name"`
+	AgentID  string `json:"agent_id"`
+	TeamName string `json:"team_name"`
 	// Template is the (inline) team template to instantiate — role composition +
 	// per-role config + portable experiences. Templates are org-level artifacts
 	// (no server-side catalog in phase 1), so the caller supplies it here.
@@ -629,12 +627,11 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	// runtime-provisioning plan (design §9). We then apply the identity/config
 	// part here; the runtime enrollment is returned for the operator's next step.
 	instPlan, _, err := team.PlanInstantiation(team.InstantiateInput{
-		Template:  tmpl,
-		OrgID:     orgID,
-		ProjectID: req.ProjectID,
-		TeamName:  req.TeamName,
-		Minter:    d.TeamIDGen,
-		Now:       now,
+		Template: tmpl,
+		OrgID:    orgID,
+		TeamName: req.TeamName,
+		Minter:   d.TeamIDGen,
+		Now:      now,
 	})
 	if err != nil {
 		mapTeamError(w, err)
@@ -656,10 +653,9 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		mapTeamError(w, err)
 		return
 	}
-	if err := d.TeamSvc.AssociateProject(r.Context(), created.ID(), req.ProjectID); err != nil {
-		mapTeamError(w, err)
-		return
-	}
+	// issue-c4dccae0: instantiation is PROJECT-INDEPENDENT — the team is created at
+	// org level with no project binding. Associating it with one or more projects is
+	// a SEPARATE step (associate_project). No AssociateProject call here.
 
 	// Build a REAL agent identity per role*count (design §6 "建 N 个新 agent 新身份"
 	// / §8). Reuse the existing identity-provision path so the identities table gets
@@ -733,7 +729,6 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"team":                  view,
-		"project_id":            instPlan.ProjectID,
 		"workflow_template_ref": instPlan.WorkflowTemplateRef,
 		"agents":                agents,
 		// identities_created counts the real identity entities built (0 in degraded

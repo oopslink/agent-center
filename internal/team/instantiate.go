@@ -6,8 +6,10 @@ import (
 	"time"
 )
 
-// instantiate.go plans instantiating a Team template onto a project (design §6
-// "实例化到 project" + §9 "实例化 ≠ 能跑的团队"). Instantiation is split into two
+// instantiate.go plans instantiating a Team template into an ORG (issue-c4dccae0:
+// team instantiation is PROJECT-INDEPENDENT — a team is an org-level entity, and
+// binding it to one or more projects is a SEPARATE step via associate_project,
+// design §3 "team 与 project 是两条正交轴"). Instantiation is split into two
 // planning outputs, mirroring the design's explicit two-step model:
 //
 //   - InstantiationPlan: the IDENTITY + CONFIG + MEMORY-REPO seed + workflow
@@ -48,8 +50,6 @@ type InstantiationPlan struct {
 	// Team is the new team aggregate (identity + role config), ready to persist
 	// via the S1 team service.
 	Team *Team
-	// ProjectID is the project the team is being instantiated onto.
-	ProjectID string
 	// Agents are the new agent identities to create (role composition expanded).
 	Agents []AgentSpec
 	// Members binds each new agent to the team under its role.
@@ -82,9 +82,8 @@ type IDMinter interface {
 
 // InstantiateInput drives PlanInstantiation.
 type InstantiateInput struct {
-	Template  *TeamTemplate
-	OrgID     string
-	ProjectID string
+	Template *TeamTemplate
+	OrgID    string
 	// TeamName for the instantiated team. Falls back to the template name.
 	TeamName string
 	Minter   IDMinter
@@ -93,14 +92,12 @@ type InstantiateInput struct {
 
 // PlanInstantiation expands a template into the two instantiation plans (design
 // §6/§9). It does NOT touch any store — the caller applies the plans through the
-// existing services. Returns ErrInvalidTemplate on a nil/empty template and
-// ErrInstantiateNeedsProject when ProjectID is empty.
+// existing services. Instantiation is PROJECT-INDEPENDENT (issue-c4dccae0):
+// project association, if wanted, is a separate associate_project step. Returns
+// ErrInvalidTemplate on a nil/empty template.
 func PlanInstantiation(in InstantiateInput) (*InstantiationPlan, *RuntimeProvisioningPlan, error) {
 	if in.Template == nil || len(in.Template.Roles) == 0 {
 		return nil, nil, ErrInvalidTemplate
-	}
-	if strings.TrimSpace(in.ProjectID) == "" {
-		return nil, nil, ErrInstantiateNeedsProject
 	}
 	if in.Minter == nil {
 		return nil, nil, fmt.Errorf("%w: minter required", ErrInvalidTemplate)
@@ -174,7 +171,6 @@ func PlanInstantiation(in InstantiateInput) (*InstantiationPlan, *RuntimeProvisi
 
 	instPlan := &InstantiationPlan{
 		Team:                newTeam,
-		ProjectID:           strings.TrimSpace(in.ProjectID),
 		Agents:              agents,
 		Members:             memberRs,
 		MemorySeed:          seed,

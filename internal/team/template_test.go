@@ -202,12 +202,11 @@ func (m *fakeMinter) NewEntityID(kind string) string {
 func TestPlanInstantiation_BuildsIdentitiesConfigMembersAndRuntimeStep(t *testing.T) {
 	tmpl := sampleTemplate(t, true)
 	inst, rt, err := team.PlanInstantiation(team.InstantiateInput{
-		Template:  tmpl,
-		OrgID:     "org-1",
-		ProjectID: "proj-9",
-		TeamName:  "backend @ proj-9",
-		Minter:    &fakeMinter{},
-		Now:       time.Unix(5, 0),
+		Template: tmpl,
+		OrgID:    "org-1",
+		TeamName: "backend squad",
+		Minter:   &fakeMinter{},
+		Now:      time.Unix(5, 0),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +215,7 @@ func TestPlanInstantiation_BuildsIdentitiesConfigMembersAndRuntimeStep(t *testin
 	if len(inst.Agents) != 5 || len(inst.Members) != 5 || len(rt.Enrollments) != 5 {
 		t.Fatalf("counts: agents=%d members=%d enroll=%d want 5/5/5", len(inst.Agents), len(inst.Members), len(rt.Enrollments))
 	}
-	if inst.Team == nil || inst.Team.Name() != "backend @ proj-9" {
+	if inst.Team == nil || inst.Team.Name() != "backend squad" {
 		t.Errorf("team not built with given name")
 	}
 	if inst.WorkflowTemplateRef != "wf-dev-review-ship" {
@@ -243,9 +242,17 @@ func TestPlanInstantiation_BuildsIdentitiesConfigMembersAndRuntimeStep(t *testin
 	}
 }
 
-func TestPlanInstantiation_RequiresProject(t *testing.T) {
+// TestPlanInstantiation_ProjectIndependent proves instantiation NO LONGER needs a
+// project (issue-c4dccae0): a template instantiates into an org with no project
+// binding; associating a project is a separate step. It succeeds project-free and
+// still builds the team, agents, members and runtime step.
+func TestPlanInstantiation_ProjectIndependent(t *testing.T) {
 	tmpl := sampleTemplate(t, true)
-	if _, _, err := team.PlanInstantiation(team.InstantiateInput{Template: tmpl, Minter: &fakeMinter{}}); !errors.Is(err, team.ErrInstantiateNeedsProject) {
-		t.Fatalf("missing project should be ErrInstantiateNeedsProject, got %v", err)
+	inst, rt, err := team.PlanInstantiation(team.InstantiateInput{Template: tmpl, OrgID: "org-1", Minter: &fakeMinter{}})
+	if err != nil {
+		t.Fatalf("instantiation must succeed without a project, got %v", err)
+	}
+	if inst == nil || inst.Team == nil || len(inst.Agents) == 0 || rt == nil || len(rt.Enrollments) == 0 {
+		t.Fatalf("project-free instantiation should still build team/agents/runtime: %+v", inst)
 	}
 }

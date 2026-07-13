@@ -64,7 +64,7 @@ func registerTeamTools(srv *mcp.Server, cfg Config) {
 	}, makeImportTeamTemplate(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "instantiate_team",
-		Description: "Instantiate a team template onto a project: creates the team + its role composition, builds one REAL agent identity per role*count and binds them as members, provisions the team's center-hosted memory repo and seeds it with the template's portable experiences. Returns the team, the new agent identities, and a SEPARATE runtime-provisioning plan (enroll each agent) — the template carries no runtime/auth.",
+		Description: "Instantiate a team template into your organization: creates the team + its role composition, builds one REAL agent identity per role*count and binds them as members, provisions the team's center-hosted memory repo and seeds it with the template's portable experiences. The team is PROJECT-INDEPENDENT — to bind it to one or more projects, call associate_project separately. Returns the team, the new agent identities, and a SEPARATE runtime-provisioning plan (enroll each agent) — the template carries no runtime/auth.",
 	}, makeInstantiateTeam(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "extract_from_team",
@@ -274,15 +274,14 @@ func makeImportTeamTemplate(cfg Config) mcp.ToolHandlerFor[importTeamTemplateArg
 }
 
 type instantiateTeamArgs struct {
-	ProjectID string                 `json:"project_id" jsonschema:"the project to instantiate the team onto"`
-	TeamName  string                 `json:"team_name,omitempty" jsonschema:"name for the instantiated team (defaults to the template name)"`
-	Template  createTeamTemplateArgs `json:"template" jsonschema:"the team template to instantiate"`
+	TeamName string                 `json:"team_name,omitempty" jsonschema:"name for the instantiated team (defaults to the template name)"`
+	Template createTeamTemplateArgs `json:"template" jsonschema:"the team template to instantiate"`
 }
 
 func makeInstantiateTeam(cfg Config) mcp.ToolHandlerFor[instantiateTeamArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args instantiateTeamArgs) (*mcp.CallToolResult, any, error) {
 		return callAdmin(ctx, cfg, "instantiate_team", map[string]any{
-			"agent_id": cfg.AgentID, "project_id": args.ProjectID, "team_name": args.TeamName,
+			"agent_id": cfg.AgentID, "team_name": args.TeamName,
 			"template": args.Template.body(cfg),
 		})
 	}

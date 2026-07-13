@@ -117,7 +117,7 @@ var secondaryTools = []struct{ name, summary string }{
 	{"curate_team_template", "mark a team template curated after manual review (export gate)"},
 	{"export_team_template", "export a curated team template to a shareable JSON document (cross-org)"},
 	{"import_team_template", "import a team template from an exported JSON document into your org"},
-	{"instantiate_team", "instantiate a team template onto a project (creates team + agents + memory)"},
+	{"instantiate_team", "instantiate a team template into your org (creates team + agents + memory; project-independent)"},
 	{"extract_from_team", "snapshot a live team into a draft template (roles + portable experiences, scrub highlights)"},
 	{"assign_roles", "resolve plan-node roles to concrete agents off a team's roster"},
 }

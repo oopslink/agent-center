@@ -237,7 +237,7 @@ func TestInstantiateTeam_BuildsRealIdentities(t *testing.T) {
 		},
 	}
 	st, body := postBearer(t, srv.URL, "/admin/agent-tools/instantiate_team", "acat_w1", map[string]any{
-		"agent_id": atAgent1, "project_id": "proj-9", "team_name": "squad-run", "template": tmpl,
+		"agent_id": atAgent1, "team_name": "squad-run", "template": tmpl,
 	})
 	if st != http.StatusCreated {
 		t.Fatalf("instantiate_team status=%d body=%v", st, body)

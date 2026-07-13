@@ -53,7 +53,4 @@ var (
 	// ErrTemplateNotCurated is returned when exporting / cross-org sharing a
 	// template that has not passed the mandatory manual curation (design §9).
 	ErrTemplateNotCurated = errors.New("team: template not curated (export requires manual curation)")
-	// ErrInstantiateNeedsProject is returned when instantiating a template
-	// without a target project id.
-	ErrInstantiateNeedsProject = errors.New("team: instantiation requires a project id")
 )

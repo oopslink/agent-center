@@ -117,9 +117,10 @@ func TestTeamTools_CRUDAndInstantiate(t *testing.T) {
 		t.Fatalf("create_team_template status=%d body=%v", st, body)
 	}
 
-	// instantiate_team expands the template onto a project: 2 dev + 1 qa = 3 agents.
+	// instantiate_team expands the template into the org (project-independent,
+	// issue-c4dccae0): 2 dev + 1 qa = 3 agents.
 	st, body = postBearer(t, srv.URL, "/admin/agent-tools/instantiate_team", "acat_w1", map[string]any{
-		"agent_id": atAgent1, "project_id": "proj-9", "team_name": "squad-run", "template": tmpl,
+		"agent_id": atAgent1, "team_name": "squad-run", "template": tmpl,
 	})
 	if st != http.StatusCreated {
 		t.Fatalf("instantiate_team status=%d body=%v", st, body)

@@ -106,7 +106,7 @@ git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费
 
 **内容三块**：① 角色配比 + 每角色配置（cli/model/tags/并发）② 工作规约（引用一个 workflow 模版 + 编码规范/裁决惯例/清理规则）③ 可泛化经验（skills/rules/原则）。
 
-**实例化到 project** = 按角色配比建 N 个新 agent（新身份）+ seed 它们 memory（那套可泛化经验）+ 绑 workflow 模版 → 直接能跑 Dev→Review→Ship。
+**实例化（project-independent，issue-c4dccae0）** = 按角色配比建 N 个新 agent（新身份）+ seed 它们 memory（那套可泛化经验）+ 绑 workflow 模版。团队是 **org 级实体、与 project 无关**；要把团队投到某个/某些 project 上干活是**独立的一步 associate_project**（§3 "team 与 project 是两条正交轴"）。这样一个 team 天然可服务多个 project、也可先建后关联。
 
 ---
 
@@ -128,7 +128,7 @@ git 负责"存储+同步（checkout/push+版本）"，索引+召回负责"消费
 
 ## 8. 分期
 
-- **Phase 1（MVP）**：Team 实体 + 成员/关联（sqlite）+ **team-memory center-hosted git（方案 A）** + 渐进式加载（复用）+ Team 模版（3 路径）+ 实例化到 project + role→agent 角色便利（§7）。
+- **Phase 1（MVP）**：Team 实体 + 成员/关联（sqlite）+ **team-memory center-hosted git（方案 A）** + 渐进式加载（复用）+ Team 模版（3 路径）+ 实例化（project-independent，见 §6/issue-c4dccae0；project 关联走独立 associate_project）+ role→agent 角色便利（§7）。
 - **Phase 2**：**agent memory 迁移到 center-hosted git**（比只做 team memory 大、动到跑着的东西，故拆后）。
 - **将来**：一个 team 服务多个 project；跨 org 共享（export/import 已覆盖，见 §6）。
 
