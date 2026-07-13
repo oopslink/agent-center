@@ -7,6 +7,7 @@
     "workspace": "工作区",
     "conversations": "会话",
     "members": "成员",
+    "teamui": "编队",
     "reminders": "提醒",
     "system": "系统",
     "orgSettings": "组织设置",
@@ -14,6 +15,7 @@
       "workspace": "工作",
       "conversations": "会话",
       "members": "成员",
+      "teamui": "编队",
       "reminders": "提醒",
       "system": "系统"
     }
@@ -288,6 +290,13 @@
       "modelCatalog": "模型类目",
       "codeRepos": "代码仓库",
       "workBoard": "工作看板"
+    },
+    "teamui": {
+      "allTeams": "全部 team",
+      "templates": "模版",
+      "directory": "目录",
+      "agents": "Agents",
+      "humans": "Humans"
     }
   }
 }
