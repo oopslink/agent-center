@@ -96,6 +96,17 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	if err != nil {
 		return err
 	}
+	// issue-d2f14e0e (P0): a merge-to-main task is HARD-GATED on a passed acceptance
+	// verdict, checked here — the single server-side chokepoint every executor passes
+	// through at start_work — so the merge cannot run regardless of executor behavior.
+	// This is additive to (and independent of) the dep / stage-barrier gates below;
+	// it fail-closes an ungated merge node (the P67 hole) even when its plain deps are
+	// satisfied. A non-merge task returns immediately (no graph reads).
+	if blocked, aerr := s.acceptanceVerdictBlocks(ctx, p, t); aerr != nil {
+		return aerr
+	} else if blocked {
+		return pm.ErrTaskNotRunnable
+	}
 	ns, err := s.planNodeStatus(ctx, p, taskID)
 	if err != nil {
 		return err
@@ -222,6 +233,82 @@ func (s *Service) stageGateBlocks(ctx context.Context, p *pm.Plan, t *pm.Task) (
 		if n.Status() != orch.NodeCompleted && n.Status() != orch.NodeDiscarded {
 			return true, nil
 		}
+	}
+	return false, nil
+}
+
+// acceptanceVerdictBlocks reports whether taskID is a merge-to-main task
+// (pm.TagMergeToMain) that has NOT cleared its acceptance verdict — the P0 hard
+// gate (issue-d2f14e0e). A merge-to-main task is runnable ONLY when its graph node
+// sits directly downstream of one or more acceptance/decision CONDITION gates and
+// EVERY such gate has resolved to a PASS (Completed + outcome "success", the string
+// ResolveCondition("success") / RecordDecisionOutcome("pass") stamp). Anything else
+// FAIL-CLOSES to blocked:
+//   - the task carries no merge-to-main tag → not gated (returns false immediately);
+//   - the task is not in a structured plan with a graph (no verdict to verify);
+//   - the node has NO upstream condition gate at all — author forgot to gate the
+//     merge behind acceptance (the exact P67 hole: a Ship node whose only dep was
+//     Dev, run in parallel with the verdict);
+//   - an upstream gate is unresolved (reject loopback) or resolved via a non-pass
+//     outcome (force_success / discard bounded-retry escape) — NOT an acceptance pass.
+//
+// It is a pure READ (no mutation, no event) so it composes inside any caller's tx.
+// The check is independent of the dep / stage-barrier gates: it holds even when the
+// node's plain blockedBy deps are satisfied, which is precisely what closes the hole.
+func (s *Service) acceptanceVerdictBlocks(ctx context.Context, p *pm.Plan, t *pm.Task) (bool, error) {
+	if !pm.HasTag(t.Tags(), pm.TagMergeToMain) {
+		return false, nil // not a merge-to-main task — nothing to gate
+	}
+	// A merge-to-main task must run inside a structured plan whose graph can PROVE a
+	// passed verdict. No engine / no graph / an unbound node ⇒ fail closed (a builtin
+	// pool has no graph, so a merge-to-main pool task is never runnable — it must be
+	// authored as a gated node in a structured plan).
+	if s.orch == nil || p.GraphID() == "" || t.NodeID() == "" {
+		return true, nil
+	}
+	graphID := orch.GraphID(p.GraphID())
+	nodeID := orch.NodeID(t.NodeID())
+	edges, err := s.orch.ListEdges(ctx, graphID)
+	if err != nil {
+		return false, err
+	}
+	var upstream []orch.NodeID
+	for _, e := range edges {
+		if e.ToNodeID == nodeID {
+			upstream = append(upstream, e.FromNodeID)
+		}
+	}
+	nodes, err := s.orch.ListNodes(ctx, graphID)
+	if err != nil {
+		return false, err
+	}
+	byID := make(map[orch.NodeID]*orch.Node, len(nodes))
+	for _, n := range nodes {
+		byID[n.ID()] = n
+	}
+	passedGates := 0
+	for _, up := range upstream {
+		n := byID[up]
+		if n == nil {
+			continue
+		}
+		if n.Category() != orch.NodeCategoryControl || n.ControlKind() != orch.ControlKindCondition {
+			continue // a plain business dep is gated by DerivePlanView, not an acceptance gate
+		}
+		// Every direct-upstream acceptance/decision gate MUST have passed. A gate still
+		// unresolved (reject → loopback keeps it open/reopen) or completed with a non-
+		// "success" outcome (force_success on max-rounds exhaustion, discard escape) is
+		// NOT a genuine acceptance pass — any such gate blocks the merge.
+		if n.Status() != orch.NodeCompleted || n.Outcome() != "success" {
+			return true, nil
+		}
+		passedGates++
+	}
+	// No acceptance/decision gate upstream at all ⇒ the merge node is ungated (P67):
+	// fail closed. This is the invariant an executor cannot bypass — a merge-to-main
+	// task with no passed verdict directly upstream never becomes runnable.
+	if passedGates == 0 {
+		return true, nil
 	}
 	return false, nil
 }
