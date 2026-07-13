@@ -767,14 +767,16 @@ func (s *Service) escalateExhaustion(txCtx context.Context, plan *pm.Plan, decis
 // It is PURE OBSERVATION — it reads the SAME derived view / gate predicates the
 // dispatcher and run-gate use and writes ONLY to the separate pm_plan_blocked_on
 // store. It changes NO gating/readiness semantics (the T1041 acceptance hard gate,
-// the reject gate, the stage barrier stay authoritative). This task ONLY
-// materializes + persists + classifies: it does NOT act on deadlines/on_timeout, run
-// a human-decision queue, subscribe to external events, or detect a dead executor —
-// those are downstream I103 tasks that CONSUME this snapshot.
+// the reject gate, the stage barrier stay authoritative). It classifies + persists and
+// (I103 §2) ASSIGNS each node's deadline + on_timeout from the deadline policy (data
+// only). It does NOT ACT on those deadlines (the router routeTimeouts does, after this),
+// run a human-decision queue, subscribe to external events, or detect a dead executor —
+// those are downstream I103 concerns that CONSUME this snapshot.
 //
 // IDEMPOTENT: re-running a sweep over an unchanged plan produces no churn — an
 // unchanged classification re-writes the same row (waited_since preserved while the
-// wait_type is unchanged; the downstream-owned deadline/probe fields preserved).
+// wait_type is unchanged, so the assigned deadline never drifts; the router-owned probe
+// fields preserved).
 //
 // Scope: structured, graphed plans only. A builtin pool is FLAT (no upstream, no
 // gates) and an ungraphed plan predates the engine — both skip (nothing to classify);
@@ -846,20 +848,26 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 			TriggerCondition: cls.trigger,
 			WaitedSince:      now,
 		}
-		// Refresh-preserve: keep waited_since while the wait_type is unchanged (an
-		// ongoing wait — the基准 the downstream deadline engine measures) and carry the
-		// downstream-owned deadline/on_timeout/probe fields forward so the sweep never
-		// clobbers a resolver/prober's state.
+		// Refresh-preserve: for an ONGOING wait of the SAME kind, keep waited_since (the
+		// 基准 the deadline is measured from — so the deadline never drifts across sweeps)
+		// and carry the router-owned probe history (last_probe_at / probe_count) forward so
+		// the sweep never clobbers it. A wait_type CHANGE is a genuinely new wait —
+		// waited_since resets to now (above) and the stale probe history is dropped.
 		if prev, ok, gerr := s.plans.GetBlockedOn(txCtx, planID, n.TaskID); gerr != nil {
 			return gerr
-		} else if ok {
-			b.Deadline = prev.Deadline
-			b.OnTimeout = prev.OnTimeout
+		} else if ok && prev.WaitType == cls.waitType {
+			b.WaitedSince = prev.WaitedSince
 			b.LastProbeAt = prev.LastProbeAt
 			b.ProbeCount = prev.ProbeCount
-			if prev.WaitType == cls.waitType {
-				b.WaitedSince = prev.WaitedSince
-			}
+		}
+		// I103 §2: (re)ASSIGN the deadline + on_timeout action from the policy, measured
+		// from waited_since. Because waited_since is preserved for an unchanged wait, the
+		// deadline recomputes to the SAME instant every sweep (idempotent, no drift). A zero
+		// (inert) policy assigns none — Deadline stays zero, the router is a no-op. Assigning
+		// is data-only; the router (routeTimeouts) is what ACTS when the deadline elapses.
+		if dl, action, ok := s.deadlinePolicy.DeadlineFor(cls.waitType, b.WaitedSince); ok {
+			b.Deadline = dl
+			b.OnTimeout = string(action)
 		}
 		if err := s.plans.UpsertBlockedOn(txCtx, b); err != nil {
 			return err

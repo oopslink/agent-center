@@ -281,6 +281,18 @@ type Service struct {
 	// onto the graph as gate + barrier nodes/edges.
 	stages pm.StageRepository
 
+	// deadlinePolicy configures the I103 §2 deadline engine: per-wait_type deadline +
+	// on_timeout action assigned during the reconcile materialize and consumed by the
+	// router (routeTimeouts). The zero value is INERT — no deadline is ever assigned and
+	// the engine is a no-op (pre-I103 behaviour, zero-regression). Set via
+	// Deps.DeadlinePolicy (production wires pm.DefaultDeadlinePolicy()).
+	deadlinePolicy pm.DeadlinePolicy
+	// timeoutSink is OPTIONAL (nil-safe, I103 §2). nil ⇒ the router still records each
+	// timeout on the BlockedOn row (probe_count / last_probe_at) but emits no external
+	// action. When wired, the sink enacts the routed on_timeout action PROPOSE-ONLY (it
+	// never releases a gated node — the gates stay authoritative).
+	timeoutSink TimeoutSink
+
 	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
 	// lease sweep (NudgeExpiredLeases) carries across ticks to auto-reopen a structured
 	// plan node wedged Running while its executor is dead (issue-6ff12523). In-memory:
@@ -375,6 +387,14 @@ type Deps struct {
 	// are available and buildPlanGraph lays a plan's stages onto the graph. nil ⇒ Stage
 	// is inert (pure-node DAG, §8 zero-regression).
 	Stages pm.StageRepository
+	// DeadlinePolicy is OPTIONAL (I103 §2): the deadline engine's per-wait_type deadline
+	// + on_timeout policy. The zero value is INERT (no deadline ever assigned — engine
+	// off). Production wires pm.DefaultDeadlinePolicy().
+	DeadlinePolicy pm.DeadlinePolicy
+	// TimeoutSink is OPTIONAL (I103 §2): when set, the on_timeout router hands each
+	// elapsed-deadline node to the sink to enact the routed action (PROPOSE-ONLY — never
+	// releases a gated node). nil ⇒ timeouts are recorded on the BlockedOn row only.
+	TimeoutSink TimeoutSink
 }
 
 // New constructs the Service.
@@ -406,6 +426,8 @@ func New(d Deps) *Service {
 		autoAssignSettings: d.AutoAssignSettings,
 		orch:               orchSvc,
 		stages:             d.Stages,
+		deadlinePolicy:     d.DeadlinePolicy,
+		timeoutSink:        d.TimeoutSink,
 	}
 }
 

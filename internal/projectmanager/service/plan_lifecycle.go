@@ -561,6 +561,26 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 		if merr != nil && errFn != nil {
 			errFn(p.ID(), fmt.Errorf("materialize blocked_on: %w", merr))
 		}
+		// I103 §2: run the deadline engine's on_timeout router over the just-materialized
+		// snapshots (deadline-check → route reprobe/escalate/route-to-handler + record
+		// probe). Like the materialize it runs in its OWN tx and is BEST-EFFORT: a router
+		// failure NEVER rolls back the dispatch or the materialize, never sets firstErr,
+		// and never aborts the sweep. The router is PROPOSE-ONLY — it touches only the
+		// pm_plan_blocked_on store + the sink, so it can never release a gated node (I103
+		// §5 P2). It is the authoritative pull back-stop for the push dispatch path.
+		rerr := s.runInTx(ctx, func(txCtx context.Context) error {
+			fresh, ferr := s.plans.FindByID(txCtx, p.ID())
+			if ferr != nil {
+				return ferr
+			}
+			if fresh.Status() != pm.PlanRunning {
+				return nil
+			}
+			return s.routeTimeouts(txCtx, fresh)
+		})
+		if rerr != nil && errFn != nil {
+			errFn(p.ID(), fmt.Errorf("route blocked_on timeouts: %w", rerr))
+		}
 	}
 	return firstErr
 }
