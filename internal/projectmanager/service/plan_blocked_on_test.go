@@ -62,6 +62,13 @@ func (r *failingPlanRepo) UpsertBlockedOn(ctx context.Context, b pm.BlockedOn) e
 	return r.PlanRepo.UpsertBlockedOn(ctx, b)
 }
 
+func (r *failingPlanRepo) ListBlockedOn(ctx context.Context, planID pm.PlanID) ([]pm.BlockedOn, error) {
+	if r.failOn == "list" {
+		return nil, errBoom
+	}
+	return r.PlanRepo.ListBlockedOn(ctx, planID)
+}
+
 // t0svc is a fixed instant for the direct classifyBlockedOn unit test (no clock).
 var t0svc = time.Unix(1_700_000_000, 0).UTC()
 
