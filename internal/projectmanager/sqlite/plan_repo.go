@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -157,6 +158,11 @@ func (r *PlanRepo) DeletePlan(ctx context.Context, id pm.PlanID) error {
 		return err
 	}
 	if _, err := exec.ExecContext(ctx, `DELETE FROM pm_plan_dispatch_records WHERE plan_id = ?`, string(id)); err != nil {
+		return err
+	}
+	// I103: cascade the plan's旁路 BlockedOn snapshots (observational, no gate reads
+	// them — but they must not outlive the plan).
+	if _, err := exec.ExecContext(ctx, `DELETE FROM pm_plan_blocked_on WHERE plan_id = ?`, string(id)); err != nil {
 		return err
 	}
 	res, err := exec.ExecContext(ctx, `DELETE FROM pm_plans WHERE id = ?`, string(id))
@@ -503,6 +509,130 @@ func (r *PlanRepo) ListReviewVerdicts(ctx context.Context, planID pm.PlanID) ([]
 		v.Blocking = blocking != 0
 		v.Round = round
 		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// --- BlockedOn snapshots (I103 §1) -----------------------------------------
+
+// encodeWaitKeys serializes the wait_keys id list to a stored JSON array. A nil/empty
+// list stores "" (the schema default), decoded back to nil — so an empty round-trip is
+// byte-stable (the idempotent materialize never sees a spurious [] vs nil diff).
+func encodeWaitKeys(keys []string) string {
+	if len(keys) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(keys)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// decodeWaitKeys parses the stored JSON array back to the id list ("" → nil).
+func decodeWaitKeys(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var keys []string
+	if err := json.Unmarshal([]byte(s), &keys); err != nil {
+		return nil
+	}
+	return keys
+}
+
+// UpsertBlockedOn writes/refreshes one node's BlockedOn slot (single-slot latest-wins
+// per plan_id,task_id). INSERT-OR-REPLACE on the PK — the service computes the
+// preserved fields (waited_since / probe fields) before calling, so this is a plain
+// whole-row overwrite.
+func (r *PlanRepo) UpsertBlockedOn(ctx context.Context, b pm.BlockedOn) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`INSERT OR REPLACE INTO pm_plan_blocked_on
+		 (plan_id, task_id, node_id, wait_type, wait_keys, trigger_condition, waited_since, deadline, on_timeout, last_probe_at, probe_count)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		string(b.PlanID), string(b.TaskID), b.NodeID, string(b.WaitType),
+		encodeWaitKeys(b.WaitKeys), b.TriggerCondition, ts(b.WaitedSince),
+		tsPtr(&b.Deadline), b.OnTimeout, tsPtr(&b.LastProbeAt), b.ProbeCount)
+	return err
+}
+
+// ClearBlockedOn deletes one node's BlockedOn slot (the node entered ready/running/
+// terminal). Idempotent: deleting an absent row is not an error.
+func (r *PlanRepo) ClearBlockedOn(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) error {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	_, err := exec.ExecContext(ctx,
+		`DELETE FROM pm_plan_blocked_on WHERE plan_id = ? AND task_id = ?`,
+		string(planID), string(taskID))
+	return err
+}
+
+// blockedOnSelect selects a full BlockedOn row (task_id leading). scanBlockedOn reads
+// this exact column order.
+const blockedOnSelect = `SELECT task_id, node_id, wait_type, wait_keys, trigger_condition, waited_since, deadline, on_timeout, last_probe_at, probe_count FROM pm_plan_blocked_on`
+
+// scanBlockedOn scans one `task_id, <cols>` row into a BlockedOn carrying planID.
+func scanBlockedOn(scan func(...any) error, planID pm.PlanID) (pm.BlockedOn, error) {
+	var (
+		taskID, nodeID, waitType, waitKeys, trigger, waitedSince, deadline, onTimeout, lastProbe string
+		probeCount                                                                               int
+	)
+	if err := scan(&taskID, &nodeID, &waitType, &waitKeys, &trigger, &waitedSince, &deadline, &onTimeout, &lastProbe, &probeCount); err != nil {
+		return pm.BlockedOn{}, err
+	}
+	b := pm.BlockedOn{
+		NodeID:           nodeID,
+		TaskID:           pm.TaskID(taskID),
+		PlanID:           planID,
+		WaitType:         pm.WaitType(waitType),
+		WaitKeys:         decodeWaitKeys(waitKeys),
+		TriggerCondition: trigger,
+		WaitedSince:      parseTime(waitedSince),
+		OnTimeout:        onTimeout,
+		ProbeCount:       probeCount,
+	}
+	if d := parseTimePtr(deadline); d != nil {
+		b.Deadline = *d
+	}
+	if lp := parseTimePtr(lastProbe); lp != nil {
+		b.LastProbeAt = *lp
+	}
+	return b, nil
+}
+
+// GetBlockedOn returns one node's BlockedOn slot (ok=false when none recorded — so the
+// materialize can distinguish a first materialize from a refresh).
+func (r *PlanRepo) GetBlockedOn(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) (pm.BlockedOn, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	row := exec.QueryRowContext(ctx,
+		blockedOnSelect+` WHERE plan_id = ? AND task_id = ?`, string(planID), string(taskID))
+	b, err := scanBlockedOn(row.Scan, planID)
+	switch err {
+	case nil:
+		return b, true, nil
+	case sql.ErrNoRows:
+		return pm.BlockedOn{}, false, nil
+	default:
+		return pm.BlockedOn{}, false, err
+	}
+}
+
+// ListBlockedOn returns one plan's BlockedOn snapshots, stable-ordered (task_id).
+func (r *PlanRepo) ListBlockedOn(ctx context.Context, planID pm.PlanID) ([]pm.BlockedOn, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx,
+		blockedOnSelect+` WHERE plan_id = ? ORDER BY task_id`, string(planID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.BlockedOn
+	for rows.Next() {
+		b, serr := scanBlockedOn(rows.Scan, planID)
+		if serr != nil {
+			return nil, serr
+		}
+		out = append(out, b)
 	}
 	return out, rows.Err()
 }
