@@ -144,8 +144,8 @@ func TestStuckNode_SlowButAlive_NotReopened(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		clk.Advance(4 * time.Minute)
 		// Worker attests the process is alive BEFORE the sweep → lease advances → activity.
-		if err := f.h.svc.WorkerRenewLease(f.h.ctx, f.tid, f.assignee); err != nil {
-			t.Fatalf("WorkerRenewLease: %v", err)
+		if revoked, _, err := f.h.svc.WorkerRenewLease(f.h.ctx, f.tid, f.assignee); err != nil || revoked {
+			t.Fatalf("WorkerRenewLease: revoked=%v err=%v (want a live renew)", revoked, err)
 		}
 		f.sweep(t)
 		if got := f.nodeStatus(t); got != orch.NodeRunning {

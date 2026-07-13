@@ -164,6 +164,12 @@ type LocalRuntime struct {
 	// classified this process. Guarded by r.mu.
 	recoveredOnce bool
 
+	// fuseExecutor is a test seam for the block-fuse circuit-break (issue-88e32d98): when
+	// a lease renew comes back ErrLeaseRevoked, drainLeaseRenewals calls it to graceful-
+	// kill the in-flight executor. nil (production) routes to the executor engine's
+	// FuseExecutorForTask; tests set it to record the fuse without signalling a real pid.
+	fuseExecutor func(ctx context.Context, taskID string) (bool, error)
+
 	// nextLeaseRenewAt / lastGCAt rate-limit the per-Tick execution-lease renewal and
 	// task-dir GC (T860 piece ③: moved off the daemon AgentController.OnTick into the
 	// agent-runtime process itself — self-contained, k8s-aligned). Guarded by r.mu.

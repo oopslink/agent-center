@@ -50,6 +50,33 @@ func TestEnvAgentLeaseHeartbeat_RenewsRunningTask(t *testing.T) {
 	}
 }
 
+// issue-88e32d98 P0 block-fuse: a task blocked mid-flight makes the heartbeat respond
+// revoked=true reason=blocked (the worker's signal to circuit-break the executor),
+// without renewing the lease.
+func TestEnvAgentLeaseHeartbeat_BlockedRevokes(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	srv := f.server(t)
+	tid := f.seedRunningTask(t)
+
+	if err := f.pmSvc.BlockTask(context.Background(), pm.TaskID(tid), "waiting on owner",
+		pm.BlockReasonObstacle, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatalf("BlockTask: %v", err)
+	}
+
+	status, body := postBearer(t, srv.URL, "/admin/environment/agent/lease/heartbeat", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	if body["revoked"] != true {
+		t.Fatalf("body[revoked] = %v, want true (blocked task must revoke)", body["revoked"])
+	}
+	if body["reason"] != "blocked" {
+		t.Fatalf("body[reason] = %v, want \"blocked\"", body["reason"])
+	}
+}
+
 // Missing task_id → 400.
 func TestEnvAgentLeaseHeartbeat_MissingTaskID(t *testing.T) {
 	f := newWriteToolsFixture(t)

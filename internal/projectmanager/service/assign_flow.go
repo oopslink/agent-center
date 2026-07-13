@@ -333,32 +333,52 @@ func (s *Service) HeartbeatTask(ctx context.Context, taskID pm.TaskID, actor pm.
 // renew another agent's or a blocked task's lease).
 //
 // agentRef is the assignee form the agent itself uses ("agent:<member-id>" via
-// agentActor). It is a no-op (returns nil) when the task is archived/not running/
-// blocked/no lease, or when the assignee no longer matches agentRef (reassigned /
-// stale) — letting the lease lapse so the nudge path takes over.
-func (s *Service) WorkerRenewLease(ctx context.Context, taskID pm.TaskID, agentRef pm.IdentityRef) error {
+// agentActor).
+//
+// REVOCATION SIGNAL (issue-88e32d98, P0 block-fuse): the renew is a no-op in exactly
+// the cases where THIS agent's in-flight execution should STOP — the task is blocked
+// (ADR-0046: block keeps status=running + a blocked_reason, so a mid-flight executor
+// would otherwise keep running dangerous work), reassigned away (assignee no longer
+// this agent), or terminal/archived (nothing alive to keep alive). In every such case
+// it returns revoked=true with a reason so the worker can circuit-break (熔断) the
+// in-flight executor at its next lease-heartbeat, instead of silently letting the
+// lease lapse and the executor race on. A genuine renew returns revoked=false. reason
+// is "" when not revoked; "blocked" / "reassigned" / "terminal" otherwise.
+func (s *Service) WorkerRenewLease(ctx context.Context, taskID pm.TaskID, agentRef pm.IdentityRef) (revoked bool, reason string, err error) {
 	now := s.clock.Now()
-	return s.runInTx(ctx, func(txCtx context.Context) error {
-		t, err := s.tasks.FindByID(txCtx, taskID)
-		if err != nil {
-			return err
+	txErr := s.runInTx(ctx, func(txCtx context.Context) error {
+		t, ferr := s.tasks.FindByID(txCtx, taskID)
+		if ferr != nil {
+			return ferr
 		}
 		if t.IsArchived() || t.Status() != pm.TaskRunning {
-			return nil // nothing alive to keep alive
+			revoked, reason = true, "terminal" // nothing alive to keep alive → stop the executor
+			return nil
 		}
 		if t.Assignee() != agentRef {
-			return nil // reassigned / stale worker view → don't renew someone else's task
+			revoked, reason = true, "reassigned" // reassigned / stale worker view → stop the executor
+			return nil
 		}
 		// RenewLease no-ops cleanly on a blocked task (ErrTaskBlocked) — a blocked task
-		// is a lease-free legal pause; swallow it so the auto-renew sweep is best-effort.
+		// is a lease-free legal pause. A block mid-flight (P67 Ship 事故) MUST revoke so
+		// the worker fuses the still-running executor rather than let it merge dead code.
 		if rerr := t.RenewLease(DefaultExecutionLeaseTTL, now); rerr != nil {
-			if errors.Is(rerr, pm.ErrTaskBlocked) || errors.Is(rerr, pm.ErrIllegalTransition) {
+			if errors.Is(rerr, pm.ErrTaskBlocked) {
+				revoked, reason = true, "blocked"
+				return nil
+			}
+			if errors.Is(rerr, pm.ErrIllegalTransition) {
+				revoked, reason = true, "terminal"
 				return nil
 			}
 			return rerr
 		}
 		return s.tasks.Update(txCtx, t)
 	})
+	if txErr != nil {
+		return false, "", txErr
+	}
+	return revoked, reason, nil
 }
 
 // DiscardTask discards a non-terminal Task (terminal "discarded"; was CancelTask

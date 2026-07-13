@@ -238,6 +238,34 @@ func (m *Monitor) Sweep(ctx context.Context) ([]string, error) {
 	return killed, nil
 }
 
+// FuseKillTask circuit-breaks the live this-process executor running taskRef
+// (issue-88e32d98, P0 block-fuse): the center revoked the task's execution lease — it
+// was blocked mid-flight (ADR-0046: a block leaves status=running, so the executor
+// would otherwise keep going — the P67 Ship 事故 that merged dead code), reassigned, or
+// terminal — so stop the process NOW. Same mechanism as the watchdog Sweep's per-handle
+// kill (mark the cause BEFORE the kill so the concurrent drain/reap labels the stop
+// correctly), just triggered by a center signal rather than a local stall. The per-
+// executor drain goroutine then observes the death and finalizes it (slot released,
+// writeback reported). Returns killed=true when a matching live handle was found and
+// graceful-killed; (false,nil) when no live pool executor runs that task (e.g. it is an
+// adopted orphan, or already gone) — best-effort, never fatal.
+func (m *Monitor) FuseKillTask(ctx context.Context, taskRef string) (bool, error) {
+	if m.pool == nil || m.watchdog == nil || strings.TrimSpace(taskRef) == "" {
+		return false, nil
+	}
+	for _, h := range m.pool.Handles() {
+		if m.taskRef(h.ExecutorID) != taskRef {
+			continue
+		}
+		m.markStalled(h.ExecutorID) // label the stop before the kill (see Sweep)
+		if err := m.watchdog.GracefulKill(ctx, h); err != nil {
+			return false, fmt.Errorf("executor: fuse-kill %s (task %s): %w", h.ExecutorID, taskRef, err)
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
 // CheckOrphan runs ONE watchdog + completion tick for an ADOPTED orphan executor
 // (design §12): a process re-adopted after an orchestrator restart, for which this
 // orchestrator holds NO reapable handle (it cannot Wait a reparented non-child).
