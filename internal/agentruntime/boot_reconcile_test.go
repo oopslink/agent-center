@@ -131,22 +131,28 @@ func TestTaskCancelEvidence(t *testing.T) {
 		name     string
 		status   string
 		assignee string
+		blocked  string // blocked_reason (issue-88e32d98: non-empty ⇒ cancel evidence)
 		want     bool
 	}{
-		{"completed → cancel", "completed", "agent:agent-a", true},
-		{"discarded → cancel", "discarded", "agent:agent-a", true},
-		{"cancelled → cancel", "cancelled", "", true},
-		{"reassigned → cancel", "running", "agent:agent-b", true},
-		{"running+mine (agent: form) → keep", "running", "agent:agent-a", false},
-		{"running+mine (bare form) → keep", "running", "agent-a", false},
-		{"running+unknown assignee → keep", "open", "", false},
-		{"empty status+mine → keep", "", "agent:agent-a", false},
+		{"completed → cancel", "completed", "agent:agent-a", "", true},
+		{"discarded → cancel", "discarded", "agent:agent-a", "", true},
+		{"cancelled → cancel", "cancelled", "", "", true},
+		{"reassigned → cancel", "running", "agent:agent-b", "", true},
+		{"running+mine (agent: form) → keep", "running", "agent:agent-a", "", false},
+		{"running+mine (bare form) → keep", "running", "agent-a", "", false},
+		{"running+unknown assignee → keep", "open", "", "", false},
+		{"empty status+mine → keep", "", "agent:agent-a", "", false},
+		// issue-88e32d98 P0: a blocked task (running + blocked_reason, ADR-0046) is cancel
+		// evidence — point-recovery must NOT relaunch its executor (the P67 Ship 事故).
+		{"blocked+mine → cancel", "running", "agent:agent-a", "obstacle: needs PD triage", true},
+		{"blocked+bare-mine → cancel", "running", "agent-a", "input_required", true},
+		{"blocked whitespace-only → keep", "running", "agent:agent-a", "   ", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := taskCancelEvidence(&centerTaskDetail{Status: tc.status, Assignee: tc.assignee}, me)
+			got := taskCancelEvidence(&centerTaskDetail{Status: tc.status, Assignee: tc.assignee, BlockedReason: tc.blocked}, me)
 			if got != tc.want {
-				t.Errorf("taskCancelEvidence(status=%q assignee=%q) = %v, want %v", tc.status, tc.assignee, got, tc.want)
+				t.Errorf("taskCancelEvidence(status=%q assignee=%q blocked=%q) = %v, want %v", tc.status, tc.assignee, tc.blocked, got, tc.want)
 			}
 		})
 	}

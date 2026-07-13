@@ -62,6 +62,27 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 	r.log("agent=%s point-recovery executor=%s: kind=%v output_present=%v wasStall=%v thisProcess=%v — deciding recover-vs-terminal",
 		r.cfg.AgentID, execID, comp.Kind, comp.Output != nil, wasStall, thisProcess)
 
+	// P0 block-fuse (issue-88e32d98): a FUSED death is a center-ordered stop, NEVER a
+	// recovery candidate. FuseKillTask circuit-broke this executor because the center
+	// revoked its task's execution lease (blocked mid-flight / reassigned / terminal); the
+	// old markStalled labeling made this branch treat it as a recoverable stall → relaunch,
+	// leaving a live UNFUSED executor churning a blocked task (the P67 Ship 事故 that keeps
+	// merging). Consume the mark and QUIET-finalize (no writeback: the center already owns
+	// the task's state) — this also structurally prevents the un-fusable orphan (root cause
+	// ③): with no relaunch there is no orphan to re-fuse. Checked FIRST so no wasStall /
+	// budget / should-continue logic can override the deliberate stop. A normal watchdog
+	// stall carries no fuse mark, so a slow-but-live executor still recovers below.
+	if ee.monitor.TakeFused(execID) {
+		taskRef := r.executorTaskRef(ee, execID)
+		r.log("agent=%s point-recovery executor=%s task=%s → TERMINAL: fused (center block/lease-revoke circuit-break) — quiet-finalizing, NO recover/relaunch",
+			r.cfg.AgentID, execID, taskRef)
+		r.finalizeFused(ctx, ee, execID, comp)
+		if taskRef != "" {
+			ee.clearRecoverBudget(taskRef)
+		}
+		return
+	}
+
 	// Only a DEATH or STALL is a recovery candidate. A SUCCESS, or a definite failure the
 	// executor itself CONCLUDED — OutcomeFailed WITH a harvested output.json verdict — is
 	// terminal: the executor ran and reported an outcome, so we finalize + writeback (this
@@ -178,6 +199,19 @@ func (r *LocalRuntime) reconcileOneExecutor(ctx context.Context, ee *ExecutorEng
 func (r *LocalRuntime) finalizeTerminal(ctx context.Context, ee *ExecutorEngine, execID string, comp executor.Completion) {
 	if err := ee.monitor.Finalize(ctx, comp); err != nil {
 		r.log("agent=%s point-recovery finalize executor=%s: %v", r.cfg.AgentID, execID, err)
+	}
+	ee.dropOrphan(execID)
+}
+
+// finalizeFused drives the Monitor's QUIET terminal finalize (slot free + teardown, NO
+// writeback) for a FUSED executor — one the runtime circuit-broke because the center
+// revoked its task's lease (issue-88e32d98 P0). Distinct from finalizeTerminal, which
+// writes the outcome back: the center already blocked/owns the task, so a writeback here
+// would inject a supervisor judgment turn that could complete/merge the deliberately
+// stopped task. Drops any orphan tracking afterward, like finalizeTerminal.
+func (r *LocalRuntime) finalizeFused(ctx context.Context, ee *ExecutorEngine, execID string, comp executor.Completion) {
+	if err := ee.monitor.FinalizeFused(ctx, comp); err != nil {
+		r.log("agent=%s point-recovery fused-finalize executor=%s: %v", r.cfg.AgentID, execID, err)
 	}
 	ee.dropOrphan(execID)
 }
