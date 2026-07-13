@@ -29,6 +29,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/agentruntime"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/runtimefs"
@@ -692,7 +693,30 @@ func (c *AdminClient) RenewTaskLease(ctx context.Context, agentID, taskID string
 		"agent_id": agentID,
 		"task_id":  taskID,
 	}
-	return c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/lease/heartbeat", body, nil)
+	// REVOCATION (issue-88e32d98, P0 block-fuse): the center answers revoked=true when
+	// this agent's execution should STOP (task blocked mid-flight / reassigned / terminal).
+	// Surface it as the ErrLeaseRevoked sentinel so the runtime's lease-renew sweep can
+	// circuit-break the in-flight executor instead of treating the non-renew as success.
+	var resp struct {
+		OK      bool   `json:"ok"`
+		Revoked bool   `json:"revoked"`
+		Reason  string `json:"reason"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/admin/environment/agent/lease/heartbeat", body, &resp); err != nil {
+		return err
+	}
+	if resp.Revoked {
+		reason := strings.TrimSpace(resp.Reason)
+		if reason == "" {
+			reason = "revoked"
+		}
+		// agentruntime.ErrLeaseRevoked is the sentinel the runtime's lease-renew sweep
+		// matches (errors.Is) to circuit-break the in-flight executor. It lives in
+		// agentruntime (the checker's package) because the import arrow is
+		// workerdaemon → agentruntime, never the reverse.
+		return fmt.Errorf("%w: %s", agentruntime.ErrLeaseRevoked, reason)
+	}
+	return nil
 }
 
 // doJSON is the shared request helper. Returns a typed error on non-2xx

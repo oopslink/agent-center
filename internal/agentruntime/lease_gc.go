@@ -12,12 +12,23 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
 )
+
+// ErrLeaseRevoked is the sentinel the Reporter's RenewTaskLease returns when the center
+// declined the renew because THIS agent's execution should STOP — the task was blocked
+// mid-flight (ADR-0046: a block keeps status=running, so a running executor would
+// otherwise keep going — the P67 Ship 事故 where dead code got merged), reassigned away,
+// or reached a terminal state. drainLeaseRenewals matches it with errors.Is to
+// circuit-break (熔断) the in-flight executor. It lives HERE (not in workerdaemon, the
+// adminclient's package) because the import arrow is workerdaemon → agentruntime — the
+// checker and the sentinel must share a package the transport can import without a cycle.
+var ErrLeaseRevoked = errors.New("agentruntime: execution lease revoked")
 
 // DefaultLeaseRenewEvery / DefaultGCInterval are the cadences. 60s is far below the
 // server's execution-lease TTL (hours); GC hourly. Both are overridable via env for the
@@ -79,23 +90,62 @@ func (r *LocalRuntime) drainLeaseRenewals(ctx context.Context, now time.Time) {
 	// Union of all in-flight task ids: supervisor's + each live executor's (including
 	// adopted/recovering orphans, which SnapshotConcurrency already surfaces — a task
 	// mid-tier-recovery is still should-continue and must keep its lease). Dedup so a
-	// supervisor task that is also an executor task is renewed once.
+	// supervisor task that is also an executor task is renewed once. execTasks records
+	// which of them map to a LIVE EXECUTOR (not the supervisor session) so a revoked
+	// renew fuses the executor process — never the supervisor session (误杀 an agent).
 	tasks := make(map[string]struct{})
+	execTasks := make(map[string]struct{})
 	if superTask != "" {
 		tasks[superTask] = struct{}{}
 	}
 	for _, s := range r.SnapshotConcurrency() {
 		if s.TaskID != "" {
 			tasks[s.TaskID] = struct{}{}
+			execTasks[s.TaskID] = struct{}{}
 		}
 	}
 	for taskID := range tasks {
-		if err := r.cfg.Reporter.RenewTaskLease(ctx, r.cfg.AgentID, taskID, now); err != nil {
-			r.log("agent=%s lease-renew task=%s: %v", r.cfg.AgentID, taskID, err)
-		} else {
+		err := r.cfg.Reporter.RenewTaskLease(ctx, r.cfg.AgentID, taskID, now)
+		switch {
+		case err == nil:
 			r.log("agent=%s renewed execution lease task=%s", r.cfg.AgentID, taskID)
+		case errors.Is(err, ErrLeaseRevoked):
+			// The center revoked this task's lease (blocked mid-flight / reassigned /
+			// terminal). Circuit-break: if a LIVE executor is running it, graceful-kill
+			// the executor so it stops before the next dangerous action (issue-88e32d98).
+			// A supervisor-only task (no executor) is NOT killed — blocking the session
+			// would误杀 the agent; the block is handled by the normal supervisor path.
+			if _, isExec := execTasks[taskID]; isExec {
+				if killed, kErr := r.fuseExecutorForTask(ctx, taskID); kErr != nil {
+					r.log("agent=%s lease-revoked task=%s: fuse-kill: %v", r.cfg.AgentID, taskID, kErr)
+				} else if killed {
+					r.log("agent=%s lease-revoked task=%s: fused (graceful-killed) executor", r.cfg.AgentID, taskID)
+				} else {
+					r.log("agent=%s lease-revoked task=%s: no live executor to fuse", r.cfg.AgentID, taskID)
+				}
+			} else {
+				r.log("agent=%s lease-revoked task=%s: supervisor task, not fusing session", r.cfg.AgentID, taskID)
+			}
+		default:
+			r.log("agent=%s lease-renew task=%s: %v", r.cfg.AgentID, taskID, err)
 		}
 	}
+}
+
+// fuseExecutorForTask circuit-breaks the live executor running taskID (issue-88e32d98
+// P0 block-fuse). The fuseExecutor seam lets tests record the fuse without signalling a
+// real process; nil (production) routes to the executor engine's graceful kill. Returns
+// killed=true when a matching live executor was found and signalled; (false,nil) when
+// there is no executor engine or no executor is running that task.
+func (r *LocalRuntime) fuseExecutorForTask(ctx context.Context, taskID string) (bool, error) {
+	if r.fuseExecutor != nil {
+		return r.fuseExecutor(ctx, taskID)
+	}
+	ee := r.execEngine()
+	if ee == nil {
+		return false, nil
+	}
+	return ee.FuseExecutorForTask(ctx, taskID)
 }
 
 // maybeRunGC sweeps THIS agent's task-dir residue if gcInterval has elapsed (T860

@@ -12,6 +12,7 @@ package agentruntime
 // modelrouter / orchestrator / clock), none of which import workerdaemon.
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -215,6 +216,19 @@ func (ee *ExecutorEngine) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 		out = append(out, snap)
 	}
 	return out
+}
+
+// FuseExecutorForTask graceful-kills the live executor running taskID (issue-88e32d98,
+// P0 block-fuse), the worker half of the center lease-revocation circuit-break: a task
+// blocked mid-flight must stop its executor before the next dangerous action. Delegates
+// to the Monitor (the lifecycle owner) so the kill mirrors the watchdog Sweep and the
+// existing drain goroutine finalizes the executor. Returns killed=true when a matching
+// live executor was found and signalled; (false,nil) otherwise. Best-effort.
+func (ee *ExecutorEngine) FuseExecutorForTask(ctx context.Context, taskID string) (bool, error) {
+	if ee == nil || ee.monitor == nil {
+		return false, nil
+	}
+	return ee.monitor.FuseKillTask(ctx, taskID)
 }
 
 // enrichFromFiles fills task/cli/model from input.json and state/started_at/

@@ -343,8 +343,17 @@ func (s *Server) envAgentLeaseHeartbeatHandler(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusBadRequest, "missing_task_id", "")
 		return
 	}
-	if err := d.PMService.WorkerRenewLease(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+	revoked, reason, err := d.PMService.WorkerRenewLease(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a)))
+	if err != nil {
 		mapDomainError(w, err)
+		return
+	}
+	// REVOCATION (issue-88e32d98, P0 block-fuse): the lease was NOT renewed because this
+	// agent's execution should stop (blocked / reassigned / terminal). Tell the worker so
+	// it circuit-breaks the in-flight executor at this heartbeat, instead of the executor
+	// racing on until the lease silently lapses. PERSIST-ONLY either way (a lease touch).
+	if revoked {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "revoked": true, "reason": reason})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

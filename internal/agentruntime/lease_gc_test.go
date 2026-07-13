@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -9,6 +10,26 @@ import (
 
 	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 )
+
+// revokingReporter returns ErrLeaseRevoked for a designated set of task ids (blocked/
+// reassigned/terminal on the center) and renews the rest cleanly.
+type revokingReporter struct {
+	nopReporter
+	mu      sync.Mutex
+	renewed []string
+	revoke  map[string]bool
+}
+
+func (r *revokingReporter) RenewTaskLease(_ context.Context, _, taskID string, _ time.Time) error {
+	r.mu.Lock()
+	r.renewed = append(r.renewed, taskID)
+	revoked := r.revoke[taskID]
+	r.mu.Unlock()
+	if revoked {
+		return fmt.Errorf("%w: blocked", ErrLeaseRevoked)
+	}
+	return nil
+}
 
 // recordingReporter records RenewTaskLease calls (embeds nopReporter for the rest).
 type recordingReporter struct {
@@ -112,6 +133,49 @@ func TestTick_RenewsAllInflightTasks(t *testing.T) {
 	}
 	if got := rep.count("task-exec"); got != 2 {
 		t.Errorf("past the cadence the executor task must be renewed again, got %d", got)
+	}
+}
+
+// TestDrainLeaseRenewals_RevokedExecutorFused (issue-88e32d98 P0 block-fuse): when the
+// center revokes a lease (ErrLeaseRevoked) for a task that maps to a LIVE EXECUTOR, the
+// sweep circuit-breaks that executor (fuse). A revoked SUPERVISOR task must NOT be fused
+// — killing the session would误杀 the agent. The fuse is exercised through the seam so no
+// real process is signalled.
+func TestDrainLeaseRenewals_RevokedExecutorFused(t *testing.T) {
+	base := t.TempDir()
+	agentID := "agent-fuse"
+	rt := newExecRuntime(t, base, agentID, lookTrue(t))
+	rep := &revokingReporter{revoke: map[string]bool{"task-exec": true, "task-super": true}}
+	rt.cfg.Reporter = rep
+
+	// Record fuse calls via the seam (never signal a real pid in a unit test).
+	var mu sync.Mutex
+	var fused []string
+	rt.fuseExecutor = func(_ context.Context, taskID string) (bool, error) {
+		mu.Lock()
+		fused = append(fused, taskID)
+		mu.Unlock()
+		return true, nil
+	}
+
+	// Supervisor's current task (revoked, but supervisor-only → must NOT be fused).
+	rt.State().Session = &fakeSession{}
+	rt.State().CurrentTaskID = "task-super"
+
+	// One live executor on task-exec (revoked → MUST be fused).
+	if err := rt.AttachExecutorEngine(ExecutorConfig{AgentID: agentID, MaxConcurrentTasks: 3, DefaultExecutorModel: "m"}); err != nil {
+		t.Fatalf("AttachExecutorEngine: %v", err)
+	}
+	home := agentHomeOf(t, base, agentID)
+	seedExecutorInput(t, home, "exec-1", "task-exec")
+	rt.exec.addOrphan("exec-1", os.Getpid())
+
+	rt.drainLeaseRenewals(context.Background(), time.Unix(1700000000, 0))
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(fused) != 1 || fused[0] != "task-exec" {
+		t.Fatalf("fused = %v, want exactly [task-exec] (executor fused, supervisor task NOT fused)", fused)
 	}
 }
 

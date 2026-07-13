@@ -279,8 +279,8 @@ func TestWorkerRenewLease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.WorkerRenewLease(h.ctx, tid, "agent:someone-else"); err != nil {
-		t.Fatalf("WorkerRenewLease(foreign) = %v, want nil no-op", err)
+	if revoked, reason, err := h.svc.WorkerRenewLease(h.ctx, tid, "agent:someone-else"); err != nil || !revoked || reason != "reassigned" {
+		t.Fatalf("WorkerRenewLease(foreign) = (revoked=%v reason=%q err=%v), want (true,\"reassigned\",nil) no-renew", revoked, reason, err)
 	}
 	mid, err := h.svc.GetTask(h.ctx, tid)
 	if err != nil {
@@ -294,8 +294,8 @@ func TestWorkerRenewLease(t *testing.T) {
 	// The assignee's worker renews → lease pushed out to now+TTL, keeping it alive past
 	// what would have been the original expiry.
 	h.clk.Advance(DefaultExecutionLeaseTTL - time.Minute)
-	if err := h.svc.WorkerRenewLease(h.ctx, tid, "agent:w1"); err != nil {
-		t.Fatalf("WorkerRenewLease(assignee) = %v", err)
+	if revoked, _, err := h.svc.WorkerRenewLease(h.ctx, tid, "agent:w1"); err != nil || revoked {
+		t.Fatalf("WorkerRenewLease(assignee) = (revoked=%v err=%v), want a live renew", revoked, err)
 	}
 	h.clk.Advance(2 * time.Minute) // past the ORIGINAL expiry, within the renewed TTL
 	if n, err := h.svc.NudgeExpiredLeases(h.ctx); err != nil || n != 0 {
@@ -307,6 +307,34 @@ func TestWorkerRenewLease(t *testing.T) {
 	}
 	if got.Status() != pm.TaskRunning || got.Assignee() != "agent:w1" {
 		t.Fatalf("status=%s assignee=%q, want running/agent:w1", got.Status(), got.Assignee())
+	}
+}
+
+// WorkerRenewLease_BlockedRevokes (issue-88e32d98 P0 block-fuse): a task blocked
+// mid-flight (ADR-0046: status stays running, blocked_reason set) makes the worker's
+// renew return revoked="blocked" — the signal the worker uses to circuit-break the
+// still-running executor instead of letting it race on to a dangerous action.
+func TestWorkerRenewLease_BlockedRevokes(t *testing.T) {
+	h := planAdvanceSetup(t)
+	_, tid := startedPoolTask(t, h, "org-wrl-blk", "P", "agent:w1")
+
+	// Sanity: a live task renews cleanly (not revoked).
+	if revoked, _, err := h.svc.WorkerRenewLease(h.ctx, tid, "agent:w1"); err != nil || revoked {
+		t.Fatalf("pre-block renew = (revoked=%v err=%v), want a live renew", revoked, err)
+	}
+
+	if err := h.svc.BlockTask(h.ctx, tid, "waiting on owner", pm.BlockReasonObstacle, "agent:w1"); err != nil {
+		t.Fatalf("BlockTask: %v", err)
+	}
+
+	// The block must revoke — this is the熔断 signal (P67 Ship 事故: the executor kept
+	// running through a block and merged dead code).
+	revoked, reason, err := h.svc.WorkerRenewLease(h.ctx, tid, "agent:w1")
+	if err != nil {
+		t.Fatalf("WorkerRenewLease(blocked) err = %v", err)
+	}
+	if !revoked || reason != "blocked" {
+		t.Fatalf("WorkerRenewLease(blocked) = (revoked=%v reason=%q), want (true,\"blocked\")", revoked, reason)
 	}
 }
 
