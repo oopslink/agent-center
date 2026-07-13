@@ -71,6 +71,18 @@ const (
 	// fast sweep cadence cannot rush the verdict.
 	StuckNodeDeadTimeout = 10 * time.Minute
 
+	// StuckNodeProgressStaleTimeout (T_stale, issue-0186f85e ③) — how long a running
+	// structured node's task.updated_at may stay FROZEN before the node becomes a
+	// confirmed-dead CANDIDATE, INDEPENDENT of whether its execution lease has lapsed. The
+	// worker-daemon's process-alive auto-renew bumps updated_at every ~60s for as long as
+	// the executor PROCESS lives (decoupled from the LLM turn — see WorkerRenewLease), so a
+	// ≥ T_stale freeze is ≥ ~10 missed renews: strong evidence the process is gone. This is
+	// the "更快识别假 running 无进展" entry: it no longer waits out the 5h execution-lease TTL
+	// (DefaultExecutionLeaseTTL) before even beginning to accrue a death verdict, cutting the
+	// zombie-reclaim window from ~5h to ~T_stale + the confirm gate. A live-but-heads-down
+	// agent still renews (updated_at advances), so the T456 slow-but-alive guard is preserved.
+	StuckNodeProgressStaleTimeout = 10 * time.Minute
+
 	// StuckNodeMaxAutoReopens (R_max) — per-node cap on AUTOMATIC reopens. Past it the
 	// reconcile stops re-reopening (a reopen loop is a bad-task / broken-environment
 	// symptom auto-recovery cannot fix) and BLOCKS the task for human triage, reusing the
@@ -97,6 +109,14 @@ type stuckNodeTracker struct {
 	// subsequent sweep is a genuine agent/worker renewal (activity); an unchanged value
 	// is a frozen lease (a strike). nil = no lease last seen.
 	lastExp *time.Time
+	// lastUpdatedAt is the task's updated_at recorded at the END of the previous sweep
+	// (AFTER that sweep's own nudge), the issue-0186f85e ③ progress signal. A LATER value
+	// at the top of a subsequent sweep is real progress — a worker process-alive auto-renew
+	// (or any task write) that ran BETWEEN sweeps (our own nudge's bump was folded into this
+	// anchor) — and clears the verdict; an unchanged value is a strike. This is the primary
+	// "有真进展" liveness signal: it advances every ~60s while the executor process lives, so
+	// a frozen updated_at (unlike a still-valid-but-unrenewed 5h lease) means death promptly.
+	lastUpdatedAt time.Time
 	// strikes counts consecutive no-activity sweeps since the last observed activity.
 	strikes int
 	// lastActivityAt is the wall time of the last observed activity (or first-tracked
@@ -140,6 +160,14 @@ func leaseLapsed(exp *time.Time, now time.Time) bool {
 	return exp != nil && !now.Before(*exp)
 }
 
+// progressStale reports whether a running node's task.updated_at has been FROZEN for at
+// least T_stale (issue-0186f85e ③): no worker auto-renew / task write in that window, so
+// the executor process is very likely gone. A zero updatedAt (never set) is not treated
+// as stale — there is no baseline to measure a freeze from.
+func progressStale(updatedAt, now time.Time) bool {
+	return !updatedAt.IsZero() && now.Sub(updatedAt) >= StuckNodeProgressStaleTimeout
+}
+
 // accountStuckNode folds one sweep's observation of a running task into its confirmed-dead
 // tracker and returns the ACTION to take this sweep:
 //   - stuckActionNone: keep observing (or the node is alive / not reconcilable).
@@ -158,7 +186,7 @@ const (
 	stuckActionBlock
 )
 
-func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, expBefore *time.Time, now time.Time) stuckAction {
+func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, expBefore *time.Time, updatedAt time.Time, now time.Time) stuckAction {
 	s.stuckMu.Lock()
 	defer s.stuckMu.Unlock()
 
@@ -175,32 +203,42 @@ func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, expBefor
 
 	tr, tracked := s.stuckTrackers[taskID]
 	if !tracked {
-		// ENTRY GATE ("图节点=Running 且租约已过期"): begin tracking only once the lease has
-		// actually lapsed. A live node (lease in the future, agent renewing) is never
-		// tracked, so a healthy plan carries no trackers.
-		if !leaseLapsed(expBefore, now) {
+		// ENTRY GATE — begin tracking once EITHER death signal fires: the execution lease
+		// has lapsed (the original "图节点=Running 且租约已过期" trigger) OR task.updated_at has
+		// been frozen ≥ T_stale (issue-0186f85e ③ — the fast path that no longer waits out
+		// the 5h lease TTL). A live node (lease in the future AND still progressing) trips
+		// neither, so a healthy plan carries no trackers.
+		if !leaseLapsed(expBefore, now) && !progressStale(updatedAt, now) {
 			return stuckActionNone
 		}
 		tr = s.stuckTrackerFor(taskID, now)
 		tr.lastExp = copyTimePtr(expBefore)
+		tr.lastUpdatedAt = updatedAt
 		// First observation — no prior sweep to compare against, so no strike yet.
 		return stuckActionNone
 	}
 
-	// Activity check: a lease value LATER than what we recorded at the end of the previous
-	// sweep can only come from a genuine agent/worker renewal running BETWEEN sweeps (our
-	// own nudge's effect was already folded into lastExp). Any such advance clears the
-	// verdict — the "slow-but-alive" guard (T456).
-	if expBefore != nil && tr.lastExp != nil && expBefore.After(*tr.lastExp) {
+	// Activity check (the "slow-but-alive" guard, T456): EITHER a lease expiry OR an
+	// updated_at LATER than the value we anchored at the end of the previous sweep can only
+	// come from a genuine agent/worker renewal running BETWEEN sweeps — our own nudge's bump
+	// of both was already folded into the anchors. Any such advance clears the verdict.
+	// updated_at is the primary signal (it advances every ~60s while the process lives, even
+	// heads-down); the lease-value check is retained so a heartbeat that renews the lease
+	// still registers as activity.
+	leaseAdvanced := expBefore != nil && tr.lastExp != nil && expBefore.After(*tr.lastExp)
+	progressAdvanced := updatedAt.After(tr.lastUpdatedAt)
+	if leaseAdvanced || progressAdvanced {
 		tr.strikes = 0
 		tr.lastActivityAt = now
 		tr.lastExp = copyTimePtr(expBefore)
+		tr.lastUpdatedAt = updatedAt
 		return stuckActionNone
 	}
 
 	// No activity this sweep → another strike.
 	tr.strikes++
 	tr.lastExp = copyTimePtr(expBefore)
+	tr.lastUpdatedAt = updatedAt
 
 	// Not yet confident: need BOTH N strikes AND ≥ T_dead since the last activity.
 	if tr.strikes < StuckNodeDeadStrikeThreshold || now.Sub(tr.lastActivityAt) < StuckNodeDeadTimeout {
@@ -240,14 +278,15 @@ func (s *Service) forgetStuckNode(taskID pm.TaskID) {
 	delete(s.stuckTrackers, taskID)
 }
 
-// recordStuckLeaseExp anchors a tracked node's lastExp to the lease value in effect AFTER
-// this sweep's nudge, so the next sweep's activity check discounts our own nudge. No-op
-// for an untracked task.
-func (s *Service) recordStuckLeaseExp(taskID pm.TaskID, exp *time.Time) {
+// recordStuckAnchors anchors a tracked node's lastExp AND lastUpdatedAt to the values in
+// effect AFTER this sweep's nudge, so the next sweep's activity check discounts our own
+// nudge (which bumps both the lease and updated_at). No-op for an untracked task.
+func (s *Service) recordStuckAnchors(taskID pm.TaskID, exp *time.Time, updatedAt time.Time) {
 	s.stuckMu.Lock()
 	defer s.stuckMu.Unlock()
 	if tr, ok := s.stuckTrackers[taskID]; ok {
 		tr.lastExp = copyTimePtr(exp)
+		tr.lastUpdatedAt = updatedAt
 	}
 }
 
@@ -310,14 +349,17 @@ func (s *Service) reconcileStuckNode(ctx context.Context, t *pm.Task, expBefore 
 		s.forgetStuckNode(t.ID())
 		return false, nil
 	}
-	if !leaseLapsed(expBefore, now) && !s.isStuckTracked(t.ID()) {
+	// Cheap gate: skip the plan+node reads unless a death signal is possible — the lease has
+	// lapsed, OR updated_at has been frozen ≥ T_stale (issue-0186f85e ③), OR the node is
+	// already tracked. A healthy running node (lease live AND progressing) never gets here.
+	if !leaseLapsed(expBefore, now) && !progressStale(t.UpdatedAt(), now) && !s.isStuckTracked(t.ID()) {
 		return false, nil
 	}
 	reconcilable, err := s.isStuckReconcilable(ctx, t)
 	if err != nil {
 		return false, err
 	}
-	switch s.accountStuckNode(reconcilable, t.ID(), expBefore, now) {
+	switch s.accountStuckNode(reconcilable, t.ID(), expBefore, t.UpdatedAt(), now) {
 	case stuckActionReopen:
 		if rerr := s.autoReopenStuckNode(ctx, t.ID(), now); rerr != nil {
 			return false, rerr
@@ -341,13 +383,15 @@ func (s *Service) isStuckTracked(taskID pm.TaskID) bool {
 	return ok
 }
 
-// currentLeaseExp re-reads a task's live execution-lease expiry (post-sweep anchor value).
-func (s *Service) currentLeaseExp(ctx context.Context, taskID pm.TaskID) (*time.Time, error) {
+// currentStuckAnchors re-reads a task's live execution-lease expiry AND updated_at
+// (post-sweep anchor values), so the next sweep's activity check discounts this sweep's
+// own nudge on both signals (issue-0186f85e ③).
+func (s *Service) currentStuckAnchors(ctx context.Context, taskID pm.TaskID) (*time.Time, time.Time, error) {
 	t, err := s.tasks.FindByID(ctx, taskID)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
-	return t.ExecutionLeaseExpiresAt(), nil
+	return t.ExecutionLeaseExpiresAt(), t.UpdatedAt(), nil
 }
 
 // autoReopenStuckNode enacts a confirmed-dead REOPEN in its own tx: re-read the task,

@@ -333,14 +333,24 @@ func (fx *FileExchange) Remove(executorID string) error {
 }
 
 // FinalizedRef is a terminal executor whose teardown was deferred: its id + the
-// time Finalize stamped it (the reaper's TTL/cap key).
+// time Finalize stamped it (the reaper's TTL/cap key) + the structured git status
+// captured at finalize (nil for a pre-git-status marker or a non-git workspace).
 type FinalizedRef struct {
 	ExecutorID string
 	At         time.Time
+	// Git is the worktree's git state at finalize (issue-0186f85e ②) — the machine
+	// -readable delivery-audit signal. nil when the marker predates git-status capture
+	// or the workspace was not a git repo.
+	Git *FinalizedGitStatus
 }
 
+// finalizedMarker is the persisted `finalized` marker (the issue's "finalized.json"):
+// the retain timestamp PLUS the structured git status a delivery/audit pass reads after
+// the executor is gone (issue-0186f85e ②). Git is omitted for a non-git workspace so an
+// old (timestamp-only) marker still parses.
 type finalizedMarker struct {
-	FinalizedAt string `json:"finalized_at"`
+	FinalizedAt string              `json:"finalized_at"`
+	Git         *FinalizedGitStatus `json:"git,omitempty"`
 }
 
 // FinalizedPath is <dir>/finalized.
@@ -349,13 +359,16 @@ func (l *Layout) FinalizedPath(executorID string) (string, error) {
 }
 
 // MarkFinalized stamps the executor dir as terminal-retained at `at` (delayed
-// teardown). Written atomically so a concurrent reaper never reads a torn marker.
-func (fx *FileExchange) MarkFinalized(executorID string, at time.Time) error {
+// teardown) with the worktree's structured git status `git` (issue-0186f85e ②: branch /
+// HEAD sha / dirty / pushed, so a later audit can judge delivery without the worktree).
+// A nil git records a timestamp-only marker (non-git workspace / probe unavailable).
+// Written atomically so a concurrent reaper never reads a torn marker.
+func (fx *FileExchange) MarkFinalized(executorID string, at time.Time, git *FinalizedGitStatus) error {
 	path, err := fx.layout.FinalizedPath(executorID)
 	if err != nil {
 		return err
 	}
-	return writeJSONAtomic(path, finalizedMarker{FinalizedAt: at.UTC().Format(time.RFC3339Nano)})
+	return writeJSONAtomic(path, finalizedMarker{FinalizedAt: at.UTC().Format(time.RFC3339Nano), Git: git})
 }
 
 // ListFinalized returns every retained-terminal executor (those carrying a
@@ -392,7 +405,7 @@ func (fx *FileExchange) ListFinalized() ([]FinalizedRef, error) {
 		if perr != nil {
 			at = time.Time{} // corrupt stamp → reap promptly
 		}
-		out = append(out, FinalizedRef{ExecutorID: id, At: at})
+		out = append(out, FinalizedRef{ExecutorID: id, At: at, Git: m.Git})
 	}
 	return out, nil
 }

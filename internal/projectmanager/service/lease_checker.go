@@ -113,14 +113,15 @@ func (s *Service) NudgeExpiredLeases(ctx context.Context) (int, error) {
 			}
 		}
 
-		// Anchor the tracker's lastExp to the lease value in effect AFTER this sweep's
-		// nudge (issue-6ff12523), so the NEXT sweep's activity check discounts our own
-		// nudge. No-op (and no re-read) for an untracked / just-acted task.
+		// Anchor the tracker's lastExp AND lastUpdatedAt to the values in effect AFTER this
+		// sweep's nudge (issue-6ff12523 + issue-0186f85e ③), so the NEXT sweep's activity
+		// check discounts our own nudge on both signals. No-op (and no re-read) for an
+		// untracked / just-acted task.
 		if !acted && s.isStuckTracked(taskID) {
-			if cur, cerr := s.currentLeaseExp(ctx, taskID); cerr != nil {
+			if curExp, curUpd, cerr := s.currentStuckAnchors(ctx, taskID); cerr != nil {
 				return nudged, cerr
 			} else {
-				s.recordStuckLeaseExp(taskID, cur)
+				s.recordStuckAnchors(taskID, curExp, curUpd)
 			}
 		}
 	}
