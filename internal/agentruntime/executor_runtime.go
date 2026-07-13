@@ -709,20 +709,24 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	// 4. Fork the executor (W1 HandleWork chain) under the SAME forkMu.
 	launched, err := r.launchExecutorLocked(ctx, agentID, taskID, buildWorkItem(taskID, task, execID, prepared), ee)
 	if err != nil {
-		if errors.Is(err, modelrouter.ErrModelNotAllowed) {
-			// Task already admitted → block it; the prepared worktree is now orphaned, tear
-			// it down (red line B).
-			r.removePreparedWorktree(ctx, agentID, taskID, prepared)
-			r.log("work_available agent=%s task=%s model not allowed: %v — blocking task", agentID, taskID, err)
-			r.blockTaskOnModelNotAllowed(ctx, agentID, taskID, err)
+		// Tear down the now-orphaned prepared worktree on every fork-fail path (red line B).
+		r.removePreparedWorktree(ctx, agentID, taskID, prepared)
+		if errors.Is(err, executor.ErrAtCapacity) {
+			// TRANSIENT: the local pool is momentarily saturated. This is NOT a failure —
+			// leave the admitted task queued for retry next tick (unchanged behavior). It is
+			// the one fork error that must NOT block (a block here would wedge normal
+			// back-pressure).
+			r.log("work_available agent=%s task=%s fork at capacity: %v — left queued for retry",
+				agentID, taskID, err)
 			return nil, nil
 		}
-		// Fork failed but the task is already running (start_task succeeded). Tear down
-		// the worktree (red line B); the task status is left to lease reclaim → re-dispatch
-		// (matches today's no-rollback-of-start_task behavior).
-		r.removePreparedWorktree(ctx, agentID, taskID, prepared)
-		r.log("work_available agent=%s task=%s started but fork failed: %v (lease will reclaim → re-dispatch)",
-			agentID, taskID, err)
+		// NON-TRANSIENT fork failure (no model resolvable / model not allowed / rate-limited
+		// / other): the task was admitted (start_task ok → running) but no executor will ever
+		// run it. FAIL-LOUD (issue-0186f85e P0): block the task (running→blocked, retryable)
+		// with a machine-readable [cause=…] blocked_reason, instead of leaving it fake-running
+		// for the lease to reclaim (the silent-failure hole that stalled tasks for hours and
+		// got misdiagnosed as a hook/code bug).
+		r.blockTaskOnForkFailure(ctx, agentID, taskID, err)
 		return nil, nil
 	}
 	return &SpawnResult{ExecutorID: launched.ExecutorID, Model: launched.Model, CLI: launched.CLI}, nil
@@ -746,10 +750,20 @@ func (r *LocalRuntime) removePreparedWorktree(ctx context.Context, agentID, task
 	}
 }
 
-// blockTaskOnModelNotAllowed blocks a task whose task.model is not in the agent's
-// allowed_executors. The task was already started (open→running) by startCenterTask,
-// so we block it (running→blocked) with an obstacle reason.
-func (r *LocalRuntime) blockTaskOnModelNotAllowed(ctx context.Context, agentID, taskID string, err error) {
+// blockTaskOnForkFailure fails a fork-failed task LOUDLY (issue-0186f85e P0). The task
+// was admitted (start_task ok → running) but the fork failed for a non-transient reason,
+// so no executor will run it. Rather than leave it fake-running for the lease to reclaim
+// (the silent hole), it classifies the error into a machine-readable cause and blocks the
+// task (running→blocked, retryable=obstacle) with a structured "[cause=<code>]"
+// blocked_reason. It ALSO logs loudly (uppercase FORK FAILED + cause) so a worker-log
+// watcher — not just the center — can see "should have run, didn't, because X". Reused by
+// the model-not-allowed, no-model-resolvable and rate-limited paths (classifyForkFailure
+// distinguishes them), replacing the prior model-not-allowed-only blocker.
+func (r *LocalRuntime) blockTaskOnForkFailure(ctx context.Context, agentID, taskID string, err error) {
+	cause := classifyForkFailure(err)
+	reason := forkFailureReason(cause, err)
+	r.log("work_available agent=%s task=%s FORK FAILED [cause=%s]: %v — blocking task (running→blocked, retryable)",
+		agentID, taskID, cause, err)
 	caller := r.toolCaller()
 	if caller == nil {
 		return
@@ -757,7 +771,7 @@ func (r *LocalRuntime) blockTaskOnModelNotAllowed(ctx context.Context, agentID, 
 	body := map[string]any{
 		"agent_id":    agentID,
 		"task_id":     taskID,
-		"reason":      err.Error(),
+		"reason":      reason,
 		"reason_type": "obstacle",
 	}
 	if bErr := caller.CallAgentTool(ctx, "block_task", body, nil); bErr != nil {

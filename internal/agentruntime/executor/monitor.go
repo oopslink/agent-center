@@ -71,6 +71,11 @@ type MonitorConfig struct {
 	// agent activity stream (ADR-0049). OPTIONAL — nil disables emission; it is a
 	// pure monitoring sink and never affects lifecycle decisions (activity.go).
 	Observer ActivityObserver
+	// GitRunner probes the terminal worktree's git status at finalize (issue-0186f85e ②:
+	// branch / HEAD sha / dirty / pushed → the `finalized` marker). OPTIONAL — nil defaults
+	// to the WorktreeProvisioner's runner when one is wired, else the real git binary; the
+	// probe is best-effort so a non-git workspace just yields Probed=false.
+	GitRunner GitRunner
 	// signal delivers the watchdog kill to an adopted orphan's process group. An
 	// unexported seam (tests set it to avoid signalling a real pid); nil →
 	// realGroupSignal (production killpg).
@@ -95,6 +100,7 @@ type Monitor struct {
 	obs       ActivityObserver
 	live      LivenessProbe
 	killSig   groupSignaler
+	git       GitRunner
 	clk       clock.Clock
 	// log is the fail-loud sink (T969 codex thread_id capture); never nil after
 	// NewMonitor (defaults to a no-op).
@@ -131,6 +137,16 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 	if killSig == nil {
 		killSig = realGroupSignal
 	}
+	// Git runner for the finalize-time worktree status probe (issue-0186f85e ②): prefer an
+	// explicit runner, then the provisioner's (so a test's fake git is reused), else real git.
+	git := cfg.GitRunner
+	if git == nil {
+		if cfg.Worktrees != nil {
+			git = cfg.Worktrees.runner
+		} else {
+			git = NewExecGitRunner()
+		}
+	}
 	logf := cfg.Log
 	if logf == nil {
 		logf = func(string, ...any) {}
@@ -147,6 +163,7 @@ func NewMonitor(cfg MonitorConfig) (*Monitor, error) {
 		obs:         cfg.Observer,
 		live:        live,
 		killSig:     killSig,
+		git:         git,
 		clk:         clk,
 		log:         logf,
 		stallKilled: make(map[string]struct{}),
@@ -236,6 +253,34 @@ func (m *Monitor) Sweep(ctx context.Context) ([]string, error) {
 		killed = append(killed, h.ExecutorID)
 	}
 	return killed, nil
+}
+
+// FuseKillTask circuit-breaks the live this-process executor running taskRef
+// (issue-88e32d98, P0 block-fuse): the center revoked the task's execution lease — it
+// was blocked mid-flight (ADR-0046: a block leaves status=running, so the executor
+// would otherwise keep going — the P67 Ship 事故 that merged dead code), reassigned, or
+// terminal — so stop the process NOW. Same mechanism as the watchdog Sweep's per-handle
+// kill (mark the cause BEFORE the kill so the concurrent drain/reap labels the stop
+// correctly), just triggered by a center signal rather than a local stall. The per-
+// executor drain goroutine then observes the death and finalizes it (slot released,
+// writeback reported). Returns killed=true when a matching live handle was found and
+// graceful-killed; (false,nil) when no live pool executor runs that task (e.g. it is an
+// adopted orphan, or already gone) — best-effort, never fatal.
+func (m *Monitor) FuseKillTask(ctx context.Context, taskRef string) (bool, error) {
+	if m.pool == nil || m.watchdog == nil || strings.TrimSpace(taskRef) == "" {
+		return false, nil
+	}
+	for _, h := range m.pool.Handles() {
+		if m.taskRef(h.ExecutorID) != taskRef {
+			continue
+		}
+		m.markStalled(h.ExecutorID) // label the stop before the kill (see Sweep)
+		if err := m.watchdog.GracefulKill(ctx, h); err != nil {
+			return false, fmt.Errorf("executor: fuse-kill %s (task %s): %w", h.ExecutorID, taskRef, err)
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // CheckOrphan runs ONE watchdog + completion tick for an ADOPTED orphan executor
@@ -490,12 +535,33 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	// and audit its work before the worktree is destroyed — closing the gap that lost
 	// review-only commits (issue-f30b7e7b). All GC is agent-runtime-local (the center
 	// only holds the writeback above), matching k8s's node-agent-owns-local-GC model.
-	if err := m.fx.MarkFinalized(c.ExecutorID, m.clk.Now()); err != nil {
+	// Capture the worktree's structured git status BEFORE retaining (issue-0186f85e ②):
+	// branch / HEAD sha / dirty / pushed, so a later delivery-detection / audit pass can
+	// mechanically judge "did this executor really deliver, and was it pushed" WITHOUT the
+	// worktree still present — root-causing T947 (teardown-before-audit lost unpushed work).
+	git := m.finalizeGitStatus(ctx, c.ExecutorID)
+	if err := m.fx.MarkFinalized(c.ExecutorID, m.clk.Now(), git); err != nil {
 		// Can't stamp the retain marker → fall back to immediate teardown. Never leak:
 		// a lost retain window is far better than an un-reaped dir/worktree.
 		return m.tearDownExecutor(ctx, c.ExecutorID)
 	}
 	return nil
+}
+
+// finalizeGitStatus probes the terminal executor's worktree git state for the retain
+// marker (issue-0186f85e ②). Best-effort: an unresolvable workspace dir or a non-git
+// workspace yields nil (a timestamp-only marker), never an error — the probe must never
+// fail the finalize.
+func (m *Monitor) finalizeGitStatus(ctx context.Context, executorID string) *FinalizedGitStatus {
+	ws, err := m.fx.Layout().WorkspaceDir(executorID)
+	if err != nil {
+		return nil
+	}
+	gs := probeGitStatus(ctx, m.git, ws)
+	if !gs.Probed {
+		return nil // not a git worktree / probe failed → record timestamp only
+	}
+	return &gs
 }
 
 // tearDownExecutor removes a terminal executor's worktree + dir — the actual cleanup,

@@ -259,6 +259,17 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /api/orgs/{slug}/model-catalog/{id}", s.updateModelCatalogHandler)
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/model-catalog/{id}", s.deleteModelCatalogHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/model-catalog/import", s.importModelCatalogHandler)
+
+	// Team WebUI facade (plan-32dd9107, P1: teams CRUD + members + projects).
+	s.mux.HandleFunc("GET /api/orgs/{slug}/teams", s.listTeamsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams", s.createTeamHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}", s.getTeamHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/teams/{id}", s.deleteTeamHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/members", s.listTeamMembersHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/{id}/members", s.addTeamMemberHandler)
+	s.mux.HandleFunc("DELETE /api/orgs/{slug}/teams/{id}/members/{ref}", s.removeTeamMemberHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/teams/{id}/projects", s.listTeamProjectsHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/teams/{id}/projects", s.associateTeamProjectHandler)
 	// v2.18.4 BE-2: remote viewing (commits / branches) — member-readable, via the
 	// provider abstraction (go-github / git fallback); no clone, credential never returned.
 	s.mux.HandleFunc("GET /api/orgs/{slug}/code-repos/{repo_id}/commits", s.listCodeRepoCommitsHandler)

@@ -1167,3 +1167,26 @@ func cleanTags(tags []string) ([]string, error) {
 	}
 	return out, nil
 }
+
+// TagMergeToMain is the reserved task tag that marks a task whose execution
+// performs a merge-to-main (ship) action. issue-d2f14e0e (P0 dispatch-safety):
+// a task carrying this tag is HARD-GATED server-side in EnsureTaskRunnable — it
+// may not enter running unless its plan node sits directly downstream of one or
+// more acceptance/decision CONDITION gates that have ALL resolved to a PASS
+// (Completed + outcome "success"). This makes the acceptance verdict
+// un-bypassable regardless of executor behavior: the executor never passes the
+// run gate, so it never reaches the git merge. A merge-to-main task that is NOT
+// so gated (no passed verdict upstream, a non-pass gate, or not in a structured
+// plan at all) is fail-closed — never runnable. 13 chars, within the 16-char
+// tag bound.
+const TagMergeToMain = "merge-to-main"
+
+// HasTag reports whether the (already-clean) tag set contains want by exact match.
+func HasTag(tags []string, want string) bool {
+	for _, t := range tags {
+		if t == want {
+			return true
+		}
+	}
+	return false
+}
