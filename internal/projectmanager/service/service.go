@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"sync"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/idgen"
@@ -279,6 +280,14 @@ type Service struct {
 	// create_stage / add_task_to_plan(stage) author stages and buildStages lays them
 	// onto the graph as gate + barrier nodes/edges.
 	stages pm.StageRepository
+
+	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
+	// lease sweep (NudgeExpiredLeases) carries across ticks to auto-reopen a structured
+	// plan node wedged Running while its executor is dead (issue-6ff12523). In-memory:
+	// a lost map on restart just restarts the count, safe (the node is re-observed next
+	// sweep). See stuck_node_reconcile.go.
+	stuckMu       sync.Mutex
+	stuckTrackers map[pm.TaskID]*stuckNodeTracker
 }
 
 // DefaultPoolClaimLimit is the T83 §3.6 default cap on concurrently-claimed

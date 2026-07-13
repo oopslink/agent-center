@@ -48,48 +48,80 @@ func (s *Service) NudgeExpiredLeases(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	// Prune confirmed-dead trackers for tasks no longer running (issue-6ff12523): a task
+	// that left running is no longer a stuck-node candidate, so its verdict/reopen tally
+	// resets.
+	runningSet := make(map[pm.TaskID]struct{}, len(running))
+	for _, snap := range running {
+		runningSet[snap.ID()] = struct{}{}
+	}
+	s.pruneStuckTrackers(runningSet)
+
 	nudged := 0
 	for _, snap := range running {
-		// Cheap pre-filter on the snapshot: only tasks with a lapsed lease are
-		// candidates (NudgeOnLeaseExpiry would no-op on the rest). The authoritative
-		// re-check happens inside the tx below.
-		exp := snap.ExecutionLeaseExpiresAt()
-		if exp == nil || now.Before(*exp) {
-			continue
-		}
 		taskID := snap.ID()
-		var did bool
-		if err := s.runInTx(ctx, func(txCtx context.Context) error {
-			t, ferr := s.tasks.FindByID(txCtx, taskID)
-			if ferr != nil {
-				return ferr
-			}
-			fired, nerr := t.NudgeOnLeaseExpiry(DefaultExecutionLeaseTTL, now)
-			if nerr != nil {
-				return nerr
-			}
-			// No-op when the lease was renewed, the task is blocked, or it is no longer
-			// running — nothing to persist or nudge.
-			if !fired {
-				return nil
-			}
-			if uerr := s.tasks.Update(txCtx, t); uerr != nil {
-				return uerr
-			}
-			// §7.3: persist the "lease_nudge" lifecycle log entry.
-			if lerr := s.flushActionLogs(txCtx, t); lerr != nil {
-				return lerr
-			}
-			did = true
-			// Sanctioned system→agent wake: the WakeProjector posts the @assignee nudge
-			// into the task conversation + wakes the owner. NOT emitTaskStateChanged —
-			// the task did not change state (still running, same assignee).
-			return s.emitTaskLeaseExpiredNudge(txCtx, t)
-		}); err != nil {
-			return nudged, err
+		// Lease snapshot read at the TOP of the sweep — BEFORE this sweep's own nudge — so
+		// the confirmed-dead activity check compares against the value the previous sweep
+		// left (post its nudge), never counting our own nudge as agent activity.
+		expBefore := snap.ExecutionLeaseExpiresAt()
+
+		// Confirmed-dead accounting + auto-reconcile (issue-6ff12523): folds this
+		// observation into the per-node tracker and, once confident, reopens the wedged
+		// graph node (or blocks for triage past R_max). A node reopened/blocked this sweep
+		// is `acted` — it is NOT also nudged (a block cleared its lease; a reopen emitted
+		// its own re-dispatch wake).
+		acted, aerr := s.reconcileStuckNode(ctx, snap, expBefore, now)
+		if aerr != nil {
+			return nudged, aerr
 		}
-		if did {
-			nudged++
+
+		// T456 lease NUDGE (unchanged): only tasks with a lapsed lease are candidates
+		// (NudgeOnLeaseExpiry no-ops on the rest); the authoritative re-check is in the tx.
+		if !acted && leaseLapsed(expBefore, now) {
+			var did bool
+			if err := s.runInTx(ctx, func(txCtx context.Context) error {
+				t, ferr := s.tasks.FindByID(txCtx, taskID)
+				if ferr != nil {
+					return ferr
+				}
+				fired, nerr := t.NudgeOnLeaseExpiry(DefaultExecutionLeaseTTL, now)
+				if nerr != nil {
+					return nerr
+				}
+				// No-op when the lease was renewed, the task is blocked, or it is no longer
+				// running — nothing to persist or nudge.
+				if !fired {
+					return nil
+				}
+				if uerr := s.tasks.Update(txCtx, t); uerr != nil {
+					return uerr
+				}
+				// §7.3: persist the "lease_nudge" lifecycle log entry.
+				if lerr := s.flushActionLogs(txCtx, t); lerr != nil {
+					return lerr
+				}
+				did = true
+				// Sanctioned system→agent wake: the WakeProjector posts the @assignee nudge
+				// into the task conversation + wakes the owner. NOT emitTaskStateChanged —
+				// the task did not change state (still running, same assignee).
+				return s.emitTaskLeaseExpiredNudge(txCtx, t)
+			}); err != nil {
+				return nudged, err
+			}
+			if did {
+				nudged++
+			}
+		}
+
+		// Anchor the tracker's lastExp to the lease value in effect AFTER this sweep's
+		// nudge (issue-6ff12523), so the NEXT sweep's activity check discounts our own
+		// nudge. No-op (and no re-read) for an untracked / just-acted task.
+		if !acted && s.isStuckTracked(taskID) {
+			if cur, cerr := s.currentLeaseExp(ctx, taskID); cerr != nil {
+				return nudged, cerr
+			} else {
+				s.recordStuckLeaseExp(taskID, cur)
+			}
 		}
 	}
 	return nudged, nil
