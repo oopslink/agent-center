@@ -77,6 +77,7 @@ func (s *Service) routeTimeouts(txCtx context.Context, p *pm.Plan) error {
 			TaskID:     b.TaskID,
 			NodeID:     b.NodeID,
 			WaitType:   b.WaitType,
+			WaitKeys:   b.WaitKeys,
 			Action:     action,
 			Deadline:   b.Deadline,
 			Overdue:    now.Sub(b.Deadline),

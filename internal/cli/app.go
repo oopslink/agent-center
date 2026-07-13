@@ -442,6 +442,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		Plans:            pmsql.NewPlanRepo(db),        // v2.9 #283/#285: Plan aggregate + DAG + dispatch records
 		Stages:           pmsql.NewStageRepo(db),       // 2026-07-03 plan-stage-model: Stage aggregate (barrier/gate落图)
 		Findings:         pmsql.NewPlanFindingRepo(db), // v2.10 ADR-0053: plan-scoped shared findings (DeLM shared context)
+		// I103 §2: turn the deadline engine ON in production — the reconcile materialize
+		// assigns each BlockedOn node its per-wait_type deadline + on_timeout action, and
+		// the router (routeTimeouts) acts when a deadline elapses. The paired production
+		// TimeoutSink (human_decision → owner reminder) is wired post-construction via
+		// SetTimeoutSink below (it depends on the reminder AppService → a build cycle).
+		DeadlinePolicy: pm.DefaultDeadlinePolicy(),
 		// v2.14.0 I14/F3 §7.3: persist the append-only Task lifecycle log (block/unblock/
 		// lease_expired/reassigned) to pm_task_action_logs from the log-producing flows.
 		TaskActionLogs: pmsql.NewTaskActionLogRepo(db, gen),
@@ -532,7 +538,7 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 	// response endpoint (Resolve), wired into both HandlerDeps below.
 	runtimeFsDispatcher := runtimefs.NewDispatcher()
 
-	return &App{
+	app := &App{
 		Config:              cfg,
 		DB:                  db,
 		Clock:               clk,
@@ -602,7 +608,16 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		StatsSvc:  statsSvc,
 		LogsSvc:   logsSvc,
 		BlobStore: bs,
-	}, nil
+	}
+
+	// I103 §2: wire the production on_timeout sink now that the App (and thus
+	// app.PMService) is assembled. The human_decision reminder adapter needs the
+	// cognition reminder AppService, whose Directory depends on pmSvc — a construction
+	// cycle that forbids building it inside pmservice.Deps{}. SetTimeoutSink mutates the
+	// SAME *Service the reconcile loop drives, so the engine picks it up. nil-safe: a
+	// nil sink (reminder service unavailable) leaves the engine recording probes only.
+	app.PMService.SetTimeoutSink(buildDecisionTimeoutSink(app))
+	return app, nil
 }
 
 // NewClientApp constructs a lightweight CLI-mode App. The DB / Service /

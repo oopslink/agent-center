@@ -23,9 +23,12 @@ const (
 	// WaitHumanDecision — a decision/review node awaiting a human ruling (no outcome
 	// recorded yet), or a node blocked behind such an unresolved decision.
 	WaitHumanDecision WaitType = "human_decision"
-	// WaitExternalEvent — the node is waiting on an external signal/subscription. No
-	// current graph state derives this (external_event subscription is a downstream
-	// I103 task); reserved so the enum is complete and downstream can emit it.
+	// WaitExternalEvent — the node is waiting on an external signal/subscription.
+	// DEFERRED (I103): no current graph state derives it and there is no consumer, so
+	// the classifier never emits it and no subscription/resolver is built. The enum
+	// value is reserved ONLY so the vocabulary is complete — wire the derivation +
+	// consumer when a real external-signal source exists (avoid dead scaffolding until
+	// then).
 	WaitExternalEvent WaitType = "external_event"
 	// WaitExecutorLiveness — a running (or paused) node holding an execution lease; the
 	// snapshot is a MARKER so the downstream executor-liveness detector/takeover has a

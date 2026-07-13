@@ -111,6 +111,10 @@ func (p DeadlinePolicy) DeadlineFor(waitType WaitType, waitedSince time.Time) (t
 //
 // These are conservative starting values — every entry is overridable via a custom
 // DeadlinePolicy. Nothing here changes gating: escalate/reprobe only propose/record.
+//
+// This IS the live production policy: the composition root (cli app.go) passes it as
+// Deps.DeadlinePolicy, so the reconcile materialize assigns these deadlines and the
+// router acts on them (paired with the production HumanDecisionTimeoutSink).
 func DefaultDeadlinePolicy() DeadlinePolicy {
 	return DeadlinePolicy{
 		Default: WaitDeadline{Timeout: 30 * time.Minute, OnTimeout: TimeoutReprobe},
@@ -133,10 +137,15 @@ func DefaultDeadlinePolicy() DeadlinePolicy {
 // row before emitting it. A sink acts on it PROPOSE-ONLY — it must never release a gated
 // node (see TimeoutAction).
 type TimeoutEvent struct {
-	PlanID     PlanID
-	TaskID     TaskID
-	NodeID     string
-	WaitType   WaitType
+	PlanID   PlanID
+	TaskID   TaskID
+	NodeID   string
+	WaitType WaitType
+	// WaitKeys carries the ids being waited on (copied from the BlockedOn row): for a
+	// human_decision timeout these are the pending DECISION task id(s) whose owner must
+	// rule (the node's own id when it IS the decision; the upstream decision id(s) when
+	// it is blocked behind one) — the sink resolves the reminder remindee from them.
+	WaitKeys   []string
 	Action     TimeoutAction
 	Deadline   time.Time
 	Overdue    time.Duration // now - deadline at the moment of routing

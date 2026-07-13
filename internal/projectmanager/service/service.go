@@ -285,12 +285,15 @@ type Service struct {
 	// on_timeout action assigned during the reconcile materialize and consumed by the
 	// router (routeTimeouts). The zero value is INERT — no deadline is ever assigned and
 	// the engine is a no-op (pre-I103 behaviour, zero-regression). Set via
-	// Deps.DeadlinePolicy (production wires pm.DefaultDeadlinePolicy()).
+	// Deps.DeadlinePolicy; the composition root (cli app.go) wires
+	// pm.DefaultDeadlinePolicy() in production.
 	deadlinePolicy pm.DeadlinePolicy
 	// timeoutSink is OPTIONAL (nil-safe, I103 §2). nil ⇒ the router still records each
 	// timeout on the BlockedOn row (probe_count / last_probe_at) but emits no external
 	// action. When wired, the sink enacts the routed on_timeout action PROPOSE-ONLY (it
-	// never releases a gated node — the gates stay authoritative).
+	// never releases a gated node — the gates stay authoritative). The composition root
+	// (cli app.go) wires the production HumanDecisionTimeoutSink via SetTimeoutSink
+	// AFTER construction (its reminder adapter depends on this Service — a build cycle).
 	timeoutSink TimeoutSink
 
 	// stuckMu guards stuckTrackers — the per-node confirmed-dead accounting the periodic
@@ -389,11 +392,13 @@ type Deps struct {
 	Stages pm.StageRepository
 	// DeadlinePolicy is OPTIONAL (I103 §2): the deadline engine's per-wait_type deadline
 	// + on_timeout policy. The zero value is INERT (no deadline ever assigned — engine
-	// off). Production wires pm.DefaultDeadlinePolicy().
+	// off). The composition root (cli app.go) wires pm.DefaultDeadlinePolicy() here.
 	DeadlinePolicy pm.DeadlinePolicy
 	// TimeoutSink is OPTIONAL (I103 §2): when set, the on_timeout router hands each
 	// elapsed-deadline node to the sink to enact the routed action (PROPOSE-ONLY — never
-	// releases a gated node). nil ⇒ timeouts are recorded on the BlockedOn row only.
+	// releases a gated node). nil ⇒ timeouts are recorded on the BlockedOn row only. NOT
+	// set here in production (the sink needs the reminder AppService, which depends on
+	// this Service): the composition root wires it post-construction via SetTimeoutSink.
 	TimeoutSink TimeoutSink
 }
 
@@ -529,6 +534,16 @@ func (s *Service) SetPausedTaskProvider(p PausedTaskPort) *Service {
 // nil is tolerated. Returns the receiver for chaining.
 func (s *Service) SetNodeResumer(r NodeResumer) *Service {
 	s.nodeResumer = r
+	return s
+}
+
+// SetTimeoutSink wires the optional I103 §2 on_timeout sink AFTER construction — the
+// production sink's reminder adapter needs the cognition reminder AppService, whose
+// Directory depends on this pm Service, so it cannot be built inside Deps{} (a
+// construction cycle). nil is tolerated (the engine then records probes only). Returns
+// the receiver for chaining. See decision_timeout_sink.go.
+func (s *Service) SetTimeoutSink(sink TimeoutSink) *Service {
+	s.timeoutSink = sink
 	return s
 }
 
