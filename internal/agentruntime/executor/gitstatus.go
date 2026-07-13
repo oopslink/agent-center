@@ -17,6 +17,7 @@ package executor
 
 import (
 	"context"
+	"strconv"
 	"strings"
 )
 
@@ -40,6 +41,35 @@ type FinalizedGitStatus struct {
 	// not a git repo (plain-dir executor) or git errored, so the other fields are unknown
 	// (zero) rather than meaningfully false.
 	Probed bool `json:"probed"`
+	// BaseRef is the ref the executor's worktree branched off (the spawn-time base, from the
+	// recovery Record). "" when the caller had no base to compare against (plain-dir / pool
+	// default / unknown) — then BaseKnown is false and AheadOfBase is meaningless.
+	BaseRef string `json:"base_ref,omitempty"`
+	// BaseKnown is true iff a non-empty BaseRef was supplied AND it resolved in the worktree
+	// so AheadOfBase is a real count. false ⇒ "couldn't tell how far HEAD moved" — the
+	// delivery gate must treat that as UNKNOWN (fail-safe trust), never as zero-delivery.
+	BaseKnown bool `json:"base_known,omitempty"`
+	// AheadOfBase is the number of commits HEAD is ahead of BaseRef (0 = HEAD never advanced
+	// past base). Only meaningful when BaseKnown. It is the mechanical "did the executor
+	// commit anything" signal the non-delivery gate reads.
+	AheadOfBase int `json:"ahead_of_base,omitempty"`
+}
+
+// HasDelivery reports whether the worktree shows ANY real git side effect: a commit
+// beyond base, uncommitted changes, or an already-pushed HEAD. Delivery detection
+// (issue-37015227 ②): a self-reported success that has NO delivery is not trustworthy.
+func (g FinalizedGitStatus) HasDelivery() bool {
+	return g.Dirty || g.Pushed || g.AheadOfBase > 0
+}
+
+// ZeroDelivery reports an UNAMBIGUOUS non-delivery: git WAS probed (a real worktree),
+// the base IS known (so AheadOfBase is real), and there is provably no side effect —
+// HEAD did not advance past base, the tree is clean, and nothing was pushed. It is the
+// strict gate condition: it distinguishes "proven nothing produced" from "couldn't tell"
+// (base unknown / plain-dir), so a task the tool cannot mechanically judge is never
+// falsely blocked (fail-safe: only a positive zero-delivery downgrades a success).
+func (g FinalizedGitStatus) ZeroDelivery() bool {
+	return g.Probed && g.BaseKnown && !g.HasDelivery()
 }
 
 // probeGitStatus reads the structured git state of the worktree at dir via runner
@@ -47,7 +77,12 @@ type FinalizedGitStatus struct {
 // no commit) returns the zero status with Probed=false — the caller records "git state
 // unknown" rather than a misleading all-false. Runs git under a neutralized env so host
 // gitconfig / prompts / signing can never interfere (mirrors WorktreeProvisioner.run).
-func probeGitStatus(ctx context.Context, runner GitRunner, dir string) FinalizedGitStatus {
+//
+// baseRef is the ref the worktree branched off (spawn-time base); when non-empty and it
+// resolves, AheadOfBase records how many commits HEAD is past it (BaseKnown=true). An
+// empty or unresolvable base leaves BaseKnown=false — the caller treats that as UNKNOWN,
+// never as zero-delivery (issue-37015227 ②: only a POSITIVE zero-delivery gates a success).
+func probeGitStatus(ctx context.Context, runner GitRunner, dir, baseRef string) FinalizedGitStatus {
 	var gs FinalizedGitStatus
 	if runner == nil || strings.TrimSpace(dir) == "" {
 		return gs
@@ -73,6 +108,19 @@ func probeGitStatus(ctx context.Context, runner GitRunner, dir string) Finalized
 	// -effort: an un-fetched remote reads as not-pushed, the safe side for delivery audit).
 	if rc, rerr := runner.Run(ctx, dir, env, "branch", "-r", "--contains", "HEAD"); rerr == nil {
 		gs.Pushed = strings.TrimSpace(rc) != ""
+	}
+	// Commits HEAD is ahead of the spawn-time base — the mechanical "did it commit anything"
+	// signal. `rev-list --count <base>..HEAD` counts commits reachable from HEAD but not base;
+	// 0 ⇒ HEAD never advanced. An unresolvable base (deleted / never fetched) errors → leave
+	// BaseKnown=false so an un-judgeable run is not mistaken for zero-delivery.
+	if b := strings.TrimSpace(baseRef); b != "" {
+		gs.BaseRef = b
+		if rl, rerr := runner.Run(ctx, dir, env, "rev-list", "--count", b+"..HEAD"); rerr == nil {
+			if n, perr := strconv.Atoi(strings.TrimSpace(rl)); perr == nil && n >= 0 {
+				gs.BaseKnown = true
+				gs.AheadOfBase = n
+			}
+		}
 	}
 	return gs
 }

@@ -138,7 +138,7 @@ func TestProbeGitStatus_DetachedHead(t *testing.T) {
 		"status --porcelain":          "",
 		"branch -r --contains HEAD":   "",
 	}}
-	gs := probeGitStatus(context.Background(), r, "/some/worktree")
+	gs := probeGitStatus(context.Background(), r, "/some/worktree", "")
 	if !gs.Probed || gs.HeadSHA != "cafe0011" {
 		t.Fatalf("gs = %+v, want probed with sha cafe0011", gs)
 	}
@@ -150,10 +150,10 @@ func TestProbeGitStatus_DetachedHead(t *testing.T) {
 // TestProbeGitStatus_NilRunnerOrDir — defensive: a nil runner or empty dir yields the
 // zero (unprobed) status, never a panic.
 func TestProbeGitStatus_NilRunnerOrDir(t *testing.T) {
-	if gs := probeGitStatus(context.Background(), nil, "/x"); gs.Probed {
+	if gs := probeGitStatus(context.Background(), nil, "/x", "main"); gs.Probed {
 		t.Error("nil runner must yield Probed=false")
 	}
-	if gs := probeGitStatus(context.Background(), scriptedGitRunner{}, ""); gs.Probed {
+	if gs := probeGitStatus(context.Background(), scriptedGitRunner{}, "", "main"); gs.Probed {
 		t.Error("empty dir must yield Probed=false")
 	}
 }

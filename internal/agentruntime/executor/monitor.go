@@ -512,6 +512,13 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	if c.Kind == OutcomeRunning {
 		return nil
 	}
+	// issue-37015227 ② — NON-DELIVERY HARD GATE. Before ANY writeback trusts a self-
+	// reported success, verify the executor produced a real git side effect. A run that
+	// exited 0 with output.json.success=true but left HEAD un-advanced past base, a clean
+	// tree, and nothing pushed delivered NOTHING — trusting its "succeeded" is exactly the
+	// canned-PASS zero-delivery hole. The gate downgrades such a success to a retryable
+	// non_delivery (fail-loud), so it can never reach the center/supervisor as "succeeded".
+	c = m.gateNonDelivery(ctx, c)
 	// T969 (option A): persist a codex executor's captured thread_id into
 	// Record.SessionID BEFORE teardown, so a later resume can `codex exec resume
 	// <thread_id>`. codex mints its thread_id at runtime (thread.started), unlike
@@ -561,20 +568,86 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	return nil
 }
 
+// gateNonDelivery is the issue-37015227 ② delivery hard-gate: it downgrades a
+// self-reported OutcomeSucceeded that produced NO real git side effect to a retryable
+// OutcomeCrashed with a machine-readable non_delivery cause, and logs FAIL-LOUD. It runs
+// at the single Finalize funnel, BEFORE the writeback, so a zero-delivery success can
+// never be relayed to the center/supervisor as "succeeded" (the canned-PASS hole).
+//
+// It only ever acts on a POSITIVE, unambiguous zero-delivery (FinalizedGitStatus.
+// ZeroDelivery): the workspace is a real git worktree, its spawn-time base is known, and
+// HEAD did not advance past base AND the tree is clean AND nothing was pushed. Every other
+// case — not a git worktree (plain-dir executor), base unknown/unresolvable, any commit /
+// dirty / pushed evidence, or a non-success outcome — is left UNTOUCHED (fail-safe: the
+// gate blocks only proven non-delivery, never a run it cannot mechanically judge). The
+// downgrade routes through the existing retryable path (dir/worktree RETAINED, reported as
+// a retryable block), so no new writeback branch is needed.
+func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion {
+	if c.Kind != OutcomeSucceeded {
+		return c
+	}
+	gs := m.finalizeGitStatus(ctx, c.ExecutorID)
+	if gs == nil || !gs.Probed {
+		return c // plain-dir / non-git / unresolvable workspace → cannot judge → trust
+	}
+	if gs.HasDelivery() {
+		return c // a commit past base / dirty tree / pushed HEAD → genuinely delivered
+	}
+	if !gs.BaseKnown {
+		// A real git worktree but the base could not be resolved (deleted / never fetched),
+		// so "ahead of base" is unknown — refuse to block on a guess. Log it so an operator
+		// can see the gate abstained rather than silently trusting.
+		m.log("DELIVERY-UNVERIFIABLE executor=%s task=%s: reported success in a git worktree "+
+			"(branch=%s head=%s) but base ref %q did not resolve — cannot mechanically confirm "+
+			"delivery, trusting reported success", c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.BaseRef)
+		return c
+	}
+	// Probed + base known + no commit past base + clean + not pushed ⇒ proven zero delivery.
+	m.log("NON-DELIVERY executor=%s task=%s: reported SUCCESS but produced NO git side effect "+
+		"(branch=%s head=%s base=%s ahead=0 dirty=false pushed=false) — refusing to complete; "+
+		"downgrading to retryable non_delivery block (issue-37015227 ②)",
+		c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.BaseRef)
+	c.Kind = OutcomeCrashed
+	c.Retryable = true
+	c.Error = &ErrorDetail{
+		Kind: "non_delivery",
+		Message: "executor reported success but produced no real delivery: HEAD did not advance " +
+			"past base, working tree clean, nothing pushed — treated as non-delivery (retryable)",
+	}
+	return c
+}
+
 // finalizeGitStatus probes the terminal executor's worktree git state for the retain
-// marker (issue-0186f85e ②). Best-effort: an unresolvable workspace dir or a non-git
-// workspace yields nil (a timestamp-only marker), never an error — the probe must never
-// fail the finalize.
+// marker (issue-0186f85e ②) AND the non-delivery gate (issue-37015227 ②). Best-effort:
+// an unresolvable workspace dir or a non-git workspace yields nil (a timestamp-only
+// marker), never an error — the probe must never fail the finalize. It compares HEAD
+// against the executor's spawn-time base ref (from the recovery Record) so the marker —
+// and the gate — can tell whether HEAD actually advanced past base.
 func (m *Monitor) finalizeGitStatus(ctx context.Context, executorID string) *FinalizedGitStatus {
 	ws, err := m.fx.Layout().WorkspaceDir(executorID)
 	if err != nil {
 		return nil
 	}
-	gs := probeGitStatus(ctx, m.git, ws)
+	gs := probeGitStatus(ctx, m.git, ws, m.recordBaseRef(executorID))
 	if !gs.Probed {
 		return nil // not a git worktree / probe failed → record timestamp only
 	}
 	return &gs
+}
+
+// recordBaseRef reads the executor's spawn-time base ref from its recovery Record, so the
+// finalize probe can measure how far HEAD advanced past base. "" when no tracker is wired
+// or the Record is absent/baseless (a plain-dir / untracked executor) — the gate then
+// treats delivery as unjudgeable and trusts the reported outcome (fail-safe).
+func (m *Monitor) recordBaseRef(executorID string) string {
+	if m.tracker == nil {
+		return ""
+	}
+	rec, err := m.tracker.Read(executorID)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(rec.BaseRef)
 }
 
 // FinalizeFused terminally settles a FUSED executor (FuseKillTask circuit-break) WITHOUT

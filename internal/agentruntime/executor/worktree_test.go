@@ -124,6 +124,93 @@ func TestWorktree_RunnerError(t *testing.T) {
 	}
 }
 
+// TestWorktree_IsolatedFromLiveBranchWorktree is the issue-37015227 ① regression lock:
+// a task targeting an ALREADY-EXISTING branch X, where a live agent already holds a
+// worktree checked out on X, must get its OWN independent worktree at a DIFFERENT path on
+// a FRESH branch — never the live worktree, never sharing branch X. It also pins the
+// isolation guard that refuses to provision over an existing worktree or onto a live branch.
+func TestWorktree_IsolatedFromLiveBranchWorktree(t *testing.T) {
+	gitBin, repo := newSourceRepo(t) // source repo on branch main, one commit
+	// An existing feature branch X off main (the branch the task targets).
+	runGitIn(t, gitBin, repo, "branch", "feat/x", "main")
+
+	prov, err := NewWorktreeProvisioner(repo, NewExecGitRunner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	// Simulate the LIVE AGENT: a worktree checked out directly on feat/x, with a working
+	// file the agent is mid-edit on (uncommitted).
+	liveWt := filepath.Join(t.TempDir(), "live-agent-wt")
+	if err := prov.Add(ctx, liveWt, "feat/x"); err != nil {
+		t.Fatalf("provision live-agent worktree: %v", err)
+	}
+	liveMarker := filepath.Join(liveWt, "live-agent-wip.txt")
+	if err := os.WriteFile(liveMarker, []byte("owned by live agent"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Dispatch a SAME-BRANCH-X executor task: it must land in its own id-keyed worktree on
+	// a fresh branch OFF feat/x's tip — never the live worktree.
+	agentRoot := t.TempDir()
+	layout, _ := NewLayout(agentRoot)
+	execID := "exec-samebranch"
+	execWs, _ := layout.WorkspaceDir(execID)
+	if err := prov.AddNewBranch(ctx, execWs, "executor/"+execID, "feat/x"); err != nil {
+		t.Fatalf("provision same-branch executor worktree: %v", err)
+	}
+
+	// (1) A DIFFERENT path from the live worktree.
+	if cleanPath(execWs) == cleanPath(liveWt) {
+		t.Fatalf("executor worktree path %q collides with the live worktree %q", execWs, liveWt)
+	}
+	// (2) A real, independent checkout: has the base content...
+	if _, err := os.Stat(filepath.Join(execWs, "README.md")); err != nil {
+		t.Errorf("executor worktree missing base content: %v", err)
+	}
+	// ...on its OWN fresh branch, not the live branch feat/x.
+	br := gitOut(t, gitBin, execWs, "rev-parse", "--abbrev-ref", "HEAD")
+	if br != "executor/"+execID {
+		t.Errorf("executor worktree on branch %q, want its own fresh branch executor/%s (never the live branch)", br, execID)
+	}
+	// (3) The live agent's uncommitted work is NOT visible in the executor worktree, and the
+	// live worktree is left untouched.
+	if _, err := os.Stat(filepath.Join(execWs, "live-agent-wip.txt")); !os.IsNotExist(err) {
+		t.Errorf("live agent's file leaked into the executor worktree (err=%v) — not isolated", err)
+	}
+	if _, err := os.Stat(liveMarker); err != nil {
+		t.Errorf("live agent's worktree was disturbed: %v", err)
+	}
+
+	// (4) Guard: refuse to provision OVER the existing live worktree path.
+	if err := prov.AddNewBranch(ctx, liveWt, "executor/other", "main"); !errors.Is(err, ErrWorktreePathInUse) {
+		t.Errorf("provisioning over an existing worktree must fail ErrWorktreePathInUse, got %v", err)
+	}
+	// (5) Guard: refuse to OCCUPY the live branch feat/x in a second worktree (never share a
+	// live agent's branch), via either AddNewBranch or a direct Add.
+	freshPath := filepath.Join(t.TempDir(), "would-share-feat-x")
+	if err := prov.AddNewBranch(ctx, freshPath, "feat/x", "main"); !errors.Is(err, ErrBranchCheckedOutElsewhere) {
+		t.Errorf("occupying a live branch must fail ErrBranchCheckedOutElsewhere, got %v", err)
+	}
+	if err := prov.Add(ctx, freshPath, "feat/x"); !errors.Is(err, ErrBranchCheckedOutElsewhere) {
+		t.Errorf("direct-checkout of a live branch must fail ErrBranchCheckedOutElsewhere, got %v", err)
+	}
+}
+
+// gitOut runs git in dir and returns trimmed stdout, failing on error.
+func gitOut(t *testing.T, gitBin, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command(gitBin, args...)
+	cmd.Dir = dir
+	cmd.Env = gitEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git -C %s %v: %v\n%s", dir, args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // TestTwoConcurrentExecutorsIsolated is the F2 acceptance test with REAL git: two
 // executors each get their own worktree off a shared source repo; work written in
 // one worktree is invisible to the other, and the full file-exchange chain runs
