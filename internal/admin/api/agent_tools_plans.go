@@ -803,14 +803,77 @@ func planNodeLookups(detail *pmservice.PlanDetail) (map[pm.TaskID]string, map[pm
 	return titleOf, assigneeOf, archivedOf, orgRefOf
 }
 
+// blockedOnMap renders one 旁路 OBSERVATIONAL BlockedOn snapshot (I103 §2): why this
+// node is not advancing, on whom, and since when. Timestamps/optional fields are omitted
+// when zero (RFC3339Nano, mirroring the rest of this file). It carries NO gate semantics.
+func blockedOnMap(b pm.BlockedOn) map[string]any {
+	waitKeys := make([]string, 0, len(b.WaitKeys))
+	waitKeys = append(waitKeys, b.WaitKeys...)
+	m := map[string]any{
+		"node_id":           b.NodeID,
+		"task_id":           string(b.TaskID),
+		"wait_type":         string(b.WaitType),
+		"wait_keys":         waitKeys,
+		"trigger_condition": b.TriggerCondition,
+	}
+	if !b.WaitedSince.IsZero() {
+		m["waited_since"] = b.WaitedSince.Format(time.RFC3339Nano)
+	}
+	// deadline / on_timeout are downstream-owned (the deadline engine / on_timeout router,
+	// a later I103 task) — surfaced read-only when set so the queue view can show them.
+	if !b.Deadline.IsZero() {
+		m["deadline"] = b.Deadline.Format(time.RFC3339Nano)
+	}
+	if b.OnTimeout != "" {
+		m["on_timeout"] = b.OnTimeout
+	}
+	return m
+}
+
+// blockedOnList renders a flat list of snapshots (the pending-decision queue).
+func blockedOnList(bs []pm.BlockedOn) []map[string]any {
+	out := make([]map[string]any, 0, len(bs))
+	for _, b := range bs {
+		out = append(out, blockedOnMap(b))
+	}
+	return out
+}
+
+// frontierMap renders the un-advanced FRONTIER (I103 §2): the blocked_on snapshots
+// grouped by wait_type + the total blocked count, as {groups:[{wait_type,count,nodes}],
+// total}.
+func frontierMap(f pm.PlanFrontier) map[string]any {
+	groups := make([]map[string]any, 0, len(f.Groups))
+	for _, g := range f.Groups {
+		groups = append(groups, map[string]any{
+			"wait_type": string(g.WaitType),
+			"count":     len(g.Nodes),
+			"nodes":     blockedOnList(g.Nodes),
+		})
+	}
+	return map[string]any{"groups": groups, "total": f.Total}
+}
+
 // planDetailMap renders the full Plan DTO with the DERIVED node read model (§9.2):
 // nodes + ready_set + has_failed + progress{done,total}.
 func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	m := planMap(detail.Plan)
 	titleOf, assigneeOf, archivedOf, orgRefOf := planNodeLookups(detail)
+	// I103 §2: index the 旁路 blocked_on snapshots by task so each non-terminal node can
+	// carry its own "why am I waiting" descriptor (per-node blocked_on).
+	blockedByTask := make(map[pm.TaskID]pm.BlockedOn, len(detail.BlockedOn))
+	for _, b := range detail.BlockedOn {
+		blockedByTask[b.TaskID] = b
+	}
 	nodes := make([]map[string]any, 0, len(detail.View.Nodes))
 	for _, n := range detail.View.Nodes {
-		nodes = append(nodes, planNodeMap(detail.Plan.ID(), n, titleOf, assigneeOf, archivedOf, orgRefOf))
+		node := planNodeMap(detail.Plan.ID(), n, titleOf, assigneeOf, archivedOf, orgRefOf)
+		// Attach blocked_on only to NON-terminal nodes (a terminal node carries no snapshot —
+		// the reconcile sweep clears it; the guard is defensive against a stale row).
+		if b, ok := blockedByTask[n.TaskID]; ok && !n.NodeStatus.IsTerminal() {
+			node["blocked_on"] = blockedOnMap(b)
+		}
+		nodes = append(nodes, node)
 	}
 	readySet := make([]string, 0, len(detail.View.ReadySet))
 	for _, id := range detail.View.ReadySet {
@@ -834,6 +897,16 @@ func planDetailMap(detail *pmservice.PlanDetail) map[string]any {
 			})
 		}
 		m["gates"] = gates
+	}
+	// I103 §2: aggregate the un-advanced FRONTIER (grouped by wait_type) + the read-only
+	// pending-decision queue (human_decision waits). Emitted ONLY when the plan has
+	// blocked_on snapshots — a fully-advancing / builtin / ungraphed plan omits both keys
+	// (zero-regression, mirroring the `gates` key).
+	if len(detail.BlockedOn) > 0 {
+		m["frontier"] = frontierMap(pm.DeriveFrontier(detail.BlockedOn))
+		if pend := pm.DerivePendingDecisions(detail.BlockedOn); len(pend) > 0 {
+			m["pending_decisions"] = blockedOnList(pend)
+		}
 	}
 	return m
 }

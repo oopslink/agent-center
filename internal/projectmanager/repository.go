@@ -248,6 +248,20 @@ type PlanRepository interface {
 	RecordReviewVerdict(ctx context.Context, planID PlanID, v ReviewVerdict, at time.Time) error
 	GetReviewVerdict(ctx context.Context, planID PlanID, taskID TaskID) (ReviewVerdict, bool, error)
 	ListReviewVerdicts(ctx context.Context, planID PlanID) ([]ReviewVerdict, error)
+
+	// BlockedOn snapshots (I103 §1) — the旁路 OBSERVATIONAL "why is this node not
+	// progressing" descriptor the reconcile sweep materializes per non-terminal node
+	// and clears when the node enters ready/running/terminal. SINGLE-SLOT latest-wins
+	// per (plan_id, task_id). UpsertBlockedOn writes/refreshes the whole row (INSERT-OR-
+	// REPLACE — the service computes the preserved fields); ClearBlockedOn deletes one
+	// node's slot (idempotent when absent); GetBlockedOn returns one node's slot
+	// (ok=false when none — so the materialize can preserve waited_since/probe fields);
+	// ListBlockedOn returns a plan's snapshots (read/observability), stable-ordered
+	// (task_id). Orchestrator-owned stored state like dispatch records — NOT a gate.
+	UpsertBlockedOn(ctx context.Context, b BlockedOn) error
+	ClearBlockedOn(ctx context.Context, planID PlanID, taskID TaskID) error
+	GetBlockedOn(ctx context.Context, planID PlanID, taskID TaskID) (BlockedOn, bool, error)
+	ListBlockedOn(ctx context.Context, planID PlanID) ([]BlockedOn, error)
 }
 
 // StageRepository persists Stage ARs (2026-07-03 plan-stage-model design §4.1): the

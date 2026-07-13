@@ -555,6 +555,11 @@ func (s *Service) GetPlanDetailForMember(ctx context.Context, id pm.PlanID, acto
 	if err := s.enrichStageView(ctx, detail); err != nil {
 		return nil, err
 	}
+	// I103 §2: surface the 旁路 blocked_on snapshots (per-node wait + frontier + pending-
+	// decision queue). Pure read — re-reads the materialized store, changes no gating.
+	if err := s.fillBlockedOn(ctx, detail); err != nil {
+		return nil, err
+	}
 	return detail, nil
 }
 
@@ -579,6 +584,15 @@ type PlanDetail struct {
 	// have the orch graph); nil on the internal planDetail path. Nil for a plan with no
 	// stages / no graph (§8 zero-regression).
 	Gates []StageGateView
+	// BlockedOn (I103 §2) carries the plan's 旁路 OBSERVATIONAL blocked_on snapshots —
+	// one per non-terminal node the reconcile sweep classified as un-advancing (why it
+	// waits, on whom, since when). PURE READ: it is the materialized store re-read, never
+	// re-derived here — this changes NO gating. The DTO joins it onto each non-terminal
+	// node (per-node blocked_on) and aggregates the frontier (grouped by wait_type) +
+	// the pending-decision queue (human_decision waits). Populated ONLY by the READ-
+	// facing GetPlanDetail / GetPlanDetailForMember; nil on the internal planDetail path
+	// and for a builtin/ungraphed plan (nothing is materialized — §8 zero-regression).
+	BlockedOn []pm.BlockedOn
 }
 
 // StageGateView is one stage GATE (a condition control node) surfaced to the plan
@@ -613,6 +627,11 @@ func (s *Service) GetPlanDetail(ctx context.Context, id pm.PlanID) (*PlanDetail,
 	// issue-77d9beff ②: correct the stage-UNAWARE DerivePlanView (barrier-held
 	// entry ready→blocked, dropped from ready_set) + surface the stage gate nodes.
 	if err := s.enrichStageView(ctx, detail); err != nil {
+		return nil, err
+	}
+	// I103 §2: surface the 旁路 blocked_on snapshots (per-node wait + frontier + pending-
+	// decision queue). Pure read — re-reads the materialized store, changes no gating.
+	if err := s.fillBlockedOn(ctx, detail); err != nil {
 		return nil, err
 	}
 	return detail, nil

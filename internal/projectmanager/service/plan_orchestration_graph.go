@@ -754,3 +754,263 @@ func (s *Service) escalateExhaustion(txCtx context.Context, plan *pm.Plan, decis
 	_, err := s.planDispatcher.PostMention(txCtx, plan.ConversationID(), target, content)
 	return err
 }
+
+// =============================================================================
+// I103 §1/§3 — BlockedOn materialization (deterministic-resume PRE-BASE task).
+//
+// materializeBlockedOn is the reconcile-sweep step that keeps a旁路 OBSERVATIONAL
+// BlockedOn snapshot in lock-step with each non-terminal plan node: for every node
+// it CLASSIFIES why the node is not making terminal progress and either refreshes a
+// single-slot BlockedOn (persisted latest-wins) or clears it once the node enters
+// ready/running/terminal.
+//
+// It is PURE OBSERVATION — it reads the SAME derived view / gate predicates the
+// dispatcher and run-gate use and writes ONLY to the separate pm_plan_blocked_on
+// store. It changes NO gating/readiness semantics (the T1041 acceptance hard gate,
+// the reject gate, the stage barrier stay authoritative). It classifies + persists and
+// (I103 §2) ASSIGNS each node's deadline + on_timeout from the deadline policy (data
+// only). It does NOT ACT on those deadlines (the router routeTimeouts does, after this),
+// run a human-decision queue, subscribe to external events, or detect a dead executor —
+// those are downstream I103 concerns that CONSUME this snapshot.
+//
+// IDEMPOTENT: re-running a sweep over an unchanged plan produces no churn — an
+// unchanged classification re-writes the same row (waited_since preserved while the
+// wait_type is unchanged, so the assigned deadline never drifts; the router-owned probe
+// fields preserved).
+//
+// Scope: structured, graphed plans only. A builtin pool is FLAT (no upstream, no
+// gates) and an ungraphed plan predates the engine — both skip (nothing to classify);
+// a skip is safe because the snapshot is observational.
+func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error {
+	if s.orch == nil || p.IsBuiltin() || p.GraphID() == "" {
+		return nil
+	}
+	planID := p.ID()
+	tasks, err := s.tasks.ListByPlan(txCtx, planID)
+	if err != nil {
+		return err
+	}
+	edges, err := s.plans.ListDependencies(txCtx, planID)
+	if err != nil {
+		return err
+	}
+	records, err := s.plans.ListDispatchRecords(txCtx, planID)
+	if err != nil {
+		return err
+	}
+	outcomes, err := s.plans.ListDecisionOutcomes(txCtx, planID)
+	if err != nil {
+		return err
+	}
+	paused, err := s.pausedSet(txCtx, tasks)
+	if err != nil {
+		return err
+	}
+	// The derived view is the SAME read model the dispatcher/run-gate consult, so the
+	// classification agrees with the engine's own notion of blocked/ready/running.
+	view := pm.DerivePlanView(tasks, edges, records, outcomes, paused)
+	taskByID := make(map[pm.TaskID]*pm.Task, len(tasks))
+	for _, t := range tasks {
+		taskByID[t.ID()] = t
+	}
+	hasOutcome := make(map[pm.TaskID]bool, len(outcomes))
+	for _, o := range outcomes {
+		hasOutcome[o.TaskID] = true
+	}
+	// nodeStatusByID lets the upstream-completion classifier tell a satisfied upstream
+	// (done/skipped) from one still being waited on.
+	nodeStatusByID := make(map[pm.TaskID]pm.NodeStatus, len(view.Nodes))
+	for _, n := range view.Nodes {
+		nodeStatusByID[n.TaskID] = n.NodeStatus
+	}
+	now := s.clock.Now()
+	for _, n := range view.Nodes {
+		t := taskByID[n.TaskID]
+		if t == nil {
+			continue // node without a loaded task (defensive) — nothing to classify.
+		}
+		cls, clear, cerr := s.classifyBlockedOn(txCtx, p, t, n, edges, hasOutcome, nodeStatusByID)
+		if cerr != nil {
+			return cerr
+		}
+		if clear {
+			if err := s.plans.ClearBlockedOn(txCtx, planID, n.TaskID); err != nil {
+				return err
+			}
+			continue
+		}
+		b := pm.BlockedOn{
+			NodeID:           t.NodeID(),
+			TaskID:           n.TaskID,
+			PlanID:           planID,
+			WaitType:         cls.waitType,
+			WaitKeys:         cls.waitKeys,
+			TriggerCondition: cls.trigger,
+			WaitedSince:      now,
+		}
+		// Refresh-preserve: for an ONGOING wait of the SAME kind, keep waited_since (the
+		// 基准 the deadline is measured from — so the deadline never drifts across sweeps)
+		// and carry the router-owned probe history (last_probe_at / probe_count) forward so
+		// the sweep never clobbers it. A wait_type CHANGE is a genuinely new wait —
+		// waited_since resets to now (above) and the stale probe history is dropped.
+		if prev, ok, gerr := s.plans.GetBlockedOn(txCtx, planID, n.TaskID); gerr != nil {
+			return gerr
+		} else if ok && prev.WaitType == cls.waitType {
+			b.WaitedSince = prev.WaitedSince
+			b.LastProbeAt = prev.LastProbeAt
+			b.ProbeCount = prev.ProbeCount
+		}
+		// I103 §2: (re)ASSIGN the deadline + on_timeout action from the policy, measured
+		// from waited_since. Because waited_since is preserved for an unchanged wait, the
+		// deadline recomputes to the SAME instant every sweep (idempotent, no drift). A zero
+		// (inert) policy assigns none — Deadline stays zero, the router is a no-op. Assigning
+		// is data-only; the router (routeTimeouts) is what ACTS when the deadline elapses.
+		if dl, action, ok := s.deadlinePolicy.DeadlineFor(cls.waitType, b.WaitedSince); ok {
+			b.Deadline = dl
+			b.OnTimeout = string(action)
+		}
+		if err := s.plans.UpsertBlockedOn(txCtx, b); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// blockedOnClass is the classifier result for one node: the wait_type plus its
+// wait_keys and a human-readable release condition.
+type blockedOnClass struct {
+	waitType pm.WaitType
+	waitKeys []string
+	trigger  string
+}
+
+// classifyBlockedOn derives WHY one plan node is not making terminal progress (I103
+// §3). It returns clear=true when the node is settled or genuinely runnable (nothing
+// to record). It reuses the engine's OWN gate predicates (acceptanceVerdictBlocks /
+// stageGateBlocks) so the recorded reason matches what EnsureTaskRunnable would
+// actually reject on. Priority order (most-specific first):
+//
+//  1. terminal (done/failed/skipped)        → clear
+//  2. running/paused (holds an exec lease)   → executor_liveness (marker; detection downstream)
+//  3. acceptance hard gate holds it          → acceptance_verdict
+//  4. stage barrier holds it                 → stage_barrier
+//  5. it IS a pending decision/review node   → human_decision
+//  6. blocked behind an unresolved decision  → human_decision
+//  7. blocked on unfinished upstream deps    → upstream_completion
+//  8. ready/dispatched, no gate (runnable)   → clear (awaiting agent pickup, not blocked)
+//  9. fallback (unknown non-terminal state)  → timeout_only
+//
+// external_event is intentionally NOT derived here — no current graph state maps to
+// it (external_event subscription is a downstream I103 task); the enum reserves it.
+func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task, n pm.PlanNodeView, edges []pm.Dependency, hasOutcome map[pm.TaskID]bool, nodeStatusByID map[pm.TaskID]pm.NodeStatus) (blockedOnClass, bool, error) {
+	switch n.NodeStatus {
+	case pm.NodeDone, pm.NodeFailed, pm.NodeSkipped:
+		return blockedOnClass{}, true, nil // settled — clear any snapshot.
+	case pm.NodeRunning, pm.NodePaused:
+		// In motion holding an execution lease → a marker so the downstream executor-
+		// liveness detector/takeover has a record to probe. Detection is NOT this task.
+		var keys []string
+		if a := strings.TrimSpace(string(t.Assignee())); a != "" {
+			keys = []string{a}
+		}
+		return blockedOnClass{pm.WaitExecutorLiveness, keys, "the executor holding the lease stays alive"}, false, nil
+	}
+	// Non-terminal, non-running (ready / dispatched / blocked). Gate-aware checks first:
+	// a node deriving `ready` off the stage-UNAWARE view may still be gate-held.
+	if blocked, err := s.acceptanceVerdictBlocks(ctx, p, t); err != nil {
+		return blockedOnClass{}, false, err
+	} else if blocked {
+		keys, kerr := s.upstreamConditionNodeIDs(ctx, p, t, false)
+		if kerr != nil {
+			return blockedOnClass{}, false, kerr
+		}
+		return blockedOnClass{pm.WaitAcceptanceVerdict, keys, "an upstream acceptance/decision gate passes"}, false, nil
+	}
+	if blocked, err := s.stageGateBlocks(ctx, p, t); err != nil {
+		return blockedOnClass{}, false, err
+	} else if blocked {
+		keys, kerr := s.upstreamConditionNodeIDs(ctx, p, t, true)
+		if kerr != nil {
+			return blockedOnClass{}, false, kerr
+		}
+		return blockedOnClass{pm.WaitStageBarrier, keys, "the upstream stage gate resolves"}, false, nil
+	}
+	// human_decision: this node IS a pending decision/review (no outcome recorded yet).
+	if pm.IsDecisionNode(edges, t.ID()) && !hasOutcome[t.ID()] {
+		return blockedOnClass{pm.WaitHumanDecision, []string{string(t.ID())}, "a human records the decision outcome"}, false, nil
+	}
+	if n.NodeStatus == pm.NodeBlocked {
+		var pendingDecisions, unmet []string
+		for _, e := range edges {
+			if e.FromTaskID != t.ID() || e.IsLoopback() {
+				continue // only forward upstream deps of t (t depends_on e.ToTaskID).
+			}
+			up := e.ToTaskID
+			switch nodeStatusByID[up] {
+			case pm.NodeDone, pm.NodeSkipped:
+				continue // satisfied — not waited on.
+			}
+			unmet = append(unmet, string(up))
+			if pm.IsDecisionNode(edges, up) && !hasOutcome[up] {
+				pendingDecisions = append(pendingDecisions, string(up))
+			}
+		}
+		// Blocked behind an unresolved upstream decision → the ruling is the real wait.
+		if len(pendingDecisions) > 0 {
+			return blockedOnClass{pm.WaitHumanDecision, pendingDecisions, "a human records the upstream decision outcome"}, false, nil
+		}
+		return blockedOnClass{pm.WaitUpstreamCompletion, unmet, "all upstream dependencies complete"}, false, nil
+	}
+	if n.NodeStatus == pm.NodeReady || n.NodeStatus == pm.NodeDispatched {
+		// Deps satisfied, no gate held — the node is runnable, just awaiting the agent
+		// to pull it. NOT blocked → clear.
+		return blockedOnClass{}, true, nil
+	}
+	// Defensive fallback: a non-terminal state we did not specifically classify. Only a
+	// deadline can release it.
+	return blockedOnClass{pm.WaitTimeoutOnly, nil, "a deadline elapses"}, false, nil
+}
+
+// upstreamConditionNodeIDs returns the ids of the CONDITION control nodes directly
+// upstream of t's graph node (optionally only STAGE-GATE conditions) — the wait_keys
+// for an acceptance_verdict / stage_barrier BlockedOn (WHAT the node waits on). It is
+// a pure READ; returns nil for a plan with no engine / no graph / an unbound node.
+func (s *Service) upstreamConditionNodeIDs(ctx context.Context, p *pm.Plan, t *pm.Task, stageGateOnly bool) ([]string, error) {
+	if s.orch == nil || p.GraphID() == "" || t.NodeID() == "" {
+		return nil, nil
+	}
+	graphID := orch.GraphID(p.GraphID())
+	nodeID := orch.NodeID(t.NodeID())
+	edges, err := s.orch.ListEdges(ctx, graphID)
+	if err != nil {
+		return nil, err
+	}
+	nodes, err := s.orch.ListNodes(ctx, graphID)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[orch.NodeID]*orch.Node, len(nodes))
+	for _, n := range nodes {
+		byID[n.ID()] = n
+	}
+	var out []string
+	for _, e := range edges {
+		if e.ToNodeID != nodeID {
+			continue
+		}
+		n := byID[e.FromNodeID]
+		if n == nil {
+			continue
+		}
+		if n.Category() != orch.NodeCategoryControl || n.ControlKind() != orch.ControlKindCondition {
+			continue
+		}
+		if stageGateOnly {
+			if _, isStageGate := n.Metadata()["stage_gate"]; !isStageGate {
+				continue
+			}
+		}
+		out = append(out, string(n.ID()))
+	}
+	return out, nil
+}

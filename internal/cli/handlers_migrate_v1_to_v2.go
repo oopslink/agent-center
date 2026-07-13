@@ -164,7 +164,7 @@ func MigrateV1ToV2Command() *Command {
 // first-class Stage aggregate + pm_tasks.stage_id node→stage membership).
 // Team Phase-1 (S1-3) added 0107 (team/pm_teams tables — renumbered from 0106_v229_teams
 // at T1002 integrate to land after main's 0106_pm_stages).
-const targetSchemaVersion = 107
+const targetSchemaVersion = 108
 
 func runMigrateV1ToV2(
 	ctx context.Context,
