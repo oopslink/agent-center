@@ -35,6 +35,9 @@ type Repository interface {
 	// AssociateProject links a project to a team. Returns
 	// ErrProjectAlreadyAssociated on a duplicate.
 	AssociateProject(ctx context.Context, id TeamID, projectID string) error
+	// DisassociateProject unlinks a project from a team. Returns
+	// ErrProjectNotAssociated when the link is absent.
+	DisassociateProject(ctx context.Context, id TeamID, projectID string) error
 	// ListProjects returns a team's associated projects.
 	ListProjects(ctx context.Context, id TeamID) ([]*TeamProject, error)
 }

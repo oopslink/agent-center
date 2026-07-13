@@ -162,9 +162,10 @@ func (s *Server) instantiateTeamHandler(w http.ResponseWriter, r *http.Request) 
 		mapTeamWebError(w, err)
 		return
 	}
-	// Track the instantiation against its source template (FE instances_count).
+	// Track the instantiation against its source template (FE instances_count +
+	// the template-instances list).
 	if req.TemplateID != "" {
-		s.teamTemplates.incrInstances(orgID, req.TemplateID)
+		s.teamTemplates.addInstance(orgID, req.TemplateID, string(t.ID()))
 	}
 	writeJSON(w, http.StatusCreated, instantiatedTeamView(t, countByRole))
 }
@@ -354,12 +355,14 @@ func (s *Server) readTeamMemory(w http.ResponseWriter, r *http.Request, d Handle
 
 // storedTemplate wraps a domain template with the FE-only display extras
 // (source / source_kind / instances_count) that teams.ts TeamTemplate carries but
-// the domain does not encode.
+// the domain does not encode. instances holds the ids of the teams instantiated
+// from this template (Phase-1 in-memory) — its length is instances_count and it
+// backs GET .../team-templates/{tid}/instances (→ TeamView[]).
 type storedTemplate struct {
 	tmpl       *team.TeamTemplate
 	source     string
 	sourceKind string
-	instances  int
+	instances  []string
 }
 
 // teamTemplateStore is the Phase-1 in-memory, org-scoped team-template catalog.
@@ -401,15 +404,33 @@ func (st *teamTemplateStore) get(orgID, id string) (*storedTemplate, bool) {
 	return nil, false
 }
 
-func (st *teamTemplateStore) incrInstances(orgID, id string) {
+// addInstance records that teamID was instantiated from template id (no-op when
+// the template is unknown — a raw create-team with a stale template_id).
+func (st *teamTemplateStore) addInstance(orgID, id, teamID string) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	for _, t := range st.byOrg[orgID] {
 		if t.tmpl.ID == id {
-			t.instances++
+			t.instances = append(t.instances, teamID)
 			return
 		}
 	}
+}
+
+// instanceIDs returns a copy of the template's instantiated team ids (under the
+// lock, so the caller can range without racing addInstance). found=false when the
+// template id is unknown in the org.
+func (st *teamTemplateStore) instanceIDs(orgID, id string) ([]string, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for _, t := range st.byOrg[orgID] {
+		if t.tmpl.ID == id {
+			out := make([]string, len(t.instances))
+			copy(out, t.instances)
+			return out, true
+		}
+	}
+	return nil, false
 }
 
 // createTeamTemplateReq is the SaveTemplateInput body (teams.ts). Templates only
@@ -531,7 +552,7 @@ func teamTemplateView(st *storedTemplate) map[string]any {
 		"source":                st.source,
 		"source_kind":           st.sourceKind,
 		"version_label":         versionLabel,
-		"instances_count":       st.instances,
+		"instances_count":       len(st.instances),
 	}
 }
 
