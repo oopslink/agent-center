@@ -84,6 +84,19 @@ func (s *Service) buildPlanGraph(txCtx context.Context, p *pm.Plan, tasks []*pm.
 		}
 		nodeOf[t.ID()] = nodeID
 		t.SetNodeID(string(nodeID), now)
+		// issue-d2f14e0e (P0) PRODUCER: auto-stamp TagMergeToMain onto a ship /
+		// merge-to-main node so the run-gate consumer (acceptanceVerdictBlocks) hard-gates
+		// it on a passed acceptance verdict — WITHOUT relying on the author to tag it. This
+		// closes the "consumer wired, source not provisioned" gap: b5ddb42e added the
+		// consumer but nothing produced the tag, leaving the P0 gate opt-in / inert in
+		// production. Detection (pm.RequiresAcceptance) is fail-closed (explicit marker tag
+		// OR a tight "merge → main" title phrase); the stamp is idempotent (HasTag guard)
+		// and persisted in the same task Update that records the node id below.
+		if pm.RequiresAcceptance(t) && !pm.HasTag(t.Tags(), pm.TagMergeToMain) {
+			if terr := t.SetTags(append(t.Tags(), pm.TagMergeToMain), now); terr != nil {
+				return fmt.Errorf("stamp %s gate tag on ship node %s: %w", pm.TagMergeToMain, t.ID(), terr)
+			}
+		}
 		if uerr := s.tasks.Update(txCtx, t); uerr != nil {
 			return uerr
 		}
