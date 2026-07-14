@@ -101,20 +101,16 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     pathPrefixes: ['channels', 'dms'],
   },
   {
-    id: 'members',
-    label: 'Members',
-    short: 'Team',
-    defaultPath: 'members/humans',
-    Icon: UsersIcon,
-    pathPrefixes: ['members', 'agents', 'users'],
-  },
-  {
     id: 'teamui',
     label: 'Teams',
     short: 'Teams',
     defaultPath: 'teams',
     Icon: TeamsRailIcon,
-    pathPrefixes: ['teams'],
+    // members-into-teams: the legacy Members module is merged into Teams. Its
+    // path-prefixes (agents/:id AgentDetail, users/:id UserDetail — whose URLs are
+    // intentionally unchanged) move here so those detail pages light the Teams
+    // rail. `members` stays only as a redirect target (App.tsx).
+    pathPrefixes: ['teams', 'agents', 'users', 'members'],
   },
   {
     id: 'reminders',
@@ -194,11 +190,6 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
       return [{ label: 'Conversations', items: [
         { to: p('channels'), label: 'Channels', Icon: HashIcon },
         { to: p('dms'), label: 'DMs', Icon: ChatIcon },
-      ] }];
-    case 'members':
-      return [{ label: 'Members', items: [
-        { to: p('members/humans'), label: 'Humans', Icon: UsersIcon },
-        { to: p('agents'), label: 'Agents', Icon: AgentsIcon },
       ] }];
     case 'reminders':
       return [{ label: 'Reminders', items: [
@@ -291,7 +282,7 @@ export default function AppLayout(): React.ReactElement {
       'mod+d': () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
       'mod+1': () => navigate(`${orgBase}/projects`),
       'mod+2': () => navigate(`${orgBase}/channels`),
-      'mod+3': () => navigate(`${orgBase}/members/humans`),
+      'mod+3': () => navigate(`${orgBase}/teams`),
       'mod+4': () => navigate(`${orgBase}/environment`),
     }),
     [navigate, orgBase],
@@ -1378,17 +1369,11 @@ function ChatIcon(): React.ReactElement {
 function FleetIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="2.5" y="6" width="6" height="8" rx="1" /><rect x="11.5" y="6" width="6" height="8" rx="1" /><path d="M5.5 9.5h0.01M14.5 9.5h0.01" strokeLinecap="round" /></svg>);
 }
-function AgentsIcon(): React.ReactElement {
-  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="4" y="6" width="12" height="9" rx="2" /><path d="M7 6V4.5M13 6V4.5M8 10v.5M12 10v.5M7.5 13h5" strokeLinecap="round" /></svg>);
-}
 function SettingsIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.05 5.05l1.4 1.4M13.55 13.55l1.4 1.4M5.05 14.95l1.4-1.4M13.55 6.45l1.4-1.4" strokeLinecap="round" /></svg>);
 }
 function VersionIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M3.5 8.5 8.5 3.5a1.5 1.5 0 0 1 2.1 0l5.9 5.9a1.5 1.5 0 0 1 0 2.1l-5 5a1.5 1.5 0 0 1-2.1 0L3.5 10.6V8.5z" strokeLinejoin="round" /><circle cx="7" cy="7" r="1.2" /></svg>);
-}
-function UsersIcon(): React.ReactElement {
-  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="7.5" cy="7" r="2.5" /><path d="M2 16c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" /><path d="M13 8.5a2 2 0 1 0 0-4M18 16c0-2.5-2-4-4-4" strokeLinecap="round" /></svg>);
 }
 function TeamsRailIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="4" rx="1" /><rect x="2.5" y="12.5" width="5" height="4" rx="1" /><rect x="12.5" y="12.5" width="5" height="4" rx="1" /><path d="M10 6.5v2.5M5 12.5v-1.5h10v1.5" strokeLinecap="round" /></svg>);

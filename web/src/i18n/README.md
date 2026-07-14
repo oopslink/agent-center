@@ -28,6 +28,7 @@ work      Workspace module (projects, issues, tasks, plans, repos)
 members   Members module (humans, agents)
 admin     System module (environment, settings, version, org settings)
 insights  Insights module
+teams     Teams module (teams directory: agents / humans)
 ```
 
 Each namespace is two JSON files: `locales/en/<ns>.json` and

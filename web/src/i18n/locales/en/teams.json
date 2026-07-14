@@ -1,0 +1,67 @@
+{
+  "teamsCell": {
+    "unassigned": "Unassigned"
+  },
+  "common": {
+    "teamFilterAll": "By team: all",
+    "loading": "Loading…",
+    "loadFailed": "Failed to load: {{error}}"
+  },
+  "agents": {
+    "title": "Agents",
+    "searchPlaceholder": "Search agents (name / role)…",
+    "count": "{{working}} working · {{total}} total",
+    "addAgent": "+ Add Agent",
+    "filter": {
+      "all": "All {{count}}",
+      "working": "Working {{count}}",
+      "idle": "Idle {{count}}"
+    },
+    "empty": {
+      "title": "No matching agents",
+      "body": "Try a different search or filter."
+    },
+    "note": "Large lists live in the main area (searchable, filterable by status / team) instead of the narrow rail — so a growing agent roster never crowds the secondary nav.",
+    "runtime": {
+      "working": "Working",
+      "idle": "Idle"
+    },
+    "col": {
+      "agent": "Agent",
+      "runtimeStatus": "Runtime",
+      "lifecycle": "Lifecycle",
+      "orgRole": "Org role",
+      "membership": "Membership",
+      "teams": "Teams",
+      "model": "Model",
+      "load": "Load",
+      "backlog": "Backlog",
+      "worker": "Running on",
+      "lastActive": "Last active"
+    }
+  },
+  "humans": {
+    "title": "Humans",
+    "searchPlaceholder": "Search humans (name / email)…",
+    "filter": {
+      "all": "All {{count}}",
+      "joined": "Joined {{count}}"
+    },
+    "empty": {
+      "title": "No matching humans",
+      "body": "Try a different search or filter."
+    },
+    "note": "A human can belong to multiple teams (unlike an agent, which is exclusive to one) — the TEAMS column shows every team they belong to, and the top bar can filter by team.",
+    "col": {
+      "identity": "Identity",
+      "orgRole": "Org role",
+      "teamRole": "Team role",
+      "membership": "Membership",
+      "invite": "Invite",
+      "teams": "Teams",
+      "email": "Email",
+      "created": "Created",
+      "lastActive": "Last active"
+    }
+  }
+}

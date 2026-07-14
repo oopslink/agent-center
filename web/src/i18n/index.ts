@@ -23,17 +23,19 @@ import enWork from './locales/en/work.json';
 import enMembers from './locales/en/members.json';
 import enAdmin from './locales/en/admin.json';
 import enInsights from './locales/en/insights.json';
+import enTeams from './locales/en/teams.json';
 import zhCommon from './locales/zh/common.json';
 import zhChat from './locales/zh/chat.json';
 import zhWork from './locales/zh/work.json';
 import zhMembers from './locales/zh/members.json';
 import zhAdmin from './locales/zh/admin.json';
 import zhInsights from './locales/zh/insights.json';
+import zhTeams from './locales/zh/teams.json';
 
 import { SUPPORTED_LANGS, DEFAULT_LANG } from './lang';
 
 // Single source of truth for the namespace list (registration + README contract).
-export const NAMESPACES = ['common', 'chat', 'work', 'members', 'admin', 'insights'] as const;
+export const NAMESPACES = ['common', 'chat', 'work', 'members', 'admin', 'insights', 'teams'] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
 const resources = {
@@ -44,6 +46,7 @@ const resources = {
     members: enMembers,
     admin: enAdmin,
     insights: enInsights,
+    teams: enTeams,
   },
   zh: {
     common: zhCommon,
@@ -52,6 +55,7 @@ const resources = {
     members: zhMembers,
     admin: zhAdmin,
     insights: zhInsights,
+    teams: zhTeams,
   },
 } as const;
 

@@ -1,0 +1,67 @@
+{
+  "teamsCell": {
+    "unassigned": "未编入"
+  },
+  "common": {
+    "teamFilterAll": "按 team：全部",
+    "loading": "加载中…",
+    "loadFailed": "加载失败：{{error}}"
+  },
+  "agents": {
+    "title": "Agents",
+    "searchPlaceholder": "搜索 agent（名称 / 角色）…",
+    "count": "{{working}} working · {{total}} total",
+    "addAgent": "+ Add Agent",
+    "filter": {
+      "all": "All {{count}}",
+      "working": "Working {{count}}",
+      "idle": "Idle {{count}}"
+    },
+    "empty": {
+      "title": "无匹配 agent",
+      "body": "换个搜索或筛选试试。"
+    },
+    "note": "大列表放在主区（可搜索 / 状态·team 筛选），不铺在窄侧栏 —— 解决「human/agent 变多第二侧栏太挤」。侧栏只留入口。",
+    "runtime": {
+      "working": "Working",
+      "idle": "Idle"
+    },
+    "col": {
+      "agent": "Agent",
+      "runtimeStatus": "运行",
+      "lifecycle": "生命周期",
+      "orgRole": "组织角色",
+      "membership": "成员状态",
+      "teams": "Teams",
+      "model": "Model",
+      "load": "Load",
+      "backlog": "Backlog",
+      "worker": "Running on",
+      "lastActive": "Last active"
+    }
+  },
+  "humans": {
+    "title": "Humans",
+    "searchPlaceholder": "搜索 human（名称 / email）…",
+    "filter": {
+      "all": "All {{count}}",
+      "joined": "Joined {{count}}"
+    },
+    "empty": {
+      "title": "无匹配 human",
+      "body": "换个搜索或筛选试试。"
+    },
+    "note": "human 可属于多个 team（与 agent 独占单 team 不同）—— TEAMS 列展示全部所属 team，顶部可按 team 过滤。",
+    "col": {
+      "identity": "Identity",
+      "orgRole": "组织角色",
+      "teamRole": "团队角色",
+      "membership": "成员状态",
+      "invite": "邀请",
+      "teams": "Teams",
+      "email": "Email",
+      "created": "Created",
+      "lastActive": "Last active"
+    }
+  }
+}

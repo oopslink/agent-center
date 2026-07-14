@@ -62,7 +62,8 @@ describe('App shell + route tree', () => {
       [`${ORG_BASE}/dms/01HXXX`, 'page-DMDetail'],
       [`${ORG_BASE}/projects/proj-a/issues/01HXXX`, 'page-IssueDetail'],
       [`${ORG_BASE}/projects/proj-a/tasks/01HXXX`, 'page-TaskDetail'],
-      [`${ORG_BASE}/agents`, 'page-Agents'],
+      // members-into-teams: /agents redirects into the merged Teams directory.
+      [`${ORG_BASE}/agents`, 'page-TeamsDirectoryAgents'],
       [`${ORG_BASE}/agents/worker-1`, 'page-AgentDetail'],
       [`${ORG_BASE}/projects`, 'page-Projects'],
       [`${ORG_BASE}/projects/proj-a`, 'page-ProjectDetail'],
@@ -109,7 +110,8 @@ describe('App shell + route tree', () => {
     await waitFor(() => expect(screen.getByTestId('page-Channels')).toBeInTheDocument());
     expect(screen.getByTestId('rail-module-workspace')).toHaveAttribute('href', `${ORG_BASE}/projects`);
     expect(screen.getByTestId('rail-module-conversations')).toHaveAttribute('href', `${ORG_BASE}/channels`);
-    expect(screen.getByTestId('rail-module-members')).toHaveAttribute('href', `${ORG_BASE}/members/humans`);
+    // members-into-teams: the Members module is merged into Teams (teamui).
+    expect(screen.getByTestId('rail-module-teamui')).toHaveAttribute('href', `${ORG_BASE}/teams`);
     expect(screen.getByTestId('rail-module-system')).toHaveAttribute('href', `${ORG_BASE}/environment`);
   });
 
@@ -127,11 +129,14 @@ describe('App shell + route tree', () => {
       // v2.10.0 [T64]: Conversations owns a custom col② (ConversationsSecondaryNav)
       // — Channels / Direct messages SECTIONS (not nav-item links), asserted
       // separately below by their canonical create links.
-      // v2.10.0 [T7]: Members owns a custom col② (MembersSecondaryNav) — Humans
-      // / Agents sections each with an "All …" row to the list/table page.
-      [`${ORG_BASE}/members/humans`, [
-        ['All humans', `${ORG_BASE}/members/humans`],
-        ['All agents', `${ORG_BASE}/agents`],
+      // members-into-teams: Teams owns a custom col② (TeamUISecondaryNav) — the
+      // TEAMS group + the DIRECTORY group (Agents / Humans directory pages, the
+      // merged surfaces).
+      [`${ORG_BASE}/teams`, [
+        ['All teams', `${ORG_BASE}/teams`],
+        ['Templates', `${ORG_BASE}/teams/templates`],
+        ['Agents', `${ORG_BASE}/teams/agents`],
+        ['Humans', `${ORG_BASE}/teams/humans`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
@@ -230,36 +235,51 @@ describe('App shell + route tree', () => {
 
   // §4.2 reachability (orphan hunt): the legacy /members/new "Add Agent" page
   // redirects to the canonical /agents page.
-  it('redirects the orphaned /members/new URL to the canonical /agents page', async () => {
+  // members-into-teams: /members/new → ../agents, which now chains to the merged
+  // teams/agents directory (the org agents list is folded into Teams).
+  it('redirects the orphaned /members/new URL to the merged teams/agents page', async () => {
     await renderAt(`${ORG_BASE}/members/new?kind=agent`);
-    await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('page-TeamsDirectoryAgents')).toBeInTheDocument());
     expect(screen.queryByTestId('page-MemberNew')).not.toBeInTheDocument();
-    expect(window.location.pathname).toBe(`${ORG_BASE}/agents`);
+    expect(window.location.pathname).toBe(`${ORG_BASE}/teams/agents`);
   });
 
-  // dev2/v281: the old /members/agents URL redirects to the canonical /agents.
-  it('redirects the retired /members/agents URL to the canonical /agents page', async () => {
+  // members-into-teams: /members/agents → ../agents, which now chains to the
+  // merged teams/agents directory.
+  it('redirects the retired /members/agents URL to the merged teams/agents page', async () => {
     await renderAt(`${ORG_BASE}/members/agents`);
     await waitFor(() => {
-      expect(screen.getByTestId('page-Agents')).toBeInTheDocument();
+      expect(screen.getByTestId('page-TeamsDirectoryAgents')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('page-MembersAgents')).not.toBeInTheDocument();
-    expect(window.location.pathname).toBe(`${ORG_BASE}/agents`);
+    expect(window.location.pathname).toBe(`${ORG_BASE}/teams/agents`);
   });
 
-  it('"Agents" col② nav item (Members module) points to the enhanced /agents route', async () => {
+  // members-into-teams: the legacy /members/humans list is merged into the Teams
+  // directory. Hitting the old URL redirects to the merged teams/humans page.
+  it('redirects the retired /members/humans URL to the merged teams/humans page', async () => {
     await renderAt(`${ORG_BASE}/members/humans`);
-    await waitFor(() => expect(screen.getByTestId('page-MembersHumans')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('page-TeamsDirectoryHumans')).toBeInTheDocument());
+    expect(screen.queryByTestId('page-MembersHumans')).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe(`${ORG_BASE}/teams/humans`);
+  });
+
+  // members-into-teams: the org-level /agents list is merged into teams/agents.
+  it('redirects the org /agents list URL to the merged teams/agents page', async () => {
+    await renderAt(`${ORG_BASE}/agents`);
+    await waitFor(() => expect(screen.getByTestId('page-TeamsDirectoryAgents')).toBeInTheDocument());
+    expect(window.location.pathname).toBe(`${ORG_BASE}/teams/agents`);
+  });
+
+  it('the Teams directory col② links point at the merged agents / humans pages', async () => {
+    await renderAt(`${ORG_BASE}/teams`);
+    await waitFor(() => expect(screen.getByTestId('page-Teams')).toBeInTheDocument());
     const nav = screen.getByRole('navigation', { name: /^primary$/ });
-    // v2.10.0 [T7]: the Agents section's "All agents" row is the canonical link.
-    const agentsLink = within(nav)
-      .getAllByRole('link')
-      .find((a) => a.textContent?.trim().startsWith('All agents'));
-    expect(agentsLink).toBeDefined();
-    expect(agentsLink).toHaveAttribute('href', `${ORG_BASE}/agents`);
-    expect(agentsLink).not.toHaveAttribute('href', `${ORG_BASE}/members/agents`);
-    fireEvent.click(agentsLink!);
-    await waitFor(() => expect(screen.getByTestId('page-Agents')).toBeInTheDocument());
+    expect(within(nav).getByTestId('teamui-nav-agents')).toHaveAttribute('href', `${ORG_BASE}/teams/agents`);
+    const humansLink = within(nav).getByTestId('teamui-nav-humans');
+    expect(humansLink).toHaveAttribute('href', `${ORG_BASE}/teams/humans`);
+    fireEvent.click(humansLink);
+    await waitFor(() => expect(screen.getByTestId('page-TeamsDirectoryHumans')).toBeInTheDocument());
   });
 
   it('organization-settings/agents renders the canonical Agents page', async () => {
@@ -315,8 +335,8 @@ describe('App shell + route tree', () => {
     await waitFor(() => {
       expect(screen.getByTestId('page-Channels')).toBeInTheDocument();
     });
-    // col① — all four modules present on the rail.
-    for (const id of ['workspace', 'conversations', 'members', 'system']) {
+    // col① — all four modules present on the rail (members-into-teams: teamui).
+    for (const id of ['workspace', 'conversations', 'teamui', 'system']) {
       expect(screen.getByTestId(`rail-module-${id}`)).toBeInTheDocument();
     }
     // col② — the active (Conversations) module's custom nav (T64): the Channels

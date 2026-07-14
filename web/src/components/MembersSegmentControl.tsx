@@ -46,8 +46,8 @@ export function MembersSegmentControl({
       aria-label={t('humans.segment.ariaLabel')}
       data-testid="members-segment"
     >
-      {seg('humans', `${base}/members/humans`)}
-      {seg('agents', `${base}/agents`)}
+      {seg('humans', `${base}/teams/humans`)}
+      {seg('agents', `${base}/teams/agents`)}
     </div>
   );
 }
