@@ -1,15 +1,22 @@
 import { http, HttpResponse } from 'msw';
 import { teamsStore } from '@/api/teamsFixtures';
-import type { MemberView, TeamProjectLink, TeamView } from '@/api/teams';
+import type {
+  MemberView,
+  RoleSlot,
+  SaveTemplateInput,
+  TeamProjectLink,
+  TeamTemplate,
+  TeamView,
+} from '@/api/teams';
 
 // MSW test doubles for the Phase-1 team facade (GET/POST/DELETE under /api/teams…).
 //
 // Backed by the mutable teamsFixtures store so the fixture seed doubles as the test
-// backend: the swapped P1 hooks fetch THROUGH these handlers, while the not-yet-
-// swapped P2 hooks (memory / templates / extract / instantiate / directory) read the
-// same store directly — so the hybrid stays consistent within a test. Production
-// hits the real Go facade (internal/webconsole/api/handlers_teams.go); per the
-// handlers.ts convention these run ONLY under vitest, never the dev runtime.
+// backend: every teams.ts hook now fetches THROUGH these handlers (all 22 P1/P2/P3
+// hooks swapped fixture→fetch), and each handler mutates the same store so a test's
+// reads and writes stay consistent. Production hits the real Go facade
+// (internal/webconsole/api/handlers_teams*.go); per the handlers.ts convention these
+// run ONLY under vitest, never the dev runtime.
 //
 // Registered unscoped (/api/teams…); handlers.ts auto-derives the /api/orgs/:slug/…
 // variant. In jsdom the org slug is null (MemoryRouter ≠ window.location), so
@@ -147,6 +154,18 @@ export function teamHandlers() {
       return json(link, 201);
     }),
 
+    // disassociate — DELETE the Team↔Project link (inverse of the POST above).
+    http.delete('/api/teams/:id/projects/:projectId', ({ params }) => {
+      const s = teamsStore();
+      const id = String(params.id);
+      const projectId = String(params.projectId);
+      const list = s.projects[id] ?? [];
+      s.projects[id] = list.filter((p) => p.project_id !== projectId);
+      const team = s.teams.find((t) => t.id === id);
+      if (team) team.projects_count = s.projects[id].length;
+      return json({ ok: true, team_id: id, project_id: projectId });
+    }),
+
     // ---- P2: team memory (read-only) ----
     http.get('/api/teams/:id/memory', () => json(teamsStore().memoryIndex)),
 
@@ -166,6 +185,71 @@ export function teamHandlers() {
         ? json(t)
         : HttpResponse.json({ error: 'not_found', message: 'template_not_found' }, { status: 404 });
     }),
+
+    // save — persist a CURATED template draft → TeamTemplate (201).
+    http.post('/api/team-templates/save', async ({ request }) => {
+      const input = (await request.json()) as SaveTemplateInput;
+      const s = teamsStore();
+      const id = `tmpl-${(s.templates.length + 1).toString(16)}`;
+      const tmpl: TeamTemplate = {
+        id,
+        org_id: 'org-ooo',
+        name: input.name,
+        description: input.description,
+        roles: input.roles,
+        workflow_template_ref: 'plan-builtin',
+        curated: true,
+        source: input.source,
+        source_kind: input.source_kind,
+        version_label: 'v1 · curated',
+        instances_count: 0,
+      };
+      s.templates.push(tmpl);
+      s.templateInstances[id] = [];
+      return json(tmpl, 201);
+    }),
+
+    // import — re-home an exported envelope as an UN-curated template → 201.
+    http.post('/api/team-templates/import', async ({ request }) => {
+      const doc = (await request.json()) as {
+        name?: string;
+        description?: string;
+        roles?: Array<Partial<RoleSlot>>;
+        workflow_template_ref?: string;
+      };
+      const s = teamsStore();
+      const id = `tmpl-${(s.templates.length + 1).toString(16)}`;
+      const tmpl: TeamTemplate = {
+        id,
+        org_id: 'org-ooo',
+        name: doc.name || 'imported-template',
+        description: doc.description || '',
+        roles: (doc.roles ?? []).map((r) => ({
+          role: r.role || 'coder',
+          cli: r.cli || 'claude-code',
+          model: r.model || 'sonnet-5',
+          capability_tags: r.capability_tags ?? [],
+          max_concurrency: r.max_concurrency ?? 1,
+          count: r.count ?? 1,
+          description: r.description,
+        })),
+        workflow_template_ref: doc.workflow_template_ref || 'plan-builtin',
+        curated: false,
+        source: '导入 · cross-org JSON',
+        source_kind: 'import',
+        version_label: 'v1',
+        instances_count: 0,
+      };
+      s.templates.push(tmpl);
+      s.templateInstances[id] = [];
+      return json(tmpl, 201);
+    }),
+
+    // instances — teams instantiated from a template → TeamView[] (the FE reads
+    // id/name off each; the fixture holds those two fields per instance).
+    http.get('/api/team-templates/:tid/instances', ({ params }) =>
+      json(teamsStore().templateInstances[String(params.tid)] ?? []),
+    ),
 
     // ---- P2: extract — findings stripped to the truthful 3 fields (FE enriches) ----
     http.get('/api/teams/:id/extract', () =>
@@ -227,5 +311,9 @@ export function teamHandlers() {
       if (tmpl) tmpl.instances_count = inst.length;
       return json(team, 201);
     }),
+
+    // ---- P3: directory (agents / humans with team membership) ----
+    http.get('/api/directory/agents', () => json(teamsStore().agents)),
+    http.get('/api/directory/humans', () => json(teamsStore().humans)),
   ];
 }

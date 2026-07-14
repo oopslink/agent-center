@@ -327,14 +327,8 @@ export function useAssociateProject() {
 export function useDisassociateProject() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { team_id: string; project_id: string }) => {
-      const s = teamsStore();
-      const list = s.projects[v.team_id] ?? [];
-      s.projects[v.team_id] = list.filter((p) => p.project_id !== v.project_id);
-      const team = s.teams.find((t) => t.id === v.team_id);
-      if (team) team.projects_count = s.projects[v.team_id].length;
-      return resolve({ ok: true, ...v });
-    },
+    mutationFn: (v: { team_id: string; project_id: string }) =>
+      api.del(`/teams/${v.team_id}/projects/${v.project_id}`),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.projects(v.team_id) });
       qc.invalidateQueries({ queryKey: teamKeys.detail(v.team_id) });
@@ -381,7 +375,7 @@ export function useTeamTemplate(id: string) {
 export function useTemplateInstances(id: string) {
   return useQuery({
     queryKey: teamKeys.templateInstances(id),
-    queryFn: () => resolve(teamsStore().templateInstances[id] ?? []),
+    queryFn: () => api.get<TeamView[]>(`/team-templates/${id}/instances`),
     enabled: !!id,
   });
 }
@@ -458,30 +452,12 @@ export interface SaveTemplateInput {
   roles: RoleSlot[];
 }
 
-/** create_team_template — persist the curated draft (Phase-1: in-memory). */
+/** create_team_template — persist the curated draft (POST /team-templates/save). */
 export function useSaveTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: SaveTemplateInput) => {
-      const s = teamsStore();
-      const id = `tmpl-${(s.templates.length + 1).toString(16)}`;
-      const tmpl: TeamTemplate = {
-        id,
-        org_id: 'org-ooo',
-        name: input.name,
-        description: input.description,
-        roles: input.roles,
-        workflow_template_ref: 'plan-builtin',
-        curated: true,
-        source: input.source,
-        source_kind: input.source_kind,
-        version_label: 'v1 · curated',
-        instances_count: 0,
-      };
-      s.templates.push(tmpl);
-      s.templateInstances[id] = [];
-      return resolve(tmpl);
-    },
+    mutationFn: (input: SaveTemplateInput) =>
+      api.post<TeamTemplate>('/team-templates/save', input),
     onSuccess: () => qc.invalidateQueries({ queryKey: teamKeys.templates() }),
   });
 }
@@ -506,7 +482,9 @@ export function exportTemplateEnvelope(t: TeamTemplate): unknown {
   };
 }
 
-/** import_team_template — re-home an exported envelope into this org. */
+/** import_team_template — re-home an exported envelope into this org
+ *  (POST /team-templates/import). The backend applies the same field defaults
+ *  the fixture path used (role→coder, cli→claude-code, model→sonnet-5, etc). */
 export function useImportTemplate() {
   const qc = useQueryClient();
   return useMutation({
@@ -515,34 +493,7 @@ export function useImportTemplate() {
       description?: string;
       roles?: Array<Partial<RoleSlot>>;
       workflow_template_ref?: string;
-    }) => {
-      const s = teamsStore();
-      const id = `tmpl-${(s.templates.length + 1).toString(16)}`;
-      const tmpl: TeamTemplate = {
-        id,
-        org_id: 'org-ooo',
-        name: doc.name || 'imported-template',
-        description: doc.description || '',
-        roles: (doc.roles ?? []).map((r) => ({
-          role: r.role || 'coder',
-          cli: r.cli || 'claude-code',
-          model: r.model || 'sonnet-5',
-          capability_tags: r.capability_tags ?? [],
-          max_concurrency: r.max_concurrency ?? 1,
-          count: r.count ?? 1,
-          description: r.description,
-        })),
-        workflow_template_ref: doc.workflow_template_ref || 'plan-builtin',
-        curated: false,
-        source: '导入 · cross-org JSON',
-        source_kind: 'import',
-        version_label: 'v1',
-        instances_count: 0,
-      };
-      s.templates.push(tmpl);
-      s.templateInstances[id] = [];
-      return resolve(tmpl);
-    },
+    }) => api.post<TeamTemplate>('/team-templates/import', doc),
     onSuccess: () => qc.invalidateQueries({ queryKey: teamKeys.templates() }),
   });
 }
@@ -552,9 +503,15 @@ export function useImportTemplate() {
 // ---------------------------------------------------------------------------
 
 export function useDirectoryAgents() {
-  return useQuery({ queryKey: teamKeys.directoryAgents(), queryFn: () => resolve(teamsStore().agents) });
+  return useQuery({
+    queryKey: teamKeys.directoryAgents(),
+    queryFn: () => api.get<DirectoryAgent[]>('/directory/agents'),
+  });
 }
 
 export function useDirectoryHumans() {
-  return useQuery({ queryKey: teamKeys.directoryHumans(), queryFn: () => resolve(teamsStore().humans) });
+  return useQuery({
+    queryKey: teamKeys.directoryHumans(),
+    queryFn: () => api.get<DirectoryHuman[]>('/directory/humans'),
+  });
 }
