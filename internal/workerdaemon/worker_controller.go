@@ -17,7 +17,9 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +37,10 @@ import (
 // no-lost-command guarantee across an agent restart window.
 type controllerHandler struct {
 	ctrl *workercontroller.Controller
+	// reporter sends lifecycle RESULT feedback after a launcher-level stop settles.
+	// The center state is already stopping/resetting; this marks it stopped without
+	// emitting another reconcile command.
+	reporter lifecycleReporter
 	// homeBase is the per-agent layout root (agents/<id>/ lives under it); the runtime_fs
 	// ops read the agent home directly (T860 gap2 — worker-level, not proxied).
 	homeBase string
@@ -42,6 +48,10 @@ type controllerHandler struct {
 	// *AdminClient; narrowed to an interface so gap2 is unit-testable).
 	poster runtimeFsPoster
 	log    func(string)
+}
+
+type lifecycleReporter interface {
+	ReportAgentLifecycle(ctx context.Context, agentID, state, errMsg string, at time.Time) error
 }
 
 // runtimeFsPoster is the subset of *AdminClient the runtime_fs local handler needs.
@@ -70,19 +80,51 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		h.log(fmt.Sprintf("controller: command type=%s offset=%d has no agent_id — skipping", cmd.CommandType, cmd.Offset))
 		return nil
 	}
-	// A reconcile to a desired-stopped agent tears its process down; everything else
+	// A reconcile to a stopping/resetting/stopped agent tears its process down
+	// at the launcher level. Do not proxy these into the agent-runtime process:
+	// an agent-runtime expected-stop exit reports no lifecycle, and the launcher
+	// would otherwise rebuild it because the unit was never marked undesired.
+	//
+	// StopAgent's intent state is `stopping`; MarkAgentStopped accepts both
+	// stopping and resetting as the settled `stopped` result.
+	if cmd.CommandType == cmdTypeAgentReconcile && isStopDesiredLifecycle(idp.DesiredLifecycle) {
+		if err := h.ctrl.StopAgent(agentID); err != nil {
+			return err
+		}
+		if h.reporter != nil {
+			if err := h.reporter.ReportAgentLifecycle(ctx, agentID, "stopped", "", time.Now()); err != nil && !isAlreadySettledStoppedFeedback(err) {
+				return err
+			}
+		}
+		return nil
+	}
+	// A reconcile to a desired-running agent and all work/wake/converse commands
 	// (reconcile-running, work, wake, converse, work_available) is proxied to the
 	// agent process — reconcile-running also ensures the process is up + brings up the
 	// session via the agent's rt.Start.
-	if cmd.CommandType == cmdTypeAgentReconcile && idp.DesiredLifecycle == "stopped" {
-		return h.ctrl.StopAgent(agentID)
-	}
 	return h.ctrl.Deliver(ctx, agentcontrol.Command{
 		Type:    cmd.CommandType,
 		AgentID: agentID,
 		Seq:     cmd.Offset,
 		Payload: json.RawMessage(cmd.Payload),
 	})
+}
+
+func isStopDesiredLifecycle(lc string) bool {
+	switch strings.ToLower(strings.TrimSpace(lc)) {
+	case "stopping", "resetting", "stopped":
+		return true
+	default:
+		return false
+	}
+}
+
+func isAlreadySettledStoppedFeedback(err error) bool {
+	var adminErr *AdminError
+	if !errors.As(err, &adminErr) {
+		return false
+	}
+	return adminErr.Status == http.StatusConflict && strings.Contains(adminErr.Body, "illegal_transition")
 }
 
 // handleRuntimeFs serves an agent.runtime_fs read locally (T860 gap2): it runs the op

@@ -201,6 +201,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 	reconcileControllerFromResumeState(ctx, wctrl, client, opts.WorkerID, logf)
 	rtCfg.ControlHandler = controllerHandler{
 		ctrl:     wctrl,
+		reporter: client,
 		homeBase: agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
 		poster:   client,
 		log:      logf,

@@ -3,10 +3,13 @@ package workerdaemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
@@ -49,6 +52,11 @@ func (l *stubLauncher) Adopt(agentlauncher.AgentSpec, int) error { return nil }
 func (l *stubLauncher) AdoptablePIDs() map[string]int            { return map[string]int{} }
 
 func newTestHandler(t *testing.T) (controllerHandler, *stubLauncher) {
+	h, l, _ := newTestHandlerWithReporter(t, nil)
+	return h, l
+}
+
+func newTestHandlerWithReporter(t *testing.T, r lifecycleReporter) (controllerHandler, *stubLauncher, lifecycleReporter) {
 	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "acwh")
 	if err != nil {
@@ -60,7 +68,7 @@ func newTestHandler(t *testing.T) (controllerHandler, *stubLauncher) {
 	if err != nil {
 		t.Fatalf("New controller: %v", err)
 	}
-	return controllerHandler{ctrl: ctrl, log: func(string) {}}, l
+	return controllerHandler{ctrl: ctrl, reporter: r, log: func(string) {}}, l, r
 }
 
 func TestControllerHandler_UndeliveredCommandErrors(t *testing.T) {
@@ -104,6 +112,103 @@ func TestControllerHandler_ReconcileStoppedTearsDown(t *testing.T) {
 	if len(l.stopped) != 1 || l.stopped[0] != "a" {
 		t.Errorf("a desired-stopped reconcile must stop the agent process, stopped=%v", l.stopped)
 	}
+}
+
+func TestControllerHandler_ReconcileStoppingTearsDownAndReportsStopped(t *testing.T) {
+	r := &fakeLifecycleReporter{}
+	h, l, _ := newTestHandlerWithReporter(t, r)
+	_ = l.Ensure(agentlauncher.AgentSpec{AgentID: "a"})
+	err := h.Handle(context.Background(), ControlCommand{
+		CommandType: cmdTypeAgentReconcile,
+		Payload:     `{"agent_id":"a","desired_lifecycle":"stopping"}`,
+	})
+	if err != nil {
+		t.Fatalf("reconcile-stopping: %v", err)
+	}
+	if len(l.stopped) != 1 || l.stopped[0] != "a" {
+		t.Errorf("a desired-stopping reconcile must stop the agent process, stopped=%v", l.stopped)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.got) != 1 || r.got[0].agentID != "a" || r.got[0].state != "stopped" {
+		t.Fatalf("feedback = %+v, want one stopped feedback for a", r.got)
+	}
+}
+
+func TestControllerHandler_ReconcileResettingTearsDownAndReportsStopped(t *testing.T) {
+	r := &fakeLifecycleReporter{}
+	h, l, _ := newTestHandlerWithReporter(t, r)
+	_ = l.Ensure(agentlauncher.AgentSpec{AgentID: "a"})
+	err := h.Handle(context.Background(), ControlCommand{
+		CommandType: cmdTypeAgentReconcile,
+		Payload:     `{"agent_id":"a","desired_lifecycle":"resetting"}`,
+	})
+	if err != nil {
+		t.Fatalf("reconcile-resetting: %v", err)
+	}
+	if len(l.stopped) != 1 || l.stopped[0] != "a" {
+		t.Errorf("a desired-resetting reconcile must stop the agent process, stopped=%v", l.stopped)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.got) != 1 || r.got[0].agentID != "a" || r.got[0].state != "stopped" {
+		t.Fatalf("feedback = %+v, want one stopped feedback for a", r.got)
+	}
+}
+
+func TestControllerHandler_ReconcileStopIgnoresAlreadySettledFeedback(t *testing.T) {
+	r := &fakeLifecycleReporter{fail: &AdminError{
+		Status: http.StatusConflict,
+		Body:   `{"error":"illegal_transition","message":"agent: illegal lifecycle transition"}`,
+	}}
+	h, l, _ := newTestHandlerWithReporter(t, r)
+	_ = l.Ensure(agentlauncher.AgentSpec{AgentID: "a"})
+	err := h.Handle(context.Background(), ControlCommand{
+		CommandType: cmdTypeAgentReconcile,
+		Payload:     `{"agent_id":"a","desired_lifecycle":"stopping"}`,
+	})
+	if err != nil {
+		t.Fatalf("already-settled stopped feedback should be acked, got %v", err)
+	}
+	if len(l.stopped) != 1 || l.stopped[0] != "a" {
+		t.Errorf("stop should still be attempted, stopped=%v", l.stopped)
+	}
+}
+
+func TestControllerHandler_ReconcileStopReturnsUnexpectedFeedbackError(t *testing.T) {
+	r := &fakeLifecycleReporter{fail: errors.New("network down")}
+	h, _, _ := newTestHandlerWithReporter(t, r)
+	err := h.Handle(context.Background(), ControlCommand{
+		CommandType: cmdTypeAgentReconcile,
+		Payload:     `{"agent_id":"a","desired_lifecycle":"stopping"}`,
+	})
+	if err == nil {
+		t.Fatal("unexpected lifecycle feedback error must retry")
+	}
+}
+
+// fakeLifecycleReporter records lifecycle feedback (and can be set to fail).
+type fakeLifecycleReporter struct {
+	mu   sync.Mutex
+	got  []lifecycleFeedback
+	fail error
+}
+
+type lifecycleFeedback struct {
+	agentID string
+	state   string
+	errMsg  string
+	at      time.Time
+}
+
+func (r *fakeLifecycleReporter) ReportAgentLifecycle(_ context.Context, agentID, state, errMsg string, at time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.fail != nil {
+		return r.fail
+	}
+	r.got = append(r.got, lifecycleFeedback{agentID: agentID, state: state, errMsg: errMsg, at: at})
+	return nil
 }
 
 // fakePoster records posted runtime_fs responses (and can be set to fail).
