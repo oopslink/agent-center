@@ -63,6 +63,12 @@ type CenterClient interface {
 	// PostMessage posts content to a conversation (the fallback relay when a work
 	// item has a source chat but no center task).
 	PostMessage(ctx context.Context, agentID, conversationID, content string) error
+	// PostToTask posts content to a TASK's conversation (issue-f30b7e7b P0-A ch2): the
+	// eager-push delivery evidence (branch + SHA + pushed) is posted onto the task so the
+	// review / PD / integration nodes can SEE which branch to check out / merge — not just
+	// the judging supervisor (ch1). Distinct from PostMessage (which needs a conversation id;
+	// the writeback only holds the task ref).
+	PostToTask(ctx context.Context, agentID, taskID, content string) error
 }
 
 // MemoryWriter is the (optional, W2-deferred) seam for writing agent memory after
@@ -238,6 +244,16 @@ func (w *CenterWriteback) Report(ctx context.Context, c executor.Completion) err
 func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, c executor.Completion) error {
 	summary := successSummary(in, c)
 	if taskRef := strings.TrimSpace(in.Source.TaskRef); taskRef != "" {
+		// issue-f30b7e7b P0-A ch2: surface the eager-push delivery evidence (branch + SHA +
+		// pushed) onto the TASK conversation — BEFORE the judgment turn — so review / PD /
+		// integration nodes can see which branch to check out / merge, not just the judging
+		// supervisor (ch1). Posting first means a post failure retries WITHOUT a duplicate
+		// judgment inject. Skipped for a non-git (center-action) run.
+		if note := deliveryNote(c.Git); note != "" {
+			if err := w.client.PostToTask(ctx, w.agentID, taskRef, note); err != nil {
+				return fmt.Errorf("orchestrator: writeback post delivery line to task %s: %w", taskRef, err)
+			}
+		}
 		// option b (issue-68ccb310): do NOT auto-complete. Deliver the result to the
 		// supervisor as a judgment turn; the supervisor reviews REAL delivery and calls
 		// complete_task/block_task itself.
@@ -327,6 +343,18 @@ func deliveryLine(git *executor.FinalizedGitStatus) string {
 		line += " The branch is on origin — check it out / merge it to review the delivery."
 	}
 	return "\n" + line
+}
+
+// deliveryNote renders the standalone delivery evidence posted onto the TASK conversation
+// (issue-f30b7e7b P0-A ch2), so the review / PD / integration nodes can locate the branch to
+// check out / merge — not just the judging supervisor (ch1). "" when there is no probed git
+// status (a non-git / center-action work item — nothing to surface).
+func deliveryNote(git *executor.FinalizedGitStatus) string {
+	line := strings.TrimSpace(deliveryLine(git))
+	if line == "" {
+		return ""
+	}
+	return "📦 Executor delivery — " + line
 }
 
 // relayToChat posts content to the first source chat conversation. With neither a

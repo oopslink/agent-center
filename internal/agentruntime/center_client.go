@@ -87,6 +87,18 @@ func (a *centerClientAdapter) PostMessage(ctx context.Context, agentID, conversa
 	return a.caller.CallAgentTool(ctx, "post_message", body, nil)
 }
 
+// PostToTask → POST /admin/agent-tools/post_message {agent_id, target{task}, content} —
+// posts onto a task's conversation by task id (issue-f30b7e7b P0-A ch2). Same tool as
+// PostMessage, a task target instead of a conversation target.
+func (a *centerClientAdapter) PostToTask(ctx context.Context, agentID, taskID, content string) error {
+	body := map[string]any{
+		"agent_id": agentID,
+		"target":   map[string]any{"type": "task", "id": taskID},
+		"content":  content,
+	}
+	return a.caller.CallAgentTool(ctx, "post_message", body, nil)
+}
+
 // InflightTask is one entry from list_my_inflight_tasks — an agent's active
 // (open/running) task in the UNFILTERED in-flight set (design §4.2), including tasks
 // whose deps are unsatisfied (which list_my_tasks drops). The reconcile pass (§4.4)

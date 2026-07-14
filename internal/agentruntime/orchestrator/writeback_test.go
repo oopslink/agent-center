@@ -21,6 +21,7 @@ type fakeCenter struct {
 	blocks     [][4]string // agentID, taskID, reason, reasonType
 	resets     [][2]string // agentID, taskID
 	posts      [][3]string // agentID, conversationID, content
+	taskPosts  [][3]string // agentID, taskID, content (P0-A ch2 delivery line on the task)
 	injections []string    // option b: judgment prompts injected to the supervisor
 	err        error       // returned by every center call when set
 	injErr     error       // returned by the supervisor injector when set
@@ -48,6 +49,12 @@ func (f *fakeCenter) PostMessage(_ context.Context, a, c, content string) error 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.posts = append(f.posts, [3]string{a, c, content})
+	return f.err
+}
+func (f *fakeCenter) PostToTask(_ context.Context, a, tid, content string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.taskPosts = append(f.taskPosts, [3]string{a, tid, content})
 	return f.err
 }
 
@@ -170,6 +177,15 @@ func TestReport_JudgmentSurfacesDeliveryBranch(t *testing.T) {
 		if !strings.Contains(j, want) {
 			t.Errorf("judgment must surface delivery branch+SHA (%q missing): %q", want, j)
 		}
+	}
+	// P0-A ch2: the delivery evidence is ALSO posted onto the task conversation, so
+	// review/PD/integration (not just the judging supervisor) can find the branch.
+	if len(fc.taskPosts) != 1 {
+		t.Fatalf("expected exactly 1 delivery post to the task, got %d", len(fc.taskPosts))
+	}
+	tp := fc.taskPosts[0]
+	if tp[1] != "task-1" || !strings.Contains(tp[2], "ac-exec/task-1/exec-9") || !strings.Contains(tp[2], "abc1234") {
+		t.Errorf("task delivery post must carry the branch+SHA, got taskID=%q content=%q", tp[1], tp[2])
 	}
 }
 
