@@ -44,6 +44,13 @@ const OrganizationSettings = lazy(() => import('./pages/OrganizationSettings'));
 const Version = lazy(() => import('./pages/Version'));
 const Me = lazy(() => import('./pages/Me'));
 const MembersHumans = lazy(() => import('./pages/MembersHumans'));
+// Team WebUI (Phase-1) — Team BC surface (rail module 'teamui').
+const Teams = lazy(() => import('./pages/Teams'));
+const TeamDetail = lazy(() => import('./pages/TeamDetail'));
+const TeamTemplates = lazy(() => import('./pages/TeamTemplates'));
+const TeamTemplateDetail = lazy(() => import('./pages/TeamTemplateDetail'));
+const TeamsDirectoryAgents = lazy(() => import('./pages/TeamsDirectoryAgents'));
+const TeamsDirectoryHumans = lazy(() => import('./pages/TeamsDirectoryHumans'));
 // dev2/v29-s42 §4.2: MemberNew is no longer routed (orphan retired → redirect
 // below); the page component stays for its isolated unit tests. No lazy import
 // here so the unreachable chunk isn't shipped.
@@ -117,6 +124,13 @@ export function App(): React.ReactElement {
           <Route path="version" element={<Version />} />
           <Route path="me" element={<Me />} />
           <Route path="members/humans" element={<MembersHumans />} />
+          {/* Team WebUI (Phase-1). Static children rank above teams/:teamId. */}
+          <Route path="teams" element={<Teams />} />
+          <Route path="teams/templates" element={<TeamTemplates />} />
+          <Route path="teams/templates/:templateId" element={<TeamTemplateDetail />} />
+          <Route path="teams/agents" element={<TeamsDirectoryAgents />} />
+          <Route path="teams/humans" element={<TeamsDirectoryHumans />} />
+          <Route path="teams/:teamId" element={<TeamDetail />} />
           {/* dev2/v281: the enhanced /agents page is the single canonical
               agents surface. The old /members/agents page is retired — it
               redirects so the old URL + any stale link lands on canonical and

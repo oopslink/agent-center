@@ -190,6 +190,20 @@ func (s *Service) AssociateProject(ctx context.Context, id team.TeamID, projectI
 	})
 }
 
+// DisassociateProject unlinks a project from a team. ErrTeamNotFound if the team
+// is absent, ErrProjectNotAssociated if the link does not exist.
+func (s *Service) DisassociateProject(ctx context.Context, id team.TeamID, projectID string) error {
+	if projectID == "" {
+		return team.ErrInvalidProject
+	}
+	return persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
+		if _, err := s.repo.GetTeam(ctx, id); err != nil {
+			return err
+		}
+		return s.repo.DisassociateProject(ctx, id, projectID)
+	})
+}
+
 // ListProjects returns a team's associated projects.
 func (s *Service) ListProjects(ctx context.Context, id team.TeamID) ([]*team.TeamProject, error) {
 	return s.repo.ListProjects(ctx, id)

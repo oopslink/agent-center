@@ -4,6 +4,7 @@ import { MembersSecondaryNav } from '@/shell/nav/MembersSecondaryNav'; // T7 (de
 import { RemindersSecondaryNav } from '@/shell/nav/RemindersSecondaryNav'; // T248 (dev1)
 import { SystemSecondaryNav } from '@/shell/nav/SystemSecondaryNav'; // T716 (dev1) — localized System nav
 import WorkspaceSecondaryNav from '@/shell/nav/WorkspaceSecondaryNav'; // T4 (dev2)
+import TeamUISecondaryNav from '@/shell/nav/TeamUISecondaryNav'; // Team WebUI (Phase-1)
 
 // ============================================================================
 // v2.10.0 [T1] — col② per-module secondary-nav registry.
@@ -28,7 +29,7 @@ import WorkspaceSecondaryNav from '@/shell/nav/WorkspaceSecondaryNav'; // T4 (de
 // empty, every module keeps the exact T1 default behavior.
 // ============================================================================
 
-export type ShellModuleId = 'workspace' | 'conversations' | 'members' | 'reminders' | 'system';
+export type ShellModuleId = 'workspace' | 'conversations' | 'members' | 'teamui' | 'reminders' | 'system';
 
 export interface ModuleSecondaryNavProps {
   /** The org base path ('' in isolated tests, '/organizations/:slug' live). */
@@ -44,6 +45,8 @@ export const SECONDARY_NAV_REGISTRY: Partial<Record<ShellModuleId, ModuleSeconda
   workspace: WorkspaceSecondaryNav,
   conversations: ConversationsSecondaryNav, // T2 / T64 (dev1)
   members: MembersSecondaryNav, // T7 (dev3)
+  // Team WebUI (Phase-1): TEAMS (All teams / Templates) + DIRECTORY (Agents / Humans).
+  teamui: TeamUISecondaryNav,
   // T248: Reminders filter rail (search + Scope + Status) lives in col②, not as
   // a page-internal aside — restores the three-column layout (issue-c438cde1).
   reminders: RemindersSecondaryNav,

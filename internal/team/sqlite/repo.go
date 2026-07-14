@@ -381,6 +381,25 @@ func (r *Repo) AssociateProject(ctx context.Context, id team.TeamID, projectID s
 	return nil
 }
 
+// DisassociateProject unlinks a project from a team. ErrProjectNotAssociated
+// when the link is absent (symmetry with RemoveMember's not-found contract).
+func (r *Repo) DisassociateProject(ctx context.Context, id team.TeamID, projectID string) error {
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return err
+	}
+	res, err := exec.ExecContext(ctx,
+		`DELETE FROM team_projects WHERE team_id=? AND project_id=?`, id.String(), projectID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return team.ErrProjectNotAssociated
+	}
+	return nil
+}
+
 // ListProjects returns a team's associated projects.
 func (r *Repo) ListProjects(ctx context.Context, id team.TeamID) ([]*team.TeamProject, error) {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)

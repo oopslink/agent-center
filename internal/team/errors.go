@@ -32,6 +32,9 @@ var (
 	// ErrProjectAlreadyAssociated is returned when a project is associated to a
 	// team twice.
 	ErrProjectAlreadyAssociated = errors.New("team: project already associated")
+	// ErrProjectNotAssociated is returned when disassociating a project that is
+	// not currently linked to the team.
+	ErrProjectNotAssociated = errors.New("team: project not associated")
 	// ErrInvalidProject is returned for an empty project id.
 	ErrInvalidProject = errors.New("team: invalid project id")
 

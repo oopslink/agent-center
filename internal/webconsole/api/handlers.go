@@ -17,6 +17,7 @@ import (
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	agentsvc "github.com/oopslink/agent-center/internal/agent/service"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
+	"github.com/oopslink/agent-center/internal/cognition/memory/centergit"
 	cogservice "github.com/oopslink/agent-center/internal/cognition/reminder/service"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -34,6 +35,7 @@ import (
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretservice "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/settings"
+	teamservice "github.com/oopslink/agent-center/internal/team/service"
 	"github.com/oopslink/agent-center/internal/usage"
 	"github.com/oopslink/agent-center/internal/workforce"
 	wfservice "github.com/oopslink/agent-center/internal/workforce/service"
@@ -199,6 +201,19 @@ type HandlerDeps struct {
 	// (GET/POST/PUT/DELETE /api/orgs/{slug}/model-catalog + POST .../import,
 	// issue-93dd8daa ①). Optional — nil degrades the endpoints to 501.
 	ModelCatalogRepo pm.ModelCatalogRepository
+
+	// TeamService backs the Team WebUI facade (plan-32dd9107, P1: teams CRUD +
+	// members + projects under /api/orgs/{slug}/teams/...). Optional — nil degrades
+	// every team endpoint to 501.
+	TeamService *teamservice.Service
+	// ProjectRepo resolves a project's display name for TeamProjectLink. Optional —
+	// nil falls back to the project id.
+	ProjectRepo pm.ProjectRepository
+	// TeamGitHost is the center-hosted git provisioning surface backing the team
+	// memory read endpoints (GET /api/orgs/{slug}/teams/{id}/memory[/{slug}]) and
+	// the extract experience read. Optional — nil degrades memory to empty and
+	// extract to a roles-only draft (mirrors the /admin team tools).
+	TeamGitHost *centergit.Host
 }
 
 // hd retrieves the typed dep bag from the request context.

@@ -7,6 +7,7 @@
     "workspace": "Workspace",
     "conversations": "Conversations",
     "members": "Members",
+    "teamui": "Teams",
     "reminders": "Reminders",
     "system": "System",
     "orgSettings": "Organization Settings",
@@ -14,6 +15,7 @@
       "workspace": "Work",
       "conversations": "Chat",
       "members": "Team",
+      "teamui": "Teams",
       "reminders": "Remind",
       "system": "System"
     }
@@ -290,6 +292,13 @@
       "modelCatalog": "Model catalog",
       "codeRepos": "Code repos",
       "workBoard": "Work Board"
+    },
+    "teamui": {
+      "allTeams": "All teams",
+      "templates": "Templates",
+      "directory": "PEOPLES",
+      "agents": "Agents",
+      "humans": "Humans"
     }
   }
 }

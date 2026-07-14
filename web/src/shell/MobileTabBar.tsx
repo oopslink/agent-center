@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import type { ShellModuleId } from '@/shell/secondaryNav';
 
 // ============================================================================
 // v2.10.1 [M1] MobileTabBar — the small-screen (<768) primary navigation.
@@ -15,7 +16,7 @@ import { Link } from 'react-router-dom';
 // safe-area padding, and every tab is ≥44px tall (the v2.10.1 touch baseline).
 // ============================================================================
 export interface TabBarModule {
-  id: 'workspace' | 'conversations' | 'members' | 'reminders' | 'system';
+  id: ShellModuleId;
   label: string;
   short: string;
   defaultPath: string;

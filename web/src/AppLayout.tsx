@@ -109,6 +109,14 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     pathPrefixes: ['members', 'agents', 'users'],
   },
   {
+    id: 'teamui',
+    label: 'Teams',
+    short: 'Teams',
+    defaultPath: 'teams',
+    Icon: TeamsRailIcon,
+    pathPrefixes: ['teams'],
+  },
+  {
     id: 'reminders',
     label: 'Reminders',
     short: 'Remind',
@@ -1381,6 +1389,9 @@ function VersionIcon(): React.ReactElement {
 }
 function UsersIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="7.5" cy="7" r="2.5" /><path d="M2 16c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" /><path d="M13 8.5a2 2 0 1 0 0-4M18 16c0-2.5-2-4-4-4" strokeLinecap="round" /></svg>);
+}
+function TeamsRailIcon(): React.ReactElement {
+  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="4" rx="1" /><rect x="2.5" y="12.5" width="5" height="4" rx="1" /><rect x="12.5" y="12.5" width="5" height="4" rx="1" /><path d="M10 6.5v2.5M5 12.5v-1.5h10v1.5" strokeLinecap="round" /></svg>);
 }
 function TrashIcon(): React.ReactElement {
   return (<svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M7 8.5l.5 7h5l.5-7" strokeLinecap="round" strokeLinejoin="round" /></svg>);
