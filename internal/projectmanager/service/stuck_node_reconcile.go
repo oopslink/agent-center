@@ -2,11 +2,32 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
+
+// retainedWorktreeNote surfaces a RETAINED committed-but-unpushed worktree in a triage-block
+// reason (issue-f30b7e7b D2 / P1-C). When the last executor's reported delivery shows work
+// that was committed but never pushed (Probed && !Pushed && (ahead>0 || dirty)), its worktree
+// was kept — so a human can push that branch or investigate before discarding, and the commit
+// is not silently lost. "" when there is nothing retained worth pushing (pushed / non-git /
+// nothing committed).
+func retainedWorktreeNote(d *pm.Delivery) string {
+	if d == nil || !d.Probed || d.Pushed {
+		return ""
+	}
+	if d.AheadOfBase <= 0 && !d.Dirty {
+		return ""
+	}
+	branch := d.Branch
+	if branch == "" {
+		branch = "(detached)"
+	}
+	return fmt.Sprintf(" — NOTE: the last executor left committed-but-unpushed work on branch %s (HEAD %s, ahead %d) whose worktree was RETAINED; a human can push that branch or inspect it before discarding, so the commit is not lost.", branch, d.HeadSHA, d.AheadOfBase)
+}
 
 // copyTimePtr returns a defensive copy of a time pointer (nil-safe), so a tracker never
 // aliases an aggregate's internal pointer.
@@ -122,9 +143,11 @@ type stuckNodeTracker struct {
 	// lastActivityAt is the wall time of the last observed activity (or first-tracked
 	// time). The T_dead gate measures from here.
 	lastActivityAt time.Time
-	// reopens counts AUTOMATIC reopens performed for this node (R_max cap).
-	reopens int
-	// lastReopenAt is the wall time of the last automatic reopen (T_cooldown gate).
+	// lastReopenAt is the wall time of the last automatic reopen (T_cooldown gate). Zero =
+	// no automatic reopen performed this session. The AUTHORITATIVE reopen COUNT is the
+	// DURABLE Task.FruitlessReopens (issue-f30b7e7b D2) — the in-memory tracker keeps only
+	// transient state (strikes / cooldown), so the R_max circuit breaker survives a center
+	// restart (a lost in-memory tally used to reset the count and could never trip).
 	lastReopenAt time.Time
 }
 
@@ -186,7 +209,10 @@ const (
 	stuckActionBlock
 )
 
-func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, expBefore *time.Time, updatedAt time.Time, now time.Time) stuckAction {
+// persistedReopens is the DURABLE Task.FruitlessReopens tally (issue-f30b7e7b D2) — the
+// authoritative reopen count the R_max circuit breaker reads, so it survives a center
+// restart. The in-memory tracker only carries transient strikes/cooldown state.
+func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, persistedReopens int, expBefore *time.Time, updatedAt time.Time, now time.Time) stuckAction {
 	s.stuckMu.Lock()
 	defer s.stuckMu.Unlock()
 
@@ -245,13 +271,16 @@ func (s *Service) accountStuckNode(reconcilable bool, taskID pm.TaskID, expBefor
 		return stuckActionNone
 	}
 
-	// Confirmed dead. Enforce the reopen cooldown between successive automatic reopens.
-	if tr.reopens > 0 && now.Sub(tr.lastReopenAt) < StuckNodeReopenCooldown {
+	// Confirmed dead. Enforce the reopen cooldown between successive automatic reopens
+	// (transient: a reopen this session anchors lastReopenAt so a freshly re-dispatched
+	// executor gets time to pick the node up before the next verdict).
+	if !tr.lastReopenAt.IsZero() && now.Sub(tr.lastReopenAt) < StuckNodeReopenCooldown {
 		return stuckActionNone
 	}
 
-	// Circuit breaker: past the automatic-reopen cap → hand to human triage.
-	if tr.reopens >= StuckNodeMaxAutoReopens {
+	// Circuit breaker: past the automatic-reopen cap → hand to human triage. Reads the
+	// DURABLE persisted tally (issue-f30b7e7b D2), so R_max holds across a center restart.
+	if persistedReopens >= StuckNodeMaxAutoReopens {
 		return stuckActionBlock
 	}
 	return stuckActionReopen
@@ -264,7 +293,9 @@ func (s *Service) noteStuckReopen(taskID pm.TaskID, now time.Time) {
 	s.stuckMu.Lock()
 	defer s.stuckMu.Unlock()
 	tr := s.stuckTrackerFor(taskID, now)
-	tr.reopens++
+	// The reopen COUNT is durable (Task.FruitlessReopens, bumped in the reopen tx); the
+	// tracker only records WHEN (cooldown) and resets transient strikes so the freshly
+	// re-dispatched executor is judged afresh.
 	tr.lastReopenAt = now
 	tr.lastActivityAt = now
 	tr.strikes = 0
@@ -290,14 +321,15 @@ func (s *Service) recordStuckAnchors(taskID pm.TaskID, exp *time.Time, updatedAt
 	}
 }
 
-// stuckReopenSnapshot is the read-only tracker fields a reopen audit records.
-func (s *Service) stuckReopenSnapshot(taskID pm.TaskID) (strikes, reopens int) {
+// stuckStrikeSnapshot is the read-only transient strike count a reopen audit records (the
+// authoritative reopen ROUND comes from the durable Task.FruitlessReopens, read in the tx).
+func (s *Service) stuckStrikeSnapshot(taskID pm.TaskID) (strikes int) {
 	s.stuckMu.Lock()
 	defer s.stuckMu.Unlock()
 	if tr, ok := s.stuckTrackers[taskID]; ok {
-		return tr.strikes, tr.reopens
+		return tr.strikes
 	}
-	return 0, 0
+	return 0
 }
 
 // isStuckReconcilable reports whether a running task is a structured (graphed, non-builtin)
@@ -359,7 +391,7 @@ func (s *Service) reconcileStuckNode(ctx context.Context, t *pm.Task, expBefore 
 	if err != nil {
 		return false, err
 	}
-	switch s.accountStuckNode(reconcilable, t.ID(), expBefore, t.UpdatedAt(), now) {
+	switch s.accountStuckNode(reconcilable, t.ID(), t.FruitlessReopens(), expBefore, t.UpdatedAt(), now) {
 	case stuckActionReopen:
 		if rerr := s.autoReopenStuckNode(ctx, t.ID(), now); rerr != nil {
 			return false, rerr
@@ -402,7 +434,7 @@ func (s *Service) currentStuckAnchors(ctx context.Context, taskID pm.TaskID) (*t
 // records the automatic reopen (node/plan/strikes/round/reason). Idempotent + re-read: a
 // task that stopped being reconcilable between accounting and this tx is a safe no-op.
 func (s *Service) autoReopenStuckNode(ctx context.Context, taskID pm.TaskID, now time.Time) error {
-	strikes, reopens := s.stuckReopenSnapshot(taskID)
+	strikes := s.stuckStrikeSnapshot(taskID)
 	acted := false
 	if err := s.runInTx(ctx, func(txCtx context.Context) error {
 		t, ferr := s.tasks.FindByID(txCtx, taskID)
@@ -416,8 +448,22 @@ func (s *Service) autoReopenStuckNode(ctx context.Context, taskID pm.TaskID, now
 		if !ok {
 			return nil // no longer wedged (recovered / reset between sweeps) — no-op.
 		}
+		// Delivery-aware DURABLE reopen tally (issue-f30b7e7b D2): a run that made forward
+		// progress (a valid PUSHED delivery) clears the tally; a no-delivery run increments it
+		// toward the R_max circuit breaker. Persisted on the task, so the breaker survives a
+		// center restart (the in-memory tracker used to reset it every restart — gap a).
+		if t.Delivery().HasValidDelivery() {
+			t.ClearFruitlessReopens()
+		} else {
+			t.NoteFruitlessReopen()
+		}
 		if herr := s.reopenStuckPlanNode(txCtx, t, "stuck_node_auto_reconcile"); herr != nil {
 			return herr
+		}
+		// reopenStuckPlanNode acts on the GRAPH node (ReopenNode + ClearDispatch), not the
+		// task row — so the fruitless-tally bump above must be persisted explicitly.
+		if uerr := s.tasks.Update(txCtx, t); uerr != nil {
+			return uerr
 		}
 		// Change ledger: the automatic reopen (design §5 — "事后查得到 who/why 重开的").
 		s.auditPlanByID(txCtx, t.ProjectID(), t.PlanID(), auditPlanNodeAutoReconciled, pm.SystemActor("lease-checker"), map[string]any{
@@ -425,7 +471,7 @@ func (s *Service) autoReopenStuckNode(ctx context.Context, taskID pm.TaskID, now
 			"node_id":      t.NodeID(),
 			"action":       "reopen",
 			"dead_strikes": strikes,
-			"round":        reopens + 1,
+			"round":        t.FruitlessReopens(),
 			"reason":       "confirmed-dead: lease frozen ≥ T_dead over ≥ N sweeps (no heartbeat / worker renewal)",
 		})
 		acted = true
@@ -449,7 +495,7 @@ func (s *Service) autoReopenStuckNode(ctx context.Context, taskID pm.TaskID, now
 // EvtTaskStateChanged (running→running annotation) + an audit row, then forgets the
 // tracker (auto-recovery is done with the node). Re-read + idempotent.
 func (s *Service) blockStuckNodeForTriage(ctx context.Context, taskID pm.TaskID, now time.Time) error {
-	strikes, reopens := s.stuckReopenSnapshot(taskID)
+	strikes := s.stuckStrikeSnapshot(taskID)
 	blocked := false
 	if err := s.runInTx(ctx, func(txCtx context.Context) error {
 		t, ferr := s.tasks.FindByID(txCtx, taskID)
@@ -464,6 +510,10 @@ func (s *Service) blockStuckNodeForTriage(ctx context.Context, taskID pm.TaskID,
 			return nil // recovered / already blocked / reset between sweeps — no-op.
 		}
 		reason := "stuck-node auto-reconcile exhausted: auto-reopened R_max times, executor still confirmed dead — needs PD triage (task bad → discard, or environment broken → fix + redispatch)"
+		// P1-C (issue-f30b7e7b D2): if the last executor left committed-but-unpushed work, its
+		// worktree was RETAINED — point the human at the branch so they can push it or
+		// investigate before discarding, rather than silently losing the commit.
+		reason += retainedWorktreeNote(t.Delivery())
 		if berr := t.BlockForResetExhaustion(reason, now); berr != nil {
 			return berr
 		}
@@ -478,7 +528,7 @@ func (s *Service) blockStuckNodeForTriage(ctx context.Context, taskID pm.TaskID,
 			"node_id":      t.NodeID(),
 			"action":       "block_for_triage",
 			"dead_strikes": strikes,
-			"reopens":      reopens,
+			"reopens":      t.FruitlessReopens(),
 			"reason":       reason,
 		})
 		blocked = true
