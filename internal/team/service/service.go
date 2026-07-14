@@ -202,6 +202,77 @@ func (s *Service) AddMember(ctx context.Context, id team.TeamID, ref team.Member
 	return member, nil
 }
 
+// MoveMember atomically migrates a member ref from fromTeam to toTeam under the
+// destination role. The removal and the re-add happen in ONE tx: because the ref
+// leaves fromTeam before the exclusivity check runs, a legitimate agent migration
+// no longer self-trips ErrAgentAlreadyInTeam (the 409 the naive
+// AddMember-into-second-team path hits). Atomicity is the point — a
+// remove-then-add split across two calls could strand the agent in neither team
+// if the add failed. Migration is held to the SAME hardening as AddMember (the ref
+// must resolve to a real, matching-kind, same-org identity) and the SAME role
+// declaration on the destination. Errors: ErrTeamNotFound (either team),
+// ErrRoleNotDeclared (destination), ErrMemberIdentityNotFound (unresolvable ref),
+// ErrMemberNotFound (ref not on fromTeam — e.g. a stale migrate_from),
+// ErrAgentAlreadyInTeam (agent still bound to a THIRD team).
+func (s *Service) MoveMember(ctx context.Context, fromTeam, toTeam team.TeamID, ref team.MemberRef, role string) (*team.TeamMember, error) {
+	kind, err := ref.Kind()
+	if err != nil {
+		return nil, err
+	}
+	var member *team.TeamMember
+	err = persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
+		to, err := s.repo.GetTeam(ctx, toTeam)
+		if err != nil {
+			return err
+		}
+		if !to.HasRole(role) {
+			return team.ErrRoleNotDeclared
+		}
+		// Same write-path hardening as AddMember: reject a dangling / cross-org /
+		// kind-mismatched ref BEFORE mutating anything.
+		if s.resolver != nil {
+			exists, err := s.resolver.MemberExists(ctx, to.OrgID(), ref)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return team.ErrMemberIdentityNotFound
+			}
+		}
+		// Free the ref from the old team first. Absent → ErrMemberNotFound (a stale
+		// / wrong migrate_from), rolling the whole migration back rather than
+		// silently duplicating the membership.
+		if err := s.repo.RemoveMember(ctx, fromTeam, ref); err != nil {
+			return err
+		}
+		// After removal the agent-exclusivity check should pass; if the agent is
+		// somehow still bound to a THIRD team, refuse rather than duplicate.
+		if kind == team.MemberKindAgent {
+			if existing, ok, err := s.repo.FindAgentTeam(ctx, ref); err != nil {
+				return err
+			} else if ok && existing != toTeam {
+				return team.ErrAgentAlreadyInTeam
+			}
+		}
+		m := &team.TeamMember{
+			TeamID:    toTeam,
+			Ref:       ref,
+			Kind:      kind,
+			Role:      role,
+			CreatedAt: s.clock.Now(),
+		}
+		if err := s.repo.AddMember(ctx, m); err != nil {
+			return err
+		}
+		member = m
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return member, nil
+}
+
 // RemoveMember removes a member from a team. ErrMemberNotFound if absent.
 func (s *Service) RemoveMember(ctx context.Context, id team.TeamID, ref team.MemberRef) error {
 	return persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {

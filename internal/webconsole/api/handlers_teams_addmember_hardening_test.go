@@ -63,3 +63,42 @@ func TestAddMember_UnresolvableRef_404NotPersisted(t *testing.T) {
 		t.Fatalf("resolvable ref should persist, members = %v", arr)
 	}
 }
+
+// TestAddMember_MigrateAcrossTeams locks the end-to-end agent migration flow at the
+// web facade: POST with migrate_from atomically switches the agent's team (source
+// emptied, destination gains it) WITHOUT tripping the exclusivity 409 — the live
+// blocker tester3 found (migration silently 409'd because migrate_from was dropped).
+func TestAddMember_MigrateAcrossTeams(t *testing.T) {
+	deps, db, sess := setupTeamsAPI(t)
+	agent := team.MemberRef("agent:agent-migrant")
+	deps.TeamService = teamservice.New(teamsql.NewRepo(db), db, idgen.NewGenerator(clock.SystemClock{}), clock.SystemClock{}).
+		WithMemberResolver(refAllowlist{agent: true})
+	a := seedTeam(t, deps, sess.OrgID, "Team A", implRole)
+	b := seedTeam(t, deps, sess.OrgID, "Team B", implRole)
+	ts := newTestServer(t, deps)
+	defer ts.Close()
+
+	aBase := ts.URL + "/api/teams/" + string(a.ID()) + "/members"
+	bBase := ts.URL + "/api/teams/" + string(b.ID()) + "/members"
+
+	// seed the agent on team A.
+	if resp := orgScopedPost(t, aBase, `{"member_ref":"agent:agent-migrant","role":"impl"}`, sess); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("seed add to A = %d, want 201", resp.StatusCode)
+	}
+
+	// migrate A → B (migrate_from set): must succeed, not 409.
+	migBody := `{"member_ref":"agent:agent-migrant","role":"impl","migrate_from":"` + string(a.ID()) + `"}`
+	migResp := orgScopedPost(t, bBase, migBody, sess)
+	if migResp.StatusCode != http.StatusCreated {
+		body := decodeBody(t, migResp)
+		t.Fatalf("migration = %d (%v), want 201 (must not self-trip exclusivity)", migResp.StatusCode, body)
+	}
+
+	// source emptied, destination holds the agent.
+	if arr := decodeArray(t, orgScopedGet(t, aBase, sess)); len(arr) != 0 {
+		t.Fatalf("source team A must be empty after migration, got %v", arr)
+	}
+	if arr := decodeArray(t, orgScopedGet(t, bBase, sess)); len(arr) != 1 {
+		t.Fatalf("dest team B must hold the migrated agent, got %v", arr)
+	}
+}

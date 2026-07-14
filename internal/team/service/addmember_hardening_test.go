@@ -105,6 +105,83 @@ func TestAddMember_ResolverErrorPropagates(t *testing.T) {
 	}
 }
 
+// TestMoveMember_AtomicSwitch locks the migration happy path (dev1 lock #7 + #9):
+// an agent in team-A migrates to team-B in one shot — it ends up in B, NOT in A,
+// and the destination add does NOT self-trip the agent-exclusivity 409 (the bug
+// the naive add-into-second-team path hit).
+func TestMoveMember_AtomicSwitch(t *testing.T) {
+	svc, _ := newService(t)
+	svc.WithMemberResolver(&fakeResolver{ok: true})
+	ctx := context.Background()
+	a := createTeam(t, svc, "A", devRole())
+	b := createTeam(t, svc, "B", devRole())
+	if _, err := svc.AddMember(ctx, a.ID(), "agent:agent-ada", "dev"); err != nil {
+		t.Fatalf("seed add to A: %v", err)
+	}
+
+	m, err := svc.MoveMember(ctx, a.ID(), b.ID(), "agent:agent-ada", "dev")
+	if err != nil {
+		t.Fatalf("MoveMember: %v (must not self-trip exclusivity)", err)
+	}
+	if m == nil || m.TeamID != b.ID() {
+		t.Fatalf("moved member = %+v, want team %s", m, b.ID())
+	}
+	if ms, _ := svc.ListMembers(ctx, a.ID()); len(ms) != 0 {
+		t.Fatalf("source team A must be empty after migration, got %+v", ms)
+	}
+	if ms, _ := svc.ListMembers(ctx, b.ID()); len(ms) != 1 || ms[0].Ref != "agent:agent-ada" {
+		t.Fatalf("dest team B must hold the agent, got %+v", ms)
+	}
+}
+
+// TestMoveMember_UnresolvableRefKeepsSource locks migration lock #8: an
+// unresolvable ref is rejected AND the atomic tx rolls back — the agent is NOT
+// removed from the source team (no half-migration / stranding).
+func TestMoveMember_UnresolvableRefKeepsSource(t *testing.T) {
+	svc, _ := newService(t)
+	svc.WithMemberResolver(&fakeResolver{ok: true})
+	ctx := context.Background()
+	a := createTeam(t, svc, "A", devRole())
+	b := createTeam(t, svc, "B", devRole())
+	if _, err := svc.AddMember(ctx, a.ID(), "agent:agent-ada", "dev"); err != nil {
+		t.Fatalf("seed add to A: %v", err)
+	}
+
+	// Flip the resolver to reject, then attempt migration.
+	svc.WithMemberResolver(&fakeResolver{ok: false})
+	_, err := svc.MoveMember(ctx, a.ID(), b.ID(), "agent:agent-ada", "dev")
+	if !errors.Is(err, team.ErrMemberIdentityNotFound) {
+		t.Fatalf("unresolvable migration: got %v want ErrMemberIdentityNotFound", err)
+	}
+	// Atomicity: source untouched, dest empty.
+	if ms, _ := svc.ListMembers(ctx, a.ID()); len(ms) != 1 {
+		t.Fatalf("failed migration must keep agent in source A, got %+v", ms)
+	}
+	if ms, _ := svc.ListMembers(ctx, b.ID()); len(ms) != 0 {
+		t.Fatalf("failed migration must not add to dest B, got %+v", ms)
+	}
+}
+
+// TestMoveMember_StaleSourceRejected locks that a wrong/stale migrate_from (the
+// agent is not actually on the named source team) fails with ErrMemberNotFound and
+// does not add to the destination — no silent duplicate membership.
+func TestMoveMember_StaleSourceRejected(t *testing.T) {
+	svc, _ := newService(t)
+	svc.WithMemberResolver(&fakeResolver{ok: true})
+	ctx := context.Background()
+	a := createTeam(t, svc, "A", devRole())
+	b := createTeam(t, svc, "B", devRole())
+
+	// agent-ada was never added to A.
+	_, err := svc.MoveMember(ctx, a.ID(), b.ID(), "agent:agent-ada", "dev")
+	if !errors.Is(err, team.ErrMemberNotFound) {
+		t.Fatalf("stale migrate_from: got %v want ErrMemberNotFound", err)
+	}
+	if ms, _ := svc.ListMembers(ctx, b.ID()); len(ms) != 0 {
+		t.Fatalf("stale migration must not add to dest, got %+v", ms)
+	}
+}
+
 // TestAddMember_NilResolverDegrades locks the opt-in degrade: with no resolver
 // wired (tests / unwired deployments) AddMember keeps its pre-hardening behavior
 // and does not fail closed or panic.

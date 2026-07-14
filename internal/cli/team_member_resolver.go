@@ -7,7 +7,19 @@ import (
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/team"
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
+	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 )
+
+// newHardenedTeamService is the ONE constructor for the Team service. Every wiring
+// site (admin API + both webconsole facade paths) MUST go through it so the
+// add-member identity hardening (MemberResolver) can never be forgotten on a path
+// — the exact "one consumer patched, another path missed" gap that first left the
+// web facade unhardened while admin/MCP was covered. Nil identity repos degrade to
+// a nil resolver (pass-through) rather than failing closed.
+func newHardenedTeamService(a *App) *teamservice.Service {
+	return teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock).
+		WithMemberResolver(newIdentityMemberResolver(a.IdentityRepo, a.IdentityMemberRepo))
+}
 
 // identityMemberResolver bridges the Team BC's teamservice.MemberResolver seam to
 // the identity BC: it answers whether a team member ref points at a real identity
