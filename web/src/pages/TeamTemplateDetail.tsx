@@ -1,10 +1,12 @@
 // Team Template detail (/organizations/:slug/teams/templates/:templateId) —
-// 4 tabs: Overview / Seed Memory / Curation & 来源 / Instances. Header carries
+// 4 tabs: Overview / Seed Memory / Curation & source / Instances. Header carries
 // Export JSON (cross-org) + Instantiate. Curation is an audit-only view of the
 // per-token extract decisions; Seed Memory is the read-only template seed.
 import { useState } from 'react';
 import type React from 'react';
+import type { TFunction } from 'i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { useOptionalOrgContext } from '@/OrgContext';
 import {
   exportTemplateEnvelope,
@@ -22,15 +24,14 @@ import { btnGhost, btnPrimary, btnSm, Card, Note, SectionHead, SpecLine, Tabs } 
 import { ArrowRightIcon, ExportIcon, Glyph, RoleBar, RoleLegend } from '@/components/teams/teamsUi';
 import { roleColor } from '@/api/teams';
 
-const TABS = [
-  { key: 'ov', label: 'Overview' },
-  { key: 'sm', label: 'Seed Memory' },
-  { key: 'cu', label: 'Curation & 来源' },
-  { key: 'in', label: 'Instances' },
-] as const;
-type TabKey = (typeof TABS)[number]['key'];
+const TABS_KEYS = ['ov', 'sm', 'cu', 'in'] as const;
+type TabKey = (typeof TABS_KEYS)[number];
 
-const RISK_LABEL: Record<ScrubFinding['risk'], string> = { hi: 'high', md: 'med', lo: 'low' };
+function riskLabel(risk: ScrubFinding['risk'], t: TFunction): string {
+  if (risk === 'hi') return t('templateDetail.riskHigh');
+  if (risk === 'md') return t('templateDetail.riskMed');
+  return t('templateDetail.riskLow');
+}
 function riskClass(risk: ScrubFinding['risk']): string {
   if (risk === 'hi') return 'text-danger bg-danger/10 border border-danger/30';
   if (risk === 'md') return 'text-warning bg-warning/10 border border-warning/30';
@@ -38,6 +39,7 @@ function riskClass(risk: ScrubFinding['risk']): string {
 }
 
 export default function TeamTemplateDetail(): React.ReactElement {
+  const { t } = useTranslation('teams');
   const { templateId = '' } = useParams();
   const template = useTeamTemplate(templateId);
   const navigate = useNavigate();
@@ -45,6 +47,13 @@ export default function TeamTemplateDetail(): React.ReactElement {
   const orgBase = org ? `/organizations/${org.slug}` : '';
   const [tab, setTab] = useState<TabKey>('ov');
   const [instantiating, setInstantiating] = useState(false);
+
+  const TABS = [
+    { key: 'ov', label: t('templateDetail.tabs.overview') },
+    { key: 'sm', label: t('templateDetail.tabs.seedMemory') },
+    { key: 'cu', label: t('templateDetail.tabs.curation') },
+    { key: 'in', label: t('templateDetail.tabs.instances') },
+  ] as const;
 
   if (template.isLoading) {
     return (
@@ -58,33 +67,33 @@ export default function TeamTemplateDetail(): React.ReactElement {
     return (
       <section data-testid="page-TeamTemplateDetail">
         <button type="button" className={btnGhost} onClick={() => navigate(`${orgBase}/teams/templates`)}>
-          ← Templates
+          {t('templateDetail.backToTemplates')}
         </button>
         <p className="mt-4 text-sm text-danger" data-testid="template-detail-error">
-          {(template.error as Error)?.message ?? 'template_not_found'}
+          {(template.error as Error)?.message ?? t('templateDetail.notFound')}
         </p>
       </section>
     );
   }
 
-  const t = template.data;
-  const totalSlots = t.roles.reduce((s, r) => s + r.count, 0);
+  const tpl = template.data;
+  const totalSlots = tpl.roles.reduce((s, r) => s + r.count, 0);
 
   return (
     <section className="space-y-2" data-testid="page-TeamTemplateDetail">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <Glyph text={t.name.slice(0, 2).toUpperCase()} size="lg" />
+          <Glyph text={tpl.name.slice(0, 2).toUpperCase()} size="lg" />
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="font-heading text-xl font-semibold text-text-primary">{t.name}</h1>
-              <span className="rounded bg-success/15 px-2 py-0.5 text-[0.65rem] font-semibold text-success">{t.version_label}</span>
+              <h1 className="font-heading text-xl font-semibold text-text-primary">{tpl.name}</h1>
+              <span className="rounded bg-success/15 px-2 py-0.5 text-[0.65rem] font-semibold text-success">{tpl.version_label}</span>
             </div>
             <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-text-muted">
-              <span className="font-mono">{t.id}</span>
-              <span>来源：{t.source}</span>
-              <span>{totalSlots} slots · {t.roles.length} roles</span>
-              <span>{t.instances_count} 个实例</span>
+              <span className="font-mono">{tpl.id}</span>
+              <span>{t('templateDetail.sourcePrefix', { source: tpl.source })}</span>
+              <span>{t('templateDetail.slotsRoles', { slots: totalSlots, roles: tpl.roles.length })}</span>
+              <span>{t('templateDetail.instancesCount', { count: tpl.instances_count })}</span>
             </div>
           </div>
         </div>
@@ -93,12 +102,12 @@ export default function TeamTemplateDetail(): React.ReactElement {
             type="button"
             className={btnGhost}
             data-testid="template-export"
-            onClick={() => downloadJson(`${t.name}.team-template.json`, exportTemplateEnvelope(t))}
+            onClick={() => downloadJson(`${tpl.name}.team-template.json`, exportTemplateEnvelope(tpl))}
           >
-            <ExportIcon className="h-4 w-4" /> Export JSON
+            <ExportIcon className="h-4 w-4" /> {t('templateDetail.exportJson')}
           </button>
           <button type="button" className={btnPrimary} data-testid="template-instantiate" onClick={() => setInstantiating(true)}>
-            Instantiate <ArrowRightIcon className="h-4 w-4" />
+            {t('templateDetail.instantiate')} <ArrowRightIcon className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -106,20 +115,20 @@ export default function TeamTemplateDetail(): React.ReactElement {
       <Tabs tabs={TABS} active={tab} onChange={setTab} testId="template-tabs" />
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'ov' && <OverviewPane template={t} totalSlots={totalSlots} />}
+        {tab === 'ov' && <OverviewPane template={tpl} totalSlots={totalSlots} />}
         {tab === 'sm' && (
           <div>
-            <SectionHead title="Seed Memory" hint="实例化时种入新 team memory-repo · 已 curation · 只读预览" />
-            <MemoryPane teamId={t.id} heading="⌗ template seed" />
+            <SectionHead title={t('templateDetail.tabs.seedMemory')} hint={t('templateDetail.seedMemoryHint')} />
+            <MemoryPane teamId={tpl.id} heading={t('templateDetail.seedMemoryHeading')} />
           </div>
         )}
-        {tab === 'cu' && <CurationPane templateId={t.id} source={t.source} />}
-        {tab === 'in' && <InstancesPane templateId={t.id} orgBase={orgBase} />}
+        {tab === 'cu' && <CurationPane templateId={tpl.id} source={tpl.source} />}
+        {tab === 'in' && <InstancesPane templateId={tpl.id} orgBase={orgBase} />}
       </div>
 
       {instantiating && (
         <InstantiateModal
-          template={t}
+          template={tpl}
           onClose={() => setInstantiating(false)}
           onInstantiated={(id) => navigate(`${orgBase}/teams/${id}`)}
         />
@@ -128,16 +137,17 @@ export default function TeamTemplateDetail(): React.ReactElement {
   );
 }
 
-function OverviewPane({ template: t, totalSlots }: { template: TeamTemplate; totalSlots: number }): React.ReactElement {
+function OverviewPane({ template: tpl, totalSlots }: { template: TeamTemplate; totalSlots: number }): React.ReactElement {
+  const { t } = useTranslation('teams');
   return (
     <div>
       <div className="grid gap-3.5 md:grid-cols-2">
         <Card>
-          <SectionHead title="角色配比" hint="实例化时可调 count" />
-          <RoleBar roles={t.roles} className="w-full" />
-          <RoleLegend roles={t.roles} />
+          <SectionHead title={t('templateDetail.overview.roleMix')} hint={t('templateDetail.overview.roleMixHint')} />
+          <RoleBar roles={tpl.roles} className="w-full" />
+          <RoleLegend roles={tpl.roles} />
           <div className="mt-2.5">
-            {t.roles.map((r) => (
+            {tpl.roles.map((r) => (
               <SpecLine
                 key={r.role}
                 k={
@@ -146,36 +156,44 @@ function OverviewPane({ template: t, totalSlots }: { template: TeamTemplate; tot
                     {r.role} ×{r.count}
                   </span>
                 }
-                v={`${r.cli} · ${r.model} · conc ${r.max_concurrency}${r.capability_tags.length ? ' · ' + r.capability_tags.join(', ') : ''}`}
+                v={`${t('templateDetail.overview.roleSpec', { cli: r.cli, model: r.model, conc: r.max_concurrency })}${r.capability_tags.length ? ' · ' + r.capability_tags.join(', ') : ''}`}
               />
             ))}
           </div>
         </Card>
         <Card>
-          <SectionHead title="模版信息" hint="provenance" />
-          <SpecLine k="版本" v={t.version_label} />
-          <SpecLine k="来源" v={t.source} />
-          <SpecLine k="workflow-ref" v={t.workflow_template_ref} />
-          <SpecLine k="curation" v={<span className="text-success">{t.curated ? '已过门' : '未过门'}</span>} />
-          <SpecLine k="实例" v={`${t.instances_count} 个 team`} />
+          <SectionHead title={t('templateDetail.overview.info')} hint={t('templateDetail.overview.infoHint')} />
+          <SpecLine k={t('templateDetail.overview.version')} v={tpl.version_label} />
+          <SpecLine k={t('templateDetail.overview.source')} v={tpl.source} />
+          <SpecLine k={t('templateDetail.overview.workflowRef')} v={tpl.workflow_template_ref} />
+          <SpecLine k={t('templateDetail.overview.curation')} v={<span className="text-success">{tpl.curated ? t('templateDetail.overview.gated') : t('templateDetail.overview.notGated')}</span>} />
+          <SpecLine k={t('templateDetail.overview.instances')} v={t('templateDetail.overview.instancesValue', { count: tpl.instances_count })} />
         </Card>
       </div>
       <Note>
-        Instantiate 时会按此配比建一支 team、声明角色 slots、把 Seed Memory 种进新 team 的 memory-repo、绑 workflow-ref。
-        <b>Phase-1 不铸 agent 身份</b>（运行时另行编入），<b>与 project 无关</b>，project 后置关联。总 {totalSlots} slots。
+        <Trans i18nKey="templateDetail.overview.note" ns="teams" values={{ slots: totalSlots }} components={{ b: <b /> }} />
       </Note>
     </div>
   );
 }
 
 function CurationPane({ templateId, source }: { templateId: string; source: string }): React.ReactElement {
+  const { t } = useTranslation('teams');
   const scrub = useTemplateScrub(templateId);
   return (
     <div>
-      <SectionHead title="Curation & 来源" hint="extract 时的逐条处置（审计只读）" />
+      <SectionHead title={t('templateDetail.curation.title')} hint={t('templateDetail.curation.hint')} />
       <Note>
-        此模版从 <b>{source}</b> 抽取。下列疑似专属 token 已逐条 curation：
-        <span className="font-mono text-danger"> 占位</span>=已替换成占位符，<span className="font-mono text-success">保留</span>=人工确认保留。
+        <Trans
+          i18nKey="templateDetail.curation.note"
+          ns="teams"
+          values={{ source }}
+          components={{
+            b: <b />,
+            danger: <span className="font-mono text-danger" />,
+            success: <span className="font-mono text-success" />,
+          }}
+        />
       </Note>
       {scrub.isLoading && <Skeleton height="8rem" />}
       <div data-testid="curation-list">
@@ -184,7 +202,7 @@ function CurationPane({ templateId, source }: { templateId: string; source: stri
           return (
             <div key={i} data-testid={`curation-${i}`} className="mb-3 overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1">
               <div className="flex items-center gap-3 px-4 py-3">
-                <span className={`rounded px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${riskClass(f.risk)}`}>{RISK_LABEL[f.risk]}</span>
+                <span className={`rounded px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${riskClass(f.risk)}`}>{riskLabel(f.risk, t)}</span>
                 <span className="min-w-0 flex-1 truncate font-mono text-[0.7rem] text-text-muted">{f.loc}</span>
                 <span className="text-[0.7rem] text-text-muted">{f.reason}</span>
                 <span
@@ -193,7 +211,7 @@ function CurationPane({ templateId, source }: { templateId: string; source: stri
                     kept ? 'bg-success/15 text-success' : 'border border-border-base bg-bg-subtle text-text-muted',
                   ].join(' ')}
                 >
-                  {kept ? '保留' : '已占位'}
+                  {kept ? t('templateDetail.curation.keptBadge') : t('templateDetail.curation.placeheldBadge')}
                 </span>
               </div>
               <div className="px-4 pb-3 font-mono text-xs text-text-secondary">
@@ -216,14 +234,15 @@ function CurationPane({ templateId, source }: { templateId: string; source: stri
 }
 
 function InstancesPane({ templateId, orgBase }: { templateId: string; orgBase: string }): React.ReactElement {
+  const { t } = useTranslation('teams');
   const instances = useTemplateInstances(templateId);
   const navigate = useNavigate();
   return (
     <div>
-      <SectionHead title="Instances" hint="从此模版实例化出的 team" />
+      <SectionHead title={t('templateDetail.instances.title')} hint={t('templateDetail.instances.hint')} />
       {instances.isLoading && <Skeleton height="4rem" />}
       {instances.isSuccess && instances.data.length === 0 && (
-        <EmptyState title="还没有实例" body="还没有从此模版实例化的 team。" testId="instances-empty" />
+        <EmptyState title={t('templateDetail.instances.emptyTitle')} body={t('templateDetail.instances.emptyBody')} testId="instances-empty" />
       )}
       {(instances.data ?? []).map((x) => (
         <div key={x.id} data-testid={`instance-${x.id}`} className="mb-2.5 flex items-center gap-3 rounded-lg border border-border-base bg-bg-elevated px-3.5 py-3 shadow-1">
@@ -233,7 +252,7 @@ function InstancesPane({ templateId, orgBase }: { templateId: string; orgBase: s
             <span className="block font-mono text-[0.6875rem] text-text-muted">{x.id}</span>
           </div>
           <button type="button" className={btnSm} onClick={() => navigate(`${orgBase}/teams/${x.id}`)}>
-            打开
+            {t('templateDetail.instances.open')}
           </button>
         </div>
       ))}

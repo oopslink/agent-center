@@ -490,25 +490,49 @@ function MemberActionsMenu({ member }: { member: MemberResult }): React.ReactEle
               <div className="flex gap-2 justify-end">
                 <button
                   type="button"
-                  onClick={() => setConfirmAction(null)}
+                  onClick={() => {
+                    disable.reset();
+                    reEnable.reset();
+                    setConfirmAction(null);
+                  }}
                   className="rounded px-2 py-1 text-xs text-text-secondary hover:bg-bg-subtle"
                 >
                   {t('humans.actions.cancel')}
                 </button>
                 <button
                   type="button"
+                  disabled={disable.isPending || reEnable.isPending}
                   onClick={() => {
-                    if (confirmAction === 'disable') disable.mutate({ id: member.id });
-                    else reEnable.mutate(member.id);
-                    setConfirmAction(null);
+                    // Never fail silently: pass a non-empty reason (the backend
+                    // rejects an empty reason with HTTP 500) and only close the
+                    // popover once the mutation SUCCEEDS — on error we keep it open
+                    // and render the message below.
+                    if (confirmAction === 'disable') {
+                      disable.mutate(
+                        { id: member.id, reason: t('humans.disable.reason') },
+                        { onSuccess: () => setConfirmAction(null) },
+                      );
+                    } else {
+                      reEnable.mutate(member.id, { onSuccess: () => setConfirmAction(null) });
+                    }
                   }}
-                  className={`rounded px-2 py-1 text-xs text-white ${
+                  className={`rounded px-2 py-1 text-xs text-white disabled:opacity-50 ${
                     confirmAction === 'disable' ? 'bg-danger' : 'bg-success'
                   }`}
                 >
                   {t('humans.actions.confirm')}
                 </button>
               </div>
+              {confirmAction === 'disable' && disable.isError && (
+                <p className="mt-2 text-xs text-danger" data-testid="member-disable-error" role="alert">
+                  {t('humans.disable.error')}
+                </p>
+              )}
+              {confirmAction === 'reenable' && reEnable.isError && (
+                <p className="mt-2 text-xs text-danger" data-testid="member-reenable-error" role="alert">
+                  {t('humans.disable.reEnableError')}
+                </p>
+              )}
             </div>
           )}
         </div>,

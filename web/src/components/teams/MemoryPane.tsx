@@ -3,6 +3,7 @@
 // MEMORY.md is the always-resident index; entries/<slug> are lazy.
 import { useState } from 'react';
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTeamMemoryDoc, useTeamMemoryIndex } from '@/api/teams';
@@ -11,6 +12,7 @@ import { btnSm } from './kit';
 import { DocIcon, PinIcon } from './teamsUi';
 
 export function MemoryPane({ teamId, heading }: { teamId: string; heading: string }): React.ReactElement {
+  const { t } = useTranslation('teams');
   const index = useTeamMemoryIndex(teamId);
   const [slug, setSlug] = useState('MEMORY.md');
   const doc = useTeamMemoryDoc(teamId, slug);
@@ -55,7 +57,7 @@ export function MemoryPane({ teamId, heading }: { teamId: string; heading: strin
                       node.pinned ? 'border border-brand/25 text-brand' : 'border border-border-base text-text-muted',
                     ].join(' ')}
                   >
-                    {node.pinned ? '常驻' : 'lazy'}
+                    {node.pinned ? t('memoryPane.pinned') : t('memoryPane.lazy')}
                   </span>
                 </button>
               </div>
@@ -75,10 +77,10 @@ export function MemoryPane({ teamId, heading }: { teamId: string; heading: strin
               </div>
               <div className="flex gap-2">
                 <button type="button" className={btnSm}>
-                  Raw
+                  {t('memoryPane.raw')}
                 </button>
                 <button type="button" className={btnSm}>
-                  Copy path
+                  {t('memoryPane.copyPath')}
                 </button>
               </div>
             </div>

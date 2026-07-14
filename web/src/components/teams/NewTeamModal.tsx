@@ -2,6 +2,7 @@
 // creating builds agent identities + a team-memory repo (Phase-1: fixtures).
 import { useState } from 'react';
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCreateTeam, type RoleInput } from '@/api/teams';
 import { btnGhost, btnPrimary, Field, inputCls, ModalShell } from './kit';
 import { newRole, RoleBuilder, totalSlots } from './RoleBuilder';
@@ -15,6 +16,7 @@ export function NewTeamModal({
   onClose: () => void;
   onCreated: (teamId: string) => void;
 }): React.ReactElement | null {
+  const { t } = useTranslation('teams');
   const [name, setName] = useState('');
   const [visibility, setVisibility] = useState('org-private');
   const [description, setDescription] = useState('');
@@ -41,45 +43,45 @@ export function NewTeamModal({
       onClose={onClose}
       testId="new-team-modal"
       wide
-      title="New Team"
-      subtitle="声明角色配比 —— 每角色单独配 CLI / model / tags / 并发。创建即声明角色 slots 与 memory-repo（Phase-1 不铸 agent 身份，运行时另行编入）。"
+      title={t('newTeamModal.title')}
+      subtitle={t('newTeamModal.subtitle')}
       footer={
         <>
-          <span className="text-[0.6875rem] text-text-muted">创建后 → 声明角色 slots + team-memory repo（agent 运行时编入）</span>
+          <span className="text-[0.6875rem] text-text-muted">{t('newTeamModal.footerHint')}</span>
           <div className="flex gap-2.5">
             <button type="button" className={btnGhost} onClick={onClose}>
-              取消
+              {t('common.cancel')}
             </button>
             <button type="button" className={btnPrimary} disabled={!canSubmit} data-testid="new-team-submit" onClick={submit}>
-              {create.isPending ? '创建中…' : '创建 Team'}
+              {create.isPending ? t('newTeamModal.creating') : t('newTeamModal.submit')}
             </button>
           </div>
         </>
       }
     >
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Team name" required>
+        <Field label={t('newTeamModal.nameLabel')} required>
           <input
             className={inputCls}
             value={name}
-            placeholder="e.g. payments-squad"
+            placeholder={t('newTeamModal.namePlaceholder')}
             data-testid="new-team-name"
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
-        <Field label="可见性">
+        <Field label={t('newTeamModal.visibilityLabel')}>
           <select className={inputCls} value={visibility} data-testid="new-team-visibility" onChange={(e) => setVisibility(e.target.value)}>
             <option value="org-private">org-private</option>
             <option value="project-scoped">project-scoped</option>
           </select>
         </Field>
       </div>
-      <Field label="Description">
+      <Field label={t('newTeamModal.descriptionLabel')}>
         <textarea
           className={inputCls}
           rows={2}
           value={description}
-          placeholder="这个编队负责什么…"
+          placeholder={t('newTeamModal.descriptionPlaceholder')}
           data-testid="new-team-desc"
           onChange={(e) => setDescription(e.target.value)}
         />
@@ -87,9 +89,9 @@ export function NewTeamModal({
 
       <div className="mb-3 mt-5 flex items-center justify-between">
         <label className="text-xs font-semibold text-text-secondary">
-          角色配比 <span className="text-accent">*</span>
+          {t('newTeamModal.roleMixLabel')} <span className="text-accent">*</span>
         </label>
-        <span className="text-[0.6875rem] text-text-muted">Σ {totalSlots(roles)} slots = 派生 {totalSlots(roles)} 个 agent</span>
+        <span className="text-[0.6875rem] text-text-muted">{t('newTeamModal.slotsSummary', { slots: totalSlots(roles) })}</span>
       </div>
       <RoleBuilder roles={roles} onChange={setRoles} idPrefix="new-team" />
 

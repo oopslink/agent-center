@@ -568,6 +568,11 @@
       "disable": "Disable this member?",
       "reEnable": "Re-enable this member?"
     },
+    "disable": {
+      "reason": "Disabled by admin",
+      "error": "Failed to disable this member. Please try again.",
+      "reEnableError": "Failed to re-enable this member. Please try again."
+    },
     "new": {
       "addAgent": "Add agent",
       "addUser": "Add user",

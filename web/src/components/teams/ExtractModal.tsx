@@ -4,6 +4,8 @@
 // Reached from two entry points: a team detail header and the Templates page.
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
+import type { TFunction } from 'i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   ROLE_DESC,
   useExtractScrub,
@@ -15,7 +17,11 @@ import {
 import { btnGhost, btnPrimary, Note } from './kit';
 import { CheckIcon, WarnIcon } from './teamsUi';
 
-const RISK_LABEL: Record<ScrubFinding['risk'], string> = { hi: 'high', md: 'med', lo: 'low' };
+function riskLabel(risk: ScrubFinding['risk'], t: TFunction): string {
+  if (risk === 'hi') return t('extractModal.riskHigh');
+  if (risk === 'md') return t('extractModal.riskMed');
+  return t('extractModal.riskLow');
+}
 
 function riskClass(risk: ScrubFinding['risk']): string {
   if (risk === 'hi') return 'text-danger bg-danger/10 border border-danger/30';
@@ -32,6 +38,7 @@ export function ExtractModal({
   onClose: () => void;
   onSaved: () => void;
 }): React.ReactElement | null {
+  const { t } = useTranslation('teams');
   const scrub = useExtractScrub(team?.id ?? '');
   const findings = useMemo(() => scrub.data ?? [], [scrub.data]);
   const [actions, setActions] = useState<Record<number, ScrubAction>>({});
@@ -65,9 +72,9 @@ export function ExtractModal({
     if (!gatePassed || save.isPending) return;
     try {
       await save.mutateAsync({
-        name: `${team.name} template`,
-        description: `从 ${team.name} 抽取的蓝图。`,
-        source: `从 ${team.id} extract`,
+        name: t('extractModal.templateNameSuffix', { name: team.name }),
+        description: t('extractModal.templateDescription', { name: team.name }),
+        source: t('extractModal.templateSource', { id: team.id }),
         source_kind: 'extract',
         roles: team.roles.map((r) => ({
           role: r.role,
@@ -100,29 +107,36 @@ export function ExtractModal({
         className="w-full max-w-3xl rounded-xl border border-border-strong bg-bg-elevated shadow-3"
       >
         <div className="border-b border-border-base px-6 py-5">
-          <h2 className="text-base font-semibold text-text-primary">Extract → Template</h2>
+          <h2 className="text-base font-semibold text-text-primary">{t('extractModal.title')}</h2>
           <p className="mt-1 text-xs text-text-muted">
-            从 <b className="font-semibold text-text-primary">{team.name}</b> 抽取蓝图。已扫描疑似专属 token —— 必须逐条
-            curation 过门才能存（无批量勾选，防泄漏）。
+            <Trans i18nKey="extractModal.subtitle" ns="teams" values={{ name: team.name }} components={{ b: <b className="font-semibold text-text-primary" /> }} />
           </p>
         </div>
 
         <div className="max-h-[62vh] overflow-auto px-6 py-5">
           {/* stepper */}
           <div className="mb-5 flex items-center text-xs font-semibold">
-            <Step n={<CheckIcon className="h-3 w-3" />} label="选择源" state="done" />
+            <Step n={<CheckIcon className="h-3 w-3" />} label={t('extractModal.stepSelectSource')} state="done" />
             <span className="mx-3 h-px flex-1 bg-border-base" />
-            <Step n="2" label="Scrub / Curate" state="active" />
+            <Step n="2" label={t('extractModal.stepScrubCurate')} state="active" />
             <span className="mx-3 h-px flex-1 bg-border-base" />
-            <Step n="3" label="命名 & 保存" state="idle" />
+            <Step n="3" label={t('extractModal.stepNameSave')} state="idle" />
           </div>
 
           <Note>
-            扫描到 <b>{findings.length}</b> 处疑似专属内容。默认动作已预选，请<b>逐条</b>确认。
-            <span className="font-mono text-danger"> 红=移除</span> ·<span className="font-mono text-success"> 绿=保留</span>。
+            <Trans
+              i18nKey="extractModal.note"
+              ns="teams"
+              values={{ count: findings.length }}
+              components={{
+                b: <b />,
+                danger: <span className="font-mono text-danger" />,
+                success: <span className="font-mono text-success" />,
+              }}
+            />
           </Note>
 
-          {scrub.isLoading && <p className="text-sm text-text-muted">扫描中…</p>}
+          {scrub.isLoading && <p className="text-sm text-text-muted">{t('extractModal.scanning')}</p>}
 
           <div data-testid="extract-scrublist">
             {findings.map((f, i) => {
@@ -131,7 +145,7 @@ export function ExtractModal({
                 <div key={i} data-testid={`scrub-${i}`} className="mb-3 overflow-hidden rounded-lg border border-border-base bg-bg-elevated shadow-1">
                   <div className="flex items-center gap-3 px-4 py-3">
                     <span className={`rounded px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${riskClass(f.risk)}`}>
-                      {RISK_LABEL[f.risk]}
+                      {riskLabel(f.risk, t)}
                     </span>
                     <span className="min-w-0 flex-1 truncate font-mono text-[0.7rem] text-text-muted">{f.loc}</span>
                     <span className="text-[0.7rem] text-text-muted">{f.reason}</span>
@@ -158,7 +172,7 @@ export function ExtractModal({
                       ].join(' ')}
                       onClick={() => set(i, 'scrub')}
                     >
-                      移除（占位）
+                      {t('extractModal.removePlaceholder')}
                     </button>
                     <button
                       type="button"
@@ -169,7 +183,7 @@ export function ExtractModal({
                       ].join(' ')}
                       onClick={() => set(i, 'keep')}
                     >
-                      保留
+                      {t('extractModal.keep')}
                     </button>
                   </div>
                 </div>
@@ -202,20 +216,20 @@ export function ExtractModal({
             <div className="text-xs">
               {scanning ? (
                 <>
-                  <b className="font-semibold text-text-secondary">扫描中…</b>{' '}
-                  <span className="text-text-muted">—— 正在识别疑似专属 token，稍候。</span>
+                  <b className="font-semibold text-text-secondary">{t('extractModal.gateScanningTitle')}</b>{' '}
+                  <span className="text-text-muted">{t('extractModal.gateScanningBody')}</span>
                 </>
               ) : gatePassed ? (
                 <>
-                  <b className="font-semibold text-success">Curation 已过门</b>{' '}
+                  <b className="font-semibold text-success">{t('extractModal.gatePassedTitle')}</b>{' '}
                   <span className="text-text-muted">
-                    —— 无遗留 high-risk。{keptCount} 保留 / {scrubbedCount} 占位化。
+                    {t('extractModal.gatePassedBody', { kept: keptCount, scrubbed: scrubbedCount })}
                   </span>
                 </>
               ) : (
                 <>
-                  <b className="font-semibold text-warning">门未通过</b>{' '}
-                  <span className="text-text-muted">—— 仍保留 {hiKept} 处 high-risk token，需先占位化。</span>
+                  <b className="font-semibold text-warning">{t('extractModal.gateBlockedTitle')}</b>{' '}
+                  <span className="text-text-muted">{t('extractModal.gateBlockedBody', { count: hiKept })}</span>
                 </>
               )}
             </div>
@@ -224,11 +238,11 @@ export function ExtractModal({
 
         <div className="flex items-center justify-between gap-3 rounded-b-xl border-t border-border-base bg-bg-subtle px-6 py-4">
           <span className="font-mono text-[0.6875rem] text-text-muted" data-testid="extract-count">
-            {scrubbedCount} scrubbed · {keptCount} kept
+            {t('extractModal.count', { scrubbed: scrubbedCount, kept: keptCount })}
           </span>
           <div className="flex gap-2.5">
             <button type="button" className={btnGhost} onClick={onClose}>
-              取消
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -237,7 +251,7 @@ export function ExtractModal({
               data-testid="extract-save"
               onClick={submit}
             >
-              {scanning ? '扫描中…' : !gatePassed ? '需先处理 high-risk' : save.isPending ? '保存中…' : '保存为模版 →'}
+              {scanning ? t('extractModal.saveScanning') : !gatePassed ? t('extractModal.saveBlocked') : save.isPending ? t('extractModal.saving') : t('extractModal.save')}
             </button>
           </div>
         </div>

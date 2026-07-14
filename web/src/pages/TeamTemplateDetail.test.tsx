@@ -31,7 +31,7 @@ describe('TeamTemplateDetail', () => {
   it('renders the overview with provenance', async () => {
     renderAt('tmpl-core');
     expect(await screen.findByRole('heading', { name: 'Core Feature Squad' })).toBeInTheDocument();
-    expect(screen.getByText('模版信息')).toBeInTheDocument();
+    expect(screen.getByText('Template info')).toBeInTheDocument();
     expect(screen.getByText('provenance')).toBeInTheDocument();
   });
 
@@ -58,7 +58,7 @@ describe('TeamTemplateDetail', () => {
     fireEvent.click(await screen.findByTestId('tab-in'));
     expect(await screen.findByTestId('instance-team-7c19b0')).toBeInTheDocument();
     // navigate to an instance team
-    fireEvent.click(within(screen.getByTestId('instance-team-7c19b0')).getByText('打开'));
+    fireEvent.click(within(screen.getByTestId('instance-team-7c19b0')).getByText('Open'));
     await waitFor(() => expect(screen.getByTestId('loc')).toHaveTextContent('/teams/team-7c19b0'));
   });
 

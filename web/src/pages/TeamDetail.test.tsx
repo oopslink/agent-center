@@ -33,8 +33,8 @@ describe('TeamDetail', () => {
   it('shows the overview tab by default with the role配比', async () => {
     renderAt('team-7c19b0');
     expect(await screen.findByRole('heading', { name: 'agent-center core' })).toBeInTheDocument();
-    expect(screen.getByText('角色配比')).toBeInTheDocument();
-    expect(screen.getByText('团队概况')).toBeInTheDocument();
+    expect(screen.getByText('Role mix')).toBeInTheDocument();
+    expect(screen.getByText('Team overview')).toBeInTheDocument();
   });
 
   it('renders an error for an unknown team', async () => {
@@ -93,7 +93,7 @@ describe('TeamDetail', () => {
     const migrate = await screen.findByTestId('migrate-modal');
     fireEvent.click(within(migrate).getByTestId('migrate-confirm'));
     // friendly mapped copy, not the raw envelope; modal stays open
-    expect(await screen.findByTestId('migrate-error')).toHaveTextContent('不存在或已注销');
+    expect(await screen.findByTestId('migrate-error')).toHaveTextContent('no longer exists');
     expect(screen.getByTestId('migrate-modal')).toBeInTheDocument();
   });
 
@@ -135,10 +135,10 @@ describe('TeamDetail', () => {
     fireEvent.click(await screen.findByTestId('team-extract'));
     const modal = await screen.findByTestId('extract-modal');
     // default seeds one high-risk kept? No — defaults scrub all hi. Gate passes.
-    await waitFor(() => expect(within(modal).getByTestId('extract-gate')).toHaveTextContent('已过门'));
+    await waitFor(() => expect(within(modal).getByTestId('extract-gate')).toHaveTextContent('Curation cleared'));
     // keep a high-risk token → gate blocks
     fireEvent.click(within(modal).getByTestId('scrub-0-keep'));
-    await waitFor(() => expect(within(modal).getByTestId('extract-gate')).toHaveTextContent('门未通过'));
+    await waitFor(() => expect(within(modal).getByTestId('extract-gate')).toHaveTextContent('Gate not passed'));
     expect(within(modal).getByTestId('extract-save')).toBeDisabled();
     // scrub it back → save enabled → save navigates to templates
     fireEvent.click(within(modal).getByTestId('scrub-0-scrub'));

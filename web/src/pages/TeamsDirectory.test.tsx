@@ -214,6 +214,49 @@ describe('TeamsDirectoryHumans (merged directory + members)', () => {
     await waitFor(() => expect(patchedRole).toBe('admin'));
   });
 
+  // Bug ② regression: disable used to POST an empty reason (backend rejects it
+  // with HTTP 500) and unconditionally closed the confirm popover, hiding the
+  // failure. The fix passes a non-empty reason and closes only on success.
+  it('disable sends a NON-EMPTY reason and closes the popover on success', async () => {
+    let sentReason: unknown = 'UNSENT';
+    server.use(
+      http.post('/api/members/:id/disable', async ({ request }) => {
+        sentReason = ((await request.json()) as { reason?: string }).reason;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderPage(<TeamsDirectoryHumans />);
+    const row = await screen.findByTestId('human-row-oopslink');
+    fireEvent.click(within(row).getByLabelText('Member actions'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Disable' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(sentReason).toBe('Disabled by admin'));
+    // non-empty reason → the backend would 204, and the popover closes on success.
+    expect(sentReason).not.toBe('');
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('disable failure renders an error and keeps the confirm popover open (never fails silently)', async () => {
+    server.use(
+      http.post('/api/members/:id/disable', () =>
+        HttpResponse.json(
+          { error: 'disable_failed', message: 'payload.reason must be a non-empty string' },
+          { status: 500 },
+        ),
+      ),
+    );
+    renderPage(<TeamsDirectoryHumans />);
+    const row = await screen.findByTestId('human-row-oopslink');
+    fireEvent.click(within(row).getByLabelText('Member actions'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Disable' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }));
+    // error surfaces and the popover stays open (Confirm still present).
+    expect(await screen.findByTestId('member-disable-error')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeInTheDocument();
+  });
+
   it('filters to joined only', async () => {
     renderPage(<TeamsDirectoryHumans />);
     await screen.findByTestId('humans-table');

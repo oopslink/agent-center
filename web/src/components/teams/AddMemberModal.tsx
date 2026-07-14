@@ -7,6 +7,8 @@
 // the member_ref — no fabricated/truncated refs reach the write path.
 import { useState } from 'react';
 import type React from 'react';
+import type { TFunction } from 'i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
 import { useAddMember, useDirectoryAgents, useDirectoryHumans, useTeams, type TeamView } from '@/api/teams';
 import { Skeleton } from '@/components/Skeleton';
@@ -22,19 +24,19 @@ type Kind = 'agent' | 'human';
 //   invalid_input      (400) — malformed ref (truncated / empty id segment)
 //   conflict           (409) — the agent is on a THIRD team (rare migration edge)
 //   not_found          (404) — the migration source is stale (ref not in source team)
-function memberErrorMessage(err: unknown): string {
+function memberErrorMessage(err: unknown, t: TFunction): string {
   const code = err instanceof ApiError ? err.code : '';
   switch (code) {
     case 'identity_not_found':
-      return '该 agent / human 不存在或已注销，请重新选择。';
+      return t('addMemberModal.errIdentityNotFound');
     case 'invalid_input':
-      return '成员标识不合法。';
+      return t('addMemberModal.errInvalidInput');
     case 'conflict':
-      return '该 agent 已在另一个 team，请刷新后重试。';
+      return t('addMemberModal.errConflict');
     case 'not_found':
-      return '来源信息已过期（该成员已不在原 team），请刷新后重试。';
+      return t('addMemberModal.errNotFound');
     default:
-      return '操作失败，请重试。';
+      return t('addMemberModal.errDefault');
   }
 }
 
@@ -49,6 +51,7 @@ export function AddMemberModal({
   onClose: () => void;
   onAdded: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('teams');
   const [kind, setKind] = useState<Kind>('agent');
   const [agentRef, setAgentRef] = useState('');
   const [humanRef, setHumanRef] = useState('');
@@ -111,20 +114,18 @@ export function AddMemberModal({
         testId="migrate-modal"
         title={
           <span className="flex items-center gap-2 text-warning">
-            <WarnIcon className="h-5 w-5" /> 确认迁移
+            <WarnIcon className="h-5 w-5" /> {t('addMemberModal.migrateTitle')}
           </span>
         }
         subtitle={
-          <>
-            <b>{selectedAgent.name}</b> 目前是 <b>{fromTeamName}</b> 的独占成员。
-          </>
+          <Trans i18nKey="addMemberModal.migrateSubtitle" ns="teams" values={{ name: selectedAgent.name, from: fromTeamName }} components={{ b: <b /> }} />
         }
         footer={
           <>
             <span />
             <div className="flex gap-2.5">
               <button type="button" className={btnGhost} onClick={() => setMigrating(false)}>
-                返回
+                {t('common.back')}
               </button>
               <button
                 type="button"
@@ -132,7 +133,7 @@ export function AddMemberModal({
                 data-testid="migrate-confirm"
                 onClick={() => doAdd({ migrateFrom: fromTeamId })}
               >
-                确认迁移
+                {t('addMemberModal.migrateConfirm')}
               </button>
             </div>
           </>
@@ -143,19 +144,17 @@ export function AddMemberModal({
             <WarnIcon className="h-4 w-4" />
           </span>
           <div>
-            agent 独占单 team。加入本 team 会
-            <b className="font-semibold text-warning"> 从 {fromTeamName} 迁出 </b>
-            该 agent，其在原 team 的运行中任务需先收尾/转派。
+            <Trans i18nKey="addMemberModal.migrateWarning" ns="teams" values={{ from: fromTeamName }} components={{ b: <b className="font-semibold text-warning" /> }} />
           </div>
         </div>
         <div className="rounded-lg border border-border-base bg-bg-subtle p-4">
-          <SpecLine k="迁出" v={fromTeamName} />
-          <SpecLine k="迁入" v={`${team.name} · ${role}`} />
-          <SpecLine k="原 team 运行中任务" v={<span className="text-warning">需先收尾 / 转派</span>} />
+          <SpecLine k={t('addMemberModal.migrateMovedOut')} v={fromTeamName} />
+          <SpecLine k={t('addMemberModal.migrateMovedIn')} v={`${team.name} · ${role}`} />
+          <SpecLine k={t('addMemberModal.migrateRunningTasks')} v={<span className="text-warning">{t('addMemberModal.migrateRunningTasksValue')}</span>} />
         </div>
         {add.isError && (
           <p className="mt-3 text-xs text-danger" data-testid="migrate-error">
-            迁移失败：{memberErrorMessage(add.error)}
+            {t('addMemberModal.migrateError', { message: memberErrorMessage(add.error, t) })}
           </p>
         )}
       </ModalShell>
@@ -170,14 +169,14 @@ export function AddMemberModal({
       open
       onClose={onClose}
       testId="add-member-modal"
-      title="Add member"
-      subtitle="把 agent 或 human 编入声明角色。"
+      title={t('addMemberModal.title')}
+      subtitle={t('addMemberModal.subtitle')}
       footer={
         <>
           <span />
           <div className="flex gap-2.5">
             <button type="button" className={btnGhost} onClick={onClose}>
-              取消
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -186,13 +185,13 @@ export function AddMemberModal({
               disabled={candidateCount === 0 || add.isPending}
               onClick={onSubmit}
             >
-              Add
+              {t('addMemberModal.add')}
             </button>
           </div>
         </>
       }
     >
-      <Field label="类型">
+      <Field label={t('addMemberModal.kindLabel')}>
         <div className="flex gap-2.5">
           <button
             type="button"
@@ -200,7 +199,7 @@ export function AddMemberModal({
             className={kind === 'agent' ? btnPrimary + ' flex-1 justify-center' : btnGhost + ' flex-1 justify-center'}
             onClick={() => setKind('agent')}
           >
-            Agent
+            {t('addMemberModal.kindAgent')}
           </button>
           <button
             type="button"
@@ -208,7 +207,7 @@ export function AddMemberModal({
             className={kind === 'human' ? btnPrimary + ' flex-1 justify-center' : btnGhost + ' flex-1 justify-center'}
             onClick={() => setKind('human')}
           >
-            Human
+            {t('addMemberModal.kindHuman')}
           </button>
         </div>
       </Field>
@@ -216,23 +215,23 @@ export function AddMemberModal({
       {list.isLoading && <Skeleton height="4rem" />}
       {!list.isLoading && candidateCount === 0 && (
         <EmptyState
-          title={kind === 'agent' ? '没有可编入的 agent' : '没有可编入的 human'}
-          body={kind === 'agent' ? '组织内的 agent 都已在本 team，或还没有 agent。' : '组织内的 human 都已在本 team，或还没有 human。'}
+          title={kind === 'agent' ? t('addMemberModal.emptyAgentTitle') : t('addMemberModal.emptyHumanTitle')}
+          body={kind === 'agent' ? t('addMemberModal.emptyAgentBody') : t('addMemberModal.emptyHumanBody')}
           testId="add-member-empty"
         />
       )}
 
       {!list.isLoading && candidateCount > 0 && kind === 'agent' && (
         <Field
-          label="选择 agent"
+          label={t('addMemberModal.selectAgent')}
           required
           hint={
             needsMigration ? (
               <span className="text-warning">
-                <b className="font-semibold">{selectedAgent?.name} 当前在 {fromTeamName}</b> —— agent 独占单 team，Add 会弹迁移二次确认。
+                <Trans i18nKey="addMemberModal.selectAgentHintMigrate" ns="teams" values={{ name: selectedAgent?.name, from: fromTeamName }} components={{ b: <b className="font-semibold" /> }} />
               </span>
             ) : (
-              '选到已在别的 team 的 agent 会触发迁移二次确认（agent 独占单 team）。'
+              t('addMemberModal.selectAgentHint')
             )
           }
         >
@@ -244,7 +243,7 @@ export function AddMemberModal({
           >
             {candidateAgents.map((a) => (
               <option key={a.ref} value={a.ref}>
-                {a.name} · {a.model}{a.teams.length ? `（在 ${a.teams[0]}）` : '（空闲）'}
+                {a.name} · {a.model}{a.teams.length ? t('addMemberModal.onTeam', { team: a.teams[0] }) : t('addMemberModal.free')}
               </option>
             ))}
           </select>
@@ -252,7 +251,7 @@ export function AddMemberModal({
       )}
 
       {!list.isLoading && candidateCount > 0 && kind === 'human' && (
-        <Field label="选择 human" required hint="human 可同时属于多个 team。">
+        <Field label={t('addMemberModal.selectHuman')} required hint={t('addMemberModal.selectHumanHint')}>
           <select
             className={inputCls}
             value={selectedHuman?.ref ?? ''}
@@ -268,7 +267,7 @@ export function AddMemberModal({
         </Field>
       )}
 
-      <Field label="分配角色" required>
+      <Field label={t('addMemberModal.roleLabel')} required>
         <select className={inputCls} value={role} data-testid="add-member-role" onChange={(e) => setRole(e.target.value)}>
           {roleOptions.map((r) => (
             <option key={r} value={r}>
@@ -280,7 +279,7 @@ export function AddMemberModal({
 
       {add.isError && (
         <p className="text-xs text-danger" data-testid="add-member-error">
-          {memberErrorMessage(add.error)}
+          {memberErrorMessage(add.error, t)}
         </p>
       )}
     </ModalShell>
