@@ -202,6 +202,27 @@ func (w *CenterWriteback) Report(ctx context.Context, c executor.Completion) err
 	// best-effort, same as usage: it must never block or wedge the completion/block path.
 	w.reportDelivery(ctx, in, c)
 
+	// N4 defensive net (issue-f30b7e7b): a supervisor_inline node should be routed to the
+	// supervisor WITHOUT a fork (N2 dispatch gate). If one nonetheless reaches a forked
+	// executor (bootstrap / race / legacy) and did NOT produce a DURABLE (pushed) delivery,
+	// auto-BLOCK it for a human — do NOT route it as success/judgment. This MUST run before
+	// the success/failure split and gate on the git status (NOT c.Kind): the canonical
+	// mis-fork is a deploy/verdict node whose deliverable is a CENTER action, forked into a
+	// lone `claude -p` with an EMPTY, non-git workspace → probe !Probed → N3 TRUSTS it as
+	// OutcomeSucceeded. So c.Kind would say "succeeded" and reportSuccess would false-succeed
+	// + spin. Gating on !(Probed && Pushed) catches the empty-workspace case; only a genuine
+	// durable push escapes — the safety valve for an N2 misclassification of a real code task.
+	// Relaxes the pending-judgment "never write task state" rule to exactly ONE outcome:
+	// auto-BLOCK (obstacle), never auto-complete.
+	if taskRef := strings.TrimSpace(in.Source.TaskRef); taskRef != "" &&
+		in.DispatchMode == executor.DispatchModeSupervisorInline &&
+		!(c.Git != nil && c.Git.Probed && c.Git.Pushed) {
+		if err := w.client.BlockTask(ctx, w.agentID, taskRef, inlineForkBlockReason(c), "obstacle"); err != nil {
+			return err
+		}
+		return w.writeMemory(ctx, in, c)
+	}
+
 	switch c.Kind {
 	case executor.OutcomeSucceeded:
 		return w.reportSuccess(ctx, in, c)
@@ -340,6 +361,28 @@ func (w *CenterWriteback) reportUsage(ctx context.Context, in executor.Input, c 
 		// never a reason to retain the executor dir or fail the task writeback.
 		_ = err
 	}
+}
+
+// inlineForkBlockReason builds the human-facing block reason for a supervisor_inline node
+// that was mis-forked as an executor and produced no durable delivery (N4). It names the
+// shape (empty/non-git workspace vs committed-but-unpushed) and appends the executor's own
+// failure detail when it reported one.
+func inlineForkBlockReason(c executor.Completion) string {
+	shape := "no durable delivery"
+	switch {
+	case c.Git == nil || !c.Git.Probed:
+		shape = "empty / non-git workspace (this node's deliverable is a center action, not a git push)"
+	case !c.Git.Pushed:
+		shape = "committed but never pushed (work would die with the reaped worktree)"
+	}
+	reason := "supervisor-inline node was dispatched to a forked executor but produced " + shape +
+		" — auto-blocked for human review; this node should run inline (supervisor), not as an executor fork (issue-f30b7e7b)"
+	if c.Kind != executor.OutcomeSucceeded {
+		if fr := strings.TrimSpace(failureReason(c)); fr != "" {
+			reason += ": " + fr
+		}
+	}
+	return reason
 }
 
 // reportDelivery relays a terminal executor's git delivery status to the center

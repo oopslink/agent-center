@@ -112,7 +112,25 @@ type Input struct {
 	Context   string     `json:"context,omitempty"`
 	Source    SourceRefs `json:"source"`
 	CreatedAt time.Time  `json:"created_at"`
+	// DispatchMode records how the center routed this node (issue-f30b7e7b N2/N4). The
+	// center stamps it at dispatch so the worker-side writeback — which only sees
+	// input.json — can tell an executor-fork Dev node from a supervisor-inline node that
+	// should NOT have forked at all. Empty = unstamped / legacy (writeback keeps its prior
+	// behavior). See DispatchMode* consts.
+	DispatchMode string `json:"dispatch_mode,omitempty"`
 }
+
+// DispatchMode values for Input.DispatchMode (issue-f30b7e7b). The center sets one at
+// dispatch (N2); the writeback reads it (N4). Empty = unstamped / legacy.
+const (
+	// DispatchModeExecutorFork — a normal Dev node dispatched to a forked executor.
+	DispatchModeExecutorFork = "executor_fork"
+	// DispatchModeSupervisorInline — a node the dispatch gate routes to the supervisor
+	// inline (MCP-native / review-only); it should NOT fork. If one nonetheless reaches a
+	// forked executor (bootstrap / race / legacy), the writeback treats a non-delivery as a
+	// terminal auto-block, not a retryable judgment (retrying an inline fork is futile).
+	DispatchModeSupervisorInline = "supervisor_inline"
+)
 
 // Validate enforces the invariants the executor relies on at startup.
 func (in Input) Validate() error {

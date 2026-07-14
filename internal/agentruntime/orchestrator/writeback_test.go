@@ -636,3 +636,97 @@ func TestReport_DeliveryErrorNeverWedges(t *testing.T) {
 	// The judgment is still delivered — the delivery failure did not short-circuit.
 	oneInjection(t, fc)
 }
+
+// inlineInput returns a task-bound Input tagged supervisor_inline.
+func inlineInput(id string) executor.Input {
+	in := baseInput(id)
+	in.DispatchMode = executor.DispatchModeSupervisorInline
+	return in
+}
+
+// oneBlock asserts exactly one auto-block (obstacle) and NO judgment/complete/post — the N4
+// defensive net writes the task state itself (safe auto-BLOCK), bypassing the judgment loop.
+func oneBlock(t *testing.T, fc *fakeCenter) [4]string {
+	t.Helper()
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if len(fc.blocks) != 1 {
+		t.Fatalf("want 1 auto-block, got %d: %v", len(fc.blocks), fc.blocks)
+	}
+	if len(fc.injections) != 0 || len(fc.completes) != 0 || len(fc.posts) != 0 {
+		t.Fatalf("auto-block must NOT judge/complete/post; inj=%v completes=%v posts=%v", fc.injections, fc.completes, fc.posts)
+	}
+	b := fc.blocks[0]
+	if b[3] != "obstacle" {
+		t.Errorf("reasonType = %q, want obstacle", b[3])
+	}
+	if b[0] != "agent-x" || b[1] != "task-1" {
+		t.Errorf("block agent/task = %q/%q, want agent-x/task-1", b[0], b[1])
+	}
+	return b
+}
+
+// TestReport_SupervisorInline_EmptyWorkspace_AutoBlocks is the KEY N4 defensive lock: a
+// mis-forked inline node (deploy/verdict — empty, non-git workspace) whose probe is !Probed
+// is TRUSTED by N3 as OutcomeSucceeded. The inline net must STILL auto-block it (gating on
+// !(Probed&&Pushed), not c.Kind) — else it false-succeeds + spins.
+func TestReport_SupervisorInline_EmptyWorkspace_AutoBlocks(t *testing.T) {
+	fc := &fakeCenter{}
+	wb, _ := newWB(t, fc, inlineInput("e1"))
+	// Empty / non-git workspace ⇒ c.Git nil (probe found no repo). N3 would keep this
+	// OutcomeSucceeded, but the inline net gates on durable delivery, not c.Kind.
+	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeSucceeded, Git: nil}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	oneBlock(t, fc)
+}
+
+// TestReport_SupervisorInline_CommittedUnpushed_AutoBlocks: an inline node that landed in a
+// git tree and committed but never pushed → no durable delivery → auto-block.
+func TestReport_SupervisorInline_CommittedUnpushed_AutoBlocks(t *testing.T) {
+	fc := &fakeCenter{}
+	wb, _ := newWB(t, fc, inlineInput("e1"))
+	git := &executor.FinalizedGitStatus{Probed: true, Pushed: false, Branch: "feat/x", AheadOfBase: 1}
+	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeSucceeded, Git: git}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	oneBlock(t, fc)
+}
+
+// TestReport_SupervisorInline_DurablePush_NotBlocked is the escape valve: an inline-tagged
+// node that ACTUALLY pushed durable work (an N2 misclassification of a real code task) is
+// NOT blocked — it flows through the normal success/judgment path.
+func TestReport_SupervisorInline_DurablePush_NotBlocked(t *testing.T) {
+	fc := &fakeCenter{}
+	wb, _ := newWB(t, fc, inlineInput("e1"))
+	git := &executor.FinalizedGitStatus{Probed: true, Pushed: true, Branch: "feat/x", AheadOfBase: 1}
+	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeSucceeded, Git: git}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	// Durable push escapes the block → normal success path delivers a judgment, no block.
+	oneInjection(t, fc)
+}
+
+// TestReport_ExecutorFork_Failed_Unchanged: a normal executor_fork failure is UNCHANGED —
+// judged (retryable), never auto-blocked (the center-side fruitless_reopens cap bounds it).
+func TestReport_ExecutorFork_Failed_Unchanged(t *testing.T) {
+	fc := &fakeCenter{}
+	in := baseInput("e1")
+	in.DispatchMode = executor.DispatchModeExecutorFork
+	wb, _ := newWB(t, fc, in)
+	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeFailed, Error: &executor.ErrorDetail{Kind: "k", Message: "m"}}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	oneInjection(t, fc) // judged, not blocked
+}
+
+// TestReport_EmptyMode_Unchanged is the default-no-change lock: with DispatchMode unset
+// (legacy / pre-N2), a failure is judged exactly as before — ZERO behavior change.
+func TestReport_EmptyMode_Unchanged(t *testing.T) {
+	fc := &fakeCenter{}
+	wb, _ := newWB(t, fc, baseInput("e1")) // baseInput leaves DispatchMode ""
+	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeFailed, Error: &executor.ErrorDetail{Kind: "k", Message: "m"}}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	oneInjection(t, fc)
+}
