@@ -94,7 +94,14 @@ func probeGitStatus(ctx context.Context, runner GitRunner, dir, baseRef string) 
 	if err != nil {
 		return gs
 	}
-	gs.HeadSHA = strings.TrimSpace(head)
+	sha := strings.TrimSpace(head)
+	if sha == "" {
+		// No resolvable HEAD sha (empty output, no error) — not a judgeable git worktree.
+		// A real repo returns a sha or errors; treat empty as "can't judge" (Probed=false)
+		// so the delivery gate trusts rather than downgrading a non-git run to non-delivery.
+		return gs
+	}
+	gs.HeadSHA = sha
 	gs.Probed = true
 	if br, berr := runner.Run(ctx, dir, env, "rev-parse", "--abbrev-ref", "HEAD"); berr == nil {
 		if b := strings.TrimSpace(br); b != "HEAD" { // "HEAD" ⇒ detached, no branch name

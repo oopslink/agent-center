@@ -600,29 +600,33 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 	if gs == nil || !gs.Probed {
 		return c // plain-dir / non-git / unresolvable workspace → cannot judge → trust
 	}
-	if gs.HasDelivery() {
-		return c // a commit past base / dirty tree / pushed HEAD → genuinely delivered
+	// DURABLE-DELIVERY criterion (issue-f30b7e7b N3): a genuine success must have its work
+	// PUSHED — durable off this (about-to-be-reaped) worktree. The prior gate trusted ANY
+	// commit past base (HasDelivery = ahead||dirty||pushed), which let the review-only bug
+	// slip through: that executor COMMITS (ahead>0) but never PUSHES, so the commit dies with
+	// the reaped worktree — "committed ≠ delivered". Requiring Pushed closes that blind spot.
+	if gs.Pushed {
+		return c // pushed HEAD → work is durably delivered off-machine → genuine success
 	}
-	if !gs.BaseKnown {
-		// A real git worktree but the base could not be resolved (deleted / never fetched),
-		// so "ahead of base" is unknown — refuse to block on a guess. Log it so an operator
-		// can see the gate abstained rather than silently trusting.
-		m.log("DELIVERY-UNVERIFIABLE executor=%s task=%s: reported success in a git worktree "+
-			"(branch=%s head=%s) but base ref %q did not resolve — cannot mechanically confirm "+
-			"delivery, trusting reported success", c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.BaseRef)
-		return c
-	}
-	// Probed + base known + no commit past base + clean + not pushed ⇒ proven zero delivery.
-	m.log("NON-DELIVERY executor=%s task=%s: reported SUCCESS but produced NO git side effect "+
-		"(branch=%s head=%s base=%s ahead=0 dirty=false pushed=false) — refusing to complete; "+
-		"downgrading to retryable non_delivery block (issue-37015227 ②)",
-		c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.BaseRef)
+	// Probed && !Pushed: committed-but-not-pushed, dirty, or nothing produced — no DURABLE
+	// delivery. Any work lives only in this worktree and is lost on reap. Refuse to let the
+	// executor's self-reported success reach the center/judge as a real delivery (that was
+	// the "commit 完即自认 done, 零可评审交付" false-success). Retryable-vs-auto-block is
+	// decided DOWNSTREAM in the writeback (N4), not here — this only marks non-delivery.
+	// An un-fetched remote also reads as not-pushed; that is the delivery-audit SAFE side (the
+	// supervisor judgment still verifies), preferred over trusting a maybe-unpushed run.
+	m.log("NON-DELIVERY executor=%s task=%s: reported SUCCESS but produced NO DURABLE delivery "+
+		"(branch=%s head=%s ahead=%d dirty=%t pushed=false) — HEAD not pushed, work would die with "+
+		"the reaped worktree; refusing to complete, downgrading to non_delivery (issue-f30b7e7b N3, "+
+		"extends issue-37015227 ②)",
+		c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.AheadOfBase, gs.Dirty)
 	c.Kind = OutcomeCrashed
 	c.Retryable = true
 	c.Error = &ErrorDetail{
 		Kind: "non_delivery",
-		Message: "executor reported success but produced no real delivery: HEAD did not advance " +
-			"past base, working tree clean, nothing pushed — treated as non-delivery (retryable)",
+		Message: "executor reported success but produced no durable delivery: HEAD was never " +
+			"pushed (committed-but-unpushed work dies with the reaped worktree) — treated as " +
+			"non-delivery",
 	}
 	return c
 }

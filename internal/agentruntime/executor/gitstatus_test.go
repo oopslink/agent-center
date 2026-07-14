@@ -234,19 +234,23 @@ func TestMonitor_Finalize_NonDeliveryGate(t *testing.T) {
 	}
 }
 
-// TestMonitor_Finalize_RealDeliveryStaysSucceeded is the inverse lock: a success that DID
-// produce a commit past base is left as OutcomeSucceeded (the gate only blocks proven
-// zero-delivery, never real work).
-func TestMonitor_Finalize_RealDeliveryStaysSucceeded(t *testing.T) {
+// TestMonitor_Finalize_PushedDeliveryStaysSucceeded is the inverse lock: a success whose
+// work is DURABLY delivered — committed AND pushed (HEAD present on a remote-tracking
+// branch) — is left as OutcomeSucceeded. The durable-delivery criterion (issue-f30b7e7b N3)
+// requires the push, not just a commit.
+func TestMonitor_Finalize_PushedDeliveryStaysSucceeded(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id := "exec-delivered"
 	ws := f.setupExecutorWorktree(t, id)
-	// The executor committed real work: HEAD advances past base.
+	// The executor committed real work AND pushed it: HEAD lands on a remote-tracking branch.
 	if err := os.WriteFile(filepath.Join(ws, "delivered.txt"), []byte("real\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	runGitIn(t, f.git, ws, "add", "-A")
 	runGitIn(t, f.git, ws, "commit", "-q", "-m", "delivered")
+	// Simulate a push: put HEAD on a remote-tracking ref so `branch -r --contains HEAD`
+	// reports it (Pushed=true) without needing a real remote.
+	runGitIn(t, f.git, ws, "update-ref", "refs/remotes/origin/executor/"+id, "HEAD")
 
 	must(t, f.mon.Finalize(context.Background(), Completion{
 		ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id),
@@ -254,9 +258,56 @@ func TestMonitor_Finalize_RealDeliveryStaysSucceeded(t *testing.T) {
 
 	reps := f.wb.reports
 	if len(reps) != 1 || reps[0].Kind != OutcomeSucceeded {
-		t.Fatalf("real delivery must stay succeeded, reports=%v", f.wb.kinds())
+		t.Fatalf("durable (pushed) delivery must stay succeeded, reports=%v", f.wb.kinds())
 	}
 	if f.loggedContains("NON-DELIVERY") {
-		t.Errorf("a real delivery must not be logged as non-delivery, logs=%v", f.logs)
+		t.Errorf("a durable delivery must not be logged as non-delivery, logs=%v", f.logs)
+	}
+}
+
+// TestMonitor_Finalize_CommittedButUnpushed_Downgraded is the issue-f30b7e7b N3 blind-spot
+// regression lock: an executor that COMMITTED real work (HEAD past base) but never PUSHED it
+// self-reports success — but the commit dies with the reaped worktree, so it delivered
+// NOTHING durable. The prior gate (HasDelivery = ahead>0) TRUSTED this (the review-only
+// false-success); the durable criterion (Probed && !Pushed) must downgrade it to
+// non_delivery + RETAIN the worktree.
+func TestMonitor_Finalize_CommittedButUnpushed_Downgraded(t *testing.T) {
+	f := newFinalizeGateFixture(t)
+	id := "exec-unpushed"
+	ws := f.setupExecutorWorktree(t, id)
+	// Committed, but NOT pushed (no remote-tracking ref).
+	if err := os.WriteFile(filepath.Join(ws, "work.txt"), []byte("committed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runGitIn(t, f.git, ws, "add", "-A")
+	runGitIn(t, f.git, ws, "commit", "-q", "-m", "committed-not-pushed")
+
+	must(t, f.mon.Finalize(context.Background(), Completion{
+		ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id),
+	}))
+
+	reps := f.wb.reports
+	if len(reps) != 1 {
+		t.Fatalf("writeback got %d reports, want 1", len(reps))
+	}
+	got := reps[0]
+	if got.Kind != OutcomeCrashed || !got.Retryable {
+		t.Errorf("committed-but-unpushed must be downgraded to retryable non-delivery, Kind=%q retryable=%v", got.Kind, got.Retryable)
+	}
+	if got.Error == nil || got.Error.Kind != "non_delivery" {
+		t.Errorf("expected non_delivery error, got %+v", got.Error)
+	}
+	// The committed work IS carried to the center (Completion.Git) so the writeback/center
+	// can see it was committed-but-unpushed (ahead>0, pushed=false).
+	if got.Git == nil || got.Git.Pushed || got.Git.AheadOfBase == 0 {
+		t.Errorf("Completion.Git must show committed-but-unpushed (ahead>0, pushed=false), got %+v", got.Git)
+	}
+	if !f.loggedContains("NON-DELIVERY") {
+		t.Errorf("expected fail-loud NON-DELIVERY log, logs=%v", f.logs)
+	}
+	// Retryable ⇒ worktree RETAINED (so the supervisor can still push the commit).
+	d, _ := f.fx.Layout().Dir(id)
+	if _, err := os.Stat(d); err != nil {
+		t.Errorf("downgraded run must RETAIN the executor dir, stat: %v", err)
 	}
 }

@@ -175,7 +175,10 @@ func TestMonitor_Finalize_CarriesGitStatusToWriteback(t *testing.T) {
 		"status --porcelain":          "",  // clean — work was committed, nothing dangling
 		"branch -r --contains HEAD":   "",  // NOT on any remote → the never-pushed shape
 	}}
-	if err := f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded}); err != nil {
+	// Use a terminal Failed outcome so the git-carry (this test's subject) is isolated from
+	// the non-delivery gate (which only rewrites Succeeded — a never-pushed Succeeded would be
+	// downgraded, per N3). The git status rides ANY terminal outcome to the writeback.
+	if err := f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeFailed, Error: &ErrorDetail{Kind: "x", Message: "y"}}); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 
