@@ -493,7 +493,7 @@ export default function AppLayout(): React.ReactElement {
             })}
           </div>
 
-          {/* Rail bottom: alerts + connection status + user avatar */}
+          {/* Rail bottom: alerts + user avatar */}
           <div className="flex flex-col items-center gap-2">
             {/* Global "stuck" alerts — a task waiting on you, visible from any page. */}
             <button
@@ -526,7 +526,6 @@ export default function AppLayout(): React.ReactElement {
                 onClose={() => setAlertsPanelOpen(false)}
               />
             )}
-            <RailConnectionStatus />
             <button
               type="button"
               data-testid="sidebar-user"
@@ -1040,32 +1039,6 @@ function MobileSecondaryNavContent({
     return <CustomNav orgBase={orgBase} />;
   }
   return <DefaultModuleNav moduleId={moduleId} orgBase={orgBase} />;
-}
-
-// ============================================================================
-// RailConnectionStatus — SSE status indicator in the rail bottom
-// ============================================================================
-function RailConnectionStatus(): React.ReactElement {
-  const status = useAppStore((s) => s.sseStatus);
-  const dotColor =
-    status === 'open' ? 'bg-success'
-    : status === 'reconnecting' ? 'bg-warning'
-    : 'bg-danger';
-  const label =
-    status === 'open' ? 'Connected'
-    : status === 'reconnecting' ? 'Reconnecting…'
-    : status === 'closed' ? 'Disconnected'
-    : 'Idle';
-  return (
-    <div
-      data-testid="rail-connection"
-      data-status={status}
-      title={label}
-      className="flex items-center justify-center"
-    >
-      <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
-    </div>
-  );
 }
 
 // ============================================================================

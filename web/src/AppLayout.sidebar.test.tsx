@@ -3,7 +3,6 @@
 // sidebar, now scoped to the active module the rail selects).
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { useAppStore } from '@/store/app';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -353,10 +352,8 @@ describe('col② secondary nav — active-module group + sub-lists', () => {
     // custom route-aware nav now; see WorkspaceSecondaryNav.test.tsx.)
   });
 
-  it('rail shows connection status (bottom) + a user panel with theme + sign out (T105)', () => {
+  it('rail shows a user panel with theme + sign out (T105)', () => {
     renderShell('/channels');
-    // Connection status pinned to the col① rail bottom (above the user avatar).
-    expect(screen.getByTestId('rail-connection')).toBeInTheDocument();
     // Theme + sign out now live in the rail user popout (closed by default).
     expect(screen.queryByTestId('rail-user-panel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-signout')).not.toBeInTheDocument();
@@ -366,23 +363,6 @@ describe('col② secondary nav — active-module group + sub-lists', () => {
     expect(within(panel).getByTestId('theme-segment-dark')).toBeInTheDocument();
     expect(within(panel).getByTestId('sidebar-signout')).toBeInTheDocument();
     expect(within(panel).getByTestId('rail-account-link')).toHaveAttribute('href', '/me');
-  });
-
-  it('connection status dot + tooltip reflect the live SSE status (T105)', () => {
-    renderShell('/channels');
-    const node = screen.getByTestId('rail-connection');
-    act(() => useAppStore.setState({ sseStatus: 'open' }));
-    expect(node).toHaveAttribute('data-status', 'open');
-    expect(node).toHaveAttribute('title', 'Connected');
-    expect(node.querySelector('.bg-success')).not.toBeNull();
-    act(() => useAppStore.setState({ sseStatus: 'reconnecting' }));
-    expect(node).toHaveAttribute('data-status', 'reconnecting');
-    expect(node).toHaveAttribute('title', 'Reconnecting…');
-    expect(node.querySelector('.bg-warning')).not.toBeNull();
-    act(() => useAppStore.setState({ sseStatus: 'closed' }));
-    expect(node).toHaveAttribute('title', 'Disconnected');
-    expect(node.querySelector('.bg-danger')).not.toBeNull();
-    act(() => useAppStore.setState({ sseStatus: 'idle' })); // reset shared store
   });
 
   it('rail user panel opens on the avatar and closes on Escape (T105)', () => {
