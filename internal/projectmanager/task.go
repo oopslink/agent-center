@@ -521,6 +521,12 @@ func (t *Task) FruitlessReopens() int { return t.fruitlessReopens }
 // defense-in-depth counter); a completion / valid delivery zeroes it via Complete.
 func (t *Task) NoteFruitlessReopen() { t.fruitlessReopens++ }
 
+// ClearFruitlessReopens zeroes the no-progress reopen tally (issue-f30b7e7b D2): called
+// when the last run produced a valid durable delivery, so a run that DID make forward
+// progress does not carry a stale strike toward the circuit breaker. Complete() also
+// zeroes it; this is the mid-flight reset for a delivery-that-advanced-but-node-stuck.
+func (t *Task) ClearFruitlessReopens() { t.fruitlessReopens = 0 }
+
 // IsArchived reports the ORTHOGONAL archived state (v2.9 P3). Independent of
 // status: a task may be archived in any status.
 func (t *Task) IsArchived() bool { return t.archivedAt != nil }

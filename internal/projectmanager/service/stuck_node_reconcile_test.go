@@ -1,12 +1,107 @@
 package service
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
+
+// clearStuckTrackers drops all in-memory stuck-node trackers — simulates a center restart
+// (the trackers are in-memory; only Task.FruitlessReopens is durable). issue-f30b7e7b D2.
+func (f stuckNodeFixture) clearStuckTrackers() {
+	f.h.svc.stuckMu.Lock()
+	f.h.svc.stuckTrackers = nil
+	f.h.svc.stuckMu.Unlock()
+}
+
+// bumpFruitless persists n fruitless-reopen strikes onto the task (accrued before a restart).
+func (f stuckNodeFixture) bumpFruitless(t *testing.T, n int, d *pm.Delivery) {
+	t.Helper()
+	tk := f.task(t)
+	for i := 0; i < n; i++ {
+		tk.NoteFruitlessReopen()
+	}
+	if d != nil {
+		tk.SetDelivery(d)
+	}
+	if err := f.h.tasks.Update(f.h.ctx, tk); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+}
+
+// driveToBlockOrReopen advances sweeps until the task is blocked (triage) or gives up.
+func (f stuckNodeFixture) driveToBlock(t *testing.T) string {
+	t.Helper()
+	f.h.clk.Advance(DefaultExecutionLeaseTTL + time.Minute)
+	for i := 0; i < 8; i++ {
+		f.h.clk.Advance(4 * time.Minute)
+		f.sweep(t)
+		if r := f.task(t).BlockedReason(); r != "" {
+			return r
+		}
+	}
+	return ""
+}
+
+// TestStuckNode_FruitlessReopens_DurableAcrossRestart is the issue-f30b7e7b D2 gap-(a) lock:
+// the reopen circuit breaker reads the DURABLE Task.FruitlessReopens, so a tally already at
+// R_max (accrued before a center restart) trips the breaker even with a FRESH (empty)
+// in-memory tracker — where the old in-memory count would have reset to 0 and looped forever.
+func TestStuckNode_FruitlessReopens_DurableAcrossRestart(t *testing.T) {
+	f := setupStuckNode(t, "agent:restart")
+	f.bumpFruitless(t, StuckNodeMaxAutoReopens, nil) // durable tally already at the cap
+	f.clearStuckTrackers()                           // fresh process — no in-memory count
+
+	if reason := f.driveToBlock(t); reason == "" {
+		t.Fatal("durable fruitless_reopens at R_max did not trip the breaker after a restart (gap-a: in-memory count reset)")
+	}
+	if got := f.nodeStatus(t); got == orch.NodeReopen {
+		t.Fatal("node REOPENED despite the durable count being at R_max — breaker read the reset in-memory count")
+	}
+	if tk := f.task(t); tk.BlockedReasonType() != pm.BlockReasonObstacle {
+		t.Fatalf("block reasonType = %q, want obstacle (triage)", tk.BlockedReasonType())
+	}
+}
+
+// TestStuckNode_FruitlessReopens_ValidDeliveryResets: a run that made forward progress (a
+// valid PUSHED delivery) CLEARS the fruitless tally on reopen — a delivering-but-node-stuck
+// run must not carry a stale strike toward the breaker (issue-f30b7e7b D2, delivery-aware).
+func TestStuckNode_FruitlessReopens_ValidDeliveryResets(t *testing.T) {
+	f := setupStuckNode(t, "agent:delivered")
+	f.bumpFruitless(t, 1, &pm.Delivery{Probed: true, Pushed: true, Branch: "ac-exec/w/e1", HeadSHA: "abc123", AheadOfBase: 1, BaseKnown: true})
+
+	f.h.clk.Advance(DefaultExecutionLeaseTTL + time.Minute)
+	f.sweep(t)         // bootstrap
+	f.driveToReopen(t) // confirmed-dead → reopen (tally reset because the delivery was valid)
+	if got := f.nodeStatus(t); got != orch.NodeReopen {
+		t.Fatalf("node = %q, want reopen", got)
+	}
+	if n := f.task(t).FruitlessReopens(); n != 0 {
+		t.Fatalf("a valid pushed delivery must RESET the fruitless tally on reopen, got %d", n)
+	}
+}
+
+// TestStuckNode_TriageSurfacesRetainedWorktree is the P1-C lock (issue-f30b7e7b D2): when the
+// breaker trips and the last executor left committed-but-unpushed work, the triage-block
+// reason names the RETAINED branch so a human can push it / investigate before discarding.
+func TestStuckNode_TriageSurfacesRetainedWorktree(t *testing.T) {
+	f := setupStuckNode(t, "agent:unpushed")
+	f.bumpFruitless(t, StuckNodeMaxAutoReopens, &pm.Delivery{Probed: true, Pushed: false, Branch: "ac-exec/w/e9", HeadSHA: "deadbeef", AheadOfBase: 3, BaseKnown: true})
+	f.clearStuckTrackers()
+
+	reason := f.driveToBlock(t)
+	if reason == "" {
+		t.Fatal("did not block for triage")
+	}
+	for _, want := range []string{"committed-but-unpushed", "ac-exec/w/e9", "RETAINED"} {
+		if !strings.Contains(reason, want) {
+			t.Errorf("triage reason must surface the retained worktree (%q missing): %q", want, reason)
+		}
+	}
+}
 
 // ============================================================================
 // issue-6ff12523 — the THIRD auto trigger for reopenStuckPlanNode: the periodic
