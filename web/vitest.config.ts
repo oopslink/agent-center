@@ -17,6 +17,11 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // The heavy whole-app render tests already self-select `}, 20000)` per-test
+    // timeouts; make that the default so a multi-`findBy` test can absorb the
+    // raised 5s asyncUtilTimeout (see setup.ts) under full-parallel load without
+    // racing the stock 5000ms test timeout. Fast tests are unaffected.
+    testTimeout: 20000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json-summary'],

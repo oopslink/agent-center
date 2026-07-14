@@ -33,8 +33,8 @@ describe('MembersSegmentControl (mobile Humans/Agents switch)', () => {
     wrap(<MembersSegmentControl active="agents" />);
     const humans = screen.getByTestId('members-seg-humans');
     const agents = screen.getByTestId('members-seg-agents');
-    expect(humans.getAttribute('href')).toContain('/members/humans');
-    expect(agents.getAttribute('href')).toContain('/agents');
+    expect(humans.getAttribute('href')).toContain('/teams/humans');
+    expect(agents.getAttribute('href')).toContain('/teams/agents');
     expect(agents).toHaveAttribute('data-active', 'true');
     expect(humans).toHaveAttribute('data-active', 'false');
     expect(agents).toHaveAttribute('aria-selected', 'true');

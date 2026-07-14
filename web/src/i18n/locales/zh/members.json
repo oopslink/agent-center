@@ -568,6 +568,11 @@
       "disable": "确定禁用该成员吗？",
       "reEnable": "确定重新启用该成员吗？"
     },
+    "disable": {
+      "reason": "管理员禁用",
+      "error": "禁用该成员失败，请重试。",
+      "reEnableError": "重新启用该成员失败，请重试。"
+    },
     "new": {
       "addAgent": "添加智能体",
       "addUser": "添加用户",

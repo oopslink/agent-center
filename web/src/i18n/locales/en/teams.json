@@ -1,0 +1,343 @@
+{
+  "teamsCell": {
+    "unassigned": "Unassigned"
+  },
+  "common": {
+    "teamFilterAll": "By team: all",
+    "loading": "Loading…",
+    "loadFailed": "Failed to load: {{error}}",
+    "cancel": "Cancel",
+    "close": "Close",
+    "back": "Back"
+  },
+  "agents": {
+    "title": "Agents",
+    "searchPlaceholder": "Search agents (name / role)…",
+    "count": "{{working}} working · {{total}} total",
+    "addAgent": "+ Add Agent",
+    "filter": {
+      "all": "All {{count}}",
+      "working": "Working {{count}}",
+      "idle": "Idle {{count}}"
+    },
+    "empty": {
+      "title": "No matching agents",
+      "body": "Try a different search or filter."
+    },
+    "note": "Large lists live in the main area (searchable, filterable by status / team) instead of the narrow rail — so a growing agent roster never crowds the secondary nav.",
+    "runtime": {
+      "working": "Working",
+      "idle": "Idle"
+    },
+    "col": {
+      "agent": "Agent",
+      "runtimeStatus": "Runtime",
+      "lifecycle": "Lifecycle",
+      "orgRole": "Org role",
+      "membership": "Membership",
+      "teams": "Teams",
+      "model": "Model",
+      "load": "Load",
+      "backlog": "Backlog",
+      "worker": "Running on",
+      "lastActive": "Last active"
+    }
+  },
+  "humans": {
+    "title": "Humans",
+    "searchPlaceholder": "Search humans (name / email)…",
+    "filter": {
+      "all": "All {{count}}",
+      "joined": "Joined {{count}}"
+    },
+    "empty": {
+      "title": "No matching humans",
+      "body": "Try a different search or filter."
+    },
+    "note": "A human can belong to multiple teams (unlike an agent, which is exclusive to one) — the TEAMS column shows every team they belong to, and the top bar can filter by team.",
+    "col": {
+      "identity": "Identity",
+      "orgRole": "Org role",
+      "teamRole": "Team role",
+      "membership": "Membership",
+      "invite": "Invite",
+      "teams": "Teams",
+      "email": "Email",
+      "created": "Created",
+      "lastActive": "Last active"
+    }
+  },
+  "teamsList": {
+    "title": "Teams",
+    "newTeam": "New Team",
+    "empty": {
+      "title": "No teams yet",
+      "body": "Create your first squad — declare the role mix and team-memory (Phase-1 does not mint agents; they are enrolled at runtime).",
+      "action": "+ New Team"
+    },
+    "col": {
+      "team": "Team",
+      "roles": "Roles",
+      "members": "Members",
+      "projects": "Projects",
+      "status": "Status",
+      "created": "Created"
+    }
+  },
+  "teamDetail": {
+    "backToTeams": "← Teams",
+    "notFound": "team_not_found",
+    "tabs": {
+      "overview": "Overview",
+      "members": "Members",
+      "projects": "Linked projects",
+      "memory": "Team Memory"
+    },
+    "membersRoles": "{{members}} members · {{roles}} roles",
+    "projectsCount": "{{count}} projects",
+    "createdAt": "created {{date}}",
+    "extractToTemplate": "Extract → Template",
+    "memoryHeading": "⌗ team-memory",
+    "overview": {
+      "roleMix": "Role mix",
+      "roleMixHint": "declarative slots",
+      "roleSpec": "{{cli}} · {{model}} · conc {{conc}}",
+      "summary": "Team overview",
+      "summaryHint": "structure + team-memory",
+      "enrolledMembers": "Enrolled members",
+      "declaredRoles": "Declared roles",
+      "linkedProjects": "Linked projects",
+      "teamMemory": "team-memory",
+      "memoryEntries": "{{count}} entries",
+      "runningTasks": "Running tasks",
+      "blockedTasks": "Blocked tasks",
+      "healthNote": "Running / blocked tasks and member presence are live runtime telemetry; Phase-1 has not wired the facade aggregate yet — real values land once it is connected (showing — for now)."
+    },
+    "members": {
+      "title": "Members",
+      "addMember": "+ Add member",
+      "exclusivityNote": "<b>Exclusivity rule:</b> an agent belongs to exactly one team at a time (adding one already elsewhere → a second migration confirm); a human may join many teams.",
+      "emptyTitle": "No members yet",
+      "emptyBody": "Click + Add member to enroll an agent / human into a declared role.",
+      "colMember": "Member",
+      "colKind": "Type",
+      "colDeclaredRole": "Declared role",
+      "colCliModel": "CLI / Model",
+      "colTags": "Tags",
+      "colConcurrency": "Concurrency",
+      "exclusiveTag": "exclusive",
+      "remove": "Remove",
+      "removeTitle": "Remove member",
+      "removeMessage": "Remove {{ref}} from this team?",
+      "removeConfirm": "Remove"
+    },
+    "projects": {
+      "title": "Linked projects",
+      "associate": "+ Associate project",
+      "emptyTitle": "No linked projects",
+      "emptyBody": "Once a project is linked, this team's members can be assigned its tasks.",
+      "unlink": "Unlink",
+      "note": "Once a project is linked, this team's members can be assigned its tasks; team-memory is visible in the project context.",
+      "unlinkTitle": "Unlink project",
+      "unlinkMessage": "Unlink this project? Members will no longer be assigned its tasks.",
+      "unlinkConfirm": "Unlink",
+      "pickerTitle": "Associate project",
+      "pickerSubtitle": "Pick one of the org's projects to link to this team; members can then be assigned its tasks.",
+      "associating": "Associating…",
+      "associateAction": "Associate",
+      "selectLabel": "Select project",
+      "selectPlaceholder": "— select a project —",
+      "selectOption": "{{name}} ({{id}})",
+      "pickerEmptyTitle": "No projects to associate",
+      "pickerEmptyBody": "Every active project in the org is already linked, or there are none yet."
+    }
+  },
+  "templates": {
+    "title": "Team Templates",
+    "import": "Import",
+    "extractFromTeam": "Extract from team",
+    "emptyTitle": "No templates yet",
+    "emptyBody": "Extract a blueprint from a team, or import a cross-org template JSON.",
+    "instantiate": "Instantiate",
+    "details": "Details",
+    "export": "Export",
+    "importModal": {
+      "title": "Import team template",
+      "subtitle": "Paste an exported team-template/v1 JSON envelope; importing re-homes it to this org (curated=false).",
+      "invalidJson": "Not valid JSON",
+      "importing": "Importing…",
+      "submit": "Import",
+      "jsonLabel": "Template JSON"
+    }
+  },
+  "templateDetail": {
+    "backToTemplates": "← Templates",
+    "notFound": "template_not_found",
+    "tabs": {
+      "overview": "Overview",
+      "seedMemory": "Seed Memory",
+      "curation": "Curation & source",
+      "instances": "Instances"
+    },
+    "sourcePrefix": "Source: {{source}}",
+    "slotsRoles": "{{slots}} slots · {{roles}} roles",
+    "instancesCount": "{{count}} instances",
+    "exportJson": "Export JSON",
+    "instantiate": "Instantiate",
+    "seedMemoryHint": "seeded into the new team's memory-repo on instantiate · curated · read-only preview",
+    "seedMemoryHeading": "⌗ template seed",
+    "riskHigh": "high",
+    "riskMed": "med",
+    "riskLow": "low",
+    "overview": {
+      "roleMix": "Role mix",
+      "roleMixHint": "count adjustable on instantiate",
+      "roleSpec": "{{cli}} · {{model}} · conc {{conc}}",
+      "info": "Template info",
+      "infoHint": "provenance",
+      "version": "Version",
+      "source": "Source",
+      "workflowRef": "workflow-ref",
+      "curation": "curation",
+      "gated": "gated",
+      "notGated": "not gated",
+      "instances": "Instances",
+      "instancesValue": "{{count}} teams",
+      "note": "Instantiate builds a team from this mix, declares the role slots, seeds the Seed Memory into the new team's memory-repo, and binds the workflow-ref. <b>Phase-1 does not mint agent identities</b> (enrolled at runtime), <b>is project-independent</b>, and project linkage comes later. {{slots}} slots total."
+    },
+    "curation": {
+      "title": "Curation & source",
+      "hint": "per-token disposition at extract time (audit read-only)",
+      "note": "This template was extracted from <b>{{source}}</b>. The suspected proprietary tokens below were curated one by one: <danger>placeholder</danger> = replaced with a placeholder, <success>kept</success> = kept after human confirmation.",
+      "keptBadge": "kept",
+      "placeheldBadge": "placeheld"
+    },
+    "instances": {
+      "title": "Instances",
+      "hint": "teams instantiated from this template",
+      "emptyTitle": "No instances yet",
+      "emptyBody": "No team has been instantiated from this template yet.",
+      "open": "Open"
+    }
+  },
+  "newTeamModal": {
+    "title": "New Team",
+    "subtitle": "Declare the role mix — configure CLI / model / tags / concurrency per role. Creating declares the role slots and a memory-repo (Phase-1 does not mint agent identities; they are enrolled at runtime).",
+    "footerHint": "After creation → declared role slots + team-memory repo (agents enrolled at runtime)",
+    "creating": "Creating…",
+    "submit": "Create Team",
+    "nameLabel": "Team name",
+    "namePlaceholder": "e.g. payments-squad",
+    "visibilityLabel": "Visibility",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What is this squad responsible for…",
+    "roleMixLabel": "Role mix",
+    "slotsSummary": "Σ {{slots}} slots = {{slots}} agents derived"
+  },
+  "instantiateModal": {
+    "title": "Instantiate template",
+    "subtitle": "Instantiate <b>{{name}}</b> into a team. <b>Project-independent</b> — build the team + declare role slots by the mix + seed memory + bind the workflow; <b>Phase-1 does not mint agent identities</b> (enrolled at runtime), and projects are linked later under the detail's “Linked projects”.",
+    "instantiating": "Instantiating…",
+    "submit": "Instantiate →",
+    "nameLabel": "New team name",
+    "roleMixLabel": "Role mix",
+    "roleMixHint": "(carried from the template; count / cli / model / concurrency / tags adjustable)",
+    "slotsSummary": "Σ {{total}} slots → {{total}} role slots declared",
+    "summaryLabel": "Instantiate will do (project-independent)",
+    "declaredSlots": "Declared role slots",
+    "declaredSlotsValue": "{{total}} · {{breakdown}}",
+    "unnamed": "unnamed",
+    "memoryRepo": "Build memory-repo",
+    "memoryRepoValue": "seed MEMORY.md from the template",
+    "bindWorkflow": "Bind workflow",
+    "bindWorkflowValue": "team-level · project-independent",
+    "agentIdentity": "Agent identity",
+    "agentIdentityValue": "Phase-1 not minted · enrolled at runtime",
+    "projectLink": "Project link",
+    "projectLinkValue": "later → detail “Linked projects” (0..N)",
+    "footnote": "＊ Instantiate only builds the team and role declarations, <b>not agent identities</b> (Phase-1 facade mints 0 agents; members are enrolled at runtime); project-related work (seeding project facts into the team repo, actually running a plan) is deferred to <code>associate_project</code>; workflow binding does not depend on a project."
+  },
+  "addMemberModal": {
+    "errIdentityNotFound": "This agent / human no longer exists or was deactivated; please re-select.",
+    "errInvalidInput": "Invalid member identifier.",
+    "errConflict": "This agent is already on another team; please refresh and retry.",
+    "errNotFound": "The source info is stale (this member is no longer on the original team); please refresh and retry.",
+    "errDefault": "Operation failed, please retry.",
+    "migrateTitle": "Confirm migration",
+    "migrateSubtitle": "<b>{{name}}</b> is currently an exclusive member of <b>{{from}}</b>.",
+    "migrateConfirm": "Confirm migration",
+    "migrateWarning": "An agent is exclusive to one team. Joining this team will <b>move it out of {{from}}</b>; its running tasks on the original team must be wrapped up / reassigned first.",
+    "migrateMovedOut": "Moved out of",
+    "migrateMovedIn": "Moved into",
+    "migrateRunningTasks": "Original team's running tasks",
+    "migrateRunningTasksValue": "wrap up / reassign first",
+    "migrateError": "Migration failed: {{message}}",
+    "title": "Add member",
+    "subtitle": "Enroll an agent or human into a declared role.",
+    "add": "Add",
+    "kindLabel": "Type",
+    "kindAgent": "Agent",
+    "kindHuman": "Human",
+    "emptyAgentTitle": "No agent to enroll",
+    "emptyAgentBody": "Every agent in the org is already on this team, or there are none yet.",
+    "emptyHumanTitle": "No human to enroll",
+    "emptyHumanBody": "Every human in the org is already on this team, or there are none yet.",
+    "selectAgent": "Select agent",
+    "selectAgentHintMigrate": "<b>{{name}} is currently on {{from}}</b> — an agent is exclusive to one team; Add pops a migration confirm.",
+    "selectAgentHint": "Picking an agent already on another team triggers a migration confirm (an agent is exclusive to one team).",
+    "onTeam": " (on {{team}})",
+    "free": " (free)",
+    "selectHuman": "Select human",
+    "selectHumanHint": "A human may belong to many teams.",
+    "roleLabel": "Assign role"
+  },
+  "extractModal": {
+    "title": "Extract → Template",
+    "subtitle": "Extract a blueprint from <b>{{name}}</b>. Suspected proprietary tokens have been scanned — each must be curated to pass the gate before saving (no bulk select, to prevent leaks).",
+    "stepSelectSource": "Select source",
+    "stepScrubCurate": "Scrub / Curate",
+    "stepNameSave": "Name & save",
+    "note": "Scanned <b>{{count}}</b> suspected proprietary spots. Default actions are pre-selected; please confirm <b>each one</b>. <danger>red = remove</danger> · <success>green = keep</success>.",
+    "scanning": "Scanning…",
+    "removePlaceholder": "Remove (placeholder)",
+    "keep": "Keep",
+    "riskHigh": "high",
+    "riskMed": "med",
+    "riskLow": "low",
+    "gateScanningTitle": "Scanning…",
+    "gateScanningBody": " — identifying suspected proprietary tokens, hold on.",
+    "gatePassedTitle": "Curation cleared",
+    "gatePassedBody": " — no high-risk left. {{kept}} kept / {{scrubbed}} placeheld.",
+    "gateBlockedTitle": "Gate not passed",
+    "gateBlockedBody": " — still keeping {{count}} high-risk token(s); placehold them first.",
+    "count": "{{scrubbed}} scrubbed · {{kept}} kept",
+    "saveScanning": "Scanning…",
+    "saveBlocked": "Resolve high-risk first",
+    "saving": "Saving…",
+    "save": "Save as template →",
+    "templateNameSuffix": "{{name}} template",
+    "templateDescription": "Blueprint extracted from {{name}}.",
+    "templateSource": "extracted from {{id}}"
+  },
+  "roleBuilder": {
+    "roleNamePlaceholder": "Role name",
+    "decreaseCount": "decrease count",
+    "increaseCount": "increase count",
+    "agentCount": "agents",
+    "remove": "Remove",
+    "descriptionLabel": "Role description",
+    "descriptionPlaceholder": "What is this role responsible for… (written into team-memory)",
+    "cliLabel": "CLI",
+    "modelLabel": "Model",
+    "concurrencyLabel": "Concurrency",
+    "tagsLabel": "Tags (routing/skills)",
+    "tagsPlaceholder": "go, security, react …",
+    "addRole": "Add role"
+  },
+  "memoryPane": {
+    "pinned": "pinned",
+    "lazy": "lazy",
+    "raw": "Raw",
+    "copyPath": "Copy path"
+  }
+}

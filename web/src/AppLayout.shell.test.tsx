@@ -56,7 +56,7 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     const rail = screen.getByRole('navigation', { name: /^modules$/ });
     expect(within(rail).getByTestId('rail-module-workspace')).toBeInTheDocument();
     expect(within(rail).getByTestId('rail-module-conversations')).toBeInTheDocument();
-    expect(within(rail).getByTestId('rail-module-members')).toBeInTheDocument();
+    expect(within(rail).getByTestId('rail-module-teamui')).toBeInTheDocument();
     expect(within(rail).getByTestId('rail-module-system')).toBeInTheDocument();
     // col② — the active module's secondary nav.
     expect(screen.getByRole('navigation', { name: /^primary$/ })).toBeInTheDocument();
@@ -70,7 +70,7 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     renderShell('/channels');
     expect(screen.getByTestId('rail-module-workspace')).toHaveAttribute('href', '/projects');
     expect(screen.getByTestId('rail-module-conversations')).toHaveAttribute('href', '/channels');
-    expect(screen.getByTestId('rail-module-members')).toHaveAttribute('href', '/members/humans');
+    expect(screen.getByTestId('rail-module-teamui')).toHaveAttribute('href', '/teams');
     expect(screen.getByTestId('rail-module-system')).toHaveAttribute('href', '/environment');
     // On /channels the Conversations module is active.
     expect(screen.getByTestId('rail-module-conversations')).toHaveAttribute('data-active', 'true');
@@ -162,7 +162,7 @@ describe('AppLayout v5 shell (v2.10.0 [T1] — three-column module rail)', () =>
     const tabbar = screen.getByRole('navigation', { name: 'modules mobile' });
     expect(within(tabbar).getByTestId('tab-workspace')).toHaveAttribute('href', '/projects');
     expect(within(tabbar).getByTestId('tab-conversations')).toHaveAttribute('href', '/channels');
-    expect(within(tabbar).getByTestId('tab-members')).toHaveAttribute('href', '/members/humans');
+    expect(within(tabbar).getByTestId('tab-teamui')).toHaveAttribute('href', '/teams');
     expect(within(tabbar).getByTestId('tab-system')).toHaveAttribute('href', '/environment');
     // On /channels the Conversations tab is active.
     expect(within(tabbar).getByTestId('tab-conversations')).toHaveAttribute('data-active', 'true');

@@ -11,7 +11,7 @@ function Dot(): React.ReactElement {
 const MODULES: ReadonlyArray<TabBarModule> = [
   { id: 'workspace', label: 'Workspace', short: 'Work', defaultPath: 'projects', Icon: Dot },
   { id: 'conversations', label: 'Conversations', short: 'Chat', defaultPath: 'channels', Icon: Dot },
-  { id: 'members', label: 'Members', short: 'Members', defaultPath: 'members/humans', Icon: Dot },
+  { id: 'teamui', label: 'Teams', short: 'Teams', defaultPath: 'teams', Icon: Dot },
   { id: 'system', label: 'System', short: 'System', defaultPath: 'environment', Icon: Dot },
 ];
 
@@ -41,7 +41,7 @@ describe('MobileTabBar (v2.10.1 [M1] mobile bottom nav)', () => {
     const bar = screen.getByTestId('mobile-tabbar');
     expect(within(bar).getByTestId('tab-workspace')).toHaveAttribute('href', '/projects');
     expect(within(bar).getByTestId('tab-conversations')).toHaveAttribute('href', '/channels');
-    expect(within(bar).getByTestId('tab-members')).toHaveAttribute('href', '/members/humans');
+    expect(within(bar).getByTestId('tab-teamui')).toHaveAttribute('href', '/teams');
     expect(within(bar).getByTestId('tab-system')).toHaveAttribute('href', '/environment');
   });
 
@@ -51,9 +51,9 @@ describe('MobileTabBar (v2.10.1 [M1] mobile bottom nav)', () => {
   });
 
   it('marks the active module and aria-current="page"', () => {
-    renderBar('members');
-    expect(screen.getByTestId('tab-members')).toHaveAttribute('data-active', 'true');
-    expect(screen.getByTestId('tab-members')).toHaveAttribute('aria-current', 'page');
+    renderBar('teamui');
+    expect(screen.getByTestId('tab-teamui')).toHaveAttribute('data-active', 'true');
+    expect(screen.getByTestId('tab-teamui')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByTestId('tab-system')).toHaveAttribute('data-active', 'false');
   });
 

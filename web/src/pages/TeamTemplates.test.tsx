@@ -57,7 +57,7 @@ describe('TeamTemplates', () => {
     const modal = await screen.findByTestId('import-modal');
     fireEvent.change(within(modal).getByTestId('import-json'), { target: { value: 'not json' } });
     fireEvent.click(within(modal).getByTestId('import-submit'));
-    expect(await within(modal).findByTestId('import-error')).toHaveTextContent('不是合法 JSON');
+    expect(await within(modal).findByTestId('import-error')).toHaveTextContent('Not valid JSON');
 
     fireEvent.change(within(modal).getByTestId('import-json'), {
       target: { value: JSON.stringify({ name: 'imported-x', roles: [{ role: 'coder', count: 2 }] }) },

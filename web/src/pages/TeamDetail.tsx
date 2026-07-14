@@ -1,10 +1,11 @@
 // Team detail (/organizations/:slug/teams/:teamId) — 4 tabs:
-// Overview / Members / 关联项目 / Team Memory. Header carries the Extract →
+// Overview / Members / Linked projects / Team Memory. Header carries the Extract →
 // Template entry (one of the two extract entry points; the other is the
 // Templates page). Members enforces the agent-exclusivity migration confirm.
 import { useState } from 'react';
 import type React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
 import { useOptionalOrgContext } from '@/OrgContext';
 import {
   useAssociateProject,
@@ -47,15 +48,8 @@ import {
 } from '@/components/teams/teamsUi';
 import { roleColor, type TeamView } from '@/api/teams';
 
-const TABS = [
-  { key: 'ov', label: 'Overview' },
-  { key: 'mm', label: 'Members' },
-  { key: 'pj', label: '关联项目' },
-  { key: 'tm', label: 'Team Memory' },
-] as const;
-type TabKey = (typeof TABS)[number]['key'];
-
 export default function TeamDetail(): React.ReactElement {
+  const { t } = useTranslation('teams');
   const { teamId = '' } = useParams();
   const team = useTeam(teamId);
   const navigate = useNavigate();
@@ -63,6 +57,13 @@ export default function TeamDetail(): React.ReactElement {
   const orgBase = org ? `/organizations/${org.slug}` : '';
   const [tab, setTab] = useState<TabKey>('ov');
   const [extracting, setExtracting] = useState(false);
+
+  const TABS = [
+    { key: 'ov', label: t('teamDetail.tabs.overview') },
+    { key: 'mm', label: t('teamDetail.tabs.members') },
+    { key: 'pj', label: t('teamDetail.tabs.projects') },
+    { key: 'tm', label: t('teamDetail.tabs.memory') },
+  ] as const;
 
   if (team.isLoading) {
     return (
@@ -76,54 +77,54 @@ export default function TeamDetail(): React.ReactElement {
     return (
       <section data-testid="page-TeamDetail">
         <button type="button" className={btnGhost} onClick={() => navigate(`${orgBase}/teams`)}>
-          ← Teams
+          {t('teamDetail.backToTeams')}
         </button>
         <p className="mt-4 text-sm text-danger" data-testid="team-detail-error">
-          {(team.error as Error)?.message ?? 'team_not_found'}
+          {(team.error as Error)?.message ?? t('teamDetail.notFound')}
         </p>
       </section>
     );
   }
 
-  const t = team.data;
-  const roleNames = t.roles.map((r) => r.role);
+  const tv = team.data;
+  const roleNames = tv.roles.map((r) => r.role);
 
   return (
     <section className="space-y-2" data-testid="page-TeamDetail">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
-          <Glyph text={t.glyph} size="lg" />
+          <Glyph text={tv.glyph} size="lg" />
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="font-heading text-xl font-semibold text-text-primary">{t.name}</h1>
-              <StatusChip status={t.status} />
+              <h1 className="font-heading text-xl font-semibold text-text-primary">{tv.name}</h1>
+              <StatusChip status={tv.status} />
             </div>
             <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1 text-xs text-text-muted">
-              <span className="font-mono">{t.id}</span>
-              <span>{t.members_count} members · {t.roles.length} roles</span>
-              <span>{t.projects_count} projects</span>
-              <span>created {t.created}</span>
+              <span className="font-mono">{tv.id}</span>
+              <span>{t('teamDetail.membersRoles', { members: tv.members_count, roles: tv.roles.length })}</span>
+              <span>{t('teamDetail.projectsCount', { count: tv.projects_count })}</span>
+              <span>{t('teamDetail.createdAt', { date: tv.created })}</span>
             </div>
           </div>
         </div>
         <button type="button" className={btnGhost} data-testid="team-extract" onClick={() => setExtracting(true)}>
-          <ExtractIcon className="h-4 w-4" /> Extract → Template
+          <ExtractIcon className="h-4 w-4" /> {t('teamDetail.extractToTemplate')}
         </button>
       </div>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} testId="team-tabs" />
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'ov' && <OverviewPane team={t} />}
-        {tab === 'mm' && <MembersPane teamId={t.id} roleOptions={roleNames} team={t} />}
+        {tab === 'ov' && <OverviewPane team={tv} />}
+        {tab === 'mm' && <MembersPane teamId={tv.id} roleOptions={roleNames} team={tv} />}
         {/* panes below */}
-        {tab === 'pj' && <ProjectsPane teamId={t.id} />}
-        {tab === 'tm' && <MemoryPane teamId={t.id} heading="⌗ team-memory" />}
+        {tab === 'pj' && <ProjectsPane teamId={tv.id} />}
+        {tab === 'tm' && <MemoryPane teamId={tv.id} heading={t('teamDetail.memoryHeading')} />}
       </div>
 
       {extracting && (
         <ExtractModal
-          team={t}
+          team={tv}
           onClose={() => setExtracting(false)}
           onSaved={() => navigate(`${orgBase}/teams/templates`)}
         />
@@ -132,22 +133,26 @@ export default function TeamDetail(): React.ReactElement {
   );
 }
 
-function OverviewPane({ team: t }: { team: TeamView }): React.ReactElement {
+const TABS_KEYS = ['ov', 'mm', 'pj', 'tm'] as const;
+type TabKey = (typeof TABS_KEYS)[number];
+
+function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {
   // Only the structural facts (roles / members / projects) and the team-memory
   // index are truthful data sources in Phase-1. Live task/agent telemetry has no
   // team-scoped facade aggregate yet — show an honest "—" placeholder rather than
   // a fabricated constant (a fresh empty team must not read as "3 running tasks").
-  const memory = useTeamMemoryIndex(t.id);
+  const { t } = useTranslation('teams');
+  const memory = useTeamMemoryIndex(tv.id);
   const memoryEntries = memory.data?.length;
   const NA = <span className="text-text-muted">—</span>;
   return (
     <div className="grid gap-3.5 md:grid-cols-2">
       <Card>
-        <SectionHead title="角色配比" hint="声明式 slots" />
-        <RoleBar roles={t.roles} className="w-full" />
-        <RoleLegend roles={t.roles} />
+        <SectionHead title={t('teamDetail.overview.roleMix')} hint={t('teamDetail.overview.roleMixHint')} />
+        <RoleBar roles={tv.roles} className="w-full" />
+        <RoleLegend roles={tv.roles} />
         <div className="mt-3.5">
-          {t.roles.map((r) => (
+          {tv.roles.map((r) => (
             <SpecLine
               key={r.role}
               k={
@@ -156,25 +161,23 @@ function OverviewPane({ team: t }: { team: TeamView }): React.ReactElement {
                   {r.role} ×{r.count ?? 1}
                 </span>
               }
-              v={`${r.cli} · ${r.model} · conc ${r.max_concurrency}`}
+              v={t('teamDetail.overview.roleSpec', { cli: r.cli, model: r.model, conc: r.max_concurrency })}
             />
           ))}
         </div>
       </Card>
       <Card>
-        <SectionHead title="团队概况" hint="结构 + team-memory" />
-        <SpecLine k="已编入成员" v={`${t.members_count}`} />
-        <SpecLine k="声明角色" v={`${t.roles.length}`} />
-        <SpecLine k="关联项目" v={`${t.projects_count}`} />
+        <SectionHead title={t('teamDetail.overview.summary')} hint={t('teamDetail.overview.summaryHint')} />
+        <SpecLine k={t('teamDetail.overview.enrolledMembers')} v={`${tv.members_count}`} />
+        <SpecLine k={t('teamDetail.overview.declaredRoles')} v={`${tv.roles.length}`} />
+        <SpecLine k={t('teamDetail.overview.linkedProjects')} v={`${tv.projects_count}`} />
         <SpecLine
-          k="team-memory"
-          v={memory.isLoading ? NA : memoryEntries != null ? `${memoryEntries} entries` : NA}
+          k={t('teamDetail.overview.teamMemory')}
+          v={memory.isLoading ? NA : memoryEntries != null ? t('teamDetail.overview.memoryEntries', { count: memoryEntries }) : NA}
         />
-        <SpecLine k="运行中任务" v={NA} />
-        <SpecLine k="阻塞任务" v={NA} />
-        <Note testId="team-health-note">
-          运行中 / 阻塞任务、成员在线状态为实时运行遥测，Phase-1 尚未接入 facade 聚合，接入后填真值（暂显 —）。
-        </Note>
+        <SpecLine k={t('teamDetail.overview.runningTasks')} v={NA} />
+        <SpecLine k={t('teamDetail.overview.blockedTasks')} v={NA} />
+        <Note testId="team-health-note">{t('teamDetail.overview.healthNote')}</Note>
       </Card>
     </div>
   );
@@ -189,6 +192,7 @@ function MembersPane({
   roleOptions: string[];
   team: TeamView;
 }): React.ReactElement {
+  const { t } = useTranslation('teams');
   const members = useTeamMembers(teamId);
   const remove = useRemoveMember();
   const [adding, setAdding] = useState(false);
@@ -197,32 +201,32 @@ function MembersPane({
   return (
     <div>
       <SectionHead
-        title="Members"
+        title={t('teamDetail.members.title')}
         action={
           <button type="button" className={btnSmPrimary} data-testid="members-add" onClick={() => setAdding(true)}>
-            + Add member
+            {t('teamDetail.members.addMember')}
           </button>
         }
       />
       <Note testId="members-exclusivity-note">
-        <b>独占规则：</b>agent 同一时刻只属于一个 team（add 时若已在别处 → 二次确认迁移）；human 可同时多 team。
+        <Trans i18nKey="teamDetail.members.exclusivityNote" ns="teams" components={{ b: <b /> }} />
       </Note>
 
       {members.isLoading && <Skeleton height="8rem" />}
       {members.isSuccess && members.data.length === 0 && (
-        <EmptyState title="还没有成员" body="点 + Add member 把 agent / human 编入声明角色。" testId="members-empty" />
+        <EmptyState title={t('teamDetail.members.emptyTitle')} body={t('teamDetail.members.emptyBody')} testId="members-empty" />
       )}
       {members.isSuccess && members.data.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-border-base">
           <table className="w-full text-sm" data-testid="members-table">
             <thead>
               <tr className="border-b border-border-base text-left text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                <th className="px-4 py-3 font-semibold">成员</th>
-                <th className="px-4 py-3 font-semibold">类型</th>
-                <th className="px-4 py-3 font-semibold">声明角色</th>
-                <th className="px-4 py-3 font-semibold">CLI / Model</th>
-                <th className="px-4 py-3 font-semibold">Tags</th>
-                <th className="px-4 py-3 font-semibold">并发</th>
+                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colMember')}</th>
+                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colKind')}</th>
+                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colDeclaredRole')}</th>
+                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colCliModel')}</th>
+                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colTags')}</th>
+                <th className="px-4 py-3 font-semibold">{t('teamDetail.members.colConcurrency')}</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -240,7 +244,7 @@ function MembersPane({
                   </td>
                   <td className="px-4 py-3">
                     <KindTag kind={m.kind} />
-                    {m.exclusive && <span className="ml-1.5 text-[0.625rem] font-semibold text-warning">独占</span>}
+                    {m.exclusive && <span className="ml-1.5 text-[0.625rem] font-semibold text-warning">{t('teamDetail.members.exclusiveTag')}</span>}
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded border border-border-base bg-bg-subtle px-2 py-0.5 text-xs font-semibold" style={roleColorChip(m.role)}>
@@ -264,7 +268,7 @@ function MembersPane({
                   <td className="px-4 py-3 font-mono text-xs text-text-muted">{m.concurrency}</td>
                   <td className="px-4 py-3 text-right">
                     <button type="button" className={btnSmDanger} data-testid={`member-remove-${m.member_ref}`} onClick={() => setRemovingRef(m.member_ref)}>
-                      Remove
+                      {t('teamDetail.members.remove')}
                     </button>
                   </td>
                 </tr>
@@ -279,9 +283,9 @@ function MembersPane({
       )}
       <ConfirmModal
         open={removingRef !== null}
-        title="移除成员"
-        message={`确认把 ${removingRef} 移出本 team？`}
-        confirmLabel="移除"
+        title={t('teamDetail.members.removeTitle')}
+        message={removingRef ? t('teamDetail.members.removeMessage', { ref: removingRef }) : undefined}
+        confirmLabel={t('teamDetail.members.removeConfirm')}
         danger
         busy={remove.isPending}
         onCancel={() => setRemovingRef(null)}
@@ -295,6 +299,7 @@ function MembersPane({
 }
 
 function ProjectsPane({ teamId }: { teamId: string }): React.ReactElement {
+  const { t } = useTranslation('teams');
   const projects = useTeamProjects(teamId);
   const disassociate = useDisassociateProject();
   const [unlinkId, setUnlinkId] = useState<string | null>(null);
@@ -303,7 +308,7 @@ function ProjectsPane({ teamId }: { teamId: string }): React.ReactElement {
   return (
     <div>
       <SectionHead
-        title="关联项目"
+        title={t('teamDetail.projects.title')}
         action={
           <button
             type="button"
@@ -311,13 +316,13 @@ function ProjectsPane({ teamId }: { teamId: string }): React.ReactElement {
             data-testid="associate-project"
             onClick={() => setPicking(true)}
           >
-            + Associate project
+            {t('teamDetail.projects.associate')}
           </button>
         }
       />
       {projects.isLoading && <Skeleton height="6rem" />}
       {projects.isSuccess && projects.data.length === 0 && (
-        <EmptyState title="未关联项目" body="关联项目后，该 team 成员可被派发该项目任务。" testId="projects-empty" />
+        <EmptyState title={t('teamDetail.projects.emptyTitle')} body={t('teamDetail.projects.emptyBody')} testId="projects-empty" />
       )}
       {(projects.data ?? []).map((p) => (
         <div key={p.project_id} data-testid={`assoc-${p.project_id}`} className="mb-2.5 flex items-center gap-3 rounded-lg border border-border-base bg-bg-elevated px-3.5 py-3 shadow-1">
@@ -337,18 +342,18 @@ function ProjectsPane({ teamId }: { teamId: string }): React.ReactElement {
             {p.relation}
           </span>
           <button type="button" className={btnSm} data-testid={`unlink-${p.project_id}`} onClick={() => setUnlinkId(p.project_id)}>
-            解绑
+            {t('teamDetail.projects.unlink')}
           </button>
         </div>
       ))}
       {projects.isSuccess && projects.data.length > 0 && (
-        <Note>关联项目后，该 team 成员可被派发该项目任务；team-memory 在项目上下文可见。</Note>
+        <Note>{t('teamDetail.projects.note')}</Note>
       )}
       <ConfirmModal
         open={unlinkId !== null}
-        title="解绑项目"
-        message="确认解绑该项目？成员将不再被派发其任务。"
-        confirmLabel="解绑"
+        title={t('teamDetail.projects.unlinkTitle')}
+        message={t('teamDetail.projects.unlinkMessage')}
+        confirmLabel={t('teamDetail.projects.unlinkConfirm')}
         danger
         busy={disassociate.isPending}
         onCancel={() => setUnlinkId(null)}
@@ -380,6 +385,7 @@ function ProjectPickerModal({
   linkedIds: Set<string>;
   onClose: () => void;
 }): React.ReactElement {
+  const { t } = useTranslation('teams');
   const all = useProjects();
   const associate = useAssociateProject();
   const candidates = (all.data ?? []).filter((p) => !linkedIds.has(p.id));
@@ -401,14 +407,14 @@ function ProjectPickerModal({
       open
       onClose={onClose}
       testId="associate-project-modal"
-      title="关联项目"
-      subtitle="从组织的项目里选一个关联到本 team；成员即可被派发该项目任务。"
+      title={t('teamDetail.projects.pickerTitle')}
+      subtitle={t('teamDetail.projects.pickerSubtitle')}
       footer={
         <>
           <span />
           <div className="flex gap-2.5">
             <button type="button" className={btnGhost} onClick={onClose}>
-              取消
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -417,7 +423,7 @@ function ProjectPickerModal({
               disabled={!chosen || associate.isPending}
               onClick={submit}
             >
-              {associate.isPending ? '关联中…' : '关联'}
+              {associate.isPending ? t('teamDetail.projects.associating') : t('teamDetail.projects.associateAction')}
             </button>
           </div>
         </>
@@ -426,23 +432,23 @@ function ProjectPickerModal({
       {all.isLoading && <Skeleton height="4rem" />}
       {all.isSuccess && candidates.length === 0 && (
         <EmptyState
-          title="没有可关联的项目"
-          body="组织下的活跃项目都已关联，或还没有项目。"
+          title={t('teamDetail.projects.pickerEmptyTitle')}
+          body={t('teamDetail.projects.pickerEmptyBody')}
           testId="associate-project-empty"
         />
       )}
       {candidates.length > 0 && (
-        <Field label="选择项目" required>
+        <Field label={t('teamDetail.projects.selectLabel')} required>
           <select
             className={inputCls}
             value={selected}
             data-testid="associate-project-select"
             onChange={(e) => setSelected(e.target.value)}
           >
-            <option value="">— 选择项目 —</option>
+            <option value="">{t('teamDetail.projects.selectPlaceholder')}</option>
             {candidates.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name}（{p.id}）
+                {t('teamDetail.projects.selectOption', { name: p.name, id: p.id })}
               </option>
             ))}
           </select>

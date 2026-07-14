@@ -2,6 +2,7 @@
 // on the console's semantic tokens. Keeps the feature's modals/panes visually
 // consistent with the v7 mockup without a heavyweight component library.
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useModalA11y } from '@/components/useModalA11y';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
 import { CloseIcon, InfoIcon } from './teamsUi';
@@ -191,6 +192,7 @@ export function ModalShell({
   children: React.ReactNode;
   testId?: string;
 }): React.ReactElement | null {
+  const { t } = useTranslation('teams');
   const containerRef = useModalA11y({ open, onClose });
   if (!open) return null;
   return (
@@ -219,7 +221,7 @@ export function ModalShell({
             type="button"
             className="rounded p-1 text-text-muted hover:bg-bg-subtle hover:text-text-primary"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('common.close')}
             data-testid={testId ? `${testId}-close` : undefined}
           >
             <CloseIcon className="h-5 w-5" />

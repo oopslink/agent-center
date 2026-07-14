@@ -21,7 +21,10 @@ const DMs = lazy(() => import('./pages/DMs'));
 const DMDetail = lazy(() => import('./pages/DMDetail'));
 const IssueDetail = lazy(() => import('./pages/IssueDetail'));
 const TaskDetail = lazy(() => import('./pages/TaskDetail'));
-const Agents = lazy(() => import('./pages/Agents'));
+// dev2/v281→members-into-teams: the /agents route now redirects into the merged
+// Teams directory (teams/agents = TeamsDirectoryAgents). The Agents page
+// component survives only as the Org Settings > Agents section panel (imported
+// directly there), so it is no longer lazy-loaded here.
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
 const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
@@ -43,7 +46,9 @@ const Settings = lazy(() => import('./pages/Settings'));
 const OrganizationSettings = lazy(() => import('./pages/OrganizationSettings'));
 const Version = lazy(() => import('./pages/Version'));
 const Me = lazy(() => import('./pages/Me'));
-const MembersHumans = lazy(() => import('./pages/MembersHumans'));
+// members-into-teams: /members/humans redirects into teams/humans
+// (TeamsDirectoryHumans, the merged surface); the MembersHumans page component
+// survives only for its isolated unit tests, so it is no longer lazy-loaded here.
 // Team WebUI (Phase-1) — Team BC surface (rail module 'teamui').
 const Teams = lazy(() => import('./pages/Teams'));
 const TeamDetail = lazy(() => import('./pages/TeamDetail'));
@@ -87,7 +92,11 @@ export function App(): React.ReactElement {
           <Route path="channels/:channelId" element={<ChannelDetail />} />
           <Route path="dms" element={<DMs />} />
           <Route path="dms/:id" element={<DMDetail />} />
-          <Route path="agents" element={<Agents />} />
+          {/* members-into-teams: the org-level /agents list is merged into the
+              Teams directory. /agents redirects to the merged teams/agents page
+              (mirrors the members/agents → ../agents and fleet → ../environment
+              precedents). The agents/:id detail page keeps its original URL. */}
+          <Route path="agents" element={<Navigate to="../teams/agents" replace />} />
           <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<ProjectDetail />} />
@@ -123,7 +132,10 @@ export function App(): React.ReactElement {
           <Route path="organization-settings/:section" element={<OrganizationSettings />} />
           <Route path="version" element={<Version />} />
           <Route path="me" element={<Me />} />
-          <Route path="members/humans" element={<MembersHumans />} />
+          {/* members-into-teams: the org Members → Humans list is merged into the
+              Teams directory. /members/humans redirects to the merged teams/humans
+              page (same route-relative style as members/agents → ../agents). */}
+          <Route path="members/humans" element={<Navigate to="../teams/humans" replace />} />
           {/* Team WebUI (Phase-1). Static children rank above teams/:teamId. */}
           <Route path="teams" element={<Teams />} />
           <Route path="teams/templates" element={<TeamTemplates />} />

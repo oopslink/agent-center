@@ -2,6 +2,7 @@
 // Instantiate. Each card configures one role slot: name, count, CLI, model,
 // concurrency, tags, and (optionally) a description. Total slots = agents built.
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CLIS, MODELS, roleColor, ROLE_DESC, type RoleInput } from '@/api/teams';
 import { inputCls, SmallLabel } from './kit';
 import { PlusIcon } from './teamsUi';
@@ -51,6 +52,7 @@ export function RoleBuilder({
   showDescription?: boolean;
   idPrefix: string;
 }): React.ReactElement {
+  const { t } = useTranslation('teams');
   const patch = (i: number, p: Partial<RoleInput>) => {
     onChange(roles.map((r, j) => (j === i ? { ...r, ...p } : r)));
   };
@@ -70,7 +72,7 @@ export function RoleBuilder({
             <input
               className="w-32 border-b border-dashed border-border-strong bg-transparent px-0.5 pb-0.5 text-sm font-semibold text-text-primary focus-visible:border-accent focus-visible:outline-none"
               value={r.role}
-              placeholder="角色名"
+              placeholder={t('roleBuilder.roleNamePlaceholder')}
               data-testid={`${idPrefix}-role-${i}-name`}
               onChange={(e) => patch(i, { role: e.target.value })}
             />
@@ -79,7 +81,7 @@ export function RoleBuilder({
                 type="button"
                 className="h-6 w-6 bg-bg-elevated text-sm font-semibold text-text-secondary hover:bg-brand/10 hover:text-brand"
                 data-testid={`${idPrefix}-role-${i}-dec`}
-                aria-label="decrease count"
+                aria-label={t('roleBuilder.decreaseCount')}
                 onClick={() => patch(i, { count: Math.max(1, r.count - 1) })}
               >
                 -
@@ -91,30 +93,30 @@ export function RoleBuilder({
                 type="button"
                 className="h-6 w-6 bg-bg-elevated text-sm font-semibold text-text-secondary hover:bg-brand/10 hover:text-brand"
                 data-testid={`${idPrefix}-role-${i}-inc`}
-                aria-label="increase count"
+                aria-label={t('roleBuilder.increaseCount')}
                 onClick={() => patch(i, { count: r.count + 1 })}
               >
                 +
               </button>
             </span>
-            <span className="text-[0.6875rem] text-text-muted">agent 数</span>
+            <span className="text-[0.6875rem] text-text-muted">{t('roleBuilder.agentCount')}</span>
             <button
               type="button"
               className="ml-auto text-xs text-text-muted hover:text-danger"
               data-testid={`${idPrefix}-role-${i}-remove`}
               onClick={() => remove(i)}
             >
-              移除
+              {t('roleBuilder.remove')}
             </button>
           </div>
 
           {showDescription && (
             <div className="mb-3">
-              <SmallLabel>角色描述</SmallLabel>
+              <SmallLabel>{t('roleBuilder.descriptionLabel')}</SmallLabel>
               <input
                 className={inputCls}
                 value={r.description || ''}
-                placeholder="这个角色负责什么…（会写入 team-memory）"
+                placeholder={t('roleBuilder.descriptionPlaceholder')}
                 data-testid={`${idPrefix}-role-${i}-desc`}
                 onChange={(e) => patch(i, { description: e.target.value })}
               />
@@ -123,15 +125,15 @@ export function RoleBuilder({
 
           <div className="grid grid-cols-[1fr_1fr_5rem] gap-2.5">
             <div>
-              <SmallLabel>CLI</SmallLabel>
+              <SmallLabel>{t('roleBuilder.cliLabel')}</SmallLabel>
               <Select value={r.cli} options={CLIS} testId={`${idPrefix}-role-${i}-cli`} onChange={(v) => patch(i, { cli: v })} />
             </div>
             <div>
-              <SmallLabel>Model</SmallLabel>
+              <SmallLabel>{t('roleBuilder.modelLabel')}</SmallLabel>
               <Select value={r.model} options={MODELS} testId={`${idPrefix}-role-${i}-model`} onChange={(v) => patch(i, { model: v })} />
             </div>
             <div>
-              <SmallLabel>并发</SmallLabel>
+              <SmallLabel>{t('roleBuilder.concurrencyLabel')}</SmallLabel>
               <input
                 className={inputCls}
                 type="number"
@@ -144,11 +146,11 @@ export function RoleBuilder({
           </div>
 
           <div className="mt-3">
-            <SmallLabel>Tags（路由/技能）</SmallLabel>
+            <SmallLabel>{t('roleBuilder.tagsLabel')}</SmallLabel>
             <input
               className={inputCls}
               value={r.tags}
-              placeholder="go, security, react …"
+              placeholder={t('roleBuilder.tagsPlaceholder')}
               data-testid={`${idPrefix}-role-${i}-tags`}
               onChange={(e) => patch(i, { tags: e.target.value })}
             />
@@ -161,7 +163,7 @@ export function RoleBuilder({
         data-testid={`${idPrefix}-add-role`}
         onClick={add}
       >
-        <PlusIcon className="h-4 w-4" /> 添加角色
+        <PlusIcon className="h-4 w-4" /> {t('roleBuilder.addRole')}
       </button>
     </div>
   );

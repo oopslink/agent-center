@@ -1,53 +1,249 @@
-// Teams directory — Agents (/organizations/:slug/teams/agents). The full agent
-// list with a TEAMS column and a by-team filter, per the v7 mockup's DIRECTORY
-// section. Large lists live in the main area (search + status/team filter),
-// not the narrow rail. Phase-1 team membership comes from fixtures.
-import { useMemo, useState } from 'react';
+// Teams directory — Agents (/organizations/:slug/teams/agents).
+//
+// MERGED surface (members-into-teams): the union of the old Teams directory
+// Agents view (TEAMS column + by-team filter + working/idle chips + search +
+// Model/Load/Backlog/Last-active) and the live Agents page (worker "Running on"
+// binding, lifecycle/availability, the + Add Agent modal, agent-detail links,
+// mobile cards, DM, and per-row delete) plus the member-list org role +
+// membership status.
+//
+// DATA is a client-side OUTER JOIN keyed by normalizeIdentityRef, unioned across
+// THREE sources — the directory (team membership + runtime working/idle), the
+// live agents (lifecycle, worker, load), and the org members (org role +
+// membership). normalizeIdentityRef(directory.ref) === normalizeIdentityRef
+// (agent.identity_member_id) === normalizeIdentityRef(member.identity_id). A row
+// shows if it appears in ANY source; a missing source degrades to em-dash. A
+// standalone live agent with no member identity keys on its own agent id so it
+// never collides and never drops.
+import { useCallback, useMemo, useState } from 'react';
 import type React from 'react';
-import { useDirectoryAgents, useTeams } from '@/api/teams';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
+import { OrgLink } from '@/OrgContext';
+import { useDirectoryAgents, useTeams, type DirectoryAgent } from '@/api/teams';
+import { useAgents, useDeleteAgent, useBatchAgentLifecycle, type AgentBatchAction } from '@/api/agents';
+import { BatchToolbar, batchLabel } from '@/components/AgentBatchToolbar';
+import {
+  useMembers,
+  normalizeIdentityRef,
+  identityRefOf,
+  type MemberResult,
+} from '@/api/members';
+import { useWorkers } from '@/api/workers';
+import type { Agent } from '@/api/types';
+import { ApiError } from '@/api/client';
+import { AgentCreateModal } from '@/components/AgentCreateModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { EntityRef } from '@/components/EntityRef';
+import { Avatar } from '@/components/Avatar';
+import {
+  AgentBacklogBadge,
+  AgentLoadBadge,
+  AvailabilityBadge,
+  LifecycleBadge,
+} from '@/components/AgentBadges';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
+import { MembersSegmentControl } from '@/components/MembersSegmentControl';
+import { useOpenDm } from '@/components/useOpenDm';
 import { Note } from '@/components/teams/kit';
 import { Glyph } from '@/components/teams/teamsUi';
+import { formatLocalTime } from '@/utils/time';
 
 type StatusFilter = 'all' | 'working' | 'idle';
 
+interface AgentRow {
+  key: string; // join key (normalizeIdentityRef, or a synthetic id for standalone agents)
+  dir?: DirectoryAgent;
+  agent?: Agent;
+  member?: MemberResult;
+  name: string;
+  identityRef: string; // prefixed "agent:<id>" — for DM
+  agentId?: string; // live execution agent id → /agents/:id
+}
+
+const EM_DASH = <span className="text-text-muted">—</span>;
+
+function isAgentMember(m: MemberResult): boolean {
+  return m.kind === 'agent' || m.identity_id.startsWith('agent');
+}
+
+// v2.7 #197: map the backend's delete-guard codes to friendly copy (reused
+// `members` namespace) so the UI never shows a raw error code (Rule 9).
+function agentDeleteErrorMessage(err: unknown, t: TFunction): string {
+  if (err instanceof ApiError) {
+    if (err.code === 'agent_running') return t('agents.delete.errorRunning');
+    if (err.code === 'agent_has_active_work') return t('agents.delete.errorActiveWork');
+    if (err.code === 'not_found') return t('agents.delete.errorNotFound');
+  }
+  return err instanceof Error ? err.message : t('agents.delete.errorGeneric');
+}
+
 export default function TeamsDirectoryAgents(): React.ReactElement {
-  const agents = useDirectoryAgents();
+  const { t } = useTranslation('teams');
+  const { t: tm } = useTranslation('members');
+  const dirAgents = useDirectoryAgents();
+  const agents = useAgents();
+  const members = useMembers();
   const teams = useTeams();
+  const workers = useWorkers();
+  const del = useDeleteAgent();
+  // T232 batch lifecycle (start/stop/restart/reset), ported from the retired
+  // Agents page. Selection is a Set of LIVE agent ids — only rows backed by a
+  // real execution Agent can be lifecycled, so directory-only / member-only rows
+  // carry no checkbox and never enter the set.
+  const batch = useBatchAgentLifecycle();
+
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [team, setTeam] = useState('all');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pendingBatch, setPendingBatch] = useState<AgentBatchAction | null>(null);
 
-  const all = agents.data ?? [];
+  const workerName = (id: string): string | undefined =>
+    (workers.data ?? []).find((w) => w.worker_id === id)?.name || undefined;
+
+  const allRows = useMemo(() => {
+    const byKey = new Map<string, AgentRow>();
+    const ensure = (key: string): AgentRow => {
+      let r = byKey.get(key);
+      if (!r) {
+        r = { key, name: '', identityRef: '' };
+        byKey.set(key, r);
+      }
+      return r;
+    };
+    for (const m of members.data ?? []) {
+      if (!isAgentMember(m)) continue;
+      ensure(normalizeIdentityRef(m.identity_id)).member = m;
+    }
+    for (const a of agents.data ?? []) {
+      const key = a.identity_member_id ? normalizeIdentityRef(a.identity_member_id) : `agent-id:${a.id}`;
+      ensure(key).agent = a;
+    }
+    for (const d of dirAgents.data ?? []) {
+      ensure(normalizeIdentityRef(d.ref)).dir = d;
+    }
+    for (const r of byKey.values()) {
+      r.name = r.dir?.name || r.agent?.name || r.member?.display_name || r.key;
+      r.agentId = r.agent?.id;
+      r.identityRef = r.member
+        ? identityRefOf(r.member)
+        : r.dir?.ref ??
+          (r.agent?.identity_member_id
+            ? `agent:${normalizeIdentityRef(r.agent.identity_member_id)}`
+            : `agent:${r.agent?.id ?? r.key}`);
+    }
+    return [...byKey.values()];
+  }, [members.data, agents.data, dirAgents.data]);
+
+  // Runtime working/idle for the chip + count. Prefer the directory's runtime
+  // flag; a live-agent-only row derives it from running+busy so it is not
+  // wrongly hidden by a Working/Idle filter.
+  const runtimeStatus = useCallback((r: AgentRow): 'working' | 'idle' => {
+    if (r.dir) return r.dir.status;
+    if (r.agent) return r.agent.lifecycle === 'running' && r.agent.availability === 'busy' ? 'working' : 'idle';
+    return 'idle';
+  }, []);
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return all.filter((a) => {
-      if (status !== 'all' && a.status !== status) return false;
-      if (team !== 'all' && !a.teams.includes(team)) return false;
-      if (q && !(a.name.toLowerCase().includes(q) || a.role.toLowerCase().includes(q))) return false;
+    return allRows.filter((r) => {
+      if (status !== 'all' && runtimeStatus(r) !== status) return false;
+      if (team !== 'all' && !(r.dir?.teams ?? []).includes(team)) return false;
+      if (q) {
+        const role = `${r.dir?.role ?? ''} ${r.member?.role ?? ''}`.toLowerCase();
+        if (!(r.name.toLowerCase().includes(q) || role.includes(q))) return false;
+      }
       return true;
     });
-  }, [all, query, status, team]);
+  }, [allRows, query, status, team, runtimeStatus]);
 
-  const workingCount = all.filter((a) => a.status === 'working').length;
+  const workingCount = allRows.filter((r) => runtimeStatus(r) === 'working').length;
+  const isLoading = dirAgents.isLoading || agents.isLoading || members.isLoading;
+  const isError = dirAgents.isError || agents.isError || members.isError;
+
+  // Batch selection is scoped to the LIVE agent ids that are currently VISIBLE
+  // (respecting the active search / status / team filter) — mirroring the old
+  // Agents page's order-preserving selection + indeterminate logic.
+  const visibleAgentIds = useMemo(
+    () => rows.map((r) => r.agentId).filter((id): id is string => !!id),
+    [rows],
+  );
+  const selectedIds = useMemo(() => visibleAgentIds.filter((id) => selected.has(id)), [visibleAgentIds, selected]);
+  const allSelected = visibleAgentIds.length > 0 && selectedIds.length === visibleAgentIds.length;
+  const running = batch.progress.running;
+
+  const toggleOne = (id: string): void =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleAll = (): void => setSelected(() => (allSelected ? new Set() : new Set(visibleAgentIds)));
+  const clearSelection = (): void => setSelected(new Set());
+
+  // start is non-destructive → run immediately; stop/restart/reset → confirm first.
+  const requestBatch = (action: AgentBatchAction): void => {
+    if (selectedIds.length === 0 || running) return;
+    if (action === 'start') void batch.run(selectedIds, action);
+    else setPendingBatch(action);
+  };
+  const confirmBatch = (): void => {
+    if (!pendingBatch) return;
+    const action = pendingBatch;
+    setPendingBatch(null);
+    void batch.run(selectedIds, action);
+  };
 
   return (
     <section className="space-y-4" data-testid="page-TeamsDirectoryAgents">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-heading text-2xl font-semibold text-text-primary">Agents</h1>
+          <h1 className="font-heading text-2xl font-semibold text-text-primary">{t('agents.title')}</h1>
           <p className="mt-1 font-mono text-xs text-text-muted">/organizations/:slug/teams/agents</p>
         </div>
-        <span className="rounded-full border border-success/40 bg-success/10 px-2.5 py-1 text-[0.65rem] font-semibold text-success">
-          {workingCount} working · {all.length} total
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="rounded-full border border-success/40 bg-success/10 px-2.5 py-1 text-[0.65rem] font-semibold text-success">
+            {t('agents.count', { working: workingCount, total: allRows.length })}
+          </span>
+          <button
+            type="button"
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover"
+            onClick={() => setCreateOpen(true)}
+            data-testid="agents-add-btn"
+          >
+            {t('agents.addAgent')}
+          </button>
+        </div>
       </header>
+
+      {createOpen && <AgentCreateModal onClose={() => setCreateOpen(false)} />}
+
+      {/* Mobile (col② hidden <md): segmented Humans/Agents switch. */}
+      <MembersSegmentControl active="agents" />
+
+      {/* T232: batch toolbar — shown while a selection exists OR a finished batch
+          still has a result summary to surface. */}
+      {(selectedIds.length > 0 || batch.progress.results.length > 0) && (
+        <BatchToolbar
+          selectedCount={selectedIds.length}
+          progress={batch.progress}
+          onAction={requestBatch}
+          onClear={() => {
+            clearSelection();
+            batch.reset();
+          }}
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <input
           className="w-72 rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-          placeholder="搜索 agent（名称 / 角色）…"
+          placeholder={t('agents.searchPlaceholder')}
           value={query}
           data-testid="agents-search"
           onChange={(e) => setQuery(e.target.value)}
@@ -55,7 +251,11 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
         <div className="ml-auto flex flex-wrap gap-2">
           {(['all', 'working', 'idle'] as const).map((s) => (
             <FilterChip key={s} on={status === s} testId={`agents-filter-${s}`} onClick={() => setStatus(s)}>
-              {s === 'all' ? `All ${all.length}` : s === 'working' ? `Working ${workingCount}` : `Idle ${all.length - workingCount}`}
+              {s === 'all'
+                ? t('agents.filter.all', { count: allRows.length })
+                : s === 'working'
+                  ? t('agents.filter.working', { count: workingCount })
+                  : t('agents.filter.idle', { count: allRows.length - workingCount })}
             </FilterChip>
           ))}
           <select
@@ -64,83 +264,379 @@ export default function TeamsDirectoryAgents(): React.ReactElement {
             data-testid="agents-team-filter"
             onChange={(e) => setTeam(e.target.value)}
           >
-            <option value="all">按 team：全部</option>
-            {(teams.data ?? []).map((t) => (
-              <option key={t.id} value={t.name}>
-                {t.name}
+            <option value="all">{t('common.teamFilterAll')}</option>
+            {(teams.data ?? []).map((tt) => (
+              <option key={tt.id} value={tt.name}>
+                {tt.name}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {agents.isLoading && <Skeleton height="12rem" />}
-      {agents.isSuccess && rows.length === 0 && <EmptyState title="无匹配 agent" body="换个搜索或筛选试试。" testId="agents-empty" />}
-      {agents.isSuccess && rows.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-border-base">
-          <table className="w-full text-sm" data-testid="agents-table">
+      {isLoading && <Skeleton height="12rem" />}
+      {isError && (
+        <p className="text-sm text-danger" data-testid="agents-error">
+          {t('common.loadFailed', { error: String(dirAgents.error ?? agents.error ?? members.error) })}
+        </p>
+      )}
+      {!isLoading && !isError && rows.length === 0 && (
+        <EmptyState title={t('agents.empty.title')} body={t('agents.empty.body')} testId="agents-empty" />
+      )}
+
+      {/* Mobile (<md): card rows — avatar (tap → DM) + name link → AgentDetail. */}
+      {!isLoading && !isError && rows.length > 0 && (
+        <ul className="space-y-2 md:hidden" data-testid="agents-cards">
+          {rows.map((r) => (
+            <AgentCard key={r.key} row={r} />
+          ))}
+        </ul>
+      )}
+
+      {/* Desktop (≥md): the full dual-dimension table. */}
+      {!isLoading && !isError && rows.length > 0 && (
+        <div className="hidden overflow-x-auto rounded-lg border border-border-base md:block">
+          <table className="w-full min-w-[72rem] text-sm" data-testid="agents-table">
             <thead>
               <tr className="border-b border-border-base text-left text-[0.6875rem] uppercase tracking-wide text-text-muted">
-                <th className="px-4 py-3 font-semibold">Agent</th>
-                <th className="px-4 py-3 font-semibold">Status</th>
-                <th className="px-4 py-3 font-semibold">Teams</th>
-                <th className="px-4 py-3 font-semibold">Model</th>
-                <th className="px-4 py-3 font-semibold">Load</th>
-                <th className="px-4 py-3 font-semibold">Backlog</th>
-                <th className="px-4 py-3 font-semibold">Last active</th>
+                {/* T232: select-all — selects every VISIBLE row backed by a live agent. */}
+                <th className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label={tm('agents.list.selectAllAria')}
+                    data-testid="agents-select-all"
+                    className="h-4 w-4 cursor-pointer align-middle accent-brand"
+                    checked={allSelected}
+                    disabled={running || visibleAgentIds.length === 0}
+                    ref={(el) => {
+                      if (el) el.indeterminate = selectedIds.length > 0 && !allSelected;
+                    }}
+                    onChange={toggleAll}
+                  />
+                </th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.agent')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.runtimeStatus')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.lifecycle')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.orgRole')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.membership')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.teams')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.model')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.load')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.backlog')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.worker')}</th>
+                <th className="px-4 py-3 font-semibold">{t('agents.col.lastActive')}</th>
+                <th className="px-4 py-3 font-semibold" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((a) => (
-                <tr key={a.name} data-testid={`agent-row-${a.name}`} className="border-b border-border-base last:border-0 hover:bg-bg-subtle">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <Glyph text={a.name.replace('agent-center-', '').slice(0, 2).toUpperCase()} size="sm" kind="agent" />
-                      <div>
-                        <div className="font-semibold text-text-primary">{a.name}</div>
-                        <div className="text-[0.6875rem] text-text-muted">{a.role}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={['inline-flex items-center gap-1.5 font-semibold', a.status === 'working' ? 'text-status-blue-fg' : 'text-success'].join(' ')}>
-                      <span className={['h-1.5 w-1.5 rounded-full', a.status === 'working' ? 'bg-status-blue-solid' : 'bg-success'].join(' ')} aria-hidden="true" />
-                      {a.status === 'working' ? 'Working' : 'Idle'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <TeamsCell teams={a.teams} />
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-muted">{a.model}</td>
-                  <td className="px-4 py-3">
-                    <span className="relative inline-block h-1.5 w-14 overflow-hidden rounded border border-border-base bg-bg-subtle align-middle">
-                      <span className="absolute inset-y-0 left-0 rounded bg-status-blue-solid" style={{ width: `${Math.round(a.load * 100)}%` }} />
-                    </span>
-                    <span className="ml-1.5 font-mono text-[0.6875rem] text-text-muted">{a.load.toFixed(1)}</span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-muted">{a.backlog}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-text-muted">{a.last}</td>
-                </tr>
+              {rows.map((r) => (
+                <AgentTableRow
+                  key={r.key}
+                  row={r}
+                  runtime={runtimeStatus(r)}
+                  workerName={workerName}
+                  selected={!!r.agentId && selected.has(r.agentId)}
+                  selectDisabled={running}
+                  onToggleSelect={r.agentId ? () => toggleOne(r.agentId!) : undefined}
+                  onDelete={(id, name) => {
+                    del.reset();
+                    setPendingDelete({ id, name });
+                  }}
+                />
               ))}
             </tbody>
           </table>
         </div>
       )}
 
-      <Note>
-        大列表放在主区（可搜索 / 状态·team 筛选），不铺在窄侧栏 —— 解决「human/agent 变多第二侧栏太挤」。侧栏只留入口。
-      </Note>
+      {del.isError && (
+        <p className="text-sm text-danger" data-testid="agent-delete-error" role="alert">
+          {agentDeleteErrorMessage(del.error, tm)}
+        </p>
+      )}
+
+      <ConfirmModal
+        open={pendingDelete !== null}
+        danger
+        busy={del.isPending}
+        title={tm('agents.delete.title')}
+        message={pendingDelete ? tm('agents.delete.message', { name: pendingDelete.name }) : undefined}
+        confirmLabel={tm('agents.delete.confirm')}
+        onCancel={() => {
+          if (del.isPending) return;
+          setPendingDelete(null);
+          del.reset();
+        }}
+        onConfirm={() => {
+          if (!pendingDelete) return;
+          del.mutate(pendingDelete.id, { onSettled: () => setPendingDelete(null) });
+        }}
+      />
+
+      {/* T232: confirm gate for destructive batch actions (stop/restart/reset). */}
+      <ConfirmModal
+        open={pendingBatch !== null}
+        danger={pendingBatch === 'reset'}
+        title={pendingBatch ? tm('agents.batch.confirmTitle', { action: batchLabel(pendingBatch, tm), count: selectedIds.length }) : ''}
+        message={
+          pendingBatch
+            ? pendingBatch === 'reset'
+              ? tm('agents.batch.resetMessage', { count: selectedIds.length })
+              : tm('agents.batch.confirmMessage', { action: batchLabel(pendingBatch, tm), count: selectedIds.length })
+            : undefined
+        }
+        confirmLabel={pendingBatch ? batchLabel(pendingBatch, tm) : tm('agents.batch.confirmFallback')}
+        onCancel={() => setPendingBatch(null)}
+        onConfirm={confirmBatch}
+      />
+
+      <Note>{t('agents.note')}</Note>
     </section>
   );
 }
 
+function AgentTableRow({
+  row,
+  runtime,
+  workerName,
+  selected,
+  selectDisabled,
+  onToggleSelect,
+  onDelete,
+}: {
+  row: AgentRow;
+  runtime: 'working' | 'idle';
+  workerName: (id: string) => string | undefined;
+  selected: boolean;
+  selectDisabled: boolean;
+  onToggleSelect?: () => void;
+  onDelete: (id: string, name: string) => void;
+}): React.ReactElement {
+  const { t } = useTranslation('teams');
+  const { t: tm } = useTranslation('members');
+  const { dir, agent, member } = row;
+  const teamRole = dir?.role || member?.role;
+  return (
+    <tr
+      data-testid={`agent-row-${row.name}`}
+      data-selected={selected ? 'true' : 'false'}
+      className={['border-b border-border-base last:border-0 hover:bg-bg-subtle', selected ? 'bg-brand/5' : ''].join(' ')}
+    >
+      {/* T232: per-row select — only a row backed by a live agent is selectable. */}
+      <td className="px-4 py-3">
+        {onToggleSelect ? (
+          <input
+            type="checkbox"
+            aria-label={tm('agents.list.selectAgentAria', { name: row.name })}
+            data-testid="agent-select-checkbox"
+            data-agent-id={agent?.id}
+            className="h-4 w-4 cursor-pointer align-middle accent-brand"
+            checked={selected}
+            disabled={selectDisabled}
+            onChange={onToggleSelect}
+          />
+        ) : null}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <Glyph text={row.name.replace('agent-center-', '').slice(0, 2).toUpperCase()} size="sm" kind="agent" />
+          <div className="min-w-0">
+            {row.agentId ? (
+              <OrgLink
+                to={`/agents/${encodeURIComponent(row.agentId)}`}
+                className="block truncate font-semibold text-accent hover:underline"
+                data-testid="agent-name-link"
+                title={row.name}
+              >
+                {row.name}
+              </OrgLink>
+            ) : (
+              <div className="font-semibold text-text-primary">{row.name}</div>
+            )}
+            {teamRole && <div className="text-[0.6875rem] text-text-muted">{teamRole}</div>}
+          </div>
+        </div>
+      </td>
+      {/* Runtime working/idle (directory dimension). */}
+      <td className="px-4 py-3">
+        {dir ? (
+          <span className={['inline-flex items-center gap-1.5 font-semibold', runtime === 'working' ? 'text-status-blue-fg' : 'text-success'].join(' ')} data-testid="agent-runtime">
+            <span className={['h-1.5 w-1.5 rounded-full', runtime === 'working' ? 'bg-status-blue-solid' : 'bg-success'].join(' ')} aria-hidden="true" />
+            {runtime === 'working' ? t('agents.runtime.working') : t('agents.runtime.idle')}
+          </span>
+        ) : (
+          EM_DASH
+        )}
+      </td>
+      {/* Lifecycle + availability (live-agent dimension). */}
+      <td className="px-4 py-3">
+        {agent ? (
+          <span className="flex flex-wrap items-center gap-1">
+            <LifecycleBadge lifecycle={agent.lifecycle} />
+            <AvailabilityBadge availability={agent.availability} />
+          </span>
+        ) : (
+          EM_DASH
+        )}
+      </td>
+      {/* Org permission role (member dimension). */}
+      <td className="px-4 py-3 text-xs text-text-secondary" data-testid="agent-role">
+        {member ? tm(`humans.role.${member.role}`, { defaultValue: member.role }) : EM_DASH}
+      </td>
+      {/* Membership status (member dimension): joined / disabled. */}
+      <td className="px-4 py-3">
+        <MembershipStatus status={member?.status} />
+      </td>
+      <td className="px-4 py-3">{dir ? <TeamsCell teams={dir.teams} /> : EM_DASH}</td>
+      <td className="px-4 py-3 font-mono text-xs text-text-muted">{dir?.model || agent?.model || '—'}</td>
+      <td className="px-4 py-3">
+        {dir ? (
+          <>
+            <span className="relative inline-block h-1.5 w-14 overflow-hidden rounded border border-border-base bg-bg-subtle align-middle">
+              <span className="absolute inset-y-0 left-0 rounded bg-status-blue-solid" style={{ width: `${Math.round(dir.load * 100)}%` }} />
+            </span>
+            <span className="ml-1.5 font-mono text-[0.6875rem] text-text-muted">{dir.load.toFixed(1)}</span>
+          </>
+        ) : agent ? (
+          <AgentLoadBadge agent={agent} />
+        ) : (
+          EM_DASH
+        )}
+      </td>
+      <td className="px-4 py-3 font-mono text-xs text-text-muted">
+        {dir ? dir.backlog : agent ? <AgentBacklogBadge agent={agent} /> : EM_DASH}
+      </td>
+      {/* Worker "Running on" binding (live-agent dimension). */}
+      <td className="px-4 py-3 text-xs text-text-muted">
+        {agent?.worker_id ? (
+          <EntityRef id={agent.worker_id} name={workerName(agent.worker_id)} fallback={agent.worker_id} testId="agent-worker-ref" />
+        ) : (
+          '—'
+        )}
+      </td>
+      <td className="px-4 py-3 font-mono text-xs text-text-muted">
+        {dir?.last || (agent?.last_activity_at ? formatLocalTime(agent.last_activity_at) : '—')}
+      </td>
+      <td className="px-4 py-3 text-right">
+        {agent && (
+          <button
+            type="button"
+            data-testid="agent-delete-button"
+            data-agent-id={agent.id}
+            aria-label={tm('agents.list.deleteAgentAria', { name: row.name })}
+            title={tm('agents.list.deleteAgentTitle')}
+            onClick={() => onDelete(agent.id, row.name)}
+            className="rounded px-2 py-1 text-xs text-text-muted hover:bg-danger/10 hover:text-danger"
+          >
+            {tm('agents.list.delete')}
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function AgentCard({ row }: { row: AgentRow }): React.ReactElement {
+  const { t } = useTranslation('teams');
+  const { t: tm } = useTranslation('members');
+  const openDm = useOpenDm();
+  const teamRole = row.dir?.role || row.member?.role;
+  return (
+    <li
+      className="flex items-center gap-3 rounded-lg border border-border-base bg-bg-elevated p-2"
+      data-testid="agent-member-card"
+      data-identity={row.identityRef}
+    >
+      <button
+        type="button"
+        onClick={() => openDm.open(row.identityRef)}
+        disabled={openDm.pending}
+        aria-label={tm('agents.members.messageAria', { name: row.name })}
+        data-testid="agent-card-dm"
+        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg disabled:opacity-50"
+      >
+        <Avatar name={row.name} kind="agent" size="md" />
+      </button>
+      {row.agentId ? (
+        <OrgLink
+          to={`/agents/${encodeURIComponent(row.agentId)}`}
+          className="flex min-h-[44px] min-w-0 flex-1 items-center"
+          data-testid="agent-card-link"
+        >
+          <AgentCardBody name={row.name} subtitle={teamRole} lifecycle={row.agent?.lifecycle} />
+        </OrgLink>
+      ) : (
+        <div className="flex min-h-[44px] min-w-0 flex-1 items-center">
+          <AgentCardBody name={row.name} subtitle={teamRole} lifecycle={row.agent?.lifecycle} />
+        </div>
+      )}
+      {row.dir && (
+        <span className="shrink-0 text-[0.6875rem] font-semibold text-text-muted">
+          {row.dir.status === 'working' ? t('agents.runtime.working') : t('agents.runtime.idle')}
+        </span>
+      )}
+    </li>
+  );
+}
+
+function AgentCardBody({
+  name,
+  subtitle,
+  lifecycle,
+}: {
+  name: string;
+  subtitle?: string;
+  lifecycle?: string;
+}): React.ReactElement {
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="block truncate text-sm font-medium text-text-primary">{name}</span>
+      {(subtitle || lifecycle) && (
+        <span className="block truncate text-xs text-text-muted">
+          {[subtitle, lifecycle].filter(Boolean).join(' · ')}
+        </span>
+      )}
+    </span>
+  );
+}
+
+// MembershipStatus — membership joined/disabled chip (folded from the retired
+// /members/agents page). Conveyed by TEXT (never color-only). No member match
+// (standalone agent / directory-only row) → a neutral em dash, never a
+// misleading "Disabled". Reuses the `members` namespace strings.
+function MembershipStatus({ status }: { status: MemberResult['status'] | undefined }): React.ReactElement {
+  const { t } = useTranslation('members');
+  if (!status) {
+    return (
+      <span className="text-xs text-text-muted" data-testid="agent-status" data-status="unknown">
+        —
+      </span>
+    );
+  }
+  const joined = status === 'joined';
+  return (
+    <span
+      className={[
+        'rounded px-2 py-0.5 text-[0.6875rem] uppercase tracking-wide',
+        joined ? 'bg-status-green-bg text-status-green-fg' : 'bg-status-slate-bg text-status-slate-fg-soft',
+      ].join(' ')}
+      data-testid="agent-status"
+      data-status={status}
+    >
+      {joined ? t('agents.status.joined') : t('agents.status.disabled')}
+    </span>
+  );
+}
+
+// TeamsCell — the TEAMS column chips (shared with the Humans directory page).
 export function TeamsCell({ teams }: { teams: string[] }): React.ReactElement {
-  if (teams.length === 0) return <span className="text-text-muted">未编入</span>;
+  const { t } = useTranslation('teams');
+  if (teams.length === 0) return <span className="text-text-muted">{t('teamsCell.unassigned')}</span>;
   return (
     <span className="flex flex-wrap gap-1">
-      {teams.map((t) => (
-        <span key={t} className="rounded bg-success/15 px-2 py-0.5 text-[0.65rem] font-semibold text-success">
-          {t}
+      {teams.map((tname) => (
+        <span key={tname} className="rounded bg-success/15 px-2 py-0.5 text-[0.65rem] font-semibold text-success">
+          {tname}
         </span>
       ))}
     </span>
