@@ -1,0 +1,24 @@
+-- 0109_i86_task_delivery.up.sql — I86 (issue-f30b7e7b) executor delivery signal +
+-- fruitless-reopen bound.
+--
+-- Two additive columns on pm_tasks, both with safe defaults so existing rows and all
+-- pre-I86 code behave exactly as before (nothing reads them as a gate until the I86
+-- consumers land):
+--
+--   delivery          — the last forked executor's terminal git status, the verbatim
+--                       FinalizedGitStatus JSON (branch/head_sha/dirty/pushed/probed/
+--                       base_ref/base_known/ahead_of_base). Written by the
+--                       report_delivery agent-tool from the worker's CenterWriteback.
+--                       '' = never reported (nil delivery). The writeback auto-block
+--                       (B②) reads `probed && !pushed` (committed-but-not-pushed = the
+--                       teardown-bug zero-delivery signature) to decide auto-block-vs-
+--                       retry; a non-git / probe-failed run (`!probed`) is unknown and
+--                       never treated as "no delivery".
+--   fruitless_reopens — per-task count of consecutive re-dispatches (reopens) that made
+--                       NO forward progress (neither completion nor a valid pushed
+--                       delivery). The reopen cap (defense-in-depth) blocks the task for
+--                       human triage past N to bound a same-shaped re-fork loop, and the
+--                       count resets to 0 on completion / valid delivery. Persisted (not
+--                       an in-memory tracker) so it survives reopen cycles + restarts.
+ALTER TABLE pm_tasks ADD COLUMN delivery TEXT NOT NULL DEFAULT '';
+ALTER TABLE pm_tasks ADD COLUMN fruitless_reopens INTEGER NOT NULL DEFAULT 0;

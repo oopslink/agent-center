@@ -259,6 +259,16 @@ type Task struct {
 	// MaxRecoveryResets the service blocks the task for triage instead of resetting
 	// again (circuit breaker against a reset loop). 0 for rows predating the column.
 	recoveryResetCount int
+	// delivery is the last forked executor's terminal git status (issue-f30b7e7b,
+	// migration 0109) — the durable "did this run produce a pushed delivery" signal the
+	// writeback auto-block reads to tell a real delivery from a zero-delivery run
+	// (committed-but-not-pushed / no-commit). nil = never reported. Set via SetDelivery.
+	delivery *Delivery
+	// fruitlessReopens is the durable count of consecutive re-dispatches (reopens) that
+	// made NO forward progress — neither completion nor a valid pushed delivery
+	// (issue-f30b7e7b, migration 0109). Defense-in-depth bound against a same-shaped
+	// re-fork loop; Complete / a valid delivery zeroes it. 0 for rows predating the column.
+	fruitlessReopens int
 }
 
 // NewTaskInput captures constructor args.
@@ -365,6 +375,12 @@ type RehydrateTaskInput struct {
 	// RecoveryResetCount is the persisted tier-3 recovery reset tally (T862 §2B,
 	// migration 0097); 0 for rows predating the column.
 	RecoveryResetCount int
+	// Delivery is the persisted last-executor terminal git status (issue-f30b7e7b,
+	// migration 0109); nil for rows predating the column / never reported.
+	Delivery *Delivery
+	// FruitlessReopens is the persisted no-progress reopen tally (issue-f30b7e7b,
+	// migration 0109); 0 for rows predating the column.
+	FruitlessReopens int
 	// StageID is the persisted Plan Stage membership (2026-07-03 design §4.1,
 	// migration 0106); "" for rows predating the column / tasks in no stage.
 	StageID StageID
@@ -414,6 +430,8 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		nodeID:                  in.NodeID,
 		stageID:                 in.StageID,
 		recoveryResetCount:      in.RecoveryResetCount,
+		delivery:                in.Delivery,
+		fruitlessReopens:        in.FruitlessReopens,
 	}, nil
 }
 
@@ -486,6 +504,22 @@ func (t *Task) Model() string { return t.model }
 // consecutive resets since the last successful progress (Complete zeroes it). The
 // service reads it to trip the circuit breaker at MaxRecoveryResets.
 func (t *Task) RecoveryResetCount() int { return t.recoveryResetCount }
+
+// Delivery exposes the last forked executor's terminal git status (issue-f30b7e7b),
+// or nil if never reported. The writeback auto-block reads HasValidDelivery() to tell a
+// durable pushed delivery from a zero-delivery run.
+func (t *Task) Delivery() *Delivery { return t.delivery }
+
+// SetDelivery records the last executor's terminal git status (report_delivery
+// agent-tool). Latest-wins: a terminal report overwrites any prior one.
+func (t *Task) SetDelivery(d *Delivery) { t.delivery = d }
+
+// FruitlessReopens exposes the durable no-progress reopen tally (issue-f30b7e7b).
+func (t *Task) FruitlessReopens() int { return t.fruitlessReopens }
+
+// NoteFruitlessReopen increments the no-progress reopen tally (the reopen cap's
+// defense-in-depth counter); a completion / valid delivery zeroes it via Complete.
+func (t *Task) NoteFruitlessReopen() { t.fruitlessReopens++ }
 
 // IsArchived reports the ORTHOGONAL archived state (v2.9 P3). Independent of
 // status: a task may be archived in any status.
@@ -1050,6 +1084,7 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	t.completedBy = by
 	t.blockedReason = ""
 	t.recoveryResetCount = 0
+	t.fruitlessReopens = 0
 	t.touch(at)
 	return nil
 }

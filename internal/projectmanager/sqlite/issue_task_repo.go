@@ -172,10 +172,14 @@ func NewTaskRepo(db *sql.DB) *TaskRepo { return &TaskRepo{db: db} }
 
 func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
-	_, err := exec.ExecContext(ctx,
+	deliveryJSON, err := pm.MarshalDelivery(t.Delivery())
+	if err != nil {
+		return err
+	}
+	_, err = exec.ExecContext(ctx,
 		`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue,
-			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(t.ID()), string(t.ProjectID()), t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
@@ -183,7 +187,7 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 		marshalTags(t.Tags()), ts(t.StatusChangedAt()), tsZeroNull(t.CompletedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()),
 		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
-		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()))
+		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), deliveryJSON, t.FruitlessReopens())
 	if isUnique(err) {
 		return pm.ErrTaskExists
 	}
@@ -192,16 +196,20 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 
 func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	deliveryJSON, err := pm.MarshalDelivery(t.Delivery())
+	if err != nil {
+		return err
+	}
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_tasks SET title=?, description=?, status=?, assignee=?, derived_from_issue=?,
-			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, completed_at=?, plan_id=?, archived_at=?, archived_by=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=?, model=?, required_capabilities=?, node_id=?, recovery_reset_count=?, stage_id=? WHERE id=?`,
+			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, completed_at=?, plan_id=?, archived_at=?, archived_by=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=?, model=?, required_capabilities=?, node_id=?, recovery_reset_count=?, stage_id=?, delivery=?, fruitless_reopens=? WHERE id=?`,
 		t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), tsZeroNull(t.CompletedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()),
 		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
-		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), string(t.ID()))
+		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), deliveryJSON, t.FruitlessReopens(), string(t.ID()))
 	if err != nil {
 		// v2.18.0 W4c: the single-active partial UNIQUE index (migration 0072) was
 		// DROPPED by 0084 — the per-agent run-slot cap is no longer a DB guarantee but
@@ -481,7 +489,7 @@ func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus)
 }
 
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
-	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id FROM pm_tasks`
+	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens FROM pm_tasks`
 
 func scanTask(scan func(...any) error) (*pm.Task, error) {
 	var (
@@ -502,9 +510,15 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		nodeID                                                        sql.NullString
 		recoveryResetCount                                            sql.NullInt64
 		stageID                                                       sql.NullString
+		delivery                                                      sql.NullString
+		fruitlessReopens                                              sql.NullInt64
 	)
 	if err := scan(&id, &projectID, &title, &desc, &status, &assignee, &derived,
-		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &completedAt, &planID, &archivedAt, &archivedBy, &blockedReasonType, &blockedComment, &execLeaseExpiresAt, &model, &requiredCapabilities, &nodeID, &recoveryResetCount, &stageID); err != nil {
+		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &completedAt, &planID, &archivedAt, &archivedBy, &blockedReasonType, &blockedComment, &execLeaseExpiresAt, &model, &requiredCapabilities, &nodeID, &recoveryResetCount, &stageID, &delivery, &fruitlessReopens); err != nil {
+		return nil, err
+	}
+	deliveryVal, err := pm.UnmarshalDelivery(delivery.String)
+	if err != nil {
 		return nil, err
 	}
 	return pm.RehydrateTask(pm.RehydrateTaskInput{
@@ -529,6 +543,8 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		NodeID:                  nodeID.String,
 		RecoveryResetCount:      int(recoveryResetCount.Int64),
 		StageID:                 pm.StageID(stageID.String),
+		Delivery:                deliveryVal,
+		FruitlessReopens:        int(fruitlessReopens.Int64),
 	})
 }
 

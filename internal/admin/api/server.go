@@ -392,6 +392,9 @@ func (s *Server) routes() {
 	// report_usage (v2.15.0 I28/F2): worker-initiated per-turn usage ingest — not
 	// LLM-facing (deliberately absent from the agent-facing MCP set).
 	s.mux.HandleFunc("POST /admin/agent-tools/report_usage", s.reportUsageHandler)
+	// report_delivery (issue-f30b7e7b): worker-initiated per-executor terminal git
+	// status ingest — not LLM-facing. Feeds the writeback auto-block (B②) + audit.
+	s.mux.HandleFunc("POST /admin/agent-tools/report_delivery", s.reportDeliveryHandler)
 	// report_installed_skills (issue-4a45e9cc): agent-runtime OBSERVED skill report —
 	// worker-initiated, not LLM-facing. Replaces the agent's agent_installed_skills set.
 	s.mux.HandleFunc("POST /admin/agent-tools/report_installed_skills", s.reportInstalledSkillsHandler)
