@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import TeamDetail from './TeamDetail';
 import { resetTeamsStore } from '@/api/teamsFixtures';
+import { server } from '@/test/mswServer';
 
 function Loc(): React.ReactElement {
   const l = useLocation();
@@ -72,6 +74,27 @@ describe('TeamDetail', () => {
     const migrate = await screen.findByTestId('migrate-modal');
     fireEvent.click(within(migrate).getByTestId('migrate-confirm'));
     await waitFor(() => expect(screen.getByText('agent-center-tester2')).toBeInTheDocument());
+  });
+
+  it('shows a friendly error (not silent) when migration fails', async () => {
+    // backend rejects the move (e.g. identity vanished) → the modal must surface
+    // the error and stay open, never silently swallow the failure.
+    server.use(
+      http.post('/api/teams/:id/members', () =>
+        HttpResponse.json({ error: 'identity_not_found', message: 'gone' }, { status: 404 }),
+      ),
+    );
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-mm'));
+    fireEvent.click(await screen.findByTestId('members-add'));
+    const modal = await screen.findByTestId('add-member-modal');
+    fireEvent.change(await within(modal).findByTestId('add-member-agent'), { target: { value: 'agent:agent-t2' } });
+    fireEvent.click(within(modal).getByTestId('add-member-submit'));
+    const migrate = await screen.findByTestId('migrate-modal');
+    fireEvent.click(within(migrate).getByTestId('migrate-confirm'));
+    // friendly mapped copy, not the raw envelope; modal stays open
+    expect(await screen.findByTestId('migrate-error')).toHaveTextContent('不存在或已注销');
+    expect(screen.getByTestId('migrate-modal')).toBeInTheDocument();
   });
 
   it('removes a member with the confirm modal', async () => {
