@@ -251,6 +251,27 @@ export function teamHandlers() {
       json(teamsStore().templateInstances[String(params.tid)] ?? []),
     ),
 
+    // scrub — the template's curation findings stripped to the truthful 3 fields
+    // (same {scrub_findings} envelope as /teams/:id/extract; FE enriches). Unknown
+    // tid → 404. Backed by the shared seed scrub fixture (the store holds one
+    // findings set; a real backend derives per-template from its seed memory).
+    http.get('/api/team-templates/:tid/scrub', ({ params }) => {
+      const s = teamsStore();
+      const tid = String(params.tid);
+      if (!s.templates.some((t) => t.id === tid)) {
+        return HttpResponse.json(
+          { error: 'not_found', message: 'template_not_found' },
+          { status: 404 },
+        );
+      }
+      const findings = s.scrub.map((f) => ({
+        experience_slug: f.experience_slug,
+        kind: f.kind,
+        token: f.token,
+      }));
+      return json({ scrub_findings: findings });
+    }),
+
     // ---- P2: extract — findings stripped to the truthful 3 fields (FE enriches) ----
     http.get('/api/teams/:id/extract', () =>
       json({

@@ -4,21 +4,18 @@
 // agent_tools_team.go): TeamView / RoleView / MemberView, the template export
 // envelope, and the extract scrub findings. A handful of FE-only display fields
 // (status, glyph, *_count, created, and the curation risk/loc enrichment) are
-// added on top — the backend does not yet carry them, so Phase-1 supplies them
-// from fixtures. See teamsFixtures.ts for the WHY and the migration path.
+// added on top — the backend does not carry them, so the FE derives them (the
+// scrub risk/loc/reason enrichment is display-only, layered over the truthful
+// {experience_slug, kind, token} the facade returns; see enrichScrubFinding).
 //
-// Every hook is a react-query hook over the in-memory fixture store; when a real
-// `/api/orgs/{slug}/teams` facade lands, only the queryFn/mutationFn bodies here
-// change — call sites and types stay put.
+// Every hook now fetches through the real `/api/orgs/{slug}/…` facade
+// (internal/webconsole/api/handlers_teams*.go); teamsFixtures.ts survives only as
+// the MSW test backend (src/mocks/teamHandlers.ts), never the dev/prod runtime.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { currentOrgScope } from './queryKeys';
-import {
-  cloneTeamsValue as clone,
-  teamsStore,
-  type TeamProjectLink,
-} from './teamsFixtures';
+import { type TeamProjectLink } from './teamsFixtures';
 
 // ---------------------------------------------------------------------------
 // Types (backend-shaped + Phase-1 display extras)
@@ -209,11 +206,6 @@ export const teamKeys = {
   directoryHumans: () => key('directory', 'humans'),
 };
 
-// Resolve a fixture value on a microtask so hooks exercise the real loading path.
-function resolve<T>(value: T): Promise<T> {
-  return Promise.resolve(clone(value));
-}
-
 // ---------------------------------------------------------------------------
 // Teams
 // ---------------------------------------------------------------------------
@@ -380,10 +372,20 @@ export function useTemplateInstances(id: string) {
   });
 }
 
-export function useTemplateScrub(_templateId: string) {
+/** template curation scrub — the truthful {experience_slug, kind, token} findings
+ *  from the template's seed memory (GET /team-templates/{tid}/scrub). Symmetric
+ *  with useExtractScrub: the backend gives only truthful tokens, the FE layers the
+ *  display-only risk/loc/reason/default_action enrichment on top. */
+export function useTemplateScrub(templateId: string) {
   return useQuery({
-    queryKey: teamKeys.scrub(_templateId),
-    queryFn: () => resolve(teamsStore().scrub),
+    queryKey: teamKeys.scrub(templateId),
+    queryFn: async () => {
+      const res = await api.get<{
+        scrub_findings: Array<{ experience_slug: string; kind: ScrubKind; token: string }>;
+      }>(`/team-templates/${templateId}/scrub`);
+      return res.scrub_findings.map(enrichScrubFinding);
+    },
+    enabled: !!templateId,
   });
 }
 
