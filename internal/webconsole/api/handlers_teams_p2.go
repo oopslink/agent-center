@@ -486,6 +486,39 @@ func (s *Server) getTeamTemplateHandler(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, teamTemplateView(st))
 }
 
+// templateScrubHandler serves GET /api/orgs/{slug}/team-templates/{tid}/scrub →
+// {scrub_findings}. Runs the curation-assist scrub (team.ScrubExperience, pure)
+// over the template's seed-memory experiences (design §6 block ③) and returns the
+// suspected-proprietary tokens for the Curation & 来源 pane to highlight. This is
+// the template-level analogue of GET /teams/{id}/extract's scrub pass and honors
+// the same truthful-token contract: only {experience_slug, kind, token} are
+// returned — the FE enriches risk/loc/reason/default_action display-only. A
+// template with no experiences yields an empty (never fixture) findings list.
+func (s *Server) templateScrubHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	_, _, orgID, ok := requireOrgMember(w, r, d)
+	if !ok {
+		return
+	}
+	st, found := s.teamTemplates.get(orgID, r.PathValue("tid"))
+	if !found {
+		writeError(w, http.StatusNotFound, "template_not_found", "team template not found")
+		return
+	}
+
+	findings := make([]map[string]any, 0)
+	for _, e := range st.tmpl.Experiences {
+		for _, f := range team.ScrubExperience(e) {
+			findings = append(findings, map[string]any{
+				"experience_slug": f.ExperienceSlug,
+				"kind":            string(f.Kind),
+				"token":           f.Token,
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"scrub_findings": findings})
+}
+
 // createTeamTemplateHandler serves POST /api/orgs/{slug}/team-templates → TeamTemplate (201).
 func (s *Server) createTeamTemplateHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)

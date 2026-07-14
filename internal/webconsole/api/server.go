@@ -284,6 +284,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/team-templates", s.listTeamTemplatesHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/team-templates", s.createTeamTemplateHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/team-templates/{tid}", s.getTeamTemplateHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/team-templates/{tid}/scrub", s.templateScrubHandler)
 	// Team WebUI facade P3 (this slice): disassociate / template save·import /
 	// template-instances + the org people directory (agents / humans).
 	s.mux.HandleFunc("DELETE /api/orgs/{slug}/teams/{id}/projects/{project_id}", s.disassociateTeamProjectHandler)
