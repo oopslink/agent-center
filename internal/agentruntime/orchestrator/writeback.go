@@ -93,6 +93,26 @@ type UsageSample struct {
 	At      time.Time
 }
 
+// DeliveryReporter is the optional seam (issue-f30b7e7b) that relays a terminal
+// executor's structured git delivery status to the center's report_delivery tool, so
+// the center-side stuck-node reconcile can tell a recoverable dead process from a
+// terminal-but-never-pushed (review-only) executor. Same shape as UsageReporter: the
+// executor never connects to the center (F1 isolation); the orchestrator — sole writer,
+// already authed — reports it here. nil disables it (the writeback degrades unchanged).
+type DeliveryReporter interface {
+	ReportDelivery(ctx context.Context, s DeliverySample) error
+}
+
+// DeliverySample is one terminal executor's delivery-audit signal: the task it was
+// bound to plus the worktree git status probed at finalize. TaskID is Source.TaskRef
+// VERBATIM ("" ⇒ a task-less run, never reported — delivery is task-scoped). Git is
+// non-nil only when the worktree was actually probed (a git workspace).
+type DeliverySample struct {
+	AgentID string
+	TaskID  string
+	Git     *executor.FinalizedGitStatus
+}
+
 // CenterWriteback implements executor.Writeback. One per agent. Its mutex makes
 // the orchestrator the effective SOLE WRITER even though the daemon reaps each
 // executor on its own goroutine (design §3) — concurrent completions serialize, so
@@ -102,7 +122,8 @@ type CenterWriteback struct {
 	fx      *executor.FileExchange
 	agentID string
 	mem     MemoryWriter  // optional; nil in W2
-	usage   UsageReporter // optional; nil disables usage reporting (T613)
+	usage    UsageReporter    // optional; nil disables usage reporting (T613)
+	delivery DeliveryReporter // optional; nil disables delivery reporting (issue-f30b7e7b)
 	// inject delivers a judgment prompt to the agent's supervisor session (option b,
 	// issue-68ccb310): the supervisor reviews the executor's REAL delivery and calls
 	// complete_task/block_task ITSELF. Replaces the daemon-side auto-writeback
@@ -130,6 +151,12 @@ func NewCenterWriteback(client CenterClient, fx *executor.FileExchange, agentID 
 // WithMemoryWriter attaches an optional MemoryWriter (the W2-deferred seam).
 func (w *CenterWriteback) WithMemoryWriter(m MemoryWriter) *CenterWriteback {
 	w.mem = m
+	return w
+}
+
+// WithDeliveryReporter attaches the optional DeliveryReporter (issue-f30b7e7b).
+func (w *CenterWriteback) WithDeliveryReporter(d DeliveryReporter) *CenterWriteback {
+	w.delivery = d
 	return w
 }
 
@@ -171,6 +198,9 @@ func (w *CenterWriteback) Report(ctx context.Context, c executor.Completion) err
 	// a usage-report failure never blocks the task completion/block (and so never
 	// stalls teardown into a re-report that would double-complete the task).
 	w.reportUsage(ctx, in, c)
+	// Relay this run's git delivery status (issue-f30b7e7b) BEFORE result routing —
+	// best-effort, same as usage: it must never block or wedge the completion/block path.
+	w.reportDelivery(ctx, in, c)
 
 	switch c.Kind {
 	case executor.OutcomeSucceeded:
@@ -308,6 +338,29 @@ func (w *CenterWriteback) reportUsage(ctx context.Context, in executor.Input, c 
 	}); err != nil {
 		// No logger seam here; a usage-report failure is non-fatal accounting loss,
 		// never a reason to retain the executor dir or fail the task writeback.
+		_ = err
+	}
+}
+
+// reportDelivery relays a terminal executor's git delivery status to the center
+// (issue-f30b7e7b). BEST-EFFORT: with no reporter wired, a task-less run, or no probed
+// git status (c.Git nil ⇒ non-git / unresolvable workspace) it is a no-op; a reporter
+// error is SWALLOWED — the delivery signal is a side-channel for the stuck-node
+// reconcile, never a reason to fail or wedge the writeback (or retain the executor
+// dir). task_id is Source.TaskRef VERBATIM (empty stays empty — delivery is
+// task-scoped, never fabricated, mirroring reportUsage).
+func (w *CenterWriteback) reportDelivery(ctx context.Context, in executor.Input, c executor.Completion) {
+	taskRef := strings.TrimSpace(in.Source.TaskRef)
+	if w.delivery == nil || taskRef == "" || c.Git == nil {
+		return
+	}
+	if err := w.delivery.ReportDelivery(ctx, DeliverySample{
+		AgentID: w.agentID,
+		TaskID:  taskRef,
+		Git:     c.Git,
+	}); err != nil {
+		// Non-fatal: a delivery-report failure is a lost side-channel signal, never a
+		// reason to retain the dir or fail the task writeback.
 		_ = err
 	}
 }

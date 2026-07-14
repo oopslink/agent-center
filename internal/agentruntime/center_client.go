@@ -215,3 +215,38 @@ func (a *usageReporterAdapter) ReportUsage(ctx context.Context, s orchestrator.U
 	}
 	return a.caller.CallAgentTool(ctx, "report_usage", body, nil)
 }
+
+// deliveryReporterAdapter implements orchestrator.DeliveryReporter over a ToolCaller
+// (issue-f30b7e7b): it POSTs a terminal executor's structured git delivery status to
+// the center's report_delivery agent-tool — the SAME worker-bearer transport as
+// report_usage. The executor never reaches here; only the orchestrator (sole writer,
+// already authed) does, so executor default-deny holds.
+type deliveryReporterAdapter struct {
+	caller ToolCaller
+}
+
+// newDeliveryReporter wraps a ToolCaller as an orchestrator.DeliveryReporter. Returns
+// nil when the caller is nil (the writeback then leaves delivery reporting off —
+// graceful degrade, matching newUsageReporter).
+func newDeliveryReporter(caller ToolCaller) orchestrator.DeliveryReporter {
+	if caller == nil {
+		return nil
+	}
+	return &deliveryReporterAdapter{caller: caller}
+}
+
+// compile-time check.
+var _ orchestrator.DeliveryReporter = (*deliveryReporterAdapter)(nil)
+
+// ReportDelivery → POST /admin/agent-tools/report_delivery. The body carries agent_id
+// (worker-bearer → agent mapping, all agent-tool convention), task_id (Source.TaskRef
+// verbatim), and git = the FinalizedGitStatus's 8 fields VERBATIM (its own JSON tags),
+// which the center stores unabridged and reads probed && !pushed from.
+func (a *deliveryReporterAdapter) ReportDelivery(ctx context.Context, s orchestrator.DeliverySample) error {
+	body := map[string]any{
+		"agent_id": s.AgentID,
+		"task_id":  s.TaskID,
+		"git":      s.Git,
+	}
+	return a.caller.CallAgentTool(ctx, "report_delivery", body, nil)
+}

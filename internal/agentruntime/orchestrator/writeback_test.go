@@ -556,3 +556,83 @@ func TestReport_SoleWriterSerializes(t *testing.T) {
 		t.Errorf("want %d judgment injections, got %d", n, len(fc.injections))
 	}
 }
+
+// fakeDelivery captures delivery samples relayed by the writeback (issue-f30b7e7b).
+type fakeDelivery struct {
+	mu      sync.Mutex
+	samples []DeliverySample
+	err     error
+}
+
+func (f *fakeDelivery) ReportDelivery(_ context.Context, s DeliverySample) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	f.samples = append(f.samples, s)
+	return nil
+}
+
+// TestReport_RelaysDeliveryStatus locks that a terminal writeback relays the executor's
+// git delivery status (agent/task/git) — the never-pushed shape the center reconcile
+// must catch — to the DeliveryReporter (issue-f30b7e7b).
+func TestReport_RelaysDeliveryStatus(t *testing.T) {
+	fc := &fakeCenter{}
+	wb, _ := newWB(t, fc, baseInput("e1"))
+	fd := &fakeDelivery{}
+	wb.WithDeliveryReporter(fd)
+
+	git := &executor.FinalizedGitStatus{Probed: true, Branch: "feat/review-only", HeadSHA: "abc", Pushed: false, BaseKnown: true, AheadOfBase: 2}
+	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeSucceeded, Git: git}); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	fd.mu.Lock()
+	defer fd.mu.Unlock()
+	if len(fd.samples) != 1 {
+		t.Fatalf("want 1 delivery sample, got %d", len(fd.samples))
+	}
+	s := fd.samples[0]
+	if s.AgentID != "agent-x" || s.TaskID != "task-1" {
+		t.Errorf("sample id = %q/%q, want agent-x/task-1", s.AgentID, s.TaskID)
+	}
+	if s.Git == nil || s.Git.Pushed || s.Git.Branch != "feat/review-only" {
+		t.Errorf("sample git = %+v, want non-nil Pushed=false Branch=feat/review-only", s.Git)
+	}
+}
+
+// TestReport_DeliveryNoopWhenNoGitOrNoReporter locks the best-effort no-ops: no
+// reporter wired, or a nil c.Git (non-git workspace), reports nothing and never panics.
+func TestReport_DeliveryNoopWhenNoGitOrNoReporter(t *testing.T) {
+	fc := &fakeCenter{}
+	// (a) no reporter wired → Report still succeeds, no panic.
+	wb, _ := newWB(t, fc, baseInput("e1"))
+	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeSucceeded, Git: &executor.FinalizedGitStatus{Probed: true}}); err != nil {
+		t.Fatalf("Report with no reporter: %v", err)
+	}
+	// (b) reporter wired but c.Git nil (non-git workspace) → no sample.
+	fd := &fakeDelivery{}
+	wb2, _ := newWB(t, fc, baseInput("e2"))
+	wb2.WithDeliveryReporter(fd)
+	if err := wb2.Report(context.Background(), executor.Completion{ExecutorID: "e2", Kind: executor.OutcomeSucceeded, Git: nil}); err != nil {
+		t.Fatalf("Report with nil git: %v", err)
+	}
+	fd.mu.Lock()
+	defer fd.mu.Unlock()
+	if len(fd.samples) != 0 {
+		t.Fatalf("nil c.Git must not report delivery, got %d", len(fd.samples))
+	}
+}
+
+// TestReport_DeliveryErrorNeverWedges locks that a delivery-report failure is swallowed
+// — it never fails the writeback or blocks the judgment path (best-effort side-channel).
+func TestReport_DeliveryErrorNeverWedges(t *testing.T) {
+	fc := &fakeCenter{}
+	wb, _ := newWB(t, fc, baseInput("e1"))
+	wb.WithDeliveryReporter(&fakeDelivery{err: errors.New("center down")})
+	if err := wb.Report(context.Background(), executor.Completion{ExecutorID: "e1", Kind: executor.OutcomeSucceeded, Git: &executor.FinalizedGitStatus{Probed: true}}); err != nil {
+		t.Fatalf("delivery-report error must not wedge Report: %v", err)
+	}
+	// The judgment is still delivered — the delivery failure did not short-circuit.
+	oneInjection(t, fc)
+}

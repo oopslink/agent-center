@@ -147,3 +147,44 @@ func TestUsageReporter_ReportUsage_OmitsEmptyOptionals(t *testing.T) {
 		t.Errorf("body tokens = %v", fc.body)
 	}
 }
+
+func TestNewDeliveryReporter_NilCaller(t *testing.T) {
+	if newDeliveryReporter(nil) != nil {
+		t.Fatal("nil caller should yield nil DeliveryReporter (graceful degrade)")
+	}
+	if newDeliveryReporter(&fakeToolCaller{}) == nil {
+		t.Fatal("non-nil caller should yield a reporter")
+	}
+}
+
+// TestDeliveryReporter_ReportDelivery_Body locks the report_delivery wire shape: the
+// agent-tool name + {agent_id, task_id, git:{8 fields verbatim}} the center receives.
+func TestDeliveryReporter_ReportDelivery_Body(t *testing.T) {
+	fc := &fakeToolCaller{}
+	dr := newDeliveryReporter(fc)
+	git := &executor.FinalizedGitStatus{
+		Branch: "feat/x", HeadSHA: "abc", Dirty: false, Pushed: false, Probed: true,
+		BaseRef: "origin/main", BaseKnown: true, AheadOfBase: 2,
+	}
+	if err := dr.ReportDelivery(context.Background(), orchestrator.DeliverySample{
+		AgentID: "agent-1", TaskID: "task-7", Git: git,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if fc.tool != "report_delivery" {
+		t.Errorf("tool = %q, want report_delivery", fc.tool)
+	}
+	if fc.body["agent_id"] != "agent-1" || fc.body["task_id"] != "task-7" {
+		t.Errorf("body meta = %v", fc.body)
+	}
+	g, ok := fc.body["git"].(map[string]any)
+	if !ok {
+		t.Fatalf("git must be a nested object, got %v", fc.body["git"])
+	}
+	// All 8 FinalizedGitStatus fields, verbatim (JSON numbers round-trip as float64).
+	if g["branch"] != "feat/x" || g["head_sha"] != "abc" || g["dirty"] != false ||
+		g["pushed"] != false || g["probed"] != true || g["base_ref"] != "origin/main" ||
+		g["base_known"] != true || g["ahead_of_base"] != float64(2) {
+		t.Errorf("git body = %v, want all 8 fields verbatim", g)
+	}
+}

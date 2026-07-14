@@ -250,6 +250,7 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 			return nil, werr
 		}
 		cwb.WithUsageReporter(newUsageReporter(caller))
+		cwb.WithDeliveryReporter(newDeliveryReporter(caller))
 		// option b (issue-68ccb310): deliver a finished executor's result to THIS agent's
 		// supervisor session for a judged completion, instead of auto-completing.
 		cwb.WithSupervisorInjector(r.injectToSupervisor)
