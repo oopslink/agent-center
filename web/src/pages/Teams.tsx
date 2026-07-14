@@ -54,7 +54,7 @@ export default function Teams(): React.ReactElement {
       {teams.isSuccess && teams.data.length === 0 && (
         <EmptyState
           title="还没有 team"
-          body="创建第一支编队 —— 声明角色配比，创建即建 agent 身份与 team-memory。"
+          body="创建第一支编队 —— 声明角色配比与 team-memory（Phase-1 不铸 agent，运行时另行编入）。"
           action={{ label: '+ New Team', onClick: () => setCreating(true) }}
           testId="teams-empty"
         />

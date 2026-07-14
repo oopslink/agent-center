@@ -155,15 +155,14 @@ function OverviewPane({ template: t, totalSlots }: { template: TeamTemplate; tot
           <SectionHead title="模版信息" hint="provenance" />
           <SpecLine k="版本" v={t.version_label} />
           <SpecLine k="来源" v={t.source} />
-          <SpecLine k="可见性" v="org-private" />
           <SpecLine k="workflow-ref" v={t.workflow_template_ref} />
           <SpecLine k="curation" v={<span className="text-success">{t.curated ? '已过门' : '未过门'}</span>} />
           <SpecLine k="实例" v={`${t.instances_count} 个 team`} />
         </Card>
       </div>
       <Note>
-        Instantiate 时会按此配比建身份、把 Seed Memory 种进新 team 的 memory-repo、绑 workflow-ref。<b>与 project 无关</b>，project
-        后置关联。总 {totalSlots} slots。
+        Instantiate 时会按此配比建一支 team、声明角色 slots、把 Seed Memory 种进新 team 的 memory-repo、绑 workflow-ref。
+        <b>Phase-1 不铸 agent 身份</b>（运行时另行编入），<b>与 project 无关</b>，project 后置关联。总 {totalSlots} slots。
       </Note>
     </div>
   );

@@ -32,7 +32,7 @@ describe('TeamDetail', () => {
     renderAt('team-7c19b0');
     expect(await screen.findByRole('heading', { name: 'agent-center core' })).toBeInTheDocument();
     expect(screen.getByText('角色配比')).toBeInTheDocument();
-    expect(screen.getByText('健康度')).toBeInTheDocument();
+    expect(screen.getByText('团队概况')).toBeInTheDocument();
   });
 
   it('renders an error for an unknown team', async () => {
@@ -48,25 +48,30 @@ describe('TeamDetail', () => {
     expect(screen.getByTestId('members-exclusivity-note')).toBeInTheDocument();
   });
 
-  it('adds a free agent through the add-member modal', async () => {
+  it('adds a free agent (real directory ref) through the add-member modal', async () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-mm'));
     fireEvent.click(await screen.findByTestId('members-add'));
     const modal = await screen.findByTestId('add-member-modal');
+    // pick a real agent not on any team (free) → direct add, canonical ref
+    fireEvent.change(await within(modal).findByTestId('add-member-agent'), { target: { value: 'agent:agent-d5' } });
     fireEvent.click(within(modal).getByTestId('add-member-submit'));
-    await waitFor(() => expect(screen.getByText('coder-04')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('agent-center-dev5')).toBeInTheDocument());
+    // the stored member_ref is the full canonical ref (no truncation)
+    expect(await screen.findByTestId('member-row-agent:agent-d5')).toBeInTheDocument();
   });
 
-  it('requires a migration confirm for a busy agent', async () => {
+  it('requires a migration confirm for an agent already on another team', async () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-mm'));
     fireEvent.click(await screen.findByTestId('members-add'));
     const modal = await screen.findByTestId('add-member-modal');
-    fireEvent.change(within(modal).getByTestId('add-member-agent'), { target: { value: 'busy' } });
+    // tester2 is on growth-experiments → migration confirm
+    fireEvent.change(await within(modal).findByTestId('add-member-agent'), { target: { value: 'agent:agent-t2' } });
     fireEvent.click(within(modal).getByTestId('add-member-submit'));
     const migrate = await screen.findByTestId('migrate-modal');
     fireEvent.click(within(migrate).getByTestId('migrate-confirm'));
-    await waitFor(() => expect(screen.getByText('coder-09')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('agent-center-tester2')).toBeInTheDocument());
   });
 
   it('removes a member with the confirm modal', async () => {
@@ -77,12 +82,18 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(screen.queryByText('planner-01')).not.toBeInTheDocument());
   });
 
-  it('associates and unlinks a project', async () => {
+  it('associates a real picked project and unlinks a project', async () => {
     renderAt('team-7c19b0');
     fireEvent.click(await screen.findByTestId('tab-pj'));
     expect(await screen.findByTestId('assoc-project-c7073e48')).toBeInTheDocument();
+    // open the real picker, choose an actual org project (not a fabricated ref)
     fireEvent.click(screen.getByTestId('associate-project'));
-    await waitFor(() => expect(screen.getByText('new-project')).toBeInTheDocument());
+    const modal = await screen.findByTestId('associate-project-modal');
+    fireEvent.change(await within(modal).findByTestId('associate-project-select'), { target: { value: 'proj-a' } });
+    fireEvent.click(within(modal).getByTestId('associate-project-submit'));
+    await waitFor(() => expect(screen.getByText('Project Alpha')).toBeInTheDocument());
+    expect(screen.getByTestId('assoc-proj-a')).toBeInTheDocument();
+    // unlink the seeded project
     fireEvent.click(screen.getByTestId('unlink-project-c7073e48'));
     fireEvent.click(await screen.findByTestId('confirm-modal-confirm'));
     await waitFor(() => expect(screen.queryByTestId('assoc-project-c7073e48')).not.toBeInTheDocument());

@@ -124,6 +124,7 @@ export interface ScrubFinding {
 }
 
 export interface DirectoryAgent {
+  ref: string; // canonical "agent:<identityID>" — use verbatim as a member_ref
   name: string;
   status: 'working' | 'idle';
   role: string;
@@ -135,6 +136,7 @@ export interface DirectoryAgent {
 }
 
 export interface DirectoryHuman {
+  ref: string; // canonical "user:<identityID>" — use verbatim as a member_ref
   name: string;
   role: string;
   status: 'Joined' | 'Invited';
