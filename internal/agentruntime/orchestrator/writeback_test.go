@@ -147,6 +147,56 @@ func TestReport_Succeeded_InjectsJudgment(t *testing.T) {
 	}
 }
 
+// TestReport_JudgmentSurfacesDeliveryBranch is the issue-f30b7e7b P0-A lock: the judgment
+// prompt must carry the structured delivery evidence (branch + SHA + pushed) so the judging
+// supervisor knows EXACTLY which branch/commit to inspect — closing the "pushed but nobody
+// knows where to look = nominal delivery" gap.
+func TestReport_JudgmentSurfacesDeliveryBranch(t *testing.T) {
+	fc := &fakeCenter{}
+	in := baseInput("exec-9")
+	wb, _ := newWB(t, fc, in)
+	c := executor.Completion{
+		ExecutorID: "exec-9",
+		Kind:       executor.OutcomeSucceeded,
+		Status:     &executor.Status{ExecutorID: "exec-9", State: executor.StateDone, Summary: "did work", StartedAt: wbNow},
+		Output:     &executor.Output{ExecutorID: "exec-9", Success: true, Result: "r", FinishedAt: wbNow},
+		Git:        &executor.FinalizedGitStatus{Probed: true, Branch: "ac-exec/task-1/exec-9", HeadSHA: "abc1234", Pushed: true},
+	}
+	if err := wb.Report(context.Background(), c); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	j := oneInjection(t, fc)
+	for _, want := range []string{"ac-exec/task-1/exec-9", "abc1234", "pushed=true", "on origin"} {
+		if !strings.Contains(j, want) {
+			t.Errorf("judgment must surface delivery branch+SHA (%q missing): %q", want, j)
+		}
+	}
+}
+
+// TestReport_JudgmentSurfacesPushFailure locks the failure-surface half: when the eager-push
+// failed, the judgment prompt states the branch is committed but NOT on origin + why.
+func TestReport_JudgmentSurfacesPushFailure(t *testing.T) {
+	fc := &fakeCenter{}
+	in := baseInput("exec-10")
+	wb, _ := newWB(t, fc, in)
+	c := executor.Completion{
+		ExecutorID: "exec-10",
+		Kind:       executor.OutcomeCrashed,
+		Error:      &executor.ErrorDetail{Kind: "non_delivery", Message: "no durable delivery — eager-push failed: auth denied"},
+		Status:     &executor.Status{ExecutorID: "exec-10", State: executor.StateDone, StartedAt: wbNow},
+		Git:        &executor.FinalizedGitStatus{Probed: true, Branch: "ac-exec/task-1/exec-10", HeadSHA: "def5678", Pushed: false, PushError: "auth denied"},
+	}
+	if err := wb.Report(context.Background(), c); err != nil {
+		t.Fatalf("Report: %v", err)
+	}
+	j := oneInjection(t, fc)
+	for _, want := range []string{"ac-exec/task-1/exec-10", "pushed=false", "eager-push FAILED", "auth denied"} {
+		if !strings.Contains(j, want) {
+			t.Errorf("judgment must surface the push failure (%q missing): %q", want, j)
+		}
+	}
+}
+
 func TestReport_Succeeded_SummaryFallback(t *testing.T) {
 	// No status summary → falls back to output.Result.
 	fc := &fakeCenter{}

@@ -527,6 +527,17 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	// `finalized` marker further down — one probe, reused everywhere (was probed twice
 	// before: once in the gate, once at the marker, and never carried to the center).
 	c.Git = m.finalizeGitStatus(ctx, c.ExecutorID)
+	// issue-f30b7e7b PRIMARY fix — eager supervisor-push BEFORE the non-delivery gate: a
+	// forked review-only Dev executor commits its work onto its own ac-exec/<task>/<exec>
+	// branch but never pushes it (it is isolated: no center, no credentials). The agent-
+	// runtime (which HOLDS the git creds) pushes that branch to origin here, so the commit is
+	// durably delivered instead of dying with the reaped worktree. On success c.Git.Pushed
+	// flips true → the gate below sees a genuine durable delivery (positive path: NOT
+	// retryable, NOT reopened). On a push refusal/failure Pushed stays false + c.Git.PushError
+	// records why → the gate downgrades to a retryable non_delivery carrying that reason. The
+	// branch guardrail inside refuses main/detached/unexpected so local commits are NEVER
+	// pushed to origin/main.
+	c = m.eagerPushBeforeGate(ctx, c)
 	c = m.gateNonDelivery(ctx, c)
 	// T969 (option A): persist a codex executor's captured thread_id into
 	// Record.SessionID BEFORE teardown, so a later resume can `codex exec resume
@@ -622,12 +633,16 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 		c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.AheadOfBase, gs.Dirty)
 	c.Kind = OutcomeCrashed
 	c.Retryable = true
-	c.Error = &ErrorDetail{
-		Kind: "non_delivery",
-		Message: "executor reported success but produced no durable delivery: HEAD was never " +
-			"pushed (committed-but-unpushed work dies with the reaped worktree) — treated as " +
-			"non-delivery",
+	msg := "executor reported success but produced no durable delivery: HEAD was never " +
+		"pushed (committed-but-unpushed work dies with the reaped worktree) — treated as " +
+		"non-delivery"
+	// If the eager supervisor-push (issue-f30b7e7b) attempted and failed, surface WHY the
+	// branch could not be delivered (guardrail refusal / auth / non-ff / network) so the
+	// supervisor judgment + audit can act on the real cause and escalate.
+	if gs.PushError != "" {
+		msg += " — eager-push failed: " + gs.PushError
 	}
+	c.Error = &ErrorDetail{Kind: "non_delivery", Message: msg}
 	return c
 }
 

@@ -53,6 +53,12 @@ type FinalizedGitStatus struct {
 	// past base). Only meaningful when BaseKnown. It is the mechanical "did the executor
 	// commit anything" signal the non-delivery gate reads.
 	AheadOfBase int `json:"ahead_of_base,omitempty"`
+	// PushError is set by the eager supervisor-push (issue-f30b7e7b) when a committed feat
+	// branch could NOT be pushed to origin (guardrail refusal, auth/write-permission failure,
+	// non-fast-forward, network). "" ⇒ no push was attempted or the push succeeded. When set,
+	// Pushed stays false and the run is routed to non_delivery carrying this reason, so the
+	// supervisor judgment + audit can see WHY the work was not durably delivered.
+	PushError string `json:"push_error,omitempty"`
 }
 
 // HasDelivery reports whether the worktree shows ANY real git side effect: a commit

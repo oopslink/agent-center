@@ -118,10 +118,10 @@ type DeliverySample struct {
 // executor on its own goroutine (design §3) — concurrent completions serialize, so
 // center writes (and a future memory write) never interleave/clobber.
 type CenterWriteback struct {
-	client  CenterClient
-	fx      *executor.FileExchange
-	agentID string
-	mem     MemoryWriter  // optional; nil in W2
+	client   CenterClient
+	fx       *executor.FileExchange
+	agentID  string
+	mem      MemoryWriter     // optional; nil in W2
 	usage    UsageReporter    // optional; nil disables usage reporting (T613)
 	delivery DeliveryReporter // optional; nil disables delivery reporting (issue-f30b7e7b)
 	// inject delivers a judgment prompt to the agent's supervisor session (option b,
@@ -241,7 +241,7 @@ func (w *CenterWriteback) reportSuccess(ctx context.Context, in executor.Input, 
 		// option b (issue-68ccb310): do NOT auto-complete. Deliver the result to the
 		// supervisor as a judgment turn; the supervisor reviews REAL delivery and calls
 		// complete_task/block_task itself.
-		if err := w.deliverJudgment(ctx, taskRef, "succeeded", summary); err != nil {
+		if err := w.deliverJudgment(ctx, taskRef, "succeeded", summary, c.Git); err != nil {
 			return err
 		}
 		return w.writeMemory(ctx, in, c)
@@ -265,7 +265,7 @@ func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, 
 		if c.Kind == executor.OutcomeCrashed {
 			outcome = "crashed"
 		}
-		if err := w.deliverJudgment(ctx, taskRef, outcome, reason); err != nil {
+		if err := w.deliverJudgment(ctx, taskRef, outcome, reason, c.Git); err != nil {
 			return err
 		}
 		return w.writeMemory(ctx, in, c)
@@ -280,11 +280,11 @@ func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, 
 // issue-68ccb310): the supervisor reviews the executor's REAL delivery and calls
 // complete_task/block_task itself. Errors if no injector is wired (no supervisor to
 // judge) — the task is NEVER silently auto-completed on exit outcome.
-func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome, summary string) error {
+func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome, summary string, git *executor.FinalizedGitStatus) error {
 	if w.inject == nil {
 		return fmt.Errorf("orchestrator: writeback no supervisor injector for task %s (cannot judge — refusing to auto-complete)", taskRef)
 	}
-	if err := w.inject(ctx, taskRef, judgmentPrompt(taskRef, outcome, summary)); err != nil {
+	if err := w.inject(ctx, taskRef, judgmentPrompt(taskRef, outcome, summary, git)); err != nil {
 		return fmt.Errorf("orchestrator: writeback inject judgment for task %s: %w", taskRef, err)
 	}
 	return nil
@@ -293,21 +293,40 @@ func (w *CenterWriteback) deliverJudgment(ctx context.Context, taskRef, outcome,
 // judgmentPrompt renders the supervisor-facing judgment turn for a finished executor
 // (option b). It instructs the supervisor to judge REAL delivery — not exit status —
 // before completing or blocking, which is what roots out "complete without delivering".
-func judgmentPrompt(taskRef, outcome, summary string) string {
+func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGitStatus) string {
 	s := strings.TrimSpace(summary)
 	if len(s) > maxRelayChars {
 		s = s[:maxRelayChars]
 	}
 	return fmt.Sprintf(
 		"[executor finished] Your forked executor for task %s exited: outcome=%s.\n"+
-			"Its self-reported summary/reason:\n%s\n\n"+
-			"Now JUDGE the real delivery — check git (a new commit / pushed to the branch?), "+
-			"whether the task's objective was actually met — then call complete_task(task_id=%q) "+
-			"if it TRULY delivered, or block_task(task_id=%q, reason=...) if it did not deliver or "+
-			"failed. Do NOT complete on exit status alone: a run that produced nothing must be "+
-			"blocked (retryable), never completed.",
-		taskRef, outcome, s, taskRef, taskRef,
+			"Its self-reported summary/reason:\n%s\n%s\n"+
+			"Now JUDGE the real delivery — check git (the reported delivery branch: is the commit "+
+			"pushed on origin? does the SHA match?), whether the task's objective was actually met "+
+			"— then call complete_task(task_id=%q) if it TRULY delivered, or "+
+			"block_task(task_id=%q, reason=...) if it did not deliver or failed. Do NOT complete on "+
+			"exit status alone: a run that produced nothing must be blocked (retryable), never "+
+			"completed.",
+		taskRef, outcome, s, deliveryLine(git), taskRef, taskRef,
 	)
+}
+
+// deliveryLine renders the structured git delivery evidence (issue-f30b7e7b P0-A) so the
+// judging supervisor knows EXACTLY which branch + SHA to inspect and whether the agent-
+// runtime durably pushed it — closing the "pushed but nobody knows where to look = nominal
+// delivery" gap (the reported ac-exec delivery branch is what review/integration checks out
+// / merges). "" when there is no probed git status (a non-git / center-action work item).
+func deliveryLine(git *executor.FinalizedGitStatus) string {
+	if git == nil || !git.Probed {
+		return ""
+	}
+	line := fmt.Sprintf("Reported delivery branch: %s (HEAD %s) pushed=%t.", git.Branch, git.HeadSHA, git.Pushed)
+	if git.PushError != "" {
+		line += " eager-push FAILED: " + git.PushError + " — work is committed but NOT on origin."
+	} else if git.Pushed {
+		line += " The branch is on origin — check it out / merge it to review the delivery."
+	}
+	return "\n" + line
 }
 
 // relayToChat posts content to the first source chat conversation. With neither a
