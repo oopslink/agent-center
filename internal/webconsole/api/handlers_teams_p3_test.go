@@ -250,6 +250,11 @@ func TestDirectoryHumans_RealIdentityAndTeams(t *testing.T) {
 	if h["name"] != "testuser" {
 		t.Errorf("name = %v, want testuser", h["name"])
 	}
+	// ref is the canonical, round-trippable member ref (user:<identityID>) — the
+	// add-member picker feeds it straight back, no fabrication/truncation.
+	if h["ref"] != "user:"+sess.IdentityID {
+		t.Errorf("ref = %v, want user:%s", h["ref"], sess.IdentityID)
+	}
 	if h["email"] != "owner@example.com" {
 		t.Errorf("email = %v, want owner@example.com", h["email"])
 	}
@@ -309,6 +314,12 @@ func TestDirectoryAgents_MembershipAndPlaceholders(t *testing.T) {
 	a := arr[0].(map[string]any)
 	if a["name"] != "Ada" {
 		t.Errorf("name = %v, want Ada", a["name"])
+	}
+	// ref is the canonical, round-trippable member ref (agent:<identityID>) — the
+	// add-member picker feeds it straight back, so a real agent can never be
+	// stored as a fabricated/truncated ref (tester3 round-2 #2 pollution root).
+	if a["ref"] != "agent:"+agentIdent.ID() {
+		t.Errorf("ref = %v, want agent:%s", a["ref"], agentIdent.ID())
 	}
 	if a["status"] != "idle" {
 		t.Errorf("status = %v, want idle (no execution agent)", a["status"])
