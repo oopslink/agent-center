@@ -518,6 +518,15 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	// tree, and nothing pushed delivered NOTHING — trusting its "succeeded" is exactly the
 	// canned-PASS zero-delivery hole. The gate downgrades such a success to a retryable
 	// non_delivery (fail-loud), so it can never reach the center/supervisor as "succeeded".
+	// Probe the worktree's structured git status ONCE, here, BEFORE the writeback —
+	// so the delivery-audit signal (branch / HEAD / dirty / pushed / ahead-of-base)
+	// rides the center Report onto the task record (issue-f30b7e7b: the center-side
+	// stuck-node reconcile reads `pushed` to tell a recoverable dead process from a
+	// terminal-but-never-pushed executor, which must be triage-blocked, not
+	// auto-reopened). The same value feeds the non-delivery gate below AND the retained
+	// `finalized` marker further down — one probe, reused everywhere (was probed twice
+	// before: once in the gate, once at the marker, and never carried to the center).
+	c.Git = m.finalizeGitStatus(ctx, c.ExecutorID)
 	c = m.gateNonDelivery(ctx, c)
 	// T969 (option A): persist a codex executor's captured thread_id into
 	// Record.SessionID BEFORE teardown, so a later resume can `codex exec resume
@@ -559,8 +568,8 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 	// branch / HEAD sha / dirty / pushed, so a later delivery-detection / audit pass can
 	// mechanically judge "did this executor really deliver, and was it pushed" WITHOUT the
 	// worktree still present — root-causing T947 (teardown-before-audit lost unpushed work).
-	git := m.finalizeGitStatus(ctx, c.ExecutorID)
-	if err := m.fx.MarkFinalized(c.ExecutorID, m.clk.Now(), git); err != nil {
+	// Reuse the single probe taken before the writeback (c.Git) rather than re-probing.
+	if err := m.fx.MarkFinalized(c.ExecutorID, m.clk.Now(), c.Git); err != nil {
 		// Can't stamp the retain marker → fall back to immediate teardown. Never leak:
 		// a lost retain window is far better than an un-reaped dir/worktree.
 		return m.tearDownExecutor(ctx, c.ExecutorID)
@@ -586,7 +595,8 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 	if c.Kind != OutcomeSucceeded {
 		return c
 	}
-	gs := m.finalizeGitStatus(ctx, c.ExecutorID)
+	// Reuse the single probe taken in Finalize (c.Git) rather than re-probing.
+	gs := c.Git
 	if gs == nil || !gs.Probed {
 		return c // plain-dir / non-git / unresolvable workspace → cannot judge → trust
 	}

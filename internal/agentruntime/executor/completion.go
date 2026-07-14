@@ -60,6 +60,14 @@ type Completion struct {
 	// completion was witnessed. The activity stream surfaces it as the "orphan 清理"
 	// stop class (design: executor lifecycle observability).
 	Recovered bool
+	// Git is the structured git state of the executor's worktree, probed ONCE at
+	// finalize (before the writeback) and carried to the center so the delivery-audit
+	// signal — did this executor push its work? — reaches the center's task record
+	// (issue-f30b7e7b). nil for a Running outcome or when the probe could not run
+	// (non-git / unresolvable workspace). The Monitor stamps it; Classify leaves it
+	// nil (pure classification stays orthogonal to the git side-effect probe). It is
+	// the SAME value persisted in the local `finalized` marker — one probe, reused.
+	Git *FinalizedGitStatus
 }
 
 // CompletionFacts are the raw observations the classifier reasons over. The

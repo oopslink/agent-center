@@ -157,3 +157,51 @@ func TestProbeGitStatus_NilRunnerOrDir(t *testing.T) {
 		t.Error("empty dir must yield Probed=false")
 	}
 }
+
+// TestMonitor_Finalize_CarriesGitStatusToWriteback locks issue-f30b7e7b: the git
+// status probed at finalize is carried on the Completion to the CENTER writeback
+// (Report), not just the worker-local `finalized` marker. Without this, the
+// center-side stuck-node reconcile cannot read `pushed` to tell a recoverable dead
+// process from a terminal-but-never-pushed (review-only) executor. Shape here is the
+// bug's fingerprint: committed work, clean tree, NOT pushed → Pushed=false must reach
+// the center. Also asserts the marker carries the SAME value (one probe, reused).
+func TestMonitor_Finalize_CarriesGitStatusToWriteback(t *testing.T) {
+	f := newMonitorFixture(t, 3)
+	id := "e-report"
+	mustProvision(t, f.fx, id)
+	f.mon.git = scriptedGitRunner{out: map[string]string{
+		"rev-parse HEAD":              "deadbeef00\n",
+		"rev-parse --abbrev-ref HEAD": "feat/review-only\n",
+		"status --porcelain":          "",  // clean — work was committed, nothing dangling
+		"branch -r --contains HEAD":   "",  // NOT on any remote → the never-pushed shape
+	}}
+	if err := f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded}); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+
+	f.wb.mu.Lock()
+	reports := append([]Completion(nil), f.wb.reports...)
+	f.wb.mu.Unlock()
+	if len(reports) != 1 {
+		t.Fatalf("writeback reports = %d, want 1", len(reports))
+	}
+	g := reports[0].Git
+	if g == nil {
+		t.Fatal("Completion.Git must be carried to the center writeback (was worker-local only)")
+	}
+	if !g.Probed {
+		t.Error("Probed must be true for a git workspace")
+	}
+	if g.Pushed {
+		t.Error("Pushed must be false — the review-only never-pushed shape the center must catch")
+	}
+	if g.Branch != "feat/review-only" {
+		t.Errorf("Branch = %q, want feat/review-only", g.Branch)
+	}
+
+	// Same probe value also lands in the local marker (one probe, reused).
+	ref := findFinalized(t, f.fx, id)
+	if ref.Git == nil || ref.Git.Pushed || ref.Git.Branch != "feat/review-only" {
+		t.Errorf("marker Git = %+v, want non-nil Pushed=false Branch=feat/review-only (reused probe)", ref.Git)
+	}
+}
