@@ -383,7 +383,7 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// newHardenedTeamService wires the add-member identity check (MemberResolver)
 		// — the SINGLE Team-service constructor every wiring site shares so no path
 		// (admin/MCP here, web facade in webconsole_wiring) can be left unhardened.
-		TeamSvc: newHardenedTeamService(a),
+		TeamSvc:     newHardenedTeamService(a),
 		TeamIDGen:   a.IDGen,
 		TeamGitHost: buildTeamGitHost(a),
 		// instantiate_team builds REAL agent identities (design §6/§8): reuse the
