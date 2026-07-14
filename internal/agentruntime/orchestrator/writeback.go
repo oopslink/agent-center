@@ -318,7 +318,9 @@ func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGit
 		"[executor finished] Your forked executor for task %s exited: outcome=%s.\n"+
 			"Its self-reported summary/reason:\n%s\n%s\n"+
 			"Now JUDGE the real delivery — check git (the reported delivery branch: is the commit "+
-			"pushed on origin? does the SHA match?), whether the task's objective was actually met "+
+			"pushed on origin? does the SHA match? and verify its BASE is the EXPECTED baseline via "+
+			"merge-base — not merely that it is recent; a branch cut from the wrong base silently "+
+			"drops already-merged work), whether the task's objective was actually met "+
 			"— then call complete_task(task_id=%q) if it TRULY delivered, or "+
 			"block_task(task_id=%q, reason=...) if it did not deliver or failed. Do NOT complete on "+
 			"exit status alone: a run that produced nothing must be blocked (retryable), never "+
@@ -337,6 +339,16 @@ func deliveryLine(git *executor.FinalizedGitStatus) string {
 		return ""
 	}
 	line := fmt.Sprintf("Reported delivery branch: %s (HEAD %s) pushed=%t.", git.Branch, git.HeadSHA, git.Pushed)
+	// Surface the BASE lineage too (issue-f30b7e7b P0-A, hardened after a WebUI incident):
+	// branch + SHA alone is not enough — a branch cut from the WRONG base silently drops
+	// already-merged work, and only its base/merge-base reveals it. Show what the delivery
+	// branched off so the reviewer can verify lineage, not just recency.
+	switch {
+	case git.BaseKnown:
+		line += fmt.Sprintf(" Based on %s (ahead %d commit(s)).", git.BaseRef, git.AheadOfBase)
+	case git.BaseRef != "":
+		line += fmt.Sprintf(" Based on %s (ahead count unresolved — verify lineage).", git.BaseRef)
+	}
 	if git.PushError != "" {
 		line += " eager-push FAILED: " + git.PushError + " — work is committed but NOT on origin."
 	} else if git.Pushed {

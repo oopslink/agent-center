@@ -167,15 +167,17 @@ func TestReport_JudgmentSurfacesDeliveryBranch(t *testing.T) {
 		Kind:       executor.OutcomeSucceeded,
 		Status:     &executor.Status{ExecutorID: "exec-9", State: executor.StateDone, Summary: "did work", StartedAt: wbNow},
 		Output:     &executor.Output{ExecutorID: "exec-9", Success: true, Result: "r", FinishedAt: wbNow},
-		Git:        &executor.FinalizedGitStatus{Probed: true, Branch: "ac-exec/task-1/exec-9", HeadSHA: "abc1234", Pushed: true},
+		Git:        &executor.FinalizedGitStatus{Probed: true, Branch: "ac-exec/task-1/exec-9", HeadSHA: "abc1234", Pushed: true, BaseRef: "main", BaseKnown: true, AheadOfBase: 2},
 	}
 	if err := wb.Report(context.Background(), c); err != nil {
 		t.Fatalf("Report: %v", err)
 	}
 	j := oneInjection(t, fc)
-	for _, want := range []string{"ac-exec/task-1/exec-9", "abc1234", "pushed=true", "on origin"} {
+	// Branch + SHA + pushed + the BASE lineage (so the judge can verify base via merge-base,
+	// not just recency — the WebUI wrong-base incident) + the base-check instruction.
+	for _, want := range []string{"ac-exec/task-1/exec-9", "abc1234", "pushed=true", "on origin", "Based on main", "merge-base"} {
 		if !strings.Contains(j, want) {
-			t.Errorf("judgment must surface delivery branch+SHA (%q missing): %q", want, j)
+			t.Errorf("judgment must surface delivery branch+SHA+base (%q missing): %q", want, j)
 		}
 	}
 	// P0-A ch2: the delivery evidence is ALSO posted onto the task conversation, so
