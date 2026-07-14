@@ -156,6 +156,10 @@ func projectLinkMap(tp *team.TeamProject, projectName string, relation string) m
 // mapTeamWebError maps team-domain sentinels to HTTP responses.
 func mapTeamWebError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, team.ErrMemberIdentityNotFound):
+		// Well-formed ref but no such (matching-kind, same-org) identity — the
+		// add-member hardening reject. Distinct code so the FE can surface it.
+		writeError(w, http.StatusNotFound, "identity_not_found", err.Error())
 	case errors.Is(err, team.ErrTeamNotFound), errors.Is(err, team.ErrMemberNotFound),
 		errors.Is(err, team.ErrProjectNotAssociated):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())

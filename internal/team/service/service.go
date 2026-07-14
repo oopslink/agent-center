@@ -14,12 +14,26 @@ import (
 	"github.com/oopslink/agent-center/internal/team"
 )
 
+// MemberResolver validates that a member ref points at a real identity — of the
+// kind the ref prefix claims — that belongs to the given org. It is the seam the
+// application layer wires from the identity BC so AddMember can reject dangling
+// refs. Optional: a nil resolver makes AddMember skip the existence check
+// (degrade for tests / deployments that have not wired the identity directory —
+// preserving the pre-hardening behavior rather than failing closed).
+type MemberResolver interface {
+	// MemberExists reports whether ref resolves to a real identity of the matching
+	// kind that is a joined member of orgID. A well-formed but nonexistent,
+	// cross-org, or kind-mismatched ref returns (false, nil).
+	MemberExists(ctx context.Context, orgID string, ref team.MemberRef) (bool, error)
+}
+
 // Service implements the Team use cases over a team.Repository.
 type Service struct {
-	repo  team.Repository
-	db    *sql.DB
-	idgen idgen.Generator
-	clock clock.Clock
+	repo     team.Repository
+	db       *sql.DB
+	idgen    idgen.Generator
+	clock    clock.Clock
+	resolver MemberResolver
 }
 
 // New constructs a Service. db is used to open transactions (RunInTx); pass the
@@ -33,6 +47,14 @@ func New(repo team.Repository, db *sql.DB, gen idgen.Generator, clk clock.Clock)
 		gen = idgen.NewGenerator(clk)
 	}
 	return &Service{repo: repo, db: db, idgen: gen, clock: clk}
+}
+
+// WithMemberResolver wires the identity existence check used by AddMember and
+// returns the receiver for chaining at construction. Left unset (nil), AddMember
+// skips the check. Production wires it (admin_wiring); tests opt in per-case.
+func (s *Service) WithMemberResolver(r MemberResolver) *Service {
+	s.resolver = r
+	return s
 }
 
 // CreateTeamInput is the create_team tool payload.
@@ -133,6 +155,21 @@ func (s *Service) AddMember(ctx context.Context, id team.TeamID, ref team.Member
 		}
 		if !t.HasRole(role) {
 			return team.ErrRoleNotDeclared
+		}
+		// Write-path invariant (hardening): the ref must resolve to a real identity
+		// of the matching kind that is a member of THIS team's org. Without it any
+		// client (web facade OR the MCP add_member tool — both funnel through this
+		// one method) could persist a dangling / cross-org / kind-mismatched ref
+		// into team_members. The identity reads run on the tx executor (ctx-bound),
+		// so they observe the same snapshot as the insert.
+		if s.resolver != nil {
+			exists, err := s.resolver.MemberExists(ctx, t.OrgID(), ref)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return team.ErrMemberIdentityNotFound
+			}
 		}
 		if kind == team.MemberKindAgent {
 			existing, ok, err := s.repo.FindAgentTeam(ctx, ref)

@@ -23,6 +23,13 @@ var (
 	ErrMemberAlreadyInTeam = errors.New("team: member already in team")
 	// ErrMemberNotFound is returned when removing a member that is not present.
 	ErrMemberNotFound = errors.New("team: member not found")
+	// ErrMemberIdentityNotFound is returned when a member ref is well-formed
+	// (passes MemberRef.Kind) but does not resolve to a real identity of the
+	// matching kind that belongs to the team's org — i.e. a nonexistent, cross-org,
+	// or kind-mismatched ref. This is the write-path invariant that stops any
+	// client (web facade OR the MCP add_member tool, which share AddMember) from
+	// polluting team_members with a dangling ref.
+	ErrMemberIdentityNotFound = errors.New("team: member identity not found in org")
 	// ErrRoleNotDeclared is returned when a member is added under a role the
 	// team's template never declared (design §9).
 	ErrRoleNotDeclared = errors.New("team: role not declared for team")

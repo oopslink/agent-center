@@ -381,7 +381,13 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// no "test green but prod 501" gap. The team service is built on the SAME
 		// *sql.DB the migrations (0107_v229_teams) run against; git provisioning is
 		// wired only in server mode (a.DB != nil, sqlite path set).
-		TeamSvc:     teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
+		// The MemberResolver hardens add-member: AddMember rejects a ref that does
+		// not resolve to a real, matching-kind, same-org identity (dangling/cross-
+		// org/kind-mismatch), stopping team_members pollution from ANY client (web
+		// facade OR MCP add_member — both share AddMember). Nil-safe: an unwired
+		// identity repo degrades to the pre-hardening pass-through.
+		TeamSvc: teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock).
+			WithMemberResolver(newIdentityMemberResolver(a.IdentityRepo, a.IdentityMemberRepo)),
 		TeamIDGen:   a.IDGen,
 		TeamGitHost: buildTeamGitHost(a),
 		// instantiate_team builds REAL agent identities (design §6/§8): reuse the
