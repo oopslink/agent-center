@@ -50,10 +50,14 @@ export function ExtractModal({
 
   if (!team) return null;
 
+  // The scan must resolve before the gate can read as passed — otherwise the
+  // empty-findings window during loading (hiKept === 0) would flash "已过门" green
+  // next to the "扫描中…" spinner and wrongly enable Save.
+  const scanning = scrub.isLoading;
   const keptCount = findings.filter((_, i) => actions[i] === 'keep').length;
   const scrubbedCount = findings.length - keptCount;
   const hiKept = findings.filter((f, i) => f.risk === 'hi' && actions[i] === 'keep').length;
-  const gatePassed = hiKept === 0;
+  const gatePassed = !scanning && hiKept === 0;
 
   const set = (i: number, a: ScrubAction) => setActions((prev) => ({ ...prev, [i]: a }));
 
@@ -176,16 +180,32 @@ export function ExtractModal({
           {/* gate */}
           <div
             data-testid="extract-gate"
+            data-gate-state={scanning ? 'scanning' : gatePassed ? 'passed' : 'blocked'}
             className={[
               'mt-1.5 flex items-center gap-3 rounded-lg border px-4 py-3.5',
-              gatePassed ? 'border-success/50 bg-success/10' : 'border-warning/40 bg-warning/5',
+              scanning
+                ? 'border-border-base bg-bg-subtle'
+                : gatePassed
+                  ? 'border-success/50 bg-success/10'
+                  : 'border-warning/40 bg-warning/5',
             ].join(' ')}
           >
-            <span className={gatePassed ? 'text-success' : 'text-warning'}>
-              {gatePassed ? <CheckIcon className="h-5 w-5" /> : <WarnIcon className="h-5 w-5" />}
+            <span className={scanning ? 'text-text-muted' : gatePassed ? 'text-success' : 'text-warning'}>
+              {scanning ? (
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-border-strong border-t-transparent" aria-hidden="true" />
+              ) : gatePassed ? (
+                <CheckIcon className="h-5 w-5" />
+              ) : (
+                <WarnIcon className="h-5 w-5" />
+              )}
             </span>
             <div className="text-xs">
-              {gatePassed ? (
+              {scanning ? (
+                <>
+                  <b className="font-semibold text-text-secondary">扫描中…</b>{' '}
+                  <span className="text-text-muted">—— 正在识别疑似专属 token，稍候。</span>
+                </>
+              ) : gatePassed ? (
                 <>
                   <b className="font-semibold text-success">Curation 已过门</b>{' '}
                   <span className="text-text-muted">
@@ -217,7 +237,7 @@ export function ExtractModal({
               data-testid="extract-save"
               onClick={submit}
             >
-              {!gatePassed ? '需先处理 high-risk' : save.isPending ? '保存中…' : '保存为模版 →'}
+              {scanning ? '扫描中…' : !gatePassed ? '需先处理 high-risk' : save.isPending ? '保存中…' : '保存为模版 →'}
             </button>
           </div>
         </div>

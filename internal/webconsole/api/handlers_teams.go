@@ -156,6 +156,10 @@ func projectLinkMap(tp *team.TeamProject, projectName string, relation string) m
 // mapTeamWebError maps team-domain sentinels to HTTP responses.
 func mapTeamWebError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, team.ErrMemberIdentityNotFound):
+		// Well-formed ref but no such (matching-kind, same-org) identity — the
+		// add-member hardening reject. Distinct code so the FE can surface it.
+		writeError(w, http.StatusNotFound, "identity_not_found", err.Error())
 	case errors.Is(err, team.ErrTeamNotFound), errors.Is(err, team.ErrMemberNotFound),
 		errors.Is(err, team.ErrProjectNotAssociated):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
@@ -355,14 +359,20 @@ func rolesByName(t *team.Team) map[string]team.RoleConfig {
 	return m
 }
 
-// addMemberReq is the AddMemberInput body (teams.ts). name/migrateFrom are FE-side; the
-// facade resolves the authoritative name for the response.
+// addMemberReq is the AddMemberInput body (teams.ts). name/kind are FE-side (the
+// facade resolves the authoritative name for the response). migrate_from, when
+// non-empty, is the SOURCE team id: the request is an agent migration (remove
+// from the source + add here, atomically) rather than a plain add — an agent is
+// single-team, so joining a second team without leaving the first is otherwise a
+// 409. The field is snake_case to match member_ref/team_id (the FE previously sent
+// camelCase migrateFrom, which the backend silently dropped).
 type addMemberReq struct {
-	TeamID    string `json:"team_id"`
-	MemberRef string `json:"member_ref"`
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	Role      string `json:"role"`
+	TeamID      string `json:"team_id"`
+	MemberRef   string `json:"member_ref"`
+	Name        string `json:"name"`
+	Kind        string `json:"kind"`
+	Role        string `json:"role"`
+	MigrateFrom string `json:"migrate_from"`
 }
 
 // addTeamMemberHandler serves POST /api/orgs/{slug}/teams/{id}/members → MemberView (201).
@@ -382,7 +392,15 @@ func (s *Server) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	m, err := d.TeamService.AddMember(r.Context(), t.ID(), team.MemberRef(req.MemberRef), req.Role)
+	// migrate_from set → atomic cross-team migration (remove from source + add
+	// here, single tx); empty → plain add. Both go through the same identity
+	// hardening in the service.
+	var m *team.TeamMember
+	if req.MigrateFrom != "" {
+		m, err = d.TeamService.MoveMember(r.Context(), team.TeamID(req.MigrateFrom), t.ID(), team.MemberRef(req.MemberRef), req.Role)
+	} else {
+		m, err = d.TeamService.AddMember(r.Context(), t.ID(), team.MemberRef(req.MemberRef), req.Role)
+	}
 	if err != nil {
 		mapTeamWebError(w, err)
 		return

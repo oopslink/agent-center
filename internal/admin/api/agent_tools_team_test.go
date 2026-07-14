@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,14 @@ import (
 	teamservice "github.com/oopslink/agent-center/internal/team/service"
 	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 )
+
+// denyResolver is a MemberResolver test double that treats every ref as
+// unresolvable — used to drive the add-member hardening reject on the MCP path.
+type denyResolver struct{}
+
+func (denyResolver) MemberExists(context.Context, string, team.MemberRef) (bool, error) {
+	return false, nil
+}
 
 // wireTeam attaches a live team service + git host to the fixture deps and
 // returns an httptest server mounting the FULL route surface (team tools +
@@ -288,5 +297,52 @@ func TestExtractFromTeam_LiveDraft(t *testing.T) {
 	// experiences (e.g. "T950" / "internal/team/foo.go") for manual curation.
 	if findings, _ := body["scrub_findings"].([]any); len(findings) == 0 {
 		t.Fatalf("scrub_findings empty — the curation-assist scrub did not run over kept experiences")
+	}
+}
+
+// TestTeamTools_AddMember_NonexistentRefMapsTo404 locks that the MCP add_member
+// path maps the add-member hardening reject to 404 identity_not_found — the SAME
+// typed contract as the web facade — rather than a misleading 500 internal (which
+// an agent consumer would treat as a retryable server error instead of a permanent
+// "identity does not exist" reject). Regression for the mapTeamError gap tester3's
+// real-run found: the resolver was wired to both paths, but only the web mapper had
+// the ErrMemberIdentityNotFound case.
+func TestTeamTools_AddMember_NonexistentRefMapsTo404(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+
+	// Wire TeamSvc WITH a rejecting resolver so the MCP add_member path exercises
+	// the hardening + its error mapping (mirrors production newHardenedTeamService).
+	gen := idgen.NewGenerator(f.clk)
+	f.deps.TeamSvc = teamservice.New(teamsql.NewRepo(f.db), f.db, gen, f.clk).WithMemberResolver(denyResolver{})
+	f.deps.TeamIDGen = gen
+	gitHost := centergit.NewHost(t.TempDir(), nil)
+	f.deps.TeamGitHost = gitHost
+	gitHandler, err := NewGitHandler(gitHost, centergit.NewMapMembership())
+	if err != nil {
+		t.Skipf("git smart-HTTP unavailable in this environment: %v", err)
+	}
+	srv := NewServerWithDeps("", ServerDeps{GitHandler: gitHandler})
+	h := AuthMiddleware(f.verifier)(WithDeps(f.deps)(srv.Handler()))
+	httpsrv := httptest.NewServer(h)
+	t.Cleanup(httpsrv.Close)
+
+	st, body := postBearer(t, httpsrv.URL, "/admin/agent-tools/create_team", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "name": "team-hardened", "roles": []map[string]any{{"role": "dev"}},
+	})
+	if st != http.StatusCreated {
+		t.Fatalf("create_team status=%d body=%v", st, body)
+	}
+	teamID, _ := body["id"].(string)
+
+	// Well-formed but nonexistent ref → 404 identity_not_found (NOT 500 internal).
+	st, body = postBearer(t, httpsrv.URL, "/admin/agent-tools/add_member", "acat_w1", map[string]any{
+		"agent_id": atAgent1, "team_id": teamID, "member_ref": "agent:agent-nonexistent", "role": "dev",
+	})
+	if st != http.StatusNotFound {
+		t.Fatalf("add_member nonexistent ref status=%d want 404 (not 500), body=%v", st, body)
+	}
+	if body["error"] != "identity_not_found" {
+		t.Errorf("error code=%v want identity_not_found", body["error"])
 	}
 }

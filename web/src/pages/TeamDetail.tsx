@@ -11,9 +11,11 @@ import {
   useDisassociateProject,
   useRemoveMember,
   useTeam,
+  useTeamMemoryIndex,
   useTeamMembers,
   useTeamProjects,
 } from '@/api/teams';
+import { useProjects } from '@/api/projects';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
@@ -26,6 +28,9 @@ import {
   btnSmDanger,
   btnSmPrimary,
   Card,
+  Field,
+  inputCls,
+  ModalShell,
   Note,
   SectionHead,
   SpecLine,
@@ -128,6 +133,13 @@ export default function TeamDetail(): React.ReactElement {
 }
 
 function OverviewPane({ team: t }: { team: TeamView }): React.ReactElement {
+  // Only the structural facts (roles / members / projects) and the team-memory
+  // index are truthful data sources in Phase-1. Live task/agent telemetry has no
+  // team-scoped facade aggregate yet — show an honest "—" placeholder rather than
+  // a fabricated constant (a fresh empty team must not read as "3 running tasks").
+  const memory = useTeamMemoryIndex(t.id);
+  const memoryEntries = memory.data?.length;
+  const NA = <span className="text-text-muted">—</span>;
   return (
     <div className="grid gap-3.5 md:grid-cols-2">
       <Card>
@@ -150,12 +162,19 @@ function OverviewPane({ team: t }: { team: TeamView }): React.ReactElement {
         </div>
       </Card>
       <Card>
-        <SectionHead title="健康度" hint="实时" />
-        <SpecLine k="在线成员" v={`${Math.max(0, t.members_count - 1)} / ${Math.max(0, t.members_count - 1)} agents`} />
-        <SpecLine k="运行中任务" v="3" />
-        <SpecLine k="阻塞任务" v={<span className="text-warning">1</span>} />
-        <SpecLine k="team-memory" v="1 索引 · 4 entries" />
-        <SpecLine k="派生模版" v="tmpl-core (v3)" />
+        <SectionHead title="团队概况" hint="结构 + team-memory" />
+        <SpecLine k="已编入成员" v={`${t.members_count}`} />
+        <SpecLine k="声明角色" v={`${t.roles.length}`} />
+        <SpecLine k="关联项目" v={`${t.projects_count}`} />
+        <SpecLine
+          k="team-memory"
+          v={memory.isLoading ? NA : memoryEntries != null ? `${memoryEntries} entries` : NA}
+        />
+        <SpecLine k="运行中任务" v={NA} />
+        <SpecLine k="阻塞任务" v={NA} />
+        <Note testId="team-health-note">
+          运行中 / 阻塞任务、成员在线状态为实时运行遥测，Phase-1 尚未接入 facade 聚合，接入后填真值（暂显 —）。
+        </Note>
       </Card>
     </div>
   );
@@ -277,9 +296,9 @@ function MembersPane({
 
 function ProjectsPane({ teamId }: { teamId: string }): React.ReactElement {
   const projects = useTeamProjects(teamId);
-  const associate = useAssociateProject();
   const disassociate = useDisassociateProject();
   const [unlinkId, setUnlinkId] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
 
   return (
     <div>
@@ -290,9 +309,7 @@ function ProjectsPane({ teamId }: { teamId: string }): React.ReactElement {
             type="button"
             className={btnSm}
             data-testid="associate-project"
-            onClick={() =>
-              associate.mutate({ team_id: teamId, project_id: `project-${(projects.data?.length ?? 0) + 1}`, name: 'new-project' })
-            }
+            onClick={() => setPicking(true)}
           >
             + Associate project
           </button>
@@ -340,6 +357,98 @@ function ProjectsPane({ teamId }: { teamId: string }): React.ReactElement {
           setUnlinkId(null);
         }}
       />
+      {picking && (
+        <ProjectPickerModal
+          teamId={teamId}
+          linkedIds={new Set((projects.data ?? []).map((p) => p.project_id))}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// Real associate-project picker: lists the org's active projects (GET /projects)
+// minus the ones already linked to this team, and associates the SELECTED project
+// with its true {project_id, name} — no fabricated `project-N` / 'new-project'.
+function ProjectPickerModal({
+  teamId,
+  linkedIds,
+  onClose,
+}: {
+  teamId: string;
+  linkedIds: Set<string>;
+  onClose: () => void;
+}): React.ReactElement {
+  const all = useProjects();
+  const associate = useAssociateProject();
+  const candidates = (all.data ?? []).filter((p) => !linkedIds.has(p.id));
+  const [selected, setSelected] = useState('');
+  const chosen = candidates.find((p) => p.id === selected);
+
+  const submit = async () => {
+    if (!chosen) return;
+    try {
+      await associate.mutateAsync({ team_id: teamId, project_id: chosen.id, name: chosen.name });
+      onClose();
+    } catch {
+      /* surfaced via error */
+    }
+  };
+
+  return (
+    <ModalShell
+      open
+      onClose={onClose}
+      testId="associate-project-modal"
+      title="关联项目"
+      subtitle="从组织的项目里选一个关联到本 team；成员即可被派发该项目任务。"
+      footer={
+        <>
+          <span />
+          <div className="flex gap-2.5">
+            <button type="button" className={btnGhost} onClick={onClose}>
+              取消
+            </button>
+            <button
+              type="button"
+              className={btnSmPrimary}
+              data-testid="associate-project-submit"
+              disabled={!chosen || associate.isPending}
+              onClick={submit}
+            >
+              {associate.isPending ? '关联中…' : '关联'}
+            </button>
+          </div>
+        </>
+      }
+    >
+      {all.isLoading && <Skeleton height="4rem" />}
+      {all.isSuccess && candidates.length === 0 && (
+        <EmptyState
+          title="没有可关联的项目"
+          body="组织下的活跃项目都已关联，或还没有项目。"
+          testId="associate-project-empty"
+        />
+      )}
+      {candidates.length > 0 && (
+        <Field label="选择项目" required>
+          <select
+            className={inputCls}
+            value={selected}
+            data-testid="associate-project-select"
+            onChange={(e) => setSelected(e.target.value)}
+          >
+            <option value="">— 选择项目 —</option>
+            {candidates.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}（{p.id}）
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+      {associate.isError && <p className="mt-2 text-xs text-danger">{(associate.error as Error).message}</p>}
+    </ModalShell>
   );
 }

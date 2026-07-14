@@ -124,6 +124,7 @@ export interface ScrubFinding {
 }
 
 export interface DirectoryAgent {
+  ref: string; // canonical "agent:<identityID>" — use verbatim as a member_ref
   name: string;
   status: 'working' | 'idle';
   role: string;
@@ -135,6 +136,7 @@ export interface DirectoryAgent {
 }
 
 export interface DirectoryHuman {
+  ref: string; // canonical "user:<identityID>" — use verbatim as a member_ref
   name: string;
   role: string;
   status: 'Joined' | 'Invited';
@@ -269,12 +271,25 @@ export interface AddMemberInput {
 export function useAddMember() {
   const qc = useQueryClient();
   return useMutation({
+    // Wire field is snake_case `migrate_from` (matches member_ref/team_id) — a
+    // non-empty value routes the backend to the atomic MoveMember (leave old team
+    // + join this one), bypassing the one-team exclusivity 409.
     mutationFn: (input: AddMemberInput) =>
-      api.post<MemberView>(`/teams/${input.team_id}/members`, input),
+      api.post<MemberView>(`/teams/${input.team_id}/members`, {
+        member_ref: input.member_ref,
+        name: input.name,
+        kind: input.kind,
+        role: input.role,
+        migrate_from: input.migrateFrom,
+      }),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: teamKeys.members(v.team_id) });
       qc.invalidateQueries({ queryKey: teamKeys.detail(v.team_id) });
       qc.invalidateQueries({ queryKey: teamKeys.list() });
+      // A migration changes the agent's team membership → the directory pickers
+      // (which show each agent's current team) must refetch.
+      qc.invalidateQueries({ queryKey: teamKeys.directoryAgents() });
+      qc.invalidateQueries({ queryKey: teamKeys.directoryHumans() });
     },
   });
 }

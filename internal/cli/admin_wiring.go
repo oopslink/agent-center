@@ -17,7 +17,6 @@ import (
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/observability"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
-	teamservice "github.com/oopslink/agent-center/internal/team/service"
 	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 )
 
@@ -381,7 +380,10 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		// no "test green but prod 501" gap. The team service is built on the SAME
 		// *sql.DB the migrations (0107_v229_teams) run against; git provisioning is
 		// wired only in server mode (a.DB != nil, sqlite path set).
-		TeamSvc:     teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
+		// newHardenedTeamService wires the add-member identity check (MemberResolver)
+		// — the SINGLE Team-service constructor every wiring site shares so no path
+		// (admin/MCP here, web facade in webconsole_wiring) can be left unhardened.
+		TeamSvc: newHardenedTeamService(a),
 		TeamIDGen:   a.IDGen,
 		TeamGitHost: buildTeamGitHost(a),
 		// instantiate_team builds REAL agent identities (design §6/§8): reuse the

@@ -97,9 +97,21 @@ export function teamHandlers() {
         name: string;
         kind: 'agent' | 'human';
         role: string;
+        migrate_from?: string;
       };
       const s = teamsStore();
       const id = String(params.id);
+      // migrate_from (the source team ID) → mirror the backend's atomic
+      // MoveMember: leave the old team before joining this one, so the agent ends
+      // up on exactly one team (no exclusivity 409).
+      if (input.migrate_from) {
+        const old = s.teams.find((t) => t.id === input.migrate_from);
+        if (old) {
+          const prev = s.members[old.id] ?? [];
+          s.members[old.id] = prev.filter((m) => m.member_ref !== input.member_ref);
+          old.members_count = s.members[old.id].length;
+        }
+      }
       const list = s.members[id] ?? (s.members[id] = []);
       const member: MemberView = {
         team_id: id,

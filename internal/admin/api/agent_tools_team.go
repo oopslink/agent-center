@@ -44,6 +44,14 @@ func mapTeamError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, team.ErrTeamNotFound), errors.Is(err, team.ErrMemberNotFound):
 		writeError(w, http.StatusNotFound, "team_not_found", err.Error())
+	case errors.Is(err, team.ErrMemberIdentityNotFound):
+		// Well-formed ref but no such (matching-kind, same-org) identity — the
+		// add-member hardening reject. A PERMANENT 4xx (do not retry): the same
+		// typed 404 identity_not_found the web facade returns, so the agent tool
+		// consumer sees one consistent error contract across both surfaces rather
+		// than a misleading retryable 500. (The web mapper — mapTeamWebError — has
+		// the matching case; this keeps the two surfaces in sync.)
+		writeError(w, http.StatusNotFound, "identity_not_found", err.Error())
 	case errors.Is(err, team.ErrTeamNameTaken):
 		writeError(w, http.StatusConflict, "team_name_taken", err.Error())
 	case errors.Is(err, team.ErrTemplateNotCurated):

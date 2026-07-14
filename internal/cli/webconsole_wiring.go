@@ -29,8 +29,6 @@ import (
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 	settingssql "github.com/oopslink/agent-center/internal/settings/sqlite"
-	teamservice "github.com/oopslink/agent-center/internal/team/service"
-	teamsql "github.com/oopslink/agent-center/internal/team/sqlite"
 	usagesql "github.com/oopslink/agent-center/internal/usage/sqlite"
 	"github.com/oopslink/agent-center/internal/webconsole/api"
 	"github.com/oopslink/agent-center/internal/webconsole/spa"
@@ -127,7 +125,11 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
-		TeamService: teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
+		// newHardenedTeamService: shared Team-service constructor with the add-member
+		// identity hardening wired (MemberResolver) — the web facade MUST use the
+		// same hardened service as admin/MCP, else dangling/cross-org refs pollute
+		// team_members via POST /teams/{id}/members (the real-run bug).
+		TeamService: newHardenedTeamService(a),
 		ProjectRepo: pmsql.NewProjectRepo(a.DB),
 		// task-be4670ce: team memory read (index + on-demand entry) + extract's
 		// experience read go through the SAME center-hosted git host the /admin team
@@ -552,7 +554,11 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		ModelCatalogRepo: pmsql.NewModelCatalogRepo(a.DB),
 		// plan-32dd9107 Team WebUI facade (P1): team service + project-name resolver,
 		// same sqlite DB the admin team tools use.
-		TeamService: teamservice.New(teamsql.NewRepo(a.DB), a.DB, a.IDGen, a.Clock),
+		// newHardenedTeamService: shared Team-service constructor with the add-member
+		// identity hardening wired (MemberResolver) — the web facade MUST use the
+		// same hardened service as admin/MCP, else dangling/cross-org refs pollute
+		// team_members via POST /teams/{id}/members (the real-run bug).
+		TeamService: newHardenedTeamService(a),
 		ProjectRepo: pmsql.NewProjectRepo(a.DB),
 		// task-be4670ce: team memory read (index + on-demand entry) + extract's
 		// experience read go through the SAME center-hosted git host the /admin team

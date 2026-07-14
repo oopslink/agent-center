@@ -54,6 +54,17 @@ type MemberRef string
 // String returns the raw ref.
 func (r MemberRef) String() string { return string(r) }
 
+// BareID returns the identity id portion of the ref (everything after the first
+// ":"), i.e. "agent:agent-123" → "agent-123". A prefix-less ref returns itself
+// unchanged. This is the id used to look the identity up in the directory.
+func (r MemberRef) BareID() string {
+	s := string(r)
+	if i := strings.IndexByte(s, ':'); i >= 0 {
+		return s[i+1:]
+	}
+	return s
+}
+
 // Kind derives the MemberKind from the ref prefix. It returns ErrInvalidMemberRef
 // when the ref is empty, prefix-less, or carries an empty id.
 func (r MemberRef) Kind() (MemberKind, error) {

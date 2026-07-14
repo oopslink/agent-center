@@ -14,12 +14,26 @@ import (
 	"github.com/oopslink/agent-center/internal/team"
 )
 
+// MemberResolver validates that a member ref points at a real identity — of the
+// kind the ref prefix claims — that belongs to the given org. It is the seam the
+// application layer wires from the identity BC so AddMember can reject dangling
+// refs. Optional: a nil resolver makes AddMember skip the existence check
+// (degrade for tests / deployments that have not wired the identity directory —
+// preserving the pre-hardening behavior rather than failing closed).
+type MemberResolver interface {
+	// MemberExists reports whether ref resolves to a real identity of the matching
+	// kind that is a joined member of orgID. A well-formed but nonexistent,
+	// cross-org, or kind-mismatched ref returns (false, nil).
+	MemberExists(ctx context.Context, orgID string, ref team.MemberRef) (bool, error)
+}
+
 // Service implements the Team use cases over a team.Repository.
 type Service struct {
-	repo  team.Repository
-	db    *sql.DB
-	idgen idgen.Generator
-	clock clock.Clock
+	repo     team.Repository
+	db       *sql.DB
+	idgen    idgen.Generator
+	clock    clock.Clock
+	resolver MemberResolver
 }
 
 // New constructs a Service. db is used to open transactions (RunInTx); pass the
@@ -33,6 +47,14 @@ func New(repo team.Repository, db *sql.DB, gen idgen.Generator, clk clock.Clock)
 		gen = idgen.NewGenerator(clk)
 	}
 	return &Service{repo: repo, db: db, idgen: gen, clock: clk}
+}
+
+// WithMemberResolver wires the identity existence check used by AddMember and
+// returns the receiver for chaining at construction. Left unset (nil), AddMember
+// skips the check. Production wires it (admin_wiring); tests opt in per-case.
+func (s *Service) WithMemberResolver(r MemberResolver) *Service {
+	s.resolver = r
+	return s
 }
 
 // CreateTeamInput is the create_team tool payload.
@@ -134,6 +156,21 @@ func (s *Service) AddMember(ctx context.Context, id team.TeamID, ref team.Member
 		if !t.HasRole(role) {
 			return team.ErrRoleNotDeclared
 		}
+		// Write-path invariant (hardening): the ref must resolve to a real identity
+		// of the matching kind that is a member of THIS team's org. Without it any
+		// client (web facade OR the MCP add_member tool — both funnel through this
+		// one method) could persist a dangling / cross-org / kind-mismatched ref
+		// into team_members. The identity reads run on the tx executor (ctx-bound),
+		// so they observe the same snapshot as the insert.
+		if s.resolver != nil {
+			exists, err := s.resolver.MemberExists(ctx, t.OrgID(), ref)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return team.ErrMemberIdentityNotFound
+			}
+		}
 		if kind == team.MemberKindAgent {
 			existing, ok, err := s.repo.FindAgentTeam(ctx, ref)
 			if err != nil {
@@ -148,6 +185,77 @@ func (s *Service) AddMember(ctx context.Context, id team.TeamID, ref team.Member
 		}
 		m := &team.TeamMember{
 			TeamID:    id,
+			Ref:       ref,
+			Kind:      kind,
+			Role:      role,
+			CreatedAt: s.clock.Now(),
+		}
+		if err := s.repo.AddMember(ctx, m); err != nil {
+			return err
+		}
+		member = m
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return member, nil
+}
+
+// MoveMember atomically migrates a member ref from fromTeam to toTeam under the
+// destination role. The removal and the re-add happen in ONE tx: because the ref
+// leaves fromTeam before the exclusivity check runs, a legitimate agent migration
+// no longer self-trips ErrAgentAlreadyInTeam (the 409 the naive
+// AddMember-into-second-team path hits). Atomicity is the point — a
+// remove-then-add split across two calls could strand the agent in neither team
+// if the add failed. Migration is held to the SAME hardening as AddMember (the ref
+// must resolve to a real, matching-kind, same-org identity) and the SAME role
+// declaration on the destination. Errors: ErrTeamNotFound (either team),
+// ErrRoleNotDeclared (destination), ErrMemberIdentityNotFound (unresolvable ref),
+// ErrMemberNotFound (ref not on fromTeam — e.g. a stale migrate_from),
+// ErrAgentAlreadyInTeam (agent still bound to a THIRD team).
+func (s *Service) MoveMember(ctx context.Context, fromTeam, toTeam team.TeamID, ref team.MemberRef, role string) (*team.TeamMember, error) {
+	kind, err := ref.Kind()
+	if err != nil {
+		return nil, err
+	}
+	var member *team.TeamMember
+	err = persistence.RunInTx(ctx, s.db, func(ctx context.Context) error {
+		to, err := s.repo.GetTeam(ctx, toTeam)
+		if err != nil {
+			return err
+		}
+		if !to.HasRole(role) {
+			return team.ErrRoleNotDeclared
+		}
+		// Same write-path hardening as AddMember: reject a dangling / cross-org /
+		// kind-mismatched ref BEFORE mutating anything.
+		if s.resolver != nil {
+			exists, err := s.resolver.MemberExists(ctx, to.OrgID(), ref)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return team.ErrMemberIdentityNotFound
+			}
+		}
+		// Free the ref from the old team first. Absent → ErrMemberNotFound (a stale
+		// / wrong migrate_from), rolling the whole migration back rather than
+		// silently duplicating the membership.
+		if err := s.repo.RemoveMember(ctx, fromTeam, ref); err != nil {
+			return err
+		}
+		// After removal the agent-exclusivity check should pass; if the agent is
+		// somehow still bound to a THIRD team, refuse rather than duplicate.
+		if kind == team.MemberKindAgent {
+			if existing, ok, err := s.repo.FindAgentTeam(ctx, ref); err != nil {
+				return err
+			} else if ok && existing != toTeam {
+				return team.ErrAgentAlreadyInTeam
+			}
+		}
+		m := &team.TeamMember{
+			TeamID:    toTeam,
 			Ref:       ref,
 			Kind:      kind,
 			Role:      role,

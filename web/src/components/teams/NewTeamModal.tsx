@@ -42,10 +42,10 @@ export function NewTeamModal({
       testId="new-team-modal"
       wide
       title="New Team"
-      subtitle="声明角色配比 —— 每角色单独配 CLI / model / tags / 并发。创建即建身份与 memory-repo。"
+      subtitle="声明角色配比 —— 每角色单独配 CLI / model / tags / 并发。创建即声明角色 slots 与 memory-repo（Phase-1 不铸 agent 身份，运行时另行编入）。"
       footer={
         <>
-          <span className="text-[0.6875rem] text-text-muted">创建后 → 建 agent 身份 + team-memory repo</span>
+          <span className="text-[0.6875rem] text-text-muted">创建后 → 声明角色 slots + team-memory repo（agent 运行时编入）</span>
           <div className="flex gap-2.5">
             <button type="button" className={btnGhost} onClick={onClose}>
               取消

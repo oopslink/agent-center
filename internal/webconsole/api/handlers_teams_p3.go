@@ -338,6 +338,10 @@ func (s *Server) directoryAgentsHandler(w http.ResponseWriter, r *http.Request) 
 			role = mem.role
 		}
 		out = append(out, map[string]any{
+			// ref is the canonical member ref (agent:<identityID>) the FE feeds
+			// straight into add-member / role-assign — without it the picker had to
+			// fabricate/truncate a ref, which polluted the DB (tester3 round-2 #2).
+			"ref":     string(ident.Kind()) + ":" + m.IdentityID(),
 			"name":    ident.DisplayName(),
 			"status":  status,
 			"role":    role,
@@ -395,6 +399,10 @@ func (s *Server) directoryHumansHandler(w http.ResponseWriter, r *http.Request) 
 			role = mem.role
 		}
 		out = append(out, map[string]any{
+			// ref is the canonical member ref (user:<identityID>) the FE feeds
+			// straight into add-member — same anti-truncation contract as the
+			// agents directory (tester3 round-2 #2).
+			"ref":     string(ident.Kind()) + ":" + m.IdentityID(),
 			"name":    ident.DisplayName(),
 			"role":    role,
 			"status":  status,
