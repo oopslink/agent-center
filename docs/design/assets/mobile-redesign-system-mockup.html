@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>System 模块 — 高保真 mockup</title>
+<style>
+  :root{
+    --bg-base:#FFFCFC; --bg-elevated:#ffffff; --bg-subtle:#f8f5f6;
+    --border:#dbd7da; --border-strong:#afa9b1;
+    --text-primary:#31263B; --text-secondary:#4a4255; --text-muted:#717A94;
+    --brand:#7C3AED; --brand-hover:#6D28D9; --brand-10:#7C3AED1a;
+    --success:#5CB198; --danger:#D44040; --warning:#C58B2E;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:#eee9ea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--text-primary)}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#555;font-size:13px;margin:0 0 20px;max-width:980px}
+  .row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+  .frame-wrap{text-align:center}
+  .frame-label{font-size:12px;font-weight:600;color:#333;margin-bottom:8px}
+  .phone{width:300px;height:620px;border-radius:28px;overflow:hidden;background:var(--bg-base);box-shadow:0 8px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;position:relative;border:6px solid #1c1c1e}
+  .icon{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:-0.15em}
+  .topbar{height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:var(--bg-elevated);border-bottom:1px solid var(--border)}
+  .topbar .title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;min-width:0}
+  .topbar .title span.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar .actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+  .icon-btn{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);position:relative}
+  .content{flex:1;overflow-y:auto;background:var(--bg-base)}
+  .tabbar{height:56px;flex:0 0 56px;display:flex;background:var(--bg-elevated);border-top:1px solid var(--border)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px;color:var(--text-muted)}
+  .tab.active{color:var(--brand);font-weight:700}
+  .row-action{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);flex:0 0 auto}
+
+  .tabstrip{display:flex;padding:0 8px;background:var(--bg-elevated);border-bottom:1px solid var(--border);overflow-x:auto}
+  .tabstrip .t{padding:9px 10px;font-size:12px;color:var(--text-muted);white-space:nowrap;border-bottom:2px solid transparent}
+  .tabstrip .t.active{color:var(--text-primary);font-weight:700;border-bottom-color:var(--brand)}
+
+  .stat-row{display:flex;gap:8px;padding:10px 10px 4px}
+  .stat-tile{flex:1;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:8px 4px;text-align:center}
+  .stat-tile .v{font-size:15px;font-weight:800;color:var(--brand)}
+  .stat-tile .l{font-size:9px;color:var(--text-muted);margin-top:1px}
+
+  .card{margin:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg-elevated);padding:11px 12px}
+  .card-top{display:flex;align-items:center;gap:8px}
+  .card-title{font-size:13.5px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .status-dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px}
+  .sd-on{background:var(--success)}
+  .sd-off{background:var(--border-strong)}
+  .status-text{font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:4px}
+  .badge{font-size:9px;font-weight:700;padding:1.5px 6px;border-radius:6px}
+  .b-enabled{background:#5CB1981a;color:var(--success)}
+  .b-disabled{background:var(--bg-subtle);color:var(--text-muted)}
+  .b-active{background:#5CB1981a;color:var(--success)}
+  .b-neutral{background:var(--bg-subtle);color:var(--text-muted)}
+  .chip-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+  .meta-line{font-size:10.5px;color:var(--text-muted);margin-top:5px}
+  .divider{border-top:1px solid var(--border);margin:8px 0}
+  .agent-row{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11px}
+  .avatar-xs{width:18px;height:18px;border-radius:50%;flex:0 0 18px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:8px;font-weight:700}
+
+  .info-row{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--border);font-size:11.5px}
+  .info-row .k{color:var(--text-muted)}
+  .section-h{padding:10px 12px 4px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em}
+
+  .mgmt-item{margin:8px 10px;border:1px solid var(--border);border-radius:10px;padding:10px 11px;background:var(--bg-elevated)}
+  .mgmt-item .h{font-size:12px;font-weight:700;margin-bottom:2px}
+  .mgmt-item .d{font-size:10.5px;color:var(--text-muted);margin-bottom:8px}
+  .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:8px;font-size:11.5px;font-weight:600}
+  .btn-default{background:var(--bg-subtle);color:var(--text-primary)}
+  .btn-danger{background:#D444401a;color:var(--danger)}
+  .btn-danger-solid{background:var(--danger);color:#fff}
+
+  .sheet-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg-elevated);border-radius:16px 16px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.2);padding:10px 14px 16px}
+  .sheet-handle{width:36px;height:4px;border-radius:2px;background:var(--border-strong);margin:0 auto 12px}
+  .sheet-title{font-size:14px;font-weight:700;margin-bottom:6px}
+  .sheet-body{font-size:11.5px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px}
+  .type-input{height:36px;border:1.5px solid var(--border-strong);border-radius:8px;padding:0 10px;font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;margin-bottom:10px}
+
+  .filter-chips{display:flex;gap:5px;padding:8px 10px;overflow-x:auto;background:var(--bg-elevated);border-bottom:1px solid var(--border)}
+  .fchip{flex:0 0 auto;padding:4px 10px;border-radius:12px;font-size:10.5px;font-weight:600;background:var(--bg-subtle);color:var(--text-muted);white-space:nowrap}
+  .fchip.active{background:var(--brand);color:#fff}
+
+  .rem-card{margin:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg-elevated);padding:10px 11px}
+  .rem-top{display:flex;align-items:center;gap:6px}
+  .rem-target{font-size:12.5px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rem-trigger{font-size:10px;color:var(--brand);background:var(--brand-10);border-radius:5px;padding:1px 6px}
+  .rem-content{font-size:11px;color:var(--text-secondary);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rem-actions{display:flex;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+
+  .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);font-size:12px}
+  .toggle{width:34px;height:19px;border-radius:10px;background:var(--brand);position:relative}
+  .toggle .knob{position:absolute;top:2px;right:2px;width:15px;height:15px;border-radius:50%;background:#fff}
+  .seg3{display:flex;gap:4px;margin:8px 10px 4px}
+  .seg3 .s{flex:1;text-align:center;padding:7px 0;border-radius:8px;font-size:11px;font-weight:600;color:var(--text-muted);background:var(--bg-subtle)}
+  .seg3 .s.active{background:var(--brand);color:#fff}
+  .field{margin:8px 12px}
+  .field label{font-size:10.5px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:3px}
+  .field .val{font-size:12px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+  .preset-chip{display:inline-flex;font-size:10px;background:var(--bg-subtle);border-radius:6px;padding:3px 8px;margin:0 4px 4px 0;color:var(--text-secondary)}
+
+  .fire-row{display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid var(--border);font-size:10.5px}
+  .fire-badge{font-size:9px;font-weight:700;padding:1px 6px;border-radius:5px}
+
+  .section-note{max-width:1240px;margin-top:24px;background:#fff;border-radius:10px;padding:16px 18px;font-size:13px;line-height:1.7;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .section-note h3{font-size:14px;margin:0 0 8px}
+  .section-note ul{margin:0;padding-left:18px}
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="7" rx="1.5"/><rect x="2" y="14" width="20" height="7" rx="1.5"/><path d="M6 6.5h.01M6 17.5h.01"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.5 10a9 9 0 10-2 9.5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8V4z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></symbol>
+  <symbol id="i-clone" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6"/><path d="M15.5 7.5l3 3L22 7l-3-3"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9L2.5 18a1 1 0 00.9 1.5h17.2a1 1 0 00.9-1.5L13.7 3.9a1 1 0 00-1.7 0z"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1"/><path d="M8 13v2M16 13v2"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-7.6 4.7L3 21l1.9-5.7a8.38 8.38 0 018-11.5 8.48 8.48 0 018 8v.5z"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+</svg>
+
+<h1>System 模块 — 移动端高保真 mockup</h1>
+<p class="sub">Environment（Fleet 总览）/ WorkerDetail（4 tab，含全模块最强的 Force Delete 输入名称二次确认）/ Secrets（只创建不可查看/编辑，ADR-0026 设计）/ Reminders（三种触发规则 + 行操作 + 详情含发送历史）。设计前已审计 PC 端功能——重点保留了 Force Delete 的输入名称确认强度、Secrets 的"永不明文回显"约束、以及 Reminder Cancel 目前没有二次确认这个不一致点。</p>
+
+<div class="row">
+
+  <div class="frame-wrap">
+    <div class="frame-label">① Environment（Fleet 总览，Worker 在线）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">System</span></div>
+        <div class="actions"><div class="icon-btn" style="color:var(--brand)"><svg class="icon"><use href="#i-plus"/></svg></div></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t active">Environment</div>
+        <div class="t">Secrets</div>
+        <div class="t">Reminders</div>
+        <div class="t">Settings</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-tile"><div class="v">3</div><div class="l">在线</div></div>
+        <div class="stat-tile"><div class="v">5</div><div class="l">Agent 运行中</div></div>
+        <div class="stat-tile"><div class="v">12</div><div class="l">任务</div></div>
+        <div class="stat-tile"><div class="v">2</div><div class="l">待处理</div></div>
+      </div>
+      <div class="content">
+        <div class="card">
+          <div class="card-top">
+            <svg class="icon" style="width:16px;height:16px;color:var(--text-muted)"><use href="#i-server"/></svg>
+            <div class="card-title">worker-us-east-2</div>
+            <span class="row-action"><svg class="icon"><use href="#i-trash"/></svg></span>
+          </div>
+          <div class="status-text"><span class="status-dot sd-on"></span>在线 · 3 个活跃任务 · 心跳 12s 前</div>
+          <div class="chip-row">
+            <span class="badge b-enabled">claude-code v2.1</span>
+            <span class="badge b-disabled">codex（仅探测，不可执行）</span>
+          </div>
+          <div class="divider"></div>
+          <div style="font-size:10.5px;font-weight:700;color:var(--text-muted);margin-bottom:4px">绑定 Agent（3）</div>
+          <div class="agent-row"><span class="avatar-xs" style="background:var(--brand)"><svg class="icon" style="width:10px;height:10px"><use href="#i-bot"/></svg></span>Agent-7<span class="badge b-active" style="margin-left:auto">Running</span></div>
+          <div class="agent-row"><span class="avatar-xs" style="background:#5CB198"><svg class="icon" style="width:10px;height:10px"><use href="#i-bot"/></svg></span>Agent-3<span class="badge b-neutral" style="margin-left:auto">Stopped</span></div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-bell"/></svg>Remind</div>
+        <div class="tab active"><svg class="icon"><use href="#i-server"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">①' Environment（Worker 离线 → 安装引导）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">System</span></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t active">Environment</div>
+        <div class="t">Secrets</div>
+        <div class="t">Reminders</div>
+        <div class="t">Settings</div>
+      </div>
+      <div class="content">
+        <div class="card">
+          <div class="card-top">
+            <svg class="icon" style="width:16px;height:16px;color:var(--text-muted)"><use href="#i-server"/></svg>
+            <div class="card-title">worker-new-01</div>
+            <span class="row-action"><svg class="icon"><use href="#i-trash"/></svg></span>
+          </div>
+          <div class="status-text"><span class="status-dot sd-off"></span>离线 · 从未上线</div>
+          <div style="margin-top:8px;padding:9px;background:var(--bg-subtle);border-radius:8px;font-size:10.5px;color:var(--text-secondary)">
+            该 Worker 尚未安装 CLI。生成安装口令后，在目标机器上执行命令完成注册。
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <div class="btn btn-default" style="flex:1;justify-content:center"><svg class="icon" style="width:13px;height:13px"><use href="#i-copy"/></svg>显示安装口令</div>
+          </div>
+          <div style="text-align:center;margin-top:6px;font-size:10px;color:var(--text-muted)">口令过期或丢失？重新生成（会使旧口令失效）</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-bell"/></svg>Remind</div>
+        <div class="tab active"><svg class="icon"><use href="#i-server"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">② WorkerDetail（Profile tab）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-back"/></svg>&nbsp;&nbsp;<span class="t">worker-us-east-2</span></div>
+      </div>
+      <div style="padding:8px 10px 0"><span class="status-text"><span class="status-dot sd-on"></span>在线</span></div>
+      <div class="tabstrip">
+        <div class="t active">Profile</div>
+        <div class="t">Agents</div>
+        <div class="t">Management</div>
+        <div class="t">Activity</div>
+      </div>
+      <div class="content">
+        <div class="info-row"><span class="k">Worker ID</span><span style="font-family:ui-monospace,monospace;font-size:10px">wk_8a3f…c1e</span></div>
+        <div class="info-row"><span class="k">注册时间</span><span>30 天前</span></div>
+        <div class="info-row"><span class="k">最近心跳</span><span>12 秒前</span></div>
+        <div class="section-h">Worker 上报信息</div>
+        <div class="info-row"><span class="k">主机名</span><span>ip-10-0-1-42</span></div>
+        <div class="info-row"><span class="k">操作系统</span><span>Linux</span></div>
+        <div class="info-row"><span class="k">架构</span><span>x86_64</span></div>
+        <div class="info-row"><span class="k">构建版本</span><span style="color:var(--text-muted)">（待上报）</span></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-bell"/></svg>Remind</div>
+        <div class="tab active"><svg class="icon"><use href="#i-server"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">③ WorkerDetail（Management tab）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-back"/></svg>&nbsp;&nbsp;<span class="t">worker-us-east-2</span></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t">Profile</div>
+        <div class="t">Agents</div>
+        <div class="t active">Management</div>
+        <div class="t">Activity</div>
+      </div>
+      <div class="content">
+        <div class="mgmt-item">
+          <div class="h">重命名</div>
+          <div class="d">当前：worker-us-east-2</div>
+          <div class="btn btn-default"><svg class="icon" style="width:12px;height:12px"><use href="#i-edit"/></svg>编辑名称</div>
+        </div>
+        <div class="mgmt-item">
+          <div class="h">安装口令</div>
+          <div class="d">仅离线 Worker 可操作</div>
+          <div class="btn btn-default" style="opacity:.4">显示 / 重新生成（已在线，不可用）</div>
+        </div>
+        <div class="mgmt-item">
+          <div class="h" style="color:var(--danger)">移除 Worker</div>
+          <div class="d">3 个 Agent 绑定在此 Worker，移除后将变为不可用</div>
+          <div class="btn btn-danger"><svg class="icon" style="width:12px;height:12px"><use href="#i-trash"/></svg>移除</div>
+        </div>
+        <div class="mgmt-item" style="border-color:#D4404055">
+          <div class="h" style="color:var(--danger)">强制删除（管理员操作）</div>
+          <div class="d">绕过在线/繁忙保护，直接解绑所有 Agent 并删除。需要输入 Worker 名称二次确认。</div>
+          <div class="btn btn-danger-solid"><svg class="icon" style="width:12px;height:12px"><use href="#i-warn"/></svg>强制删除</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-bell"/></svg>Remind</div>
+        <div class="tab active"><svg class="icon"><use href="#i-server"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">③' 强制删除 → 输入名称二次确认（不降级）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-back"/></svg>&nbsp;&nbsp;<span class="t">worker-us-east-2</span></div>
+      </div>
+      <div class="content" style="position:relative;height:100%">
+        <div class="sheet-overlay"></div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title" style="color:var(--danger)">强制删除 worker-us-east-2</div>
+          <div class="sheet-body">此操作不可撤销，将绕过安全保护立即解绑所有 Agent 并删除该 Worker。请输入 Worker 名称以确认：</div>
+          <div class="type-input">worker-us-eas...</div>
+          <div class="btn btn-danger-solid" style="width:100%;justify-content:center;opacity:.5">强制删除（名称匹配后才能点）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">④ Secrets 列表（补全 kind/state/created，不再降级）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">System</span></div>
+        <div class="actions"><div class="icon-btn" style="color:var(--brand)"><svg class="icon"><use href="#i-plus"/></svg></div></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t">Environment</div>
+        <div class="t active">Secrets</div>
+        <div class="t">Reminders</div>
+        <div class="t">Settings</div>
+      </div>
+      <div class="content">
+        <div style="margin:8px 10px 4px;font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:5px">
+          <svg class="icon" style="width:12px;height:12px"><use href="#i-key"/></svg>
+          Secret 值创建后不可查看/编辑，仅可撤销后重建
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="card-title">github-deploy-key</div>
+            <span class="badge b-active">Active</span>
+          </div>
+          <div class="chip-row"><span class="badge b-neutral">repo_deploy_key</span></div>
+          <div class="meta-line">创建于 15 天前</div>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="card-title">stripe-api-key</div>
+            <span class="badge b-neutral">Revoked</span>
+          </div>
+          <div class="chip-row"><span class="badge b-neutral">cloud_credential</span></div>
+          <div class="meta-line">创建于 60 天前 · 已撤销</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-bell"/></svg>Remind</div>
+        <div class="tab active"><svg class="icon"><use href="#i-server"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">④' 创建 Secret（提交后永不明文回显）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">System</span></div>
+      </div>
+      <div class="content" style="position:relative;height:100%">
+        <div class="sheet-overlay"></div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">新建 Secret</div>
+          <div class="field" style="margin:0 0 8px"><label>名称</label><div class="val">github-deploy-key</div></div>
+          <div class="field" style="margin:0 0 8px"><label>类型</label><div class="val" style="display:flex;align-items:center;gap:4px">repo_deploy_key<svg class="icon" style="width:10px;height:10px"><use href="#i-down"/></svg></div></div>
+          <div class="field" style="margin:0 0 8px"><label>值</label><div class="val" style="letter-spacing:2px">••••••••••••</div></div>
+          <div class="sheet-body" style="margin-top:6px;margin-bottom:0">提交成功后值会立即从页面清除，仅显示名称确认创建成功——没有任何"查看"入口。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">⑤ Reminders 列表（状态筛选 + 行操作）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">System</span></div>
+        <div class="actions"><div class="icon-btn" style="color:var(--brand)"><svg class="icon"><use href="#i-plus"/></svg></div></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t">Environment</div>
+        <div class="t">Secrets</div>
+        <div class="t active">Reminders</div>
+        <div class="t">Settings</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-tile"><div class="v">4</div><div class="l">Active</div></div>
+        <div class="stat-tile"><div class="v">1</div><div class="l">Paused</div></div>
+        <div class="stat-tile" style="text-align:left;padding-left:8px"><div style="font-size:10px;color:var(--text-muted)">下次触发</div><div style="font-size:11px;font-weight:700">今天 18:00</div></div>
+      </div>
+      <div class="filter-chips">
+        <div class="fchip active">默认</div>
+        <div class="fchip">全部</div>
+        <div class="fchip">Active</div>
+        <div class="fchip">Paused</div>
+        <div class="fchip">已完成</div>
+        <div class="fchip" style="display:flex;align-items:center;gap:3px">范围：我创建的<svg class="icon" style="width:10px;height:10px"><use href="#i-down"/></svg></div>
+      </div>
+      <div class="content">
+        <div class="rem-card">
+          <div class="rem-top">
+            <span class="avatar-xs" style="background:var(--brand)"><svg class="icon" style="width:10px;height:10px"><use href="#i-bot"/></svg></span>
+            <div class="rem-target">Agent-7</div>
+            <span class="rem-trigger">每天 09:00</span>
+          </div>
+          <div class="rem-content">检查限流是否已重置，若已重置则继续处理排队任务</div>
+          <div class="rem-actions">
+            <span class="row-action"><svg class="icon" style="width:14px;height:14px"><use href="#i-pause"/></svg></span>
+            <span class="row-action"><svg class="icon" style="width:14px;height:14px"><use href="#i-edit"/></svg></span>
+            <span class="row-action"><svg class="icon" style="width:14px;height:14px"><use href="#i-clone"/></svg></span>
+            <span class="row-action" style="color:var(--danger)"><svg class="icon" style="width:14px;height:14px"><use href="#i-trash"/></svg></span>
+          </div>
+        </div>
+        <div class="rem-card">
+          <div class="rem-top">
+            <span class="avatar-xs" style="background:#5CB198"><svg class="icon" style="width:10px;height:10px"><use href="#i-bot"/></svg></span>
+            <div class="rem-target">Agent-3</div>
+            <span class="rem-trigger" style="background:var(--bg-subtle);color:var(--text-muted)">Task 完成时</span>
+          </div>
+          <div class="rem-content">通知 Bob 迁移任务已完成</div>
+          <div class="rem-actions">
+            <span class="row-action" style="color:var(--warning)"><svg class="icon" style="width:14px;height:14px"><use href="#i-play"/></svg></span>
+            <span class="row-action"><svg class="icon" style="width:14px;height:14px"><use href="#i-clone"/></svg></span>
+            <span class="row-action" style="color:var(--danger)"><svg class="icon" style="width:14px;height:14px"><use href="#i-trash"/></svg></span>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab active"><svg class="icon"><use href="#i-bell"/></svg>Remind</div>
+        <div class="tab"><svg class="icon"><use href="#i-server"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">⑤' 新建 Reminder（触发类型三选一）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">System</span></div>
+      </div>
+      <div class="content" style="position:relative;height:100%">
+        <div class="sheet-overlay"></div>
+        <div class="sheet" style="height:82%;overflow-y:auto">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">新建 Reminder</div>
+          <div class="seg3">
+            <div class="s active">周期（Cron）</div>
+            <div class="s">单次</div>
+            <div class="s">事件触发</div>
+          </div>
+          <div class="field"><label>Cron 表达式</label><div class="val">0 9 * * *</div></div>
+          <div style="padding:0 12px">
+            <span class="preset-chip">每天 9 点</span><span class="preset-chip">每小时</span><span class="preset-chip">工作日 18 点</span>
+          </div>
+          <div class="field"><label>预览</label><div class="val" style="color:var(--text-muted)">每天 09:00（时区 Asia/Shanghai）</div></div>
+          <div class="field"><label>内容</label><div class="val" style="min-height:44px">检查限流是否已重置…</div></div>
+          <div class="toggle-row"><span>跳过重叠触发</span><div class="toggle"><div class="knob"></div></div></div>
+          <div class="toggle-row"><span>以创建者身份发送</span><div class="toggle"><div class="knob"></div></div></div>
+          <div style="font-size:10px;color:var(--text-muted);padding:6px 12px 0">跳过重叠/结束条件仅创建时可设，创建后不可再改</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">⑥ Reminder 详情（发送历史 + 富文本链接）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-back"/></svg>&nbsp;&nbsp;<span class="t">Reminder 详情</span></div>
+      </div>
+      <div class="content">
+        <div class="info-row"><span class="k">对象</span><span>Agent-7</span></div>
+        <div class="info-row"><span class="k">触发</span><span>每天 09:00</span></div>
+        <div class="info-row"><span class="k">状态</span><span class="badge b-active">Active</span></div>
+        <div class="section-h">内容</div>
+        <div style="padding:0 12px 8px;font-size:11.5px;color:var(--text-secondary)">检查 <span style="color:var(--brand)">#T-501</span> 是否可以继续，如果限流已重置请 @Agent-7 继续处理</div>
+        <div class="section-h">发送历史（5 次）</div>
+        <div class="fire-row"><span>今天 09:00</span><span class="fire-badge b-active">已送达</span></div>
+        <div class="fire-row"><span>昨天 09:00</span><span class="fire-badge" style="background:var(--bg-subtle);color:var(--text-muted)">跳过（重叠）</span></div>
+        <div class="fire-row"><span>前天 09:00</span><span class="fire-badge" style="background:#D444401a;color:var(--danger)">失败</span></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab active"><svg class="icon"><use href="#i-bell"/></svg>Remind</div>
+        <div class="tab"><svg class="icon"><use href="#i-server"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section-note">
+  <h3>设计要点</h3>
+  <ul>
+    <li>System 顶层 tabstrip：Environment / Secrets / Reminders / Settings 四项——Reminders 本身有自己的底部 Tab 入口（Remind），但在 System 内部也留一个平级 tab，因为 PC 端两者本来就是同一 col① rail 下的并列项，不强行只留一个入口。</li>
+    <li><b>Force Delete 保留了输入名称二次确认</b>，没有为了"移动端操作更快"而降级成普通 Yes/No——这是全模块最强的安全设计，触屏误触概率比鼠标更高，反而更需要这层保护，不能因为是移动端就削弱。</li>
+    <li>Secrets 列表把现有移动卡片丢掉的 kind/state/创建时间字段全部找回来；创建流程严格保留"提交后立即清空明文、永不提供查看入口"的 ADR-0026 约束，mockup 里特意写了一句说明防止实现时手滑加个"眼睛图标"。</li>
+    <li>Reminder 的三种触发类型（Cron/单次/事件）用顶部三段切换承接，Cron 保留预设 chip + 人类可读预览（对应桌面版的"这是什么时候触发"直觉展示）；"跳过重叠"和"结束条件"明确标注"仅创建时可设"，防止实现时误做成可编辑。</li>
+    <li>Reminder 详情页的内容区保留了任务/计划/issue 引用的富文本可点击链接（图中 <code>#T-501</code> 是可点的），不能退化成纯文本——PC 端复用的是聊天消息同一套 markdown+linkify 管线，移动端也要复用第二批已定案的消息渲染规则，不要另起一套。</li>
+  </ul>
+  <h3 style="margin-top:14px">功能覆盖清单（未逐屏画出，写 spec 时逐项定案）</h3>
+  <ul>
+    <li><b>Worker 安装口令的复制/分享方式</b>：手机上复制一段命令去粘贴到目标机器不现实，需要专门设计（二维码 / 系统分享面板 / 发送到桌面端），本批只标出了入口，具体方案留后续。</li>
+    <li><b>Reminder Cancel 目前在 PC 端没有二次确认</b>（与 Delete 不一致）：移动端触屏误触率更高，是否要给 Cancel 补一个轻量确认/撤销条，需要显式决策，不能照搬 PC 端的"无确认"直接用在移动端。</li>
+    <li><b>Reminder Range 筛选和搜索</b>（PC 端由页面外的侧边栏驱动，桌面折叠导航在移动端本来就不可达）：本批用筛选 chip 里的"范围"入口代表，具体搜索框交互留后续。</li>
+    <li><b>Worker Agents tab 的逐行 Restart 操作</b>、<b>Environment 页的 Activity 四 tab 汇总流</b>（All/Work Items/Issues/Transfers）：本批未逐屏画出，入口需要在实现阶段补齐，Transfers 已有的"移动端卡片/桌面表格"双布局是可复用的既有模式。</li>
+    <li><b>AddWorkerModal</b>（新建 Worker 表单）：入口已标（顶栏 + 号），表单细节留后续。</li>
+  </ul>
+</div>
+
+</body>
+</html>
