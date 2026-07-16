@@ -207,7 +207,8 @@ func engineForAgentMat(t *testing.T, agentID string, mat reporepo.RepoMaterializ
 	trueBin := lookTrue(t)
 	base := t.TempDir()
 	rt := newExecRuntime(t, base, agentID, trueBin)
-	rt.cfg.Materializer = mat // AC_EXECUTOR_GIT_WORKTREE ON
+	rt.cfg.Materializer = mat        // AC_EXECUTOR_GIT_WORKTREE ON
+	rt.cfg.SourcePrewarmBackoff = -1 // collapse the retry backoff: no sleeping in tests
 	home, _, _, err := rt.agentPaths(agentID)
 	if err != nil {
 		t.Fatalf("agentPaths: %v", err)
@@ -222,6 +223,28 @@ func engineForAgentMat(t *testing.T, agentID string, mat reporepo.RepoMaterializ
 	}
 	attach(rt, ee)
 	return rt, ee, home
+}
+
+// spawnSettled drives SpawnExecutor for a COLD repo source and waits for the whole
+// episode to settle.
+//
+// The first spawn for a repo deliberately does NOT fork (issue-13e7bfe8): materializing a
+// source is a `git clone`, and SpawnExecutor may be running inside a control-command
+// handler with a 5s transport deadline, so the source is materialized on a BACKGROUND
+// goroutine and the task is re-driven from there. These tests therefore assert on the
+// settled end state rather than on the first call's return value — which is exactly the
+// invariant that used to be violated: an inline clone here wedged the worker's shared
+// control cursor.
+func spawnSettled(t *testing.T, rt *LocalRuntime, taskID string) {
+	t.Helper()
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: taskID})
+	if err != nil {
+		t.Fatalf("SpawnExecutor(%s) = %v, want nil error", taskID, err)
+	}
+	if res != nil {
+		t.Fatalf("SpawnExecutor(%s) forked INLINE on a cold source — the control path must DEFER to the background prewarm", taskID)
+	}
+	rt.waitSourcePrewarm() // the background materialize + its re-drive
 }
 
 // repoTaskBody is a get_task projection carrying a primary repo hint (P1).
@@ -250,10 +273,8 @@ func TestSpawnExecutor_Repo_PruneHookRunsBeforePrepare(t *testing.T) {
 	rt, _, _ := engineForAgentMat(t, "agent-repo", mat)
 	setToolCaller(rt, &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-9")})
 
-	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-9"})
-	if err != nil || res == nil {
-		t.Fatalf("SpawnExecutor = (%v, %v)", res, err)
-	}
+	spawnSettled(t, rt, "task-9")
+
 	order := seq.snapshot()
 	iEnsure, iPrune, iPrep := indexOf(order, "EnsureSource"), indexOf(order, "PruneOrphanWorktrees"), indexOf(order, "PrepareWorktree")
 	if iEnsure < 0 || iPrune < 0 || iPrep < 0 {
@@ -276,11 +297,10 @@ func TestSpawnExecutor_Repo_PrepareBeforeStartTask(t *testing.T) {
 	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-9")}
 	setToolCaller(rt, sc)
 
-	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-9"})
-	if err != nil || res == nil {
-		t.Fatalf("SpawnExecutor = (%v, %v), want a SpawnResult", res, err)
-	}
+	spawnSettled(t, rt, "task-9")
 
+	// The ordering invariant is unchanged by the prewarm — EnsureSource simply runs on
+	// the background goroutine and the rest follows on its re-drive.
 	order := seq.snapshot()
 	iEnsure, iPrep, iStart := indexOf(order, "EnsureSource"), indexOf(order, "PrepareWorktree"), indexOf(order, "start_task")
 	if iEnsure < 0 || iPrep < 0 || iStart < 0 {
@@ -290,25 +310,25 @@ func TestSpawnExecutor_Repo_PrepareBeforeStartTask(t *testing.T) {
 		t.Fatalf("order violation: want EnsureSource<PrepareWorktree<start_task, got %v", order)
 	}
 
-	// The prepared worktree path must be the launched executor's actual workspace.
+	// The prepared worktree path must be the launched executor's actual workspace. The
+	// executor id comes from the prepare request (the re-drive's SpawnResult is consumed
+	// inside the prewarm, not returned to this caller).
 	reqs := mat.preparedReqs()
 	if len(reqs) != 1 {
 		t.Fatalf("PrepareWorktree calls = %d, want 1", len(reqs))
 	}
-	wantWS, _ := rt.execEngine().fx.Layout().WorkspaceDir(res.ExecutorID)
+	execID := reqs[0].ExecutorID
+	wantWS, _ := rt.execEngine().fx.Layout().WorkspaceDir(execID)
 	if reqs[0].WorkspacePath != wantWS {
 		t.Fatalf("worktree path %q != executor workspace %q", reqs[0].WorkspacePath, wantWS)
 	}
-	if reqs[0].ExecutorID != res.ExecutorID {
-		t.Fatalf("worktree executor id %q != launched %q", reqs[0].ExecutorID, res.ExecutorID)
-	}
-	if reqs[0].BranchName != "ac-exec/task-9/"+res.ExecutorID {
-		t.Fatalf("branch = %q, want ac-exec/task-9/%s", reqs[0].BranchName, res.ExecutorID)
+	if reqs[0].BranchName != "ac-exec/task-9/"+execID {
+		t.Fatalf("branch = %q, want ac-exec/task-9/%s", reqs[0].BranchName, execID)
 	}
 
 	// P5: the pool persisted the worktree teardown handle into the recovery Record.
 	_, tr := seedExchange(t, home)
-	rec, err := tr.Read(res.ExecutorID)
+	rec, err := tr.Read(execID)
 	if err != nil {
 		t.Fatalf("read record: %v", err)
 	}
@@ -317,23 +337,44 @@ func TestSpawnExecutor_Repo_PrepareBeforeStartTask(t *testing.T) {
 	}
 }
 
-// TestSpawnExecutor_Repo_EnsureSourceFailNoStartTask proves red line A's failure half:
-// an EnsureSource failure means start_task is NEVER called and nothing is torn down.
-func TestSpawnExecutor_Repo_EnsureSourceFailNoStartTask(t *testing.T) {
+// TestSpawnExecutor_Repo_EnsureSourceFailNoForkFailsLoud proves red line A's failure half:
+// an EnsureSource failure means NO fork and no worktree teardown (nothing was prepared).
+//
+// The tail of this contract CHANGED with issue-13e7bfe8. It used to assert "start_task is
+// NEVER called" — i.e. the task was left silently queued. That silence was a hole: the
+// center's wake-sweep only re-drives a queued task while the agent has zero running tasks,
+// so on a busy agent the task simply vanished, with a worker log line as its only trace.
+// A permanently un-materializable repo is now surfaced instead: the runtime admits the
+// task solely so the center will accept a block (Task.Block requires status=running) and
+// blocks it with a machine-readable cause. start_task here is the fail-loud mechanism, NOT
+// an admission for execution — no executor is ever forked.
+func TestSpawnExecutor_Repo_EnsureSourceFailNoForkFailsLoud(t *testing.T) {
 	seq := &callSeq{}
 	mat := &recordingMaterializer{seq: seq, repoKey: "k", sourcePath: t.TempDir() + "/src", ensureErr: context.Canceled}
-	rt, _, _ := engineForAgentMat(t, "agent-esf", mat)
+	rt, _, home := engineForAgentMat(t, "agent-esf", mat)
+	rt.cfg.SourcePrewarmAttempts = 1
 	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-1")}
 	setToolCaller(rt, sc)
 
-	if res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-1"}); res != nil || err != nil {
-		t.Fatalf("SpawnExecutor = (%v, %v), want (nil, nil)", res, err)
-	}
-	if seen := sc.toolsSeen(); len(seen) != 1 || seen[0] != "get_task" {
-		t.Fatalf("tool calls = %v, want [get_task] only (start_task NEVER called)", seen)
+	spawnSettled(t, rt, "task-1")
+
+	// Never forked, and nothing to tear down (no worktree was ever prepared).
+	if probs := loadRouting(t, home); len(probs) != 0 {
+		t.Fatalf("an un-materializable source must NOT fork, got %+v", probs)
 	}
 	if n := len(mat.removeCalls()); n != 0 {
 		t.Fatalf("RemoveWorktree calls = %d, want 0 (nothing prepared)", n)
+	}
+	if n := len(mat.preparedReqs()); n != 0 {
+		t.Fatalf("PrepareWorktree calls = %d, want 0 (no source)", n)
+	}
+	// Fail-loud: blocked with the machine-readable cause rather than left queued.
+	blocked, ok := sc.callFor("block_task")
+	if !ok {
+		t.Fatalf("an un-materializable source must FAIL LOUD (block_task), got tools %v", sc.toolsSeen())
+	}
+	if reason, _ := blocked["reason"].(string); !containsSub(reason, string(CauseRepoSourceUnavailable)) {
+		t.Fatalf("blocked_reason = %q, want [cause=%s]", reason, CauseRepoSourceUnavailable)
 	}
 }
 
@@ -346,11 +387,12 @@ func TestSpawnExecutor_Repo_PrepareFailNoStartTask(t *testing.T) {
 	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-2")}
 	setToolCaller(rt, sc)
 
-	if res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-2"}); res != nil || err != nil {
-		t.Fatalf("SpawnExecutor = (%v, %v), want (nil, nil)", res, err)
-	}
-	if seen := sc.toolsSeen(); len(seen) != 1 || seen[0] != "get_task" {
-		t.Fatalf("tool calls = %v, want [get_task] only", seen)
+	spawnSettled(t, rt, "task-2")
+
+	// The source materialized, so the task WAS re-driven — but the worktree failed, so
+	// admission must never happen (red line A) and there is nothing to tear down.
+	if _, ok := sc.callFor("start_task"); ok {
+		t.Fatalf("start_task must NOT run when PrepareWorktree failed: tools = %v", sc.toolsSeen())
 	}
 	if n := len(mat.removeCalls()); n != 0 {
 		t.Fatalf("RemoveWorktree calls = %d, want 0", n)
@@ -367,16 +409,16 @@ func TestSpawnExecutor_Repo_StartTaskDeclinedCleansWorktree(t *testing.T) {
 	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-3"), startErr: context.DeadlineExceeded}
 	setToolCaller(rt, sc)
 
-	if res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-3"}); res != nil || err != nil {
-		t.Fatalf("SpawnExecutor = (%v, %v), want (nil, nil)", res, err)
+	spawnSettled(t, rt, "task-3")
+
+	if _, ok := sc.callFor("start_task"); !ok {
+		t.Fatalf("admission must still be attempted: tool calls = %v", sc.toolsSeen())
 	}
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[1] != "start_task" {
-		t.Fatalf("tool calls = %v, want get_task then start_task", seen)
-	}
-	rm := mat.removeCalls()
-	if len(rm) != 1 || rm[0].repoKey != "key-decl" {
-		t.Fatalf("RemoveWorktree calls = %+v, want exactly one for key-decl (cleanup)", rm)
-	}
+	// Red line B is a NO-LEAK invariant, not a call count: every worktree this spawn
+	// prepared must be torn down. (The prewarm re-drives a bounded number of times, so a
+	// permanently-declining start_task legitimately yields several prepare→cleanup
+	// cycles; what must never happen is a prepare without its remove.)
+	assertNoWorktreeLeak(t, mat, "key-decl")
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Fatalf("declined admission must NOT fork, got %+v", probs)
 	}
@@ -399,15 +441,37 @@ func TestSpawnExecutor_Repo_ForkFailsCleansWorktree(t *testing.T) {
 	sc := &scriptedToolCaller{seq: seq, getTaskBody: repoTaskBody("task-6")}
 	setToolCaller(rt, sc)
 
-	if res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}); res != nil || err != nil {
-		t.Fatalf("SpawnExecutor = (%v, %v), want (nil, nil)", res, err)
+	spawnSettled(t, rt, "task-6")
+
+	if _, ok := sc.callFor("start_task"); !ok {
+		t.Fatalf("admission still runs: tool calls = %v", sc.toolsSeen())
 	}
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[1] != "start_task" {
-		t.Fatalf("admission still runs: tool calls = %v", seen)
+	assertNoWorktreeLeak(t, mat, "key-skew")
+}
+
+// assertNoWorktreeLeak pins red line B: every worktree the runtime prepared was torn down
+// again (matched by workspace path), and every teardown named the expected repo_key. It
+// asserts the INVARIANT rather than a call count, so it stays valid regardless of how many
+// times the prewarm re-drives a task whose fork keeps failing.
+func assertNoWorktreeLeak(t *testing.T, mat *recordingMaterializer, wantKey string) {
+	t.Helper()
+	prepared := mat.preparedReqs()
+	removed := mat.removeCalls()
+	if len(prepared) == 0 {
+		t.Fatalf("precondition: expected at least one PrepareWorktree")
 	}
-	rm := mat.removeCalls()
-	if len(rm) != 1 || rm[0].repoKey != "key-skew" {
-		t.Fatalf("RemoveWorktree calls = %+v, want one for key-skew (fork-fail cleanup)", rm)
+	removedPaths := map[string]bool{}
+	for _, r := range removed {
+		if r.repoKey != wantKey {
+			t.Fatalf("RemoveWorktree repo_key = %q, want %q", r.repoKey, wantKey)
+		}
+		removedPaths[r.workspacePath] = true
+	}
+	for _, p := range prepared {
+		if !removedPaths[p.WorkspacePath] {
+			t.Fatalf("worktree LEAK: %s was prepared but never removed (prepared=%d removed=%d)",
+				p.WorkspacePath, len(prepared), len(removed))
+		}
 	}
 }
 

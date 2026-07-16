@@ -150,6 +150,18 @@ type SpawnRequest struct {
 	// Context is the supervisor-aggregated context (empty ⇒ runtime builds it from
 	// task detail).
 	Context string
+
+	// redrive marks a spawn issued BY the repo-source prewarm gate after a background
+	// materialize (issue-13e7bfe8). Unexported on purpose: only this package can set it,
+	// so external callers always get the plain control-path behavior.
+	//
+	// It exists to break a livelock: a re-drive that finds the source already stale
+	// again would defer into ANOTHER prewarm, which re-drives, which defers… forever.
+	// That is reachable in production whenever one fetch takes longer than
+	// SourceFreshFor (a big repo on a slow link), not just in theory — the regression
+	// suite hit it as an infinite loop. A re-drive therefore accepts the source the
+	// episode just materialized even if the freshness window has already lapsed.
+	redrive bool
 }
 
 // SpawnResult is the outcome of a successful SpawnExecutor.

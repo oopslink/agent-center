@@ -147,6 +147,7 @@ func TestSpawnExecutor_RealGit_SpawnHookReapsOrphan(t *testing.T) {
 		t.Fatalf("NewLocalGitMaterializer: %v", err)
 	}
 	rt.cfg.Materializer = mat
+	rt.cfg.SourcePrewarmBackoff = -1 // no sleeping in tests
 	ee, err := rt.BuildExecutorEngine(home, ExecutorConfig{AgentID: agentID, MaxConcurrentTasks: 4, DefaultExecutorModel: "claude-default"})
 	if err != nil {
 		t.Fatalf("BuildExecutorEngine: %v", err)
@@ -161,10 +162,10 @@ func TestSpawnExecutor_RealGit_SpawnHookReapsOrphan(t *testing.T) {
 	}
 	setToolCaller(rt, &scriptedToolCaller{getTaskBody: repoHint("task-1")})
 
-	// Spawn 1: materializes the canonical source (first clone).
-	if res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-1"}); err != nil || res == nil {
-		t.Fatalf("spawn-1 = (%v,%v)", res, err)
-	}
+	// Spawn 1: materializes the canonical source (first clone). It DEFERS rather than
+	// forking inline — the first clone for a repo runs on the background prewarm, never on
+	// the (5s-bounded) control path (issue-13e7bfe8) — so settle before asserting.
+	spawnSettled(t, rt, "task-1")
 	sourcePath := filepath.Join(reposRoot, reporepo.RepoKey(remote), "source")
 
 	// A prior executor's orphan: a real worktree whose id (exec-dead) is never in the pool.

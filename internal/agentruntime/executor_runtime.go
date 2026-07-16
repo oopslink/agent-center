@@ -579,6 +579,20 @@ func (r *LocalRuntime) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 // later re-emit. A model-not-allowed fork blocks the task (already admitted). On a
 // successful fork it returns the SpawnResult.
 //
+// NON-WEDGING IS A DEADLINE CLAIM, NOT JUST A RETURN-VALUE CLAIM. A caller may be a
+// control-command handler whose transport deadline is 5s (see source_prewarm.go), so
+// every step below MUST be bounded and fast: local-disk work, or a center RPC. It must
+// NOT perform "possibly minutes" network I/O — that is what issue-13e7bfe8 was: an
+// inline `git clone` here could not finish inside the deadline, so the command was never
+// acked and the worker's shared control cursor re-delivered it forever, starving every
+// other agent on that worker. Repo-source materialization is therefore deferred to a
+// background prewarm; if you add a slow step here, it belongs there instead.
+//
+// "Left queued" is likewise NOT self-healing on its own: the center's wake-sweep
+// re-drives a queued task only while the agent has NO running task. Any new path that
+// leaves a task queued must either be re-driven by its own follow-up (as the prewarm
+// gate does) or be surfaced loudly — never silently dropped.
+//
 // forkMu is held across the WHOLE sequence so two concurrent SpawnExecutor calls for
 // one agent can't both pass the pool cap (red line #1 — the single-ControlLoop
 // serialization guarantee is gone now that SpawnExecutor is callable from multiple
@@ -645,24 +659,41 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	}
 
 	// 2. Repo workspace (P3, red line A): materialize the canonical source + a
-	// per-executor worktree BEFORE start_task/reserve, so an EnsureSource/PrepareWorktree
-	// failure means the task is NEVER admitted (best-effort, non-wedging: log + leave
-	// queued). Only when the flag is ON (materializer wired) AND the task carries a
-	// primary repo; otherwise execID stays empty + prepared nil ⇒ the plain-dir path is
-	// byte-for-byte unchanged.
+	// per-executor worktree BEFORE start_task/reserve, so a source/worktree failure
+	// means the task is NEVER admitted. Only when the flag is ON (materializer wired)
+	// AND the task carries a primary repo; otherwise execID stays empty + prepared nil
+	// ⇒ the plain-dir path is byte-for-byte unchanged.
+	//
+	// The source is NOT materialized here (issue-13e7bfe8 layer 1). SpawnExecutor can be
+	// reached from a control command whose transport deadline is 5s, and a `git clone` is
+	// minutes — running it inline blew that deadline, wedged the worker's SHARED control
+	// cursor behind an un-ackable command (420 retries in prod, every agent on the worker
+	// starved), and SIGKILLed git mid-clone into the canonical path. So this path only
+	// ever reads an already-materialized source from the prewarm gate; a miss defers the
+	// task to a BACKGROUND clone (source_prewarm.go) which re-drives it on completion.
+	// Everything below the gate is local-disk or center-RPC, i.e. control-path-safe.
 	var execID string
 	var prepared *executor.PreparedWorkspace
 	if r.cfg.Materializer != nil && task.Repo != nil {
+		target := resolveRepoTarget(task)
+		repoKey := reporepo.RepoKey(target.URL)
+		source, ready := r.freshSource(repoKey)
+		if !ready && req.redrive {
+			// This spawn IS the prewarm's re-drive: take the source it just materialized
+			// even if the freshness window lapsed while cloning. Re-deferring here would
+			// bounce back into another prewarm and livelock (see SpawnRequest.redrive).
+			source, ready = r.anySource(repoKey)
+		}
+		if !ready {
+			// Return NOW so the control command acks; the background materialize calls
+			// SpawnExecutor again for this task once the source lands.
+			r.deferForSource(agentID, taskID, repoKey, target)
+			return nil, nil
+		}
 		execID = ee.engine.NewExecutorID() // must be known BEFORE PrepareWorktree (path+branch embed it)
 		wsPath, wsErr := ee.fx.Layout().WorkspaceDir(execID)
 		if wsErr != nil {
 			r.log("work_available agent=%s task=%s resolve workspace: %v — left queued", agentID, taskID, wsErr)
-			return nil, nil
-		}
-		source, srcErr := r.cfg.Materializer.EnsureSource(ctx, resolveRepoTarget(task))
-		if srcErr != nil {
-			r.log("work_available agent=%s task=%s ensure repo source: %v — left queued (start_task NOT called)",
-				agentID, taskID, srcErr)
 			return nil, nil
 		}
 		// v2.31.1 orphan-reap (spawn hook): before adding THIS executor's worktree, reap

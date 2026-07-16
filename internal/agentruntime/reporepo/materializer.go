@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -115,10 +116,28 @@ type RepoMaterializer interface {
 	ReapOrphanWorktrees(ctx context.Context, isLive func(execID string) bool) (int, error)
 }
 
+// Transient sibling-dir prefixes under repos/<repo_key>/ (issue-13e7bfe8 layer 2).
+// Both are dot-prefixed so they can never collide with `source` / `meta.json`, and
+// both live under repoDir so a promote is a same-filesystem os.Rename.
+const (
+	// stagingPrefix is the in-progress clone dir; renamed onto `source` on success,
+	// removed on every failure.
+	stagingPrefix = ".staging-"
+	// stagingCheckout is the checkout dir name git clones into inside the staging dir.
+	stagingCheckout = "co"
+	// quarantinePrefix is where a broken `source` is moved aside before a heal re-clone.
+	quarantinePrefix = ".broken-"
+)
+
 // LocalGitMaterializer is the single-machine v1 RepoMaterializer: a non-bare
 // `source` checkout per repo_key, per-executor worktrees added off it, all git
 // state on the local worker host.
 type LocalGitMaterializer struct {
+	// Log is an OPTIONAL operational sink. Set post-construction by the wiring so a
+	// self-heal (quarantine + re-clone of a poisoned source) is visible in the worker
+	// log instead of being silently swallowed. nil ⇒ silent.
+	Log func(string)
+
 	reposRoot string
 	runner    executor.GitRunner
 	clock     clock.Clock
@@ -174,6 +193,25 @@ func (m *LocalGitMaterializer) EnsureSource(ctx context.Context, target RepoTarg
 		return SourceRepo{}, fmt.Errorf("reporepo: stat source repo_key=%s: %w", key, err)
 	}
 
+	// issue-13e7bfe8 layer 2 (self-heal): a `source` carrying a .git is NOT proof of a
+	// USABLE repo. The pre-fix clone wrote straight into the canonical path, so a
+	// cancelled clone (the 5s control-handler deadline SIGKILLing git) left a half-
+	// written .git right here — and the reuse branch below could never notice: `remote
+	// get-url` and `fetch` BOTH succeed on such a corpse (verified), so EnsureSource
+	// returned "success" forever while every worktree add died on
+	// "fatal: your current branch appears to be broken". Probe HEAD and quarantine a
+	// broken source so the re-clone below heals it. Repos poisoned by the old code are
+	// already on disk in the field, so this heal path is required, not theoretical.
+	if isRepo {
+		if herr := m.sourceHealth(ctx, sourcePath); herr != nil {
+			m.logf("reporepo: repo_key=%s canonical source is BROKEN (%v) — quarantining + re-cloning (self-heal)", key, herr)
+			if qerr := m.quarantineSource(repoDir, sourcePath); qerr != nil {
+				return SourceRepo{}, fmt.Errorf("reporepo: quarantine broken source repo_key=%s: %w", key, qerr)
+			}
+			isRepo = false
+		}
+	}
+
 	if isRepo {
 		// Reuse only if the existing source points at the SAME remote (design §4).
 		origin, oerr := m.originURL(ctx, sourcePath)
@@ -190,12 +228,13 @@ func (m *LocalGitMaterializer) EnsureSource(ctx context.Context, target RepoTarg
 		if err := os.MkdirAll(repoDir, 0o755); err != nil {
 			return SourceRepo{}, fmt.Errorf("reporepo: mkdir repo_key=%s: %w", key, err)
 		}
-		// A `source` that exists but is not a git repo is a stray/half-materialized
-		// dir — refuse rather than clone into or reuse it.
+		// A `source` that exists but is not a git repo is a stray dir — refuse rather
+		// than clone into or reuse it. (A HALF-clone has a .git and is handled by the
+		// quarantine probe above; this stays fail-closed for a genuinely foreign dir.)
 		if pathExists(sourcePath) {
 			return SourceRepo{}, fmt.Errorf("repo_key=%s: %w", key, ErrSourceNotGitRepo)
 		}
-		if _, cerr := m.git(ctx, repoDir, "clone", url, "source"); cerr != nil {
+		if cerr := m.cloneAtomic(ctx, repoDir, url, sourcePath); cerr != nil {
 			return SourceRepo{}, fmt.Errorf("reporepo: clone repo_key=%s: %w", key, cerr)
 		}
 	}
@@ -204,6 +243,146 @@ func (m *LocalGitMaterializer) EnsureSource(ctx context.Context, target RepoTarg
 		return SourceRepo{}, fmt.Errorf("reporepo: write meta repo_key=%s: %w", key, err)
 	}
 	return SourceRepo{RepoKey: key, Path: sourcePath, URL: url, BaseRef: target.resolvedBaseRef()}, nil
+}
+
+// cloneAtomic clones url into a STAGING dir under repoDir and only then renames the
+// finished checkout onto the canonical sourcePath (issue-13e7bfe8 layer 2). This is the
+// invariant that makes the canonical source un-poisonable: a clone is either absent or
+// COMPLETE at sourcePath — never half-written — because the rename is the single atomic
+// commit point and it runs only after git exited 0. It mirrors what writeMeta already
+// did for meta.json; the repo itself was the one thing left un-staged.
+//
+// Staging lives INSIDE repoDir so the rename is a same-filesystem move (an os.Rename
+// across devices would fail). Every non-success exit — error, ctx cancel, the SIGKILL a
+// cancelled ctx delivers to git — removes the staging dir, so a retry always starts from
+// a clean slate and self-heals rather than tripping over its own debris.
+func (m *LocalGitMaterializer) cloneAtomic(ctx context.Context, repoDir, url, sourcePath string) error {
+	staging, err := os.MkdirTemp(repoDir, stagingPrefix)
+	if err != nil {
+		return fmt.Errorf("stage dir: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			// Best-effort: ctx may already be cancelled, but removal needs no ctx.
+			_ = os.RemoveAll(staging)
+		}
+	}()
+
+	// Clone into <staging>/co, NOT into <repoDir>/source: nothing git writes is visible
+	// at the canonical path until the rename below.
+	if _, cerr := m.git(ctx, staging, "clone", url, stagingCheckout); cerr != nil {
+		return cerr
+	}
+	if rerr := os.Rename(filepath.Join(staging, stagingCheckout), sourcePath); rerr != nil {
+		return fmt.Errorf("promote staged clone: %w", rerr)
+	}
+	committed = true
+	return os.RemoveAll(staging) // now-empty staging shell
+}
+
+// sourceHealth returns a non-nil error ONLY when it can prove the canonical source is
+// broken. A nil return means "no verdict" — reuse the source.
+//
+// The probe is `rev-parse --verify HEAD` — chosen over the alternatives by measurement,
+// not taste:
+//   - `git status` is NOT a probe: it exits 0 on a refs-stripped half-clone.
+//   - `remote get-url` / `fetch` are NOT probes: both exit 0 on the same corpse, which
+//     is precisely why the pre-fix reuse branch never self-healed.
+//
+// THE VERDICT MUST BE DECISIVE, because the caller acts on it by DELETING the source.
+// A probe that says "broken" whenever git merely failed to run would turn every transient
+// hiccup — ctx cancellation, a fork/EAGAIN under load, a momentarily missing git binary —
+// into destruction of a perfectly healthy repo. That would be a worse bug than the one
+// this file fixes: corruption-on-cancel traded for data-loss-on-cancel. So we quarantine
+// only when git ACTUALLY RAN and returned a non-zero verdict about the repo:
+//
+//   - ctx already dead ⇒ no verdict (note a ctx-killed git still surfaces as an
+//     *exec.ExitError, "signal: killed", so this check MUST come first).
+//   - the error is not an ExitError ⇒ git never ran ⇒ infrastructure, not corruption.
+//
+// A false "healthy" is safe: the fetch immediately below will fail on a broken repo and
+// EnsureSource returns that error rather than destroying anything.
+//
+// Caveat, deliberately accepted: a clone of a genuinely EMPTY remote also has no
+// resolvable HEAD, so it is judged broken and re-cloned once per EnsureSource. That is
+// bounded and non-wedging (the re-clone succeeds; EnsureSource still returns success),
+// and such a repo has no base commit to derive a worktree from either way.
+func (m *LocalGitMaterializer) sourceHealth(ctx context.Context, sourcePath string) error {
+	_, err := m.git(ctx, sourcePath, "rev-parse", "--verify", "HEAD")
+	if err == nil {
+		return nil
+	}
+	if ctx.Err() != nil {
+		return nil // cancelled/timed out: says nothing about the repo
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return nil // git could not be executed at all: not a repo verdict
+	}
+	return err
+}
+
+// quarantineSource clears a broken canonical source out of the way so the caller can
+// re-clone into a clean path.
+//
+// It DOES destroy any per-executor worktrees linked off the old source (their admin data
+// lives in source/.git/worktrees/<id>), and unlike PruneOrphanWorktrees it takes no
+// isLive guard. That is a considered trade, not an oversight: sourceHealth only reports
+// broken on a decisive git verdict, and a source with no resolvable HEAD cannot serve the
+// worktrees hanging off it anyway — they are already unusable, which is how this incident
+// surfaced (every `git worktree add` failing on "your current branch appears to be
+// broken"). Leaving the corpse in place to protect them would keep the repo permanently
+// wedged, which is the failure being fixed. The heal is logged loudly by the caller so a
+// live executor's workspace disappearing is attributable rather than mysterious.
+//
+// It RENAMES aside first and only then deletes. The rename is the meaningful step: it
+// unpublishes `source` atomically, so no concurrent reader can ever observe a
+// half-deleted repo, and a delete that fails midway cannot recreate the very
+// "partially-populated source" state this whole change exists to prevent. The subsequent
+// RemoveAll is best-effort — a broken source is a full clone's worth of disk, so keeping
+// the corpse around as a post-mortem artifact is not worth the space on a worker; if the
+// delete fails the dir is inert (it is no longer named `source`) and sweepDebris collects
+// it on the next pass.
+func (m *LocalGitMaterializer) quarantineSource(repoDir, sourcePath string) error {
+	// Sweep any earlier staging/quarantine debris so repoDir cannot grow across heals.
+	m.sweepDebris(repoDir)
+	dst, err := os.MkdirTemp(repoDir, quarantinePrefix)
+	if err != nil {
+		return err
+	}
+	// MkdirTemp created dst; rename needs a non-existent target.
+	if rmErr := os.RemoveAll(dst); rmErr != nil {
+		return rmErr
+	}
+	if rerr := os.Rename(sourcePath, dst); rerr != nil {
+		return rerr
+	}
+	_ = os.RemoveAll(dst)
+	return nil
+}
+
+// sweepDebris removes leftover staging/quarantine dirs under repoDir (best-effort).
+// Never touches `source` or `meta.json`.
+func (m *LocalGitMaterializer) sweepDebris(repoDir string) {
+	entries, err := os.ReadDir(repoDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, stagingPrefix) || strings.HasPrefix(name, quarantinePrefix) {
+			_ = os.RemoveAll(filepath.Join(repoDir, name))
+		}
+	}
+}
+
+// logf emits an operational line when a Log sink is wired (nil ⇒ silent).
+func (m *LocalGitMaterializer) logf(format string, args ...any) {
+	if m.Log == nil {
+		return
+	}
+	m.Log(fmt.Sprintf(format, args...))
 }
 
 // PrepareWorktree derives a per-executor worktree on a fresh branch off the source,

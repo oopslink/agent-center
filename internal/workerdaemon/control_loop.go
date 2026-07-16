@@ -109,6 +109,30 @@ const holBlockThreshold = 30
 // line still logs each tick; this is the persistent-block escalation on top.
 const holBlockReescalateEvery = 30
 
+// holParkThreshold is the number of CONSECUTIVE failures of the SAME head-of-line
+// command after which the loop stops retrying it and PARKS it: the cursor advances
+// past the command so every command behind it can finally flow (issue-13e7bfe8
+// layer 3).
+//
+// Why parking must exist. This worker's control cursor is SHARED by every agent on
+// it: one un-handleable command starves them all, indefinitely. Alarming was not
+// enough — in prod the HOL-BLOCKED alarm fired as designed and the loop still
+// retried the same command 420 times while the whole worker sat idle. An alarm
+// nobody can act on inside the outage is not a control; the loop needs its own
+// escape.
+//
+// The trade. Parking DROPS one command. That is chosen deliberately over starving
+// the worker: the control commands on this path are re-drivable (a skipped
+// work_available is re-emitted by the center's wake-sweep, and the agent's own
+// prewarm re-drives a deferred task), whereas an infinitely blocked stream is not
+// self-correcting. A park is logged at the loudest level available precisely
+// because it is lossy — it must be greppable after the fact.
+//
+// At the 1s default poll this is ~2 minutes of retrying before giving up: far past
+// any transient (a restarting agent, a momentary socket refusal), far short of the
+// hours the pre-fix loop would burn.
+const holParkThreshold = 120
+
 // streamChanBuf is the buffer on the reader→executor command channel. The reader
 // goroutine forwards parsed SSE commands here; the executor drains them. A small
 // buffer smooths bursts without unbounded memory; when full the reader simply blocks
@@ -366,12 +390,29 @@ func (l *ControlLoop) handleBatch(ctx context.Context, cmds []ControlCommand) {
 	advanced := false
 	for _, cmd := range cmds {
 		if err := l.cfg.Handler.Handle(ctx, cmd); err != nil {
+			l.noteStuck(cmd.Offset, cmd.CommandType, err)
+			if l.shouldPark(cmd.Offset) {
+				// HOL ESCAPE (issue-13e7bfe8 layer 3): this command has failed
+				// holParkThreshold times in a row and is starving every OTHER agent on
+				// this worker. Give up on it and advance so the rest of the stream
+				// drains. Lossy and therefore loud.
+				l.log("control: HOL-PARKED — command at offset=%d type=%s failed %d consecutive times; SKIPPING it (cursor advances) so the worker's other commands can proceed. THIS COMMAND IS DROPPED and will not be retried: %v",
+					cmd.Offset, cmd.CommandType, l.stuckFails, err)
+				// Do NOT clearStuck here: the park only takes effect once the ack below
+				// advances the cursor. Resetting the counter now would mean an ack
+				// failure re-pulls this command with a fresh budget — another full
+				// threshold of starvation before it parks again, exactly when the center
+				// is already unhealthy. The post-ack clearStuck covers the success path;
+				// if the ack fails, the next attempt parks immediately.
+				highestHandled = cmd.Offset
+				advanced = true
+				continue
+			}
 			// Do NOT advance past the failed command — it will be re-pulled
 			// (poll) or re-delivered on reconnect (stream catch-up) and retried.
 			// Ack whatever prefix succeeded below.
 			l.log("control: handle command offset=%d type=%s: %v (will retry)",
 				cmd.Offset, cmd.CommandType, err)
-			l.noteStuck(cmd.Offset, cmd.CommandType, err)
 			break
 		}
 		highestHandled = cmd.Offset
@@ -493,6 +534,13 @@ func (l *ControlLoop) noteStuck(off int64, cmdType string, cause error) {
 			"ALL subsequent commands for this worker are starved: %v",
 			off, cmdType, l.stuckFails, cause)
 	}
+}
+
+// shouldPark reports whether the head-of-line command at off has exhausted its retry
+// budget and must be skipped so the worker's control stream can drain (see
+// holParkThreshold). Must be called AFTER noteStuck has recorded this attempt.
+func (l *ControlLoop) shouldPark(off int64) bool {
+	return l.stuckOffset == off && l.stuckFails >= holParkThreshold
 }
 
 // clearStuck resets the HOL escalation counter (the head command finally handled,

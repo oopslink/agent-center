@@ -78,7 +78,10 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 		default: // already signalled
 		}
 	}
-	rt := buildAgentRuntime(opts, cfg, client, targetSpec, token, fingerprint, logf, onFatal)
+	rt, err := buildAgentRuntime(opts, cfg, client, targetSpec, token, fingerprint, logf, onFatal)
+	if err != nil {
+		return err
+	}
 
 	// 2b) 🔴 ENGINE-ATTACH-BEFORE-BOOT (T854 D6 fix, sibling to Boot-before-serve): a
 	// crash-rebuilt agent-runtime process gets NO reconcile command (the center has not
@@ -222,7 +225,11 @@ func agentRuntimeClient(opts RunOptions, logf func(string)) (client *AdminClient
 // buildAgentRuntime constructs the single-agent LocalRuntime. It mirrors the daemon's
 // baseRuntimeConfig recipe but with the process-model differences: NO in-process self-
 // heal — a supervisor-session crash fires OnFatal (→ process exit → launcher rebuild).
-func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *AdminClient, targetSpec, token, fingerprint string, logf func(string), onFatal func(reason string)) *agentruntime.LocalRuntime {
+//
+// It returns an error only for a FAIL-LOUD misconfiguration (a repo-workspace flag that
+// is on but unusable): starting inert, in a silently different workspace shape than the
+// operator asked for, is worse than not starting.
+func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *AdminClient, targetSpec, token, fingerprint string, logf func(string), onFatal func(reason string)) (*agentruntime.LocalRuntime, error) {
 	binPath, _ := os.Executable()
 	disableUsage := false
 	if v := strings.TrimSpace(os.Getenv("AGENT_CENTER_DISABLE_USAGE_REPORT")); v == "1" || strings.EqualFold(v, "true") {
@@ -254,18 +261,25 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 	// Repo-workspace (AC_EXECUTOR_GIT_WORKTREE): wire a per-agent materializer so
 	// SpawnExecutor prepares an isolated git worktree per executor (required for the
 	// §4.3 worktree tiers — without it the three-tier ladder only ever sees plain dirs).
-	// Mirrors the daemon's maybeWireMaterializer; home layout matches r.agentPaths.
+	// This is the SOLE wire site; home layout matches r.agentPaths.
 	if gitWorktreeFlagEnabled() {
 		home := filepath.Join(homeBase, "agents", opts.AgentID)
 		reposRoot := filepath.Join(home, "repos")
-		if mat, merr := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil); merr != nil {
-			logf(fmt.Sprintf("agent-runtime agent=%s repo-workspace: %v (plain-dir)", opts.AgentID, merr))
-		} else {
-			rc.Materializer = mat
-			rc.ReposRoot = reposRoot
+		mat, merr := reporepo.NewLocalGitMaterializer(reposRoot, nil, nil)
+		if merr != nil {
+			// FAIL-LOUD (issue-13e7bfe8): the flag is explicitly ON, so silently
+			// degrading to plain-dir would run every task in the WRONG workspace shape
+			// while the operator believes worktrees are active — an inert misconfig that
+			// only surfaces as confusing downstream behavior. Refuse to start instead.
+			return nil, fmt.Errorf("agent-runtime agent=%s: AC_EXECUTOR_GIT_WORKTREE is ON but the repo materializer could not be built at %s: %w",
+				opts.AgentID, reposRoot, merr)
 		}
+		// Surface self-heal / quarantine of a poisoned canonical source in the worker log.
+		mat.Log = func(msg string) { logf(msg) }
+		rc.Materializer = mat
+		rc.ReposRoot = reposRoot
 	}
-	return agentruntime.NewLocalRuntime(rc, &agentruntime.SessionState{})
+	return agentruntime.NewLocalRuntime(rc, &agentruntime.SessionState{}), nil
 }
 
 // gitWorktreeFlagEnabled reports whether AC_EXECUTOR_GIT_WORKTREE is on (mirrors the

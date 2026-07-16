@@ -114,6 +114,18 @@ type LocalRuntimeConfig struct {
 	// at (informational; the Materializer already carries it). Empty when the flag is off.
 	ReposRoot string
 
+	// Repo-source prewarm tunables (issue-13e7bfe8 layer 1 — see source_prewarm.go).
+	// All zero ⇒ the defaults; tests collapse the timings to stay deterministic.
+	//
+	// SourcePrewarmTimeout bounds ONE background EnsureSource. SourceFreshFor is how
+	// long a materialized source is reused without a re-fetch. SourcePrewarmBackoff is
+	// the pause between failed attempts (negative ⇒ zero, for tests).
+	// SourcePrewarmAttempts is the bounded retry budget before a task is failed loudly.
+	SourcePrewarmTimeout  time.Duration
+	SourceFreshFor        time.Duration
+	SourcePrewarmBackoff  time.Duration
+	SourcePrewarmAttempts int
+
 	// SkillLayerRoots resolves the four claude-code skill-layer directories to scan for
 	// the OBSERVED installed-skill report (issue-4a45e9cc). It is injected so tests can
 	// point at temp dirs; nil ⇒ the runtime's default resolver derived from the agent
@@ -142,6 +154,12 @@ type LocalRuntime struct {
 	// AttachExecutor when the agent opts into concurrency. nil ⇒ single-claude inject
 	// path. Guarded by r.mu exactly as ma.exec was guarded by c.mu.
 	exec *ExecutorEngine
+
+	// sources is the per-repo_key repo-source prewarm gate (issue-13e7bfe8 layer 1):
+	// it keeps `git clone` OFF the control-command path and owns the background
+	// materialize + re-drive of the tasks that deferred on it. See source_prewarm.go.
+	// Has its own lock; never nested with r.mu or forkMu.
+	sources sourceGate
 
 	// forkMu (red line #1) serializes the get_task→start_task→launch fork sequence
 	// (SpawnExecutor) AND the shared launch tail (launchExecutor) so two concurrent

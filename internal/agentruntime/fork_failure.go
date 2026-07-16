@@ -42,6 +42,13 @@ const (
 	CauseRateLimited ForkFailureCause = "rate_limited"
 	// CauseForkError — any other (unclassified) fork/spawn failure.
 	CauseForkError ForkFailureCause = "fork_error"
+	// CauseRepoSourceUnavailable — the task's repo source could not be materialized
+	// (clone/fetch failed every attempt: bad URL, missing credentials, remote down,
+	// disk). issue-13e7bfe8: this used to be a SILENT hole — EnsureSource failed on the
+	// control path, the task was left queued with only a log line, and the center's
+	// wake-sweep re-drives a queued task ONLY while the agent has zero running tasks, so
+	// a busy agent stranded it indefinitely. It is now surfaced as a blocked task.
+	CauseRepoSourceUnavailable ForkFailureCause = "repo_source_unavailable"
 )
 
 // classifyForkFailure maps a fork error to a machine-readable cause so the
