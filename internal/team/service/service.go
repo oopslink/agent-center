@@ -285,6 +285,13 @@ func (s *Service) ListMembers(ctx context.Context, id team.TeamID) ([]*team.Team
 	return s.repo.ListMembers(ctx, id)
 }
 
+// ListMembersByTeams returns the members of ALL the given teams in ONE batched
+// read — the whole-org membership rollup behind the directory endpoints, which
+// would otherwise cost one read per team.
+func (s *Service) ListMembersByTeams(ctx context.Context, ids []team.TeamID) ([]*team.TeamMember, error) {
+	return s.repo.ListMembersByTeams(ctx, ids)
+}
+
 // AssociateProject links a project to a team.
 func (s *Service) AssociateProject(ctx context.Context, id team.TeamID, projectID string) error {
 	if projectID == "" {

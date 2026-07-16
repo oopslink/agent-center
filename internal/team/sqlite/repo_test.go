@@ -250,3 +250,56 @@ func assertNoRows(t *testing.T, db *sql.DB, query string) {
 		t.Fatalf("expected 0 rows for %q, got %d", query, n)
 	}
 }
+
+// TestListMembersByTeams_GroupsAndScopes locks the batched rollup read: it returns
+// members for every requested team, tags each with its OWN TeamID (callers group
+// on that), and never leaks a team that was not asked for.
+func TestListMembersByTeams_GroupsAndScopes(t *testing.T) {
+	db := openTestDB(t)
+	r := NewRepo(db)
+	ctx := context.Background()
+	for _, tc := range []struct{ id, name string }{{"team-1", "Alpha"}, {"team-2", "Beta"}, {"team-3", "Gamma"}} {
+		if err := r.CreateTeam(ctx, newTeam(t, team.TeamID(tc.id), "org-1", tc.name, devRole())); err != nil {
+			t.Fatalf("CreateTeam(%s): %v", tc.id, err)
+		}
+	}
+	add := func(id team.TeamID, ref string) {
+		t.Helper()
+		if err := r.AddMember(ctx, &team.TeamMember{
+			TeamID: id, Ref: team.MemberRef(ref), Kind: team.MemberKindAgent,
+			Role: "dev", CreatedAt: fixedTS,
+		}); err != nil {
+			t.Fatalf("AddMember(%s,%s): %v", id, ref, err)
+		}
+	}
+	add("team-1", "agent:a1")
+	add("team-2", "agent:a2")
+	add("team-3", "agent:a3") // not requested below — must not leak
+
+	got, err := r.ListMembersByTeams(ctx, []team.TeamID{"team-1", "team-2"})
+	if err != nil {
+		t.Fatalf("ListMembersByTeams: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("members = %d, want 2 (team-3 must not leak)", len(got))
+	}
+	byRef := map[team.MemberRef]team.TeamID{}
+	for _, m := range got {
+		byRef[m.Ref] = m.TeamID
+	}
+	if byRef["agent:a1"] != "team-1" || byRef["agent:a2"] != "team-2" {
+		t.Errorf("TeamID tagging wrong: %v", byRef)
+	}
+}
+
+// TestListMembersByTeams_EmptyIDs locks the no-op contract: no ids → no members,
+// no query (an empty IN(...) would be a SQL syntax error).
+func TestListMembersByTeams_EmptyIDs(t *testing.T) {
+	got, err := NewRepo(openTestDB(t)).ListMembersByTeams(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("ListMembersByTeams(nil): %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("members = %d, want 0", len(got))
+	}
+}

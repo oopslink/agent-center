@@ -341,6 +341,49 @@ func (r *Repo) ListMembers(ctx context.Context, id team.TeamID) ([]*team.TeamMem
 	return out, rows.Err()
 }
 
+// ListMembersByTeams returns the members of ALL the given teams in ONE batched
+// IN(...) read — the query behind the directory's membership rollup, which would
+// otherwise pay one read per team (N+1).
+func (r *Repo) ListMembersByTeams(ctx context.Context, ids []team.TeamID) ([]*team.TeamMember, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	ph := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		ph[i] = "?"
+		args[i] = id.String()
+	}
+	rows, err := exec.QueryContext(ctx,
+		`SELECT team_id, member_ref, member_kind, role, created_at FROM team_members
+		 WHERE team_id IN (`+strings.Join(ph, ",")+`) ORDER BY team_id, created_at, member_ref`,
+		args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*team.TeamMember
+	for rows.Next() {
+		var teamID, ref, kind, role, created string
+		if err := rows.Scan(&teamID, &ref, &kind, &role, &created); err != nil {
+			return nil, err
+		}
+		ct, err := time.Parse(tsLayout, created)
+		if err != nil {
+			return nil, fmt.Errorf("parse created_at: %w", err)
+		}
+		out = append(out, &team.TeamMember{
+			TeamID: team.TeamID(teamID), Ref: team.MemberRef(ref), Kind: team.MemberKind(kind),
+			Role: role, CreatedAt: ct,
+		})
+	}
+	return out, rows.Err()
+}
+
 // FindAgentTeam returns the team an agent currently belongs to.
 func (r *Repo) FindAgentTeam(ctx context.Context, ref team.MemberRef) (team.TeamID, bool, error) {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)

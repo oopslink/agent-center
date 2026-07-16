@@ -29,6 +29,11 @@ type Repository interface {
 	RemoveMember(ctx context.Context, id TeamID, ref MemberRef) error
 	// ListMembers returns a team's members.
 	ListMembers(ctx context.Context, id TeamID) ([]*TeamMember, error)
+	// ListMembersByTeams returns the members of ALL the given teams in ONE query,
+	// so a whole-org membership rollup costs a CONSTANT number of reads instead of
+	// one per team. Each TeamMember carries its TeamID, so callers group in memory.
+	// An empty id list yields no members and no query.
+	ListMembersByTeams(ctx context.Context, ids []TeamID) ([]*TeamMember, error)
 	// FindAgentTeam returns the team an agent currently belongs to, if any.
 	FindAgentTeam(ctx context.Context, ref MemberRef) (TeamID, bool, error)
 

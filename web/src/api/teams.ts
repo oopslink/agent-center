@@ -128,7 +128,14 @@ export interface DirectoryAgent {
   name: string;
   status: 'working' | 'idle';
   role: string;
+  /** Team display names, for rendering only. Positionally aligned with team_ids. */
   teams: string[];
+  /**
+   * Canonical team ids — the write-path key (e.g. the add-member migrate_from).
+   * Never resolve an id by reverse-looking-up a name from `teams`: a rename
+   * between fetches makes that resolve to the wrong team, or to none.
+   */
+  team_ids: string[];
   model: string;
   load: number;
   backlog: number;
@@ -143,7 +150,10 @@ export interface DirectoryHuman {
   email: string;
   created: string;
   last: string;
+  /** Team display names, for rendering only. Positionally aligned with team_ids. */
   teams: string[];
+  /** Canonical team ids — the write-path key (see DirectoryAgent.team_ids). */
+  team_ids: string[];
 }
 
 export type { TeamProjectLink };

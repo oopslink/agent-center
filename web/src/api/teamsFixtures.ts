@@ -245,24 +245,24 @@ function seed(): TeamsData {
   };
 
   const agents: DirectoryAgent[] = [
-    { ref: 'agent:agent-pd', name: 'agent-center-pd', status: 'working', role: 'planner', teams: ['agent-center core'], model: 'opus-4.8', load: 0.4, backlog: 1, last: 'now' },
-    { ref: 'agent:agent-d1', name: 'agent-center-dev1', status: 'idle', role: 'coder', teams: ['agent-center core'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '2m' },
-    { ref: 'agent:agent-d2', name: 'agent-center-dev2', status: 'idle', role: 'coder', teams: ['agent-center core'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '5m' },
-    { ref: 'agent:agent-d3', name: 'agent-center-dev3', status: 'idle', role: 'coder', teams: ['agent-center core'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '8m' },
-    { ref: 'agent:agent-t1', name: 'agent-center-tester1', status: 'idle', role: 'reviewer', teams: ['agent-center core'], model: 'opus-4.8', load: 0.0, backlog: 0, last: '12m' },
-    { ref: 'agent:agent-t2', name: 'agent-center-tester2', status: 'idle', role: 'reviewer', teams: ['growth-experiments'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '20m' },
-    { ref: 'agent:agent-t3', name: 'agent-center-tester3', status: 'idle', role: 'researcher', teams: ['growth-experiments'], model: 'opus-4.8', load: 0.0, backlog: 0, last: '25m' },
-    { ref: 'agent:agent-d4', name: 'agent-center-dev4', status: 'idle', role: 'coder', teams: ['growth-experiments'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '31m' },
-    { ref: 'agent:agent-d5', name: 'agent-center-dev5', status: 'idle', role: 'coder', teams: [], model: 'sonnet-5', load: 0.0, backlog: 0, last: '1h' },
-    { ref: 'agent:agent-intd', name: 'agent-center-integration-d', status: 'idle', role: 'ops', teams: [], model: 'gpt-5', load: 0.0, backlog: 0, last: '2h' },
-    { ref: 'agent:agent-ude', name: 'UDE', status: 'working', role: 'designer', teams: ['docs-and-dx'], model: 'opus-4.8', load: 0.6, backlog: 2, last: 'now' },
+    { ref: 'agent:agent-pd', name: 'agent-center-pd', status: 'working', role: 'planner', teams: ['agent-center core'], team_ids: ['team-7c19b0'], model: 'opus-4.8', load: 0.4, backlog: 1, last: 'now' },
+    { ref: 'agent:agent-d1', name: 'agent-center-dev1', status: 'idle', role: 'coder', teams: ['agent-center core'], team_ids: ['team-7c19b0'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '2m' },
+    { ref: 'agent:agent-d2', name: 'agent-center-dev2', status: 'idle', role: 'coder', teams: ['agent-center core'], team_ids: ['team-7c19b0'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '5m' },
+    { ref: 'agent:agent-d3', name: 'agent-center-dev3', status: 'idle', role: 'coder', teams: ['agent-center core'], team_ids: ['team-7c19b0'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '8m' },
+    { ref: 'agent:agent-t1', name: 'agent-center-tester1', status: 'idle', role: 'reviewer', teams: ['agent-center core'], team_ids: ['team-7c19b0'], model: 'opus-4.8', load: 0.0, backlog: 0, last: '12m' },
+    { ref: 'agent:agent-t2', name: 'agent-center-tester2', status: 'idle', role: 'reviewer', teams: ['growth-experiments'], team_ids: ['team-4a1f22'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '20m' },
+    { ref: 'agent:agent-t3', name: 'agent-center-tester3', status: 'idle', role: 'researcher', teams: ['growth-experiments'], team_ids: ['team-4a1f22'], model: 'opus-4.8', load: 0.0, backlog: 0, last: '25m' },
+    { ref: 'agent:agent-d4', name: 'agent-center-dev4', status: 'idle', role: 'coder', teams: ['growth-experiments'], team_ids: ['team-4a1f22'], model: 'sonnet-5', load: 0.0, backlog: 0, last: '31m' },
+    { ref: 'agent:agent-d5', name: 'agent-center-dev5', status: 'idle', role: 'coder', teams: [], team_ids: [], model: 'sonnet-5', load: 0.0, backlog: 0, last: '1h' },
+    { ref: 'agent:agent-intd', name: 'agent-center-integration-d', status: 'idle', role: 'ops', teams: [], team_ids: [], model: 'gpt-5', load: 0.0, backlog: 0, last: '2h' },
+    { ref: 'agent:agent-ude', name: 'UDE', status: 'working', role: 'designer', teams: ['docs-and-dx'], team_ids: ['team-9b8e01'], model: 'opus-4.8', load: 0.6, backlog: 2, last: 'now' },
   ];
 
   const humans: DirectoryHuman[] = [
-    { ref: 'user:user-oops', name: 'oopslink', role: 'owner', status: 'Joined', email: 'oopslink@abc.com', created: '2026/6/4', last: '2026/7/13', teams: ['agent-center core', 'growth-experiments', 'docs-and-dx'] },
-    { ref: 'user:user-alice', name: 'alice', role: 'member', status: 'Joined', email: 'alice@abc.com', created: '2026/6/18', last: '1h', teams: ['agent-center core', 'growth-experiments'] },
-    { ref: 'user:user-bob', name: 'bob', role: 'member', status: 'Joined', email: 'bob@abc.com', created: '2026/6/25', last: '3h', teams: ['docs-and-dx'] },
-    { ref: 'user:user-carol', name: 'carol', role: 'member', status: 'Invited', email: 'carol@abc.com', created: '2026/7/9', last: '—', teams: [] },
+    { ref: 'user:user-oops', name: 'oopslink', role: 'owner', status: 'Joined', email: 'oopslink@abc.com', created: '2026/6/4', last: '2026/7/13', teams: ['agent-center core', 'growth-experiments', 'docs-and-dx'], team_ids: ['team-7c19b0', 'team-4a1f22', 'team-9b8e01'] },
+    { ref: 'user:user-alice', name: 'alice', role: 'member', status: 'Joined', email: 'alice@abc.com', created: '2026/6/18', last: '1h', teams: ['agent-center core', 'growth-experiments'], team_ids: ['team-7c19b0', 'team-4a1f22'] },
+    { ref: 'user:user-bob', name: 'bob', role: 'member', status: 'Joined', email: 'bob@abc.com', created: '2026/6/25', last: '3h', teams: ['docs-and-dx'], team_ids: ['team-9b8e01'] },
+    { ref: 'user:user-carol', name: 'carol', role: 'member', status: 'Invited', email: 'carol@abc.com', created: '2026/7/9', last: '—', teams: [], team_ids: [] },
   ];
 
   return {

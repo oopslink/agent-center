@@ -10,7 +10,7 @@ import type React from 'react';
 import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
-import { useAddMember, useDirectoryAgents, useDirectoryHumans, useTeams, type TeamView } from '@/api/teams';
+import { useAddMember, useDirectoryAgents, useDirectoryHumans, type TeamView } from '@/api/teams';
 import { Skeleton } from '@/components/Skeleton';
 import { EmptyState } from '@/components/EmptyState';
 import { btnGhost, btnPrimary, Field, inputCls, ModalShell, SpecLine } from './kit';
@@ -61,21 +61,21 @@ export function AddMemberModal({
 
   const agents = useDirectoryAgents();
   const humans = useDirectoryHumans();
-  const teams = useTeams();
   // Candidates exclude identities already on THIS team (can't re-add). Agents are
   // exclusive to one team, so any remaining team membership is a DIFFERENT team →
   // adding triggers the migration confirm.
-  const candidateAgents = (agents.data ?? []).filter((a) => !a.teams.includes(team.name));
-  const candidateHumans = (humans.data ?? []).filter((h) => !h.teams.includes(team.name));
+  const candidateAgents = (agents.data ?? []).filter((a) => !a.team_ids.includes(team.id));
+  const candidateHumans = (humans.data ?? []).filter((h) => !h.team_ids.includes(team.id));
   const selectedAgent = candidateAgents.find((a) => a.ref === agentRef) ?? candidateAgents[0];
   const selectedHuman = candidateHumans.find((h) => h.ref === humanRef) ?? candidateHumans[0];
 
-  // The directory carries the agent's current team NAME; the migrate_from contract
-  // wants its team ID, so resolve name→id via the teams list. A stale/unresolved id
-  // safe-fails to a backend error (shown, not silent) rather than corrupting.
-  const fromTeamName = selectedAgent?.teams[0]; // exclusive → its (single) current team
-  const fromTeamId = teams.data?.find((t) => t.name === fromTeamName)?.id;
-  const needsMigration = kind === 'agent' && !!fromTeamName;
+  // The directory carries the agent's current team id AND name (aligned). Take the
+  // id straight from the entry: resolving it by matching the NAME against the teams
+  // list would move the agent out of the wrong team if it was renamed between the
+  // two fetches. Agents are exclusive → index 0 is its (single) current team.
+  const fromTeamId = selectedAgent?.team_ids[0];
+  const fromTeamName = selectedAgent?.teams[0];
+  const needsMigration = kind === 'agent' && !!fromTeamId;
 
   const doAdd = async (opts?: { migrateFrom?: string }) => {
     const picked = kind === 'agent' ? selectedAgent : selectedHuman;

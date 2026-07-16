@@ -252,41 +252,58 @@ func (s *Server) templateInstancesHandler(w http.ResponseWriter, r *http.Request
 // directory (agents / humans)
 // ---------------------------------------------------------------------------
 
-// dirMembership is a person's team-membership rollup for the directory: the names
-// of the teams they're on, and their (first) declared role.
+// dirMembership is a person's team-membership rollup for the directory: the ids
+// AND names of the teams they're on (positionally aligned), plus their (first)
+// declared role. teamIDs is the canonical key the FE writes back (migrate_from);
+// teams is display-only.
 type dirMembership struct {
-	teams []string
-	role  string
+	teamIDs []string
+	teams   []string
+	role    string
 }
 
 // directoryMembership rolls up every team member in the org keyed by bare
 // identity id (the team member ref is "<kind>:<identityID>"). Both directory
 // endpoints share it: an agent is exclusive to one team, a human may be on many.
-func (s *Server) directoryMembership(r *http.Request, d HandlerDeps, orgID string) map[string]*dirMembership {
-	out := map[string]*dirMembership{}
+//
+// Reads are batched: one ListTeams + one ListMembersByTeams for the whole org,
+// not one membership read per team.
+//
+// Errors PROPAGATE — a failed read must never degrade into an empty rollup.
+// "No team" is the exact signal the add-member modal uses to skip the
+// agent-exclusivity migration confirm, so silently rendering an unreadable
+// rollup as team-less would move an agent out of its team with no confirm.
+// Reporting the failure is the only safe answer.
+func (s *Server) directoryMembership(r *http.Request, d HandlerDeps, orgID string) (map[string]*dirMembership, error) {
 	teams, err := d.TeamService.ListTeams(r.Context(), orgID)
 	if err != nil {
-		return out
+		return nil, err
 	}
+	ids := make([]team.TeamID, 0, len(teams))
+	nameByID := make(map[team.TeamID]string, len(teams))
 	for _, t := range teams {
-		members, err := d.TeamService.ListMembers(r.Context(), t.ID())
-		if err != nil {
-			continue
+		ids = append(ids, t.ID())
+		nameByID[t.ID()] = t.Name()
+	}
+	members, err := d.TeamService.ListMembersByTeams(r.Context(), ids)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]*dirMembership{}
+	for _, m := range members {
+		bare := refBareID(conversation.IdentityRef(string(m.Ref)))
+		e := out[bare]
+		if e == nil {
+			e = &dirMembership{}
+			out[bare] = e
 		}
-		for _, m := range members {
-			bare := refBareID(conversation.IdentityRef(string(m.Ref)))
-			e := out[bare]
-			if e == nil {
-				e = &dirMembership{}
-				out[bare] = e
-			}
-			e.teams = append(e.teams, t.Name())
-			if e.role == "" {
-				e.role = m.Role
-			}
+		e.teamIDs = append(e.teamIDs, string(m.TeamID))
+		e.teams = append(e.teams, nameByID[m.TeamID])
+		if e.role == "" {
+			e.role = m.Role
 		}
 	}
-	return out
+	return out, nil
 }
 
 // nonNilTeams returns the membership's team names as a never-null array.
@@ -295,6 +312,15 @@ func nonNilTeams(m *dirMembership) []string {
 		return []string{}
 	}
 	return m.teams
+}
+
+// nonNilTeamIDs returns the membership's canonical team ids as a never-null
+// array, positionally aligned with nonNilTeams.
+func nonNilTeamIDs(m *dirMembership) []string {
+	if m == nil || m.teamIDs == nil {
+		return []string{}
+	}
+	return m.teamIDs
 }
 
 // directoryAgentsHandler serves GET /api/orgs/{slug}/directory/agents →
@@ -316,7 +342,11 @@ func (s *Server) directoryAgentsHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
 		return
 	}
-	membership := s.directoryMembership(r, d, orgID)
+	membership, err := s.directoryMembership(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
+		return
+	}
 	out := make([]map[string]any, 0, len(members))
 	for _, m := range members {
 		ident := s.resolveIdentity(r, d, m.IdentityID())
@@ -341,15 +371,19 @@ func (s *Server) directoryAgentsHandler(w http.ResponseWriter, r *http.Request) 
 			// ref is the canonical member ref (agent:<identityID>) the FE feeds
 			// straight into add-member / role-assign — without it the picker had to
 			// fabricate/truncate a ref, which polluted the DB (tester3 round-2 #2).
-			"ref":     string(ident.Kind()) + ":" + m.IdentityID(),
-			"name":    ident.DisplayName(),
-			"status":  status,
-			"role":    role,
-			"teams":   nonNilTeams(mem),
-			"model":   model,
-			"load":    0,
-			"backlog": 0,
-			"last":    "—",
+			"ref":    string(ident.Kind()) + ":" + m.IdentityID(),
+			"name":   ident.DisplayName(),
+			"status": status,
+			"role":   role,
+			// teams is the display name list (TEAMS column); team_ids is the canonical
+			// key the add-member modal writes back as migrate_from — resolving that
+			// from the name would need a reverse lookup that a rename can break.
+			"teams":    nonNilTeams(mem),
+			"team_ids": nonNilTeamIDs(mem),
+			"model":    model,
+			"load":     0,
+			"backlog":  0,
+			"last":     "—",
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -374,7 +408,11 @@ func (s *Server) directoryHumansHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
 		return
 	}
-	membership := s.directoryMembership(r, d, orgID)
+	membership, err := s.directoryMembership(r, d, orgID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "list_failed", err.Error())
+		return
+	}
 	out := make([]map[string]any, 0, len(members))
 	for _, m := range members {
 		ident := s.resolveIdentity(r, d, m.IdentityID())
@@ -409,7 +447,9 @@ func (s *Server) directoryHumansHandler(w http.ResponseWriter, r *http.Request) 
 			"email":   email,
 			"created": ident.CreatedAt().UTC().Format(time.RFC3339),
 			"last":    last,
-			"teams":   nonNilTeams(mem),
+			// teams = display names; team_ids = canonical ids (see the agents handler).
+			"teams":    nonNilTeams(mem),
+			"team_ids": nonNilTeamIDs(mem),
 		})
 	}
 	writeJSON(w, http.StatusOK, out)

@@ -76,6 +76,42 @@ describe('TeamDetail', () => {
     await waitFor(() => expect(screen.getByText('agent-center-tester2')).toBeInTheDocument());
   });
 
+  it('sends the canonical team id as migrate_from, even when the source team was renamed', async () => {
+    // The directory reports each agent's team as an id + a name. migrate_from must
+    // come from the ID: deriving it by matching the NAME against the teams list
+    // breaks the moment a team is renamed between the two fetches — the old code
+    // then resolved to no id at all, dropping migrate_from and turning a confirmed
+    // migration into a plain add.
+    //
+    // Simulate exactly that skew: the teams list carries the POST-rename name while
+    // the directory entry still carries the pre-rename one. Only an id-keyed
+    // migrate_from survives.
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.get('/api/teams', () =>
+        HttpResponse.json([
+          { id: 'team-4a1f22', org_id: 'org-ooo', name: 'growth-experiments-RENAMED', glyph: 'GX', description: '', roles: [], members_count: 0, projects_count: 0, created_at: '' },
+        ]),
+      ),
+      http.post('/api/teams/:id/members', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-mm'));
+    fireEvent.click(await screen.findByTestId('members-add'));
+    const modal = await screen.findByTestId('add-member-modal');
+    // tester2 is on growth-experiments (team-4a1f22) → migration confirm
+    fireEvent.change(await within(modal).findByTestId('add-member-agent'), { target: { value: 'agent:agent-t2' } });
+    fireEvent.click(within(modal).getByTestId('add-member-submit'));
+    const migrate = await screen.findByTestId('migrate-modal');
+    fireEvent.click(within(migrate).getByTestId('migrate-confirm'));
+
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.migrate_from).toBe('team-4a1f22');
+  });
+
   it('shows a friendly error (not silent) when migration fails', async () => {
     // backend rejects the move (e.g. identity vanished) → the modal must surface
     // the error and stay open, never silently swallow the failure.
