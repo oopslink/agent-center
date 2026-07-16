@@ -61,3 +61,14 @@ describe('Mobile module nav sheet — col② reflowed into a bottom sheet', () =
     expect(screen.getByTestId('page-Tasks')).toBeInTheDocument();
   });
 });
+
+describe('Mobile tab bar — short labels stay compact for 5-tab parity', () => {
+  afterEach(() => cleanup());
+
+  it('renders "Sys" (not "System") for the System tab, matching Work/Chat/Team/Remind width', () => {
+    renderShell('/projects');
+    const sysTab = screen.getByTestId('tab-system');
+    expect(sysTab).toHaveTextContent('Sys');
+    expect(sysTab).not.toHaveTextContent('System');
+  });
+});
