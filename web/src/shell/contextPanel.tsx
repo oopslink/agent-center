@@ -32,6 +32,10 @@ interface ContextPanelCtx {
   /** T184: whether the (desktop) col④ is fully collapsed/hidden, + a setter. */
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
+  /** Mobile-only: whether the Context Panel bottom sheet is open. */
+  mobileSheetOpen: boolean;
+  openMobileSheet: () => void;
+  closeMobileSheet: () => void;
 }
 
 const Ctx = createContext<ContextPanelCtx | null>(null);
@@ -60,6 +64,18 @@ export function useContextPanelCollapse(): { collapsed: boolean; setCollapsed: (
 }
 
 /**
+ * Used by a page's own ⓘ button to open the mobile Context Panel sheet. Returns
+ * null outside the shell provider so a page can call it unconditionally. Does
+ * NOT register/unregister the panel content — that's still <ContextPanel>'s job;
+ * this only controls sheet visibility.
+ */
+export function useContextPanelMobileTrigger(): { open: () => void } | null {
+  const ctx = useContext(Ctx);
+  if (!ctx) return null;
+  return { open: ctx.openMobileSheet };
+}
+
+/**
  * Used by AppLayout (the shell). Owns the col④ host element and an open flag
  * derived from how many <ContextPanel>s are currently mounted.
  *
@@ -74,6 +90,8 @@ export function useContextPanelController(): {
   setHost: (el: HTMLElement | null) => void;
   open: boolean;
   collapsed: boolean;
+  mobileSheetOpen: boolean;
+  closeMobileSheet: () => void;
 } {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [count, setCount] = useState(0);
@@ -86,6 +104,9 @@ export function useContextPanelController(): {
       /* ignore persistence failures (private mode / quota) */
     }
   };
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const openMobileSheet = () => setMobileSheetOpen(true);
+  const closeMobileSheet = () => setMobileSheetOpen(false);
   const value = useMemo<ContextPanelCtx>(
     () => ({
       host,
@@ -93,10 +114,21 @@ export function useContextPanelController(): {
       unregister: () => setCount((c) => Math.max(0, c - 1)),
       collapsed,
       setCollapsed,
+      mobileSheetOpen,
+      openMobileSheet,
+      closeMobileSheet,
     }),
-    [host, collapsed],
+    [host, collapsed, mobileSheetOpen],
   );
-  return { Provider: Ctx.Provider, value, setHost, open: count > 0, collapsed };
+  return {
+    Provider: Ctx.Provider,
+    value,
+    setHost,
+    open: count > 0,
+    collapsed,
+    mobileSheetOpen,
+    closeMobileSheet,
+  };
 }
 
 /**
