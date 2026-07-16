@@ -66,8 +66,14 @@ func (m *Monitor) eagerSupervisorPush(ctx context.Context, c Completion) (bool, 
 	if gs.Pushed {
 		return true, nil // already durable off-machine
 	}
-	if gs.AheadOfBase <= 0 && !gs.Dirty {
-		return false, nil // no committed work to deliver
+	// Only treat "no commit past base + clean tree" as nothing-to-deliver when the base is
+	// KNOWN. When BaseKnown is false the ahead count is meaningless ("couldn't tell" —
+	// gitstatus.go's invariant), so we must NOT skip on it: fall through to the guardrail +
+	// push (a HEAD on the expected ac-exec branch IS pushed; the guardrail still blocks
+	// main/detached). This is the exact invariant ZeroDelivery() already honours — the push
+	// gate must too (issue-f30b7e7b P0: base-unknown skipped the push and lost the commit).
+	if gs.BaseKnown && gs.AheadOfBase <= 0 && !gs.Dirty {
+		return false, nil // base known AND no commit past it AND clean → genuinely nothing to deliver
 	}
 	// Branch guardrail: only the provisioned executor branch may be pushed.
 	want := m.expectedExecutorBranch(c.ExecutorID)
@@ -106,8 +112,19 @@ func (m *Monitor) eagerPushBeforeGate(ctx context.Context, c Completion) Complet
 	if c.Git == nil || !c.Git.Probed || c.Git.Pushed {
 		return c // non-git / already pushed — nothing to do
 	}
-	if c.Git.AheadOfBase <= 0 && !c.Git.Dirty {
-		return c // nothing committed to deliver
+	// Skip the push ONLY when we can PROVE there is nothing to deliver: base KNOWN, HEAD not
+	// ahead, clean tree. A base-unknown run is "couldn't tell" and MUST fall through to the
+	// (guardrail-gated) push rather than be silently dropped — the P0 that lost review-only
+	// commits on the real materializer spawn path (issue-f30b7e7b). Every skip is logged
+	// fail-loud: a SILENT skip (zero log) is exactly what hid this bug for a whole cycle.
+	if c.Git.BaseKnown && c.Git.AheadOfBase <= 0 && !c.Git.Dirty {
+		m.log("EAGER-PUSH skip executor=%s task=%s branch=%s: base known, HEAD not ahead (%d) + clean tree — nothing to deliver",
+			c.ExecutorID, m.taskRef(c.ExecutorID), c.Git.Branch, c.Git.AheadOfBase)
+		return c
+	}
+	if !c.Git.BaseKnown {
+		m.log("EAGER-PUSH executor=%s task=%s branch=%s: base UNKNOWN (cannot measure ahead) — NOT treating as zero-delivery, attempting guarded push",
+			c.ExecutorID, m.taskRef(c.ExecutorID), c.Git.Branch)
 	}
 	pushed, err := m.eagerSupervisorPush(ctx, c)
 	if err != nil {

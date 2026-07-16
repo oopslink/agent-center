@@ -694,6 +694,9 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			RepoKey:    wt.RepoKey,
 			SourcePath: wt.SourcePath,
 			Branch:     wt.Branch,
+			// Carry the spawn-time base into the Record so finalize can measure HEAD-ahead-of
+			// -base (issue-f30b7e7b P0: this producer was missing → Record.BaseRef always "").
+			BaseRef: source.BaseRef,
 		}
 	}
 

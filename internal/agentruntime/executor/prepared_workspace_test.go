@@ -80,7 +80,11 @@ func TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle(t *testing.T) {
 	_, err = pool.Launch(context.Background(), LaunchSpec{
 		Input:     validPoolInput(id),
 		RunnerCmd: []string{"true"},
-		Prepared:  &PreparedWorkspace{Path: ws, RepoKey: "rk-1", SourcePath: "/src/rk-1/source", Branch: "b"},
+		// BaseRef here is DISTINCT from PoolConfig.BaseRef ("main") so the assertion below
+		// proves the MATERIALIZER-prepared base (not p.cfg) is the producer that lands in the
+		// Record — the issue-f30b7e7b P0: on the real spawn path PoolConfig.BaseRef is never
+		// set, so before the fix Record.BaseRef was always "" and the eager-push never fired.
+		Prepared: &PreparedWorkspace{Path: ws, RepoKey: "rk-1", SourcePath: "/src/rk-1/source", Branch: "b", BaseRef: "materializer-base"},
 	})
 	if err != nil {
 		t.Fatalf("Launch with Prepared must skip worktree provisioning, got: %v", err)
@@ -91,6 +95,12 @@ func TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle(t *testing.T) {
 	}
 	if rec.RepoKey != "rk-1" || rec.SourcePath != "/src/rk-1/source" {
 		t.Fatalf("record handle = {%q,%q}, want {rk-1,/src/rk-1/source}", rec.RepoKey, rec.SourcePath)
+	}
+	// P0 命门 (issue-f30b7e7b): the prepared worktree's base MUST reach the Record — and it
+	// must be the PREPARED base, taking precedence over PoolConfig.BaseRef ("main"). Without
+	// this producer, recordBaseRef()="" → BaseKnown=false / AheadOfBase=0 → eager-push skipped.
+	if rec.BaseRef != "materializer-base" {
+		t.Fatalf("record BaseRef = %q, want the materializer-prepared base %q (the missing P0 producer)", rec.BaseRef, "materializer-base")
 	}
 }
 

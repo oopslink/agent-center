@@ -22,6 +22,13 @@ func gitRefExists(gitBin, dir, ref string) bool {
 // remote (originURL), writes a TaskRef input + a committed change, and returns the workspace
 // dir. taskRef drives the expected ac-exec/<task>/<exec> branch the guardrail enforces.
 func setupAcExecPushCase(t *testing.T, f *finalizeGateFixture, id, taskRef, branch, originURL string) string {
+	return setupAcExecPushCaseBase(t, f, id, taskRef, branch, originURL, "main")
+}
+
+// setupAcExecPushCaseBase is setupAcExecPushCase with an explicit Record base ref, so a test
+// can reproduce the production condition where the Record carries NO base (recordBase="" →
+// BaseKnown=false / AheadOfBase=0 — the issue-f30b7e7b P0 that skipped the push).
+func setupAcExecPushCaseBase(t *testing.T, f *finalizeGateFixture, id, taskRef, branch, originURL, recordBase string) string {
 	t.Helper()
 	if originURL != "" {
 		runGitIn(t, f.git, f.repo, "remote", "add", "origin", originURL)
@@ -33,7 +40,7 @@ func setupAcExecPushCase(t *testing.T, f *finalizeGateFixture, id, taskRef, bran
 	if err := f.prov.AddNewBranch(context.Background(), ws, branch, "main"); err != nil {
 		t.Fatalf("AddNewBranch %s@%s: %v", id, branch, err)
 	}
-	must(t, f.tr.Write(Record{ExecutorID: id, PID: 1234, SpawnedAt: testNow, BaseRef: "main"}))
+	must(t, f.tr.Write(Record{ExecutorID: id, PID: 1234, SpawnedAt: testNow, BaseRef: recordBase}))
 	mustWriteInput(t, f.fx, inputWithTaskRef(id, taskRef))
 	must(t, f.fx.WriteOutput(*okOutput(id)))
 	must(t, f.fx.WriteStatus(*doneStatus(id)))
@@ -44,6 +51,47 @@ func setupAcExecPushCase(t *testing.T, f *finalizeGateFixture, id, taskRef, bran
 	runGitIn(t, f.git, ws, "add", "-A")
 	runGitIn(t, f.git, ws, "commit", "-q", "-m", "committed work")
 	return ws
+}
+
+// TestMonitor_Finalize_EagerPush_BaseUnknown_StillPushes is the issue-f30b7e7b P0
+// regression lock (the RR-caught bug): when the Record carries NO base ref — the exact
+// production condition where recordBaseRef()="" → BaseKnown=false and AheadOfBase reads a
+// false-precise 0 — the eager-push MUST STILL FIRE (base-unknown is "couldn't tell", NOT
+// "nothing to deliver"). The guardrail still confines it to the ac-exec branch. Before the
+// fix the push was silently skipped and the committed review-only work was lost.
+func TestMonitor_Finalize_EagerPush_BaseUnknown_StillPushes(t *testing.T) {
+	f := newFinalizeGateFixture(t)
+	id := "exec-baseunknown"
+	taskRef := "T-D1"
+	branch := "ac-exec/" + taskRef + "/" + id
+	bare := t.TempDir()
+	runGitIn(t, f.git, bare, "init", "-q", "--bare")
+
+	// recordBase="" → the probe cannot resolve a base → BaseKnown=false, AheadOfBase=0 (the
+	// production P0 shape), even though the executor really committed onto its ac-exec branch.
+	setupAcExecPushCaseBase(t, f, id, taskRef, branch, bare, "")
+
+	must(t, f.mon.Finalize(context.Background(), Completion{
+		ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id),
+	}))
+
+	reps := f.wb.reports
+	if len(reps) != 1 || reps[0].Kind != OutcomeSucceeded {
+		t.Fatalf("base-unknown committed delivery must be eager-pushed and stay succeeded, kinds=%v", f.wb.kinds())
+	}
+	if reps[0].Git == nil || !reps[0].Git.Pushed {
+		t.Errorf("base-unknown run must still be pushed (couldn't-tell ≠ nothing-to-deliver), got %+v", reps[0].Git)
+	}
+	if reps[0].Git != nil && reps[0].Git.BaseKnown {
+		t.Errorf("test setup invalid: BaseKnown should be false (no record base), got %+v", reps[0].Git)
+	}
+	// The branch REALLY reached origin — the P0 was that it silently did not.
+	if !gitRefExists(f.git, bare, "refs/heads/"+branch) {
+		t.Errorf("branch %q must exist on origin after eager-push (P0: base-unknown skipped the push)", branch)
+	}
+	if !f.loggedContains("base UNKNOWN") {
+		t.Errorf("expected a fail-loud base-UNKNOWN log (never a silent skip), logs=%v", f.logs)
+	}
 }
 
 // TestMonitor_Finalize_EagerPush_PushedStaysSucceeded is the issue-f30b7e7b PRIMARY-fix
