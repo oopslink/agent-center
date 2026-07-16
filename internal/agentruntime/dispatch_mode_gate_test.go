@@ -41,7 +41,7 @@ func TestSpawnExecutor_DispatchModeAbsent_StillForks(t *testing.T) {
 	if probs := loadRouting(t, home); len(probs) != 1 {
 		t.Fatalf("absent dispatch_mode must FORK (default unchanged): problems=%+v", probs)
 	}
-	if got := rt.State().CurrentTaskID; got != "task-nodm" {
+	if got := currentTaskID(rt); got != "task-nodm" {
 		t.Errorf("currentTaskID = %q, want task-nodm (forked)", got)
 	}
 }
@@ -139,7 +139,7 @@ func TestSpawnExecutor_SupervisorInline_DoesNotFork_Injects(t *testing.T) {
 	if !strings.Contains(msgs[0], "supervisor_inline") {
 		t.Errorf("inline brief should state the routing decision, got %q", msgs[0])
 	}
-	if got := rt.State().CurrentTaskID; got != "" {
+	if got := currentTaskID(rt); got != "" {
 		t.Errorf("currentTaskID = %q — an inline node must not claim the fork run-slot", got)
 	}
 }
