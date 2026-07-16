@@ -28,6 +28,31 @@ if (typeof URL.revokeObjectURL !== 'function') {
   URL.revokeObjectURL = () => {};
 }
 
+// jsdom does not implement PointerEvent (only MouseEvent), so
+// fireEvent.pointerDown/Move/Up/Cancel from @testing-library/dom silently
+// fall back to a bare `Event` that drops properties like clientY/pointerId
+// (see @testing-library/dom's createEvent: it uses `window[EventType] ||
+// window.Event`). Components that implement drag gestures via onPointerDown
+// etc. (e.g. BottomSheet's drag-to-close handle) need those properties to be
+// testable — polyfill PointerEvent as a thin MouseEvent subclass so the
+// standard fireEvent.pointerX helpers work like they would in a real browser.
+if (
+  typeof MouseEvent !== 'undefined' &&
+  typeof (globalThis as { PointerEvent?: unknown }).PointerEvent === 'undefined'
+) {
+  class PointerEventPolyfill extends MouseEvent {
+    pointerId: number;
+    constructor(type: string, params: PointerEventInit = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 0;
+    }
+  }
+  (globalThis as unknown as { PointerEvent: typeof PointerEventPolyfill }).PointerEvent =
+    PointerEventPolyfill;
+  (window as unknown as { PointerEvent: typeof PointerEventPolyfill }).PointerEvent =
+    PointerEventPolyfill;
+}
+
 // Per F4 oversight #4 + #6: MSW Node server intercepts fetch during
 // vitest runs. Each test starts with the canonical handler set; tests
 // that need to override a path can use server.use(...) which resets

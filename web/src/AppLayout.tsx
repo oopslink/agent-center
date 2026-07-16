@@ -250,10 +250,19 @@ export default function AppLayout(): React.ReactElement {
   const isMobile = useIsMobile();
   const displayName = me.data?.display_name;
 
+  // Context panel (col④). Declared here (ahead of its later usage) so the
+  // auto-close-on-navigation effect below can reach `closeMobileSheet`.
+  const ctxPanel = useContextPanelController();
+
   // Auto-close sheets on navigation.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- closeMobileSheet
+  // isn't memoized (fresh reference per render); depending only on pathname
+  // matches the existing convention for the sibling setState calls below.
   useEffect(() => {
     setMobileNavSheetOpen(false);
     setMobileAccountSheetOpen(false);
+    setMobileAlertsOpen(false);
+    ctxPanel.closeMobileSheet();
   }, [location.pathname]);
 
   // Persist sidebar + theme.
@@ -291,8 +300,6 @@ export default function AppLayout(): React.ReactElement {
   );
   useKeyShortcuts(shortcuts);
 
-  // Context panel (col④).
-  const ctxPanel = useContextPanelController();
   const ctxResize = useResizablePanel({
     storageKey: 'ac.contextpanel.width',
     defaultWidth: 256,

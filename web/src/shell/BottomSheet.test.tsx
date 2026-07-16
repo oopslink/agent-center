@@ -53,4 +53,32 @@ describe('BottomSheet (v2.10.1 [M1] generic mobile sheet)', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it('closes when the grab handle is dragged down past the close threshold', () => {
+    const onClose = vi.fn();
+    render(
+      <BottomSheet open onClose={onClose} testId="sheet">
+        x
+      </BottomSheet>,
+    );
+    const handle = screen.getByTestId('bottom-sheet-drag-handle');
+    fireEvent.pointerDown(handle, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientY: 220, pointerId: 1 });
+    fireEvent.pointerUp(handle, { clientY: 220, pointerId: 1 });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not close when the grab handle drag stays under the close threshold', () => {
+    const onClose = vi.fn();
+    render(
+      <BottomSheet open onClose={onClose} testId="sheet">
+        x
+      </BottomSheet>,
+    );
+    const handle = screen.getByTestId('bottom-sheet-drag-handle');
+    fireEvent.pointerDown(handle, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientY: 140, pointerId: 1 });
+    fireEvent.pointerUp(handle, { clientY: 140, pointerId: 1 });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
