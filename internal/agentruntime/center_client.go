@@ -252,8 +252,8 @@ var _ orchestrator.DeliveryReporter = (*deliveryReporterAdapter)(nil)
 
 // ReportDelivery → POST /admin/agent-tools/report_delivery. The body carries agent_id
 // (worker-bearer → agent mapping, all agent-tool convention), task_id (Source.TaskRef
-// verbatim), and git = the FinalizedGitStatus's 8 fields VERBATIM (its own JSON tags),
-// which the center stores unabridged and reads probed && !pushed from.
+// verbatim), and git = the FinalizedGitStatus's 9 fields VERBATIM (its own JSON tags,
+// including push_error), which the center stores unabridged and reads probed && !pushed from.
 func (a *deliveryReporterAdapter) ReportDelivery(ctx context.Context, s orchestrator.DeliverySample) error {
 	body := map[string]any{
 		"agent_id": s.AgentID,

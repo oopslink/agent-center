@@ -24,7 +24,7 @@ import (
 // the agent loop.
 
 // reportDeliveryReq is the body for POST /admin/agent-tools/report_delivery. git carries
-// the verbatim 8 FinalizedGitStatus fields; project_id is derived from the task, never
+// the verbatim 9 FinalizedGitStatus fields; project_id is derived from the task, never
 // trusted from the wire.
 type reportDeliveryReq struct {
 	AgentID string          `json:"agent_id"`
@@ -32,7 +32,10 @@ type reportDeliveryReq struct {
 	Git     *deliveryGitReq `json:"git"`
 }
 
-// deliveryGitReq mirrors agentruntime executor.FinalizedGitStatus (8 fields verbatim).
+// deliveryGitReq mirrors agentruntime executor.FinalizedGitStatus (9 fields verbatim —
+// push_error is the 9th, added when the eager supervisor-push failed; it MUST be relayed so
+// the DURABLE center-side Task.Delivery records WHY a delivery was not pushed, not just the
+// live conversation/logs).
 type deliveryGitReq struct {
 	Branch      string `json:"branch"`
 	HeadSHA     string `json:"head_sha"`
@@ -42,6 +45,7 @@ type deliveryGitReq struct {
 	BaseRef     string `json:"base_ref"`
 	BaseKnown   bool   `json:"base_known"`
 	AheadOfBase int    `json:"ahead_of_base"`
+	PushError   string `json:"push_error"`
 }
 
 func (s *Server) reportDeliveryHandler(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +82,7 @@ func (s *Server) reportDeliveryHandler(w http.ResponseWriter, r *http.Request) {
 			BaseRef:     g.BaseRef,
 			BaseKnown:   g.BaseKnown,
 			AheadOfBase: g.AheadOfBase,
+			PushError:   g.PushError,
 		}
 	}
 	if err := d.PMService.RecordDelivery(r.Context(), pm.TaskID(taskID), pm.IdentityRef(agentActor(a)), delivery); err != nil {

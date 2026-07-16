@@ -21,21 +21,26 @@ type Delivery struct {
 	BaseRef     string `json:"base_ref,omitempty"`
 	BaseKnown   bool   `json:"base_known"`
 	AheadOfBase int    `json:"ahead_of_base"`
+	// PushError is set when the eager supervisor-push (issue-f30b7e7b) could not push the
+	// committed feat branch to origin (guardrail refusal / auth / non-ff / network). "" =
+	// no push failure. It is the DURABLE record of WHY a delivery was not durably pushed —
+	// so audit / DB queries can see the cause, not just the live task conversation + logs.
+	PushError string `json:"push_error,omitempty"`
 }
 
 // HasValidDelivery reports whether the executor produced a durable, pushed delivery —
 // the ONLY positive forward-progress signal. Everything else is "no valid delivery":
 //   - nil            — never reported (fork-fail / send lost)
 //   - !Probed        — non-git / plain-dir / probe-failed → UNKNOWN, not counted as a
-//                      delivery (never falsely blocks a non-git task), but also not a
-//                      positive signal
+//     delivery (never falsely blocks a non-git task), but also not a
+//     positive signal
 //   - Probed&&!Pushed — committed-but-not-pushed / dirty / no-commit → the teardown-bug
-//                      zero-delivery signature that mislabels as success today
+//     zero-delivery signature that mislabels as success today
 func (d *Delivery) HasValidDelivery() bool {
 	return d != nil && d.Probed && d.Pushed
 }
 
-// MarshalDelivery renders a *Delivery to its stored JSON ('' for nil). Kept beside the
+// MarshalDelivery renders a *Delivery to its stored JSON (” for nil). Kept beside the
 // type so the repo and the report_delivery tool serialize identically.
 func MarshalDelivery(d *Delivery) (string, error) {
 	if d == nil {
@@ -48,7 +53,7 @@ func MarshalDelivery(d *Delivery) (string, error) {
 	return string(b), nil
 }
 
-// UnmarshalDelivery parses stored JSON back to a *Delivery ('' → nil). A malformed
+// UnmarshalDelivery parses stored JSON back to a *Delivery (” → nil). A malformed
 // value is a data error the caller surfaces (it never silently drops the signal).
 func UnmarshalDelivery(s string) (*Delivery, error) {
 	if s == "" {

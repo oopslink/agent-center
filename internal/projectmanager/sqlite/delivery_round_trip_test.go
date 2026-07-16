@@ -36,6 +36,8 @@ func TestTaskRepo_Delivery_RoundTrip(t *testing.T) {
 	got.SetDelivery(&pm.Delivery{
 		Probed: true, Pushed: false, Dirty: false,
 		Branch: "feat/x", HeadSHA: "abc123", BaseRef: "main", BaseKnown: true, AheadOfBase: 2,
+		// PushError (issue-f30b7e7b): the DURABLE record of WHY the push failed must persist.
+		PushError: "eager-push refused: HEAD on \"main\"",
 	})
 	got.NoteFruitlessReopen()
 	got.NoteFruitlessReopen()
@@ -46,6 +48,9 @@ func TestTaskRepo_Delivery_RoundTrip(t *testing.T) {
 	d := re.Delivery()
 	if d == nil || !d.Probed || d.Pushed || d.AheadOfBase != 2 || d.Branch != "feat/x" || d.HeadSHA != "abc123" || d.BaseRef != "main" || !d.BaseKnown {
 		t.Fatalf("delivery round-trip = %+v, want probed/!pushed/ahead=2/feat/x/abc123", d)
+	}
+	if d.PushError != "eager-push refused: HEAD on \"main\"" {
+		t.Fatalf("delivery PushError must round-trip through the DB, got %q", d.PushError)
 	}
 	if d.HasValidDelivery() {
 		t.Fatalf("committed-but-not-pushed must NOT be a valid delivery")
