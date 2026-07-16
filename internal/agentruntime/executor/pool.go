@@ -112,6 +112,13 @@ type PreparedWorkspace struct {
 	RepoKey    string
 	SourcePath string
 	Branch     string
+	// BaseRef is the spawn-time base ref the worktree branched off (the materializer's
+	// WorktreeRequest.BaseRef). It MUST be carried into the executor Record so finalize's
+	// git probe can measure HEAD-ahead-of-base — without it recordBaseRef() is "" and the
+	// delivery audit reads a false-precise AheadOfBase=0 / BaseKnown=false, which made the
+	// eager supervisor-push silently never fire on the real materializer spawn path
+	// (issue-f30b7e7b P0 — the whole reason a review-only commit was lost).
+	BaseRef string
 }
 
 // Pool tracks an agent's live executors under a concurrency cap.
@@ -294,6 +301,13 @@ func (p *Pool) provisionAndSpawn(ctx context.Context, spec LaunchSpec) (*Handle,
 		if spec.Prepared != nil {
 			rec.RepoKey = spec.Prepared.RepoKey
 			rec.SourcePath = spec.Prepared.SourcePath
+			// Prefer the materializer-prepared worktree's base (the real spawn path); fall
+			// back to p.cfg.BaseRef (the legacy in-pool AddNewBranch path) only when the
+			// prepared workspace did not carry one (issue-f30b7e7b P0: this is the producer
+			// that was missing, so Record.BaseRef was always "" on the materializer path).
+			if strings.TrimSpace(spec.Prepared.BaseRef) != "" {
+				rec.BaseRef = spec.Prepared.BaseRef
+			}
 		}
 		if werr := p.cfg.Tracker.Write(rec); werr != nil {
 			_ = h.Kill()
