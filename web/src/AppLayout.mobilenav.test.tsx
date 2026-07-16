@@ -123,3 +123,16 @@ describe('Mobile Context Panel bottom sheet', () => {
     expect(within(sheet).getByTestId('page-panel-content')).toBeInTheDocument();
   });
 });
+
+describe('Mobile Attention bottom sheet', () => {
+  afterEach(() => cleanup());
+
+  it('tapping the bell toggles the attention panel open, closed on second tap', () => {
+    renderShell('/projects');
+    expect(screen.queryByTestId('mobile-alerts-panel')).toBeNull();
+    fireEvent.click(screen.getByTestId('mobile-alerts'));
+    expect(screen.getByTestId('mobile-alerts-panel')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mobile-alerts'));
+    expect(screen.queryByTestId('mobile-alerts-panel')).toBeNull();
+  });
+});
