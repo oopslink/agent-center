@@ -1379,6 +1379,16 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
 
 const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'paused', 'done', 'failed'];
 
+// nodeVisualCls (mockup `.node.n-running` / `.node.n-done`): a running node gets a
+// soft status-colored glow ring (draws the eye to active work); a terminal `done`
+// node dims to 60% opacity (reads as "settled", not competing with active nodes).
+// Additive to the card's own status border — never replaces it.
+function nodeVisualCls(status: PlanNodeStatus): string {
+  if (status === 'running') return 'ring-2 ring-status-amber-border/35';
+  if (status === 'done') return 'opacity-60';
+  return '';
+}
+
 function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactElement {
   const { t } = useTranslation('work');
   const s = NODE_STATE[status] ?? NODE_STATE.blocked;
@@ -1497,30 +1507,71 @@ const LEVEL_GAP = 48;
 // starts only on the background (SVG / dot-grid / card body) — a pointerdown that
 // lands on an interactive element (node link, assignee, button) is left alone so
 // clicks still work. Re-centers when contentW/contentH change (e.g. the compact toggle).
+// Zoom range/step mirror the design mockup (docs/design/assets/plan-dag-canvas-mockup.html):
+// 50%–150% in 10-point steps via the buttons, 8-point steps via ctrl/cmd+wheel.
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 1.5;
+const ZOOM_STEP = 0.1;
+const ZOOM_WHEEL_STEP = 0.08;
+
 function DagCanvas({
   contentW,
   contentH,
   compact,
   testId,
+  legend,
   children,
 }: {
   contentW: number;
   contentH: number;
   compact: boolean;
   testId: string;
+  // Bottom bar rendered INSIDE the shared canvas-shell (mockup's `.legend-fixed`) —
+  // owned by the caller (state-chip legend for the legacy DAG, edge-kind legend for
+  // the graph DAG) so DagCanvas stays agnostic of which legend applies.
+  legend?: React.ReactNode;
   children: React.ReactNode;
 }): React.ReactElement {
+  const { t } = useTranslation('work');
   const ref = useRef<HTMLDivElement>(null);
+  // T348 kept the compact toggle as a coarse "zoom to fit a long plan" preset; this
+  // adds the mockup's continuous zoom control (buttons + wheel + Fit view) as an
+  // ADDITIONAL transform layered on top of it, so the two compose instead of
+  // colliding — compact still drives the `plan-dag-scaler` scale asserted by tests.
+  const [zoom, setZoom] = useState(1);
 
   // Center the view on the content's middle whenever the content size changes (mount,
-  // compact toggle, graph edit). max(0, …) keeps small content pinned so flex centering
-  // (below) can take over.
+  // compact toggle, graph edit, zoom). max(0, …) keeps small content pinned so flex
+  // centering (below) can take over.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
     el.scrollTop = Math.max(0, (el.scrollHeight - el.clientHeight) / 2);
+  }, [contentW, contentH, compact, zoom]);
+
+  // Reset to 100% whenever the underlying content changes shape (compact toggle,
+  // graph edit) so zoom never gets "stuck" showing a stale scale for new content.
+  useEffect(() => {
+    setZoom(1);
   }, [contentW, contentH, compact]);
+
+  const clampZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+  const zoomIn = () => setZoom((z) => clampZoom(z + ZOOM_STEP));
+  const zoomOut = () => setZoom((z) => clampZoom(z - ZOOM_STEP));
+  const zoomFit = () => {
+    const el = ref.current;
+    if (!el || contentW <= 0) return;
+    const available = el.clientWidth - 24;
+    setZoom(Math.max(ZOOM_MIN, Math.min(1, available / contentW)));
+  };
+
+  // ctrl/cmd+wheel zoom (mirrors the mockup script) — a plain wheel still scrolls.
+  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    setZoom((z) => clampZoom(z + (e.deltaY < 0 ? ZOOM_WHEEL_STEP : -ZOOM_WHEEL_STEP)));
+  };
 
   // Grab-to-pan: a background mousedown starts a drag that scrolls the canvas; the
   // move/up listeners live on window so the drag continues even if the cursor leaves
@@ -1545,16 +1596,85 @@ function DagCanvas({
   };
 
   return (
-    <div
-      ref={ref}
-      className="relative hidden cursor-grab overflow-auto rounded-lg border border-border-base bg-bg-subtle hex-dot-grid active:cursor-grabbing md:block md:min-h-0 md:flex-1"
-      data-testid={testId}
-      data-compact={compact ? 'true' : 'false'}
-      onMouseDown={onMouseDown}
-    >
-      {/* min-w/h-full + flex centering handles the small-graph case (centered in the
-          viewport); the scroll-center effect handles the larger-than-viewport case. */}
-      <div className="flex min-h-full min-w-full items-center justify-center">{children}</div>
+    // canvas-shell (mockup): one bordered/rounded/overflow-hidden frame housing the
+    // floating zoom-controls overlay, the scrollable dot-grid canvas, and the
+    // legend as a bottom bar — instead of the canvas + legend being loose siblings.
+    <div className="relative hidden overflow-hidden rounded-lg border border-border-base md:flex md:min-h-0 md:flex-1 md:flex-col" data-testid="plan-dag-canvas-shell">
+      <div
+        className="absolute right-3 top-3 z-10 flex items-center gap-0.5 overflow-hidden rounded-lg border border-border-strong bg-bg-elevated shadow-2"
+        data-testid="plan-dag-zoom-controls"
+      >
+        <button
+          type="button"
+          onClick={zoomOut}
+          disabled={zoom <= ZOOM_MIN}
+          aria-label={t('plan.detail.dag.zoomOut', { defaultValue: 'Zoom out' })}
+          title={t('plan.detail.dag.zoomOut', { defaultValue: 'Zoom out' })}
+          data-testid="plan-dag-zoom-out"
+          className="flex h-7 w-7 items-center justify-center text-sm font-semibold text-text-secondary hover:bg-bg-subtle hover:text-text-primary disabled:opacity-40"
+        >
+          −
+        </button>
+        <span
+          className="min-w-[2.75rem] select-none border-x border-border-base px-1.5 text-center font-mono text-[0.6875rem] text-text-muted"
+          data-testid="plan-dag-zoom-pct"
+        >
+          {Math.round(zoom * 100)}%
+        </span>
+        <button
+          type="button"
+          onClick={zoomIn}
+          disabled={zoom >= ZOOM_MAX}
+          aria-label={t('plan.detail.dag.zoomIn', { defaultValue: 'Zoom in' })}
+          title={t('plan.detail.dag.zoomIn', { defaultValue: 'Zoom in' })}
+          data-testid="plan-dag-zoom-in"
+          className="flex h-7 w-7 items-center justify-center text-sm font-semibold text-text-secondary hover:bg-bg-subtle hover:text-text-primary disabled:opacity-40"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          onClick={zoomFit}
+          data-testid="plan-dag-zoom-fit"
+          className="flex h-7 items-center border-l border-border-base px-2.5 text-[0.6875rem] font-semibold text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
+        >
+          {t('plan.detail.dag.zoomFit', { defaultValue: 'Fit view' })}
+        </button>
+      </div>
+      <div
+        ref={ref}
+        className="relative min-h-0 flex-1 cursor-grab overflow-auto bg-bg-subtle hex-dot-grid active:cursor-grabbing"
+        data-testid={testId}
+        data-compact={compact ? 'true' : 'false'}
+        data-zoom={zoom}
+        onMouseDown={onMouseDown}
+        onWheel={onWheel}
+      >
+        {/* min-w/h-full + flex centering handles the small-graph case (centered in the
+            viewport); the scroll-center effect handles the larger-than-viewport case. */}
+        <div className="flex min-h-full min-w-full items-center justify-center">
+          <div style={{ width: contentW * zoom, height: contentH * zoom }}>
+            <div
+              style={{
+                width: contentW,
+                height: contentH,
+                transform: zoom === 1 ? undefined : `scale(${zoom})`,
+                transformOrigin: 'top left',
+              }}
+            >
+              {children}
+            </div>
+          </div>
+        </div>
+      </div>
+      {legend && (
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-4 border-t border-border-base bg-bg-elevated px-3.5 py-2"
+          data-testid="plan-dag-canvas-legend-bar"
+        >
+          {legend}
+        </div>
+      )}
     </div>
   );
 }
@@ -1697,13 +1817,17 @@ function SyntheticAnchorMarker({
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const label = kind === 'start' ? t('plan.detail.dag.anchorStart') : t('plan.detail.dag.anchorEnd');
+  // Mockup `.terminal.start` / `.terminal.end`: Start is a SOLID filled accent
+  // disc (the entry point, glowing) — the one node that isn't a status card, so
+  // it needs to read as unmistakably different. End stays a light disc but with
+  // a heavier `done`-toned ring (the flow's resting state), matching the node
+  // palette's success token rather than a plain neutral border.
   return (
     <div
-      // T347: Start gets a solid accent BORDER (the entry point); End keeps the
-      // neutral strong border. Both keep readable text-text-secondary; no
-      // alpha-tint-on-token (renders transparent — guardrail) and no 6-state border.
-      className={`absolute flex items-center justify-center rounded-full border-[1.5px] bg-bg-elevated text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary shadow-2 ${
-        kind === 'start' ? 'border-accent' : 'border-border-strong'
+      className={`absolute flex items-center justify-center rounded-full text-[0.625rem] font-extrabold uppercase tracking-wide ${
+        kind === 'start'
+          ? 'border-[1.5px] border-accent bg-accent text-white shadow-[0_4px_16px_-4px_var(--color-accent)]'
+          : 'border-2 border-status-emerald-border bg-bg-elevated text-status-emerald-fg shadow-2'
       }`}
       style={{
         left: anchor.cx - SYNTH_R,
@@ -2087,15 +2211,17 @@ const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; 
 
 // A control node marker: Start/End circular terminals; Condition a rotated
 // (diamond) square. Distinct from task cards so the control flow is legible.
+// Mirrors the mockup's `.terminal.start/.end` (filled accent disc vs. a
+// done-toned ring) and `.gate` diamond (two-line label: the gate id + its name).
 function ControlNodeMarker({ node }: { node: PlanGraphNode }): React.ReactElement {
   const { t } = useTranslation('work');
   const kind = node.control_kind;
   const isCondition = kind === 'condition';
-  const label = isCondition
-    ? node.title || t('plan.detail.dag.controlCondition', { defaultValue: 'Condition' })
-    : kind === 'start'
-      ? t('plan.detail.dag.anchorStart')
-      : t('plan.detail.dag.anchorEnd');
+  const startEndLabel = kind === 'start' ? t('plan.detail.dag.anchorStart') : t('plan.detail.dag.anchorEnd');
+  // Gate label: mockup shows "GATE:S2" (mono, gate-toned) over the gate's own
+  // short name — reuse node.title (the gate's own node label) for the second
+  // line, falling back to a generic "Condition" if it's unset.
+  const gateName = node.title || t('plan.detail.dag.controlCondition', { defaultValue: 'Condition' });
   return (
     <div
       className="flex h-full w-full items-center justify-center"
@@ -2103,16 +2229,30 @@ function ControlNodeMarker({ node }: { node: PlanGraphNode }): React.ReactElemen
       data-control-kind={kind}
       data-node-status={node.status}
     >
-      <div
-        className={`flex items-center justify-center text-center text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary shadow-1 ${
-          isCondition
-            ? 'h-16 w-16 rotate-45 rounded-md border-[1.5px] border-status-amber-border bg-bg-elevated'
-            : `h-14 w-14 rounded-full border-[1.5px] bg-bg-elevated ${kind === 'start' ? 'border-accent' : 'border-border-strong'}`
-        }`}
-        title={label}
-      >
-        <span className={isCondition ? '-rotate-45 px-1 leading-tight' : ''}>{label}</span>
-      </div>
+      {isCondition ? (
+        <div
+          className="flex h-16 w-16 rotate-45 items-center justify-center rounded-md border-[1.5px] border-status-amber-border bg-bg-elevated shadow-1"
+          title={gateName}
+        >
+          <div className="-rotate-45 px-1 text-center leading-tight">
+            <div className="font-mono text-[0.5625rem] font-bold uppercase tracking-wide text-status-amber-fg">
+              {t('plan.detail.dag.gateLabel', { defaultValue: 'GATE' })}
+            </div>
+            <div className="mt-0.5 truncate text-[0.5rem] font-semibold text-text-secondary">{gateName}</div>
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`flex h-14 w-14 items-center justify-center rounded-full text-center text-[0.625rem] font-extrabold uppercase tracking-wide ${
+            kind === 'start'
+              ? 'border-[1.5px] border-accent bg-accent text-white shadow-[0_4px_16px_-4px_var(--color-accent)]'
+              : 'border-2 border-status-emerald-border bg-bg-elevated text-status-emerald-fg shadow-1'
+          }`}
+          title={startEndLabel}
+        >
+          {startEndLabel}
+        </div>
+      )}
     </div>
   );
 }
@@ -2213,8 +2353,19 @@ function PlanGraphDag({
         </ol>
 
         {/* Desktop canvas — centered by default + grab-to-pan (DagCanvas). */}
-        <DagCanvas contentW={width * scale} contentH={height * scale} compact={compact} testId="plan-dag-canvas">
-          <div style={{ width: width * scale, height: height * scale }}>
+        <DagCanvas
+          contentW={width * scale}
+          contentH={height * scale}
+          compact={compact}
+          testId="plan-dag-canvas"
+          legend={
+            <div className="contents" data-testid="plan-graph-legend">
+              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-muted"><span className="h-0.5 w-4 bg-border-strong" />{t('plan.detail.dag.edgeSeq', { defaultValue: 'seq' })}</span>
+              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-muted"><span className="h-0.5 w-4 bg-accent" />{t('plan.detail.dag.edgeConditional', { defaultValue: 'conditional' })}</span>
+              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-muted"><span className="h-0.5 w-4 border-t-2 border-dashed border-status-amber-border" />{t('plan.detail.dag.edgeLoopback', { defaultValue: 'loopback' })}</span>
+            </div>
+          }
+        >
             <div
               className="relative"
               data-testid="plan-dag-scaler"
@@ -2225,27 +2376,35 @@ function PlanGraphDag({
                   they carry no z-index so they never cover the edges/cards
                   drawn after them. One box per Plan Stage (§7); a no-stage
                   plan gets none, so the canvas is byte-identical to before. */}
-              {boxes.map((b) => (
+              {boxes.map((b) => {
+                const totalMembers = b.stage.members.length;
+                const doneMembers = b.stage.members.filter((m) => stageMemberDone(m.task_status)).length;
+                const pct = totalMembers > 0 ? Math.round((doneMembers / totalMembers) * 100) : 0;
+                return (
                 <div
                   key={b.stage.id}
-                  className="absolute rounded-lg border border-border-base bg-bg-surface"
+                  className="absolute rounded-xl border border-border-strong bg-bg-surface"
                   style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
                   data-testid={`plan-stage-box-${b.stage.id}`}
                 >
-                  <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-1.5">
-                    <span className="truncate text-xs font-semibold text-text-primary">{b.stage.name}</span>
-                    <span className="flex items-center gap-2">
+                  <div className="border-b border-border-base px-3.5 py-2">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-mono text-[0.625rem] tracking-wide text-text-muted">{t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {b.stage.id}</span>
+                      <span className="truncate text-xs font-semibold text-text-primary">{b.stage.name}</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2.5">
                       <span
-                        className={`inline-flex items-center rounded px-1.5 py-0.5 text-[0.625rem] font-medium ${STAGE_STATUS_CLASS[b.stage.status]}`}
+                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide ${STAGE_STATUS_CLASS[b.stage.status]}`}
                         data-testid={`plan-stage-status-${b.stage.id}`}
                       >
+                        <span className="h-1 w-1 rounded-full bg-current" aria-hidden="true" />
                         {t(`plan.detail.stages.status.${b.stage.status}`)}
                       </span>
-                      <span className="text-[0.6875rem] text-text-secondary" data-testid={`plan-stage-progress-${b.stage.id}`}>
-                        {t('plan.detail.stages.memberProgress', {
-                          done: b.stage.members.filter((m) => stageMemberDone(m.task_status)).length,
-                          total: b.stage.members.length,
-                        })}
+                      <span className="h-1 max-w-[7rem] flex-1 overflow-hidden rounded-full bg-bg-subtle" aria-hidden="true">
+                        <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
+                      </span>
+                      <span className="font-mono text-[0.5625rem] text-text-muted" data-testid={`plan-stage-progress-${b.stage.id}`}>
+                        {doneMembers}/{totalMembers}
                       </span>
                       {b.stage.rounds > 0 && (
                         <span
@@ -2255,10 +2414,11 @@ function PlanGraphDag({
                           {t('plan.detail.stages.retryRound', { round: b.stage.rounds, max: b.stage.max_rounds })}
                         </span>
                       )}
-                    </span>
+                    </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               <svg className="absolute left-0 top-0" width={width} height={height} data-testid="plan-graph-svg" aria-hidden="true">
                 <defs>
@@ -2306,7 +2466,7 @@ function PlanGraphDag({
                 return (
                   <div
                     key={p.node.id}
-                    className={`absolute overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 ${s.border}`}
+                    className={`absolute overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 ${s.border} ${nodeVisualCls(status)}`}
                     style={{ left: p.x, top: p.y, width: NODE_W }}
                     data-testid="plan-graph-node"
                     data-task-id={taskId}
@@ -2328,15 +2488,7 @@ function PlanGraphDag({
                 );
               })}
             </div>
-          </div>
         </DagCanvas>
-
-        {/* Edge-kind legend so seq/conditional/loopback are decodable. */}
-        <div className="mt-2 hidden flex-wrap items-center gap-3 text-[0.625rem] text-text-muted md:flex" data-testid="plan-graph-legend">
-          <span className="inline-flex items-center gap-1"><span className="h-0.5 w-4 bg-border-strong" />{t('plan.detail.dag.edgeSeq', { defaultValue: 'seq' })}</span>
-          <span className="inline-flex items-center gap-1"><span className="h-0.5 w-4 bg-accent" />{t('plan.detail.dag.edgeConditional', { defaultValue: 'conditional' })}</span>
-          <span className="inline-flex items-center gap-1"><span className="h-0.5 w-4 border-t border-dashed border-status-amber-border" />{t('plan.detail.dag.edgeLoopback', { defaultValue: 'loopback' })}</span>
-        </div>
       </div>
     </SenderSidebarProvider>
   );
@@ -2653,11 +2805,19 @@ function LegacyPlanDag({
         {/* Desktop canvas — centered by default + grab-to-pan (DagCanvas). T347: the
             dot-grid gives a "canvas" feel; T579: flex-1 + min-h-0 fills the pane and
             scrolls internally when the graph overflows. */}
-        <DagCanvas contentW={width * scale} contentH={height * scale} compact={compact} testId="plan-dag-canvas">
-          {/* Sizing wrapper reserves the SCALED extent so the scroll area is
-              correct; the inner layer keeps its natural size and is zoomed via
-              transform (transform doesn't affect layout box). */}
-          <div style={{ width: width * scale, height: height * scale }}>
+        <DagCanvas
+          contentW={width * scale}
+          contentH={height * scale}
+          compact={compact}
+          testId="plan-dag-canvas"
+          legend={
+            <div className="contents" data-testid="plan-dag-legend">
+              {NODE_STATE_ORDER.map((st) => (
+                <NodeStateChip key={st} status={st} />
+              ))}
+            </div>
+          }
+        >
           <div
             className="relative"
             data-testid="plan-dag-scaler"
@@ -2756,7 +2916,7 @@ function LegacyPlanDag({
                       ? 'border-accent ring-2 ring-accent'
                       : isSource
                         ? 'border-accent'
-                        : s.border
+                        : `${s.border} ${nodeVisualCls(p.node.node_status)}`
                   }`}
                   style={{ left: p.x, top: p.y, width: NODE_W }}
                   data-testid="plan-dag-node"
@@ -2833,18 +2993,9 @@ function LegacyPlanDag({
             {start && <SyntheticAnchorMarker kind="start" anchor={start} />}
             {end && <SyntheticAnchorMarker kind="end" anchor={end} />}
           </div>
-          </div>
         </DagCanvas>
         </>
       )}
-
-      {/* Legend (all 6 states) — the lifecycle controls live in the header
-          (Start / Stop / Advance), rendered exactly once each there. */}
-      <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="plan-dag-legend">
-        {NODE_STATE_ORDER.map((st) => (
-          <NodeStateChip key={st} status={st} />
-        ))}
-      </div>
 
       {/* node_status is DERIVED (§9.2) and shown, not edited. In DRAFT the
           dependency STRUCTURE is editable IN-GRAPH (point 3): each node has a

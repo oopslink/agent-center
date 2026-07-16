@@ -1408,13 +1408,20 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
-    for (const id of ['plan-dag-synthetic-start', 'plan-dag-synthetic-end']) {
-      const el = screen.getByTestId(id);
-      expect(el.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
-      expect(el.className).not.toMatch(/text-red-|bg-red-/);
-      // readable secondary text, not muted
-      expect(el.className).toContain('text-text-secondary');
-    }
+    // Start is a SOLID filled accent disc (mockup `.terminal.start`) with readable
+    // white text; End is a light disc with a solid `done`-toned ring + text. Both
+    // are deliberate, readable, non-alpha-tinted tokens — just different from each
+    // other (Start is the one node that isn't a status card).
+    const start = screen.getByTestId('plan-dag-synthetic-start');
+    expect(start.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
+    expect(start.className).not.toMatch(/text-red-|bg-red-/);
+    expect(start.className).toContain('bg-accent');
+    expect(start.className).toContain('text-white');
+
+    const end = screen.getByTestId('plan-dag-synthetic-end');
+    expect(end.className).not.toMatch(/\/\d+/); // no bg-{token}/{opacity}
+    expect(end.className).not.toMatch(/text-red-|bg-red-/);
+    expect(end.className).toContain('text-status-emerald-fg');
   });
 });
 
