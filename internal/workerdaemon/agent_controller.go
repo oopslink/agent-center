@@ -96,6 +96,9 @@ type workPayload struct {
 	TaskID  string `json:"task_id"`
 	TaskRef string `json:"task_ref"`
 	Brief   string `json:"brief"`
+	// DispatchMode is the optional per-node fork override (I105 Phase 1). Absent on
+	// every pre-I105 producer, which decodes to "" = executor_fork = today's routing.
+	DispatchMode string `json:"dispatch_mode"`
 }
 
 // wakePayload decodes an "agent.wake" command payload. Matches

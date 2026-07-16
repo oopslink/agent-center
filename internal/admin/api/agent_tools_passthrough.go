@@ -53,6 +53,10 @@ type createTaskReq struct {
 	// Model is the optional hard-override executor model (F3 model routing, design
 	// §5 & §10); "" = unset.
 	Model string `json:"model"`
+	// DispatchMode is the optional per-node fork override (I105 Phase 1):
+	// "executor_fork" (default) | "supervisor_inline". "" = unset → executor_fork.
+	// An unknown value is rejected by the pm service (ErrInvalidDispatchMode → 4xx).
+	DispatchMode string `json:"dispatch_mode"`
 }
 
 // createTaskHandler creates a Task via pm.CreateTask with actor=agent. The pm
@@ -99,6 +103,7 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 		Assignee:         pm.IdentityRef(assignee),
 		Dispatch:         req.Dispatch,
 		Model:            strings.TrimSpace(req.Model),
+		DispatchMode:     pm.DispatchMode(strings.TrimSpace(req.DispatchMode)),
 	})
 	if err != nil {
 		// T199/WS3 dispatch/assign error paths — clear codes (acceptance: "错误路径
@@ -267,6 +272,15 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := agentTaskMap(t)
+	// I105 Phase 1: the per-node fork override, emitted ONLY when it actually
+	// overrides something (supervisor_inline). An ordinary fork node's get_task stays
+	// byte-for-byte as before — no key at all — so the field can never be read as a
+	// signal on the default path, and old workers ignoring the key keep forking.
+	// Deliberately here (get_task) and NOT in the shared agentTaskMap: list_tasks /
+	// list_tasks_of_issue are browse projections, while the fork gate reads get_task.
+	if t.DispatchMode().RoutesInline() {
+		m["dispatch_mode"] = string(t.DispatchMode())
+	}
 	// ADR-0047 §-1: expose the derived `claimable` on the single-task read too.
 	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
 		m["claimable"] = claimable

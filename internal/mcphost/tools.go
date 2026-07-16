@@ -15,7 +15,7 @@
 //   - heartbeat                   : {task_id}
 //   - complete_task               : {task_id, summary?}
 //   - discard_task                : {task_id, reason?}
-//   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?}
+//   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?, dispatch_mode?}
 //   - get_task                    : {task_id}
 //   - get_issue                   : {issue_id}
 //   - verify_task                 : {task_id}
@@ -230,6 +230,8 @@ type createTaskArgs struct {
 	// backlog (the pre-T199 default).
 	Assignee string `json:"assignee,omitempty" jsonschema:"optional identity ref to assign on create (e.g. agent:X or user:Y); emits the work item + wakes an agent assignee"`
 	Dispatch bool   `json:"dispatch,omitempty" jsonschema:"when true, also dispatch the task into the project's assignment pool so it is immediately claimable (unassigned) / runnable (assigned) — no separate add_task_to_plan needed"`
+	// I105 Phase 1: per-node fork override. Omit for ordinary code tasks.
+	DispatchMode string `json:"dispatch_mode,omitempty" jsonschema:"optional routing override; omit (default) for a normal code task — it forks an executor with a git worktree. Set to supervisor_inline ONLY for a task whose deliverable is a CENTER ACTION with no code to write (deploy / synthesis / verdict / roll-up): it is then handled by the supervisor session instead of forking an executor into an empty workspace. Allowed: executor_fork | supervisor_inline"`
 }
 
 func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
@@ -242,6 +244,7 @@ func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
 			"derived_from_issue": args.DerivedFromIssue,
 			"assignee":           args.Assignee,
 			"dispatch":           args.Dispatch,
+			"dispatch_mode":      args.DispatchMode,
 		}
 		return callAdmin(ctx, cfg, "create_task", body)
 	}

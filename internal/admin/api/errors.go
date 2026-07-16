@@ -152,6 +152,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, secretmgmt.ErrMasterKeyNotLoaded),
 		errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrInvalidBlockReasonType),
+		// I105: create_task with an unknown dispatch_mode — rejected loudly rather
+		// than silently coerced, so a typo'd mark can never masquerade as a fork.
+		errors.Is(err, pm.ErrInvalidDispatchMode),
 		// issue-4a45e9cc: a reported installed-skill with an unknown layer.
 		errors.Is(err, agent.ErrInvalidSkillLayer):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())

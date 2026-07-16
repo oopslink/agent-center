@@ -294,6 +294,9 @@ type CreateTaskCommand struct {
 	// §5 & §10); "" = unset → executor model selected from the agent's allowed/default
 	// models.
 	Model string
+	// DispatchMode is the optional per-node fork override (I105 Phase 1); "" = unset
+	// → executor_fork (today's routing). Only supervisor_inline suppresses the fork.
+	DispatchMode pm.DispatchMode
 	// RequiredCapabilities is the optional capability set the task demands of an
 	// executor agent (v2.18.3 BE-1); canonicalized by the domain. Empty = unrestricted.
 	RequiredCapabilities []string
@@ -305,6 +308,11 @@ type CreateTaskCommand struct {
 func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.TaskID, error) {
 	if err := cmd.CreatedBy.Validate(); err != nil {
 		return "", err
+	}
+	// I105: reject an unknown dispatch_mode at the write boundary — mirrors the
+	// BlockTask/ErrInvalidBlockReasonType precedent. "" stays legal (= executor_fork).
+	if !cmd.DispatchMode.IsValid() {
+		return "", pm.ErrInvalidDispatchMode
 	}
 	now := s.clock.Now()
 	taskID := pm.TaskID(s.idgen.NewEntityID("task"))
@@ -330,7 +338,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCommand) (pm.Tas
 		t, terr := pm.NewTask(pm.NewTaskInput{
 			ID: taskID, ProjectID: cmd.ProjectID, Title: cmd.Title,
 			Description: cmd.Description, DerivedFromIssue: cmd.DerivedFromIssue, CreatedBy: cmd.CreatedBy, CreatedAt: now, OrgNumber: orgNumber,
-			Model: cmd.Model, RequiredCapabilities: cmd.RequiredCapabilities,
+			Model: cmd.Model, DispatchMode: cmd.DispatchMode, RequiredCapabilities: cmd.RequiredCapabilities,
 		})
 		if terr != nil {
 			return terr

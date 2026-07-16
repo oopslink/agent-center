@@ -164,7 +164,10 @@ func MigrateV1ToV2Command() *Command {
 // first-class Stage aggregate + pm_tasks.stage_id node→stage membership).
 // Team Phase-1 (S1-3) added 0107 (team/pm_teams tables — renumbered from 0106_v229_teams
 // at T1002 integrate to land after main's 0106_pm_stages).
-const targetSchemaVersion = 109
+// I105 Phase 1 added 0110 (pm_tasks.dispatch_mode — the per-NODE fork override: '' =
+// executor_fork = the pre-I105 routing, 'supervisor_inline' = route to the supervisor
+// instead of forking a center-action node into an empty workspace).
+const targetSchemaVersion = 110
 
 func runMigrateV1ToV2(
 	ctx context.Context,

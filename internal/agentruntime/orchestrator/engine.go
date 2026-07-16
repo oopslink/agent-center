@@ -35,6 +35,14 @@ type WorkItem struct {
 	Goal      executor.Goal
 	TaskModel string // task.model hard override ("" = unset → F3 judges/falls back)
 	Context   string // aggregated context the orchestrator assembled (design §6.E)
+	// DispatchMode is the center's per-node routing decision (I105 N2), stamped onto
+	// the executor's input.json so the writeback — which only ever sees input.json —
+	// can tell an ordinary forked Dev node from a supervisor_inline node that should
+	// never have forked at all (the N4 mis-fork auto-block). "" = unstamped/legacy.
+	//
+	// A supervisor_inline value reaching HERE means the dispatch gate was bypassed
+	// (bootstrap / race / a legacy producer), which is exactly the case N4 catches.
+	DispatchMode string
 	// ExecutorID, when non-empty, is a pre-minted executor id the caller already used
 	// to materialize a worktree BEFORE HandleWork (P3): HandleWork uses it verbatim so
 	// the launched executor's workspace path matches the prepared worktree. Empty ⇒
@@ -237,7 +245,10 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 			IssueRef: item.IssueRef,
 			TaskRef:  item.TaskRef,
 		},
-		CreatedAt: e.clk.Now(),
+		// I105 N2: stamp the center's routing decision so the N4 writeback net can fire.
+		// Empty stays empty (unstamped/legacy ⇒ N4 keeps its prior behavior).
+		DispatchMode: item.DispatchMode,
+		CreatedAt:    e.clk.Now(),
 	}
 
 	// 4. F1 fork (≤ max; ErrAtCapacity bubbles up unwrapped for the caller to queue).

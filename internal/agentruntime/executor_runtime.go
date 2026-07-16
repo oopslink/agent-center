@@ -297,6 +297,10 @@ func (r *LocalRuntime) workViaExecutor(ctx context.Context, req WorkRequest, ee 
 		TaskID:  req.TaskID,
 		TaskRef: req.TaskRef,
 		Goal:    executor.Goal{Title: title, Description: req.Brief},
+		// I105 N2: carry the command's routing decision through to input.json. NotifyWork
+		// only reaches here when the node is NOT supervisor_inline, so this is normally
+		// "" / executor_fork; a stamped inline value would be an N4 case.
+		DispatchMode: strings.TrimSpace(req.DispatchMode),
 	}
 	return r.launchExecutor(ctx, req.AgentID, req.TaskID, item, ee)
 }
@@ -658,6 +662,28 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return nil, nil
 	}
 
+	// I105 Phase 1 — the per-NODE fork gate. THE live dispatch path: the center's
+	// work_available lands here and, until now, forked UNCONDITIONALLY whenever the
+	// agent had concurrency on (per-AGENT control, no per-node say). A task-backed
+	// center-action node (deploy / synthesis / verdict) has no code worktree, so the
+	// fork lands a `claude -p` in an empty workspace that cannot deliver.
+	//
+	// RED LINE (regression lock): the gate is "route inline ONLY IF the task is
+	// explicitly marked supervisor_inline". Missing / empty / executor_fork / an
+	// unknown value all fall through to the fork below, byte-for-byte as before. The
+	// inverse (suppress on anything unrecognized) would starve every Dev node, so
+	// RoutesInline() is a strict equality test and get_task omits the key entirely on
+	// ordinary nodes. Placed AFTER the assignee + status guards (never inject a
+	// foreign or already-running task) and BEFORE the repo/worktree materialization
+	// (an inline node must not pay for a worktree it will never use).
+	// The const is the worker-side executor.DispatchMode* vocabulary (already the N4
+	// writeback's input signal) — NOT a new import of the center's pm domain, which
+	// this package deliberately does not depend on.
+	if strings.TrimSpace(task.DispatchMode) == executor.DispatchModeSupervisorInline {
+		r.routeSupervisorInline(ctx, agentID, taskID, task)
+		return nil, nil
+	}
+
 	// 2. Repo workspace (P3, red line A): materialize the canonical source + a
 	// per-executor worktree BEFORE start_task/reserve, so a source/worktree failure
 	// means the task is NEVER admitted. Only when the flag is ON (materializer wired)
@@ -834,6 +860,88 @@ func (r *LocalRuntime) fetchCenterTask(ctx context.Context, agentID, taskID stri
 	return &t, nil
 }
 
+// routeSupervisorInline delivers an explicitly-marked supervisor_inline node to the
+// resident supervisor session INSTEAD of forking an executor (I105 Phase 1).
+//
+// It deliberately does NOT start_task: the supervisor drives its own admission with
+// its own tools once it picks the brief up, which is exactly the semantics of the
+// pre-existing single-active inject path in NotifyWork. Leaving the task open also
+// keeps the center's wake-sweep free to re-drive it if the supervisor never engages.
+//
+// NON-WEDGING (issue-13e7bfe8): this returns no error to SpawnExecutor's caller and
+// never blocks on network I/O beyond a bounded center RPC. SpawnExecutor can be
+// reached from a control-command handler with a ~5s transport deadline; returning an
+// error here would leave the command un-acked and re-delivered forever on the
+// worker's SHARED control cursor, starving every other agent on the worker. So a
+// failure is surfaced (block / log), never propagated.
+//
+// INJECT-FAIL IS AN EXPLICIT PATH, NOT A SILENT DROP (I105 red line #2): if the
+// session is dead / busy / the inject errors, the node must not vanish. It falls back
+// to the SAME start_task→block_task(obstacle) shape failTaskRepoUnavailable uses (the
+// center refuses to block a non-running task, so admission has to come first) — the
+// existing fail-loud seam, not a new mechanism. Worst case (no transport at all) it
+// is logged loudly and left queued for a later wake.
+func (r *LocalRuntime) routeSupervisorInline(ctx context.Context, agentID, taskID string, task *centerTaskDetail) {
+	r.log("DISPATCH-DECISION route=NotifyWorkAvailable(agent.work_available) dispatch_mode=supervisor-inline agent_namespace=%s task_id=%s — task marked supervisor_inline: NOT forking, injecting into supervisor session (I105)",
+		agentID, taskID)
+
+	if err := r.injectSession(ctx, inlineNodeBrief(task, taskID)); err != nil {
+		r.log("DISPATCH-INLINE-INJECT-FAILED agent_namespace=%s task_id=%s: %v — supervisor session unavailable for a supervisor_inline node; admitting + blocking so the node is NOT silently dropped (I105 red line #2)",
+			agentID, taskID, err)
+		r.blockInlineInjectFailure(ctx, agentID, taskID, err)
+		return
+	}
+
+	r.mu.Lock()
+	r.state.HadWork = true
+	r.mu.Unlock()
+}
+
+// blockInlineInjectFailure surfaces a failed supervisor_inline inject via the
+// start_task→block_task(obstacle) seam. Mirrors failTaskRepoUnavailable: the center's
+// Task.Block requires status==running, so a bare block_task on a queued task would
+// 422 and leave no trace. Every step is best-effort and logged; nothing propagates.
+func (r *LocalRuntime) blockInlineInjectFailure(ctx context.Context, agentID, taskID string, cause error) {
+	caller := r.toolCaller()
+	if caller == nil {
+		r.log("work_available agent=%s task=%s supervisor_inline inject failed: no center transport — cannot surface, task left queued", agentID, taskID)
+		return
+	}
+	if err := r.startCenterTask(ctx, agentID, taskID); err != nil {
+		r.log("work_available agent=%s task=%s supervisor_inline inject failed: start_task (to make the task blockable) declined: %v — task left queued, failure visible in this log only",
+			agentID, taskID, err)
+		return
+	}
+	body := map[string]any{
+		"agent_id": agentID,
+		"task_id":  taskID,
+		"reason": fmt.Sprintf("supervisor_inline node could not be delivered to the supervisor session: %v. "+
+			"This node is marked dispatch_mode=supervisor_inline (its deliverable is a center action, so it must NOT be forked into a code worktree), "+
+			"but the resident supervisor session was unavailable. Needs a human: restart/unblock the supervisor session and reopen this task, "+
+			"or re-mark the task dispatch_mode=executor_fork if it is in fact a code task.", cause),
+		"reason_type": "obstacle",
+	}
+	if bErr := caller.CallAgentTool(ctx, "block_task", body, nil); bErr != nil {
+		r.log("work_available agent=%s task=%s supervisor_inline inject failed: block_task failed: %v", agentID, taskID, bErr)
+	}
+}
+
+// inlineNodeBrief renders the supervisor-facing brief for a supervisor_inline node.
+// The supervisor owns admission (start_task) + completion, so the brief has to carry
+// the task id it must act on, not just the prose.
+func inlineNodeBrief(task *centerTaskDetail, taskID string) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("[dispatch_mode=supervisor_inline] Task %s is assigned to you and is routed to you INLINE (no executor fork: this node's deliverable is a center action, not code).\n\n", taskID))
+	if t := strings.TrimSpace(task.Title); t != "" {
+		b.WriteString("Title: " + t + "\n")
+	}
+	if d := strings.TrimSpace(task.Description); d != "" {
+		b.WriteString("\n" + d + "\n")
+	}
+	b.WriteString(fmt.Sprintf("\nHandle it yourself in this session: start_task(task_id=%q), do the center action, then complete_task / block_task. Do NOT fork an executor for it.\n", taskID))
+	return b.String()
+}
+
 // startCenterTask admits a task by calling start_task on the agent's behalf.
 func (r *LocalRuntime) startCenterTask(ctx context.Context, agentID, taskID string) error {
 	body := map[string]any{"agent_id": agentID, "task_id": taskID}
@@ -883,6 +991,12 @@ type centerTaskDetail struct {
 	// per-executor repo-workspace track; decoded here so the fields survive.
 	Repo    *centerTaskRepo `json:"repo,omitempty"`
 	BaseRef string          `json:"base_ref"`
+	// DispatchMode is the per-node fork override (I105 Phase 1). The center emits the
+	// key ONLY for supervisor_inline nodes, so on every ordinary task this decodes to
+	// "" = executor_fork = today's routing. An older center never sends it (same zero
+	// value); a newer center sending an unknown value also falls through to the fork
+	// (DispatchMode.RoutesInline is a strict equality test).
+	DispatchMode string `json:"dispatch_mode"`
 }
 
 // centerTaskRepo mirrors the agentRepoRefMap projection (internal/admin/api): a
@@ -926,6 +1040,11 @@ func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepare
 		TaskModel:  task.Model,
 		ExecutorID: execID,
 		Prepared:   prepared,
+		// I105 N2: stamp the center's routing decision onto input.json. On this path it
+		// is normally "" / executor_fork (the gate in SpawnExecutor already diverted a
+		// supervisor_inline node); a supervisor_inline value arriving here means the gate
+		// was bypassed, which is precisely what the N4 writeback net exists to catch.
+		DispatchMode: strings.TrimSpace(task.DispatchMode),
 	}
 }
 

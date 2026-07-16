@@ -112,6 +112,48 @@ func (b BlockReasonType) IsValid() bool {
 	return false
 }
 
+// DispatchMode is the per-task override for how the supervisor routes a
+// task-backed node (issue I105 Phase 1). Fork-vs-inline was a per-AGENT decision
+// (the agent's concurrency profile); this is the per-NODE override on top of it.
+//
+// The empty value ("") is the "unset" sentinel and means DispatchExecutorFork —
+// the pre-I105 default. This is a RED LINE: a missing / empty / unparseable value
+// MUST route exactly as it does today (fork when the agent has concurrency on).
+// Only an explicit DispatchSupervisorInline may suppress a fork; anything else
+// forking is what keeps every ordinary Dev node from starving.
+type DispatchMode string
+
+const (
+	// DispatchExecutorFork — an ordinary code node: fork an executor with a git
+	// worktree. The default; "" is treated as this.
+	DispatchExecutorFork DispatchMode = "executor_fork"
+	// DispatchSupervisorInline — a task-backed CENTER-ACTION node (deploy /
+	// synthesis / verdict): the deliverable is a center action, not code, so there
+	// is no worktree to fork into. Forking one lands a `claude -p` in an empty
+	// workspace that cannot deliver and canned-succeeds. Route it to the resident
+	// supervisor session instead.
+	DispatchSupervisorInline DispatchMode = "supervisor_inline"
+)
+
+// IsValid reports whether the mode is one of the known dispatch modes. Unlike
+// BlockReasonType, the empty value IS valid here: "" is the unset sentinel that
+// means "fork" (the default), not an illegal state. Callers that must reject an
+// unset value should compare against "" themselves.
+func (d DispatchMode) IsValid() bool {
+	switch d {
+	case "", DispatchExecutorFork, DispatchSupervisorInline:
+		return true
+	}
+	return false
+}
+
+// RoutesInline reports whether this mode suppresses the executor fork and routes
+// the node to the resident supervisor session. This is the SINGLE predicate the
+// fork gate consults — it is deliberately an explicit equality test so that every
+// other value (unset, executor_fork, or an unknown string a newer center might
+// send) answers false and therefore forks, exactly as today.
+func (d DispatchMode) RoutesInline() bool { return d == DispatchSupervisorInline }
+
 // TaskAction names a lifecycle event recorded on a Task's append-only action log
 // (issue I14 §2.4). The TaskActionLog replaces the deleted AgentWorkItem
 // transition history — reassignment, block/unblock, lease expiry, etc. all become
@@ -248,6 +290,9 @@ type Task struct {
 	// routing, design §5 & §10). "" = unset → the executor model is selected from
 	// the agent's allowed/default models. Set at create time by the caller.
 	model string
+	// dispatchMode is the optional per-node fork override (I105 Phase 1). "" =
+	// unset → executor_fork (today's behavior). Set at create time by the caller.
+	dispatchMode DispatchMode
 	// requiredCapabilities is the canonical (trimmed, lowercased, deduped) set of
 	// capability labels this task demands of an executor agent (v2.18.3 BE-1,
 	// issue-577a7b0e). nil/empty = unrestricted. The BE-2 auto-assign reconciler
@@ -286,6 +331,9 @@ type NewTaskInput struct {
 	// Model is the optional hard-override executor model (F3 model routing, design
 	// §5 & §10); "" = unset.
 	Model string
+	// DispatchMode is the optional per-node fork override (I105); "" = unset →
+	// executor_fork.
+	DispatchMode DispatchMode
 	// RequiredCapabilities is the optional capability set a task demands (v2.18.3
 	// BE-1); canonicalized at construction. nil/empty = unrestricted.
 	RequiredCapabilities []string
@@ -330,6 +378,7 @@ func NewTask(in NewTaskInput) (*Task, error) {
 		orgNumber:            in.OrgNumber,
 		statusChangedAt:      at,
 		model:                in.Model,
+		dispatchMode:         in.DispatchMode,
 		requiredCapabilities: NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:               in.NodeID,
 		stageID:              in.StageID,
@@ -367,6 +416,9 @@ type RehydrateTaskInput struct {
 	ActionLogs              []TaskActionLog
 	// Model is the optional hard-override executor model (F3, design §5 & §10).
 	Model string
+	// DispatchMode is the persisted per-node fork override (I105). An unknown
+	// persisted value is coerced to "" (fork) on rehydrate — see RehydrateTask.
+	DispatchMode DispatchMode
 	// RequiredCapabilities is the persisted capability set (v2.18.3 BE-1);
 	// re-canonicalized on rehydrate (defensive against hand-edited rows).
 	RequiredCapabilities []string
@@ -426,6 +478,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		executionLeaseExpiresAt: copyTaskTimePtr(in.ExecutionLeaseExpiresAt),
 		actionLogs:              in.ActionLogs,
 		model:                   in.Model,
+		dispatchMode:            coerceDispatchMode(in.DispatchMode),
 		requiredCapabilities:    NormalizeCapabilities(in.RequiredCapabilities),
 		nodeID:                  in.NodeID,
 		stageID:                 in.StageID,
@@ -499,6 +552,22 @@ func (t *Task) ActionLogs() []TaskActionLog {
 // design §5 & §10). "" = unset → the executor model is selected from the agent's
 // allowed/default models.
 func (t *Task) Model() string { return t.model }
+
+// DispatchMode exposes the per-node fork override (I105 Phase 1). "" = unset →
+// executor_fork (the default).
+func (t *Task) DispatchMode() DispatchMode { return t.dispatchMode }
+
+// coerceDispatchMode maps any unrecognized persisted value to "" (= fork). Read
+// paths must be total: a row hand-edited, written by a newer center, or corrupted
+// must degrade to TODAY'S behavior (fork), never to an accidental inline route
+// that would strand the node. Write paths reject invalid values loudly instead
+// (Service.CreateTask → ErrInvalidDispatchMode); this is the read-side net.
+func coerceDispatchMode(d DispatchMode) DispatchMode {
+	if !d.IsValid() {
+		return ""
+	}
+	return d
+}
 
 // RecoveryResetCount exposes the durable tier-3 recovery reset tally (T862 §2B):
 // consecutive resets since the last successful progress (Complete zeroes it). The

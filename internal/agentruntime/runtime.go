@@ -24,8 +24,10 @@ package agentruntime
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agentruntime/executor"
 	"github.com/oopslink/agent-center/internal/concurrency"
 )
 
@@ -94,6 +96,22 @@ type WorkRequest struct {
 	TaskID  string
 	TaskRef string
 	Brief   string
+	// DispatchMode is the per-node fork override carried from the center (I105
+	// Phase 1): "" (default) | "executor_fork" | "supervisor_inline". Only an explicit
+	// "supervisor_inline" suppresses the fork; see routesSupervisorInline.
+	DispatchMode string
+}
+
+// routesSupervisorInline reports whether a center-supplied dispatch_mode explicitly
+// routes a node to the resident supervisor session instead of forking an executor.
+//
+// This is THE regression lock for I105 red line #1, and it is deliberately a strict
+// equality test on the trimmed value: every other input — "", "executor_fork", an
+// unknown string from a newer center, or a garbled field — answers false and therefore
+// FORKS, exactly as before I105. The inverse default (suppressing a fork on anything
+// unrecognized) would starve every Dev node on the worker.
+func routesSupervisorInline(dispatchMode string) bool {
+	return strings.TrimSpace(dispatchMode) == executor.DispatchModeSupervisorInline
 }
 
 // WakeRequest is the runtime-facing form of an agent.wake command. It mirrors the

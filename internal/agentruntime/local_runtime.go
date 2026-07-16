@@ -401,7 +401,20 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 	// the brief instead of injecting into the resident claude. Mirrors today's
 	// routeWork exec-vs-session decision (ma.exec != nil), which required a live
 	// session first (checked above). The fork serializes under forkMu (red line #1).
-	if ee != nil {
+	//
+	// I105 Phase 1 adds the per-NODE override on top of that per-AGENT decision: an
+	// explicitly-marked supervisor_inline node falls through to the inject path below
+	// EVEN WHEN ee != nil (concurrency on). RED LINE: only an explicit
+	// supervisor_inline suppresses the fork — missing / empty / executor_fork / an
+	// unknown value all still fork exactly as before, so no ordinary Dev node can be
+	// starved by an absent or malformed field.
+	//
+	// NOTE (why this gate is defense-in-depth, not the live one): no center-side
+	// producer emits agent.work today — the per-WorkItem agent.work re-emit was retired
+	// with AgentWorkItem (I14/F7), leaving agent.work_available → SpawnExecutor as the
+	// live dispatch path, where the enforcing gate lives. This branch is kept in sync so
+	// the route cannot regress if a producer is ever restored.
+	if ee != nil && !routesSupervisorInline(req.DispatchMode) {
 		// issue-d118b5dc instrument: the agent.work → NotifyWork route resolves to a FORK
 		// here (concurrency ON, ee != nil). Fail-loud decision log so a double fan-out (this
 		// firing for a task that ALSO got an agent.work_available fork, or a single-active
@@ -411,12 +424,17 @@ func (r *LocalRuntime) NotifyWork(ctx context.Context, req WorkRequest) error {
 		r.createTaskDir(agentID, req.TaskID)
 		return r.workViaExecutor(ctx, req, ee)
 	}
-	// issue-d118b5dc instrument: the agent.work → NotifyWork route resolves to a
-	// SINGLE-ACTIVE INJECT here (concurrency OFF, ee == nil). Mode should be XOR with any
+	// issue-d118b5dc instrument: the agent.work → NotifyWork route resolves to an INJECT
+	// here — either single-active (concurrency OFF, ee == nil) or, since I105, an explicit
+	// per-node supervisor_inline override with concurrency ON. Mode should be XOR with any
 	// fork path — if this AND a work_available fork both fire for one ready event, that is
 	// the ① dual fan-out.
-	r.log("DISPATCH-DECISION route=NotifyWork(agent.work) dispatch_mode=single-active-inject agent_namespace=%s task_id=%s — injecting into supervisor session",
-		agentID, req.TaskID)
+	inlineMode := "single-active-inject"
+	if ee != nil {
+		inlineMode = "supervisor-inline" // I105: overrode an otherwise-forking agent
+	}
+	r.log("DISPATCH-DECISION route=NotifyWork(agent.work) dispatch_mode=%s agent_namespace=%s task_id=%s — injecting into supervisor session",
+		inlineMode, agentID, req.TaskID)
 
 	if r.cfg.TaskDirManager != nil {
 		_, tasksDir, _, pathErr := r.agentPaths(agentID)

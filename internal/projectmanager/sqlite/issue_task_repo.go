@@ -178,8 +178,8 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 	}
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue,
-			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens, dispatch_mode)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(t.ID()), string(t.ProjectID()), t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
@@ -187,7 +187,7 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 		marshalTags(t.Tags()), ts(t.StatusChangedAt()), tsZeroNull(t.CompletedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()),
 		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
-		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), deliveryJSON, t.FruitlessReopens())
+		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), deliveryJSON, t.FruitlessReopens(), string(t.DispatchMode()))
 	if isUnique(err) {
 		return pm.ErrTaskExists
 	}
@@ -202,14 +202,14 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 	}
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_tasks SET title=?, description=?, status=?, assignee=?, derived_from_issue=?,
-			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, completed_at=?, plan_id=?, archived_at=?, archived_by=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=?, model=?, required_capabilities=?, node_id=?, recovery_reset_count=?, stage_id=?, delivery=?, fruitless_reopens=? WHERE id=?`,
+			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, completed_at=?, plan_id=?, archived_at=?, archived_by=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=?, model=?, required_capabilities=?, node_id=?, recovery_reset_count=?, stage_id=?, delivery=?, fruitless_reopens=?, dispatch_mode=? WHERE id=?`,
 		t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
 		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), tsZeroNull(t.CompletedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()),
 		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
-		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), deliveryJSON, t.FruitlessReopens(), string(t.ID()))
+		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), deliveryJSON, t.FruitlessReopens(), string(t.DispatchMode()), string(t.ID()))
 	if err != nil {
 		// v2.18.0 W4c: the single-active partial UNIQUE index (migration 0072) was
 		// DROPPED by 0084 — the per-agent run-slot cap is no longer a DB guarantee but
@@ -489,7 +489,7 @@ func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus)
 }
 
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
-	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens FROM pm_tasks`
+	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens, dispatch_mode FROM pm_tasks`
 
 func scanTask(scan func(...any) error) (*pm.Task, error) {
 	var (
@@ -512,9 +512,10 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		stageID                                                       sql.NullString
 		delivery                                                      sql.NullString
 		fruitlessReopens                                              sql.NullInt64
+		dispatchMode                                                  sql.NullString
 	)
 	if err := scan(&id, &projectID, &title, &desc, &status, &assignee, &derived,
-		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &completedAt, &planID, &archivedAt, &archivedBy, &blockedReasonType, &blockedComment, &execLeaseExpiresAt, &model, &requiredCapabilities, &nodeID, &recoveryResetCount, &stageID, &delivery, &fruitlessReopens); err != nil {
+		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &completedAt, &planID, &archivedAt, &archivedBy, &blockedReasonType, &blockedComment, &execLeaseExpiresAt, &model, &requiredCapabilities, &nodeID, &recoveryResetCount, &stageID, &delivery, &fruitlessReopens, &dispatchMode); err != nil {
 		return nil, err
 	}
 	deliveryVal, err := pm.UnmarshalDelivery(delivery.String)
@@ -545,6 +546,8 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		StageID:                 pm.StageID(stageID.String),
 		Delivery:                deliveryVal,
 		FruitlessReopens:        int(fruitlessReopens.Int64),
+		// I105: an unknown persisted value is coerced to "" (= fork) by RehydrateTask.
+		DispatchMode: pm.DispatchMode(dispatchMode.String),
 	})
 }
 

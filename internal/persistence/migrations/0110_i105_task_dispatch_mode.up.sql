@@ -1,0 +1,20 @@
+-- 0110_i105_task_dispatch_mode.up.sql — I105 Phase 1: per-NODE fork override.
+--
+-- Fork-vs-inline has been a per-AGENT decision (the agent's concurrency profile:
+-- concurrency on ⇒ every business node forks an executor). There is no per-NODE
+-- control, so a task-backed CENTER-ACTION node (deploy / synthesis / verdict —
+-- whose deliverable is a center action, not code) forks like an ordinary Dev node
+-- and lands a `claude -p` in an EMPTY, non-git workspace: it cannot deliver, and
+-- the writeback's git probe misses, so it canned-succeeds and burns resources.
+--
+-- This adds the explicit override. One additive column with a safe default:
+--
+--   dispatch_mode — '' (default, = executor_fork) | 'executor_fork' |
+--                   'supervisor_inline'. Set at create time.
+--
+-- RED LINE — '' MUST mean "route exactly as today" (fork when the agent has
+-- concurrency enabled). Every existing row therefore keeps its current behavior
+-- with NO backfill, and ONLY an explicit 'supervisor_inline' suppresses a fork.
+-- The inverse default (unset ⇒ inline) would starve every Dev node on the center,
+-- which is why the column is NOT NULL DEFAULT '' rather than nullable.
+ALTER TABLE pm_tasks ADD COLUMN dispatch_mode TEXT NOT NULL DEFAULT '';

@@ -114,6 +114,12 @@ var (
 	// only that the reason text is non-empty (not the type), so F3's BlockTask entry
 	// enforces BlockReasonType.IsValid() and rejects any other value (incl. "").
 	ErrInvalidBlockReasonType = errors.New("projectmanager: invalid block reason type (must be input_required or obstacle)")
+	// ErrInvalidDispatchMode (I105 Phase 1): create_task's optional dispatch_mode
+	// must be "" (unset → executor_fork), executor_fork, or supervisor_inline. A
+	// typo'd value is rejected at the WRITE boundary rather than persisted, so it
+	// can never reach the fork gate; the read side coerces anything unknown back to
+	// "" (fork) as a second net.
+	ErrInvalidDispatchMode = errors.New("projectmanager: invalid dispatch mode (must be executor_fork or supervisor_inline)")
 	// ErrNotTaskAssignee / ErrTaskBlocked guard the v2.14.0 I14 block+lease model:
 	// only the assignee agent may Block its own running task, and a legally blocked
 	// task cannot renew its execution lease (a block is a lease-free pause).
