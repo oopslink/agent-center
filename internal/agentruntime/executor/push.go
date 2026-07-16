@@ -109,14 +109,32 @@ func (m *Monitor) eagerPushBeforeGate(ctx context.Context, c Completion) Complet
 	if c.Kind != OutcomeSucceeded {
 		return c // only a would-be success is pushed; failures go to judgment as-is
 	}
-	if c.Git == nil || !c.Git.Probed || c.Git.Pushed {
-		return c // non-git / already pushed — nothing to do
+	// Each of the three not-applicable branches logs DISTINCTLY: a zero EAGER-PUSH log count
+	// must never be ambiguous between "unreachable" (no worktree), "reachable but had no work
+	// to do" (executor pushed itself), and "no such run happened at all". The c.Git == nil
+	// branch below is the one that kept this fix inert for a whole cycle while looking exactly
+	// like "never ran" — it is silent no longer.
+	if c.Git == nil {
+		m.log("EAGER-PUSH n/a executor=%s task=%s: no git worktree on this run (flag off / unmanaged workspace) — eager-push UNREACHABLE here, nothing to push",
+			c.ExecutorID, m.taskRef(c.ExecutorID))
+		return c
+	}
+	if !c.Git.Probed {
+		m.log("EAGER-PUSH n/a executor=%s task=%s: git-status probe did not run — workspace unjudgeable, nothing to push",
+			c.ExecutorID, m.taskRef(c.ExecutorID))
+		return c
+	}
+	if c.Git.Pushed {
+		m.log("EAGER-PUSH n/a executor=%s task=%s branch=%s head=%s: executor already pushed its own branch — legitimate success path, supervisor push not needed",
+			c.ExecutorID, m.taskRef(c.ExecutorID), c.Git.Branch, c.Git.HeadSHA)
+		return c
 	}
 	// Skip the push ONLY when we can PROVE there is nothing to deliver: base KNOWN, HEAD not
 	// ahead, clean tree. A base-unknown run is "couldn't tell" and MUST fall through to the
 	// (guardrail-gated) push rather than be silently dropped — the P0 that lost review-only
-	// commits on the real materializer spawn path (issue-f30b7e7b). Every skip is logged
-	// fail-loud: a SILENT skip (zero log) is exactly what hid this bug for a whole cycle.
+	// commits on the real materializer spawn path (issue-f30b7e7b). Every path out of this
+	// function — skip, n/a, failure, success — is logged fail-loud: a SILENT skip (zero log) is
+	// exactly what hid this bug for a whole cycle.
 	if c.Git.BaseKnown && c.Git.AheadOfBase <= 0 && !c.Git.Dirty {
 		m.log("EAGER-PUSH skip executor=%s task=%s branch=%s: base known, HEAD not ahead (%d) + clean tree — nothing to deliver",
 			c.ExecutorID, m.taskRef(c.ExecutorID), c.Git.Branch, c.Git.AheadOfBase)
