@@ -5,6 +5,7 @@
 | Status | Proposed |
 | Date | 2026-07-12 |
 | Scope | 移动端（`md:hidden` 断点）全局导航壳层——顶部栏 / 底部 Tab / 二级导航 / 辅助面板。不含任何具体业务页面内容布局 |
+| Mockup | [assets/mobile-redesign-nav-framework-mockup.html](../assets/mobile-redesign-nav-framework-mockup.html) |
 
 ## 1. 背景
 
