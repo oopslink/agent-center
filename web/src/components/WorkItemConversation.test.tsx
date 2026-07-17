@@ -102,11 +102,12 @@ describe('WorkItemConversation (#137)', () => {
     expect(within(banner).getByTestId('conversation-maximize-toggle')).toBeInTheDocument();
   });
 
-  // Mobile: the chat renders through ConversationMobileTabs — the same dropdown
-  // switcher (chat/threads/files) + maximize used by DM/channel — so task/issue
-  // chat gains threads/files access on small screens. Maximize lives inside the
-  // tabs container (its own fixed-inset overlay), not the section.
-  it('renders the mobile dropdown tabs + maximize on small screens', async () => {
+  // Mobile: the chat renders through the redesigned ConversationSurfaceMobile —
+  // the same segment-pill switcher (chat/threads/files/people) used by
+  // DM/channel, per mobile-redesign-workspace-core.md §5 ("复用 Conversations
+  // 模块已定案的规则，不重新设计"). The old mobile maximize toggle is gone by
+  // explicit decision (mobile-redesign-conversations.md §4/§7).
+  it('renders the redesigned mobile segment surface on small screens (no mobile maximize)', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: true, media: query, onchange: null,
       addEventListener: () => {}, removeEventListener: () => {},
@@ -119,18 +120,12 @@ describe('WorkItemConversation (#137)', () => {
       http.get('/api/conversations/conv-1/files', () => HttpResponse.json([])),
     );
     wrap('pm://tasks/TS-1', 'rebuild docs', 'T280');
-    // The mobile tabs container (with its dropdown switcher) renders in place of
-    // the desktop sidebar split.
-    const tabs = await screen.findByTestId('conversation-mobile-tabs');
-    expect(screen.getByTestId('conversation-mtab-select')).toBeInTheDocument();
-    // Maximize toggle drives the tabs container's data-maximized.
-    const toggle = screen.getByTestId('conversation-maximize-toggle-mobile');
-    expect(tabs).toHaveAttribute('data-maximized', 'false');
-    fireEvent.click(toggle);
-    expect(tabs).toHaveAttribute('data-maximized', 'true');
-    expect(tabs.className).toContain('fixed');
-    fireEvent.click(toggle);
-    expect(tabs).toHaveAttribute('data-maximized', 'false');
+    // The mobile surface renders in place of the desktop sidebar split.
+    await screen.findByTestId('conversation-surface-mobile');
+    expect(screen.getByTestId('conversation-mseg-chat')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('conversation-mseg-threads')).toBeInTheDocument();
+    // The dropped mobile maximize toggle must not come back.
+    expect(screen.queryByTestId('conversation-maximize-toggle-mobile')).not.toBeInTheDocument();
     vi.unstubAllGlobals();
   });
 

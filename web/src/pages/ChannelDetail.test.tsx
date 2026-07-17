@@ -1,11 +1,12 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
 import { useContextPanelController } from '@/shell/contextPanel';
+import { BottomSheet } from '@/shell/BottomSheet';
 import ChannelDetail from './ChannelDetail';
 
 beforeAll(() => {
@@ -25,17 +26,35 @@ function WithCol4Host({ children }: { children: React.ReactNode }): React.ReactE
   );
 }
 
-function wrap(path: string) {
+// The MOBILE shell: mirrors AppLayout's real wiring — the col④ host lives inside
+// the Context Panel BottomSheet, which only renders while `mobileSheetOpen`. So
+// panel content is genuinely absent until the page's ⓘ opens the sheet (that is
+// what the mobile tests below assert; a permanently-mounted host would make the
+// "opens the sheet" assertion vacuous).
+function WithMobileSheetHost({ children }: { children: React.ReactNode }): React.ReactElement {
+  const { Provider, value, setHost, mobileSheetOpen, closeMobileSheet } = useContextPanelController();
+  return (
+    <Provider value={value}>
+      {children}
+      <BottomSheet open={mobileSheetOpen} onClose={closeMobileSheet} ariaLabel="context" testId="context-sheet">
+        <div ref={setHost} />
+      </BottomSheet>
+    </Provider>
+  );
+}
+
+function wrap(path: string, { mobile = false }: { mobile?: boolean } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const Host = mobile ? WithMobileSheetHost : WithCol4Host;
   return render(
     <QueryClientProvider client={qc}>
-      <WithCol4Host>
+      <Host>
         <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/channels/:channelId" element={<ChannelDetail />} />
           </Routes>
         </MemoryRouter>
-      </WithCol4Host>
+      </Host>
     </QueryClientProvider>,
   );
 }
@@ -107,6 +126,58 @@ describe('ChannelDetail page', () => {
     await waitFor(() =>
       expect(screen.getByTestId('channel-not-found')).toHaveTextContent(/no such channel/),
     );
+  });
+
+  // ── Mobile (<768px), mobile-redesign-conversations.md §3.5 / mockup frame ④.
+  // These assert the ROUTE actually wires the redesigned components — the /channels/:id
+  // page is the production caller of ConversationSurfaceMobile + ConversationInfoButton.
+  describe('mobile', () => {
+    function stubMobile() {
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: true, media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {},
+        addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+      }));
+    }
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('renders the redesigned segment surface (Chat/Threads/Files/People) instead of the old dropdown', async () => {
+      stubMobile();
+      server.use(channelShowHandler, messagesHandler);
+      wrap('/channels/C-alpha', { mobile: true });
+      await screen.findByTestId('conversation-surface-mobile');
+      expect(screen.getByTestId('conversation-mseg-chat')).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByTestId('conversation-mseg-people')).toBeInTheDocument();
+      // The pre-redesign dropdown + maximize are gone from the real page.
+      expect(screen.queryByTestId('conversation-mtab-select')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('conversation-maximize-toggle-mobile')).not.toBeInTheDocument();
+    });
+
+    it('header exposes the ⓘ button, which opens the Context Panel sheet holding the channel info card', async () => {
+      stubMobile();
+      server.use(channelShowHandler, messagesHandler);
+      wrap('/channels/C-alpha', { mobile: true });
+      const info = await screen.findByTestId('conversation-info-button');
+      // The sheet (and therefore the info card) is closed until ⓘ is tapped.
+      expect(screen.queryByTestId('context-sheet')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('conversation-info-sheet')).not.toBeInTheDocument();
+      fireEvent.click(info);
+      // The sheet content (portalled through <ContextPanel>) carries name + description.
+      expect(await screen.findByTestId('context-sheet')).toBeInTheDocument();
+      const sheet = await screen.findByTestId('conversation-info-sheet');
+      expect(within(sheet).getByTestId('conversation-info-title')).toHaveTextContent('alpha');
+      expect(within(sheet).getByTestId('conversation-info-description')).toHaveTextContent('plan');
+      expect(within(sheet).getByTestId('conversation-info-members')).toHaveTextContent('Members (1)');
+    });
+
+    it('hides the desktop avatar stack on mobile (header is back + title + star + ⓘ)', async () => {
+      stubMobile();
+      server.use(channelShowHandler, messagesHandler);
+      wrap('/channels/C-alpha', { mobile: true });
+      await screen.findByTestId('conversation-surface-mobile');
+      // Still in the DOM for desktop, but md:-gated so it is not visible at phone width.
+      expect(screen.getByTestId('channel-avatar-stack').parentElement?.className).toContain('hidden');
+    });
   });
 
   it('surfaces a messages error via the shared shell when the messages query fails', async () => {

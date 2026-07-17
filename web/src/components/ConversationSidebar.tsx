@@ -161,7 +161,7 @@ export function ConversationSidebar({
               the message-list ThreadSidebarProvider), so it has no provider ancestor
               of its own. Without one, useThreadSidebar() returns null and the thread
               rows' onClick is a silent no-op. Wrap the list in its own provider —
-              mirrors the ConversationMobileTabs precedent. */}
+              mirrors the ConversationSurfaceMobile precedent. */}
           {tab === 'threads' && (
             <ThreadSidebarProvider>
               <ConversationThreadList conversationId={conversationId} embedded />

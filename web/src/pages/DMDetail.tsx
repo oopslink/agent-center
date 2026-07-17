@@ -11,7 +11,8 @@ import { useAgent } from '@/api/agents';
 import { useAppStore } from '@/store/app';
 import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
-import { ConversationMobileTabs } from '@/components/ConversationMobileTabs';
+import { ConversationSurfaceMobile } from '@/components/ConversationSurfaceMobile';
+import { ConversationInfoButton, ConversationInfoSheet } from '@/components/ConversationInfoPanel';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { ContextPanel } from '@/shell/contextPanel';
 import { FollowToggle } from '@/components/FollowToggle';
@@ -240,6 +241,10 @@ function DMDetailInner(): React.ReactElement {
           {/* #264 P1 / #176 §4: follow/unfollow this DM. */}
           <FollowToggle conversationId={conv.data.id} followed={conv.data.followed ?? false} />
 
+          {/* Mobile-only ⓘ → the shell's Context Panel bottom sheet (mockup frame ⑤:
+              back + peer + star + ⓘ + ⋯). */}
+          <ConversationInfoButton />
+
           {/* Overflow — a keyboard-accessible details/summary menu. Holds the
               same Follow/Unfollow action (kept visible in the cluster too) plus a
               copy-link affordance. */}
@@ -275,10 +280,23 @@ function DMDetailInner(): React.ReactElement {
       </header>
 
       {/* ── Message + composer zone ─────────────────────────────────────────
-          T184: mobile → one tab bar chat / threads / files (DM has no Participants).
-          Desktop → message stream (col③) + the shared col④ sidebar (Threads/Files). */}
+          Mobile → the redesigned surface: Chat / Threads / Files segment pills
+          (a DM is a fixed 1:1 → no People segment, no Members preview in the ⓘ
+          sheet). Desktop → message stream (col③) + the shared col④ sidebar. */}
       {isMobile ? (
-        <ConversationMobileTabs surface="dm" conversationId={conv.data.id} showParticipants={false} />
+        <>
+          <ConversationSurfaceMobile surface="dm" conversationId={conv.data.id} showParticipants={false} />
+          <ContextPanel>
+            <ConversationInfoSheet
+              conversationId={conv.data.id}
+              title={heading}
+              description={
+                isAgentAgentDM ? t('dms.detail.agentToAgentSubtitle') : t('dms.directMessage')
+              }
+              showMembers={false}
+            />
+          </ContextPanel>
+        </>
       ) : (
         <>
           {/* #264 P1: message body + read-cursor + SSE live updates flow through
