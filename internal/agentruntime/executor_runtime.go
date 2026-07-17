@@ -759,7 +759,11 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 			Branch:     wt.Branch,
 			// Carry the spawn-time base into the Record so finalize can measure HEAD-ahead-of
 			// -base (issue-f30b7e7b P0: this producer was missing → Record.BaseRef always "").
-			BaseRef: source.BaseRef,
+			// It MUST be wt.BaseRef (the SHA the branch was really cut from), never
+			// source.BaseRef (the requested NAME, e.g. "main"): the name resolves in the
+			// worktree against the source's stale local branch, so ahead counted everyone's
+			// commits since the first clone, not this executor's ("ahead 5" for 1 real commit).
+			BaseRef: wt.BaseRef,
 		}
 	}
 

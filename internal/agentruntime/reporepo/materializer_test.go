@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,8 +16,16 @@ import (
 
 // fakeGit is a recording GitRunner. It simulates just enough git side effects for
 // the materializer: `clone` creates <workdir>/<dst>/.git; `remote get-url origin`
-// returns a canned URL; every call is recorded and (optionally) delayed so the
-// per-repo_key mutex can be observed. It also injects per-subcommand errors.
+// returns a canned URL; `rev-parse --verify --quiet <ref>^{commit}` resolves against
+// `refs`; every call is recorded and (optionally) delayed so the per-repo_key mutex can
+// be observed. It also injects per-subcommand errors.
+//
+// NOTE this fake models ref RESOLUTION but not ref FRESHNESS — it cannot express "local
+// main is frozen while origin/main moved", which is the actual bug. That is precisely why
+// the base-advance regression lock lives in base_advance_test.go against REAL git; these
+// fake-git tests only pin the delegation shape (which candidate is asked for, in what
+// order). A fake whose rev-parse always agrees with itself would have happily passed the
+// pre-fix code.
 type fakeGit struct {
 	mu    sync.Mutex
 	calls [][]string // args of each call, in order
@@ -25,9 +34,38 @@ type fakeGit struct {
 	originURL string
 	errs      map[string]error
 	delay     time.Duration
+	// refs maps a fully-spelled ref (as rev-parse would be asked for it, without the
+	// ^{commit} peel) to the sha it resolves to. A ref absent here resolves to nothing —
+	// rev-parse --verify --quiet's contract: empty output, non-zero exit. nil ⇒ defaultRefs.
+	refs map[string]string
 
 	active    int
 	maxActive int
+}
+
+// defaultRefs is the ref layout of an ordinary freshly-cloned source: main exists both on
+// origin and locally, at the same sha (a clone's two views agree — they only diverge later,
+// once origin moves and the local branch does not).
+// HEAD resolves too, so sourceHealth's probe reads this fake source as healthy (a fake
+// whose HEAD did not resolve would drag every test through the quarantine/heal path).
+var defaultRefs = map[string]string{
+	"refs/remotes/origin/main": "aaaa111122223333444455556666777788889999",
+	"main":                     "aaaa111122223333444455556666777788889999",
+	"HEAD":                     "aaaa111122223333444455556666777788889999",
+}
+
+// resolveRef models `git rev-parse --verify --quiet <arg>`: strip the ^{commit} peel, look
+// the ref up, and return ("", exit-1-style error) when it names nothing.
+func (f *fakeGit) resolveRef(arg string) (string, error) {
+	refs := f.refs
+	if refs == nil {
+		refs = defaultRefs
+	}
+	name := strings.TrimSuffix(arg, "^{commit}")
+	if sha, ok := refs[name]; ok {
+		return sha, nil
+	}
+	return "", errors.New("fatal: needed a single revision")
 }
 
 func (f *fakeGit) Run(ctx context.Context, workdir string, env []string, args ...string) (string, error) {
@@ -59,6 +97,10 @@ func (f *fakeGit) Run(ctx context.Context, workdir string, env []string, args ..
 		}
 	case sub == "remote":
 		out = origin
+	case sub == "rev-parse" && len(args) >= 2:
+		sha, rerr := f.resolveRef(args[len(args)-1])
+		f.done()
+		return sha, rerr
 	}
 
 	f.done()
@@ -309,8 +351,10 @@ func TestPrepareAndRemoveWorktree_DelegatesAndNeverTouchesSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PrepareWorktree: %v", err)
 	}
-	if wt.BaseRef != "main" {
-		t.Fatalf("worktree base ref = %q, want main from source", wt.BaseRef)
+	// The base is PINNED to the sha origin/main resolved to — not the name "main".
+	wantSHA := defaultRefs["refs/remotes/origin/main"]
+	if wt.BaseRef != wantSHA {
+		t.Fatalf("worktree base ref = %q, want pinned sha %s", wt.BaseRef, wantSHA)
 	}
 	// worktree add must be issued from the SOURCE repo dir (delegated to WorktreeProvisioner).
 	if dir, ok := f.findCall("worktree", "add", "-b", "ac-exec/task-1/exec-1"); !ok {

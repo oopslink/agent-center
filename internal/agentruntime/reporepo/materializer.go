@@ -51,6 +51,10 @@ var (
 	// ErrSourceNotGitRepo is returned (fail-closed) when the source path exists but
 	// is not a git repository, so cloning into / reusing a stray dir is refused.
 	ErrSourceNotGitRepo = errors.New("reporepo: source path exists but is not a git repo (fail-closed)")
+	// ErrBaseRefUnresolved is returned (fail-closed) when the base ref names nothing
+	// resolvable in the canonical source — neither on origin nor locally. Branching off a
+	// silently-wrong base is worse than not spawning, so PrepareWorktree refuses.
+	ErrBaseRefUnresolved = errors.New("reporepo: base ref does not resolve in source (fail-closed)")
 )
 
 // RepoTarget identifies the repository to materialize (design §8).
@@ -97,7 +101,11 @@ type PreparedWorktree struct {
 	SourcePath    string
 	WorkspacePath string
 	Branch        string
-	BaseRef       string
+	// BaseRef is the concrete commit SHA the branch was actually cut from (resolved from
+	// origin at cut time — never a branch name). Callers MUST carry this, not the requested
+	// ref name, into the executor Record: it is what makes ahead-of-base count only this
+	// executor's own commits. See resolveBaseCommit.
+	BaseRef string
 }
 
 // RepoMaterializer is the replaceable port the runtime uses to materialize repo
@@ -385,9 +393,69 @@ func (m *LocalGitMaterializer) logf(format string, args ...any) {
 	m.Log(fmt.Sprintf(format, args...))
 }
 
+// baseRefCandidates is the resolution order for a base ref, remote-tracking FIRST.
+//
+// THE ORDER IS THE BUG FIX. `origin/<base>` is what `fetch --prune` advances; the local
+// branch `<base>` is what it does NOT — EnsureSource never merges, checks out, or
+// update-refs the local branch, so in a canonical source that is only ever fetched, local
+// `main` is frozen at the SHA the FIRST clone happened to see, forever. Resolving `main`
+// therefore used to hand every worktree a base that drifts further behind origin with
+// every commit anyone lands (observed in prod: local main 4 commits and ~3h stale, growing
+// without bound).
+//
+// Falling back to the bare ref keeps every non-branch base working unchanged: an explicit
+// SHA (refs/remotes/origin/<sha> never exists), a tag, an already-qualified `origin/main`
+// (which would otherwise become refs/remotes/origin/origin/main), or a local-only branch in
+// a source with no such remote branch.
+func baseRefCandidates(baseRef string) []string {
+	return []string{"refs/remotes/origin/" + baseRef, baseRef}
+}
+
+// resolveBaseCommit pins baseRef to the concrete commit SHA a worktree should branch off,
+// preferring origin's view of it (see baseRefCandidates). Returns ErrBaseRefUnresolved when
+// nothing resolves.
+//
+// PINNING TO A SHA — not returning the ref name — is the second half of the fix, and it is
+// what makes the first half safe. The BaseRef this returns is carried into the executor's
+// durable Record and later feeds `rev-list --count <base>..HEAD`, whose result gates the
+// eager-push (`BaseKnown && ahead<=0 && !Dirty` ⇒ silent skip ⇒ the commit dies with the
+// reaped worktree — issue-f30b7e7b). A MOVING base ref is poison for that count: had we
+// stored the name `origin/main`, every commit landing on origin mid-run would silently
+// decrement this executor's ahead count and could drive it to 0 while it holds real,
+// unpushed work. A SHA cannot move, so ahead counts exactly the commits THIS executor made
+// — no undercount (no lost delivery), and no overcount (the "ahead 5, actually 1" report
+// that made the number meaningless). The pinned commit stays reachable from the executor's
+// own branch, so it always resolves in the worktree afterwards.
+func (m *LocalGitMaterializer) resolveBaseCommit(ctx context.Context, sourcePath, baseRef string) (string, error) {
+	for _, cand := range baseRefCandidates(baseRef) {
+		// ^{commit} forces a commit (peels a tag, rejects a tree/blob); --verify --quiet
+		// exits non-zero with no output when the ref names nothing.
+		out, err := m.git(ctx, sourcePath, "rev-parse", "--verify", "--quiet", cand+"^{commit}")
+		if err != nil {
+			continue
+		}
+		if sha := strings.TrimSpace(out); sha != "" {
+			return sha, nil
+		}
+	}
+	return "", fmt.Errorf("base_ref=%q: %w", baseRef, ErrBaseRefUnresolved)
+}
+
 // PrepareWorktree derives a per-executor worktree on a fresh branch off the source,
 // delegating the git worktree add to executor.WorktreeProvisioner (design §8 —
 // reuse, don't rebuild). Serialized against clone/fetch/remove for the same repo_key.
+//
+// The base is resolved to a concrete commit (resolveBaseCommit) BEFORE the branch is cut,
+// so the worktree starts at origin's current tip rather than at a stale local branch, and
+// the returned BaseRef is that exact SHA rather than a name.
+//
+// Note what this deliberately does NOT do: fast-forward the source's local branch. The
+// canonical source is a non-bare checkout with <default_branch> checked out in its MAIN
+// worktree, so `update-ref refs/heads/main origin/main` there would move HEAD out from
+// under a populated index — the source's own worktree would read as "every file deleted",
+// and it is SHARED by every executor branching off it. Reading through origin/* instead
+// makes the local branch's staleness irrelevant rather than racing to correct it, and
+// touches no state any existing worktree depends on.
 func (m *LocalGitMaterializer) PrepareWorktree(ctx context.Context, source SourceRepo, req WorktreeRequest) (PreparedWorktree, error) {
 	if strings.TrimSpace(source.Path) == "" {
 		return PreparedWorktree{}, errors.New("reporepo: source path required")
@@ -410,11 +478,19 @@ func (m *LocalGitMaterializer) PrepareWorktree(ctx context.Context, source Sourc
 	lk.Lock()
 	defer lk.Unlock()
 
+	// Resolve to a SHA under the lock, so no concurrent fetch for this repo_key can move
+	// origin/<base> between the resolve and the branch cut: the SHA we record is provably
+	// the SHA we branched off.
+	baseCommit, rerr := m.resolveBaseCommit(ctx, source.Path, baseRef)
+	if rerr != nil {
+		return PreparedWorktree{}, fmt.Errorf("reporepo: resolve base repo_key=%s: %w", source.RepoKey, rerr)
+	}
+
 	prov, err := executor.NewWorktreeProvisioner(source.Path, m.runner)
 	if err != nil {
 		return PreparedWorktree{}, err
 	}
-	if err := prov.AddNewBranch(ctx, req.WorkspacePath, req.BranchName, baseRef); err != nil {
+	if err := prov.AddNewBranch(ctx, req.WorkspacePath, req.BranchName, baseCommit); err != nil {
 		return PreparedWorktree{}, err
 	}
 	return PreparedWorktree{
@@ -423,7 +499,7 @@ func (m *LocalGitMaterializer) PrepareWorktree(ctx context.Context, source Sourc
 		SourcePath:    source.Path,
 		WorkspacePath: req.WorkspacePath,
 		Branch:        req.BranchName,
-		BaseRef:       baseRef,
+		BaseRef:       baseCommit,
 	}, nil
 }
 
