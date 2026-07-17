@@ -411,6 +411,74 @@ func TestListMyInflightTasks_SurfacesAssignedTask(t *testing.T) {
 	}
 }
 
+// THE center-side half of the I107 review-round-1 lock: a PARKED task must LEAVE the
+// in-flight set. This drives the real HTTP route (deliver_task / block_task → then
+// list_my_inflight_tasks), because the runtime treats in-flight membership as "relaunch
+// an executor for this" and never consults status once a task is in the set.
+func TestListMyInflightTasks_ParkedTaskIsNotInflight(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		park func(t *testing.T, srvURL, tid string)
+	}{
+		{"delivered", func(t *testing.T, srvURL, tid string) {
+			st, b := postBearer(t, srvURL, "/admin/agent-tools/deliver_task", "acat_w1",
+				map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "handed over, awaiting acceptance"})
+			if st != http.StatusOK {
+				t.Fatalf("deliver_task status = %d, body = %v", st, b)
+			}
+		}},
+		{"blocked", func(t *testing.T, srvURL, tid string) {
+			st, b := postBearer(t, srvURL, "/admin/agent-tools/block_task", "acat_w1",
+				map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "needs PD triage", "reason_type": "obstacle"})
+			if st != http.StatusOK {
+				t.Fatalf("block_task status = %d, body = %v", st, b)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newWriteToolsFixture(t)
+			f.addWorkerToken(t, "acat_w1", atWorker1)
+			pid, _ := f.seedMemberProject(t)
+			srv := f.server(t)
+
+			status, body := postBearer(t, srv.URL, "/admin/agent-tools/create_task", "acat_w1",
+				map[string]any{"agent_id": atAgent1, "project_id": string(pid), "title": "parked",
+					"assignee": "agent:" + atAgent1, "dispatch": true})
+			if status != http.StatusOK {
+				t.Fatalf("create_task status = %d, body = %v", status, body)
+			}
+			f.drain(t)
+			tid, _ := body["task_id"].(string)
+
+			// open → running: a park is a transition OUT of running, so the task has to
+			// actually be running first.
+			if st, b := postBearer(t, srv.URL, "/admin/agent-tools/start_task", "acat_w1",
+				map[string]any{"agent_id": atAgent1, "task_id": tid}); st != http.StatusOK {
+				t.Fatalf("start_task status = %d, body = %v", st, b)
+			}
+			f.drain(t)
+
+			// Precondition: it IS in-flight while running — otherwise this test would
+			// pass for the wrong reason (e.g. the task never reached the set at all).
+			_, work := postBearer(t, srv.URL, "/admin/agent-tools/list_my_inflight_tasks", "acat_w1",
+				map[string]any{"agent_id": atAgent1})
+			if !listMyTasksHasTask(work, tid) {
+				t.Fatalf("precondition failed: running task %s not in-flight: %v", tid, work)
+			}
+
+			tc.park(t, srv.URL, tid)
+			f.drain(t)
+
+			_, work2 := postBearer(t, srv.URL, "/admin/agent-tools/list_my_inflight_tasks", "acat_w1",
+				map[string]any{"agent_id": atAgent1})
+			if listMyTasksHasTask(work2, tid) {
+				t.Fatalf("a %s task is STILL in-flight — boot self-reconcile would relaunch a fresh "+
+					"empty-context executor onto parked work: %v", tc.name, work2)
+			}
+		})
+	}
+}
+
 // listMyTasksHasTask reports whether the list_my_tasks response surfaces taskID in
 // its "tasks" array (each entry carries the task identity as "task_id").
 func listMyTasksHasTask(resp map[string]any, taskID string) bool {

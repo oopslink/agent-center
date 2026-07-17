@@ -167,7 +167,9 @@ func MigrateV1ToV2Command() *Command {
 // I105 Phase 1 added 0110 (pm_tasks.dispatch_mode — the per-NODE fork override: '' =
 // executor_fork = the pre-I105 routing, 'supervisor_inline' = route to the supervisor
 // instead of forking a center-action node into an empty workspace).
-const targetSchemaVersion = 110
+// I107/ADR-0054 added 0111 (partial indexes over the parked task states — renumbered
+// from 0110 at rebase to land after main's 0110_i105_task_dispatch_mode).
+const targetSchemaVersion = 111
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -79,6 +79,16 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskBlocked):
 		writeError(w, http.StatusConflict, "task_blocked", err.Error())
 
+	// ---- task_parked (409) — ADR-0054: a start/dispatch op on a PARKED task
+	// (delivered/blocked). Non-terminal but nothing is in flight, so starting it would
+	// fork a fresh empty-context executor onto work already handed over or deliberately
+	// paused. Distinct from task_blocked (a lease op on a legal pause) and from
+	// invalid_transition (a nonsense move): the move is refused because the task must be
+	// un-parked through its own door first — unblock_task, or the acceptance verdict
+	// (complete_task / rework_task). ----
+	case errors.Is(err, pm.ErrTaskParked):
+		writeError(w, http.StatusConflict, "task_parked", err.Error())
+
 	// ---- lease_still_live (409) — T862 reset_task mis-fire guard: reset_task on a task
 	// whose execution lease has NOT yet lapsed. A live lease means the agent may be alive
 	// and must be NUDGED (续租 + @-owner), never reset. The caller must wait for the lease
@@ -155,6 +165,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		// I105: create_task with an unknown dispatch_mode — rejected loudly rather
 		// than silently coerced, so a typo'd mark can never masquerade as a fork.
 		errors.Is(err, pm.ErrInvalidDispatchMode),
+		// ADR-0054: deliver_task without a summary — an unexplained delivery cannot be
+		// judged by the acceptance it is waiting on.
+		errors.Is(err, pm.ErrDeliverySummaryRequired),
 		// issue-4a45e9cc: a reported installed-skill with an unknown layer.
 		errors.Is(err, agent.ErrInvalidSkillLayer):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())

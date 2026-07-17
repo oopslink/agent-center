@@ -105,8 +105,26 @@ func TestReconcile_EscalateThenSilent(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("injections = %d, want 1 escalation nudge: %v", len(msgs), msgs)
 	}
-	if !strings.Contains(msgs[0], "[reminder]") || !strings.Contains(msgs[0], "input_required") {
-		t.Fatalf("escalation nudge = %q, want a [reminder] telling the supervisor to resolve/block_task(input_required)", msgs[0])
+	// I107 ③ — the escalation must offer every exit WITHOUT pre-writing a conclusion.
+	if !strings.Contains(msgs[0], "[reminder]") {
+		t.Fatalf("escalation nudge = %q, want a [reminder]", msgs[0])
+	}
+	for _, exit := range []string{"complete_task", "deliver_task", "block_task"} {
+		if !strings.Contains(msgs[0], exit) {
+			t.Fatalf("escalation nudge must offer the %s exit, got %q", exit, msgs[0])
+		}
+	}
+	// THE regression this test exists for: the prompt used to ship a ready-made
+	// block_task(reason="executor finished but delivery could not be judged — needs
+	// attention") that only needed a nod. That default asserted a failure that usually had
+	// NOT happened (the agent had judged; the system simply had no state for "judged fine,
+	// awaiting external acceptance"), and a canned reason on a repeated escalating nudge is
+	// how false state gets mass-produced. No canned reason may ever come back.
+	if strings.Contains(msgs[0], "could not be judged") {
+		t.Fatalf("escalation nudge must NOT preset a 'could not be judged' reason — it presumes a conclusion the agent may not have reached: %q", msgs[0])
+	}
+	if !strings.Contains(msgs[0], "WRITE THE REASON YOURSELF") {
+		t.Fatalf("escalation nudge must tell the agent to write its own reason, got %q", msgs[0])
 	}
 	snap := store.snapshot()
 	if len(snap) != 1 || !snap[0].Escalated {

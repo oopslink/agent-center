@@ -660,13 +660,24 @@ export interface Issue {
 }
 
 // Task mirrors the v2.7 ProjectManager BC Task projection. Tasks are
-// project-scoped (nested under /projects/{pid}/tasks). ADR-0046 simplified
-// state machine: open | running | completed | discarded | reopened. `blocked`
-// and `verified` are NO LONGER statuses — "stuck" is now a `blocked_reason`
-// annotation on a RUNNING task (see Task.blocked_reason below).
+// project-scoped (nested under /projects/{pid}/tasks). ADR-0054 state machine:
+// open | running | delivered | blocked | completed | discarded | reopened.
+//
+// `delivered` and `blocked` are the two NON-TERMINAL "parked" states (ADR-0054): the
+// task is still active work, but nothing is executing and it will not be dispatched.
+//   - delivered: the work is done and handed over, awaiting an EXTERNAL acceptance
+//     (review / verification / merge). NOT completed — nobody has accepted it, so it
+//     must never render as done.
+//   - blocked: parked on a blocked_reason, needs a human. ADR-0054 restored this as a
+//     real status; under ADR-0046 it was only a `blocked_reason` annotation on a
+//     still-`running` task, which could not stop dispatch. The annotation remains (see
+//     Task.blocked_reason) and still carries the reason text.
+// `verified` remains removed.
 export type TaskStatus =
   | 'open'
   | 'running'
+  | 'delivered'
+  | 'blocked'
   | 'completed'
   | 'discarded'
   | 'reopened';
@@ -687,9 +698,12 @@ export interface Task {
   assignee?: string;
   derived_from_issue?: string;
   completed_by?: string;
-  // ADR-0046: "stuck" annotation on a RUNNING task (no longer a status). When
-  // non-empty, the task is running but blocked on something; the UI surfaces a
-  // "Stuck" badge gated on status === 'running' && blocked_reason.
+  // The block REASON. ADR-0054 restored `blocked` as a real status, but this
+  // annotation stays — it carries the reason text, and the status carries the park.
+  // Non-empty ⇒ the task is parked on something. Note it may also be non-empty on a
+  // still-`running` task for LEGACY rows parked the ADR-0046 way (annotation-only,
+  // written before ADR-0054 and deliberately not migrated), so treat
+  // `blocked_reason` — not the status alone — as "is there a reason to show".
   blocked_reason?: string;
   // I14 classification of blocked_reason (input_required | obstacle); '' / absent
   // when the task is not blocked. Drives the global Alerts rail prioritization.

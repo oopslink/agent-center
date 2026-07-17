@@ -170,9 +170,15 @@ func TestTaskRepo_RoundTripWithAllFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := tr.FindByID(ctx, "T1")
-	// ADR-0046: Block is an annotation; status stays running, reason persisted.
-	if got.Status() != pm.TaskRunning || got.Assignee() != "agent:c" || got.BlockedReason() != "waiting" || got.DerivedFromIssue() != "I1" {
+	// ADR-0054: Block PARKS the task — the status really moves to `blocked` (that is what
+	// stops dispatch) AND the reason annotation is still written. Both must survive the
+	// round-trip: pm_tasks.status is a free TEXT column (no CHECK), so a status the repo
+	// failed to persist would come back silently wrong rather than as an error.
+	if got.Status() != pm.TaskBlocked || got.Assignee() != "agent:c" || got.BlockedReason() != "waiting" || got.DerivedFromIssue() != "I1" {
 		t.Fatalf("task round-trip lost fields: %+v", got)
+	}
+	if got.BlockedReasonType() != pm.BlockReasonObstacle {
+		t.Fatalf("blocked_reason_type not persisted: %q", got.BlockedReasonType())
 	}
 	_ = got.Unblock("", "agent:c", t0)
 	_ = got.Complete("agent:c", t0)

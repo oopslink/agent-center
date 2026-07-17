@@ -38,8 +38,8 @@ func TestMigration0076_FinalizeArchivedOpenTasks(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("second Up (apply 0076): %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 110 {
-		t.Fatalf("version after re-Up: got %d want 110", v)
+	if v, _ := mig.Version(ctx); v != 111 {
+		t.Fatalf("version after re-Up: got %d want 111", v)
 	}
 
 	assertArchivedBackfill(t, db)

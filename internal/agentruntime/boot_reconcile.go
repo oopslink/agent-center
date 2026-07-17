@@ -5,7 +5,7 @@ package agentruntime
 //
 // Boot(ctx) is the entry a durable, k8s-hosted runtime calls when it comes up. It
 // ties together this plan's earlier tracks:
-//   - D2 (list_my_inflight_tasks): the center's UNFILTERED active-task set for THIS
+//   - D2 (list_my_inflight_tasks): the center's DISPATCHABLE active-task set for THIS
 //     agent — the authority on "which of my on-disk executors are still mine".
 //   - D3 (orchestrator.RecoveryPlanner): the three-rung degradation ladder that says
 //     HOW to bring a should-continue-but-dead executor back (resume / rerun / fresh).
@@ -273,7 +273,7 @@ func (r *LocalRuntime) reconcileExecutors(ctx context.Context, ee *ExecutorEngin
 	return nil
 }
 
-// inflightTaskSet fetches this agent's UNFILTERED in-flight task set from the center
+// inflightTaskSet fetches this agent's DISPATCHABLE in-flight task set from the center
 // (D2). Returns (set, true) on success, (nil, false) on any failure/absent lister —
 // the fail-safe signal that reconcile must not cancel.
 func (r *LocalRuntime) inflightTaskSet(ctx context.Context) (map[string]bool, bool) {
@@ -291,9 +291,26 @@ func (r *LocalRuntime) inflightTaskSet(ctx context.Context) (map[string]bool, bo
 	}
 	set := make(map[string]bool, len(tasks))
 	for _, t := range tasks {
-		if t.TaskID != "" {
-			set[t.TaskID] = true
+		if t.TaskID == "" {
+			continue
 		}
+		// ADR-0054 (I107 review round 1): a PARKED task is active, so the center's
+		// active set legitimately contains it — but it has nothing in flight to
+		// relaunch. It must not enter the in-flight set, because in-flight membership
+		// SHORT-CIRCUITS classifyExecutor straight to adopt/recover and the
+		// cancel-evidence check (the only place status is consulted) is never reached.
+		// That is how a delivered task's dead executor got relaunched onto finished
+		// work in a real deployment while every unit test here stayed green.
+		//
+		// An UNKNOWN/empty status is deliberately NOT filtered: an older center that
+		// does not send one must keep the pre-ADR-0054 behavior (treat as in-flight →
+		// recover), never silently stop recovering real work.
+		if taskStatusIsSettledOrParked(t.Status) {
+			r.log("agent=%s self-reconcile: task=%s status=%q is parked/settled → NOT in-flight (no relaunch)",
+				r.cfg.AgentID, t.TaskID, t.Status)
+			continue
+		}
+		set[t.TaskID] = true
 	}
 	return set, true
 }
@@ -482,29 +499,54 @@ func (r *LocalRuntime) verifyThenCancel(ctx context.Context, ee *ExecutorEngine,
 
 // taskCancelEvidence is the PURE cancel-proof test: a task is safe to cancel its
 // executor for ONLY when the center says it is terminal (completed/discarded/
-// cancelled), it is BLOCKED (running + a non-empty blocked_reason), OR it is now
-// assigned to a DIFFERENT agent (reassigned). Anything else — running/open and still
-// mine with no block, or an empty/unknown status — is NOT proof, so the executor is
-// kept. Absence-from-inflight alone never reaches here.
+// cancelled), PARKED (delivered/blocked), it carries a non-empty blocked_reason, OR it
+// is now assigned to a DIFFERENT agent (reassigned). Anything else — running/open and
+// still mine with no block, or an empty/unknown status — is NOT proof, so the executor
+// is kept. Absence-from-inflight alone never reaches here.
 //
-// issue-88e32d98 P0: BLOCKED is cancel evidence. ADR-0046 leaves a blocked task
-// status=running, so status alone read "still mine, keep → relaunch" — which relaunched
-// a dead executor onto a task the center had deliberately blocked (the P67 Ship 事故).
-// A blocked task must NOT churn an executor; recovery finalizes instead of relaunching.
-// This only fires on a non-empty blocked_reason, so a healthy running task (blocked_reason
-// empty) still recovers normally — blocked-vs-stall stays distinguished.
+// This is the "别只改停、不改别复活" half of ADR-0054 (I107 命门 2). Stopping dispatch is
+// useless if the recovery chain reads the parked task as "still mine, still running →
+// relaunch" and resurrects it — every historical P0 in this function was one missed
+// dimension (taskReassigned missing the namespace; point-recovery missing
+// blocked_reason). Both point-recovery (executor_point_recovery.go) and boot
+// self-reconcile (verifyThenCancel) route their should-continue decision through here,
+// so the two new parked statuses are added at this ONE seam rather than at each caller.
+//
+// The three arms are deliberately redundant, not alternatives:
+//   - the STATUS arm is ADR-0054's positive proof (a parked task has left running);
+//   - the blocked_reason arm is issue-88e32d98's P0 fix and still load-bearing for
+//     LEGACY rows parked the ADR-0046 way (status=running + a reason), which the status
+//     arm alone would read as a healthy running task and relaunch — the P67 Ship 事故;
+//   - the assignee arm catches a handover.
+//
+// A healthy running task (not parked, no reason, still mine) still recovers normally —
+// parked-vs-stall stays distinguished, so a genuine crash is not mistaken for a park.
 func taskCancelEvidence(detail *centerTaskDetail, agentID string) bool {
 	if detail == nil {
 		return false
 	}
-	switch strings.ToLower(strings.TrimSpace(detail.Status)) {
-	case "completed", "discarded", "cancelled", "canceled":
+	if taskStatusIsSettledOrParked(detail.Status) {
 		return true
 	}
 	if strings.TrimSpace(detail.BlockedReason) != "" {
 		return true
 	}
 	return taskReassigned(detail.Assignee, agentID)
+}
+
+// taskStatusIsSettledOrParked reports whether a center-reported task status means "do
+// NOT (re)launch an executor for this": it is concluded (terminal) or parked (ADR-0054
+// delivered/blocked). It mirrors pm.TaskStatus.IsTerminal/IsParked over the WIRE string —
+// agentruntime reads the status out of the get_task JSON projection and deliberately does
+// not import the projectmanager domain, so the vocabulary is duplicated here on purpose.
+// "cancelled"/"canceled" are legacy spellings of discarded kept for older centers.
+func taskStatusIsSettledOrParked(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed", "discarded", "cancelled", "canceled", // terminal
+		"delivered", "blocked": // ADR-0054 parked
+		return true
+	}
+	return false
 }
 
 // taskReassigned reports whether a non-empty assignee names an agent OTHER than this

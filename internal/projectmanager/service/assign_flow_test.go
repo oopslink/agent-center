@@ -172,10 +172,10 @@ func TestCreateIssue_GatingAndUnsubscribe(t *testing.T) {
 	}
 }
 
-// TestBlockAnnotates_Unblock is the ADR-0046 acceptance (replaces the old §10 OQ11
-// cancel-on-block contract): Block is an ANNOTATION on a RUNNING task — status
-// stays running ("blocked" is no longer a state, so there is no deadlock). Unblock
-// clears the reason; the task stays running.
+// TestBlockAnnotates_Unblock is the block/unblock round-trip acceptance. ADR-0054
+// amends the ADR-0046 contract it originally pinned: Block now PARKS the task (status →
+// blocked, which is what actually stops dispatch) while STILL writing the reason
+// annotation; Unblock un-parks it back to running and clears the reason.
 func TestBlockAnnotates_Unblock(t *testing.T) {
 	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
@@ -184,16 +184,17 @@ func TestBlockAnnotates_Unblock(t *testing.T) {
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
 	_ = svc.StartTask(ctx, tid, "user:a")
 
-	// Block the Task → ANNOTATION only: status stays running.
+	// Block the Task → ADR-0054 PARK: status really moves to blocked (that is what stops
+	// dispatch) AND the reason annotation is still written.
 	if err := svc.BlockTask(ctx, tid, "needs key", pm.BlockReasonObstacle, "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	tk, _ := svc.tasks.FindByID(ctx, tid)
-	if tk.Status() != pm.TaskRunning || tk.BlockedReason() != "needs key" {
-		t.Fatalf("after block: want running + reason set, got %s / %q", tk.Status(), tk.BlockedReason())
+	if tk.Status() != pm.TaskBlocked || tk.BlockedReason() != "needs key" {
+		t.Fatalf("after block: want blocked + reason set, got %s / %q", tk.Status(), tk.BlockedReason())
 	}
 
-	// Unblock → reason cleared; task stays running.
+	// Unblock → un-parked back to running, reason cleared.
 	if err := svc.UnblockTask(ctx, UnblockTaskCommand{TaskID: tid, Actor: "user:a"}); err != nil {
 		t.Fatal(err)
 	}

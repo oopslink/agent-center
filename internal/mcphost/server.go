@@ -287,19 +287,37 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// block_task/unblock_task are the unified pause channel (v2.14.0 I14 §四): an
 	// agent that can't proceed calls block_task with a reason_type — input_required
 	// (it needs a user reply, surfaced as an input box in the task Conversation) or
-	// obstacle (an external blocker needs owner/PM intervention). block keeps the
-	// task running + assigned and clears the lease; an owner/PM (or the user's reply)
-	// clears it with unblock_task, leaving the answer in blocked_comment. block is a
-	// self-report; unblock is operator/user recovery.
+	// obstacle (an external blocker needs owner/PM intervention). ADR-0054: block now
+	// PARKS the task (status → blocked), which is what actually stops dispatch — under
+	// ADR-0046 it only annotated a still-running task, so a re-drive forked a fresh
+	// empty-context executor onto it. It keeps the assignee and clears the lease; an
+	// owner/PM (or the user's reply) recovers it with unblock_task (blocked→running),
+	// leaving the answer in blocked_comment. block is a self-report; unblock is
+	// operator/user recovery.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "block_task",
-		Description: "Report that the task you are running can't proceed and needs outside help. Set reason_type to \"input_required\" when you need a user reply (rendered as an input box in the task's Conversation; the user's answer comes back in blocked_comment) or \"obstacle\" when an external blocker needs owner/PM intervention (defaults to obstacle). The task stays yours and running; you resume once it is unblocked.",
+		Description: "Report that the task you are running is STUCK and needs outside help — use it only when something genuinely blocks you, not to park work you have finished (that is deliver_task). Set reason_type to \"input_required\" when you need a user reply (rendered as an input box in the task's Conversation; the user's answer comes back in blocked_comment) or \"obstacle\" when an external blocker needs owner/PM intervention (defaults to obstacle). Write the reason yourself, describing what is actually true. The task stays yours and keeps its assignee, but it is PARKED: it leaves running and is not dispatched again until someone unblocks it.",
 	}, makeBlockTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "unblock_task",
-		Description: "Clear the block on a task (the counterpart of block_task): wipe its blocked_reason — leaving your note in blocked_comment — and re-wake its assignee so it continues. The task was already running and assigned (block doesn't change that); this just unsticks it. Use for an obstacle you've resolved, or to recover a task stuck blocked after a restart.",
+		Description: "Recover a BLOCKED task (the counterpart of block_task): un-park it back to running, wipe its blocked_reason — leaving your note in blocked_comment — and re-wake its assignee so it continues. The assignee is unchanged (block doesn't hand the task to anyone else); this just unsticks it. Use for an obstacle you've resolved, or to recover a task stuck blocked after a restart.",
 	}, makeUnblockTask(cfg))
+
+	// deliver_task/rework_task are the ACCEPTANCE channel (ADR-0054, I107 ①) — the state
+	// the model was missing. "Work is done but somebody else must accept it" is the most
+	// common orchestration position there is, and it had no true state: running lied,
+	// completed was a false green, blocked was a false alarm. deliver_task names it; its
+	// two exits are complete_task (accept) and rework_task (reject).
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "deliver_task",
+		Description: "Report that your running task's work is DONE and handed over, but ACCEPTANCE is somebody else's call (review / verification / merge). Pass summary= describing what you delivered so the acceptor can judge it. This is the honest answer when the work is finished and nothing is wrong — do NOT use complete_task (that claims it is accepted and fires everything downstream) and do NOT use block_task (that claims you are stuck and pages a human). The task parks as `delivered`: it keeps its assignee, stops being dispatched, frees you to start your next task, and is NOT counted as done. It leaves `delivered` only when someone calls complete_task (accepted) or rework_task (rejected — it comes back to you).",
+	}, makeDeliverTask(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "rework_task",
+		Description: "REJECT a delivered task (the counterpart of deliver_task, and the reject half of an acceptance verdict): send it back to its assignee as running, with your comment= reaching them in blocked_comment. Use complete_task instead to ACCEPT the delivery. Cross-agent by design — you reject someone else's delivery. Use this rather than block_task for a rejected delivery: the work is actionable in the assignee's court, not stuck waiting on the outside world.",
+	}, makeReworkTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "reset_task",

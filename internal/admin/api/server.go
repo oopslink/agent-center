@@ -384,7 +384,8 @@ func (s *Server) routes() {
 	// v2.14.0 F7 (issue I14): get_my_work + the work-item fail_task/pause_task/
 	// resume_task routes were removed — AgentWorkItem retired (no compat).
 	s.mux.HandleFunc("POST /admin/agent-tools/list_my_tasks", s.listMyTasksHandler)
-	// Runtime-facing reconcile query (§4.2): the UNFILTERED in-flight (open/running)
+	// Runtime-facing reconcile query (§4.2): the DISPATCHABLE in-flight (open/running,
+	// minus ADR-0054 parked)
 	// set — includes deps-unsatisfied tasks list_my_tasks drops. Admin-only agent-tool
 	// (the runtime's center client calls it; not an MCP tool for the supervisor).
 	s.mux.HandleFunc("POST /admin/agent-tools/list_my_inflight_tasks", s.listMyInflightTasksHandler)
@@ -423,6 +424,11 @@ func (s *Server) routes() {
 	// message through the same MessageWriter path as human-created DMs.
 	s.mux.HandleFunc("POST /admin/agent-tools/start_dm", s.startDMHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
+	// ADR-0054 (I107 ①): the honest exit for "delivered, awaiting external acceptance"
+	// + its reject twin. deliver_task is own-task (the assignee delivers); rework_task is
+	// cross-agent by design (acceptance is somebody ELSE's call).
+	s.mux.HandleFunc("POST /admin/agent-tools/deliver_task", s.deliverTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/rework_task", s.reworkTaskHandler)
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
 	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/reset_task", s.resetTaskHandler) // T862 tier-3 recovery

@@ -628,9 +628,11 @@ func TestBlockTask_OK(t *testing.T) {
 	if !found {
 		t.Fatalf("block reason not posted to task conv")
 	}
-	// ADR-0046: block sets a reason annotation; status stays running (never a state).
-	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
-		t.Fatalf("task status = %s, want running (blocked is an annotation)", got)
+	// ADR-0054: block PARKS the task — status really moves to blocked, which is what stops
+	// dispatch (under ADR-0046 it stayed running, so a block only marked and a re-drive
+	// could still fork a fresh executor onto it).
+	if got := f.taskStatus(t, tid); got != pm.TaskBlocked {
+		t.Fatalf("task status = %s, want blocked (block must park the task)", got)
 	}
 }
 
@@ -975,9 +977,9 @@ func TestUnblockTask_OK(t *testing.T) {
 		map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "agent execution failed"}); status != http.StatusOK {
 		t.Fatalf("block status = %d body=%v", status, body)
 	}
-	// ADR-0046: blocked is a running-task annotation, not a state.
-	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
-		t.Fatalf("precondition: task should be running with a block annotation, got %s", got)
+	// ADR-0054: blocked is a real, parked state again.
+	if got := f.taskStatus(t, tid); got != pm.TaskBlocked {
+		t.Fatalf("precondition: task should be parked (blocked), got %s", got)
 	}
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",

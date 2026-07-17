@@ -125,6 +125,16 @@ var (
 	// task cannot renew its execution lease (a block is a lease-free pause).
 	ErrNotTaskAssignee = errors.New("projectmanager: actor is not the task assignee")
 	ErrTaskBlocked     = errors.New("projectmanager: task is blocked (no execution lease)")
+	// ErrTaskParked guards the DISPATCH entrypoints against an ADR-0054 parked task
+	// (delivered / blocked): the work is non-terminal but has nothing in flight, so
+	// starting it would fork a fresh empty-context executor onto work already handed over
+	// or deliberately paused. Recover a parked task through its own door instead — Unblock
+	// (blocked), or Complete/Rework (delivered, the acceptance verdict's two exits).
+	ErrTaskParked = errors.New("projectmanager: task is parked (delivered or blocked) — recover it via unblock / acceptance, not start")
+	// ErrDeliverySummaryRequired guards Task.Deliver: a delivery that says nothing cannot
+	// be judged by the external acceptance it is waiting on, and an unexplained
+	// `delivered` is exactly the un-actionable state I107 ① exists to abolish.
+	ErrDeliverySummaryRequired = errors.New("projectmanager: deliver requires a summary of what was delivered")
 	// ErrLeaseStillLive guards ResetToOpen (T862 reset_task): a tier-3 recovery reset
 	// (running→open, orphan back to pool) is only legal once the running agent's
 	// execution lease has ALSO LAPSED — a still-live lease means the agent may yet be

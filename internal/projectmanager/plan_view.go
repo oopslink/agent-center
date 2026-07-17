@@ -87,6 +87,25 @@ func DeriveNodeStatus(taskStatus TaskStatus, upstreamAllDone bool, dispatched bo
 		return NodeDone
 	case taskIsFailed(taskStatus):
 		return NodeFailed
+	// ADR-0054: the two PARKED states must be caught here, ABOVE the upstream-gating
+	// arms. Without this they fall through to the !upstreamAllDone / dispatched / default
+	// tail and a delivered node renders `ready` or `dispatched` — i.e. the DAG would
+	// advertise finished-and-handed-over work as startable, which is the re-dispatch this
+	// issue exists to stop, and the board would read a parked node as merely un-started.
+	//
+	// `blocked` → NodePaused, NOT NodeBlocked: the node-status vocabulary already spends
+	// `blocked` on "upstream deps unsatisfied" (§9.7), and NodePaused is the exact
+	// existing meaning — set aside by its agent, an operator must resume it. Collapsing
+	// the two would re-create the ADR-0046 name clash in the DERIVED layer.
+	//
+	// `delivered` → NodeRunning: from the DAG's point of view the node is un-settled work
+	// in flight (it is not done until the acceptance says so), so downstream stays gated
+	// and the node stays immutable. It is not `paused` — nobody set it aside, it is
+	// progressing through an external verdict.
+	case taskStatus == TaskBlocked:
+		return NodePaused
+	case taskStatus == TaskDelivered:
+		return NodeRunning
 	case taskStatus == TaskRunning:
 		// T53: a running task whose agent paused its work item shows `paused`, not
 		// `running` — so the DAG/card tells the truth (the agent set it aside) and an
@@ -124,7 +143,13 @@ func NodeMutable(status TaskStatus, dispatched bool) bool {
 	if dispatched {
 		return false
 	}
-	if taskIsDone(status) || taskIsFailed(status) || status == TaskRunning {
+	// ADR-0054: a PARKED node (delivered / blocked) is settled-enough to be IMMUTABLE. It
+	// has already executed — a delivered node's work is done and under review, a blocked
+	// node's is half-done and paused — so live-editing its in-edges or deleting it would
+	// disturb exactly the in-flight work this predicate exists to protect. Without this
+	// arm both fall to `return true` (they are not done/failed/running and, once parked,
+	// often carry no dispatch record), and the DAG would let them be edited away.
+	if taskIsDone(status) || taskIsFailed(status) || status == TaskRunning || status.IsParked() {
 		return false
 	}
 	return true

@@ -99,11 +99,15 @@ func (a *centerClientAdapter) PostToTask(ctx context.Context, agentID, taskID, c
 	return a.caller.CallAgentTool(ctx, "post_message", body, nil)
 }
 
-// InflightTask is one entry from list_my_inflight_tasks — an agent's active
-// (open/running) task in the UNFILTERED in-flight set (design §4.2), including tasks
-// whose deps are unsatisfied (which list_my_tasks drops). The reconcile pass (§4.4)
-// reconciles each on-disk executor Record against this set: present ⇒ adopt/recover;
-// absent (discarded / completed / reassigned / plan stopped) ⇒ stop + clean up.
+// InflightTask is one entry from list_my_inflight_tasks — an agent's DISPATCHABLE
+// active task (design §4.2), including tasks whose deps are unsatisfied (which
+// list_my_tasks drops). The reconcile pass (§4.4) reconciles each on-disk executor
+// Record against this set: present ⇒ adopt/recover; absent (discarded / completed /
+// reassigned / plan stopped / ADR-0054 parked) ⇒ stop + clean up.
+//
+// Membership here is LICENCE TO RELAUNCH, not "the task exists": presence short-circuits
+// classifyExecutor to adopt/recover WITHOUT consulting Status, so anything that must not
+// be relaunched has to be absent from the set rather than merely marked in it.
 type InflightTask struct {
 	TaskID            string `json:"task_id"`
 	Title             string `json:"title"`
@@ -138,8 +142,9 @@ func NewInflightTaskLister(caller ToolCaller) InflightTaskLister {
 }
 
 // ListMyInflightTasks → POST /admin/agent-tools/list_my_inflight_tasks {agent_id}. The
-// center returns the UNFILTERED active set (ListAssignedAgentTasks), so a running task
-// with unsatisfied deps is INCLUDED (unlike list_my_tasks). Returns an empty slice for
+// center returns the active set minus the ADR-0054 parked states (delivered / blocked —
+// active, but with nothing in flight to relaunch), so a running task with unsatisfied
+// deps is still INCLUDED (unlike list_my_tasks). Returns an empty slice for
 // a well-formed empty response.
 func (a *centerClientAdapter) ListMyInflightTasks(ctx context.Context, agentID string) ([]InflightTask, error) {
 	body := map[string]any{"agent_id": agentID}

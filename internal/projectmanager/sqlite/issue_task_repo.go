@@ -396,11 +396,11 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		`SELECT t.assignee, t.status, COUNT(*) FROM pm_tasks t
-		   WHERE t.assignee IS NOT NULL AND t.assignee != '' AND t.status IN (?, ?)
+		   WHERE t.assignee IS NOT NULL AND t.assignee != '' AND t.status IN (?, ?, ?, ?)
 		     AND (t.plan_id IS NULL OR t.plan_id = ''
 		          OR t.plan_id NOT IN (SELECT id FROM pm_plans WHERE status IN (?, ?)))
 		   GROUP BY t.assignee, t.status`,
-		string(pm.TaskRunning), string(pm.TaskOpen),
+		string(pm.TaskRunning), string(pm.TaskOpen), string(pm.TaskDelivered), string(pm.TaskBlocked),
 		string(pm.PlanArchived), string(pm.PlanDone))
 	if err != nil {
 		return nil, err
@@ -414,10 +414,15 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 			return nil, err
 		}
 		l := out[pm.IdentityRef(assignee)]
+		// ADR-0054: a parked task (delivered/blocked) is still the agent's ASSIGNED work, so
+		// it counts toward the backlog — dropping it would make an agent's board look emptier
+		// than it is, hiding exactly the tasks that need a human. It counts as Pending, not
+		// Running: nothing is executing (the run slot is released — see AgentFreedFromTask),
+		// so counting it Running would make a free agent read as busy and stall dispatch.
 		switch pm.TaskStatus(status) {
 		case pm.TaskRunning:
 			l.Running += n
-		case pm.TaskOpen:
+		case pm.TaskOpen, pm.TaskDelivered, pm.TaskBlocked:
 			l.Pending += n
 		}
 		out[pm.IdentityRef(assignee)] = l
@@ -426,21 +431,23 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 }
 
 // ListActiveByAssignee returns the actual task rows that CountActiveByAssignee
-// counts for one assignee: non-terminal (open/running) tasks that are NOT in a
-// terminal (archived/done) plan, stable-ordered (created_at, id). It is the
+// counts for one assignee: non-terminal (open/running/delivered/blocked) tasks that are
+// NOT in a terminal (archived/done) plan, stable-ordered (created_at, id). It is the
 // list-shaped twin of the backlog metric, so the Agent-detail Tasks panel can
 // show EXACTLY the set the "backlog: N" badge counts — including tasks whose
 // plan dependencies are not yet satisfied (these are pending/queued work, just
-// not pullable yet). Mirrors the CountActiveByAssignee predicate verbatim.
+// not pullable yet). Mirrors the CountActiveByAssignee predicate verbatim — the two
+// status lists MUST stay identical or the panel and the badge disagree again (the
+// @oopslink-reported mismatch this twin exists to fix).
 func (r *TaskRepo) ListActiveByAssignee(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		taskSelect+` WHERE assignee = ? AND status IN (?, ?)
+		taskSelect+` WHERE assignee = ? AND status IN (?, ?, ?, ?)
 		     AND (plan_id IS NULL OR plan_id = ''
 		          OR plan_id NOT IN (SELECT id FROM pm_plans WHERE status IN (?, ?)))
 		   ORDER BY created_at, id`,
 		string(assignee),
-		string(pm.TaskRunning), string(pm.TaskOpen),
+		string(pm.TaskRunning), string(pm.TaskOpen), string(pm.TaskDelivered), string(pm.TaskBlocked),
 		string(pm.PlanArchived), string(pm.PlanDone))
 	if err != nil {
 		return nil, err

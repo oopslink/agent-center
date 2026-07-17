@@ -8,15 +8,16 @@ import (
 var t0 = time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
 
 // TestTaskStatus_IsTerminal_Partition pins the terminal/active partition that
-// the observability default task-query relies on (v2.7 #107 proj-B). ADR-0046
-// (7→5 states): terminal = {completed, discarded}; active (non-terminal) =
-// {open, running, reopened}. "blocked"/"verified" deleted. v2.8.1: no "assigned"
-// state (assignee is metadata). Iterating every enum value guards against a new
-// status silently landing on the wrong side (the proj-A "core-enum" §-1 lesson).
+// the observability default task-query relies on (v2.7 #107 proj-B). ADR-0054
+// (7 states): terminal = {completed, discarded}; active (non-terminal) =
+// {open, running, delivered, blocked, reopened}. "verified" stays deleted. v2.8.1: no
+// "assigned" state (assignee is metadata). Iterating every enum value guards against a
+// new status silently landing on the wrong side (the proj-A "core-enum" §-1 lesson) —
+// which is why AllTaskStatuses is the single source it iterates, rather than a list
+// copied here that a later status could quietly fall off.
 func TestTaskStatus_IsTerminal_Partition(t *testing.T) {
 	terminal := map[TaskStatus]bool{TaskCompleted: true, TaskDiscarded: true}
-	all := []TaskStatus{TaskOpen, TaskRunning, TaskCompleted, TaskDiscarded, TaskReopened}
-	for _, s := range all {
+	for _, s := range AllTaskStatuses() {
 		if !s.IsValid() {
 			t.Fatalf("%s not IsValid — enum drift", s)
 		}
@@ -24,15 +25,18 @@ func TestTaskStatus_IsTerminal_Partition(t *testing.T) {
 			t.Fatalf("IsTerminal(%s) = %v, want %v", s, got, terminal[s])
 		}
 	}
-	// Exactly 2 terminal, 3 active.
+	// Exactly 2 terminal, 5 active.
 	var nTerminal int
-	for _, s := range all {
+	for _, s := range AllTaskStatuses() {
 		if s.IsTerminal() {
 			nTerminal++
 		}
 	}
 	if nTerminal != 2 {
 		t.Fatalf("expected 2 terminal statuses, got %d", nTerminal)
+	}
+	if n := len(AllTaskStatuses()); n != 7 {
+		t.Fatalf("expected 7 statuses, got %d — update this partition deliberately, never incidentally", n)
 	}
 }
 
@@ -129,15 +133,17 @@ func TestTaskBlockRequiresReason(t *testing.T) {
 	if err := tk.Block("waiting on API key", BlockReasonObstacle, "agent:c", t0); err != nil {
 		t.Fatal(err)
 	}
-	// ADR-0046: Block is an annotation on a RUNNING task — status stays running.
-	if tk.Status() != TaskRunning || tk.BlockedReason() == "" {
-		t.Fatal("blocked-reason annotation set, status stays running")
+	// ADR-0054: Block PARKS the task (status→blocked, which is what stops dispatch) AND
+	// still writes the reason annotation every reason-keyed consumer reads.
+	if tk.Status() != TaskBlocked || tk.BlockedReason() == "" {
+		t.Fatalf("Block must park (status=blocked) and set the reason, got %s / %q", tk.Status(), tk.BlockedReason())
 	}
 	if err := tk.Unblock("", "agent:c", t0); err != nil {
 		t.Fatal(err)
 	}
+	// Unblock is the recovery door: blocked→running with the reason cleared.
 	if tk.Status() != TaskRunning || tk.BlockedReason() != "" {
-		t.Fatal("unblock clears reason, status stays running")
+		t.Fatal("unblock must un-park to running and clear the reason")
 	}
 }
 

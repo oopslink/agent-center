@@ -40,8 +40,9 @@ func TestBlock_SetsAnnotationClearsLeaseLogs(t *testing.T) {
 	if err := tk.Block("need a decision", BlockReasonInputRequired, "agent:c", at); err != nil {
 		t.Fatalf("Block: %v", err)
 	}
-	if tk.Status() != TaskRunning {
-		t.Fatalf("Block must keep status running, got %s", tk.Status())
+	// ADR-0054: Block leaves `running` — that status change IS the circuit-breaker.
+	if tk.Status() != TaskBlocked {
+		t.Fatalf("Block must park the task (status=blocked), got %s", tk.Status())
 	}
 	if tk.Assignee() != "agent:c" {
 		t.Fatalf("Block must keep assignee, got %q", tk.Assignee())
@@ -217,8 +218,10 @@ func TestExpireLease_NoOpCases(t *testing.T) {
 	if err := tk3.ExpireLease(t0.Add(time.Hour)); err != nil {
 		t.Fatalf("ExpireLease on blocked: %v", err)
 	}
-	if tk3.Status() != TaskRunning {
-		t.Fatalf("blocked task must not be reclaimed by lease, got %s", tk3.Status())
+	// The guarantee is unchanged (a legal pause is never lease-reclaimed); ADR-0054 only
+	// changes what "blocked" looks like — it must stay PARKED, not be forced back to open.
+	if tk3.Status() != TaskBlocked {
+		t.Fatalf("blocked task must not be reclaimed by lease (must stay parked), got %s", tk3.Status())
 	}
 }
 
@@ -281,8 +284,8 @@ func TestNudgeOnLeaseExpiry_NoOpCases(t *testing.T) {
 	if fired, err := tk3.NudgeOnLeaseExpiry(time.Hour, t0.Add(time.Hour)); err != nil || fired {
 		t.Fatalf("blocked must be a no-op, fired=%v err=%v", fired, err)
 	}
-	if tk3.Status() != TaskRunning {
-		t.Fatalf("blocked task unchanged, got %s", tk3.Status())
+	if tk3.Status() != TaskBlocked {
+		t.Fatalf("blocked task must stay parked and un-nudged, got %s", tk3.Status())
 	}
 }
 

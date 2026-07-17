@@ -351,6 +351,17 @@ func (s *Service) WorkerRenewLease(ctx context.Context, taskID pm.TaskID, agentR
 		if ferr != nil {
 			return ferr
 		}
+		// ADR-0054: test PARKED before the generic non-running arm. Both revoke (the fuse
+		// fires either way — that is what the P0 needs), but the reason string is what the
+		// worker log says happened, and a park reported as "terminal" is precisely the kind
+		// of false state this issue exists to stop. Under ADR-0046 a block left the task
+		// running, so it reached the RenewLease→ErrTaskBlocked arm below to earn its
+		// "blocked" label; now that a block LEAVES running, this arm would have swallowed it
+		// as "terminal" — a task that is neither concluded nor dead.
+		if !t.IsArchived() && t.Status().IsParked() {
+			revoked, reason = true, "blocked"
+			return nil
+		}
 		if t.IsArchived() || t.Status() != pm.TaskRunning {
 			revoked, reason = true, "terminal" // nothing alive to keep alive → stop the executor
 			return nil
@@ -556,8 +567,8 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
 		}
-		// audit §5: record the block as a human-facing running→blocked status change.
-		s.auditTaskBlocked(txCtx, t, reasonType, reason, actor)
+		// audit §5: record the block as a human-facing <prev>→blocked status change.
+		s.auditTaskBlocked(txCtx, t, prevStatus, reasonType, reason, actor)
 		// F6 §3: an input_required block needs a USER reply → emit a SECOND event in
 		// THIS tx so the TaskInputConversationProjector surfaces an interactive
 		// input_request message in the task's bound Conversation (sender=assignee).

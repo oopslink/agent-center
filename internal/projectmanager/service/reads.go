@@ -423,7 +423,12 @@ func (s *Service) ListRunnableAgentTasks(ctx context.Context, assignee pm.Identi
 	out := make([]*pm.Task, 0, len(tasks))
 	for _, t := range tasks {
 		if t.Status() != pm.TaskOpen && t.Status() != pm.TaskRunning {
-			continue // terminal (completed/discarded) — history, not actionable
+			// Terminal (completed/discarded) is history; ADR-0054 parked (delivered/blocked)
+			// is active work with nothing to run — both are un-pullable. This allow-list is a
+			// SECOND independent gate: EnsureTaskRunnable below rejects parked tasks too, and
+			// the redundancy is deliberate — this is the "what can I start now" feed, and the
+			// historical P0s here came from one gate being reachable while another was missed.
+			continue
 		}
 		if err := s.EnsureTaskRunnable(ctx, t.ID()); err != nil {
 			if errors.Is(err, pm.ErrTaskNotRunnable) {
@@ -451,24 +456,28 @@ func (s *Service) ListAssignedAgentTasks(ctx context.Context, assignee pm.Identi
 
 // AgentFreedFromTask reports whether the given task no longer occupies its agent
 // assignee's single-active slot — i.e. the agent is free to start its next task.
-// True when the task is terminal (completed/discarded) OR a blocked, lease-free
-// RUNNING task (Block keeps status=running but releases the §13.B single-active
-// index, so the agent CAN start another). False for a plain running task (a fresh
-// start/claim/resume) so the dispatch-wake re-push trigger does not misfire on
-// open→running. Used by T465's re-push trigger (issue I34).
+// True when the task is terminal (completed/discarded) or PARKED (ADR-0054:
+// delivered/blocked — no executor is in flight, so the slot is released). False for a
+// plain running task (a fresh start/claim/resume) so the dispatch-wake re-push trigger
+// does not misfire on open→running. Used by T465's re-push trigger (issue I34).
+//
+// ADR-0054: `delivered` frees the slot for the same reason `blocked` does — the agent
+// handed the work over and is waiting on someone else, so making it sit idle until an
+// external acceptance lands would strand a live agent behind a queue it cannot advance.
+// The legacy running+blocked_reason arm is KEPT so rows parked the ADR-0046 way (before
+// this change) still free their slot rather than pinning an agent forever.
 func (s *Service) AgentFreedFromTask(ctx context.Context, taskID pm.TaskID) (bool, error) {
 	t, err := s.tasks.FindByID(ctx, taskID)
 	if err != nil {
 		return false, err
 	}
-	switch t.Status() {
-	case pm.TaskCompleted, pm.TaskDiscarded:
+	if t.Status().IsTerminal() || t.Status().IsParked() {
 		return true, nil
-	case pm.TaskRunning:
-		return t.BlockedReason() != "", nil // blocked running task frees the slot
-	default:
-		return false, nil
 	}
+	if t.Status() == pm.TaskRunning {
+		return t.BlockedReason() != "", nil // legacy ADR-0046 parked row frees the slot
+	}
+	return false, nil
 }
 
 // TaskClaimableByID derives whether a single task is claimable right now (ADR-0047

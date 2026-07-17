@@ -757,6 +757,106 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "blocked"})
 }
 
+// --- deliver_task / rework_task (ADR-0054, I107 ①) ----------------------------
+
+type deliverTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+	Summary string `json:"summary"`
+}
+
+// deliverTaskHandler posts the delivery summary to the task Conversation AND moves the
+// task running→delivered via pm.DeliverTask — ATOMICALLY (one outer RunInTx), mirroring
+// blockTaskHandler: the human-facing record and the state change must not be able to
+// disagree.
+//
+// This is the honest exit for "my work is done, but accepting it is not my call". Before
+// it existed the agent had to pick a lie — complete_task (a false green: nothing accepted
+// it) or block_task (a false alarm: nothing is stuck). Same own-task/backlog gates as
+// block_task: only the running assignee delivers its own task.
+func (s *Server) deliverTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req deliverTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.MessageWriter == nil || d.ConvRepo == nil || d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_or_conversation_not_wired", "")
+		return
+	}
+	if d.DB == nil {
+		writeError(w, http.StatusNotImplemented, "db_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.Summary) == "" {
+		writeError(w, http.StatusBadRequest, "missing_summary", "deliver requires a summary of what was delivered")
+		return
+	}
+	if s.rejectIfBacklog(w, r, d, req.TaskID, "delivering") {
+		return
+	}
+	if !s.requireOwnTask(w, r, d, a, req.TaskID) {
+		return
+	}
+	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
+		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Summary, ""); err != nil {
+			return err
+		}
+		return d.PMService.DeliverTask(txCtx, pm.TaskID(req.TaskID), req.Summary,
+			pm.IdentityRef(agentActor(a)))
+	})
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "delivered"})
+}
+
+type reworkTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+	Comment string `json:"comment"`
+}
+
+// reworkTaskHandler is the REJECT half of the acceptance verdict: delivered→running, with
+// the reject note handed back to the assignee (blocked_comment) and a fresh re-dispatch
+// wake — the delivered-state twin of unblock_task.
+//
+// Cross-agent BY DESIGN (the whole point of `delivered` is that acceptance belongs to
+// SOMEONE ELSE — a reviewer/PD rejects another agent's delivery), so it does NOT
+// requireOwnTask; the pm service enforces project membership + project mutability. Rework
+// on a non-delivered task is an illegal transition (422).
+func (s *Server) reworkTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req reworkTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
+		return
+	}
+	if err := d.PMService.ReworkTask(r.Context(), pm.TaskID(req.TaskID), req.Comment,
+		pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
+}
+
 // --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
 
 type unblockTaskReq struct {

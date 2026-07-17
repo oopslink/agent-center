@@ -56,8 +56,8 @@ func TestUpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots(t *testing.T) {
 	if err := mig.Up(ctx); err != nil {
 		t.Fatalf("upgrade Up 56→57: %v", err)
 	}
-	if v, _ := mig.Version(ctx); v != 110 {
-		t.Fatalf("post-upgrade version = %d want 110", v)
+	if v, _ := mig.Version(ctx); v != 111 {
+		t.Fatalf("post-upgrade version = %d want 111", v)
 	}
 
 	repo := NewMessageRepo(db)

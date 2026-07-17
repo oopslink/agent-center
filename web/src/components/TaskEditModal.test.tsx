@@ -160,8 +160,9 @@ describe('TaskEditModal', () => {
     const opts = Array.from(
       (screen.getByTestId('task-edit-status') as HTMLSelectElement).options,
     ).map((o) => o.value);
+    // ADR-0054: `delivered` and `blocked` are real statuses again, in lifecycle order.
     expect(opts).toEqual([
-      'open', 'running', 'completed', 'discarded', 'reopened',
+      'open', 'running', 'delivered', 'blocked', 'completed', 'discarded', 'reopened',
     ]);
   });
 

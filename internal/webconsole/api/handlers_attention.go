@@ -117,7 +117,13 @@ func (s *Server) collectStuckTaskItems(
 	}
 	tasks, _, lerr := d.PM.ListTasksOrgPage(r.Context(), pm.OrgListQuery{
 		ProjectIDs: ids,
-		Statuses:   []string{"running"}, // a task is "stuck" only while RUNNING (ADR-0046)
+		// ADR-0054: a stuck task is `blocked` — this list MUST include that status or the
+		// Alerts rail goes dark on exactly the tasks it exists to surface (a blocked task
+		// would silently stop being anybody's attention). `running` stays for LEGACY rows
+		// parked the ADR-0046 way (status=running + a blocked_reason, written before this
+		// change); the blocked_reason/type filter below is what actually selects, so both
+		// shapes flow through one loop and neither is listed twice.
+		Statuses: []string{string(pm.TaskBlocked), string(pm.TaskRunning)},
 	})
 	if lerr != nil {
 		return rows

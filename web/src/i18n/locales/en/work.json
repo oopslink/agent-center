@@ -55,6 +55,7 @@
     "running": "running",
     "resolved": "resolved",
     "completed": "completed",
+    "delivered": "delivered",
     "closed": "closed",
     "discarded": "discarded",
     "reopened": "reopened",

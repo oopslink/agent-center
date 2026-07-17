@@ -173,7 +173,9 @@ func TestReconcileOneExecutor_Fused_QuietFinalizeNoRecover(t *testing.T) {
 func TestReconcileOneExecutor_BlockedTask_NoRecover(t *testing.T) {
 	rt, ee, home := engineForAgent(t, "ag-blk")
 	attach(rt, ee)
-	// ADR-0046: a blocked task stays status="running" but carries a blocked_reason.
+	// The LEGACY (ADR-0046) parked shape: status="running" + a blocked_reason. ADR-0054
+	// keeps this arm working for rows parked before the upgrade — see
+	// TestReconcileOneExecutor_ParkedStatus_NoRecover for the new status-based shape.
 	setToolCaller(rt, &gettaskCaller{status: "running", assignee: "agent:ag-blk", blockedReason: "obstacle: needs PD triage"})
 	fx, tr := seedExchange(t, home)
 	seedExecutorWithTask(t, fx, tr, "ex-blk", "task-1")
@@ -183,6 +185,95 @@ func TestReconcileOneExecutor_BlockedTask_NoRecover(t *testing.T) {
 
 	if got := remainingCrashBudget(ee, "task-1"); got != maxCrashRecover {
 		t.Fatalf("a crashed executor of a BLOCKED task must NOT consume recovery budget (no relaunch): remaining=%d, want %d", got, maxCrashRecover)
+	}
+}
+
+// TestReconcileOneExecutor_ParkedStatus_NoRecover is the ADR-0054 命门-3 regression lock:
+// "别只改停、不改别复活" — stopping dispatch is worthless if the recovery chain reads a
+// parked task as still-mine-still-running and resurrects it.
+//
+// It pins the two ADR-0054 parked STATUSES as cancel evidence, INCLUDING the `blocked`
+// case with an EMPTY blocked_reason (which the pre-ADR-0054 reason-only check would have
+// missed entirely and relaunched) and `delivered`, where a relaunch is the worst outcome
+// of all: a fresh empty-context executor forking onto work that is already delivered and
+// pushed, whose frozen prompt tells it to implement everything from scratch.
+//
+// Crucially it reconciles REPEATEDLY: the historical failure was never "the first tick
+// relaunched" — it was that a later tick / a relaunch path pulled the task back. A single
+// no-op proves nothing, so every tick must stay a no-op.
+func TestReconcileOneExecutor_ParkedStatus_NoRecover(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		status        string
+		blockedReason string
+	}{
+		// The reason is EMPTY on purpose: the status alone must be sufficient evidence.
+		{"blocked_status_no_reason", "blocked", ""},
+		{"blocked_status_with_reason", "blocked", "obstacle: needs PD triage"},
+		{"delivered_status", "delivered", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt, ee, home := engineForAgent(t, "ag-park")
+			attach(rt, ee)
+			setToolCaller(rt, &gettaskCaller{status: tc.status, assignee: "agent:ag-park", blockedReason: tc.blockedReason})
+			fx, tr := seedExchange(t, home)
+			seedExecutorWithTask(t, fx, tr, "ex-park", "task-1")
+
+			// Multiple recovery ticks — a park that only survives the first one is not a park.
+			for i := 0; i < 3; i++ {
+				comp := executor.Completion{ExecutorID: "ex-park", Kind: executor.OutcomeCrashed}
+				rt.reconcileOneExecutor(context.Background(), ee, "ex-park", comp, false, false)
+			}
+
+			if got := remainingCrashBudget(ee, "task-1"); got != maxCrashRecover {
+				t.Fatalf("a crashed executor of a %s task must NEVER relaunch across repeated ticks: remaining budget=%d, want %d (untouched)", tc.status, got, maxCrashRecover)
+			}
+		})
+	}
+}
+
+// TestTaskCancelEvidence_ParkedAndLegacy pins the shared should-continue seam directly —
+// point-recovery AND boot self-reconcile both route through taskCancelEvidence, so the
+// parked vocabulary is asserted once, here, rather than per caller.
+func TestTaskCancelEvidence_ParkedAndLegacy(t *testing.T) {
+	const me = "agent:ag-1"
+	cancel := []struct {
+		name   string
+		detail centerTaskDetail
+	}{
+		{"terminal completed", centerTaskDetail{Status: "completed", Assignee: me}},
+		{"terminal discarded", centerTaskDetail{Status: "discarded", Assignee: me}},
+		{"legacy canceled spelling", centerTaskDetail{Status: "canceled", Assignee: me}},
+		// ADR-0054 parked statuses — status alone is proof, no reason needed.
+		{"parked blocked", centerTaskDetail{Status: "blocked", Assignee: me}},
+		{"parked delivered", centerTaskDetail{Status: "delivered", Assignee: me}},
+		{"parked, case-insensitive", centerTaskDetail{Status: "Delivered", Assignee: me}},
+		// The legacy ADR-0046 shape must STILL be caught by the reason arm (issue-88e32d98
+		// P0 / the P67 Ship 事故): status reads healthy, only the reason betrays the park.
+		{"legacy running+reason", centerTaskDetail{Status: "running", Assignee: me, BlockedReason: "stuck"}},
+		{"reassigned away", centerTaskDetail{Status: "running", Assignee: "agent:someone-else"}},
+	}
+	for _, tc := range cancel {
+		if !taskCancelEvidence(&tc.detail, "ag-1") {
+			t.Errorf("%s: want cancel evidence (do NOT relaunch), got false", tc.name)
+		}
+	}
+
+	keep := []struct {
+		name   string
+		detail centerTaskDetail
+	}{
+		// A healthy running task must still recover normally — parked-vs-stall stays
+		// distinguished, so a genuine crash is not mistaken for a park.
+		{"healthy running, mine", centerTaskDetail{Status: "running", Assignee: me}},
+		{"open, mine", centerTaskDetail{Status: "open", Assignee: me}},
+		// Absence of an answer is not proof of a park.
+		{"unknown status, unknown assignee", centerTaskDetail{}},
+	}
+	for _, tc := range keep {
+		if taskCancelEvidence(&tc.detail, "ag-1") {
+			t.Errorf("%s: want NO cancel evidence (recover normally), got true", tc.name)
+		}
 	}
 }
 

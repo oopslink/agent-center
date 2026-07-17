@@ -232,13 +232,20 @@ func (s *Service) projectStage(ctx context.Context, st *pm.Stage, planTasks []*p
 }
 
 // taskToStageMemberState maps a task status onto the coarse member state the stage
-// projection consumes (§4.1): terminal (completed/discarded) → done, running →
-// running, otherwise (open/reopened) → open.
+// projection consumes (§4.1): terminal (completed/discarded) → done, running or ADR-0054
+// parked (delivered/blocked) → running, otherwise (open/reopened) → open.
+//
+// A parked member is `running`, NOT `done` and NOT `open`. Not done — that is the whole
+// point of `delivered` being non-terminal: an un-accepted delivery must not release a
+// stage barrier, which is precisely the false-green this issue exists to prevent.
+// Not open either — the `default` arm used to swallow it there, and `open` reads as
+// un-started/startable, which a parked member is not. `running` = "in flight, not
+// settled", which is the truthful coarse answer for both.
 func taskToStageMemberState(status pm.TaskStatus) pm.StageMemberState {
 	switch {
 	case pm.TaskIsDone(status), pm.TaskIsFailed(status):
 		return pm.StageMemberDone
-	case status == pm.TaskRunning:
+	case status == pm.TaskRunning, status.IsParked():
 		return pm.StageMemberRunning
 	default:
 		return pm.StageMemberOpen

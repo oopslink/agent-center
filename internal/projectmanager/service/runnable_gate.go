@@ -85,6 +85,17 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	// task derives nodeStatus=NodeRunning (never NodeDispatched), is misclassified as
 	// not-runnable, and its requeued work item can NEVER start — wedging the task
 	// behind a misleading `task_not_runnable`.
+	// ADR-0054 (I107 ②) — the park gate, checked BEFORE everything else. A parked task
+	// (delivered / blocked) is non-terminal and often still node_status ready/dispatched,
+	// so without this arm it walks straight through the plan/dep gates below and answers
+	// "runnable" — which is precisely how a park failed to stop dispatch: every re-drive
+	// (ListRunnableAgentTasks, the wake re-push, the 60s sweep) funnels through here, and
+	// a "yes" forks a fresh empty-context executor onto work already delivered or
+	// deliberately paused. Un-park it first (unblock / acceptance verdict); until then it
+	// is not runnable, and this is the one chokepoint that says so.
+	if t.Status().IsParked() {
+		return pm.ErrTaskNotRunnable
+	}
 	if t.Status() == pm.TaskRunning {
 		return nil
 	}

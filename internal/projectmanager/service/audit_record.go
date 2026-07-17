@@ -48,7 +48,27 @@ func (s *Service) auditTaskStatusChange(ctx context.Context, t *pm.Task, prev pm
 // auditTaskBlocked records a block as a human-facing status change running→blocked
 // (mechanically "blocked" is a running-task annotation, not a status enum value, but
 // the ledger presents it as a state — design §4.2). reasonType/reason ride detail.
-func (s *Service) auditTaskBlocked(ctx context.Context, t *pm.Task, reasonType pm.BlockReasonType, reason string, actor pm.IdentityRef) {
+// ADR-0054: prevStatus is passed in rather than hardcoded to `running`. Block can now
+// also park a `delivered` task, and the audit trail is the human-facing record of what
+// actually happened — a delivered→blocked park logged as "running→blocked" would put a
+// transition that never occurred into the one place people go to reconstruct the truth.
+func (s *Service) auditTaskBlocked(ctx context.Context, t *pm.Task, prevStatus pm.TaskStatus, reasonType pm.BlockReasonType, reason string, actor pm.IdentityRef) {
+	s.recordChange(ctx, pm.AuditEntry{
+		ProjectID:  t.ProjectID(),
+		ObjectType: pm.AuditObjectTask,
+		ObjectID:   string(t.ID()),
+		ChangeType: pm.AuditTaskStatusChanged,
+		Field:      "status",
+		FromValue:  string(prevStatus),
+		ToValue:    string(pm.TaskBlocked),
+		ActorRef:   actor,
+		Detail:     auditDetail(map[string]any{"reason_type": string(reasonType), "reason": reason}),
+	})
+}
+
+// auditTaskDelivered records a delivery as the human-facing status change
+// running→delivered, carrying the summary the assignee handed to the acceptance (I107 ①).
+func (s *Service) auditTaskDelivered(ctx context.Context, t *pm.Task, summary string, actor pm.IdentityRef) {
 	s.recordChange(ctx, pm.AuditEntry{
 		ProjectID:  t.ProjectID(),
 		ObjectType: pm.AuditObjectTask,
@@ -56,9 +76,24 @@ func (s *Service) auditTaskBlocked(ctx context.Context, t *pm.Task, reasonType p
 		ChangeType: pm.AuditTaskStatusChanged,
 		Field:      "status",
 		FromValue:  string(pm.TaskRunning),
-		ToValue:    "blocked",
+		ToValue:    string(pm.TaskDelivered),
 		ActorRef:   actor,
-		Detail:     auditDetail(map[string]any{"reason_type": string(reasonType), "reason": reason}),
+		Detail:     auditDetail(map[string]any{"summary": summary}),
+	})
+}
+
+// auditTaskRework records an acceptance REJECT as the status change delivered→running.
+func (s *Service) auditTaskRework(ctx context.Context, t *pm.Task, comment string, actor pm.IdentityRef) {
+	s.recordChange(ctx, pm.AuditEntry{
+		ProjectID:  t.ProjectID(),
+		ObjectType: pm.AuditObjectTask,
+		ObjectID:   string(t.ID()),
+		ChangeType: pm.AuditTaskStatusChanged,
+		Field:      "status",
+		FromValue:  string(pm.TaskDelivered),
+		ToValue:    string(pm.TaskRunning),
+		ActorRef:   actor,
+		Detail:     auditDetail(map[string]any{"comment": comment}),
 	})
 }
 

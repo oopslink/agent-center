@@ -391,10 +391,13 @@ func TestOverdueBlockedReminder_EmitsOncePerEpisode(t *testing.T) {
 	if n, _ := chk.Tick(h.ctx); n != 0 {
 		t.Fatalf("second tick = %d, want 0 (latched)", n)
 	}
-	// The reminder NEVER reclaims a blocked task (§13.D: not auto-recovered).
+	// The reminder NEVER recovers a blocked task (§13.D: not auto-recovered) — it only
+	// reminds. ADR-0054: the task must stay PARKED (status=blocked) with its reason intact;
+	// the reminder must not un-park it, and (the ADR-0054 regression this guards) the sweep
+	// must still FIND it now that a blocked task no longer sits in `running`.
 	got, _ := h.svc.GetTask(h.ctx, tid)
-	if got.Status() != pm.TaskRunning || strings.TrimSpace(got.BlockedReason()) == "" {
-		t.Fatalf("task should stay running+blocked, got status=%s blocked=%q", got.Status(), got.BlockedReason())
+	if got.Status() != pm.TaskBlocked || strings.TrimSpace(got.BlockedReason()) == "" {
+		t.Fatalf("task should stay parked (blocked) with its reason, got status=%s blocked=%q", got.Status(), got.BlockedReason())
 	}
 
 	// Unblock → latch pruned; a NEW block episode re-arms the reminder.

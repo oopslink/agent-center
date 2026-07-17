@@ -169,10 +169,19 @@ func (p *ReminderEventProjector) classify(e outbox.Event) (reminder.EntityType, 
 	}
 }
 
-// taskEvent maps a pm.task.state_changed payload to the on_event vocabulary. The
-// terminal transitions map by status; "blocked" is a RUNNING task carrying a block
-// reason (ADR-0046 removed the blocked status — a block is a running annotation), so
-// it is detected via a non-empty reason on a still-running task.
+// taskEvent maps a pm.task.state_changed payload to the on_event vocabulary.
+//
+// ADR-0054: a block now moves the status to "blocked", so that maps directly — WITHOUT
+// this arm every on_event=blocked reminder would silently stop firing, since a blocked
+// task no longer arrives here as "running". The old running+reason detection is KEPT as a
+// second arm for LEGACY events (pre-ADR-0054 rows/replays where a block left the status
+// running); it cannot double-fire, because Block clears neither field in a way that lets
+// a single payload match both arms.
+//
+// `delivered` deliberately maps to NOTHING: the on_event vocabulary is about outcomes
+// people subscribe to, and a delivery is not one — it is a hand-off awaiting a verdict.
+// Firing "completed" on it would be the same false green ADR-0054 exists to abolish, and
+// inventing a "delivered" event is a separate product decision, not this change's call.
 func taskEvent(status, reason string) string {
 	switch status {
 	case "completed":
@@ -181,9 +190,11 @@ func taskEvent(status, reason string) string {
 		return "discarded"
 	case "reopened":
 		return "reopened"
+	case "blocked":
+		return "blocked"
 	case "running":
 		if strings.TrimSpace(reason) != "" {
-			return "blocked"
+			return "blocked" // legacy ADR-0046 shape: parked as a running+reason annotation
 		}
 	}
 	return ""

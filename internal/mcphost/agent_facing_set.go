@@ -24,6 +24,7 @@ var AgentFacingToolNames = []string{
 	"assign_task",
 	"attach_file",
 	"block_task",
+	"deliver_task", // ADR-0054 I107 ①: hand work to an external acceptance
 	"heartbeat", // v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
 	"complete_task",
 	"discard_task",   // T119: terminal-discard a superseded / mis-created task
@@ -40,6 +41,7 @@ var AgentFacingToolNames = []string{
 	// v2.9.1 P0 recovery tools (deliberately agent-facing: owner/PD recover a
 	// task stuck blocked after a restart/stale-release).
 	"unblock_task",
+	"rework_task", // ADR-0054: the REJECT half of an acceptance verdict (delivered→running)
 	"reset_task", // T862 tier-3 recovery: reset a dead-executor task back to the pool
 	"rerun_failed_node",
 	"resume_paused_node",
