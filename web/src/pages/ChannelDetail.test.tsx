@@ -130,7 +130,7 @@ describe('ChannelDetail page', () => {
 
   // ── Mobile (<768px), mobile-redesign-conversations.md §3.5 / mockup frame ④.
   // These assert the ROUTE actually wires the redesigned components — the /channels/:id
-  // page is the production caller of ConversationSurfaceMobile + ConversationInfoButton.
+  // page is the production caller of ConversationSurfaceMobile + the shared ⓘ.
   describe('mobile', () => {
     function stubMobile() {
       vi.stubGlobal('matchMedia', (query: string) => ({
@@ -157,7 +157,7 @@ describe('ChannelDetail page', () => {
       stubMobile();
       server.use(channelShowHandler, messagesHandler);
       wrap('/channels/C-alpha', { mobile: true });
-      const info = await screen.findByTestId('conversation-info-button');
+      const info = await screen.findByTestId('context-panel-mobile-open');
       // The sheet (and therefore the info card) is closed until ⓘ is tapped.
       expect(screen.queryByTestId('context-sheet')).not.toBeInTheDocument();
       expect(screen.queryByTestId('conversation-info-sheet')).not.toBeInTheDocument();

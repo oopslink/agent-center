@@ -12,9 +12,10 @@ import { useAppStore } from '@/store/app';
 import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
 import { ConversationSurfaceMobile } from '@/components/ConversationSurfaceMobile';
-import { ConversationInfoButton, ConversationInfoSheet } from '@/components/ConversationInfoPanel';
+import { ConversationInfoSheet } from '@/components/ConversationInfoPanel';
+import { ContextPanelMobileButton } from '@/components/ContextPanelMobileButton';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
-import { ContextPanel } from '@/shell/contextPanel';
+import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { Avatar } from '@/components/Avatar';
@@ -52,8 +53,10 @@ function DMDetailInner(): React.ReactElement {
   // avatar/@name is clicked. Provided by the wrapping SenderSidebarProvider.
   const openSender = useSenderSidebar();
   const conv = useConversation(id);
-  // T184: mobile collapses the col③/col④ split into one chat/threads/files tab bar.
+  // Mobile replaces the col③/col④ split with the redesigned segment surface.
   const isMobile = useIsMobile();
+  // The mobile ⓘ opens the sheet that hosts this page's <ContextPanel> content.
+  const trigger = useContextPanelMobileTrigger();
   const [copied, setCopied] = useState(false);
   // v2.7.1 #238 fix: the DM detail GET doesn't enrich peer_display_name (only the
   // list does), so resolve the peer from participants − self for direct loads.
@@ -242,8 +245,8 @@ function DMDetailInner(): React.ReactElement {
           <FollowToggle conversationId={conv.data.id} followed={conv.data.followed ?? false} />
 
           {/* Mobile-only ⓘ → the shell's Context Panel bottom sheet (mockup frame ⑤:
-              back + peer + star + ⓘ + ⋯). */}
-          <ConversationInfoButton />
+              back + peer + star + ⓘ + ⋯). Same gate as the <ContextPanel> below. */}
+          {isMobile && trigger && <ContextPanelMobileButton onClick={trigger.open} />}
 
           {/* Overflow — a keyboard-accessible details/summary menu. Holds the
               same Follow/Unfollow action (kept visible in the cluster too) plus a

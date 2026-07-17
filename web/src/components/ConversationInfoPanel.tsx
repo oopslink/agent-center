@@ -4,15 +4,16 @@ import type { Participant } from '@/api/types';
 import { useDisplayNameResolver } from '@/api/members';
 import { useSharedFiles } from './SharedFilesPanel';
 import { Avatar } from './Avatar';
-import { useContextPanelMobileTrigger } from '@/shell/contextPanel';
 
 // ============================================================================
-// The mobile ⓘ affordance — mobile-redesign-conversations.md §3.5 + §5, mockup
-// frame ⑦ ("Context Panel 抽屉（点 ⓘ，ChannelDetail）").
+// The content of the mobile ⓘ sheet — mobile-redesign-conversations.md §3.5 + §5,
+// mockup frame ⑦ ("Context Panel 抽屉（点 ⓘ，ChannelDetail）").
 //
-// This is what finally gives the batch-1 nav framework's Context Panel bottom
-// sheet a REAL production caller: batch 1 shipped the sheet + the
-// useContextPanelMobileTrigger hook, but nothing in the app opened it.
+// The ⓘ BUTTON itself is the shared <ContextPanelMobileButton> (bd895284), which
+// already gave Issue/Task/PlanDetail their sheet entry point; Channel/DM were
+// left out of that commit because they rendered no <ContextPanel> on mobile and
+// an ⓘ would have opened an EMPTY sheet. This module supplies exactly the missing
+// piece — the panel content — so the same shared button now works there too.
 //
 // Deliberately NOT the same content as the ConversationSurfaceMobile segments.
 // The segments (Threads / Files / People) are the full interactive panels; this
@@ -24,33 +25,6 @@ import { useContextPanelMobileTrigger } from '@/shell/contextPanel';
 
 /** How many rows each preview list shows before the "+N more" tail. */
 const PREVIEW_LIMIT = 5;
-
-/**
- * The mobile-only ⓘ button for a conversation detail header. Opens the shell's
- * Context Panel bottom sheet, which renders whatever the page put inside
- * <ContextPanel> (see ConversationInfoSheet).
- *
- * Renders nothing outside the shell provider (e.g. a page mounted standalone in
- * a unit test) — the trigger hook returns null there and there is no sheet to open.
- */
-export function ConversationInfoButton(): React.ReactElement | null {
-  const { t } = useTranslation('chat');
-  const trigger = useContextPanelMobileTrigger();
-  if (!trigger) return null;
-  return (
-    <button
-      type="button"
-      onClick={trigger.open}
-      data-testid="conversation-info-button"
-      aria-label={t('conversation.showDetails')}
-      title={t('conversation.showDetails')}
-      // md:hidden — desktop keeps the real col④ sidebar, so the ⓘ is mobile-only.
-      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-secondary hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent md:hidden"
-    >
-      <InfoIcon />
-    </button>
-  );
-}
 
 export interface ConversationInfoSheetProps {
   title: string;
@@ -160,24 +134,6 @@ export function ConversationInfoSheet({
 }
 
 // ── Inline SVG icons (spec §3.2: linear stroke SVG, never emoji).
-
-function InfoIcon(): React.ReactElement {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      aria-hidden="true"
-      className="h-5 w-5"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 16v-5" />
-      <path d="M12 8h.01" />
-    </svg>
-  );
-}
 
 function PaperclipIcon(): React.ReactElement {
   return (

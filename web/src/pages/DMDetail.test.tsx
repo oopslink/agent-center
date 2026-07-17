@@ -522,7 +522,7 @@ describe('DMDetail page', () => {
       stubMobile();
       mockDM();
       wrap('/dms/C-DM', { mobile: true });
-      const info = await screen.findByTestId('conversation-info-button');
+      const info = await screen.findByTestId('context-panel-mobile-open');
       expect(screen.queryByTestId('conversation-info-sheet')).not.toBeInTheDocument();
       fireEvent.click(info);
       const sheet = await screen.findByTestId('conversation-info-sheet');
@@ -535,7 +535,7 @@ describe('DMDetail page', () => {
       stubMobile();
       mockDM();
       wrap('/dms/C-DM', { mobile: true });
-      await screen.findByTestId('conversation-info-button');
+      await screen.findByTestId('context-panel-mobile-open');
       expect(screen.getByTestId('dm-back')).toBeInTheDocument();
       expect(screen.getByTestId('follow-toggle')).toBeInTheDocument();
       expect(screen.getByTestId('dm-overflow')).toBeInTheDocument();

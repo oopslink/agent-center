@@ -126,7 +126,9 @@
 - **子分段** = 完整可交互面板（`ParticipantsPanel` / `ConversationThreadList` / `SharedFilesPanel`）。
 - **ⓘ 底部弹层** = 只读身份卡：标题 + 描述 + 成员预览 + 文件预览（各截断 5 条 + "+N"）。
 
-ⓘ 同时是批次一 `useContextPanelMobileTrigger` 的**第一个生产调用者**（批次一只交付了机制，app 内无人打开它）。
+ⓘ 按钮本身**复用** `ContextPanelMobileButton`（bd895284 为 Issue/Task/PlanDetail 加的共享入口），不另造一个。那个 commit 明确把 Channel/DM 排除在外，理由是"两者在移动端渲染 `ConversationMobileTabs` 而非 `<ContextPanel>`，加 ⓘ 只会打开一个空弹层"——本批补上的正是缺的那块（弹层内容），所以同一个按钮现在在 Channel/DM 上也成立。
+
+顺带修掉一个 bd895284 带进 main 的缺陷：`ContextPanelMobileButton` 读 `shell.contextPanel.openMobileSheet`，但该 key 在 en/zh 都不存在（defaultNS=common），i18next 回退成把 key 原样当文案，ⓘ 的 aria-label 实际是字面量 `shell.contextPanel.openMobileSheet`。原测试只用 test-id 查询，漏掉了。已补 key + 一个断言真实文案的回归测试。
 
 ### 8.3 仍然 Deferred（本批未动，与 §4 一致）
 

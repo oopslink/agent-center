@@ -1,17 +1,17 @@
 import type React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import type { Participant } from '@/api/types';
-import { ConversationInfoButton, ConversationInfoSheet } from './ConversationInfoPanel';
-import { useContextPanelController } from '@/shell/contextPanel';
+import { ConversationInfoSheet } from './ConversationInfoPanel';
 
-// mobile-redesign-conversations.md §3.5 + §5, mockup frame ⑦ — the ⓘ button and
-// the read-only info sheet it opens. This is the first PRODUCTION caller of the
-// batch-1 nav framework's useContextPanelMobileTrigger.
+// mobile-redesign-conversations.md §3.5 + §5, mockup frame ⑦ — the read-only
+// info card shown inside the Context Panel bottom sheet. The ⓘ button itself is
+// the shared <ContextPanelMobileButton> (covered by ContextPanelMobileEntry.test
+// + the ChannelDetail/DMDetail page tests, which assert the real route wiring).
 
 const participants: Participant[] = [
   { identity_id: 'user:alice', role: 'member', joined_at: '2026-05-01T00:00:00Z' } as Participant,
@@ -40,56 +40,6 @@ function withQuery(ui: React.ReactElement) {
     </QueryClientProvider>
   );
 }
-
-/** A miniature shell that provides the ContextPanel context, like AppLayout does. */
-function Shell({ children }: { children: React.ReactNode }): React.ReactElement {
-  const ctl = useContextPanelController();
-  return (
-    <ctl.Provider value={ctl.value}>
-      {children}
-      <div data-testid="sheet-open">{ctl.mobileSheetOpen ? 'open' : 'closed'}</div>
-    </ctl.Provider>
-  );
-}
-
-describe('ConversationInfoButton', () => {
-  afterEach(() => cleanup());
-
-  it('opens the shell Context Panel sheet when tapped (gives batch-1 its first real caller)', () => {
-    mockApi();
-    render(
-      withQuery(
-        <Shell>
-          <ConversationInfoButton />
-        </Shell>,
-      ),
-    );
-    expect(screen.getByTestId('sheet-open')).toHaveTextContent('closed');
-    fireEvent.click(screen.getByTestId('conversation-info-button'));
-    expect(screen.getByTestId('sheet-open')).toHaveTextContent('open');
-  });
-
-  it('is mobile-only chrome and carries an accessible name', () => {
-    mockApi();
-    render(
-      withQuery(
-        <Shell>
-          <ConversationInfoButton />
-        </Shell>,
-      ),
-    );
-    const btn = screen.getByTestId('conversation-info-button');
-    expect(btn).toHaveAttribute('aria-label', 'Show conversation details');
-    // Desktop keeps the real col④ sidebar → the ⓘ must not render there.
-    expect(btn.className).toContain('md:hidden');
-  });
-
-  it('renders nothing outside the shell provider (page mounted standalone)', () => {
-    mockApi();
-    render(withQuery(<ConversationInfoButton />));
-    expect(screen.queryByTestId('conversation-info-button')).not.toBeInTheDocument();
-  });
-});
 
 describe('ConversationInfoSheet', () => {
   afterEach(() => cleanup());

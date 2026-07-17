@@ -9,9 +9,10 @@ import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
 import { ConversationSurfaceMobile } from '@/components/ConversationSurfaceMobile';
-import { ConversationInfoButton, ConversationInfoSheet } from '@/components/ConversationInfoPanel';
+import { ConversationInfoSheet } from '@/components/ConversationInfoPanel';
+import { ContextPanelMobileButton } from '@/components/ContextPanelMobileButton';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
-import { ContextPanel } from '@/shell/contextPanel';
+import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
 import { Breadcrumb } from '@/components/Breadcrumb';
 import { Avatar } from '@/components/Avatar';
 import { useDisplayNameResolver } from '@/api/members';
@@ -27,8 +28,10 @@ export default function ChannelDetail(): React.ReactElement {
   const { channelId = '' } = useParams<{ channelId: string }>();
   const conv = useConversation(channelId);
   const displayName = useDisplayNameResolver();
-  // T184: mobile collapses the col③/col④ split into one chat/threads/files tab bar.
+  // Mobile replaces the col③/col④ split with the redesigned segment surface.
   const isMobile = useIsMobile();
+  // The mobile ⓘ opens the sheet that hosts this page's <ContextPanel> content.
+  const trigger = useContextPanelMobileTrigger();
 
   if (conv.isLoading) {
     return (
@@ -100,8 +103,11 @@ export default function ChannelDetail(): React.ReactElement {
           </div>
           {/* #264 P1 / #176 §4: follow/unfollow this channel. */}
           <FollowToggle conversationId={ch.id} followed={ch.followed ?? false} />
-          {/* Mobile-only ⓘ → the shell's Context Panel bottom sheet (batch 1). */}
-          <ConversationInfoButton />
+          {/* Mobile-only ⓘ → the shell's Context Panel bottom sheet. Carries the
+              SAME gate as the <ContextPanel> below (isMobile), so it can never
+              offer an empty sheet — the convention bd895284 set for the other
+              three pages. */}
+          {isMobile && trigger && <ContextPanelMobileButton onClick={trigger.open} />}
         </div>
       </header>
 
