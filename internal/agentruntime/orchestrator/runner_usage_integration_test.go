@@ -65,7 +65,7 @@ func TestIntegration_ClaudeBuilderArgvProducesParseableUsage(t *testing.T) {
 	// The REAL CommandRunner (production execRun) forks the argv as a subprocess.
 	res, err := executor.NewCommandRunner(argv).Run(context.Background(), executor.RunContext{
 		WorkspaceDir: t.TempDir(),
-		Progress:     func(string, string) {},
+		Progress: func(string, string, ...string) {},
 	})
 	if err != nil {
 		t.Fatalf("CommandRunner.Run: %v", err)
@@ -108,7 +108,7 @@ func TestIntegration_NonStreamRunnerRelaysRawResult(t *testing.T) {
 	}
 	res, err := executor.NewCommandRunner([]string{path}).Run(context.Background(), executor.RunContext{
 		WorkspaceDir: t.TempDir(),
-		Progress:     func(string, string) {},
+		Progress: func(string, string, ...string) {},
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)

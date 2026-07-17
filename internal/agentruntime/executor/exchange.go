@@ -221,6 +221,14 @@ func (fx *FileExchange) ReadStatus(executorID string) (Status, error) {
 // missing file yields an empty slice + nil error (no progress streamed yet). A
 // malformed line is surfaced as an error (conventions §17: never silently skip an
 // unparseable protocol record) carrying the 1-based line number.
+//
+// NOT AN AUDIT LOG. What comes back is a best-effort activity stream: it can show
+// that something HAPPENED, never that something DID NOT. Do not build a negative
+// claim ("it never pushed", "it skipped the tests") on an absence here — appends are
+// best-effort, prose is heartbeat-sampled, and messages are length-clipped. A real
+// push once left no record and an executor was nearly written up for lying about it.
+// For a negative claim use a source of record (git reflog, the remote, the center's
+// task/delivery rows). See ProgressEntry's doc comment for the full incident.
 func (fx *FileExchange) ReadProgress(executorID string) ([]ProgressEntry, error) {
 	path, err := fx.layout.ProgressPath(executorID)
 	if err != nil {

@@ -28,6 +28,8 @@ package executor
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/oopslink/agent-center/internal/claudestream"
@@ -47,17 +49,28 @@ const maxDetailLen = 2000
 // then keeps the previous note. A line may carry several events; the LAST tool_use
 // wins (the most recent action), else an assistant text block yields a generic
 // label.
-func streamLineActivity(line []byte) string {
+//
+// tools is the greppable identifier set for the line's tool_use events (I109 ②) —
+// see toolNames. It is returned SEPARATELY from detail because detail is a rendered,
+// length-bounded human note: a long command gets clipped, and the clip can cut away
+// the very word (`push`) someone later greps for. tools is small, unclipped, and
+// carries the answer to "WHAT ran" independent of how much of the command text fit.
+//
+// isTool distinguishes "a tool actually ran" from "the model was generating text",
+// so the caller can record one progress line per tool call and leave prose to the
+// throttled heartbeat.
+func streamLineActivity(line []byte) (detail string, tools []string, isTool bool) {
 	evs, err := claudestream.ParseStreamLine(line)
 	if err != nil {
-		return ""
+		return "", nil, false
 	}
-	detail := ""
 	for _, ev := range evs {
 		switch ev.Type {
 		case "tool_use":
 			if d := toolActivity(ev.ToolName, ev.ToolInput); d != "" {
 				detail = d // last tool_use on the line wins
+				isTool = true
+				tools = mergeNames(tools, toolNames(ev.ToolName, ev.ToolInput))
 			}
 		case "assistant_text":
 			if detail == "" && strings.TrimSpace(ev.Text) != "" {
@@ -65,7 +78,7 @@ func streamLineActivity(line []byte) string {
 			}
 		}
 	}
-	return clip(detail, maxDetailLen)
+	return clip(detail, maxDetailLen), tools, isTool
 }
 
 // toolActivity renders a tool_use exactly as the supervisor's activity does —
@@ -82,6 +95,133 @@ func toolActivity(name string, input json.RawMessage) string {
 		return name
 	}
 	return name + "(" + args + ")"
+}
+
+// Bounds on the extracted name set (I109 ②). Small on purpose: this field exists to
+// answer "what ran", not to re-encode the command.
+const (
+	maxToolNames    = 24
+	maxToolNameRune = 48
+)
+
+// toolNames returns the greppable identifiers for one tool_use: the tool name
+// itself, plus — for a Bash tool — the program (and its subcommand) of EVERY
+// segment of the shell command.
+//
+// WHY (I109 ②). progress.jsonl's `message` is a rendered note bounded at
+// maxDetailLen. A long Bash command (`cd /x && go test ./... && git add -A && git
+// commit -m '…' && git push origin HEAD`) gets clipped, and the clip lands wherever
+// the budget runs out — so the tail verbs vanish. That produced a real false
+// negative: `grep -c push progress.jsonl` returned 0 for a run whose reflog proved
+// `update by push`, and an executor was very nearly written up for lying about its
+// own delivery on the strength of that zero. `git add` / `commit` / `rebase` all
+// matched in the same log purely because they happened to sit before the cut.
+//
+// Splitting the SEGMENTS (not just the leading program) is the point: a && chain is
+// several commands, and only naming each one makes the record reflect what ran.
+// Both the program and its first non-flag argument are kept, because for the
+// multiplexers that matter here the verb is the argument — "git" alone does not
+// distinguish an add from a push.
+func toolNames(name string, input json.RawMessage) []string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+	names := []string{name}
+	if !strings.EqualFold(name, "Bash") {
+		return names
+	}
+	var obj struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(input, &obj); err != nil {
+		return names
+	}
+	return mergeNames(names, commandNames(obj.Command))
+}
+
+// shellSep splits a shell command into its separately-executed segments. It is a
+// deliberately shallow lexer — enough to name the programs in the pipelines and
+// boolean chains an agent actually writes, not a shell grammar. A quoted separator
+// yields a spurious extra name, which is a harmless over-report; the failure mode we
+// must avoid is UNDER-reporting.
+var shellSep = regexp.MustCompile(`&&|\|\||[;|&\n()]+`)
+
+// commandNames extracts the program (and its subcommand) from each segment of cmd.
+func commandNames(cmd string) []string {
+	var out []string
+	for _, seg := range shellSep.Split(cmd, -1) {
+		fields := strings.Fields(seg)
+		// Skip leading VAR=value assignments and `sudo`-style prefixes so the name is the
+		// real program, not the environment it ran in.
+		for len(fields) > 0 && strings.Contains(fields[0], "=") && !strings.HasPrefix(fields[0], "-") {
+			fields = fields[1:]
+		}
+		if len(fields) == 0 {
+			continue
+		}
+		prog := cleanName(fields[0])
+		if prog == "" {
+			continue
+		}
+		out = append(out, prog)
+		// The first bare WORD argument is the verb for the multiplexers this exists to
+		// catch (`git push`, `go test`, `npm run`). Skipped: flags, and anything with a
+		// path separator — the latter because a flag's VALUE is not itself flag-shaped
+		// (`git -C /x push` would otherwise name "x" and never reach "push").
+		for _, f := range fields[1:] {
+			if strings.HasPrefix(f, "-") || strings.ContainsAny(f, `/\`) {
+				continue
+			}
+			if sub := cleanName(f); sub != "" {
+				out = append(out, sub)
+			}
+			break
+		}
+	}
+	return out
+}
+
+// cleanName normalizes one extracted token: a path renders as its basename (so
+// /usr/local/bin/git greps as "git"), surrounding quotes are dropped, and anything
+// implausible as a name (empty, over-long, or containing whitespace) is discarded.
+func cleanName(s string) string {
+	s = strings.Trim(strings.TrimSpace(s), `"'`)
+	if s == "" {
+		return ""
+	}
+	if strings.ContainsAny(s, `/\`) {
+		s = filepath.Base(strings.ReplaceAll(s, `\`, "/"))
+	}
+	if s == "" || s == "." || s == ".." {
+		return ""
+	}
+	if r := []rune(s); len(r) > maxToolNameRune {
+		return ""
+	}
+	return s
+}
+
+// mergeNames appends add to base, dropping duplicates (case-insensitively) and
+// stopping at maxToolNames so a pathological command cannot grow the record without
+// bound. Order is preserved: the names read in execution order.
+func mergeNames(base, add []string) []string {
+	seen := make(map[string]bool, len(base)+len(add))
+	for _, b := range base {
+		seen[strings.ToLower(b)] = true
+	}
+	for _, a := range add {
+		if len(base) >= maxToolNames {
+			return base
+		}
+		k := strings.ToLower(a)
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		base = append(base, a)
+	}
+	return base
 }
 
 // bulkyArgKeys are tool_use input fields that carry a large content BLOB (a whole

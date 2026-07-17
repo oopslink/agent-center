@@ -233,6 +233,11 @@ func (r *LocalRuntime) BuildExecutorEngine(agentRoot string, pl ExecutorConfig) 
 		},
 		IDs:   orchestrator.NewULIDMinter(clk),
 		Clock: clk,
+		// I109 ①: the orchestrator holds the center credentials, so it — not the frozen,
+		// center-less executor — resolves the issue refs a task brief cites, and inlines
+		// their bodies into the prompt before the fork.
+		Issues: centerIssueResolver{r: r, agentID: pl.AgentID},
+		Log:    r.log,
 	})
 	if err != nil {
 		return nil, err
@@ -979,7 +984,10 @@ func (r *LocalRuntime) createTaskDir(agentID, taskID string) {
 // centerTaskDetail is the subset of the get_task agent-tool projection the fork path
 // needs to build a WorkItem.
 type centerTaskDetail struct {
-	ID          string `json:"id"`
+	ID string `json:"id"`
+	// ProjectID scopes an I<n> issue-ref lookup during spawn-time inline expansion
+	// (I109 ①) — org refs are display numbers, resolvable only within a project.
+	ProjectID   string `json:"project_id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Status      string `json:"status"`
@@ -1041,8 +1049,9 @@ func (d *centerTaskDetail) goalTitle(taskID string) string {
 // prepared (P4) is the worktree threaded to the pool (nil ⇒ today's provisioning path).
 func buildWorkItem(taskID string, task *centerTaskDetail, execID string, prepared *executor.PreparedWorkspace) orchestrator.WorkItem {
 	return orchestrator.WorkItem{
-		TaskID:  taskID,
-		TaskRef: taskID,
+		TaskID:    taskID,
+		TaskRef:   taskID,
+		ProjectID: task.ProjectID, // I109 ①: scopes an I<n> issue-ref inline expansion
 		Goal: executor.Goal{
 			Title:       task.goalTitle(taskID),
 			Description: task.Description,

@@ -39,7 +39,7 @@ func TestStreamLineActivity_Tools(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := streamLineActivity([]byte(c.line))
+			got, _, _ := streamLineActivity([]byte(c.line))
 			if got != c.want {
 				t.Fatalf("streamLineActivity = %q, want %q", got, c.want)
 			}
@@ -88,7 +88,7 @@ func TestStreamLineActivity_EditorContentElided(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := streamLineActivity([]byte(c.line))
+			got, _, _ := streamLineActivity([]byte(c.line))
 			if got != c.want {
 				t.Fatalf("streamLineActivity = %q, want %q", got, c.want)
 			}
@@ -102,7 +102,7 @@ func TestStreamLineActivity_EditorContentElided(t *testing.T) {
 func TestStreamLineActivity_LargeWriteContentNotDumped(t *testing.T) {
 	huge := strings.Repeat("x", maxDetailLen*3)
 	line := asstTool("Write", `{"file_path":"big.go","content":`+jsonQuote(huge)+`}`)
-	got := streamLineActivity([]byte(line))
+	got, _, _ := streamLineActivity([]byte(line))
 	if got != `Write({"file_path":"big.go"})` {
 		t.Fatalf("expected the content blob elided, got %q", got)
 	}
@@ -126,7 +126,7 @@ func TestStreamLineActivity_BashArgsVisible(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := streamLineActivity([]byte(asstTool("Bash", `{"command":`+jsonQuote(c.cmd)+`}`)))
+			got, _, _ := streamLineActivity([]byte(asstTool("Bash", `{"command":`+jsonQuote(c.cmd)+`}`)))
 			if got != c.want {
 				t.Fatalf("bash %q → %q, want %q", c.cmd, got, c.want)
 			}
@@ -142,7 +142,7 @@ func TestStreamLineActivity_BashArgsVisible(t *testing.T) {
 // the expandable view.
 func TestStreamLineActivity_Truncation(t *testing.T) {
 	long := strings.Repeat("a", maxDetailLen+500)
-	got := streamLineActivity([]byte(asstTool("Bash", `{"command":`+jsonQuote(long)+`}`)))
+	got, _, _ := streamLineActivity([]byte(asstTool("Bash", `{"command":`+jsonQuote(long)+`}`)))
 	if !strings.HasPrefix(got, `Bash({"command":"`) || !strings.HasSuffix(got, "…") {
 		t.Fatalf("expected a clipped bash note, got %q", got)
 	}

@@ -29,11 +29,26 @@ import (
 	"github.com/oopslink/agent-center/internal/clock"
 )
 
+// Progress phases (the ProgressEntry.Phase enum). Lifecycle phases always write
+// status through; phaseRunning is the throttled one.
 const (
-	// runnerHeartbeatInterval throttles the progress refresh while a runner command
-	// streams output. Well below the watchdog stall timeout so a long-but-active run
-	// keeps last_progress_at fresh, yet coarse enough not to flood progress.jsonl.
+	phaseStart   = "start"
+	phaseRunning = "running"
+	phaseDone    = "done"
+	// phaseTool marks a per-tool-call record (I109 ②) — a lifecycle-neutral phase that
+	// is NOT throttled into the file, so every tool call leaves a trace.
+	phaseTool = "tool"
+)
+
+const (
+	// runnerHeartbeatInterval throttles the LIVENESS heartbeat while a runner command
+	// streams output with no tool calls (pure generation). Well below the watchdog
+	// stall timeout so a long-but-active run keeps last_progress_at fresh.
 	runnerHeartbeatInterval = 15 * time.Second
+	// statusRefreshInterval throttles the STATUS file write for running-phase notes.
+	// Matches the previous heartbeat cadence, so status/executor.progress behave exactly
+	// as before now that progress.jsonl appends are no longer coupled to them (I109 ②).
+	statusRefreshInterval = 15 * time.Second
 	// maxRunnerLine bounds a single streamed line (claude stream-json lines carrying a
 	// large tool result can be big) so bufio.Scanner does not error with "token too long".
 	maxRunnerLine = 16 << 20 // 16 MiB
@@ -54,7 +69,12 @@ type RunContext struct {
 	WorkspaceDir string
 	// Progress streams a progress line. Errors appending are non-fatal to the run
 	// (best-effort relay) and are swallowed by the provided closure.
-	Progress func(phase, message string)
+	//
+	// tools carries the greppable identifiers of what a phaseTool note invoked
+	// ("Bash", "git", "push"); it is variadic because every other phase has none. It
+	// is a SEPARATE argument rather than something parsed back out of message because
+	// message is length-clipped — see ProgressEntry.Tools (I109 ②).
+	Progress func(phase, message string, tools ...string)
 }
 
 // RunResult is the Runner's success payload.
@@ -133,13 +153,29 @@ func RunExecutor(ctx context.Context, cfg RunConfig) error {
 		runner = NewCommandRunner(cfg.RunnerCmd)
 	}
 
-	progress := func(phase, message string) {
-		entry := ProgressEntry{At: clk.Now(), Phase: phase, Message: message}
+	// progress appends EVERY note to progress.jsonl but throttles the STATUS write
+	// (I109 ②). These two used to be welded together, which is what made the record
+	// lossy: to keep status writes off the hot path the CALLER throttled itself to one
+	// note per ~15s, so the file only ever saw a ~15s SAMPLE of the run and a tool call
+	// landing between beats left no trace at all. Splitting them lets the file record
+	// every tool call (an append is cheap and append-only) while status keeps exactly
+	// its previous write cadence — so watchdog freshness and the executor.progress
+	// event are unchanged, byte-for-byte, and only the record gets denser.
+	var lastStatusWrite time.Time
+	progress := func(phase, message string, tools ...string) {
+		now := clk.Now()
+		entry := ProgressEntry{At: now, Phase: phase, Message: message, Tools: tools}
 		_ = fx.AppendProgress(in.ExecutorID, entry) // best-effort relay
-		// Refresh the watchdog timestamp so a long but live run is not judged stalled,
-		// and carry the (already sanitized) note into the status so the executor.progress
-		// event says WHAT the runner is doing, not just that it is alive (T880).
-		st.LastProgressAt = clk.Now()
+		// A lifecycle note (start/done) always writes through; a running note writes at
+		// most once per interval. Refreshing LastProgressAt keeps a long-but-live run from
+		// being judged stalled, and Detail carries the note into the executor.progress
+		// event so it says WHAT the runner is doing, not just that it is alive (T880).
+		lifecycle := phase == phaseStart || phase == phaseDone
+		if !lifecycle && now.Sub(lastStatusWrite) < statusRefreshInterval {
+			return
+		}
+		lastStatusWrite = now
+		st.LastProgressAt = now
 		st.Detail = message
 		_ = fx.WriteStatus(st)
 	}
@@ -273,38 +309,49 @@ func (r *CommandRunner) Run(ctx context.Context, rc RunContext) (RunResult, erro
 	if len(r.cmd) == 0 {
 		return RunResult{}, errors.New("executor: no runner command configured (orchestrator must supply the model-routed agent CLI)")
 	}
-	rc.Progress("start", "running "+r.cmd[0])
-	// Heartbeat: refresh the watchdog progress timestamp while the command streams
-	// output. Before this, Run touched progress only at start/done, so a legitimate
-	// heavy run (reading a big codebase, a multi-minute build) with no start/done in
-	// between had last_progress_at frozen and was falsely stall-killed. Throttled so a
-	// chatty stream does not flood progress.jsonl / status writes.
-	// Also peek each streamed line for a short sanitized "what it's doing" note
-	// (T880 — read/edit which file, run which command, generating) so the throttled
-	// heartbeat says something specific instead of a static "active". streamLineActivity
-	// keeps only a tool name + a truncated structural hint; the latest meaningful note
-	// rides the next heartbeat's message (→ status.detail → the executor.progress event).
+	rc.Progress(phaseStart, "running "+r.cmd[0])
+	// Two distinct signals ride the stream, and conflating them is what made the record
+	// lossy (I109 ②):
+	//
+	//   - EVERY TOOL CALL gets its own entry, unthrottled. A tool call is a discrete,
+	//     low-rate event worth one line each; sampling it on a 15s beat meant a call
+	//     between beats vanished, and a later `grep -c push` read that absence as proof
+	//     the push never happened. The status write stays throttled inside rc.Progress,
+	//     so this costs an append, not a status write.
+	//
+	//   - A LIVENESS HEARTBEAT, still throttled, for stretches with no tool calls at
+	//     all (pure generation, a long think). Without it a legitimately busy run has
+	//     last_progress_at frozen and gets falsely stall-killed, which is the reason the
+	//     heartbeat exists in the first place (T880).
 	var lastBeat time.Time
 	var lastActivity string
 	onLine := func(line string) {
-		if a := streamLineActivity([]byte(line)); a != "" {
-			lastActivity = a
+		detail, tools, isTool := streamLineActivity([]byte(line))
+		if detail != "" {
+			lastActivity = detail
 		}
 		now := time.Now()
+		if isTool {
+			// Record the call itself, and count it as a beat: it already refreshed
+			// last_progress_at, so the heartbeat has nothing to add.
+			lastBeat = now
+			rc.Progress(phaseTool, detail, tools...)
+			return
+		}
 		if now.Sub(lastBeat) >= runnerHeartbeatInterval {
 			lastBeat = now
 			msg := lastActivity
 			if msg == "" {
 				msg = "executor active (streaming)"
 			}
-			rc.Progress("running", msg)
+			rc.Progress(phaseRunning, msg)
 		}
 	}
 	out, err := r.run(ctx, rc.WorkspaceDir, r.cmd, onLine)
 	if err != nil {
 		return RunResult{}, fmt.Errorf("runner command %q: %w: %s", r.cmd[0], err, strings.TrimSpace(out))
 	}
-	rc.Progress("done", "runner command completed")
+	rc.Progress(phaseDone, "runner command completed")
 	// Extract the run's final TEXT result + per-turn token usage from the captured
 	// stream (T613 usage; T622 result extraction). In production the runner is claude
 	// --output-format stream-json --verbose, so `out` is JSON lines — relaying it raw

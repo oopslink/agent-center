@@ -96,7 +96,10 @@ func TestHandleWork_RouteError_CorruptRoutingJSON(t *testing.T) {
 }
 
 func TestBuildPrompt_AllBranches(t *testing.T) {
-	full := buildPrompt(WorkItem{
+	// A bare Engine: no issue resolver wired, so buildPrompt keeps its pre-I109 shape
+	// (nothing here cites an issue ref anyway).
+	eng := &Engine{}
+	full := eng.buildPrompt(context.Background(), WorkItem{
 		Goal:    executor.Goal{Title: "T", Description: "D", IssueSpec: "S"},
 		Context: "C",
 	})
@@ -106,7 +109,7 @@ func TestBuildPrompt_AllBranches(t *testing.T) {
 		}
 	}
 	// Title-only: no Spec/Context headers.
-	bare := buildPrompt(WorkItem{Goal: executor.Goal{Title: "only"}})
+	bare := eng.buildPrompt(context.Background(), WorkItem{Goal: executor.Goal{Title: "only"}})
 	if bare != "only" {
 		t.Errorf("title-only prompt = %q, want 'only'", bare)
 	}

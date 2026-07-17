@@ -11,6 +11,7 @@
 //	  input.json      # orchestrator writes: goal + aggregated context + model + source refs
 //	  workspace/      # the executor's git worktree (isolation; executor only touches files here)
 //	  progress.jsonl  # executor appends streaming progress (orchestrator relays to chat)
+//	                  # a SAMPLED activity stream, NOT an audit log — see ProgressEntry
 //	  output.json     # executor writes: final result / error detail
 //	  status          # completion signal + detail (state/model/started_at/last_progress_at/error/summary)
 //
@@ -280,10 +281,40 @@ func (s Status) Validate() error {
 // ProgressEntry is one line of progress.jsonl — appended by the executor, tailed
 // by the orchestrator to relay status to chat (design §7). Append-only: never
 // rewritten, so a crash mid-run leaves a readable prefix.
+//
+// ┌─ READ THIS BEFORE DRAWING A CONCLUSION FROM progress.jsonl ────────────────┐
+// │ progress.jsonl IS A BEST-EFFORT ACTIVITY STREAM, NOT AN AUDIT LOG.         │
+// │                                                                            │
+// │   It can prove something HAPPENED. It can NEVER prove something DID NOT.   │
+// │                                                                            │
+// │ Every append is best-effort (AppendProgress errors are swallowed by design
+// │ — a relay failure must not kill the run), prose activity is sampled on a
+// │ ~15s heartbeat rather than recorded per event, `message` is a rendered note
+// │ clipped at maxDetailLen, and a run can die between an action and its append.
+// │ An absent record is therefore NOT evidence of an absent action.
+// │
+// │ This warning is load-bearing, not boilerplate. `grep -c push progress.jsonl`
+// │ returned 0 for a run whose `git reflog show refs/remotes/origin/<branch>`
+// │ read `update by push` 22 seconds BEFORE the executor reported done — the
+// │ push was real, the zero was an artifact of sampling + clipping. That zero
+// │ was one step from being filed as "the executor lied about delivering".
+// │ For a negative claim, go to a source of record: git reflog, the remote, the
+// │ center's task/delivery rows.
+// └────────────────────────────────────────────────────────────────────────────┘
+//
+// I109 ② narrows (does not close) the gap: every TOOL CALL now gets its own entry
+// rather than riding the heartbeat, and Tools survives message clipping. The
+// stream is more complete, and still not audit-grade.
 type ProgressEntry struct {
 	At      time.Time `json:"at"`
 	Phase   string    `json:"phase,omitempty"`
 	Message string    `json:"message"`
+	// Tools are the greppable identifiers of what this entry's tool call actually
+	// invoked — the tool name, plus each program/subcommand of a Bash command
+	// ("Bash", "git", "push"). It exists because Message is length-clipped and a long
+	// command loses its tail: Tools answers "WHAT ran" even when the command text did
+	// not fit. Empty for non-tool entries (start/done/heartbeat).
+	Tools []string `json:"tools,omitempty"`
 }
 
 // Validate requires a timestamp and a message (the relayable payload).

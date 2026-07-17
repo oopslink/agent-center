@@ -35,6 +35,10 @@ func ExecutorCommand() *Command {
 			"orchestrator-supplied model-routed command (--runner-cmd, a JSON argv array) inside " +
 			"its isolated git worktree, and writes progress.jsonl / output.json / status back over " +
 			"the file protocol. NEVER connects to the center or mcp and holds no credentials. " +
+			"NOTE: progress.jsonl is a best-effort SAMPLED activity stream, not an audit log — it " +
+			"can show that something happened, never that something did not. Do not read an " +
+			"absence in it as proof an action was skipped; use git reflog / the remote / the " +
+			"center's task rows for that. " +
 			"Flags: --agent-root, --executor-id, [--runner-cmd].",
 		Flags: func(fs *flag.FlagSet) Handler {
 			agentRoot := fs.String("agent-root", "", "per-agent home anchoring executors/<id>/ (required)")

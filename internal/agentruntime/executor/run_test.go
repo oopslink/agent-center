@@ -189,7 +189,7 @@ func TestCommandRunner_RunsCommandInWorkspace(t *testing.T) {
 	var progressPhases []string
 	res, err := cr.Run(context.Background(), RunContext{
 		WorkspaceDir: "/ws/exec-1",
-		Progress:     func(phase, _ string) { progressPhases = append(progressPhases, phase) },
+		Progress: func(phase, _ string, _ ...string) { progressPhases = append(progressPhases, phase) },
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -219,7 +219,7 @@ func TestCommandRunner_CodexBranch_CapturesThreadID(t *testing.T) {
 			}, "\n"), nil
 		},
 	}
-	res, err := cr.Run(context.Background(), RunContext{WorkspaceDir: "/ws/e1", Progress: func(string, string) {}})
+	res, err := cr.Run(context.Background(), RunContext{WorkspaceDir: "/ws/e1", Progress: func(string, string, ...string) {}})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestCommandRunner_ClaudeUnchanged(t *testing.T) {
 			return `{"type":"result","subtype":"success","result":"claude answer","usage":{"input_tokens":5,"output_tokens":1}}`, nil
 		},
 	}
-	res, err := cr.Run(context.Background(), RunContext{WorkspaceDir: "/ws/e2", Progress: func(string, string) {}})
+	res, err := cr.Run(context.Background(), RunContext{WorkspaceDir: "/ws/e2", Progress: func(string, string, ...string) {}})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -334,7 +334,7 @@ func TestCommandRunner_ParsesUsageFromStream(t *testing.T) {
 			return streamOut, nil
 		},
 	}
-	res, err := cr.Run(context.Background(), RunContext{Progress: func(string, string) {}})
+	res, err := cr.Run(context.Background(), RunContext{Progress: func(string, string, ...string) {}})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestCommandRunner_ParsesUsageFromStream(t *testing.T) {
 
 func TestCommandRunner_EmptyCommandErrors(t *testing.T) {
 	cr := NewCommandRunner(nil)
-	_, err := cr.Run(context.Background(), RunContext{Progress: func(string, string) {}})
+	_, err := cr.Run(context.Background(), RunContext{Progress: func(string, string, ...string) {}})
 	if err == nil {
 		t.Error("empty runner command must error, not invent a command")
 	}
@@ -359,7 +359,7 @@ func TestCommandRunner_CommandFailurePropagates(t *testing.T) {
 			return "boom output", errors.New("exit status 1")
 		},
 	}
-	_, err := cr.Run(context.Background(), RunContext{Progress: func(string, string) {}})
+	_, err := cr.Run(context.Background(), RunContext{Progress: func(string, string, ...string) {}})
 	if err == nil || !strings.Contains(err.Error(), "boom output") {
 		t.Errorf("expected command failure with output, got %v", err)
 	}
@@ -381,7 +381,7 @@ func TestCommandRunner_HeartbeatsDuringStream_T877(t *testing.T) {
 	}
 	var phases []string
 	if _, err := cr.Run(context.Background(), RunContext{
-		Progress: func(phase, _ string) { phases = append(phases, phase) },
+		Progress: func(phase, _ string, _ ...string) { phases = append(phases, phase) },
 	}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}

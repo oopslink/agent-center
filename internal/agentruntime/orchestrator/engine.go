@@ -32,6 +32,10 @@ type WorkItem struct {
 	TaskRef   string
 	IssueRef  string
 	ChatID    string
+	// ProjectID scopes an I<n> issue-ref lookup during spawn-time inline expansion
+	// (I109 ①). Empty ⇒ only canonical issue-<8hex> refs can be resolved; an I<n> ref
+	// then fails loudly rather than silently staying dead.
+	ProjectID string
 	Goal      executor.Goal
 	TaskModel string // task.model hard override ("" = unset → F3 judges/falls back)
 	Context   string // aggregated context the orchestrator assembled (design §6.E)
@@ -86,6 +90,13 @@ type EngineConfig struct {
 	IDs IDMinter
 	// Clock stamps Input.CreatedAt. Nil → SystemClock.
 	Clock clock.Clock
+	// Issues resolves issue references for spawn-time inline expansion (I109 ①).
+	// Optional: nil ⇒ refs are left as dead references and every fork carrying one is
+	// logged as degraded (inlineIssueRefs), never silently downgraded.
+	Issues IssueResolver
+	// Log is the fail-loud sink for the issue-inline path (resolve failure /
+	// truncation / over-cap drop). Nil → discarded.
+	Log func(format string, args ...any)
 }
 
 // Engine is the per-agent orchestration brain: it chains F4 routing → F3 model
@@ -104,6 +115,8 @@ type Engine struct {
 	runners map[string]RunnerCmdBuilder
 	ids     IDMinter
 	clk     clock.Clock
+	issues  IssueResolver
+	log     func(format string, args ...any)
 }
 
 // NewEngine validates cfg and builds an Engine.
@@ -141,6 +154,8 @@ func NewEngine(cfg EngineConfig) (*Engine, error) {
 		runners: runners,
 		ids:     cfg.IDs,
 		clk:     clk,
+		issues:  cfg.Issues,
+		log:     cfg.Log,
 	}, nil
 }
 
@@ -229,7 +244,7 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 	// it into the argv (claude) or ignores it (codex mints its own thread), and it is
 	// persisted into Record.SessionID for tier-1 --resume crash recovery.
 	sessionID := claudestream.SessionUUID(execID, 0)
-	runnerCmd, err := runner.Build(modelDec.Model, buildPrompt(item), sessionID)
+	runnerCmd, err := runner.Build(modelDec.Model, e.buildPrompt(ctx, item), sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("orchestrator: build runner: %w", err)
 	}
@@ -288,7 +303,13 @@ func (e *Engine) HandleWork(ctx context.Context, item WorkItem) (*Launched, erro
 
 // buildPrompt assembles the executor's prompt from the goal + aggregated context.
 // Title is mandatory; the rest are appended when present.
-func buildPrompt(item WorkItem) string {
+//
+// It is also where issue references are INLINE-EXPANDED (I109 ①): the executor is a
+// frozen one-shot process with no center access, so a "见 issue-xxxxxxxx" left in the
+// brief is a dead reference. The orchestrator holds the credentials, so it resolves
+// the ref here — bounded, and loud about anything it could not fully expand. See
+// issueinline.go.
+func (e *Engine) buildPrompt(ctx context.Context, item WorkItem) string {
 	var b strings.Builder
 	b.WriteString(item.Goal.Title)
 	if d := strings.TrimSpace(item.Goal.Description); d != "" {
@@ -303,6 +324,7 @@ func buildPrompt(item WorkItem) string {
 		b.WriteString("\n\n## Context\n")
 		b.WriteString(c)
 	}
+	b.WriteString(inlineIssueRefs(ctx, e.issues, item, e.log))
 	return b.String()
 }
 
