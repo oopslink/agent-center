@@ -610,11 +610,17 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return nil, nil
 	}
 
-	// issue-d118b5dc instrument: the agent.work_available → NotifyWorkAvailable → SpawnExecutor
-	// route ALWAYS resolves to a FORK (unconditional, no dispatch-mode XOR with the agent.work
-	// inject path). Fail-loud decision log so a ① dual fan-out (this firing for a task that ALSO
-	// got an agent.work inject) is visible. Instrument-only, no behavior change.
-	r.log("DISPATCH-DECISION route=NotifyWorkAvailable(agent.work_available) dispatch_mode=executor-fork agent_namespace=%s task_id=%s — SpawnExecutor entry",
+	// issue-d118b5dc instrument: entry probe for the agent.work_available → NotifyWorkAvailable
+	// → SpawnExecutor route. Fail-loud so a ① dual fan-out (this firing for a task that ALSO got
+	// an agent.work inject) is visible. Instrument-only, no behavior change.
+	//
+	// This is an ENTRY probe, NOT the dispatch decision: since I105 this route is no longer an
+	// unconditional fork — a task marked dispatch_mode=supervisor_inline routes to the supervisor
+	// instead (see the gate below). The mode is read off the task, and fetchCenterTask has not run
+	// yet at this point, so this line deliberately asserts NO dispatch_mode. The routing outcome
+	// is logged where it is actually known: DISPATCH-DECISION … dispatch_mode=supervisor-inline at
+	// the gate below, or DISPATCH-FORK-ENTRY at the fork commit point (launchExecutorLocked).
+	r.log("DISPATCH-ENTRY route=NotifyWorkAvailable(agent.work_available) agent_namespace=%s task_id=%s — SpawnExecutor entry (dispatch_mode not yet read; routing outcome logged separately)",
 		agentID, taskID)
 
 	r.forkMu.Lock()
