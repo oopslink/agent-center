@@ -78,23 +78,6 @@ func attach(rt *LocalRuntime, ee *ExecutorEngine) *LocalRuntime {
 	return rt
 }
 
-// currentTaskID reads state.CurrentTaskID under the SAME mutex the production writers
-// take. SessionState's contract is "EVERY field is guarded by the SHARED mutex"
-// (session.go) and production honors it — but State() hands back the raw *SessionState
-// pointer, so a bare rt.State().CurrentTaskID dereferences it with NO lock.
-//
-// That matters on the fork paths: launchExecutorLocked detaches `go drainExecutor`,
-// which on executor exit reaches reconcileOneExecutor → enactRecover → resetRecoveredTask,
-// and that writes state.CurrentTaskID under r.mu. A test reading the field without
-// taking r.mu has no happens-before edge to that write — a data race by the Go memory
-// model regardless of which value it happens to observe. StateMu() is the same &r.mu,
-// so locking here supplies the missing edge.
-func currentTaskID(rt *LocalRuntime) string {
-	rt.StateMu().Lock()
-	defer rt.StateMu().Unlock()
-	return rt.State().CurrentTaskID
-}
-
 // scriptedToolCaller is a TEST-ONLY ToolCaller that records calls in order and returns
 // canned per-tool responses.
 type scriptedToolCaller struct {

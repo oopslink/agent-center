@@ -41,7 +41,7 @@ func TestSpawnExecutor_DispatchModeAbsent_StillForks(t *testing.T) {
 	if probs := loadRouting(t, home); len(probs) != 1 {
 		t.Fatalf("absent dispatch_mode must FORK (default unchanged): problems=%+v", probs)
 	}
-	if got := currentTaskID(rt); got != "task-nodm" {
+	if got := rt.CurrentTaskID(); got != "task-nodm" {
 		t.Errorf("currentTaskID = %q, want task-nodm (forked)", got)
 	}
 }
@@ -114,7 +114,7 @@ func TestSpawnExecutor_SupervisorInline_DoesNotFork_Injects(t *testing.T) {
 	attach(rt, ee) // concurrency ON — the gate must override it
 	setToolCaller(rt, sc)
 	fs := &fakeSession{}
-	rt.State().Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 
 	if _, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-inline"}); err != nil {
 		t.Fatalf("SpawnExecutor: %v", err)
@@ -139,7 +139,7 @@ func TestSpawnExecutor_SupervisorInline_DoesNotFork_Injects(t *testing.T) {
 	if !strings.Contains(msgs[0], "supervisor_inline") {
 		t.Errorf("inline brief should state the routing decision, got %q", msgs[0])
 	}
-	if got := currentTaskID(rt); got != "" {
+	if got := rt.CurrentTaskID(); got != "" {
 		t.Errorf("currentTaskID = %q — an inline node must not claim the fork run-slot", got)
 	}
 }
@@ -157,7 +157,7 @@ func TestSpawnExecutor_SupervisorInline_ForeignAssignee_StillSkips(t *testing.T)
 	attach(rt, ee)
 	setToolCaller(rt, sc)
 	fs := &fakeSession{}
-	rt.State().Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 
 	if _, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-foreign"}); err != nil {
 		t.Fatalf("SpawnExecutor: %v", err)
@@ -182,7 +182,7 @@ func TestSpawnExecutor_SupervisorInline_AlreadyRunning_Skips(t *testing.T) {
 	attach(rt, ee)
 	setToolCaller(rt, sc)
 	fs := &fakeSession{}
-	rt.State().Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 
 	if _, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-run"}); err != nil {
 		t.Fatalf("SpawnExecutor: %v", err)
@@ -211,7 +211,7 @@ func TestSpawnExecutor_SupervisorInline_InjectFails_BlocksTask(t *testing.T) {
 	setToolCaller(rt, sc)
 	fs := &fakeSession{}
 	fs.Detach() // session is dead → Inject returns an error
-	rt.State().Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 
 	// Non-wedging: no error may escape.
 	if _, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-deadsess"}); err != nil {
@@ -252,7 +252,7 @@ func TestSpawnExecutor_SupervisorInline_NoSession_BlocksTask(t *testing.T) {
 	rt, ee, home := engineForAgent(t, "agent-nosess")
 	attach(rt, ee)
 	setToolCaller(rt, sc)
-	// NOTE: no rt.State().Session assigned — nil session.
+	// NOTE: no s.Session assigned — nil session.
 
 	if _, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-nosess"}); err != nil {
 		t.Fatalf("SpawnExecutor must not propagate (non-wedging): %v", err)
@@ -278,7 +278,7 @@ func TestNotifyWork_SupervisorInline_InjectsDespiteConcurrency(t *testing.T) {
 	rt, ee, home := engineForAgent(t, "agent-nwi")
 	attach(rt, ee) // concurrency ON
 	fs := &fakeSession{}
-	rt.State().Session = fs
+	rt.withState(func(s *SessionState) { s.Session = fs })
 
 	err := rt.NotifyWork(context.Background(), WorkRequest{
 		AgentID: "agent-nwi", TaskID: "t-inline", TaskRef: "task-inline",
@@ -304,7 +304,7 @@ func TestNotifyWork_DispatchModeDefaults_StillFork(t *testing.T) {
 			rt, ee, home := engineForAgent(t, "agent-nwf")
 			attach(rt, ee)
 			fs := &fakeSession{}
-			rt.State().Session = fs
+			rt.withState(func(s *SessionState) { s.Session = fs })
 
 			err := rt.NotifyWork(context.Background(), WorkRequest{
 				AgentID: "agent-nwf", TaskID: "t-fork", TaskRef: "task-fork",
