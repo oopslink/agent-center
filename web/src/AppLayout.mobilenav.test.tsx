@@ -3,11 +3,13 @@
 // title. Without it, tapping Workspace on mobile only lands on Projects with no
 // way to reach Issues / Tasks / Plans. (jsdom has no viewport media, so the
 // md:-hidden trigger + sheet both render in the DOM — we drive them by testid.)
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import type React from 'react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { FakeEventSource } from '@/sse/fakeEventSource';
+import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
 import AppLayout from './AppLayout';
 
 beforeAll(() => {
@@ -59,5 +61,106 @@ describe('Mobile module nav sheet — col② reflowed into a bottom sheet', () =
     // Route-change effect dismisses the sheet so it doesn't cover the new screen.
     await waitFor(() => expect(screen.queryByTestId('mobile-nav-sheet')).toBeNull());
     expect(screen.getByTestId('page-Tasks')).toBeInTheDocument();
+  });
+});
+
+describe('Mobile tab bar — short labels stay compact for 5-tab parity', () => {
+  afterEach(() => cleanup());
+
+  it('renders "Sys" (not "System") for the System tab, matching Work/Chat/Team/Remind width', () => {
+    renderShell('/projects');
+    const sysTab = screen.getByTestId('tab-system');
+    expect(sysTab).toHaveTextContent('Sys');
+    expect(sysTab).not.toHaveTextContent('System');
+  });
+});
+
+function PageWithContextPanel(): React.ReactElement {
+  const trigger = useContextPanelMobileTrigger();
+  return (
+    <div>
+      <button type="button" data-testid="page-info-button" onClick={() => trigger?.open()}>
+        Info
+      </button>
+      <ContextPanel>
+        <div data-testid="page-panel-content">
+          Panel body
+          <Link to="/tasks" data-testid="panel-nav-link">
+            Go to Tasks
+          </Link>
+        </div>
+      </ContextPanel>
+    </div>
+  );
+}
+
+describe('Mobile Context Panel bottom sheet', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('a page-level ⓘ trigger opens a bottom sheet containing that page\'s ContextPanel content', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/projects']}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/projects" element={<PageWithContextPanel />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByTestId('mobile-context-panel-sheet')).toBeNull();
+    fireEvent.click(screen.getByTestId('page-info-button'));
+    const sheet = await screen.findByTestId('mobile-context-panel-sheet');
+    expect(within(sheet).getByTestId('page-panel-content')).toBeInTheDocument();
+  });
+
+  it('navigating away from the page closes the context panel sheet, matching the nav/account sheet convention', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/projects']}>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/projects" element={<PageWithContextPanel />} />
+              <Route path="/tasks" element={<div data-testid="page-Tasks">tasks</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByTestId('page-info-button'));
+    const sheet = await screen.findByTestId('mobile-context-panel-sheet');
+    fireEvent.click(within(sheet).getByTestId('panel-nav-link'));
+    // Route-change effect dismisses the sheet so an empty sheet doesn't hover
+    // over the newly-navigated page.
+    await waitFor(() => expect(screen.queryByTestId('mobile-context-panel-sheet')).toBeNull());
+    expect(screen.getByTestId('page-Tasks')).toBeInTheDocument();
+  });
+});
+
+describe('Mobile Attention bottom sheet', () => {
+  afterEach(() => cleanup());
+
+  it('tapping the bell toggles the attention panel open, closed on second tap', () => {
+    renderShell('/projects');
+    expect(screen.queryByTestId('mobile-alerts-panel')).toBeNull();
+    fireEvent.click(screen.getByTestId('mobile-alerts'));
+    expect(screen.getByTestId('mobile-alerts-panel')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('mobile-alerts'));
+    expect(screen.queryByTestId('mobile-alerts-panel')).toBeNull();
   });
 });

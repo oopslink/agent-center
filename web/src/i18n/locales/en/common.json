@@ -17,7 +17,7 @@
       "members": "Team",
       "teamui": "Teams",
       "reminders": "Remind",
-      "system": "System"
+      "system": "Sys"
     }
   },
   "theme": {
@@ -178,6 +178,9 @@
   },
   "shell": {
     "none": "(none)",
+    "contextPanel": {
+      "mobileSheetLabel": "Details"
+    },
     "search": {
       "label": "Search",
       "aria": "Search (⌘K)"

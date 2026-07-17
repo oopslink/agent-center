@@ -24,6 +24,7 @@ import { useMe, useSignout, useOrgs, orgApi } from '@/api/auth';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOptionalOrgContext } from './OrgContext';
 import { useContextPanelController } from '@/shell/contextPanel';
+import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { useResizablePanel } from '@/components/useResizablePanel';
 import { MobileTabBar, type TabBarModule } from '@/shell/MobileTabBar';
 import { BottomSheet } from '@/shell/BottomSheet';
@@ -246,12 +247,22 @@ export default function AppLayout(): React.ReactElement {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const displayName = me.data?.display_name;
 
+  // Context panel (col④). Declared here (ahead of its later usage) so the
+  // auto-close-on-navigation effect below can reach `closeMobileSheet`.
+  const ctxPanel = useContextPanelController();
+
   // Auto-close sheets on navigation.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- closeMobileSheet
+  // isn't memoized (fresh reference per render); depending only on pathname
+  // matches the existing convention for the sibling setState calls below.
   useEffect(() => {
     setMobileNavSheetOpen(false);
     setMobileAccountSheetOpen(false);
+    setMobileAlertsOpen(false);
+    ctxPanel.closeMobileSheet();
   }, [location.pathname]);
 
   // Persist sidebar + theme.
@@ -289,8 +300,6 @@ export default function AppLayout(): React.ReactElement {
   );
   useKeyShortcuts(shortcuts);
 
-  // Context panel (col④).
-  const ctxPanel = useContextPanelController();
   const ctxResize = useResizablePanel({
     storageKey: 'ac.contextpanel.width',
     defaultWidth: 256,
@@ -578,7 +587,7 @@ export default function AppLayout(): React.ReactElement {
           </button>
         )}
 
-        {/* ────── col④ Context Panel (desktop + mobile host) ────── */}
+        {/* ────── col④ Context Panel (desktop) ────── */}
         <div
           data-testid="context-panel"
           data-open={ctxPanel.open}
@@ -599,8 +608,18 @@ export default function AppLayout(): React.ReactElement {
               className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize hover:bg-brand/20"
             />
           )}
-          <div ref={ctxPanel.setHost} className="flex-1 overflow-y-auto" />
+          <div ref={isMobile ? undefined : ctxPanel.setHost} className="flex-1 overflow-y-auto" />
         </div>
+
+        {/* ────── Mobile Context Panel sheet ────── */}
+        <BottomSheet
+          open={isMobile && ctxPanel.mobileSheetOpen}
+          onClose={ctxPanel.closeMobileSheet}
+          testId="mobile-context-panel-sheet"
+          ariaLabel={t('shell.contextPanel.mobileSheetLabel')}
+        >
+          <div ref={isMobile ? ctxPanel.setHost : undefined} />
+        </BottomSheet>
 
         {/* ────── Mobile bottom tab bar (md:hidden) ────── */}
         <MobileTabBar

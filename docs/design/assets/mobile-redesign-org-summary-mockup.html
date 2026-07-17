@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>跨项目汇总 — 高保真 mockup</title>
+<style>
+  :root{
+    --bg-base:#FFFCFC; --bg-elevated:#ffffff; --bg-subtle:#f8f5f6;
+    --border:#dbd7da; --border-strong:#afa9b1;
+    --text-primary:#31263B; --text-secondary:#4a4255; --text-muted:#717A94;
+    --brand:#7C3AED; --brand-hover:#6D28D9; --brand-10:#7C3AED1a;
+    --success:#5CB198; --danger:#D44040; --warning:#C58B2E;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:#eee9ea;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--text-primary)}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:#555;font-size:13px;margin:0 0 20px;max-width:980px}
+  .row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+  .frame-wrap{text-align:center}
+  .frame-label{font-size:12px;font-weight:600;color:#333;margin-bottom:8px}
+  .phone{width:300px;height:620px;border-radius:28px;overflow:hidden;background:var(--bg-base);box-shadow:0 8px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;position:relative;border:6px solid #1c1c1e}
+  .icon{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:-0.15em}
+  .topbar{height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:var(--bg-elevated);border-bottom:1px solid var(--border)}
+  .topbar .title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;min-width:0}
+  .topbar .title span.t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar .actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+  .icon-btn{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);position:relative}
+  .content{flex:1;overflow-y:auto;background:var(--bg-base)}
+  .tabbar{height:56px;flex:0 0 56px;display:flex;background:var(--bg-elevated);border-top:1px solid var(--border)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:9px;color:var(--text-muted)}
+  .tab.active{color:var(--brand);font-weight:700}
+  .row-action{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-muted);flex:0 0 auto}
+
+  .tabstrip{display:flex;padding:0 8px;background:var(--bg-elevated);border-bottom:1px solid var(--border);overflow-x:auto}
+  .tabstrip .t{padding:9px 10px;font-size:12px;color:var(--text-muted);white-space:nowrap;border-bottom:2px solid transparent}
+  .tabstrip .t.active{color:var(--text-primary);font-weight:700;border-bottom-color:var(--brand)}
+
+  .filterbar2{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:var(--bg-elevated);border-bottom:1px solid var(--border);font-size:11px;color:var(--text-muted)}
+  .filterbar2 .fcount{background:var(--brand);color:#fff;border-radius:8px;padding:0 5px;font-size:9.5px;margin-left:4px}
+  .search-box{margin:8px 10px 4px;height:32px;border-radius:8px;background:var(--bg-subtle);border:1px solid var(--border);display:flex;align-items:center;padding:0 10px;font-size:12px;color:var(--text-muted);gap:6px}
+
+  .wi-row{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border)}
+  .wi-ref{font-size:9.5px;color:var(--text-muted);font-family:ui-monospace,monospace;flex:0 0 auto}
+  .wi-title{font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wi-status{font-size:9px;font-weight:700;padding:1px 6px;border-radius:5px;flex:0 0 auto}
+  .st-open{background:#7C3AED1a;color:var(--brand)}
+  .st-running{background:#5CB1981a;color:var(--success)}
+  .st-done{background:var(--bg-subtle);color:var(--text-muted)}
+  .wi-sub{font-size:10px;color:var(--text-muted);margin-top:2px}
+  .proj-tag{font-size:9px;color:var(--brand);background:var(--brand-10);border-radius:5px;padding:1px 5px}
+
+  .card{margin:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg-elevated);padding:11px 12px}
+  .card-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .card-title{font-size:13.5px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card-desc{font-size:11.5px;color:var(--text-secondary);margin-top:3px}
+  .card-bottom{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px}
+  .status-badge{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:5px}
+  .badge-builtin{background:var(--bg-subtle);color:var(--text-muted)}
+  .badge-provider{background:#7C3AED1a;color:var(--brand)}
+
+  .progress-mini{height:5px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:6px;width:100%}
+  .progress-fill{height:100%;background:var(--success)}
+
+  .sheet-overlay{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg-elevated);border-radius:16px 16px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.2);padding:10px 14px 16px}
+  .sheet-handle{width:36px;height:4px;border-radius:2px;background:var(--border-strong);margin:0 auto 12px}
+  .sheet-title{font-size:14px;font-weight:700;margin-bottom:10px}
+  .info-row{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);font-size:11.5px}
+  .info-row .k{color:var(--text-muted)}
+  .sheet-cta{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;padding:10px;border-radius:9px;background:var(--brand);color:#fff;font-size:12.5px;font-weight:700}
+
+  .commit-row{padding:8px 12px;border-bottom:1px solid var(--border)}
+  .commit-row .h{font-size:11.5px;font-weight:600}
+  .commit-row .m{display:flex;justify-content:space-between;font-size:9.5px;color:var(--text-muted);margin-top:3px}
+  .day-divider{padding:6px 12px;font-size:10px;font-weight:700;color:var(--text-muted);background:var(--bg-subtle)}
+  .branch-chip{display:inline-flex;font-size:10px;background:var(--bg-subtle);border-radius:6px;padding:3px 8px;margin:3px 4px 0 0}
+  .branch-chip.default{background:var(--brand-10);color:var(--brand);font-weight:700}
+
+  .code-block{margin:8px 10px;background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-family:ui-monospace,monospace;font-size:10.5px;white-space:pre-wrap;color:var(--text-secondary)}
+
+  .section-note{max-width:1240px;margin-top:24px;background:#fff;border-radius:10px;padding:16px 18px;font-size:13px;line-height:1.7;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .section-note h3{font-size:14px;margin:0 0 8px}
+  .section-note ul{margin:0;padding-left:18px}
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16M7 12h10M10 19h4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-7.6 4.7L3 21l1.9-5.7a8.38 8.38 0 018-11.5 8.48 8.48 0 018 8v.5z"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4"/><circle cx="12" cy="3" r="1"/><path d="M8 13v2M16 13v2"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+</svg>
+
+<h1>跨项目汇总 — 移动端高保真 mockup</h1>
+<p class="sub">OrgWorkItems（Issues/Tasks 跨项目汇总，同一组件不同 kind）/ OrgPlans / OrgRepos（工作区仓库注册表，非 GitHub 连接、也非项目内引用）/ OrgTemplates（纯文本 prompt 模板，与另一个不相关的 Team Templates 功能无关）。设计前已审计 PC 端功能——项目筛选器是这批独有的（项目内视图没有，因为项目维度已固定）；OrgWorkItems/OrgPlans 点行进入的是<b>只读摘要面板</b>，不能就地编辑，要跳转到项目内详情页才能操作。</p>
+
+<div class="row">
+
+  <div class="frame-wrap">
+    <div class="frame-label">① OrgWorkItems（Issues，跨项目）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
+        <div class="actions"><div class="icon-btn" style="color:var(--brand)"><svg class="icon"><use href="#i-plus"/></svg></div></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t">Projects</div>
+        <div class="t active">Issues</div>
+        <div class="t">Tasks</div>
+        <div class="t">Plans</div>
+      </div>
+      <div class="filterbar2">
+        <span><svg class="icon" style="width:12px;height:12px"><use href="#i-filter"/></svg> 筛选<span class="fcount">3</span></span>
+        <span style="display:flex;align-items:center;gap:3px">全部项目<svg class="icon" style="width:10px;height:10px"><use href="#i-down"/></svg> · 全部负责人<svg class="icon" style="width:10px;height:10px"><use href="#i-down"/></svg></span>
+      </div>
+      <div class="content">
+        <div class="wi-row">
+          <span class="wi-ref">#I-142</span>
+          <div style="flex:1;min-width:0">
+            <div class="wi-title">网关超时导致订单重复扣款</div>
+            <div class="wi-sub"><span class="proj-tag">支付网关迁移</span></div>
+          </div>
+          <span class="wi-status st-open">Open</span>
+        </div>
+        <div class="wi-row">
+          <span class="wi-ref">#I-88</span>
+          <div style="flex:1;min-width:0">
+            <div class="wi-title">移动端字体在小屏被裁切</div>
+            <div class="wi-sub"><span class="proj-tag">agent-center 移动端重设计</span></div>
+          </div>
+          <span class="wi-status st-running">进行中</span>
+        </div>
+        <div class="wi-row">
+          <span class="wi-ref">#I-61</span>
+          <div style="flex:1;min-width:0">
+            <div class="wi-title">旧接口下线通知</div>
+            <div class="wi-sub"><span class="proj-tag">支付网关迁移</span></div>
+          </div>
+          <span class="wi-status st-done">已关闭</span>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab active"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Remind</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">①' 点行 → 只读摘要弹层（非就地编辑）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
+      </div>
+      <div class="content" style="position:relative;height:100%">
+        <div class="sheet-overlay"></div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">#I-142 网关超时导致订单重复扣款</div>
+          <div class="info-row"><span class="k">状态</span><span class="wi-status st-open">Open</span></div>
+          <div class="info-row"><span class="k">项目</span><span>支付网关迁移</span></div>
+          <div class="info-row"><span class="k">负责人</span><span>—（Issue 无 assignee）</span></div>
+          <div class="info-row"><span class="k">创建时间</span><span>2 天前</span></div>
+          <div class="info-row"><span class="k">更新时间</span><span>3 小时前</span></div>
+          <div class="sheet-cta"><svg class="icon" style="width:14px;height:14px"><use href="#i-open"/></svg>打开完整详情（跳转项目内页面）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">② OrgPlans（搜索 + 状态筛选 + 项目筛选）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t">Projects</div>
+        <div class="t">Issues</div>
+        <div class="t">Tasks</div>
+        <div class="t active">Plans</div>
+      </div>
+      <div class="search-box"><svg class="icon" style="width:13px;height:13px"><use href="#i-search"/></svg>搜索计划名称…</div>
+      <div class="filterbar2">
+        <span>draft · running · done</span>
+        <span style="display:flex;align-items:center;gap:3px">全部项目<svg class="icon" style="width:10px;height:10px"><use href="#i-down"/></svg></span>
+      </div>
+      <div class="content">
+        <div class="card">
+          <div class="card-top">
+            <div class="card-title">支付迁移·执行计划</div>
+            <span class="wi-status st-running">Running</span>
+          </div>
+          <div class="card-desc"><span class="proj-tag">支付网关迁移</span></div>
+          <div class="progress-mini"><div class="progress-fill" style="width:40%"></div></div>
+          <div class="card-bottom"><span style="font-size:10px;color:var(--text-muted)">2/5 节点完成</span></div>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="card-title">灰度验证计划</div>
+            <span class="wi-status" style="background:#7C3AED1a;color:var(--brand)">Draft</span>
+          </div>
+          <div class="card-desc"><span class="proj-tag">支付网关迁移</span></div>
+          <div class="progress-mini"><div class="progress-fill" style="width:0%"></div></div>
+          <div class="card-bottom"><span style="font-size:10px;color:var(--text-muted)">0/2 节点完成</span></div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab active"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Remind</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">②' OrgPlans → 点卡片 → 摘要弹层 + "打开 Plan"</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
+      </div>
+      <div class="content" style="position:relative;height:100%">
+        <div class="sheet-overlay"></div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">支付迁移·执行计划</div>
+          <div class="info-row"><span class="k">状态</span><span class="wi-status st-running">Running</span></div>
+          <div class="info-row"><span class="k">项目</span><span>支付网关迁移</span></div>
+          <div class="info-row"><span class="k">进度</span><span>2/5 节点完成</span></div>
+          <div class="info-row"><span class="k">创建者</span><span>Alice</span></div>
+          <div class="sheet-cta"><svg class="icon" style="width:14px;height:14px"><use href="#i-open"/></svg>打开 Plan（跳转 PlanDetail）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">③ OrgRepos（工作区仓库注册表）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
+        <div class="actions"><div class="icon-btn" style="color:var(--brand)"><svg class="icon"><use href="#i-plus"/></svg></div></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t">Projects</div>
+        <div class="t">Issues</div>
+        <div class="t">Tasks</div>
+        <div class="t">Plans</div>
+        <div class="t active">Repos</div>
+        <div class="t">Templates</div>
+      </div>
+      <div class="content">
+        <div class="card">
+          <div class="card-top">
+            <span class="status-badge badge-provider">GitHub</span>
+            <div class="card-title">payment-gateway-service</div>
+            <span class="row-action"><svg class="icon"><use href="#i-dots"/></svg></span>
+          </div>
+          <div class="card-desc">支付网关核心服务代码库</div>
+          <div class="card-bottom">
+            <span style="font-size:10px;color:var(--text-muted)">默认分支 main · 被 2 个项目引用</span>
+            <span class="row-action" style="color:var(--brand)"><svg class="icon"><use href="#i-code"/></svg></span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <span class="status-badge badge-provider">GitHub</span>
+            <div class="card-title">agent-center-web</div>
+            <span class="row-action"><svg class="icon"><use href="#i-dots"/></svg></span>
+          </div>
+          <div class="card-desc">前端 Web 应用</div>
+          <div class="card-bottom">
+            <span style="font-size:10px;color:var(--text-muted)">默认分支 main · 被 1 个项目引用</span>
+            <span class="row-action" style="color:var(--brand)"><svg class="icon"><use href="#i-code"/></svg></span>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab active"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Remind</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">③' OrgRepos → 展开远端查看（Commits/Branches）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-back"/></svg>&nbsp;&nbsp;<span class="t">payment-gateway-service</span></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t active">Commits</div>
+        <div class="t">Branches</div>
+      </div>
+      <div class="filterbar2">
+        <span style="display:flex;align-items:center;gap:3px">分支：main<svg class="icon" style="width:10px;height:10px"><use href="#i-down"/></svg></span>
+      </div>
+      <div class="content">
+        <div class="day-divider">今天</div>
+        <div class="commit-row">
+          <div class="h">fix: 幂等键校验补充单测</div>
+          <div class="m"><span>Alice · 2 小时前</span><span style="display:flex;align-items:center;gap:4px">a3f9c1e<svg class="icon" style="width:11px;height:11px"><use href="#i-copy"/></svg></span></div>
+        </div>
+        <div class="day-divider">昨天</div>
+        <div class="commit-row">
+          <div class="h">feat: 支付网关幂等键中间件</div>
+          <div class="m"><span>Agent-7 · 昨天 18:02</span><span style="display:flex;align-items:center;gap:4px">7c02ab1<svg class="icon" style="width:11px;height:11px"><use href="#i-copy"/></svg></span></div>
+        </div>
+        <div style="text-align:center;padding:8px;font-size:10.5px;color:var(--brand);font-weight:600">在代码托管平台中查看</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab active"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Remind</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">④ OrgTemplates（纯文本 prompt 模板）</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
+        <div class="actions"><div class="icon-btn" style="color:var(--brand)"><svg class="icon"><use href="#i-plus"/></svg></div></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t">Projects</div>
+        <div class="t">Issues</div>
+        <div class="t">Tasks</div>
+        <div class="t">Plans</div>
+        <div class="t">Repos</div>
+        <div class="t active">Templates</div>
+      </div>
+      <div class="content">
+        <div class="card">
+          <div class="card-top">
+            <div class="card-title">Bug 修复标准流程</div>
+            <span class="status-badge badge-builtin">内置</span>
+          </div>
+          <div class="card-desc">用于指导 agent 按标准步骤定位并修复 bug</div>
+          <div class="card-bottom">
+            <span style="font-size:10px;color:var(--text-muted)">内置模板不可编辑/删除</span>
+            <span class="row-action" style="color:var(--brand)"><svg class="icon" style="width:13px;height:13px"><use href="#i-search"/></svg></span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="card-title">支付合规检查清单</div>
+          </div>
+          <div class="card-desc">团队自定义的支付相关合规审查提示词</div>
+          <div class="card-bottom">
+            <span style="font-size:10px;color:var(--text-muted)">自定义模板</span>
+            <span style="display:flex;gap:4px">
+              <span class="row-action" style="color:var(--brand)"><svg class="icon" style="width:13px;height:13px"><use href="#i-edit"/></svg></span>
+              <span class="row-action" style="color:var(--danger)"><svg class="icon" style="width:13px;height:13px"><use href="#i-trash"/></svg></span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab active"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Remind</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">④' OrgTemplates → 展开查看内容</div>
+    <div class="phone">
+      <div class="topbar">
+        <div class="title"><svg class="icon"><use href="#i-menu"/></svg>&nbsp;&nbsp;<span class="t">Work</span></div>
+      </div>
+      <div class="tabstrip">
+        <div class="t">Projects</div>
+        <div class="t">Issues</div>
+        <div class="t">Tasks</div>
+        <div class="t">Plans</div>
+        <div class="t">Repos</div>
+        <div class="t active">Templates</div>
+      </div>
+      <div class="content">
+        <div class="card">
+          <div class="card-top">
+            <div class="card-title">支付合规检查清单</div>
+          </div>
+          <div class="card-desc">团队自定义的支付相关合规审查提示词</div>
+        </div>
+        <div class="code-block">1. 检查是否记录完整审计日志
+2. 检查敏感字段是否加密存储
+3. 检查是否有幂等性保护
+4. 检查回滚方案是否完备</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab active"><svg class="icon"><use href="#i-folder"/></svg>Work</div>
+        <div class="tab"><svg class="icon"><use href="#i-msg"/></svg>Chat</div>
+        <div class="tab"><svg class="icon"><use href="#i-bot"/></svg>Team</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Remind</div>
+        <div class="tab"><svg class="icon"><use href="#i-dots"/></svg>Sys</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section-note">
+  <h3>设计要点</h3>
+  <ul>
+    <li>Workspace 顶层 tabstrip 从"Projects"扩展到"Projects / Issues / Tasks / Plans / Repos / Templates"六项，横向可滑动——这是 PC 端 col① rail 的 pathPrefixes（<code>projects/issues/tasks/plans/repos/templates</code>）在移动端的统一入口，跟第三批 ProjectDetail 内部的 tabstrip 是同一视觉语言但不同语义层级（这里切的是"跨项目视图"，那里切的是"单项目内的维度"）。</li>
+    <li>项目筛选器（"全部项目"下拉）只在这批跨项目视图里出现——这是与第三批 ProjectDetail 表格视图唯一的结构性差异（项目内视图项目维度已固定，不需要这个筛选器），mockup 里特意标出来避免复用第三批组件时误加或误删。</li>
+    <li>OrgWorkItems/OrgPlans 点行是<b>只读摘要弹层 + "打开完整详情"跳转按钮</b>，不能就地编辑状态/负责人——这是刻意保留的 PC 端设计（列表本身是只读投影，编辑要进项目内详情页），移动端不要"顺手"加一个编辑按钮。</li>
+    <li>OrgRepos 明确是<b>工作区仓库注册表</b>（增删改仓库元数据 + 只读查看远端 commits/branches），不是 GitHub OAuth 连接流程，也不是"项目引用哪些仓库"（那是第三批 ProjectDetail 的 Repos tab）——两个"仓库"页面职责不同，mockup 标题和文案里都点出这个区分，避免实现时混淆两个概念。</li>
+    <li>OrgTemplates 是纯文本 prompt 模板 CRUD，没有"应用/实例化"动作——跟另一个不相关的 Team Templates（团队组成模板，可导入/导出/实例化）完全是两回事，本批的模板卡片没有"应用"按钮是有意为之，不是漏画。</li>
+    <li>内置模板（builtin）隐藏编辑/删除入口，只保留查看——与自定义模板视觉区分只用一个"内置"灰色徽章，不用禁用态图标制造额外视觉噪音。</li>
+  </ul>
+  <h3 style="margin-top:14px">功能覆盖清单（未逐屏画出，写 spec 时逐项定案）</h3>
+  <ul>
+    <li><b>OrgWorkItems 的完整筛选弹层</b>（状态多选/项目单选/负责人单选/创建-更新时间范围）：入口已标（筛选 chip + 计数），弹层内容留后续，与第三批 WorkItemFilterBar 的"Deferred"结论一致，此处额外多一个项目筛选项要补进弹层。</li>
+    <li><b>OrgWorkItems 跨项目创建</b>（先选项目，再委托给项目内的 Create 弹层）：入口已标（顶栏 + 号），二级"选项目"步骤留后续。</li>
+    <li><b>OrgRepos 的 Add/Edit Repo 表单</b>（label/provider/url/默认分支/凭证，凭证字段留空=保留原值）：入口已标，表单细节留后续。</li>
+    <li><b>OrgRepos 删除仓库的差异化确认文案</b>（有项目引用 vs 无引用时警示不同）：需要在实现阶段体现"有引用"警示，不能所有删除都用同一句文案。</li>
+    <li><b>OrgTemplates 的 Add/Edit 表单</b>（name/description/content 多行文本）：入口已标，表单细节留后续；编辑时要求 content 异步加载完成才能保存（避免覆盖为空），这条约束要写进 spec。</li>
+  </ul>
+</div>
+
+</body>
+</html>

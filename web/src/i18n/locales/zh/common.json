@@ -178,6 +178,9 @@
   },
   "shell": {
     "none": "(无)",
+    "contextPanel": {
+      "mobileSheetLabel": "详情"
+    },
     "search": {
       "label": "搜索",
       "aria": "搜索 (⌘K)"

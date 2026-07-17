@@ -1,0 +1,91 @@
+<h2>移动端全局导航框架 — 定稿 mockup</h2>
+<p class="subtitle">方向 A + 辅助面板统一为底部弹层。4 个状态：默认内容态 / 二级导航抽屉 / Context Panel 抽屉 / Attention 抽屉。</p>
+
+<div class="split" style="grid-template-columns:repeat(4,1fr)">
+
+  <div class="mockup">
+    <div class="mockup-header">① 默认（Projects 列表）</div>
+    <div class="mockup-body" style="display:flex;justify-content:center;padding:10px">
+      <div style="width:200px;border:1px solid #4448;border-radius:16px;overflow:hidden">
+        <div style="height:26px;background:#3336;display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:10px">
+          <span>☰ Workspace</span><span>🔔 ●3&nbsp;&nbsp;👤</span>
+        </div>
+        <div style="height:186px;background:#2221;padding:6px;font-size:10px">
+          <div class="placeholder" style="height:30px;margin-bottom:4px">Project A</div>
+          <div class="placeholder" style="height:30px;margin-bottom:4px">Project B</div>
+          <div class="placeholder" style="height:30px">Project C</div>
+        </div>
+        <div style="height:34px;background:#3336;display:flex">
+          <div style="flex:1;text-align:center;font-size:9px;padding-top:9px;border-top:2px solid #6cf">Work</div>
+          <div style="flex:1;text-align:center;font-size:9px;padding-top:9px">Chat</div>
+          <div style="flex:1;text-align:center;font-size:9px;padding-top:9px">Team</div>
+          <div style="flex:1;text-align:center;font-size:9px;padding-top:9px">Remind</div>
+          <div style="flex:1;text-align:center;font-size:9px;padding-top:9px">Sys</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">② 点 ☰ → 二级导航抽屉</div>
+    <div class="mockup-body" style="display:flex;justify-content:center;padding:10px">
+      <div style="width:200px;border:1px solid #4448;border-radius:16px;overflow:hidden;position:relative">
+        <div style="height:26px;background:#3336;font-size:10px;display:flex;align-items:center;padding:0 8px">☰ Workspace</div>
+        <div style="height:186px;background:#2221;opacity:.3"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:60%;background:#333;border-top-left-radius:12px;border-top-right-radius:12px;padding:8px;font-size:10px">
+          <div style="text-align:center;color:#888;margin-bottom:6px">— 拖拽条 —</div>
+          <div style="padding:6px;background:#6cf4;border-radius:6px;margin-bottom:4px;color:#6cf">Projects</div>
+          <div style="padding:6px">Issues</div>
+          <div style="padding:6px">Tasks</div>
+          <div style="padding:6px">Plan</div>
+        </div>
+        <div style="height:34px;background:#3336"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">③ 详情页 → Context Panel 抽屉</div>
+    <div class="mockup-body" style="display:flex;justify-content:center;padding:10px">
+      <div style="width:200px;border:1px solid #4448;border-radius:16px;overflow:hidden;position:relative">
+        <div style="height:26px;background:#3336;font-size:10px;display:flex;align-items:center;padding:0 8px">‹ Task #142</div>
+        <div style="height:186px;background:#2221;opacity:.3"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:45%;background:#333;border-top-left-radius:12px;border-top-right-radius:12px;padding:8px;font-size:10px">
+          <div style="text-align:center;color:#888;margin-bottom:6px">— 拖拽条 —</div>
+          <div>Assignee: Agent-7</div>
+          <div>Status: In progress</div>
+          <div>Due: today</div>
+        </div>
+        <div style="height:34px;background:#3336"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">④ 点 🔔 → Attention 抽屉</div>
+    <div class="mockup-body" style="display:flex;justify-content:center;padding:10px">
+      <div style="width:200px;border:1px solid #4448;border-radius:16px;overflow:hidden;position:relative">
+        <div style="height:26px;background:#3336;font-size:10px;display:flex;align-items:center;padding:0 8px">☰ Workspace</div>
+        <div style="height:186px;background:#2221;opacity:.3"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:50%;background:#333;border-top-left-radius:12px;border-top-right-radius:12px;padding:8px;font-size:10px">
+          <div style="text-align:center;color:#888;margin-bottom:6px">Needs your attention (3)</div>
+          <div style="padding:5px;border-left:2px solid #f66;margin-bottom:3px">Task #142 stuck</div>
+          <div style="padding:5px;border-left:2px solid #f66">@mention in #general</div>
+        </div>
+        <div style="height:34px;background:#3336"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:16px">
+  <h3>关键规则</h3>
+  <ul>
+    <li>底部 Tab 固定 5 个模块（Work / Chat / Team / Remind / Sys），与 PC col① rail 一一对应，图标+短标签。</li>
+    <li>顶部栏左侧 = 当前模块名 + ☰，点击打开二级导航 BottomSheet（列出该模块子项，如 Projects/Issues/Tasks/Plan）。</li>
+    <li>顶部栏右侧 = 🔔 attention 徽标（未读数）+ 👤 账户入口，行为不变（沿用现有 mobile top bar 语义）。</li>
+    <li>详情类页面（Task/Project/Issue/Plan Detail）顶部栏左侧变为 ‹ 返回，Context Panel 通过页面内的"更多信息"按钮触发 BottomSheet，而非常驻。</li>
+    <li>所有 BottomSheet 支持下拉手势关闭 + 点击遮罩关闭，最大高度不超过 70vh，避免遮住返回路径。</li>
+  </ul>
+</div>
