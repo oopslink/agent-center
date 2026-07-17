@@ -11,9 +11,11 @@ import { useAgent } from '@/api/agents';
 import { useAppStore } from '@/store/app';
 import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
-import { ConversationMobileTabs } from '@/components/ConversationMobileTabs';
+import { ConversationSurfaceMobile } from '@/components/ConversationSurfaceMobile';
+import { ConversationInfoSheet } from '@/components/ConversationInfoPanel';
+import { ContextPanelMobileButton } from '@/components/ContextPanelMobileButton';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
-import { ContextPanel } from '@/shell/contextPanel';
+import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
 import { FollowToggle } from '@/components/FollowToggle';
 import { TypeChip } from '@/components/TypeChip';
 import { Avatar } from '@/components/Avatar';
@@ -51,8 +53,10 @@ function DMDetailInner(): React.ReactElement {
   // avatar/@name is clicked. Provided by the wrapping SenderSidebarProvider.
   const openSender = useSenderSidebar();
   const conv = useConversation(id);
-  // T184: mobile collapses the col③/col④ split into one chat/threads/files tab bar.
+  // Mobile replaces the col③/col④ split with the redesigned segment surface.
   const isMobile = useIsMobile();
+  // The mobile ⓘ opens the sheet that hosts this page's <ContextPanel> content.
+  const trigger = useContextPanelMobileTrigger();
   const [copied, setCopied] = useState(false);
   // v2.7.1 #238 fix: the DM detail GET doesn't enrich peer_display_name (only the
   // list does), so resolve the peer from participants − self for direct loads.
@@ -240,6 +244,10 @@ function DMDetailInner(): React.ReactElement {
           {/* #264 P1 / #176 §4: follow/unfollow this DM. */}
           <FollowToggle conversationId={conv.data.id} followed={conv.data.followed ?? false} />
 
+          {/* Mobile-only ⓘ → the shell's Context Panel bottom sheet (mockup frame ⑤:
+              back + peer + star + ⓘ + ⋯). Same gate as the <ContextPanel> below. */}
+          {isMobile && trigger && <ContextPanelMobileButton onClick={trigger.open} />}
+
           {/* Overflow — a keyboard-accessible details/summary menu. Holds the
               same Follow/Unfollow action (kept visible in the cluster too) plus a
               copy-link affordance. */}
@@ -275,10 +283,23 @@ function DMDetailInner(): React.ReactElement {
       </header>
 
       {/* ── Message + composer zone ─────────────────────────────────────────
-          T184: mobile → one tab bar chat / threads / files (DM has no Participants).
-          Desktop → message stream (col③) + the shared col④ sidebar (Threads/Files). */}
+          Mobile → the redesigned surface: Chat / Threads / Files segment pills
+          (a DM is a fixed 1:1 → no People segment, no Members preview in the ⓘ
+          sheet). Desktop → message stream (col③) + the shared col④ sidebar. */}
       {isMobile ? (
-        <ConversationMobileTabs surface="dm" conversationId={conv.data.id} showParticipants={false} />
+        <>
+          <ConversationSurfaceMobile surface="dm" conversationId={conv.data.id} showParticipants={false} />
+          <ContextPanel>
+            <ConversationInfoSheet
+              conversationId={conv.data.id}
+              title={heading}
+              description={
+                isAgentAgentDM ? t('dms.detail.agentToAgentSubtitle') : t('dms.directMessage')
+              }
+              showMembers={false}
+            />
+          </ContextPanel>
+        </>
       ) : (
         <>
           {/* #264 P1: message body + read-cursor + SSE live updates flow through

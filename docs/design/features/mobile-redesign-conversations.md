@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed |
+| Status | Implemented（批次二，2026-07-17）——详情页部分见 §8 实现记录 |
 | Date | 2026-07-12 |
 | Scope | Conversations 模块的 5 个视图：Unread / Channels / DMs（列表）+ ChannelDetail / DMDetail（详情），及其挂载的 Thread 详情、长按消息操作条 |
 | Depends on | [mobile-redesign-nav-framework.md](mobile-redesign-nav-framework.md)（底部 Tab + 二级导航抽屉 + Context Panel/Attention 底部弹层） |
@@ -101,5 +101,35 @@
 
 ## 7. 未来扩展
 
-- Maximize/restore 切换是否保留，需要在进入实现阶段前明确决策（见 §4）。
+- ~~Maximize/restore 切换是否保留，需要在进入实现阶段前明确决策（见 §4）。~~ 已决策，见 §8.1。
 - 三处头像堆叠实现（ChannelDetail 头部 / Participants 面板 / Channels 列表行）目前 PC 端是三套独立实现，移动端重新设计时建议收敛成一个共享组件，避免三次重复维护成本——这是实现阶段的重构建议，不影响本文档的视觉/交互设计。
+
+## 8. 实现记录（批次二）
+
+列表页（Unread / Channels / DMs）的分段控件、筛选 chip、归档折叠分组、DMs 三类 subtabs 在本批之前已由 T129 / T343 / v2.9.1 落地，本批不重做。本批的实际交付是**详情页**：用新的
+`ConversationSurfaceMobile` + `ConversationInfoPanel` 替换掉重做时代的 `ConversationMobileTabs`（后者连同其专属的 `useConversationMaximize` 一起删除，生产调用者为零）。
+
+生产调用者：`pages/ChannelDetail.tsx`（`/channels/:channelId`）、`pages/DMDetail.tsx`（`/dms/:id`）、
+`components/WorkItemConversation.tsx`（issue/task/plan 的内嵌聊天，遵循 workspace-core §5 的复用要求）。
+
+### 8.1 决策：移动端 Maximize 切换 —— **丢弃**
+
+§4 与 §7 要求实现阶段对 Maximize/restore 显式定案（"不默默保留也不默默丢弃"）。**决策：丢弃**。
+旧的移动端 maximize 只是因为当时聊天框嵌在一个长滚动详情页里、需要"逃出去"才存在；在批次一的导航框架下详情页本身就是全屏surface，maximize 等于把全屏提升为全屏，没有语义。
+
+注意：`WorkItemConversation` **桌面端**横幅上的 maximize 保留 —— 那个场景聊天框确实嵌在长页面里，与本决策无关。
+
+### 8.2 §3.5 与 §5 的重叠：按 mockup 解读为两种信息密度
+
+§3.5（Chat/Threads/Files/People 子分段）与 §5（ⓘ → 频道描述/成员/文件）在文字上读起来重叠。mockup 帧 ④ 与 ⑦ 给出了解读：两者是**同一批信息的两种密度**，不是重复实现——
+
+- **子分段** = 完整可交互面板（`ParticipantsPanel` / `ConversationThreadList` / `SharedFilesPanel`）。
+- **ⓘ 底部弹层** = 只读身份卡：标题 + 描述 + 成员预览 + 文件预览（各截断 5 条 + "+N"）。
+
+ⓘ 按钮本身**复用** `ContextPanelMobileButton`（bd895284 为 Issue/Task/PlanDetail 加的共享入口），不另造一个。那个 commit 明确把 Channel/DM 排除在外，理由是"两者在移动端渲染 `ConversationMobileTabs` 而非 `<ContextPanel>`，加 ⓘ 只会打开一个空弹层"——本批补上的正是缺的那块（弹层内容），所以同一个按钮现在在 Channel/DM 上也成立。
+
+顺带修掉一个 bd895284 带进 main 的缺陷：`ContextPanelMobileButton` 读 `shell.contextPanel.openMobileSheet`，但该 key 在 en/zh 都不存在（defaultNS=common），i18next 回退成把 key 原样当文案，ⓘ 的 aria-label 实际是字面量 `shell.contextPanel.openMobileSheet`。原测试只用 test-id 查询，漏掉了。已补 key + 一个断言真实文案的回归测试。
+
+### 8.3 仍然 Deferred（本批未动，与 §4 一致）
+
+Participants 面板的 owner 门禁细节、系统消息折叠态、SSE/已读游标（无独立视觉，行为不变）。

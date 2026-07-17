@@ -179,7 +179,8 @@
   "shell": {
     "none": "(无)",
     "contextPanel": {
-      "mobileSheetLabel": "详情"
+      "mobileSheetLabel": "详情",
+      "openMobileSheet": "显示详情"
     },
     "search": {
       "label": "搜索",

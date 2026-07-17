@@ -135,7 +135,11 @@
     "threadsLoadError": "Couldn't load threads.",
     "noThreads": "No threads yet.",
     "deletedSender": "(deleted)",
-    "panelLabel": "Conversation panel"
+    "panelLabel": "Conversation panel",
+    "infoMembers": "Members ({{count}})",
+    "infoFiles": "Files ({{count}})",
+    "infoNoMembers": "No members yet.",
+    "infoMore": "+{{count}} more"
   },
   "composer": {
     "uploadFailed": "upload failed",

@@ -179,7 +179,8 @@
   "shell": {
     "none": "(none)",
     "contextPanel": {
-      "mobileSheetLabel": "Details"
+      "mobileSheetLabel": "Details",
+      "openMobileSheet": "Show details"
     },
     "search": {
       "label": "Search",

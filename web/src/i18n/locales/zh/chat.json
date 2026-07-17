@@ -135,7 +135,11 @@
     "threadsLoadError": "无法加载专题。",
     "noThreads": "暂无专题。",
     "deletedSender": "(已删除)",
-    "panelLabel": "会话面板"
+    "panelLabel": "会话面板",
+    "infoMembers": "成员（{{count}}）",
+    "infoFiles": "文件（{{count}}）",
+    "infoNoMembers": "暂无成员。",
+    "infoMore": "还有 {{count}} 项"
   },
   "composer": {
     "uploadFailed": "上传失败",

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationView } from './ConversationView';
-import { ConversationMobileTabs } from './ConversationMobileTabs';
+import { ConversationSurfaceMobile } from './ConversationSurfaceMobile';
 import { EmbeddedConversationSidebar, EmbeddedSidebarToggle } from './ConversationSidebar';
 import { SenderSidebarProvider } from './SenderSidebarContext';
 import { FollowToggle } from './FollowToggle';
@@ -84,9 +84,11 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
       data-maximized={maximized ? 'true' : 'false'}
     >
       {/* Desktop: full banner with ownerCode + linked title + controls. On
-          mobile the chat renders through <ConversationMobileTabs> below, which
-          carries its own dropdown switcher (chat/threads/files) + maximize
-          toggle — so the legacy mobile floating maximize button is gone. */}
+          mobile the chat renders through <ConversationSurfaceMobile> below,
+          which carries its own segment-pill switcher (chat/threads/files/people).
+          This desktop banner keeps its own maximize toggle — that one is
+          unrelated to the dropped MOBILE maximize (the work-item chat really is
+          embedded in a long desktop page). */}
       <div
         className="hidden items-center gap-2 rounded-t border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary md:flex"
         data-testid="conversation-owner-banner"
@@ -134,11 +136,16 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
           {t('panels.workItem.empty')}
         </p>
       ) : isMobile ? (
-        // Mobile: the same dropdown switcher (chat / threads / files) + maximize
-        // used by DM/channel — so task/issue chat gains threads/files access on
-        // small screens (owner: "task/issue/plan 的 chat 也加上"). Maximize lives
-        // inside the tabs container (its own fixed-inset overlay).
-        <ConversationMobileTabs surface={surface} conversationId={conv.data.id} />
+        // Mobile: the same redesigned segment-pill surface (chat / threads /
+        // files / people) used by DM/channel — so task/issue chat gains
+        // threads/files access on small screens (owner: "task/issue/plan 的 chat
+        // 也加上"). mobile-redesign-workspace-core.md §5 mandates this reuse
+        // rather than a second design.
+        <ConversationSurfaceMobile
+          surface={surface}
+          conversationId={conv.data.id}
+          participants={conv.data.participants ?? []}
+        />
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden md:rounded-b md:border md:border-t-0 md:border-border-base">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">

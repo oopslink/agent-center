@@ -1,26 +1,46 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
 import { useAppStore } from '@/store/app';
+import { useContextPanelController } from '@/shell/contextPanel';
+import { BottomSheet } from '@/shell/BottomSheet';
 import DMDetail from './DMDetail';
 
 beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
 });
 
-function wrap(path: string) {
+// The MOBILE shell: mirrors AppLayout — the col④ host lives inside the Context
+// Panel BottomSheet, which only renders while `mobileSheetOpen`, so the info
+// card is genuinely absent until the page's ⓘ opens it.
+function WithMobileSheetHost({ children }: { children: React.ReactNode }): React.ReactElement {
+  const { Provider, value, setHost, mobileSheetOpen, closeMobileSheet } = useContextPanelController();
+  return (
+    <Provider value={value}>
+      {children}
+      <BottomSheet open={mobileSheetOpen} onClose={closeMobileSheet} ariaLabel="context" testId="context-sheet">
+        <div ref={setHost} />
+      </BottomSheet>
+    </Provider>
+  );
+}
+
+function wrap(path: string, { mobile = false }: { mobile?: boolean } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const tree = (
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/dms/:id" element={<DMDetail />} />
+      </Routes>
+    </MemoryRouter>
+  );
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/dms/:id" element={<DMDetail />} />
-        </Routes>
-      </MemoryRouter>
+      {mobile ? <WithMobileSheetHost>{tree}</WithMobileSheetHost> : tree}
     </QueryClientProvider>,
   );
 }
@@ -454,5 +474,71 @@ describe('DMDetail page', () => {
     );
     wrap('/dms/C-SOLO');
     await waitFor(() => expect(screen.getByTestId('dm-heading')).toHaveTextContent('Direct message'));
+  });
+
+  // ── Mobile (<768px), mobile-redesign-conversations.md §3.5 / mockup frame ⑤.
+  // Asserts the /dms/:id ROUTE really wires the redesigned components.
+  describe('mobile', () => {
+    function stubMobile() {
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: true, media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {},
+        addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+      }));
+    }
+    function mockDM() {
+      server.use(
+        http.get('/api/conversations/:id', () =>
+          HttpResponse.json({
+            id: 'C-DM',
+            kind: 'dm',
+            name: '',
+            status: 'active',
+            peer_identity_id: 'agent:bot-1',
+            peer_display_name: 'Bot One',
+          }),
+        ),
+        http.get('/api/conversations/:id/messages', () => HttpResponse.json([])),
+        http.get('/api/conversations/:id/threads', () => HttpResponse.json([])),
+      );
+    }
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('renders Chat/Threads/Files segments with NO People segment (a DM is a fixed 1:1)', async () => {
+      stubMobile();
+      mockDM();
+      wrap('/dms/C-DM', { mobile: true });
+      await screen.findByTestId('conversation-surface-mobile');
+      expect(screen.getByTestId('conversation-mseg-chat')).toBeInTheDocument();
+      expect(screen.getByTestId('conversation-mseg-threads')).toBeInTheDocument();
+      expect(screen.getByTestId('conversation-mseg-files')).toBeInTheDocument();
+      expect(screen.queryByTestId('conversation-mseg-people')).not.toBeInTheDocument();
+      // The pre-redesign dropdown + maximize are gone from the real page.
+      expect(screen.queryByTestId('conversation-mtab-select')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('conversation-maximize-toggle-mobile')).not.toBeInTheDocument();
+    });
+
+    it('ⓘ opens the Context Panel sheet with the DM info card (no Members section)', async () => {
+      stubMobile();
+      mockDM();
+      wrap('/dms/C-DM', { mobile: true });
+      const info = await screen.findByTestId('context-panel-mobile-open');
+      expect(screen.queryByTestId('conversation-info-sheet')).not.toBeInTheDocument();
+      fireEvent.click(info);
+      const sheet = await screen.findByTestId('conversation-info-sheet');
+      expect(within(sheet).getByTestId('conversation-info-title')).toHaveTextContent('@Bot One');
+      expect(within(sheet).queryByTestId('conversation-info-members')).not.toBeInTheDocument();
+      expect(within(sheet).getByTestId('conversation-info-files')).toBeInTheDocument();
+    });
+
+    it('keeps the star (follow) and ⋯ overflow alongside ⓘ (mockup frame ⑤ header)', async () => {
+      stubMobile();
+      mockDM();
+      wrap('/dms/C-DM', { mobile: true });
+      await screen.findByTestId('context-panel-mobile-open');
+      expect(screen.getByTestId('dm-back')).toBeInTheDocument();
+      expect(screen.getByTestId('follow-toggle')).toBeInTheDocument();
+      expect(screen.getByTestId('dm-overflow')).toBeInTheDocument();
+    });
   });
 });
