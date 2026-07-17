@@ -35,9 +35,7 @@ func TestSpawnExecutor_DispatchModeAbsent_StillForks(t *testing.T) {
 	}}
 	rt, _, home := spawn(t, "agent-nodm", "task-nodm", sc)
 
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[0] != "get_task" || seen[1] != "start_task" {
-		t.Fatalf("tool calls = %v — a task with no dispatch_mode must fork (want [get_task start_task])", seen)
-	}
+	assertAdmissionForked(t, sc, "a task with no dispatch_mode must fork")
 	if probs := loadRouting(t, home); len(probs) != 1 {
 		t.Fatalf("absent dispatch_mode must FORK (default unchanged): problems=%+v", probs)
 	}

@@ -253,9 +253,7 @@ func TestSpawnExecutor_AdmitsThenForks(t *testing.T) {
 	}}
 	rt, _, home := spawn(t, "agent-fork", "task-9", sc)
 
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[0] != "get_task" || seen[1] != "start_task" {
-		t.Fatalf("tool call order = %v, want [get_task start_task]", seen)
-	}
+	assertAdmissionForked(t, sc, "admission must run get_task→start_task before forking")
 	if body, ok := sc.callFor("start_task"); !ok || body["task_id"] != "task-9" || body["agent_id"] != "agent-fork" {
 		t.Errorf("start_task body = %v", body)
 	}
@@ -338,9 +336,7 @@ func TestSpawnExecutor_OwnAssignee_ForksNormally(t *testing.T) {
 	}}
 	rt, _, home := spawn(t, "agent-self", "task-own", sc)
 
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[0] != "get_task" || seen[1] != "start_task" {
-		t.Fatalf("tool calls = %v — an own-assignee task must fork normally (want [get_task start_task])", seen)
-	}
+	assertAdmissionForked(t, sc, "an own-assignee task must fork normally (② guard must NOT false-positive)")
 	if probs := loadRouting(t, home); len(probs) != 1 {
 		t.Fatalf("own-assignee task must fork (② guard must NOT false-positive): problems=%+v", probs)
 	}

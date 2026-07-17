@@ -45,9 +45,7 @@ func TestAttachExecutorEngine_ForksExecutor(t *testing.T) {
 		t.Fatalf("SpawnExecutor: %v", err)
 	}
 	// A real fork happened: get_task→start_task ran and a problem is bound to the task.
-	if seen := sc.toolsSeen(); len(seen) != 2 || seen[0] != "get_task" || seen[1] != "start_task" {
-		t.Fatalf("expected get_task→start_task (a real fork), got %v", seen)
-	}
+	assertAdmissionForked(t, sc, "an attached engine must really fork")
 	home := agentHomeOf(t, base, agentID)
 	if probs := loadRouting(t, home); len(probs) != 1 {
 		t.Fatalf("an attached engine must fork one executor problem, got %d", len(probs))
