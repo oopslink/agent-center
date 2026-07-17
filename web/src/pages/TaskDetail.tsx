@@ -15,7 +15,8 @@ import { TaskEditModal } from '@/components/TaskEditModal';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
-import { ContextPanel } from '@/shell/contextPanel';
+import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
+import { ContextPanelMobileButton } from '@/components/ContextPanelMobileButton';
 import { TaskDetailSidebar } from '@/components/TaskDetailSidebar';
 import { SenderSidebarProvider } from '@/components/SenderSidebarContext';
 import { TaskAttachments } from '@/components/AttachmentsSection';
@@ -57,6 +58,9 @@ export default function TaskDetail(): React.ReactElement {
   // T145: on mobile the title is the big <h2>; drop it from the breadcrumb leaf
   // (show just the org_ref / "Task") so the title isn't rendered twice.
   const isMobile = useIsMobile();
+  // T324 follow-up: the col④ panel we mount for mobile (below) lands in a sheet
+  // that starts closed — this opens it from the ⓘ in the title row.
+  const ctxTrigger = useContextPanelMobileTrigger();
 
   if (task.isLoading) {
     return (
@@ -148,6 +152,12 @@ export default function TaskDetail(): React.ReactElement {
                     editable={!isTerminal}
                     onEdit={() => setEditOpen(true)}
                   />
+                  {/* Opens the col④ sheet below (Participants/Threads/Files).
+                      Same gate as the <ContextPanel> so the button exists only
+                      when there is something to show. */}
+                  {conv.data && ctxTrigger && (
+                    <ContextPanelMobileButton onClick={ctxTrigger.open} />
+                  )}
                 </span>
               )}
             </div>

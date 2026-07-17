@@ -10,7 +10,8 @@ import { CollapsibleDescription } from '@/components/CollapsibleDescription';
 import { WorkItemConversation } from '@/components/WorkItemConversation';
 import { useConversationByOwnerRef } from '@/api/conversations';
 import { ConversationSidebar } from '@/components/ConversationSidebar';
-import { ContextPanel } from '@/shell/contextPanel';
+import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
+import { ContextPanelMobileButton } from '@/components/ContextPanelMobileButton';
 import { IssueDetailSidebar, DerivedTasksBlock, IssueRelatedPlansBlock } from '@/components/IssueDetailSidebar';
 import { IssueAttachments } from '@/components/AttachmentsSection';
 import { Skeleton } from '@/components/Skeleton';
@@ -44,6 +45,9 @@ export default function IssueDetail(): React.ReactElement {
   const [showInfo, setShowInfo] = useState(false);
   // T145: drop the title from the breadcrumb leaf on mobile (the <h2> shows it).
   const isMobile = useIsMobile();
+  // T324 follow-up: the col④ panel we mount for mobile (below) lands in a sheet
+  // that starts closed — this opens it from the ⓘ in the title row.
+  const ctxTrigger = useContextPanelMobileTrigger();
 
   if (issue.isLoading) {
     return (
@@ -112,6 +116,12 @@ export default function IssueDetail(): React.ReactElement {
                     editable={!isTerminal}
                     onEdit={() => setEditOpen(true)}
                   />
+                  {/* Opens the col④ sheet below (Participants/Threads/Files).
+                      Same gate as the <ContextPanel> so the button exists only
+                      when there is something to show. */}
+                  {conv.data && ctxTrigger && (
+                    <ContextPanelMobileButton onClick={ctxTrigger.open} />
+                  )}
                 </span>
               )}
             </div>

@@ -49,7 +49,8 @@ import { StatusChip, refLabel, fullDateTime } from '@/components/workItemDisplay
 import { PlanStatusChip, PlanFailedIndicator, AutoAdvancingIndicator, TaskArchivedBadge, planProgressLabel, PlanRefTag } from '@/components/planDisplay';
 import { ConversationView } from '@/components/ConversationView';
 import { ConversationSidebar, EmbeddedConversationSidebar, EmbeddedSidebarToggle } from '@/components/ConversationSidebar';
-import { ContextPanel } from '@/shell/contextPanel';
+import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
+import { ContextPanelMobileButton } from '@/components/ContextPanelMobileButton';
 import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSidebarContext';
 import { SenderDetailSidebar } from '@/components/SenderDetailSidebar';
 import type { Participant } from '@/api/types';
@@ -95,6 +96,9 @@ export default function PlanDetail(): React.ReactElement {
   // T324: desktop embeds the conversation sidebar inside the chat tab; mobile
   // keeps it in the col④ bottom sheet (mounted below for mobile only).
   const isMobile = useIsMobile();
+  // T324 follow-up: the col④ panel we mount for mobile (below) lands in a sheet
+  // that starts closed — this opens it from the ⓘ in the header row.
+  const ctxTrigger = useContextPanelMobileTrigger();
   const [tab, setTab] = useState<Tab>('chat');
   // T347: chat maximize state lives here so the toggle can sit on the tab row.
   const [chatMaximized, setChatMaximized] = useState(false);
@@ -166,7 +170,15 @@ export default function PlanDetail(): React.ReactElement {
         {/* Two-pane (双栏方案 B): MOBILE keeps the full single-row header above one
             column; DESKTOP splits into [left: slim title + tabs + content] | [right:
             PlanInfoRail with status/goal/progress/up-next/participants/files]. */}
-        {isMobile && <PlanDetailHeader projectId={id} plan={p} />}
+        {isMobile && (
+          <PlanDetailHeader
+            projectId={id}
+            plan={p}
+            // Same gate as the <ContextPanel> below, so the ⓘ appears only when
+            // the sheet actually has the conversation sidebar to show.
+            onOpenContext={planConv.data && ctxTrigger ? ctxTrigger.open : undefined}
+          />
+        )}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && <PlanTitleBar plan={p} />}
@@ -333,7 +345,16 @@ export default function PlanDetail(): React.ReactElement {
 }
 
 // ── Header ────────────────────────────────────────────────────────────────
-function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }): React.ReactElement {
+function PlanDetailHeader({
+  projectId,
+  plan,
+  onOpenContext,
+}: {
+  projectId: string;
+  plan: Plan;
+  /** Opens the mobile col④ sheet. Undefined when there is no panel to open. */
+  onOpenContext?: () => void;
+}): React.ReactElement {
   const { t } = useTranslation('work');
   const resolveName = useDisplayNameResolver();
   const start = useStartPlan(projectId, plan.id);
@@ -373,6 +394,7 @@ function PlanDetailHeader({ projectId, plan }: { projectId: string; plan: Plan }
             <PlanFailedIndicator hasFailed={plan.has_failed} />
             <span data-testid="plan-progress">{planProgressLabel(plan.progress)}</span>
             <span title={plan.creator_ref}>@{creatorLabel}</span>
+            {onOpenContext && <ContextPanelMobileButton onClick={onOpenContext} />}
             <span className="relative">
               <button
                 type="button"
